@@ -214,9 +214,30 @@ var
     /// between the capture list and the body that reads it.
     Boxed        : List;
 
-    /// While emitting a nested function: the enclosing function's boxed names,
-    /// mapped to their index in the closure's cell array.
+    /// The boxed names whose cell has been emitted and is still in scope, in
+    /// declaration order.
+    ///
+    /// ⚠️ Not the same thing as Boxed, and a closure's capture list is built
+    /// from THIS.  Boxed is decided for the whole body before a line is
+    /// written, so it holds names declared later, or in a sibling block -- and
+    /// a capture list built from it named a cell that does not exist yet, which
+    /// does not compile.  A function declared above a 'var' of its own body was
+    /// enough to hit it.
+    Cells        : List;
+
+    /// While emitting a nested function: the enclosing function's cells that
+    /// were in scope where it was declared, mapped to their index in the
+    /// closure's cell array.
     Captured     : Map;
+
+    /// Every name bound at a file's top level, in any unit.  Each is a
+    /// file-scope C global, so a body may read one without it being a local of
+    /// that body.
+    ///
+    /// ⚠️ Collected up front rather than as they are emitted: a function
+    /// declared above a top-level 'var' still reads it, so a set filled in
+    /// emission order would say the name is unreachable when it is not.
+    Globals      : Set;
 
     /// True while emitting a nested function, so a further level can be refused
     /// rather than silently losing a capture.
@@ -271,7 +292,9 @@ begin
         this.VisibleMethods := Set();
         this.Renames := Map();
         this.Boxed := List();
+        this.Cells := List();
         this.Captured := Map();
+        this.Globals := Set();
         this.Tests := List();
         this.TestFiles := List();
         this.TestSymbols := List();
@@ -510,6 +533,24 @@ begin
         end
     end
 
+    /// The names a file binds at its top level.  Deliberately shallow: it does
+    /// not descend into a body or into the program's 'begin ... end', because
+    /// what those bind are locals of a C function rather than file-scope values.
+    ///
+    procedure CollectGlobals (Statements : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is VarStmt then Globals.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    Globals.Add (Str (TheStmt.Names[J].Lexeme));
+        end
+    end
+
     /// Emits a whole program.
     ///
     /// The file being compiled, so the test report names it as the
@@ -560,6 +601,9 @@ begin
         // function rather than an unimplemented builtin.
         for var U := 0; U < Units.Length; U := U + 1 do
             CollectFunctions (Units[U].Statements);
+
+        for var U := 0; U < Units.Length; U := U + 1 do
+            CollectGlobals (Units[U].Statements);
 
         for var U := 0; U < Units.Length; U := U + 1 do
         begin
@@ -628,10 +672,15 @@ begin
                 else
                 begin
                     Volatiles := ContainsTry (MainStatements);
+                    Boxed := BoxesFor (MainStatements);
+                    Cells := List();
+                    HoistCells (MainStatements);
 
                     for var I := 0; I < MainStatements.Length; I := I + 1 do
                         Execute (MainStatements[I]);
 
+                    Boxed := List();
+                    Cells := List();
                     Volatiles := False;
                 end
 
@@ -848,6 +897,9 @@ begin
         var EnclosingTop := AtTopLevel;
         var EnclosingVolatiles := Volatiles;
         var EnclosingDepth := Depth;
+        var EnclosingBoxed := Boxed;
+        var EnclosingCaptured := Captured;
+        var EnclosingCells := Cells;
 
         Target := 'body';
         Body := '';
@@ -855,7 +907,18 @@ begin
 
         AtTopLevel := False;
         Volatiles := ContainsTry (TheStmt.Body);
+        Boxed := BoxesFor (TheStmt.Body);
+        Captured := Map();
+        Cells := List();
         Locals := Set();
+
+        var EnclosingTryDepth := TryDepth;
+        var EnclosingLoopTry := LoopTryDepth;
+
+        TryDepth := 0;
+        LoopTryDepth := 0;
+
+        HoistCells (TheStmt.Body);
 
         for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
             Execute (TheStmt.Body[I]);
@@ -868,6 +931,11 @@ begin
         AtTopLevel := EnclosingTop;
         Volatiles := EnclosingVolatiles;
         Depth := EnclosingDepth;
+        Boxed := EnclosingBoxed;
+        Captured := EnclosingCaptured;
+        Cells := EnclosingCells;
+        TryDepth := EnclosingTryDepth;
+        LoopTryDepth := EnclosingLoopTry;
 
         Declarations := Declarations + 'Value ' + Symbol
                      + '(Value **cells, Value *args, int32_t count);' + #10;
@@ -899,6 +967,15 @@ begin
 
                 if TheStmt.ElseBranch <> Nil and DeclaresNested ([TheStmt.ElseBranch]) then
                     Exit True;
+            end
+
+            if TheStmt is TryStmt then
+            begin
+                if DeclaresNested ([TheStmt.TryBlock]) then Exit True;
+
+                var Handlers := TheStmt.Handlers.Values();
+                for var J := 0; J < Handlers.Length; J := J + 1 do
+                    if DeclaresNested ([Handlers[J].Body]) then Exit True;
             end
         end
 
@@ -947,6 +1024,22 @@ begin
                 if TheStmt.ElseBranch <> Nil then
                     CollectBindings ([TheStmt.ElseBranch], Names);
             end
+
+            // ⚠️ A try binds like any other block, and its handler binds the
+            // raised value.  Missing them here left a function declared inside
+            // a try reading its captures as plain locals -- the ForIn bug
+            // again, one node over.
+            if TheStmt is TryStmt then
+            begin
+                CollectBindings ([TheStmt.TryBlock], Names);
+
+                var Handlers := TheStmt.Handlers.Values();
+                for var J := 0; J < Handlers.Length; J := J + 1 do
+                begin
+                    AddOnce (Names, Str (Handlers[J].Name));
+                    CollectBindings ([Handlers[J].Body], Names);
+                end
+            end
         end
     end
 
@@ -963,6 +1056,26 @@ begin
             AddOnce (Names, Str (TheStmt.Params[I].Lexeme));
 
         CollectBindings (TheStmt.Body, Names);
+        Exit Names;
+    end
+
+    /// What a body must box before it is emitted: everything it binds, if it
+    /// declares a function of its own, and nothing otherwise.
+    ///
+    /// ⚠️ Every body that can hold a declaration has to do this, not just the
+    /// one in VisitFunctionStmt.  The program's 'begin ... end' and a 'test'
+    /// block are C function bodies too, and while they did not, a function
+    /// declared in either read its captures as plain locals of another C
+    /// function -- 'v_K' for a variable of main, which does not compile.
+    ///
+    function BoxesFor (Body : List) : List;
+    var
+        Names : List;
+
+    begin
+        Names := List();
+        if DeclaresNested (Body) then CollectBindings (Body, Names);
+
         Exit Names;
     end
 
@@ -1057,22 +1170,100 @@ begin
         Exit 'Value ';
     end
 
+    /// A C scope opens and closes: every cell declared inside one goes out of
+    /// scope with it, and may not appear in a capture list written afterwards.
+    ///
+    function OpenScope () : Integer;
+    begin
+        Exit Cells.Length;
+    end
+
+    procedure CloseScope (Mark : Integer);
+    begin
+        while Cells.Length > Mark do Cells.RemoveAt (Cells.Length - 1);
+    end
+
+    /// Declares a cell for a boxed binding, and records that it is in scope.
+    ///
+    procedure DeclareCell (Name : String, Initial : String);
+    var
+        Qualifier : String;
+
+    begin
+        Qualifier := '';
+        if Volatiles then Qualifier := 'volatile ';
+
+        Line ('Value *' + Qualifier + Cell (Name) + ' = alg_cell(' + Initial + ');');
+        Line ('(void)' + Cell (Name) + ';');
+
+        Cells.Add (Name);
+    end
+
+    /// Opens a body by declaring a cell for every boxed name the statement list
+    /// binds DIRECTLY, empty, before any of it runs.
+    ///
+    /// ⚠️ This is what lets a nested function capture a variable declared after
+    /// it -- which the interpreter allows, because a closure keeps the
+    /// environment and the binding lands in it before the call.  Compiled, the
+    /// closure is built where the declaration stands, so the cell has to exist
+    /// by then; the 'var' becomes a write through it.
+    ///
+    /// ⚠️ Per block, NOT per function, and that is the whole of per-iteration
+    /// capture: a loop body is one statement list entered afresh each pass, so
+    /// its cells are new each pass.  Hoisting them to the top of the function
+    /// instead would make every iteration share one cell, and three closures
+    /// made in a loop would all read the last value.
+    ///
+    procedure HoistCells (Statements : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is VarStmt and Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
+            begin
+                Locals.Add (Str (TheStmt.Name.Lexeme));
+                DeclareCell (Str (TheStmt.Name.Lexeme), 'alg_nil()');
+            end
+
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    if Boxed.Contains (Str (TheStmt.Names[J].Lexeme)) then
+                    begin
+                        Locals.Add (Str (TheStmt.Names[J].Lexeme));
+                        DeclareCell (Str (TheStmt.Names[J].Lexeme), 'alg_nil()');
+                    end
+        end
+    end
+
     /// The handler's variable is bound in a scope of its own, so two handlers
     /// may use the same name.
     ///
     procedure EmitHandlerBody (Handler : Any, Frame : String);
     begin
+        var Mark := OpenScope ();
+
         Line ('{');
         Depth := Depth + 1;
 
         Locals.Add (Str (Handler.Name));
-        Line (Local () + VariableName (Str (Handler.Name)) + ' = ' + Frame + '.raised;');
-        Line ('(void)' + VariableName (Str (Handler.Name)) + ';');
+
+        // The handler's variable is a binding like any other: a nested function
+        // declared in the handler may capture it, so it is boxed when one does.
+        if Boxed.Contains (Str (Handler.Name)) then
+            DeclareCell (Str (Handler.Name), Frame + '.raised');
+        else
+        begin
+            Line (Local () + VariableName (Str (Handler.Name)) + ' = ' + Frame + '.raised;');
+            Line ('(void)' + VariableName (Str (Handler.Name)) + ';');
+        end
 
         Execute (Handler.Body);
 
         Depth := Depth - 1;
         Line ('}');
+
+        CloseScope (Mark);
     end
 
     /// The declared type of each parameter, 'Any' where none was written.
@@ -1177,6 +1368,23 @@ begin
         var EnclosingVolatiles := Volatiles;
         Volatiles := ContainsTry (TheMethod.Body);
 
+        // A method body is a C function of its own.  It boxes nothing -- a
+        // function declared inside one is refused -- but it must not inherit
+        // the boxes of whatever body encloses the class declaration either.
+        var EnclosingBoxed := Boxed;
+        var EnclosingCaptured := Captured;
+        var EnclosingCells := Cells;
+
+        Boxed := List();
+        Captured := Map();
+        Cells := List();
+
+        var EnclosingTryDepth := TryDepth;
+        var EnclosingLoopTry := LoopTryDepth;
+
+        TryDepth := 0;
+        LoopTryDepth := 0;
+
         for var I := 0; I < TheMethod.Params.Length; I := I + 1 do
         begin
             var Name := Str (TheMethod.Params[I].Lexeme);
@@ -1207,6 +1415,11 @@ begin
         AtTopLevel := EnclosingTop;
         Locals := EnclosingLocals;
         Volatiles := EnclosingVolatiles;
+        Boxed := EnclosingBoxed;
+        Captured := EnclosingCaptured;
+        Cells := EnclosingCells;
+        TryDepth := EnclosingTryDepth;
+        LoopTryDepth := EnclosingLoopTry;
     end
 
     /// A class becomes a file-scope handle, a C function per method, a function
@@ -1366,13 +1579,9 @@ begin
         end
         else if Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
         begin
+            // The cell was declared when the block opened -- see HoistCells.
             Locals.Add (Str (TheStmt.Name.Lexeme));
-
-            var Qualifier := 'Value *';
-            if Volatiles then Qualifier := 'Value *volatile ';
-
-            Line (Qualifier + Cell (Str (TheStmt.Name.Lexeme)) + ' = alg_cell(' + Value + ');');
-            Line ('(void)' + Cell (Str (TheStmt.Name.Lexeme)) + ';');
+            Line ('*' + Cell (Str (TheStmt.Name.Lexeme)) + ' = ' + Value + ';');
         end
         else
         begin
@@ -1390,22 +1599,30 @@ begin
 
     procedure VisitBlockStmt (TheStmt : BlockStmt);
     begin
+        var Mark := OpenScope ();
+
         Line ('{');
         Depth := Depth + 1;
+        HoistCells (TheStmt.Statements);
 
         for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
             Execute (TheStmt.Statements[I]);
 
         Depth := Depth - 1;
         Line ('}');
+
+        CloseScope (Mark);
     end
 
     procedure VisitIfStmt (TheStmt : IfStmt);
     begin
+        var Mark := OpenScope ();
+
         Line ('if (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
         Depth := Depth + 1;
         Execute (TheStmt.ThenBranch);
         Depth := Depth - 1;
+        CloseScope (Mark);
 
         if TheStmt.ElseBranch <> Nil then
         begin
@@ -1413,6 +1630,7 @@ begin
             Depth := Depth + 1;
             Execute (TheStmt.ElseBranch);
             Depth := Depth - 1;
+            CloseScope (Mark);
         end
 
         Line ('}');
@@ -1420,6 +1638,8 @@ begin
 
     procedure VisitWhileStmt (TheStmt : WhileStmt);
     begin
+        var Mark := OpenScope ();
+
         Line ('while (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
         Depth := Depth + 1;
 
@@ -1430,6 +1650,8 @@ begin
 
         Depth := Depth - 1;
         Line ('}');
+
+        CloseScope (Mark);
     end
 
     procedure VisitPrintStmt (TheStmt : PrintStmt);
@@ -1501,25 +1723,40 @@ begin
 
         var EnclosingBoxed := Boxed;
         var EnclosingCaptured := Captured;
+        var EnclosingCells := Cells;
         var EnclosingNested := InsideNested;
 
         Locals := Set();
 
         if Nested then
         begin
-            // The enclosing function's boxed names become this one's cells, in
-            // the order they were boxed so the indices line up.
+            // The cells in scope HERE become this one's, in the order they are
+            // passed so the indices line up.
             var Index := Map();
-            for var I := 0; I < EnclosingBoxed.Length; I := I + 1 do
-                Index.Put (Str (EnclosingBoxed[I]), I);
+            for var I := 0; I < EnclosingCells.Length; I := I + 1 do
+                Index.Put (Str (EnclosingCells[I]), I);
 
             Captured := Index;
             InsideNested := True;
         end
         else Captured := Map();
 
+        Cells := List();
+
         var EnclosingVolatiles := Volatiles;
         Volatiles := ContainsTry (TheStmt.Body);
+
+        // ⚠️ A body of its own opens no frames of its own YET.  TryDepth counts
+        // the frames an 'Exit' has to pop on the way out, and while it leaked in
+        // here a function declared inside a 'try' popped the ENCLOSING
+        // function's frame when it returned -- so the next raise found no
+        // handler and the program died 'Uncaught' with a perfectly good
+        // 'except' ten lines above it.
+        var EnclosingTryDepth := TryDepth;
+        var EnclosingLoopTry := LoopTryDepth;
+
+        TryDepth := 0;
+        LoopTryDepth := 0;
 
         // ⚠️ If this body declares functions of its own, everything it binds
         // has to outlive the call, so it is boxed.  Boxing more than is
@@ -1552,6 +1789,8 @@ begin
 
                 Line (Qualifier + Cell (ParamName) + ' = alg_cell(args[' + Str (I) + ']);');
                 Line ('(void)' + Cell (ParamName) + ';');
+
+                Cells.Add (ParamName);
             end
             else
             begin
@@ -1559,6 +1798,8 @@ begin
                 Line ('(void)' + VariableName (ParamName) + ';');
             end
         end
+
+        HoistCells (TheStmt.Body);
 
         for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
             Execute (TheStmt.Body[I]);
@@ -1581,9 +1822,9 @@ begin
         Functions := Functions + '}' + #10 + #10;
 
         // ⚠️ The ENCLOSING function's cells, not this one's.  A nested
-        // function closes over what the function around it boxed; its own
-        // boxed set is what a function nested inside IT would capture.
-        var CapturedCells := EnclosingBoxed;
+        // function closes over the cells that were in scope where it was
+        // written; its own are what a function nested inside IT would capture.
+        var CapturedCells := EnclosingCells;
 
         Depth := EnclosingDepth;
         AtTopLevel := EnclosingTop;
@@ -1591,6 +1832,9 @@ begin
         Volatiles := EnclosingVolatiles;
         Boxed := EnclosingBoxed;
         Captured := EnclosingCaptured;
+        Cells := EnclosingCells;
+        TryDepth := EnclosingTryDepth;
+        LoopTryDepth := EnclosingLoopTry;
         InsideNested := EnclosingNested;
 
         var Name := Str (TheStmt.Name.Lexeme);
@@ -1664,7 +1908,25 @@ begin
             if Declared.Contains (Name) then Exit HandleName (Name);
         end
 
+        Unreachable (Name);
         Exit VariableName (Name);
+    end
+
+    /// ⚠️ The last resort of a bare name is 'v_Name', which is right only for a
+    /// local of the body being emitted or a file-scope global.  Inside a nested
+    /// function anything else is a capture the emitter failed to box, and
+    /// emitting it names a local of a DIFFERENT C function: the C compiler
+    /// rejects it, and what the programmer sees is a message about its own
+    /// output rather than about the program.  Refuse it here instead, the way
+    /// every other construct the back end cannot manage is refused.
+    ///
+    procedure Unreachable (Name : String);
+    begin
+        if not InsideNested then Exit;
+        if Locals.Contains (Name) then Exit;
+        if Globals.Contains (Name) then Exit;
+
+        Unsupported ('Reading ''' + Name + ''' from a nested function');
     end
 
     function VisitAssignExpr (TheExpr : AssignExpr) : String;
@@ -1686,6 +1948,7 @@ begin
             Exit 'alg_set_property(v_this, ' + QuoteC (Name) + ', '
                + Evaluate (TheExpr.Value) + ')';
 
+        Unreachable (Name);
         Exit '(' + VariableName (Name) + ' = ' + Evaluate (TheExpr.Value) + ')';
     end
 
@@ -2183,6 +2446,8 @@ begin
         Snapshot := 'loop_' + Str (Id);
         Index := 'at_' + Str (Id);
 
+        var Mark := OpenScope ();
+
         Line ('{');
         Depth := Depth + 1;
 
@@ -2196,9 +2461,23 @@ begin
         Depth := Depth + 1;
 
         Locals.Add (Str (TheStmt.Name.Lexeme));
-        Line (Local () + VariableName (Str (TheStmt.Name.Lexeme)) + ' = alg_iterable_at('
-            + Snapshot + ', ' + Index + ');');
-        Line ('(void)' + VariableName (Str (TheStmt.Name.Lexeme)) + ';');
+
+        var Element := 'alg_iterable_at(' + Snapshot + ', ' + Index + ')';
+
+        // ⚠️ The loop variable is a binding like any other, so a nested
+        // function may capture it and it has to be boxed when one does.
+        // CollectBindings has always listed it; this is the site that has to
+        // agree, and while it did not, the capture list named a 'c_F' nothing
+        // declared.  The cell is built inside the loop, so each iteration
+        // captures its own element -- which is what the interpreter's fresh
+        // environment per iteration does.
+        if Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
+            DeclareCell (Str (TheStmt.Name.Lexeme), Element);
+        else
+        begin
+            Line (Local () + VariableName (Str (TheStmt.Name.Lexeme)) + ' = ' + Element + ';');
+            Line ('(void)' + VariableName (Str (TheStmt.Name.Lexeme)) + ';');
+        end
 
         var EnclosingLoopDepth := LoopTryDepth;
         LoopTryDepth := TryDepth;
@@ -2210,6 +2489,8 @@ begin
 
         Depth := Depth - 1;
         Line ('}');
+
+        CloseScope (Mark);
     end
 
     procedure VisitBreakStmt (TheStmt : BreakStmt);
@@ -2259,12 +2540,7 @@ begin
             else if Boxed.Contains (Name) then
             begin
                 Locals.Add (Name);
-
-                var Qualifier := 'Value *';
-                if Volatiles then Qualifier := 'Value *volatile ';
-
-                Line (Qualifier + Cell (Name) + ' = alg_cell(' + Shared + ');');
-                Line ('(void)' + Cell (Name) + ';');
+                Line ('*' + Cell (Name) + ' = ' + Shared + ';');
             end
             else
             begin

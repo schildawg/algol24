@@ -1,0 +1,10 @@
+# The compiler built from source.  The SEED in bootstrap/ is checked in; this
+# is not -- it is rebuilt from it by ./build.sh.
+/algc
+/bootstrap/algc
+
+# Build products.
+/.build/
+/build/
+/out/
+/.idea/

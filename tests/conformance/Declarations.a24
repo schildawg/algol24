@@ -462,3 +462,24 @@ begin
    AssertEqual(nil,        nil and 'unused');
    AssertEqual('right',    'left' and 'right');
 end
+
+// ⚠️ A test block is a function body of its own, and a function declared in one
+// captures its locals.  Compiled, both emitters used to read K here as a local
+// of a different C function, so this suite passed interpreted and would not
+// even build -- which is why the case belongs in a conformance suite rather
+// than only in a program.
+//
+test 'A Nested Function Captures A Local Of Its Test Block';
+begin
+   var K := 7;
+
+   function Grab();
+   begin
+      Exit K;
+   end
+
+   AssertEqual(7, Grab());
+
+   K := 9;
+   AssertEqual(9, Grab());
+end

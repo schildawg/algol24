@@ -58,7 +58,93 @@ begin
     Exit Bump;
 end
 
+/// ⚠️ Every case above declares the capturing function inside ANOTHER
+/// function, and for a long time that was the only case there was.  The
+/// program's 'begin ... end' is a C function body too, and while nothing here
+/// captured anything from it, both emitters read such a capture as a plain
+/// local of main -- 'v_K' for a variable of a different C function, which does
+/// not compile.  The block below is that case, and the ones beside it are the
+/// same body in a nested block, in a loop, and after the declaration.
+///
 begin
+    var K := 7;
+    function Grab();
+    begin
+        Exit K;
+    end
+    WriteLn(Grab());
+
+    K := 9;
+    WriteLn(Grab());
+
+    // Declared before the variables it does NOT read: the capture list names
+    // the cells in scope where the declaration stands, not every cell the body
+    // will eventually box.
+    function Seven();
+    begin
+        Exit K;
+    end
+    var Afterwards := 1;
+    WriteLn(Seven() + Afterwards);
+
+    // Capturing a variable declared BELOW the function that reads it.  The
+    // interpreter allows it -- a closure keeps the environment, and the
+    // binding lands in it before the call -- so the cell is opened where the
+    // block opens and the 'var' writes through it.
+    function Later();
+    begin
+        Exit Below;
+    end
+    var Below := 11;
+    WriteLn(Later());
+
+    // A function declared inside a try, capturing a local of the try block and
+    // the handler's own variable.
+    try
+        var Inside := 3;
+        function Doubled();
+        begin
+            Exit Inside * 2;
+        end
+        WriteLn(Doubled());
+        raise 'boom';
+    except
+        on E : String do
+        begin
+            function Shout();
+            begin
+                Exit E + '!';
+            end
+            WriteLn(Shout());
+        end
+    end
+
+    // A capture from a block inside main, one per pass.
+    var Made2 := [];
+    for var I := 0; I < 3; I := I + 1 do
+    begin
+        var Each := I * 10;
+        function Held();
+        begin
+            Exit Each;
+        end
+        Made2.Add(Held);
+    end
+    for var F in Made2 do WriteLn(F());
+
+    // A 'for ... in' variable captured directly -- it is a binding like any
+    // other, and has to be boxed when a nested function reads it.
+    var Made3 := [];
+    for var Letter in ['a', 'b'] do
+    begin
+        function Say();
+        begin
+            Exit Letter;
+        end
+        Made3.Add(Say);
+    end
+    for var F in Made3 do WriteLn(F());
+
     var Add5 := Adder(5);
     WriteLn(Add5(1));
     WriteLn(Twice(Double, 3));

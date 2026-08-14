@@ -62,7 +62,11 @@ cp "$ROOT/bootstrap/algol.c" "$ROOT/bootstrap/algol.h" "$WORK/stage2"/
 # ------------------------------------------------------------- the check --
 # Stage 2's C against the seed it came from.  Equal means the checked-in C is
 # current; different means compiler/ has moved on since it was generated.
-if diff -r -x 'algol.[ch]' "$ROOT/bootstrap" "$WORK/stage2" >/dev/null 2>&1; then
+#
+# ⚠️ algol.[ch] is the runtime, copied in rather than emitted, and build.sh is
+# hand-written -- neither is generated, so neither appears in stage 2's output
+# and both would read as a difference forever.  test.sh excludes the same two.
+if diff -r -x 'algol.[ch]' -x build.sh "$ROOT/bootstrap" "$WORK/stage2" >/dev/null 2>&1; then
     echo "  seed:    current -- compiler/ emits exactly the checked-in C"
 else
     if [ "$reseed" = true ]; then
