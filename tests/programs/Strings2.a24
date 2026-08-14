@@ -1,0 +1,87 @@
+/// The string and numeric builtins.  Indices are 0-based, Pos returns -1 when
+/// absent, and Copy clamps its end but not its start.
+///
+begin
+    WriteLn(Length('abcdef'));
+    WriteLn(Length(''));
+
+    WriteLn(Copy('abcdef', 0, 3));
+    WriteLn(Copy('abcdef', 2, 2));
+    WriteLn(Copy('abcdef', 4, 10));
+    WriteLn(Copy('abcdef', 6, 2));
+    WriteLn(Copy('abcdef', 0, 0));
+
+    WriteLn(Pos('abcdef', 'cd'));
+    WriteLn(Pos('abcdef', 'a'));
+    WriteLn(Pos('abcdef', 'z'));
+    WriteLn(Pos('abcdef', ''));
+
+    WriteLn(Char(65));
+    WriteLn(Char(97) + Char(98));
+    WriteLn(Char(32) = ' ');
+
+    // A one-character literal is a Char, and a Char is never equal to a String.
+    // Copy returns a String; subscripting and iterating a String yield Chars.
+    WriteLn('a' = 'a');
+    WriteLn(Copy('abc', 0, 1) = 'a');
+    WriteLn('abc'[0] = 'a');
+    WriteLn(Char(97) = 'a');
+    WriteLn('a' + 'b');
+    WriteLn('a' in 'cab');
+
+    var Hits := 0;
+    for var C in 'banana' do
+        if C = 'a' then Hits := Hits + 1;
+    WriteLn(Hits);
+
+    // Chars order by code point.  Scanner.a24 is built on this -- its
+    // IsAlpha and IsDigit are C >= 'a' and C <= 'z' -- and without it the
+    // compiled bootstrap stopped with 'Operands must be numbers.'
+    WriteLn('a' < 'b');
+    WriteLn('b' < 'a');
+    WriteLn('a' <= 'a');
+    WriteLn('z' > 'a');
+    WriteLn('5' >= '0');
+    WriteLn('5' <= '9');
+
+    var Alpha := 0;
+    for var C in 'a1B2z' do
+        if (C >= 'a' and C <= 'z') or (C >= 'A' and C <= 'Z') then Alpha := Alpha + 1;
+    WriteLn(Alpha);
+
+    // ⚠️ Val parses text into a number; Ord gives an ordinal.  These were one
+    // builtin named Ord, which did the parsing -- Turbo Pascal's Val under the
+    // wrong name.  A compiler written in Algol-24 needs a character's code
+    // point to emit it, and the name for that was taken by its opposite.
+    WriteLn(Val('65'));
+    WriteLn(Val(65));
+    WriteLn(Val('2.5'));
+    WriteLn(Val(nil));
+
+    WriteLn(Ord('A'));
+    WriteLn(Ord(Char(Ord('z'))));
+    WriteLn(Ord(True));
+    WriteLn(Ord(False));
+    WriteLn(Ord(7));
+
+    WriteLn(Max(3, 7));
+    WriteLn(Max(7, 3));
+    WriteLn(Max(-2, -9));
+
+    WriteLn(Mod(7, 2));
+    WriteLn(Mod(-7, 2));
+    WriteLn(Mod(8, 4));
+
+    // A scanner-shaped use: walk a string with Length, Copy and Pos.
+    var Source := 'var X := 1;';
+    var At := 0;
+    var Words := [];
+    while At < Length(Source) do
+    begin
+        var Ch := Copy(Source, At, 1);
+        if Ch <> ' ' then Words.Add(Ch);
+        At := At + 1;
+    end
+    WriteLn(Words.Length);
+    WriteLn(Pos(Source, ':='));
+end

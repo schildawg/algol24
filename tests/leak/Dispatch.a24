@@ -1,0 +1,36 @@
+/// Overloaded dispatch in a loop, as a leak canary.
+///
+/// Selection happens per call and must allocate nothing: the runtime has no
+/// collector, so anything allocated in a dispatch path accumulates for the
+/// life of the process.  A loop is the only way that shows.
+class Printer;
+begin
+    function Show(What : Integer) : Integer;
+    begin
+        Exit What;
+    end
+
+    function Show(What : String) : Integer;
+    begin
+        Exit Length(What);
+    end
+
+    function Show(What : Double) : Integer;
+    begin
+        Exit 1;
+    end
+end
+
+begin
+    var P := Printer();
+    var Total := 0;
+
+    for var I := 0; I < 200000; I := I + 1 do
+    begin
+        Total := Total + P.Show(I);
+        Total := Total + P.Show('text');
+        Total := Total + P.Show(1.5);
+    end
+
+    WriteLn(Total);
+end

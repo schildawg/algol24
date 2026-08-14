@@ -1,0 +1,110 @@
+uses Token;
+
+/// A text file handle, in Turbo Pascal's shape.
+///
+/// Wraps the host's TextFile the way ObjCollection wraps the host's List and
+/// Map: every method delegates, so the failure messages -- 'Reset failed:
+/// cannot open ''name''.' and the rest -- come from the one implementation
+/// rather than from a second copy that would have to be kept in step.
+///
+/// Turbo Pascal spells these as free procedures over a 'var F: Text'
+/// parameter.  Algol-24 has neither var parameters nor a Text type, so the
+/// handle became the receiver; the names and their meanings are unchanged.
+///
+
+/// A bound file method: a receiver, a name, and an arity.
+///
+/// One class rather than one per method, for the same reason CollectionMethod
+/// is one class: the interpreter's calling convention wants something with
+/// Arity and Call, and this is less code than twelve near-identical classes.
+///
+class FileMethod;
+var
+    Receiver : ObjFile;
+    Name     : String;
+    TheArity : Integer;
+
+begin
+    constructor Init (Receiver : ObjFile, Name : String, TheArity : Integer);
+    begin
+        this.Receiver := Receiver;
+        this.Name := Name;
+        this.TheArity := TheArity;
+    end
+
+    function Arity () : Integer;
+    begin
+        Exit TheArity;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Receiver.Invoke (Name, Arguments);
+    end
+end
+
+class ObjFile;
+var
+    /// The host handle this stands for.
+    Handle : Any;
+
+begin
+    constructor Init ();
+    begin
+        this.Handle := TextFile();
+    end
+
+    /// Property access.  Eof answers directly -- it is a property in Algol-24,
+    /// written without parentheses -- and everything else hands back something
+    /// callable.
+    ///
+    function Get (TheName : Token) : Any;
+    var
+        Member : String;
+
+    begin
+        Member := TheName.Lexeme;
+
+        if Member = 'Eof' then Exit Handle.Eof;
+
+        if Member = 'Assign'  then Exit FileMethod (this, Member, 1);
+        if Member = 'Reset'   then Exit FileMethod (this, Member, 0);
+        if Member = 'Rewrite' then Exit FileMethod (this, Member, 0);
+        if Member = 'Append'  then Exit FileMethod (this, Member, 0);
+        if Member = 'ReadLn'  then Exit FileMethod (this, Member, 0);
+        if Member = 'Write'   then Exit FileMethod (this, Member, 1);
+        if Member = 'WriteLn' then Exit FileMethod (this, Member, 1);
+        if Member = 'Flush'   then Exit FileMethod (this, Member, 0);
+        if Member = 'Close'   then Exit FileMethod (this, Member, 0);
+        if Member = 'Erase'   then Exit FileMethod (this, Member, 0);
+        if Member = 'Rename'  then Exit FileMethod (this, Member, 1);
+
+        raise 'Undefined property ''' + Member + '''.';
+    end
+
+    /// Runs a method by name.  Reached only through FileMethod, and Get is the
+    /// only thing that hands one of those out.
+    ///
+    function Invoke (Name : String, Arguments : List) : Any;
+    begin
+        if Name = 'Assign'  then Exit Handle.Assign (Arguments[0]);
+        if Name = 'Reset'   then Exit Handle.Reset ();
+        if Name = 'Rewrite' then Exit Handle.Rewrite ();
+        if Name = 'Append'  then Exit Handle.Append ();
+        if Name = 'ReadLn'  then Exit Handle.ReadLn ();
+        if Name = 'Write'   then Exit Handle.Write (Arguments[0]);
+        if Name = 'WriteLn' then Exit Handle.WriteLn (Arguments[0]);
+        if Name = 'Flush'   then Exit Handle.Flush ();
+        if Name = 'Close'   then Exit Handle.Close ();
+        if Name = 'Erase'   then Exit Handle.Erase ();
+        if Name = 'Rename'  then Exit Handle.Rename (Arguments[0]);
+
+        raise 'Undefined method ''' + Name + '''.';
+    end
+
+    /// Printed the way JPascal prints one.
+    function ToString () : String;
+    begin
+        Exit Str (Handle);
+    end
+end

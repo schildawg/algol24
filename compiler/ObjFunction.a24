@@ -1,0 +1,199 @@
+uses Environment;
+uses Interpreter;
+uses ObjClass;
+uses ObjInstance;
+uses Stmt;
+
+/// A function value: a declaration plus the environment it closed over.
+///
+/// Named Obj* to match the C runtime this compiles to -- ObjClass, ObjInstance,
+/// ObjSeq -- and clox, which project 3's VM is modelled on.  So the
+/// tree-walker, the runtime it emits, and the VM that follows all say the same
+/// word for the same thing.
+///
+/// Runtime type name of a value: 'Integer', 'Double', 'String', 'Char',
+/// 'Boolean', 'nil', or the name of its class.
+///
+/// The same answers the C runtime's type_name gives, because overload
+/// selection has to agree across the two back ends.
+///
+function TypeNameOf (Value : Any) : String;
+begin
+    if Value = Nil then Exit 'nil';
+
+    if Value is Boolean then Exit 'Boolean';
+    if Value is Integer then Exit 'Integer';
+    if Value is Double  then Exit 'Double';
+    if Value is String  then Exit 'String';
+    if Value is Char    then Exit 'Char';
+
+    // An interpreted value answers with the type the PROGRAM sees, not with
+    // the wrapper this interpreter happens to hold it in -- 'Dog', 'List' and
+    // 'Colour' rather than ObjInstance, ObjCollection and ObjEnum.  Overload
+    // selection is about the interpreted language's types.
+    //
+    // ⚠️ The collections and enums were missing here, so a parameter
+    // declared ': List' matched no argument at all and overloading on a
+    // collection quietly never selected.  JPascal's type() and the C runtime's
+    // type_name each had their own version of that same hole: one named two
+    // collections of five, the other named none.  Three implementations of one
+    // rule, wrong three different ways.
+    if Value is ObjInstance   then Exit Str (Value.Klass.Name);
+    if Value is ObjCollection then Exit Value.Kind;
+    if Value is ObjEnum       then Exit Value.TypeName;
+
+    Exit NameOfClass (Value);
+end
+
+/// Class name of a value, or '' when it is not an instance.
+///
+/// Still a caught failure, because it asks for a name rather than testing one:
+/// 'is' answers "is this a Dog?" and this answers "what is this?".  ClassName
+/// raises on anything that is not an instance -- a number, a String, nil.
+///
+function NameOfClass (Obj : Any) : String;
+begin
+    try
+        Exit Obj.ClassName;
+    except
+        on e : String do Exit '';
+    end
+end
+
+/// Whether a value stands where a class of this name is declared.
+///
+/// Not replaceable by 'is', and the reason the operator does not make every
+/// type test go away: the name here arrives as a String at run time, while
+/// 'is' needs one written in the source.  This is the dynamic half.
+///
+function InheritsFrom (Value : Any, TheName : String) : Boolean;
+var
+    Klass : ObjClass;
+
+begin
+    if not (Value is ObjInstance) then Exit False;
+
+    Klass := Value.Klass;
+    while Klass <> Nil do
+    begin
+        if Str (Klass.Name) = TheName then Exit True;
+
+        Klass := Klass.Superclass;
+    end
+
+    Exit False;
+end
+
+class ObjFunction;
+var
+    Declaration   : FunctionStmt;
+    Closure       : Environment;
+    IsInitializer : Boolean;
+
+    /// The class this is a method of, and the instance it was bound to, so a
+    /// call site can re-select an overload once it knows the argument types.
+    /// Nil for a plain function.
+    Owner : ObjClass    := Nil;
+    Bound : ObjInstance := Nil;
+
+begin
+    /// Creates a new instance.
+    ///
+    constructor Init (Declaration : FunctionStmt, Closure : Environment, IsInitializer : Boolean);
+    begin
+       this.Closure := Closure;
+       this.Declaration := Declaration;
+       this.IsInitializer := IsInitializer;
+    end
+
+    /// Binds this method to an instance.
+    ///
+    function Bind (Instance : ObjInstance) : ObjFunction;
+    var
+        Env : Environment;
+
+    begin
+        Env := Environment();
+        Env.Enclosing := Closure;
+        Env.Define ('this', Instance);
+
+        var Result := ObjFunction (Declaration, Env, IsInitializer);
+        Result.Owner := Owner;
+        Result.Bound := Instance;
+
+        Exit Result;
+    end
+
+    /// Whether these arguments fit this signature.
+    ///
+    /// The rule is the C runtime's signature_matches and JPascal's
+    /// PascalFunction.isMatch, and has to stay all three: 'Any' compatible in
+    /// both directions, nil inhabiting every type, a subclass standing where
+    /// its parent is declared, and every parameter checked against the argument
+    /// in its own position.
+    ///
+    function Fits (Arguments : List) : Boolean;
+    begin
+        if Arity () <> Arguments.Length then Exit False;
+
+        for var I := 0; I < Arguments.Length; I := I + 1 do
+        begin
+            var Declared := Str (Declaration.ParamTypes[I]);
+
+            if Declared <> '' and Declared <> 'Any' then
+            begin
+                var Actual := TypeNameOf (Arguments[I]);
+
+                if Actual <> 'nil' and Actual <> 'Any' and Actual <> Declared then
+                    if not InheritsFrom (Arguments[I], Declared) then Exit False;
+            end
+        end
+
+        Exit True;
+    end
+
+    /// Number of parameters in function signature.
+    ///
+    function Arity () : Integer;
+    begin
+        if Declaration.Params = Nil then Exit 0;
+        
+        Exit Declaration.Params.Length;
+    end
+
+    /// To String
+    ///
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Declaration.Name.Lexeme + '>';
+    end
+
+    /// Runs the function.
+    ///
+    function Call (TheInterpreter, Arguments) : Any;
+    var
+        Env   : Environment;
+        Count : Integer;
+
+    begin
+        Env := Environment();
+        Env.Enclosing := Closure;
+
+        for var I := 0; I < Declaration.Params.Length; I := I + 1 do
+        begin
+            Env.Define (Declaration.Params[I].Lexeme, Arguments[I]);
+        end
+        
+        try 
+           TheInterpreter.ExecuteBlock (Declaration.Body, Env);
+        except
+            on e : Return do
+                begin
+                    if IsInitializer then Exit Closure.GetAt (0, 'this');
+                    Exit e.Value;
+                end
+        end
+
+        if IsInitializer then Exit Closure.GetAt(0, 'this');
+    end   
+end

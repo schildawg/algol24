@@ -1,0 +1,130 @@
+/// Set, Stack and Array, plus the wider List and Map surface.
+///
+begin
+    // Set: insertion-ordered, duplicates collapse.
+    var Letters := Set(['delta', 'alpha', 'delta', 'charlie']);
+    WriteLn(Letters);
+    WriteLn(Letters.Length);
+    WriteLn(Letters.Contains('alpha'));
+    WriteLn(Letters.Contains('zulu'));
+    WriteLn(Letters.ToList());
+    WriteLn('alpha' in Letters);
+
+    Letters.Add('bravo');
+    Letters.Add('alpha');
+    WriteLn(Letters);
+
+    Letters.Remove('delta');
+    WriteLn(Letters);
+    WriteLn(Letters.IsEmpty);
+
+    var Fresh := Set();
+    Fresh.Add(1);
+    WriteLn(Fresh);
+
+    // A nil element prints as 'nil', not as the host's null.  Every collection
+    // has to agree about that, so each is checked.
+    var Nils := [nil, 1];
+    WriteLn(Nils);
+    WriteLn(Set([nil, 2]));
+    var NilStack := Stack();
+    NilStack.Push(nil);
+    NilStack.Push(3);
+    WriteLn(NilStack);
+    WriteLn(['k':nil]);
+
+    // Stack: iterates and prints bottom to top; Peek and Pop take from the top.
+    var Pending := Stack();
+    Pending.Push(1);
+    Pending.Push(2);
+    Pending.Push(3);
+
+    WriteLn(Pending);
+    WriteLn(Pending.Peek());
+    WriteLn(Pending.Length);
+    WriteLn(Pending.Contains(2));
+
+    var Order := '';
+    for var Each in Pending do
+        Order := Order + Str(Each) + ' ';
+    WriteLn(Order);
+
+    WriteLn(Pending.Pop());
+    WriteLn(Pending);
+    Pending.Clear();
+    WriteLn(Pending.IsEmpty);
+
+    // Array: fixed size, nil-filled.
+    var Slots := Array(3);
+    WriteLn(Slots);
+    WriteLn(Slots.Length);
+
+    Slots[0] := 5;
+    Slots.Set(2, 7);
+    WriteLn(Slots);
+    WriteLn(Slots.Get(0));
+    WriteLn(Slots.Contains(7));
+    WriteLn(Slots.IndexOf(7));
+    WriteLn(Slots.IndexOf(99));
+
+    Slots.Fill(0);
+    WriteLn(Slots);
+
+    // Sorting, over both a List and an Array.
+    var Numbers := [3, 1, 2];
+    Numbers.Sort();
+    WriteLn(Numbers);
+
+    var Words := ['pear', 'apple', 'fig'];
+    Words.Sort();
+    WriteLn(Words);
+
+    var Mixed := [2, 1.5, 3];
+    Mixed.Sort();
+    WriteLn(Mixed);
+
+    // The rest of the List surface.
+    var Items := [1, 3];
+    Items.Insert(1, 2);
+    Items.Insert(3, 4);
+    WriteLn(Items);
+    WriteLn(Items.RemoveAt(1));
+    WriteLn(Items);
+    WriteLn(Items.IndexOf(3));
+    WriteLn(Items.Contains(4));
+    Items.Clear();
+    WriteLn(Items.IsEmpty);
+
+    // Map keys and values.
+    var Ages := ['delta':4, 'alpha':1];
+    WriteLn(Ages.Keys());
+    WriteLn(Ages.Values());
+    WriteLn(Ages.IsEmpty);
+    Ages.Clear();
+    WriteLn(Ages.IsEmpty);
+
+    // ⚠️ Pop and Peek on an empty Stack RAISE, and are catchable.
+    //
+    // The interpreter used to let java.util.Stack throw EmptyStackException --
+    // an unchecked Java exception nothing converts -- so it killed the process
+    // with a raw JVM stack trace while compiled code raised properly.  The two
+    // back ends disagreed about whether this was a language-level event at all.
+    try
+        Stack().Pop();
+    except
+        on E : String do WriteLn(E);
+    end
+
+    try
+        Stack().Peek();
+    except
+        on E : String do WriteLn(E);
+    end
+
+    // ...and a Stack with something in it is unaffected.
+    var Guarded := Stack();
+    Guarded.Push('only');
+    WriteLn(Guarded.Peek());
+    WriteLn(Guarded.Pop());
+    WriteLn(Guarded.IsEmpty);
+end

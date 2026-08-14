@@ -1,0 +1,28 @@
+/// if/else, while, break, and nesting.
+///
+begin
+    var I := 0;
+    while I < 5 do
+    begin
+        if I = 3 then break;
+        WriteLn(I);
+        I := I + 1;
+    end
+
+    if I = 3 then WriteLn('stopped at three');
+    else WriteLn('wrong');
+
+    var Total := 0;
+    var Outer := 0;
+    while Outer < 3 do
+    begin
+        var Inner := 0;
+        while Inner < 3 do
+        begin
+            Total := Total + 1;
+            Inner := Inner + 1;
+        end
+        Outer := Outer + 1;
+    end
+    WriteLn('total ' + Str(Total));
+end

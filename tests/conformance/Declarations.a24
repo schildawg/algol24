@@ -1,0 +1,464 @@
+/// Tests for var sections, in particular comma groups sharing one initializer.
+///
+/// Comma groups only occur in a var section, which a test block does not take --
+/// hence the helper functions.
+///
+
+var Calls := 0;
+
+function Bump() : Integer;
+begin
+   Calls := Calls + 1;
+   Exit Calls;
+end
+
+function ThreeFromOneCall() : String;
+var
+   A, B, C := Bump();
+
+begin
+   Exit Str(A) + Str(B) + Str(C);
+end
+
+function SharedReference() : String;
+var
+   First, Second := List();
+
+begin
+   First.Add('ABC');
+   Exit Str(First.Length) + '/' + Str(Second.Length);
+end
+
+function TypedGroup() : Integer;
+var
+   X, Y : Integer := 3;
+
+begin
+   Exit X + Y;
+end
+
+function NoInitializer() : Integer;
+var
+   P, Q : Integer;
+
+begin
+   P := 1;
+   Q := 2;
+
+   Exit P + Q;
+end
+
+function SingleName() : String;
+var
+   Solo := 'alone';
+
+begin
+   Exit Solo;
+end
+
+/// ⚠️ Ord is the ORDINAL; Val parses.
+///
+/// These were one builtin named Ord which did the parsing -- Turbo Pascal's
+/// Val under the wrong name.  The misnaming was not free, as the old Rough
+/// Edge claimed: both scanners used it, and a compiler written in Algol-24
+/// needs a character's code point to emit one, which is the operation whose
+/// name was taken.
+test 'Ord Gives An Ordinal';
+begin
+   AssertEqual(65, Ord('A'));
+   AssertEqual(97, Ord('a'));
+
+   // The inverse of Char(n).
+   AssertEqual(65, Ord(Char(65)));
+   AssertEqual('A', Char(Ord('A')));
+
+   AssertEqual(1, Ord(True));
+   AssertEqual(0, Ord(False));
+   AssertEqual(7, Ord(7));
+end
+
+test 'Ord Refuses What Has No Ordinal';
+begin
+   var Caught := '';
+
+   try
+      Ord('abc');
+   except
+      on E : String do Caught := E;
+   end
+
+   AssertEqual('Ord failed: ''abc'' has no ordinal.', Caught);
+end
+
+test 'Val Parses A Number Out Of Text';
+begin
+   AssertEqual(65.0, Val('65'));
+   AssertEqual(2.5, Val('2.5'));
+   AssertEqual(-1.0, Val(nil));
+end
+
+test 'Val Refuses What Is Not A Number';
+begin
+   var Caught := '';
+
+   try
+      Val('abc');
+   except
+      on E : String do Caught := E;
+   end
+
+   AssertEqual('Val failed: ''abc'' is not a number.', Caught);
+end
+
+test 'Comma Group Evaluates Its Initializer Once';
+begin
+   Calls := 0;
+
+   var Result := ThreeFromOneCall();
+
+   // One call, and every name holds the value it produced.
+   AssertEqual(1, Calls);
+   AssertEqual('111', Result);
+end
+
+test 'Comma Group Shares One Reference';
+begin
+   // One evaluation means one list, reached by both names.
+   AssertEqual('1/1', SharedReference());
+end
+
+test 'Comma Group With A Declared Type';
+begin
+   AssertEqual(6, TypedGroup());
+end
+
+test 'Comma Group Without An Initializer';
+begin
+   AssertEqual(3, NoInitializer());
+end
+
+test 'Single Declarations Are Unaffected';
+begin
+   AssertEqual('alone', SingleName());
+end
+
+class Counter;
+var
+   Count : Integer := 10;
+   Label : String;
+   Items : Any := List();
+
+begin
+   function Show() : String;
+   begin
+      Exit Str(Count) + '/' + Str(Label);
+   end
+end
+
+class Overridden;
+var
+   Value : Integer := 1;
+
+begin
+   constructor Init();
+   begin
+      this.Value := 99;
+   end
+
+   function Show() : Integer;
+   begin
+      Exit Value;
+   end
+end
+
+class Base;
+var
+   Inherited : Integer := 7;
+
+begin
+end
+
+class Derived(Base);
+var
+   Own : Integer := 8;
+
+begin
+   function Show() : Integer;
+   begin
+      Exit Inherited + Own;
+   end
+end
+
+test 'Class Field Initializers Apply';
+begin
+   AssertEqual('10/nil', Counter().Show());
+end
+
+test 'Field Without A Value Is Nil';
+begin
+   var Each := Counter();
+
+   AssertEqual(nil, Each.Label);
+end
+
+test 'Constructor Overrides A Declared Default';
+begin
+   // Fields are applied before Init, so Init has the last word.
+   AssertEqual(99, Overridden().Show());
+end
+
+test 'Inherited Fields Are Initialized';
+begin
+   AssertEqual(15, Derived().Show());
+end
+
+test 'Each Instance Gets Its Own Field Value';
+begin
+   var First  := Counter();
+   var Second := Counter();
+
+   First.Items.Add('ABC');
+
+   // The initializer runs per instance, so these are separate lists.
+   AssertEqual(1, First.Items.Length);
+   AssertEqual(0, Second.Items.Length);
+end
+
+const GLOBAL_LIMIT := 100;
+
+function ShadowedByVar() : Integer;
+begin
+   // A local var shadows the global const, so this one is assignable.
+   var GLOBAL_LIMIT := 5;
+   GLOBAL_LIMIT := 9;
+
+   Exit GLOBAL_LIMIT;
+end
+
+test 'Const Declares A Readable Binding';
+begin
+   const Answer := 42;
+
+   AssertEqual(42, Answer);
+end
+
+test 'Const Accepts A Declared Type';
+begin
+   const Answer : Integer := 42;
+
+   AssertEqual(42, Answer);
+end
+
+test 'Const Is Visible Globally';
+begin
+   AssertEqual(100, GLOBAL_LIMIT);
+end
+
+test 'Const Fixes The Binding Not The Value';
+begin
+   const Items := List();
+
+   // The binding cannot be reassigned, but the list itself is still mutable.
+   Items.Add('ABC');
+   Items.Add('DEF');
+
+   AssertEqual(2, Items.Length);
+end
+
+test 'Const Collection Elements Are Assignable';
+begin
+   const Values := [1, 2, 3];
+   Values[0] := 99;
+
+   AssertEqual(99, Values[0]);
+end
+
+test 'A Var May Shadow A Const';
+begin
+   AssertEqual(9, ShadowedByVar());
+end
+
+test 'Const Is Re-Bound Each Time Its Scope Runs';
+begin
+   var Total := 0;
+
+   for var I := 0; I < 3; I := I + 1 do
+   begin
+      const Step := I * 10;
+      Total := Total + Step;
+   end
+
+   AssertEqual(30, Total);
+end
+
+function SectionConstants() : Integer;
+const
+   LOW  := 1;
+   HIGH := 10;
+
+var
+   Total : Integer := 0;
+
+begin
+   Total := LOW + HIGH;
+
+   Exit Total;
+end
+
+function SectionConstantGroup() : Integer;
+const
+   A, B := 7;
+
+begin
+   Exit A + B;
+end
+
+test 'Const Section Declares Constants';
+begin
+   AssertEqual(11, SectionConstants());
+end
+
+test 'Const Section Accepts A Comma Group';
+begin
+   // One evaluation shared by both names, as in a var section.
+   AssertEqual(14, SectionConstantGroup());
+end
+
+test 'Redeclaring In A Nested Scope Shadows';
+begin
+   var Value := 1;
+
+   begin
+      var Value := 2;
+      AssertEqual(2, Value);
+   end
+
+   AssertEqual(1, Value);
+end
+
+/// Visibility sections.  A private member is reachable from the class that
+/// declared it and nowhere else -- what the tests below can show is the reaching
+/// part, since a violation is a check-time error and would take the whole file
+/// down rather than failing one test.
+
+class Ledger;
+public:
+   var Name : String := 'ledger';
+
+private:
+   var Balance : Integer := 0;
+
+begin
+   procedure Deposit(Amount : Integer);
+   begin
+      Record(Amount);
+   end
+
+private:
+   procedure Record(Amount : Integer);
+   begin
+      Balance := Balance + Amount;
+   end
+
+public:
+   function Total() : Integer;
+   begin
+      Exit(this.Balance);
+   end
+
+   function Richer(Other : Ledger) : Boolean;
+   begin
+      // A sibling of the same class may reach what is private to it.
+      Exit(Balance > Other.Balance);
+   end
+end
+
+class Branch(Ledger);
+private:
+   var Code : String := 'B1';
+
+begin
+   function Label() : String;
+   begin
+      Exit(Code + ':' + Name);
+   end
+end
+
+test 'A Private Field Is Reachable From Its Own Class';
+begin
+   var Uut := Ledger();
+   Uut.Deposit(30);
+
+   AssertEqual(30, Uut.Total());
+end
+
+test 'A Private Method Is Reachable From Its Own Class';
+begin
+   var Uut := Ledger();
+   Uut.Deposit(5);
+   Uut.Deposit(7);
+
+   AssertEqual(12, Uut.Total());
+end
+
+test 'One Instance Reaches Another Instance Private';
+begin
+   var Rich := Ledger();
+   var Poor := Ledger();
+
+   Rich.Deposit(100);
+
+   AssertTrue(Rich.Richer(Poor));
+   AssertTrue(not Poor.Richer(Rich));
+end
+
+test 'A Public Section Ends A Private One';
+begin
+   var Uut := Ledger();
+
+   AssertEqual('ledger', Uut.Name);
+end
+
+test 'A Subclass Has Privates Of Its Own';
+begin
+   var Uut := Branch();
+
+   AssertEqual('B1:ledger', Uut.Label());
+end
+
+// Truthiness tests Integer and does not look at Double, so 0 is falsey while
+// 0.0 is truthy.  An empty String and an empty collection are truthy too --
+// only nil, False, the Integer 0 and an ordinal-0 enum member are falsey.
+//
+test 'Zero Is Falsey But Zero Point Zero Is Not';
+begin
+   AssertTrue(not 0);
+   AssertTrue(0.0);
+
+   AssertTrue(1);
+   AssertTrue(-1);
+end
+
+test 'Empty Things Are Truthy';
+begin
+   AssertTrue('');
+   AssertTrue([]);
+   AssertTrue([:]);
+end
+
+test 'Nil And False Are The Only Other Falsey Values';
+begin
+   AssertTrue(not nil);
+   AssertTrue(not False);
+   AssertTrue(True);
+end
+
+// 'and' and 'or' yield an operand rather than a boolean, and short-circuit.
+//
+test 'Logical Operators Yield An Operand';
+begin
+   AssertEqual('fallback', nil or 'fallback');
+   AssertEqual('kept',     'kept' or 'unused');
+   AssertEqual(nil,        nil and 'unused');
+   AssertEqual('right',    'left' and 'right');
+end

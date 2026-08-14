@@ -1,0 +1,319 @@
+/// Tests for try/except.
+///
+/// The duplicate-handler cases are parse errors, so they cannot be tested from
+/// here -- a file that contains one does not compile at all.
+///
+
+class Animal;
+begin
+   function Kind() : String;
+   begin
+      Exit 'animal';
+   end
+end
+
+class Dog(Animal);
+begin
+   function Kind() : String;
+   begin
+      Exit 'dog';
+   end
+end
+
+class Rock;
+begin
+end
+
+procedure RaiseString();
+begin
+   raise 'from a procedure';
+end
+
+function CaughtOutside() : String;
+begin
+   try
+      RaiseString();
+   except
+      on E : Integer do Exit 'wrong handler';
+   end
+
+   Exit 'not reached';
+end
+
+function ExitsFromTry() : String;
+begin
+   try
+      Exit 'exited';
+   except
+      on E do Exit 'caught';
+   end
+
+   Exit 'fell through';
+end
+
+test 'Typed Handler Matches';
+begin
+   var Result := '';
+
+   try
+      raise 'boom';
+   except
+      on E : String do Result := 'caught ' + E;
+   end
+
+   AssertEqual('caught boom', Result);
+end
+
+test 'Handlers Select By Type';
+begin
+   var Result := '';
+
+   try
+      raise 5;
+   except
+      on E : String do  Result := 'string';
+      on E : Integer do Result := 'integer';
+   end
+
+   AssertEqual('integer', Result);
+end
+
+test 'Untyped Handler Catches Anything';
+begin
+   var Result := '';
+
+   try
+      raise 5;
+   except
+      on E : String do Result := 'string';
+      on E do          Result := 'untyped';
+   end
+
+   AssertEqual('untyped', Result);
+end
+
+test 'Trailing Statements Are The Catch All';
+begin
+   var Result := '';
+
+   try
+      raise 5;
+   except
+      on E : String do Result := 'string';
+      Result := 'trailing';
+   end
+
+   AssertEqual('trailing', Result);
+end
+
+test 'Empty Except Ignores The Error';
+begin
+   var Reached := False;
+
+   try
+      raise 'boom';
+   except
+   end
+
+   Reached := True;
+   AssertTrue(Reached);
+end
+
+test 'Parent Handler Catches A Subclass';
+begin
+   var Result := '';
+
+   try
+      raise Dog();
+   except
+      on E : Animal do Result := E.Kind();
+   end
+
+   // Caught as Animal, but the method still dispatches to Dog.
+   AssertEqual('dog', Result);
+end
+
+test 'Most Derived Handler Wins Regardless Of Order';
+begin
+   var Result := '';
+
+   try
+      raise Dog();
+   except
+      on E : Animal do Result := 'animal';
+      on E : Dog do    Result := 'dog';
+   end
+
+   AssertEqual('dog', Result);
+end
+
+/// ⚠️ The other direction, and it is not redundant: a run that scanned the
+/// handlers in written order would pass the test above and fail this one.
+test 'Most Derived Handler Wins Written First';
+begin
+   var Result := '';
+
+   try
+      raise Dog();
+   except
+      on E : Dog do    Result := 'dog';
+      on E : Animal do Result := 'animal';
+   end
+
+   AssertEqual('dog', Result);
+end
+
+test 'An Except Block With No Handlers Catches';
+begin
+   var Result := '';
+
+   try
+      raise 'anything';
+   except
+      Result := 'caught';
+   end
+
+   AssertEqual('caught', Result);
+end
+
+test 'A Raised Value Crosses A Call Boundary';
+begin
+   var Result := '';
+
+   try
+      RaiseString();
+   except
+      on E : String do Result := E;
+   end
+
+   AssertEqual('from a procedure', Result);
+end
+
+/// ⚠️ Exit inside a try RETURNS -- it is not an exception and must not be
+/// caught, not even by an untyped handler.
+test 'Exit Inside A Try Returns';
+begin
+   AssertEqual('exited', ExitsFromTry());
+end
+
+test 'A Handler May Itself Raise';
+begin
+   var Result := '';
+
+   try
+      try
+         raise 'first';
+      except
+         on E : String do raise 'second';
+      end
+   except
+      on E : String do Result := E;
+   end
+
+   AssertEqual('second', Result);
+end
+
+/// A value thrown past a block must leave the enclosing scope intact.
+test 'A Block Unwound Past Restores Its Scope';
+begin
+   var Kept := 'kept';
+
+   try
+      begin
+         var Inner := 'gone';
+         raise 'unwound';
+      end
+   except
+      on E : String do AssertEqual('unwound', E);
+   end
+
+   AssertEqual('kept', Kept);
+end
+
+test 'A Try Inside A Loop Continues';
+begin
+   var Result := '';
+
+   for var I := 0; I < 3; I := I + 1 do
+   begin
+      try
+         // ⚠️ 'skip', not 'x'.  A one-character literal is a Char and is never
+         // caught by 'on E : String' -- correctly, and confusingly.
+         if I = 1 then raise 'skip';
+         Result := Result + Str(I);
+      except
+         on E : String do Result := Result + '!';
+      end
+   end
+
+   AssertEqual('0!2', Result);
+end
+
+test 'Unmatched Exception Propagates';
+begin
+   var Result := '';
+
+   try
+      // The inner try has only an Integer handler, so the String escapes it.
+      AssertEqual('unused', CaughtOutside());
+   except
+      on E : String do Result := E;
+   end
+
+   AssertEqual('from a procedure', Result);
+end
+
+test 'Unrelated Class Is Not Caught';
+begin
+   var Result := '';
+
+   try
+      try
+         raise Rock();
+      except
+         on E : Animal do Result := 'wrongly caught';
+      end
+   except
+      on E : Rock do Result := 'escaped to outer';
+   end
+
+   AssertEqual('escaped to outer', Result);
+end
+
+test 'Runtime Errors Are Catchable As String';
+begin
+   var Result := '';
+
+   try
+      var Values := Array(1);
+      WriteLn(Values[9]);
+   except
+      on E : String do Result := 'caught a runtime error';
+   end
+
+   AssertEqual('caught a runtime error', Result);
+end
+
+/// Two handlers in one try may bind the same name.  This used to die with an
+/// unhandled 'java.lang.RuntimeException: Redefined: E', because the handler's
+/// variable was defined in the enclosing environment and left there.
+///
+test 'Two Handlers May Share A Variable Name';
+begin
+    var Seen := '';
+
+    try
+        raise 'first';
+    except
+        on E : Integer do Seen := 'wrong';
+        on E : String do Seen := E;
+    end
+
+    try
+        raise 'second';
+    except
+        on E : String do Seen := Seen + '/' + E;
+    end
+
+    AssertEqual('first/second', Seen);
+end

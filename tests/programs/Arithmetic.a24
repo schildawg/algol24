@@ -1,0 +1,23 @@
+/// Integer arithmetic, precedence, comparison, and the fact that '/' on two
+/// Integers is integer division rather than promoting to a Double.
+///
+begin
+    WriteLn(2 + 3 * 4);
+    WriteLn((2 + 3) * 4);
+    WriteLn(10 - 3 - 2);
+    WriteLn(7 / 2);
+    WriteLn(6 / 2);
+    WriteLn(-5 + 3);
+    WriteLn(-(2 * 3));
+
+    WriteLn(1 < 2);
+    WriteLn(2 <= 2);
+    WriteLn(3 > 4);
+    WriteLn(3 >= 4);
+    WriteLn(1 = 1);
+    WriteLn(1 <> 1);
+
+    WriteLn(true and false);
+    WriteLn(true or false);
+    WriteLn(not true);
+end

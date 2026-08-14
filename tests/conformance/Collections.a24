@@ -1,0 +1,428 @@
+/// Tests for collection literals and 'for ... in' iteration.
+///
+
+test 'List Literal';
+begin
+    var List := [10, 20, 30];
+
+    AssertEqual(3, List.Length);
+    AssertEqual(10, List[0]);
+    AssertEqual(30, List[2]);
+end
+
+test 'Empty List Literal';
+begin
+    var List := [];
+
+    AssertEqual(0, List.Length);
+
+    List.Add('ABC');
+    AssertEqual(1, List.Length);
+end
+
+test 'Map Literal';
+begin
+    var Map := ['A':1, 'B':2];
+
+    AssertEqual(1, Map['A']);
+    AssertEqual(2, Map.Get('B'));
+    AssertTrue(Map.Contains('A'));
+end
+
+test 'Empty Map Literal';
+begin
+    var Map := [:];
+
+    AssertTrue(not Map.Contains('A'));
+
+    Map.Put('A', 1);
+    AssertEqual(1, Map['A']);
+end
+
+test 'Map Length';
+begin
+    var Map := [:];
+    AssertEqual(0, Map.Length);
+
+    Map.Put('A', 1);
+    Map.Put('B', 2);
+    AssertEqual(2, Map.Length);
+
+    Map.Remove('A');
+    AssertEqual(1, Map.Length);
+end
+
+test 'Nested Literals';
+begin
+    var List := [[1, 2], [3, 4]];
+
+    AssertEqual(2, List.Length);
+    AssertEqual(3, List[1][0]);
+end
+
+test 'Subscript Assignment';
+begin
+    var List := [1, 2, 3];
+    List[0] := 99;
+
+    AssertEqual(99, List[0]);
+end
+
+test 'For In List';
+begin
+    var Total := 0;
+    for var Each in [1, 2, 3] do
+        Total := Total + Each;
+
+    AssertEqual(6, Total);
+end
+
+test 'For In Map Yields Keys';
+begin
+    var Map := ['A':1];
+    var Seen := '';
+
+    for var Key in Map do
+        Seen := Seen + Key + Str(Map[Key]);
+
+    AssertEqual('A1', Seen);
+end
+
+/// Iteration order is part of the language, not an accident of the backing
+/// store.  A second implementation has to reproduce it, so these use enough
+/// keys that a hash order would not coincidentally match.
+///
+test 'Map Literal Iterates In Insertion Order';
+begin
+    var Ages := ['delta':4, 'alpha':1, 'charlie':3, 'bravo':2];
+    var Seen := '';
+
+    for var Key in Ages do
+        Seen := Seen + Key + ' ';
+
+    AssertEqual('delta alpha charlie bravo ', Seen);
+end
+
+test 'Map Put Appends In Insertion Order';
+begin
+    var Ages := [:];
+    Ages.Put('zulu', 1);
+    Ages.Put('yankee', 2);
+    Ages.Put('xray', 3);
+    Ages.Put('whiskey', 4);
+
+    var Seen := '';
+    for var Key in Ages do
+        Seen := Seen + Key + ' ';
+
+    AssertEqual('zulu yankee xray whiskey ', Seen);
+end
+
+test 'Set Iterates In Insertion Order';
+begin
+    var Letters := Set(['delta', 'alpha', 'charlie', 'bravo']);
+    var Seen := '';
+
+    for var Each in Letters do
+        Seen := Seen + Each + ' ';
+
+    AssertEqual('delta alpha charlie bravo ', Seen);
+end
+
+test 'A Reinserted Key Keeps Its Original Position';
+begin
+    var Ages := ['alpha':1, 'bravo':2, 'charlie':3];
+    Ages.Put('alpha', 99);
+
+    var Seen := '';
+    for var Key in Ages do
+        Seen := Seen + Key + ' ';
+
+    AssertEqual('alpha bravo charlie ', Seen);
+    AssertEqual(99, Ages['alpha']);
+end
+
+test 'For In String';
+begin
+    var Result := '';
+    for var Each in 'abc' do
+        Result := Result + Each;
+
+    AssertEqual('abc', Result);
+end
+
+test 'For In Array';
+begin
+    var Values := Array(2);
+    Values[0] := 5;
+    Values[1] := 6;
+
+    var Total := 0;
+    for var Each in Values do
+        Total := Total + Each;
+
+    AssertEqual(11, Total);
+end
+
+test 'For In Empty Collection';
+begin
+    var Count := 0;
+    for var Each in [] do
+        Count := Count + 1;
+
+    AssertEqual(0, Count);
+end
+
+test 'Break Inside For In';
+begin
+    var Count := 0;
+    for var Each in [1, 2, 3] do
+    begin
+        if Each = 3 then break;
+        Count := Count + 1;
+    end
+
+    AssertEqual(2, Count);
+end
+
+test 'Nested For In';
+begin
+    var Total := 0;
+    for var Outer in [1, 2] do
+        for var Inner in [10, 20] do
+            Total := Total + Outer * Inner;
+
+    AssertEqual(90, Total);
+end
+
+test 'Set From A List Literal';
+begin
+   var Numbers := Set([1, 2, 3]);
+
+   AssertEqual(3, Numbers.Length);
+   AssertTrue(Numbers.Contains(2));
+end
+
+test 'Set From A List Collapses Duplicates';
+begin
+   var Numbers := Set([1, 2, 2, 3, 3, 3]);
+
+   AssertEqual(3, Numbers.Length);
+end
+
+test 'Empty Set Constructor Still Works';
+begin
+   var Numbers := Set();
+   Numbers.Add(1);
+
+   AssertEqual(1, Numbers.Length);
+end
+
+test 'In Tests Set Membership';
+begin
+   var Vowels := Set(['aa', 'ee', 'ii']);
+
+   AssertTrue('ee' in Vowels);
+   AssertTrue(not ('zz' in Vowels));
+end
+
+test 'In Tests A List';
+begin
+   AssertTrue(2 in [1, 2, 3]);
+   AssertTrue(not (9 in [1, 2, 3]));
+end
+
+test 'In Tests Map Keys';
+begin
+   var Ages := ['ann':30, 'bob':40];
+
+   AssertTrue('ann' in Ages);
+   AssertTrue(not (30 in Ages));
+end
+
+test 'In Tests A Substring';
+begin
+   AssertTrue('ell' in 'hello');
+   AssertTrue(not ('xyz' in 'hello'));
+end
+
+test 'In Combines With Logical Operators';
+begin
+   AssertTrue(1 in [1, 2] and 3 in [3, 4]);
+end
+
+/// The wider collection surface.  Length and IsEmpty are properties; everything
+/// else is a method.
+///
+
+test 'List Contains And IndexOf';
+begin
+    var L := ['a', 'b', 'c'];
+
+    AssertTrue(L.Contains('b'));
+    AssertTrue(not L.Contains('z'));
+
+    AssertEqual(1, L.IndexOf('b'));
+    AssertEqual(-1, L.IndexOf('z'));
+end
+
+test 'List Insert And RemoveAt';
+begin
+    var L := [1, 3];
+
+    L.Insert(1, 2);
+    AssertEqual('[1, 2, 3]', Str(L));
+
+    // Inserting at Length appends, so a loop can fill a list.
+    L.Insert(3, 4);
+    AssertEqual('[1, 2, 3, 4]', Str(L));
+
+    AssertEqual(2, L.RemoveAt(1));
+    AssertEqual('[1, 3, 4]', Str(L));
+end
+
+test 'List IsEmpty And Clear';
+begin
+    var L := [1, 2];
+    AssertTrue(not L.IsEmpty);
+
+    L.Clear();
+    AssertTrue(L.IsEmpty);
+    AssertEqual(0, L.Length);
+end
+
+test 'List Sort';
+begin
+    var Numbers := [3, 1, 2];
+    Numbers.Sort();
+    AssertEqual('[1, 2, 3]', Str(Numbers));
+
+    var Words := ['pear', 'apple', 'fig'];
+    Words.Sort();
+    AssertEqual('[apple, fig, pear]', Str(Words));
+
+    // Integers and Doubles order against each other even though they are not equal.
+    var Mixed := [2, 1.5, 3];
+    Mixed.Sort();
+    AssertEqual('[1.5, 2, 3]', Str(Mixed));
+end
+
+test 'Map Keys And Values';
+begin
+    var Ages := ['delta':4, 'alpha':1];
+
+    AssertEqual('[delta, alpha]', Str(Ages.Keys()));
+    AssertEqual('[4, 1]', Str(Ages.Values()));
+end
+
+test 'Map IsEmpty And Clear';
+begin
+    var Ages := ['a':1];
+    AssertTrue(not Ages.IsEmpty);
+
+    Ages.Clear();
+    AssertTrue(Ages.IsEmpty);
+    AssertEqual(0, Ages.Length);
+end
+
+test 'Set ToList IsEmpty And Clear';
+begin
+    var Letters := Set(['b', 'a', 'b']);
+
+    AssertEqual('[b, a]', Str(Letters.ToList()));
+    AssertTrue(not Letters.IsEmpty);
+
+    Letters.Clear();
+    AssertTrue(Letters.IsEmpty);
+end
+
+test 'Stack Contains Clear And IsEmpty';
+begin
+    var S := Stack();
+    AssertTrue(S.IsEmpty);
+
+    S.Push(1);
+    S.Push(2);
+
+    AssertTrue(S.Contains(1));
+    AssertTrue(not S.Contains(9));
+    AssertTrue(not S.IsEmpty);
+
+    S.Clear();
+    AssertTrue(S.IsEmpty);
+end
+
+/// ⚠️ Pop and Peek on an empty Stack raise, and are catchable.
+///
+/// The interpreter used to let java.util.Stack throw EmptyStackException --
+/// unchecked, and nothing converts it -- so an empty Pop killed the process
+/// with a raw JVM stack trace while compiled code raised properly.  The two
+/// back ends disagreed about whether this was a language-level event at all,
+/// and no suite asked.
+test 'Pop From An Empty Stack Raises';
+begin
+    var Caught := '';
+
+    try
+        Stack().Pop();
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual('Pop from an empty Stack.', Caught);
+end
+
+test 'Peek At An Empty Stack Raises';
+begin
+    var Caught := '';
+
+    try
+        Stack().Peek();
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual('Peek at an empty Stack.', Caught);
+end
+
+test 'A Stack Emptied By Popping Raises On The Next Pop';
+begin
+    var S := Stack();
+    S.Push(1);
+
+    AssertEqual(1, S.Pop());
+    AssertTrue(S.IsEmpty);
+
+    var Caught := '';
+    try
+        S.Pop();
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual('Pop from an empty Stack.', Caught);
+end
+
+test 'Array Fill Contains And IndexOf';
+begin
+    var A := Array(3);
+    A.Fill(0);
+    AssertEqual(0, A[2]);
+
+    A[1] := 7;
+    AssertTrue(A.Contains(7));
+    AssertEqual(1, A.IndexOf(7));
+    AssertEqual(-1, A.IndexOf(99));
+end
+
+test 'Sorting Mixed Kinds Is An Error';
+begin
+    var L := [1, 'two'];
+
+    try
+        L.Sort();
+        AssertTrue(false);
+    except
+        on E : String do AssertEqual('Can only sort numbers against numbers, or text against text.', E);
+    end
+end

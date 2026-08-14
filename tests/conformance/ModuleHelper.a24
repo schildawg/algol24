@@ -1,0 +1,46 @@
+/// A module for Modules.a24 to import.
+///
+/// Its private names deliberately duplicate ones in ModuleHelper2.a24, so that
+/// importing both proves two modules can each own a 'Peek' without colliding.
+///
+
+private var Calls := 0;
+
+private function Peek(): Integer;
+begin
+    Exit 1;
+end
+
+private class Secret;
+begin
+    function Describe(): String;
+    begin
+        Exit 'secret';
+    end
+end
+
+function HelperPeek(): Integer;
+begin
+    Exit Peek();
+end
+
+/// Proves a private variable is shared between the module's own functions
+/// rather than copied into each.
+///
+procedure Bump();
+begin
+    Calls := Calls + 1;
+end
+
+function CallCount(): Integer;
+begin
+    Exit Calls;
+end
+
+/// Reaches a private class, which is only nameable from inside this file.
+///
+function DescribeSecret(): String;
+begin
+    var It := Secret();
+    Exit It.Describe();
+end

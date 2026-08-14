@@ -1,0 +1,344 @@
+uses Token;
+
+/// A bound collection method: a receiver, a name, and an arity.
+///
+/// One class rather than one per method, because the interpreter's calling
+/// protocol only asks for Arity and Call, and dispatching inside Call is far
+/// less code than twenty near-identical classes.
+///
+class CollectionMethod;
+var
+    Receiver  : ObjCollection;
+    Name      : String;
+    TheArity  : Integer;
+
+begin
+    constructor Init (Receiver : ObjCollection, Name : String, TheArity : Integer);
+    begin
+        this.Receiver := Receiver;
+        this.Name := Name;
+        this.TheArity := TheArity;
+    end
+
+    function Arity () : Integer;
+    begin
+        Exit TheArity;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Receiver.Invoke (Name, Arguments);
+    end
+end
+
+/// A List or a Map.
+///
+/// It wraps a host collection rather than being one.  A host List is not an
+/// instance -- it has no class -- so ClassName raises on it and the interpreter
+/// could not tell it from a number.  Wrapping gives it a class name to
+/// recognise, and costs one field.
+///
+/// Kind is 'List', 'Map' or 'Array'; they share this class because they share
+/// almost every method, and what differs is checked where it matters.  An Array
+/// is a List that starts full of nil and refuses to grow.
+///
+class ObjCollection;
+var
+    Kind  : String;
+    Items : List;
+    Pairs : Map;
+
+begin
+    constructor Init (Kind : String);
+    begin
+        this.Kind := Kind;
+        this.Items := List();
+        this.Pairs := Map();
+    end
+
+    /// Property access.
+    ///
+    /// ⚠️ The member table is PER KIND, which is why this is a chain of Kind
+    /// tests rather than one list.  JPascal gives each collection its own
+    /// class, so a Map simply has no Add and reports 'Undefined property
+    /// ''Add''.' -- where this file used to accept every name for every kind
+    /// and then raise an invented 'Only a List has ''Add''.' from Invoke.  No
+    /// other implementation could produce those messages.
+    ///
+    /// Length and IsEmpty answer directly: they are properties in Algol-24,
+    /// written without parentheses.  Everything else hands back something
+    /// callable.
+    ///
+    function Get (TheName : Token) : Any;
+    var
+       Member : String;
+
+    begin
+        Member := TheName.Lexeme;
+
+        if Member = 'Length'  then Exit Count();
+        if Member = 'IsEmpty' then Exit Count() = 0;
+
+        // Shared by every kind.
+        if Member = 'Contains' then Exit CollectionMethod (this, Member, 1);
+
+        if Kind = 'List' then
+        begin
+            if Member = 'Get'      then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Add'      then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Insert'   then Exit CollectionMethod (this, Member, 2);
+            if Member = 'RemoveAt' then Exit CollectionMethod (this, Member, 1);
+            if Member = 'IndexOf'  then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Sort'     then Exit CollectionMethod (this, Member, 0);
+            if Member = 'Clear'    then Exit CollectionMethod (this, Member, 0);
+        end
+
+        if Kind = 'Array' then
+        begin
+            if Member = 'Get'     then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Set'     then Exit CollectionMethod (this, Member, 2);
+            if Member = 'Fill'    then Exit CollectionMethod (this, Member, 1);
+            if Member = 'IndexOf' then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Sort'    then Exit CollectionMethod (this, Member, 0);
+        end
+
+        if Kind = 'Map' then
+        begin
+            if Member = 'Get'    then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Put'    then Exit CollectionMethod (this, Member, 2);
+            if Member = 'Remove' then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Keys'   then Exit CollectionMethod (this, Member, 0);
+            if Member = 'Values' then Exit CollectionMethod (this, Member, 0);
+            if Member = 'Clear'  then Exit CollectionMethod (this, Member, 0);
+        end
+
+        if Kind = 'Set' then
+        begin
+            if Member = 'Add'    then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Remove' then Exit CollectionMethod (this, Member, 1);
+            if Member = 'ToList' then Exit CollectionMethod (this, Member, 0);
+            if Member = 'Clear'  then Exit CollectionMethod (this, Member, 0);
+        end
+
+        if Kind = 'Stack' then
+        begin
+            if Member = 'Push'  then Exit CollectionMethod (this, Member, 1);
+            if Member = 'Pop'   then Exit CollectionMethod (this, Member, 0);
+            if Member = 'Peek'  then Exit CollectionMethod (this, Member, 0);
+            if Member = 'Clear' then Exit CollectionMethod (this, Member, 0);
+        end
+
+        raise 'Undefined property ''' + Member + '''.';
+    end
+
+    /// Wraps a host List as an interpreted List, so what a program receives
+    /// from Keys, Values or ToList is a real collection it can go on using.
+    ///
+    function AsList (From : List) : ObjCollection;
+    var
+        Result : ObjCollection;
+
+    begin
+        Result := ObjCollection ('List');
+
+        for var I := 0; I < From.Length; I := I + 1 do
+            Result.Items.Add (From[I]);
+
+        Exit Result;
+    end
+
+    /// Runs a method by name.  Reached only through CollectionMethod, and Get
+    /// is the only thing that hands one of those out -- so a method arriving
+    /// here is one this kind really has.
+    ///
+    /// ⚠️ Almost every case defers to the HOST collection underneath, which is
+    /// what makes the bounds messages and the sort ordering identical to
+    /// JPascal's without restating either.  'Index 5 out of range 0..1.' and
+    /// 'Can only sort numbers against numbers, or text against text.' both
+    /// come from there.
+    ///
+    function Invoke (Name : String, Arguments : List) : Any;
+    begin
+        if Name = 'Contains' then
+        begin
+            if Kind = 'Map' then Exit Pairs.Contains (Arguments[0]);
+
+            Exit Items.Contains (Arguments[0]);
+        end
+
+        if Name = 'Get' then
+        begin
+            if Kind = 'Map' then Exit Pairs.Get (Arguments[0]);
+
+            Exit Items.Get (Arguments[0]);
+        end
+
+        if Name = 'Add' then
+        begin
+            // ⚠️ A Set's Add is idempotent, which is the only thing separating
+            // it from a List here -- they share the same Items behind them.
+            if Kind = 'Set' then
+            begin
+                if Not Items.Contains (Arguments[0]) then Items.Add (Arguments[0]);
+
+                Exit Arguments[0];
+            end
+
+            Items.Add (Arguments[0]);
+            Exit Arguments[0];
+        end
+
+        if Name = 'Set' then
+        begin
+            Items[Arguments[0]] := Arguments[1];
+            Exit Arguments[1];
+        end
+
+        if Name = 'Put' then
+        begin
+            Pairs.Put (Arguments[0], Arguments[1]);
+            Exit Arguments[1];
+        end
+
+        // Insert accepts Length as its index, which appends -- so a loop can
+        // fill a list without a special case for the end.
+        if Name = 'Insert' then Exit Items.Insert (Arguments[0], Arguments[1]);
+
+        if Name = 'RemoveAt' then Exit Items.RemoveAt (Arguments[0]);
+
+        // -1 when there is no match, rather than raising, so a miss can be
+        // tested for.
+        if Name = 'IndexOf' then Exit Items.IndexOf (Arguments[0]);
+
+        if Name = 'Sort' then
+        begin
+            Items.Sort();
+            Exit Nil;
+        end
+
+        // Every slot, which is what gives an Array its fixed contents.
+        if Name = 'Fill' then
+        begin
+            for var I := 0; I < Items.Length; I := I + 1 do
+                Items[I] := Arguments[0];
+
+            Exit Nil;
+        end
+
+        if Name = 'Keys'   then Exit AsList (Pairs.Keys());
+        if Name = 'Values' then Exit AsList (Pairs.Values());
+        if Name = 'ToList' then Exit AsList (Items);
+
+        // Answers whether anything was there to remove, so a miss can be
+        // tested for rather than raising.
+        if Name = 'Remove' then
+        begin
+            if Kind = 'Map' then
+            begin
+                if Not Pairs.Contains (Arguments[0]) then Exit False;
+
+                Pairs.Remove (Arguments[0]);
+                Exit True;
+            end
+
+            var At := Items.IndexOf (Arguments[0]);
+            if At < 0 then Exit False;
+
+            Items.RemoveAt (At);
+            Exit True;
+        end
+
+        // Push, Pop and Peek work the top of Items, so a Stack prints
+        // bottom-to-top in list shape -- which is what JPascal does, because
+        // java.util.Stack extends Vector and renders the same way.
+        if Name = 'Push' then
+        begin
+            Items.Add (Arguments[0]);
+            Exit Arguments[0];
+        end
+
+        if Name = 'Pop' then
+        begin
+            if Items.Length = 0 then raise 'Pop from an empty Stack.';
+
+            Exit Items.RemoveAt (Items.Length - 1);
+        end
+
+        if Name = 'Peek' then
+        begin
+            if Items.Length = 0 then raise 'Peek at an empty Stack.';
+
+            Exit Items[Items.Length - 1];
+        end
+
+        if Name = 'Clear' then
+        begin
+            if Kind = 'Map' then Pairs.Clear();
+            else Items.Clear();
+
+            Exit Nil;
+        end
+
+        raise 'Undefined method ''' + Name + '''.';
+    end
+
+    /// A[I].  A Map looks up by key; the others by position, bounds-checked by
+    /// the host with the message JPascal uses.
+    ///
+    function At (Index : Any) : Any;
+    begin
+        if Kind = 'Map' then Exit Pairs.Get (Index);
+
+        // ⚠️ A Set has no positions.  It reports as though it were not a
+        // collection at all, which is the message JPascal gives -- there, a
+        // PascalSet simply has no subscript path and falls through to the
+        // same complaint.
+        if Kind = 'Set' then raise 'Subscript target should be an ordinal.';
+
+        Exit Items[Index];
+    end
+
+    /// A[I] := V.  A Map puts, so a key that was not there is added; the others
+    /// replace an element that must already exist.
+    ///
+    function PutAt (Index : Any, Value : Any) : Any;
+    begin
+        if Kind = 'Map' then Pairs.Put (Index, Value);
+        else if Kind = 'Set' then raise 'Subscript target should be an ordinal.';
+        else Items[Index] := Value;
+
+        Exit Value;
+    end
+
+    /// Gives an Array its fixed size, filling it with nil -- the only way its
+    /// elements exist before anything assigns to them.
+    ///
+    /// ⚠️ Not the language's Fill(v), which SETS every slot.  This one makes
+    /// the slots; that one writes them.  Named apart so the two are not read
+    /// as the same operation.
+    ///
+    procedure Allocate (Size : Integer);
+    begin
+        for var I := 0; I < Size; I := I + 1 do
+            Items.Add (Nil);
+    end
+
+    /// How many elements, whichever kind this is.
+    function Count () : Integer;
+    begin
+        if Kind = 'Map' then Exit Pairs.Length;
+
+        Exit Items.Length;
+    end
+
+    /// Printed in the shape of its literal: [1, 2] for a List, [a:1] for a Map.
+    /// The host already renders both that way, so this defers to it rather than
+    /// building the text again and risking a different answer.
+    ///
+    function ToString () : String;
+    begin
+        if Kind = 'Map' then Exit Str (Pairs);
+
+        Exit Str (Items);
+    end
+end

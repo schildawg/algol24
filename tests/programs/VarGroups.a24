@@ -1,0 +1,59 @@
+/// Comma groups -- 'A, B := E;' in a var section.
+///
+/// ⚠️ Here because algc's emitter refused them outright while JPascal's emitted
+/// them, and no cgate program had one, so the two disagreed in silence.  The
+/// root Declarations suite uses them, but gate.sh compiles that with JPascal
+/// alone; nothing put algc and a comma group together.
+///
+/// They occur only in a var SECTION, and only inside a function -- 'var A, B'
+/// on one line is not the syntax, and a top-level section does not take them.
+
+var Count := 0;
+
+function Bump() : Integer;
+begin
+    Count := Count + 1;
+
+    Exit Count;
+end
+
+/// The initializer is evaluated ONCE into a shared temporary.  Emitting it per
+/// name would run Bump() twice and give X and Y different values.
+///
+function Once() : String;
+var
+    X, Y := Bump();
+
+begin
+    Exit Str(X) + ' ' + Str(Y) + ' ' + Str(X = Y);
+end
+
+function Typed() : Integer;
+var
+    P, Q : Integer := 3;
+
+begin
+    Exit P + Q;
+end
+
+/// A group whose names are captured by a nested function, so each one is boxed.
+///
+function Captured() : Integer;
+var
+    A, B := 5;
+
+begin
+    function Sum() : Integer;
+    begin
+        Exit A + B;
+    end
+
+    Exit Sum();
+end
+
+begin
+    WriteLn(Once());
+    WriteLn(Typed());
+    WriteLn(Captured());
+    WriteLn(Count);
+end

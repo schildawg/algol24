@@ -1,0 +1,111 @@
+/// Methods overload on the whole signature, not on arity.
+///
+/// Selection happens at run time, because in a gradually typed language the
+/// emitter frequently does not know an argument's type -- the same reason the
+/// collections dispatch there.
+
+class Animal;
+begin
+    function Kind() : String;
+    begin
+        Exit 'animal';
+    end
+end
+
+class Dog(Animal);
+begin
+    function Kind() : String;
+    begin
+        Exit 'dog';
+    end
+end
+
+class Printer;
+begin
+    function Show(What : Integer) : String;
+    begin
+        Exit 'integer ' + Str(What);
+    end
+
+    function Show(What : String) : String;
+    begin
+        Exit 'string ' + What;
+    end
+
+    function Show(What : Double) : String;
+    begin
+        Exit 'double ' + Str(What);
+    end
+
+    function Show(What : Boolean) : String;
+    begin
+        Exit 'boolean ' + Str(What);
+    end
+
+    /// A subclass stands where its parent is declared, so a Dog reaches this.
+    function Show(What : Animal) : String;
+    begin
+        Exit 'animal ' + What.Kind();
+    end
+
+    /// Arity still separates when the types do not.
+    function Show(A : Integer, B : Integer) : String;
+    begin
+        Exit 'two integers';
+    end
+end
+
+/// An overload declared in a parent and another in the child: both are found,
+/// because the chain is walked and each class's methods are scanned.
+class Base;
+begin
+    function Take(What : Integer) : String;
+    begin
+        Exit 'base integer';
+    end
+end
+
+class Derived(Base);
+begin
+    function Take(What : String) : String;
+    begin
+        Exit 'derived string';
+    end
+end
+
+/// An untyped parameter is Any, which accepts anything.
+class Loose;
+begin
+    function Any1(What) : String;
+    begin
+        Exit 'anything';
+    end
+end
+
+begin
+    var P := Printer();
+
+    WriteLn(P.Show(42));
+    WriteLn(P.Show('hello'));
+    WriteLn(P.Show(1.5));
+    WriteLn(P.Show(True));
+    WriteLn(P.Show(1, 2));
+
+    // A Dog selects the Animal overload.
+    WriteLn(P.Show(Dog()));
+    WriteLn(P.Show(Animal()));
+
+    // Inherited and own overloads coexist.
+    var D := Derived();
+    WriteLn(D.Take(1));
+    WriteLn(D.Take('text'));
+
+    // Any accepts every kind.
+    var L := Loose();
+    WriteLn(L.Any1(1));
+    WriteLn(L.Any1('x'));
+    WriteLn(L.Any1(nil));
+
+    // nil inhabits every type, so it may pick any overload that fits.
+    WriteLn(P.Show(nil));
+end

@@ -1,0 +1,105 @@
+class Animal;
+var
+    Name : String;
+    Legs : Integer := 4;
+
+begin
+    constructor Init(Name);
+    begin
+        this.Name := Name;
+    end
+
+    function Speak() : String;
+    begin
+        Exit Name + ' makes a sound';
+    end
+
+    function Describe() : String;
+    begin
+        Exit Speak() + ' on ' + Str(Legs) + ' legs';
+    end
+
+    /// A local named like a field wins inside the method.
+    function Shadowed() : String;
+    begin
+        var Name := 'a local';
+        Exit Name;
+    end
+end
+
+class Cat(Animal);
+var
+    Lives : Integer := 9;
+    Legs  : Integer := 4;
+
+begin
+    function Speak() : String;
+    begin
+        Exit Name + ' meows';
+    end
+end
+
+class Nothing;
+begin
+    function Tell() : String;
+    begin
+        Exit 'nothing to say';
+    end
+end
+
+function Louder(Beast) : String;
+begin
+    // A local inside a top-level function must stay local -- it became a global
+    // once, because the declaration carrying it is itself top level.
+    var Suffix := '!';
+    Exit Beast.Speak() + Suffix;
+end
+
+class Dog(Animal);
+begin
+    function Speak() : String;
+    begin
+        Exit super.Speak() + ' (a bark)';
+    end
+end
+
+begin
+    var A := Animal('Generic');
+    WriteLn(A.Name);
+    WriteLn(A.Legs);
+    WriteLn(A.Speak());
+    WriteLn(A.Describe());
+
+    A.Name := 'Renamed';
+    WriteLn(A.Name);
+
+    var D := Dog('Rex');
+    WriteLn(D.Speak());
+    WriteLn(D.Describe());
+    WriteLn(D.Legs);
+    WriteLn(D);
+
+    // A local shadows a field of the same name.
+    WriteLn(A.Shadowed());
+
+    // A subclass field, and one redeclared over the parent's.
+    var C := Cat('Tom');
+    WriteLn(C.Speak());
+    WriteLn(C.Legs);
+    WriteLn(C.Lives);
+    WriteLn(C.Describe());
+
+    // Instances are values: stored, passed, compared by identity.
+    var Pets := [A, D, C];
+    WriteLn(Pets.Length);
+    for var Each in Pets do
+        WriteLn(Each.Speak());
+
+    WriteLn(A = A);
+    WriteLn(A = D);
+    WriteLn(Louder(D));
+
+    // A class with no constructor at all.
+    var N := Nothing();
+    WriteLn(N.Tell());
+end

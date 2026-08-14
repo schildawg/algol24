@@ -1,0 +1,21 @@
+/// Two modules each owning a private 'Peek' and a private 'Calls'.
+///
+// Imported from a subdirectory so the harness, which runs every ctest/*.a24
+// as a program, does not try to run these fixtures on their own.
+uses 'lib/ModA';
+uses 'lib/ModB';
+
+begin
+    WriteLn(FromA());
+    WriteLn(FromB());
+
+    WriteLn(CallsA());
+    WriteLn(CallsB());
+
+    FromA();
+    FromA();
+    WriteLn(CallsA());
+    WriteLn(CallsB());
+
+    WriteLn(SecretOf());
+end

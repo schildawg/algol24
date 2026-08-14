@@ -1,0 +1,26 @@
+var Counter := 0;
+
+function Add(A, B) : Integer;
+begin
+    Exit A + B;
+end
+
+function Fib(N) : Integer;
+begin
+    if N < 2 then Exit N;
+    Exit Fib(N - 1) + Fib(N - 2);
+end
+
+begin
+    WriteLn(Add(2, 3) * 4);
+    WriteLn('fib(10) = ' + Str(Fib(10)));
+
+    while Counter < 3 do
+    begin
+        WriteLn('tick ' + Str(Counter));
+        Counter := Counter + 1;
+    end
+
+    if Counter = 3 then WriteLn('done');
+    else WriteLn('wrong');
+end

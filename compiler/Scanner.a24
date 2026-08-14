@@ -1,0 +1,846 @@
+uses SourceCode;
+uses Token;
+uses TokenType;
+
+const DIGITS    := '0123456789';
+const UPPERCASE := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const LOWERCASE := 'abcdefghijklmnopqrstuvwxyz';
+
+/// Lower-cases a string.
+///
+/// Written out because the language has no LowerCase and Ord cannot give a code
+/// point -- it parses its argument as a number, which is what ScanNumber needs.
+/// Pos and Copy are enough: find the letter in one alphabet, take the same
+/// position from the other.
+///
+function ToLower(Text : String) : String;
+var
+   Result : String := '';
+
+begin
+    for var I := 0; I < Length(Text); I := I + 1 do
+    begin
+        var C  := Copy(Text, I, 1);
+        var At := Pos(UPPERCASE, C);
+
+        if At >= 0 then Result := Result + Copy(LOWERCASE, At, 1);
+        else Result := Result + C;
+    end
+
+    Exit Result;
+end
+
+/// Reads a run of digits as an Integer.
+///
+/// Ord would be the obvious call and returns a Double, which is the one thing
+/// this must not do.  Pos hands back an Integer, so accumulating digits keeps
+/// the whole computation in Integer arithmetic.
+///
+function ToInteger(Text : String) : Integer;
+var
+   Result : Integer := 0;
+
+begin
+    for var I := 0; I < Length(Text); I := I + 1 do
+        Result := Result * 10 + Pos(DIGITS, Copy(Text, I, 1));
+
+    Exit Result;
+end
+
+/// Keywords, lower-cased on lookup because Algol-24's are case-insensitive --
+/// 'begin', 'Begin' and 'BEGIN' are one token -- while identifiers are not.
+var  Keywords := [
+    'and':TOKEN_AND, 'as':TOKEN_AS, 'begin':TOKEN_BEGIN, 'break':TOKEN_BREAK,
+    'case':TOKEN_CASE, 'class':TOKEN_CLASS,
+    'const':TOKEN_CONST, 'constructor':TOKEN_CONSTRUCTOR,
+    'do':TOKEN_DO, 'else':TOKEN_ELSE,
+    'end':TOKEN_END, 'except':TOKEN_EXCEPT, 'exit':TOKEN_EXIT,
+    'false':TOKEN_FALSE, 'for':TOKEN_FOR,
+    'function':TOKEN_FUNCTION, 'if':TOKEN_IF, 'in':TOKEN_IN, 'is':TOKEN_IS,
+    'nil':TOKEN_NIL,
+    'not':TOKEN_NOT, 'object':TOKEN_OBJECT, 'of':TOKEN_OF, 'or':TOKEN_OR,
+    'print':TOKEN_PRINT,
+    'private':TOKEN_PRIVATE, 'procedure':TOKEN_PROCEDURE,
+    'public':TOKEN_PUBLIC,
+    'raise':TOKEN_RAISE, 'super':TOKEN_SUPER, 'uses':TOKEN_USES,
+    'then':TOKEN_THEN, 'try':TOKEN_TRY,
+    'this':TOKEN_THIS, 'true':TOKEN_TRUE, 'type':TOKEN_TYPE, 'var':TOKEN_VAR,
+    'while':TOKEN_WHILE];
+
+var HadError := False;
+var LastError;
+
+/// Scanner
+///
+class Scanner;
+var 
+    Source : String;
+    Tokens : List of Token;
+
+    Current, Start, Line : Integer;
+
+    /// Where the current line begins, so a token's Offset is a column rather
+    /// than a position in the whole source.
+    LineStart : Integer;
+
+begin
+    /// Creates a new Scanner
+    ///
+    constructor Init(Source);
+    begin
+        // Str, because a one-character program is a Char rather than a String
+        // and a Char cannot be subscripted.  Scanner('1') is a legitimate call
+        // and used to fail with 'Subscript target should be an ordinal.'
+        this.Source  := Str(Source);
+        this.Current := 0;
+        this.Start   := 0;
+        this.Line    := 1;
+        this.LineStart := 0;
+
+        this.Tokens := List();
+    end
+
+    /// Scans Tokens
+    ///
+    function ScanTokens() : List;
+    begin
+        while not IsAtEnd() do
+        begin
+           Start := Current;
+           ScanToken();
+        end
+
+        // The last line has no newline to trigger it, so record it here.
+        SourceCode.Add (Line, Copy (Source, LineStart, Length(Source) - LineStart));
+
+        Tokens.Add(Token(EOF, '', nil, Line));
+        exit Tokens;
+    end
+
+    // Scan Token
+    //
+    procedure ScanToken();
+    var 
+        C : Char;
+
+    begin
+        C := Advance();   
+        case C of
+            '(' : AddToken(TOKEN_LEFT_PAREN);
+            ')' : AddToken(TOKEN_RIGHT_PAREN);
+            '[' : AddToken(TOKEN_LEFT_BRACKET);
+            ']' : AddToken(TOKEN_RIGHT_BRACKET);
+            ',' : AddToken(TOKEN_COMMA);
+            '.' : AddToken(TOKEN_DOT);
+            '-' : AddToken(TOKEN_MINUS);
+            '+' : AddToken(TOKEN_PLUS);
+            ';' : AddToken(TOKEN_SEMICOLON);
+            '*' : AddToken(TOKEN_STAR);
+
+            '=' : AddToken(TOKEN_EQUAL);
+            ':' : if Match('=') then AddToken(TOKEN_ASSIGN); else AddToken(TOKEN_COLON);
+            '>' : if Match('=') then AddToken(TOKEN_GREATER_EQUAL); else AddToken(TOKEN_GREATER);
+
+            // '<' opens three tokens: '<>', '<=' and itself.
+            '<' :
+                if Match('>') then AddToken(TOKEN_NOT_EQUAL);
+                else if Match('=') then AddToken(TOKEN_LESS_EQUAL);
+                else AddToken(TOKEN_LESS);
+
+            // Comments
+            '/':
+                if Match('/') then 
+                   while Peek() <> #10 and not IsAtEnd() do Advance();
+                else 
+                   AddToken(TOKEN_SLASH);
+
+            // Skip whitespace
+            #9, #13, ' ' : Exit;
+
+            #10 :
+                begin
+                   // Recorded as the newline is passed, which is the only
+                   // moment both ends of the line are known.
+                   SourceCode.Add (Line, Copy (Source, LineStart, Current - LineStart - 1));
+
+                   Line := Line + 1;
+                   LineStart := Current;
+                   Exit;
+                end
+            #39 : ScanString();
+            '#' : ScanChar();
+        else
+            if IsAlpha(C) then
+                ScanIdentifier();
+            else if IsDigit(C) then
+                ScanNumber();
+            else 
+                begin
+                    HadError := True;
+                    LastError := '[line ' + Line + '] Unrecognized character: ' + C + '.';
+                end
+        end  
+    end
+
+    // Scans an Identifier, or a keyword.
+    //
+    // Keywords match case-insensitively, as JPascal's do, so 'begin', 'Begin'
+    // and 'BEGIN' are one token.  Identifiers stay case-sensitive: only the
+    // lookup is lowered, never the lexeme.
+    //
+    procedure ScanIdentifier();
+    var 
+       Text        : String;
+       TypeOfToken : TokenType;
+
+    begin
+        while IsAlphaNumeric(Peek()) do Advance();
+
+        Text := Copy(Source, Start, Current - Start);   
+        TypeOfToken := TOKEN_IDENTIFIER;
+
+        var Lowered := ToLower(Text);
+        if Keywords.Contains(Lowered) then
+        begin
+            TypeOfToken := Keywords.Get(Lowered) as TokenType;
+        end
+
+        AddToken(TypeOfToken);        
+    end
+
+    // Scans a Number
+    //
+    // Scans a Number.
+    //
+    // A fractional part makes it a Double; without one it is an Integer, and
+    // the two are different types.  That is what makes '7 / 2' three rather
+    // than 3.5, because the arithmetic below is the host's.
+    //
+    procedure ScanNumber();
+    var
+       IsInteger : Boolean;
+
+    begin
+        IsInteger := True;
+
+        while IsDigit(Peek()) do Advance();
+
+        // look for a fractional part.
+        if Peek() = '.' and IsDigit(PeekNext()) then
+        begin
+            IsInteger := False;
+            Advance();
+        end
+
+        while IsDigit(Peek()) do Advance();
+
+        var Text := Copy(Source, Start, Current - Start);
+
+        if IsInteger then AddToken(TOKEN_INTEGER, ToInteger(Text));
+        else AddToken(TOKEN_NUMBER, Val(Text));
+    end
+
+    // Scans a String
+    //
+    // Scans a String.
+    //
+    // Single-quoted, and a doubled quote is the only escape there is -- so
+    // 'it''s' is one string holding it's.  The literal is built a character at
+    // a time rather than sliced out of the source, because a doubled quote
+    // makes the lexeme and the value different lengths.
+    //
+    procedure ScanString();
+    var 
+       Value : String;
+
+    begin
+        Value := '';
+
+        while not IsAtEnd() do
+        begin
+            if Peek() = #39 then
+            begin
+                // A second quote is an escaped one; anything else ends it.
+                if PeekNext() <> #39 then Break;
+
+                Advance();
+            end
+
+            if Peek() = #10 then Line := Line + 1;
+
+            Value := Value + Advance();
+        end
+
+        if IsAtEnd() then
+        begin
+            HadError := True;
+            LastError := '[line ' + Line + '] Error : Unterminated string.';
+            Exit;
+        end
+        Advance();
+
+        // A one-character literal is a Char, not a String, and the two are
+        // never equal.  Measured on the RAW span between the quotes rather than
+        // on Value: '''' is an escaped quote, two characters of source and one
+        // of value, and JPascal calls it a String.  Testing Value would call it
+        // a Char and the two implementations would disagree about ''''.
+        // Value[0], not Ord(Value): subscripting a String yields a Char, while
+        // Ord parses its argument as a number and fails on anything else.
+        if Current - Start - 2 = 1 then AddToken(TOKEN_CHAR, Value[0]);
+        else AddToken(TOKEN_STRING, Value);
+    end
+
+    // Scans a Char written by code point: #65 is 'A', #10 is a newline.
+    //
+    procedure ScanChar();
+    begin
+        if not IsDigit(Peek()) then
+        begin
+            HadError := True;
+            LastError := '[line ' + Line + '] Invalid character: ' + Peek();
+            Exit;
+        end
+
+        while IsDigit(Peek()) do Advance();
+
+        AddToken(TOKEN_CHAR, Char(ToInteger(Copy(Source, Start + 1, Current - Start - 1))));
+    end
+
+    // Does the character match?  
+    //
+    function Match(Expected : Char) : Boolean;
+    begin
+        if IsAtEnd() then Exit False; 
+        if Source[Current] <> Expected then Exit False;
+
+        Current := Current + 1;
+        Exit True;
+    end
+
+    // Returns the current character.
+    //
+    function Peek();
+    begin
+        if IsAtEnd() then exit #0;
+
+        exit Source[Current];
+    end
+
+    // Returns the next character.
+    //
+    function PeekNext() : Char;
+    begin
+       // '>=', not '>': at Current + 1 = Length the index is already one past
+       // the last character.  Lox only ever called this from ScanNumber, where
+       // a digit always followed, so the off-by-one was unreachable until
+       // ScanString started using it to spot a doubled quote.
+       if Current + 1 >= Length(Source) then exit #0;
+       
+       exit Source[Current + 1];
+    end
+
+    // Adds a Token.
+    //
+    procedure AddToken(TypeOfToken : TokenType);
+    begin
+        AddToken(TypeOfToken, nil);
+    end
+
+    // Adds a Token.
+    //
+    procedure AddToken(TypeOfToken : TokenType, Literal : Any);
+    var
+       Text     : String;
+       TheToken : Token;
+
+    begin
+        Text := Copy(Source, Start, Current - Start);
+
+        TheToken := Token(TypeOfToken, Text, Literal, Line);
+        TheToken.Offset := Start - LineStart;
+
+        Tokens.Add(TheToken);
+    end
+
+    // Is at the end?
+    //
+    function IsAtEnd();
+    begin
+        Exit Current >= Length(Source);
+    end
+
+    // Advance the current character.
+    //
+    function Advance() : Char;
+    var 
+       ReturnValue : Char;
+
+    begin
+        ReturnValue := Source[Current];
+        Current := Current + 1;
+        
+        Exit ReturnValue;
+    end
+
+    // Is the character alphabetic?
+    //
+    function IsAlpha(C : Char) : Boolean;
+    begin
+        Exit (C >= 'a' and C <= 'z') or
+             (C >= 'A' and C <= 'Z') or 
+             (C = '_');
+    end
+
+    // Is the character alphanumeric?
+    //
+    function IsAlphaNumeric(C : Char) : Boolean;
+    begin
+        Exit IsAlpha(C) or IsDigit(C);
+    end
+
+    // Is the character a digit?
+    //
+    function IsDigit(C : Char) : Boolean;
+    begin
+       Exit C >= '0' and C <= '9';
+    end
+end
+
+// Scans each of the single character tokens, verifying the correct token types are returned, and ends
+// with an EOF.
+//
+test 'Scan Tokens';
+begin
+    // '{' and '}' are gone -- blocks are begin/end, and neither brace is a
+    // token in Algol-24 at all.
+    var Uut := Scanner('(),.-+;*:');
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_LEFT_PAREN,  Uut.Tokens[0].TypeOfToken);
+    AssertEqual(TOKEN_RIGHT_PAREN, Uut.Tokens[1].TypeOfToken);
+
+    AssertEqual(TOKEN_COMMA, Uut.Tokens[2].TypeOfToken);
+    AssertEqual(TOKEN_DOT,   Uut.Tokens[3].TypeOfToken);
+    AssertEqual(TOKEN_MINUS, Uut.Tokens[4].TypeOfToken);
+    AssertEqual(TOKEN_PLUS,  Uut.Tokens[5].TypeOfToken);
+
+    AssertEqual(TOKEN_SEMICOLON, Uut.Tokens[6].TypeOfToken);
+    AssertEqual(TOKEN_STAR,      Uut.Tokens[7].TypeOfToken);
+    AssertEqual(TOKEN_COLON,     Uut.Tokens[8].TypeOfToken);
+
+    AssertEqual(EOF, Uut.Tokens[9].TypeOfToken);
+end
+
+// Scans the two character operators, verifying the correct token types are returned.  Also checks that 
+// the individual characters continue to be scanned properly.  Implicitly checks that whitespace is ignored.
+//
+test 'Scan Operators';
+begin
+    var Uut := Scanner('= := < > <> <= >=');
+
+    Uut.ScanTokens();
+
+    // '=' is equality and ':=' is assignment -- the opposite of C, and the
+    // reverse of what this scanner did as a Lox scanner.
+    AssertEqual(TOKEN_EQUAL,  Uut.Tokens[0].TypeOfToken);
+    AssertEqual(TOKEN_ASSIGN, Uut.Tokens[1].TypeOfToken);
+
+    AssertEqual(TOKEN_LESS,    Uut.Tokens[2].TypeOfToken);
+    AssertEqual(TOKEN_GREATER, Uut.Tokens[3].TypeOfToken);
+
+    AssertEqual(TOKEN_NOT_EQUAL,     Uut.Tokens[4].TypeOfToken);
+    AssertEqual(TOKEN_LESS_EQUAL,    Uut.Tokens[5].TypeOfToken);
+    AssertEqual(TOKEN_GREATER_EQUAL, Uut.Tokens[6].TypeOfToken);
+
+    AssertEqual(EOF, Uut.Tokens[7].TypeOfToken);
+end
+
+// '<' opens three tokens, so the order the scanner tries them in matters:
+// '<>' must be tested before '<=' and both before a bare '<'.
+//
+test 'Scan Less Is Not Greedy';
+begin
+    var Uut := Scanner('<<><=<');
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_LESS,       Uut.Tokens[0].TypeOfToken);
+    AssertEqual(TOKEN_NOT_EQUAL,  Uut.Tokens[1].TypeOfToken);
+    AssertEqual(TOKEN_LESS_EQUAL, Uut.Tokens[2].TypeOfToken);
+    AssertEqual(TOKEN_LESS,       Uut.Tokens[3].TypeOfToken);
+    AssertEqual(EOF,              Uut.Tokens[4].TypeOfToken);
+end
+
+// Tests that a comment is ignored until the end of a line.
+//
+test 'Scan Comment';
+begin
+    var Uut := Scanner('// This is a comment.');
+    
+    Uut.ScanTokens();
+
+    AssertEqual(EOF, Uut.Tokens[0].TypeOfToken);
+end
+
+// A comment ends at the newline, and what follows it is still scanned.
+//
+// The whole point of the case above is that it does NOT reach here: it has no
+// newline, so it passed just as well when a comment ran to #13 -- a character
+// no LF-terminated file contains, which meant a comment swallowed the rest of
+// the source and every token after one was silently lost.
+//
+test 'Scan Comment Ends At Newline';
+begin
+    var Uut := Scanner('// This is a comment.' + #10 + 'abc');
+
+    Uut.ScanTokens();
+
+    AssertEqual(2, Uut.Tokens.Length);
+    AssertEqual(TOKEN_IDENTIFIER, Uut.Tokens[0].TypeOfToken);
+    AssertEqual(2, Uut.Tokens[0].LineNumber);
+end
+
+// Test that the line counter is increased when scanning an end-of-line character (\n).
+//
+test 'Scan Newline';
+begin
+    var Uut := Scanner('test ' + #10 +  'test2');
+    
+    Uut.ScanTokens();
+
+    AssertEqual(1, Uut.Tokens[0].LineNumber);
+    AssertEqual(2, Uut.Tokens[1].LineNumber);
+end
+
+// Test that quotation mark returns a String token type, with a lexeme including the quotation marks, and 
+// the literal value a String object without them.
+//
+test 'Scan String';
+begin
+    // Single quotes now.  #39 is one, written by code point because a literal
+    // quote inside a quoted string would have to be doubled and that is what
+    // the next test is about.
+    var Uut := Scanner(#39 + 'ABC' + #39);
+
+    Uut.ScanTokens();
+
+    var Token := Uut.Tokens[0];
+
+    AssertEqual(TOKEN_STRING, Token.TypeOfToken);
+    AssertEqual(#39 + 'ABC' + #39, Token.Lexeme);
+    AssertEqual('ABC', Token.Literal);
+end
+
+// A doubled quote is the only escape there is, so the lexeme and the literal
+// are different lengths -- which is why the literal is built a character at a
+// time rather than sliced out of the source.
+//
+test 'Scan Doubled Quote';
+begin
+    var Uut := Scanner(#39 + 'it' + #39 + #39 + 's' + #39);
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_STRING, Uut.Tokens[0].TypeOfToken);
+    AssertEqual('it' + #39 + 's', Uut.Tokens[0].Literal);
+end
+
+// An empty string is a String, and scans to a literal of length zero.
+//
+test 'Scan Empty String';
+begin
+    var Uut := Scanner(#39 + #39);
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_STRING, Uut.Tokens[0].TypeOfToken);
+    AssertEqual('', Uut.Tokens[0].Literal);
+end
+
+// If the end of the file is reached without a terminating quotation mark, an error should be sent to 
+// Lox.
+// 
+test 'Scan Unterminated String';
+begin
+    var Uut := Scanner(#39 + 'ABC');
+
+    Uut.ScanTokens();
+
+    AssertTrue(HadError);
+    AssertEqual('[line 1] Error : Unterminated string.', LastError);
+end
+
+// Tests that scanning a series of numbers returns a Number object, with the String value in lexeme.
+//
+test 'Scan Number';
+begin
+    var Uut := Scanner('123');
+
+    Uut.ScanTokens();
+
+    var Token := Uut.Tokens[0];
+
+    // No fractional part, so an Integer -- and the literal is an Integer too,
+    // which is what keeps '7 / 2' at three.
+    AssertEqual(TOKEN_INTEGER, Token.TypeOfToken);
+    AssertEqual('123', Token.Lexeme);
+    AssertEqual(123, Token.Literal);
+end
+
+// The two literal types are genuinely different, not merely printed
+// differently: '1' and '1.0' scan to different tokens carrying different types.
+//
+test 'Scan Integer Is Not A Double';
+begin
+    var Whole := Scanner('1');
+    Whole.ScanTokens();
+
+    var Real := Scanner('1.0');
+    Real.ScanTokens();
+
+    AssertEqual(TOKEN_INTEGER, Whole.Tokens[0].TypeOfToken);
+    AssertEqual(TOKEN_NUMBER,  Real.Tokens[0].TypeOfToken);
+
+    // Str(1) rather than '1' for the expected value: a one-character literal is
+    // a Char and Str returns a String, and the two are never equal.  The
+    // printed form is what distinguishes the types here, since AssertEqual
+    // promotes and would find 1 equal to 1.0.
+    AssertEqual(Str(1), Str(Whole.Tokens[0].Literal));
+    AssertEqual('1.0',  Str(Real.Tokens[0].Literal));
+end
+
+// A one-character literal is a Char, and a Char is never equal to a String.
+//
+test 'Scan One Character Is A Char';
+begin
+    var Uut := Scanner(#39 + 'a' + #39);
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_CHAR, Uut.Tokens[0].TypeOfToken);
+    AssertTrue(Uut.Tokens[0].Literal = 'a');
+end
+
+// ⚠️ '''' is an escaped quote: two characters of source between the quotes and
+// one of value.  The rule reads the SOURCE, so this is a String of length one
+// rather than a Char -- which is what JPascal does, and the reason the length
+// is measured on the raw span instead of on the built value.
+//
+test 'Scan An Escaped Quote Is A String';
+begin
+    var Uut := Scanner(#39 + #39 + #39 + #39);
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_STRING, Uut.Tokens[0].TypeOfToken);
+    AssertEqual(1, Length(Uut.Tokens[0].Literal));
+end
+
+// A Char written by code point.
+//
+test 'Scan Char By Code Point';
+begin
+    var Uut := Scanner('#65 #10');
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_CHAR, Uut.Tokens[0].TypeOfToken);
+    AssertTrue(Uut.Tokens[0].Literal = 'A');
+
+    AssertEqual(TOKEN_CHAR, Uut.Tokens[1].TypeOfToken);
+    AssertTrue(Uut.Tokens[1].Literal = #10);
+end
+
+// A '#' with no digits after it is an error rather than a token.
+//
+test 'Scan Char Without Digits';
+begin
+    HadError := False;
+
+    var Uut := Scanner('#x');
+    Uut.ScanTokens();
+
+    AssertTrue(HadError);
+end
+
+// A trailing dot is not a fractional part -- '1.' is the Integer 1 followed by
+// a dot, because a digit has to follow the point.
+//
+test 'Scan Integer Then Dot';
+begin
+    var Uut := Scanner('1.');
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_INTEGER, Uut.Tokens[0].TypeOfToken);
+    AssertEqual(1,             Uut.Tokens[0].Literal);
+    AssertEqual(TOKEN_DOT,     Uut.Tokens[1].TypeOfToken);
+end
+
+// If a period is encountered while scanning numbers, it should scan for additional numbers for a decimal
+// value.  Returns a Number with the String value in lexeme.
+//
+test 'Scan Number Decimal';
+begin
+    var Uut := Scanner('3.14');
+    
+    Uut.ScanTokens();
+
+    var Token := Uut.Tokens[0];
+
+    AssertEqual(TOKEN_NUMBER, Token.TypeOfToken);
+    AssertEqual('3.14', Token.Lexeme);
+    AssertEqual(3.14, Token.Literal);
+end
+
+// Test scanning an identifier.  The lexeme should contain the name, and the literal value should be None.
+//
+test 'Scan Identifier';
+begin
+    var Uut := Scanner('test');
+    
+    Uut.ScanTokens();
+
+    var Token := Uut.Tokens[0];
+
+    AssertEqual(TOKEN_IDENTIFIER, Token.TypeOfToken);
+    AssertEqual('test', Token.Lexeme);
+
+    // TODO: Add AssertNil
+    AssertEqual(nil, Token.Literal);
+end
+
+// Tests that all of Lox's keywords are properly distinguished from identifiers.
+//
+test 'Scan Keywords';
+begin
+    var Uut := Scanner('and begin class constructor do else end exit false for '
+                     + 'function if nil not or print procedure super then this '
+                     + 'true var while');
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_AND,         Uut.Tokens[0].TypeOfToken);
+    AssertEqual(TOKEN_BEGIN,       Uut.Tokens[1].TypeOfToken);
+    AssertEqual(TOKEN_CLASS,       Uut.Tokens[2].TypeOfToken);
+    AssertEqual(TOKEN_CONSTRUCTOR, Uut.Tokens[3].TypeOfToken);
+    AssertEqual(TOKEN_DO,          Uut.Tokens[4].TypeOfToken);
+    AssertEqual(TOKEN_ELSE,        Uut.Tokens[5].TypeOfToken);
+    AssertEqual(TOKEN_END,         Uut.Tokens[6].TypeOfToken);
+    AssertEqual(TOKEN_EXIT,        Uut.Tokens[7].TypeOfToken);
+    AssertEqual(TOKEN_FALSE,       Uut.Tokens[8].TypeOfToken);
+    AssertEqual(TOKEN_FOR,         Uut.Tokens[9].TypeOfToken);
+    AssertEqual(TOKEN_FUNCTION,    Uut.Tokens[10].TypeOfToken);
+    AssertEqual(TOKEN_IF,          Uut.Tokens[11].TypeOfToken);
+    AssertEqual(TOKEN_NIL,         Uut.Tokens[12].TypeOfToken);
+    AssertEqual(TOKEN_NOT,         Uut.Tokens[13].TypeOfToken);
+    AssertEqual(TOKEN_OR,          Uut.Tokens[14].TypeOfToken);
+    AssertEqual(TOKEN_PRINT,       Uut.Tokens[15].TypeOfToken);
+    AssertEqual(TOKEN_PROCEDURE,   Uut.Tokens[16].TypeOfToken);
+    AssertEqual(TOKEN_SUPER,       Uut.Tokens[17].TypeOfToken);
+    AssertEqual(TOKEN_THEN,        Uut.Tokens[18].TypeOfToken);
+    AssertEqual(TOKEN_THIS,        Uut.Tokens[19].TypeOfToken);
+    AssertEqual(TOKEN_TRUE,        Uut.Tokens[20].TypeOfToken);
+    AssertEqual(TOKEN_VAR,         Uut.Tokens[21].TypeOfToken);
+    AssertEqual(TOKEN_WHILE,       Uut.Tokens[22].TypeOfToken);
+    AssertEqual(EOF,               Uut.Tokens[23].TypeOfToken);
+end
+
+// Should report an error to Lox if an unexpected character is scanned.
+///
+test 'Scan Unexpected String';
+begin
+    var Uut := Scanner(Str('%'));
+    
+    Uut.ScanTokens();
+
+    AssertTrue(HadError);
+    AssertEqual('[line 1] Unrecognized character: %.', LastError);
+end
+
+// The whole scanner, over a realistic program, in one assertion.
+//
+// Every other test in this file feeds a single line, which is how #10 and #13
+// stayed swapped for so long: with no newline anywhere in the input, a comment
+// that ran to the wrong character still stopped at the end of the source, and
+// a line counter that never advanced was never asked to.  This one has a
+// comment on its own line and another at the end of a line, a CRLF, and eight
+// lines to count.
+//
+// ⚠️ This test used to be identical in ctest/Lox/Scanner.a24 and was the check
+// that the two copies had not drifted.  Step 1 is where they part: this scanner
+// now reads Algol-24 and the frozen one still reads Lox, so the two can no
+// longer be compared and the frozen copy keeps the Lox version.
+//
+// Literals are not rendered, only lexemes: the two copies disagree about what a
+// number's literal is -- one keeps the text, the other Ord of it -- while
+// agreeing on every lexeme.  Lexemes are also what catches a Copy that takes
+// an end where it should take a length.
+//
+test 'Scan A Whole Program';
+begin
+    var Source :=
+        '// leading comment'                        + #10 +
+        'class Greeter;'                            + #10 +
+        'begin'                                     + #10 +
+        '  function Greet(Name);'                   + #10 +
+        '  begin'                                   + #10 +
+        '    print ''hi, '' + Name; // trailing'    + #10 +
+        '  end'                                     + #10 +
+        'end'                                       + #13 + #10 +
+        'var N := 3.5;'                             + #10 +
+        'if N >= 1 and N <> 2 then print not true;' + #10;
+
+    var Uut := Scanner(Source);
+    Uut.ScanTokens();
+
+    var Actual := '';
+    for var T in Uut.Tokens do
+        Actual := Actual + Str(T.LineNumber) + ':' + Str(T.TypeOfToken) + ':' + T.Lexeme + #10;
+
+    // Line 1 is a comment and contributes nothing, so the first token is on 2.
+    // The 'end' on 8 is followed by a CR, which is whitespace and does not
+    // count, so 'var' is on 9.  EOF is on 11, after the final newline.
+    var Expected :=
+        '2:TOKEN_CLASS:class'        + #10 +
+        '2:TOKEN_IDENTIFIER:Greeter' + #10 +
+        '2:TOKEN_SEMICOLON:;'        + #10 +
+        '3:TOKEN_BEGIN:begin'        + #10 +
+        '4:TOKEN_FUNCTION:function'  + #10 +
+        '4:TOKEN_IDENTIFIER:Greet'   + #10 +
+        '4:TOKEN_LEFT_PAREN:('       + #10 +
+        '4:TOKEN_IDENTIFIER:Name'    + #10 +
+        '4:TOKEN_RIGHT_PAREN:)'      + #10 +
+        '4:TOKEN_SEMICOLON:;'        + #10 +
+        '5:TOKEN_BEGIN:begin'        + #10 +
+        '6:TOKEN_PRINT:print'        + #10 +
+        '6:TOKEN_STRING:''hi, '''    + #10 +
+        '6:TOKEN_PLUS:+'             + #10 +
+        '6:TOKEN_IDENTIFIER:Name'    + #10 +
+        '6:TOKEN_SEMICOLON:;'        + #10 +
+        '7:TOKEN_END:end'            + #10 +
+        '8:TOKEN_END:end'            + #10 +
+        '9:TOKEN_VAR:var'            + #10 +
+        '9:TOKEN_IDENTIFIER:N'       + #10 +
+        '9:TOKEN_ASSIGN::='          + #10 +
+        '9:TOKEN_NUMBER:3.5'         + #10 +
+        '9:TOKEN_SEMICOLON:;'        + #10 +
+        '10:TOKEN_IF:if'             + #10 +
+        '10:TOKEN_IDENTIFIER:N'      + #10 +
+        '10:TOKEN_GREATER_EQUAL:>='  + #10 +
+        '10:TOKEN_INTEGER:1'          + #10 +
+        '10:TOKEN_AND:and'           + #10 +
+        '10:TOKEN_IDENTIFIER:N'      + #10 +
+        '10:TOKEN_NOT_EQUAL:<>'      + #10 +
+        '10:TOKEN_INTEGER:2'          + #10 +
+        '10:TOKEN_THEN:then'         + #10 +
+        '10:TOKEN_PRINT:print'       + #10 +
+        '10:TOKEN_NOT:not'           + #10 +
+        '10:TOKEN_TRUE:true'         + #10 +
+        '10:TOKEN_SEMICOLON:;'       + #10 +
+        '11:EOF:'                    + #10;
+
+    AssertEqual(37, Uut.Tokens.Length);
+    AssertEqual(Expected, Actual);
+end

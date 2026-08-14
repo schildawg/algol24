@@ -1,0 +1,35 @@
+/// Functions: parameters, recursion, mutual recursion across declaration order,
+/// a procedure with no Exit, and a global mutated from inside a function.
+///
+var Calls := 0;
+
+function IsEven(N) : Boolean;
+begin
+    Calls := Calls + 1;
+    if N = 0 then Exit true;
+    Exit IsOdd(N - 1);
+end
+
+function IsOdd(N) : Boolean;
+begin
+    Calls := Calls + 1;
+    if N = 0 then Exit false;
+    Exit IsEven(N - 1);
+end
+
+procedure Announce(Label, Value);
+begin
+    WriteLn(Label + ' = ' + Str(Value));
+end
+
+function NoExit();
+begin
+    Calls := Calls + 1;
+end
+
+begin
+    Announce('even 10', IsEven(10));
+    Announce('odd 7', IsOdd(7));
+    WriteLn(Str(NoExit()));
+    Announce('calls', Calls);
+end

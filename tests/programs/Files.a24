@@ -1,0 +1,183 @@
+/// TextFile, differentially.
+///
+/// ParamStr(0) is deliberately not printed: interpreted it is the script's path
+/// and compiled it is the executable's, which is the one place the two back ends
+/// are specified to differ.  ParamCount is 0 either way, since ctest passes no
+/// arguments.
+///
+/// Every file made here is erased again, because the interpreted and the
+/// compiled run share a working directory and anything left behind would make
+/// the second run see a world the first did not.
+
+procedure Put(Name : String, Lines : List);
+begin
+    var Out := TextFile();
+    Out.Assign(Name);
+    Out.Rewrite();
+
+    for var Line in Lines do
+        Out.WriteLn(Line);
+
+    Out.Close();
+end
+
+procedure Show(Name : String);
+begin
+    var F := TextFile();
+    F.Assign(Name);
+    F.Reset();
+
+    while not F.Eof do
+        WriteLn('  ' + F.ReadLn());
+
+    F.Close();
+end
+
+procedure Drop(Name : String);
+begin
+    var F := TextFile();
+    F.Assign(Name);
+    F.Erase();
+end
+
+/// Each failure case is written out rather than passed as a body: Algol-24 has
+/// function references but no function *literals*, so there is no lambda to
+/// hand to a Failing(Label, Body) helper.
+
+
+begin
+    WriteLn('-- round trip');
+    Put('c-files.txt', ['alpha', 'beta', 'gamma']);
+    Show('c-files.txt');
+
+    WriteLn('-- rewrite truncates');
+    Put('c-files.txt', ['only']);
+    Show('c-files.txt');
+
+    WriteLn('-- append');
+    var Out := TextFile();
+    Out.Assign('c-files.txt');
+    Out.Append();
+    Out.WriteLn('added');
+    Out.Close();
+    Show('c-files.txt');
+
+    WriteLn('-- write does not end the line');
+    var Parts := TextFile();
+    Parts.Assign('c-parts.txt');
+    Parts.Rewrite();
+    Parts.Write('a');
+    Parts.Write('b');
+    Parts.WriteLn('c');
+    Parts.Flush();
+    Parts.Close();
+    Show('c-parts.txt');
+
+    WriteLn('-- eof');
+    var F := TextFile();
+    F.Assign('c-parts.txt');
+    F.Reset();
+    WriteLn('  before: ' + Str(F.Eof));
+    WriteLn('  line:   ' + F.ReadLn());
+    WriteLn('  after:  ' + Str(F.Eof));
+    F.Close();
+
+    WriteLn('-- reopen after close');
+    F.Reset();
+    WriteLn('  ' + F.ReadLn());
+    F.Close();
+
+    WriteLn('-- eof while writing');
+    var W := TextFile();
+    W.Assign('c-mode.txt');
+    W.Rewrite();
+    WriteLn('  ' + Str(W.Eof));
+    W.Close();
+
+    WriteLn('-- exists');
+    WriteLn('  present: ' + Str(FileExists('c-files.txt')));
+    WriteLn('  absent:  ' + Str(FileExists('c-nothing.txt')));
+
+    WriteLn('-- rename');
+    var R := TextFile();
+    R.Assign('c-files.txt');
+    R.Rename('c-renamed.txt');
+    WriteLn('  old: ' + Str(FileExists('c-files.txt')));
+    WriteLn('  new: ' + Str(FileExists('c-renamed.txt')));
+    Show('c-renamed.txt');
+
+    WriteLn('-- arguments');
+    WriteLn('  count: ' + Str(ParamCount()));
+    WriteLn('  past:  "' + ParamStr(99) + '"');
+
+    WriteLn('-- failures');
+
+    try
+        var A := TextFile();
+        A.Assign('c-nothing.txt');
+        A.Reset();
+    except
+        on E : String do WriteLn('  missing: ' + E);
+    end
+
+    try
+        var B := TextFile();
+        B.Reset();
+    except
+        on E : String do WriteLn('  unassigned: ' + E);
+    end
+
+    try
+        var C := TextFile();
+        C.Assign('c-renamed.txt');
+        C.Reset();
+        C.Reset();
+    except
+        on E : String do WriteLn('  already open: ' + E);
+    end
+
+    try
+        var D := TextFile();
+        D.Assign('c-parts.txt');
+        D.Reset();
+        D.ReadLn();
+        D.ReadLn();
+    except
+        on E : String do WriteLn('  past the end: ' + E);
+    end
+
+    try
+        var G := TextFile();
+        G.Assign('c-mode.txt');
+        G.Rewrite();
+        G.ReadLn();
+    except
+        on E : String do WriteLn('  wrong mode read: ' + E);
+    end
+
+    try
+        var H := TextFile();
+        H.Assign('c-parts.txt');
+        H.Reset();
+        H.WriteLn('no');
+    except
+        on E : String do WriteLn('  wrong mode write: ' + E);
+    end
+
+    try
+        var J := TextFile();
+        J.Assign('c-nothing.txt');
+        J.Erase();
+    except
+        on E : String do WriteLn('  erase missing: ' + E);
+    end
+
+    Drop('c-renamed.txt');
+    Drop('c-parts.txt');
+    Drop('c-mode.txt');
+
+    WriteLn('-- cleaned up');
+    WriteLn('  ' + Str(FileExists('c-renamed.txt')));
+
+    WriteLn('done');
+end

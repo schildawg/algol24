@@ -1,0 +1,23 @@
+/// Allocates past a single arena chunk, on purpose.
+///
+/// The canary for leakcheck.sh.  Every ctest program fits inside one 1 MB
+/// chunk, and one chunk is still reachable through the allocator's own bump
+/// pointer -- so none of them leaks even with the exit handler removed, and a
+/// leak check built only from them would pass forever without testing
+/// anything.  This one abandons chunks, which is the case that actually goes
+/// wrong.
+///
+/// Verified both ways, against the runtime as it was before the chunk list
+/// existed: 20 leaks and 21 MB at this size, and none once the chunks are
+/// tracked and freed.
+///
+/// ⚠️ Disabling only the atexit handler does NOT reproduce the old bug -- the
+/// chunk list itself keeps every chunk reachable, so `leaks` reports nothing.
+/// Reproducing it means going back to the untracked allocator.
+begin
+    var Text := '';
+    for var I := 0; I < 1000; I := I + 1 do
+        Text := Text + 'padding padding padding padding padding ';
+
+    WriteLn(Length(Text));
+end

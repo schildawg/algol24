@@ -1,0 +1,25 @@
+/// The benchmark from Crafting Interpreters: naive recursive Fibonacci, timed.
+///
+/// It measures function-call overhead more than arithmetic -- fib(30) makes
+/// about 2.7 million calls -- which is exactly what a tree-walker pays most for
+/// and what compiling is meant to fix.
+///
+/// N is 30 deliberately: the call count is exponential, so fib(40) is already
+/// ~100x this and fib(60) is about a million times longer than you want to wait.
+///
+/// Not a ctest program: it prints a duration, so there is nothing stable to
+/// compare against the interpreter.
+///
+function Fib(N) : Integer;
+begin
+    if N < 2 then Exit N;
+
+    Exit Fib(N - 2) + Fib(N - 1);
+end
+
+begin
+    var Start := clock();
+
+    WriteLn(Fib(30));
+    WriteLn(clock() - Start);
+end

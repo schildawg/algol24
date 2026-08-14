@@ -1,0 +1,41 @@
+/// The source, kept by line, so an error can show the line it happened on.
+///
+/// A singleton because the scanner fills it and the reporter reads it, and
+/// threading it between them would touch every call in between for nothing.
+///
+/// One file at a time, which is all algc handles until 'uses' arrives at step
+/// 15.  JPascal's keys by file name as well, and this will have to when it
+/// loads more than one.
+///
+object SourceCode;
+var
+    Lines    : Map := [:];
+    FileName : String := '';
+
+begin
+    /// Starts recording a new file, discarding the last one.
+    procedure Begins (Name : String);
+    begin
+        Lines := [:];
+        FileName := Name;
+    end
+
+    procedure Add (LineNumber : Integer, Text : String);
+    begin
+        Lines.Put (LineNumber, Text);
+    end
+
+    /// The text of a line, or '' when it was never recorded -- an error on the
+    /// last line of a file with no trailing newline, for instance.
+    function Get (LineNumber : Integer) : String;
+    begin
+        if not Lines.Contains (LineNumber) then Exit '';
+
+        Exit Str (Lines.Get (LineNumber));
+    end
+
+    function Name () : String;
+    begin
+        Exit FileName;
+    end
+end

@@ -1,0 +1,321 @@
+uses AstPrinter;
+
+uses Token;
+uses TokenType;
+
+uses Expr;
+uses Stmt;
+
+uses Environment;
+uses ObjFunction;
+uses ObjClass;
+uses ObjInstance;
+uses ObjEnum;
+uses ObjCollection;
+uses ObjFile;
+uses SourceCode;
+uses Console;
+
+uses Scanner;
+uses Parser;
+
+// ⚠️ After Parser, not before it.  A module's functions close over the
+// environment its own file was loaded in, so TypeChecker's test blocks can
+// only reach Scanner and Parser if those are already loaded -- and driving the
+// checker over real source is the only way to test it.
+uses TypeChecker;
+
+uses Resolver;
+uses Interpreter;
+uses CEmitter;
+
+/// The sample run when no file is named, so `./run.sh` still shows something.
+const SAMPLE :=
+    'class Doughnut;'                                                   + #10 +
+    'begin'                                                             + #10 +
+    '    procedure Cook();'                                             + #10 +
+    '    begin'                                                         + #10 +
+    '        print ''Fry until golden!'';'                              + #10 +
+    '    end'                                                           + #10 +
+    'end'                                                               + #10 +
+    ''                                                                  + #10 +
+    'class BostonCream(Doughnut);'                                      + #10 +
+    'begin'                                                             + #10 +
+    '    procedure Cook();'                                             + #10 +
+    '    begin'                                                         + #10 +
+    '        super.Cook();'                                             + #10 +
+    '        print ''Pipe full of custard and coat with chocolate!'';'  + #10 +
+    '    end'                                                           + #10 +
+    'end'                                                               + #10 +
+    ''                                                                  + #10 +
+    'BostonCream().Cook();'                                             + #10;
+
+/// Reads a whole file.
+///
+/// ReadLn drops the terminator, so the lines are rejoined with #10 -- which is
+/// what the language says a line ends with, and what the scanner counts.
+///
+function ReadSource(Name : String) : String;
+var
+   Result : String := '';
+
+begin
+    var F := TextFile();
+    F.Assign(Name);
+    F.Reset();
+
+    while not F.Eof do
+        Result := Result + F.ReadLn() + #10;
+
+    F.Close();
+    Exit Result;
+end
+
+/// Scans, parses and resolves, then runs the test blocks instead of the
+/// program.  The main block is never executed.
+///
+/// Returns the number of failures, so the caller can exit non-zero.
+///
+function RunTests(Source : String, FileName : String) : Integer;
+var
+   TheScanner     : Scanner;
+   TheParser      : Parser;
+   TheResolver    : Resolver;
+   TheInterpreter : Interpreter;
+
+   Stmts : List;
+
+begin
+    SourceCode.Begins (FileName);
+
+    TheScanner := Scanner(Source);
+    TheParser := Parser(TheScanner.ScanTokens());
+
+    // So a 'uses' clause can look for its module beside THIS file before
+    // falling back to the working directory.
+    TheParser.FileName := FileName;
+
+    Stmts := TheParser.Parse();
+
+    TheInterpreter := Interpreter();
+
+    TheResolver := Resolver(TheInterpreter);
+    TheResolver.ResolveAll(Stmts);
+
+    TypeChecker().Resolve(Stmts);
+
+    Exit TheInterpreter.RunTests(Stmts, FileName);
+end
+
+/// Scans, parses, resolves and interprets one program.
+///
+procedure Run(Source : String, FileName : String);
+var
+   TheScanner     : Scanner;
+   TheParser      : Parser;
+   TheResolver    : Resolver;
+   TheInterpreter : Interpreter;
+
+   Tokens : List;
+   Stmts  : List;
+
+begin
+    SourceCode.Begins (FileName);
+
+    TheScanner := Scanner(Source);
+    Tokens := TheScanner.ScanTokens();
+
+    TheParser := Parser(Tokens);
+    TheParser.FileName := FileName;
+
+    Stmts := TheParser.Parse();
+
+    TheInterpreter := Interpreter();
+
+    TheResolver := Resolver(TheInterpreter);
+    TheResolver.ResolveAll(Stmts);
+
+    TypeChecker().Resolve(Stmts);
+
+    TheInterpreter.Interpret(Stmts);
+end
+
+/// Entry point.
+///
+///   algc                    -- runs the sample above
+///   algc <file>             -- runs that file
+///   algc --test <file>      -- runs that file's test blocks
+///
+/// Collects the interpreted program's own arguments, starting with its name.
+///
+/// ⚠️ From index First onward, so what the program sees is what it would see
+/// run directly.  'algc --test Files.a24' has to give that suite ParamCount()
+/// = 0 and ParamStr(0) = 'Files.a24', not algc's own two arguments.
+///
+function ArgumentsFrom (First : Integer) : List;
+var
+    Result : List := [];
+
+begin
+    for var I := First; I <= ParamCount(); I := I + 1 do
+        Result.Add (ParamStr (I));
+
+    Exit Result;
+end
+
+/// Scans, parses, resolves and type-checks, then emits C instead of running.
+///
+/// ⚠️ The same front end as Run, deliberately.  The emitter is one more
+/// consumer of the statements the interpreter already gets -- a program that
+/// fails to parse or check must fail identically whichever back end is asked
+/// for, or the two stop describing one language.
+///
+procedure Compile (Source : String, FileName : String, WantTests : Boolean,
+                   OutDir : String);
+var
+   TheScanner : Scanner;
+   TheParser  : Parser;
+   Stmts      : List;
+
+begin
+    SourceCode.Begins (FileName);
+
+    TheScanner := Scanner(Source);
+    TheParser := Parser(TheScanner.ScanTokens());
+    TheParser.FileName := FileName;
+
+    Stmts := TheParser.Parse();
+
+    var TheInterpreter := Interpreter();
+    Resolver(TheInterpreter).ResolveAll(Stmts);
+    TypeChecker().Resolve(Stmts);
+
+    var TheEmitter := CEmitter();
+    TheEmitter.CompilingFile (FileName);
+
+    if WantTests then TheEmitter.WithTests();
+
+    // ⚠️ One C file per SOURCE file now, so this writes a set rather than
+    // printing one.  The directory has to exist: the language has no way to
+    // create one, and the harnesses that call this already make it.
+    var TheFiles := TheEmitter.Emit (Stmts, TheEmitter.UnitNameOf (FileName));
+
+    for var Name in TheFiles.Keys() do
+    begin
+        var Out := TextFile();
+
+        Out.Assign (OutDir + '/' + Str (Name));
+        Out.Rewrite();
+        Out.Write (Str (TheFiles.Get (Name)));
+        Out.Close();
+    end
+end
+
+/// What the compiler answers to '--help'.
+///
+/// ⚠️ Worth having because algc is meant to be INSTALLED -- a tool a package
+/// manager puts on someone's PATH, met with no repository around it and no
+/// README to hand.
+///
+procedure Usage();
+begin
+    WriteLn ('algc -- the Algol-24 compiler.');
+    WriteLn ('');
+    WriteLn ('Usage:');
+    WriteLn ('  algc <file.a24>                    run a program');
+    WriteLn ('  algc --test <file.a24>             run its test blocks');
+    WriteLn ('  algc --compile [--out=DIR] <file>  emit C into DIR (default: out)');
+    WriteLn ('  algc --compile --test <file>       emit the tests and a runner');
+    WriteLn ('  algc --help                        this');
+    WriteLn ('');
+    WriteLn ('The emitted directory is self-contained: cc *.c -o <name>');
+end
+
+procedure Main();
+var
+    Name : String;
+
+begin
+    if ParamCount() = 0 then
+    begin
+        Run(SAMPLE, '<sample>');
+        Exit;
+    end
+
+    if ParamStr(1) = '--help' then
+    begin
+        Usage();
+        Exit;
+    end
+
+    if ParamStr(1) = '-h' then
+    begin
+        Usage();
+        Exit;
+    end
+
+    if ParamStr(1) = '--compile' then
+    begin
+        // 'algc --compile [--test] [--out=DIR] <file>', matching
+        // 'jpascal --compile' flag for flag.
+        var WantTests := False;
+        var OutDir    := 'out';
+
+        Name := '';
+
+        for var I := 2; I <= ParamCount(); I := I + 1 do
+        begin
+            var Arg := ParamStr(I);
+
+            if Arg = '--test' then WantTests := True;
+            else
+            begin
+                if Copy(Arg, 0, 6) = '--out=' then
+                    OutDir := Copy(Arg, 6, Length(Arg) - 6);
+                else Name := Arg;
+            end
+        end
+
+        if not FileExists(Name) then
+        begin
+            WriteLn('algc: cannot open ' + Name);
+            Exit;
+        end
+
+        Compile(ReadSource(Name), Name, WantTests, OutDir);
+        Exit;
+    end
+
+    if ParamStr(1) = '--test' then
+    begin
+        Name := ParamStr(2);
+        if not FileExists(Name) then
+        begin
+            WriteLn('algc: cannot open ' + Name);
+            Exit;
+        end
+
+        // A failure has to reach the exit code, and the language has no Halt --
+        // so raise, which JPascal reports and exits 70 for.  The [ERROR] line
+        // that produces is dropped by the comparison, the same way gate.sh
+        // drops the interpreter's assertion carets.
+        SetProgramArguments (ArgumentsFrom (2));
+
+        if RunTests(ReadSource(Name), Name) > 0 then raise 'Tests failed.';
+
+        Exit;
+    end
+
+    Name := ParamStr(1);
+    if not FileExists(Name) then
+    begin
+        WriteLn('algc: cannot open ' + Name);
+        Exit;
+    end
+
+    SetProgramArguments (ArgumentsFrom (1));
+
+    Run(ReadSource(Name), Name);
+end
+
+Main();

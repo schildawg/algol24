@@ -1,0 +1,99 @@
+// Per-class visibility: 'private:' and 'public:' sections, Object Pascal style.
+// A private member is reachable from the class's own methods and nowhere else.
+// Visibility is a front-end rule, so this program is here to prove the two back
+// ends still agree on what a class that *uses* sections does.
+
+class Counter;
+public:
+    var Name : String := 'anonymous';
+private:
+    var Count : Integer := 0;
+    var Step  : Integer := 1;
+begin
+    constructor Init(TheName : String, TheStep : Integer);
+    begin
+        this.Name := TheName;
+        this.Step := TheStep;
+    end
+
+    // Private members are reachable bare and through 'this'.
+    procedure Bump();
+    begin
+        Advance();
+        this.Count := this.Count + 0;
+    end
+
+private:
+    procedure Advance();
+    begin
+        Count := Count + Step;
+    end
+
+public:
+    function Report() : String;
+    begin
+        Exit(Name + '=' + Str(Count));
+    end
+
+    // A sibling of the same class may reach what is private to it, as in Java.
+    function Behind(Other : Counter) : Boolean;
+    begin
+        Exit(Count < Other.Count);
+    end
+end
+
+// A section marker before the first 'var', and one inside a var section.
+class Tally(Counter);
+private:
+    var Hidden : Integer := 7;
+begin
+    function Peek() : Integer;
+    begin
+        Exit(Hidden);
+    end
+end
+
+// Objects take sections too.
+object Registry;
+    var Label : String := 'registry';
+private:
+    var Total : Integer := 0;
+begin
+    procedure Add(N : Integer);
+    begin
+        Total := Total + N;
+    end
+
+    function Sum() : Integer;
+    begin
+        Exit(Total);
+    end
+end
+
+begin
+    var A := Counter('a', 2);
+    var B := Counter('b', 5);
+
+    for var I := 0; I < 3; I := I + 1 do
+    begin
+        A.Bump();
+    end
+    B.Bump();
+
+    WriteLn(A.Report());
+    WriteLn(B.Report());
+    WriteLn(A.Name);
+
+    WriteLn(B.Behind(A));
+    WriteLn(A.Behind(B));
+
+    var T := Tally('t', 1);
+    T.Bump();
+    WriteLn(T.Report());
+    WriteLn(T.Peek());
+
+    Registry.Add(4);
+    Registry.Add(6);
+    WriteLn(Registry.Label);
+    WriteLn(Registry.Sum());
+end

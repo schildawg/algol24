@@ -1,0 +1,68 @@
+/// The three protocols a user class can answer to: Elements() makes it
+/// iterable, ToString() decides how it prints, Contains() answers 'in'.
+///
+/// Structural rather than declared -- Algol-24 has no interfaces, so a class
+/// conforms by having the method.  This is the prerequisite for moving the
+/// collections out of the runtime and into Algol-24.
+///
+class Range;
+var
+    Low  : Integer;
+    High : Integer;
+
+begin
+    constructor Init(Low, High);
+    begin
+        this.Low := Low;
+        this.High := High;
+    end
+
+    /// Asked once; the result is walked.  It is never asked of the result,
+    /// which is what keeps this from recursing.
+    function Elements() : List;
+    begin
+        var Out := [];
+        for var I := Low; I <= High; I := I + 1 do
+            Out.Add(I);
+
+        Exit Out;
+    end
+
+    function Contains(N) : Boolean;
+    begin
+        Exit N >= Low and N <= High;
+    end
+
+    function ToString() : String;
+    begin
+        Exit Str(Low) + '..' + Str(High);
+    end
+end
+
+/// A class with no protocol methods keeps the default behaviour.
+class Plain;
+begin
+end
+
+begin
+    var R := Range(2, 5);
+
+    WriteLn(R);
+    WriteLn(Str(R));
+    WriteLn('range ' + Str(R));
+
+    var Total := 0;
+    for var N in R do
+        Total := Total + N;
+    WriteLn(Total);
+
+    WriteLn(3 in R);
+    WriteLn(9 in R);
+
+    // Nested: a protocol object inside a collection prints through it.
+    WriteLn([Range(1, 2), Range(3, 4)]);
+    WriteLn(['a':Range(0, 1)]);
+
+    // A class without the methods is unchanged.
+    WriteLn(Plain());
+end

@@ -1,0 +1,209 @@
+/// What algc can run today, as test blocks rather than as printed output.
+///
+/// This is agate's seed suite.  The root conformance suites move in as the
+/// steps that unblock them land; until then this covers steps 1 to 5.
+
+type Colour = (Red, Green, Blue);
+
+class Point;
+var
+    X : Integer;
+    Y : Integer;
+
+begin
+    constructor Init(TheX, TheY);
+    begin
+        X := TheX;
+        Y := TheY;
+    end
+
+    function Describe() : String;
+    begin
+        Exit Str(X) + ',' + Str(Y);
+    end
+end
+
+class Shifted(Point);
+begin
+    function Describe() : String;
+    begin
+        Exit 'shifted ' + super.Describe();
+    end
+end
+
+function Classify(N);
+begin
+    case N of
+        1:    Exit 'one';
+        2, 3: Exit 'few';
+    else
+        Exit 'many';
+    end
+end
+
+test 'Integer Arithmetic Stays Integer';
+begin
+    AssertEqual(3, 1 + 2);
+    AssertEqual(3, 7 / 2);
+    AssertEqual(3.5, 7.0 / 2);
+end
+
+test 'A Double Prints With A Point';
+begin
+    // Written with Length and Pos rather than against a literal, because '3'
+    // is a Char and Str(3) a String, and the two are never equal.  This is the
+    // property that actually matters anyway: an Integer has no point and a
+    // Double always has one.
+    AssertEqual(1, Length(Str(3)));
+    AssertEqual(3, Length(Str(3.0)));
+
+    AssertTrue(Pos(Str(3), '.') < 0);
+    AssertTrue(Pos(Str(3.0), '.') >= 0);
+end
+
+test 'Strings And Chars';
+begin
+    AssertEqual(5, Length('hello'));
+    AssertEqual('ell', Copy('hello', 1, 3));
+    AssertEqual(2, Pos('hello', 'll'));
+    AssertTrue('hello'[0] = 'h');
+end
+
+test 'Enums Are Interned';
+begin
+    AssertTrue(Red = Colour.Red);
+    AssertTrue(Green <> Red);
+end
+
+test 'The First Enum Member Is Falsey';
+begin
+    AssertTrue(not Red);
+    AssertTrue(Green);
+end
+
+test 'Lists';
+begin
+    var L := [1, 2, 3];
+
+    AssertEqual(3, L.Length);
+    AssertEqual(2, L[1]);
+
+    L.Add(4);
+    AssertEqual(4, L.Length);
+    AssertTrue(L.Contains(4));
+end
+
+test 'Maps';
+begin
+    var M := ['a':1, 'b':2];
+
+    AssertEqual(2, M.Length);
+    AssertEqual(1, M['a']);
+
+    M['c'] := 3;
+    AssertEqual(3, M.Length);
+end
+
+test 'Arrays Start Full Of Nil';
+begin
+    var A := Array(2);
+
+    AssertEqual(2, A.Length);
+    AssertEqual(nil, A[0]);
+
+    A[0] := 'set';
+    AssertEqual('set', A[0]);
+end
+
+test 'Subscript Assignment';
+begin
+    var L := [1, 2, 3];
+    L[1] := 99;
+
+    AssertEqual(99, L[1]);
+end
+
+test 'Case Tests In Order';
+begin
+    AssertEqual('one',  Classify(1));
+    AssertEqual('few',  Classify(2));
+    AssertEqual('few',  Classify(3));
+    AssertEqual('many', Classify(9));
+end
+
+test 'Classes And Implicit This';
+begin
+    var P := Point(3, 4);
+
+    AssertEqual('3,4', P.Describe());
+end
+
+test 'Inheritance And Super';
+begin
+    var S := Shifted(1, 2);
+
+    AssertEqual('shifted 1,2', S.Describe());
+end
+
+test 'Control Flow';
+begin
+    var Total := 0;
+    for var I := 0; I < 4; I := I + 1 do
+        Total := Total + I;
+
+    AssertEqual(6, Total);
+
+    var N := 0;
+    while N < 3 do
+        N := N + 1;
+
+    AssertEqual(3, N);
+
+    if N = 3 then AssertTrue(True);
+    else AssertTrue(False);
+end
+
+test 'Any Is Compatible In Both Directions';
+begin
+    // The rule the whole checker rests on, and the one broken five times in
+    // JPascal before it was consolidated into one helper.
+    var Loose := 1;
+    Loose := 'a string';
+
+    var Typed : String := 'text';
+    Typed := Loose;
+
+    AssertEqual('a string', Loose);
+    AssertEqual('a string', Typed);
+end
+
+test 'Nil Inhabits Every Type';
+begin
+    var S : String := nil;
+    var N : Integer := nil;
+    var P : Point := nil;
+
+    AssertEqual(nil, S);
+    AssertEqual(nil, N);
+    AssertEqual(nil, P);
+end
+
+test 'A Subclass Stands Where Its Parent Is Declared';
+begin
+    var P : Point := Shifted(1, 2);
+
+    AssertEqual('shifted 1,2', P.Describe());
+end
+
+test 'Declared Types Survive Assignment';
+begin
+    var N : Integer := 1;
+    N := 2;
+
+    var D : Double := 1.5;
+    D := 2.5;
+
+    AssertEqual(2, N);
+    AssertEqual(2.5, D);
+end
+

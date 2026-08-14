@@ -1,0 +1,31 @@
+private var Calls := 100;
+
+private function Peek() : Integer;
+begin
+    Exit 2;
+end
+
+private class Hidden;
+begin
+    function Say() : String;
+    begin
+        Exit 'hidden';
+    end
+end
+
+function FromB() : Integer;
+begin
+    Calls := Calls + 1;
+    Exit Peek();
+end
+
+function CallsB() : Integer;
+begin
+    Exit Calls;
+end
+
+function SecretOf() : String;
+begin
+    var It := Hidden();
+    Exit It.Say();
+end

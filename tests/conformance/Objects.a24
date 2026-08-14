@@ -1,0 +1,148 @@
+/// Tests for 'object' singleton declarations.
+///
+
+class Monster;
+var
+   Id : String;
+
+begin
+   function Describe() : String;
+   begin
+      Exit 'a generic monster';
+   end
+
+   function Kind() : String;
+   begin
+      Exit 'monster';
+   end
+end
+
+object Goblin(Monster);
+var
+   Hp    : Integer := 10;
+   Power : Integer := 3;
+
+begin
+   function Describe() : String;
+   begin
+      Exit 'goblin hp=' + Str(Hp);
+   end
+
+   function Loud() : String;
+   begin
+      Exit super.Describe() + '!';
+   end
+end
+
+object Orc(Monster);
+var
+   Hp : Integer := 25;
+
+begin
+end
+
+object Standalone;
+var
+   Note : String := 'no superclass';
+
+begin
+   function Show() : String;
+   begin
+      Exit this.Note;
+   end
+end
+
+/// An object that declares 'Id' itself.  The declaration wins -- the name is
+/// only contributed when the program has not claimed the field.
+///
+object Renamed;
+var
+   Id : String := 'something else';
+
+begin
+end
+
+/// Declared with no value, which is the subtle case: having named the field,
+/// the program owns it, so this is nil rather than 'Blank'.
+///
+object Blank;
+var
+   Id : String;
+
+begin
+end
+
+test 'Object Is Reached By Name';
+begin
+   AssertEqual('goblin hp=10', Goblin.Describe());
+end
+
+test 'Object Fields';
+begin
+   AssertEqual(25, Orc.Hp);
+   AssertEqual(3, Goblin.Power);
+end
+
+test 'Object Inherits Methods';
+begin
+   AssertEqual('a generic monster', Orc.Describe());
+   AssertEqual('monster', Goblin.Kind());
+end
+
+test 'Object Super Call';
+begin
+   AssertEqual('a generic monster!', Goblin.Loud());
+end
+
+test 'Object Knows Its Own Id';
+begin
+   AssertEqual('Goblin', Goblin.Id);
+   AssertEqual('Orc', Orc.Id);
+end
+
+/// Goblin and Orc inherit a declared 'Id' from Monster, so they would work even
+/// if Id were only a field somebody happened to declare.  Standalone has no
+/// superclass and declares no Id, which makes it the case that proves Id is
+/// contributed by the 'object' declaration itself rather than invented on the
+/// instance afterwards.
+///
+test 'An Object Without A Superclass Still Knows Its Id';
+begin
+   AssertEqual('Standalone', Standalone.Id);
+end
+
+test 'A Declared Id Wins Over The Objects Name';
+begin
+   AssertEqual('something else', Renamed.Id);
+end
+
+test 'A Declared Id With No Value Is Nil, Not The Name';
+begin
+   AssertEqual(nil, Blank.Id);
+end
+
+test 'Object Without Superclass';
+begin
+   AssertEqual('no superclass', Standalone.Show());
+end
+
+test 'Object Is A Singleton';
+begin
+   // An alias reaches the same instance, so a write through one is visible
+   // through the other.
+   var Alias := Orc;
+   Alias.Hp := 99;
+
+   AssertEqual(99, Orc.Hp);
+
+   Orc.Hp := 25;
+   AssertEqual(25, Alias.Hp);
+end
+
+test 'Objects Can Be Collected By Hand';
+begin
+   var Catalog := ['Goblin':Goblin, 'Orc':Orc];
+
+   AssertEqual(2, Catalog.Length);
+   AssertEqual(25, Catalog['Orc'].Hp);
+end

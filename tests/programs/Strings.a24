@@ -1,0 +1,15 @@
+/// String values, concatenation, and Str on each printable type.
+///
+begin
+    WriteLn('hello');
+    WriteLn('a' + 'b' + 'c');
+    WriteLn('n = ' + Str(42));
+    WriteLn('t = ' + Str(true));
+    WriteLn('nil = ' + Str(nil));
+    WriteLn('');
+    WriteLn('quote " and backslash \ stay put');
+
+    Write('no');
+    Write('newline');
+    WriteLn('!');
+end

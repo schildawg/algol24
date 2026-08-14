@@ -1,0 +1,58 @@
+/// 'and' and 'or': short-circuiting, the value they yield, and how many times
+/// they evaluate their left operand.
+///
+/// The last of those is why this file exists.  The emitter used to write the
+/// left operand into the C twice -- once for the truthiness test and once as
+/// the result -- so anything with a side effect happened twice.  Every operand
+/// in the other suites is a pure comparison, so nothing caught it.  Algol-24's
+/// own Lox parser is built on 'Match(X) or Match(Y)', where Match advances a
+/// cursor, and it quietly consumed two tokens where it should consume one.
+
+var Steps := 0;
+
+/// Counts its own call, and answers with whatever it was told to.
+function Bump(Answer);
+begin
+    Steps := Steps + 1;
+    Exit Answer;
+end
+
+begin
+    // 'or' stops at a truthy left, so the right is never reached.
+    Steps := 0;
+    if Bump(True) or Bump(True) then WriteLn('or: took the left');
+    WriteLn('  evaluations: ' + Str(Steps));
+
+    Steps := 0;
+    if Bump(False) or Bump(True) then WriteLn('or: took the right');
+    WriteLn('  evaluations: ' + Str(Steps));
+
+    // 'and' stops at a falsey left.
+    Steps := 0;
+    if Bump(False) and Bump(True) then WriteLn('and: unreachable');
+    WriteLn('  evaluations: ' + Str(Steps));
+
+    Steps := 0;
+    if Bump(True) and Bump(True) then WriteLn('and: took the right');
+    WriteLn('  evaluations: ' + Str(Steps));
+
+    // The result is the operand itself, not a boolean -- so 'or' doubles as a
+    // default and 'and' as a guard.
+    WriteLn(Str(nil or 'fallback'));
+    WriteLn(Str('kept' or 'unused'));
+    WriteLn(Str(nil and 'unused'));
+    WriteLn(Str('left' and 'right'));
+    WriteLn(Str(False or 0));
+    WriteLn(Str(0 and 'zero is truthy'));
+
+    // Nested on both sides, so no two occurrences can share a slot.
+    Steps := 0;
+    if (Bump(False) or Bump(True)) and (Bump(True) or Bump(False)) then
+        WriteLn('nested: true');
+    WriteLn('  evaluations: ' + Str(Steps));
+
+    // A side effect on the right runs exactly once too.
+    Steps := 0;
+    var Kept := Bump(False) or Bump('value');
+    WriteLn('kept: ' + Str(Kept) + ', evaluations: ' + Str(Steps));
+end

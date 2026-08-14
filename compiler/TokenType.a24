@@ -1,0 +1,46 @@
+type
+    /// Token Type
+    ///
+    /// Named to match JPascal's TokenType, so the two front ends stay diffable
+    /// while this one is ported across to Algol-24.  The TOKEN_ prefix is kept
+    /// because the members bind as bare names and several of them -- IF, FOR,
+    /// CLASS -- would otherwise collide with the language's own keywords.
+    ///
+    /// ⚠️ The first member of an enum is falsey, so nothing may test a token
+    /// type for truthiness.  Compare it.
+    ///
+   TokenType =
+       // Single-character tokens.
+       (TOKEN_LEFT_PAREN, TOKEN_RIGHT_PAREN, TOKEN_LEFT_BRACKET, TOKEN_RIGHT_BRACKET,
+        TOKEN_COMMA, TOKEN_DOT, TOKEN_MINUS, TOKEN_PLUS, TOKEN_COLON,
+        TOKEN_SEMICOLON, TOKEN_SLASH, TOKEN_STAR,
+
+        // One or two character tokens.
+        //
+        // Pascal's, not C's: '=' is equality and ':=' is assignment, and '<>'
+        // is inequality.  There is no '==', no '!' and no '!='.
+        TOKEN_NOT_EQUAL, TOKEN_EQUAL, TOKEN_ASSIGN,
+        TOKEN_GREATER, TOKEN_GREATER_EQUAL, TOKEN_LESS, TOKEN_LESS_EQUAL,
+
+        // literals
+        // NUMBER is a Double and INTEGER is an Integer -- two types, as in
+        // JPascal, where Lox had only one.
+        TOKEN_IDENTIFIER, TOKEN_STRING, TOKEN_CHAR, TOKEN_NUMBER, TOKEN_INTEGER,
+
+        // Keywords
+        TOKEN_AND, TOKEN_AS, TOKEN_BREAK, TOKEN_CASE, TOKEN_CLASS, TOKEN_CONST,
+       TOKEN_DO,
+       TOKEN_ELSE,
+       TOKEN_EXIT,
+        TOKEN_FALSE, TOKEN_OBJECT, TOKEN_OF,
+        TOKEN_FOR, TOKEN_IF, TOKEN_IN, TOKEN_IS, TOKEN_NIL, TOKEN_NOT, TOKEN_OR, TOKEN_PRINT,
+        TOKEN_SUPER, TOKEN_THEN, TOKEN_THIS, TOKEN_TRUE, TOKEN_TYPE,
+        TOKEN_TRY, TOKEN_EXCEPT, TOKEN_RAISE,
+        TOKEN_USES, TOKEN_PRIVATE, TOKEN_PUBLIC,
+        TOKEN_VAR, TOKEN_WHILE,
+
+        TOKEN_CONSTRUCTOR, TOKEN_FUNCTION, TOKEN_PROCEDURE,
+
+        TOKEN_BEGIN, TOKEN_END,
+
+        EOF);

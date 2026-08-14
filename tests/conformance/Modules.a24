@@ -1,0 +1,52 @@
+/// Tests for module scoping and 'private'.
+///
+/// 'uses' gives each file an environment of its own.  Everything it declares is
+/// visible to the importer except names marked 'private', which stay reachable
+/// only from inside the module that declares them.
+///
+
+uses ModuleHelper;
+uses ModuleHelper2;
+
+test 'Exported Function Is Visible';
+begin
+    AssertEqual(1, HelperPeek());
+end
+
+test 'Two Modules May Each Own A Private Name';
+begin
+    // Both files declare a private 'Peek'.  Each module's function reaches its
+    // own, which is the whole point of the feature.
+    AssertEqual(1, HelperPeek());
+    AssertEqual(2, Helper2Peek());
+end
+
+test 'Two Modules May Each Own A Private Variable';
+begin
+    AssertEqual(100, Helper2Calls());
+end
+
+test 'A Private Variable Is Shared Across Its Module';
+begin
+    var Before := CallCount();
+
+    Bump();
+    Bump();
+
+    // Mutation sticks, so the private var is one binding rather than a copy
+    // handed separately to each function that closes over it.
+    AssertEqual(Before + 2, CallCount());
+end
+
+test 'A Private Class Is Usable Inside Its Module';
+begin
+    AssertEqual('secret', DescribeSecret());
+end
+
+test 'Importing A Module Twice Is A No-op';
+begin
+    // ModuleHelper is named by this file and, indirectly, nowhere else -- but
+    // the guard that makes a repeat 'uses' harmless is what lets a diamond of
+    // imports resolve at all.
+    AssertEqual(1, HelperPeek());
+end

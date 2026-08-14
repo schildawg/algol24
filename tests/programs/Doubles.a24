@@ -1,0 +1,30 @@
+/// Double formatting: the shortest digit string that round-trips, positional
+/// between 10^-3 and 10^7 and scientific outside it, always with a digit after
+/// the point so an integral Double stays visibly a Double.
+///
+begin
+    WriteLn(2.0);
+    WriteLn(2.5);
+    WriteLn(100.0);
+    WriteLn(0.5);
+    WriteLn(1.0 / 3.0);
+    WriteLn(0.1 + 0.2);
+    WriteLn(2.0 / 3.0);
+    WriteLn(-2.5);
+    WriteLn(-0.125);
+    WriteLn(123456789.123);
+    WriteLn(0.001);
+    WriteLn(0.0001);
+    WriteLn(1000000.0);
+    WriteLn(10000000.0);
+
+    // The three paths that used to disagree: output, Str, and concatenation.
+    WriteLn(Str(2.0));
+    WriteLn('' + 2.0);
+    WriteLn('x = ' + Str(1.0 / 3.0));
+
+    // Mixed arithmetic promotes, so these are Doubles even though they read
+    // like Integers.
+    WriteLn(1 + 1.0);
+    WriteLn(3.0 * 2);
+end

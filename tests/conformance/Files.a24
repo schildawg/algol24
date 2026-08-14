@@ -1,0 +1,378 @@
+/// Tests for TextFile, and for ParamCount / ParamStr.
+///
+/// Turbo Pascal spells this as free procedures over a 'var F: Text' parameter --
+/// Assign(F, Name), Reset(F), ReadLn(F, S).  Algol-24 has neither var parameters
+/// nor a Text type, so the handle is the receiver and the procedures are its
+/// methods.  The names and their meanings are Turbo Pascal's.
+///
+/// Every test builds the files it needs and erases them again, so the suite
+/// leaves nothing behind and does not depend on what ran before it.
+///
+
+/// Writes lines to a file, replacing whatever was there.
+///
+procedure Put(Name : String, Lines : List);
+begin
+   var Out := TextFile();
+   Out.Assign(Name);
+   Out.Rewrite();
+
+   for var Line in Lines do
+      Out.WriteLn(Line);
+
+   Out.Close();
+end
+
+/// Reads every line of a file back.
+///
+function Lines(Name : String) : List;
+var
+   Result : List := [];
+
+begin
+   var F := TextFile();
+   F.Assign(Name);
+   F.Reset();
+
+   while not F.Eof do
+      Result.Add(F.ReadLn());
+
+   F.Close();
+   Exit Result;
+end
+
+/// Deletes a file, if it is there.
+///
+procedure Drop(Name : String);
+begin
+   if not FileExists(Name) then Exit;
+
+   var F := TextFile();
+   F.Assign(Name);
+   F.Erase();
+end
+
+
+test 'Write Then Read Back';
+begin
+   Put('t-roundtrip.txt', ['alpha', 'beta', 'gamma']);
+
+   AssertEqual('[alpha, beta, gamma]', Str(Lines('t-roundtrip.txt')));
+
+   Drop('t-roundtrip.txt');
+end
+
+test 'Rewrite Truncates';
+begin
+   Put('t-truncate.txt', ['first', 'second']);
+   Put('t-truncate.txt', ['only']);
+
+   AssertEqual('[only]', Str(Lines('t-truncate.txt')));
+
+   Drop('t-truncate.txt');
+end
+
+test 'Append Adds To The End';
+begin
+   Put('t-append.txt', ['one']);
+
+   var Out := TextFile();
+   Out.Assign('t-append.txt');
+   Out.Append();
+   Out.WriteLn('two');
+   Out.Close();
+
+   AssertEqual('[one, two]', Str(Lines('t-append.txt')));
+
+   Drop('t-append.txt');
+end
+
+test 'Write Does Not End The Line';
+begin
+   var Out := TextFile();
+   Out.Assign('t-write.txt');
+   Out.Rewrite();
+   Out.Write('a');
+   Out.Write('b');
+   Out.WriteLn('c');
+   Out.Close();
+
+   AssertEqual('[abc]', Str(Lines('t-write.txt')));
+
+   Drop('t-write.txt');
+end
+
+test 'A Line Ends At Newline, And CRLF Comes Off With It';
+begin
+   // Written by hand rather than with WriteLn, so the terminators are exactly
+   // these.  A line ends at #10; the #13 in a CRLF pair goes with it.
+   var Out := TextFile();
+   Out.Assign('t-endings.txt');
+   Out.Rewrite();
+   Out.Write('unix' + #10 + 'dos' + #13 + #10 + 'last');
+   Out.Close();
+
+   AssertEqual('[unix, dos, last]', Str(Lines('t-endings.txt')));
+
+   Drop('t-endings.txt');
+end
+
+test 'A Lone Carriage Return Is Ordinary Text';
+begin
+   // Not a line ending.  Java's BufferedReader.readLine would split here, and
+   // the scanner disagrees with it -- #13 is whitespace there, and only #10
+   // advances the line count.  One rule for the whole language.
+   var Out := TextFile();
+   Out.Assign('t-cr.txt');
+   Out.Rewrite();
+   Out.Write('a' + #13 + 'b' + #10);
+   Out.Close();
+
+   var Read := Lines('t-cr.txt');
+
+   AssertEqual(1, Read.Length);
+   AssertEqual(3, Length(Read[0]));
+
+   Drop('t-cr.txt');
+end
+
+test 'Eof Is True On An Empty File';
+begin
+   Put('t-empty.txt', []);
+
+   var F := TextFile();
+   F.Assign('t-empty.txt');
+   F.Reset();
+
+   AssertTrue(F.Eof);
+
+   F.Close();
+   Drop('t-empty.txt');
+end
+
+test 'Eof Is False Before The Last Line';
+begin
+   Put('t-eof.txt', ['only']);
+
+   var F := TextFile();
+   F.Assign('t-eof.txt');
+   F.Reset();
+
+   AssertTrue(not F.Eof);
+   AssertEqual('only', F.ReadLn());
+   AssertTrue(F.Eof);
+
+   F.Close();
+   Drop('t-eof.txt');
+end
+
+test 'Eof Is Always True While Writing';
+begin
+   var Out := TextFile();
+   Out.Assign('t-eofwrite.txt');
+   Out.Rewrite();
+
+   AssertTrue(Out.Eof);
+
+   Out.Close();
+   Drop('t-eofwrite.txt');
+end
+
+test 'Flush Leaves The File Readable';
+begin
+   var Out := TextFile();
+   Out.Assign('t-flush.txt');
+   Out.Rewrite();
+   Out.WriteLn('flushed');
+   Out.Flush();
+
+   AssertEqual('[flushed]', Str(Lines('t-flush.txt')));
+
+   Out.Close();
+   Drop('t-flush.txt');
+end
+
+test 'File Exists';
+begin
+   AssertTrue(not FileExists('t-exists.txt'));
+
+   Put('t-exists.txt', ['here']);
+   AssertTrue(FileExists('t-exists.txt'));
+
+   Drop('t-exists.txt');
+   AssertTrue(not FileExists('t-exists.txt'));
+end
+
+test 'Rename Moves The File';
+begin
+   Put('t-before.txt', ['moved']);
+
+   var F := TextFile();
+   F.Assign('t-before.txt');
+   F.Rename('t-after.txt');
+
+   AssertTrue(not FileExists('t-before.txt'));
+   AssertEqual('[moved]', Str(Lines('t-after.txt')));
+
+   Drop('t-after.txt');
+end
+
+test 'Reset On A Missing File Raises';
+begin
+   var Caught := '';
+
+   try
+      var F := TextFile();
+      F.Assign('t-missing.txt');
+      F.Reset();
+   except
+      on E : String do Caught := E;
+   end
+
+   AssertEqual('Reset failed: cannot open ''t-missing.txt''.', Caught);
+end
+
+test 'Reading Past The End Raises';
+begin
+   Put('t-past.txt', ['one']);
+
+   var Caught := '';
+
+   try
+      var F := TextFile();
+      F.Assign('t-past.txt');
+      F.Reset();
+      F.ReadLn();
+      F.ReadLn();
+   except
+      on E : String do Caught := E;
+   end
+
+   AssertEqual('ReadLn failed: at end of file.', Caught);
+
+   Drop('t-past.txt');
+end
+
+test 'Reading A File Open For Writing Raises';
+begin
+   var Caught := '';
+
+   try
+      var Out := TextFile();
+      Out.Assign('t-mode.txt');
+      Out.Rewrite();
+      Out.ReadLn();
+   except
+      on E : String do Caught := E;
+   end
+
+   AssertEqual('ReadLn failed: the file is not open for reading.', Caught);
+
+   Drop('t-mode.txt');
+end
+
+test 'Writing A File Open For Reading Raises';
+begin
+   Put('t-mode2.txt', ['there']);
+
+   var Caught := '';
+
+   try
+      var F := TextFile();
+      F.Assign('t-mode2.txt');
+      F.Reset();
+      F.WriteLn('nope');
+   except
+      on E : String do Caught := E;
+   end
+
+   AssertEqual('WriteLn failed: the file is not open for writing.', Caught);
+
+   Drop('t-mode2.txt');
+end
+
+test 'Opening Without Assigning Raises';
+begin
+   var Caught := '';
+
+   try
+      var F := TextFile();
+      F.Reset();
+   except
+      on E : String do Caught := E;
+   end
+
+   AssertEqual('Reset failed: no file has been assigned.', Caught);
+end
+
+test 'Opening An Open File Raises';
+begin
+   Put('t-twice.txt', ['once']);
+
+   var Caught := '';
+
+   try
+      var F := TextFile();
+      F.Assign('t-twice.txt');
+      F.Reset();
+      F.Reset();
+   except
+      on E : String do Caught := E;
+   end
+
+   AssertEqual('Reset failed: the file is already open.', Caught);
+
+   Drop('t-twice.txt');
+end
+
+test 'Close Twice Is Harmless';
+begin
+   Put('t-close.txt', ['x']);
+
+   var F := TextFile();
+   F.Assign('t-close.txt');
+   F.Reset();
+   F.Close();
+   F.Close();
+
+   AssertTrue(FileExists('t-close.txt'));
+
+   Drop('t-close.txt');
+end
+
+test 'A File Reopens After Closing';
+begin
+   Put('t-reopen.txt', ['again']);
+
+   var F := TextFile();
+   F.Assign('t-reopen.txt');
+
+   F.Reset();
+   AssertEqual('again', F.ReadLn());
+   F.Close();
+
+   F.Reset();
+   AssertEqual('again', F.ReadLn());
+   F.Close();
+
+   Drop('t-reopen.txt');
+end
+
+test 'Param Str Zero Is The Program';
+begin
+   // Only that there is one.  Interpreted this is the script's path and
+   // compiled it is the executable's -- the same idea, and the one place the
+   // two back ends are specified to differ, so a suite that has to pass under
+   // both cannot name it.  ALGOL-24.md records the difference.
+   AssertTrue(ParamStr(0) <> '');
+end
+
+test 'Param Count Is Zero Without Arguments';
+begin
+   AssertEqual(0, ParamCount());
+end
+
+test 'Param Str Past The End Is Empty';
+begin
+   AssertEqual('', ParamStr(99));
+end

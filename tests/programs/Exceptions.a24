@@ -1,0 +1,173 @@
+class Animal; begin end
+class Dog(Animal); begin end
+
+function Deep(N);
+/// ⚠️ A raised value's handler is matched on its ALGOL-24 type name.
+///
+/// The interpreter used to use the Java class name, which coincides with the
+/// language's own for String, Integer, Double and Boolean and for nothing
+/// else -- so a raised Char was caught by 'on E : Character' interpreted and
+/// by 'on E : Char' compiled, and a raised List by 'PascalList' against
+/// 'List'.  The same program took different branches under the two back ends.
+/// Every suite raised only Strings and instances, so nothing saw it.
+
+begin
+    if N = 0 then raise 'bottom';
+    Exit Deep(N - 1);
+end
+
+function Thrower(N);
+begin
+    if N = 1 then raise 'a string';
+    if N = 2 then raise 42;
+    if N = 3 then raise Dog();
+    Exit 'no raise';
+end
+
+begin
+    try
+        WriteLn(Thrower(1));
+    except
+        on E : String do WriteLn('caught string: ' + E);
+    end
+
+    try
+        WriteLn(Thrower(2));
+    except
+        on E : String do WriteLn('wrong');
+        on E : Integer do WriteLn('caught integer: ' + Str(E));
+    end
+
+    // Most derived wins even when the base is listed first.
+    try
+        raise Dog();
+    except
+        on E : Animal do WriteLn('animal');
+        on E : Dog do WriteLn('dog');
+    end
+
+    // A base handler catches a derived value.
+    try
+        raise Dog();
+    except
+        on E : Animal do WriteLn('animal only');
+    end
+
+    // A runtime error carries its message as a String.
+    try
+        WriteLn(Mod(1, 0));
+    except
+        on E : String do WriteLn('runtime: ' + E);
+    end
+
+    // Propagation out of nested calls, and a handler that re-raises.
+    try
+        WriteLn(Deep(3));
+    except
+        on E : String do WriteLn('from depth: ' + E);
+    end
+
+    // Nested try: the inner one declines and the outer catches.
+    try
+        try
+            raise 42;
+        except
+            on E : String do WriteLn('inner wrongly caught');
+        end
+    except
+        on E : Integer do WriteLn('outer caught ' + Str(E));
+    end
+
+    // A handler may raise, and the next frame out catches it.
+    try
+        try
+            raise 'first';
+        except
+            on E : String do raise 'second';
+        end
+    except
+        on E : String do WriteLn('rethrown as ' + E);
+    end
+
+    // Two handlers in one try may bind the same name -- the interpreter died
+    // with 'Redefined: E' until the handler got a scope of its own.
+    try
+        raise 'again';
+    except
+        on E : Integer do WriteLn('no');
+        on E : String do WriteLn('same name ok: ' + E);
+    end
+
+    // The try body runs to completion when nothing raises.
+    var Ran := 0;
+    try
+        Ran := 1;
+        Ran := Ran + 1;
+    except
+        on E : String do Ran := 99;
+    end
+    WriteLn(Ran);
+
+    // A raise inside a loop unwinds out of it.
+    try
+        for var I in [1, 2, 3] do
+            if I = 2 then raise 'stopped at two';
+    except
+        on E : String do WriteLn(E);
+    end
+
+    // A native runtime error is catchable as a String, and its text is part of
+    // the observable surface rather than a diagnostic.  The formatted ones are
+    // built in a stack buffer in the runtime, so this also pins that the buffer
+    // is copied before the longjmp unwinds the frame holding it -- it was not,
+    // and the caught text printed as garbage compiled while reading correctly
+    // interpreted.
+    try
+        WriteLn(Copy('abc', 99, 1));
+    except
+        on E : String do WriteLn(E);
+    end
+
+    try
+        WriteLn(Mod(1, 0));
+    except
+        on E : String do WriteLn(E);
+    end
+
+    // Non-instance values match on their Algol-24 type name -- 'Char', not
+    // Java's 'Character', and 'List', not 'PascalList'.
+    try
+        raise 'a';
+    except
+        on E : Char do WriteLn('raised a Char');
+        on E : String do WriteLn('WRONG -- a one-character literal is a Char');
+    end
+
+    try
+        raise 'abc';
+    except
+        on E : Char do WriteLn('WRONG -- three characters is a String');
+        on E : String do WriteLn('raised a String: ' + E);
+    end
+
+    try
+        raise [1, 2];
+    except
+        on E : List do WriteLn('raised a List of ' + Str(E.Length));
+        on E do WriteLn('WRONG -- should have matched List');
+    end
+
+    try
+        raise 7;
+    except
+        on E : Integer do WriteLn('raised an Integer: ' + Str(E));
+    end
+
+    try
+        raise 2.5;
+    except
+        on E : Double do WriteLn('raised a Double: ' + Str(E));
+    end
+
+    WriteLn('done');
+end

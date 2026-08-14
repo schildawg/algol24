@@ -1,0 +1,130 @@
+uses Scanner;
+uses SourceCode;
+uses Token;
+
+/// Formatted output, matching JPascal's Console.
+///
+/// The shapes are copied exactly, colour codes included, because both write to
+/// the same terminal and a report from one should be indistinguishable from a
+/// report from the other.  agate.sh strips the colouring before comparing, but
+/// only because assertion carets cannot be compared yet -- not because the
+/// codes are allowed to differ.
+///
+const BAR := '------------------------------------------------------------------------';
+
+const ESC := #27;
+
+const ANSI_RESET  := ESC + '[0m';
+const ANSI_RED    := ESC + '[31m';
+const ANSI_GREEN  := ESC + '[32m';
+const ANSI_YELLOW := ESC + '[33m';
+const ANSI_BLUE   := ESC + '[34m';
+const ANSI_CYAN   := ESC + '[36m';
+const ANSI_WHITE  := ESC + '[37m';
+
+object Console;
+begin
+    /// Repeats a character.  There is no builtin for it.
+    function Repeat (What : Char, Times : Integer) : String;
+    var
+       Result : String := '';
+
+    begin
+        for var I := 0; I < Times; I := I + 1 do
+            Result := Result + What;
+
+        Exit Result;
+    end
+
+    /// [INFO] ------------------------------[ Program.a24 ]-----------------------
+    procedure Header (Name : String);
+    var
+       Width : Integer;
+
+    begin
+        Width := Length(BAR) - 4 - Length(Name);
+        Width := Width / 2;
+        if Width < 0 then Width := 0;
+
+        Info (Repeat('-', Width) + '[ ' + ANSI_CYAN + Name + ANSI_RESET + ' ]' + Repeat('-', Width));
+    end
+
+    /// [INFO] < Scanner.a24 >
+    procedure Subheader (Name : String);
+    begin
+        Info ('< ' + ANSI_CYAN + Name + ANSI_RESET + ' >');
+    end
+
+    procedure Info (Text : String);
+    begin
+        WriteLn (ANSI_WHITE + '[' + ANSI_BLUE + 'INFO' + ANSI_WHITE + '] ' + ANSI_RESET + Text);
+    end
+
+    /// [INFO] Program.a24 ................................. SUCCESS
+    procedure Success (Name : String);
+    var
+       Width : Integer;
+
+    begin
+        Width := Length(BAR) - 10 - Length(Name);
+        if Width < 0 then Width := 0;
+
+        Info (Name + ' ' + Repeat('.', Width) + ANSI_GREEN + ' SUCCESS' + ANSI_RESET);
+    end
+
+    /// [INFO] Program.a24 ................................. FAILED
+    procedure Fail (Name : String);
+    var
+       Width : Integer;
+
+    begin
+        Width := Length(BAR) - 10 - Length(Name);
+        if Width < 0 then Width := 0;
+
+        Info (Name + ' ' + Repeat('.', Width) + ANSI_RED + ' FAILED' + ANSI_RESET);
+    end
+
+    procedure Debug (Text : String);
+    begin
+        WriteLn (ANSI_WHITE + '[' + ANSI_YELLOW + 'DEBUG' + ANSI_WHITE + '] ' + ANSI_RESET + Text);
+    end
+
+    /// [ERROR] file: message
+    /// [ERROR] 16 ║     AssertTrue(False);
+    /// [ERROR]    ║                ^^^^^^
+    ///
+    /// The third line's ']' is outside the white run rather than inside it,
+    /// which is a quirk of JPascal's Console and copied deliberately: the two
+    /// write the same bytes or they do not match.
+    ///
+    procedure Error (Where : Token, Message : String);
+    var
+       Text  : String;
+       Digits : Integer;
+
+    begin
+        Text := SourceCode.Get (Where.LineNumber);
+        Digits := Length (Str (Where.LineNumber));
+
+        WriteLn (ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_WHITE + '] ' + ANSI_RESET
+                 + SourceCode.Name() + ': ' + Message);
+
+        // ⚠️ '|', not the box-drawing #9553 JPascal's Console uses.
+        //
+        // The C runtime refuses a Char above 127, deliberately: a code point
+        // that high would have to be encoded as UTF-8, and then Length and
+        // subscripting would disagree with the interpreter, which yields a
+        // UTF-16 unit.  It refuses rather than guessing -- and #9553 in algc's
+        // own diagnostics is what made a COMPILED algc unable to compile
+        // anything at all.
+        //
+        // Only [ERROR] lines carry it, and every comparison drops those, so
+        // this costs a prettier caret and nothing else.
+        WriteLn (ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_WHITE + '] ' + ANSI_RESET
+                 + Str(Where.LineNumber) + ' | ' + Text);
+
+        WriteLn (ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_RESET + '] ' + Repeat(' ', Digits)
+                 + ' |' + ANSI_RED + Repeat(' ', Where.Offset + 1)
+                 + Repeat('^', Length(Where.Lexeme)) + ANSI_RESET);
+    end
+end

@@ -1,0 +1,76 @@
+uses Token;
+
+/// A single enum member.
+///
+/// Members are interned by their type, so the bare 'Red' and the qualified
+/// 'Colour.Red' are the same object and comparing them by identity succeeds.
+/// A copy would make 'Colour.Red = Red' false.
+///
+class ObjEnum;
+var
+    TypeName : String;
+    Name     : String;
+
+    /// Position within the type, and the reason this is carried: truthiness
+    /// reads the ordinal, so the FIRST member of every enum is falsey.
+    Ordinal  : Integer;
+
+begin
+    constructor Init (TypeName : String, Name : String, Ordinal : Integer);
+    begin
+        this.TypeName := TypeName;
+        this.Name := Name;
+        this.Ordinal := Ordinal;
+    end
+
+    /// Printed as its bare name, which is what 'print Red' shows.
+    function ToString () : String;
+    begin
+        Exit Name;
+    end
+end
+
+/// An enum type, so the name can be dotted into.
+///
+class ObjEnumType;
+var
+    Name    : String;
+
+    /// Member name to the one ObjEnum bound under it.  The same objects the
+    /// bare names are bound to -- handing back a copy would break identity.
+    Members : Map;
+
+begin
+    constructor Init (Name : String);
+    begin
+        this.Name := Name;
+        this.Members := Map();
+    end
+
+    /// Adds a member and returns it, so the caller can bind the bare name to
+    /// the very same object.
+    function Add (MemberName : String) : ObjEnum;
+    var
+       Member : ObjEnum;
+
+    begin
+        Member := ObjEnum (Name, MemberName, Members.Length);
+        Members.Put (MemberName, Member);
+
+        Exit Member;
+    end
+
+    /// Qualified access: Colour.Red.
+    function Get (TheName : Token) : Any;
+    begin
+        if not Members.Contains (TheName.Lexeme) then
+            raise 'Undefined enum member ''' + TheName.Lexeme + '''.';
+
+        Exit Members.Get (TheName.Lexeme);
+    end
+
+    function ToString () : String;
+    begin
+        Exit Name;
+    end
+end

@@ -1,0 +1,139 @@
+/// Lists and Maps: literals, subscript, methods, membership, and iteration.
+/// Mirrors the shape of the interpreter's Collections.a24 suite, which cannot
+/// itself be compiled because test blocks are not emitted.
+///
+begin
+    var List := [10, 20, 30];
+    WriteLn(List);
+    WriteLn(List.Length);
+    WriteLn(List[0]);
+    WriteLn(List[2]);
+
+    List[1] := 99;
+    WriteLn(List);
+
+    List.Add(40);
+    WriteLn(List);
+    WriteLn(List.Length);
+
+    var Empty := [];
+    WriteLn(Empty.Length);
+    Empty.Add('first');
+    WriteLn(Empty);
+
+    var Nested := [[1, 2], [3, 4]];
+    WriteLn(Nested);
+    WriteLn(Nested[1][0]);
+
+    // Maps: literal, subscript, methods, and the specified insertion order.
+    var Ages := ['delta':4, 'alpha':1, 'charlie':3];
+    WriteLn(Ages);
+    WriteLn(Ages['alpha']);
+    WriteLn(Ages.Get('charlie'));
+    WriteLn(Ages.Contains('delta'));
+    WriteLn(Ages.Contains('zulu'));
+    WriteLn(Ages.Length);
+
+    Ages.Put('bravo', 2);
+    WriteLn(Ages);
+
+    // Re-assigning an existing key keeps its original position.
+    Ages.Put('delta', 44);
+    WriteLn(Ages);
+
+    Ages.Remove('alpha');
+    WriteLn(Ages);
+    WriteLn(Ages.Length);
+
+    var Blank := [:];
+    WriteLn(Blank.Length);
+    Blank['k'] := 'v';
+    WriteLn(Blank);
+
+    // Membership.
+    WriteLn(10 in List);
+    WriteLn(99 in List);
+    WriteLn(999 in List);
+    WriteLn('charlie' in Ages);
+    WriteLn('ell' in 'hello');
+    WriteLn('xyz' in 'hello');
+
+    // Iteration, including nesting and break.
+    var Total := 0;
+    for var Each in [1, 2, 3] do
+        Total := Total + Each;
+    WriteLn(Total);
+
+    var Seen := '';
+    for var Key in Ages do
+        Seen := Seen + Key + ' ';
+    WriteLn(Seen);
+
+    var Product := 0;
+    for var Outer in [1, 2] do
+        for var Inner in [10, 20] do
+            Product := Product + Outer * Inner;
+    WriteLn(Product);
+
+    var Count := 0;
+    for var Each in [1, 2, 3, 4] do
+    begin
+        if Each = 3 then break;
+        Count := Count + 1;
+    end
+    WriteLn(Count);
+
+    for var Letter in 'abc' do
+        Write(Letter);
+    WriteLn('');
+
+    // Membership compares strictly, so an Integer does not match a Double --
+    // even though '=' promotes.  The two disagree; see ALGOL-24.md.
+    WriteLn(1 = 1.0);
+    WriteLn(1 in [1.0]);
+    WriteLn(1.0 in [1]);
+    var Keyed := [:];
+    Keyed.Put(1, 'int');
+    WriteLn(Keyed.Contains(1));
+    WriteLn(Keyed.Contains(1.0));
+
+    // An index past the end reports in the language's words, not the host's.
+    //
+    // The collection branches used to let Java's IndexOutOfBoundsException
+    // through -- 'Index 5 out of bounds for length 2' -- while the String
+    // branch beside them, and the whole C runtime, said 'Index 5 out of range
+    // 0..1.'  A runtime error inside a 'try' is catchable, so that was a
+    // divergence in text a program can read, and nothing caught it because no
+    // suite subscripted past the end inside a try.
+    var Small := [1, 2];
+    try
+        WriteLn(Small[5]);
+    except
+        on E : String do WriteLn(E);
+    end
+
+    try
+        Small[5] := 0;
+    except
+        on E : String do WriteLn(E);
+    end
+
+    try
+        WriteLn(Small[-1]);
+    except
+        on E : String do WriteLn(E);
+    end
+
+    var Fixed := Array(2);
+    try
+        WriteLn(Fixed[9]);
+    except
+        on E : String do WriteLn(E);
+    end
+
+    try
+        WriteLn('abc'[9]);
+    except
+        on E : String do WriteLn(E);
+    end
+end

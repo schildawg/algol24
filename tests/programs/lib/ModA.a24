@@ -1,0 +1,18 @@
+/// A module whose private names deliberately duplicate ModB's.
+private var Calls := 0;
+
+private function Peek() : Integer;
+begin
+    Exit 1;
+end
+
+function FromA() : Integer;
+begin
+    Calls := Calls + 1;
+    Exit Peek();
+end
+
+function CallsA() : Integer;
+begin
+    Exit Calls;
+end

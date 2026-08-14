@@ -1,0 +1,89 @@
+type Color = (Red, Green, Blue);
+type Suit  = (Hearts, Spades);
+
+class Monster;
+var
+    Hp : Integer := 1;
+
+begin
+    function Describe() : String;
+    begin
+        Exit 'a monster with ' + Str(Hp) + ' hp';
+    end
+end
+
+object Goblin(Monster);
+var
+    Hp : Integer := 10;
+
+begin
+    function Describe() : String;
+    begin
+        Exit 'a goblin: ' + super.Describe();
+    end
+end
+
+object Counter;
+var
+    Count : Integer := 0;
+
+begin
+    procedure Bump();
+    begin
+        Count := Count + 1;
+    end
+
+    function Total() : Integer;
+    begin
+        Exit Count;
+    end
+end
+
+begin
+    WriteLn(Red);
+    WriteLn(Color.Red);
+    WriteLn(Red = Color.Red);
+    WriteLn(Red = Green);
+    WriteLn(Str(Blue));
+    for var C in Color do Write(Str(C) + ' ');
+    WriteLn('');
+
+    WriteLn(Counter.Id);
+    Counter.Bump();
+    Counter.Bump();
+    WriteLn(Counter.Total());
+    WriteLn(Counter.Count);
+    WriteLn(Counter);
+
+    // Two enums are distinct types, and members of different enums never match.
+    WriteLn(Hearts);
+    WriteLn(Suit.Spades);
+    WriteLn(Hearts = Suit.Hearts);
+    WriteLn(Str(Red) = Str(Hearts));
+    for var S in Suit do Write(Str(S) + ' ');
+    WriteLn('');
+
+    // An object inherits, overrides, and reaches its parent through super.
+    WriteLn(Goblin.Id);
+    WriteLn(Goblin.Hp);
+    WriteLn(Goblin.Describe());
+
+    // The name is the instance: an alias reaches the same one, so a write
+    // through either is visible through the other.
+    var Alias := Goblin;
+    Alias.Hp := 99;
+    WriteLn(Goblin.Hp);
+    WriteLn(Alias = Goblin);
+
+    // Objects are ordinary values, so collecting them needs nothing special.
+    var Catalog := ['goblin':Goblin, 'counter':Counter];
+    WriteLn(Catalog['goblin'].Id);
+    WriteLn(Catalog.Length);
+
+    // An enum member as a map key, compared by identity.
+    var Named := [:];
+    Named.Put(Red, 'stop');
+    Named.Put(Green, 'go');
+    WriteLn(Named[Red]);
+    WriteLn(Named.Contains(Color.Green));
+end

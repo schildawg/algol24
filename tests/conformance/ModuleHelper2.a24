@@ -1,0 +1,22 @@
+/// A second module whose private names collide with ModuleHelper.a24 on purpose.
+///
+/// Before modules had scopes, importing this alongside ModuleHelper.a24 was a
+/// hard error -- both declare 'Peek' and 'Calls'.
+///
+
+private var Calls := 100;
+
+private function Peek(): Integer;
+begin
+    Exit 2;
+end
+
+function Helper2Peek(): Integer;
+begin
+    Exit Peek();
+end
+
+function Helper2Calls(): Integer;
+begin
+    Exit Calls;
+end

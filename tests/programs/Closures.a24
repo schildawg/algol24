@@ -1,0 +1,110 @@
+function Adder(N);
+begin
+    function Add(X);
+    begin
+        Exit X + N;
+    end
+    Exit Add;
+end
+
+/// Two closures over one variable: writing through one is visible through the
+/// other, which only works if the capture is a shared cell rather than a copy.
+///
+function MakePair();
+begin
+    var Held := 0;
+
+    function Get();
+    begin
+        Exit Held;
+    end
+
+    function Set(V);
+    begin
+        Held := V;
+        Exit V;
+    end
+
+    Exit [Get, Set];
+end
+
+function Compose(F, G);
+begin
+    function Both(X);
+    begin
+        Exit F(G(X));
+    end
+    Exit Both;
+end
+
+function Twice(F, X);
+begin
+    Exit F(F(X));
+end
+
+function Double(X);
+begin
+    Exit X * 2;
+end
+
+function Counter();
+begin
+    var Count := 0;
+    function Bump();
+    begin
+        Count := Count + 1;
+        Exit Count;
+    end
+    Exit Bump;
+end
+
+begin
+    var Add5 := Adder(5);
+    WriteLn(Add5(1));
+    WriteLn(Twice(Double, 3));
+
+    var Rules := ['double':Double];
+    WriteLn(Rules['double'](7));
+
+    var C := Counter();
+    WriteLn(C());
+    WriteLn(C());
+    WriteLn(C());
+
+    var D := Counter();
+    WriteLn(D());
+    WriteLn(Double);
+
+    // Two closures over the same variable share it.
+    var Pair := MakePair();
+    var Get := Pair[0];
+    var Set := Pair[1];
+    Set(42);
+    WriteLn(Get());
+    Set(7);
+    WriteLn(Get());
+
+    // A closure captured into a collection, and called out of it.
+    var Ops := ['inc':Adder(1), 'dec':Adder(-1)];
+    WriteLn(Ops['inc'](10));
+    WriteLn(Ops['dec'](10));
+
+    // Functions as arguments and results, composed.
+    var AddThenDouble := Compose(Double, Adder(3));
+    WriteLn(AddThenDouble(4));
+
+    // A loop variable captured per pass: each closure keeps its own.
+    var Made := [];
+    for var I in [1, 2, 3] do
+        Made.Add(Adder(I));
+    WriteLn(Made[0](100));
+    WriteLn(Made[1](100));
+    WriteLn(Made[2](100));
+
+    // A closure outliving the call that made it, mutating captured state.
+    var Tally := Counter();
+    var Total := 0;
+    for var Each in [1, 2, 3, 4] do
+        Total := Tally();
+    WriteLn(Total);
+end

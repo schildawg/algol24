@@ -1,0 +1,85 @@
+/// Tests for enumerations -- bare and qualified member access.
+///
+
+type Color = (Red, Green, Blue);
+type Size  = (Small, Medium, Large);
+
+test 'Bare Member Access';
+begin
+   var C := Green;
+
+   AssertEqual('Green', Str(C));
+   AssertTrue(C = Green);
+end
+
+test 'Qualified Member Access';
+begin
+   AssertEqual('Green', Str(Color.Green));
+   AssertEqual('Large', Str(Size.Large));
+end
+
+test 'Qualified And Bare Are The Same Value';
+begin
+   // Enum comparison is identity, so this fails if the qualified form hands
+   // back a copy rather than the member itself.
+   AssertTrue(Color.Red = Red);
+   AssertTrue(Size.Small = Small);
+end
+
+test 'Members Of Different Enums Differ';
+begin
+   AssertTrue(not (Color.Red = Size.Small));
+end
+
+test 'Qualified Member As A Case Label';
+begin
+   var C := Blue;
+   var Result := '';
+
+   case C of
+      Color.Red:   Result := 'r';
+      Color.Green: Result := 'g';
+      Color.Blue:  Result := 'b';
+   end
+
+   AssertEqual('b', Result);
+end
+
+test 'Enum Is Iterable In Declaration Order';
+begin
+   var Seen := '';
+   for var Each in Color do
+      Seen := Seen + Str(Each) + ' ';
+
+   AssertEqual('Red Green Blue ', Seen);
+end
+
+test 'Enum Name Is A Value';
+begin
+   AssertEqual('Color', Str(Color));
+end
+
+test 'Typed Variable Accepts Either Form';
+begin
+   var A : Color := Red;
+   var B : Color := Color.Green;
+
+   AssertTrue(A = Red);
+   AssertTrue(B = Green);
+end
+
+// Truthiness reads an enum member's ordinal, so the first member declared is
+// falsey and every later one is truthy.  Surprising, and the interpreter's
+// isTruthy is what defines it -- the C runtime disagreed until a Lox
+// interpreter written in Algol-24 was compiled and its 'or' chains stopped
+// short-circuiting the same way.
+//
+test 'The First Enum Member Is Falsey';
+begin
+   AssertTrue(not Red);
+   AssertTrue(Green);
+   AssertTrue(Blue);
+
+   AssertTrue(not Color.Red);
+   AssertTrue(Color.Green);
+end

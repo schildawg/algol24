@@ -1,0 +1,63 @@
+/// 'X is T' -- whether a value's runtime type is T, or inherits from it.
+///
+/// It binds with the relational operators, as 'in' does, so 'A is Dog and B is
+/// Cat' parses.  Beside 'as' at the top of expression() it could not: 'as'
+/// consumes nothing after itself.
+///
+/// nil is never anything, matching Java's instanceof -- a value that is not
+/// there has no type to test.
+
+type Colour = (Red, Green);
+
+class Animal;
+begin
+end
+
+class Dog(Animal);
+begin
+end
+
+class Cat(Animal);
+begin
+end
+
+begin
+    var D := Dog();
+
+    WriteLn(D is Dog);
+    WriteLn(D is Animal);
+    WriteLn(D is String);
+
+    WriteLn(1 is Integer);
+    WriteLn(1.5 is Double);
+    WriteLn('abc' is String);
+    WriteLn('a' is Char);
+    WriteLn(True is Boolean);
+    WriteLn([1,2] is List);
+    WriteLn(['a':1] is Map);
+    WriteLn(Set([1]) is Set);
+    WriteLn(Array(1) is Array);
+    WriteLn(Stack() is Stack);
+    WriteLn(nil is Animal);
+
+    // An enum member answers with its type, so a bare member and a qualified
+    // one -- the same interned object -- both test true.
+    WriteLn(Red is Colour);
+    WriteLn(Colour.Red is Colour);
+    WriteLn(Red is Integer);
+
+    // Precedence: binds with the relational operators, so 'and' works.
+    WriteLn(D is Dog and D is Animal);
+
+    if D is Animal then WriteLn('animal');
+    if not (D is Cat) then WriteLn('not a cat');
+
+    // The point of the thing: dispatch on what something turns out to be.
+    var Pets := [Dog(), Cat(), Animal()];
+    for var Pet in Pets do
+    begin
+        if Pet is Dog then WriteLn('woof');
+        else if Pet is Cat then WriteLn('meow');
+        else WriteLn('silence');
+    end
+end
