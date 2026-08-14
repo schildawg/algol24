@@ -98,6 +98,19 @@ begin
     var Below := 11;
     WriteLn(Later());
 
+    // ⚠️ A braced body, deliberately.  The same 'var' with no 'begin ... end'
+    // is refused by the C back end -- see ALGOL-24.md's back-end section -- so
+    // it cannot appear in a differential program, which has to run both ways.
+    if Below > 0 then
+    begin
+        var Inner := Below * 2;
+        function Doubled?();
+        begin
+            Exit Inner;
+        end
+        WriteLn(Doubled?());
+    end
+
     // A function declared inside a try, capturing a local of the try block and
     // the handler's own variable.
     try

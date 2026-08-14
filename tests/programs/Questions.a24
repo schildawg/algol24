@@ -1,0 +1,97 @@
+// '?' is an identifier character, so a predicate can be named the way it reads.
+//
+// ⚠️ C does not allow it, so the emitter maps it to '_q': 'Ready?' becomes
+// 'v_Ready_q'.  That is why this program exists as a differential test rather
+// than as a scanner test -- the scanning is pinned in Scanner.a24, and what is
+// checked here is that a name carrying one survives all the way to a binary.
+
+// ⚠️ TYPE names carry one too, and that half was missed the first time: six
+// sites built a C symbol by hand -- 'k_' + name for a class, 'e_' + type + '_'
+// + member for an enum member -- and none of them mangled, so every one of
+// these emitted a '?' straight into C.  They interpret fine, which is what made
+// it a back-end divergence rather than a parse error.
+type State = (Idle?, Busy?);
+
+var Started? := False;
+
+function Empty?(Items) : Boolean;
+begin
+    Exit Items.Length = 0;
+end
+
+function Ready?(N) : Boolean;
+begin
+    var Enough? := N > 2;
+    Exit Enough? and Started?;
+end
+
+class Gate?;
+var
+    Open? : Boolean := False;
+
+begin
+    procedure Toggle();
+    begin
+        Open? := not Open?;
+    end
+
+    function Shut?() : Boolean;
+    begin
+        Exit not Open?;
+    end
+end
+
+// A superclass carrying one, reached through 'super'.
+class Latch?(Gate?);
+begin
+    function Shut?() : Boolean;
+    begin
+        Exit super.Shut?();
+    end
+end
+
+object Tally?;
+var
+    Count : Integer := 0;
+
+begin
+    procedure Bump();
+    begin
+        Count := Count + 1;
+    end
+end
+
+begin
+    WriteLn(Empty?([]));
+    WriteLn(Empty?([1, 2]));
+
+    WriteLn(Ready?(5));
+    Started? := True;
+    WriteLn(Ready?(5));
+    WriteLn(Ready?(1));
+
+    var G := Gate?();
+    WriteLn(G.Shut?());
+    G.Toggle();
+    WriteLn(G.Shut?());
+    WriteLn(G.Open?);
+
+    var L := Latch?();
+    WriteLn(L.Shut?());
+
+    // An enum member and its qualified form are the same object, so identity
+    // holds -- and both symbols carry the '?'.
+    var S := Idle?;
+    WriteLn(S);
+    WriteLn(S = State.Idle?);
+    WriteLn(Busy?);
+
+    Tally?.Bump();
+    Tally?.Bump();
+    WriteLn(Tally?.Count);
+
+    // Captured into a closure, and called out of a collection.
+    var Checks := ['ready':Ready?, 'empty':Empty?];
+    WriteLn(Checks['ready'](9));
+    WriteLn(Checks['empty']([3]));
+end

@@ -22,6 +22,7 @@
 #include "CEmitter.h"
 
 static Value f_ReadSource(Value **cells, Value *args, int32_t count);
+static Value f_CheckScanned(Value **cells, Value *args, int32_t count);
 static Value f_RunTests(Value **cells, Value *args, int32_t count);
 static Value f_Run(Value **cells, Value *args, int32_t count);
 static Value f_ArgumentsFrom(Value **cells, Value *args, int32_t count);
@@ -30,6 +31,7 @@ static Value f_Usage(Value **cells, Value *args, int32_t count);
 static Value f_Main(Value **cells, Value *args, int32_t count);
 static Value v_SAMPLE;
 static Value fn_ReadSource;
+static Value fn_CheckScanned;
 static Value fn_RunTests;
 static Value fn_Run;
 static Value fn_ArgumentsFrom;
@@ -55,6 +57,14 @@ static Value f_ReadSource(Value **cells, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value f_CheckScanned(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    if (alg_truthy(v_HadError)) {
+        alg_raise(alg_str(v_LastError));
+    }
+    return alg_nil();
+}
+
 static Value f_RunTests(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
     Value v_Source = args[0];
@@ -74,8 +84,10 @@ static Value f_RunTests(Value **cells, Value *args, int32_t count) {
     (void)(alg_invoke(alg_singleton(k_SourceCode), "Begins", (Value[]){v_FileName}, 1));
     (void)((v_TheScanner = alg_new(k_Scanner, (Value[]){v_Source}, 1)));
     (void)((v_TheParser = alg_new(k_Parser, (Value[]){alg_invoke(v_TheScanner, "ScanTokens", NULL, 0)}, 1)));
+    (void)(f_CheckScanned(NULL, NULL, 0));
     (void)(alg_set_property(v_TheParser, "FileName", v_FileName));
     (void)((v_Stmts = alg_invoke(v_TheParser, "Parse", NULL, 0)));
+    (void)(f_CheckScanned(NULL, NULL, 0));
     (void)((v_TheInterpreter = alg_new(k_Interpreter, NULL, 0)));
     (void)((v_TheResolver = alg_new(k_Resolver, (Value[]){v_TheInterpreter}, 1)));
     (void)(alg_invoke(v_TheResolver, "ResolveAll", (Value[]){v_Stmts}, 1));
@@ -105,9 +117,11 @@ static Value f_Run(Value **cells, Value *args, int32_t count) {
     (void)(alg_invoke(alg_singleton(k_SourceCode), "Begins", (Value[]){v_FileName}, 1));
     (void)((v_TheScanner = alg_new(k_Scanner, (Value[]){v_Source}, 1)));
     (void)((v_Tokens = alg_invoke(v_TheScanner, "ScanTokens", NULL, 0)));
+    (void)(f_CheckScanned(NULL, NULL, 0));
     (void)((v_TheParser = alg_new(k_Parser, (Value[]){v_Tokens}, 1)));
     (void)(alg_set_property(v_TheParser, "FileName", v_FileName));
     (void)((v_Stmts = alg_invoke(v_TheParser, "Parse", NULL, 0)));
+    (void)(f_CheckScanned(NULL, NULL, 0));
     (void)((v_TheInterpreter = alg_new(k_Interpreter, NULL, 0)));
     (void)((v_TheResolver = alg_new(k_Resolver, (Value[]){v_TheInterpreter}, 1)));
     (void)(alg_invoke(v_TheResolver, "ResolveAll", (Value[]){v_Stmts}, 1));
@@ -155,8 +169,10 @@ static Value f_Compile(Value **cells, Value *args, int32_t count) {
     (void)(alg_invoke(alg_singleton(k_SourceCode), "Begins", (Value[]){v_FileName}, 1));
     (void)((v_TheScanner = alg_new(k_Scanner, (Value[]){v_Source}, 1)));
     (void)((v_TheParser = alg_new(k_Parser, (Value[]){alg_invoke(v_TheScanner, "ScanTokens", NULL, 0)}, 1)));
+    (void)(f_CheckScanned(NULL, NULL, 0));
     (void)(alg_set_property(v_TheParser, "FileName", v_FileName));
     (void)((v_Stmts = alg_invoke(v_TheParser, "Parse", NULL, 0)));
+    (void)(f_CheckScanned(NULL, NULL, 0));
     Value v_TheInterpreter = alg_new(k_Interpreter, NULL, 0);
     (void)v_TheInterpreter;
     (void)(alg_invoke(alg_new(k_Resolver, (Value[]){v_TheInterpreter}, 1), "ResolveAll", (Value[]){v_Stmts}, 1));
@@ -295,6 +311,7 @@ static Value f_Main(Value **cells, Value *args, int32_t count) {
 
 void init_Main(void) {
     fn_ReadSource = alg_closure("ReadSource", f_ReadSource, NULL, 0, 1);
+    fn_CheckScanned = alg_closure("CheckScanned", f_CheckScanned, NULL, 0, 0);
     fn_RunTests = alg_closure("RunTests", f_RunTests, NULL, 0, 2);
     fn_Run = alg_closure("Run", f_Run, NULL, 0, 2);
     fn_ArgumentsFrom = alg_closure("ArgumentsFrom", f_ArgumentsFrom, NULL, 0, 1);

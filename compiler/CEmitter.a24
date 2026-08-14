@@ -338,16 +338,83 @@ begin
         Renamed := Str (Name);
         if Renames.Contains (Renamed) then Renamed := Str (Renames.Get (Renamed));
 
-        var Result := '';
-        for var I := 0; I < Length (Renamed); I := I + 1 do
+        Exit SymbolOf (Prefix, Renamed);
+    end
+
+    /// ⚠️ EVERY C symbol built from a user-written name goes through here.
+    /// Nine sites used to concatenate a prefix by hand -- 'k_' + Name for a
+    /// class, 'e_' + Type + '_' + Member for an enum member -- and none of them
+    /// mangled, so a class or an enum member carrying a '?' emitted
+    /// 'static Value k_Gate?;' and cc refused it.  A name reaches C through a
+    /// constructor now (ClassHandle, InitName, EnumTypeName, EnumMemberName,
+    /// MethodSymbol, VariableName, FunctionName, Cell, HandleName) and a bare
+    /// 'k_' + Name anywhere is the bug returning.
+    ///
+    function SymbolOf (Prefix : String, Name : String) : String;
+    begin
+        Exit Prefix + QuestionsOut (Name);
+    end
+
+    function ClassHandle (Name : String) : String;
+    begin
+        Exit SymbolOf ('k_', Name);
+    end
+
+    function InitName (Name : String) : String;
+    begin
+        Exit SymbolOf ('i_', Name);
+    end
+
+    function EnumTypeName (Name : String) : String;
+    begin
+        Exit SymbolOf ('e_', Name);
+    end
+
+    /// A member is interned by its type, so the symbol carries both.
+    ///
+    function EnumMemberName (TypeName : String, Member : String) : String;
+    begin
+        Exit SymbolOf ('e_', TypeName + '_' + Member);
+    end
+
+    /// '?' is an identifier character in Algol-24 and not in C, so 'Ready?'
+    /// becomes 'Ready_q'.
+    ///
+    /// ⚠️ Not injective: a program declaring both 'Ready?' and 'Ready_q' in one
+    /// scope emits the same symbol twice.  That is a duplicate declaration, so
+    /// cc refuses it -- confusing, but never wrong code.  Making it injective
+    /// means escaping the escape ('_' -> '__'), which would rename every symbol
+    /// in every emitted file, since the corpus is full of TOKEN_ and ANSI_.
+    ///
+    /// ⚠️ Anything else illegal in a C identifier is REFUSED rather than
+    /// emitted.  Nothing can reach it today -- the scanner admits only letters,
+    /// digits, '_' and '?' -- but this is the one place that would have to
+    /// learn about a new identifier character, and failing here beats a message
+    /// from cc about the emitter's own output.
+    ///
+    function QuestionsOut (Name : String) : String;
+    var
+        Result : String := '';
+
+    begin
+        for var I := 0; I < Length (Name); I := I + 1 do
         begin
-            var C := Str (Renamed)[I];
+            var C := Str (Name)[I];
 
             if C = '?' then Result := Result + '_q';
-            else Result := Result + Str (C);
+            else if C = '_' or IsLetterOrDigit (C) then Result := Result + Str (C);
+            else Unsupported ('An identifier containing ''' + Str (C) + '''');
         end
 
-        Exit Prefix + Result;
+        Exit Result;
+    end
+
+    /// The characters a C identifier may carry, apart from the underscore.
+    ///
+    function IsLetterOrDigit (C : Char) : Boolean;
+    begin
+        Exit (C >= 'a' and C <= 'z') or (C >= 'A' and C <= 'Z')
+          or (C >= '0' and C <= '9');
     end
 
     /// Every non-alphanumeric character becomes an underscore, so a quoted
@@ -525,8 +592,8 @@ begin
 
                 for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
                     EnumMembers.Put (Str (TheStmt.Members[J].Lexeme),
-                                     'e_' + Str (TheStmt.Name.Lexeme) + '_'
-                                          + Str (TheStmt.Members[J].Lexeme));
+                                     EnumMemberName (Str (TheStmt.Name.Lexeme),
+                                                     Str (TheStmt.Members[J].Lexeme)));
             end
 
             if TheStmt is BlockStmt then CollectFunctions (TheStmt.Statements);
@@ -949,6 +1016,26 @@ begin
 
     /// Whether a body declares a function of its own, anywhere inside it.
     ///
+    /// ⚠️ A 'var' as the body of a branch or loop with no 'begin ... end'.
+    ///
+    /// The emitter wraps every such body in braces and the interpreter gives a
+    /// non-block body no scope at all, so the two cannot agree -- and what the
+    /// interpreter does is itself inconsistent per construct: 'if', 'case' and
+    /// 'while' leak the binding to the enclosing scope, where it outlives the
+    /// statement, while a 'for ... in' body scopes it per iteration so nothing
+    /// after the loop can read it at all.  Braces reproduce neither.
+    ///
+    /// Refused rather than emitted, because emitting was wrong either way:
+    /// unboxed it declared inside the braces and the read after them did not
+    /// compile, and boxed it wrote through a cell HoistCells never declared --
+    /// which is the same shape as the main-block capture bug, one node in.
+    ///
+    procedure RefuseBareBinding (Body : Any);
+    begin
+        if Body is VarStmt or Body is VarGroupStmt then
+            Unsupported ('A ''var'' as an unbraced branch or loop body');
+    end
+
     function DeclaresNested (Statements : List) : Boolean;
     begin
         for var I := 0; I < Statements.Length; I := I + 1 do
@@ -1170,6 +1257,18 @@ begin
         Exit 'Value ';
     end
 
+    /// ⚠️ The write side of what Unreachable guards on the read side: a 'var'
+    /// whose name is boxed becomes a write THROUGH its cell, which is only
+    /// right if the cell exists.  Cells is exactly 'declared, and still in
+    /// scope', so this is the invariant stated rather than assumed -- and it
+    /// makes it structurally impossible to emit '*c_Y = ...' for a c_Y nothing
+    /// declared, whatever new shape of body turns up next.
+    ///
+    procedure RequireCell (Name : String);
+    begin
+        if not Cells.Contains (Name) then Unsupported ('A capture of ''' + Name + '''');
+    end
+
     /// A C scope opens and closes: every cell declared inside one goes out of
     /// scope with it, and may not appear in a capture list written afterwards.
     ///
@@ -1296,12 +1395,19 @@ begin
         Symbol : String;
 
     begin
-        Symbol := 'm_' + Owner + '_' + Str (TheMethod.Name.Lexeme)
+        // ⚠️ '?' out of BOTH, because a method may be named 'Shut?' and a class
+        // may be named 'Ready?'.  This built the symbol by hand and emitted
+        // 'm_Gate_Shut?_0', which cc rejects.  Found by the first program to
+        // give a METHOD a name carrying one -- every earlier '?' in the corpus
+        // was a function or a variable.
+        Symbol := SymbolOf ('m_', Owner + '_' + Str (TheMethod.Name.Lexeme))
                 + '_' + Str (TheMethod.Params.Length);
 
+        // ⚠️ The declared types too: a parameter may be declared 'Ready?'.
         var Types := DeclaredTypes (TheMethod);
         for var I := 0; I < Types.Length; I := I + 1 do
-            if Types[I] <> 'Any' then Symbol := Symbol + '_' + Str (Types[I]);
+            if Types[I] <> 'Any' then
+                Symbol := Symbol + '_' + QuestionsOut (Str (Types[I]));
 
         Exit Symbol;
     end
@@ -1437,14 +1543,14 @@ begin
         Handle    : String;
         SuperName : String;
         Applied   : String;
-        InitName  : String;
+        Initializer : String;
 
         EnclosingClass   : String;
         EnclosingFields  : Set;
         EnclosingMethods : Set;
 
     begin
-        Handle := 'k_' + Name;
+        Handle := ClassHandle (Name);
         DeclareValue (Handle, Name);
 
         EnclosingClass := CurrentClass;
@@ -1482,8 +1588,10 @@ begin
             Applied := Applied + '    alg_set_property(v_this, "Id", alg_string('
                      + QuoteC (Name) + '));' + #10;
 
-        InitName := 'i_' + Name;
-        Functions := Functions + 'static Value ' + InitName
+        // ⚠️ Not called 'InitName': a local of that name would shadow the
+        // function that builds it, the way 'var Set := ...' shadows Set().
+        Initializer := InitName (Name);
+        Functions := Functions + 'static Value ' + Initializer
                    + '(Value v_this, Value *args, int32_t count) {' + #10;
 
         // A class with no fields of its own leaves every parameter unused, and
@@ -1503,7 +1611,7 @@ begin
         // is case-insensitive, so it cannot be a variable name.  The same
         // collision that renamed Break to Broke and Object to Obj.
         var SuperHandle := 'alg_nil()';
-        if SuperName <> '' then SuperHandle := 'k_' + SuperName;
+        if SuperName <> '' then SuperHandle := ClassHandle (SuperName);
 
         Setup := Setup + '    ' + Handle + ' = alg_class(' + QuoteC (Name)
                + ', ' + SuperHandle + ');' + #10;
@@ -1515,7 +1623,7 @@ begin
         if AddId then
             Setup := Setup + '    alg_class_field(' + Handle + ', "Id");' + #10;
 
-        Setup := Setup + '    alg_class_initializer(' + Handle + ', ' + InitName + ');' + #10;
+        Setup := Setup + '    alg_class_initializer(' + Handle + ', ' + Initializer + ');' + #10;
 
         for var I := 0; I < Methods.Length; I := I + 1 do
         begin
@@ -1580,6 +1688,8 @@ begin
         else if Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
         begin
             // The cell was declared when the block opened -- see HoistCells.
+            RequireCell (Str (TheStmt.Name.Lexeme));
+
             Locals.Add (Str (TheStmt.Name.Lexeme));
             Line ('*' + Cell (Str (TheStmt.Name.Lexeme)) + ' = ' + Value + ';');
         end
@@ -1616,6 +1726,9 @@ begin
 
     procedure VisitIfStmt (TheStmt : IfStmt);
     begin
+        RefuseBareBinding (TheStmt.ThenBranch);
+        if TheStmt.ElseBranch <> Nil then RefuseBareBinding (TheStmt.ElseBranch);
+
         var Mark := OpenScope ();
 
         Line ('if (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
@@ -1638,6 +1751,8 @@ begin
 
     procedure VisitWhileStmt (TheStmt : WhileStmt);
     begin
+        RefuseBareBinding (TheStmt.Body);
+
         var Mark := OpenScope ();
 
         Line ('while (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
@@ -1899,10 +2014,11 @@ begin
             // must be the same object because comparison is identity.
             if EnumMembers.Contains (Name) then Exit Str (EnumMembers.Get (Name));
 
-            if EnumTypes.Contains (Name) then Exit 'e_' + Name;
+            if EnumTypes.Contains (Name) then Exit EnumTypeName (Name);
 
             // An object's name IS its instance, built on first reference.
-            if Objects.Contains (Name) then Exit 'alg_singleton(k_' + Name + ')';
+            if Objects.Contains (Name) then
+                Exit 'alg_singleton(' + ClassHandle (Name) + ')';
 
             // A function used as a value rather than called.
             if Declared.Contains (Name) then Exit HandleName (Name);
@@ -2089,7 +2205,7 @@ begin
             for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
                 Emitted.Add (Evaluate (TheExpr.Arguments[I]));
 
-            Exit 'alg_invoke_from(k_' + CurrentClass + ', v_this, '
+            Exit 'alg_invoke_from(' + ClassHandle (CurrentClass) + ', v_this, '
                + QuoteC (Str (TheExpr.Callee.Method.Lexeme)) + ', '
                + ArgumentArray (Emitted) + ')';
         end
@@ -2136,7 +2252,6 @@ begin
         // ⚠️ A name bound in this scope shadows every builtin, so 'var Set :=
         // ...' followed by 'Set(42)' calls the variable rather than
         // constructing a Set.
-        // A name bound in this scope shadows every builtin.
         if Locals.Contains (Name) or Captured.Contains (Name) or Boxed.Contains (Name) then
             Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
 
@@ -2163,7 +2278,7 @@ begin
         end
 
         if Classes.Contains (Name) then
-            Exit 'alg_new(k_' + Name + ', ' + ArgumentArray (Arguments) + ')';
+            Exit 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
 
         // ⚠️ A bare call inside a method is a call on 'this', and dispatches
         // DYNAMICALLY -- Describe() calling Speak() has to reach a subclass's
@@ -2305,7 +2420,7 @@ begin
         TheType : String;
 
     begin
-        TheType := 'e_' + Str (TheStmt.Name.Lexeme);
+        TheType := EnumTypeName (Str (TheStmt.Name.Lexeme));
 
         DeclareValue (TheType, Str (TheStmt.Name.Lexeme));
         Setup := Setup + '    ' + TheType + ' = alg_enum_type('
@@ -2440,6 +2555,8 @@ begin
         Counter  : String;
 
     begin
+        RefuseBareBinding (TheStmt.Body);
+
         Id := Loops;
         Loops := Loops + 1;
 
@@ -2539,6 +2656,8 @@ begin
             end
             else if Boxed.Contains (Name) then
             begin
+                RequireCell (Name);
+
                 Locals.Add (Name);
                 Line ('*' + Cell (Name) + ' = ' + Shared + ';');
             end

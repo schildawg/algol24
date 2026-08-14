@@ -9,8 +9,8 @@
 # point of this directory: the compiler is written in Algol-24 and compiles
 # itself, so the only way in is a copy of its own output.
 #
-# This C is generated.  Do not edit it -- edit algc/*.a24 in the repository and
-# run ./seed.sh --update.
+# This C is generated.  Do not edit it -- edit compiler/*.a24 in the
+# repository and run ./build.sh --reseed.
 
 set -eu
 

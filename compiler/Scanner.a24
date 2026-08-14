@@ -177,7 +177,7 @@ begin
             else 
                 begin
                     HadError := True;
-                    LastError := '[line ' + Line + '] Unrecognized character: ' + C + '.';
+                    LastError := '[line ' + Line + '] Error: Unexpected character: ' + C;
                 end
         end  
     end
@@ -274,7 +274,7 @@ begin
         if IsAtEnd() then
         begin
             HadError := True;
-            LastError := '[line ' + Line + '] Error : Unterminated string.';
+            LastError := '[line ' + Line + '] Error: Unterminated string.';
             Exit;
         end
         Advance();
@@ -297,7 +297,7 @@ begin
         if not IsDigit(Peek()) then
         begin
             HadError := True;
-            LastError := '[line ' + Line + '] Invalid character: ' + Peek();
+            LastError := '[line ' + Line + '] Error: Invalid character: ' + Peek();
             Exit;
         end
 
@@ -384,11 +384,17 @@ begin
 
     // Is the character alphabetic?
     //
+    // ⚠️ '?' counts, matching Scanner.java: 'Ready?' is ONE identifier, not
+    // 'Ready' followed by a stray character.  While it did not, the two
+    // scanners disagreed about what a name is -- and because an unrecognized
+    // character was recorded and never reported, algc dropped the '?' and read
+    // 'Ready' instead of refusing, so the difference was invisible.
+    //
     function IsAlpha(C : Char) : Boolean;
     begin
         Exit (C >= 'a' and C <= 'z') or
-             (C >= 'A' and C <= 'Z') or 
-             (C = '_');
+             (C >= 'A' and C <= 'Z') or
+             (C = '_') or (C = '?');
     end
 
     // Is the character alphanumeric?
@@ -568,7 +574,22 @@ begin
     Uut.ScanTokens();
 
     AssertTrue(HadError);
-    AssertEqual('[line 1] Error : Unterminated string.', LastError);
+    AssertEqual('[line 1] Error: Unterminated string.', LastError);
+end
+
+// ⚠️ An unrecognized character is RECORDED here and nowhere else: it produces
+// no token, so nothing downstream can notice it.  Main's CheckScanned is what
+// asks, and while it did not, 'var A @ := 1;' ran and compiled under algc and
+// was refused by JPascal.
+//
+test 'Scan Unrecognized Character Is Recorded';
+begin
+    var Uut := Scanner('var A @ := 1;');
+
+    Uut.ScanTokens();
+
+    AssertTrue(HadError);
+    AssertEqual('[line 1] Error: Unexpected character: @', LastError);
 end
 
 // Tests that scanning a series of numbers returns a Number object, with the String value in lexeme.
@@ -699,7 +720,7 @@ end
 test 'Scan Identifier';
 begin
     var Uut := Scanner('test');
-    
+
     Uut.ScanTokens();
 
     var Token := Uut.Tokens[0];
@@ -709,6 +730,25 @@ begin
 
     // TODO: Add AssertNil
     AssertEqual(nil, Token.Literal);
+end
+
+// ⚠️ '?' is an identifier character, as it is in Scanner.java -- the whole
+// name, and nothing left over.  This scanner used to reject it, and because a
+// scan error went unreported it read 'Ready' and dropped the '?' in silence.
+//
+test 'Scan Identifier With A Question Mark';
+begin
+    var Uut := Scanner('Ready? Empty?()');
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_IDENTIFIER, Uut.Tokens[0].TypeOfToken);
+    AssertEqual('Ready?', Uut.Tokens[0].Lexeme);
+
+    AssertEqual(TOKEN_IDENTIFIER, Uut.Tokens[1].TypeOfToken);
+    AssertEqual('Empty?', Uut.Tokens[1].Lexeme);
+
+    AssertEqual(TOKEN_LEFT_PAREN, Uut.Tokens[2].TypeOfToken);
 end
 
 // Tests that all of Lox's keywords are properly distinguished from identifiers.
@@ -756,7 +796,7 @@ begin
     Uut.ScanTokens();
 
     AssertTrue(HadError);
-    AssertEqual('[line 1] Unrecognized character: %.', LastError);
+    AssertEqual('[line 1] Error: Unexpected character: %', LastError);
 end
 
 // The whole scanner, over a realistic program, in one assertion.

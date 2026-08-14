@@ -136,6 +136,8 @@ There is no block comment. Pascal's `{ ... }` and `(* ... *)` are **not** suppor
 
 Letters, digits, `_`, and `?`, not starting with a digit. `?` is legal in any position, so `IsEmpty?` is one identifier.
 
+⚠️ Compiled, `?` becomes `_q` in the C symbol — `Ready?` is `v_Ready_q` — and that mapping is **not injective**: a scope declaring both `Ready?` and `Ready_q` emits one symbol twice, which the C compiler rejects as a duplicate declaration. It cannot produce wrong code, only a confusing message, and interpreted the same program is fine. Making it injective would mean escaping the escape (`_` → `__`), renaming every symbol in every emitted file.
+
 Identifiers are **case-sensitive**, but **keywords are case-insensitive** (`begin`, `Begin`, and `BEGIN` all scan as `BEGIN`). Property and method lookup on built-in collections is case-insensitive; lookup on user-defined classes is case-sensitive.
 
 ### Literals
@@ -648,6 +650,8 @@ end
 ```
 
 `end` is **not** followed by a semicolon and there is no `end.` terminator for the program.
+
+⚠️ **A `var` as the body of a branch or loop written without `begin ... end` is refused by the C back end** — `if Flag then var Y := 5;`, and the `while`, `for ... in` and `case`-arm forms of it. Interpreted, what such a binding means differs per construct: `if`, `case` and `while` leak it to the enclosing scope, where it outlives the statement, while a `for ... in` body scopes it per iteration so nothing after the loop can read it at all. The emitter brace-wraps every body and can reproduce neither, so it says so by name rather than emitting C that means something else. Open a `begin ... end` and all four work.
 
 ### Conditionals
 
