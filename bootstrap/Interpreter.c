@@ -2,6 +2,7 @@
 #include "Interpreter.h"
 #include "Environment.h"
 #include "Expr.h"
+#include "ObjBuffer.h"
 #include "ObjClass.h"
 #include "ObjCollection.h"
 #include "ObjEnum.h"
@@ -57,6 +58,8 @@ Value k_ModNative;
 static const char *t_ModNative_Call_2[] = { "Any", "Any" };
 Value k_TextFileNative;
 static const char *t_TextFileNative_Call_2[] = { "Any", "Any" };
+Value k_BufferNative;
+static const char *t_BufferNative_Call_2[] = { "Any", "Any" };
 Value k_FileExistsNative;
 static const char *t_FileExistsNative_Call_2[] = { "Any", "Any" };
 Value k_ParamCountNative;
@@ -88,6 +91,7 @@ static Value or_12;
 static Value or_13;
 static Value or_14;
 static Value or_15;
+static Value or_16;
 static const char *t_Interpreter_Interpret_1_List[] = { "List" };
 static const char *t_Interpreter_HoistTests_4_List_List_Map_Boolean[] = { "List", "List", "Map", "Boolean" };
 static const char *t_Interpreter_RunTests_2_List_String[] = { "List", "String" };
@@ -567,6 +571,33 @@ static Value m_TextFileNative_Call_2(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value i_BufferNative(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_nil();
+}
+
+static Value m_BufferNative_Arity_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_negate(alg_int(1));
+    return alg_nil();
+}
+
+static Value m_BufferNative_Call_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_TheInterpreter = args[0];
+    (void)v_TheInterpreter;
+    Value v_Arguments = args[1];
+    (void)v_Arguments;
+    if (alg_truthy(alg_greater(alg_property(v_Arguments, "Length"), alg_int(1)))) {
+        alg_raise(alg_add(alg_add(alg_string("Expected 0 or 1 arguments but got "), alg_str(alg_property(v_Arguments, "Length"))), alg_char_value(46)));
+    }
+    if (alg_truthy(alg_equal(alg_property(v_Arguments, "Length"), alg_int(0)))) {
+        return alg_new(k_ObjBuffer, (Value[]){alg_int(0)}, 1);
+    }
+    return alg_new(k_ObjBuffer, (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
+    return alg_nil();
+}
+
 static Value i_FileExistsNative(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_nil();
@@ -832,6 +863,7 @@ static Value m_Interpreter_Init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Mod"), alg_new(k_ModNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Write"), alg_new(k_WriteNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("WriteLn"), alg_new(k_WriteLnNative, NULL, 0)}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Buffer"), alg_new(k_BufferNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("TextFile"), alg_new(k_TextFileNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("FileExists"), alg_new(k_FileExistsNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("ParamCount"), alg_new(k_ParamCountNative, NULL, 0)}, 2));
@@ -1161,6 +1193,9 @@ static Value m_Interpreter_VisitSubscriptExpr_1_SubscriptExpr(Value v_this, Valu
     if (alg_truthy(alg_is(v_Target, "ObjCollection"))) {
         return alg_invoke(v_Target, "At", (Value[]){v_Index}, 1);
     }
+    if (alg_truthy(alg_is(v_Target, "ObjBuffer"))) {
+        return alg_invoke(v_Target, "At", (Value[]){v_Index}, 1);
+    }
     if (alg_truthy(alg_invoke(v_this, "IsText", (Value[]){v_Target}, 1))) {
         return alg_subscript_get(alg_str(v_Target), v_Index);
     }
@@ -1182,6 +1217,9 @@ static Value m_Interpreter_VisitSetSubscriptExpr_1_SetSubscriptExpr(Value v_this
     (void)((v_Index = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheExpr, "Index")}, 1)));
     (void)((v_Value = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheExpr, "Value")}, 1)));
     if (alg_truthy(alg_is(v_Target, "ObjCollection"))) {
+        return alg_invoke(v_Target, "PutAt", (Value[]){v_Index, v_Value}, 2);
+    }
+    if (alg_truthy(alg_is(v_Target, "ObjBuffer"))) {
         return alg_invoke(v_Target, "PutAt", (Value[]){v_Index, v_Value}, 2);
     }
     if (alg_truthy(alg_invoke(v_this, "IsText", (Value[]){v_Target}, 1))) {
@@ -1482,7 +1520,7 @@ static Value m_Interpreter_VisitGetExpr_1_GetExpr(Value v_this, Value *args, int
     Value v_Obj = alg_nil();
     (void)v_Obj;
     (void)((v_Obj = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheExpr, "Obj")}, 1)));
-    if (alg_truthy(alg_not(((or_11 = (or_10 = (or_9 = alg_is(v_Obj, "ObjInstance"), alg_truthy(or_9) ? or_9 : alg_is(v_Obj, "ObjEnumType")), alg_truthy(or_10) ? or_10 : alg_is(v_Obj, "ObjCollection")), alg_truthy(or_11) ? or_11 : alg_is(v_Obj, "ObjFile")))))) {
+    if (alg_truthy(alg_not(((or_12 = (or_11 = (or_10 = (or_9 = alg_is(v_Obj, "ObjInstance"), alg_truthy(or_9) ? or_9 : alg_is(v_Obj, "ObjEnumType")), alg_truthy(or_10) ? or_10 : alg_is(v_Obj, "ObjCollection")), alg_truthy(or_11) ? or_11 : alg_is(v_Obj, "ObjFile")), alg_truthy(or_12) ? or_12 : alg_is(v_Obj, "ObjBuffer")))))) {
         {
             alg_raise(alg_string("Only instances have properties."));
         }
@@ -1576,7 +1614,7 @@ static Value m_Interpreter_IsTruthy_1(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_Obj = args[0];
     (void)v_Obj;
-    if (alg_truthy((or_12 = alg_equal(v_Obj, alg_nil()), alg_truthy(or_12) ? or_12 : alg_equal(v_Obj, alg_bool(false))))) {
+    if (alg_truthy((or_13 = alg_equal(v_Obj, alg_nil()), alg_truthy(or_13) ? or_13 : alg_equal(v_Obj, alg_bool(false))))) {
         return alg_bool(false);
     }
     if (alg_truthy(alg_is(v_Obj, "Integer"))) {
@@ -1595,7 +1633,7 @@ static Value m_Interpreter_IsEqual_2(Value v_this, Value *args, int32_t count) {
     (void)v_A;
     Value v_B = args[1];
     (void)v_B;
-    if (alg_truthy((or_13 = alg_equal(v_A, alg_nil()), !alg_truthy(or_13) ? or_13 : alg_equal(v_B, alg_nil())))) {
+    if (alg_truthy((or_14 = alg_equal(v_A, alg_nil()), !alg_truthy(or_14) ? or_14 : alg_equal(v_B, alg_nil())))) {
         return alg_bool(true);
     }
     if (alg_truthy(alg_equal(v_A, alg_nil()))) {
@@ -2121,7 +2159,7 @@ static Value m_Interpreter_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *arg
                                     (void)v_Existing;
                                     Value v_Incoming = alg_invoke(alg_property(v_ModuleEnv, "Values"), "Get", (Value[]){v_TheName}, 1);
                                     (void)v_Incoming;
-                                    if (alg_truthy(alg_not(((or_14 = alg_is(v_Existing, "ObjFunction"), !alg_truthy(or_14) ? or_14 : alg_is(v_Incoming, "ObjFunction")))))) {
+                                    if (alg_truthy(alg_not(((or_15 = alg_is(v_Existing, "ObjFunction"), !alg_truthy(or_15) ? or_15 : alg_is(v_Incoming, "ObjFunction")))))) {
                                         alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined; mark it private in one of the modules.")));
                                     }
                                 }
@@ -2200,7 +2238,7 @@ static Value m_Interpreter_Handle_3_TryStmt(Value v_this, Value *args, int32_t c
     Value v_Handler = alg_nil();
     (void)v_Handler;
     (void)((v_Handler = alg_invoke(v_this, "FindHandler", (Value[]){alg_property(v_TheStmt, "Handlers"), v_Value}, 2)));
-    if (alg_truthy((or_15 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_15) ? or_15 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
+    if (alg_truthy((or_16 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_16) ? or_16 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
         (void)((v_Handler = alg_invoke(alg_property(v_TheStmt, "Handlers"), "Get", (Value[]){alg_string("default")}, 1)));
     }
     if (alg_truthy(alg_equal(v_Handler, alg_nil()))) {
@@ -2490,6 +2528,10 @@ void init_Interpreter(void) {
     alg_class_initializer(k_TextFileNative, i_TextFileNative);
     alg_class_method(k_TextFileNative, "Arity", m_TextFileNative_Arity_0, 0, NULL);
     alg_class_method(k_TextFileNative, "Call", m_TextFileNative_Call_2, 2, t_TextFileNative_Call_2);
+    k_BufferNative = alg_class("BufferNative", alg_nil());
+    alg_class_initializer(k_BufferNative, i_BufferNative);
+    alg_class_method(k_BufferNative, "Arity", m_BufferNative_Arity_0, 0, NULL);
+    alg_class_method(k_BufferNative, "Call", m_BufferNative_Call_2, 2, t_BufferNative_Call_2);
     k_FileExistsNative = alg_class("FileExistsNative", alg_nil());
     alg_class_initializer(k_FileExistsNative, i_FileExistsNative);
     alg_class_method(k_FileExistsNative, "Arity", m_FileExistsNative_Arity_0, 0, NULL);

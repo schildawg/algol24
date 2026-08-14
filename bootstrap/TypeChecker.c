@@ -155,6 +155,10 @@ static Value m_TypeChecker_Init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Set::ToList"), alg_string("List")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("TextFile::ReadLn"), alg_string("String")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("TextFile::Eof"), alg_string("Boolean")}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Buffer::Text"), alg_string("String")}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Buffer::Length"), alg_string("Integer")}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Buffer::IsEmpty"), alg_string("Boolean")}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Buffer::GetInt"), alg_string("Integer")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Length"), alg_string("Integer")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Pos"), alg_string("Integer")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Copy"), alg_string("String")}, 2));
@@ -164,6 +168,7 @@ static Value m_TypeChecker_Init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Map"), alg_string("Map")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Set"), alg_string("Set")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Stack"), alg_string("Stack")}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Buffer"), alg_string("Buffer")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("TextFile"), alg_string("TextFile")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("FileExists"), alg_string("Boolean")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("ParamCount"), alg_string("Integer")}, 2));

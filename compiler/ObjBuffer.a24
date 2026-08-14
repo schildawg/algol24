@@ -1,0 +1,118 @@
+uses Token;
+
+/// Growable bytes with an explicit lifetime.
+///
+/// Wraps the host's Buffer exactly as ObjFile wraps the host's TextFile, and
+/// for the same reason: every member delegates, so the rules that are easy to
+/// get subtly wrong -- Free poisoning, a zero byte having no Text, the bounds
+/// message naming an offset and its width -- come from the one implementation
+/// rather than from a second copy that would have to be kept in step.
+///
+/// ⚠️ There are FOUR implementations of Buffer, not three, and this is the one
+/// that was missed. The C runtime, PascalBuffer.java, both emitters -- and
+/// this, because algc interprets Algol-24 without any Java at hand. It stayed
+/// invisible in the JPascal repo because ctest.sh uses JPascal as the oracle;
+/// the clean repo uses algc as its own, and 'Undefined variable ''Buffer''.'
+/// is what came back. See BUFFER.md.
+
+/// A bound buffer method: a receiver, a name, and an arity.
+///
+/// One class rather than one per method, as FileMethod is.
+///
+class BufferMethod;
+var
+    Receiver : ObjBuffer;
+    Name     : String;
+    TheArity : Integer;
+
+begin
+    constructor Init (Receiver : ObjBuffer, Name : String, TheArity : Integer);
+    begin
+        this.Receiver := Receiver;
+        this.Name := Name;
+        this.TheArity := TheArity;
+    end
+
+    function Arity () : Integer;
+    begin
+        Exit TheArity;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Receiver.Invoke (Name, Arguments);
+    end
+end
+
+class ObjBuffer;
+var
+    /// The host buffer this stands for.
+    Handle : Any;
+
+begin
+    /// ⚠️ Takes the size rather than defaulting, because the native below has
+    /// to serve Buffer() and Buffer(n) and there is one constructor here.
+    /// Buffer(0) and Buffer() are the same thing to the host.
+    constructor Init (Size : Integer);
+    begin
+        this.Handle := Buffer (Size);
+    end
+
+    /// Property access.  Text, Length and IsEmpty answer directly -- all three
+    /// are properties in Algol-24, written without parentheses -- and
+    /// everything else hands back something callable.
+    ///
+    function Get (TheName : Token) : Any;
+    var
+        Member : String;
+
+    begin
+        Member := TheName.Lexeme;
+
+        if Member = 'Text'    then Exit Handle.Text;
+        if Member = 'Length'  then Exit Handle.Length;
+        if Member = 'IsEmpty' then Exit Handle.IsEmpty;
+
+        if Member = 'Append' then Exit BufferMethod (this, Member, 1);
+        if Member = 'PutInt' then Exit BufferMethod (this, Member, 2);
+        if Member = 'GetInt' then Exit BufferMethod (this, Member, 1);
+        if Member = 'Resize' then Exit BufferMethod (this, Member, 1);
+        if Member = 'Free'   then Exit BufferMethod (this, Member, 0);
+
+        raise 'Undefined property ''' + Member + '''.';
+    end
+
+    /// Runs a method by name.  Reached only through BufferMethod, and Get is
+    /// the only thing that hands one of those out.
+    ///
+    function Invoke (Name : String, Arguments : List) : Any;
+    begin
+        if Name = 'Append' then Exit Handle.Append (Arguments[0]);
+        if Name = 'PutInt' then Exit Handle.PutInt (Arguments[0], Arguments[1]);
+        if Name = 'GetInt' then Exit Handle.GetInt (Arguments[0]);
+        if Name = 'Resize' then Exit Handle.Resize (Arguments[0]);
+        if Name = 'Free'   then Exit Handle.Free ();
+
+        raise 'Undefined method ''' + Name + '''.';
+    end
+
+    /// A byte, as an Integer 0..255.  The host bounds-checks and raises, so
+    /// the offset message is written in one place.
+    ///
+    function At (Index : Any) : Any;
+    begin
+        Exit Handle[Index];
+    end
+
+    function PutAt (Index : Any, Value : Any) : Any;
+    begin
+        Handle[Index] := Value;
+        Exit Value;
+    end
+
+    /// Printed the way the host prints one: its size, never its capacity.
+    function ToString () : String;
+    begin
+        Exit Str (Handle);
+    end
+end

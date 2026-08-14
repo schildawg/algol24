@@ -26,19 +26,25 @@ uses TokenType;
 /// counts.
 ///
 function ReadWholeFile (Name : String) : String;
-var
-    Result : String := '';
-
 begin
     var F := TextFile();
     F.Assign (Name);
     F.Reset();
 
+    // ⚠️ A Buffer, not 'Result := Result + Line'.  That copies the whole file
+    // so far on every line, so reading an n-byte source costs n^2/2 bytes of
+    // memory that is never reclaimed -- and this compiler's own largest source
+    // is 113 KB.  See BUFFER.md.
+    var Result := Buffer();
+
     while not F.Eof do
-        Result := Result + F.ReadLn() + #10;
+    begin
+        Result.Append (F.ReadLn());
+        Result.Append (#10);
+    end
 
     F.Close();
-    Exit Result;
+    Exit Result.Text;
 end
 
 class Parser;

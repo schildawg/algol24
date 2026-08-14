@@ -2,7 +2,9 @@
 #include "ObjFunction.h"
 #include "Environment.h"
 #include "Interpreter.h"
+#include "ObjBuffer.h"
 #include "ObjClass.h"
+#include "ObjFile.h"
 #include "ObjInstance.h"
 #include "Stmt.h"
 
@@ -51,6 +53,12 @@ Value f_TypeNameOf(Value **cells, Value *args, int32_t count) {
     }
     if (alg_truthy(alg_is(v_Value, "ObjEnum"))) {
         return alg_property(v_Value, "TypeName");
+    }
+    if (alg_truthy(alg_is(v_Value, "ObjFile"))) {
+        return alg_string("TextFile");
+    }
+    if (alg_truthy(alg_is(v_Value, "ObjBuffer"))) {
+        return alg_string("Buffer");
     }
     return f_NameOfClass(NULL, (Value[]){v_Value}, 1);
     return alg_nil();

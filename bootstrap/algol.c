@@ -26,6 +26,20 @@
  * pointers were not kept anywhere -- and `leaks --atExit` reported 323 leaks
  * and 349 MB on a loop that concatenated strings.  One-chunk programs hid it,
  * because arena_next still pointed into the only chunk there was.
+ *
+ * ⚠️ What never freeing COSTS, and it is not obvious from the above: building
+ * a string a piece at a time is quadratic in memory.  Strings are immutable
+ * and `concat` copies both operands, so `S := S + 'x'` in a loop retains every
+ * intermediate -- the sum of the lengths, about n^2/2 bytes, all of it live.
+ * 40,000 appends peak at 770 MB.  algc used to need 1.25 GB to compile itself
+ * for exactly this reason, and now needs 81 MB -- not because the emitter was
+ * fixed, but because READING a source file with 'Result := Result + Line' cost
+ * more than emitting one.  Both go through Buffer now.
+ *
+ * That is an allocation-VOLUME problem, not a reclamation one: the fix is a
+ * growable buffer that appends in place, which is what `Builder` below already
+ * is internally and what `Buffer` will expose to programs.  It needs no
+ * collector.  See BUFFER.md.
  */
 #define ARENA_CHUNK (1024 * 1024)
 
@@ -45,11 +59,16 @@ static size_t      arena_left   = 0;
  * handle for the same reason a chunk is leaked memory. */
 static void close_open_files(void);
 
-/* Returns everything the process took.  Files first, because an ObjFile lives
- * in the arena and reading one after the chunks are gone would be a use after
- * free. */
+/* Likewise a Buffer's bytes, which are the one allocation here that does NOT
+ * come from the arena -- so freeing the chunks would not reclaim them. */
+static void free_all_buffers(void);
+
+/* Returns everything the process took.  Files and buffers first, because both
+ * structs live in the arena and reading one after the chunks are gone would be
+ * a use after free. */
 static void alg_shutdown(void) {
     close_open_files();
+    free_all_buffers();
 
     while (arena_chunks != NULL) {
         ArenaChunk *previous = arena_chunks->previous;
@@ -173,6 +192,197 @@ static Value object(Obj *obj) {
     v.type = VAL_OBJ;
     v.obj  = obj;
     return v;
+}
+
+/* ----------------------------------------------------------------- buffer --
+ *
+ * Growable bytes with an explicit lifetime: the memory primitive PLAN.md's VM
+ * needs, and the fix for the language's one memory cliff.
+ *
+ * Strings are immutable and concat copies both operands, so accumulating text
+ * a piece at a time retains every intermediate -- about n^2/2 bytes, all live,
+ * because nothing here is ever freed.  A Buffer appends in place and doubles
+ * when it runs out, so n appends cost under 2n.  That is an allocation-volume
+ * fix and needs no collector.  See BUFFER.md.
+ *
+ * ⚠️ The bytes are malloc'd rather than taken from the arena.  Everything else
+ * in this runtime is arena-allocated, and a Buffer cannot be: Free has to
+ * actually return the memory, since the VM will own and trace its own heap and
+ * cannot do that out of an allocator that gives nothing back until exit.
+ *
+ * ⚠️ Free POISONS; it does not merely deallocate.  The same programs run under
+ * the Java tree-walker, which has no free at all -- so a Free that only
+ * released memory would read fine interpreted and be undefined compiled, which
+ * is the exact class of divergence ctest.sh and gate.sh exist to catch.  Both
+ * implementations therefore mark the buffer dead and raise on ANY later
+ * access.  That is also a better rule than C's, so nothing is lost by it.
+ *
+ * ⚠️ Nothing observable may depend on capacity.  fixedpoint.sh requires the
+ * compiler to emit identical bytes twice, and capacity is a function of
+ * allocation history: Length is the size, capacity is invisible, and printing
+ * shows neither the contents nor the capacity -- see buffer_text.
+ */
+typedef struct ObjBuffer {
+    Obj obj;
+
+    char  *bytes;
+    size_t length;
+    size_t capacity;
+    bool   freed;
+
+    /* Every buffer ever made, so alg_shutdown can return what a program did
+     * not free.  Threaded exactly as the files are and for the same reason:
+     * the struct itself is arena-allocated and outlives every Free. */
+    struct ObjBuffer *next;
+} ObjBuffer;
+
+static ObjBuffer *all_buffers = NULL;
+
+/* Not an error.  A program is allowed to end without freeing -- 'never
+ * collected' is the design -- but the process still gives the pages back. */
+static void free_all_buffers(void) {
+    for (ObjBuffer *buffer = all_buffers; buffer != NULL; buffer = buffer->next) {
+        free(buffer->bytes);
+        buffer->bytes    = NULL;
+        buffer->capacity = 0;
+    }
+    all_buffers = NULL;
+}
+
+static void buffer_reserve(ObjBuffer *buffer, size_t needed) {
+    if (needed <= buffer->capacity) return;
+
+    size_t capacity = buffer->capacity < 32 ? 32 : buffer->capacity;
+    while (capacity < needed) capacity *= 2;
+
+    char *grown = realloc(buffer->bytes, capacity);
+    if (grown == NULL) alg_error("Out of memory.");
+
+    buffer->bytes    = grown;
+    buffer->capacity = capacity;
+}
+
+/* The one gate.  Every read and every write goes through it, so a use after
+ * Free raises rather than reading memory that has gone back to malloc. */
+static ObjBuffer *as_buffer(Value v, const char *what) {
+    if (!is_obj(v, OBJ_BUFFER)) {
+        char message[96];
+        snprintf(message, sizeof message, "Only a Buffer has '%s'.", what);
+        alg_error(message);
+    }
+
+    ObjBuffer *buffer = (ObjBuffer *)v.obj;
+    if (buffer->freed) alg_error("That Buffer has been freed.");
+
+    return buffer;
+}
+
+Value alg_buffer(Value size) {
+    int32_t length = as_integer(size, "A Buffer's size must be an Integer.");
+    if (length < 0) alg_error("A Buffer's size cannot be negative.");
+
+    ObjBuffer *buffer = arena_alloc(sizeof(ObjBuffer));
+
+    buffer->obj.type = OBJ_BUFFER;
+    buffer->bytes    = NULL;
+    buffer->length   = 0;
+    buffer->capacity = 0;
+    buffer->freed    = false;
+
+    buffer->next = all_buffers;
+    all_buffers  = buffer;
+
+    /* Buffer(n) is n bytes of zero, the way Array(n) is n nils -- Length is
+     * the addressable size from the moment it is made, not a high-water mark
+     * that subscripting has to wait for. */
+    if (length > 0) {
+        buffer_reserve(buffer, (size_t)length);
+        memset(buffer->bytes, 0, (size_t)length);
+        buffer->length = (size_t)length;
+    }
+
+    return object((Obj *)buffer);
+}
+
+static void buffer_append(ObjBuffer *buffer, const char *text, size_t added) {
+    buffer_reserve(buffer, buffer->length + added);
+
+    memcpy(buffer->bytes + buffer->length, text, added);
+    buffer->length += added;
+}
+
+/* ⚠️ Must copy.  Handing back the internal pointer would alias mutable bytes
+ * as an immutable String, and the next Append would change a String someone
+ * already holds -- the same unsoundness as appending in place inside concat.
+ * One copy per call, which is O(n) once rather than O(n) per append.
+ *
+ * ⚠️ A zero byte is REFUSED rather than converted.  A String here is a
+ * NUL-terminated char*, so 'Hi\0\0' would come back as 'Hi' -- while the
+ * tree-walker's String holds all four characters and prints all four.  That is
+ * a silent divergence between the back ends on a Buffer(n), which starts full
+ * of zeroes, so it would have been easy to reach.  The scan costs O(n) on a
+ * call that already copies O(n). */
+static Value buffer_text(ObjBuffer *buffer) {
+    for (size_t i = 0; i < buffer->length; i++) {
+        if (buffer->bytes[i] == '\0') alg_error("A Buffer holding a zero byte has no Text.");
+    }
+
+    char *text = arena_alloc(buffer->length + 1);
+
+    if (buffer->length > 0) memcpy(text, buffer->bytes, buffer->length);
+    text[buffer->length] = '\0';
+
+    return alg_string(text);
+}
+
+/* 'width' is how many bytes the access needs, so a 4-byte PutInt at the last
+ * byte is refused rather than running off the end.  The message follows
+ * bounded()'s, and the limit goes negative on a buffer too short to hold one
+ * -- which reads correctly as "no offset is in range". */
+static size_t buffer_offset(ObjBuffer *buffer, Value index, size_t width) {
+    int32_t at    = as_integer(index, "A Buffer offset must be an Integer.");
+    int32_t limit = (int32_t)buffer->length - (int32_t)width;
+
+    if (at < 0 || at > limit) {
+        char message[96];
+        snprintf(message, sizeof message, "Offset %d out of range 0..%d.", at, limit);
+        alg_error(message);
+    }
+    return (size_t)at;
+}
+
+/* ⚠️ Little-endian explicitly, not the host's order.  A Buffer written on one
+ * machine and read on another has to agree, and more immediately: the compiler
+ * must emit identical bytes everywhere, which host byte order would not. */
+static void buffer_put_int(ObjBuffer *buffer, size_t at, int32_t value) {
+    uint32_t bits = (uint32_t)value;
+
+    buffer->bytes[at]     = (char)(bits         & 0xFFu);
+    buffer->bytes[at + 1] = (char)((bits >>  8) & 0xFFu);
+    buffer->bytes[at + 2] = (char)((bits >> 16) & 0xFFu);
+    buffer->bytes[at + 3] = (char)((bits >> 24) & 0xFFu);
+}
+
+static int32_t buffer_get_int(ObjBuffer *buffer, size_t at) {
+    uint32_t bits = (uint32_t)(unsigned char)buffer->bytes[at]
+                  | (uint32_t)(unsigned char)buffer->bytes[at + 1] <<  8
+                  | (uint32_t)(unsigned char)buffer->bytes[at + 2] << 16
+                  | (uint32_t)(unsigned char)buffer->bytes[at + 3] << 24;
+
+    return (int32_t)bits;
+}
+
+static void buffer_resize(ObjBuffer *buffer, int32_t length) {
+    if (length < 0) alg_error("A Buffer's size cannot be negative.");
+
+    /* Growing zero-fills, so a Resize is the same as having asked for that
+     * size to begin with.  Shrinking keeps the capacity: it costs nothing and
+     * a buffer that shrinks usually grows again. */
+    if ((size_t)length > buffer->length) {
+        buffer_reserve(buffer, (size_t)length);
+        memset(buffer->bytes + buffer->length, 0, (size_t)length - buffer->length);
+    }
+    buffer->length = (size_t)length;
 }
 
 static Value sequence(ObjType type) {
@@ -520,9 +730,14 @@ Value alg_to_list(Value receiver) {
 /* ------------------------------------------------------------ properties -- */
 
 static int32_t count_of(Value v) {
-    if (is_obj(v, OBJ_MAP))   return ((ObjMap *)v.obj)->count;
-    if (is_sequence(v))       return ((ObjSeq *)v.obj)->count;
-    if (is_text(v))           return (int32_t)strlen(v.string);
+    if (is_obj(v, OBJ_MAP))    return ((ObjMap *)v.obj)->count;
+    if (is_sequence(v))        return ((ObjSeq *)v.obj)->count;
+    if (is_text(v))            return (int32_t)strlen(v.string);
+
+    /* A Buffer's Length is its size in bytes, never its capacity -- see the
+     * Buffer section.  as_buffer is what makes Length on a freed one raise
+     * rather than answering with a stale count. */
+    if (is_obj(v, OBJ_BUFFER)) return (int32_t)as_buffer(v, "Length")->length;
 
     alg_error("Only a collection or a String has 'Length'.");
     return 0;
@@ -535,6 +750,14 @@ Value alg_is_empty(Value v) { return alg_bool(count_of(v) == 0); }
 
 Value alg_subscript_get(Value target, Value index) {
     if (is_obj(target, OBJ_MAP)) return alg_get(target, index);
+
+    /* A byte, as an Integer 0..255 -- not a Char.  A Buffer is raw memory, and
+     * the VM will index it to read opcodes; Text is how the text face is
+     * reached, and it is the only thing here that produces a String. */
+    if (is_obj(target, OBJ_BUFFER)) {
+        ObjBuffer *buffer = as_buffer(target, "[]");
+        return alg_int((unsigned char)buffer->bytes[buffer_offset(buffer, index, 1)]);
+    }
 
     if (is_sequence(target)) {
         ObjSeq *seq = (ObjSeq *)target.obj;
@@ -553,6 +776,16 @@ Value alg_subscript_get(Value target, Value index) {
 Value alg_subscript_set(Value target, Value index, Value value) {
     if (is_obj(target, OBJ_MAP)) {
         map_put((ObjMap *)target.obj, index, value);
+        return value;
+    }
+    if (is_obj(target, OBJ_BUFFER)) {
+        ObjBuffer *buffer = as_buffer(target, "[]");
+        size_t     at     = buffer_offset(buffer, index, 1);
+
+        int32_t byte = as_integer(value, "A Buffer holds bytes, so the value must be an Integer.");
+        if (byte < 0 || byte > 255) alg_error("A byte must be in 0..255.");
+
+        buffer->bytes[at] = (char)byte;
         return value;
     }
     if (is_sequence(target)) {
@@ -1316,6 +1549,17 @@ Value alg_property(Value receiver, const char *name) {
         undefined("property", name);
     }
 
+    /* Text is a property, like Length and IsEmpty: a zero-argument query reads
+     * better without parentheses, which is the rule for the whole language. */
+    if (is_obj(receiver, OBJ_BUFFER)) {
+        if (strcasecmp(name, "Text") == 0) return buffer_text(as_buffer(receiver, "Text"));
+
+        if (strcasecmp(name, "Length") == 0)  return alg_length(receiver);
+        if (strcasecmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
+
+        undefined("property", name);
+    }
+
     if (is_obj(receiver, OBJ_INSTANCE)) {
         ObjInstance *instance = (ObjInstance *)receiver.obj;
 
@@ -1378,6 +1622,66 @@ Value alg_set_property(Value receiver, const char *name, Value value) {
     return value;
 }
 
+/* Buffer methods.  Tried before the collections' table for the same reason the
+ * files' is: 'Append' means one thing to a file and another to a Buffer, and
+ * only the receiver says which. */
+static bool buffer_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
+    if (!is_obj(receiver, OBJ_BUFFER)) return false;
+    (void)count;
+
+    /* Free is the one method that may be called on a freed Buffer, and is a
+     * no-op the second time -- the same bargain Close makes for a file, so a
+     * handler can free on the way out without knowing how far it got. */
+    if (strcasecmp(name, "Free") == 0) {
+        ObjBuffer *buffer = (ObjBuffer *)receiver.obj;
+
+        free(buffer->bytes);
+        buffer->bytes    = NULL;
+        buffer->length   = 0;
+        buffer->capacity = 0;
+        buffer->freed    = true;
+
+        *result = alg_nil();
+        return true;
+    }
+
+    if (strcasecmp(name, "Append") == 0) {
+        ObjBuffer  *buffer = as_buffer(receiver, "Append");
+        const char *text   = as_text(args[0]);
+
+        buffer_append(buffer, text, strlen(text));
+
+        *result = alg_nil();
+        return true;
+    }
+    if (strcasecmp(name, "PutInt") == 0) {
+        ObjBuffer *buffer = as_buffer(receiver, "PutInt");
+        size_t     at     = buffer_offset(buffer, args[0], 4);
+
+        buffer_put_int(buffer, at, as_integer(args[1], "PutInt takes an Integer."));
+
+        *result = alg_nil();
+        return true;
+    }
+    if (strcasecmp(name, "GetInt") == 0) {
+        ObjBuffer *buffer = as_buffer(receiver, "GetInt");
+
+        *result = alg_int(buffer_get_int(buffer, buffer_offset(buffer, args[0], 4)));
+        return true;
+    }
+    if (strcasecmp(name, "Resize") == 0) {
+        ObjBuffer *buffer = as_buffer(receiver, "Resize");
+
+        buffer_resize(buffer, as_integer(args[0], "A Buffer's size must be an Integer."));
+
+        *result = alg_nil();
+        return true;
+    }
+
+    undefined("property", name);
+    return false;
+}
+
 /* Collection methods, reached by name.  Kept here rather than in the emitter
  * because a class may declare a method called Add, and only the receiver says
  * which is meant. */
@@ -1423,6 +1727,7 @@ Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
 
     Value result;
     if (file_method(receiver, name, args, count, &result)) return result;
+    if (buffer_method(receiver, name, args, count, &result)) return result;
     if (collection_method(receiver, name, args, count, &result)) return result;
 
     alg_error("Only instances have properties.");
@@ -1598,6 +1903,7 @@ static const char *type_name(Value v) {
         case OBJ_ARRAY:    return "Array";
         case OBJ_MAP:      return "Map";
         case OBJ_FILE:     return "TextFile";
+        case OBJ_BUFFER:   return "Buffer";
 
         default: break;
     }
@@ -2041,6 +2347,22 @@ static const char *as_text(Value v) {
                 return b.text;
             }
             if (v.obj->type == OBJ_CLASS) return ((ObjClass *)v.obj)->name;
+
+            /* ⚠️ Its SIZE, not its contents and not its capacity.  Capacity is
+             * a function of allocation history and printing it would make the
+             * emitted C depend on how the compiler grew its buffers, which
+             * fixedpoint.sh would catch and no one would enjoy diagnosing.
+             * Contents are left out for a plainer reason: a Buffer is bytes,
+             * which may not be text at all, and a compiler's is 700 KB of it.
+             * Text is the way to ask for the contents, and it is explicit. */
+            if (v.obj->type == OBJ_BUFFER) {
+                ObjBuffer *buffer = (ObjBuffer *)v.obj;
+                if (buffer->freed) return "Buffer(freed)";
+
+                char *text = arena_alloc(32);
+                snprintf(text, 32, "Buffer(%d)", (int32_t)buffer->length);
+                return text;
+            }
             return collection_text(v);
 
         case VAL_INT: {

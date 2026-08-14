@@ -114,15 +114,30 @@ end
 ///
 class CEmitter;
 var
+    /// ⚠️ These five are BUFFERS, not Strings, and the difference is the
+    /// difference between the compiler needing 1.25 GB to compile itself and
+    /// needing a few tens of MB.
+    ///
+    /// 'X := X + Piece' allocates a fresh string and copies both operands, and
+    /// nothing is ever freed -- so accumulating an emitted file that way keeps
+    /// every intermediate, about n^2/2 bytes of live memory.  A Buffer appends
+    /// in place and grows by doubling.  Same output, same order, same bytes;
+    /// only the allocation volume changes, which is why cgate and fixedpoint
+    /// still hold across this.  See BUFFER.md, and ALGOL-24.md's Buffer.
+    ///
+    /// ⚠️ They are never Freed.  A compiler is a batch process and the arena
+    /// gives everything back at exit; Free exists for the VM, which owns its
+    /// memory for a different reason.
+
     /// File-scope declarations: prototypes, and the globals a top-level 'var'
     /// becomes.
-    Declarations : String := '';
+    Declarations : Any := Buffer();
 
     /// Whole function bodies.
-    Functions    : String := '';
+    Functions    : Any := Buffer();
 
     /// The body of main.
-    MainBody     : String := '';
+    MainBody     : Any := Buffer();
 
     /// Closure handles and class registrations, assigned at the TOP of main.
     ///
@@ -130,7 +145,7 @@ var
     /// value and a class is BUILT before any statement can pass one around or
     /// construct one -- which is what lets a class be declared after the code
     /// that uses it.
-    Setup        : String := '';
+    Setup        : Any := Buffer();
 
     /// The body of the function being emitted, if any.
     ///
@@ -139,7 +154,7 @@ var
     /// written, so the enclosing header and body can only be appended once the
     /// body is complete.  Writing the header straight to Functions puts the
     /// outer function first and the closure line in main.
-    Body         : String := '';
+    Body         : Any := Buffer();
 
     /// The C symbol of each test body, parallel to Tests -- the runner in the
     /// main file calls them across file boundaries.
@@ -319,9 +334,9 @@ begin
     procedure Line (Text : Any);
     begin
         if Target = 'body' then
-            Body := Body + Indentation (Depth) + Str (Text) + #10;
+            Body.Append (Indentation (Depth) + Str (Text) + #10);
         else
-            MainBody := MainBody + Indentation (Depth) + Str (Text) + #10;
+            MainBody.Append (Indentation (Depth) + Str (Text) + #10);
     end
 
     /// A C identifier for an Algol-24 name.
@@ -556,10 +571,10 @@ begin
     begin
         if Exported (Name) then
         begin
-            Declarations := Declarations + 'Value ' + Symbol + ';' + #10;
+            Declarations.Append ('Value ' + Symbol + ';' + #10);
             Header := Header + 'extern Value ' + Symbol + ';' + #10;
         end
-        else Declarations := Declarations + 'static Value ' + Symbol + ';' + #10;
+        else Declarations.Append ('static Value ' + Symbol + ';' + #10);
     end
 
     /// A test block is a FunctionStmt whose name token carries a literal, so
@@ -676,10 +691,10 @@ begin
         begin
             var Unit := Units[U];
 
-            Declarations := '';
-            Functions := '';
-            Setup := '';
-            MainBody := '';
+            Declarations := Buffer();
+            Functions := Buffer();
+            Setup := Buffer();
+            MainBody := Buffer();
             Header := '';
             Target := 'main';
 
@@ -704,7 +719,7 @@ begin
 
                 if TheStmt is FunctionStmt and not IsTest (TheStmt) then
                 begin
-                    Declarations := Declarations + Prototype (TheStmt) + ';' + #10;
+                    Declarations.Append (Prototype (TheStmt) + ';' + #10);
 
                     if Exported (Str (TheStmt.Name.Lexeme)) then
                         Header := Header + Prototype (TheStmt) + ';' + #10;
@@ -733,7 +748,7 @@ begin
                 // this point, and they belong in its initializer.  The program
                 // body is emitted separately, after every init has run.
                 var InitBody := MainBody;
-                MainBody := '';
+                MainBody := Buffer();
 
                 if EmitTests then EmitTestRunner ();
                 else
@@ -751,7 +766,7 @@ begin
                     Volatiles := False;
                 end
 
-                MainBodyText := MainBody;
+                MainBodyText := MainBody.Text;
                 MainBody := InitBody;
             end
 
@@ -800,15 +815,15 @@ begin
 
         Text := Text + #10;
 
-        if Length (Declarations) > 0 then Text := Text + Declarations + #10;
-        if Length (Functions) > 0 then Text := Text + Functions;
+        if Declarations.Length > 0 then Text := Text + Declarations.Text + #10;
+        if Functions.Length > 0 then Text := Text + Functions.Text;
 
         // ⚠️ Everything this file has to do before anything runs, in one
         // function the main file calls.  It cannot be a C initializer: a Value
         // here is built by a call, and C wants a constant expression.
         Text := Text + 'void init_' + Str (Unit.Name) + '(void) {' + #10;
-        Text := Text + Setup;
-        Text := Text + MainBody;
+        Text := Text + Setup.Text;
+        Text := Text + MainBody.Text;
         Text := Text + '}' + #10;
 
         if IsMain then
@@ -895,10 +910,10 @@ begin
         // in a module the main file never imported -- visibility is an Algol-24
         // rule about names, and the runner is not written in Algol-24.
         for var I := 0; I < TestSymbols.Length; I := I + 1 do
-            Declarations := Declarations + 'Value ' + Str (TestSymbols[I])
-                          + '(Value **cells, Value *args, int32_t count);' + #10;
+            Declarations.Append ('Value ' + Str (TestSymbols[I])
+                          + '(Value **cells, Value *args, int32_t count);' + #10);
 
-        MainBody := MainBody + '    alg_test_begin(' + Str (Tests.Length) + ');' + #10;
+        MainBody.Append ('    alg_test_begin(' + Str (Tests.Length) + ');' + #10);
 
         Files := List();
         for var I := 0; I < TestFiles.Length; I := I + 1 do
@@ -906,7 +921,7 @@ begin
 
         for var F := 0; F < Files.Length; F := F + 1 do
         begin
-            MainBody := MainBody + '    alg_test_file(' + QuoteC (Str (Files[F])) + ');' + #10;
+            MainBody.Append ('    alg_test_file(' + QuoteC (Str (Files[F])) + ');' + #10);
 
             // The indices of this file's tests, ordered by test name.
             var Ordered := List();
@@ -924,14 +939,14 @@ begin
                     end
 
             for var A := 0; A < Ordered.Length; A := A + 1 do
-                MainBody := MainBody + '    alg_test_run('
+                MainBody.Append ('    alg_test_run('
                           + QuoteC (Str (Tests[Ordered[A]].Name.Literal)) + ', '
-                          + Str (TestSymbols[Ordered[A]]) + ');' + #10;
+                          + Str (TestSymbols[Ordered[A]]) + ');' + #10);
 
-            MainBody := MainBody + '    alg_test_end_file();' + #10;
+            MainBody.Append ('    alg_test_end_file();' + #10);
         end
 
-        MainBody := MainBody + '    return alg_test_summary();' + #10;
+        MainBody.Append ('    return alg_test_summary();' + #10);
     end
 
     procedure Execute (TheStmt : Any);
@@ -969,7 +984,7 @@ begin
         var EnclosingCells := Cells;
 
         Target := 'body';
-        Body := '';
+        Body := Buffer();
         Depth := 1;
 
         AtTopLevel := False;
@@ -990,7 +1005,7 @@ begin
         for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
             Execute (TheStmt.Body[I]);
 
-        var Written := Body;
+        var Written := Body.Text;
 
         Target := EnclosingTarget;
         Body := EnclosingBody;
@@ -1004,14 +1019,14 @@ begin
         TryDepth := EnclosingTryDepth;
         LoopTryDepth := EnclosingLoopTry;
 
-        Declarations := Declarations + 'Value ' + Symbol
-                     + '(Value **cells, Value *args, int32_t count);' + #10;
+        Declarations.Append ('Value ' + Symbol
+                     + '(Value **cells, Value *args, int32_t count);' + #10);
 
-        Functions := Functions + 'Value ' + Symbol
-                   + '(Value **cells, Value *args, int32_t count) {' + #10;
-        Functions := Functions + '    (void)cells; (void)args; (void)count;' + #10;
-        Functions := Functions + Written;
-        Functions := Functions + '    return alg_nil();' + #10 + '}' + #10 + #10;
+        Functions.Append ('Value ' + Symbol
+                   + '(Value **cells, Value *args, int32_t count) {' + #10);
+        Functions.Append ('    (void)cells; (void)args; (void)count;' + #10);
+        Functions.Append (Written);
+        Functions.Append ('    return alg_nil();' + #10 + '}' + #10 + #10);
     end
 
     /// Whether a body declares a function of its own, anywhere inside it.
@@ -1020,10 +1035,10 @@ begin
     ///
     /// The emitter wraps every such body in braces and the interpreter gives a
     /// non-block body no scope at all, so the two cannot agree -- and what the
-    /// interpreter does is itself inconsistent per construct: 'if', 'case' and
-    /// 'while' leak the binding to the enclosing scope, where it outlives the
-    /// statement, while a 'for ... in' body scopes it per iteration so nothing
-    /// after the loop can read it at all.  Braces reproduce neither.
+    /// interpreter does is itself inconsistent per construct: 'if' and 'case'
+    /// leak the binding to the enclosing scope, 'while' redefines it on the
+    /// second pass and dies with '''W'' is already defined', and a 'for ... in'
+    /// body scopes it per iteration so nothing after the loop can read it.
     ///
     /// Refused rather than emitted, because emitting was wrong either way:
     /// unboxed it declared inside the braces and the read after them did not
@@ -1468,7 +1483,7 @@ begin
         var EnclosingBody := Body;
 
         Target := 'body';
-        Body := '';
+        Body := Buffer();
         Depth := 1;
 
         var EnclosingVolatiles := Volatiles;
@@ -1505,17 +1520,17 @@ begin
 
         Line ('return alg_nil();');
 
-        var Written := Body;
+        var Written := Body.Text;
 
         Target := EnclosingTarget;
         Body := EnclosingBody;
 
-        Functions := Functions + 'static Value ' + MethodSymbol (Owner, TheMethod)
-                   + '(Value v_this, Value *args, int32_t count) {' + #10;
+        Functions.Append ('static Value ' + MethodSymbol (Owner, TheMethod)
+                   + '(Value v_this, Value *args, int32_t count) {' + #10);
 
-        Functions := Functions + '    (void)v_this; (void)args; (void)count;' + #10;
-        Functions := Functions + Written;
-        Functions := Functions + '}' + #10 + #10;
+        Functions.Append ('    (void)v_this; (void)args; (void)count;' + #10);
+        Functions.Append (Written);
+        Functions.Append ('}' + #10 + #10);
 
         Depth := EnclosingDepth;
         AtTopLevel := EnclosingTop;
@@ -1591,14 +1606,14 @@ begin
         // ⚠️ Not called 'InitName': a local of that name would shadow the
         // function that builds it, the way 'var Set := ...' shadows Set().
         Initializer := InitName (Name);
-        Functions := Functions + 'static Value ' + Initializer
-                   + '(Value v_this, Value *args, int32_t count) {' + #10;
+        Functions.Append ('static Value ' + Initializer
+                   + '(Value v_this, Value *args, int32_t count) {' + #10);
 
         // A class with no fields of its own leaves every parameter unused, and
         // the generated C is built with -Werror.
-        Functions := Functions + '    (void)v_this; (void)args; (void)count;' + #10;
-        Functions := Functions + Applied;
-        Functions := Functions + '    return alg_nil();' + #10 + '}' + #10 + #10;
+        Functions.Append ('    (void)v_this; (void)args; (void)count;' + #10);
+        Functions.Append (Applied);
+        Functions.Append ('    return alg_nil();' + #10 + '}' + #10 + #10);
 
         for var I := 0; I < Methods.Length; I := I + 1 do
             EmitMethod (Name, Methods[I]);
@@ -1613,17 +1628,17 @@ begin
         var SuperHandle := 'alg_nil()';
         if SuperName <> '' then SuperHandle := ClassHandle (SuperName);
 
-        Setup := Setup + '    ' + Handle + ' = alg_class(' + QuoteC (Name)
-               + ', ' + SuperHandle + ');' + #10;
+        Setup.Append ('    ' + Handle + ' = alg_class(' + QuoteC (Name)
+               + ', ' + SuperHandle + ');' + #10);
 
         for var I := 0; I < Fields.Length; I := I + 1 do
-            Setup := Setup + '    alg_class_field(' + Handle + ', '
-                   + QuoteC (Str (Fields[I].Name.Lexeme)) + ');' + #10;
+            Setup.Append ('    alg_class_field(' + Handle + ', '
+                   + QuoteC (Str (Fields[I].Name.Lexeme)) + ');' + #10);
 
         if AddId then
-            Setup := Setup + '    alg_class_field(' + Handle + ', "Id");' + #10;
+            Setup.Append ('    alg_class_field(' + Handle + ', "Id");' + #10);
 
-        Setup := Setup + '    alg_class_initializer(' + Handle + ', ' + Initializer + ');' + #10;
+        Setup.Append ('    alg_class_initializer(' + Handle + ', ' + Initializer + ');' + #10);
 
         for var I := 0; I < Methods.Length; I := I + 1 do
         begin
@@ -1651,18 +1666,18 @@ begin
                     Quoted := Quoted + QuoteC (Str (Types[J]));
                 end
 
-                Declarations := Declarations + 'static const char *' + Table
-                             + '[] = { ' + Quoted + ' };' + #10;
+                Declarations.Append ('static const char *' + Table
+                             + '[] = { ' + Quoted + ' };' + #10);
             end
 
-            Setup := Setup + '    alg_class_method(' + Handle + ', '
+            Setup.Append ('    alg_class_method(' + Handle + ', '
                    + QuoteC (Str (TheMethod.Name.Lexeme)) + ', '
                    + MethodSymbol (Name, TheMethod) + ', '
-                   + Str (TheMethod.Params.Length) + ', ' + Table + ');' + #10;
+                   + Str (TheMethod.Params.Length) + ', ' + Table + ');' + #10);
         end
 
         if IsObject then
-            Setup := Setup + '    alg_class_is_object(' + Handle + ');' + #10;
+            Setup.Append ('    alg_class_is_object(' + Handle + ');' + #10);
     end
 
     // ------------------------------------------------------------ statements
@@ -1889,7 +1904,7 @@ begin
         var EnclosingBody := Body;
 
         Target := 'body';
-        Body := '';
+        Body := Buffer();
         Depth := 1;
 
         for var I := 0; I < TheStmt.Params.Length; I := I + 1 do
@@ -1921,20 +1936,20 @@ begin
 
         Line ('return alg_nil();');
 
-        var Written := Body;
+        var Written := Body.Text;
 
         Target := EnclosingTarget;
         Body := EnclosingBody;
 
         // Appended only now, so a nested function -- which added itself to
         // Functions while this body was being written -- comes first.
-        Functions := Functions + Prototype (TheStmt) + ' {' + #10;
+        Functions.Append (Prototype (TheStmt) + ' {' + #10);
 
         // One line, matching JPascal exactly -- three would be equivalent C
         // and a different file, and the comparison is byte for byte.
-        Functions := Functions + '    (void)cells; (void)args; (void)count;' + #10;
-        Functions := Functions + Written;
-        Functions := Functions + '}' + #10 + #10;
+        Functions.Append ('    (void)cells; (void)args; (void)count;' + #10);
+        Functions.Append (Written);
+        Functions.Append ('}' + #10 + #10);
 
         // ⚠️ The ENCLOSING function's cells, not this one's.  A nested
         // function closes over the cells that were in scope where it was
@@ -1966,8 +1981,8 @@ begin
             // as an argument or kept in a collection.
             DeclareValue (HandleName (Name), Name);
 
-            Setup := Setup + '    ' + HandleName (Name) + ' = '
-                   + ClosureOf (TheStmt, List()) + ';' + #10;
+            Setup.Append ('    ' + HandleName (Name) + ' = '
+                   + ClosureOf (TheStmt, List()) + ';' + #10);
         end
     end
 
@@ -2275,6 +2290,13 @@ begin
             // Its methods need nothing here: Assign, Reset and the rest go
             // through alg_invoke, and Eof through alg_property.
             if Name = 'TextFile' and Arguments.Length = 0 then Exit 'alg_text_file()';
+
+            // Both forms reach ONE runtime entry point, unlike Set: Buffer()
+            // is Buffer(0), since the argument means the same thing in each.
+            // Append, Free and the rest arrive through alg_invoke, and Text
+            // through alg_property.
+            if Name = 'Buffer' and Arguments.Length = 0 then Exit 'alg_buffer(alg_int(0))';
+            if Name = 'Buffer' and Arguments.Length = 1 then Exit 'alg_buffer(' + Joined + ')';
         end
 
         if Classes.Contains (Name) then
@@ -2322,7 +2344,7 @@ begin
         Slot := 'or_' + Str (Logicals);
         Logicals := Logicals + 1;
 
-        Declarations := Declarations + 'static Value ' + Slot + ';' + #10;
+        Declarations.Append ('static Value ' + Slot + ';' + #10);
 
         Test := '!alg_truthy(';
         if TheExpr.Op.TypeOfToken = TOKEN_OR then Test := 'alg_truthy(';
@@ -2423,16 +2445,16 @@ begin
         TheType := EnumTypeName (Str (TheStmt.Name.Lexeme));
 
         DeclareValue (TheType, Str (TheStmt.Name.Lexeme));
-        Setup := Setup + '    ' + TheType + ' = alg_enum_type('
-               + QuoteC (Str (TheStmt.Name.Lexeme)) + ');' + #10;
+        Setup.Append ('    ' + TheType + ' = alg_enum_type('
+               + QuoteC (Str (TheStmt.Name.Lexeme)) + ');' + #10);
 
         for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
         begin
             var Symbol := Str (EnumMembers.Get (Str (TheStmt.Members[I].Lexeme)));
 
             DeclareValue (Symbol, Str (TheStmt.Members[I].Lexeme));
-            Setup := Setup + '    ' + Symbol + ' = alg_enum_member(' + TheType
-                   + ', ' + QuoteC (Str (TheStmt.Members[I].Lexeme)) + ');' + #10;
+            Setup.Append ('    ' + Symbol + ' = alg_enum_member(' + TheType
+                   + ', ' + QuoteC (Str (TheStmt.Members[I].Lexeme)) + ');' + #10);
         end
     end
 
@@ -2640,7 +2662,7 @@ begin
 
         if AtTopLevel then
         begin
-            Declarations := Declarations + 'static Value ' + Shared + ';' + #10;
+            Declarations.Append ('static Value ' + Shared + ';' + #10);
             Line (Shared + ' = ' + Value + ';');
         end
         else Line (Local () + Shared + ' = ' + Value + ';');

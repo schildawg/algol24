@@ -132,6 +132,14 @@ begin
         Lookup.SetType ('TextFile::ReadLn', 'String');
         Lookup.SetType ('TextFile::Eof',    'Boolean');
 
+        // Nor is a Buffer, and Text is the one worth knowing: it is how a
+        // compiler gets its output back, and reducing it to nothing would let
+        // it be assigned anywhere.
+        Lookup.SetType ('Buffer::Text',    'String');
+        Lookup.SetType ('Buffer::Length',  'Integer');
+        Lookup.SetType ('Buffer::IsEmpty', 'Boolean');
+        Lookup.SetType ('Buffer::GetInt',  'Integer');
+
         // The builtins, so a call to one reduces to something better than ''.
         Lookup.SetType ('Length', 'Integer');
         Lookup.SetType ('Pos',    'Integer');
@@ -147,6 +155,7 @@ begin
         Lookup.SetType ('Set',    'Set');
         Lookup.SetType ('Stack',  'Stack');
 
+        Lookup.SetType ('Buffer',     'Buffer');
         Lookup.SetType ('TextFile',   'TextFile');
         Lookup.SetType ('FileExists', 'Boolean');
         Lookup.SetType ('ParamCount', 'Integer');

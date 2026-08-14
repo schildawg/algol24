@@ -1,0 +1,51 @@
+/// A Buffer's bytes are the one allocation in this runtime that does NOT come
+/// from the arena.
+///
+/// The canary for that. Everything else here is arena-allocated, so freeing
+/// the chunk list at exit returns all of it -- and a Buffer would be invisible
+/// to that, because realloc'd bytes are not in any chunk. Three things have to
+/// hold and none of them is checked anywhere else:
+///
+///   1. a Buffer never freed is still returned at exit, from the thread
+///      alg_shutdown walks;
+///   2. growing by doubling does not lose the intermediates -- realloc frees
+///      the old block, which a grow-and-copy loop like the arena's would not;
+///   3. an explicit Free is not a double free when shutdown comes round, which
+///      is why Free nulls the pointer rather than only setting the flag.
+///
+/// ⚠️ The sizes are chosen to force several realloc steps. A buffer that never
+/// outgrows its first allocation would exercise none of case 2.
+begin
+    // Never freed: the exit handler is the only thing that can return these.
+    var Kept := [];
+    for var I := 0; I < 50; I := I + 1 do
+    begin
+        var B := Buffer();
+        for var J := 0; J < 200; J := J + 1 do
+            B.Append('padding padding padding padding ');
+        Kept.Add(B);
+    end
+    WriteLn(Kept.Length);
+    WriteLn(Kept[0].Length);
+
+    // Freed explicitly, then left for shutdown to see already-freed.
+    for var I := 0; I < 50; I := I + 1 do
+    begin
+        var B := Buffer(4096);
+        B.Resize(65536);
+        B.Free();
+    end
+
+    // Grown well past any doubling threshold, and freed.
+    var Big := Buffer();
+    for var I := 0; I < 20000; I := I + 1 do
+        Big.Append('xyz');
+    WriteLn(Big.Length);
+    Big.Free();
+
+    // And the same again, left alive at exit.
+    var Live := Buffer();
+    for var I := 0; I < 20000; I := I + 1 do
+        Live.Append('xyz');
+    WriteLn(Live.Length);
+end

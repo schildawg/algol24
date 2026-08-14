@@ -1,5 +1,6 @@
 uses Environment;
 uses Expr;
+uses ObjBuffer;
 uses ObjClass;
 uses ObjCollection;
 uses ObjEnum;
@@ -347,6 +348,30 @@ begin
     end
 end
 
+/// ⚠️ Arity -1: Buffer takes nothing or a size, so this checks its own count.
+/// The same arrangement SetNative uses, and for the same reason -- VisitCall's
+/// single check cannot express a range.
+///
+class BufferNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit -1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        if Arguments.Length > 1 then
+            raise 'Expected 0 or 1 arguments but got ' + Str (Arguments.Length) + '.';
+
+        // Buffer() and Buffer(0) are the same thing to the host, which is why
+        // ObjBuffer has one constructor rather than two.
+        if Arguments.Length = 0 then Exit ObjBuffer (0);
+
+        Exit ObjBuffer (Arguments[0]);
+    end
+end
+
 class FileExistsNative;
 begin
     function Arity () : Integer;
@@ -594,6 +619,7 @@ begin
         Builtins.Define ('Write',   WriteNative());
         Builtins.Define ('WriteLn', WriteLnNative());
 
+        Builtins.Define ('Buffer',     BufferNative());
         Builtins.Define ('TextFile',   TextFileNative());
         Builtins.Define ('FileExists', FileExistsNative());
         Builtins.Define ('ParamCount', ParamCountNative());
@@ -854,6 +880,7 @@ begin
         Index  := Evaluate (TheExpr.Index);
 
         if Target is ObjCollection then Exit Target.At (Index);
+        if Target is ObjBuffer     then Exit Target.At (Index);
 
         // Not a collection, so the only thing left that can be subscripted is
         // a String -- and subscripting one yields a Char.
@@ -876,6 +903,7 @@ begin
         Value  := Evaluate (TheExpr.Value);
 
         if Target is ObjCollection then Exit Target.PutAt (Index, Value);
+        if Target is ObjBuffer     then Exit Target.PutAt (Index, Value);
 
         if IsText (Target) then raise 'Strings are immutable.';
 
@@ -1111,7 +1139,8 @@ begin
         // which IS an ObjInstance -- passes.  Comparing names would have made
         // every object declaration unusable the moment it was reached.
         if not (Obj is ObjInstance or Obj is ObjEnumType
-             or Obj is ObjCollection or Obj is ObjFile) then
+             or Obj is ObjCollection or Obj is ObjFile
+             or Obj is ObjBuffer) then
         begin
             raise 'Only instances have properties.';
         end

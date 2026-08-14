@@ -1,0 +1,218 @@
+// Buffer -- growable bytes with a text face, and an explicit lifetime.
+//
+// Two things wanted this and they wanted the same machinery: the VM of PLAN.md
+// stage 5 needs memory it owns and can trace, and the language has one memory
+// cliff -- '+' on text copies both operands, so accumulating a string a piece
+// at a time costs about n^2/2 bytes, all of it live, because nothing is freed.
+// See BUFFER.md.
+//
+// ⚠️ This is a differential program rather than a unit test because the two
+// implementations are a Java class and 300 lines of C, and what matters is that
+// they cannot be told apart -- including the error messages, which are
+// catchable and therefore part of the observable surface.
+
+/// The cliff itself, in miniature: the same text built both ways.  What is
+/// asserted is that they agree, not that one is faster -- a timing would have
+/// nothing stable to compare.
+///
+function Accumulated(N);
+begin
+    var S := '';
+    for var I := 0; I < N; I := I + 1 do
+        S := S + 'ab';
+    Exit S;
+end
+
+function Appended(N);
+begin
+    var B := Buffer();
+    for var I := 0; I < N; I := I + 1 do
+        B.Append('ab');
+    Exit B.Text;
+end
+
+/// A Buffer captured by a closure, which is the shape a rewritten emitter
+/// wants: one buffer per output file, appended to from wherever.  At file
+/// scope because the C back end refuses two levels of nesting.
+///
+function Writer();
+begin
+    var Out := Buffer();
+
+    function Put(Text);
+    begin
+        Out.Append(Text);
+        Exit Out.Length;
+    end
+    Exit Put;
+end
+
+begin
+    // The text face.
+    var B := Buffer();
+    WriteLn(B.Length);
+    WriteLn(B.IsEmpty);
+
+    B.Append('static Value ');
+    B.Append('f_Main');
+    B.Append('(void) {');
+    WriteLn(B.Length);
+    WriteLn(B.Text);
+    WriteLn(B.IsEmpty);
+
+    // ⚠️ Text must COPY.  Handing back the internal bytes would alias mutable
+    // memory as an immutable String, and this Append would then change a
+    // String already handed out.
+    var Held := B.Text;
+    B.Append('  return alg_nil();');
+    WriteLn(Held);
+    WriteLn(B.Length);
+
+    // Appending something that is not a String uses the same text a Write
+    // would, so a Buffer can be built out of whatever is to hand.
+    var N := Buffer();
+    N.Append(42);
+    N.Append(' ');
+    N.Append(2.5);
+    N.Append(' ');
+    N.Append(True);
+    N.Append(' ');
+    N.Append(nil);
+    N.Append(' ');
+    N.Append([1, 2]);
+    WriteLn(N.Text);
+
+    WriteLn(Accumulated(20) = Appended(20));
+    WriteLn(Appended(3));
+
+    // Buffer(n) is n bytes of zero, the way Array(n) is n nils -- addressable
+    // at once, rather than a capacity that appending has to fill first.
+    var C := Buffer(4);
+    WriteLn(C.Length);
+    WriteLn(C[0]);
+    WriteLn(C[3]);
+
+    // A byte is an Integer 0..255, not a Char.  A Buffer is raw memory; Text
+    // is the only thing here that produces a String.
+    C[0] := 72;
+    C[1] := 105;
+    WriteLn(C[0]);
+
+    // ⚠️ A zero byte has no Text.  Compiled, a String is a NUL-terminated
+    // char*, so 'Hi\0\0' would come back as 'Hi' -- while interpreted it is
+    // four characters.  A Buffer(n) starts full of zeroes, so refusing is what
+    // keeps the two back ends from quietly disagreeing.
+    try
+        WriteLn(C.Text);
+    except
+        on E : String do WriteLn(E);
+    end
+
+    C.Resize(2);
+    WriteLn(C.Text);
+    C.Resize(4);
+
+    // ⚠️ Little-endian explicitly, not the host's byte order -- the compiler
+    // has to emit identical bytes on every machine.
+    C.PutInt(0, 123456);
+    WriteLn(C.GetInt(0));
+    WriteLn(C[0]);
+    WriteLn(C[1]);
+    WriteLn(C[2]);
+    WriteLn(C[3]);
+
+    C.PutInt(0, -2);
+    WriteLn(C.GetInt(0));
+    WriteLn(C[0]);
+    WriteLn(C[3]);
+
+    // Growing zero-fills, so a Resize is the same as having asked for that
+    // size to begin with.  Shrinking truncates.
+    C.Resize(8);
+    WriteLn(C.Length);
+    WriteLn(C.GetInt(4));
+    C.Resize(2);
+    WriteLn(C.Length);
+    WriteLn(C[1]);
+
+    // Printing shows the SIZE.  Never the capacity, which is a function of
+    // allocation history and would make emitted C depend on it; and not the
+    // contents, which may not be text and may be 700 KB of it.
+    WriteLn(C);
+    WriteLn(Buffer());
+    WriteLn(Buffer(1024));
+
+    // A Buffer is its own type.
+    WriteLn(C is Buffer);
+    WriteLn(C is List);
+
+    // Bounds.  A 4-byte access at the last byte is refused rather than running
+    // off the end, which is what the width in the message accounts for.
+    try
+        var Bad := C[9];
+    except
+        on E : String do WriteLn(E);
+    end
+    try
+        C[-1] := 0;
+    except
+        on E : String do WriteLn(E);
+    end
+    try
+        C.GetInt(0);
+    except
+        on E : String do WriteLn(E);
+    end
+
+    try
+        C[0] := 256;
+    except
+        on E : String do WriteLn(E);
+    end
+
+    // ⚠️ Free POISONS.  The JVM has nothing to deallocate, so a Free that only
+    // released memory would be a no-op interpreted and real compiled -- and a
+    // use after free would read fine one way and be undefined the other.  Both
+    // mark it dead and raise on ANY later access.
+    var D := Buffer(4);
+    D.Append('x');
+    D.Free();
+    WriteLn(D);
+
+    try
+        WriteLn(D.Length);
+    except
+        on E : String do WriteLn(E);
+    end
+    try
+        WriteLn(D.Text);
+    except
+        on E : String do WriteLn(E);
+    end
+    try
+        D.Append('y');
+    except
+        on E : String do WriteLn(E);
+    end
+    try
+        var Byte := D[0];
+    except
+        on E : String do WriteLn(E);
+    end
+
+    // Free is the one member that may be reached on a freed Buffer, and is a
+    // no-op the second time -- the same bargain Close makes for a file, so a
+    // handler can free on the way out without knowing how far it got.
+    D.Free();
+    WriteLn('freed twice');
+
+    // Buffers are ordinary values: held in collections, captured by closures.
+    var Pieces := [Buffer(), Buffer()];
+    Pieces[0].Append('left');
+    Pieces[1].Append('right');
+    WriteLn(Pieces[0].Text + '/' + Pieces[1].Text);
+
+    var Put := Writer();
+    WriteLn(Put('one'));
+    WriteLn(Put('two'));
+end

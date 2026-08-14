@@ -1,6 +1,8 @@
 uses Environment;
 uses Interpreter;
+uses ObjBuffer;
 uses ObjClass;
+uses ObjFile;
 uses ObjInstance;
 uses Stmt;
 
@@ -41,6 +43,14 @@ begin
     if Value is ObjInstance   then Exit Str (Value.Klass.Name);
     if Value is ObjCollection then Exit Value.Kind;
     if Value is ObjEnum       then Exit Value.TypeName;
+
+    // ⚠️ And the two wrappers that are not collections, which the note above
+    // predicted without naming: 'F is TextFile' was false here and true in
+    // both other implementations, because this fell through to NameOfClass
+    // and answered 'ObjFile'.  Buffer would have joined it -- the same rule,
+    // wrong a fourth way.
+    if Value is ObjFile       then Exit 'TextFile';
+    if Value is ObjBuffer     then Exit 'Buffer';
 
     Exit NameOfClass (Value);
 end

@@ -52,7 +52,12 @@ typedef enum {
     OBJ_STACK,
     OBJ_ARRAY,
     OBJ_MAP,
-    OBJ_FILE
+    OBJ_FILE,
+
+    /* Growable bytes with an explicit lifetime -- the one thing here whose
+     * storage is malloc'd rather than taken from the arena, because Free has
+     * to mean something.  See the Buffer section in algol.c. */
+    OBJ_BUFFER
 } ObjType;
 
 typedef struct {
@@ -123,6 +128,11 @@ Value alg_set_of(Value items);
 Value alg_stack(void);
 Value alg_array(Value size);
 Value alg_map(void);
+
+/* Buffer(n) makes n zero bytes; Buffer() makes none.  The emitter passes
+ * alg_int(0) for the second form rather than there being two entry points,
+ * because unlike Set the two do not differ in what the argument means. */
+Value alg_buffer(Value size);
 
 /* Add-and-return-the-collection, so a literal can be built as one expression:
  * alg_list_keep(alg_list_keep(alg_list(), a), b). */

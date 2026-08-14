@@ -204,6 +204,34 @@ WriteLn(1 = 1.0);    // true
 
 `Char` participates in comparison (`'a' < 'b'`) but not in arithmetic — `'b' - 'a'` is an error, not a code-point subtraction. Use `Ord`, which now genuinely gives the code point: `Ord('b') - Ord('a')` is 1.
 
+⚠️ **`+` on text allocates a fresh string and copies both operands**, so building one up a piece at a time is **quadratic in memory**. Strings are immutable and the runtime frees no individual object, so every intermediate stays live:
+
+```pascal
+var S := '';
+for var I := 0; I < N; I := I + 1 do
+    S := S + 'x';           // retains all N intermediates: ~N²/2 bytes
+```
+
+| N | peak memory |
+|---|---|
+| 5,000 | 13 MB |
+| 10,000 | 49 MB |
+| 20,000 | 193 MB |
+| 40,000 | 770 MB |
+
+Four times the memory for twice the work. This is a property of *both* back ends, but it bites hardest compiled, where nothing is reclaimed at all — under the interpreter the JVM collects the intermediates, so the cost is time rather than a ceiling.
+
+**[`Buffer`](#buffer) is the linear alternative**, and it is why the type exists. It appends in place and grows by doubling, so n appends cost under 2n bytes rather than n²/2:
+
+```pascal
+var B := Buffer();
+for var I := 0; I < N; I := I + 1 do
+    B.Append('x');
+var S := B.Text;            // one copy, at the end
+```
+
+⚠️ This makes a linear path **available**, not automatic. `S := S + 'x'` in a loop is still quadratic, and there is no `Join` and no n-ary `Concat` — the cost is the loop rather than the expression, so neither would have helped. Making the naive idiom linear needs an explicit length in the string representation, which is a change to every site that makes or reads a string and waits for a reason to reopen it.
+
 **Truthiness.** Four things are false; everything else is true.
 
 | Falsey | Truthy |
@@ -651,7 +679,7 @@ end
 
 `end` is **not** followed by a semicolon and there is no `end.` terminator for the program.
 
-⚠️ **A `var` as the body of a branch or loop written without `begin ... end` is refused by the C back end** — `if Flag then var Y := 5;`, and the `while`, `for ... in` and `case`-arm forms of it. Interpreted, what such a binding means differs per construct: `if`, `case` and `while` leak it to the enclosing scope, where it outlives the statement, while a `for ... in` body scopes it per iteration so nothing after the loop can read it at all. The emitter brace-wraps every body and can reproduce neither, so it says so by name rather than emitting C that means something else. Open a `begin ... end` and all four work.
+⚠️ **A `var` as the body of a branch or loop written without `begin ... end` is refused by the C back end** — `if Flag then var Y := 5;`, and the `while`, `for ... in` and `case`-arm forms of it. Interpreted, what such a binding means differs per construct: `if` and `case` leak it to the enclosing scope, `while` redefines it on the second pass and fails with `'Y' is already defined`, and a `for ... in` body scopes it per iteration so nothing after the loop can read it. The emitter brace-wraps every body and can reproduce none of the three, so it says so by name rather than emitting C that means something else. Open a `begin ... end` and all four work.
 
 ### Conditionals
 
@@ -907,7 +935,7 @@ Assigning through a `String` subscript raises "Strings are immutable.". An out-o
 
 ## 6. Types
 
-Annotations are optional; anything unannotated is `Any` and unchecked. Type names in use: `Integer`, `Double`, `Boolean`, `String`, `Char`, `Any`, every declared class/enum name, and the built-in collections.
+Annotations are optional; anything unannotated is `Any` and unchecked. Type names in use: `Integer`, `Double`, `Boolean`, `String`, `Char`, `Any`, every declared class/enum name, the built-in collections, and `TextFile` and [`Buffer`](#buffer) — which are not collections but are named and tested for the same way.
 
 Checking happens in a pass after parsing and before execution (`TypeChecker`). It verifies variable initializers, `Exit` types, assignments, and binary operands, and it accepts a subclass wherever a parent is expected.
 
@@ -944,7 +972,7 @@ Every public static method of `nativefunction/NativeFunctions.java` is registere
 
 **Misc** — `Pause(ms)`, `Debug(label, x)`
 
-**Constructors** — `Array(size)`, `List()`, `Map()`, `Set()`, `Set(list)`, `Stack()`
+**Constructors** — `Array(size)`, `List()`, `Map()`, `Set()`, `Set(list)`, `Stack()`, `Buffer()`, `Buffer(size)`
 
 Collection methods (case-insensitive):
 
@@ -970,6 +998,44 @@ A few members are worth spelling out:
 **Printing a collection uses the shape of its literal**, so a `List` renders as `[1, 2, 3]` and a `Map` as `[a:1, b:2]`, with elements rendered as they would be individually. This is specified rather than inherited: a `Map` used to print as `{a=1}`, which was Java's `HashMap.toString` showing through — braces and `=` are not Algol-24 syntax, and no other implementation would have produced them.
 
 ⚠️ String indices are **0-based**, unlike real Pascal's 1-based strings: `Copy('abcdef', 0, 3)` is `'abc'`, and `Pos('abcdef', 'cd')` is `2`. `Pos` returns `-1` when not found, not `0`.
+
+### Buffer
+
+Growable bytes with an explicit lifetime. It is the answer to the [concatenation cliff](#operators) and the memory primitive a bytecode VM needs, which are the same machinery seen from two directions.
+
+```pascal
+var B := Buffer();               // empty
+B.Append('static Value ');
+B.Append(Symbol);
+WriteLn(B.Length);
+Exit B.Text;
+
+var Chunk := Buffer(1024);       // 1024 zero bytes, addressable at once
+Chunk[0] := 72;
+Chunk.PutInt(4, Offset);
+Chunk.Resize(2048);
+Chunk.Free();
+```
+
+| Member | Meaning |
+|---|---|
+| `Append(x)` | Appends `x`'s text, as `Write` would render it. Amortized O(1). |
+| `PutInt(at, n)`, `GetInt(at)` | A 32-bit Integer, four bytes, **little-endian**. |
+| `Resize(n)` | Grows zero-filled, or truncates. |
+| `Free()` | Releases it. See below. |
+| `Text` | **A property.** The bytes as a `String`, copied. |
+| `Length`, `IsEmpty` | **Properties**, as on every collection. |
+
+`Buffer(n)` is n bytes of zero the way `Array(n)` is n nils — `Length` is the addressable size from the moment it is made, not a capacity that appending has to fill first. `B[i]` reads and writes one byte as an **Integer 0..255**, not a `Char`: a `Buffer` is raw memory, and `Text` is the only member that produces a `String`.
+
+Four things are worth knowing before using one:
+
+- ⚠️ **`Free()` poisons.** It does not merely release the memory: the buffer is marked dead, and *any* later access raises `That Buffer has been freed.` Freeing twice is harmless, like closing a file twice. The rule is stricter than C's on purpose — the same programs run interpreted, where there is nothing to deallocate, and a `Free` that only released memory would read fine one way and be undefined the other.
+- ⚠️ **A zero byte has no `Text`.** `Buffer(4).Text` raises `A Buffer holding a zero byte has no Text.` rather than returning a truncated or NUL-bearing string, because a compiled `String` ends at its first NUL and an interpreted one does not. `Resize` down to the bytes actually written, or build the text with `Append` alone.
+- **`Text` copies.** Handing back the internal bytes would alias mutable memory as an immutable `String`, and the next `Append` would change a string already handed out. The copy is O(n) once, not O(n) per append.
+- **Capacity is invisible.** `Length` is the size; a `Buffer` prints as `Buffer(27)` — never its contents, which may not be text and may be very large, and never its capacity, which depends on allocation history.
+
+A `Buffer` is not iterable and has no literal.
 
 ### Files
 

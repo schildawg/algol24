@@ -11,6 +11,7 @@
 #include "ObjInstance.h"
 #include "ObjEnum.h"
 #include "ObjCollection.h"
+#include "ObjBuffer.h"
 #include "ObjFile.h"
 #include "SourceCode.h"
 #include "Console.h"
@@ -43,17 +44,20 @@ static Value f_ReadSource(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
     Value v_Name = args[0];
     (void)v_Name;
-    Value v_Result = alg_string("");
-    (void)v_Result;
     Value v_F = alg_text_file();
     (void)v_F;
     (void)(alg_invoke(v_F, "Assign", (Value[]){v_Name}, 1));
     (void)(alg_invoke(v_F, "Reset", NULL, 0));
+    Value v_Result = alg_buffer(alg_int(0));
+    (void)v_Result;
     while (alg_truthy(alg_not(alg_property(v_F, "Eof")))) {
-        (void)((v_Result = alg_add(alg_add(v_Result, alg_invoke(v_F, "ReadLn", NULL, 0)), alg_char_value(10))));
+        {
+            (void)(alg_invoke(v_Result, "Append", (Value[]){alg_invoke(v_F, "ReadLn", NULL, 0)}, 1));
+            (void)(alg_invoke(v_Result, "Append", (Value[]){alg_char_value(10)}, 1));
+        }
     }
     (void)(alg_invoke(v_F, "Close", NULL, 0));
-    return v_Result;
+    return alg_property(v_Result, "Text");
     return alg_nil();
 }
 
@@ -330,6 +334,7 @@ int main(int argc, char **argv) {
     init_AstPrinter();
     init_Stmt();
     init_Environment();
+    init_ObjBuffer();
     init_ObjInstance();
     init_ObjClass();
     init_ObjCollection();
