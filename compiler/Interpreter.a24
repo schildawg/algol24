@@ -1079,13 +1079,21 @@ begin
         Distance := Locals.Get (TheExpr) As Integer;
         if Distance <> Nil then Exit Env.GetAt (Distance, Name.Lexeme);
 
-        // Env.Get walks the chain and reaches globals anyway; the second try is
-        // JPascal's, kept so the two read the same.
-        try
-            Exit Env.Get (Name);
-        except
-            on e : String do Exit Globals.Get (Name);
-        end
+        // ⚠️ The environment chain IS the visibility rule -- own bindings, then
+        // the modules this file said 'uses' for, then the built-ins.  There used
+        // to be a fallback to Globals on failure, and it fired precisely when a
+        // name was out of scope: Globals is the ROOT FILE's environment and its
+        // Get searches that file's imports too, so any module reaching a name it
+        // had not imported landed in the root's namespace and, through it, in
+        // every sibling's exports.
+        //
+        // ⚠️ The comment that stood here said 'Env.Get walks the chain and
+        // reaches globals anyway'.  That was true before 'uses' was scoped per
+        // file, and stopped being true when a module's environment came to
+        // enclose Builtins rather than Globals -- so the justification outlived
+        // the design it described, and the code it justified was the one thing
+        // defeating the replacement.
+        Exit Env.Get (Name);
     end
 
     /// Interprets a binary expression.

@@ -1439,42 +1439,17 @@ static Value m_Interpreter_SetThisField_3_Token_String(Value v_this, Value *args
 
 static Value m_Interpreter_LookupVariable_2_Token_Expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    volatile Value v_Name = args[0];
+    Value v_Name = args[0];
     (void)v_Name;
-    volatile Value v_TheExpr = args[1];
+    Value v_TheExpr = args[1];
     (void)v_TheExpr;
-    volatile Value v_Distance = alg_nil();
+    Value v_Distance = alg_nil();
     (void)v_Distance;
     (void)((v_Distance = alg_invoke(alg_property(v_this, "Locals"), "Get", (Value[]){v_TheExpr}, 1)));
     if (alg_truthy(alg_not_equal(v_Distance, alg_nil()))) {
         return alg_invoke(alg_property(v_this, "Env"), "GetAt", (Value[]){v_Distance, alg_property(v_Name, "Lexeme")}, 2);
     }
-    {
-        AlgFrame frame_9;
-        alg_push_frame(&frame_9);
-        if (ALG_SETJMP(frame_9.jump) == 0) {
-            {
-                volatile Value ret_10 = alg_invoke(alg_property(v_this, "Env"), "Get", (Value[]){v_Name}, 1);
-                alg_pop_frame();
-                return ret_10;
-            }
-            alg_pop_frame();
-        }
-        else {
-            static const char *names_9[] = {"String"};
-            int32_t which_9 = alg_handler(frame_9.raised, names_9, 1);
-            if (which_9 == 0) {
-                {
-                    volatile Value v_e = frame_9.raised;
-                    (void)v_e;
-                    return alg_invoke(alg_property(v_this, "Globals"), "Get", (Value[]){v_Name}, 1);
-                }
-            }
-            else {
-                alg_raise(frame_9.raised);
-            }
-        }
-    }
+    return alg_invoke(alg_property(v_this, "Env"), "Get", (Value[]){v_Name}, 1);
     return alg_nil();
 }
 
@@ -1714,28 +1689,28 @@ static Value m_Interpreter_ClassNameOf_1(Value v_this, Value *args, int32_t coun
     volatile Value v_Obj = args[0];
     (void)v_Obj;
     {
-        AlgFrame frame_11;
-        alg_push_frame(&frame_11);
-        if (ALG_SETJMP(frame_11.jump) == 0) {
+        AlgFrame frame_9;
+        alg_push_frame(&frame_9);
+        if (ALG_SETJMP(frame_9.jump) == 0) {
             {
-                volatile Value ret_12 = alg_property(v_Obj, "ClassName");
+                volatile Value ret_10 = alg_property(v_Obj, "ClassName");
                 alg_pop_frame();
-                return ret_12;
+                return ret_10;
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_11[] = {"String"};
-            int32_t which_11 = alg_handler(frame_11.raised, names_11, 1);
-            if (which_11 == 0) {
+            static const char *names_9[] = {"String"};
+            int32_t which_9 = alg_handler(frame_9.raised, names_9, 1);
+            if (which_9 == 0) {
                 {
-                    volatile Value v_e = frame_11.raised;
+                    volatile Value v_e = frame_9.raised;
                     (void)v_e;
                     return alg_string("");
                 }
             }
             else {
-                alg_raise(frame_11.raised);
+                alg_raise(frame_9.raised);
             }
         }
     }
@@ -1811,9 +1786,9 @@ static Value m_Interpreter_ExecuteBlock_2_List_Environment(Value v_this, Value *
     (void)v_PreviousEnv;
     (void)((v_PreviousEnv = alg_property(v_this, "Env")));
     {
-        AlgFrame frame_13;
-        alg_push_frame(&frame_13);
-        if (ALG_SETJMP(frame_13.jump) == 0) {
+        AlgFrame frame_11;
+        alg_push_frame(&frame_11);
+        if (ALG_SETJMP(frame_11.jump) == 0) {
             {
                 (void)(alg_set_property(v_this, "Env", v_NewEnv));
                 {
@@ -1833,7 +1808,7 @@ static Value m_Interpreter_ExecuteBlock_2_List_Environment(Value v_this, Value *
         }
         else {
             {
-                volatile Value v_e = frame_13.raised;
+                volatile Value v_e = frame_11.raised;
                 (void)v_e;
                 {
                     (void)(alg_set_property(v_this, "Env", v_PreviousEnv));
@@ -1911,9 +1886,9 @@ static Value m_Interpreter_VisitClassStmt_1_ClassStmt(Value v_this, Value *args,
     }
     (void)((v_Klass = alg_new(k_ObjClass, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_Superclass, v_Methods, alg_property(v_TheStmt, "Fields")}, 4)));
     {
-        Value loop_14 = alg_iterable(alg_invoke(v_Methods, "Keys", NULL, 0));
-        for (int32_t at_14 = 0; at_14 < alg_iterable_count(loop_14); at_14++) {
-            Value v_Name = alg_iterable_at(loop_14, at_14);
+        Value loop_12 = alg_iterable(alg_invoke(v_Methods, "Keys", NULL, 0));
+        for (int32_t at_12 = 0; at_12 < alg_iterable_count(loop_12); at_12++) {
+            Value v_Name = alg_iterable_at(loop_12, at_12);
             (void)v_Name;
             {
                 Value v_I = alg_int(0);
@@ -2032,9 +2007,9 @@ static Value m_Interpreter_VisitWhileStmt_1_WhileStmt(Value v_this, Value *args,
     volatile Value v_Stmt = args[0];
     (void)v_Stmt;
     {
-        AlgFrame frame_15;
-        alg_push_frame(&frame_15);
-        if (ALG_SETJMP(frame_15.jump) == 0) {
+        AlgFrame frame_13;
+        alg_push_frame(&frame_13);
+        if (ALG_SETJMP(frame_13.jump) == 0) {
             {
                 while (alg_truthy(alg_invoke(v_this, "IsTruthy", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_Stmt, "Condition")}, 1)}, 1))) {
                     {
@@ -2045,17 +2020,17 @@ static Value m_Interpreter_VisitWhileStmt_1_WhileStmt(Value v_this, Value *args,
             alg_pop_frame();
         }
         else {
-            static const char *names_15[] = {"Broke"};
-            int32_t which_15 = alg_handler(frame_15.raised, names_15, 1);
-            if (which_15 == 0) {
+            static const char *names_13[] = {"Broke"};
+            int32_t which_13 = alg_handler(frame_13.raised, names_13, 1);
+            if (which_13 == 0) {
                 {
-                    volatile Value v_e = frame_15.raised;
+                    volatile Value v_e = frame_13.raised;
                     (void)v_e;
                     return alg_nil();
                 }
             }
             else {
-                alg_raise(frame_15.raised);
+                alg_raise(frame_13.raised);
             }
         }
     }
@@ -2103,30 +2078,30 @@ static Value m_Interpreter_IsCallable_1(Value v_this, Value *args, int32_t count
         return alg_bool(false);
     }
     {
-        AlgFrame frame_16;
-        alg_push_frame(&frame_16);
-        if (ALG_SETJMP(frame_16.jump) == 0) {
+        AlgFrame frame_14;
+        alg_push_frame(&frame_14);
+        if (ALG_SETJMP(frame_14.jump) == 0) {
             {
                 volatile Value v_TheArity = alg_property(v_Value, "Arity");
                 (void)v_TheArity;
-                volatile Value ret_17 = alg_bool(true);
+                volatile Value ret_15 = alg_bool(true);
                 alg_pop_frame();
-                return ret_17;
+                return ret_15;
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_16[] = {"String"};
-            int32_t which_16 = alg_handler(frame_16.raised, names_16, 1);
-            if (which_16 == 0) {
+            static const char *names_14[] = {"String"};
+            int32_t which_14 = alg_handler(frame_14.raised, names_14, 1);
+            if (which_14 == 0) {
                 {
-                    volatile Value v_e = frame_16.raised;
+                    volatile Value v_e = frame_14.raised;
                     (void)v_e;
                     return alg_bool(false);
                 }
             }
             else {
-                alg_raise(frame_16.raised);
+                alg_raise(frame_14.raised);
             }
         }
     }
@@ -2201,9 +2176,9 @@ static Value m_Interpreter_VisitForInStmt_1_ForInStmt(Value v_this, Value *args,
     (void)v_Elements;
     (void)((v_Elements = alg_invoke(v_this, "ElementsOf", (Value[]){alg_property(v_TheStmt, "Name"), alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheStmt, "Iterable")}, 1)}, 2)));
     {
-        AlgFrame frame_18;
-        alg_push_frame(&frame_18);
-        if (ALG_SETJMP(frame_18.jump) == 0) {
+        AlgFrame frame_16;
+        alg_push_frame(&frame_16);
+        if (ALG_SETJMP(frame_16.jump) == 0) {
             {
                 {
                     volatile Value v_I = alg_int(0);
@@ -2225,17 +2200,17 @@ static Value m_Interpreter_VisitForInStmt_1_ForInStmt(Value v_this, Value *args,
             alg_pop_frame();
         }
         else {
-            static const char *names_18[] = {"Broke"};
-            int32_t which_18 = alg_handler(frame_18.raised, names_18, 1);
-            if (which_18 == 0) {
+            static const char *names_16[] = {"Broke"};
+            int32_t which_16 = alg_handler(frame_16.raised, names_16, 1);
+            if (which_16 == 0) {
                 {
-                    volatile Value v_e = frame_18.raised;
+                    volatile Value v_e = frame_16.raised;
                     (void)v_e;
                     return alg_nil();
                 }
             }
             else {
-                alg_raise(frame_18.raised);
+                alg_raise(frame_16.raised);
             }
         }
     }
@@ -2388,40 +2363,40 @@ static Value m_Interpreter_VisitTryStmt_1_TryStmt(Value v_this, Value *args, int
     volatile Value v_TheStmt = args[0];
     (void)v_TheStmt;
     {
-        AlgFrame frame_19;
-        alg_push_frame(&frame_19);
-        if (ALG_SETJMP(frame_19.jump) == 0) {
+        AlgFrame frame_17;
+        alg_push_frame(&frame_17);
+        if (ALG_SETJMP(frame_17.jump) == 0) {
             {
                 (void)(alg_invoke(v_this, "Execute", (Value[]){alg_property(v_TheStmt, "TryBlock")}, 1));
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_19[] = {"Return", "Raised", "String"};
-            int32_t which_19 = alg_handler(frame_19.raised, names_19, 3);
-            if (which_19 == 0) {
+            static const char *names_17[] = {"Return", "Raised", "String"};
+            int32_t which_17 = alg_handler(frame_17.raised, names_17, 3);
+            if (which_17 == 0) {
                 {
-                    volatile Value v_e = frame_19.raised;
+                    volatile Value v_e = frame_17.raised;
                     (void)v_e;
                     alg_raise(v_e);
                 }
             }
-            else if (which_19 == 1) {
+            else if (which_17 == 1) {
                 {
-                    volatile Value v_e = frame_19.raised;
+                    volatile Value v_e = frame_17.raised;
                     (void)v_e;
                     (void)(alg_invoke(v_this, "Handle", (Value[]){v_TheStmt, alg_property(v_e, "Value"), v_e}, 3));
                 }
             }
-            else if (which_19 == 2) {
+            else if (which_17 == 2) {
                 {
-                    volatile Value v_e = frame_19.raised;
+                    volatile Value v_e = frame_17.raised;
                     (void)v_e;
                     (void)(alg_invoke(v_this, "Handle", (Value[]){v_TheStmt, v_e, v_e}, 3));
                 }
             }
             else {
-                alg_raise(frame_19.raised);
+                alg_raise(frame_17.raised);
             }
         }
     }
@@ -2502,26 +2477,26 @@ static Value m_Interpreter_VisitAssignExpr_1_AssignExpr(Value v_this, Value *arg
     if (alg_truthy(alg_not_equal(v_Distance, alg_nil()))) {
         {
             {
-                AlgFrame frame_20;
-                alg_push_frame(&frame_20);
-                if (ALG_SETJMP(frame_20.jump) == 0) {
+                AlgFrame frame_18;
+                alg_push_frame(&frame_18);
+                if (ALG_SETJMP(frame_18.jump) == 0) {
                     {
                         (void)(alg_invoke(alg_property(v_this, "Env"), "AssignAt", (Value[]){v_Distance, alg_property(v_Expr, "Name"), v_Value}, 3));
                     }
                     alg_pop_frame();
                 }
                 else {
-                    static const char *names_20[] = {"String"};
-                    int32_t which_20 = alg_handler(frame_20.raised, names_20, 1);
-                    if (which_20 == 0) {
+                    static const char *names_18[] = {"String"};
+                    int32_t which_18 = alg_handler(frame_18.raised, names_18, 1);
+                    if (which_18 == 0) {
                         {
-                            volatile Value v_e = frame_20.raised;
+                            volatile Value v_e = frame_18.raised;
                             (void)v_e;
                             (void)(alg_invoke(v_this, "SetThisField", (Value[]){alg_property(v_Expr, "Name"), v_Value, v_e}, 3));
                         }
                     }
                     else {
-                        alg_raise(frame_20.raised);
+                        alg_raise(frame_18.raised);
                     }
                 }
             }
@@ -2529,26 +2504,26 @@ static Value m_Interpreter_VisitAssignExpr_1_AssignExpr(Value v_this, Value *arg
     } else {
         {
             {
-                AlgFrame frame_21;
-                alg_push_frame(&frame_21);
-                if (ALG_SETJMP(frame_21.jump) == 0) {
+                AlgFrame frame_19;
+                alg_push_frame(&frame_19);
+                if (ALG_SETJMP(frame_19.jump) == 0) {
                     {
                         (void)(alg_invoke(alg_property(v_this, "Env"), "Assign", (Value[]){alg_property(v_Expr, "Name"), v_Value}, 2));
                     }
                     alg_pop_frame();
                 }
                 else {
-                    static const char *names_21[] = {"String"};
-                    int32_t which_21 = alg_handler(frame_21.raised, names_21, 1);
-                    if (which_21 == 0) {
+                    static const char *names_19[] = {"String"};
+                    int32_t which_19 = alg_handler(frame_19.raised, names_19, 1);
+                    if (which_19 == 0) {
                         {
-                            volatile Value v_e = frame_21.raised;
+                            volatile Value v_e = frame_19.raised;
                             (void)v_e;
                             (void)(alg_invoke(v_this, "SetThisField", (Value[]){alg_property(v_Expr, "Name"), v_Value, v_e}, 3));
                         }
                     }
                     else {
-                        alg_raise(frame_21.raised);
+                        alg_raise(frame_19.raised);
                     }
                 }
             }

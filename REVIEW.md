@@ -254,7 +254,40 @@ declarations of the file that imported it, none of which `ALGOL-24.md:319`
 allows; both emitters refuse the same programs at `cc`. Pre-existing, confirmed
 on the previous seed.
 
-**Nothing blocks the commit.** Open items are the long tail: [C16](#c16)
+**Since `f162c2c` — `uses` visibility.** [C16](#c16) is fixed, and **the fix is
+a deletion**: the environment chain already was the visibility rule, and a
+fallback to `Globals` — the root file's environment, whose `Get` searches *its*
+imports — was bypassing it. The ⚠️ that replaces the fallback records why the
+old comment had stopped being true, which is the third fossil justification this
+review has found sitting on top of a live defect.
+
+Two of my three recommendations were right to decline. Building a per-file set
+for the front end was unnecessary — the chain already is that set, and a second
+would have been a third implementation of visibility. My caution that `compiler/`
+might surface accidental collisions was **measured and empty**: every suite, the
+221 tests and the fixed point are unmoved, and the emission is byte-identical
+apart from `Interpreter.c` itself. And the line I wanted added to
+`UnitScope.a24` could not work: a violation does not compile, so it cannot live
+in any harness that requires the program to build — I verified that a program
+which *catches* the violation runs cleanly interpreted and still fails at `cc`.
+
+Re-verified rather than read: all five directions refused with identical
+messages in both implementations; a positive control covering own `var`,
+`function` and `class`, an import's export, a built-in, a **qualified** built-in
+and qualified access to the import, agreeing interpreted and compiled; green on
+macOS and on Linux/`gcc:14` including `fixedpoint`; all nine sibling gates pass.
+
+⚠️ **This repository ships the change with no local test.** The fixture is an
+`atest` program in the sibling — two implementations diffed against each other —
+and no category here can host it, since `conformance`, `compiled` and `programs`
+all require the program to build. Not a defect, a consequence of `atest`
+existing on one side only, but worth knowing before the trees drift.
+
+Probing what the newly enforced rule now *encourages* turned up [C17](#c17):
+two modules exporting one name runs correctly under both interpreters and
+**fails at `ld`**, unrefused.
+
+**Nothing blocks the commit.** Open items are the long tail: [C17](#c17)
 (pre-existing), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
 [D3](#d3)'s architectural remainder, [D4](#d4) by choice, and the three `E`
 items.
@@ -275,7 +308,8 @@ items.
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
 | [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
-| [C16](#c16) | `uses` visibility is not enforced by either interpreter — every module's names are reachable from every file | Medium | Open (new, **pre-existing**) |
+| [C17](#c17) | Two modules exporting one name: runs interpreted, **duplicate symbol at `ld`**, unrefused | Medium | Open (new, **pre-existing**) |
+| [C16](#c16) | `uses` visibility was not enforced by either interpreter | Medium | ✅ **Fixed** (a deletion) |
 | [C15](#c15) | `--test`: a test two `uses` hops down failed interpreted, passed compiled | Medium | ✅ **Fixed** |
 | [C13](#c13) | A three-deep `uses` chain emits `init_X()` without including `X.h` | Medium | ✅ **Fixed** (+ `Chain.a24`) |
 | [D3](#d3) | Name-based dispatch on every call and field access | Medium | Partly addressed — **2.4× measured** |
@@ -689,7 +723,10 @@ rather than edited.
 | 4 | `Cannot` vs JPascal's `Can't`, two Parser messages | Open |
 | 5 | "seventeen of the twenty-two units" is eighteen | Partly fixed |
 | 6 | `unit` header mismatch not reported in the documented format | ✅ Fixed |
-| 7 | `algol.c:517` credits the *mangler* with refusing non-ASCII; it is the scanner | Open (new) |
+| 7 | `algol.c:517` credits the *mangler* with refusing non-ASCII; it is the scanner | Open |
+| 8 | `ALGOL-24.md:1293` still lists qualified access as a Rough Edge — it was built | Open (new) |
+| 9 | `ALGOL-24.md:1295` says a cross-module reference fails as `Undefined variable`; sometimes it is `Type mismatch!` | Open (new) |
+| 10 | `CLAUDE.md:130-132` says there is no qualified module access and collisions need `private` | Open (new) |
 
 **1. `SourceCode.a24:10` overstates its own case by about 300×.** The ⚠️ says
 the `Map` it replaced "was the single largest consumer of Map lookups in the
@@ -1284,7 +1321,49 @@ of bug, and a `test` block on it would pin the rule that a unit is its file stem
 
 ---
 
-### <a name="c16"></a>C16 — `uses` visibility is not enforced by either interpreter
+### <a name="c17"></a>C17 — Two modules exporting one name: runs interpreted, duplicate symbol at `ld`
+
+**Severity: Medium. New, pre-existing, and made *reachable* by [C16](#c16)'s fix
+rather than caused by it** — I confirmed the same failure on the seed from
+before it.
+
+Two sibling modules each export `Same`, neither imports the other, the root
+imports both:
+
+| | result |
+|---|---|
+| both interpreters | `from-KA` / `from-KB` via `KA.Same()` / `KB.Same()` |
+| `--compile` | **exit 0**, six files written, no refusal |
+| `cc` | `duplicate symbol '_f_Same'` — `ld: 1 duplicate symbols` |
+
+The failure lands on the **linker**, past `cc -c` and therefore past anything a
+refusal check could observe. `CLAUDE.md` in the sibling says this case "is
+still refused"; it is not refused, it does not link, and those are different
+promises.
+
+**Why it matters more now.** Before C16 a module could reach any name in the
+program, so two modules owning one name was a collision waiting to be tripped
+over and `private` was the documented remedy. With visibility enforced it is an
+ordinary design that both interpreters run correctly and that the language now
+offers `KA.Same()` to disambiguate. The front end has started encouraging a
+shape the back end cannot link.
+
+⚠️ Smaller, in the same probe: a **bare** `Same()` with both modules imported
+resolves silently to the first import, with no ambiguity report. Both
+implementations agree, so it is consistent — but nothing specifies it, and
+"first `uses` wins" is a rule worth either writing down or refusing.
+
+**Recommendation.** Either refuse it in the emitter with a §9 row — which is
+cheap, since the emitter already computes each unit's exports and so already
+knows — or qualify emitted symbols with the unit (`f_KA_Same`) and let the
+language keep the design it now encourages. Either way the bare-name rule needs
+writing down.
+
+Full detail is in the sibling repository's `REVIEW.md`.
+
+---
+
+### <a name="c16"></a>C16 — `uses` visibility was not enforced by either interpreter: Fixed
 
 **Severity: Medium. New, pre-existing, and in both interpreters rather than
 either emitter.** Found by probing [C15](#c15)'s fix for over-correction.
