@@ -2788,7 +2788,7 @@ begin
 
         Line ('AlgFrame ' + Frame + ';');
         Line ('alg_push_frame(&' + Frame + ');');
-        Line ('if (setjmp(' + Frame + '.jump) == 0) {');
+        Line ('if (ALG_SETJMP(' + Frame + '.jump) == 0) {');
         Depth := Depth + 1;
 
         // Open only for the block: alg_raise pops before it jumps, so a

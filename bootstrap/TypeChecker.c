@@ -973,7 +973,7 @@ static Value m_TypeChecker_ClassNameOf_1(Value v_this, Value *args, int32_t coun
     {
         AlgFrame frame_3;
         alg_push_frame(&frame_3);
-        if (setjmp(frame_3.jump) == 0) {
+        if (ALG_SETJMP(frame_3.jump) == 0) {
             {
                 volatile Value ret_4 = alg_property(v_Obj, "ClassName");
                 alg_pop_frame();
@@ -1010,7 +1010,7 @@ Value f_Rejects(Value **cells, Value *args, int32_t count) {
     {
         AlgFrame frame_5;
         alg_push_frame(&frame_5);
-        if (setjmp(frame_5.jump) == 0) {
+        if (ALG_SETJMP(frame_5.jump) == 0) {
             {
                 (void)(alg_invoke(alg_new(k_TypeChecker, NULL, 0), "Resolve", (Value[]){alg_invoke(v_TheParser, "Parse", NULL, 0)}, 1));
             }

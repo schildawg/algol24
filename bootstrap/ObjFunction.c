@@ -71,7 +71,7 @@ Value f_NameOfClass(Value **cells, Value *args, int32_t count) {
     {
         AlgFrame frame_0;
         alg_push_frame(&frame_0);
-        if (setjmp(frame_0.jump) == 0) {
+        if (ALG_SETJMP(frame_0.jump) == 0) {
             {
                 volatile Value ret_1 = alg_property(v_Obj, "ClassName");
                 alg_pop_frame();
@@ -239,7 +239,7 @@ static Value m_ObjFunction_Call_2(Value v_this, Value *args, int32_t count) {
     {
         AlgFrame frame_2;
         alg_push_frame(&frame_2);
-        if (setjmp(frame_2.jump) == 0) {
+        if (ALG_SETJMP(frame_2.jump) == 0) {
             {
                 (void)(alg_invoke(v_TheInterpreter, "ExecuteBlock", (Value[]){alg_property(alg_property(v_this, "Declaration"), "Body"), v_Env}, 2));
             }

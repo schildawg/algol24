@@ -15,6 +15,38 @@
 #define ALGOL_H
 
 #include <setjmp.h>
+
+/* ⚠️ The signal-mask-free variants, and the difference is a SYSCALL per frame.
+ * On BSD-derived systems -- macOS among them -- setjmp/longjmp save and restore
+ * the signal mask, which costs a sigprocmask each way.  A program that raises
+ * rarely never notices; algc's own interpreter implements 'Exit' as a raise, so
+ * it pays one per interpreted call, and 'sigprocmask' came out as the single
+ * heaviest frame in its profile -- 1.98 s of system time in an 18.5 s run.
+ * Nothing here installs a signal handler or blocks a signal, so there is no
+ * mask worth preserving.
+ *
+ * ⚠️ The test below names the platforms that HAVE that behaviour.  It was
+ * written as 'not _WIN32' once, which is a different claim and a wrong one:
+ *
+ *   - glibc declares the two asymmetrically -- _setjmp always, _longjmp only
+ *     under __USE_MISC or __USE_XOPEN.  '-std=c11' sets __STRICT_ANSI__, which
+ *     turns both off, so _longjmp is undeclared; since GCC 14 that is an error
+ *     rather than a warning.  The seed therefore failed to build on Linux under
+ *     this project's own default CFLAGS.
+ *   - and it bought glibc nothing to begin with.  Its <setjmp.h> says
+ *     '#define setjmp(env) _setjmp(env)' -- "Do not save the signal mask" -- so
+ *     the standard name there already IS the mask-free one.
+ *
+ * Anywhere else, including MSVC, the standard pair is correct and portable. */
+#if defined(__APPLE__)  || defined(__FreeBSD__) || defined(__NetBSD__)   \
+ || defined(__OpenBSD__) || defined(__DragonFly__)                       \
+ || (defined(__GLIBC__) && (defined(__USE_MISC) || defined(__USE_XOPEN)))
+#define ALG_SETJMP(buf)       _setjmp(buf)
+#define ALG_LONGJMP(buf, val) _longjmp(buf, val)
+#else
+#define ALG_SETJMP(buf)       setjmp(buf)
+#define ALG_LONGJMP(buf, val) longjmp(buf, val)
+#endif
 #include <stdbool.h>
 #include <stddef.h>   /* NULL, used by generated code */
 #include <stdint.h>

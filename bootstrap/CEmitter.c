@@ -3275,7 +3275,7 @@ static Value m_CEmitter_VisitTryStmt_1_TryStmt(Value v_this, Value *args, int32_
     (void)(alg_set_property(v_this, "Depth", alg_add(alg_property(v_this, "Depth"), alg_int(1))));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_string("AlgFrame "), v_Frame), alg_char_value(59))}, 1));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_string("alg_push_frame(&"), v_Frame), alg_string(");"))}, 1));
-    (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_string("if (setjmp("), v_Frame), alg_string(".jump) == 0) {"))}, 1));
+    (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_string("if (ALG_SETJMP("), v_Frame), alg_string(".jump) == 0) {"))}, 1));
     (void)(alg_set_property(v_this, "Depth", alg_add(alg_property(v_this, "Depth"), alg_int(1))));
     (void)(alg_set_property(v_this, "TryDepth", alg_add(alg_property(v_this, "TryDepth"), alg_int(1))));
     (void)(alg_invoke(v_this, "Execute", (Value[]){alg_property(v_TheStmt, "TryBlock")}, 1));

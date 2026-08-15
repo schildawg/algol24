@@ -6,7 +6,10 @@ symbol-constructor changes (`c102a2e`), then after `Buffer` (`ba465bd`), then
 after the `Map` hash index and the refusal documentation (`e86c86f`).
 **Re-reviewed again 2026-08-14** against the working tree, after **shadowable
 built-ins and units** landed, and **again after the scope fixes** for C9–C12.
-macOS (arm64, Apple clang).
+**Re-reviewed 2026-08-15** against the working tree at `99c01cb`, after the four
+**hot-path fixes** in `bootstrap/algol.[ch]` that answer [D3](#d3).
+macOS (arm64, Apple clang), and this round **also on Linux/glibc in a container**,
+which is where the one new finding lives.
 
 **Method.** Read `compiler/`, `bootstrap/algol.[ch]`, and the build/test
 harnesses; emitted C for several programs and compiled it under `-std=c11 -Wall
@@ -22,9 +25,13 @@ working tree's for the same program, so that "this used to work" is a
 measurement rather than a reading of the diff.
 
 Full `./test.sh` is green (`unit conformance compiled programs fixedpoint leaks
-memory`; 8 suites both ways, 26 differential programs, 3 leak canaries, 3 memory
+memory`; 8 suites both ways, 28 differential programs, 3 leak canaries, 3 memory
 budgets), and `./build.sh` reports `seed: current` — the seed was regenerated
-with the change, so `compiler/` and `bootstrap/` agree.
+with the change, so `compiler/` and `bootstrap/` agree. All nine `JPascal` gates
+(`gate ctest agate atest refuse leakcheck memcheck cgate fixedpoint`) pass, which
+matters this round because `bootstrap/algol.[ch]` and
+`JPascal/src/main/resources/runtime/algol.[ch]` are byte-identical — I diffed
+them — so a runtime change is a change to both compilers at once.
 
 **On the first pass the suite being green was the thing to be careful about.**
 Every test the change originally shipped put the shadowing declaration and the
@@ -39,6 +46,16 @@ telling regressions apart from longstanding gaps, and swept the previously
 verified behaviours to check none of them had moved. One new finding came out of
 that sweep — [C13](#c13) — and it is pre-existing, confirmed by reproducing it on
 the `e86c86f` compiler.
+
+**This round is a performance change to the runtime, so the probes changed
+shape.** A green suite proves the semantics did not move; it says nothing about
+whether the numbers are real or whether the code is portable. So: the pre-change
+compiler was rebuilt from `HEAD`'s seed and both were timed on the same machine;
+the two emissions were diffed to check the claim that only one token changes;
+`alg_stricmp` was compared against `strcasecmp` exhaustively over the byte range
+rather than argued about; every write site of the new `MethodEntry.hash` was
+enumerated; and **the whole bootstrap loop was run on Linux/glibc under
+`gcc:14`**, which is where [C14](#c14) came from. Nothing on macOS can see it.
 
 ---
 
@@ -170,6 +187,39 @@ three-deep `uses` chain has never compiled. [C8](#c8) is partly addressed.
 [D3](#d3)–[D4](#d4) and [C3](#c3) are unchanged. **Nothing here blocks the
 commit.**
 
+**Since `99c01cb` — the four hot-path fixes.** [D3](#d3) is partly answered, by
+about 25 lines of `bootstrap/algol.[ch]` and one token of emitted-C difference.
+I reproduced the headline independently rather than reading the numbers: the
+pre-change compiler rebuilt from `HEAD`'s checked-in seed interprets `fib(30)`
+in **18.76 s**, the working tree in **7.70 s**, and the emitted C for
+`compiler/Main.a24` differs between them **only** in `setjmp` → `ALG_SETJMP`.
+Each of the four changes is safe, and I checked them individually rather than
+trusting the suite: the hash in `MethodEntry` has exactly one write site and the
+`strcmp` still guards; `alg_stricmp` agrees with `strcasecmp` on 3,065,025 byte
+pairs with zero mismatches; the `field_slot` first-byte test is a pure filter.
+
+**The diagnosis corrects mine, in the direction that matters.** I had attributed
+the whole 18.5 s to name-based dispatch. About a quarter of it was
+`sigprocmask` — a syscall per interpreted call, because `Exit` is a raise and
+BSD's `setjmp` saves the signal mask. My own D3 measurement showed 2.03 s of
+*system* time, which no `strcmp` can explain, and I did not read it.
+
+**One new finding blocked it, and is now fixed.** [C14](#c14): the macro that
+fixes the syscall was guarded on `_WIN32`, so its `#else` claimed Linux, where
+`_longjmp` is not declared under `-std=c11` — `./build.sh` failed at stage 1 on
+`gcc:14` with the documented default `CFLAGS`. The guard now names the platforms
+that actually have the behaviour, in both trees, and the ⚠️ records why the old
+test was wrong. **Re-verified**: the pair is selected correctly across six
+platform/standard combinations; the whole loop including `fixedpoint` runs on
+Linux; `./test.sh` and all nine `JPascal` gates are green on macOS; and
+`fib(30)` still interprets in 7.93 s against the pre-change 19.21 s, so the fix
+cost the platform the optimisation was written for nothing.
+
+**Nothing blocks the commit.** Open items are the long tail: [C13](#c13)
+(pre-existing), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
+[D3](#d3)'s architectural remainder, [D4](#d4) by choice, and the three `E`
+items.
+
 ---
 
 ## Findings
@@ -185,8 +235,9 @@ commit.**
 | [C6](#c6) | A class named after a builtin constructor wins interpreted, loses compiled | Medium | ✅ **Fixed** (tables consulted last) |
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
-| [C13](#c13) | A three-deep `uses` chain emits `init_X()` without including `X.h` | Medium | Open (new, **pre-existing**) |
-| [D3](#d3) | Name-based dispatch on every call and field access | Medium | Open |
+| [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
+| [C13](#c13) | A three-deep `uses` chain emits `init_X()` without including `X.h` | Medium | Open (**pre-existing**) |
+| [D3](#d3) | Name-based dispatch on every call and field access | Medium | Partly addressed — **2.4× measured** |
 | [C8](#c8) | Factual errors in the prose, one in a ⚠️ | Low | Partly fixed |
 | [C11](#c11) | Assignment through a unit qualifier was not refused, it failed at `cc` | Low | ✅ **Fixed** (implemented) |
 | [C12](#c12) | `'\\'` is a String, so two of the three unit-stem functions never split on `\` | Low | ✅ **Fixed** (stem computed once) |
@@ -597,6 +648,7 @@ rather than edited.
 | 4 | `Cannot` vs JPascal's `Can't`, two Parser messages | Open |
 | 5 | "seventeen of the twenty-two units" is eighteen | Partly fixed |
 | 6 | `unit` header mismatch not reported in the documented format | ✅ Fixed |
+| 7 | `algol.c:517` credits the *mangler* with refusing non-ASCII; it is the scanner | Open (new) |
 
 **1. `SourceCode.a24:10` overstates its own case by about 300×.** The ⚠️ says
 the `Map` it replaced "was the single largest consumer of Map lookups in the
@@ -709,6 +761,27 @@ line and the caret for free.
 gone.** ✅
 
 ---
+
+**7. The new `alg_stricmp` ⚠️ credits the wrong stage.** `bootstrap/algol.c:517`
+says "Identifiers in this language are ASCII — **the mangler** refuses anything
+else". The claim it supports is true; the attribution is a stage early. A
+non-ASCII identifier never reaches the mangler, because the scanner rejects the
+byte:
+
+```
+$ printf 'class Caf\xc3\xa9;\nbegin\nend\n' > Uni.a24
+$ ./algc Uni.a24
+Uncaught: [line 1] Error: Unexpected character: ...      (exit 70)
+```
+
+Identical interpreted and compiled, from `Scanner.a24:180`. The reason this is
+worth a line rather than nothing is that the ⚠️ is doing load-bearing work — it
+is the argument that dropping `strcasecmp` is safe — and a reader checking that
+argument will go looking in `Mangle` and find no such refusal. Reading
+`the scanner` for `the mangler` makes it exact. (The safety argument holds
+either way, and by a wider margin than the ⚠️ claims: see [D3](#d3).)
+
+The same sentence appears in `JPascal/CLAUDE.md`.
 
 ### <a name="c6"></a>C6 — A class named after a builtin constructor wins interpreted and loses compiled: Fixed
 
@@ -1244,6 +1317,202 @@ the corpus being all-leaves is what let this sit.
 
 ---
 
+### <a name="c14"></a>C14 — `ALG_SETJMP` was guarded on the wrong axis: the seed did not build on Linux — Fixed
+
+**Severity: High. ✅ Fixed** in `bootstrap/algol.h` and in `JPascal`'s copy
+(`f67642d`, *"The comment said BSD; the guard said 'not Windows'"*). The
+recommended guard was taken verbatim, and the ⚠️ was rewritten to record **why
+the old test was wrong** rather than simply replaced — so the next person to
+reach for `#if defined(_WIN32)` finds the reason it fails written down. That is
+the same instinct as the two negative results in [D3](#d3), and it is the right
+one.
+
+**Verified on both platforms, at the level the finding was made.** The guard now
+selects exactly as intended, checked by compiling the real `algol.h` and jumping
+through it rather than by reading the `#if`:
+
+| | macOS `c11` | macOS `gnu11` | glibc `c11` | glibc `gnu11` | glibc `c17` | glibc `gnu17` |
+|---|---|---|---|---|---|---|
+| pair chosen | `_setjmp` | `_setjmp` | `setjmp` | `_setjmp` | `setjmp` | `_setjmp` |
+| jump works | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+**The whole bootstrap loop now runs on Linux**, `gcc:14`, `CFLAGS="-std=c11
+-O2"` — the case that previously failed at stage 1:
+
+```
+  stage 1: building the seed with gcc
+  stage 2: that compiler compiles compiler/
+  seed:    current -- compiler/ emits exactly the checked-in C
+All green: unit          (221 tests)
+All green: conformance   (8 suites)
+All green: compiled      (8 suites)
+All green: programs      (28 differential)
+All green: fixedpoint    (seed current; generations 2 and 3 identical)
+```
+
+`fixedpoint` passing on a second toolchain is worth more than the rest of that
+list. It is the determinism check, and until now "no hash order, no timestamps,
+no pointer values reach the emitted text" had only ever been demonstrated
+against one compiler on one platform.
+
+**And the ⚠️'s claim that the standard pair costs glibc nothing is true — I
+measured it rather than trusting the header.** Same source, two builds, the only
+difference being which pair the guard selects:
+
+| | `-std=c11` (standard) | `-std=gnu11` (fast) |
+|---|---|---|
+| `fib(30)`, best of 3 | 7.715 s | 7.693 s |
+| system time | 0.358 s | 0.359 s |
+
+Identical inside noise. (A first, cold run showed 8.29 s against 7.74 s and I
+nearly wrote it up; three interleaved runs made it a page-fault artefact of the
+freshly linked binary. Worth recording because the finding it would have
+supported — that glibc still pays for `longjmp` — is plausible and wrong.) So
+the `__GLIBC__` clause earns its place by keeping parity under `-std=gnu11`,
+not by buying anything under the default.
+
+**macOS is unaffected, as intended:** `fib(30)` interprets in **7.93 s** against
+the pre-change **19.21 s**, system time 0.21 s against 1.97 s. The guard fix
+costs the platform the optimisation was written for exactly nothing.
+
+<details>
+<summary>The original finding, as reported</summary>
+
+**Severity: High.** New, and introduced by this change. It does not affect
+macOS, which is why every gate on both sides is green.
+
+`bootstrap/algol.h:29-35` picks the mask-free jump pair by asking whether the
+host is Windows:
+
+```c
+#if defined(_WIN32)
+#define ALG_SETJMP(buf)       setjmp(buf)
+#define ALG_LONGJMP(buf, val) longjmp(buf, val)
+#else
+#define ALG_SETJMP(buf)       _setjmp(buf)
+#define ALG_LONGJMP(buf, val) _longjmp(buf, val)
+#endif
+```
+
+The `#else` therefore covers Linux, and `_setjmp`/`_longjmp` are **not ISO C**.
+glibc's `<setjmp.h>` declares them under a feature-test guard:
+
+```c
+extern int _setjmp (struct __jmp_buf_tag __env[1]) __THROWNL;   /* unconditional */
+
+#if defined __USE_MISC || defined __USE_XOPEN
+extern void _longjmp (struct __jmp_buf_tag __env[1], int __val) ...;
+#endif
+```
+
+`-std=c11` defines `__STRICT_ANSI__`, so neither `__USE_MISC` nor `__USE_XOPEN`
+is set and **`_longjmp` is never declared**. Since GCC 14, an implicit function
+declaration is an *error*, not a warning. `CFLAGS` defaults to `-std=c11 -O2`,
+which `CLAUDE.md` documents and all three scripts honour, so this is the default
+build on the default toolchain:
+
+```
+$ docker run --rm -v $PWD:/w -w /w gcc:14 sh -c 'CC=gcc ./build.sh'
+./algol.h:34:31: error: implicit declaration of function '_longjmp';
+                        did you mean 'longjmp'? [-Wimplicit-function-declaration]
+   34 | #define ALG_LONGJMP(buf, val) _longjmp(buf, val)
+./algol.c:2064:1: warning: 'noreturn' function does return
+FAIL  the seed does not build
+```
+
+Note the second line. Even where the implicit declaration is tolerated, the
+compiler no longer knows the callee does not return, and `alg_raise` — declared
+`_Noreturn` — falls off its end.
+
+**And the `#else` branch buys Linux nothing anyway.** Four lines above the guard
+above, glibc has:
+
+```c
+/* Do not save the signal mask.  This is equivalent to the `_setjmp'
+   BSD function.  */
+#define setjmp(env)	_setjmp (env)
+```
+
+That `#define` is outside `__USE_POSIX`, so under `-std=c11` plain `setjmp`
+**already is** `_setjmp` on glibc. The saved-mask syscall the change is chasing
+is a BSD behaviour, exactly as the ⚠️ says — the guard just does not test for
+BSD. The condition is "is this a BSD-derived libc", not "is this not Windows".
+
+**Recommendation.** Ask the question the ⚠️ already answers correctly. This
+variant was compiled and run on both platforms across `c11`, `gnu11`, `c17` and
+`gnu17`, and picks the fast pair in every case where it is both legal and
+worth having:
+
+```c
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) \
+ || defined(__OpenBSD__) || defined(__DragonFly__) \
+ || (defined(__GLIBC__) && (defined(__USE_MISC) || defined(__USE_XOPEN)))
+#define ALG_SETJMP(buf)       _setjmp(buf)
+#define ALG_LONGJMP(buf, val) _longjmp(buf, val)
+#else
+#define ALG_SETJMP(buf)       setjmp(buf)
+#define ALG_LONGJMP(buf, val) longjmp(buf, val)
+#endif
+```
+
+| | macOS | glibc `-std=c11` | glibc `-std=gnu11` |
+|---|---|---|---|
+| chosen pair | `_setjmp` | `setjmp` | `_setjmp` |
+| mask saved? | no | no (glibc aliases it) | no |
+| builds | ✅ | ✅ | ✅ |
+
+The `__GLIBC__` clause is what keeps the win on Linux for anyone who overrides
+`CFLAGS` with `-std=gnu11`, where plain `setjmp` does go through
+`__sigsetjmp(env, 1)`. It is safe to read `__USE_MISC` there because
+`#include <setjmp.h>` sits immediately above and pulls in `<features.h>`.
+Dropping the clause and keeping only the BSD list is also correct, and costs
+only that one case.
+
+⚠️ **This is not `bootstrap/`-only.** `bootstrap/algol.[ch]` is the hand-written
+runtime and is copied verbatim into every emitted directory, and it is
+byte-identical to `JPascal/src/main/resources/runtime/algol.h` — I diffed both
+files across the two repositories and they match exactly. JPascal shipped the
+same guard in `74ffe8b`, so the fix belongs in both trees or `cgate` starts
+comparing two different runtimes.
+
+**Verified with the fix in place.** With the guard above, a container running
+`gcc:14` and `CFLAGS=-std=c11 -O2` completes the whole loop:
+
+```
+  stage 1: building the seed with gcc
+  stage 2: that compiler compiles compiler/
+  seed:    current -- compiler/ emits exactly the checked-in C
+Built /w/algc
+ok    Collections/Objects/Enumerations/Declarations/Exceptions/Modules/Files/Core
+All green: conformance
+All green: compiled
+```
+
+That is the first time this compiler has been shown to self-host on a non-Apple
+platform in this review, and it is worth a line in the README once the guard is
+right — the project's claim is that a C compiler is the only prerequisite.
+
+</details>
+
+**The gap that hid it is still open, and it is not a code gap.** Nine gates,
+three implementations, a byte-identical fixed point — all on macOS with Apple
+clang. A change to `algol.[ch]` that builds here and nowhere else passes the
+entire matrix, which is exactly what happened. The emitted C is deliberately
+plain; the *runtime* is the file where `#if` lines live, so it is the one that
+needs a second toolchain. The cheapest useful version is not a gate at all — one
+invocation, by hand, when `algol.[ch]` changes:
+
+```sh
+docker run --rm -v "$PWD:/w" -w /w gcc:14 \
+    sh -c 'CC=gcc ./build.sh && ./test.sh conformance compiled programs fixedpoint'
+```
+
+Under two minutes on a warm image, and it would have caught this before the
+commit. `-std=c11` is the setting that matters: it is the documented default and
+the strictest thing the code claims to support.
+
+---
+
 ### <a name="c3"></a>C3 — Deep recursion segfaults with no message
 
 **Severity: Low.** Unchanged.
@@ -1534,7 +1803,73 @@ on lookup.
 
 ### <a name="d3"></a>D3 — Name-based dispatch on every call and field access
 
-**Severity: Medium.** Already tracked; recorded here for completeness.
+**Severity: Medium. Partly addressed, and the diagnosis behind it corrects
+mine.** The architectural item stands and belongs to project 3; what changed is
+that a quarter of the cost I attributed to dispatch **was never dispatch**.
+
+I wrote below that `fib(30)` runs 18.5 s interpreted against 0.023 s compiled,
+and put the gap down to name lookup. Measured again on the working tree, with
+the pre-change compiler rebuilt from `HEAD`'s checked-in seed for the baseline:
+
+| | before (`99c01cb`) | after | |
+|---|---|---|---|
+| `algc` interpreting `fib(30)` | 18.76 s | **7.70 s** | 2.44× |
+| of which **system** time | 2.03 s | **0.29 s** | 7× |
+| `algc` compiling `compiler/Main.a24` | 2.98 s | **2.63 s** | 1.13× |
+
+**The system-time column is the finding, and it is not one I made.** No amount
+of `strcmp` produces two seconds of kernel time. On BSD-derived systems
+`setjmp`/`longjmp` save and restore the signal mask — a `sigprocmask` each way —
+and this interpreter implements `Exit` as a raise, so it paid one syscall per
+interpreted call. Nothing in the runtime installs a handler or blocks a signal,
+so there was no mask worth preserving. That is the single largest item and it
+sits in a header, not in the dispatcher. My own §D3 measurement contained the
+evidence and I read past it.
+
+The other three are dispatch, and the arithmetic checks out against the
+call volume the commit message reports (2.7 M interpreted calls → 285 M
+`alg_property` and 147 M `find_method` calls):
+
+- **`alg_stricmp` in place of `strcasecmp`.** `strcasecmp_l` goes through locale
+  tables and came out *ahead of `strcmp`* in the profile. I verified the
+  replacement is not merely close but **exactly equivalent**: 3,065,025 pairs —
+  every ordered pair of one-byte strings over the full 1..255 range, plus three
+  million random strings of length 0–8 over the same range — compared against
+  `strcasecmp` for matching sign. **Zero mismatches.** The ⚠️ justifies this by
+  identifiers being ASCII, which is true (`Scanner.a24:180` refuses anything
+  else — see [C8](#c8) item 7), but the guarantee is stronger than that: the
+  runtime never calls `setlocale`, so `strcasecmp` was folding ASCII and nothing
+  else to begin with.
+- **A name hash in `MethodEntry`, compared before the `strcmp`.** Correct by
+  construction: `alg_class_method` (`algol.c:1180`) is the *only* site that
+  writes a `MethodEntry`, and it hashes with the same seed and the same
+  `hash_bytes` that `find_method` uses, so a mismatch can never be a false
+  negative. The `strcmp` still guards, so a collision costs a comparison and
+  nothing else. The growth path `memcpy`s whole entries, carrying the hash.
+- **The first byte inline in `field_slot`.** Same shape, no hash.
+
+**Two negative results are recorded in the ⚠️s, and they are the valuable
+part** — a per-class method index cut the average scan from 15.2 entries to 1.00
+and bought 0.5%, and hashing field names is *slower* because field lists average
+1.8 entries. Both were measured rather than argued, and both are exactly the
+"obvious fix" a future reader would otherwise try. Keeping the negative result
+next to the code that declines to use it is the right call.
+
+**What this does and does not change.** The compiled-vs-interpreted gap on
+`fib(30)` narrows from ~800× to **~330×** (7.70 s against 0.023 s), and the gap
+to the Java tree-walker from ~27× to **~10×** (0.77 s). That is a real
+improvement to every compiled program, for about 25 lines and one token of
+emitted-C difference. It is not a step toward the VM and does not pretend to be:
+the remaining cost is call *volume*, not lookup, and no lookup optimisation
+touches it. Treating the compiled tree-walker as a bonus rather than a goal, and
+saying so in the commit, is the right framing — the reason to take these is that
+each is cheap, safe, and helps everything the compiler emits.
+
+⚠️ The one thing to fix before this ships is [C14](#c14): the `ALG_SETJMP` guard
+tests for Windows where it means to test for BSD, and the seed stops building on
+Linux.
+
+**The original finding, unchanged:**
 
 `alg_invoke` → `find_method` (`algol.c`) walks the superclass chain doing
 `strcmp` per method entry, on every method call. `alg_property` → `field_slot`
@@ -2082,6 +2417,57 @@ Each of these agrees interpreted and compiled:
 | qualification across two `uses` hops (non-transitive) | `Undefined variable 'Shapes'.` interpreted; compiled inherits the pre-existing gap that an undefined name at file scope reaches `cc` — reproduces without units, so not new |
 | two files with stem `Dup` | last-one-wins interpreted, as documented; compiled refuses with `Two modules named 'Dup'` |
 | `unit` header mismatch | same message both ways (framing aside — [C8](#c8) item 6) |
+
+### <a name="c14-repro"></a>C14 — the seed on Linux, before and after
+
+Both runs are the same tree, the same `CFLAGS`, the same image. Only
+`bootstrap/algol.h`'s `#if` differs.
+
+```sh
+$ docker run --rm -v "$PWD:/w" -w /w gcc:14 sh -c 'CC=gcc CFLAGS="-std=c11 -O2" ./build.sh'
+
+# as committed
+./algol.h:34:31: error: implicit declaration of function '_longjmp' ...
+./algol.c:2064:1: warning: 'noreturn' function does return
+FAIL  the seed does not build
+
+# with the guard testing for BSD instead of for Windows
+  stage 1: building the seed with gcc
+  stage 2: that compiler compiles compiler/
+  seed:    current -- compiler/ emits exactly the checked-in C
+Built /w/algc
+All green: conformance
+All green: compiled
+```
+
+The one-line demonstration that this is about the guard and not about the
+technique, run in the same image:
+
+```c
+#include <setjmp.h>
+static jmp_buf b;
+int main(void){ if(_setjmp(b)==0) _longjmp(b,1); return 0; }
+```
+
+```
+gcc -std=c11    →  error: implicit declaration of function '_longjmp'
+gcc -std=gnu11  →  ok
+```
+
+### <a name="stricmp-repro"></a>`alg_stricmp` against `strcasecmp`, exhaustively
+
+Not a finding — the evidence for [D3](#d3)'s claim that the substitution is
+exact rather than merely adequate. Every ordered pair of one-byte strings over
+`1..255`, then three million random pairs of length 0–8 over the same range,
+comparing the *sign* of each result:
+
+```
+compared 3065025 pairs, 0 mismatches
+```
+
+The reason it is exact for non-ASCII too, which the ⚠️ does not claim: nothing
+in the runtime calls `setlocale`, so `strcasecmp` was already folding in the `C`
+locale, where only `A`–`Z` fold.
 
 ### Still open — the design items
 

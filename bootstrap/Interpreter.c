@@ -884,7 +884,7 @@ static Value m_Interpreter_Interpret_1_List(Value v_this, Value *args, int32_t c
     {
         AlgFrame frame_2;
         alg_push_frame(&frame_2);
-        if (setjmp(frame_2.jump) == 0) {
+        if (ALG_SETJMP(frame_2.jump) == 0) {
             {
                 {
                     volatile Value v_I = alg_int(0);
@@ -1011,7 +1011,7 @@ static Value m_Interpreter_RunTests_2_List_String(Value v_this, Value *args, int
                     {
                         AlgFrame frame_3;
                         alg_push_frame(&frame_3);
-                        if (setjmp(frame_3.jump) == 0) {
+                        if (ALG_SETJMP(frame_3.jump) == 0) {
                             {
                                 volatile Value v_Body = alg_invoke(alg_property(v_this, "Globals"), "Get", (Value[]){alg_property(v_TheTest, "Name")}, 1);
                                 (void)v_Body;
@@ -1270,7 +1270,7 @@ static Value m_Interpreter_VisitVariableExpr_1_VariableExpr(Value v_this, Value 
     {
         AlgFrame frame_4;
         alg_push_frame(&frame_4);
-        if (setjmp(frame_4.jump) == 0) {
+        if (ALG_SETJMP(frame_4.jump) == 0) {
             {
                 volatile Value ret_5 = alg_invoke(v_this, "LookupVariable", (Value[]){alg_property(v_TheExpr, "Name"), v_TheExpr}, 2);
                 alg_pop_frame();
@@ -1307,7 +1307,7 @@ static Value m_Interpreter_ThisField_2_Token_String(Value v_this, Value *args, i
     {
         AlgFrame frame_6;
         alg_push_frame(&frame_6);
-        if (setjmp(frame_6.jump) == 0) {
+        if (ALG_SETJMP(frame_6.jump) == 0) {
             {
                 (void)((v_Obj = alg_invoke(alg_property(v_this, "Env"), "Get", (Value[]){alg_new(k_Token, (Value[]){e_TokenType_TOKEN_THIS, alg_string("this"), alg_nil(), alg_property(v_Name, "LineNumber")}, 4)}, 1)));
                 volatile Value ret_7 = alg_invoke(v_Obj, "Get", (Value[]){v_Name}, 1);
@@ -1347,7 +1347,7 @@ static Value m_Interpreter_SetThisField_3_Token_String(Value v_this, Value *args
     {
         AlgFrame frame_8;
         alg_push_frame(&frame_8);
-        if (setjmp(frame_8.jump) == 0) {
+        if (ALG_SETJMP(frame_8.jump) == 0) {
             {
                 (void)((v_Obj = alg_invoke(alg_property(v_this, "Env"), "Get", (Value[]){alg_new(k_Token, (Value[]){e_TokenType_TOKEN_THIS, alg_string("this"), alg_nil(), alg_property(v_Name, "LineNumber")}, 4)}, 1)));
                 (void)(alg_invoke(v_Obj, "Set", (Value[]){v_Name, v_Value}, 2));
@@ -1387,7 +1387,7 @@ static Value m_Interpreter_LookupVariable_2_Token_Expr(Value v_this, Value *args
     {
         AlgFrame frame_9;
         alg_push_frame(&frame_9);
-        if (setjmp(frame_9.jump) == 0) {
+        if (ALG_SETJMP(frame_9.jump) == 0) {
             {
                 volatile Value ret_10 = alg_invoke(alg_property(v_this, "Env"), "Get", (Value[]){v_Name}, 1);
                 alg_pop_frame();
@@ -1651,7 +1651,7 @@ static Value m_Interpreter_ClassNameOf_1(Value v_this, Value *args, int32_t coun
     {
         AlgFrame frame_11;
         alg_push_frame(&frame_11);
-        if (setjmp(frame_11.jump) == 0) {
+        if (ALG_SETJMP(frame_11.jump) == 0) {
             {
                 volatile Value ret_12 = alg_property(v_Obj, "ClassName");
                 alg_pop_frame();
@@ -1748,7 +1748,7 @@ static Value m_Interpreter_ExecuteBlock_2_List_Environment(Value v_this, Value *
     {
         AlgFrame frame_13;
         alg_push_frame(&frame_13);
-        if (setjmp(frame_13.jump) == 0) {
+        if (ALG_SETJMP(frame_13.jump) == 0) {
             {
                 (void)(alg_set_property(v_this, "Env", v_NewEnv));
                 {
@@ -1969,7 +1969,7 @@ static Value m_Interpreter_VisitWhileStmt_1_WhileStmt(Value v_this, Value *args,
     {
         AlgFrame frame_15;
         alg_push_frame(&frame_15);
-        if (setjmp(frame_15.jump) == 0) {
+        if (ALG_SETJMP(frame_15.jump) == 0) {
             {
                 while (alg_truthy(alg_invoke(v_this, "IsTruthy", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_Stmt, "Condition")}, 1)}, 1))) {
                     {
@@ -2040,7 +2040,7 @@ static Value m_Interpreter_IsCallable_1(Value v_this, Value *args, int32_t count
     {
         AlgFrame frame_16;
         alg_push_frame(&frame_16);
-        if (setjmp(frame_16.jump) == 0) {
+        if (ALG_SETJMP(frame_16.jump) == 0) {
             {
                 volatile Value v_TheArity = alg_property(v_Value, "Arity");
                 (void)v_TheArity;
@@ -2138,7 +2138,7 @@ static Value m_Interpreter_VisitForInStmt_1_ForInStmt(Value v_this, Value *args,
     {
         AlgFrame frame_18;
         alg_push_frame(&frame_18);
-        if (setjmp(frame_18.jump) == 0) {
+        if (ALG_SETJMP(frame_18.jump) == 0) {
             {
                 {
                     volatile Value v_I = alg_int(0);
@@ -2325,7 +2325,7 @@ static Value m_Interpreter_VisitTryStmt_1_TryStmt(Value v_this, Value *args, int
     {
         AlgFrame frame_19;
         alg_push_frame(&frame_19);
-        if (setjmp(frame_19.jump) == 0) {
+        if (ALG_SETJMP(frame_19.jump) == 0) {
             {
                 (void)(alg_invoke(v_this, "Execute", (Value[]){alg_property(v_TheStmt, "TryBlock")}, 1));
             }
@@ -2439,7 +2439,7 @@ static Value m_Interpreter_VisitAssignExpr_1_AssignExpr(Value v_this, Value *arg
             {
                 AlgFrame frame_20;
                 alg_push_frame(&frame_20);
-                if (setjmp(frame_20.jump) == 0) {
+                if (ALG_SETJMP(frame_20.jump) == 0) {
                     {
                         (void)(alg_invoke(alg_property(v_this, "Env"), "AssignAt", (Value[]){v_Distance, alg_property(v_Expr, "Name"), v_Value}, 3));
                     }
@@ -2466,7 +2466,7 @@ static Value m_Interpreter_VisitAssignExpr_1_AssignExpr(Value v_this, Value *arg
             {
                 AlgFrame frame_21;
                 alg_push_frame(&frame_21);
-                if (setjmp(frame_21.jump) == 0) {
+                if (ALG_SETJMP(frame_21.jump) == 0) {
                     {
                         (void)(alg_invoke(alg_property(v_this, "Env"), "Assign", (Value[]){alg_property(v_Expr, "Name"), v_Value}, 2));
                     }

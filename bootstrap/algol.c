@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <strings.h>   /* strcasecmp */
 
 /* ---------------------------------------------------------------- memory --
  *
@@ -513,6 +512,25 @@ static ObjMap *as_map(Value v, const char *what) {
  * ⚠️ A String hashes by its CONTENTS, not its pointer, because strict_equals
  * compares them with strcmp.  Hashing the pointer would make two equal strings
  * land in different slots and the Map would hold both. */
+/* ⚠️ ASCII, deliberately, in place of strcasecmp.  Identifiers in this language
+ * are ASCII -- the mangler refuses anything else -- so the answers agree with
+ * the locale-aware version and with Java's equalsIgnoreCase, which is what the
+ * interpreter uses.  It is not a micro-optimisation: strcasecmp_l goes through
+ * locale tables and came out AHEAD of strcmp in algc's profile, at about a
+ * quarter of the whole run. */
+static int alg_stricmp(const char *a, const char *b) {
+    for (;; a++, b++) {
+        unsigned char x = (unsigned char)*a;
+        unsigned char y = (unsigned char)*b;
+
+        if (x >= 'A' && x <= 'Z') x += 32;
+        if (y >= 'A' && y <= 'Z') y += 32;
+
+        if (x != y) return (int)x - (int)y;
+        if (x == 0)  return 0;
+    }
+}
+
 static uint32_t hash_bytes(uint32_t hash, const void *data, size_t length) {
     const unsigned char *bytes = data;
 
@@ -1056,6 +1074,18 @@ typedef struct {
      * is on the whole signature, not on arity, so two methods of one name may
      * take one argument each and differ only in what kind. */
     const char **types;
+
+    /* ⚠️ The name's hash, so the scan compares an int before it compares a
+     * string.  find_method walks every method of every class in the chain --
+     * 15.2 entries on average in algc, 2.2 BILLION strcmp calls for one
+     * fib(30) -- and a strcmp is a call through the PLT where this is a load
+     * and a compare.  Worth about a quarter of that program's run.
+     *
+     * ⚠️ Not an index, deliberately.  A per-class hash table was built and
+     * measured: it cut the average scan from 15.2 entries to 1.00 and bought
+     * 0.5%, because at that size a predictable walk over a contiguous int
+     * array is already free.  The strings were the cost, not the search. */
+    uint32_t    hash;
 } MethodEntry;
 
 typedef struct ObjClass {
@@ -1147,6 +1177,7 @@ void alg_class_method(Value value, const char *name, AlgMethod fn, int32_t arity
     klass->methods[klass->method_count].fn    = fn;
     klass->methods[klass->method_count].arity = arity;
     klass->methods[klass->method_count].types = types;
+    klass->methods[klass->method_count].hash  = hash_bytes(2166136261u, name, strlen(name));
     klass->method_count++;
 }
 
@@ -1167,7 +1198,12 @@ static int32_t field_slot(ObjClass *klass, const char *name) {
         int32_t base = at->super == NULL ? 0 : at->super->total_fields;
 
         for (int32_t i = 0; i < at->field_count; i++) {
-            if (strcmp(at->fields[i], name) == 0) return base + i;
+            /* ⚠️ The first byte inline, so most entries never reach the call.
+             * A hash was measured here too and is SLOWER: field lists average
+             * 1.8 entries, so hashing the name costs more than the strcmps it
+             * skips.  One byte is what fits the size of the thing. */
+            if (at->fields[i][0] != name[0]) continue;
+            if (strcmp(at->fields[i] + 1, name + 1) == 0) return base + i;
         }
     }
     return -1;
@@ -1197,7 +1233,7 @@ static bool is_a(Value v, const char *name) {
     if (!is_obj(v, OBJ_INSTANCE)) return false;
 
     for (ObjClass *at = ((ObjInstance *)v.obj)->klass; at != NULL; at = at->super) {
-        if (strcasecmp(at->name, name) == 0) return true;
+        if (alg_stricmp(at->name, name) == 0) return true;
     }
     return false;
 }
@@ -1218,12 +1254,12 @@ static bool signature_matches(MethodEntry *entry, Value *args, int32_t count) {
 
     for (int32_t i = 0; i < count; i++) {
         const char *declared = entry->types[i];
-        if (declared == NULL || strcasecmp(declared, "Any") == 0) continue;
+        if (declared == NULL || alg_stricmp(declared, "Any") == 0) continue;
 
         const char *actual = type_name(args[i]);
-        if (strcasecmp(actual, "Any") == 0) continue;
-        if (strcasecmp(actual, "nil") == 0) continue;
-        if (strcasecmp(declared, actual) == 0) continue;
+        if (alg_stricmp(actual, "Any") == 0) continue;
+        if (alg_stricmp(actual, "nil") == 0) continue;
+        if (alg_stricmp(declared, actual) == 0) continue;
 
         if (!is_a(args[i], declared)) return false;
     }
@@ -1246,8 +1282,11 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
     MethodEntry *named    = NULL;
     MethodEntry *by_arity = NULL;
 
+    uint32_t want = hash_bytes(2166136261u, name, strlen(name));
+
     for (ObjClass *at = klass; at != NULL; at = at->super) {
         for (int32_t i = 0; i < at->method_count; i++) {
+            if (at->methods[i].hash != want) continue;
             if (strcmp(at->methods[i].name, name) != 0) continue;
 
             if (at->methods[i].arity == arity) {
@@ -1540,28 +1579,28 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
     ObjFile *file = (ObjFile *)receiver.obj;
     (void)count;
 
-    if (strcasecmp(name, "Assign") == 0) {
+    if (alg_stricmp(name, "Assign") == 0) {
         file_closed(file, "Assign");
         file->name = file_name_argument(args[0]);
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "Reset") == 0) {
+    if (alg_stricmp(name, "Reset") == 0) {
         file_open(file, "Reset", "r", true);
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "Rewrite") == 0) {
+    if (alg_stricmp(name, "Rewrite") == 0) {
         file_open(file, "Rewrite", "w", false);
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "Append") == 0) {
+    if (alg_stricmp(name, "Append") == 0) {
         file_open(file, "Append", "a", false);
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "Close") == 0) {
+    if (alg_stricmp(name, "Close") == 0) {
         /* Closing a file that is not open is a no-op rather than an error, so a
          * handler can close on the way out without working out how far Reset
          * got. */
@@ -1576,7 +1615,7 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "ReadLn") == 0) {
+    if (alg_stricmp(name, "ReadLn") == 0) {
         file_reading(file, "ReadLn");
 
         char *line = file_peek(file);
@@ -1588,14 +1627,14 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
         *result = alg_string(line);
         return true;
     }
-    if (strcasecmp(name, "Write") == 0) {
+    if (alg_stricmp(name, "Write") == 0) {
         file_writing(file, "Write");
         fputs(as_text(alg_str(args[0])), file->handle);
 
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "WriteLn") == 0) {
+    if (alg_stricmp(name, "WriteLn") == 0) {
         file_writing(file, "WriteLn");
         fputs(as_text(alg_str(args[0])), file->handle);
         fputc('\n', file->handle);
@@ -1603,14 +1642,14 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "Flush") == 0) {
+    if (alg_stricmp(name, "Flush") == 0) {
         file_writing(file, "Flush");
         if (fflush(file->handle) != 0) file_error("Flush", "", file->name);
 
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "Erase") == 0) {
+    if (alg_stricmp(name, "Erase") == 0) {
         file_closed(file, "Erase");
         file_named(file, "Erase");
 
@@ -1619,7 +1658,7 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "Rename") == 0) {
+    if (alg_stricmp(name, "Rename") == 0) {
         file_closed(file, "Rename");
         file_named(file, "Rename");
 
@@ -1654,7 +1693,7 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
 Value alg_is(Value v, const char *name) {
     if (v.type == VAL_NIL) return alg_bool(false);
 
-    if (strcasecmp(type_name(v), name) == 0) return alg_bool(true);
+    if (alg_stricmp(type_name(v), name) == 0) return alg_bool(true);
 
     return alg_bool(is_a(v, name));
 }
@@ -1713,7 +1752,7 @@ _Noreturn static void undefined(const char *what, const char *name) {
 
 Value alg_property(Value receiver, const char *name) {
     if (is_obj(receiver, OBJ_FILE)) {
-        if (strcasecmp(name, "Eof") == 0) return file_eof((ObjFile *)receiver.obj);
+        if (alg_stricmp(name, "Eof") == 0) return file_eof((ObjFile *)receiver.obj);
 
         undefined("property", name);
     }
@@ -1721,10 +1760,10 @@ Value alg_property(Value receiver, const char *name) {
     /* Text is a property, like Length and IsEmpty: a zero-argument query reads
      * better without parentheses, which is the rule for the whole language. */
     if (is_obj(receiver, OBJ_BUFFER)) {
-        if (strcasecmp(name, "Text") == 0) return buffer_text(as_buffer(receiver, "Text"));
+        if (alg_stricmp(name, "Text") == 0) return buffer_text(as_buffer(receiver, "Text"));
 
-        if (strcasecmp(name, "Length") == 0)  return alg_length(receiver);
-        if (strcasecmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
+        if (alg_stricmp(name, "Length") == 0)  return alg_length(receiver);
+        if (alg_stricmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
 
         undefined("property", name);
     }
@@ -1740,7 +1779,7 @@ Value alg_property(Value receiver, const char *name) {
          *
          * Not provided: GetClass, which would need a class-wrapper object, and
          * HasProperty.  Nothing in the corpus reaches for either. */
-        if (strcasecmp(name, "ClassName") == 0) return alg_string(instance->klass->name);
+        if (alg_stricmp(name, "ClassName") == 0) return alg_string(instance->klass->name);
 
         int32_t slot = field_slot(instance->klass, name);
         if (slot >= 0) return instance->slots[slot];
@@ -1769,8 +1808,8 @@ Value alg_property(Value receiver, const char *name) {
     }
 
     /* Collections answer to Length and IsEmpty, case-insensitively. */
-    if (strcasecmp(name, "Length") == 0)  return alg_length(receiver);
-    if (strcasecmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
+    if (alg_stricmp(name, "Length") == 0)  return alg_length(receiver);
+    if (alg_stricmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
 
     alg_error("Only instances have properties.");
     return alg_nil();
@@ -1801,7 +1840,7 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
     /* Free is the one method that may be called on a freed Buffer, and is a
      * no-op the second time -- the same bargain Close makes for a file, so a
      * handler can free on the way out without knowing how far it got. */
-    if (strcasecmp(name, "Free") == 0) {
+    if (alg_stricmp(name, "Free") == 0) {
         ObjBuffer *buffer = (ObjBuffer *)receiver.obj;
 
         free(buffer->bytes);
@@ -1814,7 +1853,7 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
         return true;
     }
 
-    if (strcasecmp(name, "Append") == 0) {
+    if (alg_stricmp(name, "Append") == 0) {
         ObjBuffer  *buffer = as_buffer(receiver, "Append");
         const char *text   = as_text(args[0]);
 
@@ -1823,7 +1862,7 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "PutInt") == 0) {
+    if (alg_stricmp(name, "PutInt") == 0) {
         ObjBuffer *buffer = as_buffer(receiver, "PutInt");
         size_t     at     = buffer_offset(buffer, args[0], 4);
 
@@ -1832,13 +1871,13 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
         *result = alg_nil();
         return true;
     }
-    if (strcasecmp(name, "GetInt") == 0) {
+    if (alg_stricmp(name, "GetInt") == 0) {
         ObjBuffer *buffer = as_buffer(receiver, "GetInt");
 
         *result = alg_int(buffer_get_int(buffer, buffer_offset(buffer, args[0], 4)));
         return true;
     }
-    if (strcasecmp(name, "Resize") == 0) {
+    if (alg_stricmp(name, "Resize") == 0) {
         ObjBuffer *buffer = as_buffer(receiver, "Resize");
 
         buffer_resize(buffer, as_integer(args[0], "A Buffer's size must be an Integer."));
@@ -1857,24 +1896,24 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
 static bool collection_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
     (void)count;
 
-    if (strcasecmp(name, "Add") == 0)       { *result = alg_add_item(receiver, args[0]); return true; }
-    if (strcasecmp(name, "Put") == 0)       { *result = alg_put(receiver, args[0], args[1]); return true; }
-    if (strcasecmp(name, "Get") == 0)       { *result = alg_get(receiver, args[0]); return true; }
-    if (strcasecmp(name, "Set") == 0)       { *result = alg_set_at(receiver, args[0], args[1]); return true; }
-    if (strcasecmp(name, "Remove") == 0)    { *result = alg_remove(receiver, args[0]); return true; }
-    if (strcasecmp(name, "RemoveAt") == 0)  { *result = alg_remove_at(receiver, args[0]); return true; }
-    if (strcasecmp(name, "Insert") == 0)    { *result = alg_insert(receiver, args[0], args[1]); return true; }
-    if (strcasecmp(name, "Contains") == 0)  { *result = alg_contains(receiver, args[0]); return true; }
-    if (strcasecmp(name, "IndexOf") == 0)   { *result = alg_index_of(receiver, args[0]); return true; }
-    if (strcasecmp(name, "Clear") == 0)     { *result = alg_clear(receiver); return true; }
-    if (strcasecmp(name, "Fill") == 0)      { *result = alg_fill(receiver, args[0]); return true; }
-    if (strcasecmp(name, "Push") == 0)      { *result = alg_push(receiver, args[0]); return true; }
-    if (strcasecmp(name, "Pop") == 0)       { *result = alg_pop(receiver); return true; }
-    if (strcasecmp(name, "Peek") == 0)      { *result = alg_peek(receiver); return true; }
-    if (strcasecmp(name, "Sort") == 0)      { *result = alg_sort(receiver); return true; }
-    if (strcasecmp(name, "Keys") == 0)      { *result = alg_keys(receiver); return true; }
-    if (strcasecmp(name, "Values") == 0)    { *result = alg_values(receiver); return true; }
-    if (strcasecmp(name, "ToList") == 0)    { *result = alg_to_list(receiver); return true; }
+    if (alg_stricmp(name, "Add") == 0)       { *result = alg_add_item(receiver, args[0]); return true; }
+    if (alg_stricmp(name, "Put") == 0)       { *result = alg_put(receiver, args[0], args[1]); return true; }
+    if (alg_stricmp(name, "Get") == 0)       { *result = alg_get(receiver, args[0]); return true; }
+    if (alg_stricmp(name, "Set") == 0)       { *result = alg_set_at(receiver, args[0], args[1]); return true; }
+    if (alg_stricmp(name, "Remove") == 0)    { *result = alg_remove(receiver, args[0]); return true; }
+    if (alg_stricmp(name, "RemoveAt") == 0)  { *result = alg_remove_at(receiver, args[0]); return true; }
+    if (alg_stricmp(name, "Insert") == 0)    { *result = alg_insert(receiver, args[0], args[1]); return true; }
+    if (alg_stricmp(name, "Contains") == 0)  { *result = alg_contains(receiver, args[0]); return true; }
+    if (alg_stricmp(name, "IndexOf") == 0)   { *result = alg_index_of(receiver, args[0]); return true; }
+    if (alg_stricmp(name, "Clear") == 0)     { *result = alg_clear(receiver); return true; }
+    if (alg_stricmp(name, "Fill") == 0)      { *result = alg_fill(receiver, args[0]); return true; }
+    if (alg_stricmp(name, "Push") == 0)      { *result = alg_push(receiver, args[0]); return true; }
+    if (alg_stricmp(name, "Pop") == 0)       { *result = alg_pop(receiver); return true; }
+    if (alg_stricmp(name, "Peek") == 0)      { *result = alg_peek(receiver); return true; }
+    if (alg_stricmp(name, "Sort") == 0)      { *result = alg_sort(receiver); return true; }
+    if (alg_stricmp(name, "Keys") == 0)      { *result = alg_keys(receiver); return true; }
+    if (alg_stricmp(name, "Values") == 0)    { *result = alg_values(receiver); return true; }
+    if (alg_stricmp(name, "ToList") == 0)    { *result = alg_to_list(receiver); return true; }
 
     return false;
 }
@@ -2021,7 +2060,7 @@ _Noreturn void alg_raise(Value value) {
     frames = frame->previous;
 
     frame->raised = value;
-    longjmp(frame->jump, 1);
+    ALG_LONGJMP(frame->jump, 1);
 }
 
 _Noreturn void alg_error(const char *message) {
@@ -2608,7 +2647,7 @@ void alg_test_run(const char *name, AlgFunction body) {
     alg_push_frame(&frame);
 
     bool ok;
-    if (setjmp(frame.jump) == 0) {
+    if (ALG_SETJMP(frame.jump) == 0) {
         body(NULL, NULL, 0);
         alg_pop_frame();
         ok = true;
