@@ -215,7 +215,26 @@ Linux; `./test.sh` and all nine `JPascal` gates are green on macOS; and
 `fib(30)` still interprets in 7.93 s against the pre-change 19.21 s, so the fix
 cost the platform the optimisation was written for nothing.
 
-**Nothing blocks the commit.** Open items are the long tail: [C13](#c13)
+**Since `9d1601f` — the `uses`-chain initialisers.** [C13](#c13) is fixed, and
+the fix declines the obvious shortcut: rather than widening `main`'s `#include`
+list to the transitive closure — which would put headers for modules the root
+never named into the root's translation unit — `main` **declares** the
+initialisers it cannot reach, as the test runner already does one function down.
+Verified against my original repro plus a five-deep chain, a `uses` cycle
+reached transitively, a module whose file name needs sanitising
+(`init_deep_mod`), and the shipped diamond; `tests/programs/Chain.a24` fails the
+old emitter with exactly three undeclared initialisers, which I checked. Green
+on macOS and on Linux/`gcc:14`, including `fixedpoint` both places.
+
+Probing that fix in `--test` mode turned up [C15](#c15), which is **new to the
+review, pre-existing, and untouched by this change**: a `test` block more than
+one `uses` hop from the root fails interpreted with `Undefined variable
+'<the test's own name>'` and passes compiled. Both interpreters agree with each
+other; both emitters agree with each other; so it is the front end diverging
+from the back end. `Chain.a24` closes the blind spot for `Run` and not for
+`RunTests`.
+
+**Nothing blocks the commit.** Open items are the long tail: [C15](#c15)
 (pre-existing), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
 [D3](#d3)'s architectural remainder, [D4](#d4) by choice, and the three `E`
 items.
@@ -236,7 +255,8 @@ items.
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
 | [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
-| [C13](#c13) | A three-deep `uses` chain emits `init_X()` without including `X.h` | Medium | Open (**pre-existing**) |
+| [C15](#c15) | `--test`: a test two `uses` hops down fails interpreted, passes compiled | Medium | Open (new, **pre-existing**) |
+| [C13](#c13) | A three-deep `uses` chain emits `init_X()` without including `X.h` | Medium | ✅ **Fixed** (+ `Chain.a24`) |
 | [D3](#d3) | Name-based dispatch on every call and field access | Medium | Partly addressed — **2.4× measured** |
 | [C8](#c8) | Factual errors in the prose, one in a ⚠️ | Low | Partly fixed |
 | [C11](#c11) | Assignment through a unit qualifier was not refused, it failed at `cc` | Low | ✅ **Fixed** (implemented) |
@@ -1243,7 +1263,47 @@ of bug, and a `test` block on it would pin the rule that a unit is its file stem
 
 ---
 
-### <a name="c13"></a>C13 — A three-deep `uses` chain emits `init_X()` without including `X.h`
+### <a name="c15"></a>C15 — `--test`: a test block two `uses` hops down fails interpreted and passes compiled
+
+**Severity: Medium. New, pre-existing, in the front end rather than either
+emitter.** Found by probing [C13](#c13)'s fix in `--test` mode, which the fix
+does not touch and `Chain.a24` does not cover.
+
+A `test` block in a module more than one `uses` hop from the root is reported as
+failing, with an error naming **the test's own name as an undefined variable** —
+while the compiled binary built from the same source runs it and passes. The
+minimal repro is three files whose test bodies are all `AssertEqual (1, 1)`, so
+nothing about it depends on what a test can reach:
+
+| | `depth 0` | `depth 1` | `depth 2` |
+|---|---|---|---|
+| algc / JPascal interpreted | PASS | PASS | **FAIL** — `Undefined variable ''depth 2''` |
+| algc / JPascal compiled | PASS | PASS | PASS |
+
+Depth is the whole variable: two files never fails, three does, and more depth
+adds more failures. The program itself runs correctly in all four paths, so this
+is only `--test`. The `--test` emission from the two compilers is byte-identical
+for this program, so `cgate` cannot see it either.
+
+**It is not the documented limitation.** `CLAUDE.md` says a module's tests can
+only reach what that file `uses` — that is about what a test *body* may
+reference. Here the bodies reference nothing, the test does not run at all, and
+the diagnostic blames a string literal.
+
+**Recommendation.** Find why `RunTests` resolves a test at depth ≥ 2 into a
+variable lookup of its own name — the message suggests the test-name expression
+is evaluated in a scope where the module's bindings were never installed, the
+same "closure walked, environment not" shape as C13 one layer up. And **add a
+`--test` chain fixture**: that is the real fix to the blind spot, because
+`compiler/Main.a24` is a star and has every test-carrying module at depth 1 by
+construction.
+
+Full detail, including the repro and the four-path table, is in the sibling
+repository's `REVIEW.md`.
+
+---
+
+### <a name="c13"></a>C13 — A three-deep `uses` chain emits `init_X()` without including `X.h`: Fixed
 
 **Severity: Medium. New to this review, but pre-existing — not caused by this
 change.** Found by the regression sweep, not by the feature.

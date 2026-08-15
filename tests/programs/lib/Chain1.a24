@@ -1,0 +1,10 @@
+unit Chain1;
+
+uses Chain2;
+
+var Assembled := 'one(' + Two () + ')';
+
+function One () : String;
+begin
+    Exit Assembled;
+end

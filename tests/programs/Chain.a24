@@ -1,0 +1,47 @@
+/// A `uses` graph deeper than two, which nothing in this corpus had.
+///
+/// ⚠️ This is the shape the whole test suite was blind to, and the blindness
+/// was structural rather than bad luck. Every fixture in `ctest/lib/` was a
+/// leaf, so no chain reached three; and the two large multi-module programs
+/// compiled on every build -- `algc` itself and the Lox interpreter -- are
+/// **stars**, where the root imports all 21 (or 13) others directly. In a star
+/// every `init_X()` `main` emits is covered by a direct `#include`, so the two
+/// programs guaranteed to be compiled constantly are the one shape immune to
+/// the bug.
+///
+/// What it was: `main` runs the whole transitive closure of initialisers,
+/// because a module's file-scope `var`s must be set up before anything using
+/// them runs. Its `#include` list is the *direct* imports, because that is what
+/// `uses` means. Both are right on their own terms; they simply have to agree.
+/// While they did not, `Root uses Mid uses Deep` emitted `init_Deep()` with no
+/// declaration in sight and failed at `cc` -- a program both interpreters run.
+///
+/// ⚠️ `cgate` could not see it either: the two emitters were identically wrong,
+/// and comparing them to each other says nothing about whether either compiles.
+///
+/// The file-scope `var`s here are deliberate. A test that only called functions
+/// would prove the initialisers were *declared*; taking each module's value
+/// from the module below it proves they also *ran*, in dependency order.
+
+uses 'lib/Chain1';
+uses 'lib/Left';
+uses 'lib/Right';
+
+begin
+    // -- three deep: Chain1 -> Chain2 -> Chain3 ---------------------------
+    //
+    // ⚠️ This file names Chain1 and nothing else, so Chain2 and Chain3 are
+    // initialisers it must START without being allowed to NAME them -- which is
+    // the whole point. 'One()' carries their values out; calling 'Two()' here
+    // is 'Undefined variable', because `uses` is not transitive.
+    WriteLn (One ());
+
+    // -- a diamond: Left and Right both over Shared ------------------------
+    //
+    // Shared is reached twice and must be loaded once -- its counter says so,
+    // read back through Left, since the root may not name Shared either. The
+    // two marks pin the order as well as the count.
+    WriteLn (FromLeft ());
+    WriteLn (FromRight ());
+    WriteLn (SharedHits ());
+end

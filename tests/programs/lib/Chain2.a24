@@ -1,0 +1,13 @@
+unit Chain2;
+
+uses Chain3;
+
+/// ⚠️ A file-scope var whose value comes from the module BELOW it, so the test
+/// proves the initialisers ran in dependency order and not merely that they
+/// were declared.
+var Built := 'two(' + Three () + ')';
+
+function Two () : String;
+begin
+    Exit Built;
+end

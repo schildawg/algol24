@@ -954,6 +954,38 @@ begin
 
         if IsMain then
         begin
+            // ⚠️ The initializers of modules this file did not name, declared
+            // here rather than reached through headers -- exactly as the test
+            // runner declares its test symbols, and for the same reason: 'main'
+            // is not written in Algol-24, so the visibility rule that stops
+            // this file NAMING those modules does not stop it starting them.
+            //
+            // 'main' runs the whole transitive closure, because a module's
+            // file-scope vars must be set up before anything that uses it runs.
+            // Its #include list is the DIRECT imports, because that is what
+            // 'uses' means.  Both are right; they simply have to agree, and
+            // while they did not, 'Root uses Mid uses Deep' emitted init_Deep()
+            // with no declaration in sight and would not compile -- a valid
+            // program that both interpreters run.
+            //
+            // ⚠️ Nothing in the corpus is more than two deep, and the two
+            // programs compiled on every build -- algc and the Lox interpreter
+            // -- are stars rather than chains, so every init they emit is
+            // covered by a direct include.  ctest/Chain.a24 is the shape that
+            // is not.
+            var Visible := Set();
+            Visible.Add (Str (Unit.Name));
+            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
+                Visible.Add (Str (Unit.Imports[I]));
+
+            var Undeclared := '';
+            for var I := 0; I < Units.Length; I := I + 1 do
+                if not Visible.Contains (Str (Units[I].Name)) then
+                    Undeclared := Undeclared + 'void init_' + Str (Units[I].Name)
+                                + '(void);' + #10;
+
+            if Undeclared <> '' then Text := Text + #10 + Undeclared;
+
             // argc and argv are taken whether or not the program asks for them,
             // and handed straight to the runtime -- which also keeps them used,
             // so an ordinary program does not trip -Wunused-parameter.

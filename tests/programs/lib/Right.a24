@@ -1,0 +1,10 @@
+unit Right;
+
+uses Shared;
+
+var RightMark := 'R' + Str (Touch ());
+
+function FromRight () : String;
+begin
+    Exit RightMark;
+end

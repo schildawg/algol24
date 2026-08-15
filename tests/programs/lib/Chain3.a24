@@ -1,0 +1,9 @@
+unit Chain3;
+
+/// The deep end of the chain.  Nothing imports anything here.
+var Depth := 'three';
+
+function Three () : String;
+begin
+    Exit Depth;
+end

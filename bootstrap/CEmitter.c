@@ -1093,6 +1093,36 @@ static Value m_CEmitter_UnitSource_4_List_Boolean_String(Value v_this, Value *ar
     (void)((v_Text = alg_add(alg_add(v_Text, alg_char_value(125)), alg_char_value(10))));
     if (alg_truthy(v_IsMain)) {
         {
+            Value v_Visible = alg_set();
+            (void)v_Visible;
+            (void)(alg_invoke(v_Visible, "Add", (Value[]){alg_str(alg_property(v_Unit, "Name"))}, 1));
+            {
+                Value v_I = alg_int(0);
+                (void)v_I;
+                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_Unit, "Imports"), "Length")))) {
+                    {
+                        (void)(alg_invoke(v_Visible, "Add", (Value[]){alg_str(alg_subscript_get(alg_property(v_Unit, "Imports"), v_I))}, 1));
+                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                    }
+                }
+            }
+            Value v_Undeclared = alg_string("");
+            (void)v_Undeclared;
+            {
+                Value v_I = alg_int(0);
+                (void)v_I;
+                while (alg_truthy(alg_less(v_I, alg_property(v_Units, "Length")))) {
+                    {
+                        if (alg_truthy(alg_not(alg_invoke(v_Visible, "Contains", (Value[]){alg_str(alg_property(alg_subscript_get(v_Units, v_I), "Name"))}, 1)))) {
+                            (void)((v_Undeclared = alg_add(alg_add(alg_add(alg_add(v_Undeclared, alg_string("void init_")), alg_str(alg_property(alg_subscript_get(v_Units, v_I), "Name"))), alg_string("(void);")), alg_char_value(10))));
+                        }
+                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                    }
+                }
+            }
+            if (alg_truthy(alg_not_equal(v_Undeclared, alg_string("")))) {
+                (void)((v_Text = alg_add(alg_add(v_Text, alg_char_value(10)), v_Undeclared)));
+            }
             (void)((v_Text = alg_add(alg_add(alg_add(v_Text, alg_char_value(10)), alg_string("int main(int argc, char **argv) {")), alg_char_value(10))));
             (void)((v_Text = alg_add(alg_add(v_Text, alg_string("    alg_set_arguments(argc, argv);")), alg_char_value(10))));
             {

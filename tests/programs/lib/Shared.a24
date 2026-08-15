@@ -1,0 +1,19 @@
+unit Shared;
+
+/// ⚠️ Not called 'Uses': keywords are case-insensitive, so that scans as the
+/// import keyword and the file will not parse.  Same trap as 'Object' and
+/// 'Type'.
+var Hits := 0;
+
+function Touch () : Integer;
+begin
+    Hits := Hits + 1;
+
+    Exit Hits;
+end
+
+/// Reads the counter without touching it.
+function Count () : Integer;
+begin
+    Exit Hits;
+end

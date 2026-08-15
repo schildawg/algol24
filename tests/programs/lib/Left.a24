@@ -1,0 +1,17 @@
+unit Left;
+
+uses Shared;
+
+var LeftMark := 'L' + Str (Touch ());
+
+function FromLeft () : String;
+begin
+    Exit LeftMark;
+end
+
+/// Re-exported, because 'uses' is not transitive: the root imports Left and so
+/// may not name Shared itself.
+function SharedHits () : Integer;
+begin
+    Exit Count ();
+end
