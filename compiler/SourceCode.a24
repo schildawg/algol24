@@ -7,31 +7,54 @@
 /// 15.  JPascal's keys by file name as well, and this will have to when it
 /// loads more than one.
 ///
+/// ⚠️ A List indexed by line number, not a Map keyed by one.  It held a Map,
+/// and that was the single largest consumer of Map lookups in the whole
+/// compiler: one entry per source line, refilled for every file, so scanning a
+/// 3,000-line module inserted 3,000 keys -- and each insertion first scanned
+/// every key already there to check the line was not a duplicate.  About 4.5
+/// million comparisons per file, for a structure only ever read when an error
+/// has to print the line it happened on.
+///
+/// The keys were 1, 2, 3, ... in order, which is a List with extra steps.  See
+/// MAP.md.
+///
 object SourceCode;
 var
-    Lines    : Map := [:];
+    Lines    : List := [];
     FileName : String := '';
 
 begin
     /// Starts recording a new file, discarding the last one.
     procedure Begins (Name : String);
     begin
-        Lines := [:];
+        Lines := [];
         FileName := Name;
     end
 
+    /// Records a line.  Position I holds line I + 1, since lines count from 1.
+    ///
+    /// The scanner calls this once per line in increasing order, so this is an
+    /// append -- but it pads rather than relying on that, because a gap would
+    /// otherwise shift every later line by one and misreport them all.
+    ///
     procedure Add (LineNumber : Integer, Text : String);
     begin
-        Lines.Put (LineNumber, Text);
+        if LineNumber < 1 then Exit;
+
+        while Lines.Length < LineNumber - 1 do Lines.Add ('');
+
+        if Lines.Length = LineNumber - 1 then Lines.Add (Text);
+        else Lines[LineNumber - 1] := Text;
     end
 
     /// The text of a line, or '' when it was never recorded -- an error on the
     /// last line of a file with no trailing newline, for instance.
     function Get (LineNumber : Integer) : String;
     begin
-        if not Lines.Contains (LineNumber) then Exit '';
+        if LineNumber < 1 then Exit '';
+        if LineNumber > Lines.Length then Exit '';
 
-        Exit Str (Lines.Get (LineNumber));
+        Exit Str (Lines[LineNumber - 1]);
     end
 
     function Name () : String;

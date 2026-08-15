@@ -73,7 +73,7 @@ begin
 
         if Stmt.Superclass <> Nil and Stmt.Name.Lexeme = Stmt.Superclass.Name.Lexeme then
         begin
-            raise 'A class cannot inherit from itself.';
+            raise 'A class can''t inherit from itself.';
         end
 
         if Stmt.Superclass <> Nil then
@@ -224,14 +224,14 @@ begin
     begin
         if CurrentFunction = FUN_NONE then
         begin
-            raise 'Cannot return from top-level code.';
+            raise 'Can''t return from top-level code.';
         end
 
         if (Stmt.Value <> Nil) then 
         begin
             if CurrentFunction = FUN_INITIALIZER then
             begin
-                raise 'Cannot return a value from an initializer.';
+                raise 'Can''t return a value from an initializer.';
             end
 
             Resolve (Stmt.Value);
@@ -293,7 +293,7 @@ begin
     procedure VisitAssignExpr (TheExpr : AssignExpr);
     begin
         if IsConstant (TheExpr.Name) then
-            raise 'Cannot assign to constant ''' + TheExpr.Name.Lexeme + '''.';
+            raise 'Can''t assign to constant ''' + TheExpr.Name.Lexeme + '''.';
 
         Resolve (TheExpr.Value);
         ResolveLocal (TheExpr, TheExpr.Name);
@@ -352,10 +352,15 @@ begin
     //
     procedure VisitSuperExpr (TheExpr : SuperExpr);
     begin
+        // ⚠️ 'no superclass', not 'no subclass', which is what this said.  The
+        // check is for a class that has no PARENT to reach through 'super', so
+        // the old wording named the opposite relationship -- wrong rather than
+        // merely differently phrased, and it survived because no gate compares
+        // a Resolver message.  See REVIEW.md C4.
         if CurrentClass = CLASS_NONE then
-           raise 'Cannot use ''super'' outside of a class.';
+           raise 'Can''t use ''super'' outside a class.';
         else if CurrentClass <> CLASS_SUBCLASS then
-           raise 'Cannot use ''super'' in a class with no subclass.';
+           raise 'Can''t use ''super'' in a class with no superclass.';
 
         ResolveLocal(TheExpr, TheExpr.Keyword);
     end
@@ -370,7 +375,7 @@ begin
     begin
         if CurrentClass = CLASS_NONE then
         begin
-            raise 'Cannot use ''this'' outside of a class.';
+            raise 'Can''t use ''this'' outside a class.';
         end
 
         ResolveLocal (TheExpr, TheExpr.Keyword);
@@ -435,7 +440,7 @@ begin
     begin
         if Not Scopes.IsEmpty and Scopes.Peek().Get(TheExpr.Name.Lexeme) = False then
         begin
-           raise 'Cannot read local variable in its own initializer.';
+           raise 'Can''t read local variable in its own initializer.';
         end
 
         ResolveLocal (TheExpr, TheExpr.Name);
@@ -819,7 +824,7 @@ begin
     except
        on e : String do
             begin
-               AssertEqual('Cannot read local variable in its own initializer.', e);
+               AssertEqual('Can''t read local variable in its own initializer.', e);
                Exit;
             end
     end
@@ -872,7 +877,7 @@ begin
     except
        on e : String do
             begin
-               AssertEqual('Cannot return from top-level code.', e);
+               AssertEqual('Can''t return from top-level code.', e);
                Exit;
             end
     end
@@ -896,7 +901,7 @@ begin
     except
        on e : String do
             begin
-               AssertEqual('A class cannot inherit from itself.', e);
+               AssertEqual('A class can''t inherit from itself.', e);
                Exit;
             end
     end

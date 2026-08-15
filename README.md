@@ -286,13 +286,23 @@ tree-walking interpreter **defines** the language, so correctness is
 differential: a program is run both ways and the two must agree.
 
 ```sh
-./test.sh unit         # the compiler's own 219 test blocks
+./test.sh unit         # the compiler's own 221 test blocks
 ./test.sh conformance  # 8 language suites, interpreted
 ./test.sh compiled     # the same suites compiled -- reports must match
 ./test.sh programs     # interpreted output vs compiled output, per program
 ./test.sh fixedpoint   # the compiler reproduces itself, byte for byte
 ./test.sh leaks        # compiled programs exit without leaking (macOS)
+./test.sh memory       # ...and stay inside a peak-memory budget (macOS)
 ```
+
+⚠️ `leaks` and `memory` are not one check with two numbers. `leaks` asks whether
+memory was still *reachable* at exit — and the arena frees every chunk it took,
+so a program that allocated 1.27 GB it never needed still reported *0 leaks for
+0 total leaked bytes*. That is a real bug this repository shipped: rebuilding a
+`Map`'s hash index into a fresh table on every `Remove` made draining one
+quadratic in memory, and the leak canaries passed on the broken build. Nothing
+was leaked; far too much was allocated. Each `tests/mem/` program carries its own
+budget in a `/// MAXRSS:` header.
 
 The fixed point is the interesting one. It compiles `compiler/` with the seed,
 compiles it again with the result, and requires the two emissions to be

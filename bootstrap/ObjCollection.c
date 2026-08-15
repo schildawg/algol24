@@ -301,10 +301,9 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
             if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Map")))) {
                 {
                     if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Pairs"), "Contains", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1)))) {
-                        return alg_bool(false);
+                        return alg_nil();
                     }
-                    (void)(alg_invoke(alg_property(v_this, "Pairs"), "Remove", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1));
-                    return alg_bool(true);
+                    return alg_invoke(alg_property(v_this, "Pairs"), "Remove", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
                 }
             }
             Value v_At = alg_invoke(alg_property(v_this, "Items"), "IndexOf", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);

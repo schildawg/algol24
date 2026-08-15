@@ -1,0 +1,204 @@
+/// Map behaviour across the hash index's thresholds.
+///
+/// ⚠️ Written for the side index in algol.c, and aimed at the three places a
+/// plausible implementation corrupts the Map silently rather than crashing:
+///
+///   - Remove memmoves the tail down, so every stored position above it shifts
+///     and the whole index is stale.
+///   - Clear must drop the index, not merely zero the count.
+///   - The index is built at 8 entries and doubled past half load, so the
+///     interesting sizes are the ones either side of 8, 16, 32 and 64.
+///
+/// Everything here is checked by running it interpreted and compiled and
+/// requiring identical output, so it pins insertion order as well as content --
+/// which is the property the index is not allowed to disturb.
+
+/// Renders a Map as its entries in order, so any reordering shows up.
+function Show (M : Map) : String;
+var
+    Out : Any;
+
+begin
+    Out := Buffer();
+    for var K in M do
+    begin
+        Out.Append (Str (K));
+        Out.Append ('=');
+        Out.Append (Str (M[K]));
+        Out.Append (' ');
+    end
+    Exit Out.Text;
+end
+
+begin
+    // -- crossing the build threshold ------------------------------------
+    //
+    // Filled one at a time, printing at every size, so the entry that tips the
+    // Map into having an index is covered from both sides.
+    var M := Map();
+    for var I := 0; I < 12; I := I + 1 do
+    begin
+        M[I] := I * I;
+        WriteLn (Str (I) + ': ' + Show (M));
+    end
+
+    // -- lookup of every key, and of keys that were never there -----------
+    for var I := 0; I < 12; I := I + 1 do
+        WriteLn ('get ' + Str (I) + ' = ' + Str (M[I]) + ' contains ' + Str (M.Contains (I)));
+
+    WriteLn ('missing 99  : ' + Str (M.Contains (99)));
+    WriteLn ('missing -1  : ' + Str (M.Contains (-1)));
+
+    // -- re-assignment keeps the original position -----------------------
+    M[3] := 'replaced';
+    WriteLn ('reassigned  : ' + Show (M));
+    WriteLn ('length      : ' + Str (M.Length));
+
+    // -- Remove shifts everything above it -------------------------------
+    //
+    // The index stores positions, so removing entry 2 moves nine keys down by
+    // one.  Every one of them must still be findable.
+    WriteLn ('removed 0   : ' + Str (M.Remove (0)));
+    WriteLn ('removed 5   : ' + Str (M.Remove (5)));
+    WriteLn ('removed 11  : ' + Str (M.Remove (11)));
+
+    // ⚠️ A Map answers with the VALUE it removed, and nil on a miss; a
+    // sequence answers with whether there was anything to remove.  The two are
+    // different and algc's interpreter used to give a Boolean for both.
+    WriteLn ('removed miss: ' + Str (M.Remove (999)));
+
+    var S := Set();
+    S.Add (10);
+    S.Add (20);
+    WriteLn ('set removed : ' + Str (S.Remove (20)));
+    WriteLn ('set missing : ' + Str (S.Remove (99)));
+
+    WriteLn ('after remove: ' + Show (M));
+
+    for var I := 0; I < 12; I := I + 1 do
+        WriteLn ('  still ' + Str (I) + ': ' + Str (M.Contains (I)));
+
+    // -- Put after Remove, which reuses the rebuilt index ----------------
+    M[100] := 'hundred';
+    M[0]   := 'back';
+    WriteLn ('put back    : ' + Show (M));
+
+    // -- Clear must drop the index --------------------------------------
+    //
+    // A stale index over an emptied array reports hits on entries that are no
+    // longer there, so this asks for a key that used to be present.
+    M.Clear();
+    WriteLn ('cleared len : ' + Str (M.Length));
+    WriteLn ('cleared has : ' + Str (M.Contains (7)));
+    WriteLn ('cleared show: [' + Show (M) + ']');
+
+    M[7] := 'refilled';
+    WriteLn ('refilled    : ' + Show (M));
+    WriteLn ('refilled has: ' + Str (M.Contains (7)));
+
+    // -- past the doublings ----------------------------------------------
+    //
+    // 200 entries takes the table through 32, 64, 128 and 256 slots.  Keys and
+    // Values are read from the entry array, so this pins insertion order across
+    // every rebuild.
+    var Big := Map();
+    for var I := 0; I < 200; I := I + 1 do Big[I] := I + 1000;
+
+    var BigKeys   := Big.Keys();
+    var BigValues := Big.Values();
+
+    WriteLn ('big length  : ' + Str (Big.Length));
+    WriteLn ('big first   : ' + Str (BigKeys[0]) + ' ' + Str (BigValues[0]));
+    WriteLn ('big last    : ' + Str (BigKeys[199]) + ' ' + Str (BigValues[199]));
+
+    var Sum := 0;
+    var Ordered := True;
+    var Previous := -1;
+    for var K in Big do
+    begin
+        if K <> Previous + 1 then Ordered := False;
+        Previous := K;
+        Sum := Sum + Big[K];
+    end
+    WriteLn ('big sum     : ' + Str (Sum));
+    WriteLn ('big in order: ' + Str (Ordered));
+
+    // Removing from the front is the worst case for stale positions: every
+    // remaining key shifts on every removal.
+    for var I := 0; I < 100; I := I + 1 do Big.Remove (I);
+
+    var LeftKeys := Big.Keys();
+
+    WriteLn ('big after   : ' + Str (Big.Length));
+    WriteLn ('big head    : ' + Str (LeftKeys[0]) + ' ' + Str (Big[100]));
+    WriteLn ('big tail    : ' + Str (Big[199]));
+    WriteLn ('big gone    : ' + Str (Big.Contains (50)));
+
+    // -- draining a Map entirely ------------------------------------------
+    //
+    // ⚠️ Every removal rebuilds the hash index, so this is the shape that
+    // catches the rebuild allocating a fresh table instead of reusing the one
+    // it has.  At this size it only checks correctness -- mem/Drain.a24 is
+    // where the memory budget lives, because output comparison cannot see
+    // 1,272 MB.
+    var Drain := Map();
+    for var I := 0; I < 50; I := I + 1 do Drain[I] := I;
+    for var I := 0; I < 50; I := I + 1 do Drain.Remove (I);
+
+    WriteLn ('drained     : ' + Str (Drain.Length) + ' ' + Str (Drain.Contains (7)));
+
+    Drain[1] := 'again';
+    WriteLn ('drain refill: ' + Show (Drain));
+
+    // -- mixed key types --------------------------------------------------
+    //
+    // The hash mixes the type in, and strict_equals rejects differing types
+    // before comparing, so these are all distinct keys.
+    var Mixed := Map();
+    Mixed[1]      := 'int';
+    Mixed[1.0]    := 'double';
+    Mixed['1']    := 'string';
+    Mixed['a']    := 'char-ish string';
+    Mixed[True]   := 'bool';
+    Mixed[Nil]    := 'nil';
+    for var I := 0; I < 10; I := I + 1 do Mixed[I + 500] := I;
+
+    WriteLn ('mixed length: ' + Str (Mixed.Length));
+    WriteLn ('mixed int   : ' + Str (Mixed[1]));
+    WriteLn ('mixed double: ' + Str (Mixed[1.0]));
+    WriteLn ('mixed string: ' + Str (Mixed['1']));
+    WriteLn ('mixed bool  : ' + Str (Mixed[True]));
+    WriteLn ('mixed nil   : ' + Str (Mixed[Nil]));
+
+    // -- string keys hash by contents, not by pointer ---------------------
+    //
+    // Two equal strings built separately must be one key.  Hashing the pointer
+    // would put them in different slots and the Map would hold both.
+    var Names := Map();
+    for var I := 0; I < 12; I := I + 1 do Names['key' + Str (I)] := I;
+
+    var Built := 'key' + Str (3);
+    WriteLn ('built key   : ' + Str (Names[Built]));
+    WriteLn ('built has   : ' + Str (Names.Contains ('key' + Str (7))));
+    WriteLn ('names length: ' + Str (Names.Length));
+
+    Names['key' + Str (3)] := 'overwritten';
+    WriteLn ('no duplicate: ' + Str (Names.Length) + ' ' + Str (Names['key3']));
+
+    // -- object keys hash by identity -------------------------------------
+    //
+    // Two Lists with the same contents are different keys, and a List is its
+    // own key.  Enough of them to force the index.
+    var Keys := [];
+    var Objects := Map();
+    for var I := 0; I < 12; I := I + 1 do
+    begin
+        var K := [I];
+        Keys.Add (K);
+        Objects[K] := I;
+    end
+
+    WriteLn ('object len  : ' + Str (Objects.Length));
+    WriteLn ('object get  : ' + Str (Objects[Keys[4]]));
+    WriteLn ('object equal: ' + Str (Objects.Contains ([4])));
+end

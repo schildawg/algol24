@@ -1,0 +1,16 @@
+/// MAXRSS: 64
+///
+/// Building a large string a piece at a time, through a Buffer.
+///
+/// ⚠️ The same shape with '+' is quadratic BY DESIGN -- a String is immutable
+/// and nothing is freed, so 'S := S + X' copies both operands every pass.  That
+/// is the cliff Buffer exists to give a way around, and the reason the compiler
+/// needed 1.25 GB to compile itself.  See BUFFER.md.
+begin
+    var B := Buffer();
+
+    for var I := 0; I < 40000; I := I + 1 do
+        B.Append ('line ' + Str (I) + #10);
+
+    WriteLn ('length ' + Str (B.Length));
+end

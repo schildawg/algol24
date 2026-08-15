@@ -113,8 +113,13 @@ static void *arena_alloc(size_t bytes) {
  * pairs.
  *
  * Nothing is freed, so growing copies into a fresh allocation and abandons the
- * old one.  Map lookup is a linear scan; a hash index would change none of the
- * visible behaviour, because insertion order is specified separately.
+ * old one.
+ *
+ * A Map carries a hash index beside its entries once it is big enough to be
+ * worth one, which changes none of the visible behaviour because insertion
+ * order is specified separately from lookup and is kept by the entry array
+ * alone.  See the ⚠️ on ObjMap for why that separation is load-bearing rather
+ * than incidental, and MAP.md for what the linear scan used to cost.
  */
 typedef struct {
     Obj     obj;
@@ -133,6 +138,24 @@ typedef struct {
     MapEntry *entries;
     int32_t   count;
     int32_t   capacity;
+
+    /* Side index from key to its position in 'entries'.  Open addressing,
+     * linear probing, power-of-two size, -1 meaning empty.
+     *
+     * ⚠️ 'entries' is untouched by this and stays in INSERTION ORDER, which is
+     * specified behaviour: Keys, Values, 'for ... in' and printing all read it
+     * and only it.  Nothing iterates the index -- it is asked "where is this
+     * key?" and answers with a position, never with an order.
+     *
+     * That is not a convenience, it is what makes the index legal.  An object
+     * key hashes by its ADDRESS, so if the index ever became the iteration
+     * source, pointer values would decide the order of emitted text and
+     * fixedpoint.sh would start failing intermittently -- the worst failure
+     * mode this project has.  PLAN.md:206 exists to catch exactly that, and
+     * PLAN.md:562 records the same bug being made once already, in Java, when
+     * PascalMap was a plain HashMap. */
+    int32_t  *index;
+    int32_t   index_mask;
 } ObjMap;
 
 /* Declared here rather than beside the enum functions, because alg_iterable
@@ -460,10 +483,12 @@ Value alg_set_of(Value items) {
 Value alg_map(void) {
     ObjMap *map = arena_alloc(sizeof(ObjMap));
 
-    map->obj.type = OBJ_MAP;
-    map->entries  = NULL;
-    map->count    = 0;
-    map->capacity = 0;
+    map->obj.type  = OBJ_MAP;
+    map->entries   = NULL;
+    map->count     = 0;
+    map->capacity  = 0;
+    map->index     = NULL;
+    map->index_mask = 0;
 
     return object((Obj *)map);
 }
@@ -473,11 +498,116 @@ static ObjMap *as_map(Value v, const char *what) {
     return (ObjMap *)v.obj;
 }
 
-static int32_t map_index(ObjMap *map, Value key) {
-    for (int32_t i = 0; i < map->count; i++) {
-        if (strict_equals(map->entries[i].key, key)) return i;
+/* The index is built once a Map is worth indexing, and doubled when it fills
+ * past half.  Below MAP_INDEX_AT the linear scan is faster than computing a
+ * hash, and most Maps in the compiler are small -- a table for every two-key
+ * Map would be a pessimisation, not an optimisation. */
+#define MAP_INDEX_AT   8
+#define MAP_INDEX_SLOTS 32
+
+/* Hash agreeing with strict_equals: two keys it calls equal must land here on
+ * the same value.  FNV-1a, mixing the type in so an Integer and a Double do not
+ * systematically collide -- they are never equal, since strict_equals rejects
+ * differing types before it looks at anything else.
+ *
+ * ⚠️ A String hashes by its CONTENTS, not its pointer, because strict_equals
+ * compares them with strcmp.  Hashing the pointer would make two equal strings
+ * land in different slots and the Map would hold both. */
+static uint32_t hash_bytes(uint32_t hash, const void *data, size_t length) {
+    const unsigned char *bytes = data;
+
+    for (size_t i = 0; i < length; i++) {
+        hash ^= bytes[i];
+        hash *= 16777619u;
     }
-    return -1;
+    return hash;
+}
+
+static uint32_t hash_value(Value v) {
+    uint32_t hash = hash_bytes(2166136261u, &v.type, sizeof v.type);
+
+    switch (v.type) {
+        case VAL_NIL:    return hash;
+        case VAL_BOOL:   return hash_bytes(hash, &v.boolean, sizeof v.boolean);
+        case VAL_INT:    return hash_bytes(hash, &v.integer, sizeof v.integer);
+
+        case VAL_DOUBLE: {
+            /* ⚠️ All NaNs are one key in strict_equals, so all NaNs must be one
+             * hash -- whatever payload the bits carry.  Note that -0.0 and 0.0
+             * are DIFFERENT keys and so may hash differently; that is correct
+             * and needs no normalising. */
+            if (isnan(v.number)) return hash_bytes(hash, "NaN", 3);
+
+            return hash_bytes(hash, &v.number, sizeof v.number);
+        }
+        case VAL_STRING:
+        case VAL_CHAR:   return hash_bytes(hash, v.string, strlen(v.string));
+
+        /* By address, matching strict_equals, which compares collections and
+         * instances by identity.  Safe only because nothing iterates the index
+         * -- see the ⚠️ on ObjMap. */
+        case VAL_OBJ: {
+            void *address = v.obj;
+            return hash_bytes(hash, &address, sizeof address);
+        }
+    }
+    return hash;
+}
+
+/* Builds, or rebuilds, the index over the whole of 'entries'.
+ *
+ * Walks them in order, so the index never carries information the array does
+ * not -- rebuilding from scratch is always correct, and is the reason the two
+ * can never disagree about what the Map contains. */
+static void map_reindex(ObjMap *map, int32_t slots) {
+    /* ⚠️ The table is REUSED when the size has not changed, and that is not a
+     * micro-optimisation to undo.  Two of the three callers are growing and
+     * must allocate; the third is alg_remove, which rebuilds at the SAME size
+     * on every single removal.  Allocating there instead abandons a whole table
+     * per removed key, and the arena never gives one back -- so draining an
+     * n-entry Map cost n tables.  Measured at n = 10,000: 1,272 MB, against
+     * 8 MB with this line, and 4.7 GB at n = 20,000.
+     *
+     * ⚠️ The ⚠️ on alg_remove says the rebuild is O(n) "but the memmove above
+     * already is, so nothing regresses".  That is true of TIME and was the
+     * sentence that made the memory cost easy to miss. */
+    if (map->index == NULL || slots != map->index_mask + 1) {
+        map->index = arena_alloc((size_t)slots * sizeof(int32_t));
+    }
+    map->index_mask = slots - 1;
+
+    for (int32_t i = 0; i < slots; i++) map->index[i] = -1;
+
+    for (int32_t i = 0; i < map->count; i++) {
+        uint32_t slot = hash_value(map->entries[i].key) & (uint32_t)map->index_mask;
+
+        while (map->index[slot] != -1) slot = (slot + 1) & (uint32_t)map->index_mask;
+        map->index[slot] = i;
+    }
+}
+
+static int32_t map_index(ObjMap *map, Value key) {
+    /* One behaviour, two implementations of finding it.  A Map too small to
+     * have earned an index answers by scanning, which is what this always did. */
+    if (map->index == NULL) {
+        for (int32_t i = 0; i < map->count; i++) {
+            if (strict_equals(map->entries[i].key, key)) return i;
+        }
+        return -1;
+    }
+
+    uint32_t slot = hash_value(key) & (uint32_t)map->index_mask;
+
+    /* Terminates because the table is kept under half full, so an empty slot
+     * always exists to stop at. */
+    for (;;) {
+        int32_t at = map->index[slot];
+
+        if (at == -1) return -1;
+        if (strict_equals(map->entries[at].key, key)) return at;
+
+        slot = (slot + 1) & (uint32_t)map->index_mask;
+    }
 }
 
 static void map_put(ObjMap *map, Value key, Value item) {
@@ -500,6 +630,23 @@ static void map_put(ObjMap *map, Value key, Value item) {
     map->entries[map->count].key   = key;
     map->entries[map->count].value = item;
     map->count++;
+
+    /* Build on reaching the threshold, then double whenever the table would go
+     * half full.  Both cases rebuild from 'entries', so the new entry needs no
+     * separate insertion in them. */
+    if (map->index == NULL) {
+        if (map->count >= MAP_INDEX_AT) map_reindex(map, MAP_INDEX_SLOTS);
+        return;
+    }
+    if (map->count * 2 > map->index_mask + 1) {
+        map_reindex(map, (map->index_mask + 1) * 2);
+        return;
+    }
+
+    uint32_t slot = hash_value(key) & (uint32_t)map->index_mask;
+
+    while (map->index[slot] != -1) slot = (slot + 1) & (uint32_t)map->index_mask;
+    map->index[slot] = map->count - 1;
 }
 
 /* ------------------------------------------------------- literal building -- */
@@ -586,6 +733,18 @@ Value alg_remove(Value receiver, Value key) {
                 (size_t)(map->count - found - 1) * sizeof(MapEntry));
         map->count--;
 
+        /* ⚠️ Every stored position above 'found' has just shifted down by one,
+         * so the whole index is stale -- it must be REBUILT, not patched.  That
+         * is O(n) in TIME, and the memmove above already is, so nothing
+         * regresses there.  ⚠️ It is O(1) in MEMORY only because map_reindex
+         * reuses the table at an unchanged size; see the ⚠️ there before
+         * touching either.
+         *
+         * Patching only the removed slot is the plausible wrong version: it
+         * leaves every later key pointing one entry past itself, which reads as
+         * a Map whose values have quietly shifted rather than as a crash. */
+        if (map->index != NULL) map_reindex(map, map->index_mask + 1);
+
         return removed;
     }
     ObjSeq *seq = as_sequence(receiver, "Only a Map or a Set has 'Remove'.");
@@ -635,7 +794,17 @@ Value alg_index_of(Value receiver, Value item) {
 
 Value alg_clear(Value receiver) {
     if (is_obj(receiver, OBJ_MAP)) {
-        ((ObjMap *)receiver.obj)->count = 0;
+        ObjMap *map = (ObjMap *)receiver.obj;
+
+        map->count = 0;
+
+        /* ⚠️ The index has to go too, not just the count.  A stale index over
+         * an emptied array reports hits on entries that are no longer there,
+         * and map_index would hand back a position past the end.  One line,
+         * easy to miss, and the failure is silent. */
+        map->index      = NULL;
+        map->index_mask = 0;
+
         return alg_nil();
     }
     as_sequence(receiver, "Only a collection has 'Clear'.")->count = 0;
@@ -2109,7 +2278,26 @@ static bool equals(Value a, Value b) {
  * so 1 is not in [1.0] even though 1 = 1.0.  That is what the interpreter does --
  * '=' promotes numerically while java.util's contains and hash lookup do not --
  * and the compiler has to agree with it rather than with what is tidier.
- * ⚠️ The two ought to agree with each other; see ALGOL-24.md's Rough Edges. */
+ * ⚠️ The two ought to agree with each other; see ALGOL-24.md's Rough Edges.
+ *
+ * ⚠️ A Double compares by its BITS here, not with '=='.  Two values behave
+ * differently under the two rules, and both of them broke this:
+ *
+ *   - NaN is not equal to itself under '==', so a NaN key could be stored and
+ *     then never found again.  A hash table cannot be built over a relation
+ *     where a value is not equal to itself -- no hash function repairs that,
+ *     because the defect is in the equality, not in the hashing.
+ *   - '-0.0 == 0.0' is true, so they were one key.
+ *
+ * The interpreter has always done it this way: PascalMap is a LinkedHashMap and
+ * PascalList/PascalSet go through java.util's contains, all of which key on
+ * Double.equals -- which is doubleToLongBits, a bit comparison.  So this CLOSES
+ * a divergence rather than opening one, and it does so for Set and List too,
+ * since seq_index_of comes through here as well.
+ *
+ * ⚠️ The '=' OPERATOR is unaffected: it goes through equals(), where NaN = NaN
+ * stays false and -0.0 = 0.0 stays true, as IEEE says.  Only membership and key
+ * identity changed, which is the trade every hashed language makes. */
 static bool strict_equals(Value a, Value b) {
     if (a.type != b.type) return false;
 
@@ -2117,7 +2305,13 @@ static bool strict_equals(Value a, Value b) {
         case VAL_NIL:    return true;
         case VAL_BOOL:   return a.boolean == b.boolean;
         case VAL_INT:    return a.integer == b.integer;
-        case VAL_DOUBLE: return a.number == b.number;
+
+        /* ⚠️ All NaNs are one key, whatever their payload -- which is what
+         * doubleToLongBits does, and memcmp alone would not.  Nothing in the
+         * language can produce a non-canonical NaN today, so this is a rule
+         * being written down rather than a case being handled. */
+        case VAL_DOUBLE: return (isnan(a.number) && isnan(b.number))
+                              || memcmp(&a.number, &b.number, sizeof a.number) == 0;
         case VAL_STRING:
         case VAL_CHAR:   return strcmp(a.string, b.string) == 0;
         case VAL_OBJ:    return a.obj == b.obj;

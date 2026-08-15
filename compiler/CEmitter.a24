@@ -2409,9 +2409,18 @@ begin
            + QuoteC (Str (TheExpr.Name.Lexeme)) + ', ' + Evaluate (TheExpr.Value) + ')';
     end
 
+    /// ⚠️ Only reached when 'super.M' is used as a VALUE rather than called.
+    /// 'super.M()' is a Call over a SuperExpr and is handled in VisitCallExpr,
+    /// so it never arrives here.
+    ///
+    /// ⚠️ The wording is JPascal's, word for word.  This said '''super''' and
+    /// so produced a message no other implementation could -- the same class of
+    /// divergence as the runtime's invented 'Only instances have methods.', and
+    /// invisible for the same reason: a program that fails to compile never
+    /// reaches cgate, which only compares C that got emitted.
     function VisitSuperExpr (TheExpr : SuperExpr) : String;
     begin
-        Unsupported ('''super''');
+        Unsupported ('''super'' as a value');
     end
 
     function VisitThisExpr (TheExpr : ThisExpr) : String;

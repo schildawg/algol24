@@ -48,8 +48,20 @@ begin
     Map.Put('B', 2);
     AssertEqual(2, Map.Length);
 
-    Map.Remove('A');
+    // ⚠️ Assert what Remove ANSWERED, not only what it left behind.  A Map
+    // gives back the value removed, and nil when the key was not there -- while
+    // a Set gives back whether anything was removed.  This test called Remove
+    // and looked only at the length, which is why algc's ObjCollection could
+    // answer True here for as long as it existed without any gate noticing.
+    AssertEqual(1, Map.Remove('A'));
     AssertEqual(1, Map.Length);
+
+    AssertEqual(Nil, Map.Remove('Z'));
+    AssertEqual(1, Map.Length);
+
+    var Members := Set(['A', 'B']);
+    AssertEqual(True,  Members.Remove('A'));
+    AssertEqual(False, Members.Remove('Z'));
 end
 
 test 'Nested Literals';
@@ -425,4 +437,78 @@ begin
     except
         on E : String do AssertEqual('Can only sort numbers against numbers, or text against text.', E);
     end
+end
+
+/// Key identity and membership.
+///
+/// ⚠️ These pin a rule the two back ends disagreed about until it was written
+/// down.  Membership and Map keys compare by BITS, not with '='.  Every case
+/// below answered differently under algc and under JPascal, and no gate saw it
+/// -- a conformance suite has to think to use NaN as a key.  See MAP.md.
+
+test 'Membership Is Strict About Number Types';
+begin
+    // '=' promotes, so 1 = 1.0.  Membership does not, so they are different
+    // keys and different members.  The two deliberately disagree.
+    AssertTrue(1 = 1.0);
+
+    AssertTrue(not (1 in [1.0]));
+    AssertEqual(-1, [1.0].IndexOf(1));
+
+    var M := Map();
+    M[1] := 'int';
+    M[1.0] := 'double';
+
+    AssertEqual(2, M.Length);
+    AssertEqual('int', M[1]);
+    AssertEqual('double', M[1.0]);
+end
+
+test 'Positive And Negative Zero Are Different Keys';
+begin
+    var Negative := -0.0;
+
+    // The operator says they are equal...
+    AssertTrue(Negative = 0.0);
+
+    // ...and the Map says they are two keys, because it compares bits.
+    var M := Map();
+    M[0.0] := 'pos';
+    M[Negative] := 'neg';
+
+    AssertEqual(2, M.Length);
+    AssertEqual('pos', M[0.0]);
+    AssertEqual('neg', M[Negative]);
+end
+
+test 'NaN Can Be Stored And Found Again';
+begin
+    var Nan := 0.0 / 0.0;
+
+    // NaN is not equal to itself, which is IEEE and stays true of the operator.
+    AssertTrue(not (Nan = Nan));
+
+    // A key that could not be found once stored is what makes a hash table
+    // impossible, so membership uses bits and finds it.
+    var M := Map();
+    M[Nan] := 'nan';
+
+    AssertTrue(M.Contains(Nan));
+    AssertEqual('nan', M[Nan]);
+    AssertEqual(1, M.Length);
+end
+
+test 'A Set Holds One NaN And A List Finds It';
+begin
+    var Nan := 0.0 / 0.0;
+
+    var S := Set();
+    S.Add(Nan);
+    S.Add(Nan);
+    AssertEqual(1, S.Length);
+
+    var L := [Nan];
+    AssertTrue(L.Contains(Nan));
+    AssertEqual(0, L.IndexOf(Nan));
+    AssertTrue(Nan in L);
 end

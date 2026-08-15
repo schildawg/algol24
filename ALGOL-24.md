@@ -410,7 +410,7 @@ Untyped declarations get the type name `Any`, which disables checking for that s
 const MAX := 100;
 const Limit : Integer := 50;
 
-MAX := 5;              // Cannot assign to constant 'MAX'.
+MAX := 5;              // Can't assign to constant 'MAX'.
 ```
 
 A value is required, since there is no later opportunity to supply one. The initializer is any expression, evaluated once where the declaration runs — not restricted to literals, and not folded at compile time.
@@ -525,7 +525,7 @@ end
 
 - Superclass goes in parentheses after the name — there is no `= class(...)`.
 - Field declarations sit between the `;` and the `begin`, in a `var` section. A field may carry an initializer, which is evaluated per instance; one declared without a value starts as `nil` rather than not existing. Declared fields are applied **before** the constructor, so `Init` overrides a default rather than being overwritten by it, and inherited fields are applied before the subclass's own.
-- The constructor is named `Init` and is invoked by calling the class: `Dog('Rex')`.
+- The constructor is named `Init` and is invoked by calling the class: `Dog('Rex')`. A bare `Exit;` inside it returns the instance; **`Exit <value>` is refused** — `Can't return a value from an initializer.` — since a constructor call evaluates to the new instance and nothing else. ⚠️ JPascal accepted it until recently: the check compared against Lox's lowercase `"init"` case-sensitively, so it never matched a constructor and never fired.
 - Instantiation uses **no `new`**: `var D := Dog('Rex');`.
 - Fields are reachable unqualified inside methods; `this.X := X` disambiguates a shadowing parameter.
 - `super.Method()` calls the parent implementation.
@@ -992,7 +992,8 @@ A few members are worth spelling out:
 - **`Insert(i, v)` accepts `Length` as the index**, which appends — so a loop can fill a list without a special case for the end.
 - **`IndexOf(v)` returns `-1`** when there is no match, rather than raising, so a miss can be tested for.
 - **`Pop()` and `Peek()` on an empty `Stack` raise** `Pop from an empty Stack.` and `Peek at an empty Stack.`, which are catchable as any other runtime error is. Test `IsEmpty` first if a miss is expected.
-- **`Keys()`, `Values()` and `ToList()` return a `List`** in insertion order — the same order `for ... in` walks.
+- **`Keys()`, `Values()` and `ToList()` return a `List`** in insertion order — the same order `for ... in` walks. ⚠️ They are **methods**, so the parentheses are required: `M.Keys` without them is not a shorthand and fails, differently in each back end.
+- **A `Map` is hashed**, so `Get`, `Put` and `Contains` do not get slower as it fills. Insertion order is kept separately from lookup and is what everything reads, so this is invisible except in the time it takes. ⚠️ `Remove(k)` is the exception and is **O(n)**: it shifts the entries above the removed one so the remaining order is unchanged.
 - **`Sort()` orders numbers numerically and text lexicographically**, with a `Char` treated as a one-character `String`. Integers and Doubles order against each other. Anything else raises `Can only sort numbers against numbers, or text against text.` — it used to inherit the JVM's natural ordering and die with a raw Java `ClassCastException` on a mixed list.
 
 **Printing a collection uses the shape of its literal**, so a `List` renders as `[1, 2, 3]` and a `Map` as `[a:1, b:2]`, with elements rendered as they would be individually. This is specified rather than inherited: a `Map` used to print as `{a=1}`, which was Java's `HashMap.toString` showing through — braces and `=` are not Algol-24 syntax, and no other implementation would have produced them.
@@ -1108,6 +1109,42 @@ Run them with `--test`, which reports PASS/FAIL grouped by source file and exits
 
 ---
 
+## 9. What the C back end refuses
+
+The interpreter defines the language, so anywhere the compiler is **narrower** than the interpreter is part of the observable surface and belongs here. There are fifteen such places. Each one **names the construct, writes no output, and stops** — it never emits C that means something other than what the program said, because output comparison is the only thing verifying the back end and silence would defeat it.
+
+The message is always `<construct> is not supported by the C back end yet.`
+
+⚠️ **The two compilers report it differently.** JPascal prints `[ERROR] …` and exits **65**; `algc` raises, so the line reads `Uncaught: …` and it exits **70**. The text between is identical, and is what this table gives. Neither can produce the other's exit code — the language has no `Halt`.
+
+| Refused | When you hit it |
+|---|---|
+| `A function nested more than one level deep` | Reachable. A function inside a function inside a function. |
+| `A function declared inside a method` | Reachable. Any nested function in a class body. |
+| `Reading 'X' from a nested function` | Reachable. A bare name in a nested body that is neither a local nor a file-scope global — usually a typo, and the refusal exists so it reads as this rather than as a `cc` error about the emitter's own output. |
+| `A 'var' as an unbraced branch or loop body` | Reachable. See the ⚠️ in [Statements](#4-statements): open a `begin ... end` and it works. |
+| `A call to 'X'` | Reachable. Calling a name that is neither a builtin nor a declared function. Without it an unimplemented builtin emitted `f_X(...)` and failed at `cc` with a message about incompatible types. |
+| `'super' as a value` | Reachable. `var F := super.M;` — needs a bound method. `super.M()` compiles fine; it is a different node. |
+| `Two modules named 'X'` | Two source files with the same stem reaching one program. A file is a translation unit, so the stems have to be distinct. |
+| `A capture of 'X'` | A guard. The closure machinery lists the cells in scope where the declaration stands; this fires if one is named that does not exist. |
+| `An identifier containing 'c'` | A guard on the identifier mangler. Only `?` is legal in an Algol-24 name and illegal in C, and that is mapped to `_q`; this is the one place that would have to learn about a second such character. |
+| `A literal of type X` | A guard. A literal whose Java/Algol-24 class the emitter has no writer for. |
+| `Unary 'op'`, `Binary 'op'` | Guards. Every operator in the language is emitted; these catch one being added to the front end and not here. |
+| `A class field` | A guard. A field *declaration* reaching the expression path instead of the class-emission path. |
+| `'super' outside a class` | Unreachable — the Resolver rejects it first, with `Can't use 'super' outside a class.` |
+| `A nested 'uses'` | Unreachable — the Parser rejects it first. `uses` is only legal at the top of a file. |
+
+⚠️ **"Guard" means no program is known to reach it, not that it cannot happen.** They are the cheap half of the bargain: the alternative to a named refusal is emitted C that compiles and disagrees with the interpreter, which is the one failure this project cannot detect.
+
+The development repository's `./refuse.sh` runs a program per reachable refusal under both compilers and requires the wording to match and no output to be written. `refuse/front/` does the same for the **Resolver's** refusals — programs that are wrong in the language itself, refused whether or not anyone is compiling. It exists because nothing else could see a refusal: `cgate` compares emitted C, and a refused program emits none; `ctest` and `gate` compare a program's output, and a refused program has none. That gap is why `algc` said `'super'` where JPascal said `'super' as a value` for as long as both had existed.
+
+Two things that are **not** in this table, because they are not refusals:
+
+- **Module visibility is not checked when compiling.** The back end flattens every module into one program, so a file that reaches a name it never imported fails interpreted and compiles fine. See [Program structure](#2-program-structure).
+- **`ParamStr(0)`** is the script interpreted and the executable compiled. Neither back end can produce the other's string.
+
+---
+
 ## Rough Edges
 
 Ordered roughly by how much friction they cause.
@@ -1152,8 +1189,10 @@ does for methods.
 ### 3. Smaller inconsistencies
 
 - ~~**`Ord` parses rather than taking a character code.**~~ **Fixed.** It was Turbo Pascal's `Val` under the wrong name, and the two are now separate: `Ord` gives an ordinal and `Val` parses. ⚠️ The old note said "nothing in the corpus uses it, so it is a free change" — that was wrong twice over. Both scanners used it, and the change was forced rather than free: a compiler written in Algol-24 needs a character's code point to emit `alg_char_value(65)`, and the name for that operation was taken by its opposite. Four of the seven `cgate` programs were blocked on it.
-- **`=` and collection membership disagree about numbers.** `1 = 1.0` is true — the operator promotes an Integer to a Double before comparing — but `1 in [1.0]` is false, and a `Map` with the key `1` does not find `1.0`. Membership and key lookup compare strictly, requiring the same type. The C runtime reproduces this deliberately, because the interpreter defines the language, but the two ought to agree with each other. Fixing it means picking a side: either membership promotes (which needs numeric keys normalised, since a hash lookup cannot promote), or `=` stops promoting (which is a much bigger change).
+- **`=` and collection membership disagree about numbers.** `1 = 1.0` is true — the operator promotes an Integer to a Double before comparing — but `1 in [1.0]` is false, and a `Map` with the key `1` does not find `1.0`. Membership and key lookup compare strictly, requiring the same type. The C runtime reproduces this deliberately, because the interpreter defines the language, but the two ought to agree with each other. Fixing it means picking a side: either membership promotes (which needs numeric keys normalised, since a hash lookup cannot promote), or `=` stops promoting (which is a much bigger change). Both back ends have always agreed here; `Collections.a24` now pins it.
+
+  ⚠️ **They disagree about `NaN` and `-0.0` too, and that half is Fixed.** Membership compares a Double by its **bits**, so `NaN` is equal to itself and `-0.0` is a different key from `0.0` — while the `=` operator keeps IEEE's answers, `NaN = NaN` false and `-0.0 = 0.0` true. The C runtime used to compare with `==` in both places, which meant a `NaN` could be put into a `Map` and then never found again, a `Set` held two of them, and `-0.0` overwrote `0.0`. The interpreter never did any of that — `PascalMap` is a `LinkedHashMap` and `Double.equals` is a bit comparison — so this **closed a divergence between the back ends** rather than choosing a new rule, and it is what makes a Double hashable at all.
 - **Enum members are global**, so two enums cannot share a member name. Qualified access exists but the bare binding is what collides. Marking the `type` `private` scopes both the name and its members to one module, which narrows this to a per-file problem rather than a program-wide one.
-- **Modules have no qualified access.** `uses` scopes a file's declarations and honours `private`, but a module name is not bound to anything, so there is no `Scanner.ScanTokens` to disambiguate with when two modules want to export the same name. The remedy today is to mark one of them `private`. Deliberate for now — the obstacle is that the module name is already taken by what the module exports; see `WISHLIST.md`.
+- **Modules have no qualified access.** `uses` scopes a file's declarations and honours `private`, but a module name is not bound to anything, so there is no `Scanner.ScanTokens` to disambiguate with when two modules want to export the same name. The remedy today is to mark one of them `private`. Deliberate for now — the obstacle is that the module name is already taken by what the module exports.
 - **A private member is enforced only where the receiver has a type.** The rule is a static one, so a receiver that reduces to `Any` reaches whatever it likes. That is consistent with the rest of the type system, and it does mean visibility is a discipline the checker helps with rather than a guarantee the runtime makes. There is also no `protected`: a subclass cannot reach what its parent hid, and nothing lets it.
 - **The type checker does not know about module boundaries.** A reference to another module's private name types cleanly and fails at run time as `Undefined variable`. Correct, but later than it could be.

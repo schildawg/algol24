@@ -1,0 +1,15 @@
+/// MAXRSS: 64
+///
+/// Filling a large Map, which takes the hash index through every doubling.
+///
+/// The index doubles past half load and each rebuild abandons the previous
+/// table, so the abandoned ones must sum to about one table -- geometric, not
+/// per-insertion.  A rebuild on the wrong schedule shows up here.
+begin
+    var N := 100000;
+    var M := Map();
+
+    for var I := 0; I < N; I := I + 1 do M[I] := I * 2;
+
+    WriteLn ('size ' + Str (M.Length) + ' last ' + Str (M[N - 1]));
+end

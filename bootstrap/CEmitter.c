@@ -2868,7 +2868,7 @@ static Value m_CEmitter_VisitSuperExpr_1_SuperExpr(Value v_this, Value *args, in
     (void)v_this; (void)args; (void)count;
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
-    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_string("'super'")}, 1));
+    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_string("'super' as a value")}, 1));
     return alg_nil();
 }
 

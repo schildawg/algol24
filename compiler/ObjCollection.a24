@@ -229,16 +229,24 @@ begin
         if Name = 'Values' then Exit AsList (Pairs.Values());
         if Name = 'ToList' then Exit AsList (Items);
 
-        // Answers whether anything was there to remove, so a miss can be
-        // tested for rather than raising.
+        // A miss is answered rather than raised, so it can be tested for.
+        //
+        // ⚠️ The two kinds answer with DIFFERENT things, and this returned a
+        // Boolean for both.  A Map gives back the VALUE it removed, and nil on
+        // a miss; a sequence gives back whether there was anything to remove.
+        // JPascal and the C runtime have always agreed on that -- 'Remove(5)'
+        // on a Map of squares is 25 in both and was 'true' here.
+        //
+        // Invisible to ctest, which never runs a program under algc, and to
+        // agate, whose suites do not remove from a Map.  atest/26-maps.a24
+        // found it on the first run.
         if Name = 'Remove' then
         begin
             if Kind = 'Map' then
             begin
-                if Not Pairs.Contains (Arguments[0]) then Exit False;
+                if Not Pairs.Contains (Arguments[0]) then Exit Nil;
 
-                Pairs.Remove (Arguments[0]);
-                Exit True;
+                Exit Pairs.Remove (Arguments[0]);
             end
 
             var At := Items.IndexOf (Arguments[0]);

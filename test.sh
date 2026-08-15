@@ -9,6 +9,7 @@
 #   ./test.sh programs     # differential: interpreted output vs compiled output
 #   ./test.sh fixedpoint   # the compiler reproduces itself, byte for byte
 #   ./test.sh leaks        # compiled programs exit without leaking (macOS)
+#   ./test.sh memory       # ...and stay inside a peak-memory budget (macOS)
 #
 # ⚠️ Nothing here is checked against expected output written down by hand.  The
 # tree-walking interpreter DEFINES the language, so correctness is differential:
@@ -210,6 +211,62 @@ run_leaks() {
     record "leaks" "$bad"
 }
 
+# ------------------------------------------------------------- memory --
+run_memory() {
+    section "memory" "compiled programs stay inside their memory budget"
+    if ! /usr/bin/time -l true >/dev/null 2>&1; then
+        echo "skip  '/usr/bin/time -l' not available on this platform"
+        return
+    fi
+
+    # ⚠️ This is NOT the leaks section with a different number, and the
+    # difference is why it exists.  'leaks' asks whether memory was still
+    # reachable at exit; the arena frees every chunk it took, so a program can
+    # allocate 1.27 GB it never needed and still report "0 leaks for 0 total
+    # leaked bytes".  That happened: rebuilding a Map's hash index into a fresh
+    # table on every Remove made draining one quadratic in memory, and the leak
+    # canaries passed on the broken build.  Nothing was leaked.  Far too much
+    # was allocated.
+    #
+    # ⚠️ Budgets are LOOSE -- several times the real figure -- so this measures
+    # a change in complexity rather than a change in machine.  Every bug of this
+    # class has been orders of magnitude over.
+    local bad=0
+    for program in "$ROOT"/tests/mem/*.a24; do
+        local name dir budget bytes megabytes
+        name=$(basename "$program" .a24)
+        budget=$(sed -n 's|^/// *MAXRSS: *\([0-9][0-9]*\).*|\1|p' "$program" | head -1)
+
+        if [ -z "$budget" ]; then
+            echo "FAIL  $name -- no '/// MAXRSS: <MB>' line to check against"; bad=1; continue
+        fi
+
+        dir="$WORK/m_$name"
+        rm -rf "$dir" && mkdir -p "$dir"
+        cp "$ROOT/bootstrap/algol.c" "$ROOT/bootstrap/algol.h" "$dir"/
+
+        "$ALGC" --compile "--out=$dir" "$program" >/dev/null 2>&1
+        # shellcheck disable=SC2086
+        ( cd "$dir" && $CC -std=c11 -O2 -o run ./*.c ) 2>/dev/null
+
+        # 'maximum resident set size' is in BYTES on macOS.
+        bytes=$(/usr/bin/time -l "$dir/run" 2>&1 >/dev/null \
+                | awk '/maximum resident set size/ { print $1 }')
+
+        if [ -z "$bytes" ]; then
+            echo "FAIL  $name -- could not read peak memory"; bad=1; continue
+        fi
+
+        megabytes=$(( bytes / 1048576 ))
+        if [ "$megabytes" -gt "$budget" ]; then
+            echo "FAIL  $name -- ${megabytes} MB, over its ${budget} MB budget"; bad=1
+        else
+            echo "ok    $name -- ${megabytes} MB of ${budget} MB"
+        fi
+    done
+    record "memory" "$bad"
+}
+
 case "${1-all}" in
     unit)        run_unit ;;
     conformance) run_conformance ;;
@@ -217,8 +274,9 @@ case "${1-all}" in
     programs)    run_programs ;;
     fixedpoint)  run_fixedpoint ;;
     leaks)       run_leaks ;;
-    all)         run_unit; run_conformance; run_compiled; run_programs; run_fixedpoint; run_leaks ;;
-    *)           echo "Usage: ./test.sh [unit|conformance|compiled|programs|fixedpoint|leaks]"; exit 64 ;;
+    memory)      run_memory ;;
+    all)         run_unit; run_conformance; run_compiled; run_programs; run_fixedpoint; run_leaks; run_memory ;;
+    *)           echo "Usage: ./test.sh [unit|conformance|compiled|programs|fixedpoint|leaks|memory]"; exit 64 ;;
 esac
 
 echo

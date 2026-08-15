@@ -1,0 +1,22 @@
+/// MAXRSS: 64
+///
+/// Filling a Map and then removing every key.
+///
+/// ⚠️ This is the program that catches a Map operation allocating per call.
+/// 'Remove' rebuilds the hash index, and rebuilding it into a FRESH table
+/// instead of the one already there abandons a whole table per removed key --
+/// 1,272 MB here, against 3 MB when the table is reused.
+///
+/// ⚠️ leakcheck.sh cannot see it.  The abandoned tables live in arena chunks
+/// and the arena frees every chunk at exit, so macOS 'leaks' reports 0 leaks
+/// for 0 bytes on the broken build.  Nothing is leaked; far too much is
+/// allocated.  Those are different failures and need different instruments.
+begin
+    var N := 20000;
+    var M := Map();
+
+    for var I := 0; I < N; I := I + 1 do M[I] := I;
+    for var I := 0; I < N; I := I + 1 do M.Remove (I);
+
+    WriteLn ('left ' + Str (M.Length));
+end

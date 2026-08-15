@@ -108,7 +108,7 @@ static Value m_Resolver_VisitClassStmt_1_ClassStmt(Value v_this, Value *args, in
     (void)(alg_invoke(v_this, "Define", (Value[]){alg_property(v_Stmt, "Name")}, 1));
     if (alg_truthy((or_0 = alg_not_equal(alg_property(v_Stmt, "Superclass"), alg_nil()), !alg_truthy(or_0) ? or_0 : alg_equal(alg_property(alg_property(v_Stmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_Stmt, "Superclass"), "Name"), "Lexeme"))))) {
         {
-            alg_raise(alg_string("A class cannot inherit from itself."));
+            alg_raise(alg_string("A class can't inherit from itself."));
         }
     }
     if (alg_truthy(alg_not_equal(alg_property(v_Stmt, "Superclass"), alg_nil()))) {
@@ -276,14 +276,14 @@ static Value m_Resolver_VisitReturnStmt_1_ReturnStmt(Value v_this, Value *args, 
     (void)v_Stmt;
     if (alg_truthy(alg_equal(alg_property(v_this, "CurrentFunction"), e_FunctionType_FUN_NONE))) {
         {
-            alg_raise(alg_string("Cannot return from top-level code."));
+            alg_raise(alg_string("Can't return from top-level code."));
         }
     }
     if (alg_truthy((alg_not_equal(alg_property(v_Stmt, "Value"), alg_nil())))) {
         {
             if (alg_truthy(alg_equal(alg_property(v_this, "CurrentFunction"), e_FunctionType_FUN_INITIALIZER))) {
                 {
-                    alg_raise(alg_string("Cannot return a value from an initializer."));
+                    alg_raise(alg_string("Can't return a value from an initializer."));
                 }
             }
             (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_Stmt, "Value")}, 1));
@@ -360,7 +360,7 @@ static Value m_Resolver_VisitAssignExpr_1_AssignExpr(Value v_this, Value *args, 
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
     if (alg_truthy(alg_invoke(v_this, "IsConstant", (Value[]){alg_property(v_TheExpr, "Name")}, 1))) {
-        alg_raise(alg_add(alg_add(alg_string("Cannot assign to constant '"), alg_property(alg_property(v_TheExpr, "Name"), "Lexeme")), alg_string("'.")));
+        alg_raise(alg_add(alg_add(alg_string("Can't assign to constant '"), alg_property(alg_property(v_TheExpr, "Name"), "Lexeme")), alg_string("'.")));
     }
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_TheExpr, "Value")}, 1));
     (void)(alg_invoke(v_this, "ResolveLocal", (Value[]){v_TheExpr, alg_property(v_TheExpr, "Name")}, 2));
@@ -435,10 +435,10 @@ static Value m_Resolver_VisitSuperExpr_1_SuperExpr(Value v_this, Value *args, in
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
     if (alg_truthy(alg_equal(alg_property(v_this, "CurrentClass"), e_ClassType_CLASS_NONE))) {
-        alg_raise(alg_string("Cannot use 'super' outside of a class."));
+        alg_raise(alg_string("Can't use 'super' outside a class."));
     } else {
         if (alg_truthy(alg_not_equal(alg_property(v_this, "CurrentClass"), e_ClassType_CLASS_SUBCLASS))) {
-            alg_raise(alg_string("Cannot use 'super' in a class with no subclass."));
+            alg_raise(alg_string("Can't use 'super' in a class with no superclass."));
         }
     }
     (void)(alg_invoke(v_this, "ResolveLocal", (Value[]){v_TheExpr, alg_property(v_TheExpr, "Keyword")}, 2));
@@ -451,7 +451,7 @@ static Value m_Resolver_VisitThisExpr_1_ThisExpr(Value v_this, Value *args, int3
     (void)v_TheExpr;
     if (alg_truthy(alg_equal(alg_property(v_this, "CurrentClass"), e_ClassType_CLASS_NONE))) {
         {
-            alg_raise(alg_string("Cannot use 'this' outside of a class."));
+            alg_raise(alg_string("Can't use 'this' outside a class."));
         }
     }
     (void)(alg_invoke(v_this, "ResolveLocal", (Value[]){v_TheExpr, alg_property(v_TheExpr, "Keyword")}, 2));
@@ -533,7 +533,7 @@ static Value m_Resolver_VisitVariableExpr_1_VariableExpr(Value v_this, Value *ar
     (void)v_TheExpr;
     if (alg_truthy((or_1 = alg_not(alg_property(alg_property(v_this, "Scopes"), "IsEmpty")), !alg_truthy(or_1) ? or_1 : alg_equal(alg_invoke(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Get", (Value[]){alg_property(alg_property(v_TheExpr, "Name"), "Lexeme")}, 1), alg_bool(false))))) {
         {
-            alg_raise(alg_string("Cannot read local variable in its own initializer."));
+            alg_raise(alg_string("Can't read local variable in its own initializer."));
         }
     }
     (void)(alg_invoke(v_this, "ResolveLocal", (Value[]){v_TheExpr, alg_property(v_TheExpr, "Name")}, 2));
