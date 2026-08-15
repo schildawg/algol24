@@ -1,0 +1,85 @@
+/// A file-scope declaration shadows a builtin of the same name -- the rule a
+/// local already followed, now reaching the rest of the program.
+///
+/// ⚠️ This is the program the bug was found with.  'class Buffer' meant two
+/// different things: interpreted the declaration won, compiled 'alg_buffer()'
+/// did, and the failure read as 'Undefined property' -- pointing at the method
+/// rather than at the name, which was the expensive part.  Both emitters now
+/// consult the builtin tables LAST, after everything the program itself binds,
+/// which is the order the interpreter's environment chain always had: builtins
+/// is the outermost scope, so anything nearer is found first.
+///
+/// The negative cases matter as much as the positive ones, and each is a way
+/// the fix could be written too broadly:
+///
+///   - a NESTED function named after a builtin shadows it inside its parent
+///     and nowhere else, so the shadow set cannot be every function declared
+///     anywhere;
+///   - a collection literal never goes through the constructor at all;
+///   - a PROPERTY of the same name is not a call and must be untouched.
+
+class Buffer;
+begin
+    function Hello() : String;
+    begin
+        Exit 'the class';
+    end
+end
+
+object Stack;
+begin
+    function Hello() : String;
+    begin
+        Exit 'the object';
+    end
+end
+
+/// Shadows the builtin Length/1.  'M.Length' below is a different thing and
+/// must still be the builtin property -- it is not a call.
+function Length (X);
+begin
+    Exit 'not the builtin';
+end
+
+function Max (A, B);
+begin
+    Exit 'not the builtin either';
+end
+
+/// A top-level var holding a function, called by its own name.  Before the
+/// tables moved this emitted alg_str and called the builtin.
+var Str := Max;
+
+/// Nested, so it shadows Set() inside Wrap and nowhere else.
+function Wrap() : String;
+begin
+    function Set (V);
+    begin
+        Exit 'nested ' + V;
+    end
+    Exit Set ('Set');
+end
+
+begin
+    WriteLn (Buffer().Hello());
+    WriteLn (Stack.Hello());
+    WriteLn (Length ([1, 2, 3]));
+    WriteLn (Max (1, 2));
+    WriteLn (Str (1, 2));
+    WriteLn (Wrap());
+
+    // Out here the nested one is out of scope, so the builtin wins again.
+    var S := Set (['a', 'b']);
+    WriteLn (S.Length);
+
+    // A local still shadows, which is where the rule started.
+    var Copy := 'a local';
+    WriteLn (Copy);
+
+    // ⚠️ A literal never reaches the constructor, so it builds a real Map even
+    // where a class of that name could be declared.
+    var M := [:];
+    M['k'] := 'a real map';
+    WriteLn (M['k']);
+    WriteLn (M.Length);
+end

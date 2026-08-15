@@ -236,6 +236,17 @@ var
     /// has to say what the interpreter says.
     FileName : String := '';
 
+    /// The name this module answers to when a program qualifies against it --
+    /// the file's stem, so 'lib/ModA.a24' is the unit ModA.
+    ///
+    /// ⚠️ Worked out ONCE, by the Parser, and carried here.  It used to be
+    /// recomputed by the Resolver and the Interpreter as well, and two of those
+    /// three copies wrote the backslash case as '\\' -- which in this language
+    /// is a two-character String, not an escape, so it never equalled a Char and
+    /// those two never split on a Windows separator while the third did.  Three
+    /// copies of one rule is what that cost.
+    UnitName : String := '';
+
 begin
     constructor Init (Name : Token, Statements : List, PrivateNames : List);
     begin

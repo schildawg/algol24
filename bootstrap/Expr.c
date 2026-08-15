@@ -364,6 +364,7 @@ static Value i_GetExpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Name", alg_nil());
+    alg_set_property(v_this, "Unit", alg_string(""));
     return alg_nil();
 }
 
@@ -391,6 +392,7 @@ static Value i_SetExpr(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
+    alg_set_property(v_this, "Unit", alg_string(""));
     return alg_nil();
 }
 
@@ -567,6 +569,7 @@ void init_Expr(void) {
     k_GetExpr = alg_class("GetExpr", k_Expr);
     alg_class_field(k_GetExpr, "Obj");
     alg_class_field(k_GetExpr, "Name");
+    alg_class_field(k_GetExpr, "Unit");
     alg_class_initializer(k_GetExpr, i_GetExpr);
     alg_class_method(k_GetExpr, "Init", m_GetExpr_Init_2_Expr_Token, 2, t_GetExpr_Init_2_Expr_Token);
     alg_class_method(k_GetExpr, "Accept", m_GetExpr_Accept_1, 1, t_GetExpr_Accept_1);
@@ -574,6 +577,7 @@ void init_Expr(void) {
     alg_class_field(k_SetExpr, "Obj");
     alg_class_field(k_SetExpr, "Name");
     alg_class_field(k_SetExpr, "Value");
+    alg_class_field(k_SetExpr, "Unit");
     alg_class_initializer(k_SetExpr, i_SetExpr);
     alg_class_method(k_SetExpr, "Init", m_SetExpr_Init_3_Expr_Token_Expr, 3, t_SetExpr_Init_3_Expr_Token_Expr);
     alg_class_method(k_SetExpr, "Accept", m_SetExpr_Accept_1, 1, t_SetExpr_Accept_1);

@@ -94,12 +94,79 @@ begin
 
     /// Parses a list of statements.
     ///
+    /// Consumes an optional 'unit Name;' header and checks it against the file.
+    ///
+    /// It declares nothing and produces no statement: a unit is named by its
+    /// FILE, here as in Turbo Pascal, and the header only writes that name down
+    /// where a reader can see it.  What it buys is the check -- a file renamed
+    /// without its header, or a header copied between files, is caught here
+    /// instead of turning into a qualified name that silently reaches the wrong
+    /// unit.
+    ///
+    /// ⚠️ 'unit' is CONTEXT-SENSITIVE, matched as an identifier the way 'test'
+    /// is, and not added to the keyword table.  Keyword lookup is
+    /// case-insensitive, so promoting a common word makes every existing
+    /// identifier spelled that way a parse error -- which is what happened when
+    /// 'object' became one and cost 252 of them in a single file.
+    ///
+    procedure UnitHeader ();
+    begin
+        if not Check (TOKEN_IDENTIFIER)                  then Exit;
+        if Peek().Lexeme <> 'unit'                       then Exit;
+        if PeekNext().TypeOfToken <> TOKEN_IDENTIFIER    then Exit;
+
+        Advance();
+        var Name := Advance();
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after unit name.');
+
+        var Expected := UnitStem (FileName);
+
+        // The REPL and a scan with no file behind it have nothing to disagree
+        // with.
+        if Expected = '' or Expected = 'REPL' then Exit;
+
+        // ⚠️ Through Error, not a bare raise.  Error prints the '[ERROR] file:
+        // message' line with a caret under the offending token, which is what
+        // every other diagnostic in this parser produces and what the reference
+        // documents.  A raise alone reached the top as 'Uncaught:' with no
+        // position at all -- refuse.sh could not see the difference, because it
+        // compares the sentence and not the line around it.
+        if Expected <> Str (Name.Lexeme) then
+            raise Error (Name, 'Unit ''' + Str (Name.Lexeme)
+                             + ''' must match its file name ''' + Expected + '''.');
+    end
+
+    /// The file's stem -- the name a unit answers to.  The Resolver and the
+    /// Interpreter each work this out the same way for the same reason.
+    function UnitStem (Key : String) : String;
+    var
+        Stem : String;
+
+    begin
+        Stem := Key;
+
+        for var I := Length (Key) - 1; I >= 0; I := I - 1 do
+            if Key[I] = '/' or Key[I] = '\' then
+            begin
+                Stem := Copy (Key, I + 1, Length (Key) - I - 1);
+                I := -1;
+            end
+
+        if Length (Stem) > 4 and Copy (Stem, Length (Stem) - 4, 4) = '.a24' then
+            Exit Copy (Stem, 0, Length (Stem) - 4);
+
+        Exit Stem;
+    end
+
     function Parse () : List;
     var 
         Statements : List of Stmt;
 
     begin
         Statements := List();
+
+        UnitHeader ();
+
         while Not IsAtEnd () do
         begin
             if Match (TOKEN_USES) then
@@ -496,6 +563,7 @@ begin
         begin
             var Seen := ModuleStmt (Where, Nil, List());
             Seen.FileName := Path;
+            Seen.UnitName := UnitStem (Path);
 
             Exit Seen;
         end
@@ -514,6 +582,7 @@ begin
 
         var TheModule := ModuleStmt (Where, Result, SubParser.PrivateNames);
         TheModule.FileName := Path;
+        TheModule.UnitName := UnitStem (Path);
 
         Exit TheModule;
     end

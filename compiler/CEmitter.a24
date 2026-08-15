@@ -188,9 +188,17 @@ var
     /// 'var' there becomes a file-scope global rather than a local.
     AtTopLevel   : Boolean := False;
 
-    /// Names bound in the function being emitted, so a call to one is a call
-    /// rather than a builtin the back end has not implemented.
-    Locals       : Set;
+    /// Names bound as locals or parameters in the body being emitted, so a local
+    /// can shadow a field -- or a method, or a built-in -- of the same name.
+    ///
+    /// ⚠️ A LIST with marks, not a Set, because it is scoped per BLOCK and not
+    /// per function.  The interpreter scopes a 'var' to its block; while this
+    /// was a Set cleared only at a function boundary, a local whose block had
+    /// ended went on shadowing, and a bare call to a method of that name was
+    /// emitted as a call to the variable -- 'alg_call(v_Name, ...)' for a v_Name
+    /// nothing declares.  A List is what lets CloseScope drop only the names the
+    /// block added, leaving an outer binding of the same name in place.
+    Locals       : List;
 
     /// Every function the program declares, collected before anything is
     /// emitted so a call to one declared later still resolves.
@@ -254,6 +262,35 @@ var
     /// emission order would say the name is unreachable when it is not.
     Globals      : Set;
 
+    /// Every function declared at a file's top level, in any unit.  Shallow for
+    /// the same reason Globals is, and separate from Declared for a reason that
+    /// matters: Declared holds nested functions too, and a nested 'function Set'
+    /// is not in scope at a call site outside its parent -- so it must not
+    /// shadow Set() there, while a top-level one must.
+    TopLevel     : Set;
+
+    /// What each unit EXPORTS, by unit name -- its top-level declarations less
+    /// the ones it marked 'private'.
+    ///
+    /// ⚠️ The emitter needs this even though it flattens, and it is the one
+    /// visibility question it cannot duck.  A qualified name reaches the export
+    /// set in the interpreter, so 'ModuleHelper.Peek()' on a private Peek raises
+    /// there -- while the emitted C called f_Peek, which after 'private' became
+    /// C's own 'static' is a symbol in another translation unit and does not
+    /// link.  A build failure rather than a divergence, but the program has a
+    /// defined answer and this is where it comes from.
+    UnitExports  : Map;
+
+    /// Every top-level name each unit declares, private ones included -- what
+    /// UnitExports is before 'private' is taken out of it.  A private name still
+    /// shadows a built-in inside its own file.
+    UnitAll      : Map;
+
+    /// The names that shadow a built-in in the file being emitted: that file's
+    /// own top-level declarations plus the exports of the units it imported.
+    /// Replaced per unit.
+    ShadowNames  : Set;
+
     /// True while emitting a nested function, so a further level can be refused
     /// rather than silently losing a capture.
     InsideNested : Boolean := False;
@@ -297,7 +334,7 @@ var
 begin
     constructor Init ();
     begin
-        this.Locals := Set();
+        this.Locals := List();
         this.Declared := Set();
         this.Classes := Map();
         this.Objects := Set();
@@ -310,6 +347,10 @@ begin
         this.Cells := List();
         this.Captured := Map();
         this.Globals := Set();
+        this.TopLevel := Set();
+        this.UnitExports := Map();
+        this.UnitAll := Map();
+        this.ShadowNames := Set();
         this.Tests := List();
         this.TestFiles := List();
         this.TestSymbols := List();
@@ -630,6 +671,9 @@ begin
             if TheStmt is VarGroupStmt then
                 for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
                     Globals.Add (Str (TheStmt.Names[J].Lexeme));
+
+            if TheStmt is FunctionStmt and not IsTest (TheStmt) then
+                TopLevel.Add (Str (TheStmt.Name.Lexeme));
         end
     end
 
@@ -687,6 +731,59 @@ begin
         for var U := 0; U < Units.Length; U := U + 1 do
             CollectGlobals (Units[U].Statements);
 
+        // What each unit exports: its top-level declarations less what it marked
+        // 'private'.  Built from the EmitUnits rather than by another walk, so
+        // it cannot drift from the split that decides which C file each
+        // declaration lands in.
+        for var U := 0; U < Units.Length; U := U + 1 do
+        begin
+            // ⚠️ There IS a method called Exported on this class, and this local
+            // shadows it -- for this block and no further.  It was renamed away
+            // for a while, because Locals used to be per function: the local
+            // outlived its block and a bare 'Exported(...)' further down this
+            // same method emitted alg_call on a variable C had never heard of.
+            // The name is back because that is fixed, and because this is the
+            // code that found it.
+            var Exported := Set();
+            var Own := Units[U].Statements;
+
+            for var I := 0; I < Own.Length; I := I + 1 do
+            begin
+                var TheStmt := Own[I];
+
+                if TheStmt is FunctionStmt and not IsTest (TheStmt) then
+                    Exported.Add (Str (TheStmt.Name.Lexeme));
+
+                if TheStmt is ClassStmt  then Exported.Add (Str (TheStmt.Name.Lexeme));
+                if TheStmt is ObjectStmt then Exported.Add (Str (TheStmt.Name.Lexeme));
+                if TheStmt is VarStmt    then Exported.Add (Str (TheStmt.Name.Lexeme));
+
+                if TheStmt is EnumStmt then
+                begin
+                    Exported.Add (Str (TheStmt.Name.Lexeme));
+
+                    for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                        Exported.Add (Str (TheStmt.Members[J].Lexeme));
+                end
+
+                if TheStmt is VarGroupStmt then
+                    for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                        Exported.Add (Str (TheStmt.Names[J].Lexeme));
+            end
+
+            var Everything := Set();
+            for var I := 0; I < Exported.ToList().Length; I := I + 1 do
+                Everything.Add (Exported.ToList()[I]);
+
+            UnitAll.Put (Str (Units[U].Name), Everything);
+
+            var Hidden := Units[U].PrivateNames;
+            for var I := 0; I < Hidden.Length; I := I + 1 do
+                Exported.Remove (Str (Hidden[I]));
+
+            UnitExports.Put (Str (Units[U].Name), Exported);
+        end
+
         for var U := 0; U < Units.Length; U := U + 1 do
         begin
             var Unit := Units[U];
@@ -712,6 +809,35 @@ begin
             PrivateNames := Unit.PrivateNames;
             RootUnit := IsMain;
             CurrentFile := Str (Unit.FileName);
+
+            // ⚠️ The names that shadow a built-in HERE, which is a per-file
+            // question and was briefly answered program-wide.  A file sees its
+            // own top-level declarations -- private ones included, since
+            // 'private' hides a name from other files and not from its own --
+            // plus what the units it imported export.  Nothing else.
+            //
+            // Program-wide, a top-level 'function Length' in any one file
+            // suppressed the built-in in EVERY file, so a module that never
+            // imported it emitted a call to a symbol it cannot see and the C did
+            // not compile.  That is strictly worse than the bug it came from: a
+            // silent wrong answer in the importing file became a build failure
+            // in a file with nothing to do with it.
+            ShadowNames := Set();
+
+            if UnitAll.Contains (Str (Unit.Name)) then
+            begin
+                var Own := (UnitAll.Get (Str (Unit.Name)) as Set).ToList();
+                for var I := 0; I < Own.Length; I := I + 1 do
+                    ShadowNames.Add (Own[I]);
+            end
+
+            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
+                if UnitExports.Contains (Str (Unit.Imports[I])) then
+                begin
+                    var Seen := (UnitExports.Get (Str (Unit.Imports[I])) as Set).ToList();
+                    for var J := 0; J < Seen.Length; J := J + 1 do
+                        ShadowNames.Add (Seen[J]);
+                end
 
             for var I := 0; I < Unit.Statements.Length; I := I + 1 do
             begin
@@ -992,7 +1118,7 @@ begin
         Boxed := BoxesFor (TheStmt.Body);
         Captured := Map();
         Cells := List();
-        Locals := Set();
+        Locals := List();
 
         var EnclosingTryDepth := TryDepth;
         var EnclosingLoopTry := LoopTryDepth;
@@ -1287,14 +1413,19 @@ begin
     /// A C scope opens and closes: every cell declared inside one goes out of
     /// scope with it, and may not appear in a capture list written afterwards.
     ///
-    function OpenScope () : Integer;
+    /// Where a C scope began: the cells and the locals in scope at the time.
+    /// Two numbers rather than one, so a block drops the locals it added as well
+    /// as the cells.
+    ///
+    function OpenScope () : List;
     begin
-        Exit Cells.Length;
+        Exit [Cells.Length, Locals.Length];
     end
 
-    procedure CloseScope (Mark : Integer);
+    procedure CloseScope (Mark : List);
     begin
-        while Cells.Length > Mark do Cells.RemoveAt (Cells.Length - 1);
+        while Cells.Length > Mark[0] do Cells.RemoveAt (Cells.Length - 1);
+        while Locals.Length > Mark[1] do Locals.RemoveAt (Locals.Length - 1);
     end
 
     /// Declares a cell for a boxed binding, and records that it is in scope.
@@ -1466,7 +1597,7 @@ begin
     ///
     procedure EmitMethod (Owner : String, TheMethod : Any);
     var
-        EnclosingLocals : Set;
+        EnclosingLocals : List;
         EnclosingTop    : Boolean;
         EnclosingDepth  : Integer;
         Opening         : String;
@@ -1476,7 +1607,7 @@ begin
         EnclosingTop := AtTopLevel;
         EnclosingDepth := Depth;
 
-        Locals := Set();
+        Locals := List();
         AtTopLevel := False;
 
         var EnclosingTarget := Target;
@@ -1821,7 +1952,7 @@ begin
     ///
     procedure VisitFunctionStmt (TheStmt : FunctionStmt);
     var
-        EnclosingLocals : Set;
+        EnclosingLocals : List;
         EnclosingTop    : Boolean;
         EnclosingDepth  : Integer;
 
@@ -1856,7 +1987,7 @@ begin
         var EnclosingCells := Cells;
         var EnclosingNested := InsideNested;
 
-        Locals := Set();
+        Locals := List();
 
         if Nested then
         begin
@@ -2198,6 +2329,82 @@ begin
         Exit '(Value[]){' + Joined + '}, ' + Str (Arguments.Length);
     end
 
+    /// The constructors.  Set takes either nothing or a List, which is how a
+    /// set literal is spelled, so it is the one with two forms.
+    ///
+    /// ⚠️ A function rather than an inline chain because 'System.Map()' has to
+    /// reach the same table by a second route.  Two copies would be a table that
+    /// could disagree with itself about what a constructor is.
+    ///
+    function ConstructorFor (Name : String, Arguments : List, Joined : String) : String;
+    begin
+        if Name = 'List'  and Arguments.Length = 0 then Exit 'alg_list()';
+        if Name = 'Map'   and Arguments.Length = 0 then Exit 'alg_map()';
+        if Name = 'Stack' and Arguments.Length = 0 then Exit 'alg_stack()';
+        if Name = 'Set'   and Arguments.Length = 0 then Exit 'alg_set()';
+        if Name = 'Set'   and Arguments.Length = 1 then Exit 'alg_set_of(' + Joined + ')';
+        if Name = 'Array' and Arguments.Length = 1 then Exit 'alg_array(' + Joined + ')';
+
+        // Its methods need nothing here: Assign, Reset and the rest go
+        // through alg_invoke, and Eof through alg_property.
+        if Name = 'TextFile' and Arguments.Length = 0 then Exit 'alg_text_file()';
+
+        // Both forms reach ONE runtime entry point, unlike Set: Buffer()
+        // is Buffer(0), since the argument means the same thing in each.
+        // Append, Free and the rest arrive through alg_invoke, and Text
+        // through alg_property.
+        if Name = 'Buffer' and Arguments.Length = 0 then Exit 'alg_buffer(alg_int(0))';
+        if Name = 'Buffer' and Arguments.Length = 1 then Exit 'alg_buffer(' + Joined + ')';
+
+        Exit '';
+    end
+
+    /// A call written through a unit -- 'System.Copy(S, 0, 3)'.
+    ///
+    /// ⚠️ System is the built-ins and nothing else, so it goes STRAIGHT to the
+    /// tables, skipping the shadow check a bare name gets.  That is the whole
+    /// point of writing it: the program has taken the bare name over, and this
+    /// is the way back to what it took.
+    ///
+    /// Any other unit is an ordinary name in the flattened program -- the C back
+    /// end still emits with no notion of who may see what -- so it resolves as a
+    /// bare call would, minus the tables, since a unit cannot export a built-in.
+    ///
+    function UnitCall (Unit : String, Name : String, Arguments : List, Joined : String) : String;
+    begin
+        // ⚠️ Not exported -- 'private', or simply not there.  The interpreter
+        // answers this at RUN time, because a unit's exports are a set it looks
+        // in, so the error is catchable and a program may rely on catching it.
+        // Refusing here instead would make the same program uncompilable, so the
+        // emitter reproduces the interpreter's message rather than its own.
+        if UnitExports.Contains (Unit) and not (UnitExports.Get (Unit) as Set).Contains (Name) then
+            Exit '(alg_error(' + QuoteC ('Undefined name ''' + Name + ''' in unit '''
+                                       + Unit + '''.') + '), alg_nil())';
+
+        if Unit = 'System' then
+        begin
+            var TheBuiltin := Builtin (Name, Arguments.Length);
+            if TheBuiltin <> '' then Exit TheBuiltin + '(' + Joined + ')';
+
+            var TheConstructor := ConstructorFor (Name, Arguments, Joined);
+            if TheConstructor <> '' then Exit TheConstructor;
+
+            Unsupported ('A call to ''' + Unit + '.' + Name + '''');
+        end
+
+        if Classes.Contains (Name) then
+            Exit 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+
+        if Declared.Contains (Name) then
+            Exit FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
+
+        if Globals.Contains (Name) then
+            Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+
+        Unsupported ('A call to ''' + Unit + '.' + Name + '''');
+        Exit '';
+    end
+
     function VisitCall (TheExpr : CallExpr) : String;
     var
         Arguments : List;
@@ -2223,6 +2430,27 @@ begin
             Exit 'alg_invoke_from(' + ClassHandle (CurrentClass) + ', v_this, '
                + QuoteC (Str (TheExpr.Callee.Method.Lexeme)) + ', '
                + ArgumentArray (Emitted) + ')';
+        end
+
+        if TheExpr.Callee is GetExpr and TheExpr.Callee.Unit <> '' then
+        begin
+            var Emitted := List();
+            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+
+            var Text := '';
+            for var I := 0; I < Emitted.Length; I := I + 1 do
+            begin
+                if I > 0 then Text := Text + ', ';
+
+                Text := Text + Str (Emitted[I]);
+            end
+
+            // ⚠️ A unit qualifier, not a receiver.  The Resolver decided this,
+            // and the left of the dot is not a value at all -- evaluating it
+            // would emit a read of a variable that does not exist.
+            Exit UnitCall (Str (TheExpr.Callee.Unit), Str (TheExpr.Callee.Name.Lexeme),
+                           Emitted, Text);
         end
 
         if TheExpr.Callee is GetExpr then
@@ -2270,33 +2498,34 @@ begin
         if Locals.Contains (Name) or Captured.Contains (Name) or Boxed.Contains (Name) then
             Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
 
-        if not Locals.Contains (Name) then
+        // ⚠️ A FILE-SCOPE declaration shadows a builtin too, by exactly the same
+        // rule.  builtins is the outermost environment and every module's
+        // encloses it, so any name the program itself binds is found first --
+        // which makes the tables below the LAST thing consulted, not the first.
+        //
+        // While they came first, 'class Buffer' meant two different things:
+        // interpreted the declaration won, compiled 'alg_buffer()' did, and the
+        // program died on 'Undefined property' pointing at the method rather
+        // than at the name.  The same held for a top-level function named 'Max'
+        // and for every other builtin and constructor name.
+        //
+        // ⚠️ Declared is NOT the right set here -- it holds every function
+        // declared anywhere, including nested ones that are out of scope at the
+        // call site.  A nested 'function Set' would then shadow Set() across the
+        // whole file, which the interpreter does not do.  TopLevel is the
+        // shallow set, collected the same way Globals is.
+        var Shadowed := ShadowNames.Contains (Name);
+
+        if not Shadowed then
         begin
             var TheBuiltin := Builtin (Name, Arguments.Length);
             if TheBuiltin <> '' then Exit TheBuiltin + '(' + Joined + ')';
         end
 
-        // Constructors.  Set takes either nothing or a List, which is how a
-        // set literal is spelled, so it is the one with two forms.
-        if not Locals.Contains (Name) then
+        if not Shadowed then
         begin
-            if Name = 'List'  and Arguments.Length = 0 then Exit 'alg_list()';
-            if Name = 'Map'   and Arguments.Length = 0 then Exit 'alg_map()';
-            if Name = 'Stack' and Arguments.Length = 0 then Exit 'alg_stack()';
-            if Name = 'Set'   and Arguments.Length = 0 then Exit 'alg_set()';
-            if Name = 'Set'   and Arguments.Length = 1 then Exit 'alg_set_of(' + Joined + ')';
-            if Name = 'Array' and Arguments.Length = 1 then Exit 'alg_array(' + Joined + ')';
-
-            // Its methods need nothing here: Assign, Reset and the rest go
-            // through alg_invoke, and Eof through alg_property.
-            if Name = 'TextFile' and Arguments.Length = 0 then Exit 'alg_text_file()';
-
-            // Both forms reach ONE runtime entry point, unlike Set: Buffer()
-            // is Buffer(0), since the argument means the same thing in each.
-            // Append, Free and the rest arrive through alg_invoke, and Text
-            // through alg_property.
-            if Name = 'Buffer' and Arguments.Length = 0 then Exit 'alg_buffer(alg_int(0))';
-            if Name = 'Buffer' and Arguments.Length = 1 then Exit 'alg_buffer(' + Joined + ')';
+            var TheConstructor := ConstructorFor (Name, Arguments, Joined);
+            if TheConstructor <> '' then Exit TheConstructor;
         end
 
         if Classes.Contains (Name) then
@@ -2312,6 +2541,12 @@ begin
 
         if Declared.Contains (Name) then
             Exit FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
+
+        // A file-scope 'var' holding a function, called by its name.  Reached
+        // only now that a global shadows a builtin: before that, 'var Str' then
+        // 'Str(1)' emitted alg_str and called the builtin instead.
+        if Globals.Contains (Name) then
+            Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
 
         Unsupported ('A call to ''' + Name + '''');
     end
@@ -2397,14 +2632,64 @@ begin
     /// Reached only for a property: a method CALL arrives as a Call whose
     /// callee is this Get, and is handled there.
     ///
+    /// A unit-qualified name READ rather than called -- 'Vals.Answer'.
+    ///
+    /// ⚠️ System has none of these.  A built-in is a C function and the back end
+    /// has no closure to stand for one, so 'System.Max' as a value is refused
+    /// where 'System.Max(1, 2)' is fine.  The interpreter can hand back the
+    /// native, which is a divergence and a deliberate one: emitting a wrapper
+    /// per built-in to close it would cost the whole table for a form nothing
+    /// writes.
+    ///
+    /// Any other unit is an ordinary name in the flattened program, so this is
+    /// exactly what a bare reference to it emits.
+    ///
+    function UnitValue (Unit : String, Name : String) : String;
+    begin
+        if UnitExports.Contains (Unit) and not (UnitExports.Get (Unit) as Set).Contains (Name) then
+            Exit '(alg_error(' + QuoteC ('Undefined name ''' + Name + ''' in unit '''
+                                       + Unit + '''.') + '), alg_nil())';
+
+        if Unit = 'System' then Unsupported ('''' + Unit + '.' + Name + ''' as a value');
+
+        if EnumMembers.Contains (Name) then Exit Str (EnumMembers.Get (Name));
+        if EnumTypes.Contains (Name)   then Exit EnumTypeName (Name);
+        if Objects.Contains (Name)     then Exit 'alg_singleton(' + ClassHandle (Name) + ')';
+        if Classes.Contains (Name)     then Exit ClassHandle (Name);
+        if Declared.Contains (Name)    then Exit HandleName (Name);
+        if Globals.Contains (Name)     then Exit VariableName (Name);
+
+        Unsupported ('''' + Unit + '.' + Name + ''' as a value');
+        Exit '';
+    end
+
     function VisitGetExpr (TheExpr : GetExpr) : String;
     begin
+        if TheExpr.Unit <> '' then
+            Exit UnitValue (Str (TheExpr.Unit), Str (TheExpr.Name.Lexeme));
+
         Exit 'alg_property(' + Evaluate (TheExpr.Obj) + ', '
            + QuoteC (Str (TheExpr.Name.Lexeme)) + ')';
     end
 
     function VisitSetExpr (TheExpr : SetExpr) : String;
     begin
+        if TheExpr.Unit <> '' then
+        begin
+            var Written := Evaluate (TheExpr.Value);
+            var Unit := Str (TheExpr.Unit);
+            var Name := Str (TheExpr.Name.Lexeme);
+
+            if UnitExports.Contains (Unit) and not (UnitExports.Get (Unit) as Set).Contains (Name) then
+                Exit '(alg_error(' + QuoteC ('Undefined name ''' + Name + ''' in unit '''
+                                           + Unit + '''.') + '), alg_nil())';
+
+            if Unit <> 'System' and Globals.Contains (Name) then
+                Exit '(' + VariableName (Name) + ' = ' + Written + ')';
+
+            Unsupported ('An assignment to ''' + Unit + '.' + Name + '''');
+        end
+
         Exit 'alg_set_property(' + Evaluate (TheExpr.Obj) + ', '
            + QuoteC (Str (TheExpr.Name.Lexeme)) + ', ' + Evaluate (TheExpr.Value) + ')';
     end

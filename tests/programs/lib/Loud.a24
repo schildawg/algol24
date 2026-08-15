@@ -1,0 +1,14 @@
+unit Loud;
+
+/// EXPORTED, and it takes the built-in name over in every file that imports
+/// this unit -- which is what makes the per-file rule observable from outside.
+function Str (X) : String;
+begin
+    Exit 'loud';
+end
+
+/// The shadow seen from inside the file that declares it.
+function Own() : String;
+begin
+    Exit Str (1);
+end

@@ -367,7 +367,75 @@ Two modules may each declare a private `Peek` without colliding — that is the 
 
 A module keeps its own environment for the life of the run, and an import is a **link** to it rather than a copy. So a module variable is a single binding wherever it is reached from: a function inside the module and code in three files that import it all read and write the same one.
 
-⚠️ Both privacy and visibility are enforced **at run time**, by the environment chain — reaching a private name, or one from a module this file never imported, reports `Undefined variable` at the point of use. The type checker does not know about module boundaries, so it will not flag either earlier, and the C back end flattens every module into one file and so cannot see them at all. A program that violates visibility is caught interpreted and not compiled; that gap closes when the check moves into the Resolver. ⚠️ There is no qualified access: `Scanner.ScanTokens` does not work, and a module name is not itself bound to anything.
+⚠️ Both privacy and visibility are enforced **at run time**, by the environment chain — reaching a private name, or one from a module this file never imported, reports `Undefined variable` at the point of use. The type checker does not know about module boundaries, so it will not flag either earlier, and the C back end flattens every module into one file and so cannot see them at all. A program that violates visibility is caught interpreted and not compiled; that gap closes when the check moves into the Resolver.
+
+### Units and qualified names
+
+**Every file is a unit, and a unit is named by its file.** `Scanner.a24` is the unit `Scanner`, and a name it exports can be written `Scanner.ScanTokens()` as well as bare. Nothing declares this and nothing needs to: the name is the file's stem, so `uses 'lib/ModA';` gives the unit `ModA`.
+
+**`System` is the unit the built-ins live in.** It is in scope in every file, is imported by nobody, and is the only way back to a name the program has [shadowed](#7-built-ins):
+
+```pascal
+function Max (A, B) : String;    // takes the name over for the whole file
+begin
+    Exit 'mine';
+end
+
+begin
+    WriteLn (Max (1, 2));           // mine
+    WriteLn (System.Max (1, 2));    // 2
+end
+```
+
+A qualified name is an ordinary expression: call it, pass it, or read a unit's `var` through it.
+
+#### Which one is it?
+
+`A.B` is three tokens whether `A` is a value or a unit, so the question is decided by scope, in the same nearest-binding-first order every other name follows:
+
+1. a **local** or a parameter;
+2. a top-level name that **can answer a dot** — an `object`, an enum type, or a file-scope `var`/`const`;
+3. a **unit**.
+
+Steps 1 and 2 are what the language already did, so nothing that worked before changes meaning; a unit only ever claims a slot that used to be an error.
+
+**This is why a unit and its own primary class do not collide.** A bare class name has no member access at all — `Thing.Get()` is `Only instances have properties.` — so `class Scanner` inside `Scanner.a24` leaves the dotted form free:
+
+```pascal
+Scanner            // the class
+Scanner.Scanner    // the same class, through its unit
+Scanner.Advance    // a free function in the unit
+```
+
+That is the ordinary shape rather than a curiosity: eighteen of the twenty-two units the compiler is written in are a file whose primary class shares its name.
+
+#### `unit Name;`
+
+A file may open with a header naming itself:
+
+```pascal
+unit Shapes;    // must be the first thing in Shapes.a24
+```
+
+It declares nothing, and qualification works without it. What it buys is a **check**: a file renamed without its header, or a header copied between files, is reported rather than quietly changing which unit a qualified name reaches.
+
+```
+[ERROR] Shapes.a24: Unit 'Shape' must match its file name 'Shapes'.
+```
+
+`unit` is context-sensitive, like `test` — it is not a keyword and does not stop anything else being called `unit`.
+
+#### What it does not do, and where it bites
+
+- **`private` is respected.** Qualification reaches a unit's *exports*, so it is not a way around visibility. A private or absent name raises `Undefined name 'Peek' in unit 'ModuleHelper'.`, which is catchable like any runtime error, and the compiled program raises the same thing.
+- **Qualification is as non-transitive as `uses`.** A file may qualify only the units it imported itself, never the units *those* imported.
+- **A unit's `var` can be written through it** — `Vals.Answer := 9` — and reaches the same single binding a bare assignment would. `System` is refused: `Can't assign to 'Max' in unit 'System'.`
+- ⚠️ **An `object` or enum type named after its own unit wins, and takes qualification of that unit with it.** `Console.a24` declaring `object Console` means `Console.Write` is the singleton's method — which is what it always was — and nothing in that unit can be qualified. Two of the compiler's own units are shaped this way. The hazard is adding such a declaration *later*: qualified calls that worked then quietly become member lookups on the object, and only fail if it has no member of that name.
+- ⚠️ **That check is program-wide, not per file.** An `object Console` anywhere stops *every* file qualifying a unit called `Console`. The over-approximation is deliberate and one-directional: it can only decline to qualify, never change what a name already meant.
+- **A unit whose stem is not an identifier cannot be qualified**, and needs no rule to say so — `18-frames.X` is not something you can write.
+- ⚠️ **Two files with the same stem in one program** — `algc/Scanner.a24` and `ctest/Lox/Scanner.a24` — resolve their bare names correctly, but the qualified name reaches whichever was imported last. Nothing in the corpus does this.
+- ⚠️ **`System.X` as a value is refused by the C back end** — `var F := System.Max;` compiles interpreted and is `'System.Max' as a value` compiled. A built-in is a C function with no closure to stand for it. Qualified *calls* are fine, and so is a user unit's function taken as a value.
+- ⚠️ **A built-in the C back end has not implemented is refused at compile time through `System`**, where the bare name is a run-time `Undefined variable`. That is the same asymmetry every unimplemented built-in already has.
 
 ---
 
@@ -958,6 +1026,33 @@ Generic element types are recognized in exactly one position, `List of T`, and a
 
 Every public static method of `nativefunction/NativeFunctions.java` is registered as a global under its exact Java name, so this list is the source of truth. Same-named methods become overloads, selected by argument count.
 
+**A built-in is an ordinary binding in the outermost scope, so anything you declare shadows it.** `class Buffer`, `function Max`, a top-level `var Str`, a local `var Set` — each takes the name over for as far as its own scope reaches, and the built-in is simply not found first. Nothing is reserved: these are names, not keywords, and the only names Algol-24 keeps for itself are the [keywords](#keywords).
+
+**A local is scoped to its block**, so a name released at `end` goes back to meaning whatever it meant outside — a field, a method, or a built-in. Two sibling blocks may each bind it without either outliving its own.
+
+⚠️ **A file-scope shadow reaches exactly one file, plus whoever imports it.** A top-level `function Length` takes the name over in its own file and in nothing else — a module that file imports goes on calling the built-in, because a module sees its own declarations, its own imports' exports, and the built-ins, and never the declarations of a file that merely imported *it*. Shadowing follows `uses`, in other words, like every other name.
+
+Shadowing is scoped like any other binding, which is worth stating because the two halves are easy to conflate:
+
+```pascal
+function Wrap();
+begin
+    function Set (V);            // shadows Set() inside Wrap
+    begin
+        Exit 'nested ' + V;
+    end
+    Exit Set ('x');              // 'nested x'
+end
+
+begin
+    var S := Set (['a', 'b']);   // out here the built-in is found again
+end
+```
+
+To reach a built-in you have shadowed, qualify it: `System.WriteLn(x)` is the built-in however thoroughly the bare name has been taken over. `System` is the unit the built-ins live in — see [Units and qualified names](#units-and-qualified-names).
+
+⚠️ **A collection literal never goes through the constructor**, so `[1, 2]` and `[:]` build a real `List` and `Map` whatever names are in scope. Only the constructor *call* — `List()`, `Map()` — is shadowable.
+
 **I/O** — `WriteLn(x)`, `Write(x)`, `ReadLn(prompt)`, `ClearScreen()`, `Screen()`
 
 **Files** — `TextFile()`, `FileExists(name)`, `ParamCount()`, `ParamStr(i)` — see [Files](#files)
@@ -1111,7 +1206,7 @@ Run them with `--test`, which reports PASS/FAIL grouped by source file and exits
 
 ## 9. What the C back end refuses
 
-The interpreter defines the language, so anywhere the compiler is **narrower** than the interpreter is part of the observable surface and belongs here. There are fifteen such places. Each one **names the construct, writes no output, and stops** — it never emits C that means something other than what the program said, because output comparison is the only thing verifying the back end and silence would defeat it.
+The interpreter defines the language, so anywhere the compiler is **narrower** than the interpreter is part of the observable surface and belongs here. There are seventeen such places. Each one **names the construct, writes no output, and stops** — it never emits C that means something other than what the program said, because output comparison is the only thing verifying the back end and silence would defeat it.
 
 The message is always `<construct> is not supported by the C back end yet.`
 
@@ -1123,8 +1218,9 @@ The message is always `<construct> is not supported by the C back end yet.`
 | `A function declared inside a method` | Reachable. Any nested function in a class body. |
 | `Reading 'X' from a nested function` | Reachable. A bare name in a nested body that is neither a local nor a file-scope global — usually a typo, and the refusal exists so it reads as this rather than as a `cc` error about the emitter's own output. |
 | `A 'var' as an unbraced branch or loop body` | Reachable. See the ⚠️ in [Statements](#4-statements): open a `begin ... end` and it works. |
-| `A call to 'X'` | Reachable. Calling a name that is neither a builtin nor a declared function. Without it an unimplemented builtin emitted `f_X(...)` and failed at `cc` with a message about incompatible types. |
+| `A call to 'X'` | Reachable. Calling a name that is neither a builtin nor a declared function. Without it an unimplemented builtin emitted `f_X(...)` and failed at `cc` with a message about incompatible types. `X` may be qualified — `A call to 'System.Nope'` — where the interpreter would have raised at run time instead. |
 | `'super' as a value` | Reachable. `var F := super.M;` — needs a bound method. `super.M()` compiles fine; it is a different node. |
+| `'System.X' as a value` | Reachable. `var F := System.Max;` — a built-in is a C function with no closure to stand for it. `System.Max(1, 2)` compiles fine, and a *user* unit's function taken as a value does too. See [Units](#units-and-qualified-names). |
 | `Two modules named 'X'` | Two source files with the same stem reaching one program. A file is a translation unit, so the stems have to be distinct. |
 | `A capture of 'X'` | A guard. The closure machinery lists the cells in scope where the declaration stands; this fires if one is named that does not exist. |
 | `An identifier containing 'c'` | A guard on the identifier mangler. Only `?` is legal in an Algol-24 name and illegal in C, and that is mapped to `_q`; this is the one place that would have to learn about a second such character. |
@@ -1133,6 +1229,7 @@ The message is always `<construct> is not supported by the C back end yet.`
 | `A class field` | A guard. A field *declaration* reaching the expression path instead of the class-emission path. |
 | `'super' outside a class` | Unreachable — the Resolver rejects it first, with `Can't use 'super' outside a class.` |
 | `A nested 'uses'` | Unreachable — the Parser rejects it first. `uses` is only legal at the top of a file. |
+| `An assignment to 'Unit.X'` | Reachable. `Unit.X := V` where X is not a file-scope `var` of that unit — a function or a class, which is not a place to write. Assigning to a unit's `var` compiles; `System.X := V` is refused here and is `Can't assign to 'X' in unit 'System'.` interpreted. |
 
 ⚠️ **"Guard" means no program is known to reach it, not that it cannot happen.** They are the cheap half of the bargain: the alternative to a named refusal is emitted C that compiles and disagrees with the interpreter, which is the one failure this project cannot detect.
 

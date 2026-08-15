@@ -50,3 +50,36 @@ begin
     // imports resolve at all.
     AssertEqual(1, HelperPeek());
 end
+
+test 'A Name Can Be Reached Through Its Unit';
+begin
+    // A unit is named by its FILE, so this is the same function the bare name
+    // reaches -- qualification says where to look and nothing else.
+    AssertEqual(1, ModuleHelper.HelperPeek());
+    AssertEqual(HelperPeek(), ModuleHelper.HelperPeek());
+    AssertEqual(2, ModuleHelper2.Helper2Peek());
+end
+
+test 'Qualification Respects Private';
+begin
+    // 'Peek' is private in both helpers.  A unit qualifier is not a way around
+    // that: it reaches the export set, which is what 'private' removes a name
+    // from.
+    try
+        ModuleHelper.Peek();
+        Fail('reached a private name through its unit');
+    except
+        on E : String do AssertEqual('Undefined name ''Peek'' in unit ''ModuleHelper''.', E);
+    end
+end
+
+test 'System Reaches A Built-in The Program Has Shadowed';
+begin
+    // Nothing here shadows anything, so this only pins that the unit exists and
+    // means the built-ins.  The shadowed case is checked end to end by the
+    // differential programs, which run a file that takes 'Max' over and reach
+    // past it from the same file and from another one.
+    AssertEqual(4, System.Length('abcd'));
+    AssertEqual(9, System.Max(3, 9));
+    AssertEqual('bcd', System.Copy('abcdef', 1, 3));
+end

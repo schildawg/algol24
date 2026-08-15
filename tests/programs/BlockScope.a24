@@ -1,0 +1,100 @@
+/// A local is scoped to its BLOCK, and the C back end has to agree.
+///
+/// ⚠️ The emitters keep the set of names in scope so a local can shadow a field,
+/// a method or a built-in.  That set used to be cleared only at a function
+/// boundary, so a local whose block had already ended went on shadowing for the
+/// rest of the C function -- and a bare call to a method of that name was
+/// emitted as a call to the variable, 'alg_call(v_Name, ...)' for a v_Name
+/// nothing declared.  It failed at 'cc' rather than silently, which is the one
+/// merciful part; the interpreter had always given the method.
+///
+/// It surfaced because the compiler is written in this language and tripped
+/// over itself: a 'var Exported' inside a loop in CEmitter.a24, which has a
+/// method of that name.
+
+class Thing;
+var
+    Field : String := 'the field';
+
+begin
+    function Name() : String;
+    begin
+        Exit 'the method';
+    end
+
+    /// The method, reached after a local of that name has gone out of scope.
+    function AfterBlock() : String;
+    begin
+        for var I := 0; I < 1; I := I + 1 do
+        begin
+            var Name := 'the local';
+
+            if Name <> 'the local' then Exit 'wrong inside';
+        end
+
+        Exit Name();
+    end
+
+    /// The local, while it is still in scope, must win.
+    function Inside() : String;
+    begin
+        var Name := 'the local';
+
+        Exit Name;
+    end
+
+    /// A field, shadowed by a local in a block and visible again after it.
+    function FieldAfterBlock() : String;
+    begin
+        begin
+            var Field := 'a shadow';
+
+            if Field <> 'a shadow' then Exit 'wrong inside';
+        end
+
+        Exit Field;
+    end
+end
+
+/// A built-in, shadowed inside a block and reachable again after it.
+function BuiltinAfterBlock() : String;
+begin
+    begin
+        var Length := 'a shadow';
+
+        if Length <> 'a shadow' then Exit 'wrong inside';
+    end
+
+    Exit Str (Length ('abcd'));
+end
+
+/// Two sibling blocks may each bind the same name without either outliving its
+/// own block.
+function Siblings() : String;
+begin
+    var Out := '';
+
+    begin
+        var Name := 'first';
+
+        Out := Out + Name;
+    end
+
+    begin
+        var Name := 'second';
+
+        Out := Out + '-' + Name;
+    end
+
+    Exit Out;
+end
+
+begin
+    var T := Thing();
+
+    WriteLn (T.AfterBlock());
+    WriteLn (T.Inside());
+    WriteLn (T.FieldAfterBlock());
+    WriteLn (BuiltinAfterBlock());
+    WriteLn (Siblings());
+end

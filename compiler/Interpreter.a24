@@ -585,6 +585,18 @@ var
     /// environment, which is what keeps a mutable export a single binding.
     Modules : Map;
 
+    /// The same environments, keyed by the name a 'uses' clause spelled, so a
+    /// qualified 'Scanner.ScanTokens' can find one.  Separate from Modules
+    /// because that is keyed by resolved PATH -- two files may be imported under
+    /// one name, and the path is what decides identity.
+    ///
+    /// ⚠️ Last one wins on a name clash, which is reachable only by importing
+    /// two different files of the same name into one program: 'algc/Scanner.a24'
+    /// and 'ctest/Lox/Scanner.a24' would be such a pair, and nothing in the
+    /// corpus does it.  Qualification is the only thing affected; the bare names
+    /// keep resolving through the import links as they always have.
+    UnitsByName : Map;
+
 begin
     constructor Init ();
     begin
@@ -593,6 +605,7 @@ begin
         this.Globals.Enclosing := Builtins;
         this.Locals := Map();
         this.Modules := Map();
+        this.UnitsByName := Map();
 
         this.Env := Globals;
         
@@ -1126,11 +1139,74 @@ begin
     // 
     // Raises an error if attempting to get a property on a non-instance.
     //    
+    /// Writes a name through its unit.
+    ///
+    /// ⚠️ System is refused rather than written.  Its names are the natives, and
+    /// a program that could rebind one would be changing what every other file
+    /// means by it -- the opposite of what qualification is for.
+    ///
+    procedure AssignQualified (Unit : String, Name : Token, Value : Any);
+    var
+        ModuleEnv : Environment;
+
+    begin
+        if Unit = 'System' then
+            raise 'Can''t assign to ''' + Str (Name.Lexeme) + ''' in unit ''System''.';
+
+        if not UnitsByName.Contains (Unit) then
+            raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
+
+        ModuleEnv := UnitsByName.Get (Unit) as Environment;
+
+        if ModuleEnv.Exports = Nil or not ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
+            raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
+
+        ModuleEnv.Values.Put (Str (Name.Lexeme), Value);
+    end
+
+    /// A name reached through a unit.
+    ///
+    /// ⚠️ Only what the unit EXPORTS, which is what makes qualification respect
+    /// 'private' rather than route around it.  'System' exports everything: the
+    /// built-ins are the whole of it, and none of them is private.
+    ///
+    function Qualified (Unit : String, Name : Token) : Any;
+    var
+        ModuleEnv : Environment;
+
+    begin
+        if Unit = 'System' then
+        begin
+            if not Builtins.Values.Contains (Str (Name.Lexeme)) then
+                raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''System''.';
+
+            Exit Builtins.Values.Get (Str (Name.Lexeme));
+        end
+
+        // Nothing can reach here with an unknown unit -- the Resolver only marks
+        // a name it found in the unit set -- but a module that failed to load
+        // would leave the map without it.
+        if not UnitsByName.Contains (Unit) then
+            raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
+
+        ModuleEnv := UnitsByName.Get (Unit) as Environment;
+
+        if ModuleEnv.Exports = Nil or not ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
+            raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
+
+        Exit ModuleEnv.Values.Get (Str (Name.Lexeme));
+    end
+
     function VisitGetExpr (TheExpr : GetExpr) : Any;
     var
        Obj : Any;
 
     begin
+        // A unit qualifier, decided by the Resolver.  It is not a value and is
+        // never evaluated -- 'System' names no variable, and neither does a unit
+        // whose file declares no class of its own name.
+        if TheExpr.Unit <> '' then Exit Qualified (TheExpr.Unit, TheExpr.Name);
+
         Obj := Evaluate (TheExpr.Obj);
 
         // An enum type is dotted into as well as an instance: Colour.Red.
@@ -1160,6 +1236,18 @@ begin
        Value  : Any;
 
     begin
+        // A write through a unit reaches the module's own binding, which is the
+        // qualified spelling of what a bare assignment already does: a module
+        // keeps its environment for the run and an exported var is one binding
+        // however many files touch it.
+        if TheExpr.Unit <> '' then
+        begin
+            Value := Evaluate (TheExpr.Value);
+            AssignQualified (Str (TheExpr.Unit), TheExpr.Name, Value);
+
+            Exit Value;
+        end
+
         Obj := Evaluate (TheExpr.Obj);
 
         if not (Obj is ObjInstance) then
@@ -1654,6 +1742,7 @@ begin
         if Modules.Contains (TheStmt.FileName) then
         begin
             Importer.Imports.Add (Modules.Get (TheStmt.FileName));
+            UnitsByName.Put (Str (TheStmt.UnitName), Modules.Get (TheStmt.FileName));
             Exit;
         end
 
@@ -1708,6 +1797,7 @@ begin
             ModuleEnv.Exports.Add (Exported[I]);
 
         Importer.Imports.Add (ModuleEnv);
+        UnitsByName.Put (Str (TheStmt.UnitName), ModuleEnv);
     end
 
     /// Runs 'raise Expr;'.

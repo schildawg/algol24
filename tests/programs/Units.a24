@@ -1,0 +1,105 @@
+/// Units: qualifying a name by the file it came from, and reaching a built-in
+/// the program has shadowed.
+///
+/// The rule under test is one sentence: in 'A.B', A is a unit only when it is
+/// not already bound to something that could answer a dot.  That is the same
+/// nearest-binding-first order every other name follows, with units as the
+/// outermost ring -- so nothing that worked before changes meaning, and
+/// qualification only ever claims a slot that used to be an error.
+///
+/// ⚠️ 'System' is the built-ins and is in scope everywhere without being
+/// imported.  It is the ONLY way back to a name the program has taken over:
+/// shadow 'WriteLn' at file scope and the file cannot print, unless it says
+/// System.WriteLn.
+
+uses 'lib/Shapes';
+
+/// Takes the built-in name over for the whole file.
+function Max (A, B) : String;
+begin
+    Exit 'the shadow';
+end
+
+function Length (X) : String;
+begin
+    Exit 'also the shadow';
+end
+
+class Buffer;
+begin
+    function Hello() : String;
+    begin
+        Exit 'the class';
+    end
+end
+
+begin
+    // -- the shadows win, as they have since the tables moved --------------
+    WriteLn (Max (1, 2));
+    WriteLn (Length ('abcd'));
+    WriteLn (Buffer().Hello());
+
+    // -- System reaches past every one of them -----------------------------
+    WriteLn (System.Max (1, 2));
+    WriteLn (System.Length ('abcd'));
+
+    var B := System.Buffer();
+    B.Append ('bytes');
+    WriteLn (B.Text);
+
+    // A constructor and a plain function through the unit, and a call whose
+    // result is used as an argument, so the qualified form is an expression
+    // like any other.
+    WriteLn (System.Copy ('abcdef', 1, 3));
+    WriteLn (System.Str (System.Max (10, 20)));
+    System.WriteLn ('printed through the unit');
+
+    var L := System.List();
+    L.Add (1);
+    L.Add (2);
+    WriteLn (L);
+
+    // -- a user unit -------------------------------------------------------
+    //
+    // Bare names keep meaning exactly what they meant: the class, the free
+    // function, the other class.
+    WriteLn (Shapes().Name());
+    WriteLn (Describe());
+    WriteLn (Circle(2).Area());
+
+    // ...and the same three reached through the unit that holds them.  The
+    // unit and its primary class share a name and do not collide, because only
+    // one of them can appear to the left of a dot.
+    WriteLn (Shapes.Shapes().Name());
+    WriteLn (Shapes.Describe());
+    WriteLn (Shapes.Circle(3).Area());
+
+    // -- a qualified name READ rather than called ---------------------------
+    //
+    // A unit's var, and one of its functions taken as a value and called
+    // afterwards.  Both are a different path in the emitter from a qualified
+    // call, and neither existed until a program asked for it.
+    WriteLn (Shapes.Sides);
+
+    var Area := Shapes.Circle;
+    WriteLn (Area(4).Area());
+
+    var Describer := Shapes.Describe;
+    WriteLn (Describer());
+
+    // -- a local outranks the unit ------------------------------------------
+    //
+    // ⚠️ Declared AFTER the qualified calls above, which is the point: this is
+    // ordinary scoping, so the same three tokens mean the unit before the
+    // declaration and the local after it.
+    var Shapes := [10, 20, 30];
+    WriteLn (Shapes.Length);
+    WriteLn (Shapes.IndexOf (20));
+
+    // -- and so does a local named System ------------------------------------
+    //
+    // Nothing is reserved.  'System' is a name like any other and a nearer
+    // binding takes it, which costs that block its way back to the built-ins.
+    var System := ['reached':'the local'];
+    WriteLn (System['reached']);
+end

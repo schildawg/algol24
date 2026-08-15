@@ -98,6 +98,18 @@ var
     /// Class name to the list of members a 'private:' section covered.
     PrivateMembers : Map := [:];
 
+    /// The built-ins' return types, kept apart from Lookup and never written to
+    /// again.
+    ///
+    /// ⚠️ A user declaration of the same name OVERWRITES the entry in Lookup --
+    /// which is right, since the bare name now means the declaration -- and it is
+    /// exactly why 'System.Max' cannot read its type from there.  A file
+    /// declaring 'function Max : String' made 'var N : Integer := System.Max(1, 2)'
+    /// a type mismatch, while the call itself was correctly the built-in in both
+    /// back ends.  Qualification says where to LOOK, so the type has to come from
+    /// the same place the value does.
+    BuiltinTypes : Map := [:];
+
 begin
     constructor Init ();
     begin
@@ -141,6 +153,10 @@ begin
         Lookup.SetType ('Buffer::GetInt',  'Integer');
 
         // The builtins, so a call to one reduces to something better than ''.
+        //
+        // ⚠️ Registered TWICE on purpose: into Lookup, where a user declaration
+        // may later overwrite the entry, and into BuiltinTypes, which nothing
+        // writes to again.  'System.X' reads the second.
         Lookup.SetType ('Length', 'Integer');
         Lookup.SetType ('Pos',    'Integer');
         Lookup.SetType ('Copy',   'String');
@@ -172,6 +188,12 @@ begin
         Lookup.SetType ('Mod',  'Integer');
 
         Lookup.SetType ('clock',  'Double');
+
+        for var Name in ['Length', 'Pos', 'Copy', 'Str', 'Array', 'List', 'Map',
+                         'Set', 'Stack', 'Buffer', 'TextFile', 'FileExists',
+                         'ParamCount', 'ParamStr', 'Write', 'WriteLn', 'Ord',
+                         'Val', 'Char', 'Max', 'Mod', 'clock'] do
+            BuiltinTypes.Put (Name, Lookup.GetType (Name));
     end
 
     /// The class that hid this member, walking UP from the given type, or ''
@@ -537,15 +559,38 @@ begin
         // end of the chain silently, which is only harmless by accident.
         if Kind = 'BreakStmt' then Exit;
 
-        // Checked in place, with no scope of its own -- the same reason the
-        // Resolver pushes none.
+        // ⚠️ A module's body is checked in a scope of its OWN, opening with the
+        // built-in types restored.  The first pass maps every file's
+        // declarations into one lookup, so a top-level 'function Length : String'
+        // in the importing file overwrote the built-in's entry for the whole
+        // program -- and a module that never imported it, calling the real
+        // Length, was rejected as a type mismatch.
+        //
+        // Reasserting the built-ins here and then re-mapping the module's own
+        // statements on top gives each file the chain it actually has: built-ins
+        // underneath, its own declarations and its own imports over them, and
+        // nothing from a file that merely imported IT.
+        //
+        // This does not make the checker module-aware in general -- two modules'
+        // declarations still share the outer scope, and a name from a file this
+        // one never imported still resolves.  It closes the case that rejects
+        // correct programs.
         if Kind = 'ModuleStmt' then
         begin
             if TheStmt.Statements = Nil then Exit;
 
+            Lookup.BeginScope();
+
+            for var Name in BuiltinTypes do
+                Lookup.SetType (Name, Str (BuiltinTypes.Get (Name)));
+
+            for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
+                MapType (TheStmt.Statements[I]);
+
             for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
                 Check (TheStmt.Statements[I]);
 
+            Lookup.EndScope();
             Exit;
         end
 
@@ -607,6 +652,18 @@ begin
         // and was found while building per-class visibility.
         for var I := 0; I < TheFunction.Params.Length; I := I + 1 do
             Lookup.SetType (TheFunction.Params[I].Lexeme, Str (TheFunction.ParamTypes[I]));
+
+        // ⚠️ A NESTED declaration shadows the name outside it, and that
+        // includes a builtin's registered return type.  Without this a
+        // 'function Set' declared in a body left every call to it reducing to
+        // the BUILTIN's 'Set', so returning its result from a function declared
+        // ': String' was a mismatch here and accepted by JPascal -- a front-end
+        // divergence, which is the kind no output comparison can see because
+        // the program never runs.
+        for var I := 0; I < TheFunction.Body.Length; I := I + 1 do
+            if ClassNameOf (TheFunction.Body[I]) = 'FunctionStmt' then
+                Lookup.SetType (TheFunction.Body[I].Name.Lexeme,
+                                TheFunction.Body[I].ReturnType);
 
         for var I := 0; I < TheFunction.Body.Length; I := I + 1 do
             Check (TheFunction.Body[I]);
@@ -686,6 +743,24 @@ begin
 
         if Kind = 'GetExpr' then
         begin
+            // A unit-qualified name is the name itself -- 'System.Copy' has the
+            // type 'Copy' has, since qualification only says where to look.
+            // There is no receiver here and so no class whose 'private:'
+            // sections could be violated; a unit's own visibility is the export
+            // set, which the Interpreter checks.
+            // ⚠️ System reads the BUILT-IN table, not Lookup: a program that
+            // declares its own Max has overwritten Lookup's entry, and that
+            // declaration is precisely what this form is written to reach past.
+            if TheExpr.Unit = 'System' then
+            begin
+                if BuiltinTypes.Contains (Str (TheExpr.Name.Lexeme)) then
+                    Exit Str (BuiltinTypes.Get (Str (TheExpr.Name.Lexeme)));
+
+                Exit '';
+            end
+
+            if TheExpr.Unit <> '' then Exit Lookup.GetType (Str (TheExpr.Name.Lexeme));
+
             CheckVisibility (TheExpr.Obj, TheExpr.Name);
 
             var Owner := TypeOfReceiver (TheExpr.Obj);
@@ -696,6 +771,10 @@ begin
 
         if Kind = 'SetExpr' then
         begin
+            // A unit qualifier is not a value; there is no class here whose
+            // 'private:' sections could be violated.
+            if TheExpr.Unit <> '' then Exit Reduce (TheExpr.Value);
+
             CheckVisibility (TheExpr.Obj, TheExpr.Name);
 
             var Owner  := TypeOfReceiver (TheExpr.Obj);

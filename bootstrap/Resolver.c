@@ -19,7 +19,10 @@ Value e_ClassType_CLASS_SUBCLASS;
 Value k_Resolver;
 static Value or_0;
 static Value or_1;
+static Value or_2;
 static const char *t_Resolver_Init_1_Interpreter[] = { "Interpreter" };
+static const char *t_Resolver_CollectDottable_1_List[] = { "List" };
+static const char *t_Resolver_IsUnitQualifier_1[] = { "Any" };
 static const char *t_Resolver_VisitBlockStmt_1_BlockStmt[] = { "BlockStmt" };
 static const char *t_Resolver_VisitClassStmt_1_ClassStmt[] = { "ClassStmt" };
 static const char *t_Resolver_VisitObjectStmt_1_ObjectStmt[] = { "ObjectStmt" };
@@ -70,6 +73,9 @@ static Value i_Resolver(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "GlobalConstants", alg_nil());
     alg_set_property(v_this, "CurrentFunction", alg_nil());
     alg_set_property(v_this, "CurrentClass", alg_nil());
+    alg_set_property(v_this, "Units", alg_nil());
+    alg_set_property(v_this, "Dottable", alg_nil());
+    alg_set_property(v_this, "Collected", alg_bool(false));
     return alg_nil();
 }
 
@@ -83,6 +89,84 @@ static Value m_Resolver_Init_1_Interpreter(Value v_this, Value *args, int32_t co
     (void)(alg_set_property(v_this, "GlobalConstants", alg_map()));
     (void)(alg_set_property(v_this, "CurrentFunction", e_FunctionType_FUN_NONE));
     (void)(alg_set_property(v_this, "CurrentClass", e_ClassType_CLASS_NONE));
+    (void)(alg_set_property(v_this, "Units", alg_set()));
+    (void)(alg_invoke(alg_property(v_this, "Units"), "Add", (Value[]){alg_string("System")}, 1));
+    (void)(alg_set_property(v_this, "Dottable", alg_set()));
+    return alg_nil();
+}
+
+static Value m_Resolver_CollectDottable_1_List(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Statements = args[0];
+    (void)v_Statements;
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+            {
+                {
+                    Value v_TheStmt = alg_subscript_get(v_Statements, v_I);
+                    (void)v_TheStmt;
+                    if (alg_truthy(alg_is(v_TheStmt, "ObjectStmt"))) {
+                        (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 1));
+                    }
+                    if (alg_truthy(alg_is(v_TheStmt, "EnumStmt"))) {
+                        (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 1));
+                    }
+                    if (alg_truthy(alg_is(v_TheStmt, "VarStmt"))) {
+                        (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 1));
+                    }
+                    if (alg_truthy(alg_is(v_TheStmt, "VarGroupStmt"))) {
+                        {
+                            Value v_J = alg_int(0);
+                            (void)v_J;
+                            while (alg_truthy(alg_less(v_J, alg_property(alg_property(v_TheStmt, "Names"), "Length")))) {
+                                {
+                                    (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Names"), v_J), "Lexeme"))}, 1));
+                                    (void)((v_J = alg_add(v_J, alg_int(1))));
+                                }
+                            }
+                        }
+                    }
+                    if (alg_truthy((or_0 = alg_is(v_TheStmt, "ModuleStmt"), !alg_truthy(or_0) ? or_0 : alg_not_equal(alg_property(v_TheStmt, "Statements"), alg_nil())))) {
+                        (void)(alg_invoke(v_this, "CollectDottable", (Value[]){alg_property(v_TheStmt, "Statements")}, 1));
+                    }
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    return alg_nil();
+}
+
+static Value m_Resolver_IsUnitQualifier_1(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Obj = args[0];
+    (void)v_Obj;
+    if (alg_truthy(alg_not((alg_is(v_Obj, "VariableExpr"))))) {
+        return alg_bool(false);
+    }
+    Value v_Name = alg_str(alg_property(alg_property(v_Obj, "Name"), "Lexeme"));
+    (void)v_Name;
+    if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Units"), "Contains", (Value[]){v_Name}, 1)))) {
+        return alg_bool(false);
+    }
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Dottable"), "Contains", (Value[]){v_Name}, 1))) {
+        return alg_bool(false);
+    }
+    {
+        Value v_I = alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1));
+        (void)v_I;
+        while (alg_truthy(alg_greater_equal(v_I, alg_int(0)))) {
+            {
+                if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_I), "Contains", (Value[]){v_Name}, 1))) {
+                    return alg_bool(false);
+                }
+                (void)((v_I = alg_subtract(v_I, alg_int(1))));
+            }
+        }
+    }
+    return alg_bool(true);
     return alg_nil();
 }
 
@@ -106,7 +190,7 @@ static Value m_Resolver_VisitClassStmt_1_ClassStmt(Value v_this, Value *args, in
     (void)(alg_set_property(v_this, "CurrentClass", e_ClassType_CLASS_CLASS));
     (void)(alg_invoke(v_this, "Declare", (Value[]){alg_property(v_Stmt, "Name")}, 1));
     (void)(alg_invoke(v_this, "Define", (Value[]){alg_property(v_Stmt, "Name")}, 1));
-    if (alg_truthy((or_0 = alg_not_equal(alg_property(v_Stmt, "Superclass"), alg_nil()), !alg_truthy(or_0) ? or_0 : alg_equal(alg_property(alg_property(v_Stmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_Stmt, "Superclass"), "Name"), "Lexeme"))))) {
+    if (alg_truthy((or_1 = alg_not_equal(alg_property(v_Stmt, "Superclass"), alg_nil()), !alg_truthy(or_1) ? or_1 : alg_equal(alg_property(alg_property(v_Stmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_Stmt, "Superclass"), "Name"), "Lexeme"))))) {
         {
             alg_raise(alg_string("A class can't inherit from itself."));
         }
@@ -227,10 +311,20 @@ static Value m_Resolver_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *args, 
     (void)v_this; (void)args; (void)count;
     Value v_Stmt = args[0];
     (void)v_Stmt;
+    Value v_Enclosing = alg_nil();
+    (void)v_Enclosing;
     if (alg_truthy(alg_equal(alg_property(v_Stmt, "Statements"), alg_nil()))) {
-        return alg_nil();
+        {
+            (void)(alg_invoke(alg_property(v_this, "Units"), "Add", (Value[]){alg_str(alg_property(v_Stmt, "UnitName"))}, 1));
+            return alg_nil();
+        }
     }
+    (void)((v_Enclosing = alg_property(v_this, "Units")));
+    (void)(alg_set_property(v_this, "Units", alg_set()));
+    (void)(alg_invoke(alg_property(v_this, "Units"), "Add", (Value[]){alg_string("System")}, 1));
     (void)(alg_invoke(v_this, "ResolveAll", (Value[]){alg_property(v_Stmt, "Statements")}, 1));
+    (void)(alg_set_property(v_this, "Units", v_Enclosing));
+    (void)(alg_invoke(alg_property(v_this, "Units"), "Add", (Value[]){alg_str(alg_property(v_Stmt, "UnitName"))}, 1));
     return alg_nil();
 }
 
@@ -417,6 +511,12 @@ static Value m_Resolver_VisitGetExpr_1_GetExpr(Value v_this, Value *args, int32_
     (void)v_this; (void)args; (void)count;
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
+    if (alg_truthy(alg_invoke(v_this, "IsUnitQualifier", (Value[]){alg_property(v_TheExpr, "Obj")}, 1))) {
+        {
+            (void)(alg_set_property(v_TheExpr, "Unit", alg_str(alg_property(alg_property(alg_property(v_TheExpr, "Obj"), "Name"), "Lexeme"))));
+            return alg_nil();
+        }
+    }
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_TheExpr, "Obj")}, 1));
     return alg_nil();
 }
@@ -425,6 +525,13 @@ static Value m_Resolver_VisitSetExpr_1_SetExpr(Value v_this, Value *args, int32_
     (void)v_this; (void)args; (void)count;
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
+    if (alg_truthy(alg_invoke(v_this, "IsUnitQualifier", (Value[]){alg_property(v_TheExpr, "Obj")}, 1))) {
+        {
+            (void)(alg_set_property(v_TheExpr, "Unit", alg_str(alg_property(alg_property(alg_property(v_TheExpr, "Obj"), "Name"), "Lexeme"))));
+            (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_TheExpr, "Value")}, 1));
+            return alg_nil();
+        }
+    }
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_TheExpr, "Value")}, 1));
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_TheExpr, "Obj")}, 1));
     return alg_nil();
@@ -531,7 +638,7 @@ static Value m_Resolver_VisitVariableExpr_1_VariableExpr(Value v_this, Value *ar
     (void)v_this; (void)args; (void)count;
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
-    if (alg_truthy((or_1 = alg_not(alg_property(alg_property(v_this, "Scopes"), "IsEmpty")), !alg_truthy(or_1) ? or_1 : alg_equal(alg_invoke(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Get", (Value[]){alg_property(alg_property(v_TheExpr, "Name"), "Lexeme")}, 1), alg_bool(false))))) {
+    if (alg_truthy((or_2 = alg_not(alg_property(alg_property(v_this, "Scopes"), "IsEmpty")), !alg_truthy(or_2) ? or_2 : alg_equal(alg_invoke(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Get", (Value[]){alg_property(alg_property(v_TheExpr, "Name"), "Lexeme")}, 1), alg_bool(false))))) {
         {
             alg_raise(alg_string("Can't read local variable in its own initializer."));
         }
@@ -544,6 +651,12 @@ static Value m_Resolver_ResolveAll_1_List(Value v_this, Value *args, int32_t cou
     (void)v_this; (void)args; (void)count;
     Value v_Statements = args[0];
     (void)v_Statements;
+    if (alg_truthy(alg_not(alg_property(v_this, "Collected")))) {
+        {
+            (void)(alg_set_property(v_this, "Collected", alg_bool(true)));
+            (void)(alg_invoke(v_this, "CollectDottable", (Value[]){v_Statements}, 1));
+        }
+    }
     {
         Value v_I = alg_int(0);
         (void)v_I;
@@ -729,8 +842,13 @@ void init_Resolver(void) {
     alg_class_field(k_Resolver, "GlobalConstants");
     alg_class_field(k_Resolver, "CurrentFunction");
     alg_class_field(k_Resolver, "CurrentClass");
+    alg_class_field(k_Resolver, "Units");
+    alg_class_field(k_Resolver, "Dottable");
+    alg_class_field(k_Resolver, "Collected");
     alg_class_initializer(k_Resolver, i_Resolver);
     alg_class_method(k_Resolver, "Init", m_Resolver_Init_1_Interpreter, 1, t_Resolver_Init_1_Interpreter);
+    alg_class_method(k_Resolver, "CollectDottable", m_Resolver_CollectDottable_1_List, 1, t_Resolver_CollectDottable_1_List);
+    alg_class_method(k_Resolver, "IsUnitQualifier", m_Resolver_IsUnitQualifier_1, 1, t_Resolver_IsUnitQualifier_1);
     alg_class_method(k_Resolver, "VisitBlockStmt", m_Resolver_VisitBlockStmt_1_BlockStmt, 1, t_Resolver_VisitBlockStmt_1_BlockStmt);
     alg_class_method(k_Resolver, "VisitClassStmt", m_Resolver_VisitClassStmt_1_ClassStmt, 1, t_Resolver_VisitClassStmt_1_ClassStmt);
     alg_class_method(k_Resolver, "VisitObjectStmt", m_Resolver_VisitObjectStmt_1_ObjectStmt, 1, t_Resolver_VisitObjectStmt_1_ObjectStmt);

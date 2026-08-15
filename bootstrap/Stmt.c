@@ -276,6 +276,7 @@ static Value i_ModuleStmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Statements", alg_nil());
     alg_set_property(v_this, "PrivateNames", alg_nil());
     alg_set_property(v_this, "FileName", alg_string(""));
+    alg_set_property(v_this, "UnitName", alg_string(""));
     return alg_nil();
 }
 
@@ -612,6 +613,7 @@ void init_Stmt(void) {
     alg_class_field(k_ModuleStmt, "Statements");
     alg_class_field(k_ModuleStmt, "PrivateNames");
     alg_class_field(k_ModuleStmt, "FileName");
+    alg_class_field(k_ModuleStmt, "UnitName");
     alg_class_initializer(k_ModuleStmt, i_ModuleStmt);
     alg_class_method(k_ModuleStmt, "Init", m_ModuleStmt_Init_3_Token_List_List, 3, t_ModuleStmt_Init_3_Token_List_List);
     alg_class_method(k_ModuleStmt, "Accept", m_ModuleStmt_Accept_1, 1, t_ModuleStmt_Accept_1);

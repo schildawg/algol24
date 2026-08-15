@@ -211,7 +211,7 @@ end
 Anything can be raised. Handlers respect the class hierarchy and the **most
 derived** one wins, whatever order they are written in.
 
-### Modules
+### Modules and units
 
 ```pascal
 uses Scanner;         // loads ./Scanner.a24
@@ -224,6 +224,38 @@ files import it. The dependency graph may contain cycles, which real ones do.
 
 In the compiled output each source file becomes its own C file and header, and
 `private` becomes C's `static`.
+
+**Every file is also a unit, named by its file**, so an exported name can be
+written either way:
+
+```pascal
+Scanner.ScanTokens()   // the same function the bare name reaches
+```
+
+A file may open with `unit Scanner;` to say so. It declares nothing and
+qualification works without it — what it buys is a check that the name and the
+file still agree.
+
+**`System` is the unit the built-ins live in.** It is in scope everywhere and is
+what makes built-in names shadowable without being lost:
+
+```pascal
+function Max (A, B) : String;   // takes the name over for this file
+begin
+    Exit 'mine';
+end
+
+begin
+    WriteLn (Max (1, 2));          // mine
+    WriteLn (System.Max (1, 2));   // 2
+end
+```
+
+Which one a dot means is ordinary scoping — a local, then an `object` or enum
+type of that name, then the unit. A bare class name has never had member access,
+so `class Scanner` inside `Scanner.a24` costs nothing: `Scanner` is the class and
+`Scanner.Scanner` is that class through its unit. Qualification reaches a unit's
+*exports*, so it is not a way around `private`.
 
 ### Tests
 

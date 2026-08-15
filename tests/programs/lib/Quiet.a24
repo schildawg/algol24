@@ -1,0 +1,20 @@
+unit Quiet;
+
+/// ⚠️ This unit imports nothing and declares nothing of its own that could
+/// shadow a built-in, so every name below is the built-in -- whatever the file
+/// that imports THIS one has declared, and whatever some third file exports.
+///
+/// That is the whole point of the program that uses it.  A shadow set built
+/// program-wide rather than per file made a top-level 'function Length'
+/// anywhere suppress the built-in here, and the emitted C then called a symbol
+/// this translation unit cannot see.
+
+function Measure (Text) : Integer;
+begin
+    Exit Length (Text);
+end
+
+function Plain() : String;
+begin
+    Exit Str (7);
+end

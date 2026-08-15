@@ -1,0 +1,45 @@
+/// Shadowing is per FILE, and this is the only program that can show it.
+///
+/// ⚠️ Every other test of shadowing puts the declaration and the use of the
+/// shadowed name in ONE file, which is the case the rule gets right by
+/// accident. Three files are the smallest arrangement that tells the per-file
+/// rule apart from a program-wide one:
+///
+///   - this file declares 'Length' and imports both units;
+///   - lib/Loud EXPORTS a 'Str', so this file inherits that shadow;
+///   - lib/Quiet imports nothing, so every name in it is the built-in.
+///
+/// A program-wide shadow set passes lines 1 and 3 and fails 2 and 5 -- and
+/// fails them at 'cc' rather than in the output, because the C calls a static
+/// belonging to another translation unit.
+
+uses 'lib/Loud';
+uses 'lib/Quiet';
+
+/// Declared here, at the top level of the root file.
+function Length (X) : String;
+begin
+    Exit 'root shadow';
+end
+
+begin
+    // 1. The file's own declaration wins in the file that made it.
+    WriteLn (Length ('abcd'));
+
+    // 2. A unit this file imports does NOT see that declaration.
+    WriteLn (Quiet.Measure ('abcd'));
+    WriteLn (Measure ('abcd'));
+
+    // 3. A shadow a unit EXPORTS does reach the file that imported it.
+    WriteLn (Str (1));
+
+    // 4. ...and is what the exporting unit sees itself.
+    WriteLn (Loud.Own());
+
+    // 5. But it does not reach a unit that never imported it.
+    WriteLn (Quiet.Plain());
+
+    // 6. System reaches past every one of them.
+    WriteLn (System.Length ('abcd'));
+    WriteLn (System.Str (1));
+end

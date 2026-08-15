@@ -31,7 +31,31 @@ var
 
    CurrentFunction : FunctionType;
    CurrentClass    : ClassType;
-   
+
+   /// The units this file may qualify against.  'System' is in every file's --
+   /// it is the built-ins, and no file imports it.  A 'uses' adds the file it
+   /// named, and only to the importer: the set is saved and replaced around a
+   /// module's own statements, which is what keeps qualification as
+   /// non-transitive as the import it follows.
+   Units    : Set;
+
+   /// Every top-level name that could answer a dot, program-wide: an object, an
+   /// enum type, a file-scope var or const.  These OUTRANK a unit of the same
+   /// name, because they mean something today and a unit qualifier would
+   /// silently take it over.
+   ///
+   /// ⚠️ Classes and functions are deliberately absent.  Neither can answer a
+   /// dot -- 'Thing.Get()' on a bare class is 'Only instances have properties.'
+   /// in every version of this language -- so the syntactic slot is free, and
+   /// that is what lets 'Scanner.ScanTokens()' work in a file whose unit and
+   /// primary class share the name.  Seventeen of algc's twenty-two units are
+   /// exactly that shape.
+   Dottable : Set;
+
+   /// Set once the pre-pass has run, since ResolveAll is both the entry point
+   /// and the recursive step.
+   Collected : Boolean := False;
+
 begin
     /// Creates a Resolver.
     //
@@ -43,6 +67,67 @@ begin
         this.GlobalConstants := Map();
         this.CurrentFunction := FUN_NONE;
         this.CurrentClass := CLASS_NONE;
+        this.Units := Set();
+        this.Units.Add ('System');
+        this.Dottable := Set();
+    end
+
+    /// Fills Dottable before anything is resolved.  A pre-pass rather than a
+    /// running tally, for the reason CEmitter collects its globals up front: a
+    /// function declared above an object still reaches it, so a set filled in
+    /// resolution order would let a unit win where the object should.
+    ///
+    /// Program-wide rather than per file, which over-approximates across module
+    /// boundaries -- an 'object Console' in one file stops another file
+    /// qualifying its own unit of that name.  That direction is the safe one: it
+    /// only ever declines to qualify, and never changes what a name already
+    /// meant.
+    ///
+    procedure CollectDottable (Statements : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is ObjectStmt then Dottable.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is EnumStmt   then Dottable.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is VarStmt    then Dottable.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    Dottable.Add (Str (TheStmt.Names[J].Lexeme));
+
+            if TheStmt is ModuleStmt and TheStmt.Statements <> Nil then
+                CollectDottable (TheStmt.Statements);
+        end
+    end
+
+    /// Whether the left of a dot names a unit rather than a value.
+    ///
+    /// The order is the whole rule, and it is the same order every other name in
+    /// this language follows -- nearest binding first, the outermost thing last:
+    ///
+    ///   1. a local or a parameter, which shadows everything;
+    ///   2. a top-level name that can answer a dot (Dottable);
+    ///   3. a unit.
+    ///
+    /// Steps 1 and 2 together are "current semantics", so nothing that works
+    /// today changes meaning.  Step 3 only ever claims a slot that was an error
+    /// before.
+    ///
+    function IsUnitQualifier (Obj : Any) : Boolean;
+    begin
+        if not (Obj is VariableExpr) then Exit False;
+
+        var Name := Str (Obj.Name.Lexeme);
+
+        if not Units.Contains (Name)  then Exit False;
+        if Dottable.Contains (Name)   then Exit False;
+
+        for var I := Scopes.Length - 1; I >= 0; I := I - 1 do
+            if Scopes[I].Contains (Name) then Exit False;
+
+        Exit True;
     end
 
     // A block statement introduces a new scope for the statements it contains.
@@ -176,11 +261,32 @@ begin
     /// a depth the interpreter never creates.
     ///
     procedure VisitModuleStmt (Stmt : ModuleStmt);
+    var
+        Enclosing : Set;
+
     begin
-        // Nil when another file loaded it first; resolved there.
-        if Stmt.Statements = Nil then Exit;
+        // Nil when another file loaded it first; resolved there.  The NAME still
+        // becomes qualifiable here -- an import is a link, and the second
+        // importer gets the same sight of it as the first.
+        if Stmt.Statements = Nil then
+        begin
+            Units.Add (Str (Stmt.UnitName));
+            Exit;
+        end
+
+        // ⚠️ The module's own statements see the module's OWN units, not the
+        // importer's.  Saving and replacing the set is what makes qualification
+        // exactly as non-transitive as the 'uses' it follows: a file that
+        // imported Scanner does not thereby let Scanner's importers write
+        // 'Token.X' because Scanner happened to import Token.
+        Enclosing := Units;
+        Units := Set();
+        Units.Add ('System');
 
         ResolveAll (Stmt.Statements);
+
+        Units := Enclosing;
+        Units.Add (Str (Stmt.UnitName));
     end
 
     /// Nothing to resolve: 'break' names nothing and reads nothing.
@@ -337,6 +443,16 @@ begin
     //
     procedure VisitGetExpr (TheExpr : GetExpr);
     begin
+        if IsUnitQualifier (TheExpr.Obj) then
+        begin
+            TheExpr.Unit := Str (TheExpr.Obj.Name.Lexeme);
+
+            // Deliberately NOT resolving TheExpr.Obj: a unit is not a value and
+            // has no scope depth.  Resolving it would look up a variable that
+            // was never declared.
+            Exit;
+        end
+
         Resolve(TheExpr.Obj);
     end
 
@@ -344,6 +460,13 @@ begin
     //
     procedure VisitSetExpr (TheExpr : SetExpr);
     begin
+        if IsUnitQualifier (TheExpr.Obj) then
+        begin
+            TheExpr.Unit := Str (TheExpr.Obj.Name.Lexeme);
+            Resolve(TheExpr.Value);
+            Exit;
+        end
+
         Resolve(TheExpr.Value);
         Resolve(TheExpr.Obj);
     end
@@ -450,6 +573,12 @@ begin
     ///
     procedure ResolveAll (Statements : List);
     begin
+        if not Collected then
+        begin
+            Collected := True;
+            CollectDottable (Statements);
+        end
+
         for var I := 0; I < Statements.Length; I := I + 1 do
         begin
             Resolve(Statements[I]);

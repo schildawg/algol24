@@ -261,6 +261,15 @@ var
     Obj : Expr;
     Name   : Token;
 
+    /// The unit this reaches through, or '' for ordinary property access.
+    ///
+    /// ⚠️ Written by the Resolver, not the Parser.  'A.B' is the same three
+    /// tokens whether A is a value or a unit, and only scope decides which: a
+    /// local named Console shadows the unit of that name exactly as it shadows
+    /// anything else.  The Parser cannot know that; the Resolver is the first
+    /// pass that can.
+    Unit : String := '';
+
 begin
     constructor Init(Obj : Expr, Name : Token);
     begin
@@ -281,6 +290,11 @@ var
     Obj : Expr;
     Name   : Token;
     Value  : Expr;  
+
+    /// The unit this writes through, or '' for ordinary field assignment.
+    /// Written by the Resolver, exactly as GetExpr.Unit is -- 'A.B := C' is the
+    /// same tokens whether A is a value or a unit.
+    Unit : String := '';
 
 begin
     constructor Init(Obj : Expr, Name : Token, Value : Expr);
