@@ -675,7 +675,16 @@ begin
     /// environment and undo the module's scoping entirely, which is the whole
     /// thing 'uses' exists to provide.
     ///
-    procedure HoistTests (Statements : List, Tests : List, ByName : Map, Define : Boolean);
+    /// ⚠️ Files and ByFile keep the report GROUPED, in the order each file's
+    /// first test was met -- which for 'uses' is load order, so a multi-file
+    /// report reads in dependency order.  JPascal has always done this; this
+    /// runner printed one flat list under the root file's name, and nothing
+    /// could see the difference because no conformance suite had a test in an
+    /// imported module until one was added for exactly that reason.
+    ///
+    procedure HoistTests (Statements : List, Tests : List, ByName : Map, Define : Boolean,
+                          Scope : Environment, DeclaredIn : Map,
+                          File : String, Files : List, ByFile : Map);
     begin
         for var I := 0; I < Statements.Length; I := I + 1 do
         begin
@@ -692,7 +701,9 @@ begin
                 // what it did -- 'Only a collection or a String has ''Length'''
                 // and no report at all.
                 if TheStmt.Statements <> Nil then
-                    HoistTests (TheStmt.Statements, Tests, ByName, False);
+                    HoistTests (TheStmt.Statements, Tests, ByName, False,
+                                Modules.Get (TheStmt.FileName) as Environment, DeclaredIn,
+                                Str (TheStmt.FileName), Files, ByFile);
             end
 
             // A test is a FunctionStmt whose name token carries a literal,
@@ -705,6 +716,25 @@ begin
                 begin
                     Tests.Add (TheStmt.Name.Lexeme);
                     ByName.Put (TheStmt.Name.Lexeme, TheStmt);
+
+                    // ⚠️ Which environment the test was DECLARED in, because
+                    // that is the only place its name is bound.  The runner
+                    // used to resolve every test from Globals, which reaches
+                    // the root's own names and its imports' -- and 'uses' is
+                    // not transitive, so a test two hops down was 'Undefined
+                    // variable', naming itself.  The rule was being applied
+                    // correctly to something it does not govern: visibility is
+                    // about what Algol-24 code may reach, and the runner is not
+                    // Algol-24 code -- the same reason main declares
+                    // initializers for modules the root file never named.
+                    DeclaredIn.Put (TheStmt.Name.Lexeme, Scope);
+
+                    if not Files.Contains (File) then
+                    begin
+                        Files.Add (File);
+                        ByFile.Put (File, List());
+                    end
+                    (ByFile.Get (File) as List).Add (TheStmt.Name.Lexeme);
                 end
             end
 
@@ -735,25 +765,50 @@ begin
         // Sort orders text, not class instances.
         Tests := List();
         var ByName := [:];
+        var DeclaredIn := [:];
+        var Files := List();
+        var ByFile := [:];
 
-        HoistTests (Statements, Tests, ByName, True);
-
-        // By lexeme, which is the quoted form -- the same key JPascal sorts on.
-        Tests.Sort();
+        HoistTests (Statements, Tests, ByName, True, Globals, DeclaredIn,
+                    FileName, Files, ByFile);
 
         WriteLn ('[INFO] Running ' + Str(Tests.Length) + ' tests...');
-        WriteLn ('[INFO] < ' + FileName + ' >');
 
         Passed := 0;
         Failed := 0;
 
-        for var I := 0; I < Tests.Length; I := I + 1 do
+        var Ordered := List();
+        for var F := 0; F < Files.Length; F := F + 1 do
         begin
-            var TheTest := ByName.Get (Tests[I]);
+            // By lexeme, the quoted form -- the same key JPascal sorts on, and
+            // sorted WITHIN a file rather than across the whole report.
+            var Group := ByFile.Get (Files[F]) as List;
+            Group.Sort();
+
+            Ordered.Add (Files[F]);
+            for var J := 0; J < Group.Length; J := J + 1 do Ordered.Add (Group[J]);
+        end
+
+        for var I := 0; I < Ordered.Length; I := I + 1 do
+        begin
+            // A file name rather than a test: open its section and move on.
+            if not ByName.Contains (Ordered[I]) then
+            begin
+                if I > 0 then WriteLn ('[INFO] ');
+
+                WriteLn ('[INFO] < ' + Str (Ordered[I]) + ' >');
+            end
+            else
+            begin
+            var TheTest := ByName.Get (Ordered[I]);
             var Name    := Str(TheTest.Name.Literal);
 
             try
-                var Body := Globals.Get (TheTest.Name);
+                var Scope := Globals;
+                if DeclaredIn.Contains (Ordered[I]) then
+                    Scope := DeclaredIn.Get (Ordered[I]) as Environment;
+
+                var Body := Scope.Get (TheTest.Name);
                 Body.Call (this, List());
 
                 Passed := Passed + 1;
@@ -776,6 +831,7 @@ begin
                         WriteLn (Report (Name, 'FAIL'));
                         WriteLn ('[ERROR] ' + FileName + ': ' + Str (e.Value));
                     end
+            end
             end
         end
 

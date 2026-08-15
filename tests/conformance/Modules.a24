@@ -83,3 +83,10 @@ begin
     AssertEqual(9, System.Max(3, 9));
     AssertEqual('bcd', System.Copy('abcdef', 1, 3));
 end
+
+test 'A Chain Reaches Two Hops Down';
+begin
+    // Modules.a24 -> ModuleHelper -> ModuleHelper3.  This file may not name
+    // ModuleHelper3, so the value comes back through ModuleHelper.
+    AssertEqual(3, ViaHelper3());
+end

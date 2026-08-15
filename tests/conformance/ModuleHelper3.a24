@@ -1,0 +1,24 @@
+unit ModuleHelper3;
+
+/// Two `uses` hops from Modules.a24, which is the whole reason this file exists.
+///
+/// ⚠️ Modules.a24 imports ModuleHelper, and ModuleHelper imports this. Nothing
+/// else in the corpus is a chain: every other fixture is a leaf, and the two
+/// large multi-module programs -- `algc` and the Lox interpreter -- are stars,
+/// where the root imports every other file directly.
+///
+/// The `test` block below is the point. `--test` used to resolve every test
+/// from the root file's environment, which reaches the root's own names and its
+/// imports' -- and `uses` is not transitive, so this one was reported as FAIL
+/// with `Undefined variable ''...''` naming *itself*. The program ran correctly
+/// in every path; only the runner was wrong, and only at depth two or more.
+
+function Helper3Peek(): Integer;
+begin
+    Exit 3;
+end
+
+test 'A Test Two Uses Hops From The Root Still Runs';
+begin
+    AssertEqual(3, Helper3Peek());
+end

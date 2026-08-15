@@ -234,7 +234,27 @@ other; both emitters agree with each other; so it is the front end diverging
 from the back end. `Chain.a24` closes the blind spot for `Run` and not for
 `RunTests`.
 
-**Nothing blocks the commit.** Open items are the long tail: [C15](#c15)
+**Since `3ba8a8f` — the test runner's scope.** [C15](#c15) is fixed: each test
+is now called in the environment that **declared** it, on the same reasoning as
+C13's fix — the visibility rule is about what Algol-24 code may reach, and a
+test runner is not Algol-24 code. Verified on my own repros plus a five-deep
+chain with a test in every module and a diamond; all pass, and the reports are
+byte-identical to JPascal's, file headers and all. The fixture went into a
+**conformance** suite rather than `tests/programs/`, which is what made it pay:
+all three harnesses see it at once, and it immediately turned up a third
+divergence nobody was looking for — this compiler printed one flat sorted list
+under the root file's name where JPascal groups by file. That is fixed too, and
+matches `ALGOL-24.md:801`.
+
+Probing that fix for **over-correction** — whether a test could now reach
+further than the language allows — turned up [C16](#c16), which is bigger and
+is not about tests: **`uses` visibility is not enforced by either interpreter at
+all.** A module can reach a sibling's `var`, `function` and `class`, and the
+declarations of the file that imported it, none of which `ALGOL-24.md:319`
+allows; both emitters refuse the same programs at `cc`. Pre-existing, confirmed
+on the previous seed.
+
+**Nothing blocks the commit.** Open items are the long tail: [C16](#c16)
 (pre-existing), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
 [D3](#d3)'s architectural remainder, [D4](#d4) by choice, and the three `E`
 items.
@@ -255,7 +275,8 @@ items.
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
 | [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
-| [C15](#c15) | `--test`: a test two `uses` hops down fails interpreted, passes compiled | Medium | Open (new, **pre-existing**) |
+| [C16](#c16) | `uses` visibility is not enforced by either interpreter — every module's names are reachable from every file | Medium | Open (new, **pre-existing**) |
+| [C15](#c15) | `--test`: a test two `uses` hops down failed interpreted, passed compiled | Medium | ✅ **Fixed** |
 | [C13](#c13) | A three-deep `uses` chain emits `init_X()` without including `X.h` | Medium | ✅ **Fixed** (+ `Chain.a24`) |
 | [D3](#d3) | Name-based dispatch on every call and field access | Medium | Partly addressed — **2.4× measured** |
 | [C8](#c8) | Factual errors in the prose, one in a ⚠️ | Low | Partly fixed |
@@ -1263,7 +1284,60 @@ of bug, and a `test` block on it would pin the rule that a unit is its file stem
 
 ---
 
-### <a name="c15"></a>C15 — `--test`: a test block two `uses` hops down fails interpreted and passes compiled
+### <a name="c16"></a>C16 — `uses` visibility is not enforced by either interpreter
+
+**Severity: Medium. New, pre-existing, and in both interpreters rather than
+either emitter.** Found by probing [C15](#c15)'s fix for over-correction.
+
+`ALGOL-24.md:319` says *"A file sees what it imports, and nothing else"*, and
+`:1033` restates it from the other side — a module never sees the declarations
+of a file that merely imported it. Neither interpreter enforces either half.
+With `lib/WD.a24` importing nothing:
+
+| what `WD` reaches | JPascal | algc | compiled |
+|---|---|---|---|
+| a sibling's file-scope `var` / `function` / `class` | resolves | resolves | **`cc` error** |
+| the *importer's* `var` / `function` | resolves | resolves | **`cc` error** |
+
+Five for five, and the compiled build refuses each — `use of undeclared
+identifier 'v_SibVar'`, `call to undeclared function 'f_SibFn'` — correctly,
+because per-file emission makes each module a translation unit. So the back end
+has the rule and the front end does not, and a program can be written, run and
+tested interpreted and then fail at `cc`.
+
+**Why no test catches it, which is the part worth keeping.** There *is* a test
+for per-file scope — `tests/programs/UnitScope.a24`, added for [C9](#c9) — and
+it passes. It reaches for names that **collide with a built-in**, and that axis
+the interpreters get right. One program separates the two:
+
+```
+{ lib/Asker.a24, which imports nothing }
+    Str (7)      ->  7             correct: the Owner unit's 'Str' shadow does NOT leak
+    Plainly ()   ->  'owner-plain' wrong:   Plainly is not in scope here
+    compiled     ->  error: call to undeclared function 'f_Plainly'
+```
+
+The rule the interpreters enforce is *which binding wins when a built-in of that
+name exists*, per file, correctly. The rule they do not enforce is *whether the
+name is in scope at all*, which is flat and program-wide. Every shadowing
+fixture tests the first and none tests the second — and I read those green
+results as evidence for per-file scope generally. They are not.
+
+**Recommendation.** Resolve every top-level name through the same per-file scope
+the shadow decision already uses. The emitters compute exactly that set already
+— [C9](#c9)'s fix builds it per unit from the file's own declarations plus its
+direct imports — so the front end needs the same set, not a new one. Add a
+conformance case whose reached name is **plain**: `UnitScope.a24` is the right
+file and the wrong names, since everything in it is `Length` or `Str`. Expect
+noise — `compiler/` has 22 modules in one flat namespace today, and tightening
+the rule may surface collisions that currently resolve by accident, which is
+worth knowing either way and is what `private` exists to settle.
+
+Full detail and the five-way table are in the sibling repository's `REVIEW.md`.
+
+---
+
+### <a name="c15"></a>C15 — `--test`: a test block two `uses` hops down fails interpreted and passes compiled: Fixed
 
 **Severity: Medium. New, pre-existing, in the front end rather than either
 emitter.** Found by probing [C13](#c13)'s fix in `--test` mode, which the fix

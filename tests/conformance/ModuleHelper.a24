@@ -3,6 +3,12 @@
 /// Its private names deliberately duplicate ones in ModuleHelper2.a24, so that
 /// importing both proves two modules can each own a 'Peek' without colliding.
 ///
+/// It also imports one of its own, which makes Modules.a24 -> here ->
+/// ModuleHelper3 the only `uses` CHAIN among the conformance suites. That shape
+/// is what the test runner used to get wrong.
+///
+
+uses ModuleHelper3;
 
 private var Calls := 0;
 
@@ -43,4 +49,12 @@ function DescribeSecret(): String;
 begin
     var It := Secret();
     Exit It.Describe();
+end
+
+/// Re-exported, because `uses` is not transitive: Modules.a24 imports this file
+/// and so may not name ModuleHelper3 itself.
+///
+function ViaHelper3(): Integer;
+begin
+    Exit Helper3Peek();
 end

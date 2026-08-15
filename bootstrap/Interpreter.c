@@ -95,7 +95,7 @@ static Value or_16;
 static Value or_17;
 static Value or_18;
 static const char *t_Interpreter_Interpret_1_List[] = { "List" };
-static const char *t_Interpreter_HoistTests_4_List_List_Map_Boolean[] = { "List", "List", "Map", "Boolean" };
+static const char *t_Interpreter_HoistTests_9_List_List_Map_Boolean_Environment_Map_String_List_Map[] = { "List", "List", "Map", "Boolean", "Environment", "Map", "String", "List", "Map" };
 static const char *t_Interpreter_RunTests_2_List_String[] = { "List", "String" };
 static const char *t_Interpreter_Report_2_String_String[] = { "String", "String" };
 static const char *t_Interpreter_VisitLiteral_1_LiteralExpr[] = { "LiteralExpr" };
@@ -919,7 +919,7 @@ static Value m_Interpreter_Interpret_1_List(Value v_this, Value *args, int32_t c
     return alg_nil();
 }
 
-static Value m_Interpreter_HoistTests_4_List_List_Map_Boolean(Value v_this, Value *args, int32_t count) {
+static Value m_Interpreter_HoistTests_9_List_List_Map_Boolean_Environment_Map_String_List_Map(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Statements = args[0];
     (void)v_Statements;
@@ -929,6 +929,16 @@ static Value m_Interpreter_HoistTests_4_List_List_Map_Boolean(Value v_this, Valu
     (void)v_ByName;
     Value v_Define = args[3];
     (void)v_Define;
+    Value v_Scope = args[4];
+    (void)v_Scope;
+    Value v_DeclaredIn = args[5];
+    (void)v_DeclaredIn;
+    Value v_File = args[6];
+    (void)v_File;
+    Value v_Files = args[7];
+    (void)v_Files;
+    Value v_ByFile = args[8];
+    (void)v_ByFile;
     {
         Value v_I = alg_int(0);
         (void)v_I;
@@ -943,7 +953,7 @@ static Value m_Interpreter_HoistTests_4_List_List_Map_Boolean(Value v_this, Valu
                                 (void)(alg_invoke(v_this, "Execute", (Value[]){v_TheStmt}, 1));
                             }
                             if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Statements"), alg_nil()))) {
-                                (void)(alg_invoke(v_this, "HoistTests", (Value[]){alg_property(v_TheStmt, "Statements"), v_Tests, v_ByName, alg_bool(false)}, 4));
+                                (void)(alg_invoke(v_this, "HoistTests", (Value[]){alg_property(v_TheStmt, "Statements"), v_Tests, v_ByName, alg_bool(false), alg_invoke(alg_property(v_this, "Modules"), "Get", (Value[]){alg_property(v_TheStmt, "FileName")}, 1), v_DeclaredIn, alg_str(alg_property(v_TheStmt, "FileName")), v_Files, v_ByFile}, 9));
                             }
                         }
                     } else {
@@ -956,6 +966,14 @@ static Value m_Interpreter_HoistTests_4_List_List_Map_Boolean(Value v_this, Valu
                                     {
                                         (void)(alg_invoke(v_Tests, "Add", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1));
                                         (void)(alg_invoke(v_ByName, "Put", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_TheStmt}, 2));
+                                        (void)(alg_invoke(v_DeclaredIn, "Put", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_Scope}, 2));
+                                        if (alg_truthy(alg_not(alg_invoke(v_Files, "Contains", (Value[]){v_File}, 1)))) {
+                                            {
+                                                (void)(alg_invoke(v_Files, "Add", (Value[]){v_File}, 1));
+                                                (void)(alg_invoke(v_ByFile, "Put", (Value[]){v_File, alg_list()}, 2));
+                                            }
+                                        }
+                                        (void)(alg_invoke((alg_invoke(v_ByFile, "Get", (Value[]){v_File}, 1)), "Add", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1));
                                     }
                                 }
                             }
@@ -992,62 +1010,109 @@ static Value m_Interpreter_RunTests_2_List_String(Value v_this, Value *args, int
     (void)((v_Tests = alg_list()));
     volatile Value v_ByName = alg_map();
     (void)v_ByName;
-    (void)(alg_invoke(v_this, "HoistTests", (Value[]){v_Statements, v_Tests, v_ByName, alg_bool(true)}, 4));
-    (void)(alg_invoke(v_Tests, "Sort", NULL, 0));
+    volatile Value v_DeclaredIn = alg_map();
+    (void)v_DeclaredIn;
+    volatile Value v_Files = alg_list();
+    (void)v_Files;
+    volatile Value v_ByFile = alg_map();
+    (void)v_ByFile;
+    (void)(alg_invoke(v_this, "HoistTests", (Value[]){v_Statements, v_Tests, v_ByName, alg_bool(true), alg_property(v_this, "Globals"), v_DeclaredIn, v_FileName, v_Files, v_ByFile}, 9));
     (void)(alg_writeln(alg_add(alg_add(alg_string("[INFO] Running "), alg_str(alg_property(v_Tests, "Length"))), alg_string(" tests..."))));
-    (void)(alg_writeln(alg_add(alg_add(alg_string("[INFO] < "), v_FileName), alg_string(" >"))));
     (void)((v_Passed = alg_int(0)));
     (void)((v_Failed = alg_int(0)));
+    volatile Value v_Ordered = alg_list();
+    (void)v_Ordered;
+    {
+        volatile Value v_F = alg_int(0);
+        (void)v_F;
+        while (alg_truthy(alg_less(v_F, alg_property(v_Files, "Length")))) {
+            {
+                {
+                    volatile Value v_Group = alg_invoke(v_ByFile, "Get", (Value[]){alg_subscript_get(v_Files, v_F)}, 1);
+                    (void)v_Group;
+                    (void)(alg_invoke(v_Group, "Sort", NULL, 0));
+                    (void)(alg_invoke(v_Ordered, "Add", (Value[]){alg_subscript_get(v_Files, v_F)}, 1));
+                    {
+                        volatile Value v_J = alg_int(0);
+                        (void)v_J;
+                        while (alg_truthy(alg_less(v_J, alg_property(v_Group, "Length")))) {
+                            {
+                                (void)(alg_invoke(v_Ordered, "Add", (Value[]){alg_subscript_get(v_Group, v_J)}, 1));
+                                (void)((v_J = alg_add(v_J, alg_int(1))));
+                            }
+                        }
+                    }
+                }
+                (void)((v_F = alg_add(v_F, alg_int(1))));
+            }
+        }
+    }
     {
         volatile Value v_I = alg_int(0);
         (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_property(v_Tests, "Length")))) {
+        while (alg_truthy(alg_less(v_I, alg_property(v_Ordered, "Length")))) {
             {
                 {
-                    volatile Value v_TheTest = alg_invoke(v_ByName, "Get", (Value[]){alg_subscript_get(v_Tests, v_I)}, 1);
-                    (void)v_TheTest;
-                    volatile Value v_Name = alg_str(alg_property(alg_property(v_TheTest, "Name"), "Literal"));
-                    (void)v_Name;
-                    {
-                        AlgFrame frame_3;
-                        alg_push_frame(&frame_3);
-                        if (ALG_SETJMP(frame_3.jump) == 0) {
-                            {
-                                volatile Value v_Body = alg_invoke(alg_property(v_this, "Globals"), "Get", (Value[]){alg_property(v_TheTest, "Name")}, 1);
-                                (void)v_Body;
-                                (void)(alg_invoke(v_Body, "Call", (Value[]){v_this, alg_list()}, 2));
-                                (void)((v_Passed = alg_add(v_Passed, alg_int(1))));
-                                (void)(alg_writeln(alg_invoke(v_this, "Report", (Value[]){v_Name, alg_string("PASS")}, 2)));
+                    if (alg_truthy(alg_not(alg_invoke(v_ByName, "Contains", (Value[]){alg_subscript_get(v_Ordered, v_I)}, 1)))) {
+                        {
+                            if (alg_truthy(alg_greater(v_I, alg_int(0)))) {
+                                (void)(alg_writeln(alg_string("[INFO] ")));
                             }
-                            alg_pop_frame();
+                            (void)(alg_writeln(alg_add(alg_add(alg_string("[INFO] < "), alg_str(alg_subscript_get(v_Ordered, v_I))), alg_string(" >"))));
                         }
-                        else {
-                            static const char *names_3[] = {"String", "Raised"};
-                            int32_t which_3 = alg_handler(frame_3.raised, names_3, 2);
-                            if (which_3 == 0) {
-                                {
-                                    volatile Value v_e = frame_3.raised;
-                                    (void)v_e;
+                    } else {
+                        {
+                            volatile Value v_TheTest = alg_invoke(v_ByName, "Get", (Value[]){alg_subscript_get(v_Ordered, v_I)}, 1);
+                            (void)v_TheTest;
+                            volatile Value v_Name = alg_str(alg_property(alg_property(v_TheTest, "Name"), "Literal"));
+                            (void)v_Name;
+                            {
+                                AlgFrame frame_3;
+                                alg_push_frame(&frame_3);
+                                if (ALG_SETJMP(frame_3.jump) == 0) {
                                     {
-                                        (void)((v_Failed = alg_add(v_Failed, alg_int(1))));
-                                        (void)(alg_writeln(alg_invoke(v_this, "Report", (Value[]){v_Name, alg_string("FAIL")}, 2)));
-                                        (void)(alg_writeln(alg_add(alg_add(alg_add(alg_string("[ERROR] "), v_FileName), alg_string(": ")), v_e)));
+                                        volatile Value v_Scope = alg_property(v_this, "Globals");
+                                        (void)v_Scope;
+                                        if (alg_truthy(alg_invoke(v_DeclaredIn, "Contains", (Value[]){alg_subscript_get(v_Ordered, v_I)}, 1))) {
+                                            (void)((v_Scope = alg_invoke(v_DeclaredIn, "Get", (Value[]){alg_subscript_get(v_Ordered, v_I)}, 1)));
+                                        }
+                                        volatile Value v_Body = alg_invoke(v_Scope, "Get", (Value[]){alg_property(v_TheTest, "Name")}, 1);
+                                        (void)v_Body;
+                                        (void)(alg_invoke(v_Body, "Call", (Value[]){v_this, alg_list()}, 2));
+                                        (void)((v_Passed = alg_add(v_Passed, alg_int(1))));
+                                        (void)(alg_writeln(alg_invoke(v_this, "Report", (Value[]){v_Name, alg_string("PASS")}, 2)));
+                                    }
+                                    alg_pop_frame();
+                                }
+                                else {
+                                    static const char *names_3[] = {"String", "Raised"};
+                                    int32_t which_3 = alg_handler(frame_3.raised, names_3, 2);
+                                    if (which_3 == 0) {
+                                        {
+                                            volatile Value v_e = frame_3.raised;
+                                            (void)v_e;
+                                            {
+                                                (void)((v_Failed = alg_add(v_Failed, alg_int(1))));
+                                                (void)(alg_writeln(alg_invoke(v_this, "Report", (Value[]){v_Name, alg_string("FAIL")}, 2)));
+                                                (void)(alg_writeln(alg_add(alg_add(alg_add(alg_string("[ERROR] "), v_FileName), alg_string(": ")), v_e)));
+                                            }
+                                        }
+                                    }
+                                    else if (which_3 == 1) {
+                                        {
+                                            volatile Value v_e = frame_3.raised;
+                                            (void)v_e;
+                                            {
+                                                (void)((v_Failed = alg_add(v_Failed, alg_int(1))));
+                                                (void)(alg_writeln(alg_invoke(v_this, "Report", (Value[]){v_Name, alg_string("FAIL")}, 2)));
+                                                (void)(alg_writeln(alg_add(alg_add(alg_add(alg_string("[ERROR] "), v_FileName), alg_string(": ")), alg_str(alg_property(v_e, "Value")))));
+                                            }
+                                        }
+                                    }
+                                    else {
+                                        alg_raise(frame_3.raised);
                                     }
                                 }
-                            }
-                            else if (which_3 == 1) {
-                                {
-                                    volatile Value v_e = frame_3.raised;
-                                    (void)v_e;
-                                    {
-                                        (void)((v_Failed = alg_add(v_Failed, alg_int(1))));
-                                        (void)(alg_writeln(alg_invoke(v_this, "Report", (Value[]){v_Name, alg_string("FAIL")}, 2)));
-                                        (void)(alg_writeln(alg_add(alg_add(alg_add(alg_string("[ERROR] "), v_FileName), alg_string(": ")), alg_str(alg_property(v_e, "Value")))));
-                                    }
-                                }
-                            }
-                            else {
-                                alg_raise(frame_3.raised);
                             }
                         }
                     }
@@ -2640,7 +2705,7 @@ void init_Interpreter(void) {
     alg_class_initializer(k_Interpreter, i_Interpreter);
     alg_class_method(k_Interpreter, "Init", m_Interpreter_Init_0, 0, NULL);
     alg_class_method(k_Interpreter, "Interpret", m_Interpreter_Interpret_1_List, 1, t_Interpreter_Interpret_1_List);
-    alg_class_method(k_Interpreter, "HoistTests", m_Interpreter_HoistTests_4_List_List_Map_Boolean, 4, t_Interpreter_HoistTests_4_List_List_Map_Boolean);
+    alg_class_method(k_Interpreter, "HoistTests", m_Interpreter_HoistTests_9_List_List_Map_Boolean_Environment_Map_String_List_Map, 9, t_Interpreter_HoistTests_9_List_List_Map_Boolean_Environment_Map_String_List_Map);
     alg_class_method(k_Interpreter, "RunTests", m_Interpreter_RunTests_2_List_String, 2, t_Interpreter_RunTests_2_List_String);
     alg_class_method(k_Interpreter, "Report", m_Interpreter_Report_2_String_String, 2, t_Interpreter_Report_2_String_String);
     alg_class_method(k_Interpreter, "VisitLiteral", m_Interpreter_VisitLiteral_1_LiteralExpr, 1, t_Interpreter_VisitLiteral_1_LiteralExpr);
