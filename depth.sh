@@ -4,6 +4,7 @@
 #
 #   ./depth.sh                    # chains of depth 1..8, with JPascal
 #   ALGC=./algc.exe ./depth.sh    # ...with algc instead
+#   ./depth.sh --only 5           # just that chain -- a failure prints this flag
 #   ./depth.sh --keep             # leave the generated tree behind to read
 #
 # ⚠️ The second generating gate, after collide.sh, and it exists because the
@@ -45,12 +46,35 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 ALGC="${ALGC:-}"
-RUNTIME="${RUNTIME:-$ROOT/src/main/resources/runtime}"
 MAX="${MAX:-8}"
 WORK="${TMPDIR:-/tmp}/depth.$$"
 
 KEEP=0
-[ "${1:-}" = "--keep" ] && KEEP=1
+ONLY=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --keep) KEEP=1; shift ;;
+        --only) ONLY="${2:-}"; shift 2 ;;
+        *)      echo "Usage: [ALGC=…] [RUNTIME=…] $0 [--only N] [--keep]"; exit 64 ;;
+    esac
+done
+
+# ⚠️ Derived from the LAYOUT, not hardcoded to this repo's.  It was
+# '$ROOT/src/main/resources/runtime', which does not exist in the sibling that
+# publish.sh copies this file to -- so the harness reported 0 of 8 there, on its
+# own default, with every failure reading 'algol.h file not found' as though the
+# emitter were broken.
+#
+# ⚠️ It survived being "verified" over there because that verification passed
+# RUNTIME explicitly, so the default never ran.  Setting a parameter is how you
+# fail to test its default.  It is also the same shape as the _WIN32 guard in
+# algol.h: a default that encodes the author's environment and is wrong
+# everywhere else.
+if [ -z "${RUNTIME:-}" ]; then
+    if   [ -f "$ROOT/src/main/resources/runtime/algol.h" ]; then RUNTIME="$ROOT/src/main/resources/runtime"
+    elif [ -f "$ROOT/bootstrap/algol.h" ];                  then RUNTIME="$ROOT/bootstrap"
+    fi
+fi
 
 # Default to JPascal, which needs the jar; ALGC= overrides with any compiler
 # taking the same flags.
@@ -64,7 +88,29 @@ else
     run()     { "$ALGC" "$@"; }
 fi
 
+# ⚠️ The third prerequisite, and it was the only one unchecked.  A missing
+# runtime used to surface as one 'cc' error per chain -- eight of them, each
+# looking like a compiler regression rather than a missing file, because the
+# copy below was '2>/dev/null'.  THE HARNESS FAILING TO RUN AND A MUTANT FAILING
+# ARE DIFFERENT EVENTS and only the second is a finding.
+if [ -z "${RUNTIME:-}" ] || [ ! -f "$RUNTIME/algol.h" ]; then
+    echo "Missing the C runtime: no algol.h under '${RUNTIME:-<unset>}'."
+    echo "      Set RUNTIME to the directory holding algol.c and algol.h --"
+    echo "      'src/main/resources/runtime' here, 'bootstrap' in the published repo."
+    exit 1
+fi
+
 plain() { sed -E $'s/\033\\[[0-9;]*m//g'; }
+
+# ⚠️ A failure prints the flag that reproduces it.  The generator is
+# deterministic, so a mutant is fully described by its PARAMETERS -- one line,
+# rather than the N files it expands to.  Re-breaking C13 produced seven
+# failures; seven chains of up to eight modules each would have buried the one
+# useful line in a wall of source.
+fail() {
+    echo "FAIL  depth $1 -- $2"
+    echo "      reproduce: ${ALGC:+ALGC=$ALGC }RUNTIME=$RUNTIME $0 --only $1 --keep"
+}
 
 mkdir -p "$WORK"
 [ "$KEEP" -eq 0 ] && trap 'rm -rf "$WORK"' EXIT
@@ -74,6 +120,8 @@ ok=0
 failed=0
 
 for depth in $(seq 1 "$MAX"); do
+    [ -n "$ONLY" ] && [ "$ONLY" != "$depth" ] && continue
+
     dir="$WORK/d$depth"
     mkdir -p "$dir/lib"
 
@@ -117,28 +165,28 @@ for depth in $(seq 1 "$MAX"); do
     # Clause 1a: a chain is legal, so refusing one is a failure -- unlike
     # collide.sh, where a named refusal is a documented narrowing.
     if echo "$emitted" | grep -qE '^(\[ERROR\]|Uncaught:)'; then
-        echo "FAIL  depth $depth -- the compiler refused a legal program: $(echo "$emitted" | head -1)"
+        fail "$depth" "the compiler refused a legal program: $(echo "$emitted" | head -1)"
         failed=$((failed + 1)); continue
     fi
 
-    cp "$RUNTIME/algol.c" "$RUNTIME/algol.h" "$dir/out/" 2>/dev/null
+    cp "$RUNTIME/algol.c" "$RUNTIME/algol.h" "$dir/out/"
 
     if ! cc -std=c11 -O1 -o "$dir/binary" "$dir"/out/*.c 2>"$dir/cc.log"; then
-        echo "FAIL  depth $depth -- emitted C does not build: $(grep -oE '(error|ld): .*' "$dir/cc.log" | head -1)"
+        fail "$depth" "emitted C does not build: $(grep -oE '(error|ld): .*' "$dir/cc.log" | head -1)"
         failed=$((failed + 1)); continue
     fi
 
     # Clause 1b: compiled must match interpreted.
     compiled=$("$dir/binary" 2>&1)
     if [ "$compiled" != "$interpreted" ]; then
-        echo "FAIL  depth $depth -- compiled '$compiled' vs interpreted '$interpreted'"
+        fail "$depth" "compiled '$compiled' vs interpreted '$interpreted'"
         failed=$((failed + 1)); continue
     fi
 
     # Clause 3: depth is not part of the program's meaning.
     [ -z "$baseline" ] && baseline="$interpreted"
     if [ "$interpreted" != "$baseline" ]; then
-        echo "FAIL  depth $depth -- '$interpreted', but depth 1 gave '$baseline'"
+        fail "$depth" "'$interpreted', but depth 1 gave '$baseline'"
         failed=$((failed + 1)); continue
     fi
 
@@ -150,14 +198,14 @@ for depth in $(seq 1 "$MAX"); do
         else
             rm -rf "$dir/tout"; mkdir -p "$dir/tout"
             run --compile --test "--out=$dir/tout" "$dir/Root.a24" >/dev/null 2>&1
-            cp "$RUNTIME/algol.c" "$RUNTIME/algol.h" "$dir/tout/" 2>/dev/null
+            cp "$RUNTIME/algol.c" "$RUNTIME/algol.h" "$dir/tout/"
             cc -std=c11 -O1 -o "$dir/tbinary" "$dir"/tout/*.c 2>/dev/null || { report=""; }
             report=$("$dir/tbinary" 2>&1 | plain)
         fi
 
         ran=$(echo "$report" | grep -cE '\[ PASS \]')
         if [ "$ran" != "$expected" ]; then
-            echo "FAIL  depth $depth -- $mode --test ran $ran of $expected tests"
+            fail "$depth" "$mode --test ran $ran of $expected tests"
             failed=$((failed + 1)); continue 2
         fi
     done

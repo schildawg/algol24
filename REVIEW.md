@@ -395,6 +395,7 @@ items.
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
 | [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
+| [D5](#d5) | `Set` is quadratic to build here and linear in JPascal, and the reference says nothing | Low | Open (new) |
 | [G5](#g5) | `depth.sh`'s default `RUNTIME` is the sibling's layout, so it fails here as published | Low | Open (new) |
 | [G4](#g4) | No test asks whether emitted C **builds** — four findings were "emits, then `cc`/`ld` refuses" | Medium | Open (harness) |
 | [C21](#c21) | `private object` was not private here | Medium | ✅ **Fixed** (+ a second hole beside it) |
@@ -1257,6 +1258,68 @@ of bug, and a `test` block on it would pin the rule that a unit is its file stem
 
 ---
 
+### <a name="d5"></a>D5 — `Set` is quadratic to build, and only on one implementation
+
+**Severity: Low, and it is the documentation that is wrong rather than the data
+structure.** Raised by the session generating `algol24.com`, which needed to know
+whether `Set` iteration was deterministic before using one; the ordering question
+resolved cleanly and this came out from under it.
+
+**`Set` iteration is insertion-ordered on all four paths** — verified with
+strings inserted non-alphabetically, integers inserted descending, and object
+members whose hash *would* be their address if one were used. Two emitters
+byte-identical on the program, 20 runs one distinct output, two emissions
+identical. So `ALGOL-24.md` §5 — *"maps and sets are hash-backed, so iteration
+order is unspecified"* — is wrong twice: stale about order for **both** types,
+and wrong about the premise for `Set`, which is not hash-backed at all. §7 is
+right; §5 should go. ⚠️ Undocumented either way: `Remove` then re-`Add` moves a
+member to the **end**.
+
+**The cost.** `Set.Add` is a `List` append behind a linear `seq_index_of`, so
+building a set of N is O(n²):
+
+| N | 8000 | 16000 | 32000 | 64000 |
+|---|---|---|---|---|
+| compiled | 0.26 s | 0.58 s | 1.80 s | 6.95 s |
+
+⚠️ **The split is between implementations, not between modes.** algc's
+tree-walker is itself C over `algol.c`, so algc is quadratic interpreted *and*
+compiled, while JPascal's `LinkedHashSet` is flat:
+
+```
+                  N=1000  N=2000  N=4000  N=8000
+algc interpreted    0.01    0.01    0.04    0.15    quadratic
+JPascal             0.14    0.06    0.07    0.09    flat (0.14 is JVM startup)
+```
+
+Same visible semantics, different complexity. No gate can see it: `atest`/`agate`
+compare outputs, `cgate` compares emitters, `ctest` compares a program with
+itself.
+
+**Recommendation — a sentence, not a rewrite.** §7 tells the reader
+`Map.Get/Put/Contains` do not degrade as the map fills and says nothing about
+`Set`, which invites the assumption that the two membership types behave alike.
+They differ by 12× at N=32000. Say that `Set` membership is linear, and say that
+a `Map` with dummy values is the hashed alternative — measured on one machine at
+N=32000:
+
+| | |
+|---|---|
+| `Set` | 1.80 s |
+| `List` + `Contains` | 1.81 s |
+| `Map` + dummy values | **0.15 s** |
+
+The `List` fallback is identical because `Set.Add` *is* that. A `Map` used as a
+set keeps insertion order too (`key0` … `key31999`, all four paths), so it costs
+nothing in determinism.
+
+⚠️ **Why this is worth more than its severity.** It is the `Map.Remove` shape:
+nothing wrong, nothing leaked, far too much work done, and every differential
+check blind to it. `tests/mem/` exists because output comparison could not see
+allocation; there is no time analogue. It is also the third finding in a row
+whose invariant is **not a comparison** — names needed *does it build*, depth
+needed a *count*, this needs a *budget* — while every gate is a comparison.
+
 ### <a name="g5"></a>G5 — `depth.sh` does not run where it was published
 
 **Severity: Low, and it is [G4](#g4)'s own lesson turned on itself.** The
@@ -1339,12 +1402,29 @@ refusal is legal.** The invariant is the negative one: *emitted, then rejected b
 The five are C20, one per declaration kind, with `v_`/`f_`/`k_`/`e_` visible in
 the messages — found in seconds from a seed program containing no bug.
 
-⚠️ **One honest limit.** C21 does not appear as a violation, because
-over-refusal is permitted: at `38498dc` the private object landed in the
-"refused by name" column, which is why it reads 7 there and 6 now. The harness
-catches *emits-unbuildable-C* outright and *refuses-something-legal* only as a
-bucket shift; running it under both compilers and diffing the buckets closes
-that.
+⚠️ **Correction, and it was mine.** I first wrote that C21 is only visible as a
+bucket shift and that closing it needs both compilers. Over-refusal needs a
+**second opinion**, and two compilers are one way to have one — a stated rule is
+another. The partition is not 24 outcomes to record; it is one rule:
+
+```
+refused  <=>  host == module && vis == public
+```
+
+which is §9's `Two modules exporting 'X'` row and nothing else. Root collisions
+build because the root's symbols are `static` ([C19](#c19)), private ones
+because a private has no cross-file reader ([C20](#c20)). Asserting that rule
+catches [C21](#c21) with a **single** compiler: across that fix
+`object_module_private` moves from `refused` to `built`, and C21 *was* a private
+mutant sitting in the refused bucket.
+
+That matters here specifically, because this repository has one compiler. The
+single-compiler oracle found **5 of the 6** detections against `38498dc` on its
+own — all of C20 — and the rule gets the sixth, so a reduced `collide.sh` would
+be worth having on this side. ⚠️ The hazard to build against is that if §9 gains
+another collision-shaped refusal the rule goes stale *silently*; derive the
+partition from the §9 row list, or hard-code it with a ⚠️ naming §9 as what it
+must track.
 
 **Recommendation.** Keep it a script rather than checked-in fixtures, promoting
 any mutant that ever fails into `tests/programs/` by hand — the harness stays
