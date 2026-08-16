@@ -1666,6 +1666,20 @@ begin
 
     begin
         TheFunction := ObjFunction (TheStmt, Env, False);
+
+        // ⚠️ Before the Define below, which would otherwise let two functions of
+        // one name share it -- Define exempts a function replacing a function,
+        // so the check has to be here rather than there.
+        //
+        // Top-level functions do NOT overload in this language; ALGOL-24.md's
+        // Rough Edges says so and JPascal has always refused this. algc did not:
+        // it ran the program and the LAST declaration won, which is the shape a
+        // duplicate hides in inside a large file. Its own compiler disagreed with
+        // it too -- 'redefinition of f_G' from cc -- so one implementation was at
+        // odds with itself as well as with the other.
+        if Env.Values.Contains (Str (TheStmt.Name.Lexeme)) then
+            raise '''' + Str (TheStmt.Name.Lexeme) + ''' is already defined.';
+
         Env.Define (TheStmt.Name.Lexeme, TheFunction);
     end
 

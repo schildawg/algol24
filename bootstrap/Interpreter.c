@@ -2043,6 +2043,9 @@ static Value m_Interpreter_VisitFunctionStmt_1_FunctionStmt(Value v_this, Value 
     Value v_TheFunction = alg_nil();
     (void)v_TheFunction;
     (void)((v_TheFunction = alg_new(k_ObjFunction, (Value[]){v_TheStmt, alg_property(v_this, "Env"), alg_bool(false)}, 3)));
+    if (alg_truthy(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Contains", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 1))) {
+        alg_raise(alg_add(alg_add(alg_string("'"), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
+    }
     (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_TheFunction}, 2));
     return alg_nil();
 }

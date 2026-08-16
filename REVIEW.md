@@ -334,8 +334,48 @@ Probing whether the fix reaches the whole population it argues for turned up
 [C20](#c20): the same collision is still live in every file except the root, and
 [C17](#c17)'s own refusal message routes users into it.
 
-**Nothing blocks the commit.** Open items are the long tail: [C20](#c20) and
-[C18](#c18) (both pre-existing), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
+**Since `38498dc` — private shadows.** [C20](#c20) is fixed, and the condition
+landed as one sentence rather than two populations: *a colliding declaration
+with no cross-file reader may be renamed.* The root qualifies because nothing
+can import the file a program started from; a `private` name because that is
+what `private` means. One `if` wider on [C19](#c19)'s path, reusing its
+`__<unit>` separator.
+
+Verified in the **emitted C** rather than from matching output — `Inner.h` keeps
+`extern Value v_Echo;` untouched while `Outer.c` carries `static Value
+v_Echo__Outer;`, absent from `Outer.h`, and the two values stay distinct
+(`mid-own/held`, not `mid-own/mid-own`).
+
+Probing whether that rename reaches every declaration kind turned up
+[C21](#c21): it reaches six of seven. `private object` is not private here at
+all — an importer can read it, where JPascal hides it — from a single omission
+at `compiler/Parser.a24:478`.
+
+**Since the C20 round — `C21` and `C18`.** [C21](#c21) was one omission at
+`compiler/Parser.a24:478`, fixed by adding `ObjectStmt`; the procedure had a
+**second** hole beside it, falling off its end for any kind it did not list, so
+`private` before a non-declaration was silently accepted. The lesson worth
+keeping: *a missing kind in that list is not a name that fails to be private, it
+is a name that is silently public.*
+
+⚠️ **On [C18](#c18) I was wrong, and the correction moved the fix.** I argued
+that once the interpreter refused a duplicate, the compiled `redefinition of
+'f_G'` became unreachable. **`--compile` does not run an interpreter** — so both
+compilers emitted the duplicate and died at `cc`, the same "emits a program it
+cannot build" shape as [C17](#c17), [C19](#c19) and [C20](#c20), hiding behind a
+check the compiled path skips. The check went into the **Resolver**, which runs
+in both modes.
+
+⚠️ And it closes a silent test-loss bug neither side claimed: two `test` blocks
+of one name were accepted, and the runner keys tests by lexeme, so the second
+overwrote the first. A passing and a failing test of one name made the old
+runner run the failing body **twice** and never run the other.
+
+Verified in both modes across every declaration kind, wording identical to
+JPascal's. That work also produced [G4](#g4), a harness gap rather than a
+defect.
+
+**Nothing blocks the commit.** Open items are the long tail: [G4](#g4), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
 [D3](#d3)'s architectural remainder, [D4](#d4) by choice, and the three `E`
 items.
 
@@ -355,7 +395,10 @@ items.
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
 | [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
-| [C20](#c20) | A `private` name shadowing an import collides at `cc` — and the `C17` message tells you to write it | Medium | Open (new, **pre-existing**) |
+| [G4](#g4) | No test asks whether emitted C **builds** — four findings were "emits, then `cc`/`ld` refuses" | Medium | Open (harness) |
+| [C21](#c21) | `private object` was not private here | Medium | ✅ **Fixed** (+ a second hole beside it) |
+| [C18](#c18) | A duplicate top-level declaration ran here and died at `cc` | Medium | ✅ **Fixed** (in the Resolver) |
+| [C20](#c20) | A `private` name shadowing an import collided at `cc` | Medium | ✅ **Fixed** (renamed, one rule with C19) |
 | [C19](#c19) | The root file sharing a name with an import emitted, then failed at `cc` | Medium | ✅ **Fixed** (renamed, not refused) |
 | [C18](#c18) | A duplicate top-level function: JPascal refuses, this compiler runs it and the last one wins | Medium | Open (new, **pre-existing**) |
 | [C17](#c17) | Two modules exporting one name ran interpreted and died past the compiler | Medium | ✅ **Fixed** (§9 row + both front ends) |
@@ -1393,7 +1436,107 @@ of bug, and a `test` block on it would pin the rule that a unit is its file stem
 
 ---
 
-### <a name="c20"></a>C20 — A `private` name shadowing an import collides at `cc`, and the `C17` message recommends it
+### <a name="g4"></a>G4 — Nothing asks whether the emitted C actually builds
+
+**Severity: Medium, a harness gap rather than a defect.** Four findings running —
+[C17](#c17), [C19](#c19), [C20](#c20), [C18](#c18) — were the same sentence:
+*the compiler emits C that `cc` or `ld` then refuses.* Each was found by hand.
+
+Nothing asks it systematically, and the reason is structural: `conformance` and
+`compiled` run programs expected to **work**, `programs` compares two runs of a
+program that builds, and comparing the two emitters cannot help when both are
+wrong the same way. A program that emits and then fails to build is in none of
+those categories.
+
+**The shape that covers it is mutation over the corpus, not generation.** Valid
+programs varied along an axis the language allows. Per-file emission means the
+only way one file's C can conflict with another's is a **name**, so collisions
+are the axis, and all four findings are one mutation with different parameters.
+
+A working prototype is at `~/workspace-copilot/collide-prototype.sh` — about 40
+lines, no expected-output files. From one seed program it builds 24 mutants (six
+declaration kinds × {root, module} × {public, private}) and applies an oracle
+taken from this project's own philosophy:
+
+```
+interpreter refuses  =>  the compiler must refuse too, not emit
+interpreter runs     =>  the compiler must EITHER refuse by name
+                         OR emit C that builds and matches the interpreter
+```
+
+⚠️ My first oracle said *"interpreter runs ⇒ must build"* and reported six
+failures that were §9's `Two modules exporting 'X'` row doing its job. **A named
+refusal is legal.** The invariant is the negative one: *emitted, then rejected by
+`cc` or `ld`, is never acceptable.*
+
+**Validated against a compiler that has the bugs:**
+
+| | built and matched | refused by name | violations |
+|---|---|---|---|
+| `38498dc` | 12 | 7 | **5** |
+| now | 18 | 6 | 0 |
+
+The five are C20, one per declaration kind, with `v_`/`f_`/`k_`/`e_` visible in
+the messages — found in seconds from a seed program containing no bug.
+
+⚠️ **One honest limit.** C21 does not appear as a violation, because
+over-refusal is permitted: at `38498dc` the private object landed in the
+"refused by name" column, which is why it reads 7 there and 6 now. The harness
+catches *emits-unbuildable-C* outright and *refuses-something-legal* only as a
+bucket shift; running it under both compilers and diffing the buckets closes
+that.
+
+**Recommendation.** Keep it a script rather than checked-in fixtures, promoting
+any mutant that ever fails into `tests/programs/` by hand — the harness stays
+adversarial and the regression stays pinned. The pattern generalises past
+collisions: `uses` **depth** was another axis the corpus did not vary, and that
+was [C13](#c13) and [C15](#c15).
+
+---
+
+### <a name="c21"></a>C21 — `private object` was not private here: Fixed
+
+**Severity: Medium. New, pre-existing, and one omission with two symptoms.**
+Found by probing whether [C20](#c20)'s rename reaches every declaration kind. It
+reaches six of seven.
+
+| `private …` reached from an importing file | this compiler | JPascal |
+|---|---|---|
+| `function` / `class` / `var` / `enum` / `const` | hidden | hidden |
+| **`object`** | **reachable** | hidden |
+
+**Root cause**, `compiler/Parser.a24:478`:
+
+```pascal
+if Decl is FunctionStmt or Decl is ClassStmt or Decl is VarStmt then
+    PrivateNames.Add (Str (Decl.Name.Lexeme));
+```
+
+`ObjectStmt` is absent; `EnumStmt` has its own branch immediately below, so
+`object` is the only kind that falls through.
+
+**The second symptom touches C20.** Because the object never enters
+`PrivateNames`, the emitter's export set keeps it, so a private object shadowing
+an import's name is refused — `Two modules exporting 'Solo' is not supported by
+the C back end yet.` — where JPascal emits, builds and runs it. Both
+interpreters run the program, and the message is false on its face: `Solo` is
+`private` in that unit, so that unit does not export it.
+
+**No gate can see it**: output comparison needs a corpus case and neither tree
+has a private object, and the two emitters cannot be compared because this one
+refuses.
+
+**Recommendation.** Add `ObjectStmt` to the list at `Parser.a24:478`. The
+refusal goes with it, since the export set is built by removing `PrivateNames` —
+the visibility half is the fix and the emitter half follows. A table fixture
+reaching a private of *each* declaration kind is what would have caught this and
+will catch the next omission.
+
+Full detail is in the sibling repository's `REVIEW.md`.
+
+---
+
+### <a name="c20"></a>C20 — A `private` name shadowing an import collided at `cc`: Fixed
 
 **Severity: Medium. New, pre-existing, and the mechanism [C19](#c19) just fixed
 — still live in every file except the root.**

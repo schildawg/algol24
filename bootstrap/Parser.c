@@ -49,6 +49,7 @@ static Value or_34;
 static Value or_35;
 static Value or_36;
 static Value or_37;
+static Value or_38;
 static const char *t_Parser_Init_1_List[] = { "List" };
 static const char *t_Parser_UnitStem_1_String[] = { "String" };
 static const char *t_Parser_RecordPrivate_1[] = { "Any" };
@@ -449,8 +450,26 @@ static Value m_Parser_RecordPrivate_1(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_Decl = args[0];
     (void)v_Decl;
-    if (alg_truthy((or_5 = (or_4 = alg_is(v_Decl, "FunctionStmt"), alg_truthy(or_4) ? or_4 : alg_is(v_Decl, "ClassStmt")), alg_truthy(or_5) ? or_5 : alg_is(v_Decl, "VarStmt")))) {
-        (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_property(v_Decl, "Name"), "Lexeme"))}, 1));
+    if (alg_truthy((or_6 = (or_5 = (or_4 = alg_is(v_Decl, "FunctionStmt"), alg_truthy(or_4) ? or_4 : alg_is(v_Decl, "ClassStmt")), alg_truthy(or_5) ? or_5 : alg_is(v_Decl, "ObjectStmt")), alg_truthy(or_6) ? or_6 : alg_is(v_Decl, "VarStmt")))) {
+        {
+            (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_property(v_Decl, "Name"), "Lexeme"))}, 1));
+            return alg_nil();
+        }
+    }
+    if (alg_truthy(alg_is(v_Decl, "VarGroupStmt"))) {
+        {
+            {
+                Value v_I = alg_int(0);
+                (void)v_I;
+                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_Decl, "Names"), "Length")))) {
+                    {
+                        (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_Decl, "Names"), v_I), "Lexeme"))}, 1));
+                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                    }
+                }
+            }
+            return alg_nil();
+        }
     }
     if (alg_truthy(alg_is(v_Decl, "EnumStmt"))) {
         {
@@ -465,8 +484,10 @@ static Value m_Parser_RecordPrivate_1(Value v_this, Value *args, int32_t count) 
                     }
                 }
             }
+            return alg_nil();
         }
     }
+    alg_raise(alg_invoke(v_this, "Error", (Value[]){alg_invoke(v_this, "Previous", NULL, 0), alg_string("'private' must precede a declaration.")}, 2));
     return alg_nil();
 }
 
@@ -581,7 +602,7 @@ static Value m_Parser_ConstDeclaration_0(Value v_this, Value *args, int32_t coun
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_COLON}, 1))) {
         {
             (void)((v_TypeName = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect type name.")}, 2), "Lexeme"))));
-            if (alg_truthy((or_6 = alg_equal(f_ToLower(NULL, (Value[]){v_TypeName}, 1), alg_string("list")), !alg_truthy(or_6) ? or_6 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_OF}, 1)))) {
+            if (alg_truthy((or_7 = alg_equal(f_ToLower(NULL, (Value[]){v_TypeName}, 1), alg_string("list")), !alg_truthy(or_7) ? or_7 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_OF}, 1)))) {
                 (void)((v_Generic = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect generic type.")}, 2), "Lexeme"))));
             }
         }
@@ -603,7 +624,7 @@ static Value m_Parser_ConstDeclaration_0(Value v_this, Value *args, int32_t coun
 
 static Value m_Parser_MatchVisibility_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    if (alg_truthy((or_7 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_PRIVATE}, 1), !alg_truthy(or_7) ? or_7 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_TokenType_TOKEN_COLON)))) {
+    if (alg_truthy((or_8 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_PRIVATE}, 1), !alg_truthy(or_8) ? or_8 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_TokenType_TOKEN_COLON)))) {
         {
             (void)(alg_invoke(v_this, "Advance", NULL, 0));
             (void)(alg_invoke(v_this, "Advance", NULL, 0));
@@ -611,7 +632,7 @@ static Value m_Parser_MatchVisibility_0(Value v_this, Value *args, int32_t count
             return alg_bool(true);
         }
     }
-    if (alg_truthy((or_8 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_PUBLIC}, 1), !alg_truthy(or_8) ? or_8 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_TokenType_TOKEN_COLON)))) {
+    if (alg_truthy((or_9 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_PUBLIC}, 1), !alg_truthy(or_9) ? or_9 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_TokenType_TOKEN_COLON)))) {
         {
             (void)(alg_invoke(v_this, "Advance", NULL, 0));
             (void)(alg_invoke(v_this, "Advance", NULL, 0));
@@ -625,7 +646,7 @@ static Value m_Parser_MatchVisibility_0(Value v_this, Value *args, int32_t count
 
 static Value m_Parser_IsDeclarationSection_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    return (or_10 = (or_9 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_VAR}, 1), alg_truthy(or_9) ? or_9 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_CONST}, 1)), alg_truthy(or_10) ? or_10 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_TYPE}, 1));
+    return (or_11 = (or_10 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_VAR}, 1), alg_truthy(or_10) ? or_10 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_CONST}, 1)), alg_truthy(or_11) ? or_11 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_TYPE}, 1));
     return alg_nil();
 }
 
@@ -634,7 +655,7 @@ static Value m_Parser_IsNextSection_0(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_invoke(v_this, "IsAtEnd", NULL, 0))) {
         return alg_bool(true);
     }
-    return (or_17 = (or_16 = (or_15 = (or_14 = (or_13 = (or_12 = (or_11 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1), alg_truthy(or_11) ? or_11 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_BEGIN}, 1)), alg_truthy(or_12) ? or_12 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_FUNCTION}, 1)), alg_truthy(or_13) ? or_13 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_PROCEDURE}, 1)), alg_truthy(or_14) ? or_14 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_CONSTRUCTOR}, 1)), alg_truthy(or_15) ? or_15 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_VAR}, 1)), alg_truthy(or_16) ? or_16 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_CONST}, 1)), alg_truthy(or_17) ? or_17 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_TYPE}, 1));
+    return (or_18 = (or_17 = (or_16 = (or_15 = (or_14 = (or_13 = (or_12 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1), alg_truthy(or_12) ? or_12 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_BEGIN}, 1)), alg_truthy(or_13) ? or_13 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_FUNCTION}, 1)), alg_truthy(or_14) ? or_14 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_PROCEDURE}, 1)), alg_truthy(or_15) ? or_15 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_CONSTRUCTOR}, 1)), alg_truthy(or_16) ? or_16 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_VAR}, 1)), alg_truthy(or_17) ? or_17 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_CONST}, 1)), alg_truthy(or_18) ? or_18 : alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_TYPE}, 1));
     return alg_nil();
 }
 
@@ -685,7 +706,7 @@ static Value m_Parser_DeclarationSection_1_Boolean(Value v_this, Value *args, in
             if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_COLON}, 1))) {
                 {
                     (void)((v_TypeName = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect type name.")}, 2), "Lexeme"))));
-                    if (alg_truthy((or_18 = alg_equal(f_ToLower(NULL, (Value[]){v_TypeName}, 1), alg_string("list")), !alg_truthy(or_18) ? or_18 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_OF}, 1)))) {
+                    if (alg_truthy((or_19 = alg_equal(f_ToLower(NULL, (Value[]){v_TypeName}, 1), alg_string("list")), !alg_truthy(or_19) ? or_19 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_OF}, 1)))) {
                         (void)((v_Generic = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect generic type.")}, 2), "Lexeme"))));
                     }
                 }
@@ -857,7 +878,7 @@ static Value m_Parser_TryStatement_0(Value v_this, Value *args, int32_t count) {
     Value v_ExceptStmts = alg_nil();
     (void)v_ExceptStmts;
     (void)((v_Statements = alg_list()));
-    while (alg_truthy((or_19 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_EXCEPT}, 1)), !alg_truthy(or_19) ? or_19 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
+    while (alg_truthy((or_20 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_EXCEPT}, 1)), !alg_truthy(or_20) ? or_20 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
         (void)(alg_invoke(v_Statements, "Add", (Value[]){alg_invoke(v_this, "Statement", NULL, 0)}, 1));
     }
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_EXCEPT, alg_string("Expect 'except' after try block.")}, 2));
@@ -890,12 +911,12 @@ static Value m_Parser_TryStatement_0(Value v_this, Value *args, int32_t count) {
     }
     (void)((v_Trailing = alg_invoke(v_this, "Peek", NULL, 0)));
     (void)((v_ExceptStmts = alg_list()));
-    while (alg_truthy((or_20 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1)), !alg_truthy(or_20) ? or_20 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
+    while (alg_truthy((or_21 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1)), !alg_truthy(or_21) ? or_21 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
         (void)(alg_invoke(v_ExceptStmts, "Add", (Value[]){alg_invoke(v_this, "Statement", NULL, 0)}, 1));
     }
-    if (alg_truthy((or_21 = alg_not(v_HasHandlers), alg_truthy(or_21) ? or_21 : alg_not(alg_property(v_ExceptStmts, "IsEmpty"))))) {
+    if (alg_truthy((or_22 = alg_not(v_HasHandlers), alg_truthy(or_22) ? or_22 : alg_not(alg_property(v_ExceptStmts, "IsEmpty"))))) {
         {
-            if (alg_truthy((or_22 = alg_not(alg_property(v_ExceptStmts, "IsEmpty")), !alg_truthy(or_22) ? or_22 : alg_invoke(v_Handlers, "Contains", (Value[]){alg_string("default")}, 1)))) {
+            if (alg_truthy((or_23 = alg_not(alg_property(v_ExceptStmts, "IsEmpty")), !alg_truthy(or_23) ? or_23 : alg_invoke(v_Handlers, "Contains", (Value[]){alg_string("default")}, 1)))) {
                 alg_raise(alg_invoke(v_this, "Error", (Value[]){v_Trailing, alg_string("A handler for any exception is already given by an untyped 'on'.")}, 2));
             }
             (void)(alg_invoke(v_Handlers, "Put", (Value[]){alg_string("default"), alg_new(k_ExceptHandler, (Value[]){alg_string("Any"), alg_new(k_BlockStmt, (Value[]){v_ExceptStmts}, 1)}, 2)}, 2));
@@ -925,7 +946,7 @@ static Value m_Parser_VarDeclaration_1_Token(Value v_this, Value *args, int32_t 
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_COLON}, 1))) {
         {
             (void)((v_TypeName = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect type name.")}, 2), "Lexeme"))));
-            if (alg_truthy((or_23 = alg_equal(f_ToLower(NULL, (Value[]){v_TypeName}, 1), alg_string("list")), !alg_truthy(or_23) ? or_23 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_OF}, 1)))) {
+            if (alg_truthy((or_24 = alg_equal(f_ToLower(NULL, (Value[]){v_TypeName}, 1), alg_string("list")), !alg_truthy(or_24) ? or_24 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_OF}, 1)))) {
                 (void)((v_Generic = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect generic type.")}, 2), "Lexeme"))));
             }
         }
@@ -1030,7 +1051,7 @@ static Value m_Parser_Block_0(Value v_this, Value *args, int32_t count) {
     Value v_Statements = alg_nil();
     (void)v_Statements;
     (void)((v_Statements = alg_list()));
-    while (alg_truthy((or_24 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1)), !alg_truthy(or_24) ? or_24 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
+    while (alg_truthy((or_25 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1)), !alg_truthy(or_25) ? or_25 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
         {
             (void)(alg_invoke(v_Statements, "Add", (Value[]){alg_invoke(v_this, "Declaration", NULL, 0)}, 1));
         }
@@ -1251,13 +1272,13 @@ static Value m_Parser_ClassDeclaration_1_String(Value v_this, Value *args, int32
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_BEGIN, alg_add(alg_add(alg_string("Expect 'begin' before "), v_Kind), alg_string(" body."))}, 2));
     (void)(alg_set_property(v_this, "InPrivateSection", alg_bool(false)));
     (void)((v_Methods = alg_list()));
-    while (alg_truthy((or_25 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1)), !alg_truthy(or_25) ? or_25 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
+    while (alg_truthy((or_26 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1)), !alg_truthy(or_26) ? or_26 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
         {
             while (alg_truthy(alg_invoke(v_this, "MatchVisibility", NULL, 0))) {
                 {
                 }
             }
-            if (alg_truthy((or_26 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1), alg_truthy(or_26) ? or_26 : alg_invoke(v_this, "IsAtEnd", NULL, 0)))) {
+            if (alg_truthy((or_27 = alg_invoke(v_this, "Check", (Value[]){e_TokenType_TOKEN_END}, 1), alg_truthy(or_27) ? or_27 : alg_invoke(v_this, "IsAtEnd", NULL, 0)))) {
                 break;
             }
             Value v_Method = alg_nil();
@@ -1305,7 +1326,7 @@ static Value m_Parser_Equality_0(Value v_this, Value *args, int32_t count) {
     Value v_Right = alg_nil();
     (void)v_Right;
     (void)((v_TheExpr = alg_invoke(v_this, "Comparison", NULL, 0)));
-    while (alg_truthy((or_27 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_NOT_EQUAL}, 1), alg_truthy(or_27) ? or_27 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_EQUAL}, 1)))) {
+    while (alg_truthy((or_28 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_NOT_EQUAL}, 1), alg_truthy(or_28) ? or_28 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_EQUAL}, 1)))) {
         {
             (void)((v_Operator = alg_invoke(v_this, "Previous", NULL, 0)));
             (void)((v_Right = alg_invoke(v_this, "Comparison", NULL, 0)));
@@ -1332,7 +1353,7 @@ static Value m_Parser_Comparison_0(Value v_this, Value *args, int32_t count) {
                     (void)((v_TheExpr = alg_new(k_IsExpr, (Value[]){v_TheExpr, alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect type name after 'is'.")}, 2)}, 2)));
                 }
             } else {
-                if (alg_truthy((or_31 = (or_30 = (or_29 = (or_28 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_GREATER}, 1), alg_truthy(or_28) ? or_28 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_GREATER_EQUAL}, 1)), alg_truthy(or_29) ? or_29 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_LESS}, 1)), alg_truthy(or_30) ? or_30 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_LESS_EQUAL}, 1)), alg_truthy(or_31) ? or_31 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_IN}, 1)))) {
+                if (alg_truthy((or_32 = (or_31 = (or_30 = (or_29 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_GREATER}, 1), alg_truthy(or_29) ? or_29 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_GREATER_EQUAL}, 1)), alg_truthy(or_30) ? or_30 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_LESS}, 1)), alg_truthy(or_31) ? or_31 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_LESS_EQUAL}, 1)), alg_truthy(or_32) ? or_32 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_IN}, 1)))) {
                     {
                         (void)((v_Operator = alg_invoke(v_this, "Previous", NULL, 0)));
                         (void)((v_Right = alg_invoke(v_this, "Term", NULL, 0)));
@@ -1357,7 +1378,7 @@ static Value m_Parser_Term_0(Value v_this, Value *args, int32_t count) {
     Value v_Right = alg_nil();
     (void)v_Right;
     (void)((v_TheExpr = alg_invoke(v_this, "Factor", NULL, 0)));
-    while (alg_truthy((or_32 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_MINUS}, 1), alg_truthy(or_32) ? or_32 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_PLUS}, 1)))) {
+    while (alg_truthy((or_33 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_MINUS}, 1), alg_truthy(or_33) ? or_33 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_PLUS}, 1)))) {
         {
             (void)((v_Operator = alg_invoke(v_this, "Previous", NULL, 0)));
             (void)((v_Right = alg_invoke(v_this, "Factor", NULL, 0)));
@@ -1377,7 +1398,7 @@ static Value m_Parser_Factor_0(Value v_this, Value *args, int32_t count) {
     Value v_Right = alg_nil();
     (void)v_Right;
     (void)((v_TheExpr = alg_invoke(v_this, "Unary", NULL, 0)));
-    while (alg_truthy((or_33 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_SLASH}, 1), alg_truthy(or_33) ? or_33 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_STAR}, 1)))) {
+    while (alg_truthy((or_34 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_SLASH}, 1), alg_truthy(or_34) ? or_34 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_STAR}, 1)))) {
         {
             (void)((v_Operator = alg_invoke(v_this, "Previous", NULL, 0)));
             (void)((v_Right = alg_invoke(v_this, "Unary", NULL, 0)));
@@ -1394,7 +1415,7 @@ static Value m_Parser_Unary_0(Value v_this, Value *args, int32_t count) {
     (void)v_Operator;
     Value v_Right = alg_nil();
     (void)v_Right;
-    if (alg_truthy((or_34 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_NOT}, 1), alg_truthy(or_34) ? or_34 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_MINUS}, 1)))) {
+    if (alg_truthy((or_35 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_NOT}, 1), alg_truthy(or_35) ? or_35 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_MINUS}, 1)))) {
         {
             (void)((v_Operator = alg_invoke(v_this, "Previous", NULL, 0)));
             (void)((v_Right = alg_invoke(v_this, "Unary", NULL, 0)));
@@ -1540,7 +1561,7 @@ static Value m_Parser_Primary_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_LEFT_BRACKET}, 1))) {
         return alg_invoke(v_this, "CollectionLiteral", NULL, 0);
     }
-    if (alg_truthy((or_37 = (or_36 = (or_35 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_INTEGER}, 1), alg_truthy(or_35) ? or_35 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_NUMBER}, 1)), alg_truthy(or_36) ? or_36 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_STRING}, 1)), alg_truthy(or_37) ? or_37 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_CHAR}, 1)))) {
+    if (alg_truthy((or_38 = (or_37 = (or_36 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_INTEGER}, 1), alg_truthy(or_36) ? or_36 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_NUMBER}, 1)), alg_truthy(or_37) ? or_37 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_STRING}, 1)), alg_truthy(or_38) ? or_38 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_CHAR}, 1)))) {
         {
             return alg_new(k_LiteralExpr, (Value[]){alg_property(alg_invoke(v_this, "Previous", NULL, 0), "Literal")}, 1);
         }

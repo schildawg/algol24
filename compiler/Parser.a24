@@ -473,10 +473,36 @@ begin
     /// bare names, so leaving them exported would export the type in all but
     /// spelling.
     ///
+    /// ⚠️ EVERY declaration kind, and the list has to be complete: a kind
+    /// missing here is not a name that fails to be private, it is a name that
+    /// is SILENTLY PUBLIC.  ObjectStmt was missing, so a 'private object' was
+    /// reachable from any importing file -- 'secret' where JPascal correctly
+    /// said 'Undefined variable'.
+    ///
+    /// ⚠️ It had a second symptom that made it worse than a leak.  Because the
+    /// object never reached PrivateNames, the emitter's export set kept it, so a
+    /// private object shadowing an import was refused as 'Two modules exporting
+    /// ''Solo''' -- a message that is false on its face, since that unit does
+    /// not export Solo.  No gate could see either half: atest and agate compare
+    /// output and no corpus had a private object, and cgate cannot compare when
+    /// one compiler refuses and the other emits.
+    ///
     procedure RecordPrivate (Decl : Any);
     begin
-        if Decl is FunctionStmt or Decl is ClassStmt or Decl is VarStmt then
+        if Decl is FunctionStmt or Decl is ClassStmt or Decl is ObjectStmt
+                                or Decl is VarStmt then
+        begin
             PrivateNames.Add (Str (Decl.Name.Lexeme));
+            Exit;
+        end
+
+        if Decl is VarGroupStmt then
+        begin
+            for var I := 0; I < Decl.Names.Length; I := I + 1 do
+                PrivateNames.Add (Str (Decl.Names[I].Lexeme));
+
+            Exit;
+        end
 
         if Decl is EnumStmt then
         begin
@@ -484,7 +510,15 @@ begin
 
             for var I := 0; I < Decl.Members.Length; I := I + 1 do
                 PrivateNames.Add (Str (Decl.Members[I].Lexeme));
+
+            Exit;
         end
+
+        // ⚠️ And a declaration kind that is not any of these is an ERROR rather
+        // than a silent no-op, which is the other half of the same hole: this
+        // procedure used to fall off the end, so 'private WriteLn(...)' was
+        // accepted and ignored here and refused by JPascal.
+        raise Error (Previous(), '''private'' must precede a declaration.');
     end
 
     /// The directory part of a path, or '' when there is none.

@@ -1,0 +1,30 @@
+unit Outer;
+
+uses Inner;
+
+/// ⚠️ PRIVATE, and colliding with a name its own import exports. Legal, and both
+/// interpreters have always run it -- the nearest binding wins. It did not
+/// compile: 'static declaration of v_Echo follows non-static declaration',
+/// against the declaration Inner's header brings in.
+///
+/// This is the root's case one file over. The root's names may be renamed
+/// because nothing can import the file a program started from; a private name
+/// may be renamed because that is what private means. Same condition, two
+/// populations: no cross-file reader.
+private var Echo := 'outer-own';
+
+private function Ring () : String;
+begin
+    Exit 'outer-own-fn';
+end
+
+function Mine () : String;
+begin
+    Exit Echo + '/' + Ring ();
+end
+
+/// ...and the import is still reachable from here, by qualifying.
+function Theirs () : String;
+begin
+    Exit Inner.Echo + '/' + Inner.Ring ();
+end

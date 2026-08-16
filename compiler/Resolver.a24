@@ -571,12 +571,92 @@ begin
 
     /// Resolves a list of statements.
     ///
+    /// Refuses two top-level declarations of one name in one file.
+    ///
+    /// ⚠️ Here rather than in the Interpreter, and that is the whole point: the
+    /// Interpreter refuses it too, but '--compile' does not run the Interpreter.
+    /// So a duplicate emitted happily and died at cc with 'redefinition of f_G'
+    /// -- a compiler emitting a program it cannot build, which is the shape C17,
+    /// C19 and C20 were each about.  The Resolver runs in BOTH modes, which is
+    /// what makes one check enough and what lets refuse.sh see it.
+    ///
+    /// ⚠️ Per FILE, not per program.  Two modules declaring one name is a
+    /// different question with a different answer -- exported, it is refused as
+    /// a clash; private, it is renamed.
+    ///
+    /// Top-level functions do not overload (ALGOL-24.md's Rough Edges), so there
+    /// is no kind of duplicate this should permit.
+    ///
+    procedure CheckDuplicates (Statements : List);
+    var
+        Seen : Set;
+
+    begin
+        Seen := Set();
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is ModuleStmt then
+            begin
+                if TheStmt.Statements <> Nil then CheckDuplicates (TheStmt.Statements);
+            end
+            else
+            begin
+                var TheName := '';
+
+                if TheStmt is FunctionStmt and TheStmt.Name.Literal = Nil then
+                    TheName := Str (TheStmt.Name.Lexeme);
+
+                if TheStmt is ClassStmt  then TheName := Str (TheStmt.Name.Lexeme);
+                if TheStmt is ObjectStmt then TheName := Str (TheStmt.Name.Lexeme);
+                if TheStmt is VarStmt    then TheName := Str (TheStmt.Name.Lexeme);
+
+                if TheStmt is EnumStmt then
+                begin
+                    for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                    begin
+                        var Member := Str (TheStmt.Members[J].Lexeme);
+
+                        if Seen.Contains (Member) then
+                            raise '''' + Member + ''' is already defined.';
+
+                        Seen.Add (Member);
+                    end
+
+                    TheName := Str (TheStmt.Name.Lexeme);
+                end
+
+                if TheStmt is VarGroupStmt then
+                    for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    begin
+                        var Each := Str (TheStmt.Names[J].Lexeme);
+
+                        if Seen.Contains (Each) then
+                            raise '''' + Each + ''' is already defined.';
+
+                        Seen.Add (Each);
+                    end
+
+                if TheName <> '' then
+                begin
+                    if Seen.Contains (TheName) then
+                        raise '''' + TheName + ''' is already defined.';
+
+                    Seen.Add (TheName);
+                end
+            end
+        end
+    end
+
     procedure ResolveAll (Statements : List);
     begin
         if not Collected then
         begin
             Collected := True;
             CollectDottable (Statements);
+            CheckDuplicates (Statements);
         end
 
         for var I := 0; I < Statements.Length; I := I + 1 do

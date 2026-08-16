@@ -367,7 +367,19 @@ Two modules may each declare a private `Peek` without colliding — that is the 
 
 A module keeps its own environment for the life of the run, and an import is a **link** to it rather than a copy. So a module variable is a single binding wherever it is reached from: a function inside the module and code in three files that import it all read and write the same one.
 
-⚠️ Both privacy and visibility are enforced **at run time**, by the environment chain — reaching a private name, or one from a module this file never imported, reports `Undefined variable` at the point of use. The type checker does not know about module boundaries, so it will not flag either earlier, and the C back end flattens every module into one file and so cannot see them at all. A program that violates visibility is caught interpreted and not compiled; that gap closes when the check moves into the Resolver.
+⚠️ Both privacy and visibility are enforced **at run time**, by the environment chain: a name that is private to another module, or belongs to a module this file never imported, reports `Undefined variable` where it is used. The type checker does not know about module boundaries, so it will not flag either earlier.
+
+**The message distinguishes three cases**, because after visibility began to be enforced a missing `uses` and a misspelling read identically — for a name the reader can see in another file:
+
+```
+Undefined variable 'Helper'. Unit 'MB' exports it; this file has no 'uses' for it.
+Undefined variable 'RootVar'. The file the program started from declares it, and no file can 'uses' that.
+Undefined variable 'Helpr'.
+```
+
+The first is actionable and names the unit to import. The second is not, and says so rather than suggesting something impossible — nothing can `uses` the file a program started from, so the remedy is to move the declaration into a module. The third is everything else, including a **private** name: naming the unit there would be advice that does not work.
+
+⚠️ **A violation does not compile either, and fails differently.** A source file is a translation unit, so a name belonging to another module is `static` to another file and `cc` refuses it — `use of undeclared identifier`, or `static declaration of 'v_X' follows non-static declaration` where this file declares one of its own. Both halves of the implementation therefore reject the program, at different stages and in different words. What is *not* diagnosed is the language rule itself: neither compiler explains that the name exists and was not imported, which is what the interpreted message above is for.
 
 ### Units and qualified names
 

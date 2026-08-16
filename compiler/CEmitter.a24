@@ -889,23 +889,36 @@ begin
             // not compile.  That is strictly worse than the bug it came from: a
             // silent wrong answer in the importing file became a build failure
             // in a file with nothing to do with it.
-            // The root's own names that a header it includes already declares.
-            // Declaration order, so the emitted C does not depend on set order.
+            // The names this file declares that a header it includes already
+            // declares.  Declaration order, so the emitted C does not depend on
+            // set order.
+            //
+            // ⚠️ One rule over two populations, and the condition is the same
+            // for both: a name with NO cross-file reader may be renamed, because
+            // nothing outside this file can be referring to it.  The root's
+            // names qualify because nothing can import the file a program
+            // started from; a module's 'private' names qualify because that is
+            // what 'private' means.  An EXPORTED name never qualifies -- an
+            // importer names it -- and does not need to, because two units
+            // exporting one name is refused above.
             Renames := Map();
-            if IsMain then
-            begin
-                var Declared := Set();
-                for var I := 0; I < Unit.Imports.Length; I := I + 1 do
-                    if UnitExports.Contains (Str (Unit.Imports[I])) then
-                    begin
-                        var Seen := (UnitExports.Get (Str (Unit.Imports[I])) as Set).ToList();
-                        for var J := 0; J < Seen.Length; J := J + 1 do Declared.Add (Seen[J]);
-                    end
 
-                var Mine := ExportedNames (Unit);
-                for var I := 0; I < Mine.Length; I := I + 1 do
-                    if Declared.Contains (Str (Mine[I])) then
-                        Renames.Put (Str (Mine[I]), Str (Mine[I]) + '__' + Str (Unit.Name));
+            var Visible := Set();
+            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
+                if UnitExports.Contains (Str (Unit.Imports[I])) then
+                begin
+                    var Seen := (UnitExports.Get (Str (Unit.Imports[I])) as Set).ToList();
+                    for var J := 0; J < Seen.Length; J := J + 1 do Visible.Add (Seen[J]);
+                end
+
+            var Mine := ExportedNames (Unit);
+            for var I := 0; I < Mine.Length; I := I + 1 do
+            begin
+                var TheName := Str (Mine[I]);
+
+                if Visible.Contains (TheName) then
+                    if IsMain or Unit.PrivateNames.Contains (TheName) then
+                        Renames.Put (TheName, TheName + '__' + Str (Unit.Name));
             end
 
             ShadowNames := Set();

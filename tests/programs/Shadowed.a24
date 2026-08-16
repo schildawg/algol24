@@ -23,6 +23,7 @@
 /// and not what this program is for.
 
 uses 'lib/Pair';
+uses 'lib/Outer';
 
 var Twin := 'root-var';
 
@@ -60,4 +61,13 @@ begin
     // root's Pale and the unit's are different objects however alike they read.
     WriteLn (Pale = Shade.Pale);
     WriteLn (Pale = Pair.UnitShade ());
+
+    // -- the same collision one file over ----------------------------------
+    //
+    // lib/Outer declares PRIVATE names colliding with what lib/Inner, its own
+    // import, exports. Nothing outside Outer can name a private, which is the
+    // same condition that lets the root rename its own -- so the two are one
+    // rule rather than two.
+    WriteLn (Mine ());
+    WriteLn (Theirs ());
 end

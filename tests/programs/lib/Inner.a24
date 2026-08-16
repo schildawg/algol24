@@ -1,0 +1,10 @@
+unit Inner;
+
+/// Exported, and its name is one the unit that imports this file also uses for
+/// a private of its own.
+var Echo := 'inner-var';
+
+function Ring () : String;
+begin
+    Exit 'inner-fn';
+end

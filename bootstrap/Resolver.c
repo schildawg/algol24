@@ -20,6 +20,7 @@ Value k_Resolver;
 static Value or_0;
 static Value or_1;
 static Value or_2;
+static Value or_3;
 static const char *t_Resolver_Init_1_Interpreter[] = { "Interpreter" };
 static const char *t_Resolver_CollectDottable_1_List[] = { "List" };
 static const char *t_Resolver_IsUnitQualifier_1[] = { "Any" };
@@ -56,6 +57,7 @@ static const char *t_Resolver_VisitSetSubscriptExpr_1_SetSubscriptExpr[] = { "Se
 static const char *t_Resolver_VisitCollectionExpr_1_CollectionExpr[] = { "CollectionExpr" };
 static const char *t_Resolver_VisitLiteral_1_LiteralExpr[] = { "LiteralExpr" };
 static const char *t_Resolver_VisitVariableExpr_1_VariableExpr[] = { "VariableExpr" };
+static const char *t_Resolver_CheckDuplicates_1_List[] = { "List" };
 static const char *t_Resolver_ResolveAll_1_List[] = { "List" };
 static const char *t_Resolver_Resolve_1[] = { "Any" };
 static const char *t_Resolver_ResolveFunction_2_FunctionStmt_FunctionType[] = { "FunctionStmt", "FunctionType" };
@@ -647,6 +649,102 @@ static Value m_Resolver_VisitVariableExpr_1_VariableExpr(Value v_this, Value *ar
     return alg_nil();
 }
 
+static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Statements = args[0];
+    (void)v_Statements;
+    Value v_Seen = alg_nil();
+    (void)v_Seen;
+    (void)((v_Seen = alg_set()));
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+            {
+                {
+                    Value v_TheStmt = alg_subscript_get(v_Statements, v_I);
+                    (void)v_TheStmt;
+                    if (alg_truthy(alg_is(v_TheStmt, "ModuleStmt"))) {
+                        {
+                            if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Statements"), alg_nil()))) {
+                                (void)(alg_invoke(v_this, "CheckDuplicates", (Value[]){alg_property(v_TheStmt, "Statements")}, 1));
+                            }
+                        }
+                    } else {
+                        {
+                            Value v_TheName = alg_string("");
+                            (void)v_TheName;
+                            if (alg_truthy((or_3 = alg_is(v_TheStmt, "FunctionStmt"), !alg_truthy(or_3) ? or_3 : alg_equal(alg_property(alg_property(v_TheStmt, "Name"), "Literal"), alg_nil())))) {
+                                (void)((v_TheName = alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))));
+                            }
+                            if (alg_truthy(alg_is(v_TheStmt, "ClassStmt"))) {
+                                (void)((v_TheName = alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))));
+                            }
+                            if (alg_truthy(alg_is(v_TheStmt, "ObjectStmt"))) {
+                                (void)((v_TheName = alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))));
+                            }
+                            if (alg_truthy(alg_is(v_TheStmt, "VarStmt"))) {
+                                (void)((v_TheName = alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))));
+                            }
+                            if (alg_truthy(alg_is(v_TheStmt, "EnumStmt"))) {
+                                {
+                                    {
+                                        Value v_J = alg_int(0);
+                                        (void)v_J;
+                                        while (alg_truthy(alg_less(v_J, alg_property(alg_property(v_TheStmt, "Members"), "Length")))) {
+                                            {
+                                                {
+                                                    Value v_Member = alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_J), "Lexeme"));
+                                                    (void)v_Member;
+                                                    if (alg_truthy(alg_invoke(v_Seen, "Contains", (Value[]){v_Member}, 1))) {
+                                                        alg_raise(alg_add(alg_add(alg_string("'"), v_Member), alg_string("' is already defined.")));
+                                                    }
+                                                    (void)(alg_invoke(v_Seen, "Add", (Value[]){v_Member}, 1));
+                                                }
+                                                (void)((v_J = alg_add(v_J, alg_int(1))));
+                                            }
+                                        }
+                                    }
+                                    (void)((v_TheName = alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))));
+                                }
+                            }
+                            if (alg_truthy(alg_is(v_TheStmt, "VarGroupStmt"))) {
+                                {
+                                    Value v_J = alg_int(0);
+                                    (void)v_J;
+                                    while (alg_truthy(alg_less(v_J, alg_property(alg_property(v_TheStmt, "Names"), "Length")))) {
+                                        {
+                                            {
+                                                Value v_Each = alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Names"), v_J), "Lexeme"));
+                                                (void)v_Each;
+                                                if (alg_truthy(alg_invoke(v_Seen, "Contains", (Value[]){v_Each}, 1))) {
+                                                    alg_raise(alg_add(alg_add(alg_string("'"), v_Each), alg_string("' is already defined.")));
+                                                }
+                                                (void)(alg_invoke(v_Seen, "Add", (Value[]){v_Each}, 1));
+                                            }
+                                            (void)((v_J = alg_add(v_J, alg_int(1))));
+                                        }
+                                    }
+                                }
+                            }
+                            if (alg_truthy(alg_not_equal(v_TheName, alg_string("")))) {
+                                {
+                                    if (alg_truthy(alg_invoke(v_Seen, "Contains", (Value[]){v_TheName}, 1))) {
+                                        alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined.")));
+                                    }
+                                    (void)(alg_invoke(v_Seen, "Add", (Value[]){v_TheName}, 1));
+                                }
+                            }
+                        }
+                    }
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    return alg_nil();
+}
+
 static Value m_Resolver_ResolveAll_1_List(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Statements = args[0];
@@ -655,6 +753,7 @@ static Value m_Resolver_ResolveAll_1_List(Value v_this, Value *args, int32_t cou
         {
             (void)(alg_set_property(v_this, "Collected", alg_bool(true)));
             (void)(alg_invoke(v_this, "CollectDottable", (Value[]){v_Statements}, 1));
+            (void)(alg_invoke(v_this, "CheckDuplicates", (Value[]){v_Statements}, 1));
         }
     }
     {
@@ -882,6 +981,7 @@ void init_Resolver(void) {
     alg_class_method(k_Resolver, "VisitCollectionExpr", m_Resolver_VisitCollectionExpr_1_CollectionExpr, 1, t_Resolver_VisitCollectionExpr_1_CollectionExpr);
     alg_class_method(k_Resolver, "VisitLiteral", m_Resolver_VisitLiteral_1_LiteralExpr, 1, t_Resolver_VisitLiteral_1_LiteralExpr);
     alg_class_method(k_Resolver, "VisitVariableExpr", m_Resolver_VisitVariableExpr_1_VariableExpr, 1, t_Resolver_VisitVariableExpr_1_VariableExpr);
+    alg_class_method(k_Resolver, "CheckDuplicates", m_Resolver_CheckDuplicates_1_List, 1, t_Resolver_CheckDuplicates_1_List);
     alg_class_method(k_Resolver, "ResolveAll", m_Resolver_ResolveAll_1_List, 1, t_Resolver_ResolveAll_1_List);
     alg_class_method(k_Resolver, "Resolve", m_Resolver_Resolve_1, 1, t_Resolver_Resolve_1);
     alg_class_method(k_Resolver, "ResolveFunction", m_Resolver_ResolveFunction_2_FunctionStmt_FunctionType, 2, t_Resolver_ResolveFunction_2_FunctionStmt_FunctionType);
