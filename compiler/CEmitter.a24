@@ -229,7 +229,18 @@ var
     /// True while emitting a body that contains a try.
     Volatiles    : Boolean := False;
 
-    /// Private-name renames active for the group being emitted.
+    /// The names the file being emitted must spell differently in C, because a
+    /// header it includes already declares them.
+    ///
+    /// ⚠️ Only the ROOT file ever has any.  Every other file's colliding name is
+    /// refused outright -- two modules exporting one name is `Two modules
+    /// exporting 'X'` -- but the root is not a module: nothing can import it, so
+    /// its declaration SHADOWS the import rather than competing with it, and both
+    /// interpreters run that correctly.  Its symbols are static, which does not
+    /// stop them colliding; it changes how they collide, into 'static
+    /// declaration of v_Twin follows non-static declaration'.  Emitting the
+    /// root's under a distinct symbol is the whole fix, and it is invisible
+    /// outside the file because nothing else can refer to them.
     Renames      : Map;
 
     /// Locals of the function being emitted that live in heap cells because a
@@ -318,6 +329,13 @@ var
     /// Object and enum-type names, and enum members mapped to their symbols.
     Objects      : Set;
     EnumTypes    : Set;
+    /// Enum member name to the TYPE that declares it -- not to its symbol.
+    ///
+    /// ⚠️ It held the symbol once, built during the collect pass, which runs
+    /// before any unit is emitted and therefore before its renames exist.  A
+    /// root shadowing an imported enum got a renamed type and unrenamed members,
+    /// and the members still collided at cc.  Keeping the type and building the
+    /// symbol where it is used puts it back under the one rename hook.
     EnumMembers  : Map;
 
     /// The class whose body is being emitted, or '' outside one.
@@ -411,9 +429,15 @@ begin
         Exit Prefix + QuestionsOut (Name);
     end
 
+    /// ⚠️ ClassHandle and EnumTypeName go through Mangle, and InitName does
+    /// not.  The difference is whether the symbol appears in a HEADER: a class
+    /// handle and an enum type are exported, so the root's own can collide with
+    /// an import's, while a field initializer is static in every file and two of
+    /// them in two translation units are simply two symbols.
+    ///
     function ClassHandle (Name : String) : String;
     begin
-        Exit SymbolOf ('k_', Name);
+        Exit Mangle ('k_', Name);
     end
 
     function InitName (Name : String) : String;
@@ -423,14 +447,23 @@ begin
 
     function EnumTypeName (Name : String) : String;
     begin
-        Exit SymbolOf ('e_', Name);
+        Exit Mangle ('e_', Name);
     end
 
     /// A member is interned by its type, so the symbol carries both.
     ///
+    /// ⚠️ The TYPE half is renamed and the member half is not, which keeps this
+    /// consistent with EnumTypeName: a root shadowing an imported enum emits
+    /// 'e_Colour__Root_Red' against the import's 'e_Colour_Red'.  Renaming the
+    /// joined string instead would look for 'Colour_Red' in a map keyed by what
+    /// the user wrote, and never match.
+    ///
     function EnumMemberName (TypeName : String, Member : String) : String;
     begin
-        Exit SymbolOf ('e_', TypeName + '_' + Member);
+        var Renamed := Str (TypeName);
+        if Renames.Contains (Renamed) then Renamed := Str (Renames.Get (Renamed));
+
+        Exit SymbolOf ('e_', Renamed + '_' + Member);
     end
 
     /// '?' is an identifier character in Algol-24 and not in C, so 'Ready?'
@@ -648,8 +681,7 @@ begin
 
                 for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
                     EnumMembers.Put (Str (TheStmt.Members[J].Lexeme),
-                                     EnumMemberName (Str (TheStmt.Name.Lexeme),
-                                                     Str (TheStmt.Members[J].Lexeme)));
+                                     Str (TheStmt.Name.Lexeme));
             end
 
             if TheStmt is BlockStmt then CollectFunctions (TheStmt.Statements);
@@ -857,6 +889,25 @@ begin
             // not compile.  That is strictly worse than the bug it came from: a
             // silent wrong answer in the importing file became a build failure
             // in a file with nothing to do with it.
+            // The root's own names that a header it includes already declares.
+            // Declaration order, so the emitted C does not depend on set order.
+            Renames := Map();
+            if IsMain then
+            begin
+                var Declared := Set();
+                for var I := 0; I < Unit.Imports.Length; I := I + 1 do
+                    if UnitExports.Contains (Str (Unit.Imports[I])) then
+                    begin
+                        var Seen := (UnitExports.Get (Str (Unit.Imports[I])) as Set).ToList();
+                        for var J := 0; J < Seen.Length; J := J + 1 do Declared.Add (Seen[J]);
+                    end
+
+                var Mine := ExportedNames (Unit);
+                for var I := 0; I < Mine.Length; I := I + 1 do
+                    if Declared.Contains (Str (Mine[I])) then
+                        Renames.Put (Str (Mine[I]), Str (Mine[I]) + '__' + Str (Unit.Name));
+            end
+
             ShadowNames := Set();
 
             if UnitAll.Contains (Str (Unit.Name)) then
@@ -2225,7 +2276,8 @@ begin
         begin
             // An enum member binds bare as well as qualified, and both forms
             // must be the same object because comparison is identity.
-            if EnumMembers.Contains (Name) then Exit Str (EnumMembers.Get (Name));
+            if EnumMembers.Contains (Name) then
+                Exit EnumMemberName (Str (EnumMembers.Get (Name)), Name);
 
             if EnumTypes.Contains (Name) then Exit EnumTypeName (Name);
 
@@ -2496,14 +2548,22 @@ begin
             Unsupported ('A call to ''' + Unit + '.' + Name + '''');
         end
 
+        // ⚠️ Renames suspended for the same reason as UnitValue: a qualified
+        // call reaches another unit's symbol, not the root's shadowing one.
+        var Saved := Renames;
+        Renames := Map();
+
+        var Built := '';
         if Classes.Contains (Name) then
-            Exit 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+            Built := 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+        else if Declared.Contains (Name) then
+            Built := FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
+        else if Globals.Contains (Name) then
+            Built := 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
 
-        if Declared.Contains (Name) then
-            Exit FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
+        Renames := Saved;
 
-        if Globals.Contains (Name) then
-            Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+        if Built <> '' then Exit Built;
 
         Unsupported ('A call to ''' + Unit + '.' + Name + '''');
         Exit '';
@@ -2756,12 +2816,26 @@ begin
 
         if Unit = 'System' then Unsupported ('''' + Unit + '.' + Name + ''' as a value');
 
-        if EnumMembers.Contains (Name) then Exit Str (EnumMembers.Get (Name));
-        if EnumTypes.Contains (Name)   then Exit EnumTypeName (Name);
-        if Objects.Contains (Name)     then Exit 'alg_singleton(' + ClassHandle (Name) + ')';
-        if Classes.Contains (Name)     then Exit ClassHandle (Name);
-        if Declared.Contains (Name)    then Exit HandleName (Name);
-        if Globals.Contains (Name)     then Exit VariableName (Name);
+        // ⚠️ A qualified name reaches ANOTHER unit's symbol, so the rename that
+        // makes the root's own declaration distinct must not touch it.  Without
+        // this a root that shadows an import read its own value back through
+        // 'Held.Twin' -- the right symbol renamed out from under the one form
+        // whose whole purpose is to reach past the shadow.
+        var Saved := Renames;
+        Renames := Map();
+
+        var Built := '';
+        if EnumMembers.Contains (Name) then
+            Built := EnumMemberName (Str (EnumMembers.Get (Name)), Name);
+        else if EnumTypes.Contains (Name) then Built := EnumTypeName (Name);
+        else if Objects.Contains (Name)   then Built := 'alg_singleton(' + ClassHandle (Name) + ')';
+        else if Classes.Contains (Name)   then Built := ClassHandle (Name);
+        else if Declared.Contains (Name)  then Built := HandleName (Name);
+        else if Globals.Contains (Name)   then Built := VariableName (Name);
+
+        Renames := Saved;
+
+        if Built <> '' then Exit Built;
 
         Unsupported ('''' + Unit + '.' + Name + ''' as a value');
         Exit '';
@@ -2848,7 +2922,8 @@ begin
 
         for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
         begin
-            var Symbol := Str (EnumMembers.Get (Str (TheStmt.Members[I].Lexeme)));
+            var Symbol := EnumMemberName (Str (EnumMembers.Get (Str (TheStmt.Members[I].Lexeme))),
+                                          Str (TheStmt.Members[I].Lexeme));
 
             DeclareValue (Symbol, Str (TheStmt.Members[I].Lexeme));
             Setup.Append ('    ' + Symbol + ' = alg_enum_member(' + TheType

@@ -314,7 +314,27 @@ Two new findings came out of probing the check's edges: [C19](#c19), the root
 exemption, whose ⚠️ is false; and [C18](#c18), the overload premise, which holds
 in JPascal and not here.
 
-**Nothing blocks the commit.** Open items are the long tail: [C19](#c19) and
+**Since `ea7967e` — the root's shadowed symbols.** [C19](#c19) is fixed by
+**renaming rather than refusing**, and the asymmetry with [C17](#c17) is the
+argument: there the program was illegal and only the compiler failed to say so;
+here it is legal — shadowing is the settled rule — so refusing would have made
+the compiler stricter than the language. My three repros compile and agree with
+interpreted, `tests/programs/Shadowed.a24` matches both ways including its two
+identity assertions, and the symbol kind the fixture does not reach — an
+**object singleton** shadowed by the root — works too.
+
+⚠️ Of the three sub-cases the fix needed and the finding did not predict, the
+sharp one is that **renames had to be suspended for qualified access**: without
+that, the root read its own value back through `Pair.Twin`, the one form whose
+purpose is to reach past the shadow, silently in both emitters. That is why the
+fixture asserts enum *identity* rather than spelling — matching text is exactly
+what a merged symbol preserves.
+
+Probing whether the fix reaches the whole population it argues for turned up
+[C20](#c20): the same collision is still live in every file except the root, and
+[C17](#c17)'s own refusal message routes users into it.
+
+**Nothing blocks the commit.** Open items are the long tail: [C20](#c20) and
 [C18](#c18) (both pre-existing), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
 [D3](#d3)'s architectural remainder, [D4](#d4) by choice, and the three `E`
 items.
@@ -335,7 +355,8 @@ items.
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
 | [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
-| [C19](#c19) | The root file sharing a name with an import: emits, then `cc` fails — and the ⚠️ saying it is safe is false | Medium | Open (new, **pre-existing**) |
+| [C20](#c20) | A `private` name shadowing an import collides at `cc` — and the `C17` message tells you to write it | Medium | Open (new, **pre-existing**) |
+| [C19](#c19) | The root file sharing a name with an import emitted, then failed at `cc` | Medium | ✅ **Fixed** (renamed, not refused) |
 | [C18](#c18) | A duplicate top-level function: JPascal refuses, this compiler runs it and the last one wins | Medium | Open (new, **pre-existing**) |
 | [C17](#c17) | Two modules exporting one name ran interpreted and died past the compiler | Medium | ✅ **Fixed** (§9 row + both front ends) |
 | [C16](#c16) | `uses` visibility was not enforced by either interpreter | Medium | ✅ **Fixed** (a deletion) |
@@ -1350,7 +1371,44 @@ of bug, and a `test` block on it would pin the rule that a unit is its file stem
 
 ---
 
-### <a name="c19"></a>C19 — The root file sharing a name with an import: emits, then `cc` fails
+### <a name="c20"></a>C20 — A `private` name shadowing an import collides at `cc`, and the `C17` message recommends it
+
+**Severity: Medium. New, pre-existing, and the mechanism [C19](#c19) just fixed
+— still live in every file except the root.**
+
+[C17](#c17)'s refusal names a remedy: `'X' is already defined; mark it private
+in one of the modules.` Following it produces a different failure one stage on:
+
+```pascal
+{ Mid declares Twin and imports Held, which exports Twin }
+private var Twin := 'mid-own';
+```
+
+| | |
+|---|---|
+| both interpreters | `mid-own/held` — correct; the module's own binding and its import's are distinct |
+| `--compile` | emits, no refusal |
+| `cc` | `error: static declaration of 'v_Twin' follows non-static declaration` |
+
+A private **function** does the same (`f_Tag`). Pre-existing — confirmed on the
+seed from before C19 — and identical in both emitters.
+
+**The fix generalises from the argument already made.** C19 renames the root's
+colliding symbols because "nothing outside the file can observe it, because
+nothing can refer to them". A `private` symbol is the other population where
+that holds by definition — it is what `private` means. An **exported** module
+symbol cannot be renamed, because an importer names it; a private one has no
+such reader.
+
+**Worth weighing above the bug:** the refusal message is currently advice that
+leads somewhere worse. Even before the rename lands, that sentence deserves
+checking against what happens to the user who follows it.
+
+Full detail is in the sibling repository's `REVIEW.md`.
+
+---
+
+### <a name="c19"></a>C19 — The root file sharing a name with an import emitted, then failed at `cc`: Fixed
 
 **Severity: Medium. New, pre-existing, and the one shape left where this
 compiler emits a program it cannot build** — the exact thing [C17](#c17)'s check

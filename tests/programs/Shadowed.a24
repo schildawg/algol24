@@ -1,0 +1,63 @@
+/// The root file declaring names its own import exports.
+///
+/// ⚠️ Legal, and both interpreters have always run it: the nearest binding wins,
+/// which is the same rule that lets a declaration shadow a built-in. It did not
+/// COMPILE. The duplicate-export check refuses two modules sharing a name, and
+/// exempted the root on the grounds that the root's symbols are `static` and so
+/// cannot collide. `static` does not fail to collide — it collides differently:
+///
+///     error: static declaration of 'v_Twin' follows non-static declaration
+///
+/// So the root was the one file left where a compiler emitted a program it could
+/// not build, inside the exemption written to say that was safe.
+///
+/// ⚠️ The qualified lines are the second half and are easy to lose. The root's
+/// colliding symbol is renamed to keep it distinct, and a rename that also
+/// applied to `Twin.Twin` would silently return the root's own value — breaking
+/// the one form whose whole purpose is to reach past the shadow. It did, in both
+/// emitters, until the rename was suspended for qualified names.
+///
+/// ⚠️ The unit is called `Pair` and not `Twin` on purpose. A file-scope `var`
+/// outranks a unit of the same name, so a root that shadows `Twin` also shadows
+/// a *unit* called `Twin` and cannot qualify against it — correct, documented,
+/// and not what this program is for.
+
+uses 'lib/Pair';
+
+var Twin := 'root-var';
+
+function Twain () : String;
+begin
+    Exit 'root-fn';
+end
+
+class Twinned;
+begin
+    function Hello () : String;
+    begin
+        Exit 'root-class';
+    end
+end
+
+type Shade = (Pale, Deep);
+
+begin
+    // The root's own declarations win, unqualified.
+    WriteLn (Twin);
+    WriteLn (Twain ());
+    WriteLn (Twinned().Hello());
+
+    // ...and the unit's are still reachable through it.
+    WriteLn (Pair.Twin);
+    WriteLn (Pair.Twain ());
+    WriteLn (Pair.Twinned().Hello());
+
+    // -- an enum, whose members are a third symbol kind in the header ------
+    WriteLn (Pale);
+    WriteLn (Shade.Deep);
+
+    // ⚠️ Identity, not spelling: an enum member is interned by its type, so the
+    // root's Pale and the unit's are different objects however alike they read.
+    WriteLn (Pale = Shade.Pale);
+    WriteLn (Pale = Pair.UnitShade ());
+end

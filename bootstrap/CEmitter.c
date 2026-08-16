@@ -375,7 +375,7 @@ static Value m_CEmitter_ClassHandle_1_String(Value v_this, Value *args, int32_t 
     (void)v_this; (void)args; (void)count;
     Value v_Name = args[0];
     (void)v_Name;
-    return alg_invoke(v_this, "SymbolOf", (Value[]){alg_string("k_"), v_Name}, 2);
+    return alg_invoke(v_this, "Mangle", (Value[]){alg_string("k_"), v_Name}, 2);
     return alg_nil();
 }
 
@@ -391,7 +391,7 @@ static Value m_CEmitter_EnumTypeName_1_String(Value v_this, Value *args, int32_t
     (void)v_this; (void)args; (void)count;
     Value v_Name = args[0];
     (void)v_Name;
-    return alg_invoke(v_this, "SymbolOf", (Value[]){alg_string("e_"), v_Name}, 2);
+    return alg_invoke(v_this, "Mangle", (Value[]){alg_string("e_"), v_Name}, 2);
     return alg_nil();
 }
 
@@ -401,7 +401,12 @@ static Value m_CEmitter_EnumMemberName_2_String_String(Value v_this, Value *args
     (void)v_TypeName;
     Value v_Member = args[1];
     (void)v_Member;
-    return alg_invoke(v_this, "SymbolOf", (Value[]){alg_string("e_"), alg_add(alg_add(v_TypeName, alg_char_value(95)), v_Member)}, 2);
+    Value v_Renamed = alg_str(v_TypeName);
+    (void)v_Renamed;
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Renames"), "Contains", (Value[]){v_Renamed}, 1))) {
+        (void)((v_Renamed = alg_str(alg_invoke(alg_property(v_this, "Renames"), "Get", (Value[]){v_Renamed}, 1))));
+    }
+    return alg_invoke(v_this, "SymbolOf", (Value[]){alg_string("e_"), alg_add(alg_add(v_Renamed, alg_char_value(95)), v_Member)}, 2);
     return alg_nil();
 }
 
@@ -659,7 +664,7 @@ static Value m_CEmitter_CollectFunctions_1_List(Value v_this, Value *args, int32
                                 (void)v_J;
                                 while (alg_truthy(alg_less(v_J, alg_property(alg_property(v_TheStmt, "Members"), "Length")))) {
                                     {
-                                        (void)(alg_invoke(alg_property(v_this, "EnumMembers"), "Put", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_J), "Lexeme")), alg_invoke(v_this, "EnumMemberName", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")), alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_J), "Lexeme"))}, 2)}, 2));
+                                        (void)(alg_invoke(alg_property(v_this, "EnumMembers"), "Put", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_J), "Lexeme")), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 2));
                                         (void)((v_J = alg_add(v_J, alg_int(1))));
                                     }
                                 }
@@ -944,6 +949,52 @@ static Value m_CEmitter_Emit_2_List_String(Value v_this, Value *args, int32_t co
                     (void)(alg_set_property(v_this, "PrivateNames", alg_property(v_Unit, "PrivateNames")));
                     (void)(alg_set_property(v_this, "RootUnit", v_IsMain));
                     (void)(alg_set_property(v_this, "CurrentFile", alg_str(alg_property(v_Unit, "FileName"))));
+                    (void)(alg_set_property(v_this, "Renames", alg_map()));
+                    if (alg_truthy(v_IsMain)) {
+                        {
+                            Value v_Declared = alg_set();
+                            (void)v_Declared;
+                            {
+                                Value v_I = alg_int(0);
+                                (void)v_I;
+                                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_Unit, "Imports"), "Length")))) {
+                                    {
+                                        if (alg_truthy(alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){alg_str(alg_subscript_get(alg_property(v_Unit, "Imports"), v_I))}, 1))) {
+                                            {
+                                                Value v_Seen = alg_invoke((alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_str(alg_subscript_get(alg_property(v_Unit, "Imports"), v_I))}, 1)), "ToList", NULL, 0);
+                                                (void)v_Seen;
+                                                {
+                                                    Value v_J = alg_int(0);
+                                                    (void)v_J;
+                                                    while (alg_truthy(alg_less(v_J, alg_property(v_Seen, "Length")))) {
+                                                        {
+                                                            (void)(alg_invoke(v_Declared, "Add", (Value[]){alg_subscript_get(v_Seen, v_J)}, 1));
+                                                            (void)((v_J = alg_add(v_J, alg_int(1))));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                                    }
+                                }
+                            }
+                            Value v_Mine = alg_invoke(v_this, "ExportedNames", (Value[]){v_Unit}, 1);
+                            (void)v_Mine;
+                            {
+                                Value v_I = alg_int(0);
+                                (void)v_I;
+                                while (alg_truthy(alg_less(v_I, alg_property(v_Mine, "Length")))) {
+                                    {
+                                        if (alg_truthy(alg_invoke(v_Declared, "Contains", (Value[]){alg_str(alg_subscript_get(v_Mine, v_I))}, 1))) {
+                                            (void)(alg_invoke(alg_property(v_this, "Renames"), "Put", (Value[]){alg_str(alg_subscript_get(v_Mine, v_I)), alg_add(alg_add(alg_str(alg_subscript_get(v_Mine, v_I)), alg_string("__")), alg_str(alg_property(v_Unit, "Name")))}, 2));
+                                        }
+                                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                                    }
+                                }
+                            }
+                        }
+                    }
                     (void)(alg_set_property(v_this, "ShadowNames", alg_set()));
                     if (alg_truthy(alg_invoke(alg_property(v_this, "UnitAll"), "Contains", (Value[]){alg_str(alg_property(v_Unit, "Name"))}, 1))) {
                         {
@@ -2608,7 +2659,7 @@ static Value m_CEmitter_VisitVariableExpr_1_VariableExpr(Value v_this, Value *ar
     if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_Name}, 1)))) {
         {
             if (alg_truthy(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_Name}, 1))) {
-                return alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){v_Name}, 1));
+                return alg_invoke(v_this, "EnumMemberName", (Value[]){alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){v_Name}, 1)), v_Name}, 2);
             }
             if (alg_truthy(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_Name}, 1))) {
                 return alg_invoke(v_this, "EnumTypeName", (Value[]){v_Name}, 1);
@@ -2987,14 +3038,25 @@ static Value m_CEmitter_UnitCall_4_String_String_List_String(Value v_this, Value
             (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("A call to '"), v_Unit), alg_char_value(46)), v_Name), alg_string("'"))}, 1));
         }
     }
+    Value v_Saved = alg_property(v_this, "Renames");
+    (void)v_Saved;
+    (void)(alg_set_property(v_this, "Renames", alg_map()));
+    Value v_Built = alg_string("");
+    (void)v_Built;
     if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_add(alg_add(alg_add(alg_add(alg_string("alg_new("), alg_invoke(v_this, "ClassHandle", (Value[]){v_Name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_Arguments}, 1)), alg_char_value(41));
+        (void)((v_Built = alg_add(alg_add(alg_add(alg_add(alg_string("alg_new("), alg_invoke(v_this, "ClassHandle", (Value[]){v_Name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_Arguments}, 1)), alg_char_value(41))));
+    } else {
+        if (alg_truthy(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_Name}, 1))) {
+            (void)((v_Built = alg_add(alg_add(alg_add(alg_invoke(v_this, "FunctionName", (Value[]){v_Name}, 1), alg_string("(NULL, ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_Arguments}, 1)), alg_char_value(41))));
+        } else {
+            if (alg_truthy(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_Name}, 1))) {
+                (void)((v_Built = alg_add(alg_add(alg_add(alg_add(alg_string("alg_call("), alg_invoke(v_this, "Read", (Value[]){v_Name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_Arguments}, 1)), alg_char_value(41))));
+            }
+        }
     }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_add(alg_add(alg_add(alg_invoke(v_this, "FunctionName", (Value[]){v_Name}, 1), alg_string("(NULL, ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_Arguments}, 1)), alg_char_value(41));
-    }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_add(alg_add(alg_add(alg_add(alg_string("alg_call("), alg_invoke(v_this, "Read", (Value[]){v_Name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_Arguments}, 1)), alg_char_value(41));
+    (void)(alg_set_property(v_this, "Renames", v_Saved));
+    if (alg_truthy(alg_not_equal(v_Built, alg_string("")))) {
+        return v_Built;
     }
     (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("A call to '"), v_Unit), alg_char_value(46)), v_Name), alg_string("'"))}, 1));
     return alg_string("");
@@ -3255,23 +3317,37 @@ static Value m_CEmitter_UnitValue_2_String_String(Value v_this, Value *args, int
     if (alg_truthy(alg_equal(v_Unit, alg_string("System")))) {
         (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("'"), v_Unit), alg_char_value(46)), v_Name), alg_string("' as a value"))}, 1));
     }
+    Value v_Saved = alg_property(v_this, "Renames");
+    (void)v_Saved;
+    (void)(alg_set_property(v_this, "Renames", alg_map()));
+    Value v_Built = alg_string("");
+    (void)v_Built;
     if (alg_truthy(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){v_Name}, 1));
+        (void)((v_Built = alg_invoke(v_this, "EnumMemberName", (Value[]){alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){v_Name}, 1)), v_Name}, 2)));
+    } else {
+        if (alg_truthy(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_Name}, 1))) {
+            (void)((v_Built = alg_invoke(v_this, "EnumTypeName", (Value[]){v_Name}, 1)));
+        } else {
+            if (alg_truthy(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_Name}, 1))) {
+                (void)((v_Built = alg_add(alg_add(alg_string("alg_singleton("), alg_invoke(v_this, "ClassHandle", (Value[]){v_Name}, 1)), alg_char_value(41))));
+            } else {
+                if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_Name}, 1))) {
+                    (void)((v_Built = alg_invoke(v_this, "ClassHandle", (Value[]){v_Name}, 1)));
+                } else {
+                    if (alg_truthy(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_Name}, 1))) {
+                        (void)((v_Built = alg_invoke(v_this, "HandleName", (Value[]){v_Name}, 1)));
+                    } else {
+                        if (alg_truthy(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_Name}, 1))) {
+                            (void)((v_Built = alg_invoke(v_this, "VariableName", (Value[]){v_Name}, 1)));
+                        }
+                    }
+                }
+            }
+        }
     }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_invoke(v_this, "EnumTypeName", (Value[]){v_Name}, 1);
-    }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_add(alg_add(alg_string("alg_singleton("), alg_invoke(v_this, "ClassHandle", (Value[]){v_Name}, 1)), alg_char_value(41));
-    }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_invoke(v_this, "ClassHandle", (Value[]){v_Name}, 1);
-    }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_invoke(v_this, "HandleName", (Value[]){v_Name}, 1);
-    }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_Name}, 1))) {
-        return alg_invoke(v_this, "VariableName", (Value[]){v_Name}, 1);
+    (void)(alg_set_property(v_this, "Renames", v_Saved));
+    if (alg_truthy(alg_not_equal(v_Built, alg_string("")))) {
+        return v_Built;
     }
     (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("'"), v_Unit), alg_char_value(46)), v_Name), alg_string("' as a value"))}, 1));
     return alg_string("");
@@ -3361,7 +3437,7 @@ static Value m_CEmitter_VisitEnumStmt_1_EnumStmt(Value v_this, Value *args, int3
         while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Members"), "Length")))) {
             {
                 {
-                    Value v_Symbol = alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme"))}, 1));
+                    Value v_Symbol = alg_invoke(v_this, "EnumMemberName", (Value[]){alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme"))}, 1)), alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme"))}, 2);
                     (void)v_Symbol;
                     (void)(alg_invoke(v_this, "DeclareValue", (Value[]){v_Symbol, alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme"))}, 2));
                     (void)(alg_invoke(alg_property(v_this, "Setup"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    "), v_Symbol), alg_string(" = alg_enum_member(")), v_TheType), alg_string(", ")), f_QuoteC(NULL, (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme"))}, 1)), alg_string(");")), alg_char_value(10))}, 1));

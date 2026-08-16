@@ -1,0 +1,36 @@
+unit Pair;
+
+/// Every name here is also declared by the file that imports this unit, which
+/// is legal: the importer's own declaration shadows the import, exactly as a
+/// declaration shadows a built-in.
+///
+/// ⚠️ The unit is NOT called 'Twin'. A file-scope `var` outranks a unit of the
+/// same name -- that is the documented precedence -- so a unit whose own name
+/// the root shadows cannot be qualified at all, and the test would be measuring
+/// that rule instead of this one.
+
+var Twin := 'unit-var';
+
+function Twain () : String;
+begin
+    Exit 'unit-fn';
+end
+
+class Twinned;
+begin
+    function Hello () : String;
+    begin
+        Exit 'unit-class';
+    end
+end
+
+/// ⚠️ An enum is the third symbol kind that reaches a header, and it was the one
+/// the first fix missed: a class handle and an enum TYPE are built on demand and
+/// picked up the rename, while enum MEMBERS were built during the collect pass,
+/// before any unit's renames exist.
+type Shade = (Pale, Deep);
+
+function UnitShade () : Shade;
+begin
+    Exit Pale;
+end
