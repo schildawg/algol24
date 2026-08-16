@@ -1093,7 +1093,62 @@ begin
         // enclose Builtins rather than Globals -- so the justification outlived
         // the design it described, and the code it justified was the one thing
         // defeating the replacement.
-        Exit Env.Get (Name);
+        try
+            Exit Env.Get (Name);
+        except
+            on e : String do raise SuggestUnit (Name, e);
+        end
+    end
+
+    /// Adds "and here is where it lives" to an undefined name, when a loaded
+    /// module exports one of that name.
+    ///
+    /// ⚠️ Enforcing visibility made a whole class of program newly fail, and
+    /// 'Undefined variable ''Helper''.' is indistinguishable from a typo -- for a
+    /// name the reader can see in another file.  This is the difference between a
+    /// missing 'uses' and a misspelling, which the message could not tell apart.
+    ///
+    /// ⚠️ It is NOT a third implementation of visibility, and that distinction is
+    /// what makes it affordable.  It runs only after the environment chain has
+    /// already decided, changes no outcome, and re-derives no rule -- it reads
+    /// the modules that are already loaded to explain a failure that has already
+    /// happened.
+    ///
+    /// ⚠️ Raised here rather than in Environment, which is the reason it can be
+    /// done at all: Environment knows nothing about modules and should not, so
+    /// the enrichment belongs one frame up, where both the name and the loaded
+    /// modules are in hand.
+    ///
+    /// ⚠️ UnitsByName is walked in LOAD order, because the suggestion is
+    /// user-visible text and the two implementations have to name the same unit.
+    ///
+    function SuggestUnit (Name : Token, Message : String) : String;
+    begin
+        var Units := UnitsByName.Keys();
+
+        for var I := 0; I < Units.Length; I := I + 1 do
+        begin
+            var ModuleEnv := UnitsByName.Get (Units[I]) as Environment;
+
+            // Only what the unit EXPORTS: 'uses' would not reach a private name,
+            // so naming it would be advice that does not work -- the mistake the
+            // 'mark it private' message made one finding over.
+            if ModuleEnv.Exports <> Nil and ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
+                Exit Str (Message) + ' Unit ''' + Str (Units[I])
+                   + ''' exports it; this file has no ''uses'' for it.';
+        end
+
+        // ⚠️ The other half, and it needs a different sentence because it has a
+        // different remedy.  A module reaching a name the ENTRY POINT declares
+        // is just as undiagnosable, and 'add a uses' is advice that cannot be
+        // taken: nothing can import the file a program started from.  The fix is
+        // to move the declaration into a module, so the message says what is
+        // wrong rather than what to type.
+        if Env <> Globals and Globals.Values.Contains (Str (Name.Lexeme)) then
+            Exit Str (Message)
+               + ' The file the program started from declares it, and no file can ''uses'' that.';
+
+        Exit Str (Message);
     end
 
     /// Interprets a binary expression.

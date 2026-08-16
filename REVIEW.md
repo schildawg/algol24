@@ -775,7 +775,8 @@ rather than edited.
 | 6 | `unit` header mismatch not reported in the documented format | ✅ Fixed |
 | 7 | `algol.c:517` credits the *mangler* with refusing non-ASCII; it is the scanner | Open |
 | 8 | `ALGOL-24.md:1293` still lists qualified access as a Rough Edge — it was built | Open (new) |
-| 9 | `ALGOL-24.md:1295` says a cross-module reference fails as `Undefined variable`; sometimes it is `Type mismatch!` | Open (new) |
+| 9 | `ALGOL-24.md:1295` says a cross-module reference fails as `Undefined variable`; sometimes it is `Type mismatch!` | Open |
+| 10 | `ALGOL-24.md:370` describes two diagnostics as one; they now differ | Open (new) |
 | 10 | `CLAUDE.md:130-132` says there is no qualified module access and collisions need `private` | Open (new) |
 
 **1. `SourceCode.a24:10` overstates its own case by about 300×.** The ⚠️ says
@@ -910,6 +911,27 @@ argument will go looking in `Mangle` and find no such refusal. Reading
 either way, and by a wider margin than the ⚠️ claims: see [D3](#d3).)
 
 The same sentence appears in `JPascal/CLAUDE.md`.
+
+**10. `ALGOL-24.md:370` now describes two diagnostics as one.** It says
+that reaching *"a private name, **or** one from a module this file never
+imported"* reports `Undefined variable` at the point of use. That was true until
+the visibility hint landed; the two cases now read differently, deliberately:
+
+```
+private            Undefined variable 'Secret'.
+never imported     Undefined variable 'Helper'. Unit 'HB' exports it;
+                   this file has no 'uses' for it.
+```
+
+Both implementations agree on every shape — I checked the wording is identical —
+so the reference is simply behind, and it is where a reader goes to find out what
+a visibility violation looks like.
+
+Worth doing in the same edit: **document the shapes as a rule**, the way §9's
+message is documented (*"The message is always `<construct> is not supported by
+the C back end yet.`"*). These sentences are exactly as observable as that one
+and are pinned nowhere as text, so a rewording of both implementations at once
+passes every gate.
 
 ### <a name="c6"></a>C6 — A class named after a builtin constructor wins interpreted and loses compiled: Fixed
 
