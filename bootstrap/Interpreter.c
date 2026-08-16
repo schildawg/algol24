@@ -2261,16 +2261,10 @@ static Value m_Interpreter_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *arg
                     if (alg_truthy(alg_not(alg_invoke(alg_property(v_TheStmt, "PrivateNames"), "Contains", (Value[]){v_TheName}, 1)))) {
                         {
                             (void)(alg_invoke(v_Exported, "Add", (Value[]){v_TheName}, 1));
-                            if (alg_truthy(alg_not_equal(alg_invoke(v_Importer, "OwnerOf", (Value[]){v_TheName}, 1), alg_nil()))) {
-                                {
-                                    Value v_Existing = alg_invoke(alg_property((alg_invoke(v_Importer, "OwnerOf", (Value[]){v_TheName}, 1)), "Values"), "Get", (Value[]){v_TheName}, 1);
-                                    (void)v_Existing;
-                                    Value v_Incoming = alg_invoke(alg_property(v_ModuleEnv, "Values"), "Get", (Value[]){v_TheName}, 1);
-                                    (void)v_Incoming;
-                                    if (alg_truthy(alg_not(((or_17 = alg_is(v_Existing, "ObjFunction"), !alg_truthy(or_17) ? or_17 : alg_is(v_Incoming, "ObjFunction")))))) {
-                                        alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined; mark it private in one of the modules.")));
-                                    }
-                                }
+                            Value v_Owner = alg_invoke(v_Importer, "OwnerOf", (Value[]){v_TheName}, 1);
+                            (void)v_Owner;
+                            if (alg_truthy((or_17 = alg_not_equal(v_Owner, alg_nil()), !alg_truthy(or_17) ? or_17 : alg_not_equal(v_Owner, v_ModuleEnv)))) {
+                                alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined; mark it private in one of the modules.")));
                             }
                         }
                     }

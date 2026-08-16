@@ -287,8 +287,35 @@ Probing what the newly enforced rule now *encourages* turned up [C17](#c17):
 two modules exporting one name runs correctly under both interpreters and
 **fails at `ld`**, unrefused.
 
-**Nothing blocks the commit.** Open items are the long tail: [C17](#c17)
-(pre-existing), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
+**Since `f709980` — duplicate exports.** [C17](#c17) is fixed in all three
+places, and the check underneath it turned out to be broken in **both**
+implementations in opposite directions — vars caught here and not in JPascal,
+the `uses` position mattering there and not here, functions exempt in both on
+the false premise that top-level functions overload. I rebuilt the previous
+JPascal in a scratch worktree rather than take the table on trust; it reproduces
+exactly, including the two rows that are the same program with one line moved.
+
+⚠️ **And C17 was worse than I reported it.** I wrote "duplicate symbol at `ld`",
+which is the *function* case. For a **variable** there is no link error at all:
+two `Value v_Held;` at file scope are tentative definitions and C merges them
+into one object, so the program silently computes the wrong answer — `h1/h2`
+interpreted against `h2/h2` compiled, with `cc` and `ld` both quiet.
+
+⚠️ **I nearly filed the new refusal as a regression**, because a module that
+shadows its own import's name compiled and ran and printed the right answer
+before. It printed it by *initialisation order*: the two variables were one
+storage location all along. Reading both copies shows `mid-own/held` interpreted
+against `mid-own/mid-own` compiled. What reversed the conclusion was opening the
+emitted C instead of trusting the output — recorded because the next person to
+ask "did this used to work?" will run the same probe and get the same wrong
+answer.
+
+Two new findings came out of probing the check's edges: [C19](#c19), the root
+exemption, whose ⚠️ is false; and [C18](#c18), the overload premise, which holds
+in JPascal and not here.
+
+**Nothing blocks the commit.** Open items are the long tail: [C19](#c19) and
+[C18](#c18) (both pre-existing), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
 [D3](#d3)'s architectural remainder, [D4](#d4) by choice, and the three `E`
 items.
 
@@ -308,7 +335,9 @@ items.
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
 | [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
-| [C17](#c17) | Two modules exporting one name: runs interpreted, **duplicate symbol at `ld`**, unrefused | Medium | Open (new, **pre-existing**) |
+| [C19](#c19) | The root file sharing a name with an import: emits, then `cc` fails — and the ⚠️ saying it is safe is false | Medium | Open (new, **pre-existing**) |
+| [C18](#c18) | A duplicate top-level function: JPascal refuses, this compiler runs it and the last one wins | Medium | Open (new, **pre-existing**) |
+| [C17](#c17) | Two modules exporting one name ran interpreted and died past the compiler | Medium | ✅ **Fixed** (§9 row + both front ends) |
 | [C16](#c16) | `uses` visibility was not enforced by either interpreter | Medium | ✅ **Fixed** (a deletion) |
 | [C15](#c15) | `--test`: a test two `uses` hops down failed interpreted, passed compiled | Medium | ✅ **Fixed** |
 | [C13](#c13) | A three-deep `uses` chain emits `init_X()` without including `X.h` | Medium | ✅ **Fixed** (+ `Chain.a24`) |
@@ -1321,7 +1350,65 @@ of bug, and a `test` block on it would pin the rule that a unit is its file stem
 
 ---
 
-### <a name="c17"></a>C17 — Two modules exporting one name: runs interpreted, duplicate symbol at `ld`
+### <a name="c19"></a>C19 — The root file sharing a name with an import: emits, then `cc` fails
+
+**Severity: Medium. New, pre-existing, and the one shape left where this
+compiler emits a program it cannot build** — the exact thing [C17](#c17)'s check
+was written to stop, surviving in the file that check exempts.
+
+The scan skips the root, and the ⚠️ above it says the root "exports nothing,
+every symbol in it is static, and a name it shares with a module it imports is
+ordinary shadowing rather than a collision." The first two clauses are true and
+the third does not follow: `static` does not fail to collide, it collides
+against the non-static declaration the imported header brings in.
+
+| root declares `Twin`, imports a module exporting `Twin` | |
+|---|---|
+| both interpreters | `mine` — shadowing, correct, and what the ⚠️ intends |
+| `--compile` | four files, **no refusal** |
+| `cc` | `error: static declaration of 'v_Twin' follows non-static declaration` |
+
+A function does the same (`f_Twain`), and both emitters agree, so comparing them
+sees nothing. **The false ⚠️ is the part to fix first** — `CLAUDE.md` calls
+these load-bearing, and this one tells the next reader the root is safe by
+construction, which is why the exclusion is unconditional.
+
+**Recommendation.** Include the root, comparing its own top-level declarations
+against the union of its imports' exports — a different question from the
+module-against-module one, and one whose answer does not depend on `static`.
+Refuse with the existing §9 row, or emit the root's shadowing declaration under
+a distinct symbol, which is what qualified symbols would do anyway.
+
+---
+
+### <a name="c18"></a>C18 — A duplicate top-level function: JPascal refuses, this compiler runs it
+
+**Severity: Medium. New, pre-existing, and the premise [C17](#c17)'s fix reasons
+from.** The overload exemption was removed on the grounds that top-level
+functions do not overload, "and two in one file is already `'already defined'`" —
+which is true of one implementation.
+
+| two `function G()` in one file | same arity | different arity |
+|---|---|---|
+| JPascal | `'G' is already defined.` | `'F' is already defined.` |
+| this compiler, interpreted | **runs**, prints `two` — last wins | **runs**, then `Expected 2 arguments but got 1.` |
+| this compiler, compiled | `error: redefinition of 'f_G'` | — |
+
+`ALGOL-24.md`'s Rough Edges §2 states this about the *language*, and only
+JPascal enforces it — so the two halves here disagree as well, the interpreter
+running what the compiler cannot build.
+
+**Recommendation.** Raise `'G' is already defined.` at the second declaration,
+matching JPascal's wording. Not the same trade as the TypeChecker message: there
+the program is refused either way and only the wording is at stake, whereas here
+the interpreter runs it and produces an answer, and a silently-last-wins
+duplicate is the shape that hides in a long file.
+
+Full detail is in the sibling repository's `REVIEW.md`.
+
+---
+
+### <a name="c17"></a>C17 — Two modules exporting one name ran interpreted and died past the compiler: Fixed
 
 **Severity: Medium. New, pre-existing, and made *reachable* by [C16](#c16)'s fix
 rather than caused by it** — I confirmed the same failure on the seed from

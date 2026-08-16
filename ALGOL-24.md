@@ -1206,7 +1206,7 @@ Run them with `--test`, which reports PASS/FAIL grouped by source file and exits
 
 ## 9. What the C back end refuses
 
-The interpreter defines the language, so anywhere the compiler is **narrower** than the interpreter is part of the observable surface and belongs here. There are seventeen such places. Each one **names the construct, writes no output, and stops** — it never emits C that means something other than what the program said, because output comparison is the only thing verifying the back end and silence would defeat it.
+The interpreter defines the language, so anywhere the compiler is **narrower** than the interpreter is part of the observable surface and belongs here. There are eighteen such places. Each one **names the construct, writes no output, and stops** — it never emits C that means something other than what the program said, because output comparison is the only thing verifying the back end and silence would defeat it.
 
 The message is always `<construct> is not supported by the C back end yet.`
 
@@ -1222,6 +1222,7 @@ The message is always `<construct> is not supported by the C back end yet.`
 | `'super' as a value` | Reachable. `var F := super.M;` — needs a bound method. `super.M()` compiles fine; it is a different node. |
 | `'System.X' as a value` | Reachable. `var F := System.Max;` — a built-in is a C function with no closure to stand for it. `System.Max(1, 2)` compiles fine, and a *user* unit's function taken as a value does too. See [Units](#units-and-qualified-names). |
 | `Two modules named 'X'` | Two source files with the same stem reaching one program. A file is a translation unit, so the stems have to be distinct. |
+| `Two modules exporting 'X'` | Reachable. Two imported modules exporting one name. Both interpreters refuse it at the `uses` as `'X' is already defined; mark it private in one of the modules.`; without this row the compilers emitted it and the failure landed on the **linker**. Mark one `private`, or rename. |
 | `A capture of 'X'` | A guard. The closure machinery lists the cells in scope where the declaration stands; this fires if one is named that does not exist. |
 | `An identifier containing 'c'` | A guard on the identifier mangler. Only `?` is legal in an Algol-24 name and illegal in C, and that is mapped to `_q`; this is the one place that would have to learn about a second such character. |
 | `A literal of type X` | A guard. A literal whose Java/Algol-24 class the emitter has no writer for. |

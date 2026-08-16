@@ -784,6 +784,41 @@ begin
             UnitExports.Put (Str (Units[U].Name), Exported);
         end
 
+        // ⚠️ Two units exporting one name do not clash while compiling -- they
+        // clash at the LINKER, on a duplicate symbol, which is past 'cc -c' and
+        // so past anything refuse.sh can observe.  Both interpreters refuse the
+        // program; without this the compilers emitted it happily and the user
+        // met 'ld: 1 duplicate symbols' instead.
+        //
+        // ⚠️ The ROOT file is excluded, and must be: it exports nothing, every
+        // symbol in it is static, and a name it shares with a module it imports
+        // is ordinary shadowing rather than a collision.
+        //
+        // ⚠️ Declaration order, not set order.  The name reported has to be the
+        // same one whichever compiler is running, and a Set would put its own
+        // iteration order into the message.
+        var ExportedBy := Map();
+        for var U := 0; U < Units.Length - 1; U := U + 1 do
+        begin
+            var Visible := UnitExports.Get (Str (Units[U].Name)) as Set;
+            var Names := ExportedNames (Units[U]);
+
+            for var I := 0; I < Names.Length; I := I + 1 do
+            begin
+                var TheName := Str (Names[I]);
+
+                if Visible.Contains (TheName) then
+                begin
+                    if ExportedBy.Contains (TheName) then
+                    begin
+                        if Str (ExportedBy.Get (TheName)) <> Str (Units[U].Name) then
+                            Unsupported ('Two modules exporting ''' + TheName + '''');
+                    end
+                    else ExportedBy.Put (TheName, Str (Units[U].Name));
+                end
+            end
+        end
+
         for var U := 0; U < Units.Length; U := U + 1 do
         begin
             var Unit := Units[U];
@@ -2359,6 +2394,43 @@ begin
         end
 
         Exit '(Value[]){' + Joined + '}, ' + Str (Arguments.Length);
+    end
+
+    /// The names a unit declares at its top level, in the order they are
+    /// written -- which is what makes a message built from them deterministic.
+    ///
+    function ExportedNames (Unit : EmitUnit) : List;
+    var
+        Names : List;
+
+    begin
+        Names := List();
+
+        for var I := 0; I < Unit.Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Unit.Statements[I];
+
+            if TheStmt is FunctionStmt and not IsTest (TheStmt) then
+                Names.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is ClassStmt  then Names.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is ObjectStmt then Names.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is VarStmt    then Names.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is EnumStmt then
+            begin
+                Names.Add (Str (TheStmt.Name.Lexeme));
+
+                for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                    Names.Add (Str (TheStmt.Members[J].Lexeme));
+            end
+
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    Names.Add (Str (TheStmt.Names[J].Lexeme));
+        end
+
+        Exit Names;
     end
 
     /// The constructors.  Set takes either nothing or a List, which is how a

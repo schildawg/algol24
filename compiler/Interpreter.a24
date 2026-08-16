@@ -1836,16 +1836,30 @@ begin
                 Exported.Add (TheName);
 
                 // Two modules exporting one name is an error rather than a
-                // silent shadowing -- except for functions, which overload.
-                if Importer.OwnerOf (TheName) <> Nil then
-                begin
-                    var Existing := (Importer.OwnerOf (TheName) as Environment).Values.Get (TheName);
-                    var Incoming := ModuleEnv.Values.Get (TheName);
+                // silent shadowing.
+                //
+                // ⚠️ There used to be an exemption here for a function meeting a
+                // function, on the grounds that functions overload.  Top-level
+                // ones do NOT in this language -- ALGOL-24.md's Rough Edges says
+                // so, and two in one file is already 'already defined' -- and the
+                // exemption was exactly what let two modules export one function.
+                // That emits cleanly from both compilers and then dies at the
+                // LINKER on a duplicate symbol, which is past anything refuse.sh
+                // can observe.
+                //
+                // ⚠️ Asked of the importer's IMPORTS, not of its own bindings: a
+                // file's own declaration of an imported name is shadowing, not a
+                // clash, and the nearest binding wins as it does over a built-in.
+                // JPascal checked its own bindings instead and so caught the
+                // opposite case, which is how the two came to disagree about
+                // which programs are legal.
+                var Owner := Importer.OwnerOf (TheName);
 
-                    if not (Existing is ObjFunction and Incoming is ObjFunction) then
-                        raise '''' + TheName
-                            + ''' is already defined; mark it private in one of the modules.';
-                end
+                // ⚠️ Not a clash with itself: importing one module twice is a
+                // no-op, and the second 'uses' finds the first holding the name.
+                if Owner <> Nil and Owner <> ModuleEnv then
+                    raise '''' + TheName
+                        + ''' is already defined; mark it private in one of the modules.';
 
             end
         end
