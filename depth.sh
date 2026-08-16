@@ -76,11 +76,25 @@ if [ -z "${RUNTIME:-}" ]; then
     fi
 fi
 
-# Default to JPascal, which needs the jar; ALGC= overrides with any compiler
-# taking the same flags.
+# The compiler, derived from the layout like RUNTIME above.  JPascal where the
+# jar exists, algc where it does not, and ALGC= overrides either.
+#
+# ⚠️ The RUNTIME default was fixed here last round and this one was left encoding
+# the same assumption -- so 'depth.sh' with no arguments still failed in the
+# published repo, on 'Missing target/jpascal.jar'.  One field over from the bug,
+# in the fix for the bug.  Checking the OTHER defaults is the part I did not do.
+if [ -z "$ALGC" ]; then
+    if   [ -f "$ROOT/target/jpascal.jar" ]; then ALGC=""
+    elif [ -x "$ROOT/algc" ];               then ALGC="$ROOT/algc"
+    elif [ -x "$ROOT/algc.exe" ];           then ALGC="$ROOT/algc.exe"
+    fi
+fi
+
 if [ -z "$ALGC" ]; then
     if [ ! -f "$ROOT/target/jpascal.jar" ]; then
-        echo "Missing target/jpascal.jar -- run: mvn package -DskipTests"; exit 1
+        echo "No compiler found: neither target/jpascal.jar nor ./algc."
+        echo "      Set ALGC to one, or run: mvn package -DskipTests"
+        exit 1
     fi
     run()     { java -jar "$ROOT/target/jpascal.jar" "$@"; }
 else
