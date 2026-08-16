@@ -998,7 +998,7 @@ static Value m_Parser_ParseFunction_1_String(Value v_this, Value *args, int32_t 
                 {
                     if (alg_truthy(alg_greater_equal(alg_property(v_Params, "Length"), alg_int(255)))) {
                         {
-                            alg_raise(alg_string("Cannot have more than 255 parameters."));
+                            alg_raise(alg_string("Can't have more than 255 parameters."));
                         }
                     }
                     (void)(alg_invoke(v_Params, "Add", (Value[]){alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect parameter name.")}, 2)}, 1));
@@ -1529,7 +1529,7 @@ static Value m_Parser_FinishCall_1_Expr(Value v_this, Value *args, int32_t count
             while (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_COMMA}, 1))) {
                 {
                     if (alg_truthy(alg_greater_equal(alg_property(v_Arguments, "Length"), alg_int(255)))) {
-                        alg_raise(alg_string("Cannot have more than 255 arguments."));
+                        alg_raise(alg_string("Can't have more than 255 arguments."));
                     }
                     (void)(alg_invoke(v_Arguments, "Add", (Value[]){alg_invoke(v_this, "Expression", NULL, 0)}, 1));
                 }

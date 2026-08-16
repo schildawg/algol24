@@ -2,7 +2,7 @@ unit Shapes;
 
 /// A unit whose primary class shares its name.
 ///
-/// ⚠️ That is the ordinary shape, not an edge case: seventeen of algc's
+/// ⚠️ That is the ordinary shape, not an edge case: eighteen of algc's
 /// twenty-two units are exactly this.  A bare class name cannot answer a dot in
 /// any version of this language, so 'Shapes.Describe()' is free to mean the
 /// unit while bare 'Shapes' goes on meaning the class.

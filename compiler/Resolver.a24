@@ -48,7 +48,7 @@ var
    /// dot -- 'Thing.Get()' on a bare class is 'Only instances have properties.'
    /// in every version of this language -- so the syntactic slot is free, and
    /// that is what lets 'Scanner.ScanTokens()' work in a file whose unit and
-   /// primary class share the name.  Seventeen of algc's twenty-two units are
+   /// primary class share the name.  Eighteen of algc's twenty-two units are
    /// exactly that shape.
    Dottable : Set;
 
@@ -606,8 +606,14 @@ begin
             begin
                 var TheName := '';
 
-                if TheStmt is FunctionStmt and TheStmt.Name.Literal = Nil then
-                    TheName := Str (TheStmt.Name.Lexeme);
+                // ⚠️ Test blocks included, and they must be.  A test's name
+                // token is the STRING LITERAL, so its lexeme is quoted and can
+                // never collide with an identifier -- but two tests of one name
+                // collide with each other, and the runner keys by lexeme, so the
+                // second silently replaced the first.  Excluding them left
+                // '--test' refusing a duplicate while '--compile --test' emitted
+                // it and ran both.
+                if TheStmt is FunctionStmt then TheName := Str (TheStmt.Name.Lexeme);
 
                 if TheStmt is ClassStmt  then TheName := Str (TheStmt.Name.Lexeme);
                 if TheStmt is ObjectStmt then TheName := Str (TheStmt.Name.Lexeme);

@@ -20,7 +20,6 @@ Value k_Resolver;
 static Value or_0;
 static Value or_1;
 static Value or_2;
-static Value or_3;
 static const char *t_Resolver_Init_1_Interpreter[] = { "Interpreter" };
 static const char *t_Resolver_CollectDottable_1_List[] = { "List" };
 static const char *t_Resolver_IsUnitQualifier_1[] = { "Any" };
@@ -674,7 +673,7 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
                         {
                             Value v_TheName = alg_string("");
                             (void)v_TheName;
-                            if (alg_truthy((or_3 = alg_is(v_TheStmt, "FunctionStmt"), !alg_truthy(or_3) ? or_3 : alg_equal(alg_property(alg_property(v_TheStmt, "Name"), "Literal"), alg_nil())))) {
+                            if (alg_truthy(alg_is(v_TheStmt, "FunctionStmt"))) {
                                 (void)((v_TheName = alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))));
                             }
                             if (alg_truthy(alg_is(v_TheStmt, "ClassStmt"))) {

@@ -7,16 +7,19 @@
 /// 15.  JPascal's keys by file name as well, and this will have to when it
 /// loads more than one.
 ///
-/// ⚠️ A List indexed by line number, not a Map keyed by one.  It held a Map,
-/// and that was the single largest consumer of Map lookups in the whole
-/// compiler: one entry per source line, refilled for every file, so scanning a
-/// 3,000-line module inserted 3,000 keys -- and each insertion first scanned
-/// every key already there to check the line was not a duplicate.  About 4.5
-/// million comparisons per file, for a structure only ever read when an error
-/// has to print the line it happened on.
+/// ⚠️ A List indexed by line number, not a Map keyed by one.  The keys were
+/// 1, 2, 3, ... in order, which is a List with extra steps -- and that is the
+/// whole justification.  It needs no measurement and it survives Map becoming
+/// fast, which the sentence that stood here did not.
 ///
-/// The keys were 1, 2, 3, ... in order, which is a List with extra steps.  See
-/// MAP.md.
+/// ⚠️ That sentence called this "the single largest consumer of Map lookups in
+/// the whole compiler", at "about 4.5 million comparisons per file".  Measured
+/// afterwards, by instrumenting map_index in two builds: the change is
+/// **0.35%** of the compiler's Map comparisons, and worth no measurable time at
+/// all -- 11.85 s against an unchanged 11.71 s on '--test Main.a24'.  The 30%
+/// that round belonged entirely to the hash index.  The mechanism was right and
+/// the magnitude was invented; a false number in a ⚠️ is worse than none,
+/// because the next person sizes their own work against it.  See MAP.md.
 ///
 object SourceCode;
 var

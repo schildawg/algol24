@@ -1102,8 +1102,8 @@ begin
             begin
                 if Params.Length >= 255 then
                 begin
-                    raise 'Cannot have more than 255 parameters.';
-                    //Error (Peek(), 'Cannot have more than 255 parameters.');
+                    raise 'Can''t have more than 255 parameters.';
+                    //Error (Peek(), 'Can''t have more than 255 parameters.');
                 end
                 Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));
                 ParamTypes.Add (ParameterType ());
@@ -1704,8 +1704,8 @@ begin
             while Match (TOKEN_COMMA) do
             begin
                 if Arguments.Length >= 255 then 
-                    //Error (Peek(), 'Cannot have more than 255 arguments.');
-                    raise 'Cannot have more than 255 arguments.';
+                    //Error (Peek(), 'Can''t have more than 255 arguments.');
+                    raise 'Can''t have more than 255 arguments.';
 
                 Arguments.Add (Expression ());
             end
@@ -2531,7 +2531,7 @@ begin
     except
         on e : String do
             begin
-                AssertEqual('Cannot have more than 255 arguments.', e);
+                AssertEqual('Can''t have more than 255 arguments.', e);
                 Exit;
             end
     end
@@ -2588,7 +2588,7 @@ begin
     except
         on e : String do
             begin
-                AssertEqual('Cannot have more than 255 parameters.', e);
+                AssertEqual('Can''t have more than 255 parameters.', e);
                 Exit;
             end
     end

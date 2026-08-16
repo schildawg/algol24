@@ -183,7 +183,7 @@ the same hazard the previous round's ⚠️ described, now fixed rather than wor
 around.
 
 **Open:** [C13](#c13) is new, **pre-existing, and not caused by this change** — a
-three-deep `uses` chain has never compiled. [C8](#c8) is partly addressed.
+three-deep `uses` chain has never compiled. `C8` is partly addressed.
 [D3](#d3)–[D4](#d4) and [C3](#c3) are unchanged. **Nothing here blocks the
 commit.**
 
@@ -375,7 +375,7 @@ Verified in both modes across every declaration kind, wording identical to
 JPascal's. That work also produced [G4](#g4), a harness gap rather than a
 defect.
 
-**Nothing blocks the commit.** Open items are the long tail: [G4](#g4), [C8](#c8) (prose, item 7 added this round), [C3](#c3),
+**Nothing blocks the commit.** Open items are the long tail: [G4](#g4), `C8` (prose, item 7 added this round), [C3](#c3),
 [D3](#d3)'s architectural remainder, [D4](#d4) by choice, and the three `E`
 items.
 
@@ -395,6 +395,7 @@ items.
 | [C9](#c9) | Builtin shadowing was program-wide in `CEmitter`, not per file → unrelated files stopped compiling | **High** | ✅ **Fixed** (+ `UnitScope.a24`) |
 | [C10](#c10) | The same scope error in `TypeChecker`, and `System.X` inherited the shadow's type | Medium | ✅ **Fixed** |
 | [C14](#c14) | `_setjmp`/`_longjmp` guarded on `_WIN32` → the seed did not build on Linux/glibc at the documented `-std=c11` | **High** | ✅ **Fixed** (verified on both platforms) |
+| [G5](#g5) | `depth.sh`'s default `RUNTIME` is the sibling's layout, so it fails here as published | Low | Open (new) |
 | [G4](#g4) | No test asks whether emitted C **builds** — four findings were "emits, then `cc`/`ld` refuses" | Medium | Open (harness) |
 | [C21](#c21) | `private object` was not private here | Medium | ✅ **Fixed** (+ a second hole beside it) |
 | [C18](#c18) | A duplicate top-level declaration ran here and died at `cc` | Medium | ✅ **Fixed** (in the Resolver) |
@@ -406,7 +407,7 @@ items.
 | [C15](#c15) | `--test`: a test two `uses` hops down failed interpreted, passed compiled | Medium | ✅ **Fixed** |
 | [C13](#c13) | A three-deep `uses` chain emits `init_X()` without including `X.h` | Medium | ✅ **Fixed** (+ `Chain.a24`) |
 | [D3](#d3) | Name-based dispatch on every call and field access | Medium | Partly addressed — **2.4× measured** |
-| [C8](#c8) | Factual errors in the prose, one in a ⚠️ | Low | Partly fixed |
+| `C8` | Factual errors in the prose, one in a ⚠️ | Low | Partly fixed |
 | [C11](#c11) | Assignment through a unit qualifier was not refused, it failed at `cc` | Low | ✅ **Fixed** (implemented) |
 | [C12](#c12) | `'\\'` is a String, so two of the three unit-stem functions never split on `\` | Low | ✅ **Fixed** (stem computed once) |
 | [C2](#c2) | Back-end refusals are correct but undocumented | Low | ✅ **Fixed** (`ALGOL-24.md` §9) |
@@ -660,7 +661,7 @@ Verified against the tree rather than read: the reachable refusals fire with the
 documented wording, write **no** files, and exit 70. Reproductions in the
 [appendix](#refusals-verified).
 
-Two errors in the new table are recorded under [C8](#c8) — the site count, and
+Two errors in the new table are recorded under `C8` — the site count, and
 one row that transcribes a source variable instead of the message. Neither
 touches the mechanism.
 
@@ -795,186 +796,6 @@ sentence that makes the memory cost easy to miss.
 </details>
 
 ---
-
-### <a name="c8"></a>C8 — Factual errors in the prose (now six)
-
-**Severity: Low.** Grouped because they are all the same kind of mistake — a
-number or a name asserted rather than measured — and two of them are now inside a
-⚠️, which `CLAUDE.md` says is load-bearing and to be preserved. A false ⚠️ is
-worse than no ⚠️, because the next person will design around it.
-
-**Status after the scope fixes:** item 6 is fixed and the stray `ctest/` pointer
-is gone; item 5 is fixed in one of its three homes; items 1–4 are unchanged.
-Nothing here is patched by me — the ⚠️ prose is yours, so these are reported
-rather than edited.
-
-| | Item | Status |
-|---|---|---|
-| 1 | `SourceCode.a24` ⚠️ overstates its own case by ~300× | Open |
-| 2 | §9 count is one higher than `algc`'s | Open (still 1 out) |
-| 3 | `An identifier containing 'c'` transcribes the loop variable | Open |
-| 4 | `Cannot` vs JPascal's `Can't`, two Parser messages | Open |
-| 5 | "seventeen of the twenty-two units" is eighteen | Partly fixed |
-| 6 | `unit` header mismatch not reported in the documented format | ✅ Fixed |
-| 7 | `algol.c:517` credits the *mangler* with refusing non-ASCII; it is the scanner | Open |
-| 8 | `ALGOL-24.md:1293` still lists qualified access as a Rough Edge — it was built | Open (new) |
-| 9 | `ALGOL-24.md:1295` says a cross-module reference fails as `Undefined variable`; sometimes it is `Type mismatch!` | Open |
-| 10 | `ALGOL-24.md:370` describes two diagnostics as one; they now differ | Open (new) |
-| 10 | `CLAUDE.md:130-132` says there is no qualified module access and collisions need `private` | Open (new) |
-
-**1. `SourceCode.a24:10` overstates its own case by about 300×.** The ⚠️ says
-the `Map` it replaced "was the single largest consumer of Map lookups in the
-whole compiler" and cost "about 4.5 million comparisons per file".
-
-Instrumented `map_index` in two builds of `ba465bd` — one with `Lines` as a
-`Map`, one with the new `List` — and counted, running `--test compiler/Main.a24`:
-
-| | `map_index` calls | comparisons |
-|---|---|---|
-| `Lines` as a `Map` | 24,303,113 | 4,360,748,611 |
-| `Lines` as a `List` | 24,288,279 | 4,345,614,029 |
-| **difference** | 14,834 | **15,134,582** |
-
-`SourceCode` accounts for **0.35%** of the compiler's `map_index` comparisons,
-not the largest share. The mechanism in the ⚠️ is right — Σ n(n−1)/2 over
-`compiler/*.a24` predicts 15,469,743, which lands within 3% of the measurement —
-but "4.5 million per file" is true only of the three ~3,000-line modules; the
-median module is ~200 lines and costs ~20,000.
-
-And it buys no time. A `ba465bd` compiler with *only* the `SourceCode` change
-runs `--test compiler/Main.a24` in **11.85 s** against the unchanged 11.71 s —
-that is, nothing, inside the noise. The whole of the 30% is the hash index.
-
-The change is still right, and the ⚠️'s other sentence is the one that carries
-it: *"The keys were 1, 2, 3, ... in order, which is a List with extra steps."*
-That is true, needs no measurement, and would survive the index making `Map`
-fast. **Recommendation: keep the change, cut the magnitude claim to that
-sentence.**
-
-**2. `ALGOL-24.md` §9 now says "There are seventeen such places." `algc` has
-sixteen.** The off-by-one has now survived two rounds intact, both times because
-each round added a real refusal to both sides: `'System.X' as a value`, then
-`An assignment to 'Unit.X'`. Recounted after the fixes — 19 `Unsupported (...)`
-call sites collapsing to **16** distinct constructs, against 16 table rows of
-which one covers two (`Unary`/`Binary`), so the table describes 17. The extra one
-is still `A class field`
-(`CEmitter.java:1973`, `visitClassVarExpr`) — `compiler/Expr.a24` has no
-`ClassVarExpr` node at all, so there is nothing in `algc` for it to refuse. The
-row belongs in a shared reference, but it needs a note that only one front end
-builds the node; as written the count is wrong for the compiler the reader is
-holding.
-
-**3. The `An identifier containing 'c'` row transcribes the source, not the
-message.** Both implementations interpolate the offending character
-(`CEmitter.a24:421`, `CEmitter.java:483`); `c` is the loop variable. The table
-promises exact wording everywhere else, so this reads as a literal lowercase
-`c`.
-
-**4. The `Cannot` → `Can't` sweep missed the Parser.** Every Resolver message
-now matches JPascal word for word — I checked all seven. Two remain:
-
-| `algc` | JPascal |
-|---|---|
-| `Parser.a24:1002` `Cannot have more than 255 parameters.` | `Parser.java:799` `Can't have more than 255 parameters.` |
-| `Parser.a24:1605` `Cannot have more than 255 arguments.` | `Parser.java:1080` `Can't have more than 255 arguments.` |
-
-Same class of divergence, same fix. Still open; the lines have moved to
-`Parser.a24:1063` and `:1666`, and the two `AssertEqual`s are now at `:2492` and
-`:2549`.
-
-**5. "Seventeen of the twenty-two units" is eighteen. Partly fixed —
-`ALGOL-24.md:410` now says eighteen; the other two homes still say seventeen,
-and both are inside a ⚠️:** `compiler/Resolver.a24:51` and
-`tests/programs/lib/Shapes.a24:5`. Counted: `compiler/` holds 22 `.a24` files,
-and **18** declare a public `class` of the file's own name — AstPrinter,
-CEmitter, Environment, Expr, Interpreter, ObjBuffer, ObjClass, ObjCollection,
-ObjEnum, ObjFile, ObjFunction, ObjInstance, Parser, Resolver, Scanner, Stmt,
-Token, TypeChecker. None is `private`. The remaining four are `Console` and
-`SourceCode` (which declare an `object` of their name, and are the "two of the
-compiler's own units are shaped this way" the neighbouring ⚠️ mentions — that
-count is **correct**), plus `Main` and `TokenType`, which declare no type of
-their name at all. The argument does not depend on the number, which is why this
-is Low; but 18 of 22 makes it more strongly than 17 does.
-
-**6. The `unit` header mismatch is not reported in the format `ALGOL-24.md`
-shows. ✅ Fixed** — it now goes through the Parser's `Error`, so it carries the
-file, the line and a caret under the offending name:
-
-```
-[ERROR] Hdr.a24: Unit 'Wrongg' must match its file name 'Wrong'.
-[ERROR] 1 | unit Wrongg;
-[ERROR]   |      ^^^^^^
-```
-
-Original finding below.
-
-The reference gives:
-
-```
-[ERROR] Shapes.a24: Unit 'Shape' must match its file name 'Shapes'.
-```
-
-The actual output is a bare `Uncaught:` line with no file, no `[ERROR]` tag and
-no source caret:
-
-```
-Uncaught: Unit 'Wrongg' must match its file name 'Wrong'.
-```
-
-The cause is that `UnitHeader` uses `raise` where every other parse error goes
-through the Parser's `Error`. I checked the contrast directly: an ordinary syntax
-error in the same module reports `[ERROR] <file>: ...` with the offending line
-and a caret. The message itself is right and is identical interpreted and
-compiled — only the framing differs, which is why this is Low rather than a
-divergence. Routing it through `Error (Name, '...')` would give it the file, the
-line and the caret for free.
-
-**The stray `ctest/Units.a24` pointer in `tests/conformance/Modules.a24` is
-gone.** ✅
-
----
-
-**7. The new `alg_stricmp` ⚠️ credits the wrong stage.** `bootstrap/algol.c:517`
-says "Identifiers in this language are ASCII — **the mangler** refuses anything
-else". The claim it supports is true; the attribution is a stage early. A
-non-ASCII identifier never reaches the mangler, because the scanner rejects the
-byte:
-
-```
-$ printf 'class Caf\xc3\xa9;\nbegin\nend\n' > Uni.a24
-$ ./algc Uni.a24
-Uncaught: [line 1] Error: Unexpected character: ...      (exit 70)
-```
-
-Identical interpreted and compiled, from `Scanner.a24:180`. The reason this is
-worth a line rather than nothing is that the ⚠️ is doing load-bearing work — it
-is the argument that dropping `strcasecmp` is safe — and a reader checking that
-argument will go looking in `Mangle` and find no such refusal. Reading
-`the scanner` for `the mangler` makes it exact. (The safety argument holds
-either way, and by a wider margin than the ⚠️ claims: see [D3](#d3).)
-
-The same sentence appears in `JPascal/CLAUDE.md`.
-
-**10. `ALGOL-24.md:370` now describes two diagnostics as one.** It says
-that reaching *"a private name, **or** one from a module this file never
-imported"* reports `Undefined variable` at the point of use. That was true until
-the visibility hint landed; the two cases now read differently, deliberately:
-
-```
-private            Undefined variable 'Secret'.
-never imported     Undefined variable 'Helper'. Unit 'HB' exports it;
-                   this file has no 'uses' for it.
-```
-
-Both implementations agree on every shape — I checked the wording is identical —
-so the reference is simply behind, and it is where a reader goes to find out what
-a visibility violation looks like.
-
-Worth doing in the same edit: **document the shapes as a rule**, the way §9's
-message is documented (*"The message is always `<construct> is not supported by
-the C back end yet.`"*). These sentences are exactly as observable as that one
-and are pinned nowhere as text, so a rewording of both implementations at once
-passes every gate.
 
 ### <a name="c6"></a>C6 — A class named after a builtin constructor wins interpreted and loses compiled: Fixed
 
@@ -1436,6 +1257,45 @@ of bug, and a `test` block on it would pin the rule that a unit is its file stem
 
 ---
 
+### <a name="g5"></a>G5 — `depth.sh` does not run where it was published
+
+**Severity: Low, and it is [G4](#g4)'s own lesson turned on itself.** The
+harness travels; its default does not.
+
+```
+$ ALGC=./algc ./depth.sh              # exactly as published
+FAIL  depth 1 -- emitted C does not build: error: 'algol.h' file not found
+...
+depth: 0 chains ok, 8 failed
+
+$ ALGC=./algc RUNTIME=bootstrap ./depth.sh
+depth: 8 chains ok, 0 failed
+```
+
+`RUNTIME` defaults to `$ROOT/src/main/resources/runtime`, which is JPascal's
+layout; on this side the runtime is `bootstrap/`. The harness is right and its
+default encodes the environment it was written in — structurally the same
+mistake as `C14`'s `#if defined(_WIN32)`, which is a pleasing thing for a test
+harness to reproduce.
+
+⚠️ **The copy is silent** — `cp "$RUNTIME/algol.c" ... 2>/dev/null` — so a
+missing runtime is not reported as a missing runtime. It becomes eight identical
+`cc` errors that read like an emitter regression, which is where I spent the
+first minute.
+
+**Recommendation, in order.**
+
+1. **Fail early and loudly if `$RUNTIME/algol.h` is absent.** The script already
+   does exactly this for `jpascal.jar` and for `algc.exe`; the runtime is the
+   third prerequisite and the only one unchecked.
+2. **Derive `RUNTIME` from wherever `ALGC` is**, or accept both layouts.
+
+⚠️ The general form is worth more than the fix: a harness should distinguish
+**the mutant failed** from **the harness could not run**, and make the second
+loud. Every failure today was the second kind, and none of the reproduction
+machinery — `--keep`, printing the generated program — would have helped, because
+nothing was wrong with the generated program.
+
 ### <a name="g4"></a>G4 — Nothing asks whether the emitted C actually builds
 
 **Severity: Medium, a harness gap rather than a defect.** Four findings running —
@@ -1491,6 +1351,36 @@ any mutant that ever fails into `tests/programs/` by hand — the harness stays
 adversarial and the regression stays pinned. The pattern generalises past
 collisions: `uses` **depth** was another axis the corpus did not vary, and that
 was [C13](#c13) and [C15](#c15).
+
+**Update — the depth axis has an invariant too, and it is a count.** A second
+prototype at `~/workspace-copilot/depth-prototype.sh` generates `uses` chains of
+depth 1..8, each module forwarding a value, one test per module. Three clauses,
+none needing an expected value: *refuse-or-build-and-match* (as above), *`--test`
+runs one test per module*, and *output at depth d equals depth 1* — depth is not
+part of a program's meaning, so that last one is metamorphic and needs no oracle
+at all.
+
+Validated against the compilers that had the bugs: at `99c01cb` it reports four
+failures naming `init_L2`…`init_L5` (that is `C13`), and at `3ba8a8f` — `C13`
+fixed, `C15` not — four failures reading `--test ran 2 of 3`, `2 of 4`, `2 of 5`,
+`2 of 6` (that is `C15`). The current tree is 8 ok, 0 failed.
+
+⚠️ **`C15` is the argument against "the depth oracle is just *it works*".** That
+program *did* work — it ran, printed the right answer, and compiled and
+interpreted agreed. What failed was that two of its tests never ran, and no
+comparison can see that, because both sides agree about the tests they know
+about. The general form: **when the failure mode is silent omission, the
+invariant is a count, not a comparison.** A generator knows how many tests a
+program ought to run because it wrote them; no differential gate can know that
+by construction.
+
+⚠️ The depth harness also **travels**, where the collision one does not: clauses
+2 and 3 are self-referential, so they need no second implementation to disagree
+with. Worth noting that the collision harness's *core* oracle needs one compiler
+too — only its bucket diff needs two — so a reduced single-compiler version
+would run in the sibling repository and still catch every violation, losing only
+the over-refusal detection.
+
 
 ---
 
@@ -2360,7 +2250,7 @@ call volume the commit message reports (2.7 M interpreted calls → 285 M
   million random strings of length 0–8 over the same range — compared against
   `strcasecmp` for matching sign. **Zero mismatches.** The ⚠️ justifies this by
   identifiers being ASCII, which is true (`Scanner.a24:180` refuses anything
-  else — see [C8](#c8) item 7), but the guarantee is stronger than that: the
+  else — see `C8` item 7), but the guarantee is stronger than that: the
   runtime never calls `setlocale`, so `strcasecmp` was folding ASCII and nothing
   else to begin with.
 - **A name hash in `MethodEntry`, compared before the `strcmp`.** Correct by
@@ -2939,7 +2829,7 @@ Each of these agrees interpreted and compiled:
 | `System.Nope(1)` | `Undefined name 'Nope' in unit 'System'.` / refused by name |
 | qualification across two `uses` hops (non-transitive) | `Undefined variable 'Shapes'.` interpreted; compiled inherits the pre-existing gap that an undefined name at file scope reaches `cc` — reproduces without units, so not new |
 | two files with stem `Dup` | last-one-wins interpreted, as documented; compiled refuses with `Two modules named 'Dup'` |
-| `unit` header mismatch | same message both ways (framing aside — [C8](#c8) item 6) |
+| `unit` header mismatch | same message both ways (framing aside — `C8` item 6) |
 
 ### <a name="c14-repro"></a>C14 — the seed on Linux, before and after
 

@@ -513,7 +513,8 @@ static ObjMap *as_map(Value v, const char *what) {
  * compares them with strcmp.  Hashing the pointer would make two equal strings
  * land in different slots and the Map would hold both. */
 /* ⚠️ ASCII, deliberately, in place of strcasecmp.  Identifiers in this language
- * are ASCII -- the mangler refuses anything else -- so the answers agree with
+ * are ASCII -- the SCANNER rejects a non-ASCII byte, so one never reaches the
+ * mangler at all -- so the answers agree with
  * the locale-aware version and with Java's equalsIgnoreCase, which is what the
  * interpreter uses.  It is not a micro-optimisation: strcasecmp_l goes through
  * locale tables and came out AHEAD of strcmp in algc's profile, at about a
