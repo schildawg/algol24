@@ -7,12 +7,29 @@
 #   ./depth.sh --only 5           # just that chain -- a failure prints this flag
 #   ./depth.sh --keep             # leave the generated tree behind to read
 #
-# ⚠️ The second generating gate, after collide.sh, and it exists because the
-# corpus was all LEAVES.  Nothing in ctest/lib/ imported anything, and the two
-# large multi-module programs -- algc and the Lox interpreter -- are STARS, where
-# the root imports every other file directly.  So the two programs compiled on
-# every single build were the one shape immune to a chain bug.  C13 and C15 were
-# both found by hand for exactly that reason.
+# ⚠️ The second generating gate, after collide.sh.  It exists because the corpus
+# was all LEAVES: no library file imported another, and the one large
+# multi-module program built on every run -- the compiler itself -- is a STAR at
+# the top, since Main.a24 imports every other file directly.  So the program
+# compiled on every single build was the one shape immune to a chain bug, and two
+# chain findings were made by hand for exactly that reason.
+#
+# ⚠️ THAT PREMISE IS NOW HALF FALSE, AND CLAUSE 1 IS THE HALF IT COST.  The
+# corpus grew the fixtures these findings produced.  tests/programs/lib/ now
+# holds Chain1 -> Chain2 -> Chain3 and Outer -> Inner, and the compiler is a star
+# only at Main: beneath it the modules import each other, so
+# Main -> Console -> Scanner -> SourceCode is a depth-3 chain compiled on every
+# build.  (The full graph also CYCLES -- Parser and Interpreter import each other
+# -- so there is no single longest path to quote.)  Clause 1 therefore asserts
+# something the ordinary build now exercises, and should be read as cheap
+# reinforcement rather than as this harness's reason to exist.
+#
+# ⚠️ CLAUSE 2 IS THAT REASON, AND NOTHING ELSE HERE COVERS IT.  No gate in
+# test.sh counts how many tests should have run.  './test.sh unit' reports the
+# compiler's own blocks all green and would report exactly the same if a chunk of
+# them silently stopped being collected -- which is the failure this harness was
+# built for.  Same relationship as leaks and memory: two instruments, not one
+# with two numbers.
 #
 # ⚠️ THE INVARIANT IS A COUNT, AND THAT IS THE WHOLE POINT.  The obvious oracle
 # for depth is "the program still works", which every gate already asserts for

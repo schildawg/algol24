@@ -80,8 +80,9 @@ that assumption turns out wrong.
 **The compiled column contains two defects that are not about case.** A
 case-mismatched name is simply one more way to produce a name the resolver
 cannot find, and an unresolved name reaches `cc` as invalid C rather than being
-diagnosed — that is a separate defect, recorded in `SPEC.md` under *Unresolved
-names in compiled code*, and these files inherit it. The second is the wording:
+diagnosed — that is a separate defect, recorded in `ALGOL-24.md` under
+*Unresolved names in compiled code*, and these files inherit it. The second is
+the wording:
 an unresolved *callee* is reported as `A call to 'ANSWER' is not supported by
 the C back end yet`, which sends the reader looking for a missing feature
 instead of a misspelled name.
