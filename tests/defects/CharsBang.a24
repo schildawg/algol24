@@ -1,0 +1,21 @@
+/// '!' is a letter, so an identifier may contain one.
+///
+/// The scanner's alphabet is A-Z, a-z, '_' and '?', and every other byte is
+/// refused during scanning -- so the file is rejected before any statement
+/// runs and no test is reported.  '?' already works and is asserted here
+/// alongside, so a fix that reaches '!' and breaks '?' fails visibly rather
+/// than silently.
+///
+/// Nothing else in the language spells '!', so admitting it is unambiguous:
+/// there is no '!' and no '!=' in the token set.
+///
+/// Fails with: [line N] Error: Unexpected character: !  (no test ran)
+///
+test 'An identifier may contain an exclamation mark';
+begin
+    var Commit! : Integer := 1;
+    var Ready?  : Integer := 2;
+
+    AssertEqual (1, Commit!);
+    AssertEqual (2, Ready?);
+end

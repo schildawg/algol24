@@ -1,0 +1,23 @@
+/// An identifier may contain a Unicode letter from outside the Latin scripts.
+///
+/// Separate from CharsUnicodeLatin because the two can be fixed apart and often
+/// are.  Latin-1 letters are two bytes each in UTF-8; these are two and three,
+/// and Greek carries a case pairing (Δ/δ) while Han carries none at all.  A fix
+/// that widens the scanner's alphabet byte-wise passes the Latin file and fails
+/// this one.
+///
+/// The case pairing here is deliberate.  If identifier case is ever folded, the
+/// fold has to cover this range too -- see 'Identifier case' in ALGOL-24.md --
+/// and a Greek name is the cheapest place for that to show up.  This test does
+/// not assert the fold; it only puts the character where a fold would meet it.
+///
+/// Fails with: [line N] Error: Unexpected character: <byte>  (no test ran)
+///
+test 'An identifier may contain a Greek or Han letter';
+begin
+    var Δelta : Integer := 1;
+    var 半径  : Integer := 2;
+
+    AssertEqual (1, Δelta);
+    AssertEqual (2, 半径);
+end

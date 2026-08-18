@@ -1,0 +1,19 @@
+/// An identifier may contain a Unicode letter outside ASCII.
+///
+/// This one uses Latin-1 letters, which are the cheapest possible case: two
+/// bytes each in UTF-8 and no combining marks involved.  If a fix handles
+/// nothing else it should handle these.
+///
+/// The scanner has no notion of a code point, so a non-ASCII character is
+/// refused as a BYTE -- one error per byte it occupies, not one per character.
+///
+/// Fails with: [line N] Error: Unexpected character: <byte>  (no test ran)
+///
+test 'An identifier may contain a Latin-1 letter';
+begin
+    var Café : Integer := 1;
+    var Größe : Integer := 2;
+
+    AssertEqual (1, Café);
+    AssertEqual (2, Größe);
+end

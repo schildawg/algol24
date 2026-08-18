@@ -36,18 +36,29 @@ for source in "$HERE"/*.a24; do
         # 'Uncaught:' is printed FIRST.  A file whose tests ran ends with
         # 'Uncaught: Tests failed.', which is the same sentence whatever went
         # wrong; the [ERROR] beneath it is the one that names the defect.  Only
-        # a file abandoned during checking, before any test ran, has no [ERROR]
-        # at all -- and there the 'Uncaught:' is the whole answer.
-        plain=$(printf '%s\n' "$output" | sed 's/\x1b\[[0-9;]*m//g')
+        # a file rejected before any test ran has no [ERROR] at all -- and there
+        # the 'Uncaught:' is the whole answer.
+        #
+        # ⚠️ LC_ALL=C throughout, because a reproduction here may hold bytes that
+        # are not valid text.  The scanner echoes the offending BYTE when it
+        # refuses one, so a Unicode identifier makes this output ill-formed
+        # UTF-8, and a locale-aware sed answers 'illegal byte sequence' and
+        # drops the line -- the reason column came out empty, which reads as the
+        # harness being broken rather than the defect being reproduced.  The
+        # final substitution renders any such byte as '.' so the column stays
+        # printable.
+        plain=$(printf '%s\n' "$output" | LC_ALL=C sed 's/'$'\033''\[[0-9;]*m//g')
 
-        why=$(printf '%s\n' "$plain" | grep -m1 '^\[ERROR\]' \
-              | sed -e 's/^\[ERROR\] [^:]*: //' -e 's/^Failed\.  //')
+        why=$(printf '%s\n' "$plain" | LC_ALL=C grep -m1 '^\[ERROR\]' \
+              | LC_ALL=C sed -e 's/^\[ERROR\] [^:]*: //' -e 's/^Failed\.  //')
 
         if [ -z "$why" ]; then
-            why=$(printf '%s\n' "$plain" | grep -m1 '^Uncaught:' \
-                  | sed 's/^Uncaught: //')
-            why="$why (abandoned during checking -- no test ran)"
+            why=$(printf '%s\n' "$plain" | LC_ALL=C grep -m1 '^Uncaught:' \
+                  | LC_ALL=C sed 's/^Uncaught: //')
+            why="$why (file rejected -- no test ran)"
         fi
+
+        why=$(printf '%s' "$why" | LC_ALL=C sed 's/[^ -~]/./g')
 
         printf '%-26s fails    %s\n' "$name" "$why"
         failing=$((failing + 1))

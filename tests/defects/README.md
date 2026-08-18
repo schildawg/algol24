@@ -24,12 +24,41 @@ reproduction that starts passing is the event worth acting on.
 For that reason this directory is **not** in `test.sh`'s `SUITES` array and must
 not be added to it. `./test.sh` stays green while these fail.
 
-## The current contents: identifier case
+## Identifier characters
 
-Identifiers in Algol-24 are meant to be case-insensitive, in keeping with the
-Pascal tradition the language follows elsewhere and with the case-insensitive
-matching of keywords. They are not. Every file here is one surface on which
-they are not.
+`ALGOL-24.md` admits Unicode letters, decimal digits, `_`, `?` and `!` in an
+identifier. The scanner's alphabet is `A`–`Z`, `a`–`z`, `_`, `?` and the ASCII
+digits, so two of those are unimplemented and every other byte is refused during
+scanning.
+
+| File | Asks for | Fails with |
+|---|---|---|
+| `CharsBang` | `Commit!` | `Unexpected character: !` |
+| `CharsUnicodeLatin` | `Café`, `Größe` | `Unexpected character:` + a raw byte |
+| `CharsUnicodeNonLatin` | `Δelta`, `半径` | `Unexpected character:` + a raw byte |
+
+All three are refused before any statement runs, so no test is reported — the
+same shape as `CaseEnumMember` and `CaseTypeName` below.
+
+The two Unicode files are separate because they can be fixed apart. Latin-1
+letters are two UTF-8 bytes each; the second file mixes two- and three-byte
+characters, and Greek carries a case pairing (Δ/δ) where Han carries none. A fix
+that widens the alphabet bytewise passes the first and fails the second.
+
+`CharsBang` also asserts `Ready?`, which works today, so a change that reaches
+`!` and breaks `?` fails visibly instead of silently.
+
+Note that the scanner has no notion of a code point: it refuses a non-ASCII
+character **as a byte**, one error per byte it occupies. That is why `run.sh`
+runs its output filters under `LC_ALL=C` — the reproduction's own error message
+is not valid UTF-8.
+
+## Identifier case
+
+Identifiers are meant to be case-insensitive, in keeping with the Pascal
+tradition the language follows elsewhere and with the case-insensitive matching
+of keywords. They are not. Every file below is one surface on which they are
+not.
 
 Three surfaces already fold case and are not represented here, since a test of
 them would pass: keywords, in the scanner; the type-name operand of `is`, in
@@ -82,12 +111,11 @@ case-mismatched name is simply one more way to produce a name the resolver
 cannot find, and an unresolved name reaches `cc` as invalid C rather than being
 diagnosed — that is a separate defect, recorded in `ALGOL-24.md` under
 *Unresolved names in compiled code*, and these files inherit it. The second is
-the wording:
-an unresolved *callee* is reported as `A call to 'ANSWER' is not supported by
-the C back end yet`, which sends the reader looking for a missing feature
-instead of a misspelled name.
+the wording: an unresolved *callee* is reported as `A call to 'ANSWER' is not
+supported by the C back end yet`, which sends the reader looking for a missing
+feature instead of a misspelled name.
 
-## Migration risk
+## Migration risk for the case fold
 
 None that can be found in this repository. Tokenizing every `.a24` under
 `compiler/`, `tests/` and `bench/` — comments and string literals stripped — and

@@ -40,10 +40,13 @@ Keywords are matched case-insensitively and are written here in lower case.
 
 ## Source code representation
 
-Source text is a sequence of characters. The processors operate on 8-bit
-characters; a character literal is restricted to the range 0 through 127
-(see [Character literals](#character-literals)), and behavior for source
-containing characters outside that range is not specified.
+Source text is UTF-8 encoded Unicode. Outside identifiers the language uses only
+characters in the range 0 through 127, and a character literal is restricted to
+that range (see [Character literals](#character-literals)); an identifier may
+contain any Unicode letter (see [Identifiers](#identifiers)).
+
+No processor accepts a byte above 127 today, in an identifier or anywhere else.
+See [Identifier characters](#identifier-characters) for what is implemented.
 
 A line ends at the character `#10`. The characters `#9`, `#13` and space are
 whitespace and separate tokens; they are otherwise ignored. `#13` is not
@@ -54,12 +57,13 @@ treated as a line terminator: it does not increment the line count.
 ```
 newline        = /* the character #10 */ .
 whitespace     = /* #9 | #13 | " " */ .
-letter         = "A" … "Z" | "a" … "z" | "_" | "?" .
+unicode_letter = /* a Unicode code point in category Lu, Ll, Lt, Lm or Lo */ .
+letter         = unicode_letter | "_" | "?" | "!" .
 decimal_digit  = "0" … "9" .
 ```
 
-Both `_` and `?` are letters and may appear anywhere in an identifier,
-including as its first character.
+`_`, `?` and `!` are letters and may appear anywhere in an identifier, including
+as its first character. A decimal digit may not begin one.
 
 ## Lexical elements
 
@@ -105,7 +109,32 @@ rule stated in this section describes a defect rather than the language. See
 [Identifier case](#identifier-case) for what each surface actually does today
 and for the two surfaces that already fold case.
 
-Because `?` is a letter, `Ready?` is a single identifier.
+An identifier begins with a letter and continues with letters and decimal
+digits. `unicode_letter` covers the Unicode letter categories, so `Café`,
+`Δelta` and `半径` are identifiers; `_`, `?` and `!` are letters too, so
+`Snake_Case`, `Ready?` and `Commit!` are each a single identifier and the
+trailing punctuation is part of the name rather than an operator. Nothing else
+in the language spells `?` or `!`, so no ambiguity arises.
+
+A decimal digit may not begin an identifier, which is what keeps `1x` from
+scanning as a name. Digits are the ASCII digits `0` through `9`; a Unicode digit
+is not a digit here, and — not being a letter either — cannot appear in an
+identifier at all.
+
+`?` and `!` carry no meaning. They are ordinary characters, conventionally used
+to end a predicate and a mutator respectively, and a processor must not attach
+significance to either.
+
+Two consequences of admitting Unicode. Identifiers are compared by their code
+points, so two names that render identically but differ in normalization are
+different names; a processor performs no normalization. And case sensitivity,
+[discussed below](#identifier-case), is a separate question from this one — a
+processor that folds case must fold it over the whole Unicode letter range and
+not only over ASCII, or the two rules will disagree about `Straße` and `İstanbul`.
+
+**`!` and Unicode letters are not implemented.** Only `A`–`Z`, `a`–`z`, `_`, `?`
+and the ASCII digits are accepted today. See
+[Identifier characters](#identifier-characters).
 
 ### Keywords
 
@@ -1342,6 +1371,45 @@ two processors are observed to disagree, or the rule as implemented appears to
 contradict the language's own conventions or its stated design intent. A program
 that depends on any of them is not portable. Each was reproduced under both
 processors.
+
+## Identifier characters
+
+[Identifiers](#identifiers) admits Unicode letters, decimal digits, `_`, `?` and
+`!`. Two of those are not implemented. The scanner's alphabet is `A`–`Z`,
+`a`–`z`, `_` and `?`, plus the ASCII digits after the first character, and every
+other byte is refused during scanning:
+
+```
+var Ready! := 1;      (* [line 1] Error: Unexpected character: ! *)
+var Café  := 1;       (* [line 1] Error: Unexpected character: <byte> *)
+```
+
+Both processors agree, because the scanner is shared, and both refuse the file
+before any statement runs. A non-ASCII byte is refused **as a byte**: the
+scanner has no notion of a code point, so one character produces one error per
+byte it occupies.
+
+**Interpretation.** Straightforwardly unimplemented rather than ambiguous. The
+specification states the intended alphabet, and
+[`tests/defects/`](https://github.com/schildawg/algol24/tree/main/tests/defects)
+reproduces each gap.
+
+Three things a fix has to decide that the alphabet alone does not settle:
+
+1. **The emitted symbol.** Every C symbol built from a user name goes through
+   `Mangle`, which maps `?` to `_q`. `!` and each non-ASCII code point need
+   mappings too, and the mapping must stay **injective** — two different
+   identifiers that mangle to one C symbol is the defect family this repository
+   has hit most often.
+2. **Normalization.** Two spellings that render identically may differ in code
+   points. This specification says they are different identifiers and that no
+   normalization is performed, which is the cheap rule; normalizing instead is
+   defensible but must then happen everywhere a name is compared, including in
+   `Mangle`.
+3. **Case folding.** If [identifier case](#identifier-case) is closed, the fold
+   has to cover the Unicode letter range rather than ASCII alone. `alg_stricmp`
+   folds ASCII deliberately, on the stated grounds that identifiers are ASCII —
+   a comment that stops being true the moment this entry is closed.
 
 ## Identifier case
 
