@@ -1,0 +1,11 @@
+unit CaseUnit;
+
+/// A unit with one export, so CaseUnitQualifier has something to name.
+///
+/// Deliberately carries no test blocks of its own: it is loaded by the file
+/// under test, and its tests would be reported alongside that file's.
+///
+function Greet () : String;
+begin
+    Exit 'hello';
+end

@@ -1,0 +1,18 @@
+/// A function called under a case other than its declaration.
+///
+/// A function name is an ordinary binding in the enclosing environment, so this
+/// is the same lookup as a variable's -- but a call is resolved before the
+/// callee is known to be callable, and the diagnostic says 'variable' rather
+/// than 'function', which is worth keeping visible.
+///
+/// Fails with: Undefined variable 'ANSWER'.
+///
+function Answer () : Integer;
+begin
+    Exit 42;
+end
+
+test 'A function resolves through any spelling of its name';
+begin
+    AssertEqual (42, ANSWER ());
+end

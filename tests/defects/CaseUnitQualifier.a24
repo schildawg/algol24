@@ -1,0 +1,22 @@
+/// A unit named as a qualifier in a case other than its declaration.
+///
+/// Qualified access goes through Environment's Imports rather than through the
+/// scope chain, so it is a third lookup path and can be fixed independently of
+/// the other two.
+///
+/// The 'uses' clause itself is a separate question, and this file deliberately
+/// spells it exactly.  A 'uses' names a file, and whether the file is found at
+/// all is the file system's decision, not the language's -- so on a
+/// case-insensitive volume 'uses ''lib/caseunit''' locates the file and then
+/// fails the unit-name check, while on a case-sensitive volume it fails to open
+/// anything.  Folding the qualifier is well defined; folding the 'uses' is not,
+/// and this suite takes no position on it.
+///
+/// Fails with: Undefined variable 'CASEUNIT'.
+///
+uses 'lib/CaseUnit';
+
+test 'A unit qualifier resolves through any spelling of its name';
+begin
+    AssertEqual ('hello', CASEUNIT.Greet ());
+end

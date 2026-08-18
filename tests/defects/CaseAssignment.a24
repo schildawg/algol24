@@ -1,0 +1,18 @@
+/// An assignment through a spelling other than the one declared.
+///
+/// This is the read path's mirror, and it carries the real hazard of the whole
+/// family: because neither spelling resolves to the other, nothing stops a
+/// program from ending up with two variables where the author meant one.  Note
+/// that this file declares the name only once, so it stays a valid test however
+/// a duplicate declaration is eventually treated -- see CaseSecondDeclaration.
+///
+/// Fails with: Undefined variable 'total'.
+///
+test 'An assignment reaches the variable under any spelling';
+begin
+    var Total : Integer := 1;
+
+    total := 2;
+
+    AssertEqual (2, Total);
+end

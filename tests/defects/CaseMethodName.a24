@@ -1,0 +1,27 @@
+/// A method invoked under a case other than its declaration.
+///
+/// Method lookup on a class instance is case-sensitive in both processors, and
+/// deliberately so today -- the runtime reserves its case-insensitive compare
+/// for built-in members.  If identifiers become case-insensitive, the
+/// distinction between a class member and a built-in member stops being a
+/// reason to match them differently.
+///
+/// Fails with: Undefined property 'SPEAK'.
+///
+class Thing;
+var
+    Name : String := 'thing';
+
+begin
+    function Speak () : String;
+    begin
+        Exit 'hello';
+    end
+end
+
+test 'A method resolves through any spelling of its name';
+begin
+    var Subject := Thing ();
+
+    AssertEqual ('hello', Subject.SPEAK ());
+end

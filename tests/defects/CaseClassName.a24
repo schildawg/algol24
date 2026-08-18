@@ -1,0 +1,26 @@
+/// A class instantiated under a case other than its declaration.
+///
+/// A class name is a binding like any other, and construction is a call on it,
+/// so the failure is again an unresolved name rather than anything about
+/// classes.  The Resolver's Units and Dottable sets are keyed on the same raw
+/// lexeme, so a fold has to reach them too.
+///
+/// Fails with: Undefined variable 'thing'.
+///
+class Thing;
+var
+    Name : String := 'thing';
+
+begin
+    function Speak () : String;
+    begin
+        Exit 'hello';
+    end
+end
+
+test 'A class resolves through any spelling of its name';
+begin
+    var Subject := thing ();
+
+    AssertEqual ('hello', Subject.Speak ());
+end

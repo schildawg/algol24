@@ -1,0 +1,23 @@
+/// An enum member named in a case other than its declaration.
+///
+/// This one does not reach the interpreter at all.  The member lookup fails
+/// while the type checker is running, which leaves the initializer untyped, and
+/// the declaration rule rejects an untyped initializer against a declared type.
+/// So the whole file is abandoned with 'Type mismatch!' and no test is reported
+/// as having run -- which is why this case has a file to itself.
+///
+/// Note also that the message names neither the member nor a line.  Anyone
+/// meeting this for the first time has no way to tell it from a genuine type
+/// error.
+///
+/// Fails with: Uncaught: Type mismatch!  (no tests run)
+///
+type
+    Color = (Red, Green);
+
+test 'An enum member resolves through any spelling of its name';
+begin
+    var Chosen : Color := Color.red;
+
+    AssertEqual (Color.Red, Chosen);
+end

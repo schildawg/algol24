@@ -1,0 +1,19 @@
+/// A type name written in a case other than the built-in spelling.
+///
+/// The asymmetry is the point here.  The type name operand of 'is' is already
+/// folded by both processors, so 'X is integer' is true; the same name in an
+/// annotation is compared exactly, so 'var X : integer' is rejected.  One
+/// position folds and the other does not.
+///
+/// Like CaseEnumMember this aborts the file during checking rather than failing
+/// a test, so it needs a file of its own.
+///
+/// Fails with: Uncaught: Type mismatch!  (no tests run)
+///
+test 'A type name in an annotation resolves through any spelling';
+begin
+    var Counted : integer := 1;
+
+    AssertTrue (Counted is Integer);
+    AssertEqual (1, Counted);
+end

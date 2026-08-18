@@ -1,0 +1,20 @@
+/// Two spellings of one name currently produce two independent variables.
+///
+/// Every other file here fails with an unresolved name, which is loud.  This
+/// one fails quietly: both declarations are accepted, both bind, and a program
+/// that meant one variable silently has two.  No diagnostic warns about it.
+///
+/// This file encodes one reading of the fix -- that the second declaration
+/// rebinds the first, so the last write wins.  If instead a case-insensitive
+/// duplicate becomes a static error, then the correct outcome is that this file
+/// stops compiling, and it should be deleted rather than made to pass.
+///
+/// Fails with: Assertion 'left = right' failed.  Expected '2' but got '1'.
+///
+var First : Integer := 1;
+var first : Integer := 2;
+
+test 'A second spelling does not create a second variable';
+begin
+    AssertEqual (2, First);
+end

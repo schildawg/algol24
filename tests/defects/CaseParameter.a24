@@ -1,0 +1,18 @@
+/// A parameter referenced in a case other than its declaration.
+///
+/// The parameter binding goes through the same environment as a local, so this
+/// fails for the same reason CaseLocalVariable does.  It is kept separate
+/// because a fix that folds case at declaration sites could easily miss the
+/// path that binds arguments to parameters.
+///
+/// Fails with: Undefined variable 'value'.
+///
+function Twice (Value : Integer) : Integer;
+begin
+    Exit value * 2;
+end
+
+test 'A parameter resolves through any spelling of its name';
+begin
+    AssertEqual (6, Twice (3));
+end

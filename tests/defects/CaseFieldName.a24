@@ -1,0 +1,25 @@
+/// A field read under a case other than its declaration.
+///
+/// This is a different lookup from the ones above: it does not go through an
+/// environment at all, but through the instance's own field table.  Fixing the
+/// environment alone would leave this failing.
+///
+/// Fails with: Undefined property 'name'.
+///
+class Thing;
+var
+    Name : String := 'thing';
+
+begin
+    function Speak () : String;
+    begin
+        Exit 'hello';
+    end
+end
+
+test 'A field resolves through any spelling of its name';
+begin
+    var Subject := Thing ();
+
+    AssertEqual ('thing', Subject.name);
+end

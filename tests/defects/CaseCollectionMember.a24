@@ -1,0 +1,20 @@
+/// A built-in collection member named in a case other than its documented one.
+///
+/// This is the one member of the family where the two processors already
+/// disagree, and it is the only defect here that a differential test could have
+/// caught.  The runtime compares built-in member names with a case-insensitive
+/// compare, so compiled code accepts these; the interpreter's method tables
+/// compare exactly, so it rejects them.  The interpreter is normative, so its
+/// answer is the language's answer today -- and it is the half that will have
+/// to change.
+///
+/// Fails with: Undefined property 'contains'.  Compiled with --compile --test,
+/// this same file reports [ PASS ] and exits 0.
+///
+test 'A built-in collection member resolves through any spelling';
+begin
+    var Values := [1, 2, 3];
+
+    AssertTrue  (Values.contains (2));
+    AssertEqual (3, Values.length);
+end
