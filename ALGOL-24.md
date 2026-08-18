@@ -45,8 +45,8 @@ characters in the range 0 through 127, and a character literal is restricted to
 that range (see [Character literals](#character-literals)); an identifier may
 contain any Unicode letter (see [Identifiers](#identifiers)).
 
-No processor accepts a byte above 127 today, in an identifier or anywhere else.
-See [Identifier characters](#identifier-characters) for what is implemented.
+No processor accepts a byte above 127 today, in an identifier or anywhere else;
+see [Known defects](#known-defects).
 
 A line ends at the character `#10`. The characters `#9`, `#13` and space are
 whitespace and separate tokens; they are otherwise ignored. `#13` is not
@@ -98,16 +98,9 @@ The semicolon before `else` is likewise required, because it terminates the
 identifier = letter { letter | decimal_digit } .
 ```
 
-Identifiers name program entities. As implemented, identifiers are
-**case-sensitive**: `Count` and `count` are distinct, and either may be declared
-without reference to the other. This is not true of keywords, which are matched
-case-insensitively; an identifier that differs from a keyword only in case is
-therefore not available as a name.
-
-The language's design intent is that identifiers be case-insensitive, so the
-rule stated in this section describes a defect rather than the language. See
-[Identifier case](#identifier-case) for what each surface actually does today
-and for the two surfaces that already fold case.
+Identifiers name program entities. Identifiers are **case-insensitive**: `Count`
+and `count` are one name, as are `BEGIN` and `begin`. An identifier that differs
+from a keyword only in case is therefore not available as a name.
 
 An identifier begins with a letter and continues with letters and decimal
 digits. `unicode_letter` covers the Unicode letter categories, so `Café`,
@@ -125,16 +118,16 @@ identifier at all.
 to end a predicate and a mutator respectively, and a processor must not attach
 significance to either.
 
-Two consequences of admitting Unicode. Identifiers are compared by their code
-points, so two names that render identically but differ in normalization are
-different names; a processor performs no normalization. And case sensitivity,
-[discussed below](#identifier-case), is a separate question from this one — a
-processor that folds case must fold it over the whole Unicode letter range and
-not only over ASCII, or the two rules will disagree about `Straße` and `İstanbul`.
+Two consequences of admitting Unicode. Identifiers are otherwise compared by
+their code points, so two names that render identically but differ in
+normalization are different names; a processor performs no normalization. And
+the case fold covers the whole Unicode letter range rather than ASCII alone, so
+it applies to `Straße` and `İstanbul` as it does to `Count`. The fold is
+locale-independent: `I` never folds to `ı`.
 
-**`!` and Unicode letters are not implemented.** Only `A`–`Z`, `a`–`z`, `_`, `?`
-and the ASCII digits are accepted today. See
-[Identifier characters](#identifier-characters).
+**Three parts of this are not implemented.** Identifiers are case-*sensitive*
+today, and `!` and Unicode letters are refused by the scanner. See
+[Known defects](#known-defects), issues #1 and #2.
 
 ### Keywords
 
@@ -679,9 +672,10 @@ begin
 end
 ```
 
-> **Under-specified.** The two processors treat this error very differently;
-> the compiled form is observed to emit C that the C compiler rejects. See
-> [Access to a non-imported name](#access-to-a-non-imported-name).
+> **Defective.** The two processors treat this error very differently. The
+> interpreter names the exporting unit and says the importing file has no `uses`
+> for it; the compiled form emits C that the C compiler rejects. This is the
+> module-system case of [issue #4](https://github.com/schildawg/algol24/issues/4).
 
 A name marked `private` is not exported and is invisible to importers:
 
@@ -1307,9 +1301,9 @@ Indices are 0-based. `Copy` clamps its end but not its start: a `Start` outside
 `0 .. Length(S)` is a run-time error, while a `Count` running past the end is
 truncated.
 
-> **Under-specified.** `Length` applied to a collection differs between the
-> processors — see [Length of a collection](#length-of-a-collection). Use the
-> `Length` **property** on a collection, which agrees.
+> **Defective.** `Length` applied to a collection differs between the processors
+> — [issue #5](https://github.com/schildawg/algol24/issues/5). Use the `Length`
+> **property** on a collection, which agrees.
 
 ### Numbers
 
@@ -1366,133 +1360,15 @@ caught, including a failed assertion under a test run.
 
 # Under-specified behavior
 
-The entries below are points where the language is not pinned down: either the
-two processors are observed to disagree, or the rule as implemented appears to
-contradict the language's own conventions or its stated design intent. A program
-that depends on any of them is not portable. Each was reproduced under both
-processors.
+The entries below are points where the language does not determine an answer:
+the two processors are observed to disagree, or a rule admits more than one
+coherent reading, and this document declines to choose. A program that depends
+on any of them is not portable. Each was reproduced under both processors.
 
-## Identifier characters
-
-[Identifiers](#identifiers) admits Unicode letters, decimal digits, `_`, `?` and
-`!`. Two of those are not implemented. The scanner's alphabet is `A`–`Z`,
-`a`–`z`, `_` and `?`, plus the ASCII digits after the first character, and every
-other byte is refused during scanning:
-
-```
-var Ready! := 1;      (* [line 1] Error: Unexpected character: ! *)
-var Café  := 1;       (* [line 1] Error: Unexpected character: <byte> *)
-```
-
-Both processors agree, because the scanner is shared, and both refuse the file
-before any statement runs. A non-ASCII byte is refused **as a byte**: the
-scanner has no notion of a code point, so one character produces one error per
-byte it occupies.
-
-**Interpretation.** Straightforwardly unimplemented rather than ambiguous. The
-specification states the intended alphabet, and
-[`tests/defects/`](https://github.com/schildawg/algol24/tree/main/tests/defects)
-reproduces each gap.
-
-Three things a fix has to decide that the alphabet alone does not settle:
-
-1. **The emitted symbol.** Every C symbol built from a user name goes through
-   `Mangle`, which maps `?` to `_q`. `!` and each non-ASCII code point need
-   mappings too, and the mapping must stay **injective** — two different
-   identifiers that mangle to one C symbol is the defect family this repository
-   has hit most often.
-2. **Normalization.** Two spellings that render identically may differ in code
-   points. This specification says they are different identifiers and that no
-   normalization is performed, which is the cheap rule; normalizing instead is
-   defensible but must then happen everywhere a name is compared, including in
-   `Mangle`.
-3. **Case folding.** If [identifier case](#identifier-case) is closed, the fold
-   has to cover the Unicode letter range rather than ASCII alone. `alg_stricmp`
-   folds ASCII deliberately, on the stated grounds that identifiers are ASCII —
-   a comment that stops being true the moment this entry is closed.
-
-## Identifier case
-
-Identifiers are intended to be case-insensitive, in keeping with the Pascal
-tradition this language follows elsewhere and with the case-insensitive matching
-of keywords. **As implemented they are not**, on every surface that names a
-user-declared entity. This is recorded here rather than in the body of the
-specification because the observed behavior is a defect: the two processors
-agree with each other, so no differential test can see it.
-
-Both processors reject a reference whose case differs from the declaration:
-
-```
-procedure Show (Value : Integer);
-begin
-    WriteLn(Str(value));    (* Undefined variable 'value'. *)
-end
-```
-
-The interpreter raises `Undefined variable 'value'.`; the compiled path emits C
-naming `v_value`, which the C compiler rejects as undeclared (this is the same
-emission defect described in
-[Unresolved names in compiled code](#unresolved-names-in-compiled-code) — a
-case-mismatched name is simply one more way to produce an unresolved name).
-
-The rule holds identically for parameters, local and file-scope variables,
-function and procedure names, class names, unit names and the qualifier before a
-dot, field names, method names, and enum type and member names. `Color.red` is
-not `Color.Red`; the mismatch surfaces as `Type mismatch!` because the failed
-member lookup leaves the expression untyped.
-
-Worse, a case variant is not merely rejected — it is available as a **separate
-declaration**. The following is accepted by both processors and prints `1` then
-`2`:
-
-```
-var Foo : Integer := 1;
-var foo : Integer := 2;
-```
-
-Under the intended rule this is a duplicate declaration. Two entities differing
-only in case are therefore not portable to any processor that implements the
-intent, and no diagnostic warns about them today.
-
-Two surfaces already fold case, and both processors agree on them:
-
-| Surface | Matching | Example |
-|---|---|---|
-| Keywords | case-insensitive | `BEGIN`, `Var`, `IF … THEN` |
-| Type name operand of `is` | case-insensitive | `X is integer`, `T is thing` |
-| Everything else naming a declared entity | case-sensitive | see above |
-
-Note the asymmetry between the last two rows: `X is integer` succeeds while
-`var X : integer := 1` fails with `Type mismatch!`. The same type name is folded
-in one position and not in the other.
-
-A third surface folds case in one processor only. Member names on the built-in
-collections, files and buffers are matched case-insensitively by compiled code
-and case-sensitively by the interpreter:
-
-```
-var L := [1, 2, 3];
-WriteLn(Str(L.contains(2)));
-```
-
-The interpreter raises `Undefined property 'contains'.`; compiled code prints
-`true`. The same holds for `length`, `isempty` and the rest. Since the
-interpreter is normative, the interpreter's answer is the language's answer
-today — but if identifiers become case-insensitive, the compiled path's answer
-is the one that will be right, and the interpreter's method tables are what will
-have to change.
-
-Because a program can only observe this through a name it uses in two cases at
-once, a corpus that spells every name consistently will compile and run
-identically under either rule. The migration risk is confined to the
-duplicate-declaration case above and to any use of a built-in member name in
-non-matching case.
-
-The sources in this repository carry no such risk. Across `compiler/`, `tests/`
-and `bench/`, exactly one file contains two spellings of one name — `Parser.a24`
-has `EOF` alongside `Eof`, and `Text` alongside `text` — and in both pairs one
-member is a bare identifier while the other appears only after a dot, so they
-occupy different name spaces and neither pair is a collision.
+These resolve by **deciding what the language means**, after which the decision
+belongs in the body of this document and the entry goes away. That is what
+separates them from the defects listed at the end, which resolve by fixing a
+processor and are not described here.
 
 ## Order of top-level execution
 
@@ -1518,60 +1394,6 @@ and that is the conventional form.
 declarations and initialisers around it have run, or it is an ordinary
 compound statement executed in place. Both readings are consistent with the
 conventional form; the language does not say which is meant.
-
-## Unresolved names in compiled code
-
-An expression naming a variable or function that cannot be resolved is a
-run-time error in the interpreter. Compiled, it produces C that the C compiler
-rejects, so the program cannot be built at all.
-
-```pascal
-begin
-    WriteLn(Str(NeverDeclared));
-end
-```
-
-- Interpreted: `Undefined variable 'NeverDeclared'.`, catchable as a `String`.
-- Compiled: `error: use of undeclared identifier 'v_NeverDeclared'`.
-
-The same occurs for a name that exists but is out of scope, such as a counted
-`for` loop's variable used after the loop:
-
-```pascal
-begin
-    for var I := 0; I < 2; I := I + 1 do WriteLn(Str(I));
-    WriteLn(Str(I));                    // out of scope
-end
-```
-
-**Interpretation.** This looks like a defect rather than a design decision: the
-compiled path has no way to express the interpreter's deferred error, and
-emits an unresolved reference instead of refusing the program by name. A
-specification would have to choose between making an unresolved name a static
-error in both processors — which would change the interpreter's behavior, since
-the error is catchable today — and requiring the compiler to emit a call that
-raises at run time.
-
-## Access to a non-imported name
-
-`uses` is not transitive, so naming an entity that only a transitive dependency
-exports is an error. The processors differ in kind.
-
-```pascal
-// M.a24 says 'uses B'; B exports Pub.
-uses 'M';
-begin
-    WriteLn(Pub());
-end
-```
-
-- Interpreted: `Undefined variable 'Pub'. Unit 'B' exports it; this file has no
-  'uses' for it.` — a precise, catchable run-time error.
-- Compiled: `error: call to undeclared function 'f_Pub'`.
-
-This is the same defect as the previous entry, reached through the module
-system. The interpreter's diagnostic is markedly better than anything the
-compiled path produces, which suggests the intended rule is the interpreter's.
 
 ## The declaration rule versus assignability
 
@@ -1630,23 +1452,6 @@ that leaks; or they are one sequence type with conventional restrictions, and
 the interpreter's table is the enforcement. The `Remove` case argues for the
 first: it is specified to answer *different things* on a `Map` and a `Set`,
 which is a type distinction rather than a restriction.
-
-## Length of a collection
-
-The built-in `Length` function disagrees with the `Length` property.
-
-```pascal
-WriteLn(Str(Length([1, 2])));       // interpreted 6, compiled 2
-WriteLn(Str([1, 2].Length));        // 2 under both
-```
-
-The interpreter's `Length` built-in renders its argument first and measures the
-rendering — `Str([1,2])` is `[1, 2]`, six characters. Compiled, the built-in
-returns the element count.
-
-**Interpretation.** Almost certainly a defect in the interpreter's built-in
-rather than a language rule, since no reading makes the length of a two-element
-list six. The property is the reliable form.
 
 ## Properties on a string
 
@@ -1709,3 +1514,26 @@ The following were not probed and are not specified here:
   relative to the importing file and then the working directory;
 - the ordering guarantees of `Sort()` for mixed-type elements;
 - the interaction of `Buffer.Free()` with buffers still referenced elsewhere.
+
+# Known defects
+
+The following are **not** under-specified. In each the language determines an
+answer and a processor gets it wrong, so they are tracked as issues and
+reproduced in
+[`tests/defects/`](https://github.com/schildawg/algol24/tree/main/tests/defects)
+rather than described here — a specification that doubles as a bug list goes
+stale the first time a fix lands without an edit.
+
+They are listed because each makes some rule stated above unreliable today, and
+a reader is entitled to know which.
+
+| Issue | The rule it makes unreliable |
+|---|---|
+| [#1](https://github.com/schildawg/algol24/issues/1) | Identifiers are case-sensitive, where the language intends them not to be. Affects every surface that names a declared entity. |
+| [#2](https://github.com/schildawg/algol24/issues/2) | `!` and Unicode letters are refused, though [Identifiers](#identifiers) admits them. Carries the mangling scheme a fix needs. |
+| [#3](https://github.com/schildawg/algol24/issues/3) | Two enum members can emit one C symbol, so an unqualified member can evaluate to the wrong one. Silent: nothing refuses it. |
+| [#4](https://github.com/schildawg/algol24/issues/4) | An unresolved name — undeclared, out of scope, or reached past a non-transitive `uses` — is a catchable error interpreted and invalid C compiled. |
+| [#5](https://github.com/schildawg/algol24/issues/5) | The `Length` built-in measures a collection's rendering rather than counting it, so `Length([1, 2])` is `6` interpreted. Use the property. |
+
+`tests/defects/README.md` is the offline index, for a copy of the repository
+with no network.

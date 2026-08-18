@@ -1,0 +1,36 @@
+/// An unqualified enum member must mean the member that was declared.
+///
+/// An enum member's C symbol is the type name, '_', and the member name.  '_'
+/// is a legal identifier character, so that join cannot be injective:
+/// Fruit_Kind.Ripe and Fruit.Kind_Ripe both spell e_Fruit_Kind_Ripe.  Two
+/// 'static Value' at file scope are tentative definitions, so they merge into
+/// one object rather than colliding, and the second initializer overwrites the
+/// first.
+///
+/// Unlike everything else in this directory, this one is not a missing feature
+/// -- it is a live silent wrong answer.  Nothing refuses it: the compiler emits,
+/// cc builds, the program runs, and 'Ripe' evaluates to Fruit.Kind_Ripe.
+///
+/// The reference has to be UNQUALIFIED to show it.  'Fruit_Kind.Ripe' resolves
+/// the member by name at run time and never reads the merged variable, so the
+/// qualified form is correct in both processors and hides the defect.
+///
+/// Interpreted this test passes, so it is the interpreter's answer that is
+/// asserted here; the failure is the compiled half.  Run it with
+/// '--compile --test' to see it.  This is also why it is the only file here
+/// that run.sh reports as passing -- see the note in README.md.
+///
+type
+    Fruit_Kind = (Ripe, Green);
+
+type
+    Fruit = (Kind_Ripe, Kind_Green);
+
+test 'An unqualified enum member names its own enum';
+begin
+    var Chosen := Ripe;
+
+    AssertTrue  (Chosen is Fruit_Kind);
+    AssertEqual (Fruit_Kind.Ripe, Chosen);
+    AssertEqual ('Ripe', Str (Chosen));
+end

@@ -9,6 +9,36 @@ into a real suite — `tests/conformance/` if it belongs to the language's
 observable surface, `tests/programs/` if the interpreted and compiled runs are
 what matter — and delete it from here. This directory should shrink.
 
+This README is also the project's **offline index of open defects**. Issues on
+GitHub carry the discussion and the decisions; this file carries the summary, and
+it is here rather than at the repository root because it sits beside programs
+that fail if it drifts. A defect belongs here or in an issue — **not in
+`ALGOL-24.md`**, which describes what the language *is*. The specification keeps
+only genuine ambiguity: places where the language does not determine an answer
+and a reader must not depend on one. Where a defect makes a stated rule
+unreliable today, the specification carries a one-line pointer to the issue and
+nothing more.
+
+## Open defects
+
+| # | Issue | Reproduced by |
+|---|---|---|
+| [1](https://github.com/schildawg/algol24/issues/1) | Identifiers are case-sensitive and are meant not to be | the twelve `Case…` files |
+| [2](https://github.com/schildawg/algol24/issues/2) | Identifiers reject `!` and Unicode letters | the three `Chars…` files |
+| [3](https://github.com/schildawg/algol24/issues/3) | Two enum members can emit one C symbol | `EnumMemberSymbol` |
+| [4](https://github.com/schildawg/algol24/issues/4) | An unresolved name emits invalid C | *not reproducible here* |
+| [5](https://github.com/schildawg/algol24/issues/5) | `Length` measures a collection's rendering | `LengthBuiltin` |
+
+Issue 4 has no file because every reproduction here must be a `test` block that
+*passes* once fixed, and the correct outcome there is that the program is
+**refused** — which no passing test can express. Fixtures of that shape would
+need a different harness.
+
+Two of these fail in the compiled half only, which is why `run.sh` builds as well
+as interprets: `EnumMemberSymbol` passes interpreted and computes the wrong
+answer compiled, and `LengthBuiltin` is the mirror — it passes compiled, because
+here the normative half is the one that is wrong.
+
 ## Running them
 
 ```sh
@@ -24,7 +54,7 @@ reproduction that starts passing is the event worth acting on.
 For that reason this directory is **not** in `test.sh`'s `SUITES` array and must
 not be added to it. `./test.sh` stays green while these fail.
 
-## Identifier characters
+## Issue 2 — identifier characters
 
 `ALGOL-24.md` admits Unicode letters, decimal digits, `_`, `?` and `!` in an
 identifier. The scanner's alphabet is `A`–`Z`, `a`–`z`, `_`, `?` and the ASCII
@@ -53,7 +83,7 @@ character **as a byte**, one error per byte it occupies. That is why `run.sh`
 runs its output filters under `LC_ALL=C` — the reproduction's own error message
 is not valid UTF-8.
 
-## Identifier case
+## Issue 1 — identifier case
 
 Identifiers are meant to be case-insensitive, in keeping with the Pascal
 tradition the language follows elsewhere and with the case-insensitive matching
@@ -115,7 +145,7 @@ the wording: an unresolved *callee* is reported as `A call to 'ANSWER' is not
 supported by the C back end yet`, which sends the reader looking for a missing
 feature instead of a misspelled name.
 
-## Migration risk for the case fold
+### Migration risk for the case fold
 
 None that can be found in this repository. Tokenizing every `.a24` under
 `compiler/`, `tests/` and `bench/` — comments and string literals stripped — and
@@ -128,3 +158,37 @@ different name spaces and neither pair is a collision.
 So the fix should require no change to any existing source. It will require a
 reseed if the fold lands anywhere upstream of `Mangle`, since that changes every
 emitted C symbol.
+
+## Issue 3 — enum member symbols
+
+An enum member's C symbol is the type name, `_` and the member name. `_` is a
+legal identifier character, so that join cannot be injective: with
+`Fruit_Kind = (Ripe, …)` and `Fruit = (Kind_Ripe, …)` both spelling
+`e_Fruit_Kind_Ripe`, two `static Value` at file scope merge as tentative
+definitions and the second initializer overwrites the first.
+
+Unlike everything else here this is not a missing feature but a **silent wrong
+answer** — nothing refuses it, `cc` builds it, and the unqualified `Ripe`
+evaluates to `Fruit.Kind_Ripe`. Qualified access hides it, because
+`Fruit_Kind.Ripe` resolves by name at run time and never reads the merged
+variable. That is why no existing gate catches it: a corpus that qualifies its
+enum members is immune.
+
+The same argument reaches the `__` separating a renamed symbol from its unit,
+where the identifier `a__b` collides with `a` renamed against unit `b`. The
+fixed-length prefixes (`v_`, `f_`, `k_`, `m_`, `e_`, `i_`) are unaffected.
+
+## Issue 5 — the Length built-in
+
+`Length([1, 2])` is `6` interpreted and `2` compiled: the interpreter's built-in
+renders its argument and measures the rendering, since `Str([1, 2])` is six
+characters. The property form is `2` under both and is what a program should use
+until this is fixed.
+
+The rare case where the **normative half is the wrong one**. Everywhere else the
+interpreter defines the language and a compiled disagreement is the compiler's
+fault; here the interpreter's built-in is what has to change. `LengthBuiltin`
+therefore passes compiled and fails interpreted.
+
+`Length (S)` on a string is a different path, is correct under both, and is
+asserted in the same file so a fix cannot quietly break it.

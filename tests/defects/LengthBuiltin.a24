@@ -1,0 +1,28 @@
+/// The Length built-in counts a collection's elements.
+///
+/// The interpreter's built-in renders its argument first and measures the
+/// rendering: Str([1, 2]) is '[1, 2]', six characters.  Compiled code returns
+/// the element count, which is the answer no reading disputes.
+///
+/// ⚠️ This is the rare reproduction where the NORMATIVE half is the wrong one.
+/// Everywhere else the interpreter defines the language and a compiled
+/// disagreement is the compiler's fault; here it is the interpreter's built-in
+/// that has to change.  So this file passes compiled and fails interpreted --
+/// the mirror of EnumMemberSymbol.
+///
+/// The property form is asserted alongside because it is correct under both,
+/// and it is what a program should use until this is fixed.
+///
+/// Length (S) on a String is a different path and is correct under both; it is
+/// asserted here so a fix aimed at the collection case cannot quietly break it.
+///
+/// Fails with: Assertion 'left = right' failed.  Expected '2' but got '6'.
+///
+test 'The Length built-in counts elements, not characters';
+begin
+    var Pair := [1, 2];
+
+    AssertEqual (2, Pair.Length);
+    AssertEqual (2, Length (Pair));
+    AssertEqual (5, Length ('hello'));
+end
