@@ -43,6 +43,31 @@ as interprets: `EnumMemberSymbol` passes interpreted and computes the wrong
 answer compiled, and `LengthBuiltin` is the mirror — it passes compiled, because
 here the normative half is the one that is wrong.
 
+## Ownership
+
+**These tests belong to the specification, and they are the definition of done.**
+Prime Directive condition 1 — *every test associated with the issue passes* — is
+measured here.
+
+The Developer and the Tester may add tests of their own, and should. **Neither
+may remove a test from this directory.** A fix that cannot pass a reproduction
+has not closed the issue, and deleting the reproduction does not change that; if
+a test looks wrong, say so on the issue and it will be argued out there, where
+the reasoning survives.
+
+Two things that are *not* removal:
+
+- **Graduating a reproduction.** When a defect is genuinely fixed its file starts
+  passing, and the design is that it then moves into `tests/conformance/` or
+  `tests/programs/` and leaves this directory. That is the intended lifecycle —
+  see the note above about this directory shrinking. The prohibition is on
+  deleting a test that still fails.
+- **Correcting a test that tests the wrong thing.** A reproduction can be wrong;
+  they are written by hand against a specification that is itself under
+  construction. Raise it on the issue rather than editing it in place, because
+  changing what a ticket must satisfy while someone is working on it moves the
+  goalposts underneath them.
+
 ## Running them
 
 ```sh

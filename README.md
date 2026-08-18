@@ -257,6 +257,23 @@ suites never caught it.
 the language has not yet answered, each with a recommendation and each blocking
 the first release.
 
+## The team
+
+| Name | Role | |
+|---|---|---|
+| **Schildawg** | Project lead | owns the language; settles the [open decisions](ALGOL-24.md#open-decisions) |
+| **Plumb** | Specification & conformance | maintains `ALGOL-24.md`, probes both processors for compliance, writes the tests in `tests/defects/` that decide it, and files the gaps as issues |
+
+More to be added as they join: a Product Manager prioritising the backlog, a
+Developer pulling tickets, a Tester approving the work before it merges, and a
+Client building on Algol-24.
+
+The separation is deliberate. Specification, implementation and approval are
+held by different people, so no one marks their own homework — see
+[The Prime Directive](CLAUDE.md#the-prime-directive) for the six conditions a
+fix has to meet, and `tests/defects/README.md` for who owns the tests that
+measure the first of them.
+
 ## Status
 
 Pre-1.0, and development is **spec-driven**. `ALGOL-24.md` is normative — it

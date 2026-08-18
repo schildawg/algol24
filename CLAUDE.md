@@ -28,6 +28,19 @@ Three consequences when working here:
   about what the language means, each with a recommendation. They are the user's
   to settle, not mine, and each one blocks the release.
 
+## The team
+
+`Schildawg` leads the project and owns the language. `Plumb` owns the
+specification and conformance — `ALGOL-24.md`, the reproductions in
+`tests/defects/`, and the issues recording every gap between the two. A Product
+Manager, a Developer, a Tester and a Client join as the work grows; README.md
+carries the roster.
+
+Roles are separated so that no one marks their own homework. In particular the
+Developer does not edit `ALGOL-24.md`: under spec-driven development the
+specification is the instruction, and an implementer who can edit it can make
+any failing test pass by changing what was asked for.
+
 ## The Prime Directive
 
 **Nothing is fixed until all six hold.** A defect fix is done when, and only
@@ -64,6 +77,13 @@ between builds is the compiled binary, which the comparison already excludes.
 
 A fix that closes its own issue and regresses anything else has not met the
 Directive. Say so plainly rather than reporting the part that worked.
+
+Condition 1 is measured against `tests/defects/`, which belongs to the
+specification. Add tests there by all means; **do not remove one.** A fix that
+cannot pass a reproduction has not closed its issue, and deleting the
+reproduction does not change that. See `tests/defects/README.md` for the two
+cases that are not removal — graduating a test that now passes, and correcting
+one that tests the wrong thing.
 
 ## Commands
 
