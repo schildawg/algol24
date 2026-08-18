@@ -1,0 +1,22 @@
+/// A code point outside the Basic Multilingual Plane is still one Char.
+///
+/// Separate from StringCodePoints because the two fail apart.  An emoji is four
+/// bytes in UTF-8 and two units in UTF-16, so a fix that counts UTF-16 units
+/// rather than code points passes that file and fails this one -- reporting a
+/// length of 2 where the answer is 1.
+///
+/// The quoted literal is a Char here rather than a String, since the rule is
+/// one code point between the quotes and not one byte.
+///
+/// Fails with: Assertion 'left = right' failed.  Expected '1' but got '4'.
+///
+test 'An astral code point is one Char';
+begin
+    var Face : String := '😀';
+
+    AssertEqual (1, Length (Face));
+    AssertTrue  ('😀' is Char);
+    AssertEqual (128512, Ord ('😀'));
+    AssertEqual (3, Length ('a😀b'));
+    AssertEqual (1, Pos ('a😀b', '😀'));
+end

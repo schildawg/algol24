@@ -28,6 +28,7 @@ nothing more.
 | [3](https://github.com/schildawg/algol24/issues/3) | Two enum members can emit one C symbol | `EnumMemberSymbol` |
 | [4](https://github.com/schildawg/algol24/issues/4) | An unresolved name emits invalid C | *not reproducible here* |
 | [5](https://github.com/schildawg/algol24/issues/5) | `Length` measures a collection's rendering | `LengthBuiltin` |
+| [6](https://github.com/schildawg/algol24/issues/6) | A `String` is bytes, not code points | `StringCodePoints`, `StringCodePointsAstral`, `CharScalarRange` |
 
 Issue 4 has no file because every reproduction here must be a `test` block that
 *passes* once fixed, and the correct outcome there is that the program is
@@ -192,3 +193,29 @@ therefore passes compiled and fails interpreted.
 
 `Length (S)` on a string is a different path, is correct under both, and is
 asserted in the same file so a fix cannot quietly break it.
+
+## Issue 6 — strings are bytes
+
+`ALGOL-24.md` specifies a `String` as a sequence of `Char` counted and indexed in
+**code points**. Both processors store UTF-8 bytes and count those, so
+`Length('héllo')` is `6` and `'héllo'[1]` is the leading byte of `é` rather than
+`é`.
+
+Output is already byte-transparent — `WriteLn('😀')` prints correctly under both
+— so nothing is corrupted. The unit is simply wrong, and a program restricted to
+characters 0 through 127 cannot tell, which is why the compiler compiles itself
+under the current behaviour.
+
+`CharScalarRange` isolates the part that is broken regardless of which model
+wins: `Char(200)` and `#200` are refused with `Char is limited to 0..127.`,
+while indexing a string **manufactures** a `Char` whose `Ord` is 195. The type
+produces values its own constructors reject.
+
+`StringCodePointsAstral` is separate from `StringCodePoints` because an emoji is
+four bytes in UTF-8 but **two units in UTF-16**. An implementation that counts
+UTF-16 units passes the two-byte file and fails this one, reporting a length of
+2 where the answer is 1.
+
+The issue carries the storage question, which is not deferrable: `Scanner.a24`
+reads its source as `Source[Current]`, so code-point indexing over UTF-8 storage
+would make the scanner O(n²) over its own input.

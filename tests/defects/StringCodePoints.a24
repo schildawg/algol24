@@ -1,0 +1,22 @@
+/// A String is a sequence of code points, not of bytes.
+///
+/// Both processors store a String as UTF-8 bytes and count them, so a character
+/// outside ASCII is several elements: Length('héllo') is 6 rather than 5,
+/// and S[1] is the first byte of 'e-acute' rather than the character.
+///
+/// This file uses only two-byte characters.  StringCodePointsAstral covers the
+/// four-byte case, which a fix working in UTF-16 code units would still get
+/// wrong.
+///
+/// Fails with: Assertion 'left = right' failed.  Expected '5' but got '6'.
+///
+test 'A String is counted and indexed in code points';
+begin
+    var Greeting : String := 'héllo';
+
+    AssertEqual (5, Length (Greeting));
+    AssertEqual (2, Pos (Greeting, 'l'));
+    AssertEqual ('hé', Copy (Greeting, 0, 2));
+    AssertEqual ('é', Str (Greeting[1]));
+    AssertEqual (233, Ord (Greeting[1]));
+end

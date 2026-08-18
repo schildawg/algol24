@@ -59,13 +59,17 @@ Keywords are matched case-insensitively and are written here in lower case.
 
 ## Source code representation
 
-Source text is UTF-8 encoded Unicode. Outside identifiers the language uses only
-characters in the range 0 through 127, and a character literal is restricted to
-that range (see [Character literals](#character-literals)); an identifier may
-contain any Unicode letter (see [Identifiers](#identifiers)).
+Source text is UTF-8 encoded Unicode, and a Unicode code point may appear
+anywhere a character may: in an identifier (see
+[Identifiers](#identifiers)), in a string or character literal, and in a
+comment. The language's own syntax — its keywords, operators and delimiters —
+uses only characters in the range 0 through 127.
 
-No processor accepts a byte above 127 today, in an identifier or anywhere else;
-see [Known defects](#known-defects).
+Text is measured in **code points**, never in bytes or in encoded units. UTF-8
+is how source is encoded and says nothing about what a program observes.
+
+No processor accepts a byte above 127 in an identifier today; see
+[Known defects](#known-defects). Literals and comments already accept them.
 
 A line ends at the character `#10`. The characters `#9`, `#13` and space are
 whitespace and separate tokens; they are otherwise ignored. `#13` is not
@@ -215,10 +219,11 @@ char_lit = "#" decimal_digit { decimal_digit }
 
 A character literal has type `Char`. It takes two forms:
 
-- `#N` denotes the character with code point N. N must be in the range 0
-  through 127; a value outside that range is a run-time error.
-- A quoted literal whose text between the quotes is **exactly one source
-  character** is a `Char`, not a `String`.
+- `#N` denotes the character with code point N. N must be a Unicode scalar
+  value — 0 through 1114111, excluding the surrogate range 55296 through 57343.
+  A value outside that is a run-time error.
+- A quoted literal whose text between the quotes is **exactly one code point**
+  is a `Char`, not a `String`. `'a'`, `'é'` and `'😀'` are each a `Char`.
 
 The second rule is measured on the source text, not on the resulting value.
 `''''` is a quoted literal containing an escaped quote: two source characters
@@ -235,7 +240,7 @@ escape is a doubled quote, which denotes one quote character: `'it''s'` is the
 four-character string `it's`. There are **no backslash escapes**; a backslash
 is an ordinary character.
 
-A literal whose source text between the quotes is exactly one character is a
+A literal whose source text between the quotes is exactly one code point is a
 `Char` (see above). The empty literal `''` is a `String` of length 0.
 
 A string literal may span lines; an embedded newline is part of the value.
@@ -265,8 +270,18 @@ Boolean  Integer  Double  Char  String  Any
   `2147483647 + 1` is `-2147483648`. Overflow is not an error.
 - **`Double`** is a double-precision binary floating-point number. Division by
   zero yields an infinity rather than an error.
-- **`Char`** is a single character with code point 0 through 127.
-- **`String`** is a sequence of characters, indexed from 0.
+- **`Char`** is a single Unicode scalar value: a code point in 0 through
+  1114111, excluding the surrogate range 55296 through 57343. `'a'`, `'é'` and
+  `'😀'` are each one `Char`.
+- **`String`** is a sequence of `Char`, indexed from 0. Its length, its indices
+  and every operation on it are counted in **code points**. How a processor
+  stores a `String` is its own affair and is not observable; in particular a
+  program cannot see the UTF-8 encoding of its own source.
+
+**Neither processor implements this.** Both treat a `String` as bytes; see
+[issue #6](https://github.com/schildawg/algol24/issues/6). A program restricted
+to characters 0 through 127 cannot tell the difference, which is why the
+compiler compiles itself under the current behavior.
 - **`Any`** is the type of a value whose type is not stated.
 
 `Char` and `String` are **distinct types and are never equal**. A one-character
@@ -762,7 +777,9 @@ An unknown name is a run-time error, `Undefined property 'N'.`
 
 **Index** reads by position from a `String`, `List`, `Array` or `Stack`, and by
 key from a `Map`. String and sequence indices are 0-based and are bounds
-checked: `Index 9 out of range 0..4.` Indexing a `String` yields a `Char`. A
+checked: `Index 9 out of range 0..4.` Indexing a `String` yields a `Char`, and
+the index counts **code points**, so `'héllo'[1]` is `'é'` and never a fragment
+of one. A
 `Set` has no positions and cannot be indexed
 ([an open decision](#collection-method-sets)).
 
@@ -1107,7 +1124,7 @@ Operands must be numbers.
 Operand must be a number.
 Index 9 out of range 0..4.
 Expected 1 arguments but got 0.
-Char is limited to 0..127.
+Char is limited to a Unicode scalar value.
 That Buffer has been freed.
 ```
 
@@ -1311,9 +1328,9 @@ Any of them may be shadowed by a program's own declaration, in which case
 
 | Function | Result |
 |---|---|
-| `Length(S)` | the number of characters in a `String` |
-| `Copy(S, Start, Count)` | the substring of `Count` characters from `Start` |
-| `Pos(S, Part)` | the 0-based index of `Part` in `S`, or `-1` |
+| `Length(S)` | the number of code points in a `String` |
+| `Copy(S, Start, Count)` | the substring of `Count` code points from `Start` |
+| `Pos(S, Part)` | the 0-based code-point index of `Part` in `S`, or `-1` |
 | `Str(V)` | the rendering of any value as a `String` |
 
 Indices are 0-based. `Copy` clamps its end but not its start: a `Start` outside
@@ -1329,7 +1346,7 @@ truncated.
 | Function | Result |
 |---|---|
 | `Ord(V)` | the code point of a `Char`, or an enumeration member's position |
-| `Char(N)` | the character with code point N, which must be 0..127 |
+| `Char(N)` | the character with code point N, which must be a Unicode scalar value |
 | `Val(S)` | the numeric value of a `String`, always a `Double` |
 | `Max(A, B)` | the greater of two `Integer`s |
 | `Mod(A, B)` | the remainder of two `Integer`s, signed as the dividend |
@@ -1550,7 +1567,6 @@ ambiguity, but it is the one most likely to be met.
 
 The following were not probed and are not specified here:
 
-- the behavior of source text containing characters outside 0..127;
 - concurrency: no construct in the language creates or synchronises threads;
 - the precise rounding and shortest-round-trip rules for rendering a `Double`,
   beyond the observation that large magnitudes render in `E` notation
@@ -1579,6 +1595,7 @@ a reader is entitled to know which.
 | [#3](https://github.com/schildawg/algol24/issues/3) | Two enum members can emit one C symbol, so an unqualified member can evaluate to the wrong one. Silent: nothing refuses it. |
 | [#4](https://github.com/schildawg/algol24/issues/4) | An unresolved name — undeclared, out of scope, or reached past a non-transitive `uses` — is a catchable error interpreted and invalid C compiled. |
 | [#5](https://github.com/schildawg/algol24/issues/5) | The `Length` built-in measures a collection's rendering rather than counting it, so `Length([1, 2])` is `6` interpreted. Use the property. |
+| [#6](https://github.com/schildawg/algol24/issues/6) | A `String` is a sequence of **bytes**, not code points. `Length('héllo')` is `6`, `'héllo'[1]` is half of `é`, and `Char` is capped at `127` while indexing yields values above it. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

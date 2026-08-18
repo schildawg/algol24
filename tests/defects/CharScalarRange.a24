@@ -1,0 +1,17 @@
+/// Char spans the Unicode scalar values, not 0..127.
+///
+/// The constructors refuse anything above 127 -- Char(200) and #200 both raise
+/// 'Char is limited to 0..127.' -- while INDEXING a string hands back a Char
+/// whose Ord is 195, the first byte of a two-byte character.  So the type
+/// already produces values its own constructors reject, which is a defect under
+/// any string model.
+///
+/// Fails with: Char is limited to 0..127.  (file rejected -- no test ran)
+///
+test 'Char spans the Unicode scalar values';
+begin
+    AssertEqual (233, Ord (Char (233)));
+    AssertEqual (128512, Ord (Char (128512)));
+    AssertEqual ('é', Str (Char (233)));
+    AssertEqual (65, Ord (#65));
+end
