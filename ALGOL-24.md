@@ -2,21 +2,40 @@
 
 ## Introduction
 
-This is a reference manual for the Algol-24 programming language.
+This is the reference manual for the Algol-24 programming language.
 
 Algol-24 is a Pascal-flavoured, gradually typed language. Type annotations are
-optional; where they are written they are checked before the program runs.
-A program is a sequence of declarations and statements. Two conforming
-processors exist — a tree-walking interpreter and a compiler that emits C — and
-where they are observed to disagree this document records the disagreement
-rather than choosing between them. Such cases are collected in
-[Under-specified behavior](#under-specified-behavior); a program whose meaning
-depends on one is not portable.
+optional; where they are written they are checked before the program runs. A
+program is a sequence of declarations and statements. Two processors are
+intended to conform — a tree-walking interpreter and a compiler that emits C —
+and a conforming program means the same thing under both.
 
-This document describes the language as observed. It was derived from the
-behavior of the implementations, not from their comments or their prose
-documentation, and every rule stated here was checked by executing a program
-under both processors unless the text says otherwise.
+### This document is normative
+
+**It states what the language shall do, not what any implementation currently
+does.** A rule is here because it is right, not because it is implemented. Where
+an implementation does not yet match, the rule still stands as written and
+carries a pointer to the issue tracking the gap; the implementation is what
+moves.
+
+Development is driven from this document. The first release of Algol-24 is the
+point at which the specification says what it should say **and** the
+implementations do what it says.
+
+Two consequences a reader should know:
+
+- Some rules here are not yet true of any processor. Every one of them names the
+  issue that says so — see [Known defects](#known-defects). A rule with no such
+  pointer is one both processors are expected to honour today.
+- [Open decisions](#open-decisions) lists questions the language has not yet
+  answered. Each is a decision to be made rather than a permanent gap, and each
+  blocks the first release. A program whose meaning depends on one is not
+  portable, and will not become portable by itself.
+
+Every statement of current behavior in this document was checked by executing a
+program under both processors. Nothing was taken from source comments or from
+earlier prose, both of which were found to be wrong in specific places while this
+was written.
 
 ## Notation
 
@@ -392,7 +411,7 @@ A program is a sequence of declarations and statements at file scope. A
 `begin … end` block is permitted but is not required: a file consisting of a
 single statement is a program.
 
-> **Under-specified.** A program containing both top-level statements and a
+> **Open decision.** A program containing both top-level statements and a
 > `begin … end` block, or more than one such block, executes its parts in a
 > different order under the two processors. See
 > [Order of top-level execution](#order-of-top-level-execution). A program with
@@ -745,7 +764,7 @@ An unknown name is a run-time error, `Undefined property 'N'.`
 key from a `Map`. String and sequence indices are 0-based and are bounds
 checked: `Index 9 out of range 0..4.` Indexing a `String` yields a `Char`. A
 `Set` has no positions and cannot be indexed
-([under-specified](#collection-method-sets)).
+([an open decision](#collection-method-sets)).
 
 ### Operators
 
@@ -1069,7 +1088,7 @@ The following are static errors:
   (`Can't return from top-level code.`);
 - any lexical or syntactic error.
 
-> **Under-specified.** The diagnostic for a type mismatch carries no source
+> **Unspecified.** The diagnostic for a type mismatch carries no source
 > position, which makes it hard to locate in a large file. Other static errors
 > report a line and a caret.
 
@@ -1094,7 +1113,7 @@ That Buffer has been freed.
 
 An uncaught error terminates the program with status 70.
 
-> **Under-specified.** An uncaught *built-in* run-time error is printed as
+> **Unspecified.** An uncaught *built-in* run-time error is printed as
 > `Uncaught: <message>` by the interpreter and as bare `<message>` by compiled
 > code. An uncaught *raised value* is printed as `Uncaught: <value>` by both.
 
@@ -1224,7 +1243,7 @@ anything to remove.
 
 `Keys()`, `Values()` and `ToList()` return a `List`.
 
-> **Under-specified.** This table is the set the interpreter enforces. Compiled
+> **Open decision.** This table is the set the interpreter enforces. Compiled
 > code shares one representation across `List`, `Array`, `Set` and `Stack` and
 > accepts most sequence methods on any of them — `L.Remove(2)`, `A.Insert(0,9)`,
 > `K.Sort()` and many others succeed compiled and are rejected interpreted. See
@@ -1337,7 +1356,7 @@ run-time error. `Val` always yields a `Double`, so `Val('12')` is `12.0`.
 
 `ParamStr(0)` is the program itself and `ParamCount()` does not count it.
 
-> **Under-specified.** What `ParamStr(0)` contains differs between the
+> **Unspecified.** What `ParamStr(0)` contains differs between the
 > processors: the interpreter reports the source file name, and compiled code
 > reports the path of the executable.
 
@@ -1358,17 +1377,24 @@ caught, including a failed assertion under a test run.
 
 ---
 
-# Under-specified behavior
+# Open decisions
 
-The entries below are points where the language does not determine an answer:
-the two processors are observed to disagree, or a rule admits more than one
-coherent reading, and this document declines to choose. A program that depends
-on any of them is not portable. Each was reproduced under both processors.
+The entries below are questions the language has not yet answered. In each, the
+two processors are observed to disagree or a rule admits more than one coherent
+reading, and more than one answer is defensible — so this document does not yet
+state one.
 
-These resolve by **deciding what the language means**, after which the decision
-belongs in the body of this document and the entry goes away. That is what
-separates them from the defects listed at the end, which resolve by fixing a
-processor and are not described here.
+**These are decisions to be made, not gaps to be documented.** Each resolves by
+choosing what the language means; the choice then moves into the body of this
+document, the implementations are made to match, and the entry disappears. Every
+entry here blocks the first release.
+
+That is what separates them from [Known defects](#known-defects). A defect needs
+no decision — the language already determines the answer and a processor gets it
+wrong. An open decision cannot be fixed, only settled.
+
+Each was reproduced under both processors. Where one reading seems better, this
+document says which and why, without treating that as the answer.
 
 ## Order of top-level execution
 
@@ -1390,10 +1416,15 @@ after all other file-scope statements.
 A program with at most one `begin … end` block, written last, is unaffected,
 and that is the conventional form.
 
-**Interpretations.** Either `begin … end` is a *main block* deferred until the
+**The choice.** Either `begin … end` is a *main block* deferred until the
 declarations and initialisers around it have run, or it is an ordinary
 compound statement executed in place. Both readings are consistent with the
 conventional form; the language does not say which is meant.
+
+**Recommendation.** Source order — a `begin … end` block is an ordinary
+compound statement. It is what the interpreter already does, it is what the
+text looks like it means, and a deferred block is hard to explain once a
+program has two of them. The compiled path would change.
 
 ## The declaration rule versus assignability
 
@@ -1415,12 +1446,18 @@ end
 The rule holds even when the declared type is `Any`, so `var B : Any := X;` is
 rejected although no assignment to `B` could fail.
 
-**Interpretations.** Either the strictness is deliberate — a written type
+**The choice.** Either the strictness is deliberate — a written type
 annotation is a demand that the initializer's type be *proved*, not merely
 *permitted* — or the declaration path is meant to use the same assignability
 relation as everything else and does not. Nothing else in the language treats
 `Any` as a failure, which favours the second reading; but the check is explicit
 and hard to arrive at by accident, which favours the first.
+
+**Recommendation.** The second — one assignability relation everywhere. Gradual
+typing exists so that an unannotated value can flow into an annotated one, and
+the current rule rejects `var B : Any := X`, where no assignment to `B` could
+ever fail. A rule that rejects a declaration whose every subsequent use would be
+accepted is hard to justify to the person who wrote it.
 
 ## Collection method sets
 
@@ -1446,12 +1483,17 @@ Subscripting divides the same way. A `Set` has no positions, and `S[0]` is a
 run-time error interpreted — `Subscript target should be an ordinal.` —
 while compiled it returns an element.
 
-**Interpretations.** Either the kinds are genuinely distinct types with distinct
+**The choice.** Either the kinds are genuinely distinct types with distinct
 operations, and the shared compiled representation is an implementation detail
 that leaks; or they are one sequence type with conventional restrictions, and
 the interpreter's table is the enforcement. The `Remove` case argues for the
 first: it is specified to answer *different things* on a `Map` and a `Set`,
 which is a type distinction rather than a restriction.
+
+**Recommendation.** Distinct kinds, with the table above as the rule. `Remove`
+settles it — one name cannot mean two things on one type — and the compiled
+path's permissiveness is a shared representation showing through rather than a
+decision anyone made.
 
 ## Properties on a string
 
@@ -1469,14 +1511,17 @@ WriteLn (Str (S.IsEmpty));      (* interpreted: raises; compiled: false *)
 The interpreter raises `Only instances have properties.`; compiled code answers.
 The function form `Length (S)` agrees under both and is the portable spelling.
 
-**Interpretation.** Unclear which side is intended, and unlike the entry above
-neither answer is absurd. Against the property form: a string is not a
+**The choice.** Neither answer is absurd. Against the property form: a string is not a
 collection, `Length (S)` already exists and is the documented spelling for it,
-and the interpreter is normative. For it: `Length` and `IsEmpty` are properties
-on all five collections, a string is indexable and sliceable like one, and a
-reader who has learned `L.Length` has no way to predict that `S.Length` is
-different in kind. The two processors cannot both be right, and this
-specification does not choose.
+and admitting it adds a second way to spell one thing. For it: `Length` and
+`IsEmpty` are properties on all five collections, a string is indexable and
+sliceable like one, and a reader who has learned `L.Length` has no way to
+predict that `S.Length` is different in kind.
+
+**Recommendation.** Allow them. The language already treats a string as a
+sequence — `S[0]`, `Copy`, `Pos`, `in` — and the cost of the restriction falls
+on every reader who has to remember it, while the cost of lifting it falls once
+on the interpreter. `Length (S)` keeps working either way.
 
 Note that the failure is not a *property* error but `Only instances have
 properties.` — the interpreter rejects the whole dotted form on a string rather
@@ -1517,7 +1562,7 @@ The following were not probed and are not specified here:
 
 # Known defects
 
-The following are **not** under-specified. In each the language determines an
+The following are **not** open decisions. In each the language determines an
 answer and a processor gets it wrong, so they are tracked as issues and
 reproduced in
 [`tests/defects/`](https://github.com/schildawg/algol24/tree/main/tests/defects)

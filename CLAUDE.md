@@ -9,6 +9,25 @@ written in Algol-24 and compiles itself; it interprets a program or emits C for
 it. `bootstrap/` holds the compiler's own output as checked-in C, so a C
 compiler is the only prerequisite for a build.
 
+**`ALGOL-24.md` is normative and development is spec-driven.** It states what
+the language *shall* do, not what the implementations do — a rule is in it
+because it is right, and where an implementation does not match, the rule stands
+and names the issue tracking the gap. Several rules in it are true of no
+processor yet, identifier case-insensitivity among them. The first release is
+the point at which the spec says what it should say and the code does what the
+spec says.
+
+Three consequences when working here:
+
+- **Never "correct" the spec to match the code.** A disagreement between them is
+  a defect in the code, or an open decision, and both have homes below.
+- **Defects are GitHub issues**, reproduced in `tests/defects/`, whose README is
+  the offline index. They do not go in the spec: a specification that doubles as
+  a bug list goes stale the first time a fix lands without an edit.
+- **Open decisions live in the spec** under that heading — genuine questions
+  about what the language means, each with a recommendation. They are the user's
+  to settle, not mine, and each one blocks the release.
+
 ## Commands
 
 ```sh
@@ -95,11 +114,11 @@ see).
 
 | Module | Role |
 |---|---|
-| `Scanner` | source → tokens; keywords are case-insensitive, identifiers are not |
+| `Scanner` | source → tokens; keywords are case-insensitive, identifiers are not — see issue #1, the spec says they should be |
 | `Parser` | tokens → `Stmt`/`Expr`; also **loads modules** — it reads `uses` files itself |
 | `Resolver` | scope resolution and slot depths; owns the `Units` and `Dottable` sets |
 | `TypeChecker` | gradual typing over a scoped `TypeLookup` |
-| `Interpreter` | tree-walker — **this defines the language** |
+| `Interpreter` | tree-walker — the reference implementation; `ALGOL-24.md` defines the language |
 | `CEmitter` | emits C11, one translation unit per source file |
 | `Environment` | lexical scopes, `Imports`, and the `Exports` set |
 | `Obj*` | `ObjClass`, `ObjInstance`, `ObjFunction`, `ObjEnum`, `ObjCollection`, `ObjBuffer`, `ObjFile` |
@@ -163,9 +182,9 @@ of the language's semantics in the repository.
 
 ## Testing
 
-Nothing is compared against hand-written expected output. The interpreter **is**
-the specification, so correctness is differential: a program runs both ways and
-the two must agree. A bug affecting both halves equally is invisible to
+Nothing is compared against hand-written expected output. `ALGOL-24.md` is the
+specification and the interpreter is the reference implementation, so correctness
+is differential: a program runs both ways and the two must agree. A bug affecting both halves equally is invisible to
 `compiled` and `programs` — the conformance suites and the fixed point are what
 cover that.
 

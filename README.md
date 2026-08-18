@@ -73,12 +73,13 @@ Things that program is quietly demonstrating:
 - **Tests are a language construct**, not a library. `test` blocks live beside
   the code they cover and run with `--test`. The compiler's own 220 tests are
   written this way.
-- **`?` is a letter.** `Of?` and `IsEmpty?` are ordinary identifiers.
+- **`?` is a letter**, and so is `!`. `Of?` and `Commit!` are ordinary
+  identifiers, as is any name in Unicode letters.
 - **Pascal's operators**, not C's: `=` compares, `:=` assigns, `<>` is
   inequality. Semicolons *terminate*, including the one before `end`. `Exit`
   returns and carries the value; there is no `return`.
 - **`Length` and `IsEmpty` are properties** on a collection, written without
-  parentheses. On a string it is the function `Length (S)` instead.
+  parentheses. `Length (S)` is the function form, and works on a string.
 - Exceptions carry a value, and a handler selects on its type. `raise 42` caught
   by `on E : Integer` works exactly as the string form above does.
 
@@ -129,9 +130,13 @@ emitted directory, so a runtime change takes effect with no reseed.
 
 ## Testing
 
-**Nothing here is compared against hand-written expected output.** The
-interpreter *is* the specification, so correctness is differential: a program
-runs both ways and the two must agree.
+**Nothing here is compared against hand-written expected output.** `ALGOL-24.md`
+is the specification and the interpreter is the reference implementation, so
+correctness is differential: a program runs both ways and the two must agree.
+
+Where they disagree, the interpreter is usually the one that is right — but not
+always, and the specification says which. `Length([1, 2])` is `6` interpreted
+and `2` compiled, and it is the interpreter that has the bug.
 
 ```
 $ ./test.sh
@@ -240,19 +245,33 @@ non-zero only when a reproduction **passes**, which is the signal the defect is
 closed and the file should graduate into a real suite. The directory is meant to
 shrink.
 
-Currently open: [identifiers are case-sensitive and are not meant to
-be](https://github.com/schildawg/algol24/issues/1) — twelve surfaces, both
-processors agreeing on eleven of them, which is precisely why the differential
+Five are open, tracked as
+[issues](https://github.com/schildawg/algol24/issues) and indexed offline in
+`tests/defects/README.md`. The oldest is
+[#1](https://github.com/schildawg/algol24/issues/1): identifiers are
+case-sensitive and are not meant to be, across twelve surfaces, with both
+processors agreeing on eleven of them — which is precisely why the differential
 suites never caught it.
 
-`ALGOL-24.md` carries its own *Under-specified behavior* section for points where
-the two processors disagree or the language is not pinned down.
+`ALGOL-24.md` keeps no defects. It carries *Open decisions* instead: questions
+the language has not yet answered, each with a recommendation and each blocking
+the first release.
 
 ## Status
 
-Self-hosting, at a verified fixed point, with the whole suite green. The
-tree-walking interpreter defines the language; the C back end is what makes it
-fast. A bytecode VM written in Algol-24 is the intended third project — see
-`vm/README.md` for why it is deferred and what it will get to assume.
+Pre-1.0, and development is **spec-driven**. `ALGOL-24.md` is normative — it
+states what the language *shall* do, not what the implementations currently do —
+so a rule is in it because it is right, and where an implementation does not yet
+match, the rule stands and names the issue tracking the gap.
+
+**The first release is the point at which the specification says what it should
+say and the implementations do what it says.** What stands between here and
+there is five open defects and four open decisions, all listed.
+
+The compiler is self-hosting, at a verified fixed point, with the whole suite
+green. The tree-walking interpreter is the reference implementation; the C back
+end is what makes it fast. A bytecode VM written in Algol-24 is the intended
+third project — see `vm/README.md` for why it is deferred and what it will get
+to assume.
 
 Licensed under Apache 2.0.
