@@ -193,9 +193,19 @@ Any other character is a lexical error.
 int_lit = decimal_digit { decimal_digit } .
 ```
 
-An integer literal has type `Integer`. There is no sign in the literal itself;
-`-1` is the unary operator `-` applied to `1`. There is no base prefix and no
-digit separator.
+An integer literal takes the **narrowest of `Integer` and `Long` that holds its
+value**. `1` is an `Integer`; `10000000000` is a `Long`. A literal too large for
+`Long` is a static error, not a wrap — a constant is the one place a processor
+always has enough information to refuse.
+
+`Byte` and `Short` have no literal form. A literal reaches them by widening
+where the context asks for one, or by an explicit conversion.
+
+There is no sign in the literal itself; `-1` is the unary operator `-` applied
+to `1`. There is no base prefix and no digit separator.
+
+> **Defective.** `10000000000` is silently truncated to `1410065408` by both
+> processors — [issue #8](https://github.com/schildawg/algol24/issues/8).
 
 ### Floating-point literals
 
@@ -203,7 +213,8 @@ digit separator.
 float_lit = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit } .
 ```
 
-A floating-point literal has type `Double`. A fractional part is what makes a
+A floating-point literal has type `Double`. There is no literal form for
+`Single`; a literal reaches it by an explicit conversion. A fractional part is what makes a
 literal a `Double`, and it is recognised only when a digit follows the `.`;
 `1.` is the integer `1` followed by the `.` operator.
 
@@ -262,14 +273,21 @@ declaration, `List of T`, described under
 ### Predeclared types
 
 ```
-Boolean  Integer  Double  Char  String  Any
+Boolean
+Byte  Short  Integer  Long
+Single  Double
+Char  String
+Any
 ```
 
 - **`Boolean`** has values `True` and `False`.
-- **`Integer`** is a signed 32-bit two's-complement integer. Overflow wraps:
-  `2147483647 + 1` is `-2147483648`. Overflow is not an error.
-- **`Double`** is a double-precision binary floating-point number. Division by
-  zero yields an infinity rather than an error.
+- **`Byte`** is an unsigned 8-bit integer, 0 through 255.
+- **`Short`** is a signed 16-bit two's-complement integer.
+- **`Integer`** is a signed 32-bit two's-complement integer. Note that this is
+  32 bits and not Turbo Pascal's 16.
+- **`Long`** is a signed 64-bit two's-complement integer.
+- **`Single`** is an IEEE 754 binary32 floating-point number.
+- **`Double`** is an IEEE 754 binary64 floating-point number.
 - **`Char`** is a single Unicode scalar value: a code point in 0 through
   1114111, excluding the surrogate range 55296 through 57343. `'a'`, `'é'` and
   `'😀'` are each one `Char`.
@@ -277,12 +295,72 @@ Boolean  Integer  Double  Char  String  Any
   and every operation on it are counted in **code points**. How a processor
   stores a `String` is its own affair and is not observable; in particular a
   program cannot see the UTF-8 encoding of its own source.
-
-**Neither processor implements this.** Both treat a `String` as bytes; see
-[issue #6](https://github.com/schildawg/algol24/issues/6). A program restricted
-to characters 0 through 127 cannot tell the difference, which is why the
-compiler compiles itself under the current behavior.
 - **`Any`** is the type of a value whose type is not stated.
+
+There is no `Real`. Turbo Pascal's `Real` is a 48-bit software format that
+existed because the 8087 was an optional chip, and Delphi later redefined it as
+an alias for `Double`; naming it here would mean one of two different things
+depending on which Pascal the reader knows. `Single` and `Double` are also
+Turbo Pascal's names, and both are unambiguous.
+
+There is no unsigned type other than `Byte`, which exists to hold raw data
+rather than to count. `Char` is a Unicode scalar and no longer byte-sized, so
+`Byte` occupies the place Turbo Pascal's `Char` held.
+
+> **Not implemented.** Only `Boolean`, `Integer`, `Double`, `Char`, `String` and
+> `Any` exist — [issue #9](https://github.com/schildawg/algol24/issues/9). And
+> `String` is a sequence of bytes rather than code points —
+> [issue #6](https://github.com/schildawg/algol24/issues/6). A program using
+> neither the new types nor a character above 127 cannot tell, which is why the
+> compiler compiles itself under the current behavior.
+
+### Numeric conversion
+
+The numeric types form one ladder:
+
+```
+Byte  →  Short  →  Integer  →  Long  →  Single  →  Double
+```
+
+A value **widens** implicitly to any type to its right, and never leftwards.
+A binary arithmetic or comparison operator promotes both operands to the
+further of their two positions and produces a result of that type.
+
+`Long → Single` is on the ladder for uniformity, and it is the one step that can
+lose precision: a 64-bit integer beyond 2^24 may not be representable. It is
+still a widening, because it cannot fail — only round.
+
+**`Byte` and `Short` are storage types.** Arithmetic on them yields `Integer`,
+so `B + B` is an `Integer` and neither type ever appears as the result of an
+operator. This is what keeps the operator rules to a ladder rather than a table
+of every pair.
+
+Narrowing is never implicit. Each numeric type is also a **conversion
+function** taking any number, following `Char(N)`, which the language already
+has:
+
+```pascal
+var Small : Byte    := Byte (200);      // 200
+var Cut   : Integer := Integer (1.9);   // 1, truncated toward zero
+var Bad   : Byte    := Byte (300);      // run-time error
+```
+
+A conversion that would lose *range* is a run-time error, in the same shape as
+`Char is limited to a Unicode scalar value.` A conversion from a floating-point
+type to an integer type truncates toward zero, since discarding the fraction is
+what the conversion is for; it is an error only when the truncated value does
+not fit. `Round(X)` converts to the nearest integer instead, halves away from
+zero.
+
+### Overflow
+
+Integer arithmetic wraps at the width of its result type and is not an error:
+`2147483647 + 1` is `-2147483648`. Floating-point division by zero yields an
+infinity; integer division by zero is a run-time error.
+
+Because `Byte` and `Short` are storage types, no operator produces a value that
+wraps at 8 or 16 bits — the wrap can only happen at an explicit conversion,
+where it is an error rather than a wrap.
 
 `Char` and `String` are **distinct types**, but a `Char` widens to a `String`
 (see [Widening](#widening)), so they compare as text and are equal when they
@@ -1409,6 +1487,9 @@ truncated.
 |---|---|
 | `Ord(V)` | the code point of a `Char`, or an enumeration member's position |
 | `Char(N)` | the character with code point N, which must be a Unicode scalar value |
+| `Byte(N)` `Short(N)` `Integer(N)` `Long(N)` | conversion to that integer type; a run-time error if the value does not fit |
+| `Single(N)` `Double(N)` | conversion to that floating-point type |
+| `Round(X)` | the nearest integer to a number, halves away from zero |
 | `Val(S)` | the numeric value of a `String`, always a `Double` |
 | `Max(A, B)` | the greater of two `Integer`s |
 | `Mod(A, B)` | the remainder of two `Integer`s, signed as the dividend |
@@ -1659,6 +1740,8 @@ a reader is entitled to know which.
 | [#5](https://github.com/schildawg/algol24/issues/5) | The `Length` built-in measures a collection's rendering rather than counting it, so `Length([1, 2])` is `6` interpreted. Use the property. |
 | [#6](https://github.com/schildawg/algol24/issues/6) | A `String` is a sequence of **bytes**, not code points. `Length('héllo')` is `6`, `'héllo'[1]` is half of `é`, and `Char` is capped at `127` while indexing yields values above it. |
 | [#7](https://github.com/schildawg/algol24/issues/7) | No widening is implemented. `'A' = Str('A')` is `False`, `var D : Double := 1` is rejected, and text has no order. Also: a one-code-point `test` name does not parse. |
+| [#8](https://github.com/schildawg/algol24/issues/8) | An integer literal too large for `Integer` is silently truncated: `10000000000` reads as `1410065408`. |
+| [#9](https://github.com/schildawg/algol24/issues/9) | `Byte`, `Short`, `Long` and `Single` do not exist, and neither do the numeric conversion functions or `Round`. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

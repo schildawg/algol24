@@ -1,0 +1,34 @@
+/// Byte, Short, Long and Single exist, and narrow only when asked.
+///
+/// The numeric types form one ladder -- Byte, Short, Integer, Long, Single,
+/// Double -- along which a value widens implicitly and never leftwards.
+/// Only Integer and Double exist today, so every declaration below is rejected
+/// by the checker and the file never runs.
+///
+/// ⚠️ Byte and Short are STORAGE types: arithmetic on them yields an Integer, so
+/// neither ever appears as an operator's result.  That is what keeps the
+/// operator rules to a ladder instead of a table of every pair, and it is why
+/// the sum below is asserted to be an Integer rather than a Byte.
+///
+/// Narrowing is explicit, spelled as the type name applied to a value -- the
+/// convention Char(N) already follows -- and raises when the value does not
+/// fit, rather than truncating as C would.
+///
+/// Fails with: Type mismatch!  (file rejected -- no test ran)
+///
+test 'The numeric types form one widening ladder';
+begin
+    var Small : Byte    := Byte (200);
+    var Mid   : Short   := 1000;
+    var Wide  : Long    := 10000000000;
+    var Rough : Single  := Single (1.5);
+
+    AssertTrue  ((Small + Small) is Integer);
+    AssertEqual (400, Small + Small);
+    AssertEqual (1000, Mid);
+    AssertTrue  (Wide > 2147483647);
+    AssertEqual (1.5, Rough);
+
+    AssertEqual (1, Integer (1.9));
+    AssertEqual (2, Round (1.5));
+end

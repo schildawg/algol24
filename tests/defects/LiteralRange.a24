@@ -1,0 +1,24 @@
+/// An integer literal keeps its value.
+///
+/// A literal too large for Integer is silently truncated to 32 bits by both
+/// processors: 10000000000 reads as 1410065408, with no diagnostic and exit 0.
+///
+/// ⚠️ This is not the same thing as Integer arithmetic wrapping, which is
+/// specified.  2147483647 + 1 wrapping is a computation on values the author
+/// wrote; here the LITERAL ITSELF is altered before the program starts, which
+/// no arithmetic rule covers.  A constant is the one place a processor always
+/// has enough information to refuse.
+///
+/// The spec gives a literal the narrowest of Integer and Long that holds it, so
+/// this one is a Long.  Fixing it without Long is still worth doing, and means
+/// refusing the literal rather than promoting it.
+///
+/// Fails with: Assertion 'left = right' failed.  Expected '10000000000' but got '1410065408'.
+///
+test 'An integer literal keeps its value';
+begin
+    var Big := 10000000000;
+
+    AssertEqual ('10000000000', Str (Big));
+    AssertTrue  (Big > 2147483647);
+end

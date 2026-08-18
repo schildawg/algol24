@@ -30,6 +30,8 @@ nothing more.
 | [5](https://github.com/schildawg/algol24/issues/5) | `Length` measures a collection's rendering | `LengthBuiltin` |
 | [6](https://github.com/schildawg/algol24/issues/6) | A `String` is bytes, not code points | `StringCodePoints`, `StringCodePointsAstral`, `CharScalarRange` |
 | [7](https://github.com/schildawg/algol24/issues/7) | No widening; `'A' = Str('A')` is `False`; text has no order | `TypeWidening`, `TypeEquality`, `TypeOrdering` |
+| [8](https://github.com/schildawg/algol24/issues/8) | An integer literal too large for `Integer` is truncated | `LiteralRange` |
+| [9](https://github.com/schildawg/algol24/issues/9) | `Byte`, `Short`, `Long`, `Single` and the numeric conversions do not exist | `NumericTypes` |
 
 Issue 4 has no file because every reproduction here must be a `test` block that
 *passes* once fixed, and the correct outcome there is that the program is
@@ -245,3 +247,31 @@ as a lookup that mysteriously misses rather than as a type error.
 accepted for a `String` parameter today — `Take('A')` works where
 `var S : String := 'A'` does not — so this is the declaration-versus-assignment
 asymmetry appearing on a third path, not a missing conversion.
+
+## Issues 8 and 9 — the numeric types
+
+`ALGOL-24.md` specifies ten predeclared types; six exist. `Byte`, `Short`, `Long`
+and `Single` are new, as are the conversion functions `Byte(N)` … `Double(N)`
+and `Round(X)`.
+
+The design is three rules. One **ladder** —
+`Byte → Short → Integer → Long → Single → Double` — along which values widen
+implicitly and never leftwards, with a binary operator promoting both operands
+to the further position. `Byte` and `Short` are **storage types**, so arithmetic
+on them yields an `Integer` and neither ever appears as an operator's result;
+that is what keeps the operator rules to a ladder instead of a table of every
+pair. And narrowing is **explicit**, spelled as the type name applied to a value
+— the convention `Char(N)` already follows — raising when the value does not
+fit rather than truncating.
+
+There is no `Real`, deliberately. Turbo Pascal's `Real` is a 48-bit software
+format from the days when the 8087 was optional, and Delphi redefined it as an
+alias for `Double`, so a `Real`/`Double` pair means 48/64 in one Pascal and
+64/64 in the other. `Single` and `Double` are also Turbo Pascal names and are
+unambiguous.
+
+⚠️ `LiteralRange` is a defect **today**, with no new types involved:
+`10000000000` reads as `1410065408` under both processors, silently. That is not
+the specified `Integer` wrap — arithmetic wrapping operates on values the author
+wrote, whereas here the literal itself is altered before the program starts. A
+constant is the one place a processor always has enough information to refuse.
