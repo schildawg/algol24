@@ -29,6 +29,7 @@ nothing more.
 | [4](https://github.com/schildawg/algol24/issues/4) | An unresolved name emits invalid C | *not reproducible here* |
 | [5](https://github.com/schildawg/algol24/issues/5) | `Length` measures a collection's rendering | `LengthBuiltin` |
 | [6](https://github.com/schildawg/algol24/issues/6) | A `String` is bytes, not code points | `StringCodePoints`, `StringCodePointsAstral`, `CharScalarRange` |
+| [7](https://github.com/schildawg/algol24/issues/7) | No widening; `'A' = Str('A')` is `False`; text has no order | `TypeWidening`, `TypeEquality`, `TypeOrdering` |
 
 Issue 4 has no file because every reproduction here must be a `test` block that
 *passes* once fixed, and the correct outcome there is that the program is
@@ -219,3 +220,28 @@ UTF-16 units passes the two-byte file and fails this one, reporting a length of
 The issue carries the storage question, which is not deferrable: `Scanner.a24`
 reads its source as `Source[Current]`, so code-point indexing over UTF-8 storage
 would make the scanner O(n²) over its own input.
+
+## Issue 7 — how the types interact
+
+`ALGOL-24.md` takes Turbo Pascal's assignment compatibility as its base: a
+conversion that loses nothing and cannot fail happens without being asked, and
+never runs backwards. `Char` widens to `String`, `Integer` to `Double`. Equality
+widens to a common type and compares there; where there is no common type the
+values are simply unequal, which is what lets a collection hold mixed types.
+Ordering covers text as well as numbers, by code point.
+
+None of it is implemented. `'A' = Str('A')` is `False` under both processors,
+`var D : Double := 1` is rejected, and `Str('abc') < Str('abd')` raises
+`Operands must be numbers.`
+
+**`TypeEquality` is the one to fix first.** Answering `False` for two identical
+pieces of text is worse than either alternative — a language may convert them or
+refuse the comparison, but a silent `False` gives the program no way to notice.
+And equality is what `Contains`, `Map` keys and `case` labels are built on, so a
+`Map` keyed with `'A'` cannot be found with `Str('A')`; the program meets this
+as a lookup that mysteriously misses rather than as a type error.
+
+⚠️ The conversion is already implemented somewhere. A `Char` argument is
+accepted for a `String` parameter today — `Take('A')` works where
+`var S : String := 'A'` does not — so this is the declaration-versus-assignment
+asymmetry appearing on a third path, not a missing conversion.

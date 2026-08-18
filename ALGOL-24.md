@@ -284,13 +284,23 @@ to characters 0 through 127 cannot tell the difference, which is why the
 compiler compiles itself under the current behavior.
 - **`Any`** is the type of a value whose type is not stated.
 
-`Char` and `String` are **distinct types and are never equal**. A one-character
-`String` and the corresponding `Char` compare unequal:
+`Char` and `String` are **distinct types**, but a `Char` widens to a `String`
+(see [Widening](#widening)), so they compare as text and are equal when they
+hold the same code points:
 
 ```pascal
-Copy('ab', 0, 1) = 'a'      // false: String against Char
-'hello'[0] = 'h'            // true:  Char against Char
+Copy('ab', 0, 1) = 'a'      // True
+'hello'[0] = 'h'            // True
+'A' = Str('A')              // True
 ```
+
+The types stay distinct where the distinction is observable — `'a' is Char` and
+`Str('a') is String` are both `True`, and a declared `Char` will not accept a
+`String` — but no operation silently reports two pieces of identical text as
+different.
+
+> **Not implemented.** Both processors report `'A' = Str('A')` as `False` —
+> [issue #7](https://github.com/schildawg/algol24/issues/7).
 
 `Integer` and `Double` are distinct types, but they compare and combine
 numerically: `1 = 1.0` is `True`, and mixing them in arithmetic produces a
@@ -351,6 +361,24 @@ The checker runs before the program does. A program that fails to check does
 not run, and its diagnostic is not catchable by `try` (see
 [Static errors](#static-errors)).
 
+### Widening
+
+Some types convert to others without being asked. A value of type `Actual`
+**widens** to `Expected` when:
+
+| From | To | |
+|---|---|---|
+| `Char` | `String` | a single code point becomes a `String` of length 1 |
+| `Integer` | `Double` | exactly, for every `Integer` |
+
+Widening never runs backwards. A `String` does not narrow to a `Char` even when
+it holds one code point, and a `Double` does not narrow to an `Integer` even
+when it is whole; both require an explicit operation.
+
+A widening conversion loses nothing and cannot fail, which is what distinguishes
+it from a cast. `Length` of a widened `Char` is 1, and a widened `Integer`
+compares equal to the `Integer` it came from.
+
 ### Assignability
 
 A type `Actual` is *assignable* to a declared type `Expected` when any of the
@@ -359,11 +387,18 @@ following holds:
 - either type is unknown or is `Any`;
 - `Actual` is the type of `nil`;
 - the two are the same type;
+- `Actual` **widens** to `Expected`;
 - `Actual` is a class that inherits, directly or transitively, from `Expected`.
 
 The static type of an expression is *unknown* when the checker cannot deduce
 it — for example when it reads a variable or parameter that was declared
 without a type annotation.
+
+**One relation, everywhere.** Assignability governs every place a value meets a
+declared type: a declaration's initializer, an assignment, an argument bound to
+a parameter, a value returned against a declared result type, and a field
+against its declaration. A processor rejects a program only when no run-time
+value could make it succeed.
 
 ### The declaration rule
 
@@ -395,9 +430,12 @@ begin
 end
 ```
 
-This is recorded as [an ambiguity](#the-declaration-rule-versus-assignability):
+This is recorded as [an open decision](#the-declaration-rule-versus-assignability):
 the two rules are not obviously meant to differ, and the declaration rule
-contradicts the general treatment of `Any` elsewhere in the language.
+contradicts the general treatment of `Any` elsewhere in the language. Note that
+the same asymmetry already exists between a declaration and a **parameter**: a
+`Char` argument is accepted for a `String` parameter, while the equivalent
+declaration is rejected.
 
 ### Inference
 
@@ -405,12 +443,17 @@ A declaration without a type annotation takes no declared type. Its static
 type is unknown when it is later read, even where an initializer would appear
 to determine it — which is what makes the second example above illegal.
 
-Numeric types are **not** implicitly converted in a declaration:
+Narrowing is never implicit, in a declaration or anywhere else. Widening is:
 
 ```pascal
-var I : Integer := 1.0;             // ILLEGAL
-var D : Double  := 1;               // ILLEGAL
+var I : Integer := 1.0;             // illegal: Double does not narrow
+var D : Double  := 1;               // legal: Integer widens
+var S : String  := 'A';             // legal: Char widens
+var C : Char    := Str('A');        // illegal: String does not narrow
 ```
+
+> **Not implemented.** Both processors reject all four —
+> [issue #7](https://github.com/schildawg/algol24/issues/7).
 
 ## Declarations and scope
 
@@ -822,7 +865,7 @@ carries at most one cast.
 ### Arithmetic operators
 
 `+`, `-`, `*` and `/` require two numbers, except that `+` also concatenates
-when either operand is a `String` or a `Char`. Any other combination is a
+when either operand is text — a `String` or a `Char`. Any other combination is a
 run-time error: `Operands must be two numbers, or two strings.`
 
 - `Integer` with `Integer` yields an `Integer`. This includes `/`, which is
@@ -844,18 +887,37 @@ requiring two `Integer`s. Its result takes the sign of the dividend:
 
 ### Comparison operators
 
-`=` and `<>` compare any two values and never fail.
+`=` and `<>` compare any two values and **never fail**. Where one operand
+[widens](#widening) to the other's type, both are widened to that common type
+and compared as values of it; where neither does, values of different types are
+unequal.
 
-- Values of different types are unequal, except that `Integer` and `Double`
-  compare numerically: `1 = 1.0` is `True`.
-- `Char` compares equal to `Char` by code point: `'a' = #97` is `True`.
-- `String` never equals `Char`.
+- `Integer` and `Double` compare numerically: `1 = 1.0` is `True`.
+- `Char` and `String` compare as text: `'A' = Str('A')` is `True`, and
+  `'a' = #97` is `True`.
+- Two values with no common type are unequal rather than an error:
+  `1 = Str('1')` is `False`, and so is `nil = 0`.
 - `nil = nil` is `True`.
 - Enumeration members compare by identity.
 
-`<`, `<=`, `>` and `>=` require **numbers or `Char`s**. They are *not* defined
-on `String`: `'abc' < 'abd'` is a run-time error, `Operands must be numbers.`
-`'a' < 'b'` is `True`, comparing code points.
+Equality never raising is what lets a collection hold values of mixed type.
+`Contains`, `Map` keys and `case` labels all use this relation, so a `Map` keyed
+by `'A'` is found by `Str('A')` and vice versa.
+
+`<`, `<=`, `>` and `>=` order **numbers** and **text**, and mixing the two is a
+run-time error, `Operands must be numbers.`
+
+- Numbers order numerically, widening `Integer` to `Double` where they meet.
+- Text orders by code point, comparing position by position; where one is a
+  prefix of the other the shorter is the lesser. `Char` widens to `String`
+  first, so `'a' < Str('ab')` is `True` and `Str('abc') < Str('abd')` is `True`.
+
+The order is by code point and nothing else. It is not a collation: it is not
+locale-sensitive, does not case-fold, and does not normalize. Two processors
+must agree on it, and only a mechanical rule can guarantee that.
+
+> **Not implemented.** `Str('abc') < Str('abd')` is a run-time error under both
+> processors — [issue #7](https://github.com/schildawg/algol24/issues/7).
 
 ### Logical operators
 
@@ -1596,6 +1658,7 @@ a reader is entitled to know which.
 | [#4](https://github.com/schildawg/algol24/issues/4) | An unresolved name — undeclared, out of scope, or reached past a non-transitive `uses` — is a catchable error interpreted and invalid C compiled. |
 | [#5](https://github.com/schildawg/algol24/issues/5) | The `Length` built-in measures a collection's rendering rather than counting it, so `Length([1, 2])` is `6` interpreted. Use the property. |
 | [#6](https://github.com/schildawg/algol24/issues/6) | A `String` is a sequence of **bytes**, not code points. `Length('héllo')` is `6`, `'héllo'[1]` is half of `é`, and `Char` is capped at `127` while indexing yields values above it. |
+| [#7](https://github.com/schildawg/algol24/issues/7) | No widening is implemented. `'A' = Str('A')` is `False`, `var D : Double := 1` is rejected, and text has no order. Also: a one-code-point `test` name does not parse. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

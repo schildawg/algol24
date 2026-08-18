@@ -1,0 +1,30 @@
+/// Text compares as text, whatever type it arrived as.
+///
+/// A Char widens to a String, so the two compare equal when they hold the same
+/// code points.  Both processors report False instead -- silently, which is the
+/// worst of the three available answers: a language may convert them, or refuse
+/// the comparison, but reporting two identical pieces of text as different
+/// gives the program no way to notice.
+///
+/// ⚠️ The collection cases are the ones that bite.  Equality is what Contains,
+/// Map keys and case labels are built on, so today a Map keyed by 'A' cannot be
+/// found with Str('A') and a List holding 'A' does not contain it.  A program
+/// meets this as a lookup that mysteriously misses rather than as a type error.
+///
+/// Fails with: Assertion 'true' failed.
+///
+test 'A Char and a String compare as text';
+begin
+    var Letter : Char   := 'A';
+    var Word   : String := Str ('A');
+
+    AssertTrue  (Letter = Word);
+    AssertTrue  (Copy ('ab', 0, 1) = 'a');
+    AssertTrue  (not (Letter <> Word));
+
+    var Seen := Map ();
+    Seen.Put ('A', 'yes');
+    AssertTrue (Seen.Contains (Str ('A')));
+
+    AssertTrue (['A'].Contains (Str ('A')));
+end

@@ -1,0 +1,21 @@
+/// Text is ordered, by code point.
+///
+/// The relational operators take numbers or a single Char today and refuse a
+/// String outright, so 'abc' < 'abd' raises 'Operands must be numbers.'  There
+/// is no ordering to preserve and nothing depends on the refusal; it is a gap
+/// rather than a decision.
+///
+/// ⚠️ By code point and nothing else.  Not a collation: not locale-sensitive,
+/// no case folding, no normalization.  Two processors have to agree on the
+/// answer, and only a mechanical rule can guarantee that -- a locale-aware
+/// comparison would make a program's output depend on the machine that ran it.
+///
+/// Fails with: Operands must be numbers.
+///
+test 'Text is ordered by code point';
+begin
+    AssertTrue (Str ('abc') < Str ('abd'));
+    AssertTrue (Str ('ab')  < Str ('abc'));
+    AssertTrue ('a' < Str ('ab'));
+    AssertTrue (Str ('Z') < Str ('a'));
+end

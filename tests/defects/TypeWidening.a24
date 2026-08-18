@@ -1,0 +1,27 @@
+/// A Char widens to a String, and an Integer to a Double.
+///
+/// Turbo Pascal's assignment compatibility, which the language follows: a
+/// conversion that loses nothing and cannot fail happens without being asked,
+/// and never runs backwards.  Both processors implement no widening at all --
+/// every line below is rejected by the checker before the program runs.
+///
+/// ⚠️ The asymmetry that makes this more than a convenience: a Char argument is
+/// ALREADY accepted for a String parameter, so the language has the conversion
+/// and only the declaration path refuses it.  Passing 'A' to a String parameter
+/// works today; declaring 'var S : String := ''A''' does not.
+///
+/// Narrowing stays illegal and is asserted nowhere here.  A String does not
+/// become a Char even when it holds one code point, and a Double does not become
+/// an Integer even when it is whole.
+///
+/// Fails with: Type mismatch!  (file rejected -- no test ran)
+///
+test 'A Char widens to a String and an Integer to a Double';
+begin
+    var Text  : String := 'A';
+    var Ratio : Double := 1;
+
+    AssertEqual (1, Length (Text));
+    AssertTrue  (Text is String);
+    AssertEqual (1.0, Ratio);
+end
