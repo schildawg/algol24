@@ -28,6 +28,43 @@ Three consequences when working here:
   about what the language means, each with a recommendation. They are the user's
   to settle, not mine, and each one blocks the release.
 
+## The Prime Directive
+
+**Nothing is fixed until all six hold.** A defect fix is done when, and only
+when:
+
+1. every test associated with the issue passes;
+2. every existing suite still passes;
+3. the Tester approves it, with no regressions introduced;
+4. it runs on the **current** bootstrap;
+5. it builds a **new** bootstrap and runs there too;
+6. that new compiler emits a **third** generation byte-identical to the second.
+
+Conditions 4–6 are what `./build.sh` and `./test.sh fixedpoint` already do. The
+full ladder for any change to `compiler/`:
+
+```sh
+./test.sh                 # 2 -- on the current bootstrap
+./build.sh                # 4, 5 -- stage 1 from the seed, stage 2 from it
+./test.sh                 # 5 -- and the suites pass on the new one
+./tests/defects/run.sh    # 1 -- the issue's reproductions now pass
+./build.sh --reseed       # commit compiler/ and bootstrap/ together
+```
+
+`test.sh fixedpoint` covers 6: it has generation 2 emit generation 3 and
+compares them with `diff -r`, excluding only `algol.[ch]` — the hand-written
+runtime, copied verbatim — and the built `algc`.
+
+**The emitted C is compared exactly, and must stay that way.** There is no
+tolerance for a timestamp or for bytes a tool adds, and none is needed: nothing
+non-deterministic reaches the emitted text today. A timestamp appearing there is
+itself the class of bug the fixed point exists to catch, so a tolerance for one
+would disable the check it lives in. The only thing that legitimately varies
+between builds is the compiled binary, which the comparison already excludes.
+
+A fix that closes its own issue and regresses anything else has not met the
+Directive. Say so plainly rather than reporting the part that worked.
+
 ## Commands
 
 ```sh

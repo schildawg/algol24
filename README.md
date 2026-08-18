@@ -266,7 +266,22 @@ match, the rule stands and names the issue tracking the gap.
 
 **The first release is the point at which the specification says what it should
 say and the implementations do what it says.** What stands between here and
-there is five open defects and four open decisions, all listed.
+there is nine open defects and four open decisions, all listed.
+
+A defect counts as fixed only when all six of these hold — the project's
+**Prime Directive**:
+
+1. every test associated with the issue passes;
+2. every existing suite still passes;
+3. the Tester approves it, with no regressions introduced;
+4. it runs on the current bootstrap;
+5. it builds a new bootstrap and runs there too;
+6. that new compiler emits a third generation byte-identical to the second.
+
+The last three are the two-stage build and the fixed point, which `./build.sh`
+and `./test.sh fixedpoint` perform. The emitted C is compared exactly: no
+tolerance for timestamps, because a timestamp reaching emitted text is itself
+what the fixed point exists to catch.
 
 The compiler is self-hosting, at a verified fixed point, with the whole suite
 green. The tree-walking interpreter is the reference implementation; the C back
