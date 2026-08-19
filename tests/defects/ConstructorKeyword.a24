@@ -1,0 +1,49 @@
+/// The 'constructor' keyword decides, and the name does not.
+///
+/// Exactly inverted today.  'function Init' IS a constructor -- calling the
+/// class name runs it -- and 'constructor Make' is not, so Made(7) fails with
+/// 'Expected 0 arguments but got 1.'  Every constructor semantic keys on the
+/// lexeme 'Init': ObjClass.Call looks up FindOverload('Init', ...), Resolver
+/// checks Name.Lexeme = 'Init', Interpreter sets IsInitializer from the same
+/// comparison.  The keyword is parsed and then dropped.
+///
+/// ⚠️ This is not a new design.  Parser.a24 already carries the rule as a
+/// comment -- 'A constructor is spelled ''constructor'', not named ''init''.'
+/// -- next to the code that consumes the keyword and discards it.  The intent
+/// was recorded and never wired up.
+///
+/// ⚠️ Turbo Pascal is the model and is the same way round: there the KEYWORD
+/// makes a constructor and the name is convention, which is why New(P, Init)
+/// names it at the call.  Algol-24 inverted both halves.
+///
+/// Migration costs nothing: all 63 constructors in the corpus are already
+/// spelled 'constructor Init', and no method anywhere is named Init without it.
+///
+/// Fails with: Can't return a value from an initializer.  (file rejected -- no
+/// test ran) -- a sharper demonstration than expected.  The ordinary method
+/// 'function Init (N : Integer) : Integer' is refused a result type, because
+/// today the name alone makes it an initializer.
+///
+class Made;
+var
+    N : Integer := 0;
+
+begin
+    constructor Make (N : Integer);
+    begin
+        this.N := N;
+    end
+
+    function Init (N : Integer) : Integer;
+    begin
+        Exit N * 2;
+    end
+end
+
+test 'The constructor keyword decides, not the name';
+begin
+    var Thing := Made (7);
+
+    AssertEqual (7,  Thing.N);
+    AssertEqual (14, Thing.Init (7));
+end

@@ -907,8 +907,57 @@ end
 - `this` refers to the receiver.
 - An instance is created by calling the class name. There is no `new`.
   Arguments are passed to the constructor: `Dog('Rex')`.
-- The constructor is named `Init` by convention in all observed code; a
-  constructor is selected for a call by its signature like any other member.
+
+#### Constructors
+
+A member declared `constructor` is a constructor. **The keyword decides, and the
+name does not.** `constructor Make` is a constructor; `function Init` is an
+ordinary method with no special treatment.
+
+A constructor may not declare a result type, and `Exit` within one may not carry
+a value: `Can't return a value from an initializer.` An instance is what
+construction produces, and a constructor that returned something else would have
+nowhere to put it.
+
+Constructors are members, so they are inherited and they overload like any other
+member — see [Overload resolution](#overload-resolution).
+
+```pascal
+class Circle;
+var
+    Radius : Double := 0.0;
+
+begin
+    constructor Init (Radius : Double);
+    begin
+        this.Radius := Radius;
+    end
+
+    constructor FromDiameter (Across : Double);
+    begin
+        this.Radius := Across / 2.0;
+    end
+end
+```
+
+**Calling the class name** selects among **all** of its constructors by
+signature: `Circle(5.0)` finds the one taking a `Double`. Where that is
+ambiguous — two constructors a call fits equally — it is an error, and the
+constructor must be named:
+
+```pascal
+var A := Circle (5.0);                  // the Init above
+var B := Circle.FromDiameter (10.0);    // named explicitly
+```
+
+A class declaring no constructor is still callable: `Empty()` yields an instance
+with its fields initialized and nothing else run.
+
+> **Not implemented.** The keyword is decorative and the **name** `Init` decides
+> everything — [issue #20](https://github.com/schildawg/algol24/issues/20). So
+> `function Init` is a constructor today and `constructor Make` is not, which is
+> the reverse of this rule. Naming a constructor at a call is not supported
+> either, and constructor overloading works compiled and not interpreted.
 
 #### Visibility
 
@@ -2146,6 +2195,7 @@ a reader is entitled to know which.
 | [#17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit, though a value can. |
 | [#18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name; the collision is refused rather than resolved by qualification. |
 | [#19](https://github.com/schildawg/algol24/issues/19) | No `continue`, no statement labels, no labelled `break`, and no `goto`. |
+| [#20](https://github.com/schildawg/algol24/issues/20) | The `constructor` keyword is decorative; the name `Init` decides. Constructors do not overload interpreted, and cannot be named at a call. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

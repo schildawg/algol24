@@ -1,0 +1,41 @@
+/// A constructor may be named at the call.
+///
+/// Once the keyword decides rather than the name, a class may declare several
+/// constructors with different names -- and two of them can take the same
+/// signature, which calling the bare class name cannot distinguish.  Naming one
+/// is how a program says which it means.
+///
+/// ⚠️ This is what makes named constructors worth having at all.  Circle(5.0)
+/// and Circle.FromDiameter(10.0) both take one Double, so overload resolution
+/// has nothing to separate them; only the name does.  Where the signatures DO
+/// differ, the bare form still works and naming is optional.
+///
+/// Turbo Pascal names the constructor at every call -- New(P, Init) -- because
+/// its objects are allocated rather than expressed.  Here the bare form stays
+/// the common case and naming is the escape hatch.
+///
+/// Fails with: Only instances have properties.  A class is not an instance and
+/// cannot answer a dot at all today, so naming a constructor fails one step
+/// earlier than a missing member would.
+///
+class Circle;
+var
+    Radius : Double := 0.0;
+
+begin
+    constructor Init (Radius : Double);
+    begin
+        this.Radius := Radius;
+    end
+
+    constructor FromDiameter (Across : Double);
+    begin
+        this.Radius := Across / 2.0;
+    end
+end
+
+test 'A constructor may be named at the call';
+begin
+    AssertEqual (5.0, Circle (5.0).Radius);
+    AssertEqual (5.0, Circle.FromDiameter (10.0).Radius);
+end

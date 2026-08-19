@@ -42,6 +42,7 @@ nothing more.
 | [17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit | `QualifiedTypeName` |
 | [18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name | `DuplicateExport` |
 | [19](https://github.com/schildawg/algol24/issues/19) | No `continue`, labels, labelled `break` or `goto` | `ContinueStatement`, `LabelledBreak`, `GotoStatement` |
+| [20](https://github.com/schildawg/algol24/issues/20) | The `constructor` keyword is decorative; `Init` decides | `ConstructorKeyword`, `ConstructorOverload`, `ConstructorNamed` |
 
 Some rules cannot be reproduced as a `test` block at all: where the correct
 outcome is that a program is **refused**, there is no observable behaviour to
@@ -546,3 +547,28 @@ outward, so a tree-walker needs block execution to become **resumable** — unwi
 to the block holding the label, then re-enter its statement list at that index.
 The C side is easy by comparison, since C has `goto` and the same-function rule
 keeps every jump inside one C function.
+
+## Issue 20 — constructors
+
+A member declared `constructor` is a constructor; the name does not matter.
+Exactly inverted today — `function Init` **is** a constructor and
+`constructor Make` is not.
+
+⚠️ **The intent was already written down and never wired up.** `Parser.a24:1432`,
+beside the code that consumes the keyword and discards it: *"A constructor is
+spelled `constructor`, not named `init`."* Every constructor semantic keys on the
+lexeme instead — `FindOverload('Init', …)` in `ObjClass`, `Name.Lexeme = 'Init'`
+in `Resolver` and again in `Interpreter`. Turbo Pascal is the model and is the
+same way round: the keyword makes a constructor there, which is why
+`New(P, Init)` names it at the call.
+
+⚠️ **Overloading is a divergence, not a missing feature.** `ObjClass.Call` is
+written to do it — *"A constructor overloads like any other method"* sits above
+`FindOverload('Init', Arguments)` — but a single-valued `Arity()` gate fires
+first and refuses the call. The machinery is three lines below the gate that
+stops it. Compiled has no gate, so `Point(1, 2)` works there and raises here.
+
+⚠️ **Migration costs nothing**, which is worth knowing before the change looks
+frightening: all 63 constructors in the corpus are already spelled
+`constructor Init`, no method is named `Init` without the keyword, and no
+`constructor` carries another name.

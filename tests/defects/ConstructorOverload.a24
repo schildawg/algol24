@@ -1,0 +1,47 @@
+/// Constructors overload like any other member.
+///
+/// ObjClass.Call is written to do this -- 'A constructor overloads like any
+/// other method' sits above FindOverload('Init', Arguments) -- but the code
+/// never runs, because a single-valued arity gate fires first:
+///
+///     function Arity () : Integer;
+///     begin
+///         Initializer := FindMethod('Init');     // the FIRST Init
+///         Exit Initializer.Arity() as Integer;   // one number
+///     end
+///
+/// and Interpreter.a24:1242 refuses the call when Arguments.Length differs from
+/// that one number.  The compiled path has no such gate.
+///
+/// ⚠️ So this is a DIVERGENCE rather than a missing feature: Point(1, 2) prints
+/// 1,2 compiled and raises 'Expected 1 arguments but got 2.' interpreted.  The
+/// normative half is the one that refuses, and the machinery it needs is
+/// already written three lines below the gate that stops it.
+///
+/// Fails with: Expected 1 arguments but got 2.
+///
+class Point;
+var
+    X : Integer := 0;
+    Y : Integer := 0;
+
+begin
+    constructor Init (X : Integer);
+    begin
+        this.X := X;
+    end
+
+    constructor Init (X : Integer, Y : Integer);
+    begin
+        this.X := X;
+        this.Y := Y;
+    end
+end
+
+test 'Constructors overload on their signature';
+begin
+    AssertEqual (1, Point (1).X);
+    AssertEqual (0, Point (1).Y);
+    AssertEqual (1, Point (1, 2).X);
+    AssertEqual (2, Point (1, 2).Y);
+end
