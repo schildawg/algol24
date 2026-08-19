@@ -22,7 +22,7 @@ Development is driven from this document. The first release of Algol-24 is the
 point at which the specification says what it should say **and** the
 implementations do what it says.
 
-Two consequences a reader should know:
+Three consequences a reader should know:
 
 - Some rules here are not yet true of any processor. Every one of them names the
   issue that says so — see [Known defects](#known-defects). A rule with no such
@@ -31,6 +31,15 @@ Two consequences a reader should know:
   answered. Each is a decision to be made rather than a permanent gap, and each
   blocks the first release. A program whose meaning depends on one is not
   portable, and will not become portable by itself.
+- [Future directions](#future-directions) lists capabilities the language is
+  intended to gain and does not have. These do **not** block the first release,
+  and nothing in that section may be relied upon by a program.
+
+One capability is **optional** rather than universal: a conforming processor may
+decline to provide [Graphics](#graphics). Declining changes what a program can
+do, never what it means — the rule is given under
+[Optional capabilities](#optional-capabilities), and it is the pattern any later
+optional capability is expected to follow.
 
 Every statement of current behavior in this document was checked by executing a
 program under both processors. Nothing was taken from source comments or from
@@ -468,6 +477,18 @@ present in a `Map` keeps that key's original position.
 
 `TextFile` is the type of a text file handle, produced by the built-in
 `TextFile()`. Its operations are given in [Files](#files).
+
+### Graphics types
+
+`Window` is the type of a window, produced by the built-in
+`Window(Title, Width, Height)`. `Image` is the type of a decoded picture,
+produced by `Load` on a window. Their operations are given in
+[Graphics](#graphics).
+
+Both names are predeclared in every conforming processor, including one that
+cannot open a window. A processor that omits the graphics capability still
+answers `Window` and `Image` to `is`, and still renders the two types as
+`'Window'` and `'Image'`. See [Optional capabilities](#optional-capabilities).
 
 ### Class, object and enumeration types
 
@@ -1954,6 +1975,86 @@ observable surface: a failure inside a `try` is catchable as a `String`.
 
 `FileExists(Name)` reports whether a path exists.
 
+## Graphics
+
+`Window(Title, Width, Height)` creates a window and returns a handle to it.
+`Width` and `Height` are in pixels and shall be positive; the title is a
+`String`. Operations take the handle as the receiver, as a file's do:
+
+| Operation | Effect |
+|---|---|
+| `Load(Path)` | decodes a picture and returns an `Image` |
+| `Clear()` | fills the drawing surface with opaque black |
+| `Draw(Image, X, Y)` | places the image with its **top-left corner** at `X, Y` |
+| `Present()` | shows what has been drawn |
+| `Poll()` | drains pending events; returns `False` once the window should close |
+| `Delay(Ms)` | pauses for a number of milliseconds |
+| `Pixel(X, Y)` | reads back one pixel of the drawing surface, as `0xRRGGBB` |
+| `Close()` | closes the window |
+| `Width`, `Height` | **properties**: the size the window was asked for |
+| `Open?` | **property**: whether the window is still open |
+
+An `Image` answers the properties `Width` and `Height`, which are the decoded
+picture's own dimensions in pixels, and has no operations of its own.
+
+The coordinate origin is the top-left corner of the window, with `X` increasing
+rightwards and `Y` downwards. `Draw` does no scaling, clipping to the window
+aside, and no layout: an image is placed where it is told.
+
+`Load` shall accept PNG. Other formats are not specified.
+
+**An `Image` belongs to the `Window` that loaded it.** Passing one to a
+different window's `Draw` shall raise rather than draw. A program that opens two
+windows loads its pictures twice.
+
+`Close()` on an already-closed window succeeds and does nothing, as `Close` on a
+file does. Every other operation on a closed window shall raise. A window left
+open when the program ends is closed by the processor.
+
+Failures raise rather than setting a status, and the messages are part of the
+observable surface: a failure inside a `try` is catchable as a `String`.
+
+### Optional capabilities
+
+**Graphics is the first capability a conforming processor may decline to
+provide**, and the rule that makes that safe is that declining changes the
+*capability* and never the *language*.
+
+In a processor without graphics:
+
+- `Window` and `Image` remain declared, and remain in scope everywhere;
+- a program that uses them parses, resolves, type-checks and compiles exactly as
+  it does elsewhere, and the compiled artefact links;
+- `Window(...)` raises when **evaluated**, with the sentence
+  `Window requires a build with SDL support (-DALG_SDL).`
+- that raise is an ordinary run-time error: catchable as a `String`, so a
+  program may ask for a window and continue without one.
+
+What a processor shall **not** do is refuse the program, omit the declaration,
+or fail to link. Any of those would make the presence of graphics a difference
+of dialect rather than of build, and the same source would stop meaning the same
+thing.
+
+> The sentence above names a build flag, and so names one implementation. That
+> is deliberate rather than an oversight: the message exists to be read by the
+> person who has to pass the flag. A processor built on something other than SDL
+> shall raise its own equivalent sentence naming its own switch.
+
+### What `Pixel` does and does not promise
+
+`Pixel` exists so that drawing can be tested — without it, a window produces
+nothing any suite can compare, and every operation above is unobservable.
+
+Two limits are part of the specification rather than accidents:
+
+- **`Pixel` shall be read before `Present`, not after.** `Present` releases the
+  drawing surface to the display, and its contents afterwards are not specified.
+- **The value is not portable across processors.** Compositing belongs to the
+  host's renderer, and a renderer that blends through a linear colourspace
+  returns channels a few steps from the source. A program may compare two pixels
+  to each other; it may not assume what either one is. Opaque black, which
+  `Clear` writes directly with nothing to blend against, is the one exception.
+
 ## Built-in functions
 
 The following are declared in the unit `System` and are in scope everywhere.
@@ -2004,7 +2105,11 @@ run-time error. `Val` always yields a `Double`, so `Val('12')` is `12.0`.
 
 ### Constructors
 
-`List()`, `Map()`, `Set()`, `Stack()`, `Array(N)`, `Buffer([N])`, `TextFile()`.
+`List()`, `Map()`, `Set()`, `Stack()`, `Array(N)`, `Buffer([N])`, `TextFile()`,
+`Window(Title, Width, Height)`.
+
+`Window` is an [optional capability](#optional-capabilities) and is declared
+even where it cannot be provided.
 
 ### Files and command line
 
@@ -2214,6 +2319,68 @@ The following were not probed and are not specified here:
   relative to the importing file and then the working directory;
 - the ordering guarantees of `Sort()` for mixed-type elements;
 - the interaction of `Buffer.Free()` with buffers still referenced elsewhere.
+
+---
+
+# Future directions
+
+The entries below are intended work that this document does not yet specify.
+
+**They do not block the first release**, and that is what separates them from
+[Open decisions](#open-decisions). An open decision is a question the language
+must answer before it can be said to mean anything definite; a future direction
+is a capability the language does not have yet and will be no less coherent
+without. Nothing here should be read as a promise about when.
+
+## A foreign function interface
+
+**Every native capability the language gains today costs an edit to the
+compiler.** [Graphics](#graphics) is the worked example, and its shape is the
+argument: adding one window type touched the runtime, the interpreter's table of
+native functions, a wrapper module, the emitter's constructor table, and the
+root module's `uses` clause — and then required the bootstrap to be reseeded
+**twice**, because the compiler's own source cannot call a built-in that the
+checked-in seed does not yet know how to emit.
+
+That is an acceptable price once. It is the wrong price per capability, and the
+capabilities are foreseeable: sound, sockets, a clock with more resolution than
+`clock`, a process launcher, a database client. Under the present arrangement
+each is a compiler release, each enlarges the surface every processor must
+implement to conform, and each makes the specification longer without making the
+language more expressive.
+
+**The intended answer is a foreign function interface**, so that a capability
+becomes a library that a program imports rather than a built-in the compiler
+carries. The graphics surface should become the first consumer of it, and should
+stop being privileged, once it exists.
+
+Four constraints follow from the rest of this document and any design has to
+meet all of them:
+
+1. **One implementation, reached by both processors.** The interpreter and the
+   compiled program must call the same foreign code. This is already how
+   `TextFile` and `Window` work, and it is why a differential test of either
+   cannot distinguish the two halves — the arrangement is a feature, but it puts
+   the burden of correctness on tests that reach the foreign side directly.
+2. **A declaration the front end can see.** Overload resolution, the declaration
+   rule and the type checker all operate before either back end runs, so a
+   foreign function must present a signature statically, not merely a symbol to
+   be found at run time.
+3. **Absence must remain a run-time refusal.** The rule in
+   [Optional capabilities](#optional-capabilities) generalises: a program that
+   names a foreign function the host cannot provide must still parse, check and
+   link, and must fail only when it evaluates the call. A missing library that
+   turns into a static error turns a build difference into a dialect.
+4. **The default build must stay dependency-free.** A C compiler is the only
+   thing required to build a processor from the checked-in seed, and an FFI must
+   not change that for a program that uses no foreign function.
+
+> **Open question.** Whether the interface binds C symbols directly — names,
+> signatures and a link flag — or goes through a narrow host-provided capability
+> registry that a processor implements for itself. The first is more expressive
+> and ties the language to C's calling convention; the second keeps the
+> specification implementable by a processor that is not built on C, which the
+> intended bytecode VM will not be.
 
 # Known defects
 

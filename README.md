@@ -208,6 +208,24 @@ A mutant that fails is not a fixture. These are the *search*; `tests/` is the
 pinned record. Promote a failure into a suite by hand once it has failed, so the
 harness stays adversarial.
 
+### The optional capability
+
+Graphics is the one thing a conforming processor may decline to provide, and it
+is compiled in only under `-DALG_SDL`. Everything `test.sh` runs must pass for
+someone who has nothing but a C compiler, so nothing there needs SDL —
+`tests/conformance/Window.a24` asserts the behaviour of a build *without* it.
+
+`sdl.sh` is the opt-in harness for the rest, and runs a program both ways:
+
+```sh
+./sdl.sh --test examples/WindowedTest.a24   # headless, both processors, compared
+./sdl.sh --show examples/Windowed.a24       # on a real display
+```
+
+It renders headless through `SDL_VIDEODRIVER=dummy`, which is what makes drawing
+testable at all: a window that can be read back with `Pixel` answers questions,
+and a machine with no screen can still ask them.
+
 ## Layout
 
 | Path | |
@@ -217,6 +235,9 @@ harness stays adversarial.
 | `tests/` | conformance suites, differential programs, leak and memory probes |
 | `tests/defects/` | reproductions of known defects — these fail on purpose |
 | `collide.sh`, `depth.sh` | generating harnesses — they write programs rather than run fixtures |
+| `sdl.sh` | opt-in harness for the one optional capability, run by hand |
+| `examples/` | programs that need something `test.sh` does not require — currently a display |
+| `third_party/` | vendored code this project did not write |
 | `bench/`, `vm/` | benchmarks, and a placeholder for the bytecode VM |
 | `ALGOL-24.md` | the language specification |
 | `CLAUDE.md` | orientation for agents working in the repository |
