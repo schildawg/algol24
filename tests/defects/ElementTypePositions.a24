@@ -1,0 +1,36 @@
+/// An element type may be written on a parameter and on a result type.
+///
+/// Only variable declarations accept one today.  A parameter fails with
+/// 'Expect '')'' after parameters.' and a result type with
+/// 'Expect '';'' after function signature.', so the annotation cannot cross a
+/// function boundary -- which is where it would do the most good, since a
+/// caller and a callee are exactly the two parties who need to agree on what a
+/// collection holds.
+///
+/// Fails with: Expect ')' after parameters.  (file rejected -- no test ran)
+///
+function Total (Values : List of Integer) : Integer;
+var
+    Sum : Integer := 0;
+
+begin
+    for var Each in Values do Sum := Sum + Each;
+
+    Exit Sum;
+end
+
+function Range (Count : Integer) : List of Integer;
+var
+    Result : List of Integer := [];
+
+begin
+    for var I := 0; I < Count; I := I + 1 do Result.Add (I);
+
+    Exit Result;
+end
+
+test 'An element type may annotate a parameter and a result';
+begin
+    AssertEqual (6, Total (Range (4)));
+    AssertEqual (4, Range (4).Length);
+end

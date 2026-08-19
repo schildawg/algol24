@@ -36,11 +36,15 @@ nothing more.
 | [11](https://github.com/schildawg/algol24/issues/11) | A top-level function cannot be overloaded | `OverloadTopLevel` |
 | [12](https://github.com/schildawg/algol24/issues/12) | Overload resolution is first-declared-wins | `OverloadSpecificity` |
 | [13](https://github.com/schildawg/algol24/issues/13) | A no-match call runs anyway when compiled | `OverloadNoMatch` |
+| [14](https://github.com/schildawg/algol24/issues/14) | Only `List` takes an element type, only on a variable | `ElementTypeCollections`, `ElementTypePositions` |
 
-Issue 4 has no file because every reproduction here must be a `test` block that
-*passes* once fixed, and the correct outcome there is that the program is
-**refused** — which no passing test can express. Fixtures of that shape would
-need a different harness.
+Issues 4 and 14 are each **partly** unreproducible here, for one reason: every
+file must be a `test` block that *passes* once fixed, and where the correct
+outcome is that a program is **refused**, no passing test can express it. Issue
+4 is entirely of that shape and has no file. Issue 14's syntax is covered by two
+files, but the static check it asks for is not — a check that fires produces no
+observable behaviour except the program failing to run. Fixtures of that shape
+need a refusal harness this repository does not have.
 
 Three of these fail in one half only, which is why `run.sh` builds as well as
 interprets. `EnumMemberSymbol` and `OverloadNoMatch` pass interpreted and fail
@@ -359,3 +363,30 @@ candidate chosen statically has to be the one the run-time rule would choose.
 That constrains the runtime as much as the compiler — every type that can appear
 in a signature needs a distinct tag, or `F(Byte)` and `F(Integer)` resolve one
 way statically and the other way dynamically. Recorded against #9.
+
+## Issue 14 — element types
+
+Every collection takes an element type, writable wherever a type may be written
+— declaration, parameter, result. One argument for `List`, `Array`, `Set` and
+`Stack`; two for `Map`, parenthesised.
+
+⚠️ **Map's arguments are parenthesised because of the comma.** A parameter list
+already separates parameters with one, so `(M : Map of String, Integer)` needs a
+reader to count, and `(M : Map of String, N : Integer)` — meaning a Map plus an
+`N` — gets a baffling error as the parser takes `N` for the value type. The
+single-argument form may be parenthesised too, so one rule covers everything:
+after `of`, a type or a parenthesised list of them.
+
+`(` rather than `[` because `[` means a *value* here — a list literal or a
+subscript — and `Map of [String, Integer]` reads like a list holding two
+variables called `String` and `Integer`. The language already writes a
+parenthesised comma list in a type declaration: `type Pair = (Alpha, Beta);`
+
+⚠️ **The check is static only, and that has a consequence worth stating.** A
+collection carries no element type at run time, so a value of unknown static
+type reaches a `List of Integer` unchallenged and is never checked again. Which
+is why an element type is **not part of a signature** for overloading:
+`F(List of Integer)` and `F(List of String)` are one signature. Were they
+distinct, a dynamically resolved call could not choose between them, and the
+rule that compile-time resolution must agree with run-time resolution would
+become unkeepable.

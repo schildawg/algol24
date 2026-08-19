@@ -302,14 +302,32 @@ A string literal may span lines; an embedded newline is part of the value.
 A type determines a set of values and the operations that apply to them.
 
 ```
-Type     = TypeName .
+Type     = TypeName [ "of" TypeArgs ] .
+TypeArgs = Type | "(" Type { "," Type } ")" .
 TypeName = identifier .
 ```
 
-There is no type syntax beyond a name: a type is always written as a single
-identifier. The one exception is the element-type annotation on a variable
-declaration, `List of T`, described under
-[Variable declarations](#variable-declarations).
+A type is a name, optionally followed by `of` and the types it is made of. After
+`of` comes either a single type or a parenthesised list of them; a single type
+may be parenthesised or not, so `List of Integer` and `List of (Integer)` are
+the same.
+
+The parenthesised form is what keeps a two-argument type readable where a comma
+already means something else — a parameter list:
+
+```pascal
+procedure Merge (Into : Map of (String, Integer), From : Map of (String, Integer));
+```
+
+Only the collection types take arguments, and each takes a fixed number: one for
+`List`, `Array`, `Set` and `Stack`, two for `Map` — its key type and then its
+value type. Supplying the wrong number is a static error.
+
+A type argument is itself a type, so they nest:
+`Map of (String, List of Integer)`.
+
+An annotated type may be written wherever a type may: a variable or field
+declaration, a parameter, and a function's result type.
 
 ### Predeclared types
 
@@ -612,9 +630,44 @@ A variable declared without an initializer has the value `nil`.
 `const` declares a binding that may not be reassigned. An attempt to assign to
 it is a static error, reported as `Can't assign to constant 'N'.`
 
-**`List of T`** annotates a variable's element type. It is used for checking
-only: it makes an element read from the variable reduce to `T`, and it does not
-restrict what may be stored in the collection at run time.
+**An element-type annotation** — `List of Integer`, `Map of (String, Integer)` —
+tells the checker what a collection holds. It does two things.
+
+Reading from the collection yields the annotated type, so `L[0]` on a
+`List of Integer` is an `Integer` and `M.Get(K)` on a `Map of (String, Integer)`
+is an `Integer`, rather than `Any`.
+
+Writing to it is **checked**: a value whose static type is known and is not
+[assignable](#assignability) to the element type is a static error. A value
+whose static type is unknown or `Any` is accepted, as it is everywhere else in
+the language.
+
+```pascal
+var L : List of Integer := [];
+
+L.Add (1);                          // fine
+L.Add (Str ('x'));                  // static error: String is not an Integer
+
+var Whatever := Str ('x');
+L.Add (Whatever);                   // accepted: static type unknown
+```
+
+**The check is static only.** Nothing is verified when the program runs, and a
+collection carries no element type at run time — so the last line above stores a
+`String` in a `List of Integer` and no processor objects. The annotation is a
+claim the checker helps you keep, not a guarantee a reader may rely on.
+
+That is also why an element type is **not part of a signature** for
+[overload resolution](#overload-resolution). `F(List of Integer)` and
+`F(List of String)` are one signature, and declaring both is a duplicate. Were
+they distinct, a call whose argument types are not known statically could not be
+resolved at all, since nothing at run time can tell the two lists apart — and
+the rule that a compile-time resolution must agree with a run-time one would
+become impossible to keep.
+
+> **Not implemented.** Only `List of T`, only on a variable declaration, and the
+> write is not checked —
+> [issue #14](https://github.com/schildawg/algol24/issues/14).
 
 #### Variable sections and groups
 
@@ -1831,6 +1884,7 @@ a reader is entitled to know which.
 | [#11](https://github.com/schildawg/algol24/issues/11) | A top-level function cannot be overloaded, though a method can. |
 | [#12](https://github.com/schildawg/algol24/issues/12) | Overload resolution is first-declared-wins; reordering two declarations changes which one a call runs. |
 | [#13](https://github.com/schildawg/algol24/issues/13) | A call matching no signature is refused interpreted and runs anyway compiled. |
+| [#14](https://github.com/schildawg/algol24/issues/14) | Only `List` takes an element type, only on a variable declaration, and a wrongly typed write is never refused. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

@@ -1,0 +1,40 @@
+/// Every collection takes an element type, and Map takes two.
+///
+/// Only 'List of T' is accepted today, and only on a variable declaration.
+/// Array, Set, Stack and Map all fail at the annotation with
+/// 'Expect '';'' after variable declaration.'
+///
+/// ⚠️ Map's two arguments are parenthesised, and the reason is the comma.  A
+/// parameter list already separates parameters with one, so
+/// '(M : Map of String, Integer)' would need a reader to count -- and someone
+/// writing '(M : Map of String, N : Integer)' meaning a Map plus an N gets a
+/// baffling error.  Parentheses cost one character and remove both problems.
+///
+/// The single-argument form may be parenthesised too: List of (Integer) is the
+/// same type as List of Integer.  One rule -- after 'of', a type or a
+/// parenthesised list of them -- so a future collection taking three arguments
+/// needs no new syntax.
+///
+/// Fails with: Expect ';' after variable declaration.  (file rejected -- no test ran)
+///
+test 'Every collection takes an element type';
+begin
+    var Items  : List  of Integer            := [];
+    var Fixed  : Array of Integer            := Array (2);
+    var Unique : Set   of Integer            := Set ();
+    var Pile   : Stack of Integer            := Stack ();
+    var Counts : Map   of (String, Integer)  := Map ();
+    var Plain  : List  of (Integer)          := [];
+
+    Items.Add (1);
+    Unique.Add (2);
+    Pile.Push (3);
+    Counts.Put (Str ('a'), 4);
+
+    AssertEqual (1, Items[0]);
+    AssertEqual (1, Items.Length);
+    AssertEqual (4, Counts.Get (Str ('a')));
+    AssertEqual (0, Plain.Length);
+    AssertTrue  (Unique.Contains (2));
+    AssertEqual (3, Pile.Pop ());
+end
