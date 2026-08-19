@@ -146,3 +146,85 @@ begin
    AssertEqual(2, Catalog.Length);
    AssertEqual(25, Catalog['Orc'].Hp);
 end
+
+// A constructor's surroundings: what has already run when its body begins, and
+// what has not.  Three of these differ from the languages a reader arrives
+// from, so they are pinned rather than left to be rediscovered.
+//
+// The superclass constructor is NOT called automatically: Derived() runs only
+// its own body unless super.Init() is written.  C++ and Java both run the base
+// constructor implicitly, and first.
+//
+// A call on 'this' reaches the MOST DERIVED override, as in Java and unlike
+// C++.  But unlike Java that override sees INITIALISED fields, because field
+// initialisers are not staged per class -- every one of them, inherited and
+// declared, runs before any constructor body.  Java's classic trap does not
+// arise here.
+//
+// Field initialisers run whether or not super.Init() is called, which is the
+// part most easily misremembered: omitting the super call skips the parent's
+// BODY, not its field setup.
+//
+class CtorBase;
+var
+    Trace : String := '';
+    Ready : String := 'initialised';
+    Extra : String;                 // no initialiser: nil until assigned
+
+begin
+    constructor Init ();
+    begin
+        Trace := Trace + 'B' + Describe();
+    end
+
+    function Describe () : String;
+    begin
+        Exit '(base)';
+    end
+end
+
+class CtorDerived (CtorBase);
+begin
+    constructor Init ();
+    begin
+        super.Init();
+        Trace := Trace + 'D';
+    end
+
+    function Describe () : String;
+    begin
+        Exit '(derived sees ' + Str(Ready) + ')';
+    end
+end
+
+class CtorSilent (CtorBase);
+begin
+    constructor Init ();
+    begin
+        Trace := Trace + 'S';
+    end
+end
+
+test 'Constructor Dispatches To The Most Derived Override';
+begin
+   AssertEqual('B(derived sees initialised)D', CtorDerived().Trace);
+end
+
+test 'Superclass Constructor Is Not Called Automatically';
+begin
+   // ⚠️ Str('S') and not 'S'.  A one-character literal is a Char, and a Char
+   // does not compare equal to a String -- the assertion reads
+   // 'Expected Char ''S'' but got String ''S''', which is issue #7 met in the
+   // wild rather than in its own reproduction.
+   AssertEqual(Str('S'), CtorSilent().Trace);
+end
+
+test 'Field Initialisers Run Without The Super Call';
+begin
+   AssertEqual('initialised', CtorSilent().Ready);
+end
+
+test 'A Field Without An Initialiser Is Nil Until Assigned';
+begin
+   AssertEqual(Str('nil'), Str(CtorSilent().Extra));
+end

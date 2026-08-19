@@ -953,6 +953,59 @@ var B := Circle.FromDiameter (10.0);    // named explicitly
 A class declaring no constructor is still callable: `Empty()` yields an instance
 with its fields initialized and nothing else run.
 
+#### What a constructor may do
+
+**Every field initializer has already run** — the whole instance's, inherited
+and declared alike, before any constructor body begins. Initialization is not
+interleaved with construction, so a constructor never observes a field that its
+own class initialized as `nil` unless it was declared without an initializer.
+
+**The superclass constructor is not called automatically.** A subclass that
+wants it says so:
+
+```pascal
+class Derived (Base);
+begin
+    constructor Init ();
+    begin
+        super.Init ();          // not implicit; omit it and Base's body never runs
+        ...
+    end
+end
+```
+
+`super.Init(...)` may appear anywhere in the body, or not at all. Note what
+this does *not* affect: `Base`'s field initializers ran regardless, because
+initialization precedes every constructor body.
+
+**A call on `this` reaches the most-derived override**, and that override sees
+fully initialized fields. This is where the language differs usefully from its
+neighbours:
+
+| | base constructor | `this.M()` in a base constructor reaches | the override sees |
+|---|---|---|---|
+| C++ | implicit, first | the **base**'s `M` | — |
+| Java | implicit, first | the **derived** `M` | *uninitialized* derived fields |
+| Algol-24 | explicit, anywhere | the **derived** `M` | initialized fields |
+
+Java's arrangement is a well-known trap. It does not arise here, because field
+initialization is not staged per class: it all happens before any body runs.
+
+**Other rules.**
+
+- Reading a field before the constructor assigns it yields `nil`, never an
+  error. A field declared without an initializer is `nil` throughout.
+- A bare `Exit` returns from a constructor early. `Exit` with a value is a
+  static error.
+- `raise` propagates out of a constructor and out of the construction
+  expression. The partly built instance is discarded, never bound.
+- A constructor may be invoked on an existing instance — `X.Init(5)` — which
+  runs it again over that instance's current state. It yields `nil`, a
+  constructor having no result.
+
+> **Not implemented.** `X.Init(5)` yields the **instance** interpreted and `nil`
+> compiled — [issue #21](https://github.com/schildawg/algol24/issues/21).
+
 > **Not implemented.** The keyword is decorative and the **name** `Init` decides
 > everything — [issue #20](https://github.com/schildawg/algol24/issues/20). So
 > `function Init` is a constructor today and `constructor Make` is not, which is
@@ -2196,6 +2249,7 @@ a reader is entitled to know which.
 | [#18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name; the collision is refused rather than resolved by qualification. |
 | [#19](https://github.com/schildawg/algol24/issues/19) | No `continue`, no statement labels, no labelled `break`, and no `goto`. |
 | [#20](https://github.com/schildawg/algol24/issues/20) | The `constructor` keyword is decorative; the name `Init` decides. Constructors do not overload interpreted, and cannot be named at a call. |
+| [#21](https://github.com/schildawg/algol24/issues/21) | A constructor invoked on an existing instance yields the instance interpreted and `nil` compiled. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

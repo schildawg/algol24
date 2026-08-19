@@ -1,0 +1,41 @@
+/// A constructor invoked on an existing instance yields nil.
+///
+/// Calling X.Init(5) on a live instance re-runs the constructor over it, which
+/// both processors do.  They disagree about the RESULT: the interpreter hands
+/// back the instance, compiled code hands back nil.
+///
+/// ⚠️ The specification chooses nil, against the normative half, and the reason
+/// is that the alternative contradicts a rule stated two paragraphs earlier: a
+/// constructor may not return a value, and 'Exit this' inside one is refused.
+/// A construct that cannot return a value but does return one when called a
+/// different way is two rules where there should be one.  The interpreter's
+/// answer is inherited from Lox, where an initializer returns 'this' so that
+/// 'new Foo()' has something to evaluate to -- a reason that does not apply
+/// here, since construction is a separate path with its own result.
+///
+/// Re-invocation itself is deliberate and Turbo Pascal does the same: there
+/// P.Init(...) on an allocated object is how construction happens at all.
+///
+/// Fails with: Assertion 'left = right' failed.  Expected 'nil' but got 'W instance'.
+///
+class W;
+var
+    N : Integer := 0;
+
+begin
+    constructor Init (N : Integer);
+    begin
+        this.N := N;
+    end
+end
+
+test 'A constructor invoked on an instance yields nil';
+begin
+    var Made := W (1);
+    AssertEqual (1, Made.N);
+
+    var Result := Made.Init (5);
+
+    AssertEqual (5, Made.N);
+    AssertEqual (Str ('nil'), Str (Result));
+end

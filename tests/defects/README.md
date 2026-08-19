@@ -43,6 +43,7 @@ nothing more.
 | [18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name | `DuplicateExport` |
 | [19](https://github.com/schildawg/algol24/issues/19) | No `continue`, labels, labelled `break` or `goto` | `ContinueStatement`, `LabelledBreak`, `GotoStatement` |
 | [20](https://github.com/schildawg/algol24/issues/20) | The `constructor` keyword is decorative; `Init` decides | `ConstructorKeyword`, `ConstructorOverload`, `ConstructorNamed` |
+| [21](https://github.com/schildawg/algol24/issues/21) | `X.Init(5)` yields the instance interpreted, `nil` compiled | `ConstructorReinvoke` |
 
 Some rules cannot be reproduced as a `test` block at all: where the correct
 outcome is that a program is **refused**, there is no observable behaviour to
@@ -572,3 +573,30 @@ stops it. Compiled has no gate, so `Point(1, 2)` works there and raises here.
 frightening: all 63 constructors in the corpus are already spelled
 `constructor Init`, no method is named `Init` without the keyword, and no
 `constructor` carries another name.
+
+## Issue 21 — re-invoking a constructor
+
+`X.Init(5)` re-runs the constructor over an existing instance under both
+processors, and they disagree about the result: the instance interpreted, `nil`
+compiled.
+
+⚠️ **The specification chooses `nil`, overruling the normative half**, and says
+so rather than quietly following the interpreter. A constructor may not return a
+value — `Exit this` inside one is refused — so a construct that returns one when
+reached a different way is two rules where there should be one. The
+interpreter's answer is inherited from Lox, where an initializer returns `this`
+so `new Foo()` has something to evaluate to; here construction is its own path
+and `W(1)` already yields the instance.
+
+Three neighbouring behaviours turned out to be **correct** and have been pinned
+in `tests/conformance/Objects.a24` rather than left here: the superclass
+constructor is not called automatically, a call on `this` reaches the
+most-derived override, and that override sees *initialised* fields. The last is
+where the language beats both its neighbours — C++ dispatches to the base, Java
+dispatches to the derived override but shows it uninitialised fields, and
+neither trap exists here because initialisers are not staged per class.
+
+⚠️ Writing those tests produced a live instance of #7: `AssertEqual('S', Trace)`
+fails with *"Expected Char 'S' but got String 'S'"*, because a one-character
+literal is a `Char` and a `Char` does not compare equal to a `String`. The
+conformance file now uses `Str('S')` and carries a note saying why.
