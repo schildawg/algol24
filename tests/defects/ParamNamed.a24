@@ -1,0 +1,30 @@
+/// An argument may name the parameter it is for, with '=>'.
+///
+/// '=>' scans today as '=' then '>', so a named call fails with
+/// 'Expect expression!'
+///
+/// ⚠️ '=' cannot be the marker.  'H (Index = 1)' already PARSES today -- as a
+/// call passing the comparison 'Index = 1' -- and fails only because Index is
+/// not in scope at the call site.  Using '=' would silently change what an
+/// existing program means; '=>' is unused.
+///
+/// Named arguments may come in any order, and any parameter neither supplied
+/// positionally nor by name takes its default.  Positional arguments come
+/// first: after the first named argument every remaining one must be named.
+///
+/// Fails with: Expect ')' after parameters.  (file rejected -- no test ran)
+///
+/// The signature's defaults are refused before the call's '=>' is ever reached,
+/// so the recorded message is the one from the parameter list.
+///
+function Slice (Text : String, Start : Integer := 0, Count : Integer := 1) : String;
+begin
+    Exit Copy (Text, Start, Count);
+end
+
+test 'An argument may name its parameter';
+begin
+    AssertEqual (Str ('ell'), Slice (Str ('hello'), Count => 3, Start => 1));
+    AssertEqual (Str ('he'),  Slice (Text => Str ('hello'), Count => 2));
+    AssertEqual (Str ('h'),   Slice (Text => Str ('hello')));
+end

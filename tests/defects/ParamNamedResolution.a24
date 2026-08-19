@@ -1,0 +1,39 @@
+/// A named argument narrows the overload candidates before types are weighed.
+///
+/// Only candidates having a parameter of that name remain.  Names are syntax,
+/// so the narrowing is available whether or not any argument's type is known --
+/// which is what lets a compiler do it early and an interpreter reach the same
+/// answer late.
+///
+/// ⚠️ Read which line earns the feature.  Adjust(1) and Adjust(Index => 1)
+/// agree, because an exact Integer match already beats a widening to Single;
+/// naming the parameter documents the choice without changing it.  It is
+/// Adjust(Percentage => 1) that positional calling cannot express AT ALL -- with
+/// an Integer argument there is no way to reach the Single overload otherwise.
+///
+/// ⚠️ Parameter names are NOT part of a signature.  Two functions differing only
+/// in parameter names are one signature and a duplicate declaration; were they
+/// distinct, every positional call would be ambiguous between them and a
+/// feature meant to remove doubt would create it.
+///
+/// Fails with: Expect expression!  (file rejected -- no test ran)
+///
+/// Parsing fails at '=>' before the Resolver can object to the duplicate name,
+/// so this reports a syntax error rather than ''Adjust'' is already defined.'
+///
+function Adjust (Index : Integer) : String;
+begin
+    Exit 'by index';
+end
+
+function Adjust (Percentage : Single) : String;
+begin
+    Exit 'by percent';
+end
+
+test 'A named argument selects among overloads';
+begin
+    AssertEqual ('by index',   Adjust (1));
+    AssertEqual ('by index',   Adjust (Index => 1));
+    AssertEqual ('by percent', Adjust (Percentage => 1));
+end

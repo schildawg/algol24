@@ -707,7 +707,7 @@ ProcedureDecl = "procedure" identifier Signature ";"
                 [ VarSection ] Block .
 Signature     = "(" [ ParameterList ] ")" .
 ParameterList = Parameter { "," Parameter } .
-Parameter     = identifier [ ":" Type ] .
+Parameter     = identifier [ ":" Type ] [ ":=" Expression ] .
 Block         = "begin" { Statement | Declaration } "end" .
 ```
 
@@ -716,9 +716,54 @@ an annotation has no declared type. A `function` may declare a result type; a
 `procedure` may not. Both may be called for their value, and a `procedure`
 yields `nil`.
 
-There are no default arguments and no variadic parameters. Calling with the
-wrong number of arguments is a run-time error, catchable as a `String`:
-`Expected 1 arguments but got 0.`
+A parameter may declare a **default**, written with `:=` as every other
+initializer in the language is. A parameter with a default may be omitted at a
+call.
+
+```pascal
+function Slice (Text : String, Start : Integer := 0, Count : Integer := 1) : String;
+```
+
+`:=` rather than `=` because `=` is equality here. Delphi spells a default with
+`=`, but Delphi also spells a constant that way; this language writes
+`const D := '…'` and `var X : Integer := 1`, so `:=` is what a binding looks
+like and `=` is what a question looks like.
+
+A default expression is evaluated **each time the call omits it**, in the scope
+of the declaration rather than the caller's. Evaluating it once when the
+function is declared would give every call the same object, which is a trap
+worth designing out rather than documenting.
+
+There are no variadic parameters. Calling with too few arguments for the
+parameters that have no default, or with more arguments than there are
+parameters, is an error: `Expected 1 arguments but got 0.`
+
+#### Named arguments
+
+An argument may name the parameter it is for, with `=>`:
+
+```pascal
+WriteLn (Slice (Text => S, Count => 3));
+```
+
+A named argument may appear in any order, and any parameter not supplied
+positionally or by name takes its default. Positional arguments, if any, come
+first and bind to the parameters in order; after the first named argument, every
+remaining argument must be named. Naming the same parameter twice, or naming one
+already bound positionally, is an error.
+
+`=>` rather than `=` because `f(Index = 1)` is already a legal call today — it
+passes the *comparison* `Index = 1` — so `=` cannot mean association without
+changing what an existing program means.
+
+**A parameter name is part of the public interface.** Once a function is called
+by name anywhere, renaming its parameter breaks that caller as surely as
+changing its type would. This is a cost the feature carries rather than a
+detail: a name that was private bookkeeping becomes a promise the moment the
+feature exists.
+
+> **Not implemented.** Neither defaults nor named arguments are accepted —
+> [issue #15](https://github.com/schildawg/algol24/issues/15).
 
 `Exit` returns from the current function, optionally with a value; see
 [Exit statements](#exit-statements). Reaching the end of a function without
@@ -847,6 +892,39 @@ function.` A parameter's declared type is a requirement, not a hint.
 > and a call matching no candidate is refused by the interpreter but runs anyway
 > when compiled ([issue #13](https://github.com/schildawg/algol24/issues/13)).
 
+#### Names and defaults in resolution
+
+A **named argument narrows the candidates before types are considered.** Only
+candidates having a parameter of that name, in a position the call has not
+already filled, remain. Names are syntax, so this narrowing is always available
+— to a compiler and to an interpreter alike, and whether or not any argument's
+type is known.
+
+```pascal
+function Adjust (Index : Integer) : String;      begin Exit 'by index'; end
+function Adjust (Percentage : Single) : String;  begin Exit 'by percent'; end
+
+Adjust (1)                  (* 'by index' — Integer is exact, Single is a widening *)
+Adjust (Index => 1)         (* 'by index' — and says so *)
+Adjust (Percentage => 1)    (* 'by percent' — unreachable positionally *)
+```
+
+Note which line earns the feature. The first two agree, because exact already
+beats widening; naming the parameter documents the choice but does not change
+it. The third is the one positional calling cannot express at all — with an
+`Integer` argument, `Adjust(Percentage => 1)` is the only way to reach the
+`Single` overload.
+
+**Parameter names are not part of a signature.** Two functions differing only in
+the names of their parameters have the same signature and are a duplicate
+declaration. Were they distinct, every positional call would be ambiguous
+between them, and a feature meant to remove doubt would create it.
+
+**Defaults are applied after narrowing, not before.** A candidate matches an
+arity if the arguments supplied cover every parameter without a default. Where
+more than one candidate still matches once defaults are filled in, the call is
+ambiguous and is an error — the same rule as any other tie.
+
 #### Resolving at compile time
 
 A processor **may** resolve a call when it can determine the argument types
@@ -856,8 +934,14 @@ the candidate chosen statically must be the one the rule above would choose from
 the run-time types. Where a static type is unknown, or is `Any`, the call is
 resolved when it is made.
 
-That requirement constrains the run-time representation as much as the compiler.
-Every type that may appear in a signature must be distinguishable at run time,
+That requirement reaches parameter names as well. A call on a receiver whose
+class is not known statically is resolved when it is made, so **the run time
+must carry parameter names** exactly as it carries parameter types, or a named
+call would resolve one way through the compiler and another way through the
+dispatcher.
+
+The same requirement constrains the run-time representation of types. Every type
+that may appear in a signature must be distinguishable at run time,
 or the two paths can disagree: with `F(Byte)` and `F(Integer)` declared and a
 `Byte` argument, a static resolver picks `F(Byte)` while a run time that stores
 a `Byte` as a plain integer picks `F(Integer)`. Same call, two functions, and
@@ -1028,7 +1112,8 @@ PrimaryExpr = Operand
             | PrimaryExpr Arguments .
 Selector    = "." identifier .
 Index       = "[" Expression "]" .
-Arguments   = "(" [ Expression { "," Expression } ] ")" .
+Arguments   = "(" [ Argument { "," Argument } ] ")" .
+Argument    = [ identifier "=>" ] Expression .
 ```
 
 **Selectors** read a field, a property, or a member of the value on the left.
@@ -1885,6 +1970,7 @@ a reader is entitled to know which.
 | [#12](https://github.com/schildawg/algol24/issues/12) | Overload resolution is first-declared-wins; reordering two declarations changes which one a call runs. |
 | [#13](https://github.com/schildawg/algol24/issues/13) | A call matching no signature is refused interpreted and runs anyway compiled. |
 | [#14](https://github.com/schildawg/algol24/issues/14) | Only `List` takes an element type, only on a variable declaration, and a wrongly typed write is never refused. |
+| [#15](https://github.com/schildawg/algol24/issues/15) | Parameters have no defaults, and an argument cannot name its parameter with `=>`. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

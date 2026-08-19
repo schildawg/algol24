@@ -1,0 +1,28 @@
+/// A parameter may declare a default and be omitted at the call.
+///
+/// Neither ':=' nor '=' is accepted in a parameter list today; both fail with
+/// 'Expect '')'' after parameters.'
+///
+/// ⚠️ ':=' rather than '=' because '=' is EQUALITY here.  Delphi spells a
+/// default with '=', but Delphi also spells a constant that way; this language
+/// writes 'const D := ...' and 'var X : Integer := 1', so ':=' is what a
+/// binding looks like and '=' is what a question looks like.
+///
+/// ⚠️ A default is evaluated on EACH call that omits it, in the scope of the
+/// declaration.  Evaluating once at declaration would hand every call the same
+/// object, which is a trap worth designing out rather than documenting -- the
+/// test below cannot see the difference, but a default of [] would.
+///
+/// Fails with: Expect ')' after parameters.  (file rejected -- no test ran)
+///
+function Slice (Text : String, Start : Integer := 0, Count : Integer := 1) : String;
+begin
+    Exit Copy (Text, Start, Count);
+end
+
+test 'A parameter default may be omitted at the call';
+begin
+    AssertEqual (Str ('h'),   Slice (Str ('hello')));
+    AssertEqual (Str ('he'),  Slice (Str ('hello'), 0, 2));
+    AssertEqual (Str ('ell'), Slice (Str ('hello'), 1, 3));
+end

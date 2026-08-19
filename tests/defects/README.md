@@ -37,6 +37,7 @@ nothing more.
 | [12](https://github.com/schildawg/algol24/issues/12) | Overload resolution is first-declared-wins | `OverloadSpecificity` |
 | [13](https://github.com/schildawg/algol24/issues/13) | A no-match call runs anyway when compiled | `OverloadNoMatch` |
 | [14](https://github.com/schildawg/algol24/issues/14) | Only `List` takes an element type, only on a variable | `ElementTypeCollections`, `ElementTypePositions` |
+| [15](https://github.com/schildawg/algol24/issues/15) | No parameter defaults, and no named arguments | `ParamDefaults`, `ParamNamed`, `ParamNamedResolution` |
 
 Issues 4 and 14 are each **partly** unreproducible here, for one reason: every
 file must be a `test` block that *passes* once fixed, and where the correct
@@ -390,3 +391,38 @@ is why an element type is **not part of a signature** for overloading:
 distinct, a dynamically resolved call could not choose between them, and the
 rule that compile-time resolution must agree with run-time resolution would
 become unkeepable.
+
+## Issue 15 — defaults and named arguments
+
+A parameter may declare a default with `:=`, and an argument may name its
+parameter with `=>`.
+
+⚠️ **Neither spelling was free to choose.** `=` cannot mark a named argument
+because `H (Index = 1)` **already parses today** — as a call passing the
+comparison `Index = 1`, failing only because `Index` is not in scope at the call
+site. Using `=` would silently change what an existing program means. And `:=`
+rather than `=` for a default because `=` is equality here: Delphi spells a
+default with `=`, but Delphi also spells a constant that way, whereas this
+language writes `const D := '…'` and `var X : Integer := 1`.
+
+⚠️ **Read which call earns the feature.** With `Adjust(Index : Integer)` and
+`Adjust(Percentage : Single)` declared, `Adjust(1)` and `Adjust(Index => 1)`
+agree already — an exact `Integer` beats a widening to `Single` under the
+existing rule, so naming the parameter documents the choice without changing it.
+It is `Adjust(Percentage => 1)` that positional calling **cannot express at
+all**.
+
+⚠️ **Parameter names are not part of a signature.** Two functions differing only
+in parameter names are a duplicate declaration. Were they distinct, every
+positional call would be ambiguous between them, and a feature meant to remove
+doubt would create it.
+
+⚠️ **The run time must carry parameter names.** A call on a receiver whose class
+is not known statically is resolved when it is made, so `alg_class_method` needs
+names alongside the arity and type signature it registers today — otherwise a
+named call resolves one way through the compiler and another through the
+dispatcher, which is exactly what #11's rule forbids.
+
+Do this after #11, #12 and #13. It extends overload resolution, and extending it
+while resolution is still first-declared-wins and a no-match still runs when
+compiled would build on two known-broken foundations.
