@@ -2525,6 +2525,17 @@ begin
         if Name = 'Buffer' and Arguments.Length = 0 then Exit 'alg_buffer(alg_int(0))';
         if Name = 'Buffer' and Arguments.Length = 1 then Exit 'alg_buffer(' + Joined + ')';
 
+        // The constructor is the only thing the emitter has to know: Load,
+        // Draw and the rest go through alg_invoke, and Width, Height and Open?
+        // through alg_property.
+        //
+        // ⚠️ Emitted unconditionally, into C that may have been built without
+        // SDL.  The call still links there and raises when reached -- which is
+        // the whole design.  Emitting nothing, or refusing here, would make
+        // -DALG_SDL a property of the LANGUAGE rather than of the build, and
+        // the same source would stop compiling to the same C.
+        if Name = 'Window' and Arguments.Length = 3 then Exit 'alg_window(' + Joined + ')';
+
         Exit '';
     end
 

@@ -14,6 +14,7 @@ uses ObjEnum;
 uses ObjCollection;
 uses ObjBuffer;
 uses ObjFile;
+uses ObjWindow;
 uses SourceCode;
 uses Console;
 

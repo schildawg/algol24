@@ -7,6 +7,7 @@ uses ObjEnum;
 uses ObjFile;
 uses ObjFunction;
 uses ObjInstance;
+uses ObjWindow;
 uses Parser;
 uses Resolver;
 uses Scanner;
@@ -372,6 +373,27 @@ begin
     end
 end
 
+/// Window (Title, Width, Height).
+///
+/// ⚠️ Registered unconditionally, in a build of the runtime that may well not
+/// be able to open a window.  That is deliberate: the name must RESOLVE the
+/// same way in both builds so that a program using it parses, resolves and type
+/// checks identically, and only running it differs.  A built-in that appeared
+/// and disappeared would make the two builds two languages.
+///
+class WindowNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 3;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit ObjWindow (Arguments[0], Arguments[1], Arguments[2]);
+    end
+end
+
 class FileExistsNative;
 begin
     function Arity () : Integer;
@@ -634,6 +656,7 @@ begin
 
         Builtins.Define ('Buffer',     BufferNative());
         Builtins.Define ('TextFile',   TextFileNative());
+        Builtins.Define ('Window',     WindowNative());
         Builtins.Define ('FileExists', FileExistsNative());
         Builtins.Define ('ParamCount', ParamCountNative());
         Builtins.Define ('ParamStr',   ParamStrNative());
@@ -1335,6 +1358,7 @@ begin
         // every object declaration unusable the moment it was reached.
         if not (Obj is ObjInstance or Obj is ObjEnumType
              or Obj is ObjCollection or Obj is ObjFile
+             or Obj is ObjWindow or Obj is ObjImage
              or Obj is ObjBuffer) then
         begin
             raise 'Only instances have properties.';

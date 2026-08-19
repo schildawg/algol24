@@ -35,7 +35,11 @@ if [ ! -x "$ALGC" ]; then
     echo
 fi
 
-SUITES=(Collections Objects Enumerations Declarations Exceptions Modules Files Core)
+# ⚠️ Window asserts the behaviour of a build WITHOUT -DALG_SDL, which is what
+# every build here is.  It never opens a window, and it must not start: a suite
+# that needs a display fails on every machine that has none.  The drawing lives
+# in examples/Windowed.a24, which is in no suite by design.
+SUITES=(Collections Objects Enumerations Declarations Exceptions Modules Files Core Window)
 
 # Colour removed; the report proper starts at 'Running'.  ⚠️ [ERROR] lines are
 # dropped: an assertion failure prints a source caret interpreted, and compiled

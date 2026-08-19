@@ -1,0 +1,132 @@
+/// What a graphics test looks like when it can read the framebuffer back.
+///
+/// ⚠️ This is the answer to the objection in ObjWindow.a24 -- that drawing is
+/// invisible to a differential suite because there is nothing to compare.  With
+/// Pixel there is: the window becomes something that answers questions, and
+/// SDL_VIDEODRIVER=dummy renders without a display, so the answers are
+/// available on a machine with no screen at all.
+///
+/// ⚠️ Still NOT in tests/conformance/.  Every suite in test.sh must pass on a
+/// default build, and this one needs -DALG_SDL.  Making it a suite would mean
+/// test.sh could no longer be run by someone who has only a C compiler, which
+/// is the promise the #ifdef exists to keep.  It is opt-in, and run by hand:
+///
+///     ./sdl.sh --test examples/WindowedTest.a24
+///
+/// The same file also runs under an SDL-enabled interpreter, which is the
+/// property worth having: one implementation, two processors, one answer.
+///
+/// ⚠️ Not './compile.sh ... --test'.  compile.sh has no --test flag and does
+/// not reject one either -- it emits the PROGRAM, whose main block is empty
+/// here, and the result runs, prints nothing and exits 0.  A green run that
+/// tested nothing is worse than a red one, which is why sdl.sh exists rather
+/// than a line of instructions telling the reader to remember this.
+///
+/// ⚠️ NOT ONE COLOUR CONSTANT APPEARS BELOW, and that is the finding rather
+/// than an evasion.  The first draft asserted the bar's own teal, 0x209496, and
+/// read back 0x209196: compositing belongs to the renderer, and sdl2-compat
+/// runs SDL2's API on SDL3, which blends through a linear colourspace and
+/// returns a green channel a few steps off the source.  It is reproducible on
+/// one machine and not portable across SDL builds.
+///
+/// So what is asserted here is STRUCTURE -- that two pixels match, that two
+/// differ, that background is untouched.  That still catches every failure
+/// worth catching: a PNG that did not decode, an image drawn at the wrong
+/// coordinates, a Clear that did not clear, a texture drawn from the wrong
+/// renderer.  It just declines to claim a byte that is SDL's to choose.
+///
+/// Pure black is the one exception and is safe: Clear paints it directly with
+/// no source pixel to blend against.
+///
+
+/// What Clear paints, and the one value the renderer cannot round.
+const BLACK := 0;
+
+/// ⚠️ One window for the whole file, opened as a declaration rather than inside
+/// a test.  Opening one per test works, but SDL is slow to create and destroy
+/// them and the tests then depend on the order they run in.
+var Screen := Window ('probe', 200, 120);
+var Bar    := Screen.Load ('examples/bar.png');
+
+/// ⚠️ Every test below reads BEFORE Present.  Present hands the render target
+/// to the display and leaves what remains undefined -- after it, the
+/// accelerated renderer returned zero for every pixel while the dummy driver
+/// happened to keep the old contents, which is two answers and no way to say
+/// which is right.  Before it, all three drivers agree exactly.
+
+test 'A PNG Keeps Its Dimensions Through The Decoder';
+begin
+    // Lossless, so this IS exact and portable -- unlike any colour.
+    AssertEqual (96, Bar.Width);
+    AssertEqual (64, Bar.Height);
+end
+
+test 'A Window Reports The Size It Was Asked For';
+begin
+    AssertEqual (200, Screen.Width);
+    AssertEqual (120, Screen.Height);
+    AssertTrue  (Screen.Open?);
+end
+
+test 'An Image Lands Where It Was Put And Nowhere Else';
+begin
+    Screen.Clear ();
+    Screen.Draw (Bar, 10, 20);
+
+    // Inside the bar's border, and on the border itself: both painted, and
+    // distinguishable from each other, so the image is not a flat rectangle.
+    AssertTrue (Screen.Pixel (13, 23) <> BLACK);
+    AssertTrue (Screen.Pixel (10, 20) <> BLACK);
+    AssertTrue (Screen.Pixel (13, 23) <> Screen.Pixel (10, 20));
+
+    // One pixel up and left of the corner, and one past the far edge: the bar
+    // is 96 wide from x=10, so 106 is clear.  Nothing bled outside its rect.
+    AssertEqual (BLACK, Screen.Pixel (9, 19));
+    AssertEqual (BLACK, Screen.Pixel (106, 23));
+end
+
+test 'The Same Image Drawn Elsewhere Is The Same Image';
+begin
+    // ⚠️ The assertion that makes the colour constants unnecessary.  Draw at
+    // one place, read; draw at another, read the corresponding offset; the two
+    // must agree.  That pins the DECODE and the BLIT without naming a byte.
+    Screen.Clear ();
+    Screen.Draw (Bar, 10, 20);
+
+    var Interior := Screen.Pixel (13, 23);
+    var Border   := Screen.Pixel (10, 20);
+
+    Screen.Clear ();
+    Screen.Draw (Bar, 100, 50);
+
+    AssertEqual (Interior, Screen.Pixel (103, 53));
+    AssertEqual (Border,   Screen.Pixel (100, 50));
+end
+
+test 'Clear Repaints Everything, So Nothing Is Left Behind';
+begin
+    Screen.Clear ();
+    Screen.Draw (Bar, 100, 50);
+
+    AssertTrue (Screen.Pixel (103, 53) <> BLACK);
+
+    // Where the bar was in the previous test, and is not now.
+    AssertEqual (BLACK, Screen.Pixel (13, 23));
+
+    Screen.Clear ();
+
+    AssertEqual (BLACK, Screen.Pixel (103, 53));
+end
+
+test 'A Pixel Outside The Window Is Refused By Name';
+begin
+    var Refused := '';
+
+    try
+        Screen.Pixel (500, 500);
+    except
+        on E : String do Refused := E;
+    end
+
+    AssertEqual ('Pixel failed: 500,500 is outside 200x120.', Refused);
+end

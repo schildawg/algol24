@@ -29,6 +29,7 @@ extern Value k_MaxNative;
 extern Value k_ModNative;
 extern Value k_TextFileNative;
 extern Value k_BufferNative;
+extern Value k_WindowNative;
 extern Value k_FileExistsNative;
 extern Value k_ParamCountNative;
 extern Value k_ParamStrNative;

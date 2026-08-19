@@ -89,7 +89,15 @@ typedef enum {
     /* Growable bytes with an explicit lifetime -- the one thing here whose
      * storage is malloc'd rather than taken from the arena, because Free has
      * to mean something.  See the Buffer section in algol.c. */
-    OBJ_BUFFER
+    OBJ_BUFFER,
+
+    /* A window and a loaded image.  These two tags exist whether or not SDL was
+     * compiled in, and that is deliberate: Str(W) and 'W is Window' must answer
+     * the same in both builds, so only the CAPABILITY is conditional and never
+     * the language surface.  A default build can name the type and describe it;
+     * it simply cannot open one.  See the SDL section in algol.c. */
+    OBJ_WINDOW,
+    OBJ_IMAGE
 } ObjType;
 
 typedef struct {
@@ -308,6 +316,29 @@ Value alg_mod(Value a, Value b);
  * separator, so the same program writes the same bytes everywhere. */
 Value alg_text_file(void);
 Value alg_file_exists(Value name);
+
+/* A window, and PNGs drawn into it at fixed coordinates.
+ *
+ * Window(Title, Width, Height) is the only constructor the emitter has to know;
+ * Load, Clear, Draw, Present, Poll, Delay and Close arrive through alg_invoke
+ * and Width, Height and Open? through alg_property, exactly as a file's do.
+ *
+ * ⚠️ COMPILED IN ONLY UNDER -DALG_SDL.  Without it this still links, still
+ * answers to the name, and raises 'Window requires a build with SDL support
+ * (-DALG_SDL).' when called.  That arrangement is the point: bootstrap/algol.c
+ * is copied verbatim into every emitted directory and compiled with a bare
+ * 'cc *.c', so an unconditional #include <SDL.h> would make SDL a prerequisite
+ * for building the compiler itself -- and a C compiler being the only
+ * prerequisite is a promise this project makes on its front page.
+ *
+ * The refusal is a raise, so it is catchable as a String and a program can ask
+ * for a window and carry on without one.  It is NOT a link error and not a
+ * parse error: the same source compiles under both builds, which is what keeps
+ * the two processors describing one language.
+ *
+ * Load decodes through stb_image (third_party/, PNG only) rather than
+ * SDL_image, so the SDL build needs one library rather than four. */
+Value alg_window(Value title, Value width, Value height);
 
 /* 'X is T' -- whether a value's runtime type is T or inherits from it.  nil is
  * never anything.  The type name is known when the C is written; the value's

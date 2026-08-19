@@ -1,0 +1,62 @@
+/// PNGs at fixed coordinates, which is the whole of what this spike set out to
+/// show.
+///
+/// ⚠️ NOT part of any suite, and it must not become one.  test.sh globs
+/// tests/programs/ and tests/mem/; this lives in examples/ because it needs a
+/// display, and a suite that needs a display is a suite that fails on a build
+/// machine.  What CAN be checked without one is in tests/conformance/Window.a24.
+///
+/// Run it with a build that has SDL:
+///
+///     ./sdl.sh --show examples/Windowed.a24
+///
+/// Without --show it runs headless, which proves it works on a machine with no
+/// display but shows you nothing.
+///
+/// Without SDL at all it raises 'Window requires a build with SDL support
+/// (-DALG_SDL).' and exits 70 -- the same source, the same emitted C, a
+/// different build.
+///
+
+const WIDTH  := 480;
+const HEIGHT := 320;
+
+begin
+    var Screen := Window ('Algol-24', WIDTH, HEIGHT);
+
+    WriteLn ('opened ' + Str (Screen.Width) + 'x' + Str (Screen.Height));
+
+    var Diamond := Screen.Load ('examples/diamond.png');
+    var Bar     := Screen.Load ('examples/bar.png');
+
+    WriteLn ('diamond is ' + Str (Diamond.Width) + 'x' + Str (Diamond.Height));
+
+    // Fixed coordinates, as asked.  Centred by arithmetic rather than by any
+    // layout the runtime does -- Draw puts the top-left corner where it is told.
+    var MidX := (WIDTH - Diamond.Width) / 2;
+    var MidY := (HEIGHT - Diamond.Height) / 2;
+
+    var Frames := 0;
+
+    // ⚠️ Poll every pass, not just at the end.  A window that never drains its
+    // event queue is drawn blank by the macOS compositor, so 'open it and
+    // sleep' shows nothing at all and looks like a bug in Load.
+    while Screen.Poll () and Frames < 600 do
+    begin
+        Screen.Clear ();
+
+        Screen.Draw (Bar, 16, 16);
+        Screen.Draw (Bar, WIDTH - Bar.Width - 16, HEIGHT - Bar.Height - 16);
+        Screen.Draw (Diamond, MidX, MidY);
+
+        Screen.Present ();
+        Screen.Delay (16);
+
+        Frames := Frames + 1;
+    end
+
+    Screen.Close ();
+
+    WriteLn ('closed after ' + Str (Frames) + ' frames');
+    WriteLn ('still open? ' + Str (Screen.Open?));
+end

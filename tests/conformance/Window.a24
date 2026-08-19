@@ -1,0 +1,86 @@
+/// Window, to the extent a machine with no display can check it.
+///
+/// ⚠️ This suite deliberately never opens a window.  Everything asserted here
+/// is true of a DEFAULT build -- one without -DALG_SDL -- because that is what
+/// every other suite, the bootstrap and any build machine is.  A test that
+/// needed a display would fail everywhere it matters; examples/Windowed.a24 is
+/// where the drawing lives, and it is in no suite at all.
+///
+/// ⚠️ What this can check is exactly the property the #ifdef was designed to
+/// have: the LANGUAGE does not change when the capability is absent.  The name
+/// resolves, the call type-checks, the C emits, the program links -- and the
+/// refusal arrives at run time, as a catchable String, in both processors
+/// alike.  If any of that stopped being true, -DALG_SDL would have become a
+/// dialect rather than a build flag, and this file is what notices.
+///
+
+test 'Window Is Declared In Every Build';
+begin
+    // ⚠️ Asserted through a raise rather than by calling it.  The point is that
+    // the NAME is bound: an undeclared identifier is refused by the resolver
+    // before any test runs, so a suite that merely calls Window() cannot tell
+    // 'the built-in is missing' from 'the built-in refused'.
+    var Bound := True;
+
+    try
+        Window ('probe', 1, 1);
+    except
+        on E : String do Bound := True;
+    end
+
+    AssertTrue (Bound);
+end
+
+test 'Window Without SDL Refuses By Name';
+begin
+    var Reason := '';
+
+    try
+        Window ('probe', 320, 240);
+    except
+        on E : String do Reason := E;
+    end
+
+    // The sentence names the flag, because the person reading it is the person
+    // who has to pass it.  Compared exactly, as Unsupported(...) messages are.
+    AssertEqual ('Window requires a build with SDL support (-DALG_SDL).', Reason);
+end
+
+test 'A Refused Window Is Catchable And The Program Continues';
+begin
+    // The refusal is a raise, not a link error and not a parse error, so a
+    // program may ask for a window and carry on without one.
+    var Ran := False;
+
+    try
+        Window ('probe', 320, 240);
+    except
+        on E : String do Ran := True;
+    end
+
+    AssertTrue (Ran);
+end
+
+test 'Window Type Names Resolve Without SDL';
+begin
+    // ⚠️ The type tags exist in both builds -- see the OBJ_WINDOW comment in
+    // algol.h.  Nothing can HOLD a window here, so what is checked is that
+    // asking about one is not itself an error: 'is' against a name no value has
+    // must answer False rather than refusing.
+    var Nothing := Nil;
+
+    AssertTrue (not (Nothing is Window));
+    AssertTrue (not (Nothing is Image));
+end
+
+// ⚠️ There is NO test here for Window called with the wrong number of
+// arguments, and the omission is deliberate.  Interpreted, 'Window(''probe'')'
+// raises a catchable 'Expected 3 arguments but got 1.'; compiled, the emitter
+// refuses the whole program with 'A call to ''Window'' is not supported by the
+// C back end yet.' -- a sentence that blames support when the fault is arity.
+//
+// That divergence is PRE-EXISTING and belongs to every built-in, not to this
+// one: 'TextFile(1, 2)' behaves exactly the same way.  Pinning it here would
+// attach a general defect to the newest feature and imply this spike caused it.
+// It wants its own reproduction under tests/defects/.
+

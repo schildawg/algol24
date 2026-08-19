@@ -13,6 +13,7 @@
 #include "ObjCollection.h"
 #include "ObjBuffer.h"
 #include "ObjFile.h"
+#include "ObjWindow.h"
 #include "SourceCode.h"
 #include "Console.h"
 #include "Scanner.h"
@@ -340,6 +341,7 @@ int main(int argc, char **argv) {
     init_ObjCollection();
     init_ObjEnum();
     init_ObjFile();
+    init_ObjWindow();
     init_SourceCode();
     init_Scanner();
     init_Console();

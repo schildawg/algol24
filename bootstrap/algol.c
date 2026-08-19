@@ -8,6 +8,39 @@
 #include <string.h>
 #include <sys/time.h>
 
+/* ⚠️ The ONLY conditional compilation in this runtime, and it is confined to
+ * one capability rather than sprinkled through the file.  Everything below
+ * builds and behaves identically with or without it; what changes is whether
+ * alg_window can open a window or raises saying it cannot.
+ *
+ * This file is copied verbatim into every emitted directory and built with a
+ * bare 'cc *.c' by eleven call sites across six scripts.  An unconditional
+ * include here would make SDL a prerequisite for building the compiler, for
+ * every conformance suite, and for the bootstrap seed itself.
+ *
+ * SDL_MAIN_HANDLED before the include, because SDL redefines main() to its own
+ * entry point on some platforms and emitted programs bring their own. */
+#ifdef ALG_SDL
+    #define SDL_MAIN_HANDLED
+    #include <SDL.h>
+
+    /* PNG only: the whole point of stb over SDL_image was to avoid dragging in
+     * decoders nobody asked for.  This is the sole translation unit that
+     * defines the implementation macro.
+     *
+     * ⚠️ The pragmas are not cosmetic.  stb_image leaves several helpers unused
+     * when only one decoder is built, and this project's own scripts are not
+     * where that gets noticed -- the default CFLAGS carry no -Wall at all.  A
+     * vendored file must not be able to turn someone's -Werror build red over
+     * code nobody here wrote.  GCC spelling, which clang also honours. */
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused-function"
+    #define STB_IMAGE_IMPLEMENTATION
+    #define STBI_ONLY_PNG
+    #include "stb_image.h"
+    #pragma GCC diagnostic pop
+#endif
+
 /* ---------------------------------------------------------------- memory --
  *
  * A bump allocator.  Individual objects are never freed: knowing when one dies
@@ -59,14 +92,20 @@ static size_t      arena_left   = 0;
 static void close_open_files(void);
 
 /* Likewise a Buffer's bytes, which are the one allocation here that does NOT
- * come from the arena -- so freeing the chunks would not reclaim them. */
+ * come from the arena -- so freeing the chunks would not reclaim them.  */
 static void free_all_buffers(void);
+
+/* And likewise a window, whose SDL handles are the operating system's rather
+ * than this program's.  Empty in a build without SDL, so alg_shutdown below
+ * needs no #ifdef of its own. */
+static void close_open_windows(void);
 
 /* Returns everything the process took.  Files and buffers first, because both
  * structs live in the arena and reading one after the chunks are gone would be
  * a use after free. */
 static void alg_shutdown(void) {
     close_open_files();
+    close_open_windows();
     free_all_buffers();
 
     while (arena_chunks != NULL) {
@@ -1709,6 +1748,406 @@ Value alg_file_exists(Value name) {
     return alg_bool(true);
 }
 
+/* ----------------------------------------------------------------- sdl --
+ *
+ * A window, and PNGs blitted into it at fixed coordinates.  See algol.h for
+ * why this is the one thing here behind an #ifdef.
+ *
+ * The shape is TextFile's, deliberately and to the letter: a constructor the
+ * emitter knows by name, methods reached through alg_invoke, properties
+ * through alg_property, and a list of every one ever made so shutdown can
+ * return what the program left open.  Nothing here is a new mechanism -- that
+ * is the finding this spike exists to record.  A native resource type costs
+ * one struct, one method table, three lines of dispatch and a wrapper class;
+ * it does not cost a language feature.
+ */
+
+#ifdef ALG_SDL
+
+typedef struct ObjWindow {
+    Obj obj;
+
+    SDL_Window   *window;
+    SDL_Renderer *renderer;
+    int32_t       width;
+    int32_t       height;
+    bool          open;
+
+    /* Threaded for the same reason ObjFile is: the struct is arena-allocated
+     * and outlives every Close, so shutdown needs its own way to find one a
+     * program abandoned. */
+    struct ObjWindow *next;
+} ObjWindow;
+
+typedef struct ObjImage {
+    Obj obj;
+
+    SDL_Texture *texture;
+    int32_t      width;
+    int32_t      height;
+
+    /* ⚠️ Which window's renderer made this texture.  SDL ties a texture to the
+     * renderer that created it, and passing one to a different renderer is
+     * undefined rather than an error -- it draws nothing, or it crashes.  A
+     * language whose values are freely assignable cannot leave that to luck, so
+     * Draw checks it and raises. */
+    struct ObjWindow *owner;
+} ObjImage;
+
+static ObjWindow *all_windows = NULL;
+static bool       sdl_started = false;
+
+/* Closes anything a program left open.  Not an error, exactly as an unclosed
+ * file is not: the process is still expected to give the handle back. */
+static void close_open_windows(void) {
+    for (ObjWindow *w = all_windows; w != NULL; w = w->next) {
+        if (!w->open) continue;
+
+        if (w->renderer != NULL) SDL_DestroyRenderer(w->renderer);
+        if (w->window   != NULL) SDL_DestroyWindow(w->window);
+
+        w->renderer = NULL;
+        w->window   = NULL;
+        w->open     = false;
+    }
+    all_windows = NULL;
+
+    if (sdl_started) {
+        SDL_Quit();
+        sdl_started = false;
+    }
+}
+
+/* "Window failed: <what>." -- SDL's own reason carried through, because a
+ * missing display or a refused driver is exactly what the programmer needs to
+ * read and this runtime has nothing better to say about it. */
+_Noreturn static void sdl_error(const char *what) {
+    char message[512];
+    snprintf(message, sizeof message, "Window failed: %s.", what);
+    alg_error(message);
+}
+
+Value alg_window(Value title, Value width, Value height) {
+    if (!is_text(title)) alg_error("Window expects a String title.");
+
+    int32_t w = as_integer(width,  "Window expects an Integer width.");
+    int32_t h = as_integer(height, "Window expects an Integer height.");
+
+    if (w <= 0 || h <= 0) alg_error("Window failed: size must be positive.");
+
+    if (!sdl_started) {
+        if (SDL_Init(SDL_INIT_VIDEO) != 0) sdl_error(SDL_GetError());
+        sdl_started = true;
+    }
+
+    ObjWindow *handle = arena_alloc(sizeof(ObjWindow));
+
+    handle->obj.type = OBJ_WINDOW;
+    handle->width    = w;
+    handle->height   = h;
+    handle->open     = true;
+
+    handle->window = SDL_CreateWindow(as_text(title),
+                                      SDL_WINDOWPOS_CENTERED,
+                                      SDL_WINDOWPOS_CENTERED,
+                                      w, h, SDL_WINDOW_SHOWN);
+    if (handle->window == NULL) sdl_error(SDL_GetError());
+
+    handle->renderer = SDL_CreateRenderer(handle->window, -1,
+                                          SDL_RENDERER_ACCELERATED);
+
+    /* Software is not a failure worth refusing over -- a machine without an
+     * accelerated driver should still be able to show a picture. */
+    if (handle->renderer == NULL) {
+        handle->renderer = SDL_CreateRenderer(handle->window, -1,
+                                              SDL_RENDERER_SOFTWARE);
+    }
+    if (handle->renderer == NULL) {
+        SDL_DestroyWindow(handle->window);
+        sdl_error(SDL_GetError());
+    }
+
+    handle->next = all_windows;
+    all_windows  = handle;
+
+    return object((Obj *)handle);
+}
+
+/* Every method refuses a closed window rather than drawing into nothing. */
+static ObjWindow *live_window(Value receiver, const char *what) {
+    ObjWindow *handle = (ObjWindow *)receiver.obj;
+
+    if (!handle->open) {
+        char message[128];
+        snprintf(message, sizeof message, "%s failed: the window is closed.", what);
+        alg_error(message);
+    }
+    return handle;
+}
+
+static Value window_load(ObjWindow *handle, Value path) {
+    if (!is_text(path)) alg_error("Load expects a String path.");
+
+    const char *name = as_text(path);
+
+    int width  = 0;
+    int height = 0;
+    int had    = 0;
+
+    /* 4 forces RGBA out of whatever the file actually held, so the surface
+     * format below is a constant rather than a decision. */
+    unsigned char *pixels = stbi_load(name, &width, &height, &had, 4);
+
+    if (pixels == NULL) {
+        char message[512];
+        snprintf(message, sizeof message, "Load failed: cannot read '%s'.", name);
+        alg_error(message);
+    }
+
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(
+        pixels, width, height, 32, width * 4, SDL_PIXELFORMAT_RGBA32);
+
+    if (surface == NULL) {
+        stbi_image_free(pixels);
+        sdl_error(SDL_GetError());
+    }
+
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(handle->renderer, surface);
+
+    /* ⚠️ Both freed here and not on shutdown.  The texture owns its own copy of
+     * the pixels the moment it is created, so the surface and stb's buffer are
+     * dead immediately -- and neither came from the arena, so nothing else in
+     * this file would ever have returned them. */
+    SDL_FreeSurface(surface);
+    stbi_image_free(pixels);
+
+    if (texture == NULL) sdl_error(SDL_GetError());
+
+    ObjImage *image = arena_alloc(sizeof(ObjImage));
+
+    image->obj.type = OBJ_IMAGE;
+    image->texture  = texture;
+    image->width    = width;
+    image->height   = height;
+    image->owner    = handle;
+
+    return object((Obj *)image);
+}
+
+static void window_draw(ObjWindow *handle, Value picture, Value x, Value y) {
+    if (!is_obj(picture, OBJ_IMAGE)) alg_error("Draw expects an Image.");
+
+    ObjImage *image = (ObjImage *)picture.obj;
+
+    if (image->owner != handle) {
+        alg_error("Draw failed: that Image belongs to another Window.");
+    }
+
+    SDL_Rect where;
+    where.x = as_integer(x, "Draw expects an Integer x.");
+    where.y = as_integer(y, "Draw expects an Integer y.");
+    where.w = image->width;
+    where.h = image->height;
+
+    SDL_RenderCopy(handle->renderer, image->texture, NULL, &where);
+}
+
+/* Drains the event queue and answers whether the window is still wanted.
+ *
+ * ⚠️ Poll must be called for the window to appear at all on macOS, where a
+ * window that never pumps its events is drawn by the compositor as a blank or
+ * a beachball.  That is why the sample loops on it rather than sleeping. */
+static Value window_poll(ObjWindow *handle) {
+    SDL_Event event;
+
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_QUIT) return alg_bool(false);
+
+        if (event.type == SDL_WINDOWEVENT
+            && event.window.event == SDL_WINDOWEVENT_CLOSE
+            && event.window.windowID == SDL_GetWindowID(handle->window)) {
+            return alg_bool(false);
+        }
+
+        if (event.type == SDL_KEYDOWN
+            && event.key.keysym.sym == SDLK_ESCAPE) return alg_bool(false);
+    }
+    return alg_bool(true);
+}
+
+/* One pixel of what was last drawn, as 0xRRGGBB.
+ *
+ * ⚠️ This exists for TESTING and is the reason graphics here is not a permanent
+ * blind spot.  Correctness in this project is differential -- run a program
+ * both ways and compare -- and drawing has no output to compare, so every
+ * method above is invisible to the suites.  Reading a pixel back turns the
+ * window into something that answers questions, and SDL_VIDEODRIVER=dummy
+ * renders without a display, so the answers are available on a build machine.
+ *
+ * ⚠️ 24-bit and not 32.  An Integer is a signed int32_t, so 0xRRGGBBAA with a
+ * high red channel would come back NEGATIVE -- 0xFF8C00FF does not fit.  Alpha
+ * is meaningless here anyway: Clear paints opaque black first, so what is read
+ * is always the composited result.
+ *
+ * ⚠️ Read BEFORE Present, not after.  This reads the render target, and Present
+ * hands that buffer to the display and leaves what remains undefined -- on the
+ * accelerated renderer every pixel came back zero afterwards, on the dummy
+ * driver the old contents happened to survive, and the two disagreed with
+ * nothing to say which was right.  Before Present all three drivers tested
+ * here -- accelerated, software and dummy -- return identical bytes.
+ *
+ * ⚠️ Do not expect the exact colour that was in the PNG.  Compositing is the
+ * renderer's, and sdl2-compat runs SDL2's API on SDL3, which blends through a
+ * linear colourspace and returns a green channel a few steps off the source.
+ * Reproducible on one machine, not portable across SDL builds -- so a test may
+ * assert that two pixels MATCH, and must not assert what either one is. */
+static Value window_pixel(ObjWindow *handle, Value x, Value y) {
+    int32_t px = as_integer(x, "Pixel expects an Integer x.");
+    int32_t py = as_integer(y, "Pixel expects an Integer y.");
+
+    if (px < 0 || py < 0 || px >= handle->width || py >= handle->height) {
+        char message[128];
+        snprintf(message, sizeof message,
+                 "Pixel failed: %d,%d is outside %dx%d.",
+                 px, py, handle->width, handle->height);
+        alg_error(message);
+    }
+
+    /* Read as explicit bytes rather than a Uint32.  SDL_PIXELFORMAT_RGBA32 is
+     * defined in BYTE order, so pulling it through a Uint32 would swap red and
+     * blue on a big-endian host and the test would pass on exactly one
+     * architecture. */
+    unsigned char rgba[4] = { 0, 0, 0, 0 };
+    SDL_Rect one = { px, py, 1, 1 };
+
+    if (SDL_RenderReadPixels(handle->renderer, &one,
+                             SDL_PIXELFORMAT_RGBA32, rgba, 4) != 0) {
+        sdl_error(SDL_GetError());
+    }
+
+    return alg_int(((int32_t)rgba[0] << 16)
+                 | ((int32_t)rgba[1] << 8)
+                 |  (int32_t)rgba[2]);
+}
+
+static bool window_method(Value receiver, const char *name, Value *args,
+                          int32_t count, Value *result) {
+    if (!is_obj(receiver, OBJ_WINDOW)) return false;
+
+    (void)count;
+
+    if (alg_stricmp(name, "Pixel") == 0) {
+        *result = window_pixel(live_window(receiver, "Pixel"), args[0], args[1]);
+        return true;
+    }
+
+    if (alg_stricmp(name, "Load") == 0) {
+        *result = window_load(live_window(receiver, "Load"), args[0]);
+        return true;
+    }
+    if (alg_stricmp(name, "Clear") == 0) {
+        ObjWindow *handle = live_window(receiver, "Clear");
+        SDL_SetRenderDrawColor(handle->renderer, 0, 0, 0, 255);
+        SDL_RenderClear(handle->renderer);
+        *result = alg_nil();
+        return true;
+    }
+    if (alg_stricmp(name, "Draw") == 0) {
+        window_draw(live_window(receiver, "Draw"), args[0], args[1], args[2]);
+        *result = alg_nil();
+        return true;
+    }
+    if (alg_stricmp(name, "Present") == 0) {
+        SDL_RenderPresent(live_window(receiver, "Present")->renderer);
+        *result = alg_nil();
+        return true;
+    }
+    if (alg_stricmp(name, "Poll") == 0) {
+        *result = window_poll(live_window(receiver, "Poll"));
+        return true;
+    }
+    if (alg_stricmp(name, "Delay") == 0) {
+        int32_t ms = as_integer(args[0], "Delay expects an Integer.");
+        if (ms > 0) SDL_Delay((Uint32)ms);
+        *result = alg_nil();
+        return true;
+    }
+
+    /* Close is the one method a closed window accepts, so that closing twice
+     * is harmless -- the same rule as a file. */
+    if (alg_stricmp(name, "Close") == 0) {
+        ObjWindow *handle = (ObjWindow *)receiver.obj;
+
+        if (handle->open) {
+            SDL_DestroyRenderer(handle->renderer);
+            SDL_DestroyWindow(handle->window);
+            handle->renderer = NULL;
+            handle->window   = NULL;
+            handle->open     = false;
+        }
+        *result = alg_nil();
+        return true;
+    }
+
+    return false;
+}
+
+static bool window_property(Value receiver, const char *name, Value *result) {
+    if (is_obj(receiver, OBJ_WINDOW)) {
+        ObjWindow *handle = (ObjWindow *)receiver.obj;
+
+        if (alg_stricmp(name, "Width")  == 0) { *result = alg_int(handle->width);  return true; }
+        if (alg_stricmp(name, "Height") == 0) { *result = alg_int(handle->height); return true; }
+        if (alg_stricmp(name, "Open?")  == 0) { *result = alg_bool(handle->open);  return true; }
+
+        undefined("property", name);
+    }
+
+    if (is_obj(receiver, OBJ_IMAGE)) {
+        ObjImage *image = (ObjImage *)receiver.obj;
+
+        if (alg_stricmp(name, "Width")  == 0) { *result = alg_int(image->width);  return true; }
+        if (alg_stricmp(name, "Height") == 0) { *result = alg_int(image->height); return true; }
+
+        undefined("property", name);
+    }
+
+    return false;
+}
+
+#else  /* no SDL: the names exist, the capability does not. */
+
+static void close_open_windows(void) { }
+
+/* ⚠️ This sentence is the observable behaviour of a default build and is
+ * compared by tests/conformance/Window.a24.  It names the flag because the
+ * person who reads it is the person who has to pass it. */
+Value alg_window(Value title, Value width, Value height) {
+    (void)title; (void)width; (void)height;
+
+    alg_error("Window requires a build with SDL support (-DALG_SDL).");
+    return alg_nil();
+}
+
+/* ⚠️ These two return false rather than raising, so an OBJ_WINDOW value falls
+ * through to the ordinary 'Only instances have properties.' path.  Nothing can
+ * hold one in this build -- alg_window never returns -- so the branch is
+ * unreachable, and it is written anyway because the dispatch chains below must
+ * read the same in both builds or the next person to edit them has to hold two
+ * versions of this file in their head. */
+static bool window_method(Value receiver, const char *name, Value *args,
+                          int32_t count, Value *result) {
+    (void)receiver; (void)name; (void)args; (void)count; (void)result;
+    return false;
+}
+
+static bool window_property(Value receiver, const char *name, Value *result) {
+    (void)receiver; (void)name; (void)result;
+    return false;
+}
+
+#endif  /* ALG_SDL */
+
 /* ----------------------------------------------------------- arguments -- */
 
 static int    argument_count  = 0;
@@ -1756,6 +2195,15 @@ Value alg_property(Value receiver, const char *name) {
         if (alg_stricmp(name, "Eof") == 0) return file_eof((ObjFile *)receiver.obj);
 
         undefined("property", name);
+    }
+
+    /* Width, Height and Open? -- and 'Open?' is not a typo.  '?' is an ordinary
+     * identifier character in this language, and a property name arrives here
+     * as the raw source text rather than a mangled symbol, so it needs no
+     * special handling on either side. */
+    {
+        Value answer;
+        if (window_property(receiver, name, &answer)) return answer;
     }
 
     /* Text is a property, like Length and IsEmpty: a zero-argument query reads
@@ -1936,6 +2384,7 @@ Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
 
     Value result;
     if (file_method(receiver, name, args, count, &result)) return result;
+    if (window_method(receiver, name, args, count, &result)) return result;
     if (buffer_method(receiver, name, args, count, &result)) return result;
     if (collection_method(receiver, name, args, count, &result)) return result;
 
@@ -2113,6 +2562,11 @@ static const char *type_name(Value v) {
         case OBJ_MAP:      return "Map";
         case OBJ_FILE:     return "TextFile";
         case OBJ_BUFFER:   return "Buffer";
+
+        /* Named in both builds.  Without SDL nothing can hold one of these, but
+         * the name has to resolve the same way regardless -- see algol.h. */
+        case OBJ_WINDOW:   return "Window";
+        case OBJ_IMAGE:    return "Image";
 
         default: break;
     }

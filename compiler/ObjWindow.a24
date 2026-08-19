@@ -1,0 +1,169 @@
+uses Token;
+
+/// A window, and the images drawn into it.
+///
+/// Wraps the host's Window the way ObjFile wraps the host's TextFile: every
+/// method delegates, so 'Load failed: cannot read ''cat.png''.' and the rest
+/// come from the one implementation rather than from a second copy that would
+/// have to be kept in step.
+///
+/// ⚠️ This file is why a native resource type is cheap here.  The interpreter
+/// does not open windows -- it calls the same Window() built-in the emitted C
+/// calls, so once the interpreter is itself compiled BOTH processors reach one
+/// implementation in algol.c.  That is the arrangement TextFile already had,
+/// and it is what makes the graphics surface eight files rather than a project.
+///
+/// ⚠️ It is also the arrangement that makes graphics UNTESTABLE by this
+/// project's usual means.  Correctness here is differential -- a program runs
+/// both ways and the two must agree -- and two processors calling one function
+/// cannot disagree.  A differential test of anything below is structurally
+/// incapable of failing.  See tests/conformance/Window.a24 for what is checked
+/// instead, which is only the part that survives without a display.
+///
+
+/// A bound window method: a receiver, a name, and an arity.
+///
+/// One class rather than one per method, for the same reason FileMethod is one
+/// class: the interpreter's calling convention wants something with Arity and
+/// Call, and this is less code than seven near-identical classes.
+///
+class WindowMethod;
+var
+    Receiver : Any;
+    Name     : String;
+    TheArity : Integer;
+
+begin
+    constructor Init (Receiver : Any, Name : String, TheArity : Integer);
+    begin
+        this.Receiver := Receiver;
+        this.Name := Name;
+        this.TheArity := TheArity;
+    end
+
+    function Arity () : Integer;
+    begin
+        Exit TheArity;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Receiver.Invoke (Name, Arguments);
+    end
+end
+
+/// An image loaded into a window.  Handed out by ObjWindow.Load and useful for
+/// nothing but drawing, so it answers two properties and no methods.
+///
+class ObjImage;
+var
+    /// The host handle this stands for.
+    Handle : Any;
+
+begin
+    constructor Init (Handle : Any);
+    begin
+        this.Handle := Handle;
+    end
+
+    function Get (TheName : Token) : Any;
+    var
+        Member : String;
+
+    begin
+        Member := TheName.Lexeme;
+
+        if Member = 'Width'  then Exit Handle.Width;
+        if Member = 'Height' then Exit Handle.Height;
+
+        raise 'Undefined property ''' + Member + '''.';
+    end
+
+    function ToString () : String;
+    begin
+        Exit Str (Handle);
+    end
+end
+
+class ObjWindow;
+var
+    /// The host handle this stands for.
+    Handle : Any;
+
+begin
+    constructor Init (Title : String, Width : Integer, Height : Integer);
+    begin
+        this.Handle := Window (Title, Width, Height);
+    end
+
+    /// Property access.  Width, Height and Open? answer directly -- they are
+    /// properties in Algol-24, written without parentheses -- and everything
+    /// else hands back something callable.
+    ///
+    /// ⚠️ 'Open?' is not a typo.  '?' is an ordinary identifier character, so
+    /// the name arrives here as written and needs nothing special on either
+    /// side of the language.
+    ///
+    function Get (TheName : Token) : Any;
+    var
+        Member : String;
+
+    begin
+        Member := TheName.Lexeme;
+
+        if Member = 'Width'  then Exit Handle.Width;
+        if Member = 'Height' then Exit Handle.Height;
+        if Member = 'Open?'  then Exit Handle.Open?;
+
+        if Member = 'Load'    then Exit WindowMethod (this, Member, 1);
+        if Member = 'Clear'   then Exit WindowMethod (this, Member, 0);
+        if Member = 'Draw'    then Exit WindowMethod (this, Member, 3);
+        if Member = 'Present' then Exit WindowMethod (this, Member, 0);
+        if Member = 'Poll'    then Exit WindowMethod (this, Member, 0);
+        if Member = 'Delay'   then Exit WindowMethod (this, Member, 1);
+        if Member = 'Pixel'   then Exit WindowMethod (this, Member, 2);
+        if Member = 'Close'   then Exit WindowMethod (this, Member, 0);
+
+        raise 'Undefined property ''' + Member + '''.';
+    end
+
+    /// Runs a method by name.  Reached only through WindowMethod, and Get is
+    /// the only thing that hands one of those out.
+    ///
+    /// ⚠️ Load wraps its result, and Draw unwraps its argument.  The host deals
+    /// in host handles and the interpreter deals in ObjImage, so the boundary
+    /// has to be crossed in both directions -- handing a bare host handle back
+    /// would make Img.Width work by accident and 'Img is Image' fail.
+    ///
+    function Invoke (Name : String, Arguments : List) : Any;
+    begin
+        if Name = 'Load'    then Exit ObjImage (Handle.Load (Arguments[0]));
+        if Name = 'Clear'   then Exit Handle.Clear ();
+        if Name = 'Present' then Exit Handle.Present ();
+        if Name = 'Poll'    then Exit Handle.Poll ();
+        if Name = 'Delay'   then Exit Handle.Delay (Arguments[0]);
+        if Name = 'Pixel'   then Exit Handle.Pixel (Arguments[0], Arguments[1]);
+        if Name = 'Close'   then Exit Handle.Close ();
+
+        if Name = 'Draw' then
+        begin
+            var Picture := Arguments[0];
+
+            // ⚠️ Checked here rather than left to the host.  The host would
+            // refuse a non-Image too, but it would refuse the WRAPPER as one --
+            // 'Draw expects an Image.' is right, and 'Draw expects an Image.'
+            // about an ObjImage the user did pass would be baffling.
+            if not (Picture is ObjImage) then raise 'Draw expects an Image.';
+
+            Exit Handle.Draw (Picture.Handle, Arguments[1], Arguments[2]);
+        end
+
+        raise 'Undefined method ''' + Name + '''.';
+    end
+
+    /// Printed the way the host prints one.
+    function ToString () : String;
+    begin
+        Exit Str (Handle);
+    end
+end
