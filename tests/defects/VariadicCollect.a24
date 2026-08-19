@@ -1,0 +1,39 @@
+/// A parameter's type may be followed by '...', collecting the rest.
+///
+/// '...' is not a token today -- Pascal's range operator was never adopted, so
+/// neither '..' nor '...' scans -- and the parameter list fails with
+/// 'Expect '')'' after parameters.'
+///
+/// ⚠️ The spelling is safe here in a way it is not in every language, because a
+/// TYPE IS ALWAYS A BARE IDENTIFIER: 'var C : Shapes.Circle' is rejected while
+/// 'var C : Circle' is accepted, so a dot never follows a type name anywhere in
+/// the grammar and 'String...' can collide with nothing.
+///
+/// Inside the function the parameter is a List of T, which is why Length and
+/// indexing are asserted here rather than anything new.  Supplying no arguments
+/// gives a list of length zero and never nil -- the third case exists to pin
+/// that, since an empty variadic is where an implementation is most likely to
+/// hand back nothing at all.
+///
+/// Fails with: Expect ')' after parameters.  (file rejected -- no test ran)
+///
+function Join (Sep : String, Parts : String...) : String;
+var
+    Result : String := '';
+
+begin
+    for var I := 0; I < Parts.Length; I := I + 1 do
+    begin
+        if I > 0 then Result := Result + Sep;
+        Result := Result + Parts[I];
+    end
+
+    Exit Result;
+end
+
+test 'A variadic parameter collects the remaining arguments';
+begin
+    AssertEqual (Str ('a-b-c'), Join (Str ('-'), Str ('a'), Str ('b'), Str ('c')));
+    AssertEqual (Str ('a'),     Join (Str ('-'), Str ('a')));
+    AssertEqual (Str (''),      Join (Str ('-')));
+end

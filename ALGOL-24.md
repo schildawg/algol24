@@ -707,7 +707,7 @@ ProcedureDecl = "procedure" identifier Signature ";"
                 [ VarSection ] Block .
 Signature     = "(" [ ParameterList ] ")" .
 ParameterList = Parameter { "," Parameter } .
-Parameter     = identifier [ ":" Type ] [ ":=" Expression ] .
+Parameter     = identifier [ ":" Type ] ( "..." | [ ":=" Expression ] ) .
 Block         = "begin" { Statement | Declaration } "end" .
 ```
 
@@ -734,9 +734,57 @@ of the declaration rather than the caller's. Evaluating it once when the
 function is declared would give every call the same object, which is a trap
 worth designing out rather than documenting.
 
-There are no variadic parameters. Calling with too few arguments for the
-parameters that have no default, or with more arguments than there are
-parameters, is an error: `Expected 1 arguments but got 0.`
+Calling with too few arguments for the parameters that have no default, or with
+more than there are parameters to take them, is an error:
+`Expected 1 arguments but got 0.`
+
+#### Variadic parameters
+
+A parameter's type may be followed by `...`, making it **variadic**: it collects
+every remaining positional argument.
+
+```pascal
+function Log (Level : Integer, Parts : String...) : Nil;
+```
+
+- Inside the function the parameter is a `List of T` — `List of String` above —
+  so `Parts.Length`, `Parts[0]` and `for var P in Parts` all work. Supplying no
+  arguments gives a list of length zero, never `nil`.
+- Only the **last** parameter may be variadic.
+- A variadic parameter may not carry a `:=` default; the empty list is its
+  default.
+- A variadic parameter **may not be named** at a call. This needs no rule of its
+  own: named arguments must follow all positional ones, and the variadic takes
+  the trailing positional arguments, so a call cannot both fill it positionally
+  and name an earlier parameter.
+- A type is not required. `Parts...` alone collects into a `List of Any`.
+
+#### Spread arguments
+
+An argument may be followed by `...`, which **spreads** a collection: its
+elements are passed as separate arguments.
+
+```pascal
+function Log (Parts : String...) : Nil;
+begin
+    Report (Prefix, Parts...);      // Parts' elements, as arguments
+    Report (Prefix, Parts);         // one argument, which is a List
+end
+```
+
+Spreading is explicit and is the only way a collection becomes several
+arguments. A `List` passed without `...` is one argument that happens to be a
+list — the meaning of a call never depends on the static type of what is passed
+to it.
+
+The operand must be a collection. A spread argument may be positional only, not
+named, and it may spread into ordinary parameters as readily as into a variadic
+one. Where the collection's length is not known before the program runs, so is
+the call's arity, and the call is resolved when it is made — see
+[Resolving at compile time](#resolving-at-compile-time).
+
+> **Not implemented.** Neither `...` is accepted —
+> [issue #16](https://github.com/schildawg/algol24/issues/16).
 
 #### Named arguments
 
@@ -897,7 +945,13 @@ arguments, considering each argument in turn and preferring, in this order:
 1. an **exact** type match;
 2. a match by [widening](#widening) — a `Char` argument to a `String` parameter,
    an `Integer` to a `Double`;
-3. a parameter declared `Any`, which accepts anything.
+3. a parameter declared `Any`, which accepts anything;
+4. a [variadic](#variadic-parameters) parameter collecting the argument.
+
+A fixed-arity candidate therefore always beats a variadic one, so `F(S : String)`
+and `F(S : String...)` are not ambiguous on `F('x')`. That is the two-phase
+resolution other languages describe separately, written here as one more rung so
+the ladder stays single.
 
 A candidate that fits at a better rank on some argument and a worse rank on
 another is **ambiguous** with its rival, and an ambiguous call is an error.
@@ -954,7 +1008,7 @@ the candidate chosen statically must be the one the rule above would choose from
 the run-time types. Where a static type is unknown, or is `Any`, the call is
 resolved when it is made.
 
-That requirement reaches parameter names as well. A call on a receiver whose
+That requirement reaches parameter names and variadic-ness as well. A call on a receiver whose
 class is not known statically is resolved when it is made, so **the run time
 must carry parameter names** exactly as it carries parameter types, or a named
 call would resolve one way through the compiler and another way through the
@@ -1133,7 +1187,7 @@ PrimaryExpr = Operand
 Selector    = "." identifier .
 Index       = "[" Expression "]" .
 Arguments   = "(" [ Argument { "," Argument } ] ")" .
-Argument    = [ identifier "=>" ] Expression .
+Argument    = identifier "=>" Expression | Expression [ "..." ] .
 ```
 
 **Selectors** read a field, a property, or a member of the value on the left.
@@ -1991,6 +2045,7 @@ a reader is entitled to know which.
 | [#13](https://github.com/schildawg/algol24/issues/13) | A call matching no signature is refused interpreted and runs anyway compiled. |
 | [#14](https://github.com/schildawg/algol24/issues/14) | Only `List` takes an element type, only on a variable declaration, and a wrongly typed write is never refused. |
 | [#15](https://github.com/schildawg/algol24/issues/15) | Parameters have no defaults, and an argument cannot name its parameter with `=>`. |
+| [#16](https://github.com/schildawg/algol24/issues/16) | No variadic parameters and no spread argument; `...` is not a token. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

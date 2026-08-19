@@ -1,0 +1,30 @@
+/// A fixed-arity overload beats a variadic one.
+///
+/// Variadic is the fourth rung below exact, widening and Any, so Pick('x')
+/// selects the String overload and only Pick with two arguments reaches the
+/// variadic.  Other languages describe this as a separate resolution phase
+/// tried after the first fails; written as one more rung it needs no phases and
+/// the ladder stays single.
+///
+/// ⚠️ Without that ordering these two declarations would be ambiguous on every
+/// one-argument call, and a language cannot ask the programmer to disambiguate
+/// what it offered to infer.
+///
+/// Fails with: Expect ')' after parameters.  (file rejected -- no test ran)
+///
+function Pick (S : String) : String;
+begin
+    Exit 'one';
+end
+
+function Pick (S : String...) : String;
+begin
+    Exit 'many:' + Str (S.Length);
+end
+
+test 'A fixed-arity overload beats a variadic one';
+begin
+    AssertEqual (Str ('one'),     Pick (Str ('a')));
+    AssertEqual (Str ('many:2'),  Pick (Str ('a'), Str ('b')));
+    AssertEqual (Str ('many:0'),  Pick ());
+end

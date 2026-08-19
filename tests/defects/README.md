@@ -38,6 +38,7 @@ nothing more.
 | [13](https://github.com/schildawg/algol24/issues/13) | A no-match call runs anyway when compiled | `OverloadNoMatch` |
 | [14](https://github.com/schildawg/algol24/issues/14) | Only `List` takes an element type, only on a variable | `ElementTypeCollections`, `ElementTypePositions` |
 | [15](https://github.com/schildawg/algol24/issues/15) | No parameter defaults, and no named arguments | `ParamDefaults`, `ParamNamed`, `ParamNamedResolution` |
+| [16](https://github.com/schildawg/algol24/issues/16) | No variadic parameters and no spread argument | `VariadicCollect`, `VariadicSpread`, `VariadicResolution` |
 
 Issues 4 and 14 are each **partly** unreproducible here, for one reason: every
 file must be a `test` block that *passes* once fixed, and where the correct
@@ -426,3 +427,36 @@ dispatcher, which is exactly what #11's rule forbids.
 Do this after #11, #12 and #13. It extends overload resolution, and extending it
 while resolution is still first-declared-wins and a no-match still runs when
 compiled would build on two known-broken foundations.
+
+## Issue 16 — variadics and spread
+
+A parameter's type may be followed by `...`, collecting the remaining positional
+arguments into a `List of T`; an argument may be followed by `...`, spreading a
+collection into separate arguments.
+
+⚠️ **The spelling is free here in a way it is not everywhere.** A type is always
+a bare identifier — `var C : Shapes.Circle` is rejected while `var C : Circle`
+is accepted — so a dot never follows a type name anywhere in the grammar. Nor
+does `..` or `...` scan today, Pascal's range operator having never been
+adopted.
+
+⚠️ **Spreading is explicit, and that is the design rather than a simplification.**
+Java spreads an array implicitly, so the meaning of `f(x)` depends on `x`'s
+static type — a known trap there and a worse one here, where a gradually typed
+argument often has no static type to depend on. With a marker, `Parts` is one
+argument that happens to be a list and `Parts...` is its elements, and neither
+reading requires knowing anything about types. Forwarding is what earns it:
+without a spread a variadic function cannot pass its own arguments to another
+one.
+
+⚠️ **Variadic is a fourth rung, not a second phase.** Below exact, widening and
+`Any`, so a fixed-arity candidate always beats a variadic one and
+`F(S : String)` alongside `F(S : String...)` is unambiguous on `F('x')`. Other
+languages describe this as a resolution phase tried after the first fails;
+written as a rung it needs no phases and the ladder stays single.
+
+⚠️ **The third field the dispatcher has been asked for.** The run time must know
+a method is variadic, after parameter types (#9) and parameter names (#15).
+Every call-site feature has to be visible to the dispatcher or the two halves
+resolve differently — a standing cost of #11's rule, and cheaper to design for
+than to retrofit.

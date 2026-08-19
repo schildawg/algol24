@@ -1,0 +1,40 @@
+/// An argument followed by '...' spreads a collection into separate arguments.
+///
+/// ⚠️ Spreading is EXPLICIT, and that is the whole design.  Java spreads an
+/// array implicitly, so the meaning of f(x) depends on x's static type -- a trap
+/// there and a worse one here, where a gradually typed argument often has no
+/// static type to depend on.  With an explicit marker, 'Parts' is one argument
+/// that happens to be a List and 'Parts...' is its elements, and neither reading
+/// requires knowing anything about types.
+///
+/// Forwarding is what earns it: without a spread, a variadic function cannot
+/// pass its own arguments on to another one, which is the commonest thing a
+/// variadic wrapper does.
+///
+/// Fails with: Expect ')' after parameters.  (file rejected -- no test ran)
+///
+function Count (Parts : String...) : Integer;
+begin
+    Exit Parts.Length;
+end
+
+function Forward (Parts : String...) : Integer;
+begin
+    Exit Count (Parts...);
+end
+
+function Wrap (Parts : String...) : Integer;
+begin
+    Exit Count (Parts);
+end
+
+test 'An argument may be spread with three dots';
+begin
+    AssertEqual (3, Count (Str ('a'), Str ('b'), Str ('c')));
+    AssertEqual (3, Forward (Str ('a'), Str ('b'), Str ('c')));
+    AssertEqual (1, Wrap (Str ('a'), Str ('b'), Str ('c')));
+
+    var Ready : List of String := [Str ('x'), Str ('y')];
+    AssertEqual (2, Count (Ready...));
+    AssertEqual (1, Count (Ready));
+end
