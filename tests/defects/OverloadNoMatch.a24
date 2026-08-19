@@ -1,0 +1,35 @@
+/// A call matching no signature is an error, under both processors.
+///
+/// G declares one parameter of type Integer.  Called with a String, the
+/// interpreter raises 'No matching signature for function.' and compiled code
+/// RUNS IT ANYWAY, binding the String to the Integer parameter and printing
+/// 'ran with x'.
+///
+/// ⚠️ A declared parameter type is a requirement, not a hint, and the compiled
+/// half currently treats it as a hint.  This is a silent type hole today, with
+/// no new feature involved -- and it has to be closed before overloading
+/// reaches file scope, because a no-match is exactly what an unresolved
+/// overload degrades into.
+///
+/// The test asserts the interpreter's answer, so it passes interpreted and
+/// fails compiled -- the same shape as EnumMemberSymbol.
+///
+/// Fails with: compiled only -- the call succeeds where it should raise.
+///
+class Strict;
+begin
+    function G (A : Integer) : String;
+    begin
+        Exit 'ran with ' + Str (A);
+    end
+end
+
+test 'A call matching no signature raises';
+begin
+    try
+        WriteLn (Strict ().G (Str ('x')));
+        Fail ('the call succeeded; it should have raised');
+    except
+        on E : String do AssertEqual ('No matching signature for function.', E);
+    end
+end

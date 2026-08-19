@@ -1,0 +1,28 @@
+/// The most specific overload wins, whatever order they were declared in.
+///
+/// Resolution today is first-declared-wins.  With Take(Any) written above
+/// Take(Integer), the call Take(1) selects the Any one; swap the declarations
+/// and the same call selects the Integer one.  Both processors agree, so this
+/// is a shared design rather than a divergence.
+///
+/// ⚠️ Declaration order deciding which function runs is a hazard on its own,
+/// but it also fights the compiler: a static resolver naturally picks the most
+/// specific candidate, so leaving the run time order-dependent guarantees the
+/// two paths disagree the moment direct calls are emitted.
+///
+/// The rule is exact match, then widening, then Any.  This file writes Any
+/// FIRST on purpose -- under the intended rule that placement changes nothing.
+///
+/// Fails with: Assertion 'left = right' failed.  Expected 'exact' but got 'any'.
+///
+class Chooser;
+begin
+    function Take (A : Any)     : String; begin Exit 'any';   end
+    function Take (N : Integer) : String; begin Exit 'exact'; end
+end
+
+test 'The most specific overload wins regardless of order';
+begin
+    AssertEqual ('exact', Chooser ().Take (1));
+    AssertEqual ('any',   Chooser ().Take (Str ('x')));
+end

@@ -689,10 +689,13 @@ end
 // two calls to Counter() yield independent counters
 ```
 
-**Top-level functions may not be overloaded.** Declaring two functions of the
-same name at file scope is a static error, `'F' is already defined.`, whatever
-their signatures. Methods may be overloaded; see
-[Method overloading](#method-overloading).
+**Functions may be overloaded.** Two functions of one name may be declared at
+file scope when their signatures differ; declaring two with the *same* signature
+is a static error, `'F' is already defined.` The rule is the same one that
+governs methods — see [Overload resolution](#overload-resolution).
+
+> **Not implemented.** A second top-level function of one name is refused
+> whatever its signature — [issue #11](https://github.com/schildawg/algol24/issues/11).
 
 ### Class declarations
 
@@ -753,18 +756,59 @@ the calling member.
 
 #### Method overloading
 
-Members overload on their **whole signature**, not on arity alone: a class may
-declare two members of one name each taking one argument that differ only in
-the declared parameter type. Selection happens when the call is made, using
-the run-time types of the arguments.
+Methods overload under the same rule as functions; see
+[Overload resolution](#overload-resolution).
+
+A failed match in a subclass falls through to the superclass, so declaring
+`Take(String)` in a subclass does not hide an inherited `Take(Integer)`.
+
+### Overload resolution
+
+Functions and methods overload on their **whole signature** — arity and declared
+parameter types together — so two of one name may differ only in the type of a
+single parameter. Two declarations with the same signature are a static error.
 
 ```pascal
 function Take (N : Integer) : String; begin Exit 'int'; end
 function Take (S : String)  : String; begin Exit 'str'; end
 ```
 
-A failed match in a subclass falls through to the superclass, so declaring
-`Take(String)` in a subclass does not hide an inherited `Take(Integer)`.
+A call selects the candidate of matching arity whose parameters best fit the
+arguments, considering each argument in turn and preferring, in this order:
+
+1. an **exact** type match;
+2. a match by [widening](#widening) — a `Char` argument to a `String` parameter,
+   an `Integer` to a `Double`;
+3. a parameter declared `Any`, which accepts anything.
+
+A candidate that fits at a better rank on some argument and a worse rank on
+another is **ambiguous** with its rival, and an ambiguous call is an error.
+Declaration order never decides anything: reordering two declarations cannot
+change which one a call selects.
+
+If no candidate matches, the call is an error — `No matching signature for
+function.` A parameter's declared type is a requirement, not a hint.
+
+> **Not implemented, in two ways.** Resolution is first-declared-wins rather
+> than most-specific ([issue #12](https://github.com/schildawg/algol24/issues/12)),
+> and a call matching no candidate is refused by the interpreter but runs anyway
+> when compiled ([issue #13](https://github.com/schildawg/algol24/issues/13)).
+
+#### Resolving at compile time
+
+A processor **may** resolve a call when it can determine the argument types
+statically, and emit a direct call rather than a search. This is an
+optimization, and it is permitted only because it is required to be invisible:
+the candidate chosen statically must be the one the rule above would choose from
+the run-time types. Where a static type is unknown, or is `Any`, the call is
+resolved when it is made.
+
+That requirement constrains the run-time representation as much as the compiler.
+Every type that may appear in a signature must be distinguishable at run time,
+or the two paths can disagree: with `F(Byte)` and `F(Integer)` declared and a
+`Byte` argument, a static resolver picks `F(Byte)` while a run time that stores
+a `Byte` as a plain integer picks `F(Integer)`. Same call, two functions, and
+no diagnostic from either.
 
 #### `ToString` and `ClassName`
 
@@ -1784,6 +1828,9 @@ a reader is entitled to know which.
 | [#8](https://github.com/schildawg/algol24/issues/8) | An integer literal too large for `Integer` is silently truncated: `10000000000` reads as `1410065408`. |
 | [#9](https://github.com/schildawg/algol24/issues/9) | `Byte`, `Short`, `Long` and `Single` do not exist, and neither do the numeric conversion functions or `Round`. |
 | [#10](https://github.com/schildawg/algol24/issues/10) | No hexadecimal, octal or binary literals, no exponent, and no `_` digit separator. Each scans as a number followed by an identifier. |
+| [#11](https://github.com/schildawg/algol24/issues/11) | A top-level function cannot be overloaded, though a method can. |
+| [#12](https://github.com/schildawg/algol24/issues/12) | Overload resolution is first-declared-wins; reordering two declarations changes which one a call runs. |
+| [#13](https://github.com/schildawg/algol24/issues/13) | A call matching no signature is refused interpreted and runs anyway compiled. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

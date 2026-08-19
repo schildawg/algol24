@@ -33,16 +33,19 @@ nothing more.
 | [8](https://github.com/schildawg/algol24/issues/8) | An integer literal too large for `Integer` is truncated | `LiteralRange` |
 | [9](https://github.com/schildawg/algol24/issues/9) | `Byte`, `Short`, `Long`, `Single` and the numeric conversions do not exist | `NumericTypes` |
 | [10](https://github.com/schildawg/algol24/issues/10) | No hex, octal, binary, exponent or `_` separators in literals | `NumberBases`, `NumberExponent`, `NumberSeparators` |
+| [11](https://github.com/schildawg/algol24/issues/11) | A top-level function cannot be overloaded | `OverloadTopLevel` |
+| [12](https://github.com/schildawg/algol24/issues/12) | Overload resolution is first-declared-wins | `OverloadSpecificity` |
+| [13](https://github.com/schildawg/algol24/issues/13) | A no-match call runs anyway when compiled | `OverloadNoMatch` |
 
 Issue 4 has no file because every reproduction here must be a `test` block that
 *passes* once fixed, and the correct outcome there is that the program is
 **refused** — which no passing test can express. Fixtures of that shape would
 need a different harness.
 
-Two of these fail in the compiled half only, which is why `run.sh` builds as well
-as interprets: `EnumMemberSymbol` passes interpreted and computes the wrong
-answer compiled, and `LengthBuiltin` is the mirror — it passes compiled, because
-here the normative half is the one that is wrong.
+Three of these fail in one half only, which is why `run.sh` builds as well as
+interprets. `EnumMemberSymbol` and `OverloadNoMatch` pass interpreted and fail
+compiled; `LengthBuiltin` is the mirror, passing compiled, because there the
+normative half is the one that is wrong.
 
 ## Ownership
 
@@ -330,3 +333,29 @@ which is where the language parts company with Java.
 Do [#8](https://github.com/schildawg/algol24/issues/8) first. A hex literal
 overruns `Integer` in eight characters, so adding bases before the range rule is
 fixed multiplies the ways to hit a silent truncation.
+
+## Issues 11, 12 and 13 — overloading
+
+Methods overload today, in both processors, and the emitter already mangles a
+signature into the symbol — `m_P_Show_1_Integer` beside `m_P_Show_1_String`.
+Top-level functions are refused with `'Show' is already defined.` whatever their
+signatures, so **the same two declarations are legal inside a class and illegal
+outside one**. That is a place the language stopped rather than a decision it
+made, and #11 removes it.
+
+The rule `ALGOL-24.md` now states is exact match, then widening, then `Any`,
+with genuine ties an error and **declaration order deciding nothing**.
+
+⚠️ **Fix 12 and 13 before 11.** Both are defects in the *existing* method
+overloading and #11 would inherit them. Resolution is first-declared-wins today,
+so writing `Take(Any)` above `Take(Integer)` makes `Take(1)` select the `Any`
+one — and a static resolver naturally picks the most specific candidate, so
+leaving the run time order-dependent guarantees the two paths disagree the
+moment direct calls are emitted. And a call matching no signature runs anyway
+when compiled, which is exactly what an unresolved overload degrades into.
+
+⚠️ The compile-time path is an **optimization and must be invisible**: the
+candidate chosen statically has to be the one the run-time rule would choose.
+That constrains the runtime as much as the compiler — every type that can appear
+in a signature needs a distinct tag, or `F(Byte)` and `F(Integer)` resolve one
+way statically and the other way dynamically. Recorded against #9.

@@ -1,0 +1,28 @@
+/// A top-level function may be overloaded.
+///
+/// Methods already overload, in both processors, and the emitter already
+/// mangles a method's signature into its symbol -- m_P_Show_1_Integer beside
+/// m_P_Show_1_String.  So the machinery exists and only file scope refuses it,
+/// with ''Show'' is already defined.'
+///
+/// ⚠️ That asymmetry is the whole argument for this: the same two declarations
+/// are legal inside a class and illegal outside one, which is a place the
+/// language stopped rather than a decision it made.
+///
+/// Fails with: 'Show' is already defined.  (file rejected -- no test ran)
+///
+function Show (N : Integer) : String;
+begin
+    Exit 'int';
+end
+
+function Show (S : String) : String;
+begin
+    Exit 'str';
+end
+
+test 'A top-level function may be overloaded';
+begin
+    AssertEqual ('int', Show (1));
+    AssertEqual ('str', Show (Str ('a')));
+end
