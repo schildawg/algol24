@@ -746,11 +746,31 @@ An argument may name the parameter it is for, with `=>`:
 WriteLn (Slice (Text => S, Count => 3));
 ```
 
-A named argument may appear in any order, and any parameter not supplied
-positionally or by name takes its default. Positional arguments, if any, come
-first and bind to the parameters in order; after the first named argument, every
-remaining argument must be named. Naming the same parameter twice, or naming one
-already bound positionally, is an error.
+**Positional and named arguments may be mixed, positional first.** Positional
+arguments bind to the parameters in declaration order; after the first named
+argument, every remaining argument must be named. Named arguments may appear in
+any order among themselves, and any parameter supplied neither way takes its
+default.
+
+```pascal
+function Slice (Text : String, Start : Integer := 0, Count : Integer := 1) : String;
+
+Slice (S, 1, 3)                     (* all positional *)
+Slice (S, Count => 3, Start => 1)   (* mixed; the named pair in either order *)
+Slice (Text => S, Count => 2)       (* all named; Start takes its default *)
+Slice (Count => 2, Text => S)       (* the same call *)
+```
+
+Two ways to get it wrong, both errors:
+
+```pascal
+Slice (Text => S, 1)                (* positional after a named argument *)
+Slice (S, Text => S2)               (* Text is already bound positionally *)
+```
+
+This is Python's rule for the forms this language has. Algol-24 has no variadic
+parameters, and no marker making a parameter positional-only or keyword-only, so
+every parameter may be supplied either way.
 
 `=>` rather than `=` because `f(Index = 1)` is already a legal call today — it
 passes the *comparison* `Index = 1` — so `=` cannot mean association without
