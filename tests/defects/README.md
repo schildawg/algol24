@@ -40,6 +40,7 @@ nothing more.
 | [15](https://github.com/schildawg/algol24/issues/15) | No parameter defaults, and no named arguments | `ParamDefaults`, `ParamNamed`, `ParamNamedResolution` |
 | [16](https://github.com/schildawg/algol24/issues/16) | No variadic parameters and no spread argument | `VariadicCollect`, `VariadicSpread`, `VariadicResolution` |
 | [17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit | `QualifiedTypeName` |
+| [18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name | `DuplicateExport` |
 
 Issues 4 and 14 are each **partly** unreproducible here, for one reason: every
 file must be a `test` block that *passes* once fixed, and where the correct
@@ -150,8 +151,9 @@ interpreter, which is `CaseCollectionMember` below.
 | `CaseSecondDeclaration` | two spellings, two variables | assertion fails, got `1` | assertion fails |
 | `CaseCollectionMember` | built-in collection member | `Undefined property 'contains'.` | **passes** |
 
-`lib/CaseUnit.a24` and `lib/Shapes.a24` are fixtures — for `CaseUnitQualifier`
-and `QualifiedTypeName` — and carry no tests of their own.
+`lib/CaseUnit.a24`, `lib/Shapes.a24`, `lib/Round.a24` and `lib/Flat.a24` are
+fixtures — for `CaseUnitQualifier`, `QualifiedTypeName` and `DuplicateExport` —
+and carry no tests of their own.
 
 Four things in that table are worth more than the row they occupy.
 
@@ -482,3 +484,27 @@ identifiers. They should not be — but the spelling survives anyway, because on
 token of lookahead separates the two uses of `.`: a dot continuing a qualified
 name is followed by an identifier, and a dot beginning `...` is not. So
 `Shapes.Circle...` parses. The reasoning changed; the syntax did not.
+
+## Issue 18 — two units exporting one name
+
+Two units may export the same name, with qualification distinguishing them at
+each use. Refused outright today.
+
+⚠️ **The interpreter's advice is the tell.** *"Mark it private in one of the
+modules"* asks a programmer to **avoid** the collision rather than resolve it,
+which is only ever the advice of a language with no way to say which name is
+meant. A module system whose names must be globally unique has not separated
+anything. This and #17 are one feature in two halves.
+
+⚠️ **#17 first, and this reproduction proves it.** `DuplicateExport` currently
+fails with `Expect ';' after variable declaration.` — its qualified *type
+annotations* are refused before the duplicate export is reached. Strip them and
+the real message appears. So the file cannot reach the defect it exists for
+until qualified type names land.
+
+⚠️ **And it widens #3.** `CEmitter` already renames a colliding symbol as
+`Name__Unit`, used today only for root and `private` collisions. Extending that
+to every duplicated export puts far more names through a separator that is **not
+injective** — `_` is a legal identifier character, so `a__b` collides with `a`
+renamed against unit `b`. Choose the separator before this lands; the mangling
+scheme in #3 frees the whole upper-case range, so a capital costs nothing.

@@ -1142,7 +1142,42 @@ private function Priv () : String; begin Exit 'p'; end
 #### Qualification
 
 `U.N` reaches the export `N` of unit `U`. Qualification reaches a unit's
-**exports only**, so it is not a way around `private`.
+**exports only**, so it is not a way around `private`. It reaches a type as
+readily as a value: `Shapes.Circle` names a class in an annotation, in an `is`
+test and in a `new` expression alike.
+
+#### Exporting one name from two units
+
+**Two units may export the same name.** Importing both is not an error, and
+neither is using either name — provided each use says which is meant.
+
+```pascal
+uses 'Round';                       // exports Circle
+uses 'Flat';                        // exports Circle
+
+var A : Round.Circle := Round.Circle ();
+var B : Flat.Circle  := Flat.Circle ();
+```
+
+A **bare** use of a name exported by more than one imported unit is an error,
+reported where it is used rather than where the units are imported. Importing
+two units that happen to share a name costs nothing until a program actually
+writes the ambiguous name.
+
+A file's own declaration shadows every import, so a file declaring `Circle`
+means its own, and reaches the others only by qualifying.
+
+This is what qualification is for. A module system whose names must be globally
+unique has not separated anything; the point of a unit is that it owns its
+names, and the point of `U.N` is to say whose you mean.
+
+> **Not implemented.** Two units exporting one name is refused outright:
+> `'Circle' is already defined; mark it private in one of the modules.` from the
+> interpreter, and `Two modules exporting 'Circle' is not supported by the C
+> back end yet.` from the compiler —
+> [issue #18](https://github.com/schildawg/algol24/issues/18). The advice in the
+> first message tells a programmer to avoid the collision rather than resolve
+> it, which is the workaround this rule removes.
 
 Which entity a name before the dot denotes follows ordinary scoping: a local
 binding, then an `object` or enumeration type of that name, then a unit. A
@@ -2051,6 +2086,7 @@ a reader is entitled to know which.
 | [#15](https://github.com/schildawg/algol24/issues/15) | Parameters have no defaults, and an argument cannot name its parameter with `=>`. |
 | [#16](https://github.com/schildawg/algol24/issues/16) | No variadic parameters and no spread argument; `...` is not a token. |
 | [#17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit, though a value can. |
+| [#18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name; the collision is refused rather than resolved by qualification. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

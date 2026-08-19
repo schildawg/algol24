@@ -1,0 +1,39 @@
+/// Two units may export the same name.
+///
+/// Refused outright today.  The interpreter says ''Circle'' is already defined;
+/// mark it private in one of the modules.' and the compiler says 'Two modules
+/// exporting ''Circle'' is not supported by the C back end yet.'
+///
+/// ⚠️ The interpreter's advice is the tell.  'Mark it private in one of the
+/// modules' asks the programmer to AVOID the collision rather than resolve it,
+/// which is only advice a language gives when it has no way to say which name
+/// is meant.  Qualification is that way, and this is what it is for: a module
+/// system whose names must be globally unique has not separated anything.
+///
+/// A bare use of an ambiguous name stays an error, reported where it is used
+/// rather than where the units are imported -- so importing two units that
+/// happen to share a name costs nothing until a program writes the name.  That
+/// case cannot be reproduced here, being a refusal.
+///
+/// ⚠️ Ordered behind #17.  This file's qualified TYPE annotations are refused
+/// before the duplicate export is ever reached, so it currently reports
+/// 'Expect '';'' after variable declaration.'  Strip the annotations and the
+/// real message appears: ''Circle'' is already defined; mark it private in one
+/// of the modules.'  Qualified type names therefore have to land first, or this
+/// reproduction cannot even reach the defect it is for.
+///
+/// Fails with: Expect ';' after variable declaration.  (file rejected -- no test ran)
+///
+uses 'lib/Round';
+uses 'lib/Flat';
+
+test 'Two units may export the same name';
+begin
+    var Curved : Round.Circle := Round.Circle ();
+    var Plane  : Flat.Circle  := Flat.Circle ();
+
+    AssertEqual (Str ('Round'), Curved.Kind ());
+    AssertEqual (Str ('Flat'),  Plane.Kind ());
+    AssertTrue  (Curved is Round.Circle);
+    AssertTrue  (Plane  is Flat.Circle);
+end

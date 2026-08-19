@@ -1,0 +1,11 @@
+unit Flat;
+
+/// A class deliberately sharing its name with the one in the sibling unit, so
+/// DuplicateExport has two Circles to tell apart.  Carries no tests of its own.
+class Circle;
+begin
+    function Kind () : String;
+    begin
+        Exit 'Flat';
+    end
+end
