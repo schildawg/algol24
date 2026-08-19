@@ -1,0 +1,22 @@
+/// REFUSE: A positional argument may not follow a named one.
+///
+/// Issue #15.  Positional arguments come first; after the first named argument
+/// every remaining one must be named.
+///
+/// ⚠️ This file is refused TODAY, and for the wrong reason -- '=>' does not
+/// scan, so it dies at 'Expect expression!' rather than at the rule.  That is
+/// precisely why the oracle checks the sentence and not merely the exit code: a
+/// harness asking only whether the program failed would report this as already
+/// correct, and would go on doing so after the feature landed.
+///
+/// The signature deliberately carries no default, so that nothing in it is
+/// refused ahead of the call and the reported sentence is the call's.
+///
+function Slice (Text : String, Start : Integer) : String;
+begin
+    Exit Copy (Text, Start, 1);
+end
+
+begin
+    WriteLn (Slice (Text => Str ('hello'), 1));
+end

@@ -1,0 +1,15 @@
+/// REFUSE: Undefined variable 'NeverDeclared'.
+///
+/// An unresolved name is a catchable run-time error interpreted and invalid C
+/// compiled -- issue #4.  Whichever way that is settled, the program must not
+/// build: either the name is refused statically, or the compiler emits
+/// something that raises.  What it may not do is hand cc a symbol that does not
+/// exist.
+///
+/// This is the clearest case for the harness.  The interpreter already fails
+/// here, with the right sentence, so clauses 1 and 2 pass today and clause 3 is
+/// the one that catches it.
+///
+begin
+    WriteLn (Str (NeverDeclared));
+end

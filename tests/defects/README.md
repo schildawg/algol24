@@ -42,13 +42,11 @@ nothing more.
 | [17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit | `QualifiedTypeName` |
 | [18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name | `DuplicateExport` |
 
-Issues 4 and 14 are each **partly** unreproducible here, for one reason: every
-file must be a `test` block that *passes* once fixed, and where the correct
-outcome is that a program is **refused**, no passing test can express it. Issue
-4 is entirely of that shape and has no file. Issue 14's syntax is covered by two
-files, but the static check it asks for is not — a check that fires produces no
-observable behaviour except the program failing to run. Fixtures of that shape
-need a refusal harness this repository does not have.
+Some rules cannot be reproduced as a `test` block at all: where the correct
+outcome is that a program is **refused**, there is no observable behaviour to
+assert, because a refusal is the absence of a run. Four issues hit that wall —
+4, 14, 15 and 18 — which is what `refuse/` is for. See its README; it runs as
+part of `run.sh`.
 
 Three of these fail in one half only, which is why `run.sh` builds as well as
 interprets. `EnumMemberSymbol` and `OverloadNoMatch` pass interpreted and fail
@@ -85,7 +83,13 @@ Two things that are *not* removal:
 ```sh
 ./tests/defects/run.sh            # every file, with the reason each still fails
 ./algc --test tests/defects/CaseLocalVariable.a24   # one of them
+./algc tests/defects/refuse/UnresolvedName.a24      # one refusal case
 ```
+
+Two kinds of file are checked. A `.a24` in this directory is a `test` block
+asserting the intended behaviour; a `.a24` in `refuse/` is a program that must
+be **refused**, carrying the sentence it must be refused with in a
+`/// REFUSE:` header.
 
 `run.sh` exits **non-zero only when a reproduction passes**, which is the
 inverse of a normal suite. Failure is the expected state here, so an exit code

@@ -1,0 +1,18 @@
+/// REFUSE: Type mismatch!
+///
+/// Storing a wrongly typed element in an annotated collection -- issue #14.
+/// The checker knows this argument is a String and does not look, so the
+/// program runs and L[0] comes back a String.
+///
+/// ⚠️ This is the file that could not exist in the parent directory.  A static
+/// check that fires produces NO observable behaviour except the program failing
+/// to run, so no passing test block can assert it.  The whole reason the
+/// refusal harness was built.
+///
+begin
+    var Items : List of Integer := [];
+
+    Items.Add (Str ('not an integer'));
+
+    WriteLn (Str (Items[0]));
+end

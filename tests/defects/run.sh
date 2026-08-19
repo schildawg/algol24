@@ -52,6 +52,25 @@ WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 # out empty, which reads as the harness being broken rather than the defect
 # being reproduced.  The last substitution renders any such byte as '.' so the
 # column stays printable.
+#
+# ⚠️ sentence() is reason() without the annotations, and the refusal oracle needs
+# it.  reason() appends '(file rejected -- no test ran)' for display, which is
+# useful in a report and fatal in a comparison: the first version of this
+# harness compared the annotated string against a /// REFUSE: header and
+# reported every correct refusal as a mismatch.
+sentence() {
+    local plain why
+    plain=$(printf '%s\n' "$1" | LC_ALL=C sed 's/'$'\033''\[[0-9;]*m//g')
+
+    why=$(printf '%s\n' "$plain" | LC_ALL=C grep -m1 '^\[ERROR\]' \
+          | LC_ALL=C sed -e 's/^\[ERROR\] [^:]*: //' -e 's/^Failed\.  //')
+
+    [ -z "$why" ] && why=$(printf '%s\n' "$plain" | LC_ALL=C grep -m1 '^Uncaught:' \
+                           | LC_ALL=C sed 's/^Uncaught: //')
+
+    printf '%s' "$why" | LC_ALL=C sed 's/[^ -~]/./g'
+}
+
 reason() {
     local plain why
     plain=$(printf '%s\n' "$1" | LC_ALL=C sed 's/'$'\033''\[[0-9;]*m//g')
@@ -80,6 +99,61 @@ reason() {
     [ -z "$why" ] && why="failed with no reportable line"
 
     printf '%s' "$why" | LC_ALL=C sed 's/[^ -~]/./g'
+}
+
+# --------------------------------------------------------------- refuse --
+#
+# A program in refuse/ must be REFUSED, and with the sentence its header names.
+#
+# ⚠️ The SENTENCE is the oracle, not the exit code.  Every file in refuse/ is
+# already refused for some reason -- a feature that does not parse is refused as
+# surely as a rule that is enforced -- so a check asking only whether the
+# program failed would report every one of them as already correct, and would go
+# on doing so after the rule landed.  Matching the sentence is what tells a rule
+# being applied apart from a syntax error standing in for it.
+#
+# ⚠️ And the compiler must refuse it too, rather than emitting.  A static error
+# is decided in the shared front end, so both processors should refuse alike;
+# one refusing while the other emits is the defect rather than a detail.  That
+# is exactly the shape of issue #4.
+refuse_one() {
+    local source="$1" want got out status
+    want=$(LC_ALL=C sed -n 's|^/// REFUSE: ||p' "$source" | head -1)
+
+    if [ -z "$want" ]; then
+        printf '%-26s BROKEN   no /// REFUSE: header\n' "$(basename "$source" .a24)"
+        return 1
+    fi
+
+    out=$("$ALGC" "$source" 2>&1); status=$?
+
+    if [ "$status" -eq 0 ]; then
+        printf '%-26s fails    not refused at all; expected: %s\n' \
+               "$(basename "$source" .a24)" "$want"
+        return 1
+    fi
+
+    got=$(sentence "$out")
+
+    if [ "$got" != "$want" ]; then
+        printf '%-26s fails    refused, but: %s\n' "$(basename "$source" .a24)" "$got"
+        return 1
+    fi
+
+    # Interpreted refusal is right.  The compiler must refuse too.
+    local out2="$WORK/r_$(basename "$source" .a24)"
+    rm -rf "$out2"; mkdir -p "$out2"
+    cp "$RUNTIME/algol.c" "$RUNTIME/algol.h" "$out2/"
+
+    if "$ALGC" --compile "--out=$out2" "$source" >/dev/null 2>&1 \
+       && [ -n "$(find "$out2" -name '*.c' ! -name algol.c -print -quit)" ]; then
+        printf '%-26s fails    interpreter refused it; the compiler emitted\n' \
+               "$(basename "$source" .a24)"
+        return 1
+    fi
+
+    printf '%-26s PASSES -- refused as specified\n' "$(basename "$source" .a24)"
+    return 0
 }
 
 fixed=0
@@ -112,6 +186,11 @@ for source in "$HERE"/*.a24; do
         printf '%-26s fails    compiled only: %s\n' "$name" "$(reason "$compiled")"
         failing=$((failing + 1))
     fi
+done
+
+for source in "$HERE"/refuse/*.a24; do
+    [ -e "$source" ] || continue
+    if refuse_one "$source"; then fixed=$((fixed + 1)); else failing=$((failing + 1)); fi
 done
 
 echo

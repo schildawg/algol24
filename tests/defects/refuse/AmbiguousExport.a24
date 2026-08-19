@@ -1,0 +1,19 @@
+/// REFUSE: 'Circle' is exported by units 'Round' and 'Flat'; qualify it.
+///
+/// Issue #18.  Importing two units that export one name is legal; using the
+/// bare name is not, and the error belongs where the name is USED rather than
+/// where the units are imported -- importing costs nothing until a program
+/// actually writes the ambiguous name.
+///
+/// ⚠️ The sentence here is proposed rather than observed.  Today the program is
+/// refused at the second 'uses' with ''Circle'' is already defined; mark it
+/// private in one of the modules', which is the defect: it refuses the import
+/// rather than the use, and advises avoiding the collision rather than naming
+/// which one is meant.
+///
+uses '../lib/Round';
+uses '../lib/Flat';
+
+begin
+    WriteLn (Circle ().Kind ());
+end
