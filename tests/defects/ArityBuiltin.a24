@@ -1,0 +1,38 @@
+/// Calling a built-in with the wrong number of arguments raises, catchably.
+///
+/// Same rule as ArityFunction.a24 and the same sentence, which ALGOL-24.md
+/// lists under Run-time errors: 'Expected 3 arguments but got 1.'  A built-in
+/// is a function, and nothing in the specification gives it a different rule.
+///
+/// ⚠️ Kept in its own file, and not folded into ArityFunction.a24, because the
+/// compiled half fails at EMIT time and takes the whole translation unit with
+/// it.  Sharing a file, this defect would stop the other one's tests from ever
+/// being emitted, and the harness would report one failure where there are two.
+///
+/// ⚠️ The compiled half refuses with 'A call to ''Copy'' is not supported by
+/// the C back end yet.' -- which is false, and that is the interesting part
+/// rather than a detail of wording.  Copy IS supported; CEmitter.Builtin keys
+/// its table on name AND arity ('Copy/3'), so a call with the wrong count
+/// misses the entry and falls through to the Unsupported(...) path meant for
+/// constructs the back end has not implemented.  A programmer reading it goes
+/// looking for a missing feature instead of a typo in their own call.
+///
+/// So there are two faults here, and a fix wants both: the program is refused
+/// where the specification says it should run and raise, and the sentence
+/// blames the wrong thing.
+///
+/// Interpreted: the test passes.
+/// Compiled:    no C is emitted at all, so nothing runs.
+///
+test 'A Built-In With Too Few Arguments Raises';
+begin
+    var Caught := '';
+
+    try
+        Copy ('hello');
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 3 arguments but got 1.', Caught);
+end

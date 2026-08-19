@@ -1,0 +1,60 @@
+/// Calling a top-level function with the wrong number of arguments raises.
+///
+/// ALGOL-24.md, under Function and procedure declarations: "Calling with too
+/// few arguments for the parameters that have no default, or with more than
+/// there are parameters to take them, is an error: 'Expected 1 arguments but
+/// got 0.'"  That message is listed under Run-time errors, so it is raised as a
+/// String and a handler for String catches it.
+///
+/// ⚠️ THE COMPILED HALF DOES NOT CHECK AT ALL, and this is not a refusal that
+/// arrives late -- it is an answer that is wrong.  Emitted code calls the
+/// function with whatever arguments were written, missing parameters arrive as
+/// nil, and a body that does not touch them returns normally.  The program
+/// below prints 42 and exits 0 when compiled, and is refused when interpreted.
+///
+/// That makes it the shape of defect the differential suites exist to catch and
+/// cannot: nothing in tests/programs/ calls a function with the wrong arity, so
+/// the two halves never had occasion to disagree where anyone was looking.
+///
+/// ⚠️ Assertion on the MESSAGE and not merely on 'something was caught'.  A
+/// handler that fires for the wrong reason would satisfy the weaker test, and
+/// the sentence is the part a program can act on.
+///
+/// Interpreted: both tests pass.
+/// Compiled:    both fail -- nothing is raised, so Caught is left empty.
+///
+function Three (A : Integer, B : Integer, C : Integer) : Integer;
+begin
+    // ⚠️ The body must NOT use its parameters.  An earlier draft summed them,
+    // and compiled code then failed with 'Operands must be two numbers, or two
+    // strings.' -- which looks like the arity being caught and is not.  It is
+    // nil arriving in A and reaching '+'.  A body that ignores them is what
+    // makes the silence visible.
+    Exit 42;
+end
+
+test 'Too Few Arguments Raises';
+begin
+    var Caught := '';
+
+    try
+        Three (1);
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 3 arguments but got 1.', Caught);
+end
+
+test 'Too Many Arguments Raises';
+begin
+    var Caught := '';
+
+    try
+        Three (1, 2, 3, 4);
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 3 arguments but got 4.', Caught);
+end

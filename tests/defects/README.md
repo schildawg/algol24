@@ -44,6 +44,7 @@ nothing more.
 | [19](https://github.com/schildawg/algol24/issues/19) | No `continue`, labels, labelled `break` or `goto` | `ContinueStatement`, `LabelledBreak`, `GotoStatement` |
 | [20](https://github.com/schildawg/algol24/issues/20) | The `constructor` keyword is decorative; `Init` decides | `ConstructorKeyword`, `ConstructorOverload`, `ConstructorNamed` |
 | [21](https://github.com/schildawg/algol24/issues/21) | `X.Init(5)` yields the instance interpreted, `nil` compiled | `ConstructorReinvoke` |
+| [22](https://github.com/schildawg/algol24/issues/22) | A wrong-arity call is unchecked when compiled and returns an answer | `ArityFunction`, `ArityBuiltin` |
 
 Some rules cannot be reproduced as a `test` block at all: where the correct
 outcome is that a program is **refused**, there is no observable behaviour to
@@ -600,3 +601,50 @@ neither trap exists here because initialisers are not staged per class.
 fails with *"Expected Char 'S' but got String 'S'"*, because a one-character
 literal is a `Char` and a `Char` does not compare equal to a `String`. The
 conformance file now uses `Str('S')` and carries a note saying why.
+
+## Issue 22 — wrong-arity calls
+
+`ALGOL-24.md` says a call with too few or too many arguments raises
+`Expected N arguments but got M.`, and lists that message under **run-time
+errors** — so it is catchable as a `String`. Three faults sit under that one
+rule, and the four call kinds behave three different ways.
+
+| Call kind | Interpreted | Compiled |
+|---|---|---|
+| top-level function, too few | raises, exit 70 | **prints the answer, exit 0** |
+| top-level function, too many | raises, exit 70 | **prints the answer, exit 0** |
+| method | `No matching signature for function.` | `Wrong number of arguments.` |
+| built-in | raises, exit 70 | **whole program refused at emit time** |
+
+⚠️ **The first is a wrong answer, not a late refusal.** Emitted code calls with
+whatever was written and missing parameters arrive as `nil`, so a body that does
+not touch them returns normally — `Three(1)` on a three-parameter function
+prints its result and exits 0. This is the shape the differential suites exist
+to catch and structurally cannot: nothing in `tests/programs/` calls anything
+with the wrong arity, so the two halves never disagreed where anyone was looking.
+
+⚠️ **A body that uses its parameters hides it.** Summing them fails compiled with
+`Operands must be two numbers, or two strings.`, which looks like the arity being
+caught and is `nil` reaching `+`. `ArityFunction`'s function returns a constant
+for exactly this reason, and says so.
+
+⚠️ **The built-in diagnostic is false.** `Copy('hello')` is refused with *"A call
+to `Copy` is not supported by the C back end yet"* — but `Copy` is supported.
+`CEmitter.Builtin` keys its table on name *and* arity (`'Copy/3'`), so a wrong
+count misses the entry and falls through to the `Unsupported(...)` path meant for
+constructs the back end has not implemented. A fix wants to keep that path for
+genuinely unsupported constructs and report arity as arity.
+
+The two reproductions are **kept in separate files deliberately**: the built-in
+fault aborts the whole translation unit, so sharing a file would stop
+`ArityFunction`'s tests from ever being emitted and the harness would report one
+failure where there are two.
+
+⚠️ Arity is knowable in the shared front end, so the check *could* be static —
+but the specification currently says it is not, and the reproductions assert the
+specification. That reading is worth revisiting rather than assuming: parameter
+defaults make the legal count a range (#15), variadics make it open-ended (#16),
+and a spread whose collection length is unknown before the program runs makes
+arity genuinely dynamic. The last means it cannot become purely static, which
+argues for fixing the compiled side to check at run time rather than moving the
+check forward. The issue carries that as an open question.
