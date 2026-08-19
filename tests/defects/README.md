@@ -39,6 +39,7 @@ nothing more.
 | [14](https://github.com/schildawg/algol24/issues/14) | Only `List` takes an element type, only on a variable | `ElementTypeCollections`, `ElementTypePositions` |
 | [15](https://github.com/schildawg/algol24/issues/15) | No parameter defaults, and no named arguments | `ParamDefaults`, `ParamNamed`, `ParamNamedResolution` |
 | [16](https://github.com/schildawg/algol24/issues/16) | No variadic parameters and no spread argument | `VariadicCollect`, `VariadicSpread`, `VariadicResolution` |
+| [17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit | `QualifiedTypeName` |
 
 Issues 4 and 14 are each **partly** unreproducible here, for one reason: every
 file must be a `test` block that *passes* once fixed, and where the correct
@@ -149,8 +150,8 @@ interpreter, which is `CaseCollectionMember` below.
 | `CaseSecondDeclaration` | two spellings, two variables | assertion fails, got `1` | assertion fails |
 | `CaseCollectionMember` | built-in collection member | `Undefined property 'contains'.` | **passes** |
 
-`lib/CaseUnit.a24` is a fixture for `CaseUnitQualifier` and carries no tests of
-its own.
+`lib/CaseUnit.a24` and `lib/Shapes.a24` are fixtures — for `CaseUnitQualifier`
+and `QualifiedTypeName` — and carry no tests of their own.
 
 Four things in that table are worth more than the row they occupy.
 
@@ -460,3 +461,24 @@ a method is variadic, after parameter types (#9) and parameter names (#15).
 Every call-site feature has to be visible to the dispatcher or the two halves
 resolve differently — a standing cost of #11's rule, and cheaper to design for
 than to retrofit.
+
+## Issue 17 — qualified type names
+
+A unit-qualified name works wherever a **value** is expected and nowhere a
+**type** is expected. `Shapes.Circle()` constructs today; `var C : Shapes.Circle`
+and `C is Shapes.Circle` are both refused, because `TypeName = identifier` and a
+qualified one is simply not in the grammar.
+
+⚠️ **The gap is larger than the inconsistency.** Two units exporting one name is
+refused outright, and the interpreter's advice — "mark it private in one of the
+modules" — tells you to avoid the collision rather than resolve it. A qualified
+type name is the mechanism that would resolve it, so this is the smaller half of
+a bigger question the spec deliberately leaves open: whether two units may export
+one name at all, which needs the emitter to disambiguate two `k_Circle` symbols
+across translation units.
+
+⚠️ This corrects #16. That issue justified the `...` spelling on types being bare
+identifiers. They should not be — but the spelling survives anyway, because one
+token of lookahead separates the two uses of `.`: a dot continuing a qualified
+name is followed by an identifier, and a dot beginning `...` is not. So
+`Shapes.Circle...` parses. The reasoning changed; the syntax did not.

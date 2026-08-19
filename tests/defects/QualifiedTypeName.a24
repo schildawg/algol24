@@ -1,0 +1,26 @@
+/// A type name may be qualified by the unit that exports it.
+///
+/// A qualified name already works wherever a VALUE is expected -- Shapes.Circle()
+/// constructs today -- and nowhere a TYPE is expected.  Both of these are
+/// refused:
+///
+///     var C : Shapes.Circle := Shapes.Circle ();
+///     WriteLn (Str (C is Shapes.Circle));
+///
+/// ⚠️ The gap matters more than the inconsistency does.  Two units exporting one
+/// name is refused outright -- ''Circle'' is already defined; mark it private in
+/// one of the modules.' -- and the advice there is to AVOID the collision rather
+/// than resolve it.  A qualified type name is the mechanism that would resolve
+/// it, so this is the smaller half of a larger gap.
+///
+/// Fails with: Expect ';' after variable declaration.  (file rejected -- no test ran)
+///
+uses 'lib/Shapes';
+
+test 'A type name may be qualified by its unit';
+begin
+    var Round : Shapes.Circle := Shapes.Circle ();
+
+    AssertEqual (3, Round.Area ());
+    AssertTrue  (Round is Shapes.Circle);
+end

@@ -758,6 +758,10 @@ function Log (Level : Integer, Parts : String...) : Nil;
   the trailing positional arguments, so a call cannot both fill it positionally
   and name an earlier parameter.
 - A type is not required. `Parts...` alone collects into a `List of Any`.
+- `...` follows a complete type, qualified or not, so `Shapes.Circle...` is
+  variadic. One token of lookahead separates the two uses of `.`: a dot
+  continuing a qualified name is followed by an identifier, and a dot beginning
+  `...` is not.
 
 #### Spread arguments
 
@@ -2046,6 +2050,7 @@ a reader is entitled to know which.
 | [#14](https://github.com/schildawg/algol24/issues/14) | Only `List` takes an element type, only on a variable declaration, and a wrongly typed write is never refused. |
 | [#15](https://github.com/schildawg/algol24/issues/15) | Parameters have no defaults, and an argument cannot name its parameter with `=>`. |
 | [#16](https://github.com/schildawg/algol24/issues/16) | No variadic parameters and no spread argument; `...` is not a token. |
+| [#17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit, though a value can. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

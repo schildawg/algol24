@@ -1,0 +1,12 @@
+unit Shapes;
+
+/// A class for QualifiedTypeName to name by its unit.  Carries no tests of its
+/// own: it is loaded by the file under test, and its tests would be reported
+/// alongside that file's.
+class Circle;
+begin
+    function Area () : Integer;
+    begin
+        Exit 3;
+    end
+end
