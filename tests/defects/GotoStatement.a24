@@ -1,0 +1,41 @@
+/// 'goto' transfers control to a labelled statement.
+///
+/// ⚠️ A goto may name a label in its own block or an ENCLOSING one, within the
+/// same function -- never into a nested block, never out of the function.  The
+/// reason is the exception frame stack rather than taste: every jump pops the
+/// frames between here and there, and the emitter already keeps a LoopTryDepth
+/// so a break can do it.  A jump outward has a depth to restore because those
+/// frames exist; a jump inward does not, because the frames that block would
+/// have opened were never opened.  There is no arithmetic to do.
+///
+/// ⚠️ goto and continue on the SAME label differ, and the second half of this
+/// test pins it: continue runs the loop's next iteration, goto re-enters the
+/// labelled statement from its beginning -- so on a for loop, goto restarts the
+/// initializer as well.  Both are well defined and someone will expect them to
+/// be the same.
+///
+/// Fails with: Expect ';' after expression.  (file rejected -- no test ran)
+///
+test 'goto transfers control to a label in an enclosing block';
+begin
+    var Trace : String  := '';
+    var Turns : Integer := 0;
+
+    for var I := 0; I < 4; I := I + 1 do
+    begin
+        if I = 2 then goto Done;
+        Trace := Trace + Str (I);
+    end
+
+    Trace := Trace + Str ('x');
+
+    Done: AssertEqual (Str ('01'), Trace);
+
+    Again: for var I := 0; I < 2; I := I + 1 do
+    begin
+        Turns := Turns + 1;
+        if Turns = 1 then goto Again;
+    end
+
+    AssertEqual (5, Turns);
+end

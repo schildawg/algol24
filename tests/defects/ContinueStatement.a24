@@ -1,0 +1,30 @@
+/// 'continue' begins a loop's next iteration.
+///
+/// There is no such statement today: 'continue' scans as an identifier, so the
+/// program fails with 'Undefined variable ''continue''.'
+///
+/// ⚠️ The compiler's own source works around its absence in THREE places, each
+/// saying so in a comment -- Interpreter.a24 wrapping a loop body in an 'if'
+/// 'because the language has no ''continue''', Parser.a24 using a nested while
+/// for the same reason, CEmitter.a24 guarding a branch because 'an ''Exit''
+/// here would abandon the whole of CollectUnits'.  A feature its own
+/// implementers have needed three times is not speculative.
+///
+/// Adding it costs no existing source: 'continue' and 'goto' appear nowhere in
+/// compiler/, tests/ or bench/ except inside those comments, so making them
+/// keywords collides with nothing.
+///
+/// Fails with: Undefined variable 'continue'.
+///
+test 'continue begins the next iteration';
+begin
+    var Seen : String := '';
+
+    for var I := 0; I < 4; I := I + 1 do
+    begin
+        if I = 1 then continue;
+        Seen := Seen + Str (I);
+    end
+
+    AssertEqual (Str ('023'), Seen);
+end

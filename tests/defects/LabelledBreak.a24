@@ -1,0 +1,45 @@
+/// A label names a statement, and break and continue may name it.
+///
+/// Labels do not parse today; 'Outer:' before a statement fails with
+/// 'Expect '';'' after expression.'
+///
+/// ⚠️ One namespace, so a label names a STATEMENT rather than belonging to a
+/// loop: break leaves it, continue begins its next iteration, goto re-enters it
+/// from the top.  Three verbs over one concept.
+///
+/// The distinction worth pinning is between goto and continue on the same
+/// label, which GotoStatement covers: continue runs the next iteration where
+/// goto restarts the loop initializer and all.
+///
+/// 'Ident :' cannot be confused with the start of an assignment, since ':=' is
+/// a single token -- so a label needs no declaration section, unlike Pascal's.
+///
+/// Fails with: Expect ';' after expression.  (file rejected -- no test ran)
+///
+test 'break and continue may name an enclosing loop';
+begin
+    var Found : String := '';
+    var Kept  : String := '';
+
+    Outer: for var I := 0; I < 3; I := I + 1 do
+    begin
+        for var J := 0; J < 3; J := J + 1 do
+        begin
+            if I * 3 + J = 4 then break Outer;
+            Found := Found + Str (I * 3 + J);
+        end
+    end
+
+    AssertEqual (Str ('0123'), Found);
+
+    Rows: for var I := 0; I < 3; I := I + 1 do
+    begin
+        for var J := 0; J < 3; J := J + 1 do
+        begin
+            if J = 1 then continue Rows;
+            Kept := Kept + Str (I) + Str (J);
+        end
+    end
+
+    AssertEqual (Str ('001020'), Kept);
+end

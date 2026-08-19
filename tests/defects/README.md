@@ -41,6 +41,7 @@ nothing more.
 | [16](https://github.com/schildawg/algol24/issues/16) | No variadic parameters and no spread argument | `VariadicCollect`, `VariadicSpread`, `VariadicResolution` |
 | [17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit | `QualifiedTypeName` |
 | [18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name | `DuplicateExport` |
+| [19](https://github.com/schildawg/algol24/issues/19) | No `continue`, labels, labelled `break` or `goto` | `ContinueStatement`, `LabelledBreak`, `GotoStatement` |
 
 Some rules cannot be reproduced as a `test` block at all: where the correct
 outcome is that a program is **refused**, there is no observable behaviour to
@@ -512,3 +513,36 @@ to every duplicated export puts far more names through a separator that is **not
 injective** — `_` is a legal identifier character, so `a__b` collides with `a`
 renamed against unit `b`. Choose the separator before this lands; the mangling
 scheme in #3 frees the whole upper-case range, so a capital costs nothing.
+
+## Issue 19 — continue, labels and goto
+
+A label names a **statement**, in one namespace: `break L` leaves it,
+`continue L` begins its next iteration, `goto L` re-enters it from the
+beginning. No `label` declaration section is needed, because `Ident :` cannot be
+confused with the start of an assignment — `:=` is a single token.
+
+⚠️ **`continue` is wanted by this compiler already.** Its own source works around
+the absence in three places, each saying so in a comment: an `if` around a loop
+body in `Interpreter.a24`, a nested `while` in `Parser.a24`, a guarded branch in
+`CEmitter.a24` where *"an `Exit` here would abandon the whole of CollectUnits"*.
+
+⚠️ **`goto L` and `continue L` on one loop label differ**, and `GotoStatement`
+pins it: `continue` runs the next iteration, `goto` restarts the statement,
+initializer and all. Both well defined, and someone will expect them to be the
+same.
+
+⚠️ **A goto may name a label in its own block or an enclosing one, never inward,
+and the reason is the exception frame stack rather than taste.** Every jump pops
+the frames between here and there; the emitter already keeps a `LoopTryDepth` so
+a `break` can do it, added after a `break` out of a `try` left the runtime's
+frame stack pointing at a returned C frame — *"It did not survive algc compiling
+itself, which is where it was found."* A jump outward has a depth to restore
+because those frames exist. A jump inward does not, because the frames that
+block would have opened were never opened.
+
+⚠️ **Backward `goto` is the one shape change**, and not where it looks. Forward
+jumps unwind like `break`. Backward ones cannot: an exception travels only
+outward, so a tree-walker needs block execution to become **resumable** — unwind
+to the block holding the label, then re-enter its statement list at that index.
+The C side is easy by comparison, since C has `goto` and the same-function rule
+keeps every jump inside one C function.

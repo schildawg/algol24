@@ -158,12 +158,12 @@ The following identifiers are reserved and may not be used as names:
 
 ```
 and         as          begin       break       case        class
-const       constructor do          else        end         except
-exit        false       for         function    if          in
-is          nil         not         object      of          or
-print       private     procedure   public      raise       super
-then        this        true        try         type        uses
-var         while
+const       constructor continue    do          else        end
+except      exit        false       for         function    goto
+if          in          is          nil         not         object
+of          or          print       private     procedure   public
+raise       super       then        this        true        try
+type        uses        var         while
 ```
 
 `unit`, `test` and `on` are **not** keywords. They are ordinary identifiers
@@ -1380,9 +1380,14 @@ enumeration type must be compared rather than tested.
 ## Statements
 
 ```
-Statement = Block | VarDecl | ConstDecl | ExpressionStmt | AssignStmt
+Statement = [ Label ] UnlabelledStmt .
+Label     = identifier ":" .
+
+UnlabelledStmt
+          = Block | VarDecl | ConstDecl | ExpressionStmt | AssignStmt
           | IfStmt | WhileStmt | ForStmt | ForInStmt | CaseStmt
-          | BreakStmt | ExitStmt | RaiseStmt | TryStmt | PrintStmt .
+          | BreakStmt | ContinueStmt | GotoStmt
+          | ExitStmt | RaiseStmt | TryStmt | PrintStmt .
 Block     = "begin" { Statement | Declaration } "end" .
 ```
 
@@ -1508,14 +1513,67 @@ else
 end
 ```
 
-### Break statements
+### Labels
+
+Any statement may be preceded by a label, which names it for `break`,
+`continue` and `goto`. There is one label namespace and no `label` declaration
+section.
+
+```pascal
+Outer: for var I := 0; I < 3; I := I + 1 do
+begin
+    for var J := 0; J < 3; J := J + 1 do
+    begin
+        if Grid[I][J] = Wanted then break Outer;
+    end
+end
+```
+
+A label is in scope from the statement it names to the end of the block
+containing that statement. Two labels of the same name may not be in scope at
+once. `Ident :` cannot be mistaken for the start of an assignment, since `:=` is
+a single token.
+
+### Break, continue and goto
 
 ```
-BreakStmt = "break" ";" .
+BreakStmt    = "break" [ identifier ] ";" .
+ContinueStmt = "continue" [ identifier ] ";" .
+GotoStmt     = "goto" identifier ";" .
 ```
 
-`break` leaves the innermost enclosing loop. There is no label and no
-`continue`.
+`break` leaves a loop; `continue` begins its next iteration. Without a label
+each acts on the innermost enclosing loop; with one, on the loop the label
+names, which must enclose the statement.
+
+`goto` transfers control to the labelled statement, which is then executed from
+its beginning. On a loop that means the loop restarts, initializer and all —
+which is what distinguishes `goto L` from `continue L`.
+
+#### Where a goto may go
+
+**A `goto` may name a label in its own block or in an enclosing block, within
+the same function.** It may not jump into a nested block, and may not leave the
+function it is in.
+
+The reason is not fashion, and it is worth stating because it also explains why
+labelled `break` and `continue` are unaffected. Every jump has to pop the
+exception frames lying between where it is and where it goes: `break` already
+pops back to the depth its loop began at, and the emitter keeps a `LoopTryDepth`
+for precisely that, because a `break` out of a `try` that skipped the pop left
+the runtime's frame stack pointing at a C frame that had returned.
+
+A jump **outward** has a depth to restore, because the frames between here and
+there exist and can be counted. A jump **inward** does not: the frames that
+block would have opened were never opened, so there is no arithmetic to do. The
+constraint is what the frame stack can express, not a matter of taste.
+
+Labelled `break` and `continue` name an enclosing loop by construction, so they
+are always in the permitted direction.
+
+> **Not implemented.** There is no `continue`, no label and no `goto` —
+> [issue #19](https://github.com/schildawg/algol24/issues/19). The compiler's own
+> source works around the absence of `continue` in three places.
 
 ### Exit statements
 
@@ -2087,6 +2145,7 @@ a reader is entitled to know which.
 | [#16](https://github.com/schildawg/algol24/issues/16) | No variadic parameters and no spread argument; `...` is not a token. |
 | [#17](https://github.com/schildawg/algol24/issues/17) | A type name cannot be qualified by its unit, though a value can. |
 | [#18](https://github.com/schildawg/algol24/issues/18) | Two units cannot export the same name; the collision is refused rather than resolved by qualification. |
+| [#19](https://github.com/schildawg/algol24/issues/19) | No `continue`, no statement labels, no labelled `break`, and no `goto`. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.
