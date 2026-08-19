@@ -190,8 +190,33 @@ Any other character is a lexical error.
 ### Integer literals
 
 ```
-int_lit = decimal_digit { decimal_digit } .
+int_lit      = dec_lit | hex_lit | oct_lit | bin_lit .
+dec_lit      = decimal_digit { [ "_" ] decimal_digit } .
+hex_lit      = "0" ( "x" | "X" ) hex_digit    { [ "_" ] hex_digit } .
+oct_lit      = "0" ( "o" | "O" ) octal_digit  { [ "_" ] octal_digit } .
+bin_lit      = "0" ( "b" | "B" ) binary_digit { [ "_" ] binary_digit } .
+
+hex_digit    = "0" … "9" | "A" … "F" | "a" … "f" .
+octal_digit  = "0" … "7" .
+binary_digit = "0" | "1" .
 ```
+
+An integer may be written in base 10, 16, 8 or 2: `65535`, `0xFFFF`, `0o1234`,
+`0b1111`. The prefix letter and the hexadecimal digits are case-insensitive, so
+`0XFF` and `0xff` are the same literal.
+
+A leading zero does **not** make a literal octal. `0123` is one hundred and
+twenty-three, and octal is written `0o123` or not at all.
+
+An underscore may separate digits: `1_000_000`, `0xFFF_FFF`, `0b1010_1010`. The
+grammar above states the whole rule — **an underscore must have a digit
+immediately on both sides**. So `_1`, `1_`, `1__0` and `0x_FF` are all
+malformed, and an underscore never appears next to the prefix, the point or the
+exponent marker. Underscores have no meaning; they are removed before the value
+is read.
+
+Every form denotes a **value**, not a bit pattern. `0xFFFFFFFF` is 4294967295,
+so by the rule below it is a `Long`; it is not `-1`.
 
 An integer literal takes the **narrowest of `Integer` and `Long` that holds its
 value**. `1` is an `Integer`; `10000000000` is a `Long`. A literal too large for
@@ -210,13 +235,29 @@ to `1`. There is no base prefix and no digit separator.
 ### Floating-point literals
 
 ```
-float_lit = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit } .
+float_lit = dec_lit "." dec_lit [ exponent ]
+          | dec_lit exponent .
+exponent  = ( "e" | "E" ) [ "+" | "-" ] dec_lit .
 ```
 
 A floating-point literal has type `Double`. There is no literal form for
-`Single`; a literal reaches it by an explicit conversion. A fractional part is what makes a
-literal a `Double`, and it is recognised only when a digit follows the `.`;
-`1.` is the integer `1` followed by the `.` operator.
+`Single`; a literal reaches it by an explicit conversion.
+
+A literal is a `Double` when it has a fractional part, an exponent, or both:
+`1.5`, `1.1e-9`, `1e9`. A fractional part is recognised only when a digit
+follows the `.`, so `1.` is the integer `1` followed by the `.` operator.
+
+The exponent marker is `e` or `E`, its sign is optional, and its digits are
+decimal whatever the mantissa looks like. There is no exponent on a hexadecimal,
+octal or binary literal; those are integer forms only.
+
+Underscores may separate digits here too, under the same rule — between two
+digits and nowhere else. `1_000.000_1` and `1e1_0` are well formed; `1_.0`,
+`1._0` and `1e_9` are not.
+
+> **Not implemented.** None of the bases, the exponent or the separators are
+> accepted — [issue #10](https://github.com/schildawg/algol24/issues/10). Each
+> currently scans as a number followed by an identifier.
 
 **There is no exponent notation.** `1.0e6` is not a floating-point literal: it
 scans as the literal `1.0` followed by the identifier `e6`.
@@ -1742,6 +1783,7 @@ a reader is entitled to know which.
 | [#7](https://github.com/schildawg/algol24/issues/7) | No widening is implemented. `'A' = Str('A')` is `False`, `var D : Double := 1` is rejected, and text has no order. Also: a one-code-point `test` name does not parse. |
 | [#8](https://github.com/schildawg/algol24/issues/8) | An integer literal too large for `Integer` is silently truncated: `10000000000` reads as `1410065408`. |
 | [#9](https://github.com/schildawg/algol24/issues/9) | `Byte`, `Short`, `Long` and `Single` do not exist, and neither do the numeric conversion functions or `Round`. |
+| [#10](https://github.com/schildawg/algol24/issues/10) | No hexadecimal, octal or binary literals, no exponent, and no `_` digit separator. Each scans as a number followed by an identifier. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.

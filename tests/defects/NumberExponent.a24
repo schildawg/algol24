@@ -1,0 +1,24 @@
+/// A floating-point literal may carry an exponent.
+///
+/// There is no exponent notation today: 1.1e-9 scans as 1.1, then the
+/// identifier e, then minus, then 9.
+///
+/// ⚠️ This one costs the emitter nothing, and the evidence is already in the
+/// build.  VisitLiteral emits alg_double(Str(Value)) -- the value re-rendered,
+/// never the lexeme -- and Str already writes E notation, so the literal
+/// 1000000000.0 reaches C today as alg_double(1.0E9).  The path is exercised on
+/// every build; exponent literals only let a program reach it directly.
+///
+/// An exponent alone makes a literal a Double, with no fractional part needed,
+/// which is why 1e9 is asserted against a Double rather than an Integer.
+///
+/// Fails with: Expect ')' after arguments.  (file rejected -- no test ran)
+///
+test 'A floating-point literal may carry an exponent';
+begin
+    AssertEqual (0.0000000011, 1.1e-9);
+    AssertEqual (1000000000.0, 1e9);
+    AssertEqual (1000000000.0, 1E9);
+    AssertEqual (1500.0, 1.5e+3);
+    AssertTrue  (1e9 is Double);
+end

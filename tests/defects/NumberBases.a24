@@ -1,0 +1,28 @@
+/// An integer may be written in base 16, 8 or 2.
+///
+/// 0xFFFF, 0o1234 and 0b1111 all scan today as the digit 0 followed by an
+/// identifier -- xFFFF, o1234, b1111 -- so a program using one fails in the
+/// parser with a message about the surrounding expression rather than about the
+/// literal.
+///
+/// ⚠️ A leading zero does NOT make a literal octal, and this test pins that.
+/// 0123 is one hundred and twenty-three.  C's rule has cost the world more
+/// debugging hours than it ever saved keystrokes, and the 0o prefix exists so
+/// the language never needs it.
+///
+/// Every form denotes a VALUE rather than a bit pattern, which is why 0xFFFFFFFF
+/// is 4294967295 and not -1.  That follows from the literal rule -- narrowest of
+/// Integer and Long that holds the value -- applying to every base alike, and it
+/// is where the language parts company with Java.
+///
+/// Fails with: Expect ')' after arguments.  (file rejected -- no test ran)
+///
+test 'An integer may be written in hex, octal or binary';
+begin
+    AssertEqual (65535, 0xFFFF);
+    AssertEqual (65535, 0XFFFF);
+    AssertEqual (65535, 0xffff);
+    AssertEqual (668,   0o1234);
+    AssertEqual (15,    0b1111);
+    AssertEqual (123,   0123);
+end

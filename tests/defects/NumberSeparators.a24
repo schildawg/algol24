@@ -1,0 +1,26 @@
+/// An underscore may separate digits in a numeric literal.
+///
+/// 1_000_000 scans today as the integer 1 followed by the identifier _000_000,
+/// because '_' begins an identifier.  That is what makes this a scanner change
+/// rather than a grammar addition: the two readings overlap and the number
+/// scanner has to win.
+///
+/// ⚠️ The whole rule is that an underscore must have a digit immediately on both
+/// sides.  One sentence, and it outlaws every awkward case at once -- leading,
+/// trailing, doubled, next to the 0x prefix, next to the point, next to the
+/// exponent marker.  Java and Rust permit 1__000; this does not, because a rule
+/// that fits in a sentence is worth more than the doubled underscore is.
+///
+/// Underscores carry no meaning and are removed before the value is read, so
+/// 1_000 and 1000 are the same literal and not merely equal ones.
+///
+/// Fails with: Expect ')' after arguments.  (file rejected -- no test ran)
+///
+test 'An underscore may separate digits';
+begin
+    AssertEqual (1000000, 1_000_000);
+    AssertEqual (16777215, 0xFF_FF_FF);
+    AssertEqual (170, 0b1010_1010);
+    AssertEqual (1000.0001, 1_000.000_1);
+    AssertEqual (10000000000.0, 1e1_0);
+end

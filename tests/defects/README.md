@@ -32,6 +32,7 @@ nothing more.
 | [7](https://github.com/schildawg/algol24/issues/7) | No widening; `'A' = Str('A')` is `False`; text has no order | `TypeWidening`, `TypeEquality`, `TypeOrdering` |
 | [8](https://github.com/schildawg/algol24/issues/8) | An integer literal too large for `Integer` is truncated | `LiteralRange` |
 | [9](https://github.com/schildawg/algol24/issues/9) | `Byte`, `Short`, `Long`, `Single` and the numeric conversions do not exist | `NumericTypes` |
+| [10](https://github.com/schildawg/algol24/issues/10) | No hex, octal, binary, exponent or `_` separators in literals | `NumberBases`, `NumberExponent`, `NumberSeparators` |
 
 Issue 4 has no file because every reproduction here must be a `test` block that
 *passes* once fixed, and the correct outcome there is that the program is
@@ -300,3 +301,32 @@ unambiguous.
 the specified `Integer` wrap — arithmetic wrapping operates on values the author
 wrote, whereas here the literal itself is altered before the program starts. A
 constant is the one place a processor always has enough information to refuse.
+
+## Issue 10 — number literals
+
+`ALGOL-24.md` admits `0xFFFF`, `0o1234`, `0b1111`, `1.1e-9` and `1_000_000`.
+None of them scan; each is read as a number followed by an identifier.
+
+⚠️ **This is a scanner change and reaches the emitter not at all**, which was
+checked rather than assumed. `VisitLiteral` emits `alg_int(Str(Value))` — the
+value re-rendered, never the lexeme — so `0b1111` arrives in C as
+`alg_int(15)`. That matters, because C11 has no `0b`, no `0o` and no digit
+separators: had the lexeme leaked, three of the five forms would have broken the
+build rather than merely misbehaved. The exponent case is already proven, since
+`Str` renders a `Double` in E notation and the literal `1000000000.0` reaches C
+as `alg_double(1.0E9)` on every build today.
+
+⚠️ **The separator is the one with real ambiguity.** `_` already begins an
+identifier, so `1_000` has two valid readings and the number scanner has to win.
+The other four forms are unambiguous, since no identifier may begin with a
+digit.
+
+Two rules worth knowing because they are choices rather than conventions. A
+leading zero does **not** make a literal octal — `0123` is one hundred and
+twenty-three. And every base denotes a **value**, not a bit pattern, so
+`0xFFFFFFFF` is 4294967295 and by the literal rule a `Long`; it is not `-1`,
+which is where the language parts company with Java.
+
+Do [#8](https://github.com/schildawg/algol24/issues/8) first. A hex literal
+overruns `Integer` in eight characters, so adding bases before the range rule is
+fixed multiplies the ways to hit a silent truncation.
