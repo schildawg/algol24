@@ -1,0 +1,53 @@
+name: CI
+
+# Prime Directive conditions 1, 2, 4, 5 and 6, mechanised.  Condition 3 -- the
+# Tester approves -- stays a human act and is deliberately not here.
+#
+# ⚠️ Required-review protection cannot express condition 3 on this repository.
+# Every role pushes as the same GitHub account, and GitHub will not let a pull
+# request's author approve it, so requiring a review would block every merge
+# rather than gate one.  These checks are what `main` requires instead.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ladder:
+    name: build and suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Stage 1 from the checked-in seed, stage 2 from stage 1.  A stale seed
+      # is reported here but not fatal; `test.sh fixedpoint` is what fails on
+      # it, so the build step passing does not by itself mean the seed is
+      # fresh.
+      - name: Two-stage build
+        run: ./build.sh
+
+      # ⚠️ Bare `./test.sh` is correct on Linux and is not a way of dodging the
+      # macOS suites.  `leaks` and `memory` detect their own absence and skip
+      # without touching the exit code, so this runs unit, conformance,
+      # compiled, programs and fixedpoint -- and fixedpoint is the one that
+      # matters most, since a determinism bug can pass every other suite.
+      - name: Suites, including the fixed point
+        run: ./test.sh
+
+  # ⚠️ Deliberately NOT a required check, and it must never become one.
+  # tests/defects/ inverts the usual convention: every file in it fails on
+  # purpose, and run.sh exits non-zero when a reproduction *passes*, which is
+  # the signal a defect is fixed.  As a merge gate it would block exactly the
+  # pull requests that fix something.  It runs here to report that signal.
+  defects:
+    name: defect reproductions (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./build.sh
+      - name: Reproductions -- a failure here means a defect is fixed
+        run: ./tests/defects/run.sh
