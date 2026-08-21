@@ -95,9 +95,26 @@ six conditions. That matters more here than in most repositories: a fixed-point
 failure is exactly the kind of defect you bisect for, and a bisect that lands on
 a half-reseeded commit tells you nothing.
 
-**Require a review.** Prime Directive condition 3 is that the Tester approves the
-work. Branch protection on `main` requiring one approving review is that
-condition mechanised, rather than left to memory.
+**A required status check, not a required review.** Branch protection on `main`
+requires the check `build and suites`, which runs `./build.sh` and then
+`./test.sh` on Linux. `strict` is on, so a branch must be up to date with `main`
+before it can merge — which is what makes the rebase rule above enforced rather
+than remembered, since a stale branch is exactly how a seed diff gets built on an
+old `bootstrap/`.
+
+That covers conditions 1, 2, 4, 5 and 6 — the five a person is worst at running
+reliably.
+
+⚠️ **A green check is not an approval.** Condition 3 is that the Tester approves
+the work, and it is deliberately not mechanised. It could not be: every role on
+this project authenticates to GitHub as the same account, and GitHub will not let
+a pull request's author approve it, so requiring a review would block every merge
+rather than gate one. The roles are separated by working directory, never by
+identity. `enforce_admins` is `false` besides, so the gate can be bypassed.
+
+The judgement condition 3 asks for is the part no check performs. Read the diff,
+run the ladder in your own clone, and say plainly if a fix closes its own issue
+while regressing something else.
 
 ## Naming
 
@@ -114,18 +131,24 @@ above, and buys nothing that a per-issue branch does not.
 ## Review noise
 
 `bootstrap/*.c` is generated. Marking it in `.gitattributes` keeps a review of a
-15-line compiler change from opening as an 800-line diff:
+15-line compiler change from opening as an 800-line diff. This is what the
+repository carries:
 
 ```
-bootstrap/*.c  linguist-generated=true  -diff
-bootstrap/*.h  linguist-generated=true  -diff
+bootstrap/*.c   linguist-generated=true
+bootstrap/*.h   linguist-generated=true
+bootstrap/algol.c   -linguist-generated
+bootstrap/algol.h   -linguist-generated
 ```
 
 ⚠️ `bootstrap/algol.c` and `bootstrap/algol.h` are **not** generated — they are
-the hand-written runtime, and a rule matching them would hide real changes. List
-them back:
+the hand-written runtime, copied verbatim into every emitted directory rather
+than produced from anything. A rule matching them would hide real changes, so
+they are listed back.
 
-```
-bootstrap/algol.c  linguist-generated=false  diff
-bootstrap/algol.h  linguist-generated=false  diff
-```
+⚠️ **`-diff` is deliberately not used here.** It would suppress the diff locally
+as well as in review, and reading `bootstrap/` is precisely what checking a
+reseed consists of — so it would disable the inspection the fixed point exists to
+support. The rule above is presentation only: `git diff` still shows every line.
+This is the same argument that exempts the runtime, applied to the seed at the
+one moment it matters most.
