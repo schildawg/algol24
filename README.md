@@ -284,10 +284,18 @@ the first release.
 |---|---|---|
 | **Schildawg** | Project lead | owns the language; settles the [open decisions](ALGOL-24.md#open-decisions) |
 | **Plumb** | Specification & conformance | maintains `ALGOL-24.md`, probes both processors for compliance, writes the tests in `tests/defects/` that decide it, and files the gaps as issues |
+| **Tiller** | Product management | owns the order of the backlog — sequences the open issues, keeps the dependencies between them visible, and says what is pulled next |
 
-More to be added as they join: a Product Manager prioritising the backlog, a
-Developer pulling tickets, a Tester approving the work before it merges, and a
-Client building on Algol-24.
+More to be added as they join: a Developer pulling tickets, a Tester approving
+the work before it merges, and a Client building on Algol-24.
+
+Tiller does not decide *whether* an issue ships. The backlog is the first
+release: Schildawg specified it feature by feature, Plumb wrote it up as issues
+and conformance tests, and when it is empty Algol-24 is at v1. What is left to
+decide is the order, and the order is not free — the issues gate one another,
+and every change to `compiler/` ends in a reseed that rewrites the generated
+`bootstrap/`, so two tracks worked at once collide there. Sequencing is
+therefore a real cost, and it is the job.
 
 The separation is deliberate. Specification, implementation and approval are
 held by different people, so no one marks their own homework — see
