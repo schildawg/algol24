@@ -8,9 +8,12 @@ What this document adds is **order**, which is the one thing left open — the
 issues gate one another, and much of the gating is recorded inside issue bodies
 rather than anywhere a reader would look.
 
-**Thirty-five open defects, and no open decisions.** The release criterion's
-first half is met: what stands between here and 1.0 is work rather than
-questions.
+**Thirty-eight open issues — thirty-four of them language defects — and no open
+decisions.** The release criterion's first half is met: what stands between here
+and 1.0 is work rather than questions.
+
+⚠️ Count these with an explicit limit. `gh issue list` silently defaults to
+`--limit 30`, which is below the backlog and will quietly under-report it.
 
 Owned by Tiller. Written against `43207e9`, in which Plumb folded all seven
 rulings into [`ALGOL-24.md`](ALGOL-24.md) and filed the implementation work each
@@ -193,6 +196,9 @@ are written, and diagnostics point at the source.*
 | [#4](https://github.com/schildawg/algol24/issues/4) | `priority/3` | An unresolved name emits invalid C instead of being refused |
 | [#7](https://github.com/schildawg/algol24/issues/7) | `priority/3` | `Char` does not widen to `String`, `Integer` does not widen to `Double` |
 | [#14](https://github.com/schildawg/algol24/issues/14) | `priority/3` | Only `List` takes an element type |
+| [#43](https://github.com/schildawg/algol24/issues/43) | `priority/2` | Untyped and `Any` are two representations in `TypeChecker` and are one type |
+| [#44](https://github.com/schildawg/algol24/issues/44) | `priority/3` | Assignability accepts `Any` in both directions |
+| [#45](https://github.com/schildawg/algol24/issues/45) | `priority/4` | Delete `as` once the checker no longer needs it |
 
 **The order inside this milestone is the whole point.** The sequence ruled in
 [#32](https://github.com/schildawg/algol24/issues/32) is:
@@ -205,11 +211,35 @@ are written, and diagnostics point at the source.*
 Applying step 3 before step 2 would demand 285 `as` casts in `compiler/` — the
 exact casts step 4 exists to delete.
 
-🚩 **Steps 1, 3 and 4 have no open issue.** #28 is step 2 and is scoped to
-inference alone; #32 is closed as a ruling. So three quarters of the chain is
-specified and untracked, and a Developer working from the issue list would find
-only the middle step. Flagged to Plumb — this wants a ticket before anyone pulls
-#28, or the follow-on work has nowhere to live.
+All four now have tickets — [#43](https://github.com/schildawg/algol24/issues/43),
+#28, [#44](https://github.com/schildawg/algol24/issues/44) and
+[#45](https://github.com/schildawg/algol24/issues/45). Three of them did not
+when this document was first written; #28 sat in the neighbourhood and read as
+covering a chain it is only the middle of.
+
+**#43 is the one to pull today.** It is the only step of the four not waiting on
+#28: both spellings short-circuit identically at `TypeChecker.a24:288-289`, so
+merging them is **behaviour-preserving**. It must also land *before* #44 rather
+than with it — written against two representations the asymmetric rule becomes
+four conditions with a chance for the pair to drift, and a drift between
+"untyped" and `Any` is precisely the distinction the ruling says does not exist.
+
+**#45 closes on a count, not an edit**, which is the useful shape for this
+graph: **63 `as` casts in `compiler/` at `43207e9`**, across nine files —
+Interpreter 18, Environment 14, CEmitter 11, TypeChecker 6, Parser 5, ObjClass
+4, Resolver 3, ObjInstance 1, Scanner 1. Each is a place the checker gave up.
+The keyword goes when that number does, and if it stalls well above zero that is
+a finding about **#28**, not a reason to keep `as`.
+
+⚠️ `Environment.a24`'s fourteen are nearly all one shape —
+`Imports[I] as Environment`, `Owner as Environment`, `Enclosing as Environment`:
+a subscript and a field read whose type the class declaration already states.
+That is `SubscriptExpr` and `GetExpr` in #28's table, and a small self-contained
+root — likely the cheapest place to demonstrate that the 63 falls.
+
+⚠️ **#45 is the only source-compatibility break in the backlog.** Any Algol-24
+program outside this repository using `as` stops parsing. Acceptable pre-1.0,
+and a reason not to let it drift past the release.
 
 **#32's final ruling tightened this dependency rather than loosening it.** An
 unannotated declaration now *infers* its type, and the inferred type describes
@@ -404,16 +434,12 @@ right call and I would leave it named rather than spend a probe on it now.
 
 What is open instead:
 
-1. 🚩 **Three of the four steps in #32's chain have no ticket.** Unifying untyped
-   with `Any`, making `Assignable` asymmetric, and deleting `as` are all
-   specified and none is tracked. #28 covers only step 2. Raised with Plumb;
-   wants a ticket before anyone pulls #28.
+1. **The project board is behind.** `gh project item-list 2` shows
+   items #1–#23; everything filed since is invisible to it.
 
-2. **The project board is 12 issues behind.** `gh project item-list 2` shows
-   items #1–#23; everything filed since — #24–#29, #33, #37, #39–#42 — is
-   invisible to it, including both halves of the collection work and three of
-   the four tickets Plumb filed against the rulings. Placing an issue on the
-   board is the first act of prioritising it, so this is mine rather than
-   Plumb's, and it is a decision for Schildawg whether the board or this
-   document is the surface the Developer works from. Maintaining both is a
-   standing cost and they will drift.
+   Schildawg has since ruled that **the issues are the source of truth** and
+   this document is a disposable summary, which settles the part that mattered:
+   nobody should be pulling from a view. If the board is kept anyway, the split
+   worth defending is Plumb's — **reasoning here, status there, neither
+   duplicating the other's job**, since a board field cannot hold a dependency
+   argument and a markdown file cannot hold state without going stale.
