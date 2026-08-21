@@ -71,9 +71,8 @@ definition of done.
 | [44](https://github.com/schildawg/algol24/issues/44) | Assignability is symmetric, and only a declaration is checked strictly | *not written yet* |
 | [45](https://github.com/schildawg/algol24/issues/45) | `as` outlives the checker gap it exists to paper over | *not written yet* |
 
-⚠️ **The twelve rows carrying no reproduction are mine and are outstanding.**
-All but three were filed after the reproductions above were written, most of
-them on 2026-08-20, when the last of the open decisions were settled — each
+⚠️ **The ten rows marked *not written yet* are reproductions I owe.** Most were
+filed on 2026-08-20, when the last of the open decisions were settled — each
 ruling turned into a defect the moment the specification stated the rule. They
 are listed because the index is the offline record of what is known to be
 broken, and a defect with no reproduction is no less broken; but Prime Directive
@@ -81,19 +80,21 @@ condition 1 has nothing to measure for them until the files exist, so a fix for
 one of these closes on the ordinary evidence rather than on a file flipping to
 passing.
 
-Two of the twelve will never become files here, and say so rather than reading
-as arrears:
+**Three rows read *not reproducible here*, and that phrase means two different
+things.** Issue 4 *is* reproduced — in `refuse/`, for the reason given below.
+Issues 28 and 43 will never have a file at all, and are marked so rather than
+reading as arrears:
 
-- **Issue 28 is a count** — 285 sites where inference gives up — measured by
+- **Issue 28 is a count** — the 285 sites where inference gives up — measured by
   re-running the instrumented checker the issue describes, not by a `test`
-  block. **Issue 45 is a count too**, of the 63 `as` casts in `compiler/` that
-  exist only because of issue 28; it is ready when that number reaches zero.
+  block. Issue 45 is partly a count too, of the 63 `as` casts in `compiler/`
+  that exist only because of issue 28.
 - **Issue 43 is behaviour-preserving.** Merging two representations of "no type
   known" into one changes which programs are accepted not at all, so there is
   nothing for a reproduction to assert. `./test.sh` and the fixed point are its
   whole check.
 
-Issues 44 and 45 need `refuse/` cases rather than `test` blocks, and both are
+Issues 44 and 45 want `refuse/` cases rather than `test` blocks, and both are
 blocked behind issue 37 — that directory asserts the refusal **sentence**, and
 37 is the issue that changes it.
 

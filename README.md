@@ -266,14 +266,14 @@ non-zero only when a reproduction **passes**, which is the signal the defect is
 closed and the file should graduate into a real suite. The directory is meant to
 shrink.
 
-Thirty-five are open, tracked as
+Thirty-four are open, tracked as
 [issues](https://github.com/schildawg/algol24/issues) and indexed offline in
 `tests/defects/README.md` — which also carries a separate table of **tooling
 defects**, currently one, that have no reproduction here because a script's
-argument parsing cannot be written as a `test` block. Twelve of the thirty-five have
-no reproduction yet and the index says so; most were filed as open decisions
-were settled, since a ruling makes a defect of every processor that does not
-already match it. The oldest is
+argument parsing cannot be written as a `test` block. Ten of the thirty-four
+still owe a reproduction, and the index says which: most were filed as the open
+decisions were settled, since a ruling makes a defect of every processor that
+does not already match it. The oldest is
 [#1](https://github.com/schildawg/algol24/issues/1): identifiers are
 case-sensitive and are not meant to be, across twelve surfaces, with both
 processors agreeing on eleven of them — which is precisely why the differential
@@ -318,7 +318,7 @@ match, the rule stands and names the issue tracking the gap.
 
 **The first release is the point at which the specification says what it should
 say and the implementations do what it says.** What stands between here and
-there is thirty-five open defects and **no open decisions**, all listed — so the
+there is thirty-four open defects and **no open decisions**, all listed — so the
 first half of that criterion is met and what remains is work rather than
 questions. A further
 [future direction](ALGOL-24.md#future-directions) — a foreign function interface
