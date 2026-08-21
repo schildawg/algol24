@@ -8,3 +8,9 @@
 /build/
 /out/
 /.idea/
+
+# Per-person tool settings.  .claude/settings.json IS checked in -- it carries
+# the shared permission allowlist every worktree needs.  The .local one holds
+# whatever a single machine accumulated, absolute paths and all, and must not
+# follow it into the repository.
+/.claude/settings.local.json

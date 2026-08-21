@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./build.sh)",
+      "Bash(./build.sh --clean)",
+      "Bash(time ./build.sh)",
+      "Bash(./test.sh)",
+      "Bash(./test.sh:*)",
+      "Bash(time ./test.sh:*)",
+      "Bash(./tests/defects/run.sh)",
+      "Bash(./compile.sh:*)",
+      "Bash(./collide.sh)",
+      "Bash(./depth.sh)",
+      "Bash(./algc:*)"
+    ]
+  }
+}
