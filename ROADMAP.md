@@ -78,10 +78,12 @@ at once and no amount of git discipline changes it.
 
 If two tracks that both reseed cannot be merged by hand, then M1's whole-seed
 work — `Mangle`, the case fold, the symbol scheme — is **not parallelisable at
-all**. Not "cheaper done first": there is no branch, worktree or convention
+all**. Not "cheaper done first": there is no branch, clone or convention
 under which two people do it concurrently and both results survive. Separate
-worktrees protect each session's *uncommitted* files from the other; they do
-nothing about two people regenerating the same hundred-odd generated files.
+clones protect each session's *uncommitted* files from the other; they do
+nothing about two people regenerating the same hundred-odd generated files —
+and clones are the most isolated arrangement on offer, so nothing further down
+that road helps either.
 
 So while a whole-seed track is held, the work a second person can pick up is a
 **short and enumerable list** — everything that touches no `compiler/` source:
