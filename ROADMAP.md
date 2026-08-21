@@ -69,12 +69,77 @@ Two consequences that drove the ordering below:
   rewritten underneath it. That is why M1 and M2 are where they are.
 - **`bootstrap/algol.[ch]` is the exception.** The hand-written runtime is
   copied verbatim into every emitted directory, so a change there takes effect
-  **without a reseed**. That is what lets the graphics work (M7) genuinely run
-  alongside everything else — and, as Plumb pointed out,
-  [#40](https://github.com/schildawg/algol24/issues/40) too. It touches
-  `bootstrap/algol.c` and nothing else, which makes it the one non-graphics
-  ticket that can be pulled while a whole-seed track holds the reseed. Worth
-  remembering when someone is blocked and looking for something to do.
+  **without a reseed**.
+
+### This is a capacity limit, not only a merge risk
+
+Worth stating plainly, because it decides how many people can work on Algol-24
+at once and no amount of git discipline changes it.
+
+If two tracks that both reseed cannot be merged by hand, then M1's whole-seed
+work — `Mangle`, the case fold, the symbol scheme — is **not parallelisable at
+all**. Not "cheaper done first": there is no branch, worktree or convention
+under which two people do it concurrently and both results survive. Separate
+worktrees protect each session's *uncommitted* files from the other; they do
+nothing about two people regenerating the same hundred-odd generated files.
+
+So while a whole-seed track is held, the work a second person can pick up is a
+**short and enumerable list** — everything that touches no `compiler/` source:
+
+| | Priority | Touches |
+|---|---|---|
+| [#23](https://github.com/schildawg/algol24/issues/23) | `priority/1` | `compile.sh` — shell only, no compiler and no runtime |
+| [#27](https://github.com/schildawg/algol24/issues/27) | `priority/1` | `bootstrap/algol.c` — guards in `collection_method` |
+| [#33](https://github.com/schildawg/algol24/issues/33) | `priority/3` | `bootstrap/algol.c` — the same guards, by kind |
+| [#40](https://github.com/schildawg/algol24/issues/40) | `priority/4` | `bootstrap/algol.c` — the `Uncaught: ` prefix at the reporting point |
+| [#24](https://github.com/schildawg/algol24/issues/24) [#26](https://github.com/schildawg/algol24/issues/26) [#25](https://github.com/schildawg/algol24/issues/25) | `4`/`5`/`6` | `bootstrap/algol.[ch]` for the SDL side; the built-in registration still needs `compiler/` |
+
+That is the whole of it, and it is a better list than it looks: **two of the
+five are `priority/1`**, so the highest-value concurrent work and the
+highest-value serialised work do not compete.
+
+⚠️ #33's *interpreter* half is [#41](https://github.com/schildawg/algol24/issues/41),
+which is `compiler/ObjCollection.a24` and does need a reseed. The pair splits
+neatly along the line: runtime guard concurrent, interpreter table serialised.
+
+---
+
+## ⚠️ Ten issues have no reproduction, and that gates closing them
+
+Prime Directive condition 1 is *"every test associated with the issue passes"*,
+and it is measured against `tests/defects/`. **An issue with no reproduction has
+nothing to close against** — a Developer can fix it, run every suite green, and
+still not have met condition 1.
+
+Plumb owns those files and records ten as owed. Ordered by the priority this
+document gives them:
+
+| | Priority | Reproduction |
+|---|---|---|
+| [#27](https://github.com/schildawg/algol24/issues/27) | `priority/1` | **owed** |
+| [#37](https://github.com/schildawg/algol24/issues/37) [#42](https://github.com/schildawg/algol24/issues/42) | `priority/2` | owed |
+| [#33](https://github.com/schildawg/algol24/issues/33) [#41](https://github.com/schildawg/algol24/issues/41) [#44](https://github.com/schildawg/algol24/issues/44) | `priority/3` | owed |
+| [#39](https://github.com/schildawg/algol24/issues/39) [#40](https://github.com/schildawg/algol24/issues/40) [#45](https://github.com/schildawg/algol24/issues/45) | `priority/4` | owed |
+| [#29](https://github.com/schildawg/algol24/issues/29) | `priority/5` | owed |
+
+**This is a dependency that runs across roles rather than between issues**, and
+it is the one kind the priority labels cannot express: they order the
+*Developer's* queue, and here Plumb is upstream of it.
+
+🚩 **#27 is the sharp case.** It is `priority/1`, it is the only crash in the
+backlog, it is one of the five things pullable while the seed is held — and it
+has no reproduction. Whoever fixes it first has nothing to prove it fixed.
+
+Three further rows read *not reproducible here* and are **not** arrears:
+[#4](https://github.com/schildawg/algol24/issues/4) is covered in
+`tests/defects/refuse/`, since its correct outcome is a refusal and a refusal is
+the absence of a run; [#28](https://github.com/schildawg/algol24/issues/28)
+closes on a count and [#43](https://github.com/schildawg/algol24/issues/43) is
+behaviour-preserving, so neither will ever have a file.
+
+Of the ten, Plumb reports **#33, #41 and #42 are writable now** that the `Set`
+rules are settled, and **#37, #44 and #45 wait on #37's replacement wording** —
+which is itself a reason to take #37 early, beyond the one already given.
 
 ---
 
