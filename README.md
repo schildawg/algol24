@@ -266,17 +266,23 @@ non-zero only when a reproduction **passes**, which is the signal the defect is
 closed and the file should graduate into a real suite. The directory is meant to
 shrink.
 
-Five are open, tracked as
+Thirty-two are open, tracked as
 [issues](https://github.com/schildawg/algol24/issues) and indexed offline in
-`tests/defects/README.md`. The oldest is
+`tests/defects/README.md` — which also carries a separate table of **tooling
+defects**, currently one, that have no reproduction here because a script's
+argument parsing cannot be written as a `test` block. Ten of the thirty-two have
+no reproduction yet and the index says so; most were filed as open decisions
+were settled, since a ruling makes a defect of every processor that does not
+already match it. The oldest is
 [#1](https://github.com/schildawg/algol24/issues/1): identifiers are
 case-sensitive and are not meant to be, across twelve surfaces, with both
 processors agreeing on eleven of them — which is precisely why the differential
 suites never caught it.
 
-`ALGOL-24.md` keeps no defects. It carries *Open decisions* instead: questions
-the language has not yet answered, each with a recommendation and each blocking
-the first release.
+`ALGOL-24.md` keeps no defects. It carried *Open decisions* instead — questions
+the language had not yet answered, each blocking the first release — and that
+section is now **empty**. Seven were recorded there; six were settled by a
+ruling on 2026-08-20 and one was reclassified as a defect.
 
 ## The team
 
@@ -312,7 +318,11 @@ match, the rule stands and names the issue tracking the gap.
 
 **The first release is the point at which the specification says what it should
 say and the implementations do what it says.** What stands between here and
-there is nine open defects and four open decisions, all listed.
+there is thirty-two open defects and **no open decisions**, all listed — so the
+first half of that criterion is met and what remains is work rather than
+questions. A further
+[future direction](ALGOL-24.md#future-directions) — a foreign function interface
+— is intended but does **not** block the release.
 
 A defect counts as fixed only when all six of these hold — the project's
 **Prime Directive**:

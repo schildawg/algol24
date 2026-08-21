@@ -19,7 +19,20 @@ and a reader must not depend on one. Where a defect makes a stated rule
 unreliable today, the specification carries a one-line pointer to the issue and
 nothing more.
 
+⚠️ **The index covers every open defect, including ones with no reproduction
+here.** Reproducibility decides whether a defect gets a file in this directory;
+it does not decide whether the defect is listed. A build script that reports
+success on a failing suite is no less broken for being unwritable as a `test`
+block, and someone reading this file offline needs to know about it. Language
+defects and [tooling defects](#tooling-defects) are kept in separate tables
+because only the first kind is measured by a reproduction — see
+[Ownership](#ownership).
+
 ## Open defects
+
+Defects in the **language**: a rule that `ALGOL-24.md` states and a processor
+gets wrong. Each is reproduced by the files named, and those files are the
+definition of done.
 
 | # | Issue | Reproduced by |
 |---|---|---|
@@ -45,23 +58,91 @@ nothing more.
 | [20](https://github.com/schildawg/algol24/issues/20) | The `constructor` keyword is decorative; `Init` decides | `ConstructorKeyword`, `ConstructorOverload`, `ConstructorNamed` |
 | [21](https://github.com/schildawg/algol24/issues/21) | `X.Init(5)` yields the instance interpreted, `nil` compiled | `ConstructorReinvoke` |
 | [22](https://github.com/schildawg/algol24/issues/22) | A wrong-arity call is unchecked when compiled and returns an answer | `ArityFunction`, `ArityBuiltin` |
+| [27](https://github.com/schildawg/algol24/issues/27) | A wrong-arity call to a collection method segfaults compiled code | *not written yet* |
+| [28](https://github.com/schildawg/algol24/issues/28) | Type inference is incomplete: 285 sites reach a declared type with no type | *not reproducible here* |
+| [29](https://github.com/schildawg/algol24/issues/29) | Subscripting a non-subscriptable value raises a different sentence in each | *not written yet* |
+| [32](https://github.com/schildawg/algol24/issues/32) | Assignability is symmetric, and only a declaration is checked strictly | *not written yet* |
+| [33](https://github.com/schildawg/algol24/issues/33) | Compiled: a `Set` holds duplicates and an `Array` changes length | *not written yet* |
+| [37](https://github.com/schildawg/algol24/issues/37) | `Type mismatch!` reports no position and names neither type | *not written yet* |
+| [39](https://github.com/schildawg/algol24/issues/39) | Compiled code defers every `begin … end` block to the end of the program | *not written yet* |
+| [40](https://github.com/schildawg/algol24/issues/40) | Compiled: an uncaught built-in error prints without the `Uncaught: ` prefix | *not written yet* |
+| [41](https://github.com/schildawg/algol24/issues/41) | The interpreter refuses harmless collection synonyms and `S[0]` on a `Set` | *not written yet* |
+| [42](https://github.com/schildawg/algol24/issues/42) | A `String` does not answer the non-mutating collection members | *not written yet* |
+
+⚠️ **The ten rows marked *not written yet* are mine and are outstanding.** Nine
+of them were filed in the days after the reproductions above were written — six
+of those on 2026-08-20, when five open decisions were settled and each ruling
+turned into a defect the moment the specification stated the rule. They are
+listed because the index is the offline record of what is known to be broken,
+and a defect with no reproduction is no less broken; but Prime Directive
+condition 1 has nothing to measure for them until the files exist, so a fix for
+one of these closes on the ordinary evidence rather than on a file flipping to
+passing.
+
+Two of the ten will not become files here. Issue 28 is a **count** — 285 sites
+where inference gives up — and is measured by re-running the instrumented
+checker described in the issue, not by a `test` block. Issue 32's rule is a
+refusal on all five assignment paths, so what it needs is `refuse/` cases, and
+it is blocked behind issue 28 by its own ruling.
 
 Some rules cannot be reproduced as a `test` block at all: where the correct
 outcome is that a program is **refused**, there is no observable behaviour to
-assert, because a refusal is the absence of a run. Four issues hit that wall —
-4, 14, 15 and 18 — which is what `refuse/` is for. See its README; it runs as
-part of `run.sh`.
+assert, because a refusal is the absence of a run. Four issues hit that wall
+today — 4, 14, 15 and 18 — which is what `refuse/` is for. See its README; it
+runs as part of `run.sh`.
+
+That directory is about to grow. Issues 32, 33, 37, 41 and 42 each turn on a
+refusal — an `Any` reaching a declared type, an `Array` asked to change length,
+a `String` asked to mutate — so those cases belong there rather than here.
+`refuse/` asserts the refusal **sentence**, which is why issue 37 wants its
+wording settled before any of them is written.
+
+Issues 33 and 41 split across both directories, now that the `Set` question is
+settled. Most of what they cover is an **acceptance** — `S.Push(V)` leaving a
+present element where it is, `S.Insert(I, V)` moving it to `I`, `Stack.Add`,
+`List.Pop`, `S[0]` — which is an ordinary `test` block here. Only
+`S.Set(I, V)` onto a value already present at another index is a refusal, and it
+needs a sentence that does not exist in either processor yet:
+`Cannot hold two equal elements.`
 
 Three of these fail in one half only, which is why `run.sh` builds as well as
 interprets. `EnumMemberSymbol` and `OverloadNoMatch` pass interpreted and fail
 compiled; `LengthBuiltin` is the mirror, passing compiled, because there the
 normative half is the one that is wrong.
 
+## Tooling defects
+
+Defects in the **scripts and harnesses** rather than in the language. They are
+listed here so the offline index is complete, and kept in their own table
+because nothing in this directory reproduces them.
+
+| # | Issue | Bites when |
+|---|---|---|
+| [23](https://github.com/schildawg/algol24/issues/23) | `compile.sh` silently discards every option but `--run` | you type `--test`, or mistype `--run` |
+
+⚠️ **These are not measured by a reproduction, and so are not measured by Prime
+Directive condition 1.** A language defect closes when its `.a24` files start
+passing, which is a fact anyone can check by running `run.sh`. A tooling defect
+closes when someone fixes the script and says so. That is a weaker standard, and
+naming it is better than letting the two kinds sit in one table where the
+difference would be invisible.
+
+⚠️ **A tooling defect is not a conformance gap.** Nothing in this section means
+a processor fails to implement `ALGOL-24.md`. Issue 23 in particular compromises
+no gate: `test.sh` invokes `algc` directly and never goes through `compile.sh`,
+so the reported state of the repository is accurate. It is a hazard for a person
+at a terminal — which is exactly the reader this file is written for.
+
 ## Ownership
 
 **These tests belong to the specification, and they are the definition of done.**
 Prime Directive condition 1 — *every test associated with the issue passes* — is
 measured here.
+
+That is a claim about the **files**, not about every row of the index above.
+[Tooling defects](#tooling-defects) have no reproduction and therefore no such
+measure; they are listed so the offline index is complete, and they close by
+someone fixing the script. Everything below concerns the `.a24` files.
 
 The Developer and the Tester may add tests of their own, and should. **Neither
 may remove a test from this directory.** A fix that cannot pass a reproduction
@@ -648,3 +729,44 @@ and a spread whose collection length is unknown before the program runs makes
 arity genuinely dynamic. The last means it cannot become purely static, which
 argues for fixing the compiled side to check at run time rather than moving the
 check forward. The issue carries that as an open question.
+
+## Issue 23 — compile.sh drops its options
+
+**A tooling defect, not a conformance gap** — the first entry of that kind in
+this index, and the reason the index now has two tables.
+
+`compile.sh` takes `$1` as the program and compares `$2` against exactly one
+literal:
+
+```sh
+program=$1; shift
+run=false
+if [ "${1-}" = "--run" ]; then run=true; shift; fi
+```
+
+There is no `else`, so every other option in that position is silently dropped.
+
+The sharpest form is a file whose only test **fails**. `algc --test` reports
+`1 of 1 tests failed.` and exits 70; `./compile.sh Failing.a24 --test` prints
+`Built build/Failing` and exits 0, and the binary it built then runs, prints
+nothing and exits 0 as well. The flag was discarded, so the *program* was
+emitted — and a file of nothing but test blocks has an empty main block.
+
+**A failing suite reports success twice.** A run that tested nothing is
+indistinguishable from a run that passed, which is worse than an error and worse
+than the flag not existing at all.
+
+⚠️ `--rnu` is the variant worth fixing first. A mistyped `--run` means the
+program is built and never executed, and the script's last line is `Built …`
+either way — nothing separates "you asked me to run it and I did not" from "you
+did not ask me to". `--test` at least leaves a binary that can be run by hand.
+
+`./compile.sh --test P.a24` — flag before the program — *is* caught, but by
+accident: `--test` becomes the program name and the file-existence check reports
+`No such program: --test`. That is not argument validation, and it stops working
+the moment someone creates a file with an option-shaped name.
+
+⚠️ Any fix has to keep `--run a b` passing `a b` to the *program*, so
+`./compile.sh P.a24 --run --test` must give `--test` to the program and not to
+`algc`. `sdl.sh` parses options before the source file for that reason and can
+be read as a worked example.

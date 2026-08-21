@@ -27,10 +27,10 @@ Three consequences a reader should know:
 - Some rules here are not yet true of any processor. Every one of them names the
   issue that says so — see [Known defects](#known-defects). A rule with no such
   pointer is one both processors are expected to honour today.
-- [Open decisions](#open-decisions) lists questions the language has not yet
-  answered. Each is a decision to be made rather than a permanent gap, and each
-  blocks the first release. A program whose meaning depends on one is not
-  portable, and will not become portable by itself.
+- [Open decisions](#open-decisions) is **empty**. Every question the language
+  had left unanswered has been settled and stated above, so nothing here is
+  waiting on a decision. What a rule may still be waiting on is an
+  implementation, which is the first point.
 - [Future directions](#future-directions) lists capabilities the language is
   intended to gain and does not have. These do **not** block the first release,
   and nothing in that section may be relied upon by a program.
@@ -537,69 +537,147 @@ A widening conversion loses nothing and cannot fail, which is what distinguishes
 it from a cast. `Length` of a widened `Char` is 1, and a widened `Integer`
 compares equal to the `Integer` it came from.
 
+### The two modes
+
+Annotations are optional, and both ways of writing a program are first class.
+
+- **Static.** Types are written, and every one of them is enforced before the
+  program runs. The compiler's own source is written this way and is meant to be
+  the worked example of it.
+- **Dynamic.** Types are omitted, and there is nothing to enforce.
+
+The rules below are shaped by that pair. Nothing obliges a program to write a
+type; everything a program does write is a promise a processor keeps. Types are
+a compile-time statement and nothing else — there is no run-time type system
+underneath, and an annotation produces no check while the program runs.
+
+### `Any` and the absence of a type
+
+**`Any` and *untyped* are one type, not two.** A declaration written without an
+annotation, a parameter written without one, and a declaration annotated `Any`
+all describe a value of type `Any`. `Any` means *the type is not known here*,
+and the language does not distinguish “nobody wrote it” from “nobody could
+work it out”.
+
+`Any` is **contagious**. An expression is `Any` when what it is computed from is
+`Any`: a call whose result type is not known, an operator with an `Any` operand,
+a field read from a receiver of unknown type. There is no point at which a value
+stops being `Any` by being used.
+
+How much of a program is `Any` is therefore decided by how well a processor
+infers. Where a type is determined, a processor is expected to determine it;
+`Any` is what is left.
+
+> **Not implemented.** Inference stops well short of what the program
+> determines, so `Any` appears in many places where the type is deducible —
+> [issue #28](https://github.com/schildawg/algol24/issues/28).
+
 ### Assignability
 
 A type `Actual` is *assignable* to a declared type `Expected` when any of the
 following holds:
 
-- either type is unknown or is `Any`;
+- `Expected` is `Any`;
 - `Actual` is the type of `nil`;
 - the two are the same type;
 - `Actual` **widens** to `Expected`;
 - `Actual` is a class that inherits, directly or transitively, from `Expected`.
 
-The static type of an expression is *unknown* when the checker cannot deduce
-it — for example when it reads a variable or parameter that was declared
-without a type annotation.
+**The relation is asymmetric, and that is the whole of its content.** Every type
+is assignable to `Any`. `Any` is assignable to nothing but `Any`.
+
+```pascal
+function F (X);                     // X is Any
+var
+    A : Any    := X;                // legal: every type goes into Any
+    B : String := X;                // ILLEGAL: Any does not come back out
+```
+
+`Any` promises nothing, so nothing can disappoint it and every value may enter
+it. Letting it flow back out would mean `B : String` said nothing about `B`, and
+a program that wrote its annotations would be checked no better than one that
+did not — which would leave the static mode with nothing to offer.
 
 **One relation, everywhere.** Assignability governs every place a value meets a
 declared type: a declaration's initializer, an assignment, an argument bound to
 a parameter, a value returned against a declared result type, and a field
-against its declaration. A processor rejects a program only when no run-time
-value could make it succeed.
+against its declaration. All five are checked alike. A processor rejects a
+program only when no run-time value could make it succeed.
 
-### The declaration rule
-
-Assignability alone governs **assignment** to an existing variable. A
-**declaration with an explicit type** is checked by a stricter rule: the
-initializer's static type must be known, must not be `Any`, and must be
-assignable to the declared type.
-
-The practical effect is an asymmetry that a program must be written around:
+**Splitting the statement is not a way around it.** Where a declaration is
+refused, the assignment that would have the same effect is refused too:
 
 ```pascal
-function F (X);                     // X has no declared type
-var
-    B : String := X;                // ILLEGAL: X's static type is unknown
-begin
-    var C : String := 'aa';
-    C := X;                         // legal: assignment, not declaration
-    Exit C;
-end
+var B : String := X;                // ILLEGAL
 ```
-
-The rule applies whatever the declared type is, including `Any`:
 
 ```pascal
-var X := 1;
-begin
-    var B : Any := X;               // ILLEGAL, although Any accepts everything
-    var C : Any := 1;               // legal: the literal's type is known
-end
+var B : String := '';
+B := X;                             // ILLEGAL, for the same reason
 ```
 
-This is recorded as [an open decision](#the-declaration-rule-versus-assignability):
-the two rules are not obviously meant to differ, and the declaration rule
-contradicts the general treatment of `Any` elsewhere in the language. Note that
-the same asymmetry already exists between a declaration and a **parameter**: a
-`Char` argument is accepted for a `String` parameter, while the equivalent
-declaration is rejected.
+A rule that caught only the first would not protect `B`. It would only penalise
+writing the program in one statement instead of two.
+
+> **Not implemented.** `Any` is accepted in both directions, and of the five
+> paths only a declaration is strict at all —
+> [issue #32](https://github.com/schildawg/algol24/issues/32). That issue also
+> records why the rule must land *after*
+> [issue #28](https://github.com/schildawg/algol24/issues/28): applied to the
+> compiler as it stands today, it would refuse 285 sites.
 
 ### Inference
 
-A declaration without a type annotation takes no declared type. Its static
-type is unknown when it is later read, even where an initializer would appear
-to determine it — which is what makes the second example above illegal.
+A declaration with no type annotation **infers** its type from its initializer.
+Where the initializer's static type is known, that becomes the variable's type;
+where it is not, the variable is `Any`.
+
+```pascal
+var I := 1;                         // Integer
+var S := 'text';                    // String
+var L := [1, 2, 3];                 // List
+var X := F ();                      // F's declared result type, or Any
+```
+
+**An inferred type describes a variable; it does not restrict it.** It is what a
+*read* of the variable yields, and it is never a constraint on what may be
+written to it — no assignment to an unannotated variable is refused. Where an
+assignment would contradict the inferred type, the variable is `Any` throughout
+its scope instead.
+
+```pascal
+var X := 1;                         // Integer
+var B : String := X;                // ILLEGAL: Integer is not assignable to String
+```
+
+```pascal
+var X := 1;
+X := 'text';                        // legal — and X is Any throughout, not Integer
+var C : Any    := X;                // legal
+var B : String := X;                // ILLEGAL: Any does not flow into String
+```
+
+Note that `var B : String := X;` is refused in both, for different reasons. That
+is what makes the rule safe: an annotated declaration is protected from an
+unannotated variable however that variable is later used.
+
+**This is what keeps the two modes from colliding.** A program that writes
+annotations gets them enforced, because inference is what gives the checker a
+type to enforce them against — the better the inference, the more of the program
+is actually checked. A program that writes none never meets a type rule at all:
+it declares nothing typed, so there is nothing for an initializer to fail and
+nothing for an assignment to contradict.
+
+The alternatives were each worse in one direction. Had an inferred type also
+constrained assignment, `var X := nil;` followed by `X := 5;` would be a static
+error in a program containing not one annotation, which is not what an optional
+type system should do. Had an unannotated declaration stayed `Any` for good,
+inference would have nothing to bite on and an annotation would be checkable only
+against a literal.
+
+> **Not implemented.** An unannotated declaration is treated as untyped rather
+> than inferred, and inference gives up in many places where the type is
+> determined — [issue #28](https://github.com/schildawg/algol24/issues/28).
 
 Narrowing is never implicit, in a declaration or anywhere else. Widening is:
 
@@ -627,11 +705,8 @@ A program is a sequence of declarations and statements at file scope. A
 `begin … end` block is permitted but is not required: a file consisting of a
 single statement is a program.
 
-> **Open decision.** A program containing both top-level statements and a
-> `begin … end` block, or more than one such block, executes its parts in a
-> different order under the two processors. See
-> [Order of top-level execution](#order-of-top-level-execution). A program with
-> at most one `begin … end` block, placed last, is unaffected.
+A file may contain any number of such blocks, and each is executed where it
+stands — see [Program execution](#program-execution).
 
 Declarations at file scope are visible throughout the file, including to
 functions declared earlier in it.
@@ -828,17 +903,17 @@ default.
 ```pascal
 function Slice (Text : String, Start : Integer := 0, Count : Integer := 1) : String;
 
-Slice (S, 1, 3)                     (* all positional *)
-Slice (S, Count => 3, Start => 1)   (* mixed; the named pair in either order *)
-Slice (Text => S, Count => 2)       (* all named; Start takes its default *)
-Slice (Count => 2, Text => S)       (* the same call *)
+Slice (S, 1, 3)                     // all positional
+Slice (S, Count => 3, Start => 1)   // mixed; the named pair in either order
+Slice (Text => S, Count => 2)       // all named; Start takes its default
+Slice (Count => 2, Text => S)       // the same call
 ```
 
 Two ways to get it wrong, both errors:
 
 ```pascal
-Slice (Text => S, 1)                (* positional after a named argument *)
-Slice (S, Text => S2)               (* Text is already bound positionally *)
+Slice (Text => S, 1)                // positional after a named argument
+Slice (S, Text => S2)               // Text is already bound positionally
 ```
 
 This is Python's rule for the forms this language has. Algol-24 has no variadic
@@ -1105,9 +1180,9 @@ type is known.
 function Adjust (Index : Integer) : String;      begin Exit 'by index'; end
 function Adjust (Percentage : Single) : String;  begin Exit 'by percent'; end
 
-Adjust (1)                  (* 'by index' — Integer is exact, Single is a widening *)
-Adjust (Index => 1)         (* 'by index' — and says so *)
-Adjust (Percentage => 1)    (* 'by percent' — unreachable positionally *)
+Adjust (1)                  // 'by index' — Integer is exact, Single is a widening
+Adjust (Index => 1)         // 'by index' — and says so
+Adjust (Percentage => 1)    // 'by percent' — unreachable positionally
 ```
 
 Note which line earns the feature. The first two agree, because exact already
@@ -1360,8 +1435,9 @@ key from a `Map`. String and sequence indices are 0-based and are bounds
 checked: `Index 9 out of range 0..4.` Indexing a `String` yields a `Char`, and
 the index counts **code points**, so `'héllo'[1]` is `'é'` and never a fragment
 of one. A
-`Set` has no positions and cannot be indexed
-([an open decision](#collection-method-sets)).
+`Set` is indexed by position too: every collection iterates in
+[insertion order](#collection-types), so its elements have positions even though
+its members are not addressed by one.
 
 ### Operators
 
@@ -1762,9 +1838,12 @@ The following are static errors:
   (`Can't return from top-level code.`);
 - any lexical or syntactic error.
 
-> **Unspecified.** The diagnostic for a type mismatch carries no source
-> position, which makes it hard to locate in a large file. Other static errors
-> report a line and a caret.
+Every static error reports the file, the line and a caret under the offending
+text.
+
+> **Not implemented.** `Type mismatch!` alone reports no position and names
+> neither of the two types —
+> [issue #37](https://github.com/schildawg/algol24/issues/37).
 
 ### Run-time errors
 
@@ -1785,11 +1864,24 @@ Char is limited to a Unicode scalar value.
 That Buffer has been freed.
 ```
 
-An uncaught error terminates the program with status 70.
+An uncaught error terminates the program with status 70, and is reported as
 
-> **Unspecified.** An uncaught *built-in* run-time error is printed as
-> `Uncaught: <message>` by the interpreter and as bare `<message>` by compiled
-> code. An uncaught *raised value* is printed as `Uncaught: <value>` by both.
+```
+Uncaught: <message>
+```
+
+whatever raised it — a built-in, a processor's own runtime, or the program's own
+`raise`.
+
+**The prefix describes what happened to the error, not what the error is.** It
+is added by the top level, on finding no handler left to unwind to, and never by
+whatever constructed the message. A *caught* value therefore never carries the
+word `Uncaught`, and a handler that inspects the string sees exactly what was
+raised.
+
+> **Not implemented.** Compiled code prints a built-in's message bare, without
+> the prefix — [issue #40](https://github.com/schildawg/algol24/issues/40).
+> A value raised by the program itself is already correct under both.
 
 ## Exceptions
 
@@ -1888,28 +1980,98 @@ parentheses**, and the method `Contains(V)`.
 
 ### Method sets
 
-The method available on each kind:
+A collection kind is defined by an **invariant** — a property that holds of
+every value of that kind, however the program uses it. From that follows the
+whole of the rule:
 
-| Method | List | Array | Map | Set | Stack |
-|---|:--:|:--:|:--:|:--:|:--:|
-| `Add(V)` | ● | | | ● | |
-| `Get(K)` | ● | ● | ● | | |
-| `Put(K,V)` | | | ● | | |
-| `Set(I,V)` | | ● | | | |
-| `Fill(V)` | | ● | | | |
-| `Insert(I,V)` | ● | | | | |
-| `RemoveAt(I)` | ● | | | | |
-| `Remove(K)` | | | ● | ● | |
-| `IndexOf(V)` | ● | ● | | | |
-| `Sort()` | ● | | | | |
-| `Clear()` | ● | | ● | ● | ● |
-| `Keys()` | | | ● | | |
-| `Values()` | | | ● | | |
-| `ToList()` | | | | ● | |
-| `Push(V)` | | | | | ● |
-| `Pop()` | | | | | ● |
-| `Peek()` | | | | | ● |
-| `Contains(V)` | ● | ● | ● | ● | ● |
+**A method is refused on a kind only where no meaning would preserve both that
+kind's invariant and what the call asked for.** Nothing else is refused: where
+such a meaning exists, the method is accepted and given it.
+
+The second clause matters as much as the first. A call that *could* break an
+invariant is not thereby refused — it is refused only when honouring it would
+mean either breaking the invariant or quietly doing something other than what was
+asked. Most of the awkward cases have an obvious honest meaning, and take it.
+
+| Kind | Invariant | What it refuses |
+|---|---|---|
+| `Array` | its length never changes | anything that adds or removes an element: `Add`, `Insert`, `Remove`, `RemoveAt`, `Clear`, `Push`, `Pop` |
+| `Set` | no two elements are equal | `Set(I, V)`, where `V` is already an element at some other index |
+| `String` | it cannot be modified in place | every mutating method, with `Strings are immutable.` |
+| `List` | none | nothing |
+| `Stack` | none — LIFO is a discipline, not a structure | nothing |
+
+A `Map` is keyed rather than positional and stands apart from the five: it has
+`Get`, `Put`, `Remove`, `Keys`, `Values`, `Clear` and `Contains`, and the
+sequence methods do not apply to it.
+
+Two consequences are worth stating, because both are easy to expect the other
+way round.
+
+**A harmless synonym is legal.** `K.Add(V)` on a `Stack` means `K.Push(V)`, and
+`L.Push(V)` on a `List` means `L.Add(V)`. A `Stack` is last-in-first-out by
+discipline rather than by structure, and a `List` has no invariant at all, so
+neither has anything to protect. Refusing the second spelling would cost a
+reader something and protect nothing.
+
+**A `Set` may be subscripted.** Every collection
+[iterates in insertion order](#collection-types), so a `Set` does have positions,
+and `S[0]` answers its first element. Reading a position cannot create a
+duplicate, so uniqueness is not at risk.
+
+#### Positions on a `Set`
+
+Because a `Set` has positions, the operations that name one can be sent to it,
+and uniqueness decides what they mean when the value is already an element.
+
+| Call on a `Set` already containing `V` | Meaning |
+|---|---|
+| `S.Add(V)`, `S.Push(V)` | nothing happens; `V` keeps the position it has |
+| `S.Insert(I, V)` | `V` **moves** to position `I` |
+| `S.Set(I, V)` | refused: `Cannot hold two equal elements.` |
+| `S.Fill(V)` | every element becomes `V`, so the set collapses to `V` alone |
+
+**An operation that does not name a position does not move anything.** `Add` is
+defined that way already, and so is re-assigning a key that a `Map` already
+holds — [both keep the original position](#collection-types). `Push` is legal on
+a `Set` only because it is a synonym of `Add`, so it inherits that and nothing
+else; a `Push` that repositioned would not be a synonym.
+
+**An operation that does name a position honours it.** `Insert(I, V)` asks for
+two things — that `V` be an element, and that it be at `I` — and moving it grants
+both without endangering uniqueness. This is also the only way a program can
+reorder a `Set`, which is worth having.
+
+**`Set(I, V)` is the one that cannot be honoured.** It does not insert, it
+*replaces* what is at `I`. Where `V` is already an element at some other index,
+the only way to keep uniqueness is to drop that other copy — so a call that
+replaces one element would silently shorten the collection. Refusing is the
+honest answer, and it is a refusal of that *call* and not of the method: where
+`V` is not already an element, `S.Set(I, V)` is an ordinary replacement and
+succeeds.
+
+The methods themselves:
+
+| Method | Effect |
+|---|---|
+| `Add(V)` | appends `V`; on a `Set`, only if no equal element is present |
+| `Get(K)` | the element at position `K`, or a `Map`'s value for key `K` |
+| `Put(K,V)` | sets a `Map`'s value for key `K` |
+| `Set(I,V)` | replaces the element at position `I` |
+| `Fill(V)` | replaces every element with `V` |
+| `Insert(I,V)` | inserts `V` at position `I`, moving later elements up |
+| `RemoveAt(I)` | removes the element at position `I` |
+| `Remove(K)` | removes by value, or by key on a `Map` |
+| `IndexOf(V)` | the position of the first element equal to `V`, or -1 |
+| `Sort()` | orders the elements in place |
+| `Clear()` | removes every element |
+| `Keys()` | a `Map`'s keys, in insertion order |
+| `Values()` | a `Map`'s values, in insertion order |
+| `ToList()` | the elements as a `List` |
+| `Push(V)` | appends `V` |
+| `Pop()` | removes and answers the last element |
+| `Peek()` | answers the last element without removing it |
+| `Contains(V)` | whether any element is equal to `V` |
 
 `Remove` answers differently by kind: on a `Map` it returns the value removed,
 or `nil` if the key was absent; on a `Set` it returns whether there was
@@ -1917,12 +2079,56 @@ anything to remove.
 
 `Keys()`, `Values()` and `ToList()` return a `List`.
 
-> **Open decision.** This table is the set the interpreter enforces. Compiled
-> code shares one representation across `List`, `Array`, `Set` and `Stack` and
-> accepts most sequence methods on any of them — `L.Remove(2)`, `A.Insert(0,9)`,
-> `K.Sort()` and many others succeed compiled and are rejected interpreted. See
-> [Collection method sets](#collection-method-sets). A program should use only
-> the table above.
+> **Not implemented.** No processor applies this rule yet, and the two fail in
+> opposite directions. The interpreter enforces a per-kind method table, so the
+> harmless synonyms and `S[0]` on a `Set` are refused —
+> [issue #41](https://github.com/schildawg/algol24/issues/41). Compiled
+> code enforces nothing, so an `Array` can change length and a `Set` can hold
+> duplicates — [issue #33](https://github.com/schildawg/algol24/issues/33).
+
+### A `String` is a collection of `Char`
+
+A `String` is a collection like any other, and it answers the collection
+members. `S.Length` and `S.IsEmpty` are the properties every collection has;
+`S.Contains(C)`, `S.IndexOf(C)`, `S.Get(I)` and `S.ToList()` are the methods
+that read without modifying.
+
+```pascal
+var S : String := 'hello';
+
+WriteLn (Str (S.Length));           // 5
+WriteLn (Str (S.IsEmpty));          // false
+WriteLn (Str (S.Contains ('e')));   // true
+```
+
+Its invariant is immutability, so every mutating method is refused with
+`Strings are immutable.` — the same sentence that already answers an assignment
+to a position:
+
+```pascal
+S[0] := 'z';                        // Uncaught: Strings are immutable.
+S.Add ('z');                        // Uncaught: Strings are immutable.
+```
+
+Two notes for a reader.
+
+**`Length (S)` is unaffected** and remains the [function
+spelling](#text). This rule says what `.` reaches on a `String`; it does not
+restrict what a function may be applied to. `S.Contains (C)` and `C in S` are
+likewise two spellings of one thing.
+
+**The unit is the `Char`.** `S.Length`, `Length (S)` and `for C in S` all count
+code points, exactly as [`String`](#predeclared-types) is defined to. Any
+processor that measures one of them in bytes must measure all three that way or
+none.
+
+> **Not implemented.** Neither processor applies this rule —
+> [issue #42](https://github.com/schildawg/algol24/issues/42). The interpreter
+> rejects the whole dotted form on a `String` with `Only instances have
+> properties.`, so `S.Length` and `S.Anything` fail alike. Compiled code answers
+> `Length` and `IsEmpty`, refuses the other read-only members as though a
+> `String` were not a collection, and refuses the mutating ones with the same
+> sentence rather than with `Strings are immutable.`
 
 ### Rendering
 
@@ -2115,11 +2321,33 @@ even where it cannot be provided.
 
 `FileExists(Name)`, `ParamCount()`, `ParamStr(I)`.
 
-`ParamStr(0)` is the program itself and `ParamCount()` does not count it.
+**`ParamStr(0)` names the program**, and `ParamCount()` does not count it, so
+`ParamStr(1)` is the first argument the program was actually given. That is
+Turbo Pascal's convention.
 
-> **Unspecified.** What `ParamStr(0)` contains differs between the
-> processors: the interpreter reports the source file name, and compiled code
-> reports the path of the executable.
+What *names the program* means depends on what is running it:
+
+| | `ParamStr(0)` |
+|---|---|
+| interpreted | the path of the source file being run |
+| compiled | the path of the running executable |
+
+The argument vector a program sees is its own and not its host's. An interpreter
+is invoked as `algc Prog.a24 alpha beta`, and a program run that way sees a
+`ParamCount()` of 2 with `alpha` at index 1 — the interpreter and the source
+file are both already behind it. Answering the interpreter's own path at index 0
+would break that at exactly one position, letting a program see its arguments
+correctly while seeing *itself* as something else.
+
+**The two answers are not byte-identical, by design.** One is a source path and
+one is a binary path, and no arrangement makes them the same string. A program
+that prints `ParamStr(0)` therefore produces different output under the two
+processors legitimately, and cannot be compared across them — the same class of
+thing as [a pixel's value](#what-pixel-does-and-does-not-promise).
+
+> **Unspecified.** Whether the path is absolute or normalised, and what
+> `ParamStr(0)` answers where no source file was named — an interpreter invoked
+> with no arguments at all, or under a test run.
 
 ### Assertions
 
@@ -2129,6 +2357,34 @@ even where it cannot be provided.
 ## Program execution
 
 A program is executed by running its file-scope declarations and statements.
+
+**In source order.** A `begin … end` block written at file scope is an ordinary
+compound statement, executed where it stands. It is not a main block held back
+until the declarations around it have run, and a file may contain any number of
+them.
+
+```pascal
+WriteLn ('A');
+begin WriteLn ('B'); end
+WriteLn ('C');
+begin WriteLn ('D'); end
+WriteLn ('E');
+```
+
+prints `A B C D E`.
+
+The same rule covers a **module**, with no addition: a `begin … end` block in a
+module runs at that module's own initialisation, in source order among that
+module's file-scope statements. A program's imports are fully initialised, in
+dependency order, before any file-scope statement of the importing file runs.
+
+A program with one `begin … end` block written last — the conventional shape,
+and the one every program in this repository has — cannot tell the difference.
+
+> **Not implemented.** Compiled code collects the contents of every
+> `begin … end` block and runs them after all other file-scope statements, so
+> the program above prints `A C E B D` —
+> [issue #39](https://github.com/schildawg/algol24/issues/39).
 
 Execution terminates when the last statement completes, or when a raised value
 reaches the top uncaught. There is no early-exit statement at file scope.
@@ -2140,176 +2396,36 @@ caught, including a failed assertion under a test run.
 
 # Open decisions
 
-The entries below are questions the language has not yet answered. In each, the
-two processors are observed to disagree or a rule admits more than one coherent
-reading, and more than one answer is defensible — so this document does not yet
-state one.
+**None. Every question this section held has been settled**, and each answer has
+moved into the body of the document above.
 
-**These are decisions to be made, not gaps to be documented.** Each resolves by
-choosing what the language means; the choice then moves into the body of this
-document, the implementations are made to match, and the entry disappears. Every
-entry here blocks the first release.
+An open decision was a question the language had not answered: a rule admitting
+more than one coherent reading, where more than one answer was defensible, so
+this document declined to state one. Seven were recorded here. Six were settled
+by a ruling; the seventh — `Type mismatch!` carrying no source position — was
+reclassified as a defect, because no reading of the language made a diagnostic
+without a position the intended behaviour. Each ruling's reasoning is kept in
+[the issue that records it](https://github.com/schildawg/algol24/issues?q=label%3Adecision).
 
-That is what separates them from [Known defects](#known-defects). A defect needs
-no decision — the language already determines the answer and a processor gets it
-wrong. An open decision cannot be fixed, only settled.
+That is the distinction from [Known defects](#known-defects), which is not empty
+and will not be for some time. A defect needs no decision — the language
+determines the answer and a processor gets it wrong. An open decision could not
+be fixed, only settled.
 
-Each was reproduced under both processors. Where one reading seems better, this
-document says which and why, without treating that as the answer.
+**What this means for the release.** The first release is the point at which
+this document says what it should say and the implementations do what it says.
+With nothing left open, the first half is no longer waiting on a decision: what
+stands between here and 1.0 is work rather than questions. A rule stated above
+with no issue pointer beside it is one both processors are expected to honour
+today; every other rule names the issue that is closing the gap.
 
-## Order of top-level execution
+---
 
-A program may contain both statements at file scope and one or more
-`begin … end` blocks. The two processors run them in different orders.
+# Areas not covered
 
-```pascal
-WriteLn('A');
-begin WriteLn('B'); end
-WriteLn('C');
-begin WriteLn('D'); end
-WriteLn('E');
-```
-
-The interpreter prints `A B C D E` — source order. Compiled, the program prints
-`A C E B D`: the contents of every `begin … end` block are collected and run
-after all other file-scope statements.
-
-A program with at most one `begin … end` block, written last, is unaffected,
-and that is the conventional form.
-
-**The choice.** Either `begin … end` is a *main block* deferred until the
-declarations and initialisers around it have run, or it is an ordinary
-compound statement executed in place. Both readings are consistent with the
-conventional form; the language does not say which is meant.
-
-**Recommendation.** Source order — a `begin … end` block is an ordinary
-compound statement. It is what the interpreter already does, it is what the
-text looks like it means, and a deferred block is hard to explain once a
-program has two of them. The compiled path would change.
-
-## The declaration rule versus assignability
-
-A declaration with an explicit type requires its initializer's static type to
-be *known and not `Any`*, while an assignment to the same variable requires
-only [assignability](#assignability), under which unknown and `Any` are
-accepted from either side.
-
-```pascal
-function F (X);                     // X is untyped
-var
-    B : String := X;                // rejected
-begin
-    var C : String := 'aa';
-    C := X;                         // accepted
-end
-```
-
-The rule holds even when the declared type is `Any`, so `var B : Any := X;` is
-rejected although no assignment to `B` could fail.
-
-**The choice.** Either the strictness is deliberate — a written type
-annotation is a demand that the initializer's type be *proved*, not merely
-*permitted* — or the declaration path is meant to use the same assignability
-relation as everything else and does not. Nothing else in the language treats
-`Any` as a failure, which favours the second reading; but the check is explicit
-and hard to arrive at by accident, which favours the first.
-
-**Recommendation.** The second — one assignability relation everywhere. Gradual
-typing exists so that an unannotated value can flow into an annotated one, and
-the current rule rejects `var B : Any := X`, where no assignment to `B` could
-ever fail. A rule that rejects a declaration whose every subsequent use would be
-accepted is hard to justify to the person who wrote it.
-
-## Collection method sets
-
-The interpreter enforces a per-kind method table. Compiled code shares one
-representation across `List`, `Array`, `Set` and `Stack`, and accepts most
-sequence methods on any of them.
-
-```pascal
-begin
-    var L := [1, 2, 3];
-    WriteLn(Str(L.Remove(2)));      // compiled: true, and L becomes [1, 3]
-                                    // interpreted: Undefined property 'Remove'.
-end
-```
-
-Calls accepted compiled and rejected interpreted include `Remove`, `ToList`,
-`Push`, `Pop`, `Peek`, `Fill` and `Set` on a `List`; `Remove`, `RemoveAt`,
-`Insert`, `Clear`, `ToList`, `Push`, `Pop` and `Peek` on an `Array`; `Insert`,
-`IndexOf`, `Sort`, `Push` and `Fill` on a `Set`; and `Add`, `Remove`, `Insert`,
-`IndexOf`, `Sort`, `ToList` and `Fill` on a `Stack`.
-
-Subscripting divides the same way. A `Set` has no positions, and `S[0]` is a
-run-time error interpreted — `Subscript target should be an ordinal.` —
-while compiled it returns an element.
-
-**The choice.** Either the kinds are genuinely distinct types with distinct
-operations, and the shared compiled representation is an implementation detail
-that leaks; or they are one sequence type with conventional restrictions, and
-the interpreter's table is the enforcement. The `Remove` case argues for the
-first: it is specified to answer *different things* on a `Map` and a `Set`,
-which is a type distinction rather than a restriction.
-
-**Recommendation.** Distinct kinds, with the table above as the rule. `Remove`
-settles it — one name cannot mean two things on one type — and the compiled
-path's permissiveness is a shared representation showing through rather than a
-decision anyone made.
-
-## Properties on a string
-
-The two processors disagree about whether a string answers `Length` and
-`IsEmpty` as properties.
-
-```pascal
-var S : String := 'hello';
-
-WriteLn (Str (Length (S)));     (* 5 under both *)
-WriteLn (Str (S.Length));       (* interpreted: raises; compiled: 5 *)
-WriteLn (Str (S.IsEmpty));      (* interpreted: raises; compiled: false *)
-```
-
-The interpreter raises `Only instances have properties.`; compiled code answers.
-The function form `Length (S)` agrees under both and is the portable spelling.
-
-**The choice.** Neither answer is absurd. Against the property form: a string is not a
-collection, `Length (S)` already exists and is the documented spelling for it,
-and admitting it adds a second way to spell one thing. For it: `Length` and
-`IsEmpty` are properties on all five collections, a string is indexable and
-sliceable like one, and a reader who has learned `L.Length` has no way to
-predict that `S.Length` is different in kind.
-
-**Recommendation.** Allow them. The language already treats a string as a
-sequence — `S[0]`, `Copy`, `Pos`, `in` — and the cost of the restriction falls
-on every reader who has to remember it, while the cost of lifting it falls once
-on the interpreter. `Length (S)` keeps working either way.
-
-Note that the failure is not a *property* error but `Only instances have
-properties.` — the interpreter rejects the whole dotted form on a string rather
-than rejecting these two names on it, so the same message answers `S.Anything`.
-
-## Uncaught error reporting
-
-An uncaught error raised by a *built-in* prints as `Uncaught: <message>` under
-the interpreter and as a bare `<message>` compiled. An uncaught value raised by
-a program's own `raise` prints as `Uncaught: <value>` under both. Exit status
-is 70 in every case.
-
-## `ParamStr(0)`
-
-The interpreter reports the source file name; compiled code reports the path of
-the running executable. `ParamCount()` agrees, counting neither.
-
-## Static diagnostics without position
-
-`Type mismatch!` carries no file, line or caret, unlike the other static
-diagnostics. In a file of any size the failing declaration must be found by
-bisection. This is a quality-of-diagnostic gap rather than a semantic
-ambiguity, but it is the one most likely to be met.
-
-## Areas not covered
-
-The following were not probed and are not specified here:
+The following were not probed and are not specified here. They are neither
+decisions nor defects: nothing in the language depends on them today, and a
+program that relies on one is relying on a particular processor.
 
 - concurrency: no construct in the language creates or synchronises threads;
 - the precise rounding and shortest-round-trip rules for rendering a `Double`,
@@ -2417,6 +2533,17 @@ a reader is entitled to know which.
 | [#19](https://github.com/schildawg/algol24/issues/19) | No `continue`, no statement labels, no labelled `break`, and no `goto`. |
 | [#20](https://github.com/schildawg/algol24/issues/20) | The `constructor` keyword is decorative; the name `Init` decides. Constructors do not overload interpreted, and cannot be named at a call. |
 | [#21](https://github.com/schildawg/algol24/issues/21) | A constructor invoked on an existing instance yields the instance interpreted and `nil` compiled. |
+| [#22](https://github.com/schildawg/algol24/issues/22) | A wrong-arity call is not checked when compiled. `Expected 3 arguments but got 1.` is a [run-time error](#run-time-errors) that compiled code does not raise: the call returns an answer and the program exits 0. |
+| [#27](https://github.com/schildawg/algol24/issues/27) | A wrong-arity call to a *collection* method segfaults compiled code rather than raising. |
+| [#28](https://github.com/schildawg/algol24/issues/28) | Inference stops short of what the program determines, so [`Any`](#any-and-the-absence-of-a-type) appears in 285 places in the compiler's own source where the type is deducible. Every annotation downstream of one silently stops being checked. |
+| [#29](https://github.com/schildawg/algol24/issues/29) | Subscripting a value that has no positions raises a different sentence in each processor. |
+| [#32](https://github.com/schildawg/algol24/issues/32) | [Assignability](#assignability) is symmetric — an `Any` is accepted where a type is declared — and of the five paths only a declaration is checked strictly at all. |
+| [#33](https://github.com/schildawg/algol24/issues/33) | Compiled code enforces no [invariant](#method-sets): an `Array` can change length and a `Set` can hold duplicates, after which `Remove` answers `true` and `Contains` stays true. |
+| [#37](https://github.com/schildawg/algol24/issues/37) | `Type mismatch!` is the one [static error](#static-errors) that reports no file, line or caret, and it names neither of the two types. |
+| [#39](https://github.com/schildawg/algol24/issues/39) | Compiled code defers every `begin … end` block to the end of the program, so [file-scope execution](#program-execution) is not in source order. |
+| [#40](https://github.com/schildawg/algol24/issues/40) | An uncaught *built-in* error prints without the `Uncaught: ` prefix when compiled, though [Errors](#errors) states one form for both. |
+| [#41](https://github.com/schildawg/algol24/issues/41) | The interpreter enforces a per-kind method table rather than [each kind's invariant](#method-sets), so `Stack.Add`, `List.Pop` and `S[0]` on a `Set` are refused. |
+| [#42](https://github.com/schildawg/algol24/issues/42) | A [`String` does not answer the collection members](#a-string-is-a-collection-of-char). The interpreter refuses the whole dotted form; compiled code answers two of them and refuses the rest with the wrong sentence. |
 
 `tests/defects/README.md` is the offline index, for a copy of the repository
 with no network.
