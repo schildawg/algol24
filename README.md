@@ -270,7 +270,7 @@ Thirty-four are open, tracked as
 [issues](https://github.com/schildawg/algol24/issues) and indexed offline in
 `tests/defects/README.md` — which also carries a separate table of **tooling
 defects**, currently one, that have no reproduction here because a script's
-argument parsing cannot be written as a `test` block. Nine of the thirty-four
+argument parsing cannot be written as a `test` block. Eight of the thirty-four
 still owe a reproduction, and the index says which: most were filed as the open
 decisions were settled, since a ruling makes a defect of every processor that
 does not already match it. The oldest is

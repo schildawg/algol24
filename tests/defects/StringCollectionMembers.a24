@@ -1,0 +1,69 @@
+/// A String is a collection of Char and answers the members that read it.
+///
+/// Issue #42.  ALGOL-24.md states it under 'A String is a collection of Char':
+/// a String is a collection like any other, so Length and IsEmpty are the
+/// properties every collection has, and Contains, IndexOf, Get and ToList are
+/// the methods that read without modifying.
+///
+/// Length (S) is unaffected and stays the portable spelling.  This rule says
+/// what '.' reaches on a String; it does not restrict what a function may be
+/// applied to, and the function form is asserted here alongside so a fix that
+/// broke it would show.
+///
+/// ⚠️ The two halves fail at DIFFERENT assertions, which is the useful part.
+/// Interpreted, the first one raises: 'Only instances have properties.'
+/// rejects the whole dotted form on a String, so S.Length and S.Anything fail
+/// alike.  Compiled, the first two PASS -- alg_property answers Length and
+/// IsEmpty by falling past every is_obj check -- and the third raises 'Only a
+/// collection has ''Contains''.'  So the compiled half is two members short of
+/// the rule, not five, and a fix there is smaller than a fix in the
+/// interpreter.
+///
+/// ⚠️ ASCII only, deliberately.  If a String is a collection of Char then
+/// S.Length counts CODE POINTS, and today it counts bytes -- issue #6.  Using
+/// only ASCII keeps this file testing one thing: whether the members are
+/// reachable at all.  The unit is #6's to fix, and ⚠️ the two must land
+/// together, because S.Length, Length (S) and 'for C in S' have to agree.
+///
+/// ⚠️ ToList is asserted by rendering rather than element by element.  A List
+/// of Char renders as '[h, e, l, l, o]', which pins the element type as well
+/// as the contents -- a ToList that answered a List of one-character Strings
+/// would render identically, but Copy (S, 0, 1) is a String and S[0] is a
+/// Char, and the specification says the elements are Char.
+///
+/// Interpreted: fails at the first assertion.
+/// Compiled:    fails at the third.
+///
+test 'A String Answers The Read-Only Collection Members';
+begin
+    var S : String := 'hello';
+
+    AssertEqual (5, S.Length);
+    AssertEqual (5, Length (S));
+
+    AssertTrue (not S.IsEmpty);
+
+    AssertTrue (S.Contains ('e'));
+    AssertTrue (not S.Contains ('z'));
+
+    AssertEqual (2, S.IndexOf ('l'));
+    AssertEqual (-1, S.IndexOf ('z'));
+
+    AssertEqual ('h', S.Get (0));
+
+    AssertEqual ('[h, e, l, l, o]', Str (S.ToList ()));
+end
+
+/// The empty String answers too, and IsEmpty is the property that says so.
+///
+/// ⚠️ Separate test block, not a line in the one above.  The block above stops
+/// at its first failing assertion, so a fix that reached Length but not
+/// IsEmpty would leave this case unreported.
+///
+test 'The Empty String Answers IsEmpty';
+begin
+    var S : String := '';
+
+    AssertTrue (S.IsEmpty);
+    AssertEqual (0, S.Length);
+end

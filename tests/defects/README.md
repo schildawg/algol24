@@ -66,12 +66,12 @@ definition of done.
 | [39](https://github.com/schildawg/algol24/issues/39) | Compiled code defers every `begin … end` block to the end of the program | *not written yet* |
 | [40](https://github.com/schildawg/algol24/issues/40) | Compiled: an uncaught built-in error prints without the `Uncaught: ` prefix | *not written yet* |
 | [41](https://github.com/schildawg/algol24/issues/41) | The interpreter refuses harmless collection synonyms and `S[0]` on a `Set` | *not written yet* |
-| [42](https://github.com/schildawg/algol24/issues/42) | A `String` does not answer the non-mutating collection members | *not written yet* |
+| [42](https://github.com/schildawg/algol24/issues/42) | A `String` does not answer the non-mutating collection members | `StringCollectionMembers`, `StringImmutable` |
 | [43](https://github.com/schildawg/algol24/issues/43) | Untyped and `Any` are two representations in `TypeChecker` and are one type | *not reproducible here* |
 | [44](https://github.com/schildawg/algol24/issues/44) | Assignability is symmetric, and only a declaration is checked strictly | *not written yet* |
 | [45](https://github.com/schildawg/algol24/issues/45) | `as` outlives the checker gap it exists to paper over | *not written yet* |
 
-⚠️ **The nine rows marked *not written yet* are reproductions I owe.** Most were
+⚠️ **The eight rows marked *not written yet* are reproductions I owe.** Most were
 filed on 2026-08-20, when the last of the open decisions were settled — each
 ruling turned into a defect the moment the specification stated the rule. They
 are listed because the index is the offline record of what is known to be
@@ -123,6 +123,12 @@ interprets. `EnumMemberSymbol`, `OverloadNoMatch` and the three
 `ArityCollection…` files pass interpreted and fail compiled; `LengthBuiltin` is
 the mirror, passing compiled, because there the normative half is the one that
 is wrong.
+
+`StringCollectionMembers` fails both ways but at **different assertions**, which
+is worth knowing before reading its output: interpreted it stops at the first,
+because `Only instances have properties.` rejects the whole dotted form on a
+`String`; compiled it stops at the third, because `Length` and `IsEmpty` already
+answer. The compiled half is two members short of the rule, not five.
 
 ## Tooling defects
 
@@ -197,6 +203,39 @@ reproduction that starts passing is the event worth acting on.
 
 For that reason this directory is **not** in `test.sh`'s `SUITES` array and must
 not be added to it. `./test.sh` stays green while these fail.
+
+## Issue 42 — a `String` is a collection of `Char`
+
+Two files, and they are two different changes rather than one split in half.
+
+| File | Asks that | Fails because |
+|---|---|---|
+| `StringCollectionMembers` | `Length`, `IsEmpty`, `Contains`, `IndexOf`, `Get`, `ToList` answer | a `String` never reaches the collection members |
+| `StringImmutable` | `Add`, `Insert`, `Clear` refuse with `Strings are immutable.` | it is refused for the wrong reason, by both |
+
+⚠️ **`StringImmutable` looks nearly fixed and is not.** Both processors already
+*refuse* those calls, so an exit code tells you nothing — the assertion is the
+**sentence**. Interpreted answers `Only instances have properties.`, which
+rejects `S.Anything` identically and is therefore not about immutability at all.
+Compiled answers `Only a List or a Set has 'Add'.`, which is a receiver
+complaint: it would refuse a `String` even if strings were mutable. Neither is
+the guard; both are the absence of one.
+
+⚠️ **Its first assertion passes today, deliberately.** `S[0] := 'z'` already
+raises `Strings are immutable.` under both, so it pins the wording the method
+forms must match. A fix that invented a second sentence would leave the language
+saying two things about one rule.
+
+⚠️ **The two files must not be merged**, because a fix that routed `String`
+through the collection path *without* adding the immutability guard would make
+the first pass and leave a `String` mutable — worse than the defect, and
+indistinguishable inside one file.
+
+⚠️ **ASCII only, and that is load-bearing.** If a `String` is a collection of
+`Char` then `S.Length` counts code points, and today it counts bytes —
+[issue 6](https://github.com/schildawg/algol24/issues/6). These files test
+whether the members are *reachable*; the unit is 6's. The two must land
+together, because `S.Length`, `Length (S)` and `for C in S` have to agree on it.
 
 ## Issue 27 — wrong-arity collection calls
 

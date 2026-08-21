@@ -178,7 +178,7 @@ see).
 | `Interpreter` | tree-walker — the reference implementation; `ALGOL-24.md` defines the language |
 | `CEmitter` | emits C11, one translation unit per source file |
 | `Environment` | lexical scopes, `Imports`, and the `Exports` set |
-| `Obj*` | `ObjClass`, `ObjInstance`, `ObjFunction`, `ObjEnum`, `ObjCollection`, `ObjBuffer`, `ObjFile` |
+| `Obj*` | `ObjClass`, `ObjInstance`, `ObjFunction`, `ObjEnum`, `ObjCollection`, `ObjBuffer`, `ObjFile`, `ObjWindow` |
 | `SourceCode`, `Console` | singletons: source lines for error carets, and coloured reports |
 | `AstPrinter`, `Token`, `TokenType`, `Expr`, `Stmt` | support |
 
@@ -248,12 +248,18 @@ cover that.
 | Target | What it does |
 |---|---|
 | `unit` | `--test compiler/Main.a24` — the compiler's own `test` blocks |
-| `conformance` | 8 suites in `tests/conformance/`, interpreted |
-| `compiled` | the same 8, emitted and built; reports and exit codes must match |
+| `conformance` | 9 suites in `tests/conformance/`, interpreted |
+| `compiled` | the same 9, emitted and built; reports and exit codes must match |
 | `programs` | 30 files in `tests/programs/`, interpreted output vs compiled |
 | `fixedpoint` | seed freshness, then g2 vs g3 byte-identical |
 | `leaks` | macOS `leaks -atExit` on `tests/leak/` (built `-O0 -g`) |
 | `memory` | `/usr/bin/time -l` peak RSS on `tests/mem/` against a budget |
+
+⚠️ `Window` is one of the nine and **needs no display and no SDL**. It asserts
+what a build *without* graphics does — that `Window(...)` is declared, parses,
+checks and links, and refuses only when evaluated. A suite that needed a screen
+could not be in `test.sh` at all; the opt-in differential harness for the SDL
+build is `sdl.sh`, which is deliberately outside it.
 
 Comparison strips ANSI colour and drops `[ERROR]` lines: an assertion failure
 prints a source caret when interpreted, and compiled code has no line
@@ -348,10 +354,11 @@ That prose is the author's. If a comment looks factually wrong, report it rather
 than editing it.
 
 A `⚠️` paragraph marks a hard-won constraint — a reason something is the way it
-is, usually written after the alternative failed. There are 315 of them across
-47 files: 265 in `compiler/`, 50 in `tests/`, plus more in `bootstrap/algol.c`,
-`algol.h` and the shell scripts. `bench/` has none. **Read the `⚠️` above
-anything that looks accidental before changing it**; that is what they are for.
+is, usually written after the alternative failed. There are 485 of them across
+98 files: 272 in `compiler/`, 121 in `tests/`, 45 in `bootstrap/algol.[ch]`, 38
+in the shell scripts at the root, and 9 in `examples/`. `bench/` has none.
+**Read the `⚠️` above anything that looks accidental before changing it**; that
+is what they are for.
 
 Some of that prose is stale, and correcting it is a separate job from the code.
 Known cases: references to a sibling Java implementation and to harnesses that

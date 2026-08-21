@@ -1,0 +1,79 @@
+/// A String refuses every mutating collection member, and says why.
+///
+/// Issue #42, the other half.  ALGOL-24.md gives each collection kind an
+/// invariant and refuses a method exactly where no meaning would preserve both
+/// that invariant and what the call asked for.  A String's invariant is that it
+/// cannot be modified in place, so every mutating method is refused -- with
+/// 'Strings are immutable.', the sentence that already answers an assignment to
+/// a position.
+///
+/// ⚠️ The first assertion PASSES today, under both processors, and it is here
+/// for that reason.  S[0] := 'z' already raises the right sentence, so it pins
+/// the wording the other refusals must match.  A fix that invented a second
+/// sentence for the method forms would leave the language saying two things
+/// about one rule, and this file would still fail while looking as though it
+/// nearly passed.  Same shape as CharsBang asserting 'Ready?', which works.
+///
+/// ⚠️ Both processors refuse these calls today, so this file can look already
+/// fixed if you only check the exit code.  Neither refuses for the right
+/// reason.  Interpreted: 'Only instances have properties.', which rejects the
+/// whole dotted form on a String and answers S.Anything identically.  Compiled:
+/// 'Only a List or a Set has ''Add''.', which is a receiver complaint -- it
+/// would refuse a String even if Strings were mutable, so it is not the
+/// immutability guard, it is the absence of one.  The sentence is the assertion
+/// precisely because the outcome is already a refusal.
+///
+/// ⚠️ Separate from StringCollectionMembers.a24 although both are issue #42.
+/// They are different changes: one makes a String REACH the collection members,
+/// the other makes it REFUSE a subset of them for a stated reason.  A fix that
+/// routed String through the collection path without adding the guard would
+/// make that file pass and leave a String mutable -- which is worse than the
+/// defect, and which one file could not distinguish.
+///
+/// Interpreted: fails at the second assertion.
+/// Compiled:    fails at the second assertion, with a different sentence.
+///
+test 'A String Refuses To Be Modified';
+begin
+    var S : String := 'hello';
+    var Caught := '';
+
+    // Already correct under both -- pins the sentence.
+    try
+        S[0] := 'z';
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Strings are immutable.', Caught);
+
+    Caught := '';
+    try
+        S.Add ('z');
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Strings are immutable.', Caught);
+
+    Caught := '';
+    try
+        S.Insert (0, 'z');
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Strings are immutable.', Caught);
+
+    Caught := '';
+    try
+        S.Clear ();
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Strings are immutable.', Caught);
+
+    // The refusal must not have modified it.
+    AssertEqual ('hello', S);
+end
