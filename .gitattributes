@@ -1,0 +1,16 @@
+# The seed in bootstrap/ is emitted by the compiler, not written by hand, and a
+# change to compiler/ amplifies five- to tenfold on its way into it -- a 15-line
+# edit has landed as 175 lines of regenerated C.  Marking it generated is what
+# keeps a review of the 15 lines from opening as an 800-line diff.
+#
+# This affects presentation only.  `git diff` still shows every line, which
+# matters because checking a reseed means reading exactly these files.
+bootstrap/*.c   linguist-generated=true
+bootstrap/*.h   linguist-generated=true
+
+# ...except the runtime, which is the one hand-written pair in the directory.
+# It is copied verbatim into every emitted directory rather than produced, so a
+# change to it is a real change and must read as one.  Collapsing these would
+# hide the edits most worth seeing.
+bootstrap/algol.c   -linguist-generated
+bootstrap/algol.h   -linguist-generated
