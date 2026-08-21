@@ -8,8 +8,21 @@ What this document adds is **order**, which is the one thing left open — the
 issues gate one another, and much of the gating is recorded inside issue bodies
 rather than anywhere a reader would look.
 
-Owned by Tiller. Written against `c24cbb5`, after the seven open decisions in
-[`ALGOL-24.md`](ALGOL-24.md#open-decisions) were ruled.
+**Thirty-five open defects, and no open decisions.** The release criterion's
+first half is met: what stands between here and 1.0 is work rather than
+questions.
+
+Owned by Tiller. Written against `43207e9`, in which Plumb folded all seven
+rulings into [`ALGOL-24.md`](ALGOL-24.md) and filed the implementation work each
+one left behind.
+
+> **This document is derived and disposable.** The
+> [issues](https://github.com/schildawg/algol24/issues) are the source of truth,
+> and the `priority/N` label on each one is the durable artefact — it lives
+> where the truth lives. This file is a summary for reading the shape of the
+> release in one place. When it drifts from the issues, the issues win and this
+> gets rewritten from them, priorities re-derived. Do not resolve a
+> disagreement in its favour.
 
 ---
 
@@ -54,7 +67,11 @@ Two consequences that drove the ordering below:
 - **`bootstrap/algol.[ch]` is the exception.** The hand-written runtime is
   copied verbatim into every emitted directory, so a change there takes effect
   **without a reseed**. That is what lets the graphics work (M7) genuinely run
-  alongside everything else.
+  alongside everything else — and, as Plumb pointed out,
+  [#40](https://github.com/schildawg/algol24/issues/40) too. It touches
+  `bootstrap/algol.c` and nothing else, which makes it the one non-graphics
+  ticket that can be pulled while a whole-seed track holds the reseed. Worth
+  remembering when someone is blocked and looking for something to do.
 
 ---
 
@@ -68,8 +85,8 @@ scheme every later milestone emits into is settled.*
 | [#23](https://github.com/schildawg/algol24/issues/23) | `priority/1` | `compile.sh` silently discards every option but `--run` |
 | [#27](https://github.com/schildawg/algol24/issues/27) | `priority/1` | A wrong-arity call to a collection method segfaults compiled code |
 | [#3](https://github.com/schildawg/algol24/issues/3) | `priority/1` | Two enum members can emit one C symbol |
-| [#34](https://github.com/schildawg/algol24/issues/34) | `priority/2` | **DECIDED** — collection methods refused only where they violate the kind's invariant |
 | [#33](https://github.com/schildawg/algol24/issues/33) | `priority/3` | Compiled code lets a `Set` hold duplicates and an `Array` change length |
+| [#41](https://github.com/schildawg/algol24/issues/41) | `priority/3` | The interpreter refuses harmless collection synonyms and `S[0]` on a `Set` |
 | [#5](https://github.com/schildawg/algol24/issues/5) | `priority/3` | The `Length` built-in measures a collection's rendering |
 
 **Start with #23.** It is a shell script, it gates nothing, and it is P1 anyway:
@@ -84,14 +101,31 @@ where the separator scheme is chosen. `_` is a legal identifier character, so
 [#18](https://github.com/schildawg/algol24/issues/18) build on that scheme;
 choosing it twice is the waste to avoid.
 
-⚠️ #34 is a specification write and must land before #33, which implements it.
-#34 also leaves **one sub-question open** — for a `Set`, whether `Push`,
-`Insert` and `Set` are *refused* or *accepted and deduplicated*. Both preserve
-uniqueness. It decides whether #33's reproductions belong in `tests/defects/` or
-`tests/defects/refuse/`, so it needs answering before they are written.
+**#33 and #41 are two halves of one rule** — the compiled guard and the
+interpreter's matching permissiveness — and neither gates the other. They may be
+pulled together or apart.
+
+⚠️ **The `Set` ruling is neither of the two answers that were on the table**, so
+read [*Positions on a `Set`*](ALGOL-24.md) before starting. It is not
+"refuse" and not "deduplicate":
+
+| Call on a `Set` already containing `V` | Meaning |
+|---|---|
+| `S.Add(V)`, `S.Push(V)` | nothing happens; `V` keeps the position it has |
+| `S.Insert(I, V)` | `V` **moves** to position `I` |
+| `S.Set(I, V)` | refused: `Cannot hold two equal elements.` |
+| `S.Fill(V)` | every element becomes `V`, so the set collapses to `V` alone |
+
+So most of #33 and #41 is **acceptance** testing in `tests/defects/`, not
+refusal fixtures in `tests/defects/refuse/`.
+
+⚠️ `Cannot hold two equal elements.` exists in **neither processor** — verified
+by grep across `compiler/` and `bootstrap/`. It is a new sentence, and refusal
+sentences are compared verbatim by the harness, so it has to be written exactly
+once and identically on both sides.
 
 **A pattern worth sweeping for, not three coincidences.** #27, #33 and
-[#35](https://github.com/schildawg/algol24/issues/35) are all the same shape in
+[#42](https://github.com/schildawg/algol24/issues/42) are all the same shape in
 `bootstrap/algol.c`: a name-keyed dispatch branch with no receiver guard at the
 tail of a chain. Whoever takes #27 should look for the rest rather than fixing
 only the three we tripped over.
@@ -108,7 +142,7 @@ world's letters, and a name means the same thing however it is spelled.*
 | [#6](https://github.com/schildawg/algol24/issues/6) | `priority/1` | A `String` is a sequence of bytes, and the specification says code points |
 | [#2](https://github.com/schildawg/algol24/issues/2) | `priority/2` | Identifiers do not accept `!` or Unicode letters |
 | [#1](https://github.com/schildawg/algol24/issues/1) | `priority/2` | Identifiers are case-sensitive and are meant to be case-insensitive |
-| [#35](https://github.com/schildawg/algol24/issues/35) | `priority/4` | **DECIDED** — a `String` is a collection of `Char` |
+| [#42](https://github.com/schildawg/algol24/issues/42) | `priority/2` | A `String` does not answer the non-mutating collection members |
 
 **Why the Unicode headline issue is P2 and not P1.** #2 is the one that *sounds*
 like Unicode support, and two things sit above it. #3 (M1) must fix the symbol
@@ -137,8 +171,13 @@ the other's assumption** — `alg_stricmp` (`algol.c:522`) folds ASCII on the
 stated grounds that identifiers *are* ASCII, which stops being true when #2
 closes. Landing them together avoids the revisit.
 
-⚠️ #35 must not be fixed to a different unit than #6. `S.Length`, `Length (S)`
-and `for C in S` all have to agree, and #6 is what makes them agree.
+⚠️ **#42 must not land apart from #6, and this is the hardest edge in the
+graph.** If a `String` is a collection of `Char`, then `S.Length` counts code
+points — so `S.Length`, `Length (S)` and `for C in S` have to agree on the unit.
+Fixing them to different units is worse than fixing neither, because it converts
+one known gap into a silent disagreement. #42 is priced `priority/2` rather than
+lower for exactly this reason: it needs to surface directly behind #6 rather
+than sink to where a Developer would pull it months later.
 
 ---
 
@@ -154,20 +193,43 @@ are written, and diagnostics point at the source.*
 | [#4](https://github.com/schildawg/algol24/issues/4) | `priority/3` | An unresolved name emits invalid C instead of being refused |
 | [#7](https://github.com/schildawg/algol24/issues/7) | `priority/3` | `Char` does not widen to `String`, `Integer` does not widen to `Double` |
 | [#14](https://github.com/schildawg/algol24/issues/14) | `priority/3` | Only `List` takes an element type |
-| [#32](https://github.com/schildawg/algol24/issues/32) | `priority/3` | **DECIDED** — untyped and `Any` are one concept, and `Any` does not widen back |
 
-**The order inside this milestone is the whole point, and #32 is last.**
-Applying the strict rule before inference is complete would demand 285 `as`
-casts in `compiler/` — the exact casts the ruling exists to let you delete. The
-sequence is: unify untyped and `Any` → fix inference (#28) → make `Assignable`
-asymmetric (#32) → delete `as`.
+**The order inside this milestone is the whole point.** The sequence ruled in
+[#32](https://github.com/schildawg/algol24/issues/32) is:
 
-**#37 before #32, not after.** Today a type mismatch is comparatively rare
+1. unify untyped and `Any` in `TypeChecker`
+2. fix inference — [#28](https://github.com/schildawg/algol24/issues/28)
+3. make `Assignable` asymmetric, on all five paths
+4. delete `as`
+
+Applying step 3 before step 2 would demand 285 `as` casts in `compiler/` — the
+exact casts step 4 exists to delete.
+
+🚩 **Steps 1, 3 and 4 have no open issue.** #28 is step 2 and is scoped to
+inference alone; #32 is closed as a ruling. So three quarters of the chain is
+specified and untracked, and a Developer working from the issue list would find
+only the middle step. Flagged to Plumb — this wants a ticket before anyone pulls
+#28, or the follow-on work has nowhere to live.
+
+**#32's final ruling tightened this dependency rather than loosening it.** An
+unannotated declaration now *infers* its type, and the inferred type describes
+the variable without constraining what may be written to it. So inference
+decides whether an annotated declaration can be **satisfied at all**, not merely
+how well it is checked. The ordering below was prudent when written; it is now
+load-bearing.
+
+**#37 before step 3, not after.** Today a type mismatch is comparatively rare
 because the checker often has no type to compare with. After #28 and #32 it
 becomes the diagnostic a programmer meets most — and it is the worst one in the
 compiler, with no position and no type names, raised byte-identically from five
-different sites. Fixing it afterwards means the stricter rule's debut is several
-hundred positionless errors.
+different sites — **and those five sites are precisely the ones the asymmetry
+rule fires from.** Fixing it afterwards means the stricter rule's debut is
+several hundred positionless errors. This was contingent when written; the
+ruling went the way that triggers it, so it is now unconditional.
+
+`ALGOL-24.md`'s *Static errors* section now states positively that every static
+error carries file, line and caret, naming #37 as the gap — so this is a
+conformance failure against the specification rather than a wish.
 
 **#7 is the most user-visible wrongness in the entire backlog.** `'A' = Str('A')`
 answers `False` today, silently, which means a `Map` keyed with `'A'` cannot be
@@ -241,11 +303,10 @@ to design for than to retrofit.
 | [#18](https://github.com/schildawg/algol24/issues/18) | `priority/4` | Two units cannot export the same name |
 | [#20](https://github.com/schildawg/algol24/issues/20) | `priority/4` | The `constructor` keyword is decorative |
 | [#21](https://github.com/schildawg/algol24/issues/21) | `priority/4` | A constructor invoked on an instance yields the instance / `nil` |
-| [#31](https://github.com/schildawg/algol24/issues/31) | `priority/4` | **DECIDED** — top-level execution is source order |
-| [#36](https://github.com/schildawg/algol24/issues/36) | `priority/4` | **DECIDED** — `Uncaught: <message>` in both processors |
+| [#39](https://github.com/schildawg/algol24/issues/39) | `priority/4` | Compiled code defers every `begin…end` block to the end of the program |
+| [#40](https://github.com/schildawg/algol24/issues/40) | `priority/4` | An uncaught built-in error prints without the `Uncaught: ` prefix compiled |
 | [#19](https://github.com/schildawg/algol24/issues/19) | `priority/5` | No `continue`, no statement labels, and no `goto` |
 | [#29](https://github.com/schildawg/algol24/issues/29) | `priority/5` | Subscript refusal sentence differs between processors |
-| [#38](https://github.com/schildawg/algol24/issues/38) | `priority/5` | **DECIDED** — `ParamStr(0)` names the program |
 
 **#17 before #18, and the reproduction proves it.** `DuplicateExport.a24`
 currently fails on its qualified *type annotations*, before the duplicate export
@@ -259,8 +320,14 @@ land first; `goto` follows, and it is the only part of the backlog that requires
 the *interpreter* to change shape — block execution has to become resumable,
 because an exception travels only outward and a backward jump does not.
 
-**#38 needs no implementation at all.** Both processors are already correct; the
-ruling records what they do. It is a specification edit for Plumb.
+**#40 is the free one.** It touches `bootstrap/algol.c` and nothing else, so it
+needs no reseed — the only non-graphics ticket in the backlog that can be pulled
+while another track holds the seed. ⚠️ The prefix belongs at the *reporting*
+point, not at each `alg_error` call site: a message that gets **caught** must not
+carry the word `Uncaught`, or a handler inspecting the string would see it.
+
+**#39 is self-contained** — `CEmitter.a24:1091-1100`, emitting the root unit's
+block statements inline in `init_Root` rather than hoisting them into `main`.
 
 ---
 
@@ -299,13 +366,12 @@ order-sensitivity knowingly.
 
 ## Housekeeping
 
-| | Priority | Issue |
-|---|---|---|
-| [#30](https://github.com/schildawg/algol24/issues/30) | `priority/5` | Issue examples use `(* … *)` comments, which are not a comment form |
-
-Cosmetic, cheap, and for Plumb. Worth doing early anyway: a Developer pasting a
-reproduction out of an issue gets `Expect expression!` and will reasonably think
-the feature is broken rather than the comment.
+Nothing outstanding. [#30](https://github.com/schildawg/algol24/issues/30) —
+`(* … *)` comments in the issue prose — is **closed**, and turned out to be
+wider than filed: the form was in `ALGOL-24.md` itself as well, 12 lines across
+4 blocks, plus 36 comments across fourteen issues. Plumb then parsed all 47
+`pascal` blocks in the specification and swept for `==`, `!=`, C-style `!`,
+`return` and both brace comment forms, finding no second instance.
 
 ---
 
@@ -315,8 +381,9 @@ Not deferred backlog — never in it.
 
 - **Primitives with methods** — `8.DownTo(1)`, `'123'.IntegerValue()`. A
   direction Schildawg likes and will discuss with Plumb. It weighed on the
-  ruling in [#35](https://github.com/schildawg/algol24/issues/35), which is why
-  `S.Length` was allowed rather than refused, but the feature itself is post-1.0.
+  ruling that a `String` answers the collection members — which is why
+  `S.Length` was allowed rather than refused — but the feature itself is
+  post-1.0.
 - **A foreign function interface** — the intended path for native capabilities,
   so that a capability becomes a library rather than an edit to the compiler and
   two reseeds. Named in
@@ -327,10 +394,26 @@ Not deferred backlog — never in it.
 
 ## Open questions
 
-1. **#34 — for a `Set`, refuse or deduplicate?** Whether `S.Push(x)`,
-   `S.Insert(0, x)` and `S.Set(i, x)` are refused outright or accepted and
-   deduplicated. Both preserve uniqueness, so both satisfy the ruling. Blocks
-   writing #33's reproductions.
-2. **#38 — is `ParamStr(0)` guaranteed absolute?** Both processors answer an
-   absolute path today; whether that is promised, and what `./algc` with no
-   arguments or `--test` answers, is unprobed. Specify or name as unspecified.
+Both of the questions this document opened with are answered. #34's
+refuse-or-deduplicate was ruled — and came out as neither, see M1 — and the
+`ParamStr(0)` absoluteness question Plumb closed by **naming it unspecified** in
+the specification rather than guessing: both processors answer an absolute path,
+but the edge cases (`algc` invoked with no arguments, or under `--test`) were
+unprobed, and naming a hole beats writing a rule nobody checked. That is the
+right call and I would leave it named rather than spend a probe on it now.
+
+What is open instead:
+
+1. 🚩 **Three of the four steps in #32's chain have no ticket.** Unifying untyped
+   with `Any`, making `Assignable` asymmetric, and deleting `as` are all
+   specified and none is tracked. #28 covers only step 2. Raised with Plumb;
+   wants a ticket before anyone pulls #28.
+
+2. **The project board is 12 issues behind.** `gh project item-list 2` shows
+   items #1–#23; everything filed since — #24–#29, #33, #37, #39–#42 — is
+   invisible to it, including both halves of the collection work and three of
+   the four tickets Plumb filed against the rulings. Placing an issue on the
+   board is the first act of prioritising it, so this is mine rather than
+   Plumb's, and it is a decision for Schildawg whether the board or this
+   document is the surface the Developer works from. Maintaining both is a
+   standing cost and they will drift.
