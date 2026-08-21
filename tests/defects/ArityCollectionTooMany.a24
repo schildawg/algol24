@@ -1,0 +1,36 @@
+/// A collection method called with too many arguments raises, catchably.
+///
+/// Issue #27.  The rule is symmetric: ALGOL-24.md's 'Expected 1 arguments but
+/// got 2.' is the same sentence with the count the other way round, and a call
+/// that supplies more than a method takes is as wrong as one that supplies
+/// fewer.
+///
+/// ⚠️ Compiled, this does not crash and does not raise.  It SUCCEEDS -- exit 0,
+/// the extra argument silently discarded, the call answering as though it had
+/// been written correctly.  'collection_method' (bootstrap/algol.c:2345)
+/// discards its count with '(void)count;' and reads only the arguments it
+/// expects, so a surplus is invisible.
+///
+/// ⚠️ This is the quiet half of #27 and it is worth keeping separate from the
+/// crash.  A fix that only stops the segfault -- checking that ENOUGH arguments
+/// arrived before indexing args -- leaves this file failing, because too many
+/// is not too few.  The guard has to compare the count both ways.  Split into
+/// its own file so the harness says which half is fixed rather than reporting
+/// the pair as one line.
+///
+/// Interpreted: passes.
+/// Compiled:    the assertion fails -- nothing was raised, so Caught is empty.
+///
+test 'A Collection Method With Too Many Arguments Raises';
+begin
+    var L := [1, 2, 3];
+    var Caught := '';
+
+    try
+        L.Get (0, 99);
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 1 arguments but got 2.', Caught);
+end

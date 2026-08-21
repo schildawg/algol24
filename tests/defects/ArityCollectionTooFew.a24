@@ -1,0 +1,59 @@
+/// A collection method called with too few arguments raises, catchably.
+///
+/// Issue #27.  Same rule and same sentence as ArityFunction.a24 and
+/// ArityBuiltin.a24 -- ALGOL-24.md lists 'Expected 1 arguments but got 0.'
+/// under Run-time errors, so it is raised as a String and a handler for String
+/// catches it.  A collection method is a call like any other and nothing in the
+/// specification gives it a different rule.
+///
+/// ⚠️ Compiled, this does not fail.  It CRASHES -- SIGSEGV, exit 139, no
+/// output at all.  'collection_method' (bootstrap/algol.c:2345) opens with
+/// '(void)count;' and every branch below then indexes args[0]; a
+/// zero-argument call arrives with args == NULL.  This is the only defect in
+/// the repository that crashes rather than producing a wrong answer or a
+/// refusal, and it is reachable from a three-line program.
+///
+/// ⚠️ Kept in its own file BECAUSE it crashes.  A segfault takes the process
+/// down, so any test block after it in the same file never reports -- the
+/// harness would show one silent failure where there are several.  Same reason
+/// ArityBuiltin.a24 is separate from ArityFunction.a24, a different mechanism.
+///
+/// ⚠️ Get, Add and IndexOf are asserted together deliberately, and they are the
+/// three that reach args[0] with no argument to read.  Any fix that guards one
+/// by hand rather than checking 'count' for the whole table will pass the first
+/// assertion and crash on the second, which is the point of listing three.
+///
+/// Interpreted: passes.
+/// Compiled:    crashes before the first assertion is reached.
+///
+test 'A Collection Method With Too Few Arguments Raises';
+begin
+    var L := [1, 2, 3];
+    var Caught := '';
+
+    try
+        L.Get ();
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 1 arguments but got 0.', Caught);
+
+    Caught := '';
+    try
+        L.Add ();
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 1 arguments but got 0.', Caught);
+
+    Caught := '';
+    try
+        L.IndexOf ();
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 1 arguments but got 0.', Caught);
+end

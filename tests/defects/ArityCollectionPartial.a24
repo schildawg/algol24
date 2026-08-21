@@ -1,0 +1,59 @@
+/// A two-argument collection method given one argument raises, catchably.
+///
+/// Issue #27.  Put, Set and Insert each take two arguments, and ALGOL-24.md's
+/// 'Expected 2 arguments but got 1.' is the sentence for supplying one.
+///
+/// ⚠️ This is the worst of the three and the one that reads as harmless.  It
+/// neither crashes nor refuses: 'collection_method' (bootstrap/algol.c:2345)
+/// reads args[1] past the end of an argument array holding one element, and
+/// then WRITES what it found into the collection.  Compiled, at 43207e9:
+///
+///     var M := [:];  M.Put (1);          -->  [1:]        Length 1
+///     var L := [1,2,3];  L.Insert (0);   -->  [, 1, 2, 3] Length 4
+///
+/// The map gains a key whose value is whatever was in memory past the
+/// arguments, and the list gains an element of the same provenance.  Both
+/// render as though empty, which is what makes it quiet -- an indeterminate
+/// value that prints as nothing is indistinguishable from an empty string until
+/// something compares it.  A crash is louder and therefore safer than this.
+///
+/// ⚠️ Separate from ArityCollectionTooFew.a24 although both supply too few.
+/// They fail by different mechanisms and a partial fix can close one without
+/// the other: guarding args[0] against a NULL array stops the segfault and
+/// leaves this untouched, because here args is a perfectly valid array that is
+/// simply shorter than the method reads.  Only checking 'count' against what
+/// each method needs closes both.
+///
+/// ⚠️ Do not assert what the corrupted collection contains.  It is
+/// indeterminate by construction -- uninitialised memory -- so an assertion on
+/// it would be a test that is entitled to give a different answer on a
+/// different machine, a different compiler, or a different day.  What is
+/// asserted is that the call never gets that far.
+///
+/// Interpreted: passes.
+/// Compiled:    the assertion fails -- nothing was raised, so Caught is empty.
+///
+test 'A Two-Argument Collection Method Given One Raises';
+begin
+    var M := [:];
+    var Caught := '';
+
+    try
+        M.Put (1);
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 2 arguments but got 1.', Caught);
+
+    var L := [1, 2, 3];
+
+    Caught := '';
+    try
+        L.Insert (0);
+    except
+        on E : String do Caught := E;
+    end
+
+    AssertEqual ('Expected 2 arguments but got 1.', Caught);
+end

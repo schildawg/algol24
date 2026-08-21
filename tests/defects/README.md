@@ -58,7 +58,7 @@ definition of done.
 | [20](https://github.com/schildawg/algol24/issues/20) | The `constructor` keyword is decorative; `Init` decides | `ConstructorKeyword`, `ConstructorOverload`, `ConstructorNamed` |
 | [21](https://github.com/schildawg/algol24/issues/21) | `X.Init(5)` yields the instance interpreted, `nil` compiled | `ConstructorReinvoke` |
 | [22](https://github.com/schildawg/algol24/issues/22) | A wrong-arity call is unchecked when compiled and returns an answer | `ArityFunction`, `ArityBuiltin` |
-| [27](https://github.com/schildawg/algol24/issues/27) | A wrong-arity call to a collection method segfaults compiled code | *not written yet* |
+| [27](https://github.com/schildawg/algol24/issues/27) | A wrong-arity call to a collection method segfaults compiled code | `ArityCollectionTooFew`, `ArityCollectionTooMany`, `ArityCollectionPartial` |
 | [28](https://github.com/schildawg/algol24/issues/28) | Type inference is incomplete: 285 sites reach a declared type with no type | *not reproducible here* |
 | [29](https://github.com/schildawg/algol24/issues/29) | Subscripting a non-subscriptable value raises a different sentence in each | *not written yet* |
 | [33](https://github.com/schildawg/algol24/issues/33) | Compiled: a `Set` holds duplicates and an `Array` changes length | *not written yet* |
@@ -71,7 +71,7 @@ definition of done.
 | [44](https://github.com/schildawg/algol24/issues/44) | Assignability is symmetric, and only a declaration is checked strictly | *not written yet* |
 | [45](https://github.com/schildawg/algol24/issues/45) | `as` outlives the checker gap it exists to paper over | *not written yet* |
 
-⚠️ **The ten rows marked *not written yet* are reproductions I owe.** Most were
+⚠️ **The nine rows marked *not written yet* are reproductions I owe.** Most were
 filed on 2026-08-20, when the last of the open decisions were settled — each
 ruling turned into a defect the moment the specification stated the rule. They
 are listed because the index is the offline record of what is known to be
@@ -118,10 +118,11 @@ present element where it is, `S.Insert(I, V)` moving it to `I`, `Stack.Add`,
 needs a sentence that does not exist in either processor yet:
 `Cannot hold two equal elements.`
 
-Three of these fail in one half only, which is why `run.sh` builds as well as
-interprets. `EnumMemberSymbol` and `OverloadNoMatch` pass interpreted and fail
-compiled; `LengthBuiltin` is the mirror, passing compiled, because there the
-normative half is the one that is wrong.
+Six of these fail in one half only, which is why `run.sh` builds as well as
+interprets. `EnumMemberSymbol`, `OverloadNoMatch` and the three
+`ArityCollection…` files pass interpreted and fail compiled; `LengthBuiltin` is
+the mirror, passing compiled, because there the normative half is the one that
+is wrong.
 
 ## Tooling defects
 
@@ -196,6 +197,43 @@ reproduction that starts passing is the event worth acting on.
 
 For that reason this directory is **not** in `test.sh`'s `SUITES` array and must
 not be added to it. `./test.sh` stays green while these fail.
+
+## Issue 27 — wrong-arity collection calls
+
+Three files, one fault, three failure modes — and they are separate because a
+partial fix closes some and not others.
+
+| File | The call | Compiled, at `43207e9` |
+|---|---|---|
+| `ArityCollectionTooFew` | `L.Get ()` | **SIGSEGV**, exit 139, no output |
+| `ArityCollectionTooMany` | `L.Get (0, 99)` | exit 0 — the surplus is discarded and the call answers |
+| `ArityCollectionPartial` | `M.Put (1)` | exit 0 — and the collection is silently corrupted |
+
+`collection_method` (`bootstrap/algol.c:2345`) opens with `(void)count;` and
+then indexes `args[0]`, or `args[0]` and `args[1]`, in every branch. So a
+zero-argument call dereferences a null pointer, a one-argument call to a
+two-argument method reads past the end of a valid array, and a surplus argument
+is never looked at.
+
+⚠️ **`ArityCollectionPartial` is the one to read first**, although the crash is
+the one the issue is named for. It neither crashes nor refuses: the
+out-of-bounds read is *written into the collection*, so `M.Put (1)` leaves a map
+holding a key whose value is whatever was in memory, and `L.Insert (0)` leaves a
+list one element longer than it was. Both render as though empty. An
+indeterminate value that prints as nothing is indistinguishable from an empty
+string until something compares it — which makes this quieter than the segfault
+and therefore worse.
+
+⚠️ **The crash needs its own file** because it takes the process down: any test
+block after it never reports, and the harness would show one silent failure
+where there are several.
+
+⚠️ **A receiver guard is not what is missing**, though the issue suggests it.
+The collection operations themselves already check — `alg_get` and its
+neighbours call `as_sequence(...)`, which is why `var N := 5; N.Get (0)` answers
+`Only a collection has 'Get'.` compiled rather than misbehaving. The arity is
+the whole of the fault. Note that the guard cannot help here in any case:
+`args[0]` is evaluated before `alg_get` is entered.
 
 ## Issue 2 — identifier characters
 
