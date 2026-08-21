@@ -61,29 +61,41 @@ definition of done.
 | [27](https://github.com/schildawg/algol24/issues/27) | A wrong-arity call to a collection method segfaults compiled code | *not written yet* |
 | [28](https://github.com/schildawg/algol24/issues/28) | Type inference is incomplete: 285 sites reach a declared type with no type | *not reproducible here* |
 | [29](https://github.com/schildawg/algol24/issues/29) | Subscripting a non-subscriptable value raises a different sentence in each | *not written yet* |
-| [32](https://github.com/schildawg/algol24/issues/32) | Assignability is symmetric, and only a declaration is checked strictly | *not written yet* |
 | [33](https://github.com/schildawg/algol24/issues/33) | Compiled: a `Set` holds duplicates and an `Array` changes length | *not written yet* |
 | [37](https://github.com/schildawg/algol24/issues/37) | `Type mismatch!` reports no position and names neither type | *not written yet* |
 | [39](https://github.com/schildawg/algol24/issues/39) | Compiled code defers every `begin … end` block to the end of the program | *not written yet* |
 | [40](https://github.com/schildawg/algol24/issues/40) | Compiled: an uncaught built-in error prints without the `Uncaught: ` prefix | *not written yet* |
 | [41](https://github.com/schildawg/algol24/issues/41) | The interpreter refuses harmless collection synonyms and `S[0]` on a `Set` | *not written yet* |
 | [42](https://github.com/schildawg/algol24/issues/42) | A `String` does not answer the non-mutating collection members | *not written yet* |
+| [43](https://github.com/schildawg/algol24/issues/43) | Untyped and `Any` are two representations in `TypeChecker` and are one type | *not reproducible here* |
+| [44](https://github.com/schildawg/algol24/issues/44) | Assignability is symmetric, and only a declaration is checked strictly | *not written yet* |
+| [45](https://github.com/schildawg/algol24/issues/45) | `as` outlives the checker gap it exists to paper over | *not written yet* |
 
-⚠️ **The ten rows marked *not written yet* are mine and are outstanding.** Nine
-of them were filed in the days after the reproductions above were written — six
-of those on 2026-08-20, when five open decisions were settled and each ruling
-turned into a defect the moment the specification stated the rule. They are
-listed because the index is the offline record of what is known to be broken,
-and a defect with no reproduction is no less broken; but Prime Directive
+⚠️ **The twelve rows carrying no reproduction are mine and are outstanding.**
+All but three were filed after the reproductions above were written, most of
+them on 2026-08-20, when the last of the open decisions were settled — each
+ruling turned into a defect the moment the specification stated the rule. They
+are listed because the index is the offline record of what is known to be
+broken, and a defect with no reproduction is no less broken; but Prime Directive
 condition 1 has nothing to measure for them until the files exist, so a fix for
 one of these closes on the ordinary evidence rather than on a file flipping to
 passing.
 
-Two of the ten will not become files here. Issue 28 is a **count** — 285 sites
-where inference gives up — and is measured by re-running the instrumented
-checker described in the issue, not by a `test` block. Issue 32's rule is a
-refusal on all five assignment paths, so what it needs is `refuse/` cases, and
-it is blocked behind issue 28 by its own ruling.
+Two of the twelve will never become files here, and say so rather than reading
+as arrears:
+
+- **Issue 28 is a count** — 285 sites where inference gives up — measured by
+  re-running the instrumented checker the issue describes, not by a `test`
+  block. **Issue 45 is a count too**, of the 63 `as` casts in `compiler/` that
+  exist only because of issue 28; it is ready when that number reaches zero.
+- **Issue 43 is behaviour-preserving.** Merging two representations of "no type
+  known" into one changes which programs are accepted not at all, so there is
+  nothing for a reproduction to assert. `./test.sh` and the fixed point are its
+  whole check.
+
+Issues 44 and 45 need `refuse/` cases rather than `test` blocks, and both are
+blocked behind issue 37 — that directory asserts the refusal **sentence**, and
+37 is the issue that changes it.
 
 Some rules cannot be reproduced as a `test` block at all: where the correct
 outcome is that a program is **refused**, there is no observable behaviour to
