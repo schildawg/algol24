@@ -318,10 +318,20 @@ conformance/
   0001-char-vs-string.exit    optional, default 0
 ```
 
-Each program is run under every processor and compared against the expected
-output AND against the other processor. That second comparison is already known
-to be sharp: it is how the full test report was shown identical across the two,
-239 lines including colour.
+`.out` is a **gold master**: an authored statement of what the program should
+print, not a recording of what it happens to print.
+
+Each program is checked twice, and the two checks do different work.
+
+- **Against `.out`** — catches "both implementations are wrong". They share a
+  front end, so their agreeing about anything scanning, parsing or type-checking
+  decides is weak evidence: both would agree on the same defect. Only an
+  authored expectation can catch that.
+- **Against the other processor** — catches back-end divergence, where the two
+  genuinely differ. That comparison is known to be sharp: it is how the full
+  test report was shown identical across the two, 239 lines including colour.
+
+Neither subsumes the other, so both are kept.
 
 ⚠️ Write output with `WriteLn`, never `print` — `print` is being removed from
 the language, and a corpus built on it would rot on the day it goes.
@@ -331,14 +341,76 @@ and the ones a second implementation is likeliest to get wrong: `1 = 1.0` while
 `1 in [1.0]` is false, a falsey Integer `0` beside a truthy `0.0`, a falsey
 first enum member.
 
-### 7.3 One harness, two directories
+#### Authoring a case, and the record toggle
+
+The intended flow for a new case is to write the program, record what it
+actually does, and then edit that down to what it *should* do. The gap between
+the two is not an inconvenience — it is where findings come from. If recording
+and then editing produces a diff, either the program is wrong or the language
+is, and the second outcome is an Annex D entry.
+
+For a rule already settled, the stronger variant is to author `.out` from the
+specification first and run afterwards, so the implementation's answer is never
+seen before committing to the right one.
+
+⚠️ Golden testing's characteristic failure is canonizing a regression: output
+changes, the expectation is blessed, the test goes green and the defect is now
+the specification. Three rules keep the toggle from becoming that path.
+
+1. **Recording writes `.actual`, never `.out`.** Moving it across is a
+   deliberate act after reading the diff. This preserves the authoring flow and
+   removes the one-keystroke route from "output changed" to "test passes".
+2. **Refuse to record when the two processors disagree.** There is no single
+   "what IS" in that case, and recording either one silently buries a
+   divergence.
+3. **Never record in CI.**
+
+### 7.3 Colour in expectations
+
+Conformance programs emit no escapes — colour lives in the report and in
+`Console`'s diagnostics, never in `WriteLn` — so that corpus is plain text and
+byte-exact needs no help. Refusal expectations capture diagnostics, which are
+coloured, and would otherwise be files full of raw escape bytes: unreadable to
+author and worse to review.
+
+Do not strip them. **Transliterate**:
+
+```
+\033[31m  ->  [RED]
+\033[0m   ->  [RESET]
+```
+
+⚠️ Comparing transliterated text is exactly as strong as comparing raw bytes,
+provided the mapping is TOTAL and INJECTIVE. Stripping is neither — many inputs
+collapse onto one output, so a wrong colour and a right one compare equal, and
+a colour defect can never be caught by the corpus. Transliteration keeps the
+comparison intact and gains legibility; it is not a weakening, and it is the
+reason to prefer it rather than mere tidiness.
+
+The palette is a closed set of seven — RESET, RED, GREEN, YELLOW, BLUE, CYAN,
+WHITE — defined in `compiler/Console.a24` and mirrored in `bootstrap/algol.c`,
+so a total mapping is small and easy to keep current.
+
+Two rules make it safe:
+
+- **An escape with no mapping renders visibly and distinctly** — `[ESC:35m]` —
+  never passed through untouched and never dropped. An unexpected colour has to
+  surface as a diff rather than vanish into the transform.
+- **If the raw bytes already contain a sentinel literally, refuse to
+  transliterate that case and compare raw.** Checked before the transform, this
+  makes ambiguity impossible rather than merely unlikely.
+
+The failure diff is the other beneficiary: `expected [GREEN]PASS[RESET], got
+[RED]PASS[RESET]` says what went wrong, where two rows of escape bytes do not.
+
+### 7.4 One harness, two directories
 
 Conformance and refusal cases differ only in what is expected — a valid program
 with expected stdout and status zero, against an invalid one with an expected
 diagnostic and a non-zero status. Same runner, same `spec:` header, two
 directories. Build it once.
 
-### 7.4 Screen output in unit tests
+### 7.5 Screen output in unit tests
 
 A test body cannot currently observe what the program under test wrote: during
 a run both implementations DISCARD it — the interpreter through
@@ -421,3 +493,8 @@ Still open:
 - Whether the screen buffer is a `Buffer` reachable from Algol-24 or an opaque
   native. A `Buffer` brings `Free` and its poisoning rule into the test
   runner's lifetime, which is a larger surface than the feature needs.
+- The sentinel form for transliterated colour. `[RED]` is the most readable and
+  the most likely to collide with ordinary output; something like `‹RED›` or
+  `<ESC:RED>` trades a little legibility for a collision that will never
+  happen. The refuse-on-collision rule in §7.3 makes either safe, so this is a
+  question of taste rather than correctness.
