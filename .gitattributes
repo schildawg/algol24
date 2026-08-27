@@ -1,0 +1,13 @@
+# ⚠️ Probes are byte-exact evidence, and git's end-of-line normalization
+# destroys them.
+#
+# spec/probes/SRC-007-carriage-return-is-whitespace.a24 exists to demonstrate
+# that #13 is whitespace which does not advance the line count, and it can only
+# do that by containing CRLF endings.  Committed under the default rules, git
+# rewrote them to LF: the probe still passed, but for the wrong reason -- there
+# was no #13 left in it to be whitespace.  A recording that agrees for the
+# wrong reason is worse than one that disagrees.
+#
+# The same applies to every .actual: it is a byte-for-byte record of what an
+# implementation printed, and a rewritten byte is a false record.
+spec/probes/** -text
