@@ -1,0 +1,14 @@
+# The compiler binary, built from the checked-in seed by bootstrap/build.sh.
+#
+# ⚠️ Only the BINARY.  bootstrap/*.c and bootstrap/*.h are the seed itself and
+# must stay in the repository -- they are the only way into the language, since
+# the compiler is written in Algol-24 and compiles itself.
+bootstrap/algc
+
+# Emitted C: the default --compile output directory, and anything a harness
+# writes beside it.
+out/
+build/
+
+# macOS
+.DS_Store
