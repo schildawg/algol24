@@ -4,6 +4,7 @@
     "description": "Syntax colouring for Algol-24, the Pascal-flavoured gradually typed language whose compiler compiles itself.",
     "version": "0.1.0",
     "publisher": "schildawg",
+    "license": "MIT",
     "engines": {
         "vscode": "^1.75.0"
     },
