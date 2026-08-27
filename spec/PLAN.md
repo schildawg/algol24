@@ -229,7 +229,140 @@ Tiering, so this does not balloon:
 
 ---
 
-## 7. Phasing
+## 7. Testing
+
+Three tiers, and they are not interchangeable.
+
+| Tier | Tests | Lives in | Judged by |
+| --- | --- | --- | --- |
+| Unit | algc's own internals | `test` blocks in `compiler/*.a24` | assertions, in-process |
+| Conformance | the language | `conformance/*.a24`, standalone programs | exact stdout and exit status, compared across implementations |
+| Refusal | programs the language must reject | `refusals/*.a24`, one case per file | exact diagnostic and exit status, from outside the language |
+
+⚠️ **A unit test can never be a conformance test.** The suite in `compiler/`
+reaches into algc's own classes — `uses Scanner`, `Parser (…)`,
+`TypeChecker().Resolve (…)`. Another implementation exposes none of that. Those
+tests are valuable, and they test the compiler, not the language.
+
+### 7.1 Refusals
+
+⚠️ **A refusal test is a test of a program that cannot exist.** Any in-language
+harness needs a loadable program; a refusal case is by definition not loadable.
+Refusals can therefore only be judged from outside the language, by running a
+file and inspecting what came back.
+
+Observed, and the reason this is not a matter of taste: a file holding three
+test blocks, one of which contains `var X : Integer := 'text';`, produces
+
+```
+Uncaught: Type mismatch!
+```
+
+and no report whatsoever. The other two tests do not fail — they never run.
+Because `uses` parses a module inline, a refused module takes the suites of
+every file importing it down as well.
+
+⚠️ **One case per file, and this is forced rather than stylistic.** The first
+refusal aborts the run, so a second case in the same file is unreachable: it
+would sit permanently untested while appearing to be covered, which is worse
+than having no test at all.
+
+```
+refusals/
+  0001-type-mismatch.a24        one invalid construct, nothing else
+  0001-type-mismatch.expected   exact diagnostic
+  0001-type-mismatch.exit       expected status
+```
+
+Two facts must be RECORDED per case, because neither can be inferred:
+
+- **Which processors must refuse it.** A front-end refusal — scanner, parser,
+  resolver, checker — must be refused by both the interpreter and the compiled
+  program, with the same message. That is the strongest conformance property in
+  this scheme, because the two share a front end and any divergence is a defect
+  by construction. An emitter refusal applies to `--compile` only; a link
+  failure surfaces from `cc` and is compile-only.
+- **Refusal or runtime error.** Both exit non-zero, so "did it fail" does not
+  separate them. A refusal is rejected BEFORE execution; a runtime error ran and
+  then raised. Conflating them lets a program that dies halfway masquerade as
+  one that was correctly rejected.
+
+This is the role the old `refuse.sh` played. It went with the JPascal cut, and
+what replaces it compares the two implementations that exist against each other
+rather than against an absent oracle.
+
+Note on `Rejects` in `compiler/TypeChecker.a24` — 29 of that file's 30 tests use
+it, across 41 assertions. It is a unit test of the type checker and keeps its
+value as one; it is not language-level refusal testing and cannot become it.
+
+⚠️ It also returns a Boolean and discards the message, so a test passes when the
+source is rejected for ANY reason, including a typo in the test's own source.
+Replacing it with a `RejectedWith (Source, Message)` that asserts the exact text
+should come before the count of tests using it grows further.
+
+### 7.2 Conformance
+
+Standalone programs. Not unit tests, and not snippets embedded in the
+specification:
+
+- Unit tests are disqualified above.
+- Snippets need extraction tooling to be runnable, and that tooling is a tax
+  that drifts — the exact failure the rule IDs exist to prevent.
+- A program needs only "can this implementation run a file and produce output",
+  which is the smallest surface any implementation must have.
+
+```
+conformance/
+  0001-char-vs-string.a24     // spec: LEX-012, LEX-013
+  0001-char-vs-string.out     expected stdout, byte-exact
+  0001-char-vs-string.exit    optional, default 0
+```
+
+Each program is run under every processor and compared against the expected
+output AND against the other processor. That second comparison is already known
+to be sharp: it is how the full test report was shown identical across the two,
+239 lines including colour.
+
+⚠️ Write output with `WriteLn`, never `print` — `print` is being removed from
+the language, and a corpus built on it would rot on the day it goes.
+
+Seed the corpus from the Annex D entries. They are the highest-risk behaviours
+and the ones a second implementation is likeliest to get wrong: `1 = 1.0` while
+`1 in [1.0]` is false, a falsey Integer `0` beside a truthy `0.0`, a falsey
+first enum member.
+
+### 7.3 One harness, two directories
+
+Conformance and refusal cases differ only in what is expected — a valid program
+with expected stdout and status zero, against an invalid one with an expected
+diagnostic and a non-zero status. Same runner, same `spec:` header, two
+directories. Build it once.
+
+### 7.4 Screen output in unit tests
+
+A test body cannot currently observe what the program under test wrote: during
+a run both implementations DISCARD it — the interpreter through
+`OutputSuppressed`, the C runtime by returning early from `alg_write` and
+`alg_writeln` when `in_tests`.
+
+The semantics wanted are a screen buffer cleared at the start of each test and
+readable by the body. The capture point already exists in both; it drops the
+text instead of keeping it.
+
+⚠️ Reach it through a NATIVE ACCESSOR rather than an implicit parameter to the
+test block. A test body is emitted as `AlgFunction (cells, args, count)` and
+invoked by `alg_test_run` as `body (NULL, NULL, 0)`; passing an implicit
+argument changes that signature, the runner, and the emitter, in both
+implementations. An accessor needs none of it, and is explicit in the source
+where an implicit name is invisible.
+
+Three changes, all small:
+
+1. Interpreter: append to a Buffer instead of discarding.
+2. C runtime: append instead of returning early.
+3. Runner: clear the buffer before each test body.
+
+## 8. Phasing
 
 Realistically 15,000–25,000 words. Delivering it in one drop is how it gets
 done badly.
@@ -244,15 +377,35 @@ done badly.
 ⚠️ Phase 1 is the decision point. If the rule format, the voice or the
 granularity is wrong, that should surface after a day rather than a week.
 
+The testing work in §7 runs alongside, in this order and for these reasons:
+
+1. **The harness**, because conformance and refusals share it and neither can
+   start without it.
+2. **The refusal corpus**, because the cases are the cheapest to write — one
+   construct each — and carry the highest signal: front-end refusals must match
+   across both processors, so the corpus is a conformance check from its first
+   entry.
+3. **The conformance corpus**, seeded from Annex D.
+4. **Screen capture**, last of the four. It is the only one that changes the
+   language's own behaviour rather than observing it, and the unit suite should
+   be the thing that catches a mistake in it.
+
 ---
 
-## 8. Open decisions
+## 9. Open decisions
 
 Settled:
 
 - One file for the specification, Go-style. — *decided*
 - Stable rule IDs over section numbers. — *decided*
 - The interpreter is the authority; normative even when wrong. — *decided*
+- Refusals are judged out of process, one case per file. — *decided*
+- Conformance is standalone programs, not unit tests or extracted snippets.
+  — *decided*
+- One harness serving both corpora. — *decided*
+- Screen output through a native accessor, not an implicit parameter to the
+  test block. — *decided*
+- `print` is being removed, so no corpus may depend on it. — *decided*
 
 Still open:
 
@@ -261,3 +414,10 @@ Still open:
 - Whether Annex D entries should carry a recommended disposition (fix / keep
   and document / defer), or only describe. A disposition is more useful and
   more opinionated.
+- Whether a refusal case must pass on BOTH processors from the day it is
+  written, or may be recorded as interpreted-only until the compiler catches
+  up. The second is more practical and risks a corpus that quietly excuses the
+  compiler.
+- Whether the screen buffer is a `Buffer` reachable from Algol-24 or an opaque
+  native. A `Buffer` brings `Free` and its poisoning rule into the test
+  runner's lifetime, which is a larger surface than the feature needs.
