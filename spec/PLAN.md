@@ -451,12 +451,34 @@ Three changes, all small:
 Realistically 15,000–25,000 words. Delivering it in one drop is how it gets
 done badly.
 
-| Phase | Content | Rough size |
+| Phase | Content | Status |
 | --- | --- | --- |
-| 1 | Skeleton, ID scheme, `spec.sh`, and **two chapters done properly** — Lexical elements and Types — as the pattern to review | ~1 day |
-| 2 | Core semantics: values, declarations, expressions, statements, functions | |
-| 3 | Classes, enums, collections, modules, built-ins, initialization, errors, test blocks | |
-| 4 | Annexes C and D in full; `spec.sh` swept over every rule; grammar summary | |
+| 1 | Skeleton, ID scheme, `spec.sh`, source representation, lexical elements | **done** |
+| 2 | Core semantics: constants and variables, types, values, scope, expressions, statements | **done** |
+| 3 | Functions, classes, enums, collections, modules, built-ins, initialization, errors, test blocks | **done** |
+| 4 | Annexes A–E; `spec.sh` swept over every rule and both tables | **done** |
+| 5 | **The conformance pass** — deciding, rule by rule, what the language *should* do | next |
+
+**Where the first draft landed.** 19 chapters, 5 annexes, 248 rules, ~16,700
+words, 133 probes. Every rule was verified by running the interpreter. The
+checker verifies 318 file citations, 101 unit-test citations, the keyword table
+against `Scanner.a24`, Annex A against the chapters, and Annex B against the
+built-ins the interpreter registers.
+
+⚠️ **248 of 248 rules still carry `conformance TBD`**, which is the plan working
+rather than failing: probes are evidence, and evidence is not a commitment.
+
+What the writing found, none of which was visible from reading:
+
+- **5 compiler divergences** (Annex C), two of them **silent** — collection
+  member names matched case-insensitively by the compiler and not the
+  interpreter, and module bodies running at different times under the two.
+- **18 behaviours that look like defects** (Annex D).
+- Several false claims in the source itself, since corrected: `algol.h`
+  asserting the C runtime's case-insensitive lookup was "what the interpreter
+  does", and a stale comment claiming `Ord` returns a Double.
+- Four citations to symbols that do not exist, each rejected by `spec.sh`
+  before it could reach a commit.
 
 ⚠️ Phase 1 is the decision point. If the rule format, the voice or the
 granularity is wrong, that should surface after a day rather than a week.
