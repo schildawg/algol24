@@ -1,0 +1,14 @@
+// spec: TYP-009
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-7: both processors refuse
+// this program, with different wording -- 'Undefined property' interpreted,
+// 'Only instances have properties.' compiled.
+// A collection is not a class instance.  An instance has a ClassName; a
+// collection has no such property and asking is an error.
+
+class Dog; begin end
+WriteLn (Dog ().ClassName);
+
+WriteLn (List ().ClassName);

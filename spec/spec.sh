@@ -308,6 +308,30 @@ fi
     echo "  $(wc -l < "$WORK/planned" | tr -d ' ') rule(s) planned for a later generation"
 }
 
+# ⚠️ Annex entries must be numbered in the order they appear.  This is checked
+# because it has been got wrong four times: Annex E was stranded between two
+# chapters, F and G were inserted ahead of it, and H-3 and C-6 each landed above
+# entries that should precede them.  An out-of-order annex reads as though an
+# entry is missing, and the mistake is invisible in a diff of an inserted block.
+
+awk '/^## Annex ([A-Z]) /{ annex = $3 }
+     /^\*\*[A-Z]-[0-9]+ /{
+         match($0, /[A-Z]-[0-9]+/)
+         tag = substr($0, RSTART, RLENGTH)
+         split(tag, part, "-")
+         if (part[1] != last_letter) { last_letter = part[1]; last_n = 0 }
+         if (part[2] + 0 <= last_n) print tag " follows " part[1] "-" last_n
+         last_n = part[2] + 0
+     }' "$SPEC" > "$WORK/annex_order"
+
+if [ -s "$WORK/annex_order" ]; then
+    while read -r line; do
+        problem "annex entries are out of order: $line"
+    done < "$WORK/annex_order"
+else
+    echo "  annex entries are numbered in order"
+fi
+
 # ------------------------------------------------------------------ tables --
 #
 # ⚠️ A list transcribed into prose is the most rot-prone thing a specification

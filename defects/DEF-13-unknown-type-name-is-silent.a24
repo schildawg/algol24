@@ -1,0 +1,17 @@
+// spec: TYP-013
+//
+// TYP-013 requires a type name to denote a declared type, so this program must
+// be refused when it is read.  The name is never resolved instead: the test is
+// silently false, the guarded branch never runs, and the program reports
+// success.
+//
+// ⚠️ 'is' is uniquely permissive about its right-hand side.  The same undefined
+// name used as a VALUE is 'Undefined variable', which is what makes this an
+// inconsistency rather than a general looseness about names.
+
+WriteLn (1 is Nonexistent);
+
+if 1 is Integr then
+    WriteLn ('misspelled Integer took the then branch');
+else
+    WriteLn ('misspelled Integer silently took the else branch');

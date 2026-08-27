@@ -949,32 +949,44 @@ two may appear together in one header.
 
     interpreter  compiler/ObjFunction.a24  TypeNameOf
     compiler     bootstrap/algol.c         alg_is
-    conformance  TBD
+    conformance  0026-the-runtime-types.a24
 
-**[TYP-002]**  A type is written as an identifier. The only compound form is
-`List of T`, which names an element type.
+**[TYP-002]**  A type is written as an identifier. The only compound form is a
+collection type with an element type, written `of` — `List of Integer`,
+`Map of Token` [VAR-008].
 
 ```
 Type = identifier [ "of" identifier ] .
 ```
 
     interpreter  compiler/Parser.a24  VarDeclaration
-    conformance  TBD
+    conformance  0026-the-runtime-types.a24
 
 **[TYP-003]**  `Char` and `String` are distinct types, and a one-character
 value is a `Char`. `'s' is String` is **false**.
 
+⚠️ **Widening does not change this.** A Char widens to a String on its way into
+a written type [VAR-004], but `is` asks what a value *is*, not what it could
+become, and a type test is not one of the six assignment contexts [VAR-017]. A
+Char that has widened is a String and answers so; the Char it came from is not.
+
     interpreter  compiler/ObjFunction.a24  TypeNameOf
-    conformance  TBD
+    conformance  0026-the-runtime-types.a24
 
 ### 6.2 Any
 
-**[TYP-004]**  `Any` is the declared type meaning *the type is not known*. It is
-compatible with every type in both directions, and no value ever reports `Any`
-as its runtime type.
+**[TYP-004]**  `Any` is the declared type meaning *the type is not known*. A
+variable declared `Any` accepts every value; a value of type `Any` does not
+satisfy a written type without a cast [VAR-006]. No value ever reports `Any` as
+its runtime type, so `X is Any` is false for every `X` [VAL-005].
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
+    conformance  0020-any-accepts-every-value.a24
+    refusal      0013-any-does-not-satisfy-a-written-type.a24
+
+> The asymmetry is the point of [VAR-006]: `Any` is where a type is not known,
+> and a written type is a claim that it is. Moving from the first to the second
+> is a conversion, and `as` is how one is written.
 
 ### 6.3 nil
 
@@ -983,14 +995,31 @@ including the type `nil` was declared as.
 
     interpreter  compiler/Interpreter.a24  VisitIsExpr
     compiler     bootstrap/algol.c         alg_is
-    conformance  TBD
+    conformance  0027-nil-has-no-type.a24
 
 **[TYP-006]**  `nil` nonetheless satisfies every declared type for the purpose
 of assignment — see [VAR-005]. A value that is not there has no type to check,
 and is accepted everywhere.
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
+    conformance  0027-nil-has-no-type.a24
+
+**[TYP-013]**  A type name must denote a declared type. A name that denotes
+nothing is refused when the program is read, rather than being read as a type no
+value has.
+
+⚠️ **NOT YET IMPLEMENTED.** The name is never resolved: `1 is Nonexistent` is
+`false`, silently. A misspelled type answers false and the branch it guards
+never runs — while an undefined *variable* in the same position is
+`Undefined variable 'X'`, so `is` is uniquely permissive about its right-hand
+side. See DEF-13.
+
+    interpreter  compiler/Interpreter.a24  VisitIsExpr
+    defect       DEF-13-unknown-type-name-is-silent.a24
+
+> This is not a gradual-typing case. Gradual typing concerns a *value* whose
+> type is not known, which is ordinary; a type *name* is written by the
+> programmer and must denote something.
 
 ### 6.4 Collection types
 
@@ -998,7 +1027,7 @@ and is accepted everywhere.
 each answers `is` to its own name only. A `List` is not a `Set`.
 
     interpreter  compiler/ObjCollection.a24  Kind
-    conformance  TBD
+    conformance  0028-collection-types-are-distinct.a24
 
 **[TYP-008]**  `Array` is fixed in size. Its elements begin as `nil`, it is
 indexed from zero, and an index outside its bounds is the runtime error
@@ -1006,13 +1035,13 @@ indexed from zero, and an index outside its bounds is the runtime error
 
     interpreter  compiler/ObjCollection.a24  At
     compiler     bootstrap/algol.c           alg_subscript_set
-    conformance  TBD
+    conformance  0029-array-is-fixed.a24
 
 **[TYP-009]**  A collection is **not** a class instance. It has no `ClassName`,
 and asking for one is the error `Undefined property 'ClassName'.`
 
     interpreter  compiler/ObjCollection.a24  Get
-    conformance  TBD
+    conformance  0030-collections-have-no-classname.a24
 
 ### 6.5 What a class type cannot do
 
@@ -1024,22 +1053,31 @@ takes up what it would cost to lift each one.
 is the runtime error `Subscript target should be an ordinal.`, whatever methods
 the class declares.
 
+⚠️ **PLANNED — a later generation.** A subscript operator a class may declare.
+See Annex H, H-4.
+
     interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
-    conformance  TBD
+    conformance  0031-instance-is-not-subscriptable.a24
 
 **[TYP-011]**  A class instance may not be iterated. `for var X in B do` over an
 instance is the runtime error `Can only iterate a collection or a String.`
 
+⚠️ **PLANNED — a later generation.** An iteration protocol a class may
+implement. See Annex H, H-5.
+
     interpreter  compiler/Interpreter.a24  VisitForInStmt
-    conformance  TBD
+    conformance  0032-instance-is-not-iterable.a24
 
 **[TYP-012]**  A class exposes a **field** without parentheses and a **method**
 with them. There is no getter declaration, so a computed value cannot be read as
 a property: a method named `Length` read as `B.Length` yields the function
 itself, printing `<fn Length>`, where a collection's `Length` yields its count.
 
+⚠️ **PLANNED — a later generation.** A computed property — a method read
+without parentheses. See Annex H, H-6.
+
     interpreter  compiler/ObjInstance.a24  Get
-    conformance  TBD
+    conformance  0033-no-computed-property.a24
 
 ---
 
@@ -1048,14 +1086,22 @@ itself, printing `<fn Length>`, where a collection's `Length` yields its count.
 ### 7.1 Assignability
 
 **[VAL-001]**  A value is assignable to a declaration when its type is the
-declared type, when either is `Any`, when the value is `nil`, or when its class
-inherits from the declared class.
+declared type, when the **declaration** is `Any`, when the value is `nil`, when
+its class inherits from the declared class, or when it widens to the declared
+type [VAR-004].
+
+⚠️ A value *of* type `Any` is not assignable to a written type; only the reverse
+holds [VAR-006]. Chapter 7 has not yet been through the conformance pass — this
+rule is corrected here because the chapter 5 decision contradicted it, not
+because it has been decided in its own right.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     conformance  TBD
 
-**[VAL-002]**  Nothing else converts. There is no numeric widening — see
-[VAR-004] — and no conversion between `Char` and `String`.
+**[VAL-002]**  Nothing else converts. The widenings are exactly the two of
+[VAR-004] — Integer to Double and Char to String — and they apply only at the
+assignment contexts of [VAR-017]. There is no narrowing, no conversion between a
+number and a String, and no user-defined conversion.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     conformance  TBD
@@ -2934,6 +2980,69 @@ defect in one or the other.
 
 ---
 
+**C-6 — Reading a method as a property crashes the compiled program.**
+*(silent, and the worst kind)*
+*(refers to [TYP-012])*
+
+```
+class Box;
+begin
+    function Size (); begin Exit 7; end
+end
+
+var B := Box ();
+WriteLn (B.Size ());
+WriteLn (B.Size);
+```
+
+Interpreted this prints `7` and then `<fn Size>`, which is what [TYP-012]
+requires. Compiled it dies of `SIGSEGV` (exit 139) with **no output at all** —
+the earlier `WriteLn` is lost with the buffer.
+
+⚠️ This is the most serious divergence recorded so far, and it is worse than
+C-4. C-4 accepts a program the language refuses; this one takes a program both
+processors accept and crashes it, without a diagnostic, in the processor that is
+supposed to be the fast one. `alg_property` has no case for a method reached
+without a call.
+
+⚠️ It is also the reason `conformance/0033` carries `// compiled: no`. The case
+pins the interpreted behaviour, which is the language; the compiled half cannot
+run at all, and a harness cannot record a crash as an expectation.
+
+**C-7 — Two runtime diagnostics are worded differently.** *(loud)*
+*(refers to [TYP-009], [TYP-010])*
+
+| Program | Interpreted | Compiled |
+| --- | --- | --- |
+| `List ().ClassName` | `Undefined property 'ClassName'.` | `Only instances have properties.` |
+| `B[0]` on an instance | `Subscript target should be an ordinal.` | `Only a collection or a String can be subscripted.` |
+
+Both processors refuse both programs, so nothing runs that should not — but the
+text differs, and [ERR-002] requires a diagnostic to be the same wherever it is
+produced.
+
+⚠️ The compiled wording is the better of the two in both cases. `Subscript
+target should be an ordinal.` describes the *subscript* when the fault is the
+*target*, and it is the message a reader of [TYP-010] meets first. Fixing this
+should move the interpreter toward the compiler, which is the opposite of the
+usual direction and is worth saying out loud.
+
+**C-8 — An uncaught runtime error carries no `Uncaught:` prefix.** *(loud)*
+
+| | |
+| --- | --- |
+| Interpreted | `Uncaught: Index 5 out of range 0..2.` |
+| Compiled | `Index 5 out of range 0..2.` |
+
+The message is identical; only the prefix the driver adds is missing. Every
+conformance case ending in a runtime error meets this, which is why
+`conformance/0029` carries `// compiled: no`.
+
+⚠️ Unlike C-3, this is not a consequence of compiled code lacking line
+information — the prefix needs nothing the compiled program does not have.
+
+---
+
 ## Annex D — advisory notes *(non-normative)*
 
 Where the specified behaviour looks like a mistake. Nothing here weakens the
@@ -3650,6 +3759,24 @@ first.
 rather than a checker-only annotation: it tests the value against the named type
 and raises on failure, with `nil` passing every cast [VAR-005].
 
+**DEF-13 — An unknown type name in `is` is silently false.**
+*(violates [TYP-013])*
+
+`1 is Nonexistent` is `false` rather than being refused. The name is never
+resolved, so a misspelled type answers false and the branch it guards never
+runs — `if X is Integr then` takes the `else` arm for every `X`, and the program
+reports success.
+
+*Reproduce:* `defects/DEF-13-unknown-type-name-is-silent.a24`
+
+⚠️ The same undefined name used as a **value** is `Undefined variable`, so this
+is an inconsistency in one operator rather than a general looseness about names.
+
+*Scope of the fix.* The resolver already walks every `IsExpr` for the receiver;
+it checks the type name against the declared types and records an error when it
+denotes nothing. ⚠️ `Any` must stay legal there even though `X is Any` is always
+false [VAL-005] — it names something, it just never matches.
+
 ---
 
 ## Annex G — implementation notes *(non-normative)*
@@ -3738,3 +3865,29 @@ into a collection has to be covered — `Add`, `Put`, `Push`, subscript
 assignment, and the collection literals — or the check becomes a fence with a
 gate in it, which is worse than no fence because it invites the declared type to
 be trusted.
+
+**H-4 — A subscript operator a class may declare.** *(will change [TYP-010])*
+
+`B[0]` on a class instance is `Subscript target should be an ordinal.` today,
+whatever methods the class declares. Pinned by
+`conformance/0031-instance-is-not-subscriptable.a24`.
+
+**H-5 — An iteration protocol a class may implement.**
+*(will change [TYP-011])*
+
+`for var X in B` over a class instance is `Can only iterate a collection or a
+String.` today. Pinned by `conformance/0032-instance-is-not-iterable.a24`.
+
+**H-6 — A computed property.** *(will change [TYP-012])*
+
+A method read without parentheses yields the method. There is no getter, so a
+class cannot expose a computed `Length` the way every collection does. Pinned by
+`conformance/0033-no-computed-property.a24`.
+
+⚠️ **H-4, H-5 and H-6 are one piece of work, not three.** They are exactly what
+Annex E identifies as pinning the collections to being native: a `Stack` written
+in Algol-24 cannot be subscripted, cannot be iterated, and cannot answer
+`Length` without parentheses. Any one of them alone leaves a user-written
+collection visibly second-class, so the generation that brings them should bring
+all three — and Annex E's estimate of what could then move out of the runtime
+depends on it.

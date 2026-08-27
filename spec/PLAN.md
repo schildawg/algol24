@@ -466,7 +466,16 @@ done badly.
 | 3 Source code representation | 11 | Unicode text; identifiers fold ASCII case; `#10` is the sole line terminator |
 | 4 Lexical elements | 33 | Char is a code point; `?` and `!` are trailing identifier marks; overflow is refused or raised; `print` leaves the language |
 | 5 Constants and variables | 18 | A written type is enforced everywhere; `as` becomes checked; Pascal widening at six assignment contexts; element types flow to reads |
-| 6 onwards | 191 | — |
+| 6 Types | 13 | `is` must name a declared type; the three limits on a class type become planned work, not faults |
+| 7 onwards | 178 | — |
+
+⚠️ **Chapter 6 found the worst divergence recorded so far**, and found it only
+because `conform.sh` refuses to record an expectation when the two processors
+disagree. Reading a method as a property — `B.Length` with no parentheses —
+prints `<fn Length>` interpreted and **segfaults** compiled, with no output at
+all. Five of chapter 6's nine cases were skipped by that guard; three were real
+divergences (C-6, C-7, C-8). None of them would have been noticed by running the
+interpreter alone, which is what every probe in `spec/probes/` does.
 
 ⚠️ **Chapter 4 added a rule and did not renumber anything**, which is the ID
 scheme earning its keep. Splitting integer overflow into a literal check and an

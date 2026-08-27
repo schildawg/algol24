@@ -1,0 +1,19 @@
+// spec: TYP-011
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-8: the message matches, the
+// 'Uncaught: ' prefix does not.
+// A class instance may not be iterated.
+// ⚠️ Pinned deliberately.  H-5 would give a class an iteration protocol.
+
+class Bag;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [1, 2]; end
+end
+
+var B := Bag ();
+WriteLn (B.Items.Length);
+
+for var X in B do WriteLn (X);

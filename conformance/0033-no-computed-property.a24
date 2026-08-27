@@ -1,0 +1,31 @@
+// spec: TYP-012
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-6: the compiled program
+// CRASHES on the bare 'B.Length' below -- SIGSEGV, no output at all. A harness
+// cannot record a crash as an expectation. The interpreted behaviour recorded
+// here is the language; C-6 is the compiler failing to implement it.
+// A class exposes a field without parentheses and a method with them.  There
+// is no getter, so a computed value cannot be read as a property: the method
+// itself is what comes back.
+// ⚠️ Pinned deliberately.  H-6 would give a class a computed property.
+
+class Box;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [1, 2, 3]; end
+    function Length (); begin Exit this.Items.Length; end
+end
+
+var B := Box ();
+
+// With parentheses, the method runs.
+WriteLn (B.Length ());
+
+// Without them, the method itself is the value.
+WriteLn (B.Length);
+
+// A collection's Length, by contrast, is a count and needs no parentheses --
+// which is exactly the asymmetry a class cannot reproduce.
+WriteLn (B.Items.Length);

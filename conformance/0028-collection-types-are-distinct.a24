@@ -1,0 +1,15 @@
+// spec: TYP-007
+//
+// Each collection answers 'is' to its own name only.  A List is not a Set,
+// however alike they behave.
+
+var L := List ();
+WriteLn (L is List);
+WriteLn (L is Set);
+WriteLn (L is Stack);
+WriteLn (L is Array);
+WriteLn (L is Map);
+
+var S := Set ();
+WriteLn (S is Set);
+WriteLn (S is List);

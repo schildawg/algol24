@@ -1,0 +1,25 @@
+// spec: TYP-008
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-8: the compiled runtime
+// omits the 'Uncaught: ' prefix on an uncaught runtime error, so the two
+// processors differ in text this case cannot help. The rule being pinned is
+// TYP-008, which both processors implement identically.
+// ⚠️ This case ends in a RUNTIME error, which is why it is here and not in
+// refusals/.  A refusal is a program the processor declines to run at all; this
+// one is accepted, runs, and then raises.  The expected output records both the
+// lines that printed and the diagnostic that ended it.
+
+var A := Array (3);
+
+// Elements begin as nil, and it is indexed from zero.
+WriteLn (A[0]);
+WriteLn (A.Length);
+
+A[2] := 'x';
+WriteLn (A[2]);
+
+// It does not grow on assignment, and an index outside its bounds raises.
+A[5] := 'y';
+WriteLn ('never reached');

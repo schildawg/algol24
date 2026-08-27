@@ -1,0 +1,21 @@
+// spec: TYP-010
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-7: both processors refuse
+// this program, with different wording.
+// A class instance may not be subscripted, whatever methods it declares.
+// ⚠️ Pinned deliberately.  H-4 would give a class a subscript operator, and
+// this case is what turns red when it lands.
+
+class Box;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [10, 20]; end
+    function At (I); begin Exit this.Items[I]; end
+end
+
+var B := Box ();
+WriteLn (B.At (0));
+
+WriteLn (B[0]);
