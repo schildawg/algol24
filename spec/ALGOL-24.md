@@ -72,10 +72,15 @@ pinning the interpreter's behaviour therefore pins the language's. But another
 implementation has no `Scanner` class to test, so a unit test can never be run
 against it. Only a conformance program can.
 
-**Every rule carries both keys.** Where no conformance program exists yet the
-value is the literal `TBD`, so the gap is stated in the specification rather
-than left to be discovered. `spec.sh` counts them, and
+**Every rule carries a `conformance` line**, and where no program exists yet its
+value is the literal `TBD` — so the gap is stated in the specification rather
+than left to be discovered. `spec.sh` requires the line, counts the TBDs, and
 `grep 'conformance  TBD' ALGOL-24.md` is the corpus's backlog.
+
+`unit` is cited where a test happens to pin the rule and omitted where none
+does. It is deliberately not mandatory: a unit test is a test of algc, and
+there is no intention that every rule of the language should have one. The
+coverage report names the rules that lack one.
 
 Non-normative material — annexes, notes, and anything under a heading marked
 *(non-normative)* — carries no identifiers and constrains nothing.
@@ -371,3 +376,215 @@ keywords rather than punctuation, and are subject to [SRC-010].
 ⚠️ `{` and `}` are not tokens of the language at all — not as comment
 delimiters, not as block delimiters, and not as set constructors. A block is
 `begin` … `end`; a collection literal uses `[` and `]`.
+
+### 4.6 Integer literals
+
+**[LEX-015]**  An integer literal is a run of decimal digits.
+
+```
+integer_lit = decimal_digit { decimal_digit } .
+```
+
+    interpreter  compiler/Scanner.a24  ScanNumber
+    unit         Scan Number
+    unit         Scan Integer Is Not A Double
+    conformance  TBD
+
+**[LEX-016]**  Decimal is the only base. There is no hexadecimal, octal or
+binary form, and no digit separator. `0x10` is not a number: it scans as the
+integer `0` followed by the identifier `x10`.
+
+    interpreter  compiler/Scanner.a24  ScanNumber
+    conformance  TBD
+
+**[LEX-017]**  Leading zeros are permitted and carry no meaning. `007` is the
+integer 7, not an octal.
+
+    interpreter  compiler/Scanner.a24  ScanNumber
+    conformance  TBD
+
+**[LEX-018]**  An Integer is a signed 32-bit value. A literal outside that
+range **wraps silently**, with no diagnostic: `2147483648` is the integer
+`-2147483648`, and `99999999999999` is `276447231`. Arithmetic wraps the same
+way, so `2147483647 + 1` is `-2147483648`.
+
+    interpreter  compiler/Scanner.a24  ToInteger
+    compiler     bootstrap/algol.c     alg_add
+    conformance  TBD
+
+> Both processors produce identical wrapped values. See Annex D.
+
+**[LEX-019]**  There is no negative literal. A leading `-` is the unary
+operator applied to a non-negative literal, which is why `2-1` is a
+subtraction rather than two adjacent expressions.
+
+    interpreter  compiler/Scanner.a24  ScanToken
+    conformance  TBD
+
+### 4.7 Double literals
+
+**[LEX-020]**  A double literal requires at least one digit on **both** sides
+of the point.
+
+```
+double_lit = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit } .
+```
+
+    interpreter  compiler/Scanner.a24  ScanNumber
+    unit         Scan Number Decimal
+    conformance  TBD
+
+**[LEX-021]**  `1.` is therefore not a double. It is the integer `1` followed
+by the `.` operator, and a program containing it fails with `Expect property
+name after '.'.` Likewise `.5` is not a literal at all.
+
+    interpreter  compiler/Scanner.a24  ScanNumber
+    unit         Scan Integer Then Dot
+    conformance  TBD
+
+**[LEX-022]**  There is no exponent notation. `1e5` scans as the integer `1`
+followed by the identifier `e5`.
+
+    interpreter  compiler/Scanner.a24  ScanNumber
+    conformance  TBD
+
+### 4.8 Character literals
+
+**[LEX-023]**  A quoted literal enclosing exactly one byte **of source** is a
+Char rather than a String. The measurement is taken on the raw span between the
+quotes, not on the value.
+
+    interpreter  compiler/Scanner.a24  ScanString
+    unit         Scan One Character Is A Char
+    conformance  TBD
+
+**[LEX-024]**  A Char may also be written `#` followed by decimal digits, giving
+the character with that code point: `#65` is `A` and `#10` is a line feed. A `#`
+not followed by a digit is an error reading `[line N] Error: Invalid character:
+C`.
+
+```
+char_lit = "'" source_byte "'" | "#" decimal_digit { decimal_digit } .
+```
+
+    interpreter  compiler/Scanner.a24  ScanChar
+    unit         Scan Char By Code Point
+    unit         Scan Char Without Digits
+    conformance  TBD
+
+**[LEX-025]**  A Char's code point is limited to 0 … 127. A larger value is a
+runtime error reading `Char is limited to 0..127.`
+
+    interpreter  compiler/Interpreter.a24  CharNative
+    compiler     bootstrap/algol.c         alg_char
+    conformance  TBD
+
+**[LEX-026]**  A Char and a String are never equal, however alike they look.
+`'a' = 'a'` is true because both sides are Chars; `Copy('abc', 0, 1) = 'a'` is
+**false**, because `Copy` yields a String of length one and the Char `'a'` is
+not it.
+
+    interpreter  compiler/Interpreter.a24  IsEqual
+    compiler     bootstrap/algol.c         equals
+    conformance  TBD
+
+### 4.9 String literals
+
+**[LEX-027]**  A string literal is enclosed in single quotes. A quote within it
+is written twice.
+
+```
+string_lit = "'" { source_byte_other_than_quote | "''" } "'" .
+```
+
+    interpreter  compiler/Scanner.a24  ScanString
+    unit         Scan String
+    unit         Scan Doubled Quote
+    conformance  TBD
+
+**[LEX-028]**  There are no backslash escapes. `'a\nb'` is four bytes, and its
+element at index 1 is the backslash itself. A line feed is written `#10` and
+concatenated.
+
+    interpreter  compiler/Scanner.a24  ScanString
+    conformance  TBD
+
+**[LEX-029]**  `''` is the empty String. `''''` is a String of length one
+holding a quote — **not** a Char, because [LEX-023] measures the source span,
+which is two bytes.
+
+    interpreter  compiler/Scanner.a24  ScanString
+    unit         Scan Empty String
+    unit         Scan An Escaped Quote Is A String
+    conformance  TBD
+
+**[LEX-030]**  A string literal may span lines. The line feed is part of its
+value and advances the line count, so `'one` ⏎ `two'` is seven bytes.
+
+    interpreter  compiler/Scanner.a24  ScanString
+    conformance  TBD
+
+**[LEX-031]**  A string that reaches the end of the file unclosed is an error
+reading `[line N] Error: Unterminated string.`, where N is the line the scan
+reached — not the line the string opened on.
+
+    interpreter  compiler/Scanner.a24  ScanString
+    unit         Scan Unterminated String
+    conformance  TBD
+
+**[LEX-032]**  A String cannot hold the Char whose code point is 0. The Char
+itself is well formed and `#0 is Char` is true, but concatenating it into a
+String truncates the String there: `Length('a' + Str(#0) + 'b')` is 2.
+
+    interpreter  compiler/Interpreter.a24  StrNative
+    compiler     bootstrap/algol.c         alg_string
+    conformance  TBD
+
+> Both processors agree. See Annex D.
+
+---
+
+## Annex D — advisory notes *(non-normative)*
+
+Where the specified behaviour looks like a mistake. Nothing here weakens the
+rule it refers to: the body states what the language does, and this annex
+argues about it. Entries are added as the chapters that expose them are
+written.
+
+**D-1 — Integer overflow is silent.** *(refers to [LEX-018])*
+
+A literal or an arithmetic result outside the signed 32-bit range wraps with no
+diagnostic, so `2147483648` is `-2147483648` and `99999999999999` is
+`276447231`. A program can compute a wrong answer and give no sign of it.
+
+Both processors wrap identically, so this is at least consistent, and the
+wrapping is what C does natively — making it free in the compiler and
+deliberate work to detect. Changing it would mean either a check on every
+arithmetic operation or a widened Integer, and it would break any program
+relying on the wrap.
+
+*Recommended:* raise on overflow. A language whose compiler is written in
+itself cannot afford a silent wrong answer in its own arithmetic, and the cost
+is a branch on operations that are not this language's bottleneck.
+
+**D-2 — `?` alone is a valid identifier.** *(refers to [LEX-008])*
+
+Because `?` is classed as a letter so that `Gate?` scans as one word, it may
+also *begin* an identifier, and `var ? := 7;` declares a variable named `?`.
+That is almost certainly not intended; it falls out of the letter class rather
+than from any decision.
+
+*Recommended:* keep `?` as a trailing character only — a letter for the purpose
+of continuing an identifier, not of starting one. No plausible program relies
+on the current rule, and the change is confined to `IsAlpha` and its caller.
+
+**D-3 — `#0` is constructible but unstorable.** *(refers to [LEX-032])*
+
+`#0` yields a Char, and a Char is a value like any other, but putting one into
+a String silently truncates it. The String type is C's NUL-terminated
+representation showing through, and the language does not say so anywhere.
+
+*Recommended:* either refuse `#0` at construction, as [LEX-025] already refuses
+128 and above, or give String an explicit length so it can hold a zero byte.
+Refusing is much the smaller change and matches the existing range check;
+storing it honestly is the better language.
