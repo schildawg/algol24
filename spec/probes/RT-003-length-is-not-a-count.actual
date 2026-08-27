@@ -1,0 +1,7 @@
+L.Length      = 3
+Length(L)     = 12
+Str(L)        = [10, 20, 30]
+Length(Str(L))= 12
+M.Length      = 1
+Length(M)     = 5
+exit: 0

@@ -1,0 +1,13 @@
+// spec: RT-003
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var L := [10, 20, 30];
+WriteLn ('L.Length      = ' + Str(L.Length));
+WriteLn ('Length(L)     = ' + Str(Length(L)));
+WriteLn ('Str(L)        = ' + Str(L));
+WriteLn ('Length(Str(L))= ' + Str(Length(Str(L))));
+var M := [1:2];
+WriteLn ('M.Length      = ' + Str(M.Length));
+WriteLn ('Length(M)     = ' + Str(Length(M)));

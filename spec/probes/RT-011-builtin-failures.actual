@@ -1,0 +1,5 @@
+Mod failed: Division by zero.
+Val failed: 'abc' is not a number.
+Ord failed: 'ab' has no ordinal.
+Copy failed: Start -2 out of range 0..6.
+exit: 0

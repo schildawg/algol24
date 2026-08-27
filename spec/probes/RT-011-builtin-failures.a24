@@ -1,0 +1,25 @@
+// spec: RT-011, RT-004, RT-007, RT-009
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+try
+    WriteLn (Mod(7, 0));
+except
+    on e : String do WriteLn (e);
+end
+try
+    WriteLn (Val('abc'));
+except
+    on e : String do WriteLn (e);
+end
+try
+    WriteLn (Ord('ab'));
+except
+    on e : String do WriteLn (e);
+end
+try
+    WriteLn (Copy('abcdef', -2, 3));
+except
+    on e : String do WriteLn (e);
+end

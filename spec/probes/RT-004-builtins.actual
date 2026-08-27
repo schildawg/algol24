@@ -1,0 +1,36 @@
+-- Copy (text, begin, length), 0-based --
+  Copy('abcdef',0,3)   = abc
+  Copy('abcdef',3,3)   = def
+  Copy('abcdef',3,99)  = def
+  Copy('abcdef',0,0)   = 
+-- Pos (haystack, needle) --
+  Pos('abcdef','cd')   = 2
+  Pos('abcdef','zz')   = -1
+  Pos('abcdef','a')    = 0
+-- Ord and Char --
+  Ord('A')            = 65
+  Char(65)            = A
+  Ord(Char(65))       = 65
+-- Val --
+  Val('42')           = 42.0
+  Val('42') is Integer = false
+  Val('3.5')          = 3.5
+  Val('3.5') is Double = true
+-- Max and Mod --
+  Max(3,7)            = 7
+  Mod(7,3)            = 1
+  Mod(-7,3)           = -1
+-- Str --
+  Str(1)              = 1
+  Str(1.0)            = 1.0
+  Str(1.5)            = 1.5
+  Str(True)           = true
+  Str(nil)            = nil
+  Str([1,2])          = [1, 2]
+  Str([1:2])          = [1:2]
+-- clock and params --
+  clock() is Double   = true
+  ParamCount()        = 0
+  ParamStr(0)         = spec/probes/RT-004-builtins.a24
+  FileExists('bi.a24') = false
+exit: 0

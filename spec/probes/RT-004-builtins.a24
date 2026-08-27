@@ -1,0 +1,44 @@
+// spec: RT-004, RT-005, RT-006, RT-007, RT-008, RT-009, RT-011, RT-012, RT-013
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+procedure S (L : String, V : Any);
+begin
+    WriteLn ('  ' + L + ' = ' + Str(V));
+end
+WriteLn('-- Copy (text, begin, length), 0-based --');
+S ('Copy(''abcdef'',0,3)  ', Copy('abcdef', 0, 3));
+S ('Copy(''abcdef'',3,3)  ', Copy('abcdef', 3, 3));
+S ('Copy(''abcdef'',3,99) ', Copy('abcdef', 3, 99));
+S ('Copy(''abcdef'',0,0)  ', Copy('abcdef', 0, 0));
+WriteLn('-- Pos (haystack, needle) --');
+S ('Pos(''abcdef'',''cd'')  ', Pos('abcdef', 'cd'));
+S ('Pos(''abcdef'',''zz'')  ', Pos('abcdef', 'zz'));
+S ('Pos(''abcdef'',''a'')   ', Pos('abcdef', 'a'));
+WriteLn('-- Ord and Char --');
+S ('Ord(''A'')           ', Ord('A'));
+S ('Char(65)           ', Char(65));
+S ('Ord(Char(65))      ', Ord(Char(65)));
+WriteLn('-- Val --');
+S ('Val(''42'')          ', Val('42'));
+S ('Val(''42'') is Integer', Val('42') is Integer);
+S ('Val(''3.5'')         ', Val('3.5'));
+S ('Val(''3.5'') is Double', Val('3.5') is Double);
+WriteLn('-- Max and Mod --');
+S ('Max(3,7)           ', Max(3, 7));
+S ('Mod(7,3)           ', Mod(7, 3));
+S ('Mod(-7,3)          ', Mod(-7, 3));
+WriteLn('-- Str --');
+S ('Str(1)             ', Str(1));
+S ('Str(1.0)           ', Str(1.0));
+S ('Str(1.5)           ', Str(1.5));
+S ('Str(True)          ', Str(True));
+S ('Str(nil)           ', Str(nil));
+S ('Str([1,2])         ', Str([1,2]));
+S ('Str([1:2])         ', Str([1:2]));
+WriteLn('-- clock and params --');
+S ('clock() is Double  ', clock() is Double);
+S ('ParamCount()       ', ParamCount());
+S ('ParamStr(0)        ', ParamStr(0));
+S ('FileExists(''bi.a24'')', FileExists('bi.a24'));

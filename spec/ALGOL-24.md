@@ -2083,6 +2083,139 @@ See Annex C, C-1.
 
 ---
 
+## 16. Built-in functions
+
+### 16.1 The set
+
+**[RT-001]**  Twenty-five names are built in. Twenty-two are always available:
+
+```
+Length  Copy  Pos   Str        Ord   Char  Val
+Max     Mod   clock
+List    Set   Stack Array      Map   Buffer
+TextFile      FileExists
+ParamCount    ParamStr
+Write   WriteLn
+```
+
+    interpreter  compiler/Interpreter.a24  Builtins
+    conformance  TBD
+
+**[RT-002]**  The remaining three — `AssertTrue`, `AssertEqual` and `Fail` — are
+registered **only while `--test` is running** [see 19]. Calling one outside a
+test run is `Undefined variable 'AssertTrue'.`
+
+    interpreter  compiler/Interpreter.a24  RunTests
+    conformance  TBD
+
+### 16.2 Text
+
+**[RT-003]**  ⚠️ `Length(V)` **stringifies its argument and measures the text**,
+in bytes. It is not a collection's count: for a List of three elements
+`Length(L)` is the length of `[10, 20, 30]` — twelve — while `L.Length` is
+three.
+
+    interpreter  compiler/Interpreter.a24  LengthNative
+    compiler     bootstrap/algol.c         alg_length
+    conformance  TBD
+
+> Two different things are spelled `Length`, and the wrong one returns a
+> plausible number rather than an error. See Annex D.
+
+**[RT-004]**  `Copy(Text, Begin, Length)` takes a substring, counting from zero.
+The length is clamped to what remains, so `Copy('abcdef', 3, 99)` is `def`. A
+start outside the text is `Copy failed: Start -2 out of range 0..6.`
+
+    interpreter  compiler/Interpreter.a24  CopyNative
+    compiler     bootstrap/algol.c         alg_copy
+    conformance  TBD
+
+**[RT-005]**  `Pos(Text, Part)` answers the zero-based index of `Part` within
+`Text`, or **-1** when it is absent.
+
+    interpreter  compiler/Interpreter.a24  PosNative
+    compiler     bootstrap/algol.c         alg_pos
+    conformance  TBD
+
+**[RT-006]**  `Str(V)` renders any value: an Integer bare, a Double always with
+a point (`1.0`), a Boolean lowercase (`true`), `nil` as `nil`, a List as
+`[10, 20, 30]`, a Map as `[1:2]`, and an instance by its `ToString` [CLS-009].
+
+    interpreter  compiler/Interpreter.a24  Stringify
+    compiler     bootstrap/algol.c         alg_str
+    conformance  TBD
+
+**[RT-007]**  `Ord(C)` answers the code point of a single character, as an
+**Integer**. Anything longer is `Ord failed: 'ab' has no ordinal.`
+
+    interpreter  compiler/Interpreter.a24  OrdNative
+    compiler     bootstrap/algol.c         alg_ord
+    conformance  TBD
+
+**[RT-008]**  `Char(N)` answers the character with code point `N`, limited to
+0 … 127 [LEX-025]. `Ord` and `Char` are inverse within that range.
+
+    interpreter  compiler/Interpreter.a24  CharNative
+    compiler     bootstrap/algol.c         alg_char
+    conformance  TBD
+
+### 16.3 Numeric
+
+**[RT-009]**  ⚠️ `Val(S)` parses a number from text and **always yields a
+Double**, even where the text is integral: `Val('42')` is `42.0` and
+`Val('42') is Integer` is false. Failure is `Val failed: 'abc' is not a number.`
+
+    interpreter  compiler/Interpreter.a24  ValNative
+    compiler     bootstrap/algol.c         alg_val
+    conformance  TBD
+
+**[RT-010]**  ⚠️ `Max(A, B)` takes **Integers only**. `Max(3.5, 2)` is `Max
+expects Integers.`
+
+    interpreter  compiler/Interpreter.a24  MaxNative
+    compiler     bootstrap/algol.c         alg_max
+    conformance  TBD
+
+**[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
+dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
+zero.`
+
+    interpreter  compiler/Interpreter.a24  ModNative
+    compiler     bootstrap/algol.c         alg_mod
+    conformance  TBD
+
+**[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
+millisecond resolution.
+
+    interpreter  compiler/Interpreter.a24  ClockNative
+    compiler     bootstrap/algol.c         alg_clock
+    conformance  TBD
+
+### 16.4 Environment
+
+**[RT-013]**  `ParamStr(0)` is the program's own name and `ParamCount()` does
+not count it, so a program run with no arguments reports zero.
+
+    interpreter  compiler/Interpreter.a24  ParamCountNative
+    compiler     bootstrap/algol.c         alg_param_count
+    conformance  TBD
+
+**[RT-014]**  `FileExists(Name)` answers whether the named file exists.
+
+    interpreter  compiler/Interpreter.a24  FileExistsNative
+    compiler     bootstrap/algol.c         alg_file_exists
+    conformance  TBD
+
+**[RT-015]**  `Write(V)` and `WriteLn(V)` write the stringified value to
+standard output, `WriteLn` following it with `#10` — always that byte, never the
+host's line separator, so one program writes the same bytes everywhere.
+
+    interpreter  compiler/Interpreter.a24  WriteLnNative
+    compiler     bootstrap/algol.c         alg_writeln
+    conformance  TBD
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -2424,3 +2557,48 @@ about them plainly is worth having either way.
 ⚠️ This is not hypothetical for this repository. `compiler/Parser.a24` uses
 `Interpreter`, which uses `Parser`, so the compiler's own source contains a
 cycle — which is why it cannot be compiled by itself [Annex C, C-1].
+
+**D-15 — Two different things are spelled `Length`.** *(refers to [RT-003])*
+
+```
+var L := [10, 20, 30];
+L.Length      →  3
+Length(L)     → 12
+```
+
+The property answers the collection's count. The function stringifies its
+argument and measures the text, so `Length(L)` is the length of `[10, 20, 30]`.
+`LengthNative` is literally `Exit Length(Str(Arguments[0]))`.
+
+⚠️ The failure mode is the bad one: the wrong call returns a **plausible
+number** rather than an error. A program asking `Length(L)` of a collection gets
+an answer, uses it, and is wrong — and for a List of one-digit numbers the two
+even coincide at small sizes before diverging.
+
+The function is right for its intended argument. `Length('abc')` is 3, which is
+what a Pascal programmer expects, and the collection property is right too. Only
+the shared name is wrong.
+
+*Recommended:* make `Length` of a collection refuse rather than stringify —
+`Length expects text; use .Length for a collection.` A program that means the
+count says so, and one that means the rendering can write `Length(Str(L))`,
+which is what it is getting today by accident.
+
+**D-16 — `Val` always yields a Double, and `Max` never accepts one.** *(refers
+to [RT-009], [RT-010])*
+
+`Val('42')` is `42.0`, not `42`, so text that plainly holds an integer cannot be
+parsed into one — and the result then cannot be passed to `Max`, which refuses
+anything but Integers with `Max expects Integers.` The two built-ins are
+individually defensible and jointly unusable: `Max(Val(A), Val(B))` fails for
+every input.
+
+Given [VAR-004], which refuses `var X : Integer := 1.5;` and even
+`var X : Double := 1;`, a program has no smooth path from parsed text to an
+Integer at all.
+
+*Recommended:* let `Val` answer an Integer where the text has no point and a
+Double where it has one, matching how the literal rules already read the same
+characters [LEX-015], [LEX-020]; and let `Max` take numbers, promoting as every
+other numeric operator does [EXP-005]. Either change alone helps; both together
+close the gap.
