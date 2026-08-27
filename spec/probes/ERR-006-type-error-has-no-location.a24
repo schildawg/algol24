@@ -1,0 +1,12 @@
+// spec: ERR-006, ERR-002
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn ('line 1');
+WriteLn ('line 2');
+WriteLn ('line 3');
+WriteLn ('line 4');
+WriteLn ('line 5');
+var X : Integer := 'text';
+WriteLn ('line 7');

@@ -2293,6 +2293,97 @@ follow from index 1.
 
 ---
 
+## 18. Errors
+
+### 18.1 Phases
+
+**[ERR-001]**  A program passes through five phases: **scan**, **parse**,
+**resolve**, **check**, **run**. The first four complete over the whole program
+— its imports included — before any statement is executed.
+
+    interpreter  compiler/Main.a24  Run
+    conformance  TBD
+
+**[ERR-002]**  An error in any of the first four phases means **no statement
+runs at all**. A program cannot produce output and then fail to compile.
+
+    interpreter  compiler/Main.a24  Run
+    conformance  TBD
+
+**[ERR-003]**  A runtime error occurs during execution. Statements before it
+have run and their output stands.
+
+    interpreter  compiler/Interpreter.a24  Interpret
+    conformance  TBD
+
+### 18.2 Diagnostics
+
+Diagnostics are part of the observable surface [1.2]; their wording and shape
+are specified.
+
+**[ERR-004]**  A **scan** error reads `[line N] Error: <message>` and carries no
+source excerpt.
+
+⚠️ It is **recorded rather than raised**: the scanner sets a flag and keeps the
+message, and a driver must ask. A driver that does not ask will scan a damaged
+token stream and carry on.
+
+    interpreter  compiler/Scanner.a24  HadError
+    unit         Scan Unrecognized Character Is Recorded
+    conformance  TBD
+
+**[ERR-005]**  A **parse** or **resolution** error prints the message and a
+three-line excerpt naming the file, the line, and the offending token:
+
+```
+Uncaught: Expect variable name.
+[ERROR] e.a24: Expect variable name.
+[ERROR] 2 | var := 1;
+[ERROR]   | ^^^
+```
+
+    interpreter  compiler/Console.a24  Error
+    conformance  TBD
+
+**[ERR-006]**  ⚠️ A **type** error prints only:
+
+```
+Uncaught: Type mismatch!
+```
+
+It names no file, no line, no token and neither of the types involved, and the
+same five words are used for every mismatch the checker finds.
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    conformance  TBD
+
+> See Annex D.
+
+### 18.3 Catching
+
+**[ERR-007]**  Only **runtime** errors are catchable, and they are caught as a
+String carrying the diagnostic [STM-020].
+
+    interpreter  compiler/Interpreter.a24  VisitTryStmt
+    conformance  TBD
+
+**[ERR-008]**  A `try` around a scan, parse, resolution or type error catches
+nothing, because those phases complete before the `try` is reached. Wrapping a
+mistyped declaration in a handler does not suppress it.
+
+    interpreter  compiler/Main.a24  Run
+    conformance  TBD
+
+### 18.4 Status
+
+**[ERR-009]**  Every failure exits with status **70**, whichever phase reported
+it [INI-006].
+
+    interpreter  compiler/Main.a24  Main
+    conformance  TBD
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -2710,3 +2801,32 @@ Double where it has one, matching how the literal rules already read the same
 characters [LEX-015], [LEX-020]; and let `Max` take numbers, promoting as every
 other numeric operator does [EXP-005]. Either change alone helps; both together
 close the gap.
+
+**D-17 — A type error says only "Type mismatch!"** *(refers to [ERR-006])*
+
+Every mismatch the checker finds produces the same five words, with no file, no
+line, no token and neither of the types involved. In a seven-line program the
+diagnostic is:
+
+```
+Uncaught: Type mismatch!
+```
+
+and nothing else. The parser and resolver, by contrast, print the file, the
+line, the source text and a caret under the offending token [ERR-005] — so the
+machinery for a good diagnostic already exists, is already used two phases
+earlier, and the checker simply does not reach for it.
+
+⚠️ This compounds with [ERR-002]: because a type error stops the program before
+any statement runs, a programmer gets no output to orient by either. The message
+is the only information available, and it carries none.
+
+⚠️ And with [FUN-006]: a parameter's declared type is unenforced, so mismatches
+surface in fewer places than a reader expects — which makes the ones that do
+surface harder to locate, not easier.
+
+*Recommended:* raise through `Console.Error` with the offending token, as the
+parser does, and name both types — `Expected Integer, found String.` The token
+is in hand at every one of the five sites that raise this; the message is
+discarded rather than absent. This is the single cheapest improvement to the
+language's usability in this annex.

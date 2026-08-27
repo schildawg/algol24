@@ -1,0 +1,10 @@
+// spec: ERR-008
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+try
+    var X : Integer := 'text';
+except
+    on e : String do WriteLn ('caught: ' + e);
+end
