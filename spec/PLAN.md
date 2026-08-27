@@ -467,7 +467,20 @@ done badly.
 | 4 Lexical elements | 33 | Char is a code point; `?` and `!` are trailing identifier marks; overflow is refused or raised; `print` leaves the language |
 | 5 Constants and variables | 18 | A written type is enforced everywhere; `as` becomes checked; Pascal widening at six assignment contexts; element types flow to reads |
 | 6 Types | 13 | `is` must name a declared type; the three limits on a class type become planned work, not faults |
-| 7 onwards | 178 | — |
+| 7 Properties of types and values | 14 | Membership follows equality; Pascal's `Char`/`String` equality rejected; truthiness kept |
+| 8 onwards | 164 | — |
+
+⚠️ **Three of chapter 7's probes were empty files** — a header comment and no
+program. `record.sh` recorded "no output, exit 0" as their behaviour and
+reported green, so nine rules cited evidence that did not exist while the change
+detector said nothing had shifted. All nine turned out to be correct when
+finally run, which is luck rather than method. `record.sh` now rejects a probe
+with no executable line.
+
+⚠️ The general lesson is about what a green harness means. A check that cannot
+distinguish "ran and produced nothing" from "there was nothing to run" reports
+success for both, and the failure is invisible precisely because the artefact
+exists.
 
 ⚠️ **Chapter 6 found the worst divergence recorded so far**, and found it only
 because `conform.sh` refuses to record an expectation when the two processors

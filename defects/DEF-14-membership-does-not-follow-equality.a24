@@ -1,0 +1,19 @@
+// spec: VAL-013
+//
+// VAL-013 makes membership and equality one relation, so every line below must
+// print true.  Membership compares strictly instead, and only the lines that
+// need no promotion are true.
+//
+// ⚠️ The first line is the point: '=' says these two values are equal, and the
+// three that follow say a collection holding one does not contain the other.
+
+WriteLn (1 = 1.0);
+
+WriteLn (1 in [1.0]);
+WriteLn (1.0 in [1]);
+
+var Keys := [1 : 'one'];
+WriteLn (Keys.Contains (1.0));
+
+var S := Set ([1]);
+WriteLn (S.Contains (1.0));

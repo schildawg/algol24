@@ -3,3 +3,28 @@
 // A probe, not a conformance test. It records what the implementation
 // DOES; nothing here asserts what it should do.
 
+// VAL-009: '=' promotes numerically.
+WriteLn (1 = 1.0);
+WriteLn (0 = 0.0);
+
+// VAL-010: a Char is never equal to a String.
+WriteLn ('a' = 'a');
+WriteLn (Copy ('abc', 0, 1) = 'a');
+
+// VAL-012: nil equals nil.
+WriteLn (nil = nil);
+
+// VAL-011: collections and instances compare by identity.
+WriteLn ([1, 2] = [1, 2]);
+var L := [1, 2];
+var M := L;
+WriteLn (L = M);
+
+// VAL-013: membership is STRICT where '=' promotes.
+WriteLn (1 in [1.0]);
+WriteLn (1.0 in [1]);
+WriteLn (1 in [1]);
+
+var Keys := [1 : 'one'];
+WriteLn (Keys.Contains (1));
+WriteLn (Keys.Contains (1.0));

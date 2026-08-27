@@ -1,0 +1,14 @@
+nil        falsey
+False      falsey
+0          falsey
+enum ord 0 falsey
+True       truthy
+1          truthy
+0.0        truthy
+empty str  truthy
+a Char     truthy
+empty list truthy
+empty map  truthy
+enum ord 1 truthy
+true
+exit: 0

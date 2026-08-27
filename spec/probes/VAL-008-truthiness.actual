@@ -1,1 +1,13 @@
+nil      : falsey
+False    : falsey
+True     : truthy
+0        : falsey
+1        : truthy
+0.0      : truthy
+empty str: truthy
+char      : truthy
+empty list: truthy
+empty map : truthy
+enum 0    : falsey
+enum 1    : truthy
 exit: 0

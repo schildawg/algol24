@@ -1,0 +1,25 @@
+// spec: VAL-009, VAL-010, VAL-011, VAL-012
+//
+
+// VAL-009: '=' and '<>' promote numerically.
+WriteLn (1 = 1.0);
+WriteLn (0 = 0.0);
+WriteLn (1 <> 1.0);
+
+// VAL-010: a Char is never equal to a String.  Both sides of the first are
+// Chars, which is why it is true; Copy yields a String of length one.
+WriteLn ('a' = 'a');
+WriteLn (Copy ('abc', 0, 1) = 'a');
+
+// VAL-012: nil equals nil.
+WriteLn (nil = nil);
+
+// VAL-011: collections and instances compare by IDENTITY, not contents.
+WriteLn ([1, 2] = [1, 2]);
+
+var L := [1, 2];
+var M := L;
+WriteLn (L = M);
+
+class Dog; begin end
+WriteLn (Dog () = Dog ());

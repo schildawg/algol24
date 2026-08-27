@@ -3,3 +3,23 @@
 // A probe, not a conformance test. It records what the implementation
 // DOES; nothing here asserts what it should do.
 
+type Flag = (Off, On);
+
+procedure Show (Label, V);
+begin
+    if V then WriteLn (Label + ': truthy');
+    else WriteLn (Label + ': falsey');
+end
+
+Show ('nil      ', nil);
+Show ('False    ', False);
+Show ('True     ', True);
+Show ('0        ', 0);
+Show ('1        ', 1);
+Show ('0.0      ', 0.0);
+Show ('empty str', '');
+Show ('char      ', 'a');
+Show ('empty list', []);
+Show ('empty map ', [:]);
+Show ('enum 0    ', Off);
+Show ('enum 1    ', On);

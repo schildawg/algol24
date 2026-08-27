@@ -3,3 +3,18 @@
 // A probe, not a conformance test. It records what the implementation
 // DOES; nothing here asserts what it should do.
 
+class Animal; begin end
+class Dog (Animal); begin end
+
+WriteLn (Dog () is Dog);
+WriteLn (Dog () is Animal);
+WriteLn (Animal () is Dog);
+
+// VAL-004: nil has no type to test.
+var N : Dog := nil;
+WriteLn (N is Dog);
+WriteLn (nil is Integer);
+
+// VAL-005: Any is a declaration, never a runtime type.
+WriteLn (1 is Any);
+WriteLn (nil is Any);

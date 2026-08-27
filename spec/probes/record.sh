@@ -58,7 +58,7 @@ render() {
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/algol24-probes.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 
-TOTAL=0; WROTE=0; MOVED=0; NEW=0
+TOTAL=0; WROTE=0; MOVED=0; NEW=0; EMPTY=0
 
 for probe in "$PROBES"/*.a24; do
     TOTAL=$((TOTAL + 1))
@@ -70,6 +70,17 @@ for probe in "$PROBES"/*.a24; do
     # and an ordinary run would execute the program and skip the tests
     # entirely.  Without this the report could not be probed at all.
     args=$(sed -n 's|^// run: ||p' "$probe" | head -1)
+
+    # ⚠️ A probe with no program is indistinguishable from a probe that ran and
+    # printed nothing, and record.sh happily recorded three of them as 'exit: 0'
+    # -- so nine rules in chapter 7 cited evidence that did not exist while the
+    # detector reported green. A probe must contain at least one line that is
+    # not blank and not a comment.
+    if ! grep -qE '^[[:space:]]*[^/[:space:]]' "$probe"; then
+        echo "  EMPTY    $name (header only -- no program to run)"
+        EMPTY=$((EMPTY + 1))
+        continue
+    fi
 
     status=0
     # shellcheck disable=SC2086
@@ -93,12 +104,14 @@ done
 
 echo
 if [ "$RECORD" -eq 1 ]; then
-    echo "$TOTAL probe(s); $WROTE recording(s) written."
+    echo "$TOTAL probe(s); $WROTE recording(s) written, $EMPTY empty."
+    [ "$EMPTY" -eq 0 ] || exit 1
     exit 0
 fi
 
-echo "$TOTAL probe(s); $MOVED moved, $NEW never recorded."
-[ "$MOVED" -eq 0 ] && [ "$NEW" -eq 0 ] && { echo "OK: nothing has shifted."; exit 0; }
+echo "$TOTAL probe(s); $MOVED moved, $NEW never recorded, $EMPTY empty."
+[ "$MOVED" -eq 0 ] && [ "$NEW" -eq 0 ] && [ "$EMPTY" -eq 0 ] \
+    && { echo "OK: nothing has shifted."; exit 0; }
 echo
 echo "Nothing here says the new behaviour is wrong -- only that it changed."
 echo "Re-record with --record once you have decided it is intended."

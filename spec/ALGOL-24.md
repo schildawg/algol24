@@ -1091,12 +1091,11 @@ its class inherits from the declared class, or when it widens to the declared
 type [VAR-004].
 
 ⚠️ A value *of* type `Any` is not assignable to a written type; only the reverse
-holds [VAR-006]. Chapter 7 has not yet been through the conformance pass — this
-rule is corrected here because the chapter 5 decision contradicted it, not
-because it has been decided in its own right.
+holds [VAR-006].
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
+    conformance  0034-assignability.a24
+    defect       DEF-10-widening-is-refused.a24
 
 **[VAL-002]**  Nothing else converts. The widenings are exactly the two of
 [VAR-004] — Integer to Double and Char to String — and they apply only at the
@@ -1104,7 +1103,8 @@ assignment contexts of [VAR-017]. There is no narrowing, no conversion between a
 number and a String, and no user-defined conversion.
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
+    conformance  0034-assignability.a24
+    refusal      0014-no-implicit-narrowing.a24
 
 ### 7.2 Type tests
 
@@ -1114,26 +1114,30 @@ class inheriting from `T`. Inheritance is followed upward only: a `Dog` is an
 
     interpreter  compiler/Interpreter.a24  VisitIsExpr
     compiler     bootstrap/algol.c         alg_is
-    conformance  TBD
+    conformance  0035-type-tests.a24
 
 **[VAL-004]**  `nil is T` is **false** for every `T`. A value that is not there
 has no type to test.
 
     interpreter  compiler/Interpreter.a24  VisitIsExpr
     compiler     bootstrap/algol.c         alg_is
-    conformance  TBD
+    conformance  0035-type-tests.a24
 
 **[VAL-005]**  `X is Any` is **false** for every `X`. `Any` is a declaration,
 never a runtime type.
 
+⚠️ `Any` is nonetheless a legal type name in `is` [TYP-013]. It denotes
+something; it just never matches.
+
     interpreter  compiler/Interpreter.a24  VisitIsExpr
-    conformance  TBD
+    conformance  0035-type-tests.a24
 
 **[VAL-006]**  The type name in `is` is matched case-insensitively, so
-`1 is integer` is true.
+`1 is integer` is true. This is [SRC-011] applied to a type name and is not a
+special case.
 
     interpreter  compiler/Interpreter.a24  VisitIsExpr
-    conformance  TBD
+    conformance  0035-type-tests.a24
 
 ### 7.3 Casts
 
@@ -1162,13 +1166,20 @@ an enumeration member whose ordinal is `0`. Every other value is **truthy**.
 ⚠️ In particular these are all truthy: `0.0`, the empty String `''`, the empty
 List `[]`, the empty Map `[:]`, and every `Char`.
 
+⚠️ Truthiness is **independent of a value's contents**. A collection is a thing,
+and a thing is there; `if not S then` therefore does not test emptiness, and
+`if S.Length = 0 then` is the only spelling that does.
+
     interpreter  compiler/Interpreter.a24  IsTruthy
     compiler     bootstrap/algol.c         alg_truthy
     unit         Execute Logical Truthy
     unit         Evaluate Unary Bang Nil
-    conformance  TBD
+    conformance  0036-truthiness.a24
 
-> See Annex D.
+> D-8 observes that Integer `0` is the odd one out, and that were it truthy the
+> rule would reduce to "only `nil` and `False` are false". That is a change to
+> what existing programs mean and is not scheduled; the rule as written is the
+> decided one.
 
 ### 7.5 Equality
 
@@ -1178,40 +1189,66 @@ List `[]`, the empty Map `[:]`, and every `Char`.
     interpreter  compiler/Interpreter.a24  IsEqual
     compiler     bootstrap/algol.c         equals
     unit         Evaluate Binary Equal Equal
-    conformance  TBD
+    conformance  0037-equality.a24
 
-**[VAL-010]**  A `Char` is never equal to a `String` — see [LEX-026].
+**[VAL-010]**  A `Char` is never equal to a `String` — see [LEX-026]. `'a'` and
+`Copy('abc', 0, 1)` are not equal.
+
+⚠️ **Widening does not reach equality**, and the asymmetry with [VAL-009] is
+deliberate. A numeric promotion has one obvious target — the wider of the two
+types — and converting toward it loses nothing. `Char` against `String` has no
+target at all: it is a change of representation rather than a widening of value,
+and picking a direction would mean `=` converting its operands differently
+depending on which side they arrived on.
+
+⚠️ The rule bites less often than it appears to. `'a' = 'a'` is already true,
+because both sides are Chars; it is only reached when one side came from `Copy`,
+`Str` or a subscript. The complaint worth acting on is how easily a
+one-character String is produced by accident, not how `=` treats one.
 
     interpreter  compiler/Interpreter.a24  IsEqual
-    conformance  TBD
+    conformance  0037-equality.a24
 
 **[VAL-011]**  Class instances, collections and enumeration members compare by
 **identity**, not by contents. `[1, 2] = [1, 2]` is **false**: they are two
 collections. Two references to one collection are equal.
 
+⚠️ There is no way for a class to say otherwise. Comparing by contents needs an
+operator the program may define, which the language does not have; see Annex H,
+H-8.
+
     interpreter  compiler/Interpreter.a24  IsEqual
     compiler     bootstrap/algol.c         equals
-    conformance  TBD
+    conformance  0037-equality.a24
 
 **[VAL-012]**  `nil = nil` is true.
 
     interpreter  compiler/Interpreter.a24  IsEqual
     unit         Evaluate Binary Bang Equal Nil
-    conformance  TBD
+    conformance  0037-equality.a24
 
 ### 7.6 Membership
 
-**[VAL-013]**  ⚠️ `in`, `Contains`, and Map key lookup compare **strictly**, with
-no numeric promotion. `1 in [1.0]` is **false**, `1.0 in [1]` is **false**, and a
-Map holding the key `1` does not contain the key `1.0` — while `1 = 1.0` is
-true.
+**[VAL-013]**  `in`, `Contains` and Map key lookup use the equality of
+[VAL-009]. Membership and equality are one relation: if `X = Y` then a
+collection holding `Y` contains `X`. `1 in [1.0]` is **true**, and a Map holding
+the key `1` contains the key `1.0`.
+
+⚠️ **NOT YET IMPLEMENTED.** All three compare strictly, with no numeric
+promotion, so `1 in [1.0]` and `1.0 in [1]` are both false and
+`Keys.Contains(1.0)` is false for a Map holding `1` — while `1 = 1.0` is true.
+A program can hold two values it calls equal and find only one of them. See
+DEF-14.
 
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           strict_equals
-    conformance  TBD
+    defect       DEF-14-membership-does-not-follow-equality.a24
 
-> Equality and membership therefore disagree, deliberately in each case and
-> incompatibly with each other. See Annex D.
+> Each half was defensible alone, which is how they came to disagree: `=`
+> promotes because arithmetic does, and membership is strict because a hash
+> table cannot be built over a relation that promotes. The second reason is a
+> statement about the implementation, not about the language, and it is the one
+> that gives way — see D-6 for the cost.
 
 ### 7.7 Ordering
 
@@ -1219,12 +1256,15 @@ true.
 **Strings are not ordered**: `'ab' < 'cd'` is the runtime error `Operands must
 be numbers.`
 
+⚠️ **PLANNED — a later generation.** Ordering for Strings. See Annex H, H-7.
+
     interpreter  compiler/Interpreter.a24  VisitBinary
     unit         Evaluate Binary Greater Left Not Number
-    conformance  TBD
+    conformance  0038-strings-are-not-ordered.a24
 
 > A program needing to order text must compare it character by character, which
-> is what `compiler/CEmitter.a24`'s `TextLess` does.
+> is what `compiler/CEmitter.a24`'s `TextLess` does — a function the compiler
+> writes for itself because the language does not provide the operator.
 
 ---
 
@@ -3041,6 +3081,31 @@ conformance case ending in a runtime error meets this, which is why
 ⚠️ Unlike C-3, this is not a consequence of compiled code lacking line
 information — the prefix needs nothing the compiled program does not have.
 
+**C-9 — A String has a `.Length` property compiled and none interpreted.**
+*(silent)*
+*(refers to [RT-003], [TYP-012])*
+
+```
+WriteLn ('abc'.Length);
+```
+
+Interpreted this is `Uncaught: Only instances have properties.` Compiled it
+prints `3`.
+
+⚠️ **The dangerous direction, as with C-4:** the compiler accepts a program the
+language refuses. A program developed against the compiler can read `.Length`
+off a String throughout and fail on the first interpreted run, with neither
+processor having warned that they disagree.
+
+⚠️ A collection's `.Length` works in both, so this is specific to Strings, and it
+sits next to the confusion D-15 records — `Length(V)` measures *text* while
+`V.Length` is a *count*, and here one processor offers a third spelling the
+other does not have.
+
+Which processor is right is not obvious and is left to chapter 16: a String
+answering `.Length` with a character count is arguably what a reader expects,
+and it is the only spelling that would agree with a collection's.
+
 ---
 
 ## Annex D — advisory notes *(non-normative)*
@@ -3137,10 +3202,15 @@ calls equal and find only one of them in a collection.
 `bootstrap/algol.c` already names this a rough edge in its own comments, which
 is a fair sign it was noticed and not resolved.
 
-*Recommended:* make `in` and `Contains` follow `=`, and pay for it by hashing
-an Integer and a Double with the same numeric value to the same bucket. The
-alternative — making `=` strict — is a far larger change and would surprise
-every program doing ordinary arithmetic.
+**Resolved in favour of `=`.** Membership and equality are one relation
+[VAL-013], paid for by hashing an Integer and a Double of the same numeric value
+to the same bucket. Making `=` strict instead would have been the far larger
+change and would surprise every program doing ordinary arithmetic.
+
+⚠️ The reason the two diverged is worth keeping: `=` promotes because arithmetic
+does, and membership was strict because a hash table cannot be built over a
+promoting relation. The second is a statement about the implementation and the
+first about the language, which is what decided it. Tracked by DEF-14.
 
 **D-7 — `as` is an unchecked assertion.** *(refers to [VAL-007])*
 
@@ -3169,11 +3239,15 @@ expect it to mean, and `if S.Length = 0 then` is the only reliable spelling.
 The rule is at least short to state, and it makes truthiness independent of a
 value's contents — a collection is a thing, and a thing is there.
 
-*Recommended:* keep it, and say so loudly wherever the language is taught. The
-inconsistency worth fixing is Integer `0`, which is the odd one out: were `0`
-truthy too, the rule would be the genuinely simple "only `nil` and `False` are
-false". That change would break existing programs, so it is a language-version
-question rather than a defect to be quietly repaired.
+**Resolved by keeping it.** [VAL-008] now states plainly that truthiness is
+independent of a value's contents, and that `if S.Length = 0 then` is the only
+spelling that tests emptiness.
+
+⚠️ The observation still stands and is **not scheduled**: Integer `0` is the odd
+one out, and were it truthy the rule would reduce to the genuinely simple "only
+`nil` and `False` are false". That changes what existing programs mean rather
+than admitting programs that were refused, so it belongs to neither annex until
+someone decides to take it — recorded here so the option is not lost.
 
 **D-9 — Visibility is advisory.** *(refers to [DCL-015])*
 
@@ -3777,6 +3851,23 @@ it checks the type name against the declared types and records an error when it
 denotes nothing. ⚠️ `Any` must stay legal there even though `X is Any` is always
 false [VAL-005] — it names something, it just never matches.
 
+**DEF-14 — Membership does not follow equality.**
+*(violates [VAL-013])*
+
+`in`, `Contains` and Map key lookup compare strictly where `=` promotes, so
+`1 in [1.0]` and `1.0 in [1]` are both false and a Map holding the key `1` does
+not contain `1.0` — while `1 = 1.0` is true. A program can hold two values it
+calls equal and find only one of them in a collection.
+
+*Reproduce:* `defects/DEF-14-membership-does-not-follow-equality.a24`
+
+*Scope of the fix.* `strict_equals` in the C runtime and the corresponding path
+in `ObjCollection.a24` use the promoting comparison. ⚠️ **The hash is the real
+work**, not the comparison: a Map and a Set bucket by a hash, and an Integer and
+a Double of the same numeric value must land in the same bucket or the lookup
+will not find what the comparison would have matched. Changing the comparison
+alone would leave `Contains` answering false for a key the Map holds.
+
 ---
 
 ## Annex G — implementation notes *(non-normative)*
@@ -3891,3 +3982,24 @@ in Algol-24 cannot be subscripted, cannot be iterated, and cannot answer
 collection visibly second-class, so the generation that brings them should bring
 all three — and Annex E's estimate of what could then move out of the runtime
 depends on it.
+
+**H-7 — Ordering for Strings.** *(will change [VAL-014])*
+
+`'ab' < 'cd'` is the runtime error `Operands must be numbers.` today, so a
+program needing to order text compares it character by character —
+`compiler/CEmitter.a24` writes `TextLess` for exactly this. Pinned by
+`conformance/0038-strings-are-not-ordered.a24`.
+
+**H-8 — Operator overloading.** *(will change [VAL-011], and more)*
+
+An operator a program may define for its own type. Today comparison of a class
+instance is by identity [VAL-011] with no way to say otherwise, and a
+user-written collection cannot be compared, ordered or combined the way a
+built-in one can.
+
+⚠️ **This is the umbrella over much of Annex H, not another item in it.** H-4's
+subscript operator and H-6's computed property are operator overloading in two
+particular spellings, and H-7 is the built-in case of an ordering that
+overloading would let a program supply for itself. Several rules in chapters 6
+and 7 are shaped by the language having no answer here, and they will want
+revisiting together rather than one at a time.
