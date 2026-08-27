@@ -92,7 +92,7 @@ awk '
         rule = substr($0, RSTART + 1, RLENGTH - 2)
         next
     }
-    /^[ \t]+(interpreter|compiler|tests)[ \t]/ {
+    /^[ \t]+(interpreter|compiler|unit|conformance)[ \t]/ {
         if (rule == "") next
         line = $0
         sub(/^[ \t]+/, "", line)
@@ -173,17 +173,59 @@ MISSING_TEST=0
 CITED_TESTS=0
 
 while IFS="$(printf '\t')" read -r rule key value; do
-    [ "$key" = "tests" ] || continue
+    [ "$key" = "unit" ] || continue
     CITED_TESTS=$((CITED_TESTS + 1))
 
     if [ -s "$WORK/testnames" ] && ! grep -qxF "$value" "$WORK/testnames"; then
-        problem "$rule cites a test that the suite does not run: '$value'"
+        problem "$rule cites a unit test the suite does not run: '$value'"
         MISSING_TEST=$((MISSING_TEST + 1))
     fi
 done < "$WORK/cites"
 
 [ "$MISSING_TEST" -eq 0 ] && [ -s "$WORK/testnames" ] \
-    && echo "  $CITED_TESTS test citation(s) name tests the suite runs"
+    && echo "  $CITED_TESTS unit citation(s) name tests the suite runs"
+
+# ------------------------------------------------------------- conformance --
+#
+# ⚠️ A conformance citation names a program in conformance/, which is a
+# different kind of evidence from a unit test and must not be checked against
+# the same list.  A unit test proves the rule transcribes the interpreter; only
+# a conformance program can be run against another implementation at all.
+
+MISSING_CONF=0
+TBD=0
+
+while IFS="$(printf '\t')" read -r rule key value; do
+    [ "$key" = "conformance" ] || continue
+
+    if [ "$value" = "TBD" ]; then
+        # ⚠️ The reserved -000 illustration is excluded here for the same
+        # reason it is excluded from the rule count: counting its TBD made the
+        # conformance tally exceed the number of rules and report a negative
+        # coverage.
+        case "$rule" in *-000) ;; *) TBD=$((TBD + 1)) ;; esac
+        continue
+    fi
+
+    if [ ! -f "conformance/$value" ]; then
+        problem "$rule cites a conformance program that does not exist: $value"
+        MISSING_CONF=$((MISSING_CONF + 1))
+    fi
+done < "$WORK/cites"
+
+[ "$MISSING_CONF" -eq 0 ] && echo "  $TBD rule(s) await a conformance program (TBD)"
+
+# ⚠️ Every rule must carry BOTH keys.  A rule with neither is not "not yet
+# covered" -- it is unaccounted for, and the difference is the whole point of
+# writing TBD down rather than leaving the line out.
+for k in unit conformance; do
+    awk -F'\t' -v k="$k" '$2==k{print $1}' "$WORK/cites" | sort -u > "$WORK/has_$k"
+done
+sort -u "$WORK/ids" > "$WORK/allids"
+comm -23 "$WORK/allids" "$WORK/has_conformance" > "$WORK/no_conf"
+if [ -s "$WORK/no_conf" ]; then
+    while read -r r; do problem "$r carries no conformance line, not even TBD"; done < "$WORK/no_conf"
+fi
 
 # ------------------------------------------------------------------ tables --
 #
@@ -223,14 +265,14 @@ if [ "$COVERAGE" -eq 1 ]; then
     echo
     echo "Coverage"
 
-    awk -F'\t' '$2=="tests"{print $1}' "$WORK/cites" | sort -u > "$WORK/proven"
-    sort -u "$WORK/ids" > "$WORK/allids"
-    comm -23 "$WORK/allids" "$WORK/proven" > "$WORK/unproven"
+    comm -23 "$WORK/allids" "$WORK/has_unit" > "$WORK/no_unit"
 
-    echo "  $(wc -l < "$WORK/proven" | tr -d ' ') of $RULE_COUNT rules cite a test"
-    if [ -s "$WORK/unproven" ]; then
-        echo "  unproven:"
-        sed 's/^/    /' "$WORK/unproven"
+    echo "  pinned by a unit test:   $(wc -l < "$WORK/has_unit" | tr -d ' ') of $RULE_COUNT"
+    echo "  covered by conformance:  $(( $(wc -l < "$WORK/allids" | tr -d ' ') - TBD )) of $RULE_COUNT"
+
+    if [ -s "$WORK/no_unit" ]; then
+        echo "  no unit test pins these:"
+        sed 's/^/    /' "$WORK/no_unit"
     fi
 fi
 
