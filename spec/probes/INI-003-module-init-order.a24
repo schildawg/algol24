@@ -1,0 +1,13 @@
+// spec: INI-003, INI-004
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+// Interpreted, a module body runs where its 'uses' appears.
+// Compiled, every module body runs first. See Annex C, C-5.
+
+WriteLn ('1 root');
+uses 'modules/Alpha';
+WriteLn ('2 root');
+uses 'modules/Gamma';
+WriteLn ('3 root');

@@ -2216,6 +2216,83 @@ host's line separator, so one program writes the same bytes everywhere.
 
 ---
 
+## 17. Program initialization and execution
+
+### 17.1 A program
+
+**[INI-001]**  A program is one file. Its top-level statements are executed in
+the order they are written, and there is no distinguished entry point — no
+`main`, and no statement that begins execution.
+
+    interpreter  compiler/Main.a24  Run
+    conformance  TBD
+
+**[INI-002]**  A declaration takes effect when its statement is reached, so a
+name is undefined above its declaration — see [DCL-006].
+
+    interpreter  compiler/Interpreter.a24  Interpret
+    conformance  TBD
+
+### 17.2 Module initialization
+
+**[INI-003]**  A `uses` loads and runs its module **at the point it appears**.
+Root statements written between two `uses` clauses therefore run between the two
+module bodies:
+
+```
+WriteLn ('1 root');          →  1 root
+uses Alpha;                  →    Alpha body
+WriteLn ('2 root');          →  2 root
+uses Gamma;                  →    Gamma body
+WriteLn ('3 root');          →  3 root
+```
+
+    interpreter  compiler/Interpreter.a24  VisitModuleStmt
+    conformance  TBD
+
+**[INI-004]**  A module is initialized once [MOD-003], and its imports are
+initialized before it, so a module's own body may use anything it imported.
+
+    interpreter  compiler/Interpreter.a24  VisitModuleStmt
+    conformance  TBD
+
+⚠️ **compile-only divergence, and a silent one.** The compiled program runs
+**every** module initializer before **any** root statement, so the example above
+prints both module bodies first and then all three root lines. The same program
+produces two different orders. See Annex C, C-5.
+
+### 17.3 Termination
+
+**[INI-005]**  A program that reaches the end of its statements exits with
+status **0**.
+
+    interpreter  compiler/Main.a24  Main
+    conformance  TBD
+
+**[INI-006]**  Every failure the language reports exits with status **70** —
+an uncaught `raise` [STM-021], and equally a scan, parse, resolution or type
+error, which are reported before any statement runs.
+
+    interpreter  compiler/Main.a24  CheckScanned
+    compiler     bootstrap/algol.c  alg_error
+    conformance  TBD
+
+> ⚠️ 70 does not distinguish *a program that failed* from *a program that was
+> never run*. A caller wanting to tell a compile error from a runtime one must
+> read the diagnostic.
+
+### 17.4 Arguments
+
+**[INI-007]**  A program reads its command line through `ParamCount` and
+`ParamStr` [RT-013]. `ParamStr(0)` is the program's own name, and arguments
+follow from index 1.
+
+    interpreter  compiler/Main.a24    ArgumentsFrom
+    compiler     bootstrap/algol.c    alg_set_arguments
+    conformance  TBD
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -2283,6 +2360,37 @@ The interpreter is the authority [1.1], so the fault is the compiler's.
 receivers. Note that `Length` and `IsEmpty` are matched case-insensitively by
 the same code, so the change must cover those too, and any program relying on
 the looser spelling will stop compiling — which is the point.
+
+**C-5 — Module bodies run at a different time.** *(silent)*
+*(refers to [INI-003], [INI-004])*
+
+Interpreted, a `uses` runs its module where it appears, so root statements
+interleave with module bodies in source order. Compiled, every module
+initializer runs before any root statement.
+
+```
+WriteLn ('1 root');        interpreted        compiled
+uses Alpha;                 1 root              Alpha body
+WriteLn ('2 root');           Alpha body        Gamma body
+uses Gamma;                 2 root              1 root
+WriteLn ('3 root');           Gamma body        2 root
+                            3 root              3 root
+```
+
+⚠️ Silent, and unlike C-4 it needs no unusual spelling to provoke: any program
+whose modules print, open a file, or set a variable the root then reads will
+behave differently under the two processors, and nothing warns.
+
+The compiled shape follows from how the C is emitted — `main` calls each
+`init_<Unit>()` and then `init_Main()` — and it is the easier order to produce,
+since a module's initializer is a function and the root's body is not special.
+
+The interpreter is the authority [1.1], so the compiler is wrong.
+
+*Fix:* emit the root's top-level statements in place, interleaved with the
+`init_<Unit>()` calls that correspond to its `uses`, rather than collecting them
+all into `init_Main()` after the fact. That is a change to how the root unit is
+emitted and not to the runtime.
 
 **Not a divergence, and worth stating as a requirement:** interpreted and
 compiled `--test` reports are byte-identical, colour included — 239 lines and

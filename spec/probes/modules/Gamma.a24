@@ -1,0 +1,5 @@
+WriteLn ('  Gamma body');
+function GammaName() : String;
+begin
+    Exit 'gamma';
+end

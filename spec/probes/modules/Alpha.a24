@@ -1,0 +1,5 @@
+WriteLn ('  Alpha body');
+function AlphaName() : String;
+begin
+    Exit 'alpha';
+end
