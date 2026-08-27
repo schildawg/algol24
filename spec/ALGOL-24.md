@@ -1623,6 +1623,140 @@ yet.` See Annex C.
 
 ---
 
+## 12. Classes and objects
+
+### 12.1 Declaration
+
+**[CLS-001]**  A class is declared with an optional superclass, an optional
+header of sections, and a body.
+
+```
+ClassDecl = "class" identifier [ "(" identifier ")" ] ";"
+            [ Sections ] "begin" { Member } "end" .
+```
+
+    interpreter  compiler/Parser.a24  ClassDeclaration
+    unit         Parse Class Declaration
+    unit         Parse Class No Begin
+    conformance  TBD
+
+**[CLS-002]**  Fields are declared in `var` sections of the header [VAR-009];
+methods in the body. Visibility markers apply to both [DCL-011].
+
+    interpreter  compiler/Parser.a24  ClassDeclaration
+    conformance  TBD
+
+### 12.2 Construction
+
+**[CLS-003]**  An instance is made by **calling the class**: `Point(3, 4)`.
+
+    interpreter  compiler/Interpreter.a24  VisitCall
+    compiler     bootstrap/algol.c         alg_new
+    conformance  TBD
+
+**[CLS-004]**  A constructor is a member named `constructor Init`. Construction
+checks its arity, and a class with no constructor takes no arguments —
+`C(1, 2)` on such a class is `Expected 0 arguments but got 2.`
+
+    interpreter  compiler/ObjClass.a24  FindMethod
+    conformance  TBD
+
+**[CLS-005]**  ⚠️ A field's initializer is evaluated **once per instance**, at
+construction. Two instances of a class whose field is `List := []` hold two
+different Lists.
+
+    interpreter  compiler/ObjClass.a24  SeedFields
+    compiler     bootstrap/algol.c      alg_class_field
+    conformance  TBD
+
+**[CLS-006]**  A field with no initializer begins as `nil` [VAR-002].
+
+    interpreter  compiler/ObjClass.a24  SeedFields
+    conformance  TBD
+
+### 12.3 Members
+
+**[CLS-007]**  A field is read without parentheses and a method is called with
+them. There is no getter declaration — see [TYP-012].
+
+    interpreter  compiler/ObjInstance.a24  Get
+    unit         Call Setters And Getters
+    conformance  TBD
+
+**[CLS-008]**  Every instance answers `ClassName`, and does so **ahead of its
+fields**: the name belongs to the language, so a field of that name cannot take
+it.
+
+    interpreter  compiler/ObjInstance.a24  Get
+    compiler     bootstrap/algol.c         alg_property
+    conformance  TBD
+
+**[CLS-009]**  A class declaring `ToString()` decides how its instances render
+through `Str` and `print`. With none, an instance renders as its class name
+followed by ` instance` — `C instance`.
+
+    interpreter  compiler/Interpreter.a24  Stringify
+    conformance  TBD
+
+**[CLS-010]**  Reading or calling a member the class does not have is
+`Undefined property 'X'.`
+
+    interpreter  compiler/ObjInstance.a24  Get
+    unit         Call Undefined Getter
+    conformance  TBD
+
+### 12.4 Inheritance
+
+**[CLS-011]**  `class D (B)` makes `D` inherit `B`'s fields and methods. A
+method of the same name overrides the inherited one.
+
+    interpreter  compiler/ObjClass.a24  FindMethod
+    conformance  TBD
+
+**[CLS-012]**  `super.M()` calls the version above the class that declared the
+calling method, not above the runtime class.
+
+    interpreter  compiler/Interpreter.a24  VisitSuperExpr
+    compiler     bootstrap/algol.c         alg_invoke_from
+    conformance  TBD
+
+**[CLS-013]**  A class may not inherit from itself: `A class can't inherit from
+itself.`
+
+    interpreter  compiler/Resolver.a24  VisitClassStmt
+    unit         Inherit From Self
+    conformance  TBD
+
+**[CLS-014]**  A superclass must be a class. Naming a variable holding
+something else fails at construction with `Only instances have properties.`, and
+naming nothing at all with `Undefined variable 'X'.`
+
+    interpreter  compiler/Interpreter.a24  VisitClassStmt
+    unit         Inherit Not A Class
+    conformance  TBD
+
+> ⚠️ The first message describes neither the mistake nor the construct. See
+> Annex D.
+
+### 12.5 Objects
+
+**[CLS-015]**  `object N;` declares a class having exactly one instance, reached
+by the name itself. The instance is built on first use, so an object may refer
+to another declared later in the file.
+
+    interpreter  compiler/Parser.a24  ClassDeclaration
+    compiler     bootstrap/algol.c    alg_singleton
+    unit         An Object Takes Visibility Sections
+    conformance  TBD
+
+**[CLS-016]**  An object is not callable. `Config()` is `Can only call functions
+and classes.`
+
+    interpreter  compiler/Interpreter.a24  VisitCall
+    conformance  TBD
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -1858,3 +1992,29 @@ from outside and are the less trustworthy of the two.
 has to be chosen. The check already exists in `Fits`; what is missing is calling
 it when there is nothing to select between. Until then, a type annotation on a
 top-level parameter should be read as a comment.
+
+**D-12 — Inheriting from a non-class reports the wrong thing.**
+*(refers to [CLS-014])*
+
+```
+var X := 1;
+class C (X);
+begin
+end
+```
+
+fails with `Only instances have properties.` — a sentence naming neither the
+class, nor the superclass, nor inheritance, and describing a property access the
+program never wrote. The check happens where the superclass is used rather than
+where it is declared, so the message belongs to the machinery rather than to the
+mistake.
+
+Diagnostics are part of the observable surface [1.2], so this is a specified
+behaviour and not merely a rough edge — a conforming implementation must
+reproduce the misleading sentence exactly.
+
+*Recommended:* refuse it at the declaration with the shape the other
+inheritance errors already use — `'X' is not a class.` — which sits beside
+`A class can't inherit from itself.` and needs no new machinery. This is the
+cheapest entry in this annex to act on and the one a newcomer is likeliest to
+hit.

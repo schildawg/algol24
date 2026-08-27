@@ -1,0 +1,17 @@
+// spec: CLS-015, CLS-016
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+object Config;
+var
+    N : Integer := 1;
+begin
+    function Get() : Integer;
+    begin
+        Exit N;
+    end
+end
+Config.N := 9;
+WriteLn(Config.Get());
+WriteLn(Config.N);

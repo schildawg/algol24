@@ -1,0 +1,64 @@
+// spec: CLS-001, CLS-003, CLS-005, CLS-008, CLS-009, CLS-011, CLS-012
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn('-- fields, methods, constructor --');
+class Point;
+var
+    X : Integer := 0;
+    Y : Integer := 0;
+
+begin
+    constructor Init (AX : Integer, AY : Integer);
+    begin
+        X := AX;
+        Y := AY;
+    end
+
+    function Sum() : Integer;
+    begin
+        Exit X + Y;
+    end
+
+    function ToString() : String;
+    begin
+        Exit '(' + Str(X) + ',' + Str(Y) + ')';
+    end
+end
+var P := Point(3, 4);
+WriteLn('  Sum       : ' + Str(P.Sum()));
+WriteLn('  ClassName : ' + P.ClassName);
+WriteLn('  ToString  : ' + Str(P));
+WriteLn('  print     : ');
+print P;
+
+WriteLn('-- inheritance and super --');
+class Animal;
+begin
+    function Speak() : String;
+    begin
+        Exit 'generic';
+    end
+end
+class Dog (Animal);
+begin
+    function Speak() : String;
+    begin
+        Exit 'woof (parent says ' + super.Speak() + ')';
+    end
+end
+WriteLn('  ' + Dog().Speak());
+WriteLn('  Dog is Animal : ' + Str(Dog() is Animal));
+WriteLn('  ClassName     : ' + Dog().ClassName);
+
+WriteLn('-- field initializers are per instance --');
+class Box;
+var
+    Items : List := [];
+begin
+end
+var B1 := Box();
+var B2 := Box();
+B1.Items.Add(1);
+WriteLn('  B1: ' + Str(B1.Items.Length) + '  B2: ' + Str(B2.Items.Length));

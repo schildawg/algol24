@@ -1,0 +1,10 @@
+// spec: CLS-014
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var X := 1;
+class C (X);
+begin
+end
+WriteLn(C());
