@@ -469,7 +469,24 @@ done badly.
 | 6 Types | 13 | `is` must name a declared type; the three limits on a class type become planned work, not faults |
 | 7 Properties of types and values | 14 | Membership follows equality; Pascal's `Char`/`String` equality rejected; truthiness kept |
 | 8 Declarations and scope | 16 | Functions and classes hoist, variables do not; `private:` is normatively advisory |
-| 9 onwards | 148 | — |
+| 9 Expressions | 17 | `as` binds tightly; a parameter widens like any assignment context; division-by-zero asymmetry kept |
+| 10 onwards | 131 | — |
+
+⚠️ **Chapter 9 was mostly propagation, and that is the shape to expect from
+here.** Two of its rules cited rules that had been decided against them —
+[EXP-007] said arithmetic wraps and pointed at [LEX-018], which says it raises;
+[EXP-015] counted bytes and pointed at [SRC-004], which counts characters. A
+rule that cites its own contradiction is the specific rot the ID scheme makes
+findable and nothing automatic catches.
+
+⚠️ **A defect case must distinguish the two behaviours, not merely exhibit the
+current one.** The first draft of DEF-16 recorded `5` for a cast covering a
+conjunction — which is what the *fixed* behaviour prints too, since a cast has
+no runtime effect yet and `and` yields an operand. It would have passed forever
+and proved nothing. Only the parse failure separates the readings, so that is
+the whole of the case. This is the same failure as the CRLF probe git
+normalized and the three empty probes: an artefact that agrees for the wrong
+reason.
 
 ⚠️ **Chapter 8's main decision required splitting one rule in two because the
 two processors were each wrong about a different half.** The compiled back end

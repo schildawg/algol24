@@ -1,0 +1,19 @@
+// spec: EXP-003
+//
+// EXP-003 binds 'as' at the unary level, so this is '(A as Integer) > 3' and
+// prints true.  'as' binds below the comparison instead: the cast consumes the
+// whole expression and the comparison has nothing left to attach to.
+//
+// ⚠️ ONE FILE, because only the parse failure distinguishes the two readings
+// today.  The other symptom -- 'True and A as Integer' casting the conjunction
+// rather than A -- prints 5 under BOTH precedences, since a cast has no runtime
+// effect [DEF-12] and 'and' yields an operand.  A defect case that records the
+// same value the fixed behaviour would produce is evidence of nothing, so it is
+// not kept here.
+//
+// ⚠️ That symptom becomes observable the moment DEF-12 is fixed: a checked cast
+// covering the conjunction raises where one covering A does not.  Fixing DEF-12
+// without this turns a latent oddity into a live fault.
+
+var A : Any := 5;
+WriteLn (A as Integer > 3);

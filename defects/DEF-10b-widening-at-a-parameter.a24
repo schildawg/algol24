@@ -1,0 +1,17 @@
+// spec: EXP-014, VAR-017
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-8: both processors refuse the
+// call with the same message, and only the driver's Uncaught: prefix differs.
+//
+// A parameter is an assignment context [VAR-017], so a Char widens to a String
+// parameter and this must print 'string only'.  No widening is applied, so no
+// overload fits.
+
+class N;
+begin
+    function Only (S : String); begin Exit 'string only'; end
+end
+
+WriteLn (N ().Only ('a'));

@@ -1453,20 +1453,19 @@ receiver to be narrowed before it is read through.
 | | Operators |
 | --- | --- |
 | 1 | `f(…)` call · `a[i]` subscript · `a.b` property |
-| 2 | `-` unary · `not` |
+| 2 | `-` unary · `not` · `as` |
 | 3 | `*` · `/` |
 | 4 | `+` · `-` |
 | 5 | `<` · `<=` · `>` · `>=` · `in` · `is` |
 | 6 | `=` · `<>` |
 | 7 | `and` |
 | 8 | `or` |
-| 9 | `as` |
-| 10 | `:=` |
+| 9 | `:=` |
 
     interpreter  compiler/Parser.a24  Expression
     unit         Parse Term Plus
     unit         Parse Factor Star
-    conformance  TBD
+    conformance  0045-precedence.a24
 
 > `1 + 2 * 3` is 7, `-2 * 3` is -6, `not True and False` is false,
 > `True or False and False` is true, and `False = False and False` is false.
@@ -1476,19 +1475,24 @@ receiver to be narrowed before it is read through.
 `10 - 2 - 3` is 5 and `12 / 2 / 3` is 2.
 
     interpreter  compiler/Parser.a24  Term
-    conformance  TBD
+    conformance  0045-precedence.a24
 
-**[EXP-003]**  `as` binds looser than `or`, so `A and B as C` casts the whole
-conjunction rather than `B`.
+**[EXP-003]**  `as` binds **tightly**, at the level of unary `-` and `not`. It
+applies to the operand beside it and to nothing further: `A and B as C` is
+`A and (B as C)`, and `A as Integer > 3` is `(A as Integer) > 3`.
 
-⚠️ This used to be observable only through the checker, because a cast had no
-runtime effect. Now that `as` is checked [VAL-007], the binding decides what
-gets verified — `A and B as C` tests the conjunction against `C`, not `B` — so
-the precedence has consequences a program can see. Chapter 9 has not yet been
-through the conformance pass; the rule is recorded here as it stands.
+⚠️ **NOT YET IMPLEMENTED.** `as` binds looser than `or`, so `A and B as C` casts
+the whole conjunction, and `A as Integer > 3` does not parse at all — the cast
+consumes the expression and the comparison is left over, giving
+`Expect ')' after arguments.` See DEF-16.
+
+⚠️ The binding stopped being cosmetic when `as` became a checked conversion
+[VAL-007]. A cast covering a conjunction now **raises** when the conjunction is
+not of the named type, which is almost never what was written; while a cast had
+no runtime effect, the same reading was merely an oddity in the checker.
 
     interpreter  compiler/Parser.a24  Expression
-    conformance  TBD
+    defect       DEF-16-as-binds-too-loosely.a24
 
 ### 9.2 Arithmetic
 
@@ -1498,30 +1502,37 @@ divides and truncates toward zero: `7 / 2` is 3 and `-7 / 2` is -3.
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         alg_divide
     unit         Evaluate Binary Slash
-    conformance  TBD
+    conformance  0046-arithmetic.a24
 
 **[EXP-005]**  A Double on either side promotes the operation and the result:
 `7.0 / 2` and `7 / 2.0` are both 3.5, and `1 + 2.0` is `3.0`.
 
     interpreter  compiler/Interpreter.a24  VisitBinary
     unit         Evaluate Binary Plus Mixed
-    conformance  TBD
+    conformance  0046-arithmetic.a24
 
 **[EXP-006]**  ⚠️ Integer division by zero is the runtime error `Division by
 zero.` **Double division by zero is not an error**: it yields `Infinity`,
 `-Infinity` or `NaN`, and the program continues.
 
+⚠️ Whether dividing by zero is a fault or a value therefore depends on which
+type reached the operator, and [EXP-005] promotes an Integer whenever it meets a
+Double — so an edit far from the division can move it from one category to the
+other. This is specified rather than merely tolerated: each behaviour is right
+for its own type. IEEE 754 defines the Double case and there is no integer
+infinity to return for the other.
+
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         alg_divide
-    conformance  TBD
+    conformance  0047-division-by-zero.a24
 
-> See Annex D.
+**[EXP-007]**  Arithmetic that leaves the bounds of a 32-bit Integer **raises**
+— see [LEX-018].
 
-**[EXP-007]**  Arithmetic wraps silently at the bounds of a 32-bit Integer — see
-[LEX-018].
+⚠️ **NOT YET IMPLEMENTED.** It wraps silently in both processors. See DEF-05.
 
     compiler     bootstrap/algol.c  alg_add
-    conformance  TBD
+    defect       DEF-05-integer-overflow-is-silent.a24
 
 ### 9.3 Concatenation
 
@@ -1532,7 +1543,7 @@ two Chars — is the String `ab`.
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         alg_add
     unit         Evaluate Binary Plus String
-    conformance  TBD
+    conformance  0025-operators-widen.a24
 
 ### 9.4 Logical operators
 
@@ -1542,14 +1553,14 @@ only when the left does not decide the result.
     interpreter  compiler/Interpreter.a24  VisitLogical
     unit         Execute Logical And
     unit         Execute Logical Or
-    conformance  TBD
+    conformance  0048-logical-operators.a24
 
 **[EXP-010]**  Both operators test truthiness [VAL-008] rather than requiring a
 Boolean.
 
     interpreter  compiler/Interpreter.a24  IsTruthy
     unit         Execute Logical Truthy
-    conformance  TBD
+    conformance  0048-logical-operators.a24
 
 ### 9.5 Calls
 
@@ -1558,46 +1569,65 @@ M.`
 
     interpreter  compiler/Interpreter.a24  VisitCall
     unit         Call Wrong Number Of Arguments
-    conformance  TBD
+    conformance  0049-call-failures.a24
 
 **[EXP-012]**  Calling something that is neither a function nor a class is
 `Can only call functions and classes.`
 
     interpreter  compiler/Interpreter.a24  VisitCall
     unit         Call Non Function
-    conformance  TBD
+    conformance  0049-call-failures.a24
 
 **[EXP-013]**  Where a name is overloaded, selection is made on the **whole
 signature** — the number of arguments and the type of each — and is made **at
 run time**, from the arguments actually passed.
 
+⚠️ **Run-time selection is required, not an implementation choice.** The type
+system is gradual, so an argument's declared type may be `Any` or absent while
+its value has a definite type: `var A : Any := 1;` passed to a name overloaded on
+Integer and String selects the Integer. No static rule could reach that, and an
+implementation must not resolve overloads at compile time on declared types
+alone.
+
     interpreter  compiler/ObjClass.a24  FindOverload
     compiler     bootstrap/algol.c      alg_invoke
-    conformance  TBD
+    conformance  0050-overload-selection.a24
 
-**[EXP-014]**  When no overload fits, the call fails with `No matching signature
-for function.`
+**[EXP-014]**  An overload is chosen by preferring an **exact match** on every
+argument; failing that, one reachable by widening [VAR-004], since a parameter
+is an assignment context [VAR-017]. When neither fits, the call fails with
+`No matching signature for function.`
 
-⚠️ A `Char` does not fit a `String` parameter [LEX-026], so `M('x')` selects no
-overload declared `String` — a one-character argument is not the type it looks
-like.
+So a `Char` argument selects a `Char` parameter where one is declared, and
+widens to a `String` parameter where it is not.
+
+⚠️ **PARTLY IMPLEMENTED.** Exact matching works and is correctly preferred —
+with both overloads declared, `Take('a')` selects the `Char`. Widening does not:
+with only a `String` overload declared, `Take('a')` is `No matching signature
+for function.` See DEF-10.
 
     interpreter  compiler/ObjClass.a24  FindOverload
-    conformance  TBD
+    conformance  0050-overload-selection.a24
 
 ### 9.6 Subscripting
 
-**[EXP-015]**  Subscripting a String yields the `Char` at that byte position,
-counted from zero. An index outside the value is `Index N out of range 0..M.`
+**[EXP-015]**  Subscripting a String yields the `Char` at that **character**
+position, counted from zero [SRC-004]. An index outside the value is
+`Index N out of range 0..M.`
+
+⚠️ **PARTLY IMPLEMENTED.** The position is counted in bytes, so a subscript into
+text outside ASCII yields part of a sequence rather than a character. See
+DEF-01.
 
     interpreter  compiler/Interpreter.a24  VisitSubscript
     compiler     bootstrap/algol.c         alg_subscript_get
-    conformance  TBD
+    conformance  0051-string-subscript.a24
 
-**[EXP-016]**  A class instance may not be subscripted — see [TYP-010].
+**[EXP-016]**  A class instance may not be subscripted — see [TYP-010], and
+Annex H, H-4.
 
     interpreter  compiler/Interpreter.a24  VisitSubscript
-    conformance  TBD
+    conformance  0031-instance-is-not-subscriptable.a24
 
 ### 9.7 Assignment
 
@@ -1606,7 +1636,7 @@ assigned: `X := (Y := 1)` leaves both at 1.
 
     interpreter  compiler/Parser.a24  Assignment
     unit         Resolve Assignment
-    conformance  TBD
+    conformance  0052-assignment-is-an-expression.a24
 
 ---
 
@@ -3395,11 +3425,16 @@ The Double behaviour is IEEE 754 and is what C does for free; the Integer
 behaviour has no such answer available, since there is no integer infinity to
 produce.
 
-*Recommended:* keep both. They are each correct for their type, and the
-alternatives are worse — raising on Double division would depart from IEEE for
-no gain, and returning a value for Integer division would have to invent one.
-This belongs in the language's documentation rather than in its defect list, and
-is recorded here only because the asymmetry is genuinely surprising.
+**Resolved by keeping both.** [EXP-006] now states the asymmetry as a rule
+rather than leaving it to be discovered, and says why: each behaviour is correct
+for its own type. Raising on Double division would depart from IEEE 754 for no
+gain, and returning a value for Integer division would have to invent one, since
+there is no integer infinity.
+
+⚠️ The genuinely surprising part is not the asymmetry but its reach: [EXP-005]
+promotes an Integer whenever it meets a Double, so an edit far from a division
+can move it from the raising category to the value-producing one. That is
+recorded in the rule.
 
 **D-11 — A parameter's declared type is decoration on a function and a contract
 on a method.** *(refers to [FUN-006], [FUN-007])*
@@ -3890,13 +3925,19 @@ sources must be made to pass first, and they are the largest body of Algol-24
 that exists; expect casts to be needed at boundaries that currently have none.
 
 **DEF-10 — Widening is refused wherever a type is written.**
-*(violates [VAR-004], [VAR-017])*
+*(violates [VAR-004], [VAR-017], [EXP-014])*
 
 Neither widening pair is applied at an assignment context. `var X : Double := 1;`,
 `var S : String := 'a';` and an `Exit 1` from a function declared `: Double` are
 each `Type mismatch!` Narrowing is correctly refused.
 
-*Reproduce:* `defects/DEF-10-widening-is-refused.a24`, and
+⚠️ **A parameter is an assignment context too**, so the same gap shows up in
+overload selection: with only a `String` overload declared, `Take('a')` is
+`No matching signature for function.` where the Char should widen. Exact
+matching works and is correctly preferred, so only the fallback is missing.
+
+*Reproduce:* `defects/DEF-10-widening-is-refused.a24`,
+`defects/DEF-10b-widening-at-a-parameter.a24`, and
 `conformance/0025-operators-widen.a24` for the other half.
 
 ⚠️ **The two files are the defect.** One shows `1 + 1.5` and `'a' + 'bc'`
@@ -3995,6 +4036,32 @@ pass before the statements run, in the same way `HoistTests` already walks a
 file ahead of execution. ⚠️ Only functions and classes: a `var` keeps its
 initializer at the point it is written, so binding it early would substitute
 `nil` for a diagnostic.
+
+**DEF-16 — `as` binds too loosely.**
+*(violates [EXP-003])*
+
+`as` sits below `and` and `or` rather than with the unary operators, so
+`A and B as C` casts the whole conjunction, and `A as Integer > 3` does not
+parse at all — the cast consumes the expression and the comparison is left over,
+giving `Expect ')' after arguments.`
+
+*Reproduce:* `defects/DEF-16-as-binds-too-loosely.a24`
+
+⚠️ **Only the parse failure is reproducible today.** The other symptom — a cast
+covering a conjunction — prints the same value under either precedence, because
+a cast has no runtime effect [DEF-12] and `and` yields an operand. It becomes
+observable the moment DEF-12 is fixed.
+
+⚠️ **This mattered less before `as` was checked.** A cast covering a conjunction
+had no runtime effect and was merely an oddity in the checker; under [VAL-007]
+it raises when the conjunction is not of the named type. Fixing DEF-12 without
+this one makes a latent oddity into a live fault.
+
+*Scope of the fix.* `as` moves from its own level in `Parser.a24`'s expression
+chain to the unary level. ⚠️ Not purely additive: `A and B as C` changes meaning.
+Nothing in `compiler/*.a24` uses `as` next to a binary operator, so the change is
+safe there, but it is a change to what an existing program means rather than
+only to what parses.
 
 ---
 

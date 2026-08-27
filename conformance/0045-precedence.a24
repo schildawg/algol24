@@ -1,0 +1,18 @@
+// spec: EXP-001, EXP-002
+//
+// Each line distinguishes one adjacent pair of levels: were the two swapped,
+// the value printed would differ.
+
+WriteLn (1 + 2 * 3);           // * over +
+WriteLn ((1 + 2) * 3);         // parentheses override
+WriteLn (-2 * 3);              // unary over *
+WriteLn (1 + 1 = 2);           // + over =
+WriteLn (1 < 2 = True);        // < over =
+WriteLn (not True and False);  // not over and
+WriteLn (True or False and False);   // and over or
+WriteLn (False and True or True);    // and over or, the other way
+
+// EXP-002: one level is left-associative.  Right-associative, these would be
+// 11 and 18.
+WriteLn (10 - 2 - 3);
+WriteLn (12 / 2 / 3);

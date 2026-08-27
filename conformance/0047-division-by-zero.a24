@@ -1,0 +1,16 @@
+// spec: EXP-006
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-8: the run ends in an uncaught
+// runtime error and the compiled runtime omits the 'Uncaught: ' prefix.
+//
+// ⚠️ Double division by zero is NOT an error.  These three print and the
+// program continues.
+
+WriteLn (1.0 / 0);
+WriteLn (-1.0 / 0);
+WriteLn (0.0 / 0);
+
+// Integer division by zero is.  The asymmetry is specified, not tolerated.
+WriteLn (1 / 0);

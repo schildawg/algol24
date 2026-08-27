@@ -1,0 +1,22 @@
+// spec: EXP-009, EXP-010
+//
+
+var Ran := 0;
+
+function Boom ();
+begin
+    Ran := Ran + 1;
+    Exit True;
+end
+
+// EXP-009: the right operand is evaluated only when the left does not decide.
+Ran := 0;  var A := False and Boom ();  WriteLn (Ran);
+Ran := 0;  var B := True  or  Boom ();  WriteLn (Ran);
+Ran := 0;  var C := True  and Boom ();  WriteLn (Ran);
+Ran := 0;  var D := False or  Boom ();  WriteLn (Ran);
+
+// EXP-010: both test truthiness rather than requiring a Boolean, and yield an
+// OPERAND rather than a Boolean.
+WriteLn (0 or 'text');
+WriteLn ('text' and 7);
+WriteLn (nil or 'fallback');

@@ -1,0 +1,12 @@
+// spec: EXP-011, EXP-012
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-8: uncaught runtime error.
+
+function One (A); begin Exit A; end
+
+WriteLn (One (1));
+
+// EXP-011: a call checks arity.
+WriteLn (One (1, 2));

@@ -1,0 +1,30 @@
+// spec: EXP-013, EXP-014
+//
+
+class M;
+begin
+    function Take (I : Integer);          begin Exit 'integer';      end
+    function Take (S : String);           begin Exit 'string';       end
+    function Take (C : Char);             begin Exit 'char';         end
+    function Take (A : Integer, B : Integer); begin Exit 'two integers'; end
+end
+
+var X := M ();
+
+// EXP-013: selection is on the WHOLE signature -- count and each type.
+WriteLn (X.Take (1));
+WriteLn (X.Take ('ab'));
+WriteLn (X.Take ('a'));
+WriteLn (X.Take (1, 2));
+
+// ⚠️ Selection is at RUN TIME, from the value actually passed.  A's declared
+// type is Any; no static rule could reach the Integer overload from that.
+var A : Any := 1;
+WriteLn (X.Take (A));
+
+var B : Any := 'ab';
+WriteLn (X.Take (B));
+
+// EXP-014: an exact match is preferred.  'a' is a Char and takes the Char
+// overload rather than widening to the String one.
+WriteLn (X.Take ('a'));

@@ -1,0 +1,17 @@
+// spec: EXP-015
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-8: uncaught runtime error.
+//
+// ⚠️ ASCII only.  EXP-015 counts CHARACTERS and the implementation counts
+// bytes, so a subscript into text outside ASCII is DEF-01's business, not
+// this case's.
+
+var S := 'abc';
+
+WriteLn (S[0]);
+WriteLn (S[2]);
+WriteLn (S[0] is Char);
+
+WriteLn (S[9]);
