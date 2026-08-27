@@ -1,0 +1,10 @@
+// spec: LEX-014
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn(True and False);
+WriteLn(True or False);
+WriteLn(not True);
+WriteLn(1 in [1, 2]);
+WriteLn('a' is Char);

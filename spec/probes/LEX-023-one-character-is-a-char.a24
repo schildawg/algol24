@@ -1,0 +1,10 @@
+// spec: LEX-023, LEX-029
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn('a' is Char);
+WriteLn('ab' is String);
+WriteLn('' is String);
+WriteLn('''' is String);
+WriteLn(Length(''''));

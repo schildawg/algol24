@@ -1,0 +1,13 @@
+// spec: LEX-012, LEX-013
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var A := 7;
+WriteLn(A + 1);   WriteLn(A - 1);
+WriteLn(A * 2);   WriteLn(A / 2);
+WriteLn(A = 7);   WriteLn(A <> 7);
+WriteLn(A < 8);   WriteLn(A <= 7);
+WriteLn(A > 6);   WriteLn(A >= 7);
+var L := [1, 2];
+WriteLn(L[0]);

@@ -1,0 +1,7 @@
+// spec: LEX-020
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn(1.5);
+WriteLn(1.0);

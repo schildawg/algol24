@@ -1,0 +1,8 @@
+// spec: LEX-001, LEX-002
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+// a comment
+/// also just a comment
+WriteLn('ok'); // trailing

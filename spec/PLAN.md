@@ -220,12 +220,24 @@ This is the mechanism that keeps the specification honest: an example that was
 reasoned about rather than executed is exactly the kind of plausible-and-wrong
 claim this project keeps finding.
 
-Tiering, so this does not balloon:
+**Done, and both tiers landed together.** Probes live in `spec/probes/`, each
+naming the rules it exercises, beside a `.actual` recording of what the
+implementation did. `spec/probes/record.sh` re-runs them all and reports
+anything that moved.
 
-- **Tier 1 (in scope from the start):** probes are written and run while
-  drafting; their real output becomes the examples.
-- **Tier 2 (later):** probes are kept in `spec/examples/`, and `spec.sh`
-  re-runs them and asserts the recorded output still matches.
+⚠️ **A probe records what the implementation DOES and asserts nothing about
+what it SHOULD do.** It is evidence and a change detector, not a test, and a
+rule whose probe runs green is still `conformance TBD`. Keeping the two apart
+is what allows the specification to be written before the conformance
+commitments are decided — writing a conformance case the moment a behaviour is
+discovered would canonize every defect on sight.
+
+The plan had originally deferred keeping the probes to a later tier. That was
+wrong in a way worth recording: the probes for chapters 3 and 4 were written,
+run, and thrown away, and a later conformance pass would have had to derive all
+33 of them again without knowing which edges had mattered. Freshness is not
+about memory, which does not persist between sessions — it is about whether the
+artifact was saved.
 
 ---
 

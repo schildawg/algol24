@@ -1,0 +1,5 @@
+Uncaught: Expect ')' after arguments.
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/LEX-022-no-exponent-form.a24: Expect ')' after arguments.
+[WHITE][[RED]ERROR[WHITE]] [RESET]6 | WriteLn(1e5);
+[WHITE][[RED]ERROR[RESET]]   |[RED]         ^[RESET]
+exit: 70

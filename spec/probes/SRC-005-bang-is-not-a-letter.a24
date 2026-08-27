@@ -1,0 +1,6 @@
+// spec: SRC-005, LEX-013
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var Gate! := 7;

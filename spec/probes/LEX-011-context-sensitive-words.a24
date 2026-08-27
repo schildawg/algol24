@@ -1,0 +1,9 @@
+// spec: LEX-011
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var test := 1;
+var unit := 2;
+var on := 3;
+WriteLn(test + unit + on);

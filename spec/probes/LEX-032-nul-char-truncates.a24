@@ -1,0 +1,8 @@
+// spec: LEX-032
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var Z := #0;
+WriteLn(Z is Char);
+WriteLn(Length('a' + Str(Z) + 'b'));

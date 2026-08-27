@@ -1,0 +1,5 @@
+Uncaught: Expect variable name.
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/LEX-009-keyword-is-not-a-name.a24: Expect variable name.
+[WHITE][[RED]ERROR[WHITE]] [RESET]6 | var begin := 7;
+[WHITE][[RED]ERROR[RESET]]   |[RED] ^^^[RESET]
+exit: 70

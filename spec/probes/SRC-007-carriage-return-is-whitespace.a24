@@ -1,0 +1,8 @@
+// spec: SRC-007, SRC-006
+//
+// This file has CRLF endings. #13 is whitespace and does not advance the
+// line count, so the error below reports the same line as an LF-ended file.
+
+var A := 1;
+var B := 2;
+$

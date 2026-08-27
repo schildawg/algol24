@@ -1,0 +1,9 @@
+// spec: LEX-018
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn(2147483647);
+WriteLn(2147483648);
+WriteLn(2147483647 + 1);
+WriteLn(99999999999999);

@@ -1,0 +1,8 @@
+// spec: SRC-001, SRC-004
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+// Length counts bytes. 'café' is four characters and five bytes.
+WriteLn(Length('café'));
+WriteLn(Length('abc'));
