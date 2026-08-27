@@ -791,6 +791,137 @@ itself, printing `<fn Length>`, where a collection's `Length` yields its count.
 
 ---
 
+## 7. Properties of types and values
+
+### 7.1 Assignability
+
+**[VAL-001]**  A value is assignable to a declaration when its type is the
+declared type, when either is `Any`, when the value is `nil`, or when its class
+inherits from the declared class.
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    conformance  TBD
+
+**[VAL-002]**  Nothing else converts. There is no numeric widening — see
+[VAR-004] — and no conversion between `Char` and `String`.
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    conformance  TBD
+
+### 7.2 Type tests
+
+**[VAL-003]**  `X is T` is true when the runtime type of `X` is `T`, or is a
+class inheriting from `T`. Inheritance is followed upward only: a `Dog` is an
+`Animal`, and an `Animal` is not a `Dog`.
+
+    interpreter  compiler/Interpreter.a24  VisitIsExpr
+    compiler     bootstrap/algol.c         alg_is
+    conformance  TBD
+
+**[VAL-004]**  `nil is T` is **false** for every `T`. A value that is not there
+has no type to test.
+
+    interpreter  compiler/Interpreter.a24  VisitIsExpr
+    compiler     bootstrap/algol.c         alg_is
+    conformance  TBD
+
+**[VAL-005]**  `X is Any` is **false** for every `X`. `Any` is a declaration,
+never a runtime type.
+
+    interpreter  compiler/Interpreter.a24  VisitIsExpr
+    conformance  TBD
+
+**[VAL-006]**  The type name in `is` is matched case-insensitively, so
+`1 is integer` is true.
+
+    interpreter  compiler/Interpreter.a24  VisitIsExpr
+    conformance  TBD
+
+### 7.3 Casts
+
+**[VAL-007]**  `X as T` has **no runtime effect whatever**. It tells the checker
+what the programmer claims, and nothing verifies the claim: `X as Integer` where
+`X` holds `'text'` yields `'text'` and raises nothing.
+
+    interpreter  compiler/TypeChecker.a24  Reduce
+    conformance  TBD
+
+> See Annex D.
+
+### 7.4 Truthiness
+
+**[VAL-008]**  A value is **falsey** if it is `nil`, `False`, the Integer `0`, or
+an enumeration member whose ordinal is `0`. Every other value is **truthy**.
+
+⚠️ In particular these are all truthy: `0.0`, the empty String `''`, the empty
+List `[]`, the empty Map `[:]`, and every `Char`.
+
+    interpreter  compiler/Interpreter.a24  IsTruthy
+    compiler     bootstrap/algol.c         alg_truthy
+    unit         Execute Logical Truthy
+    unit         Evaluate Unary Bang Nil
+    conformance  TBD
+
+> See Annex D.
+
+### 7.5 Equality
+
+**[VAL-009]**  `=` and `<>` promote numerically. `1 = 1.0` is true, and so is
+`0 = 0.0`.
+
+    interpreter  compiler/Interpreter.a24  IsEqual
+    compiler     bootstrap/algol.c         equals
+    unit         Evaluate Binary Equal Equal
+    conformance  TBD
+
+**[VAL-010]**  A `Char` is never equal to a `String` — see [LEX-026].
+
+    interpreter  compiler/Interpreter.a24  IsEqual
+    conformance  TBD
+
+**[VAL-011]**  Class instances, collections and enumeration members compare by
+**identity**, not by contents. `[1, 2] = [1, 2]` is **false**: they are two
+collections. Two references to one collection are equal.
+
+    interpreter  compiler/Interpreter.a24  IsEqual
+    compiler     bootstrap/algol.c         equals
+    conformance  TBD
+
+**[VAL-012]**  `nil = nil` is true.
+
+    interpreter  compiler/Interpreter.a24  IsEqual
+    unit         Evaluate Binary Bang Equal Nil
+    conformance  TBD
+
+### 7.6 Membership
+
+**[VAL-013]**  ⚠️ `in`, `Contains`, and Map key lookup compare **strictly**, with
+no numeric promotion. `1 in [1.0]` is **false**, `1.0 in [1]` is **false**, and a
+Map holding the key `1` does not contain the key `1.0` — while `1 = 1.0` is
+true.
+
+    interpreter  compiler/ObjCollection.a24  Invoke
+    compiler     bootstrap/algol.c           strict_equals
+    conformance  TBD
+
+> Equality and membership therefore disagree, deliberately in each case and
+> incompatibly with each other. See Annex D.
+
+### 7.7 Ordering
+
+**[VAL-014]**  `<`, `<=`, `>` and `>=` apply to numbers and to `Char` only.
+**Strings are not ordered**: `'ab' < 'cd'` is the runtime error `Operands must
+be numbers.`
+
+    interpreter  compiler/Interpreter.a24  VisitBinary
+    unit         Evaluate Binary Greater Left Not Number
+    conformance  TBD
+
+> A program needing to order text must compare it character by character, which
+> is what `compiler/CEmitter.a24`'s `TextLess` does.
+
+---
+
 ## Annex E — what could be written in Algol-24 itself *(non-normative)*
 
 The collections and the built-in functions are native today. This annex asks,
@@ -977,3 +1108,48 @@ computed once at startup.
 *Recommended:* keep the behaviour and say so plainly in the language's own
 documentation, which currently does not. If a true compile-time constant is
 wanted later it needs a different word, not a narrowing of this one.
+
+**D-6 — Equality and membership disagree.** *(refers to [VAL-009], [VAL-013])*
+
+`1 = 1.0` is true, and `1 in [1.0]` is false. A Map holding the key `1` does not
+contain `1.0`. Each rule is defensible alone — `=` promotes because arithmetic
+does, and membership is strict because a hash table cannot be built over a
+relation that promotes — but together they mean a program can hold two values it
+calls equal and find only one of them in a collection.
+
+`bootstrap/algol.c` already names this a rough edge in its own comments, which
+is a fair sign it was noticed and not resolved.
+
+*Recommended:* make `in` and `Contains` follow `=`, and pay for it by hashing
+an Integer and a Double with the same numeric value to the same bucket. The
+alternative — making `=` strict — is a far larger change and would surprise
+every program doing ordinary arithmetic.
+
+**D-7 — `as` is an unchecked assertion.** *(refers to [VAL-007])*
+
+`X as Integer` where `X` holds `'text'` yields `'text'` and raises nothing. The
+cast silences the checker and is never verified, so the one construct a
+programmer reaches for when they know more than the checker does is also the one
+that cannot tell them when they are wrong.
+
+The gradual type system needs an escape hatch, and an unchecked one is free
+where a checked one costs a test at every cast.
+
+*Recommended:* check it at run time and raise on failure. The cost falls only on
+programs that use `as`, which are the programs that asked for the assurance; and
+a cast that cannot fail is not an assurance at all.
+
+**D-8 — Empty is truthy.** *(refers to [VAL-008])*
+
+`0` is falsey, but `0.0`, `''`, `[]` and `[:]` are all truthy. So
+`if not S then` does not mean what a reader coming from most languages will
+expect it to mean, and `if S.Length = 0 then` is the only reliable spelling.
+
+The rule is at least short to state, and it makes truthiness independent of a
+value's contents — a collection is a thing, and a thing is there.
+
+*Recommended:* keep it, and say so loudly wherever the language is taught. The
+inconsistency worth fixing is Integer `0`, which is the odd one out: were `0`
+truthy too, the rule would be the genuinely simple "only `nil` and `False` are
+false". That change would break existing programs, so it is a language-version
+question rather than a defect to be quietly repaired.

@@ -1,0 +1,8 @@
+// spec: VAL-006
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn(1 is integer);
+WriteLn(1 is Integer);
+WriteLn('ab' is STRING);

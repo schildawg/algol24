@@ -1,0 +1,10 @@
+// spec: VAL-007
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var X : Any := 'text';
+var Y := X as Integer;
+WriteLn(Y);
+WriteLn(Y is Integer);
+WriteLn(Y is String);
