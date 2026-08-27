@@ -1,0 +1,13 @@
+// spec: TST-002, TST-003
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+// Run WITHOUT --test: the main block runs and the test does not.
+
+WriteLn ('the main block ran');
+
+test 'This test is not executed';
+begin
+    WriteLn ('if you see this, tests ran');
+end

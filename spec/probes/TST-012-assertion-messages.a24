@@ -1,0 +1,20 @@
+// spec: TST-012
+// run: --test
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+test 'AssertTrue reports a comparison it did not make';
+begin
+    AssertTrue (False);
+end
+
+test 'AssertEqual names both values';
+begin
+    AssertEqual (5, 4);
+end
+
+test 'Fail carries its message';
+begin
+    Fail ('deliberate');
+end

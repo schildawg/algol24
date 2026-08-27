@@ -65,8 +65,15 @@ for probe in "$PROBES"/*.a24; do
     name=$(basename "$probe" .a24)
     actual="$PROBES/$name.actual"
 
+    # ⚠️ A probe may ask to be run differently.  '// run: --test' makes this a
+    # test run, which chapter 19 needs: the report is the thing being recorded,
+    # and an ordinary run would execute the program and skip the tests
+    # entirely.  Without this the report could not be probed at all.
+    args=$(sed -n 's|^// run: ||p' "$probe" | head -1)
+
     status=0
-    "$ALGC" "$probe" > "$WORK/out" 2>&1 || status=$?
+    # shellcheck disable=SC2086
+    "$ALGC" $args "$probe" > "$WORK/out" 2>&1 || status=$?
     { render < "$WORK/out"; echo "exit: $status"; } > "$WORK/rendered"
 
     if [ "$RECORD" -eq 1 ]; then

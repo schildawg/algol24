@@ -1,0 +1,38 @@
+// spec: TST-005, TST-007, TST-008, TST-009, TST-011, TST-012
+// run: --test
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn ('the main block, which a test run does not execute');
+
+function Double (N : Integer) : Integer;
+begin
+    Exit N * 2;
+end
+
+test 'Zebra is reported last, by name';
+begin
+    AssertTrue (True);
+end
+
+test 'Alpha is reported first, by name';
+begin
+    AssertEqual (4, Double(2));
+end
+
+test 'Middle fails, and the run continues';
+begin
+    AssertEqual (5, Double(2));
+end
+
+test 'Output from a test body is swallowed';
+begin
+    WriteLn ('never seen');
+    AssertTrue (True);
+end
+
+test 'A raise is a failure, not an abort';
+begin
+    raise 'thrown';
+end

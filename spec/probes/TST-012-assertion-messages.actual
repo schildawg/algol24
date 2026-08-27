@@ -1,0 +1,12 @@
+Uncaught: Tests failed.
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Running 3 tests...
+[WHITE][[BLUE]INFO[WHITE]] [RESET]< [CYAN]spec/probes/TST-012-assertion-messages.a24[RESET] >
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: AssertEqual names both values .......................... [ [RED]FAIL[RESET] ]
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/TST-012-assertion-messages.a24: Assertion 'left = right' failed.  Expected '5' but got '4'.
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: AssertTrue reports a comparison it did not make ........ [ [RED]FAIL[RESET] ]
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/TST-012-assertion-messages.a24: Assertion 'left = right' failed.
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: Fail carries its message ............................... [ [RED]FAIL[RESET] ]
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/TST-012-assertion-messages.a24: Failed.  deliberate
+[WHITE][[BLUE]INFO[WHITE]] [RESET]
+[WHITE][[BLUE]INFO[WHITE]] [RESET][RED]3 of 3 tests failed.[RESET]
+exit: 70

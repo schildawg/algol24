@@ -2384,6 +2384,150 @@ it [INI-006].
 
 ---
 
+## 19. Test blocks
+
+A test block is a declaration that a test run executes and an ordinary run
+ignores. The report it produces is specified line for line, because it is the
+surface on which two implementations are compared.
+
+### 19.1 Declaration
+
+**[TST-001]**  A test is written `test` followed by a string literal naming it,
+then a block.
+
+```
+TestDecl = "test" string_lit ";" Block .
+```
+
+`test` is not a keyword [LEX-011]; it is recognised here by the quoted name that
+follows it, so a variable may still be called `test`.
+
+    interpreter  compiler/Parser.a24  Declaration
+    conformance  TBD
+
+**[TST-002]**  A test block is a declaration and does not run when the program
+runs.
+
+    interpreter  compiler/Interpreter.a24  HoistTests
+    conformance  TBD
+
+### 19.2 Running
+
+**[TST-003]**  A test run executes the test blocks **instead of** the program.
+The top-level statements do not run — only the declarations they would have
+created.
+
+    interpreter  compiler/Interpreter.a24  RunTests
+    conformance  TBD
+
+**[TST-004]**  Tests are collected from the root file and from every module it
+reaches, each file contributing once however many ways it is reached.
+
+    interpreter  compiler/Interpreter.a24  HoistTests
+    conformance  TBD
+
+**[TST-005]**  Tests are reported **sorted by name within a file**, and files in
+the order their first test was met — which for `uses` is load order. Source
+order within a file is not preserved.
+
+    interpreter  compiler/Interpreter.a24  RunTests
+    conformance  TBD
+
+**[TST-006]**  A program's own `Write` and `WriteLn` output is **swallowed**
+during a test run, so it cannot interleave with the report.
+
+    interpreter  compiler/Interpreter.a24  SuppressOutput
+    compiler     bootstrap/algol.c         alg_test_begin
+    conformance  TBD
+
+**[TST-007]**  A value raised inside a test body and not caught makes that test
+**fail**; it does not end the run, and later tests still execute.
+
+    interpreter  compiler/Interpreter.a24  RunTests
+    compiler     bootstrap/algol.c         alg_test_run
+    conformance  TBD
+
+### 19.3 The report
+
+**[TST-008]**  The report consists of these lines, in this order:
+
+```
+[INFO] Running N tests...
+[INFO] < file >
+[INFO] Test: <name> <leader> [ PASS ]
+[ERROR] <file>: <message>          only after a FAIL, and only interpreted
+[INFO]
+[INFO] All N tests passed.
+```
+
+A file's block is opened by its `< file >` line, and a blank `[INFO] ` line
+separates files and precedes the summary.
+
+    interpreter  compiler/Interpreter.a24  Report
+    compiler     bootstrap/algol.c         alg_test_run
+    conformance  TBD
+
+**[TST-009]**  The dot leader is `55 - Length(name)` dots, clamped to a minimum
+of one, so a name longer than the banner still produces a well-formed line.
+
+    interpreter  compiler/Interpreter.a24  Report
+    compiler     bootstrap/algol.c         alg_test_run
+    conformance  TBD
+
+**[TST-010]**  The report is coloured, and the colours are part of it: the
+`[INFO]` tag white and blue, `[ERROR]` white and red, the file name cyan, `PASS`
+green, `FAIL` red, and the summary green when all passed and red otherwise.
+
+⚠️ The escapes are emitted **unconditionally**, whether or not the output is a
+terminal — the language has no way to ask — so anything reading a report strips
+or transliterates them.
+
+    interpreter  compiler/Console.a24  INFO
+    compiler     bootstrap/algol.c     INFO_TAG
+    conformance  TBD
+
+**[TST-011]**  The summary is `All N tests passed.` or `N of M tests failed.`,
+and the run exits **0** when every test passed and **70** when any failed.
+
+    interpreter  compiler/Interpreter.a24  RunTests
+    compiler     bootstrap/algol.c         alg_test_summary
+    conformance  TBD
+
+### 19.4 Assertions
+
+**[TST-012]**  Three assertions exist, and only during a test run [RT-002]:
+
+| Call | Message on failure |
+| --- | --- |
+| `AssertTrue(V)` | `Assertion 'left = right' failed.` |
+| `AssertEqual(E, A)` | `Assertion 'left = right' failed.  Expected 'E' but got 'A'.` |
+| `Fail(M)` | `Failed.  M` |
+
+⚠️ Two spaces follow the full stop in the second and third, and `AssertTrue`
+reports a comparison it did not make.
+
+    interpreter  compiler/Interpreter.a24  AssertTrueNative
+    compiler     bootstrap/algol.c         alg_assert_equal
+    conformance  TBD
+
+**[TST-013]**  `AssertEqual` compares with `=` [VAL-009], so it promotes
+numerically and holds a `Char` unequal to a `String` [LEX-026].
+
+    interpreter  compiler/Interpreter.a24  AssertEqualNative
+    conformance  TBD
+
+### 19.5 Compiled runs
+
+**[TST-014]**  ⚠️ **compile-only divergence.** A compiled report omits the
+`[ERROR]` line after a failure, because compiled code has no line information
+to build one from. Every other line is byte-identical, colour included. See
+Annex C, C-3.
+
+    compiler     bootstrap/algol.c  alg_test_run
+    conformance  TBD
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -2830,3 +2974,28 @@ parser does, and name both types — `Expected Integer, found String.` The token
 is in hand at every one of the five sites that raise this; the message is
 discarded rather than absent. This is the single cheapest improvement to the
 language's usability in this annex.
+
+**D-18 — `AssertTrue` reports a comparison it did not make.** *(refers to
+[TST-012])*
+
+`AssertTrue(False)` fails with:
+
+```
+Assertion 'left = right' failed.
+```
+
+There is no left and no right. The message belongs to `AssertEqual`, which
+appends `Expected 'E' but got 'A'.` to the same stem, and `AssertTrue` reuses
+the stem and supplies no operands — so the reader is told an equality failed
+when a truth test did, and given nothing about what was actually false.
+
+`Fail(M)` produces `Failed.  M`, with two spaces, which is a third shape again.
+
+*Recommended:* give `AssertTrue` its own stem — `Assertion failed: expected
+true.` — and keep the operand clause for the assertion that has operands. The
+three messages are read far more often than any other output this language
+produces, since a failing test is the one moment a programmer is looking.
+
+⚠️ Any change here alters the report, which [TST-008] specifies and which both
+processors must reproduce byte for byte — so it is a change to the observable
+surface and to `bootstrap/algol.c` in the same breath, not a cosmetic edit.

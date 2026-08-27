@@ -1,0 +1,13 @@
+Uncaught: Tests failed.
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Running 5 tests...
+[WHITE][[BLUE]INFO[WHITE]] [RESET]< [CYAN]spec/probes/TST-008-report-format.a24[RESET] >
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: A raise is a failure, not an abort ..................... [ [RED]FAIL[RESET] ]
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/TST-008-report-format.a24: thrown
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: Alpha is reported first, by name ....................... [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: Middle fails, and the run continues .................... [ [RED]FAIL[RESET] ]
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/TST-008-report-format.a24: Assertion 'left = right' failed.  Expected '5' but got '4'.
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: Output from a test body is swallowed ................... [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: Zebra is reported last, by name ........................ [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]
+[WHITE][[BLUE]INFO[WHITE]] [RESET][RED]2 of 5 tests failed.[RESET]
+exit: 70
