@@ -1,0 +1,16 @@
+// spec: LEX-007
+//
+
+// A letter, then letters, digits and identifier marks in any mixture.
+var Gate?  := 1;
+var _under := 2;
+var a1b2   := 4;
+
+// A mark does not end a word: Ready?Set is ONE identifier, not three tokens.
+var Ready?Set := 8;
+
+WriteLn (Gate? + _under + a1b2 + Ready?Set);
+
+// ⚠️ The '!' mark is NOT exercised here.  LEX-007 admits it and the scanner
+// does not, so a program using it is refused -- that half of the rule is
+// tracked by DEF-03 and cannot be a commitment the implementation meets.

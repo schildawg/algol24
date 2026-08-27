@@ -457,7 +457,32 @@ done badly.
 | 2 | Core semantics: constants and variables, types, values, scope, expressions, statements | **done** |
 | 3 | Functions, classes, enums, collections, modules, built-ins, initialization, errors, test blocks | **done** |
 | 4 | Annexes A–E; `spec.sh` swept over every rule and both tables | **done** |
-| 5 | **The conformance pass** — deciding, rule by rule, what the language *should* do | next |
+| 5 | **The conformance pass** — deciding, rule by rule, what the language *should* do | chapters 3–4 done |
+
+### Phase 5 progress
+
+| Chapter | Rules | Decided |
+| --- | --- | --- |
+| 3 Source code representation | 11 | Unicode text; identifiers fold ASCII case; `#10` is the sole line terminator |
+| 4 Lexical elements | 33 | Char is a code point; `?` and `!` are trailing identifier marks; overflow is refused or raised; `print` leaves the language |
+| 5 onwards | 206 | — |
+
+⚠️ **Chapter 4 added a rule and did not renumber anything**, which is the ID
+scheme earning its keep. Splitting integer overflow into a literal check and an
+arithmetic check needed a second rule; it became [LEX-033] and sits between
+[LEX-018] and [LEX-019] in the text. Under section numbering every citation
+after it would have moved.
+
+Two conventions came out of chapter 4 and now apply to every chapter after it:
+
+- **A rule ahead of the implementation says which of three things it is.** `NOT
+  YET IMPLEMENTED` (wrong outright — must cite a defect), `PARTLY IMPLEMENTED`
+  (wrong in part — must name one in prose), or `PLANNED — a later generation`
+  (not wrong at all — Annex H). `spec.sh` enforces all three, and rejects a rule
+  claiming to be both wrong and planned.
+- **Annex H exists** because "we will add hex literals later" is not a defect.
+  The implementation is right about it, so the corpus pins the *current* rule
+  with an ordinary refusal, which turns red exactly when the generation lands.
 
 **Where the first draft landed.** 19 chapters, 5 annexes, 248 rules, ~16,700
 words, 133 probes. Every rule was verified by running the interpreter. The

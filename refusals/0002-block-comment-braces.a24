@@ -1,0 +1,8 @@
+// spec: LEX-003
+//
+// There are no block comments.  The braces are not comment delimiters and are
+// not tokens of the language at all -- they are refused as unexpected
+// characters.
+
+{ this is not a comment }
+WriteLn ('never reached');

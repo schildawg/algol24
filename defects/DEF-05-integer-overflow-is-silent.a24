@@ -1,0 +1,10 @@
+// spec: LEX-018, LEX-033
+//
+
+// LEX-033: a literal outside the 32-bit range must be refused when the program
+// is read.  It wraps instead.
+WriteLn (2147483648);
+WriteLn (99999999999999);
+
+// LEX-018: arithmetic outside the range must raise.  It wraps instead.
+WriteLn (2147483647 + 1);

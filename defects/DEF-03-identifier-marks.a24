@@ -1,0 +1,16 @@
+// spec: LEX-007, LEX-008
+//
+
+// LEX-008 says an identifier mark may not BEGIN an identifier, so this must be
+// refused.  It is accepted, and declares a variable named '?'.
+var ? := 7;
+WriteLn (?);
+
+// LEX-007 admits '!' within an identifier.  The line below is what the rest of
+// this program would be, and it cannot be written here: the scanner refuses
+// '!' as an unexpected character, which ends the run before anything else can
+// be observed.
+//
+//     var Send! := 1;  WriteLn (Send!);
+//
+// The '!' half of this defect therefore has its own file, DEF-03b.

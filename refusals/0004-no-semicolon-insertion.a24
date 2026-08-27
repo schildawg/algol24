@@ -1,0 +1,6 @@
+// spec: LEX-006
+//
+// A line ending is whitespace and never stands in for a ';'.
+
+WriteLn (1)
+WriteLn (2)

@@ -1,0 +1,5 @@
+Uncaught: Expect variable name.
+[WHITE][[RED]ERROR[WHITE]] [RESET]defects/DEF-04-print-is-a-keyword.a24: Expect variable name.
+[WHITE][[RED]ERROR[WHITE]] [RESET]7 | var print := 7;
+[WHITE][[RED]ERROR[RESET]]   |[RED] ^^^[RESET]
+exit: 70

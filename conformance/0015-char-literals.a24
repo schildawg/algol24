@@ -1,0 +1,15 @@
+// spec: LEX-024, LEX-026
+//
+
+// LEX-024: '#' followed by decimal digits is the character with that code
+// point.
+WriteLn (#65);
+WriteLn (#65 is Char);
+Write   ('a');
+Write   (#10);
+
+// LEX-026: a Char and a String are never equal, however alike they look.
+// Both sides of the first comparison are Chars.  Copy yields a String of
+// length one, which the Char 'a' is not.
+WriteLn ('a' = 'a');
+WriteLn (Copy ('abc', 0, 1) = 'a');

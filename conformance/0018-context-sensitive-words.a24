@@ -1,0 +1,10 @@
+// spec: LEX-011
+//
+
+// 'unit', 'test' and 'on' are not keywords.  The grammar recognises them by
+// position, and each may be used as an ordinary name.
+var unit := 1;
+var test := 2;
+var on   := 4;
+
+WriteLn (unit + test + on);

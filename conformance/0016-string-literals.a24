@@ -1,0 +1,20 @@
+// spec: LEX-027, LEX-028, LEX-029, LEX-030
+//
+
+// LEX-027: single quotes, and a quote within is written twice.
+WriteLn ('it''s');
+
+// LEX-029: '' is empty; '''' is a String of length one holding a quote -- NOT
+// a Char, because LEX-023 measures the source span, which is two characters.
+WriteLn (Length (''));
+WriteLn (Length (''''));
+WriteLn ('''' is String);
+
+// LEX-028: no backslash escapes.  This is four characters and the one at
+// index 1 is the backslash itself.
+WriteLn (Length ('a\nb'));
+WriteLn ('a\nb'[1]);
+
+// LEX-030: a literal may span lines, and the line feed is part of the value.
+WriteLn (Length ('one
+two'));

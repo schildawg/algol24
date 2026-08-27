@@ -1,0 +1,20 @@
+// spec: LEX-004
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+// The same expression written densely and spaciously.  If whitespace and
+// comments separate tokens and are otherwise discarded, both are one token
+// stream and both print the same thing.
+var A:=1+2*3;
+var B   :=   1   // a comment between tokens
+    +
+    2 * 3 ;
+
+WriteLn(A);
+WriteLn(B);
+WriteLn(A = B);
+
+// Whitespace SEPARATES, so removing it where two words meet does not give the
+// same stream: 'varC' is one identifier, not 'var' and 'C'.
+var C := 4; WriteLn(C);

@@ -252,6 +252,62 @@ if [ -s "$WORK/no_conf" ]; then
     done < "$WORK/no_conf"
 fi
 
+# ⚠️ The two markers a rule uses to admit it is ahead of the implementation each
+# owe the reader somewhere to go, and a marker with nowhere to go is worse than
+# none -- it announces a gap and then strands whoever followed it.
+#
+#   NOT YET IMPLEMENTED  wrong outright   -> must CITE a defect in its trailer
+#   PARTLY IMPLEMENTED   wrong in part    -> must NAME a defect in its text
+#   PLANNED              not wrong at all -> must name Annex H
+#
+# PARTLY IMPLEMENTED is the looser of the first two on purpose: the half that
+# works is pinned by a conformance program, so that is what the trailer holds,
+# and the failing half is named in prose.
+#
+# Getting these backwards is the specific mistake worth catching: writing PLANNED
+# over a defect quietly excuses it, and writing NOT YET IMPLEMENTED over planned
+# work invents a defect that does not exist.
+
+awk '/^\*\*\[[A-Z]+-[0-9]+\]\*\*/ {
+         if (id != "") { print id "\t" nyi "\t" partly "\t" planned "\t" names }
+         match($0, /\[[A-Z]+-[0-9]+\]/)
+         id = substr($0, RSTART + 1, RLENGTH - 2)
+         nyi = 0; partly = 0; planned = 0; names = 0
+     }
+     /NOT YET IMPLEMENTED/         { nyi = 1 }
+     /PARTLY IMPLEMENTED/          { partly = 1 }
+     /PLANNED — a later generation/ { planned = 1 }
+     /DEF-[0-9]/                   { names = 1 }
+     END { if (id != "") print id "\t" nyi "\t" partly "\t" planned "\t" names }' \
+    "$SPEC" > "$WORK/markers"
+
+awk -F'\t' '$2 == 1 {print $1}'             "$WORK/markers" | sort -u > "$WORK/nyi"
+awk -F'\t' '$3 == 1 && $5 == 0 {print $1}'  "$WORK/markers" | sort -u > "$WORK/partly_bare"
+awk -F'\t' '$3 == 1 {print $1}'             "$WORK/markers" | sort -u > "$WORK/partly"
+awk -F'\t' '$4 == 1 {print $1}'             "$WORK/markers" | sort -u > "$WORK/planned"
+
+NYI_UNTRACKED=$(comm -23 "$WORK/nyi" "$WORK/has_defect" | tr '\n' ' ')
+[ -n "$NYI_UNTRACKED" ] \
+    && problem "marked NOT YET IMPLEMENTED but citing no defect: $NYI_UNTRACKED"
+
+PARTLY_BARE=$(tr '\n' ' ' < "$WORK/partly_bare")
+[ -n "$PARTLY_BARE" ] \
+    && problem "marked PARTLY IMPLEMENTED but naming no defect: $PARTLY_BARE"
+
+BOTH=$(comm -12 "$WORK/nyi" "$WORK/planned" | tr '\n' ' ')
+[ -n "$BOTH" ] \
+    && problem "marked both NOT YET IMPLEMENTED and PLANNED, which cannot both be true: $BOTH"
+
+if [ -s "$WORK/planned" ] && ! grep -q '^## Annex H' "$SPEC"; then
+    problem "rule(s) marked PLANNED but the specification has no Annex H"
+fi
+
+[ -z "$NYI_UNTRACKED" ] && [ -z "$BOTH" ] && [ -z "$PARTLY_BARE" ] && {
+    echo "  $(wc -l < "$WORK/nyi" | tr -d ' ') rule(s) ahead of the implementation, each citing a defect"
+    echo "  $(wc -l < "$WORK/partly" | tr -d ' ') rule(s) partly implemented, each naming one"
+    echo "  $(wc -l < "$WORK/planned" | tr -d ' ') rule(s) planned for a later generation"
+}
+
 # ------------------------------------------------------------------ tables --
 #
 # ⚠️ A list transcribed into prose is the most rot-prone thing a specification
@@ -267,10 +323,23 @@ echo "Tables"
 sed -n '/var  Keywords := \[/,/TOKEN_WHILE\];/p' compiler/Scanner.a24 \
   | grep -oE "'[a-z]+':" | tr -d "':" | sort -u > "$WORK/kw_source"
 
-awk '/\*\*\[LEX-010\]\*\*/{f=1}
+# ⚠️ [LEX-010] carries TWO fenced blocks: the keywords of the language, and --
+# under the NOT YET IMPLEMENTED note -- the ones the scanner registers in error.
+# The scanner must match their UNION, or the specification has lost track of a
+# word in one direction or the other. Checking only the first block would report
+# every specified removal as a discrepancy, which is exactly the noise that gets
+# a checker switched off.
+
+awk '/\*\*\[LEX-010\]\*\*/{f=1; next}
+     f && /^\*\*\[LEX-011\]\*\*/{exit}
+     f && /^```$/ { c++; next }
+     f && c % 2 == 1 { print }' "$SPEC" \
+  | tr -s ' \n' '\n' | grep -vE '^$' | sort -u > "$WORK/kw_spec"
+
+awk '/\*\*\[LEX-010\]\*\*/{f=1; next}
      f && /^```$/ { c++; if (c == 2) exit; next }
      f && c == 1  { print }' "$SPEC" \
-  | tr -s ' \n' '\n' | grep -vE '^$' | sort -u > "$WORK/kw_spec"
+  | tr -s ' \n' '\n' | grep -vE '^$' | sort -u > "$WORK/kw_norm"
 
 if [ ! -s "$WORK/kw_source" ] || [ ! -s "$WORK/kw_spec" ]; then
     problem "the keyword table could not be read from one side or the other"
@@ -281,7 +350,7 @@ else
     [ -n "$KW_MISSING" ] && problem "LEX-010 omits keyword(s) the scanner has: $KW_MISSING"
     [ -n "$KW_EXTRA" ]   && problem "LEX-010 lists word(s) the scanner does not: $KW_EXTRA"
     [ -z "$KW_MISSING" ] && [ -z "$KW_EXTRA" ] \
-        && echo "  LEX-010 keywords match Scanner.a24 ($(wc -l < "$WORK/kw_source" | tr -d ' '))"
+        && echo "  LEX-010 keywords match Scanner.a24 ($(wc -l < "$WORK/kw_norm" | tr -d ' ') in the language, $(( $(wc -l < "$WORK/kw_spec" | tr -d ' ') - $(wc -l < "$WORK/kw_norm" | tr -d ' ') )) registered in error)"
 fi
 
 # ⚠️ Annex A repeats every production the chapters state.  A repetition that

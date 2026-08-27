@@ -1,0 +1,7 @@
+// spec: LEX-024, LEX-025
+//
+// A Char is a Unicode code point, so #233 is e-acute.  The range is 0..127
+// instead, and the refusal arrives as an uncaught raise with no line number
+// and no source caret, unlike every other scan error.
+
+WriteLn (#233);

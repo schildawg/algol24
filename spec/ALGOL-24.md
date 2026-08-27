@@ -189,8 +189,9 @@ not on the data a program may carry.
 **[SRC-005]**  The following classes are used by the grammar:
 
 ```
-letter        = "a" … "z" | "A" … "Z" | "_" | "?" | unicode_letter .
-decimal_digit = "0" … "9" .
+letter          = "a" … "z" | "A" … "Z" | "_" | unicode_letter .
+decimal_digit   = "0" … "9" .
+identifier_mark = "?" | "!" .
 ```
 
 `unicode_letter` is any character Unicode classifies as a letter.
@@ -202,10 +203,13 @@ DEF-01.
     unit         Scan Identifier With A Question Mark
     conformance  0002-letters-and-digits.a24
 
-⚠️ **`?` is a letter; `!` is not.** `Gate?` is a single identifier — one word to
-the scanner, and one word to double-click. `Gate!` is not: the `!` is refused as
-an unexpected character. There is no `!` operator either; the language spells
-negation `not` and inequality `<>`.
+⚠️ **An identifier mark is not a letter.** `?` and `!` may appear *within* an
+identifier but may not begin one [LEX-007], so `Gate?` and `Gate!` are each a
+single word — one word to the scanner, and one word to double-click — while `?`
+and `!` alone are not identifiers at all. `_` is a letter and may lead.
+
+Neither mark is an operator. The language spells negation `not` and inequality
+`<>`, so nothing else wants the characters.
 
 ### 3.3 Line termination
 
@@ -301,23 +305,24 @@ the end of the file if no `#10` follows. It is discarded and forms no token.
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Comment
     unit         Scan Comment Ends At Newline
-    conformance  TBD
+    conformance  0011-comments.a24
 
 **[LEX-002]**  `///` is not a distinct form. The scanner sees `//` followed by a
 comment whose first character is `/`, and treats it as any other comment.
 
     interpreter  compiler/Scanner.a24  ScanToken
-    conformance  TBD
+    conformance  0011-comments.a24
 
 > The project writes documentation comments as `///` by convention, and tools
 > may treat them specially. The language does not.
 
 **[LEX-003]**  There are no block comments and no nesting. `{ … }` and
-`(* … *)` are not comments: the braces are refused as unexpected characters,
-and the parenthesis form is read as an expression.
+`(* … *)` are not comments. The braces are refused as unexpected characters
+[SRC-002]; the parenthesis form scans as a `(` followed by a `*`, which is not
+a prefix operator, and fails with `Expect expression!`.
 
     interpreter  compiler/Scanner.a24  ScanToken
-    conformance  TBD
+    refusal      0002-block-comment-braces.a24
 
 ### 4.2 Tokens
 
@@ -327,7 +332,7 @@ otherwise discarded.
 
     interpreter  compiler/Scanner.a24  ScanTokens
     unit         Scan Tokens
-    conformance  TBD
+    conformance  0017-tokens-and-separation.a24
 
 **[LEX-005]**  Where a shorter and a longer token both match, the longer is
 taken. `<` followed by `>` is one `<>`; `<` followed by anything else is a `<`
@@ -335,7 +340,7 @@ on its own.
 
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Less Is Not Greedy
-    conformance  TBD
+    conformance  0012-operators.a24
 
 > `<<><=<` scans as `<`, `<>`, `<=`, `<` — four tokens.
 
@@ -343,30 +348,46 @@ on its own.
 whitespace and never stands in for a `;`.
 
     interpreter  compiler/Scanner.a24  ScanToken
-    conformance  TBD
+    refusal      0004-no-semicolon-insertion.a24
 
 ### 4.3 Identifiers
 
-**[LEX-007]**  An identifier is a letter followed by any number of letters and
-digits. `letter` and `decimal_digit` are as defined in [SRC-005], so `_` and
-`?` are letters.
+**[LEX-007]**  An identifier is a **letter** followed by any number of letters,
+digits and identifier marks. `letter`, `decimal_digit` and `identifier_mark`
+are as defined in [SRC-005].
 
 ```
-identifier = letter { letter | decimal_digit } .
+identifier = letter { letter | decimal_digit | identifier_mark } .
 ```
+
+`Gate?`, `Send!`, `_under` and `a1b2` are identifiers. `Ready?Set` is one
+identifier too: a mark does not end a word.
+
+⚠️ **PARTLY IMPLEMENTED.** The `?` mark works; `!` is refused as an unexpected
+character wherever it appears. See DEF-03. The conformance program below
+therefore exercises `?` alone — the `!` half is a commitment the implementation
+does not yet meet, and pinning it there would only make the corpus red.
 
     interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Identifier
     unit         Scan Identifier With A Question Mark
-    conformance  TBD
+    conformance  0010-identifier-forms.a24
 
-**[LEX-008]**  Because `?` and `_` are letters, either may begin an identifier,
-and `?` alone is a well-formed identifier.
+**[LEX-008]**  An identifier mark may not **begin** an identifier. `?` and `!`
+alone are not identifiers, and neither are `?abc` and `!abc`: the mark is
+refused as an unexpected character [SRC-002], because nothing else in the
+language claims it.
+
+⚠️ **NOT YET IMPLEMENTED.** The implementation classes `?` as a letter, so it
+leads an identifier and `var ? := 7;` declares a variable; and it does not admit
+`!` in an identifier at all. See DEF-03.
 
     interpreter  compiler/Scanner.a24  IsAlpha
-    conformance  TBD
+    defect       DEF-03-identifier-marks.a24
 
-> `var ?abc := 7;` declares a variable. So does `var ? := 7;`. See Annex D.
+> The rule exists so that `Gate?` can be one word without `?` also becoming a
+> name. A trailing mark reads as punctuation on a word; a leading one reads as
+> an operator the language does not have.
 
 **[LEX-009]**  An identifier may not be spelled the same as a keyword in any
 case, because the keyword is recognised first. `var begin := 7;` and
@@ -374,24 +395,37 @@ case, because the keyword is recognised first. `var begin := 7;` and
 
     interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Keywords
-    conformance  TBD
+    refusal      0003-keyword-is-not-a-name.a24
 
 ### 4.4 Keywords
 
-**[LEX-010]**  The following 38 words are keywords and are matched
+**[LEX-010]**  The following 37 words are keywords and are matched
 case-insensitively per [SRC-010]:
 
 ```
 and     as       begin   break   case    class     const   constructor
 do      else     end     except  exit    false     for     function
 if      in       is      nil     not     object    of      or
-print   private  procedure       public  raise     super   then
+private procedure         public raise   super     then
 this    true     try     type    uses    var       while
 ```
 
+No other word is a keyword. Every word not in this list is an identifier and
+may be declared as a name.
+
+⚠️ **NOT YET IMPLEMENTED.** The implementation registers one further word:
+
+```
+print
+```
+
+`print` is a keyword there, and it introduces a statement [STM-022]. Neither is
+part of the language; `var print := 7;` must be a declaration and is refused.
+See DEF-04.
+
     interpreter  compiler/Scanner.a24  Keywords
     unit         Scan Keywords
-    conformance  TBD
+    defect       DEF-04-print-is-a-keyword.a24
 
 **[LEX-011]**  `unit`, `test` and `on` are **not** keywords. They are ordinary
 identifiers that the grammar recognises by position — `unit` opening a file,
@@ -401,7 +435,7 @@ be used as a variable name.
     interpreter  compiler/Scanner.a24  Keywords
     interpreter  compiler/Parser.a24   UnitHeader
     unit         Parse On Is Not A Keyword
-    conformance  TBD
+    conformance  0018-context-sensitive-words.a24
 
 > `var test := 7;` is a valid declaration, and so are the `unit` and `on`
 > forms. Verified in all three.
@@ -418,23 +452,26 @@ be used as a variable name.
 
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Operators
-    conformance  TBD
+    conformance  0012-operators.a24
 
 **[LEX-013]**  `=` is equality and `:=` is assignment. Inequality is `<>`.
-There is no `==`, no `!` and no `!=`; `!` is not a character the scanner
-accepts anywhere outside a comment or a literal.
+There is no `==`, no `!=` and no `!` operator: negation is `not`, and `!` is an
+identifier mark [SRC-005] rather than punctuation.
 
     interpreter  compiler/Scanner.a24   ScanToken
     interpreter  compiler/TokenType.a24 TOKEN_ASSIGN
     unit         Scan Operators
-    conformance  TBD
+    conformance  0012-operators.a24
+
+> Because `!` never begins a token [LEX-008], `A!=B` is unambiguous: it is the
+> identifier `A!` compared with `B`. There is no `!=` for it to be mistaken for.
 
 **[LEX-014]**  `and`, `or`, `not`, `in`, `is` and `as` are operators spelled as
 keywords rather than punctuation, and are subject to [SRC-010].
 
     interpreter  compiler/Scanner.a24  Keywords
     unit         Scan Keywords
-    conformance  TBD
+    conformance  0012-operators.a24
 
 ⚠️ `{` and `}` are not tokens of the language at all — not as comment
 delimiters, not as block delimiters, and not as set constructors. A block is
@@ -451,38 +488,58 @@ integer_lit = decimal_digit { decimal_digit } .
     interpreter  compiler/Scanner.a24  ScanNumber
     unit         Scan Number
     unit         Scan Integer Is Not A Double
-    conformance  TBD
+    conformance  0013-integer-literals.a24
 
 **[LEX-016]**  Decimal is the only base. There is no hexadecimal, octal or
 binary form, and no digit separator. `0x10` is not a number: it scans as the
-integer `0` followed by the identifier `x10`.
+integer `0` followed by the identifier `x10`, and the two adjacent expressions
+then fail to parse.
+
+⚠️ **PLANNED — a later generation.** Hexadecimal, octal and binary forms and a
+digit separator are intended, and will change this rule. They are not part of
+the language described here. See Annex H.
 
     interpreter  compiler/Scanner.a24  ScanNumber
-    conformance  TBD
+    refusal      0006-hex-is-not-a-literal.a24
 
 **[LEX-017]**  Leading zeros are permitted and carry no meaning. `007` is the
 integer 7, not an octal.
 
     interpreter  compiler/Scanner.a24  ScanNumber
-    conformance  TBD
+    conformance  0013-integer-literals.a24
 
-**[LEX-018]**  An Integer is a signed 32-bit value. A literal outside that
-range **wraps silently**, with no diagnostic: `2147483648` is the integer
-`-2147483648`, and `99999999999999` is `276447231`. Arithmetic wraps the same
-way, so `2147483647 + 1` is `-2147483648`.
+**[LEX-018]**  An Integer is a signed 32-bit value, from −2147483648 to
+2147483647. An arithmetic operation whose result falls outside that range
+**raises** rather than wrapping.
+
+⚠️ **NOT YET IMPLEMENTED.** Both processors wrap silently, so `2147483647 + 1`
+is `-2147483648` and a program can compute a wrong answer with no sign of it.
+See DEF-05.
+
+    interpreter  compiler/Interpreter.a24  VisitBinary
+    compiler     bootstrap/algol.c         alg_add
+    defect       DEF-05-integer-overflow-is-silent.a24
+
+**[LEX-033]**  An integer **literal** outside the range of [LEX-018] is refused
+when the program is read, not when it runs. It is a value the source states
+plainly and the processor can check without executing anything.
+
+⚠️ **NOT YET IMPLEMENTED.** The literal wraps silently, so `2147483648` is the
+integer `-2147483648` and `99999999999999` is `276447231`. See DEF-05.
 
     interpreter  compiler/Scanner.a24  ToInteger
-    compiler     bootstrap/algol.c     alg_add
-    conformance  TBD
+    defect       DEF-05-integer-overflow-is-silent.a24
 
-> Both processors produce identical wrapped values. See Annex D.
+> The two halves are separated because they cost differently. A literal is
+> checked once, while it is being scanned; an arithmetic result must be checked
+> on every operation the program performs.
 
 **[LEX-019]**  There is no negative literal. A leading `-` is the unary
 operator applied to a non-negative literal, which is why `2-1` is a
 subtraction rather than two adjacent expressions.
 
     interpreter  compiler/Scanner.a24  ScanToken
-    conformance  TBD
+    conformance  0013-integer-literals.a24
 
 ### 4.7 Double literals
 
@@ -495,7 +552,7 @@ double_lit = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit }
 
     interpreter  compiler/Scanner.a24  ScanNumber
     unit         Scan Number Decimal
-    conformance  TBD
+    conformance  0014-double-literals.a24
 
 **[LEX-021]**  `1.` is therefore not a double. It is the integer `1` followed
 by the `.` operator, and a program containing it fails with `Expect property
@@ -503,44 +560,72 @@ name after '.'.` Likewise `.5` is not a literal at all.
 
     interpreter  compiler/Scanner.a24  ScanNumber
     unit         Scan Integer Then Dot
-    conformance  TBD
+    refusal      0005-trailing-dot-is-not-a-double.a24
 
 **[LEX-022]**  There is no exponent notation. `1e5` scans as the integer `1`
-followed by the identifier `e5`.
+followed by the identifier `e5`, and the two adjacent expressions then fail to
+parse.
+
+⚠️ The language therefore **prints a form it cannot read**. `Str` renders a
+large Double in exponent notation — `1.0E300` — and that text is not a literal.
+Nothing becomes unreachable, because `Val` *does* parse the exponent form and
+`Val(Str(X))` round-trips; but a value cannot be written into a program the way
+the program writes it out.
+
+⚠️ **PLANNED — a later generation.** An exponent form is intended, and will
+change this rule. See Annex H.
 
     interpreter  compiler/Scanner.a24  ScanNumber
-    conformance  TBD
+    refusal      0007-exponent-is-not-a-literal.a24
 
 ### 4.8 Character literals
 
-**[LEX-023]**  A quoted literal enclosing exactly one byte **of source** is a
-Char rather than a String. The measurement is taken on the raw span between the
-quotes, not on the value.
+**[LEX-023]**  A quoted literal enclosing exactly one character **of source** is
+a Char rather than a String. `'a'` and `'é'` are both Chars.
+
+⚠️ **The measurement is taken on the source span between the quotes, not on the
+value**, and the distinction is load-bearing. `''''` is a doubled quote — two
+characters of source, one character of value — and it is a String [LEX-029].
+Measuring the value would silently reclassify it.
+
+⚠️ **NOT YET IMPLEMENTED.** The implementation measures the span in *bytes*, so
+`'é'` is a String of length 2. See DEF-01.
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan One Character Is A Char
-    conformance  TBD
+    defect       DEF-01-text-is-bytes.a24
 
 **[LEX-024]**  A Char may also be written `#` followed by decimal digits, giving
-the character with that code point: `#65` is `A` and `#10` is a line feed. A `#`
-not followed by a digit is an error reading `[line N] Error: Invalid character:
-C`.
+the character with that code point: `#65` is `A`, `#10` is a line feed and
+`#233` is `é`. A `#` not followed by a digit is an error reading `[line N]
+Error: Invalid character: C`.
 
 ```
-char_lit = "'" source_byte "'" | "#" decimal_digit { decimal_digit } .
+char_lit = "'" source_character "'" | "#" decimal_digit { decimal_digit } .
 ```
 
     interpreter  compiler/Scanner.a24  ScanChar
     unit         Scan Char By Code Point
     unit         Scan Char Without Digits
-    conformance  TBD
+    conformance  0015-char-literals.a24
 
-**[LEX-025]**  A Char's code point is limited to 0 … 127. A larger value is a
-runtime error reading `Char is limited to 0..127.`
+**[LEX-025]**  A Char is a Unicode code point: 0 … 10FFFF, excluding the
+surrogate range D800 … DFFF, which encodes no character. A `#` literal outside
+that range is refused when the program is read, with the shape every other
+scan error has — `[line N] Error: …` — because that is where it is detected.
+
+⚠️ **NOT YET IMPLEMENTED.** Two ways. The range is 0 … 127, so `#200` is refused
+where the specification admits it; and the refusal is raised rather than
+recorded, so it arrives as `Uncaught: Char is limited to 0..127.` with no line
+number and no source caret, unlike every other scan error [ERR-004]. See DEF-06.
 
     interpreter  compiler/Interpreter.a24  CharNative
     compiler     bootstrap/algol.c         alg_char
-    conformance  TBD
+    defect       DEF-06-char-range-and-diagnostic.a24
+
+> `ScanChar` builds the value by calling the `Char` built-in during the scan
+> (`compiler/Scanner.a24`), which is why a range failure surfaces as a runtime
+> raise from inside the scanner rather than as a scan error.
 
 **[LEX-026]**  A Char and a String are never equal, however alike they look.
 `'a' = 'a'` is true because both sides are Chars; `Copy('abc', 0, 1) = 'a'` is
@@ -549,7 +634,7 @@ not it.
 
     interpreter  compiler/Interpreter.a24  IsEqual
     compiler     bootstrap/algol.c         equals
-    conformance  TBD
+    conformance  0015-char-literals.a24
 
 ### 4.9 String literals
 
@@ -557,53 +642,67 @@ not it.
 is written twice.
 
 ```
-string_lit = "'" { source_byte_other_than_quote | "''" } "'" .
+string_lit = "'" { source_character_other_than_quote | "''" } "'" .
 ```
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan String
     unit         Scan Doubled Quote
-    conformance  TBD
+    conformance  0016-string-literals.a24
 
-**[LEX-028]**  There are no backslash escapes. `'a\nb'` is four bytes, and its
-element at index 1 is the backslash itself. A line feed is written `#10` and
+**[LEX-028]**  There are no backslash escapes. `'a\nb'` is four characters, and
+its element at index 1 is the backslash itself. A line feed is written `#10` and
 concatenated.
 
     interpreter  compiler/Scanner.a24  ScanString
-    conformance  TBD
+    conformance  0016-string-literals.a24
 
 **[LEX-029]**  `''` is the empty String. `''''` is a String of length one
 holding a quote — **not** a Char, because [LEX-023] measures the source span,
-which is two bytes.
+which is two characters.
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan Empty String
     unit         Scan An Escaped Quote Is A String
-    conformance  TBD
+    conformance  0016-string-literals.a24
 
 **[LEX-030]**  A string literal may span lines. The line feed is part of its
-value and advances the line count, so `'one` ⏎ `two'` is seven bytes.
+value and advances the line count, so `'one` ⏎ `two'` is seven characters.
 
     interpreter  compiler/Scanner.a24  ScanString
-    conformance  TBD
+    conformance  0016-string-literals.a24
 
 **[LEX-031]**  A string that reaches the end of the file unclosed is an error
-reading `[line N] Error: Unterminated string.`, where N is the line the scan
-reached — not the line the string opened on.
+reading `[line N] Error: Unterminated string.`, where N is the line the string
+**opened** on.
+
+⚠️ **NOT YET IMPLEMENTED.** N is the line the scan *reached*, which is the last
+line of the file. On a large source the two differ by however much text follows
+the stray quote, and the line reported is the one place the fault certainly is
+not. See DEF-07.
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan Unterminated String
-    conformance  TBD
+    defect       DEF-07-unterminated-string-line.a24
 
-**[LEX-032]**  A String cannot hold the Char whose code point is 0. The Char
-itself is well formed and `#0 is Char` is true, but concatenating it into a
-String truncates the String there: `Length('a' + Str(#0) + 'b')` is 2.
+**[LEX-032]**  `#0` is not a Char. A code point of 0 is refused exactly as an
+out-of-range one is [LEX-025], when the program is read.
+
+⚠️ **NOT YET IMPLEMENTED.** `#0` is accepted and `#0 is Char` is true, but a
+String cannot hold it: concatenating one truncates the String there, so
+`Length('a' + Str(#0) + 'b')` is 2. Both processors agree, because both
+represent a String as C does, terminated by the zero byte. See DEF-08.
 
     interpreter  compiler/Interpreter.a24  StrNative
     compiler     bootstrap/algol.c         alg_string
-    conformance  TBD
+    defect       DEF-08-nul-char-truncates.a24
 
-> Both processors agree. See Annex D.
+> Refusing `#0` is the smaller of the two available fixes and matches the range
+> check that already exists. The larger one — giving a String an explicit length
+> so it can hold a zero character — is the better language, and [SRC-001] already
+> obliges a String to carry a character count distinct from its byte length, so
+> the two changes meet. This rule is written so that adopting the larger fix
+> later relaxes a restriction rather than reversing a guarantee.
 
 ---
 
@@ -1458,11 +1557,20 @@ is caught by `on e : String` with `e` equal to `Division by zero.`
 
 ### 10.7 print
 
-**[STM-022]**  `print E` writes the stringified value followed by a newline.
+**[STM-022]**  There is no print statement. `WriteLn` [RT-015] writes a value
+and a newline, and it is an ordinary built-in rather than syntax.
+
+⚠️ **NOT YET IMPLEMENTED.** The implementation has a `print E` statement, and
+`print` is a keyword there [LEX-010], so the word cannot be used as a name.
+See DEF-04.
 
     interpreter  compiler/Interpreter.a24  VisitPrintStmt
     unit         Execute Print Statement
-    conformance  TBD
+    defect       DEF-04-print-is-a-keyword.a24
+
+> This rule is stated in chapter 10 rather than being deleted, because a rule
+> ID is permanent: [STM-022] has been cited, and a reader who follows the
+> citation should find out what became of the statement rather than nothing.
 
 ---
 
@@ -2517,15 +2625,16 @@ nobody checked is exactly the kind of claim this specification exists to avoid.
 ### Lexical
 
 ```
-letter        = "a" … "z" | "A" … "Z" | "_" | "?" .
-decimal_digit = "0" … "9" .
+letter          = "a" … "z" | "A" … "Z" | "_" | unicode_letter .
+decimal_digit   = "0" … "9" .
+identifier_mark = "?" | "!" .
 
-identifier    = letter { letter | decimal_digit } .
+identifier      = letter { letter | decimal_digit | identifier_mark } .
 
-integer_lit   = decimal_digit { decimal_digit } .
-double_lit    = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit } .
-char_lit      = "'" source_byte "'" | "#" decimal_digit { decimal_digit } .
-string_lit    = "'" { source_byte_other_than_quote | "''" } "'" .
+integer_lit     = decimal_digit { decimal_digit } .
+double_lit      = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit } .
+char_lit        = "'" source_character "'" | "#" decimal_digit { decimal_digit } .
+string_lit      = "'" { source_character_other_than_quote | "''" } "'" .
 ```
 
 ### Declarations
@@ -2729,43 +2838,38 @@ rule it refers to: the body states what the language does, and this annex
 argues about it. Entries are added as the chapters that expose them are
 written.
 
-**D-1 — Integer overflow is silent.** *(refers to [LEX-018])*
+**D-1 — Integer overflow is silent.** *(refers to [LEX-018], [LEX-033])*
 
-A literal or an arithmetic result outside the signed 32-bit range wraps with no
-diagnostic, so `2147483648` is `-2147483648` and `99999999999999` is
-`276447231`. A program can compute a wrong answer and give no sign of it.
+**Resolved.** The specification now requires an out-of-range literal to be
+refused when the program is read [LEX-033], and an out-of-range arithmetic
+result to raise [LEX-018]. The two were separated because they cost
+differently: a literal is checked once during the scan, while an arithmetic
+result must be checked on every operation a program performs.
 
-Both processors wrap identically, so this is at least consistent, and the
-wrapping is what C does natively — making it free in the compiler and
-deliberate work to detect. Changing it would mean either a check on every
-arithmetic operation or a widened Integer, and it would break any program
-relying on the wrap.
-
-*Recommended:* raise on overflow. A language whose compiler is written in
-itself cannot afford a silent wrong answer in its own arithmetic, and the cost
-is a branch on operations that are not this language's bottleneck.
+The implementation wraps in both cases, silently and identically in both
+processors, which is what C does natively. Tracked by DEF-05.
 
 **D-2 — `?` alone is a valid identifier.** *(refers to [LEX-008])*
 
-Because `?` is classed as a letter so that `Gate?` scans as one word, it may
-also *begin* an identifier, and `var ? := 7;` declares a variable named `?`.
-That is almost certainly not intended; it falls out of the letter class rather
-than from any decision.
+**Resolved.** `?` and `!` are identifier *marks* rather than letters [SRC-005]:
+they continue an identifier and may not begin one [LEX-008], so `Gate?` and
+`Send!` are single words while `?` and `!` alone are not identifiers at all.
 
-*Recommended:* keep `?` as a trailing character only — a letter for the purpose
-of continuing an identifier, not of starting one. No plausible program relies
-on the current rule, and the change is confined to `IsAlpha` and its caller.
+The implementation classes `?` as a letter, so it leads; and it does not admit
+`!` in an identifier at all. Tracked by DEF-03.
 
 **D-3 — `#0` is constructible but unstorable.** *(refers to [LEX-032])*
 
-`#0` yields a Char, and a Char is a value like any other, but putting one into
-a String silently truncates it. The String type is C's NUL-terminated
-representation showing through, and the language does not say so anywhere.
+**Resolved by refusing it.** `#0` is not a Char [LEX-032], and is refused when
+the program is read exactly as an out-of-range code point is [LEX-025]. That is
+the smaller of the two available fixes and matches a check the scanner already
+performs.
 
-*Recommended:* either refuse `#0` at construction, as [LEX-025] already refuses
-128 and above, or give String an explicit length so it can hold a zero byte.
-Refusing is much the smaller change and matches the existing range check;
-storing it honestly is the better language.
+The larger fix — giving a String an explicit length so it can hold a zero
+character — remains the better language, and [SRC-001] already obliges a String
+to carry a character count distinct from its byte length, so the two changes
+meet. [LEX-032] is worded so that adopting it later relaxes a restriction
+rather than reversing a guarantee. Tracked by DEF-08.
 
 **D-4 — Widening is refused as firmly as narrowing.** *(refers to [VAR-004])*
 
@@ -3259,6 +3363,101 @@ case-insensitively by the compiler and exactly by the interpreter; under
 [SRC-011] the compiler is right and the interpreter is the one to change. That
 is the safer direction — it can only make programs start working.
 
+**DEF-03 — Identifier marks are wrong in both directions.**
+*(violates [SRC-005], [LEX-007], [LEX-008])*
+
+`?` is classed as a letter rather than a mark, so it may begin an identifier and
+`var ? := 7;` declares a variable. `!` is not admitted in an identifier at all,
+so `Send!` is refused as an unexpected character.
+
+*Reproduce:* `defects/DEF-03-identifier-marks.a24`,
+`defects/DEF-03b-bang-is-not-an-identifier-mark.a24`
+
+⚠️ **Two files, because the two halves cannot share one.** A program that uses
+`!` is refused during the scan, which ends the run before anything else in it
+can be observed — so the `?` half would never execute. This is the general
+shape of the problem: a defect in the scanner admits only one observation per
+program.
+
+*Scope of the fix.* `IsAlpha` stops answering true for `?`; a new predicate
+answers for `?` and `!`; `ScanIdentifier` accepts a mark only after the first
+character. Annex G's mangling already maps both marks.
+
+**DEF-04 — `print` is a keyword and a statement.**
+*(violates [LEX-010], [STM-022])*
+
+The scanner registers `print` as a thirty-eighth keyword and the parser has a
+`print E` statement. Neither is part of the language, and the word cannot be
+used as a name: `var print := 7;` is refused with `Expect variable name.`
+
+*Reproduce:* `defects/DEF-04-print-is-a-keyword.a24`
+
+*Scope of the fix.* Remove the entry from `Keywords`, `TOKEN_PRINT` from
+`TokenType.a24`, the statement from the parser, `VisitPrintStmt` from the
+interpreter and the resolver, and its case from the emitter. ⚠️ The compiler's
+own sources must not use it first.
+
+**DEF-05 — Integer overflow is silent.**
+*(violates [LEX-018], [LEX-033])*
+
+An out-of-range literal wraps instead of being refused, so `2147483648` is
+`-2147483648` and `99999999999999` is `276447231`. Arithmetic wraps instead of
+raising, so `2147483647 + 1` is `-2147483648`. Both processors agree, because
+both let C's native wrapping through.
+
+*Reproduce:* `defects/DEF-05-integer-overflow-is-silent.a24`
+
+*Scope of the fix.* The literal half is small and local: `ToInteger` in the
+scanner learns the range and records a scan error. The arithmetic half touches
+every operator in `VisitBinary` and in `alg_add` and its neighbours, and it is
+the half that costs at run time.
+
+**DEF-06 — A Char is limited to 0 … 127, and says so in the wrong shape.**
+*(violates [LEX-024], [LEX-025])*
+
+`#233` is refused where the specification requires `é`. The refusal also has the
+wrong form: `ScanChar` builds the value by calling the `Char` built-in during
+the scan, so a range failure surfaces as a bare `Char is limited to 0..127.`
+with no line number and no source caret, unlike every other scan error
+[ERR-004].
+
+*Reproduce:* `defects/DEF-06-char-range-and-diagnostic.a24`
+
+⚠️ The diagnostic half is worth fixing **whatever** the range turns out to be.
+It is not really about Unicode; it is a scan error escaping as a raise.
+
+*Scope of the fix.* The range moves with DEF-01, since a Char wider than a byte
+and a String of characters are the same change. The diagnostic is independent:
+`ScanChar` checks the range itself and records an error rather than calling a
+built-in that raises.
+
+**DEF-07 — An unterminated string reports the wrong line.**
+*(violates [LEX-031])*
+
+The diagnostic names the line the scan *reached* — the end of the file — rather
+than the line the string opened on. The two differ by however much text follows
+the stray quote, and the line reported is the one place the fault certainly is
+not.
+
+*Reproduce:* `defects/DEF-07-unterminated-string-line.a24`
+
+*Scope of the fix.* `ScanString` records the line at the opening quote and uses
+it in the message. `Line` is already tracked; nothing new has to be measured.
+
+**DEF-08 — `#0` is accepted and truncates a String.**
+*(violates [LEX-032])*
+
+`#0 is Char` is true where the specification refuses the literal outright, and a
+String silently truncates where one is concatenated in, so
+`Length('a' + Str(#0) + 'b')` is 2. Both processors agree, because both
+represent a String as C does.
+
+*Reproduce:* `defects/DEF-08-nul-char-truncates.a24`
+
+*Scope of the fix.* The same range check as DEF-06, extended downwards. See D-3
+for why refusal rather than storage is what the rule asks for, and why the
+larger fix stays available.
+
 ---
 
 ## Annex G — implementation notes *(non-normative)*
@@ -3268,8 +3467,9 @@ these ends by other means.
 
 ### G.1 Mangling identifiers into C
 
-The C back end must map an Algol-24 identifier — which may hold `?`, `_` and any
-Unicode letter [SRC-005] — onto a C identifier, which may not.
+The C back end must map an Algol-24 identifier — which may hold `_`, any Unicode
+letter, and the marks `?` and `!` [SRC-005] — onto a C identifier, which may
+not.
 
 Because identifiers are case-insensitive [SRC-011], **case carries no
 information**, and lowercasing the name is lossless. That frees the entire
@@ -3300,3 +3500,35 @@ identifiers are case-insensitive, and the uppercase escape space only exists
 because of the lowercasing. Neither works alone.
 
 ---
+
+---
+
+## Annex H — planned for later generations *(non-normative)*
+
+Changes intended for the language that are **not defects**. The implementation
+is right about these; the specification describes the language as it now is, and
+each of these will change a rule when it arrives.
+
+⚠️ The distinction matters to the corpus. A defect gets a reverse conformance
+test that passes while the wrong behaviour persists. A planned change gets an
+ordinary conformance test or refusal pinning the **current** rule, which turns
+red when the generation lands — deliberately, because that is the moment the
+rule changes and the test should change with it.
+
+**H-1 — Other bases and digit separators.** *(will change [LEX-016])*
+
+Hexadecimal, octal and binary integer literals, and a separator within a run of
+digits. Today decimal is the only base and there is no separator; `0x10` scans
+as `0` followed by the identifier `x10`, and the adjacent expressions do not
+parse. Pinned by `refusals/0006-hex-is-not-a-literal.a24`.
+
+**H-2 — Exponent notation.** *(will change [LEX-022])*
+
+A double literal with an exponent. Today `1e5` scans as `1` followed by the
+identifier `e5`. Pinned by `refusals/0007-exponent-is-not-a-literal.a24`.
+
+⚠️ This one closes a genuine asymmetry rather than only adding a convenience:
+`Str` **prints** a large Double in exponent form — `1.0E300` — and the language
+cannot read back what it wrote. Nothing is unreachable today, because `Val`
+parses the exponent form, but the round trip goes through a built-in rather than
+through the source.

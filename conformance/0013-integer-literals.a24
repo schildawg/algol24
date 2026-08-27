@@ -1,0 +1,14 @@
+// spec: LEX-015, LEX-017, LEX-019
+//
+
+// LEX-015: a run of decimal digits.
+WriteLn (42);
+
+// LEX-017: leading zeros are permitted and carry no meaning -- 007 is seven,
+// not an octal.
+WriteLn (007);
+
+// LEX-019: there is no negative literal.  A leading '-' is the unary operator,
+// which is why '2-1' is a subtraction rather than two adjacent expressions.
+WriteLn (-5);
+WriteLn (2-1);

@@ -1,0 +1,8 @@
+// spec: LEX-032
+//
+// LEX-032 refuses #0 when the program is read.  It is accepted instead, and a
+// String silently truncates where one is concatenated in: this prints true and
+// then 2, where the second value should be 3 if the character were stored.
+
+WriteLn (#0 is Char);
+WriteLn (Length ('a' + Str (#0) + 'b'));

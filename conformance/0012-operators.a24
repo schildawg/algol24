@@ -1,0 +1,27 @@
+// spec: LEX-005, LEX-012, LEX-013, LEX-014
+//
+
+// LEX-012: the operators and punctuation.
+WriteLn (5 + 3);
+WriteLn (5 - 3);
+WriteLn (5 * 3);
+WriteLn (15 / 3);
+
+// LEX-013: '=' compares, ':=' assigns, '<>' is inequality.  There is no '=='.
+var A := 5;
+WriteLn (A = 5);
+WriteLn (A <> 5);
+
+// LEX-005: the longer token wins.  '<=' is one token, and '<' followed by
+// something that is not '>' or '=' is a '<' on its own.
+WriteLn (3 <= 3);
+WriteLn (3 <  4);
+WriteLn (3 >= 3);
+WriteLn (3 >  2);
+
+// LEX-014: the word operators.
+WriteLn (True and True);
+WriteLn (True or False);
+WriteLn (not False);
+WriteLn (5 is Integer);
+WriteLn ('a' in ['a', 'b']);

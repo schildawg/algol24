@@ -1,0 +1,8 @@
+// spec: LEX-010, STM-022
+//
+// 'print' is not a keyword of the language, so this must be an ordinary
+// declaration.  The scanner registers it as one, so 'var' finds a keyword
+// where it wants a name.
+
+var print := 7;
+WriteLn (print);

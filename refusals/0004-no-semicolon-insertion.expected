@@ -1,0 +1,5 @@
+Uncaught: Expect ';' after expression.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0004-no-semicolon-insertion.a24: Expect ';' after expression.
+[WHITE][[RED]ERROR[WHITE]] [RESET]5 | WriteLn (1)
+[WHITE][[RED]ERROR[RESET]]   |[RED]           ^[RESET]
+exit: 70
