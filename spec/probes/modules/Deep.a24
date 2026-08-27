@@ -1,0 +1,4 @@
+function DeepName() : String;
+begin
+    Exit 'from Deep';
+end

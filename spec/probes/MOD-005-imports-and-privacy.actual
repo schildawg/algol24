@@ -1,0 +1,5 @@
+direct    : from Mid (from Deep)
+qualified : from Mid (from Deep)
+transitive: Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
+private   : Undefined name 'Hidden' in unit 'Mid'.
+exit: 0

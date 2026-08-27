@@ -1,0 +1,5 @@
+uses CycA;
+function BName() : String;
+begin
+    Exit 'B';
+end

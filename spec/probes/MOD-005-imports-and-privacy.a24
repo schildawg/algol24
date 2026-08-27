@@ -1,0 +1,23 @@
+// spec: MOD-005, MOD-007, MOD-009
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+uses 'modules/Mid';
+
+WriteLn ('direct    : ' + MidName());
+WriteLn ('qualified : ' + Mid.MidName());
+
+// uses is not transitive: Mid sees Deep, this file does not
+try
+    WriteLn (DeepName());
+except
+    on e : String do WriteLn ('transitive: ' + e);
+end
+
+// and a module-private name is invisible either way
+try
+    WriteLn (Mid.Hidden());
+except
+    on e : String do WriteLn ('private   : ' + e);
+end

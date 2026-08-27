@@ -1,0 +1,5 @@
+uses CycB;
+function AName() : String;
+begin
+    Exit 'A';
+end

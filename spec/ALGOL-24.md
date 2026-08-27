@@ -1972,6 +1972,117 @@ should be an ordinal.`
 
 ---
 
+## 15. Modules
+
+### 15.1 Importing
+
+**[MOD-001]**  `uses` imports another file. A bare identifier names the file of
+that name with `.a24` appended; a quoted string is a path.
+
+```
+UsesStmt = "uses" ( identifier | string_lit ) ";" .
+```
+
+    interpreter  compiler/Parser.a24  UsesStatement
+    conformance  TBD
+
+**[MOD-002]**  A module is looked for **beside the importing file first**, then
+in the working directory. Two directories may therefore hold files of one name
+without either reaching the other's. Failure is `Could not find module 'X': no
+X.a24 in …`
+
+    interpreter  compiler/Parser.a24  ResolveModule
+    conformance  TBD
+
+**[MOD-003]**  A module is loaded and executed **once**, keyed by its resolved
+path, however many files import it. A second import of the same file sees the
+names without re-running the body.
+
+    interpreter  compiler/Parser.a24  UsesStatement
+    conformance  TBD
+
+**[MOD-004]**  A file may open with `unit N;`. If present, `N` must match the
+file's own name: `Unit 'Wrong' must match its file name 'Mismatch'.`
+
+    interpreter  compiler/Parser.a24  UnitHeader
+    conformance  TBD
+
+### 15.2 Exports
+
+**[MOD-005]**  A module exports its top-level declarations, except those marked
+`private`.
+
+    interpreter  compiler/Interpreter.a24  VisitModuleStmt
+    conformance  TBD
+
+**[MOD-006]**  At the top level of a module, `private` precedes a **single
+declaration** and hides it. It is not a section marker there, unlike inside a
+class [DCL-011].
+
+    interpreter  compiler/Parser.a24  RecordPrivate
+    unit         Module Private Is Not A Section Marker
+    conformance  TBD
+
+**[MOD-007]**  A private name is invisible to an importer both bare and
+qualified. Qualified, it is `Undefined name 'Hidden' in unit 'Mid'.`
+
+    interpreter  compiler/Interpreter.a24  Qualified
+    conformance  TBD
+
+**[MOD-008]**  Two imported modules exporting one name is refused: `'Clash' is
+already defined; mark it private in one of the modules.`
+
+    interpreter  compiler/Interpreter.a24  VisitModuleStmt
+    conformance  TBD
+
+### 15.3 Visibility
+
+**[MOD-009]**  ⚠️ `uses` is **not transitive**. If `A` imports `B` and `B`
+imports `C`, then `A` does not see `C`'s names — `B` may use them, and `A` may
+not. The diagnostic names the unit that would export it:
+
+```
+Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
+```
+
+    interpreter  compiler/Interpreter.a24  LookupVariable
+    conformance  TBD
+
+**[MOD-010]**  An exported name may be qualified by its unit — `Mid.MidName()` —
+and the qualifier is resolved statically as a unit rather than evaluated as a
+value.
+
+    interpreter  compiler/Interpreter.a24  Qualified
+    conformance  TBD
+
+**[MOD-011]**  `System` is the unit of the built-in functions. No file imports
+it and every file may qualify against it: `System.Copy('abcdef', 0, 3)`.
+
+    interpreter  compiler/Resolver.a24  Units
+    conformance  TBD
+
+### 15.4 Cycles
+
+**[MOD-012]**  ⚠️ **Circular imports do not work**, and fail differently
+depending on the shape:
+
+- Between modules — `A` uses `B` and `B` uses `A` — the program fails with
+  `Type mismatch!`, a diagnostic having nothing to do with types.
+- Through the **root** file — a module importing the file that is being run —
+  the root's own imports fail with `Undefined variable 'X'.` even though the
+  root's body has already run.
+
+⚠️ **compile-only divergence.** A cycle through the root also refuses to
+compile, with `Two modules named 'X' is not supported by the C back end yet.`
+See Annex C, C-1.
+
+    interpreter  compiler/Parser.a24  UsesStatement
+    conformance  TBD
+
+> See Annex D.
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -2285,3 +2396,31 @@ class and simply is not published. **Then reconsider [ENU-009] itself** — an
 enumeration member is not a number, nothing else in the language makes a
 declared name falsey by position, and a first member that is false is a trap
 laid for whoever adds a member at the front.
+
+**D-14 — Circular imports fail, and say something else.** *(refers to
+[MOD-012])*
+
+A cycle between two modules fails with `Type mismatch!` — a sentence about types
+for a program whose types are fine. A cycle through the root file fails with
+`Undefined variable 'B'.` for a name the root plainly imports, and only after
+the root's own body has already run. Compiled, the same cycle refuses with `Two
+modules named 'X'`, which at least names the right subject.
+
+Three shapes of one problem, three diagnostics, none of which says "these
+modules import each other".
+
+Cycles are not obviously *wrong* to reject: a language that loads and executes
+each module once, in order, has a genuine question about what a half-initialized
+module should expose, and refusing is a defensible answer. But refusing is not
+what happens — the failures come from machinery downstream noticing that
+something is missing.
+
+*Recommended:* detect the cycle where it happens, in the parser's `uses`
+handling, and refuse it by name — `Circular import: 'A' uses 'B' uses 'A'.` The
+loader already keeps the map that would make this a few lines. Whether cycles
+should later be *supported* is a separate and much larger question; being told
+about them plainly is worth having either way.
+
+⚠️ This is not hypothetical for this repository. `compiler/Parser.a24` uses
+`Interpreter`, which uses `Parser`, so the compiler's own source contains a
+cycle — which is why it cannot be compiled by itself [Annex C, C-1].

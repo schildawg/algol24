@@ -1,0 +1,11 @@
+uses Deep;
+
+function MidName() : String;
+begin
+    Exit 'from Mid (' + DeepName() + ')';
+end
+
+private function Hidden() : String;
+begin
+    Exit 'secret';
+end
