@@ -1840,6 +1840,138 @@ decides [ENU-009] cannot be read by a program.
 
 ---
 
+## 14. Collections
+
+### 14.1 Construction
+
+**[COL-001]**  A bracketed list of values is a `List`, and `[]` is an empty one.
+A bracketed list of `key : value` pairs is a `Map`, and `[:]` is an empty one.
+
+    interpreter  compiler/Parser.a24  Primary
+    conformance  TBD
+
+**[COL-002]**  `List()`, `Set()`, `Stack()` and `Map()` construct empty
+collections, `Set(L)` builds a Set from a collection, and `Array(N)` an Array of
+`N` elements.
+
+    interpreter  compiler/Interpreter.a24  ArrayNative
+    compiler     bootstrap/algol.c         alg_array
+    conformance  TBD
+
+### 14.2 Members
+
+**[COL-003]**  Every collection answers `Length` and `IsEmpty` as properties, and
+`Contains` as a method. Everything else is per kind:
+
+| | List | Set | Stack | Array | Map |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| `Length` `IsEmpty` `Contains` | ● | ● | ● | ● | ● |
+| `Get` | ● | | | ● | ● |
+| `Add` | ● | ● | | | |
+| `Insert` `RemoveAt` | ● | | | | |
+| `IndexOf` `Sort` | ● | | | ● | |
+| `Clear` | ● | ● | ● | | ● |
+| `Remove` | | ● | | | ● |
+| `Set` `Fill` | | | | ● | |
+| `Put` `Keys` `Values` | | | | | ● |
+| `ToList` | | ● | | | |
+| `Push` `Pop` `Peek` | | | ● | | |
+
+    interpreter  compiler/ObjCollection.a24  Get
+    conformance  TBD
+
+**[COL-004]**  ⚠️ A `List` has **no `Remove`**. Removing a value from a List
+means finding it with `IndexOf` and passing that to `RemoveAt`, while a `Set` and
+a `Map` remove by value and by key directly.
+
+    interpreter  compiler/ObjCollection.a24  Get
+    conformance  TBD
+
+**[COL-005]**  A member a kind does not have is `Undefined property 'X'.`
+
+    interpreter  compiler/ObjCollection.a24  Get
+    conformance  TBD
+
+**[COL-006]**  ⚠️ A collection member's name is matched **exactly**. `L.add(2)`
+is `Undefined property 'add'.`
+
+⚠️ **compile-only divergence.** The C back end matches these names
+case-insensitively and accepts `L.add(2)`. See Annex C.
+
+    interpreter  compiler/ObjCollection.a24  Get
+    conformance  TBD
+
+### 14.3 Order
+
+**[COL-007]**  Every collection iterates in **insertion order**, including
+`Set` and `Map`. This is specified rather than left to the representation,
+because both processors must produce the same output.
+
+    interpreter  compiler/ObjCollection.a24  Items
+    compiler     bootstrap/algol.c           alg_iterable
+    conformance  TBD
+
+**[COL-008]**  Re-assigning an existing Map key keeps the key's **original
+position**. `Put` on a key already present replaces the value and does not move
+it to the end.
+
+    interpreter  compiler/ObjCollection.a24  Invoke
+    compiler     bootstrap/algol.c           alg_put
+    conformance  TBD
+
+**[COL-009]**  `Keys()` and `Values()` answer in that same order, so the two
+correspond element for element.
+
+    interpreter  compiler/ObjCollection.a24  Invoke
+    conformance  TBD
+
+### 14.4 Behaviour
+
+**[COL-010]**  A `Set` holds each value once. Adding a value it already has
+leaves its length unchanged.
+
+    interpreter  compiler/ObjCollection.a24  Invoke
+    conformance  TBD
+
+**[COL-011]**  ⚠️ `Remove` answers **different kinds of thing** by kind. A `Map`
+returns the value removed, and `nil` when the key was absent. A `Set` returns
+whether there was anything to remove.
+
+    interpreter  compiler/ObjCollection.a24  Invoke
+    compiler     bootstrap/algol.c           alg_remove
+    conformance  TBD
+
+**[COL-012]**  Membership — `Contains`, `in`, and Map key lookup — compares
+strictly, without numeric promotion. See [VAL-013].
+
+    interpreter  compiler/ObjCollection.a24  Invoke
+    compiler     bootstrap/algol.c           strict_equals
+    conformance  TBD
+
+**[COL-013]**  `Sort` orders in place and is **stable**. It orders numbers
+against numbers and text against text; mixing them is `Can only sort numbers
+against numbers, or text against text.`
+
+    interpreter  compiler/ObjCollection.a24  Invoke
+    compiler     bootstrap/algol.c           alg_sort
+    conformance  TBD
+
+**[COL-014]**  Subscripting reads by position for a `List` and an `Array` and by
+key for a `Map`. A `Set` has no positions and is refused with `Subscript target
+should be an ordinal.`
+
+    interpreter  compiler/ObjCollection.a24  At
+    compiler     bootstrap/algol.c           alg_subscript_get
+    conformance  TBD
+
+**[COL-015]**  An `Array` is fixed in size and does not grow on assignment — see
+[TYP-008].
+
+    interpreter  compiler/ObjCollection.a24  At
+    conformance  TBD
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -1879,6 +2011,34 @@ Three levels of nesting run correctly interpreted and refuse to compile.
 information to put in one. The `FAIL` stands alone where the interpreter also
 prints the assertion and a caret. A report comparison drops those lines for that
 reason.
+
+**C-4 — Collection member names are matched case-insensitively.** *(silent)*
+*(refers to [COL-006])*
+
+```
+var L := [1];
+L.add (2);
+```
+
+Interpreted this is `Undefined property 'add'.` Compiled it works, and the
+program prints a length of 2.
+
+⚠️ This is the first **silent** divergence recorded, and it runs in the more
+dangerous direction: the compiler **accepts a program the language refuses**. A
+program developed against the compiler can use lowercase member names
+throughout and fail everywhere the moment it is run interpreted, with no warning
+from either processor that the two disagree.
+
+The C runtime compares collection members with `alg_stricmp`, which is
+deliberate — but `bootstrap/algol.h` asserted alongside it that this was "what
+the interpreter does", and it is not. That comment has been corrected.
+
+The interpreter is the authority [1.1], so the fault is the compiler's.
+
+*Fix:* compare exactly in `alg_property` and `alg_invoke` for collection
+receivers. Note that `Length` and `IsEmpty` are matched case-insensitively by
+the same code, so the change must cover those too, and any program relying on
+the looser spelling will stop compiling — which is the point.
 
 **Not a divergence, and worth stating as a requirement:** interpreted and
 compiled `--test` reports are byte-identical, colour included — 239 lines and

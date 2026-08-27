@@ -1,0 +1,644 @@
+// spec: COL-003, COL-004, COL-005
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+procedure Row (K : String);
+begin
+    Write (K);
+    for var I := 0; I < 10 - Length(K); I := I + 1 do Write(' ');
+end
+
+Row('List');
+try
+    var V := [1,2].Length;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].IsEmpty;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Contains;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Get;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Add;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Insert;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Remove;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].RemoveAt;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].IndexOf;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Sort;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Clear;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Set;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Fill;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Put;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Keys;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Values;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].ToList;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Push;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Pop;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1,2].Peek;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+WriteLn('');
+Row('Set');
+try
+    var V := Set([1]).Length;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).IsEmpty;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Contains;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Get;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Add;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Insert;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Remove;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).RemoveAt;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).IndexOf;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Sort;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Clear;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Set;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Fill;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Put;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Keys;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Values;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).ToList;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Push;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Pop;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Set([1]).Peek;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+WriteLn('');
+Row('Stack');
+try
+    var V := Stack().Length;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().IsEmpty;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Contains;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Get;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Add;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Insert;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Remove;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().RemoveAt;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().IndexOf;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Sort;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Clear;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Set;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Fill;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Put;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Keys;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Values;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().ToList;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Push;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Pop;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Stack().Peek;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+WriteLn('');
+Row('Array');
+try
+    var V := Array(2).Length;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).IsEmpty;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Contains;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Get;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Add;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Insert;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Remove;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).RemoveAt;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).IndexOf;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Sort;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Clear;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Set;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Fill;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Put;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Keys;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Values;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).ToList;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Push;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Pop;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := Array(2).Peek;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+WriteLn('');
+Row('Map');
+try
+    var V := [1:2].Length;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].IsEmpty;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Contains;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Get;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Add;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Insert;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Remove;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].RemoveAt;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].IndexOf;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Sort;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Clear;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Set;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Fill;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Put;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Keys;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Values;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].ToList;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Push;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Pop;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+try
+    var V := [1:2].Peek;
+    Write ('Y ');
+except
+    Write ('. ');
+end
+WriteLn('');
+
+Write('          ');
+Write ('Le');Write(' ');
+Write ('Is');Write(' ');
+Write ('Co');Write(' ');
+Write ('Ge');Write(' ');
+Write ('Ad');Write(' ');
+Write ('In');Write(' ');
+Write ('Re');Write(' ');
+Write ('Re');Write(' ');
+Write ('In');Write(' ');
+Write ('So');Write(' ');
+Write ('Cl');Write(' ');
+Write ('Se');Write(' ');
+Write ('Fi');Write(' ');
+Write ('Pu');Write(' ');
+Write ('Ke');Write(' ');
+Write ('Va');Write(' ');
+Write ('To');Write(' ');
+Write ('Pu');Write(' ');
+Write ('Po');Write(' ');
+Write ('Pe');Write(' ');
+WriteLn('');

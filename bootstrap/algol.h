@@ -252,7 +252,13 @@ Value alg_enum_member(Value type, const char *name);
  * either -- the emitter cannot know which it is looking at.
  *
  * Method names match case-sensitively on a class and case-insensitively on a
- * built-in collection, which is what the interpreter does. */
+ * built-in collection.
+ *
+ * ⚠️ That is NOT what the interpreter does, and this comment claimed it was.
+ * The interpreter compares a collection member exactly, so 'L.add(2)' on a List
+ * is 'Undefined property ''add''.' interpreted and works compiled -- the C back
+ * end accepting a program the language refuses.  The interpreter is the
+ * authority, so the fault is here; see Annex C of the specification. */
 Value alg_property(Value receiver, const char *name);
 Value alg_set_property(Value receiver, const char *name, Value value);
 Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count);

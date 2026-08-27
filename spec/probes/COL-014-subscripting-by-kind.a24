@@ -1,0 +1,14 @@
+// spec: COL-014, COL-015
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var L := [10, 20];
+var A := Array(2);
+var M := [1:'a'];
+A[0] := 'x';
+WriteLn(L[1]);
+WriteLn(A[0]);
+WriteLn(M[1]);
+var S := Set([1]);
+WriteLn(S[0]);

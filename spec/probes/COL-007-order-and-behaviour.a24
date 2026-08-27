@@ -1,0 +1,35 @@
+// spec: COL-007, COL-008, COL-009, COL-010, COL-011, COL-013
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn('-- insertion order --');
+var L := [3, 1, 2];  Write('  List : '); for var X in L do Write(Str(X) + ' '); WriteLn('');
+var S := Set([3, 1, 2]); Write('  Set  : '); for var X in S.ToList() do Write(Str(X) + ' '); WriteLn('');
+var M := [3:'c', 1:'a', 2:'b']; Write('  Map  : '); for var K in M do Write(Str(K) + ' '); WriteLn('');
+
+WriteLn('-- reassigning a Map key keeps its place --');
+M.Put(3, 'C');
+Write('  after: '); for var K in M do Write(Str(K) + ' '); WriteLn('');
+
+WriteLn('-- Set deduplicates --');
+var D := Set([1, 1, 2]);
+WriteLn('  Set([1,1,2]).Length = ' + Str(D.Length));
+D.Add(2);
+WriteLn('  after Add(2)        = ' + Str(D.Length));
+
+WriteLn('-- Remove returns different things --');
+var M2 := [1:'one'];
+WriteLn('  Map.Remove(1)  : ' + Str(M2.Remove(1)));
+var S2 := Set([1]);
+WriteLn('  Set.Remove(1)  : ' + Str(S2.Remove(1)));
+WriteLn('  Set.Remove(9)  : ' + Str(Set([1]).Remove(9)));
+
+WriteLn('-- Sort --');
+var L2 := [3, 1, 2]; L2.Sort();
+Write('  numbers: '); for var X in L2 do Write(Str(X) + ' '); WriteLn('');
+
+WriteLn('-- Keys and Values --');
+var M3 := [1:'a', 2:'b'];
+Write('  Keys  : '); for var K in M3.Keys() do Write(Str(K) + ' '); WriteLn('');
+Write('  Values: '); for var V in M3.Values() do Write(Str(V) + ' '); WriteLn('');
