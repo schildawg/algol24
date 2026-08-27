@@ -21,19 +21,26 @@ specifies its lexis, syntax, and semantics.
 
 ### 1.1 Authority
 
-⚠️ **The tree-walking interpreter in `compiler/*.a24` is the sole authority.**
-Where it and the C runtime in `bootstrap/algol.c` disagree, the interpreter
-defines the language and the compiler is in error. There is no other
-implementation and no external oracle.
+⚠️ **This specification is the authority.** Where an implementation differs from
+a rule, the implementation is in error, and the difference is recorded as a
+numbered defect in Annex F with a program that reproduces it.
 
-⚠️ **This specification is normative even where the behaviour is plainly
-wrong.** If the interpreter treats the Integer `0` as falsey and `0.0` as
-truthy, this document says so, flatly. Doubts are recorded in Annex D, which is
-not normative, so that the normative text never argues with itself. A
-specification that hedges cannot be conformed to.
+That was not always so. Every rule here began as a description of what the
+tree-walking interpreter in `compiler/*.a24` does, verified by **running** it
+rather than by reading it — and most rules still are exactly that. A rule is
+only allowed to depart from the implementation by an explicit decision, and when
+it does it carries a marker:
 
-Every normative statement here was verified by *running* the interpreter, not
-by reading it.
+> ⚠️ **NOT YET IMPLEMENTED.** … See DEF-nn.
+
+⚠️ **A rule without such a marker describes behaviour that was observed.** A rule
+with one describes behaviour that was decided. The distinction is what keeps the
+document trustworthy, and it is why the markers are in the normative text rather
+than in an annex.
+
+⚠️ **The specification does not hedge.** Where a behaviour is kept despite
+looking wrong, it is stated flatly and the misgiving goes to Annex D. A
+specification that argues with itself cannot be conformed to.
 
 ### 1.2 Conformance
 
@@ -125,8 +132,11 @@ keyword** and exactly otherwise. See [SRC-010].
 
 ### 3.1 Characters
 
-**[SRC-001]**  Source text is a sequence of bytes. The language attaches no
-encoding to it; a byte is the unit of both storage and measurement.
+**[SRC-001]**  Source text is **UTF-8**. A character, not a byte, is the unit
+of measurement and of subscripting.
+
+⚠️ **NOT YET IMPLEMENTED.** The implementation treats source and strings as
+bytes and attaches no encoding to either. See DEF-01.
 
     interpreter  compiler/Scanner.a24  ScanTokens
     compiler     bootstrap/algol.c     alg_length
@@ -134,8 +144,12 @@ encoding to it; a byte is the unit of both storage and measurement.
     conformance  TBD
 
 **[SRC-002]**  Outside comments, string literals and character literals, every
-byte must be one the scanner recognises. Any other byte is an error reading
+character must be one the scanner recognises — a letter [SRC-005], a digit, or
+an operator or item of punctuation [LEX-012]. Any other is an error reading
 `[line N] Error: Unexpected character: C`.
+
+⚠️ **PARTLY IMPLEMENTED.** The implementation refuses every non-ASCII byte
+here, including letters that [SRC-005] admits. See DEF-01.
 
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Unrecognized Character Is Recorded
@@ -150,9 +164,15 @@ it.
     compiler     bootstrap/algol.c     alg_string
     conformance  TBD
 
-**[SRC-004]**  `Length` of a String is its count of BYTES, and subscripting a
-String yields the byte at that position. A multi-byte character therefore has a
-length greater than one and can be subscripted into its parts.
+**[SRC-004]**  `Length` of a String is its count of **characters**, and
+subscripting a String yields the character at that position. `Length('café')` is
+4, and `'café'[3]` is `é`.
+
+The same holds for every operation that counts or indexes text — `Copy`, `Pos`,
+and `Ord` [16.2].
+
+⚠️ **NOT YET IMPLEMENTED.** The implementation counts bytes: `Length('café')` is
+5 and `'café'[3]` is the first byte of a two-byte sequence. See DEF-01.
 
     interpreter  compiler/Interpreter.a24  LengthNative
     compiler     bootstrap/algol.c         alg_length
@@ -169,9 +189,14 @@ not on the data a program may carry.
 **[SRC-005]**  The following classes are used by the grammar:
 
 ```
-letter        = "a" … "z" | "A" … "Z" | "_" | "?" .
+letter        = "a" … "z" | "A" … "Z" | "_" | "?" | unicode_letter .
 decimal_digit = "0" … "9" .
 ```
+
+`unicode_letter` is any character Unicode classifies as a letter.
+
+⚠️ **PARTLY IMPLEMENTED.** The implementation admits only the ASCII forms. See
+DEF-01.
 
     interpreter  compiler/Scanner.a24  IsAlpha
     unit         Scan Identifier With A Question Mark
@@ -194,6 +219,10 @@ count used by diagnostics.
 
 **[SRC-007]**  `#13` is whitespace. It does not end a line, does not advance
 the line count, and is not required to be followed by `#10`.
+
+⚠️ A file whose only line endings are `#13` therefore scans as a **single
+line**, and every diagnostic in it reports `line 1`. This is accepted rather
+than fixed: carriage-return-only text is no longer produced by any live system.
 
     interpreter  compiler/Scanner.a24  ScanToken
     conformance  TBD
@@ -222,9 +251,19 @@ is otherwise insignificant.
     unit         Scan Keywords
     conformance  TBD
 
-**[SRC-011]**  Identifiers are case-sensitive. `Xyz` and `xyz` are different
-names, and only the keyword *lookup* is lowered — never the lexeme a token
-carries.
+**[SRC-011]**  Identifiers are matched **case-insensitively**, as keywords are.
+`Xyz` and `xyz` are one name, and declaring both in one scope is a duplicate
+[VAR-007].
+
+⚠️ Folding is **ASCII-only**. `Straße` and `STRASSE` are different names, because
+the language carries no Unicode case tables and full folding is a far larger
+commitment than admitting Unicode letters.
+
+⚠️ Only the *lookup* is folded. A diagnostic quotes the lexeme **as written**, so
+a program declaring `Xyz` and misspelling it `xyZ` is told about `xyZ`.
+
+⚠️ **NOT YET IMPLEMENTED.** The implementation matches identifiers exactly, so
+`Xyz` and `xyz` are two names. See DEF-02.
 
     interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Identifier
@@ -1884,7 +1923,16 @@ UsesStmt = "uses" ( identifier | string_lit ) ";" .
     interpreter  compiler/Parser.a24  UsesStatement
     conformance  TBD
 
-**[MOD-002]**  A module is looked for **beside the importing file first**, then
+**[MOD-002]**  ⚠️ A module name is the one place [SRC-011] does **not** reach.
+It names a file, and the filesystem decides how that name is matched — case-
+insensitively on macOS and Windows, sensitively on Linux. `uses scanner` may
+therefore find `Scanner.a24` on one machine and fail on another.
+
+This is stated rather than fixed because the language does not own the
+filesystem. A program that wants to run everywhere spells a module name exactly
+as the file is named.
+
+A module is looked for **beside the importing file first**, then
 in the working directory. Two directories may therefore hold files of one name
 without either reaching the other's. Failure is `Could not find module 'X': no
 X.a24 in …`
@@ -3011,8 +3059,6 @@ produces, since a failing test is the one moment a programmer is looking.
 ⚠️ Any change here alters the report, which [TST-008] specifies and which both
 processors must reproduce byte for byte — so it is a change to the observable
 surface and to `bootstrap/algol.c` in the same breath, not a cosmetic edit.
-
-
 ## Annex E — what could be written in Algol-24 itself *(non-normative)*
 
 The collections and the built-in functions are native today. This annex asks,
@@ -3120,5 +3166,109 @@ needed by ordinary user classes regardless of whether any collection ever moves.
 Subscript [TYP-010] is next, and iteration [TYP-011] after it — those two
 together are what `List` and `Map` wait on, and both are larger changes, because
 each means dispatching a language construct into user code.
+
+---
+
+
+
+## Annex F — defects *(non-normative)*
+
+Where the implementation does not do what this specification requires. Each
+entry names the rules it violates, what the implementation does today, and the
+program in `defects/` that reproduces it.
+
+⚠️ A defect's test is a **reverse conformance test**: it records the wrong
+behaviour and passes while that behaviour persists. It turns **red when the
+defect stops reproducing**, because a fix is as much a change to be noticed as a
+regression — and a suite that is permanently red is a suite nobody reads.
+
+**DEF-01 — Text is bytes, not characters.**
+*(violates [SRC-001], [SRC-002], [SRC-004], [SRC-005])*
+
+The implementation treats source and strings as bytes. `Length('café')` is 5
+rather than 4; `'café'[3]` is the first byte of a two-byte sequence rather than
+`é`; and the scanner refuses every non-ASCII byte outside a comment or literal,
+so a Unicode letter cannot appear in an identifier.
+
+*Reproduce:* `defects/DEF-01-text-is-bytes.a24`
+
+*Scope of the fix.* This is the largest change the specification asks for, and
+it is not confined to one place:
+
+| Where | What changes |
+| --- | --- |
+| Scanner | admit Unicode letters in identifiers; decode UTF-8 |
+| Runtime, both | a String gains a character count distinct from its byte length |
+| `Length` `Copy` `Pos` subscript | count and index characters |
+| `Ord` `Char` | full code-point range, not 0 … 127 [LEX-025] |
+| Emitter | identifiers mangled per Annex G |
+
+⚠️ It also decides D-3 on the way past: a String that carries its own length can
+hold `#0`, and the truncation recorded there stops being possible.
+
+**DEF-02 — Identifiers are matched case-sensitively.**
+*(violates [SRC-011])*
+
+`Xyz` and `xyz` are two names where the specification says they are one, and
+declaring both in one scope is accepted where it should be a duplicate
+[VAR-007].
+
+*Reproduce:* `defects/DEF-02-identifiers-are-case-sensitive.a24`
+
+*Scope of the fix.* Every name lookup folds ASCII case — variables, fields,
+methods, unit-qualified names — while the lexeme is preserved for diagnostics.
+`Scanner.a24` already folds for keyword lookup and `algol.c` already has
+`alg_stricmp`, so the machinery exists in both.
+
+⚠️ **Prerequisite.** `compiler/Console.a24` declares a module-level `const INFO`
+and an object member `procedure Info`, and likewise `ERROR` and `Error`. Under
+folded lookup the member would shadow the constant inside `Info` itself and the
+compiler would break. Those two constants must be renamed before this defect is
+fixed.
+
+⚠️ This also **reverses C-4**. Collection member names are matched
+case-insensitively by the compiler and exactly by the interpreter; under
+[SRC-011] the compiler is right and the interpreter is the one to change. That
+is the safer direction — it can only make programs start working.
+
+---
+
+## Annex G — implementation notes *(non-normative)*
+
+Guidance for implementers. Nothing here is a rule; an implementation may reach
+these ends by other means.
+
+### G.1 Mangling identifiers into C
+
+The C back end must map an Algol-24 identifier — which may hold `?`, `_` and any
+Unicode letter [SRC-005] — onto a C identifier, which may not.
+
+Because identifiers are case-insensitive [SRC-011], **case carries no
+information**, and lowercasing the name is lossless. That frees the entire
+uppercase range to act as escape markers:
+
+| Source | Emitted |
+| --- | --- |
+| any letter or digit | lowercased |
+| `?` | `Q` |
+| `!` | `E` |
+| `_` | `V` |
+| any other character | `U` followed by six hexadecimal digits |
+
+`_` remains unused by the mapping and is therefore available as a separator
+wherever two escapes would otherwise run together ambiguously.
+
+The existing per-kind prefixes — `v_` a variable, `f_` a function, `fn_` its
+closure, `k_` a class, `e_` an enum, `c_` a constant, `m_` a method — continue to
+keep the emitter's names clear of C's.
+
+⚠️ **This scheme is injective, and the one it replaces is not.** Today `?`
+becomes `_q`, so `Ready?` and `Ready_q` emit one symbol between them and `cc`
+refuses the result — a collision `CEmitter.a24` documents against itself. Under
+the scheme above they become `readyQ` and `readyVq`, which differ.
+
+⚠️ The two decisions depend on each other. Lowercasing is only lossless because
+identifiers are case-insensitive, and the uppercase escape space only exists
+because of the lowercasing. Neither works alone.
 
 ---

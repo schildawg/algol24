@@ -1,0 +1,7 @@
+// spec: SRC-005
+//
+
+var Gate? := 1;
+var _under := 2;
+var a1b2 := 3;
+WriteLn (Gate? + _under + a1b2);

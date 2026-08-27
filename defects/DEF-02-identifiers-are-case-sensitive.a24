@@ -1,0 +1,11 @@
+// spec: SRC-011, VAR-007
+//
+
+// SRC-011 says Xyz and xyz are ONE name, so the second declaration below is
+// a duplicate and this program must be refused.  It is not: the two are
+// treated as separate variables and the program runs.
+
+var Xyz := 1;
+var xyz := 2;
+WriteLn (Xyz);
+WriteLn (xyz);

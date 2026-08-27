@@ -1,0 +1,6 @@
+// spec: SRC-002
+//
+
+// '$' is not a character the scanner recognises.
+var A := 1;
+$

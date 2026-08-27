@@ -1,0 +1,12 @@
+// spec: SRC-010
+//
+
+BEGIN
+    WriteLn ('upper');
+END
+Begin
+    WriteLn ('mixed');
+End
+begin
+    WriteLn ('lower');
+end
