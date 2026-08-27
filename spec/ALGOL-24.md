@@ -922,6 +922,144 @@ be numbers.`
 
 ---
 
+## 8. Declarations and scope
+
+### 8.1 Blocks
+
+**[DCL-001]**  A block is `begin` … `end` and introduces a scope. A name
+declared inside it is not visible after it: reading one is `Undefined variable
+'X'.`
+
+    interpreter  compiler/Resolver.a24  BeginScope
+    conformance  TBD
+
+**[DCL-002]**  A block sees every name of the scopes enclosing it.
+
+    interpreter  compiler/Resolver.a24  ResolveLocal
+    unit         Resolve One Hop
+    unit         Resolve Two Hops
+    conformance  TBD
+
+### 8.2 Shadowing
+
+**[DCL-003]**  A declaration shadows an outer one of the same name for the rest
+of its scope. The outer binding is untouched and reappears when the scope ends.
+
+    interpreter  compiler/Resolver.a24  Declare
+    unit         Resolve Same Level
+    conformance  TBD
+
+**[DCL-004]**  A `var` may shadow a `const`. The inner name is an ordinary
+variable and may be assigned; the outer constant is unaffected.
+
+    interpreter  compiler/Resolver.a24  DeclareBinding
+    conformance  TBD
+
+### 8.3 Declaration and use
+
+**[DCL-005]**  A local may not be read in its own initializer. `var X := X;`
+inside a block is refused with `Can't read local variable in its own
+initializer.`, even where an outer `X` exists.
+
+    interpreter  compiler/Resolver.a24  ResolveLocal
+    unit         Resolve Local Variable Is Own Initializer
+    conformance  TBD
+
+**[DCL-006]**  Declarations take effect **in order of execution**. A top-level
+name does not exist until its declaration has run, so calling a function written
+below the call fails with `Undefined variable 'F'.`
+
+    interpreter  compiler/Interpreter.a24  VisitFunctionStmt
+    conformance  TBD
+
+**[DCL-007]**  A free name in a function body is resolved **when the body runs**,
+not where it is written. Two functions may therefore call each other, provided
+neither is called before both declarations have run.
+
+    interpreter  compiler/Interpreter.a24  LookupVariable
+    conformance  TBD
+
+> [DCL-006] and [DCL-007] together are why mutual recursion works while a
+> forward call does not.
+
+### 8.4 Loop variables
+
+**[DCL-008]**  A variable declared in a `for` header belongs to the loop, in
+both forms, and is not visible after it ends.
+
+For the counted form this follows from [DCL-001] rather than being a rule of its
+own: `for` **desugars into a block** holding the initializer and a `while`, so
+the variable is scoped because it is inside a block.
+
+    interpreter  compiler/Parser.a24    ForStatement
+    interpreter  compiler/Resolver.a24  VisitForInStmt
+    unit         Parse For Statement
+    conformance  TBD
+
+### 8.5 this and super
+
+**[DCL-009]**  `this` outside a class is refused with `Can't use 'this' outside a
+class.`
+
+    interpreter  compiler/Resolver.a24  VisitThisExpr
+    unit         This Is Never Caught
+    conformance  TBD
+
+**[DCL-010]**  `super` outside a class is refused with `Can't use 'super'
+outside a class.`, and inside a class having no superclass with `Can't use
+'super' in a class with no superclass.`
+
+    interpreter  compiler/Resolver.a24  VisitSuperExpr
+    conformance  TBD
+
+### 8.6 Visibility
+
+**[DCL-011]**  `private:` and `public:` are section markers within a class or
+object, each governing the members that follow it. A member declared under no
+marker is public.
+
+    interpreter  compiler/Parser.a24  ReadDeclarationSections
+    unit         A Public Member Is Reachable From Outside
+    unit         A Private Field Is Not Readable From Outside
+    conformance  TBD
+
+**[DCL-012]**  The body starts public however the header ended. A `private:` in
+the header does not carry across `begin`.
+
+    interpreter  compiler/Parser.a24  ReadDeclarationSections
+    unit         The Body Starts Public However The Header Ended
+    conformance  TBD
+
+**[DCL-013]**  Privacy belongs to the **class**, not to the object. A method may
+reach the private members of another instance of its own class.
+
+    interpreter  compiler/TypeChecker.a24  CheckVisibility
+    unit         Another Instance Of The Same Class Reaches Its Privates
+    conformance  TBD
+
+**[DCL-014]**  A subclass does not reach what its parent hid. Reading a parent's
+private member through a receiver declared as the parent is refused with
+`'N' is private to P.`
+
+    interpreter  compiler/TypeChecker.a24  CheckVisibility
+    unit         A Subclass Does Not Reach What Its Parent Hid
+    conformance  TBD
+
+**[DCL-015]**  ⚠️ Visibility is checked **statically, and only where the
+receiver's type is known**. Reached through a bare name inside a method — which
+resolves through `this` — or through a receiver declared `Any`, a private member
+is readable and writable from anywhere.
+
+    interpreter  compiler/TypeChecker.a24  CheckVisibility
+    unit         A Private Member Is Caught Through A Declared Receiver
+    conformance  TBD
+
+> `var C : Any := Counter(); C.Count` yields the private field. A subclass
+> reading its parent's private member by bare name gets it, while the same
+> member through a typed receiver is refused. See Annex D.
+
+---
+
 ## Annex E — what could be written in Algol-24 itself *(non-normative)*
 
 The collections and the built-in functions are native today. This annex asks,
@@ -1153,3 +1291,28 @@ inconsistency worth fixing is Integer `0`, which is the odd one out: were `0`
 truthy too, the rule would be the genuinely simple "only `nil` and `False` are
 false". That change would break existing programs, so it is a language-version
 question rather than a defect to be quietly repaired.
+
+**D-9 — Visibility is advisory.** *(refers to [DCL-015])*
+
+`private:` is checked by the type checker, and only where the receiver's type is
+known. `var C : Any := Counter(); C.Count` yields the private field and raises
+nothing. A subclass reading its parent's private member by bare name gets it,
+because a bare name inside a method resolves through `this`, and `this` reduces
+to no type at all — while the same member through a receiver declared as the
+parent is correctly refused.
+
+So the guarantee is real for code that annotates its types and absent for code
+that does not, which is the opposite of where a guarantee is most wanted. It is
+also not a security property and was never meant to be: the checker is advisory
+by design in a gradually typed language.
+
+⚠️ Any fix collides with a deliberate decision recorded in the checker: `this`
+reduces to nothing precisely so that a class's own code is free of the
+visibility rule. Typing `this` as its class would make the bare-name case work
+and would also make every `this.Private` inside a subclass an error the language
+currently allows.
+
+*Recommended:* enforce it at run time on the instance, where the class is always
+known, and leave the static check as the early warning it already is. Failing
+that, say plainly in the language's documentation that `private:` is a
+convention the checker helps with rather than a boundary.

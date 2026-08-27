@@ -1,0 +1,7 @@
+// spec: DCL-008
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+for var I := 0; I < 2; I := I + 1 do WriteLn(I);
+WriteLn(I);

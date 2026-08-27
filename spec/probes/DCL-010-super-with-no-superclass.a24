@@ -1,0 +1,13 @@
+// spec: DCL-010
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+class C;
+begin
+    procedure M();
+    begin
+        super.M();
+    end
+end
+C().M();

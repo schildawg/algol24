@@ -1,0 +1,25 @@
+// spec: DCL-011, DCL-012
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+class Counter;
+private:
+    var Count : Integer := 5;
+public:
+    var Name : String := 'c';
+begin
+    function Peek() : Integer;
+    begin
+        Exit Count;
+    end
+private:
+    procedure Hidden();
+    begin
+    end
+end
+
+var C := Counter();
+WriteLn(C.Name);
+WriteLn(C.Peek());
+WriteLn(C.Count);

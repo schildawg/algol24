@@ -1,0 +1,15 @@
+// spec: DCL-013
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+class C;
+private:
+    var N : Integer := 1;
+begin
+    function Other(X : C) : Integer;
+    begin
+        Exit X.N;
+    end
+end
+WriteLn(C().Other(C()));

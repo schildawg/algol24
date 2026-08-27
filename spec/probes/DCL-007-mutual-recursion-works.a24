@@ -1,0 +1,17 @@
+// spec: DCL-007
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+function IsEven(N : Integer) : Boolean;
+begin
+    if N = 0 then Exit True;
+    Exit IsOdd(N - 1);
+end
+function IsOdd(N : Integer) : Boolean;
+begin
+    if N = 0 then Exit False;
+    Exit IsEven(N - 1);
+end
+WriteLn(IsEven(4));
+WriteLn(IsOdd(4));

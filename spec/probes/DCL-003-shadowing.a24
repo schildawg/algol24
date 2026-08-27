@@ -1,0 +1,16 @@
+// spec: DCL-003, DCL-004
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var X := 1;
+const C := 1;
+begin
+    var X := 2;
+    var C := 2;
+    C := 3;
+    WriteLn(X);
+    WriteLn(C);
+end
+WriteLn(X);
+WriteLn(C);

@@ -1,0 +1,12 @@
+// spec: DCL-001, DCL-002
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var Outer := 1;
+begin
+    var Inner := 2;
+    WriteLn(Outer);
+    WriteLn(Inner);
+end
+WriteLn(Inner);
