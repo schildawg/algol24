@@ -1,0 +1,45 @@
+// spec: FUN-009, FUN-010, FUN-011
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn('-- closures --');
+function Counter() : Any;
+var
+    Count : Integer := 0;
+begin
+    function Bump() : Integer;
+    begin
+        Count := Count + 1;
+        Exit Count;
+    end
+    Exit Bump;
+end
+var A := Counter();
+var B := Counter();
+WriteLn('A: ' + Str(A()) + ' ' + Str(A()) + ' ' + Str(A()));
+WriteLn('B: ' + Str(B()));
+
+WriteLn('-- functions as values --');
+function Twice(N : Integer) : Integer;
+begin
+    Exit N * 2;
+end
+var F := Twice;
+WriteLn('via var   : ' + Str(F(21)));
+var L := [Twice];
+WriteLn('from list : ' + Str(L[0](5)));
+
+function Apply(G : Any, N : Integer) : Integer;
+begin
+    Exit G(N);
+end
+WriteLn('as an arg : ' + Str(Apply(Twice, 4)));
+
+WriteLn('-- recursion --');
+function Fact(N : Integer) : Integer;
+begin
+    if N <= 1 then Exit 1;
+    Exit N * Fact(N - 1);
+end
+WriteLn('5! = ' + Str(Fact(5)));

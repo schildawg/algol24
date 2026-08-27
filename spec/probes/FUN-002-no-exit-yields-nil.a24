@@ -1,0 +1,14 @@
+// spec: FUN-002, FUN-003
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+function F() : Integer;
+begin
+end
+procedure P();
+begin
+    Exit 7;
+end
+WriteLn(F() = nil);
+WriteLn(P());

@@ -1,0 +1,22 @@
+// spec: FUN-006, FUN-007, FUN-008
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+function F(N : Integer) : Integer;
+begin
+    Exit 1;
+end
+// a top-level function accepts anything for a typed parameter
+WriteLn(F('xy'));
+WriteLn(F(1.5));
+WriteLn(F(True));
+// a method does not
+class C;
+begin
+    function M(N : Integer) : Integer;
+    begin
+        Exit 1;
+    end
+end
+WriteLn(C().M('xy'));

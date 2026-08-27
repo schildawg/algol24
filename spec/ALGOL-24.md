@@ -1513,6 +1513,163 @@ each means dispatching a language construct into user code.
 
 ---
 
+## 11. Functions, procedures and closures
+
+### 11.1 Declarations
+
+**[FUN-001]**  A subprogram is declared `function` or `procedure`. Parameters
+may be typed or untyped, and a return type is optional.
+
+```
+FunDecl  = ( "function" | "procedure" ) identifier "(" [ Params ] ")"
+           [ ":" Type ] ";" [ Sections ] Block .
+Params   = identifier [ ":" Type ] { "," identifier [ ":" Type ] } .
+```
+
+    interpreter  compiler/Parser.a24  ParseFunction
+    unit         Parse Function
+    unit         Parse Function No Open Parenthesis
+    conformance  TBD
+
+**[FUN-002]**  A subprogram that returns without a value yields `nil`.
+
+    interpreter  compiler/Interpreter.a24  VisitReturnStmt
+    conformance  TBD
+
+**[FUN-003]**  ⚠️ `function` and `procedure` are **not distinguished** by the
+language. A procedure may `Exit` a value, and a caller may use the result of
+either. The choice of word documents intent and constrains nothing.
+
+    interpreter  compiler/Parser.a24  ParseFunction
+    conformance  TBD
+
+**[FUN-004]**  A declaration may not have more than 255 parameters:
+`Can't have more than 255 parameters.`
+
+    interpreter  compiler/Parser.a24  ParseFunction
+    unit         Parse Function More Than 255 Parameters
+    conformance  TBD
+
+### 11.2 Parameters and results
+
+**[FUN-005]**  A call checks the number of arguments — see [EXP-011].
+
+    interpreter  compiler/Interpreter.a24  VisitCall
+    conformance  TBD
+
+**[FUN-006]**  ⚠️ A **top-level** subprogram's declared parameter types are
+**not enforced**. `function F(N : Integer)` accepts a String, a Double or a
+Boolean without complaint, from a literal or through a variable of any declared
+type.
+
+    interpreter  compiler/Interpreter.a24  VisitCall
+    conformance  TBD
+
+**[FUN-007]**  A **method's** parameter types **are** enforced, because a method
+goes through overload selection [EXP-013]. Passing a String where `Integer` is
+declared is `No matching signature for function.`
+
+    interpreter  compiler/ObjClass.a24  FindOverload
+    conformance  TBD
+
+> [FUN-006] and [FUN-007] together mean the same annotation is decoration on a
+> function and a contract on a method. See Annex D.
+
+**[FUN-008]**  A declared **return** type **is** enforced. `Exit` of a value
+that does not fit is `Type mismatch!`
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    conformance  TBD
+
+### 11.3 Closures
+
+**[FUN-009]**  A nested subprogram captures the enclosing variables **by
+reference**, and the capture outlives the call that created it. A function
+returning a nested one hands back something that keeps reading and writing the
+same variable.
+
+    interpreter  compiler/ObjFunction.a24  ObjFunction
+    compiler     bootstrap/algol.c         alg_cell
+    conformance  TBD
+
+**[FUN-010]**  Each call to the enclosing subprogram creates a **fresh** set of
+captured variables. Two counters made the same way do not share a count.
+
+    interpreter  compiler/Environment.a24  Environment
+    compiler     bootstrap/algol.c         alg_closure
+    conformance  TBD
+
+### 11.4 Subprograms as values
+
+**[FUN-011]**  A subprogram's name used without a call is a value. It may be
+assigned to a variable, passed as an argument, stored in a collection, and
+called from wherever it comes to rest.
+
+    interpreter  compiler/ObjFunction.a24  ObjFunction
+    compiler     bootstrap/algol.c         alg_call
+    unit         Interpret Local Function
+    conformance  TBD
+
+### 11.5 Nesting
+
+**[FUN-012]**  Subprograms may be declared inside subprograms, to any depth.
+
+⚠️ **compile-only divergence.** The C back end refuses more than one level with
+`A function nested more than one level deep is not supported by the C back end
+yet.` See Annex C.
+
+    interpreter  compiler/Parser.a24  ParseFunction
+    conformance  TBD
+
+---
+
+## Annex C — compiler divergences *(non-normative)*
+
+Where the C back end does not do what the interpreter does. The interpreter is
+the authority [1.1], so every entry here is a defect in the compiler rather than
+a choice the language has made.
+
+⚠️ A **loud** divergence refuses to compile and says why. A **silent** one
+produces a program that runs and behaves differently. The second kind is far
+worse, and the column says which each is.
+
+**C-1 — A file in an import cycle with the root will not compile.** *(loud)*
+
+The root file is never entered in the parser's `Loaded` map, so a module
+importing the root back parses it a second time, and the emitter then sees two
+units of one name:
+
+```
+Two modules named 'Parser' is not supported by the C back end yet.
+```
+
+`compiler/Parser.a24` uses `Interpreter`, which uses `Parser`, so the compiler's
+own source is an instance. The same file runs correctly interpreted. This is
+currently the only known case of a valid program having no compiled form.
+
+**C-2 — Functions may not nest more than one level deep.** *(loud)*
+*(refers to [FUN-012])*
+
+```
+A function nested more than one level deep is not supported by the C back end yet.
+```
+
+Three levels of nesting run correctly interpreted and refuse to compile.
+
+**C-3 — A compiled assertion failure carries no message.** *(loud enough)*
+
+`alg_test_run` prints no `[ERROR]` line, because compiled code has no line
+information to put in one. The `FAIL` stands alone where the interpreter also
+prints the assertion and a caret. A report comparison drops those lines for that
+reason.
+
+**Not a divergence, and worth stating as a requirement:** interpreted and
+compiled `--test` reports are byte-identical, colour included — 239 lines and
+1,416 escape sequences for the full suite. Any difference between them is a
+defect in one or the other.
+
+---
+
 ## Annex D — advisory notes *(non-normative)*
 
 Where the specified behaviour looks like a mistake. Nothing here weakens the
@@ -1678,3 +1835,26 @@ alternatives are worse — raising on Double division would depart from IEEE for
 no gain, and returning a value for Integer division would have to invent one.
 This belongs in the language's documentation rather than in its defect list, and
 is recorded here only because the asymmetry is genuinely surprising.
+
+**D-11 — A parameter's declared type is decoration on a function and a contract
+on a method.** *(refers to [FUN-006], [FUN-007])*
+
+`function F(N : Integer)` accepts a String, a Double or a Boolean without
+complaint. The same signature as a method refuses all three with `No matching
+signature for function.` Nothing in the language says the two differ, and the
+annotation looks identical in both places.
+
+The cause is structural rather than deliberate: a method goes through overload
+selection, which compares whole signatures, and a top-level function does not
+overload [see 8.3] so nothing ever compares its parameters. Only the arity is
+checked.
+
+⚠️ Note the direction of the surprise. A declared return type IS enforced
+[FUN-008], so within one declaration the result is checked and the arguments are
+not — which is the reverse of what a reader would guess, since arguments come
+from outside and are the less trustworthy of the two.
+
+*Recommended:* check parameter types on every call, not only where an overload
+has to be chosen. The check already exists in `Fits`; what is missing is calling
+it when there is nothing to select between. Until then, a type annotation on a
+top-level parameter should be read as a comment.

@@ -1,0 +1,10 @@
+-- closures --
+A: 1 2 3
+B: 1
+-- functions as values --
+via var   : 42
+from list : 10
+as an arg : 8
+-- recursion --
+5! = 120
+exit: 0
