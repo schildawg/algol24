@@ -465,7 +465,7 @@ done badly.
 | --- | --- | --- |
 | 3 Source code representation | 11 | Unicode text; identifiers fold ASCII case; `#10` is the sole line terminator |
 | 4 Lexical elements | 33 | Char is a code point; `?` and `!` are trailing identifier marks; overflow is refused or raised; `print` leaves the language |
-| 5 Constants and variables | 16 | A written type is enforced everywhere; `as` becomes checked; widening is permitted; element types flow to reads |
+| 5 Constants and variables | 18 | A written type is enforced everywhere; `as` becomes checked; Pascal widening at six assignment contexts; element types flow to reads |
 | 6 onwards | 191 | — |
 
 ⚠️ **Chapter 4 added a rule and did not renumber anything**, which is the ID
@@ -496,6 +496,24 @@ close it. DEF-12 before DEF-09.
 A declared type that some path can violate is not a type the emitter may use to
 choose a machine representation, which is why the permissive reading was
 rejected even though it produces fewer diagnostics.
+
+**Defect or generation: the test that decides it.** The question came up over
+widening and is worth stating once, because every later chapter will meet it.
+Ask whether the language *lacks* the facility or *has it inconsistently*.
+
+- Annex H, a later generation: nothing in the language knows about the thing.
+  Alternate bases (H-1) are absent everywhere; there is no rule for them to
+  disagree with.
+- Annex F, a defect: the rule exists and is applied elsewhere, and one path does
+  not follow it. `1 + 1.5` is `2.5` and `'a' + 'bc'` is `abc`, so widening is
+  settled behaviour — only the paths carrying a *written* type refuse it, which
+  makes a declared type mean something narrower than the operators do.
+
+⚠️ A useful secondary check: does the change only make more programs legal, or
+does it change what an existing program *means*? The second kind needs more care
+whichever annex it lands in. Widening at an assignment context is additive;
+widening at `=` would reverse [LEX-026], which is why that half was held back
+for the chapter that specifies `=`.
 
 ⚠️ Deciding [VAL-007] from chapter 5 reached **forward** into chapter 7, as
 chapter 4 reached back into chapter 3 over `letter`. This keeps happening and is

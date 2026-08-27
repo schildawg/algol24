@@ -1,7 +1,16 @@
-// spec: VAR-004
+// spec: VAR-004, VAR-017
 //
-// VAR-004 accepts an Integer where a Double is declared and converts it, so
-// this must print 1.0.  It is refused as a type mismatch instead.
+// VAR-004 widens Integer to Double and Char to String at every assignment
+// context.  None of these is accepted; each is 'Type mismatch!'
+//
+//     var S : String := 'a';                       -- Char to String
+//     function F () : Double; begin Exit 1; end    -- at a return
+//
+// ⚠️ One observation per program, as with DEF-03: the check is whole-program
+// and compile-time, so nothing else in the file runs and the other two cases
+// need their own runs.  The operators that DO widen are pinned separately, by
+// conformance/0025-operators-widen.a24 -- put side by side, that pair is the
+// defect: a written type means something narrower than '+' does.
 
 var X : Double := 1;
 WriteLn (X);

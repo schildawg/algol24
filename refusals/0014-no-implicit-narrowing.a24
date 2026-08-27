@@ -1,0 +1,6 @@
+// spec: VAR-018
+//
+// Narrowing is refused.  The value does not fit, and choosing how to lose the
+// fraction is not a decision a declaration should make silently.
+
+var X : Integer := 1.5;

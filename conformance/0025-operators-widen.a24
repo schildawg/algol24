@@ -1,0 +1,17 @@
+// spec: VAR-004
+//
+// The widening rules VAR-004 asks for at a written type are already the rules
+// the operators use.  Nothing here is a written type -- that is the point.
+
+// Integer widens to Double.
+WriteLn (1 + 1.5);
+
+// Char widens to String, in either position.
+WriteLn ('a' + 'bc');
+WriteLn ('ab' + 'c');
+
+// And two Chars concatenate to a String of two characters rather than staying
+// Chars or summing their code points.
+WriteLn ('a' + 'b');
+WriteLn (Length ('a' + 'b'));
+WriteLn (('a' + 'b') is String);

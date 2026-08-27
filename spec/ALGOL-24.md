@@ -736,24 +736,59 @@ assignment. A violation is the error `Type mismatch!`
     interpreter  compiler/TypeChecker.a24  Assignable
     refusal      0008-declared-type-constrains.a24
 
-**[VAR-004]**  An Integer is accepted where a Double is declared, and is
-converted at the point of assignment: `var X : Double := 1;` gives `X` the
-Double `1.0`. The declaration does not lie about what it holds.
+**[VAR-004]**  A value **widens** to reach a written type, and is converted at
+the point it arrives. There are two widening pairs:
 
-Narrowing is refused. `var X : Integer := 1.5;` is a mismatch, because the value
-does not fit and choosing how to lose the fraction is not a decision a
-declaration should make silently.
+| From | To | Example |
+| --- | --- | --- |
+| Integer | Double | `var X : Double := 1;` gives `X` the Double `1.0` |
+| Char | String | `var S : String := 'a';` gives `S` a String of length 1 |
 
-⚠️ **NOT YET IMPLEMENTED.** Widening is refused on the same terms as narrowing,
-so `var X : Double := 1;` is `Type mismatch!` See DEF-10.
+The variable holds the wider type afterwards. A declaration never misdescribes
+what it holds.
+
+⚠️ **NOT YET IMPLEMENTED.** Neither widening is applied where a type is written:
+`var X : Double := 1;`, `var S : String := 'a';` and an `Exit 1` from a function
+declared `: Double` are each `Type mismatch!` See DEF-10.
+
+⚠️ **The rules already exist; they are simply not applied here.** `1 + 1.5` is
+`2.5`, `'a' + 'bc'` is `abc`, and `'a' + 'b'` is a String of two characters — the
+operators widen both pairs today. It is only the paths carrying a *written* type
+that refuse, so a declared type currently means something **narrower** than the
+operators do. That inconsistency is the defect; the widening itself is settled
+behaviour everywhere else, which is why this is a fault to be fixed rather than
+a facility the language has yet to gain.
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    conformance  0025-operators-widen.a24
+    defect       DEF-10-widening-is-refused.a24
+
+**[VAR-017]**  Widening applies wherever a value meets a written type — the six
+**assignment contexts**, and nowhere else:
+
+```
+var X : T := E ;          const X : T := E ;
+X := E ;                  Obj.Field := E ;
+Exit E ;   (against a declared return type)
+F (E) ;    (against a declared parameter type)
+```
+
+⚠️ **Comparison is not among them and does not widen.** `'a'` and
+`Copy('abc', 0, 1)` remain unequal [LEX-026]. A widening converts *toward a
+target type*, and an `=` supplies none — it would have to invent one, and
+"convert when the sides differ" is the rule that makes `=` unpredictable. See
+D-6, which weighs the same question for membership.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     defect       DEF-10-widening-is-refused.a24
 
-> The asymmetry follows the arithmetic. Every operator in the language already
-> promotes an Integer to a Double when the two meet [EXP-005], and a declared
-> type that refused what the operators accept would teach that `: Double` means
-> something narrower than `+` does.
+**[VAR-018]**  Narrowing is refused in every one of those contexts.
+`var X : Integer := 1.5;` is a mismatch: the value does not fit, and choosing
+how to lose the fraction is not a decision a declaration should make silently.
+`var C : Char := 'ab';` is refused for the same reason.
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    refusal      0014-no-implicit-narrowing.a24
 
 **[VAR-005]**  `nil` satisfies every declared type, so `var X : Integer := nil;`
 is accepted.
@@ -2947,11 +2982,26 @@ fits exactly and every arithmetic operation in the language already promotes an
 Integer to a Double when the two meet. A programmer who writes `: Double` and
 initializes with `0` is told the types do not match.
 
-**Resolved.** An Integer is accepted where a Double is declared and is
-converted at the point of assignment, so `var X : Double := 1;` gives `X` the
-Double `1.0` [VAR-004]. The open question — whether `X` then holds a Double or
-an Integer a declaration lied about — is answered explicitly in the rule: it
-holds a Double. Narrowing stays refused. Tracked by DEF-10.
+**Resolved, and generalized.** Widening follows Pascal: Integer to Double and
+Char to String, at any of the six assignment contexts [VAR-017], converting at
+the point the value arrives. The open question — whether `X` then holds a Double
+or an Integer a declaration lied about — is answered explicitly: it holds a
+Double [VAR-004]. Narrowing stays refused [VAR-018]. Tracked by DEF-10.
+
+⚠️ **Why this is a defect and not a later generation.** The question was asked
+directly, and the answer turns on whether the language *lacks* widening or *has
+it inconsistently*. It has it: `1 + 1.5` is `2.5` and `'a' + 'bc'` is `abc`
+today. Only the paths carrying a written type refuse, so a declared type means
+something narrower than the operators do. An absent facility goes to Annex H —
+H-1's alternate bases are absent, with nothing in the language to be
+inconsistent with. One path disagreeing with the rest of the same language is a
+fault.
+
+⚠️ Equality was deliberately left out. Pascal converts in comparisons too, which
+would make `Copy('abc', 0, 1) = 'a'` true and reverse [LEX-026] — the one part
+of this that changes what an existing program *means* rather than accepting a
+program that was refused. It belongs with D-6, in the chapter that specifies
+`=`.
 
 **D-5 — `const` promises less than it appears to.** *(refers to [VAR-014])*
 
@@ -3548,16 +3598,28 @@ type of `''` or `Any` does not satisfy a written one. ⚠️ The compiler's own
 sources must be made to pass first, and they are the largest body of Algol-24
 that exists; expect casts to be needed at boundaries that currently have none.
 
-**DEF-10 — Widening is refused.** *(violates [VAR-004])*
+**DEF-10 — Widening is refused wherever a type is written.**
+*(violates [VAR-004], [VAR-017])*
 
-`var X : Double := 1;` is `Type mismatch!` where the specification accepts it and
-converts. Narrowing is correctly refused.
+Neither widening pair is applied at an assignment context. `var X : Double := 1;`,
+`var S : String := 'a';` and an `Exit 1` from a function declared `: Double` are
+each `Type mismatch!` Narrowing is correctly refused.
 
-*Reproduce:* `defects/DEF-10-widening-is-refused.a24`
+*Reproduce:* `defects/DEF-10-widening-is-refused.a24`, and
+`conformance/0025-operators-widen.a24` for the other half.
 
-*Scope of the fix.* `Assignable` admits Integer where Double is expected, and
-both processors convert at the point of assignment so the variable holds a
-Double rather than an Integer the declaration misdescribes.
+⚠️ **The two files are the defect.** One shows `1 + 1.5` and `'a' + 'bc'`
+widening; the other shows the same conversions refused a line after a type is
+written. Neither is remarkable alone. The check is whole-program and
+compile-time, so they cannot share a run — the same one-observation-per-program
+constraint as DEF-03.
+
+*Scope of the fix.* `Assignable` admits Integer where Double is expected and
+Char where String is, and both processors convert **at the point of assignment**
+so the variable holds the wider type rather than one the declaration
+misdescribes. The conversions themselves already exist in both runtimes, since
+the operators perform them; this is a matter of calling them from one more
+place.
 
 **DEF-11 — `of` parses only after `List`.** *(violates [VAR-008])*
 
