@@ -1,0 +1,18 @@
+// spec: STM-001, STM-003, STM-004
+//
+
+// STM-001: a block may be empty.
+begin
+end
+
+// STM-003: the condition is tested for TRUTHINESS, not required to be Boolean.
+if 1 then WriteLn ('integer 1 is truthy');
+if 0 then WriteLn ('not reached'); else WriteLn ('integer 0 is falsey');
+if 'text' then WriteLn ('a String is truthy');
+if nil then WriteLn ('not reached'); else WriteLn ('nil is falsey');
+
+// STM-004: an else binds to the NEAREST unmatched if.  Were it bound to the
+// outer one, nothing would print here.
+if True then
+    if False then WriteLn ('not reached');
+    else WriteLn ('inner-else');

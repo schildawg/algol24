@@ -1,0 +1,5 @@
+Uncaught: Duplicate handler for 'Base'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0023-duplicate-handler.a24: Duplicate handler for 'Base'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]13 |     on e : Base do WriteLn ('second');
+[WHITE][[RED]ERROR[RESET]]    |[RED]            ^^^^[RESET]
+exit: 70

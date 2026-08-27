@@ -1,0 +1,8 @@
+// spec: STM-010
+//
+// 'break' is refused WHERE IT IS WRITTEN -- a parse-time check, not a runtime
+// one, so this is a refusal rather than a program that runs and then fails.
+
+WriteLn ('never runs');
+
+break;

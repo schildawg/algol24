@@ -470,7 +470,22 @@ done badly.
 | 7 Properties of types and values | 14 | Membership follows equality; Pascal's `Char`/`String` equality rejected; truthiness kept |
 | 8 Declarations and scope | 16 | Functions and classes hoist, variables do not; `private:` is normatively advisory |
 | 9 Expressions | 17 | `as` binds tightly; a parameter widens like any assignment context; division-by-zero asymmetry kept |
-| 10 onwards | 131 | — |
+| 10 Statements | 23 | A declaration may not be an unbraced body; most-derived handler selection kept and made total |
+| 11 onwards | 108 | — |
+
+⚠️ **Chapter 10 produced the first defect whose fix REMOVES a divergence.** The
+C back end already refuses a declaration as an unbraced branch body (C-12), and
+[STM-002] now refuses it too — so fixing DEF-17 leaves the language, the
+compiler and the interpreter agreeing. Every other entry in Annex C needs the
+compiler brought up to the language; this one needs the language brought down to
+the compiler, and the compiler was right.
+
+⚠️ **C-13 is the first case of the emitter breaking its own contract.** It is
+supposed to refuse by name what it cannot emit; instead it emitted C that `cc`
+rejects, so the diagnostic named a generated symbol rather than the loop the
+programmer wrote. A refusal is strictly better than a valid-looking emission
+that fails downstream, and that distinction is worth applying to any future gap
+found in the emitter.
 
 ⚠️ **Chapter 9 was mostly propagation, and that is the shape to expect from
 here.** Two of its rules cited rules that had been decided against them —

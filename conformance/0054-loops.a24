@@ -1,0 +1,56 @@
+// spec: STM-005, STM-006, STM-007, STM-010
+//
+// ⚠️ Everything runs inside a procedure rather than at the top level, so that
+// this case can run under both processors.  Two counted 'for' loops sharing a
+// variable name at the TOP LEVEL emit invalid C -- see C-13 -- and this file
+// has four such loops.  Keeping the cross-check is worth the wrapper.
+
+procedure Body ();
+begin
+
+// STM-005: while.
+var N := 0;
+while N < 3 do
+begin
+    Write (N);
+    N := N + 1;
+end
+WriteLn ('');
+
+// STM-006: the counted form.
+for var I := 0; I < 3; I := I + 1 do Write (I);
+WriteLn ('');
+
+// STM-007: for..in over a collection, a String, and a Map.
+for var E in [7, 8] do Write (E);
+WriteLn ('');
+
+for var C in 'abc' do Write (C);
+WriteLn ('');
+
+// Over a Map it yields each KEY, not each value.
+for var K in [1 : 'one', 2 : 'two'] do Write (K);
+WriteLn ('');
+
+// STM-010: break leaves the innermost enclosing loop.
+for var I := 0; I < 10; I := I + 1 do
+begin
+    if I = 3 then break;
+    Write (I);
+end
+WriteLn ('');
+
+// The INNERMOST one -- the outer loop keeps going.
+for var I := 0; I < 3; I := I + 1 do
+begin
+    for var J := 0; J < 10; J := J + 1 do
+    begin
+        if J = 1 then break;
+        Write (J);
+    end
+    Write ('|');
+end
+WriteLn ('');
+end
+
+Body ();

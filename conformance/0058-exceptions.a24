@@ -1,0 +1,38 @@
+// spec: STM-016, STM-017, STM-018, STM-019, STM-020
+//
+
+class Base; begin end
+class Derived (Base); begin end
+
+// STM-016: raise carries any value.
+try raise 42;      except on e : Integer do WriteLn ('Integer: ' + Str (e)); end
+try raise 'text';  except on e : String  do WriteLn ('String: ' + e);        end
+
+// STM-017: a handler for a base class catches a derived value.
+try raise Derived (); except on e : Base do WriteLn ('base caught derived'); end
+
+// STM-018: the MOST DERIVED handler runs, however the handlers are ordered.
+try
+    raise Derived ();
+except
+    on e : Base    do WriteLn ('wrong: base');
+    on e : Derived do WriteLn ('derived, base written first');
+end
+
+try
+    raise Derived ();
+except
+    on e : Derived do WriteLn ('derived, derived written first');
+    on e : Base    do WriteLn ('wrong: base');
+end
+
+// STM-019: a handler without 'on' is the catch-all.
+try raise 1.5; except WriteLn ('catch-all'); end
+
+// STM-020: a runtime error raised by the language is catchable AS A STRING,
+// carrying the diagnostic as its value.
+try
+    WriteLn (1 / 0);
+except
+    on e : String do WriteLn ('caught: ' + e);
+end

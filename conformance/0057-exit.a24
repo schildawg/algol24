@@ -1,0 +1,22 @@
+// spec: STM-014
+//
+
+// With a value in a function.
+function Answer ();
+begin
+    Exit 7;
+    WriteLn ('not reached');
+end
+
+WriteLn (Answer ());
+
+// Bare in a procedure.
+procedure Early (Stop);
+begin
+    WriteLn ('before');
+    if Stop then Exit;
+    WriteLn ('after');
+end
+
+Early (True);
+Early (False);

@@ -1,0 +1,10 @@
+// spec: STM-021
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-8: the compiled runtime omits
+// the 'Uncaught: ' prefix, which is precisely what this case pins.
+
+WriteLn ('before');
+
+raise 'boom';

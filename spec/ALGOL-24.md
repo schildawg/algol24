@@ -1648,13 +1648,29 @@ assigned: `X := (Y := 1)` leaves both at 1.
 
     interpreter  compiler/Interpreter.a24  VisitBlockStmt
     unit         Execute Block Statement
-    conformance  TBD
+    conformance  0053-blocks-and-conditionals.a24
 
-**[STM-002]**  A declaration is a statement, so a `var` may stand as the body of
-a branch or a loop without a block around it.
+**[STM-002]**  A declaration may **not** stand as the body of a branch or a
+loop. `if C then var X := 1;` is refused; the declaration must be inside a block.
+
+⚠️ **NOT YET IMPLEMENTED.** The interpreter accepts it, and the declared name
+**escapes into the enclosing scope** — so whether the name exists is decided by
+a runtime condition:
+
+```
+if True  then var X := 1;   WriteLn (X);    // 1
+if False then var X := 1;   WriteLn (X);    // Undefined variable 'X'.
+```
+
+A loop body that is never entered behaves the same way. See DEF-17.
+
+⚠️ The C back end already refuses this (C-12), so fixing the defect **removes** a
+divergence rather than creating one — the only rule in this specification so far
+of which that is true. It is also why the construct has no defender: either the
+declaration is dead, or the name leaks conditionally.
 
     interpreter  compiler/Parser.a24  Statement
-    conformance  TBD
+    defect       DEF-17-declaration-as-an-unbraced-body.a24
 
 ### 10.2 Conditionals
 
@@ -1666,12 +1682,12 @@ is `Expect 'then' after if condition.`
     unit         Execute If Statement
     unit         Execute Else Statement
     unit         Parse If Expect Then
-    conformance  TBD
+    conformance  0053-blocks-and-conditionals.a24
 
 **[STM-004]**  An `else` binds to the **nearest** unmatched `if`.
 
     interpreter  compiler/Parser.a24  IfStatement
-    conformance  TBD
+    conformance  0053-blocks-and-conditionals.a24
 
 ### 10.3 Loops
 
@@ -1681,7 +1697,7 @@ condition.`
     interpreter  compiler/Interpreter.a24  VisitWhileStmt
     unit         Execute While Loop
     unit         Parse While Expect Do
-    conformance  TBD
+    conformance  0054-loops.a24
 
 **[STM-006]**  The counted form is `for Init ; Cond ; Step do S`, and it
 **desugars into a block** holding the initializer and a `while` — which is why
@@ -1690,26 +1706,26 @@ its variable is scoped [DCL-008].
     interpreter  compiler/Parser.a24  ForStatement
     unit         Execute For Loop
     unit         Parse For Statement
-    conformance  TBD
+    conformance  0054-loops.a24
 
 **[STM-007]**  `for var X in C do S` walks a collection or a String. Over a
 String it yields each `Char`; over a `Map` it yields each **key**.
 
     interpreter  compiler/Interpreter.a24  VisitForInStmt
-    conformance  TBD
+    conformance  0054-loops.a24
 
 **[STM-008]**  Iterating anything else is `Can only iterate a collection or a
-String.` — see [TYP-011].
+String.` — see [TYP-011], and Annex H, H-5.
 
     interpreter  compiler/Interpreter.a24  VisitForInStmt
-    conformance  TBD
+    conformance  0032-instance-is-not-iterable.a24
 
 **[STM-009]**  ⚠️ The collection is **snapshotted** when the loop begins.
 Adding to it inside the loop does not lengthen the walk.
 
     interpreter  compiler/Interpreter.a24  VisitForInStmt
     compiler     bootstrap/algol.c         alg_iterable
-    conformance  TBD
+    conformance  0055-loop-snapshot.a24
 
 **[STM-010]**  `break` leaves the innermost enclosing loop. Outside a loop it is
 refused **where it is written** — a parse-time check — with `Must be inside a
@@ -1718,7 +1734,8 @@ loop to use 'break'.`
     interpreter  compiler/Parser.a24  BreakStatement
     unit         Parse Break Inside A While
     unit         Parse Break Outside A Loop
-    conformance  TBD
+    conformance  0054-loops.a24
+    refusal      0021-break-outside-a-loop.a24
 
 ### 10.4 Case
 
@@ -1731,7 +1748,7 @@ Arm      = Expression { "," Expression } ":" Statement .
 ```
 
     interpreter  compiler/Parser.a24  CaseStatement
-    conformance  TBD
+    conformance  0056-case.a24
 
 **[STM-012]**  ⚠️ `case` **desugars into an if/else-if chain**. There is no case
 statement downstream of the parser, and two consequences follow from that rather
@@ -1742,13 +1759,13 @@ than from any rule of their own:
 - There is no fall-through. At most one arm runs.
 
     interpreter  compiler/Parser.a24  CaseStatement
-    conformance  TBD
+    conformance  0056-case.a24
 
 **[STM-013]**  When no arm matches and there is no `else`, nothing happens and
 execution continues after the `end`.
 
     interpreter  compiler/Parser.a24  CaseStatement
-    conformance  TBD
+    conformance  0056-case.a24
 
 ### 10.5 Exit
 
@@ -1756,14 +1773,14 @@ execution continues after the `end`.
 value in a function and bare in a procedure. Statements after it do not run.
 
     interpreter  compiler/Interpreter.a24  VisitReturnStmt
-    conformance  TBD
+    conformance  0057-exit.a24
 
 **[STM-015]**  `Exit` at the top level is refused with `Can't return from
 top-level code.`
 
     interpreter  compiler/Resolver.a24  VisitReturnStmt
     unit         Invalid Return
-    conformance  TBD
+    refusal      0022-exit-at-top-level.a24
 
 ### 10.6 Exceptions
 
@@ -1772,7 +1789,7 @@ instance, anything.
 
     interpreter  compiler/Interpreter.a24  VisitRaiseStmt
     unit         Parse Raise
-    conformance  TBD
+    conformance  0058-exceptions.a24
 
 **[STM-017]**  A handler is written `on e : T do S` and matches on the runtime
 type name of the raised value. A handler for a base class catches a derived
@@ -1780,14 +1797,26 @@ value.
 
     interpreter  compiler/Interpreter.a24  VisitTryStmt
     unit         Parse Try With A Typed Handler
-    conformance  TBD
+    conformance  0058-exceptions.a24
 
 **[STM-018]**  ⚠️ The **most derived** matching handler runs, however the
 handlers are ordered. Writing the base first does not shadow the derived one.
 
+⚠️ This is a deliberate departure from first-match, and [STM-023] is what makes
+it total: two handlers for one type are refused, so "most derived" always names
+exactly one handler and there is never a tie to break by position. The
+commonest bug in a first-match language — a base handler written above a derived
+one, quietly swallowing everything — cannot be written here.
+
     interpreter  compiler/Interpreter.a24  VisitTryStmt
     compiler     bootstrap/algol.c         alg_handler
-    conformance  TBD
+    conformance  0058-exceptions.a24
+
+**[STM-023]**  Two handlers for the same type on one `try` are refused with
+`Duplicate handler for 'T'.`
+
+    interpreter  compiler/Interpreter.a24  VisitTryStmt
+    refusal      0023-duplicate-handler.a24
 
 **[STM-019]**  A handler written without `on` is the catch-all and matches any
 raised value.
@@ -1795,7 +1824,7 @@ raised value.
     interpreter  compiler/Interpreter.a24  VisitTryStmt
     unit         Parse Untyped Handler Is The Catch All
     unit         Parse Empty Except Is The Catch All
-    conformance  TBD
+    conformance  0058-exceptions.a24
 
 **[STM-020]**  A runtime error raised by the language is catchable **as a
 String**, carrying the diagnostic as its value: dividing by zero inside a `try`
@@ -1803,14 +1832,14 @@ is caught by `on e : String` with `e` equal to `Division by zero.`
 
     interpreter  compiler/Interpreter.a24  VisitTryStmt
     compiler     bootstrap/algol.c         alg_error
-    conformance  TBD
+    conformance  0058-exceptions.a24
 
 **[STM-021]**  A value raised and never caught ends the program, printing
 `Uncaught: ` followed by the value, and exits with status **70**.
 
     interpreter  compiler/Main.a24  Main
     compiler     bootstrap/algol.c  alg_raise
-    conformance  TBD
+    conformance  0059-uncaught-exits-70.a24
 
 ### 10.7 print
 
@@ -3234,6 +3263,55 @@ block to demonstrate scoping cannot be run under both processors.
 `conformance/0040` puts its blocks inside procedures for exactly this reason,
 which keeps the cross-check.
 
+**C-12 — A declaration as an unbraced branch or loop body will not compile.**
+*(loud)*
+*(refers to [STM-002])*
+
+```
+if True then var X := 1;
+```
+
+```
+A 'var' as an unbraced branch or loop body is not supported by the C back end yet.
+```
+
+The same program runs interpreted, and the declared name escapes into the
+enclosing scope.
+
+⚠️ **The compiler is right and the interpreter is wrong**, which makes this the
+only divergence in this annex that [STM-002] resolves by moving the *language*
+toward the compiler. Fixing DEF-17 removes the entry rather than leaving a gap
+to be implemented.
+
+**C-13 — Two counted `for` loops sharing a variable name at the top level emit
+invalid C.** *(loud, but in the wrong place)*
+*(refers to [STM-006], [DCL-008])*
+
+```
+for var I := 0; I < 2; I := I + 1 do Write (I);
+for var I := 0; I < 2; I := I + 1 do Write (I);
+```
+
+```
+error: redefinition of 'v_I'
+```
+
+[STM-006] desugars a counted `for` into a block holding the initializer and a
+`while`, which is why its variable is scoped [DCL-008]. At the top level the
+emitter does not open a C block for it, so both loops declare `v_I` in one
+scope. Inside a function or method it is emitted correctly, which is why the
+compiler compiles itself — all sixty-eight of its own counted loops are inside
+one.
+
+⚠️ **The emitter breaks its own contract here.** It is supposed to refuse by
+name what it cannot emit rather than emit something wrong. Instead it produces C
+that `cc` rejects, so the diagnostic names `v_I` and a line in a generated file
+rather than the loop the programmer wrote. A refusal from `algc` would be
+strictly better than a valid-looking emission that fails downstream.
+
+⚠️ It also constrains the corpus: `conformance/0054` puts its loops inside a
+procedure to keep the cross-check, as `conformance/0040` does for C-11.
+
 ---
 
 ## Annex D — advisory notes *(non-normative)*
@@ -4062,6 +4140,26 @@ chain to the unary level. ⚠️ Not purely additive: `A and B as C` changes mea
 Nothing in `compiler/*.a24` uses `as` next to a binary operator, so the change is
 safe there, but it is a change to what an existing program means rather than
 only to what parses.
+
+**DEF-17 — A declaration is accepted as an unbraced branch or loop body.**
+*(violates [STM-002])*
+
+`if C then var X := 1;` is accepted, and the declared name escapes into the
+enclosing scope — so whether `X` exists is decided by the branch, and reading it
+after a false condition is `Undefined variable 'X'.` A loop body never entered
+behaves the same way.
+
+*Reproduce:* `defects/DEF-17-declaration-as-an-unbraced-body.a24`
+
+⚠️ **Fixing this removes C-12 rather than implementing it.** The C back end
+already refuses the construct, so the language, the compiler and the interpreter
+end up agreeing — the only entry in Annex C of which that is true. Every other
+divergence there needs the compiler brought up to the language.
+
+*Scope of the fix.* `Statement` in `compiler/Parser.a24` refuses a declaration
+where a branch or loop body is expected, with a message of its own rather than
+the emitter's "not supported yet" wording — the construct is not unimplemented,
+it is not part of the language.
 
 ---
 
