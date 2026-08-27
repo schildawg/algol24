@@ -1,0 +1,22 @@
+// spec: VAR-016
+//
+
+var L : List of Integer := [10, 20];
+
+// A subscript has the element type, and a loop variable takes it too.  Both
+// are visible here only as the absence of a complaint: were the element type
+// not flowing, neither line would type-check against Integer.
+var First : Integer := L[0];
+WriteLn (First);
+
+for var X in L do
+begin
+    var Doubled : Integer := X * 2;
+    WriteLn (Doubled);
+end
+
+// ⚠️ Insertion is NOT checked.  A String goes into a List of Integer without
+// complaint, and this is what H-3 would change.
+L.Add ('not an integer');
+WriteLn (L.Length);
+WriteLn (L[2]);

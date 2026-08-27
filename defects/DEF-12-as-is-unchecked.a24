@@ -1,0 +1,12 @@
+// spec: VAL-007
+//
+// VAL-007 makes 'as' a checked conversion that raises when the value is not of
+// the named type.  It has no runtime effect at all: the cast below must raise
+// and instead yields the String unchanged, so this prints 'text', false, true.
+
+var X : Any := 'text';
+var Y := X as Integer;
+
+WriteLn (Y);
+WriteLn (Y is Integer);
+WriteLn (Y is String);

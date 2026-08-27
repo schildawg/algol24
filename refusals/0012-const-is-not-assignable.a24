@@ -1,0 +1,6 @@
+// spec: VAR-013
+//
+// A constant may not be assigned to.
+
+const C := 1;
+C := 2;

@@ -1,0 +1,18 @@
+// spec: VAR-009, VAR-010, VAR-015
+//
+
+function F ();
+var
+    A, B : Integer;          // VAR-010: several names share one declaration
+    Tail : String := 'ok';   // ⚠️ 'ok', not 'o' -- a one-character literal is a
+const                        //    Char and would not satisfy String [LEX-023]
+    K := 10;                 // VAR-015: const opens a section on the same terms
+
+begin
+    A := 1;
+    B := 2;
+
+    Exit Str (A + B + K) + Tail;
+end
+
+WriteLn (F ());

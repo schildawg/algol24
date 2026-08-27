@@ -1,0 +1,6 @@
+// spec: VAR-012
+//
+// A constant must be given a value.  Unlike 'var', omitting the initializer is
+// not a declaration of nil.
+
+const C : Integer;

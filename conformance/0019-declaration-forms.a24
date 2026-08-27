@@ -1,0 +1,21 @@
+// spec: VAR-001, VAR-008
+//
+
+// VAR-001: a type and an initializer are each optional.
+var A;
+var B := 1;
+var C : Integer;
+var D : Integer := 2;
+
+WriteLn (A);
+WriteLn (B);
+WriteLn (C);
+WriteLn (D);
+
+// VAR-008: a collection may carry an element type.
+var L : List of Integer := [1, 2, 3];
+WriteLn (L.Length);
+
+// ⚠️ Only the List form is exercised.  VAR-008 admits 'Map of', 'Set of' and
+// 'Array of' too, and the parser refuses all three -- that half is DEF-11 and
+// cannot be a commitment the implementation meets.

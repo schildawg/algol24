@@ -1,0 +1,7 @@
+// spec: VAR-004
+//
+// VAR-004 accepts an Integer where a Double is declared and converts it, so
+// this must print 1.0.  It is refused as a type mismatch instead.
+
+var X : Double := 1;
+WriteLn (X);

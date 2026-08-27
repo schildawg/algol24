@@ -1,0 +1,6 @@
+// spec: VAR-007
+//
+// A name may not be declared twice in one scope.
+
+var X := 1;
+var X := 2;

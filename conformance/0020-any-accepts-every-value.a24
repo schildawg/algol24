@@ -1,0 +1,23 @@
+// spec: VAR-006
+//
+
+// A variable declared Any accepts every value, and accepts a different kind of
+// value later.
+var X : Any := 1;
+WriteLn (X);
+
+X := 'text';
+WriteLn (X);
+
+X := [1, 2];
+WriteLn (X.Length);
+
+// Writing no type at all is permissive in the same way.  The rule in VAR-006
+// bites only where a type WAS written down.
+var Y := 1;
+Y := 'text';
+WriteLn (Y);
+
+// ⚠️ The other direction -- Any into a written type, which VAR-006 refuses --
+// is exercised by refusals/0013 for the declaration.  The assignment form is
+// wrongly accepted today and is DEF-09.

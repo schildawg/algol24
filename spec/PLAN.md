@@ -465,7 +465,8 @@ done badly.
 | --- | --- | --- |
 | 3 Source code representation | 11 | Unicode text; identifiers fold ASCII case; `#10` is the sole line terminator |
 | 4 Lexical elements | 33 | Char is a code point; `?` and `!` are trailing identifier marks; overflow is refused or raised; `print` leaves the language |
-| 5 onwards | 206 | — |
+| 5 Constants and variables | 16 | A written type is enforced everywhere; `as` becomes checked; widening is permitted; element types flow to reads |
+| 6 onwards | 191 | — |
 
 ⚠️ **Chapter 4 added a rule and did not renumber anything**, which is the ID
 scheme earning its keep. Splitting integer overflow into a literal check and an
@@ -483,6 +484,25 @@ Two conventions came out of chapter 4 and now apply to every chapter after it:
 - **Annex H exists** because "we will add hex literals later" is not a defect.
   The implementation is right about it, so the corpus pins the *current* rule
   with an ordinary refusal, which turns red exactly when the generation lands.
+
+**Chapter 5 decided two rules together that do not stand alone.** `as` becomes a
+checked conversion [VAL-007] *and* a written type is enforced wherever a value
+reaches the variable [VAR-006]. The order matters to whoever implements them:
+[VAR-006] routes every untyped-to-typed crossing through `as`, so tightening the
+assignment path while `as` still checks nothing would move the hole rather than
+close it. DEF-12 before DEF-09.
+
+⚠️ The goal driving both is a **fully typed source** the C back end can rely on.
+A declared type that some path can violate is not a type the emitter may use to
+choose a machine representation, which is why the permissive reading was
+rejected even though it produces fewer diagnostics.
+
+⚠️ Deciding [VAL-007] from chapter 5 reached **forward** into chapter 7, as
+chapter 4 reached back into chapter 3 over `letter`. This keeps happening and is
+not a sign of bad chapter order: the rules are a graph and the chapters are a
+sequence. Both times the out-of-chapter rule was fully rewritten rather than
+left for its own turn, because a half-decided rule is worse than an undecided
+one.
 
 **Where the first draft landed.** 19 chapters, 5 annexes, 248 rules, ~16,700
 words, 133 probes. Every rule was verified by running the interpreter. The

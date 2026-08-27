@@ -721,56 +721,111 @@ Type    = identifier [ "of" identifier ] .
     interpreter  compiler/Parser.a24  VarDeclaration
     unit         Parse Var Statement
     unit         Parse Var Expect Semicolon
-    conformance  TBD
+    conformance  0019-declaration-forms.a24
 
 **[VAR-002]**  A variable declared without an initializer holds `nil`, whatever
 its declared type. **There is no zero value**: an uninitialized `Integer` is
 `nil`, not `0`.
 
     interpreter  compiler/Interpreter.a24  VisitVarStmt
-    conformance  TBD
+    conformance  0022-no-zero-value.a24
 
 **[VAR-003]**  A declared type constrains the initializer and every later
 assignment. A violation is the error `Type mismatch!`
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
+    refusal      0008-declared-type-constrains.a24
 
-**[VAR-004]**  There is **no implicit numeric conversion** in a declaration.
-`var X : Integer := 1.5;` is a mismatch, and so is `var X : Double := 1;` —
-widening is refused as firmly as narrowing.
+**[VAR-004]**  An Integer is accepted where a Double is declared, and is
+converted at the point of assignment: `var X : Double := 1;` gives `X` the
+Double `1.0`. The declaration does not lie about what it holds.
+
+Narrowing is refused. `var X : Integer := 1.5;` is a mismatch, because the value
+does not fit and choosing how to lose the fraction is not a decision a
+declaration should make silently.
+
+⚠️ **NOT YET IMPLEMENTED.** Widening is refused on the same terms as narrowing,
+so `var X : Double := 1;` is `Type mismatch!` See DEF-10.
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
+    defect       DEF-10-widening-is-refused.a24
 
-> See Annex D.
+> The asymmetry follows the arithmetic. Every operator in the language already
+> promotes an Integer to a Double when the two meet [EXP-005], and a declared
+> type that refused what the operators accept would teach that `: Double` means
+> something narrower than `+` does.
 
 **[VAR-005]**  `nil` satisfies every declared type, so `var X : Integer := nil;`
 is accepted.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     compiler     bootstrap/algol.c         alg_is
-    conformance  TBD
+    conformance  0022-no-zero-value.a24
 
-**[VAR-006]**  `Any` is the declared type meaning *not known*. It accepts every
-value and is compatible in both directions.
+**[VAR-006]**  `Any` is the declared type meaning *not known*. A variable
+declared `Any` accepts every value.
+
+It does **not** flow the other way. A value whose type is `Any`, or whose type
+could not be determined at all, does not satisfy a written type: neither
+`var I : Integer := A;` nor a later `I := A;` is accepted where `A` is `Any`.
+The conversion must be written, and `as` [VAL-007] is how to write it.
+
+⚠️ **A type is not a suggestion once it is written.** Where a program declares a
+type, every value reaching that variable either has the type already or is
+converted by an expression that says so and checks it. This is what lets a
+declared type be relied upon — by a reader, and by the C back end, which can
+only generate a machine representation for a variable whose type it may trust.
+
+⚠️ Writing no type remains entirely permissive. `var A := M.Get (1);` is
+ordinary and unremarkable; the rule bites only where a type was written down.
+
+⚠️ **PARTLY IMPLEMENTED.** A declaration enforces this and a later assignment
+does not, so `var I : Integer := A;` is refused while `var I : Integer;` followed
+by `I := A;` is accepted — the same value reaching the same variable one line
+later. See DEF-09.
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
+    conformance  0020-any-accepts-every-value.a24
+
+> `Assignable` itself permits `Any` in both directions; the strictness lives in
+> an extra check on the declaration (`compiler/TypeChecker.a24`, `MapType`).
+> Bringing the two paths together is what DEF-09 asks for.
 
 **[VAR-007]**  A name may not be declared twice in one scope. The second is
 refused with `'X' is already defined.`
 
     interpreter  compiler/Resolver.a24  CheckDuplicates
     unit         Resolve Duplicate Variable
-    conformance  TBD
+    refusal      0009-no-redeclaration.a24
 
 **[VAR-008]**  A collection may carry an element type, written `of`:
-`var L : List of Integer := [];`. The element type is honoured only after
-`List`.
+`var L : List of Integer := [];`. Every collection type accepts one — `List`,
+`Map`, `Set` and `Array`.
+
+⚠️ **PARTLY IMPLEMENTED.** `of` parses only after `List`. `Map of Integer`,
+`Set of Integer` and `Array of Integer` are each refused with `Expect ';' after
+variable declaration.` See DEF-11.
 
     interpreter  compiler/Parser.a24  VarDeclaration
-    conformance  TBD
+    conformance  0019-declaration-forms.a24
+
+**[VAR-016]**  An element type is a **source of types for reads, and no
+constraint on writes.** Given `var L : List of Integer`:
+
+| Expression | Type |
+| --- | --- |
+| `L[0]` | Integer |
+| `X` in `for var X in L` | Integer |
+| `L.Add (V)` | accepts any `V`; the element type is not checked |
+
+⚠️ The asymmetry is deliberate rather than an oversight to be tidied away. The
+reading half is what makes a declared element type worth writing — it is how a
+loop variable acquires a type without one being written on it — and it costs
+nothing at run time. Checking every insertion is a different and much larger
+commitment; see Annex H.
+
+    interpreter  compiler/TypeChecker.a24  Reduce
+    conformance  0021-element-types-flow-to-reads.a24
 
 ### 5.2 Sections
 
@@ -784,7 +839,7 @@ VarSection = "var" { identifier { "," identifier } [ ":" Type ] [ ":=" Expressio
 
     interpreter  compiler/Parser.a24  DeclarationSection
     unit         Parse A Function Local Var Section
-    conformance  TBD
+    conformance  0023-sections.a24
 
 **[VAR-010]**  Within a section several names may share one declaration:
 `A, B : Integer;` declares both.
@@ -792,7 +847,7 @@ VarSection = "var" { identifier { "," identifier } [ ":" Type ] [ ":=" Expressio
     interpreter  compiler/Parser.a24  DeclarationSection
     unit         Parse A Comma Group Stays A Group
     unit         Parse A Single Name Is Not A Group
-    conformance  TBD
+    conformance  0023-sections.a24
 
 **[VAR-011]**  A section is a feature of a **header**, not of a program body. At
 the top level `var` declares exactly one name, and a run of declarations
@@ -800,7 +855,7 @@ beneath it is read as ordinary statements — `var A : Integer;` followed by
 `B : String;` fails on the second with `Expect ';' after expression.`
 
     interpreter  compiler/Parser.a24  ReadDeclarationSections
-    conformance  TBD
+    refusal      0010-no-section-at-top-level.a24
 
 ### 5.3 Constants
 
@@ -814,13 +869,13 @@ ConstDecl = "const" identifier [ ":" Type ] ":=" Expression ";" .
 
     interpreter  compiler/Parser.a24  ConstDeclaration
     unit         Parse A Constant Must Be Given A Value
-    conformance  TBD
+    refusal      0011-const-must-be-given-a-value.a24
 
 **[VAR-013]**  A constant may not be assigned to. The attempt is refused with
 `Can't assign to constant 'C'.`
 
     interpreter  compiler/Resolver.a24  VisitAssignExpr
-    conformance  TBD
+    refusal      0012-const-is-not-assignable.a24
 
 **[VAR-014]**  ⚠️ A constant's initializer is an **ordinary expression evaluated
 at run time**, not a constant expression. `const C := 1 + 2;` is legal, and so
@@ -831,7 +886,7 @@ is `const C := V;` where `V` is a variable — the constant takes whatever value
 known before the program runs*.
 
     interpreter  compiler/Interpreter.a24  VisitVarStmt
-    conformance  TBD
+    conformance  0024-const-is-a-runtime-expression.a24
 
 **[VAR-015]**  `const` may open a section on the same terms as `var`, and the
 two may appear together in one header.
@@ -839,7 +894,7 @@ two may appear together in one header.
     interpreter  compiler/Parser.a24  DeclarationSection
     unit         Parse A Const Section
     unit         Parse Var And Const Sections Together
-    conformance  TBD
+    conformance  0023-sections.a24
 
 ---
 
@@ -1001,14 +1056,22 @@ never a runtime type.
 
 ### 7.3 Casts
 
-**[VAL-007]**  `X as T` has **no runtime effect whatever**. It tells the checker
-what the programmer claims, and nothing verifies the claim: `X as Integer` where
-`X` holds `'text'` yields `'text'` and raises nothing.
+**[VAL-007]**  `X as T` is a **checked conversion**. It tells the checker that
+the expression has type `T`, and verifies the claim when the program runs: if
+`X` is not a `T`, the cast raises.
+
+`nil` satisfies every type [VAR-005] and therefore passes every cast.
+
+⚠️ `as` is the one construct that moves a value from untyped into typed
+[VAR-006], so it carries the whole weight of that boundary. A cast that could
+not fail would make the boundary a formality, and every declared type downstream
+of it a claim nothing had checked.
+
+⚠️ **NOT YET IMPLEMENTED.** The cast has no runtime effect at all: `X as Integer`
+where `X` holds `'text'` yields `'text'` and raises nothing. See DEF-12.
 
     interpreter  compiler/TypeChecker.a24  Reduce
-    conformance  TBD
-
-> See Annex D.
+    defect       DEF-12-as-is-unchecked.a24
 
 ### 7.4 Truthiness
 
@@ -1257,8 +1320,13 @@ is readable and writable from anywhere.
     conformance  TBD
 
 **[EXP-003]**  `as` binds looser than `or`, so `A and B as C` casts the whole
-conjunction rather than `B`. Because a cast has no runtime effect [VAL-007],
-this is observable only through the checker.
+conjunction rather than `B`.
+
+⚠️ This used to be observable only through the checker, because a cast had no
+runtime effect. Now that `as` is checked [VAL-007], the binding decides what
+gets verified — `A and B as C` tests the conjunction against `C`, not `B` — so
+the precedence has consequences a program can see. Chapter 9 has not yet been
+through the conformance pass; the rule is recorded here as it stands.
 
     interpreter  compiler/Parser.a24  Expression
     conformance  TBD
@@ -2879,14 +2947,11 @@ fits exactly and every arithmetic operation in the language already promotes an
 Integer to a Double when the two meet. A programmer who writes `: Double` and
 initializes with `0` is told the types do not match.
 
-The rule is at least symmetric and easy to state, and any relaxation has to
-answer what `var X : Double := 1;` then makes `X` — a Double holding 1.0, or an
-Integer that a declaration lied about.
-
-*Recommended:* permit Integer where Double is declared, converting at the point
-of assignment, and leave narrowing refused. It matches what the arithmetic
-already does, and the alternative teaches that a declared type means something
-narrower than the operators do.
+**Resolved.** An Integer is accepted where a Double is declared and is
+converted at the point of assignment, so `var X : Double := 1;` gives `X` the
+Double `1.0` [VAR-004]. The open question — whether `X` then holds a Double or
+an Integer a declaration lied about — is answered explicitly in the rule: it
+holds a Double. Narrowing stays refused. Tracked by DEF-10.
 
 **D-5 — `const` promises less than it appears to.** *(refers to [VAR-014])*
 
@@ -2896,12 +2961,11 @@ be reassigned. A reader who takes `const` to mean a compile-time constant — as
 Pascal's does, and as most languages' do — will be wrong about when the
 initializer runs and about what the compiler can assume.
 
-Nothing here is broken, and the run-time form is genuinely useful for a value
-computed once at startup.
-
-*Recommended:* keep the behaviour and say so plainly in the language's own
-documentation, which currently does not. If a true compile-time constant is
-wanted later it needs a different word, not a narrowing of this one.
+**Resolved by keeping it.** The run-time form is genuinely useful for a value
+computed once at startup, and nothing here is broken — the word means *this
+binding may not be reassigned*, which [VAR-014] now states plainly rather than
+leaving to be inferred. A true compile-time constant, if one is ever wanted,
+needs a different word rather than a narrowing of this one.
 
 **D-6 — Equality and membership disagree.** *(refers to [VAL-009], [VAL-013])*
 
@@ -2926,12 +2990,16 @@ cast silences the checker and is never verified, so the one construct a
 programmer reaches for when they know more than the checker does is also the one
 that cannot tell them when they are wrong.
 
-The gradual type system needs an escape hatch, and an unchecked one is free
-where a checked one costs a test at every cast.
+**Resolved.** `as` is a checked conversion and raises when the value is not of
+the named type [VAL-007]. The cost falls only on programs that use `as`, which
+are the programs that asked for the assurance, and a cast that cannot fail is
+not an assurance at all.
 
-*Recommended:* check it at run time and raise on failure. The cost falls only on
-programs that use `as`, which are the programs that asked for the assurance; and
-a cast that cannot fail is not an assurance at all.
+⚠️ This decision is what makes [VAR-006] tenable. `as` is the only way a value
+crosses from untyped into typed, so the strictness there is only reasonable if
+the crossing is verified; an unchecked cast would have made the boundary a
+formality and every declared type beyond it a claim nothing had checked. The two
+rules were decided together and neither stands alone. Tracked by DEF-12.
 
 **D-8 — Empty is truthy.** *(refers to [VAL-008])*
 
@@ -3458,6 +3526,68 @@ represent a String as C does.
 for why refusal rather than storage is what the rule asks for, and why the
 larger fix stays available.
 
+**DEF-09 — A written type is enforced on a declaration and not on an
+assignment.** *(violates [VAR-006])*
+
+`var I : Integer := A;` is refused where `A` is `Any` or untypeable, and
+`var I : Integer;` followed by `I := A;` is accepted — the same value reaching
+the same variable one line later. The strict check lives on the declaration
+only; the assignment path calls `Assignable`, which permits `Any` in both
+directions.
+
+*Reproduce:* `defects/DEF-09-assignment-escapes-the-type.a24`
+
+⚠️ **The permissive path is the wrong one to keep.** It is tempting to read this
+as the declaration being too strict, because the declaration is what produces a
+diagnostic. But the assignment is where an untyped value enters a typed variable
+with nothing checking it, which is precisely what [VAR-006] exists to prevent.
+
+*Scope of the fix.* The `AssignExpr` and `SetExpr` cases in
+`compiler/TypeChecker.a24` apply the same rule the declaration does — an actual
+type of `''` or `Any` does not satisfy a written one. ⚠️ The compiler's own
+sources must be made to pass first, and they are the largest body of Algol-24
+that exists; expect casts to be needed at boundaries that currently have none.
+
+**DEF-10 — Widening is refused.** *(violates [VAR-004])*
+
+`var X : Double := 1;` is `Type mismatch!` where the specification accepts it and
+converts. Narrowing is correctly refused.
+
+*Reproduce:* `defects/DEF-10-widening-is-refused.a24`
+
+*Scope of the fix.* `Assignable` admits Integer where Double is expected, and
+both processors convert at the point of assignment so the variable holds a
+Double rather than an Integer the declaration misdescribes.
+
+**DEF-11 — `of` parses only after `List`.** *(violates [VAR-008])*
+
+`Map of Integer`, `Set of Integer` and `Array of Integer` are each refused with
+`Expect ';' after variable declaration.`, so only a List may carry an element
+type.
+
+*Reproduce:* `defects/DEF-11-of-is-list-only.a24`
+
+*Scope of the fix.* The `of` clause is parsed for any collection type rather
+than one. ⚠️ The checker must then decide what a `Map of T` means — the value
+type, almost certainly, since that is what a subscript and a `Get` yield — and
+say so in [VAR-016] before the parser admits the syntax.
+
+**DEF-12 — `as` is unchecked.** *(violates [VAL-007])*
+
+`X as Integer` where `X` holds `'text'` yields `'text'` and raises nothing. The
+cast silences the checker and verifies nothing.
+
+*Reproduce:* `defects/DEF-12-as-is-unchecked.a24`
+
+⚠️ **This is DEF-09's prerequisite, not a separate errand.** [VAR-006] sends
+every untyped-to-typed crossing through `as`; if `as` does not check, tightening
+the assignment path only moves the hole rather than closing it. Fix this one
+first.
+
+*Scope of the fix.* The cast becomes a runtime operation in both processors
+rather than a checker-only annotation: it tests the value against the named type
+and raises on failure, with `nil` passing every cast [VAR-005].
+
 ---
 
 ## Annex G — implementation notes *(non-normative)*
@@ -3532,3 +3662,17 @@ identifier `e5`. Pinned by `refusals/0007-exponent-is-not-a-literal.a24`.
 cannot read back what it wrote. Nothing is unreachable today, because `Val`
 parses the exponent form, but the round trip goes through a built-in rather than
 through the source.
+
+**H-3 — Element types checked on insertion.** *(will change [VAR-016])*
+
+An element type constrains what may be put into a collection, so
+`L.Add ('text')` on a `List of Integer` is refused. Today it is a source of
+types for reads only and insertion is unchecked. Pinned by
+`conformance/0021-element-types-flow-to-reads.a24`, whose `Add` line is the part
+that will change.
+
+⚠️ Larger than it looks, and the reason it is not being done now: every route
+into a collection has to be covered — `Add`, `Put`, `Push`, subscript
+assignment, and the collection literals — or the check becomes a fence with a
+gate in it, which is worse than no fence because it invites the declared type to
+be trusted.

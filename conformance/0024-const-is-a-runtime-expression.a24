@@ -1,0 +1,19 @@
+// spec: VAR-014
+//
+
+// A constant's initializer is an ordinary expression evaluated when the
+// declaration runs, not a constant expression.
+const Computed := 1 + 2;
+WriteLn (Computed);
+
+// And it may read a variable, so a constant's value need not be known before
+// the program runs.  'const' means the BINDING may not be reassigned -- not
+// that the value is known in advance.
+var V := 9;
+const FromVariable := V;
+WriteLn (FromVariable);
+
+// Changing V afterwards does not change the constant: it took the value V held
+// at that moment.
+V := 100;
+WriteLn (FromVariable);

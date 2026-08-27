@@ -1,0 +1,10 @@
+// spec: VAR-003
+//
+// A declared type constrains every later assignment, not only the
+// initializer.  This is refused before the program runs, so the WriteLn above
+// it never executes.
+
+WriteLn ('this line never runs');
+
+var X : Integer := 1;
+X := 'text';

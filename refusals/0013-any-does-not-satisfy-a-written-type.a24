@@ -1,0 +1,7 @@
+// spec: VAR-006
+//
+// A value whose type is Any does not satisfy a written type.  The conversion
+// has to be written, and 'as' is how to write it.
+
+var A : Any := 1;
+var I : Integer := A;

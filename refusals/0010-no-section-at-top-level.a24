@@ -1,0 +1,9 @@
+// spec: VAR-011
+//
+// A section is a feature of a HEADER.  At the top level 'var' declares exactly
+// one name, and the run of declarations beneath it is read as ordinary
+// statements -- so the second line is an expression, and wants a ';' where it
+// finds a ':'.
+
+var A : Integer;
+    B : String;
