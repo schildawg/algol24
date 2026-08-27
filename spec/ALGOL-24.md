@@ -544,6 +544,143 @@ String truncates the String there: `Length('a' + Str(#0) + 'b')` is 2.
 
 ---
 
+## 5. Constants and variables
+
+### 5.1 Variable declarations
+
+**[VAR-001]**  A variable is introduced by `var`, with an optional declared type
+and an optional initializer.
+
+```
+VarDecl = "var" identifier [ ":" Type ] [ ":=" Expression ] ";" .
+Type    = identifier [ "of" identifier ] .
+```
+
+    interpreter  compiler/Parser.a24  VarDeclaration
+    unit         Parse Var Statement
+    unit         Parse Var Expect Semicolon
+    conformance  TBD
+
+**[VAR-002]**  A variable declared without an initializer holds `nil`, whatever
+its declared type. **There is no zero value**: an uninitialized `Integer` is
+`nil`, not `0`.
+
+    interpreter  compiler/Interpreter.a24  VisitVarStmt
+    conformance  TBD
+
+**[VAR-003]**  A declared type constrains the initializer and every later
+assignment. A violation is the error `Type mismatch!`
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    conformance  TBD
+
+**[VAR-004]**  There is **no implicit numeric conversion** in a declaration.
+`var X : Integer := 1.5;` is a mismatch, and so is `var X : Double := 1;` —
+widening is refused as firmly as narrowing.
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    conformance  TBD
+
+> See Annex D.
+
+**[VAR-005]**  `nil` satisfies every declared type, so `var X : Integer := nil;`
+is accepted.
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    compiler     bootstrap/algol.c         alg_is
+    conformance  TBD
+
+**[VAR-006]**  `Any` is the declared type meaning *not known*. It accepts every
+value and is compatible in both directions.
+
+    interpreter  compiler/TypeChecker.a24  Assignable
+    conformance  TBD
+
+**[VAR-007]**  A name may not be declared twice in one scope. The second is
+refused with `'X' is already defined.`
+
+    interpreter  compiler/Resolver.a24  CheckDuplicates
+    unit         Resolve Duplicate Variable
+    conformance  TBD
+
+**[VAR-008]**  A collection may carry an element type, written `of`:
+`var L : List of Integer := [];`. The element type is honoured only after
+`List`.
+
+    interpreter  compiler/Parser.a24  VarDeclaration
+    conformance  TBD
+
+### 5.2 Sections
+
+**[VAR-009]**  In the header of a function, procedure, class or object, `var`
+may open a **section**: a run of declarations, each ending in `;`, closed by the
+next section marker or by `begin`.
+
+```
+VarSection = "var" { identifier { "," identifier } [ ":" Type ] [ ":=" Expression ] ";" } .
+```
+
+    interpreter  compiler/Parser.a24  DeclarationSection
+    unit         Parse A Function Local Var Section
+    conformance  TBD
+
+**[VAR-010]**  Within a section several names may share one declaration:
+`A, B : Integer;` declares both.
+
+    interpreter  compiler/Parser.a24  DeclarationSection
+    unit         Parse A Comma Group Stays A Group
+    unit         Parse A Single Name Is Not A Group
+    conformance  TBD
+
+**[VAR-011]**  A section is a feature of a **header**, not of a program body. At
+the top level `var` declares exactly one name, and a run of declarations
+beneath it is read as ordinary statements — `var A : Integer;` followed by
+`B : String;` fails on the second with `Expect ';' after expression.`
+
+    interpreter  compiler/Parser.a24  ReadDeclarationSections
+    conformance  TBD
+
+### 5.3 Constants
+
+**[VAR-012]**  A constant is introduced by `const` and **must** be given a
+value. Omitting the initializer is refused with `A constant must be given a
+value.`
+
+```
+ConstDecl = "const" identifier [ ":" Type ] ":=" Expression ";" .
+```
+
+    interpreter  compiler/Parser.a24  ConstDeclaration
+    unit         Parse A Constant Must Be Given A Value
+    conformance  TBD
+
+**[VAR-013]**  A constant may not be assigned to. The attempt is refused with
+`Can't assign to constant 'C'.`
+
+    interpreter  compiler/Resolver.a24  VisitAssignExpr
+    conformance  TBD
+
+**[VAR-014]**  ⚠️ A constant's initializer is an **ordinary expression evaluated
+at run time**, not a constant expression. `const C := 1 + 2;` is legal, and so
+is `const C := V;` where `V` is a variable — the constant takes whatever value
+`V` held at that moment.
+
+`const` therefore means *this binding may not be reassigned*, not *this value is
+known before the program runs*.
+
+    interpreter  compiler/Interpreter.a24  VisitVarStmt
+    conformance  TBD
+
+**[VAR-015]**  `const` may open a section on the same terms as `var`, and the
+two may appear together in one header.
+
+    interpreter  compiler/Parser.a24  DeclarationSection
+    unit         Parse A Const Section
+    unit         Parse Var And Const Sections Together
+    conformance  TBD
+
+---
+
 ## Annex D — advisory notes *(non-normative)*
 
 Where the specified behaviour looks like a mistake. Nothing here weakens the
@@ -588,3 +725,35 @@ representation showing through, and the language does not say so anywhere.
 128 and above, or give String an explicit length so it can hold a zero byte.
 Refusing is much the smaller change and matches the existing range check;
 storing it honestly is the better language.
+
+**D-4 — Widening is refused as firmly as narrowing.** *(refers to [VAR-004])*
+
+`var X : Integer := 1.5;` should certainly be refused: the value does not fit.
+But `var X : Double := 1;` is refused on the same terms, and there the value
+fits exactly and every arithmetic operation in the language already promotes an
+Integer to a Double when the two meet. A programmer who writes `: Double` and
+initializes with `0` is told the types do not match.
+
+The rule is at least symmetric and easy to state, and any relaxation has to
+answer what `var X : Double := 1;` then makes `X` — a Double holding 1.0, or an
+Integer that a declaration lied about.
+
+*Recommended:* permit Integer where Double is declared, converting at the point
+of assignment, and leave narrowing refused. It matches what the arithmetic
+already does, and the alternative teaches that a declared type means something
+narrower than the operators do.
+
+**D-5 — `const` promises less than it appears to.** *(refers to [VAR-014])*
+
+`const C := V;` is legal where `V` is a variable, so a constant's value need not
+be known before the program runs. The word means only that the binding cannot
+be reassigned. A reader who takes `const` to mean a compile-time constant — as
+Pascal's does, and as most languages' do — will be wrong about when the
+initializer runs and about what the compiler can assume.
+
+Nothing here is broken, and the run-time form is genuinely useful for a value
+computed once at startup.
+
+*Recommended:* keep the behaviour and say so plainly in the language's own
+documentation, which currently does not. If a true compile-time constant is
+wanted later it needs a different word, not a narrowing of this one.

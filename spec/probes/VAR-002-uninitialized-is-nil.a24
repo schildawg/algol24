@@ -1,0 +1,8 @@
+// spec: VAR-002
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var X : Integer;
+WriteLn(X = nil);
+WriteLn(X = 0);

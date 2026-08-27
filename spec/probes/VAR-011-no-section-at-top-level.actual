@@ -1,0 +1,5 @@
+Uncaught: Expect ';' after expression.
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/VAR-011-no-section-at-top-level.a24: Expect ';' after expression.
+[WHITE][[RED]ERROR[WHITE]] [RESET]8 |    B : String;
+[WHITE][[RED]ERROR[RESET]]   |[RED]    ^[RESET]
+exit: 70

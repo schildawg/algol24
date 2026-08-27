@@ -1,0 +1,10 @@
+// spec: VAR-014
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var V := 9;
+const C := V;
+const D := 1 + 2;
+WriteLn(C);
+WriteLn(D);

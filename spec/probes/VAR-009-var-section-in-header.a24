@@ -1,0 +1,15 @@
+// spec: VAR-009, VAR-010
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+function F() : Integer;
+var
+   A, B : Integer;
+   S : String;
+begin
+   A := 3;
+   B := 4;
+   Exit A + B;
+end
+WriteLn(F());
