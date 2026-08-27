@@ -1,8 +1,16 @@
 # The Algol-24 Programming Language Specification
 
-> **Status: in progress.** Chapters are written and verified one at a time; a
-> chapter absent from this document is unspecified, not unconstrained. See
-> `spec/PLAN.md` for what is planned and in what order.
+> **Status: first draft complete.** Nineteen chapters and five annexes, 248
+> rules, each verified by running the interpreter rather than by reading it.
+>
+> ⚠️ **No rule is covered by a conformance program yet.** Every rule carries
+> `conformance TBD`, and that number is 248 of 248. What exists is evidence —
+> `spec/probes/` holds the programs each rule was verified with and a recording
+> of what the implementation did — and evidence is not a commitment. Deciding
+> which behaviours to conform *to* is a separate pass; see `spec/PLAN.md` §7.
+>
+> Two silent divergences between the interpreter and the C back end are recorded
+> in Annex C, and eighteen behaviours that look like defects in Annex D.
 
 ---
 
@@ -1403,116 +1411,6 @@ is caught by `on e : String` with `e` equal to `Division by zero.`
 
 ---
 
-## Annex E — what could be written in Algol-24 itself *(non-normative)*
-
-The collections and the built-in functions are native today. This annex asks,
-for each, whether it is native because it *must* be or only because it always
-has been — and what one feature would have to be added to unbind it.
-
-The question matters because everything moved out of the runtime is one less
-thing the C back end and the interpreter can disagree about, and one more thing
-a reader can look up in Algol-24 rather than in C.
-
-⚠️ Three rules do most of the pinning, and they are worth naming once rather
-than repeating: a class cannot be subscripted [TYP-010], cannot be iterated
-[TYP-011], and cannot expose a computed property [TYP-012]. A collection written
-in Algol-24 would work, but it would be written `L.Get(0)`, `L.Length()` and a
-loop over an index — a second-class citizen beside the built-ins.
-
-### E.1 The collections
-
-**Array — pinned, and rightly so.**
-
-`Array` is fixed-size, indexed in constant time, and holds arbitrary values.
-Nothing in the language can express that. `Buffer` stores bytes rather than
-values; a linked structure of class instances gives O(n) access; and a class
-cannot be subscripted in any case. It is the one collection that is genuinely
-primitive.
-
-*Recommendation:* keep it native, and treat it as the primitive the others are
-built on rather than as one collection among five.
-
-**Stack — unbound already, in all but syntax.**
-
-A `Stack` is `Push`, `Pop`, `Peek` and a count over a sequence. It can be
-written in Algol-24 today, in full, as a class holding a `List` — and has been:
-`spec/probes/TYP-012-stack-and-set-in-algol24.a24` is a working one, beside a
-`Set` whose membership test is a hand-written scan using no native `Contains`,
-and a `Mod` built from arithmetic alone. All three behave as the built-ins do.
-
-Nothing about it is primitive: no literal claims its name, no subscript is
-needed, and its whole surface is method calls.
-
-The only visible difference would be `S.Length()` against the built-in
-`S.Length` — [TYP-012] alone.
-
-*Recommendation:* the best first candidate to move into a unit. It would prove
-the path with the least at stake, and the only thing it waits on is a getter.
-
-**Set — writable today; would want hashing later.**
-
-`Set` needs membership. Over a `List` with a linear scan it can be written
-immediately, and the probe named above does exactly that. A hashed version is
-also expressible: `Ord` yields a character's code point as an Integer —
-`Ord('A')` is 65 — so a string hash can be computed in the language without
-reaching for anything native.
-
-Nothing pins it syntactically. `Set(L)` is an ordinary constructor call, not a
-literal form.
-
-*Recommendation:* movable, and the performance question is separable — ship the
-linear version as a unit, hash it later if it matters.
-
-**List — pinned by its literal, not by its behaviour.**
-
-A growable sequence over `Array`, doubling when full, is straightforward
-Algol-24. What pins `List` is syntax: `[1, 2]` produces one, so the language
-itself hands the name out. Subscripting [TYP-010] and `for … in` [TYP-011]
-would also have to be lifted, or every use would read `L.Get(I)`.
-
-*Recommendation:* unbinding this one is worth doing only if user-defined
-subscript and iteration arrive first. Otherwise the unit is strictly worse to
-use than the built-in it replaces.
-
-**Map — pinned by its literal, doubly.**
-
-`[:]` and `[k:v]` produce a Map, so the name is claimed the way `List`'s is,
-and the natural `M[K]` needs [TYP-010] as well. The implementation itself is
-ordinary: two sequences, or `Array` buckets with an `Ord`-based hash.
-
-⚠️ Insertion order is specified behaviour, not an accident of the
-implementation, so any replacement must keep it.
-
-*Recommendation:* same as `List`, and after it. The literal is the harder half:
-a language that lets a unit claim `[:]` is a much larger language.
-
-### E.2 The built-in functions
-
-| Native | Could it be written in Algol-24? |
-| --- | --- |
-| `Max`, `Mod` | Yes, today, from arithmetic alone. |
-| `Copy`, `Pos` | Yes, from `Length` and subscripting a String, at a cost in speed. |
-| `Val` | Yes, given `Ord` for digits. |
-| `Ord`, `Char` | No. They convert between a character and its code point, and nothing else reaches that representation. |
-| `Length` | No, for `String`. A user type's own length is [TYP-012]. |
-| `Str` | No. Rendering a `Double` in the specified shortest round-trip form needs the value's bits, which the language cannot see. |
-| `clock`, `TextFile`, `FileExists`, `ParamCount`, `ParamStr` | No. The operating system is not otherwise reachable. |
-| `Buffer` | No. It is a memory primitive with an explicit lifetime. |
-| `Write`, `WriteLn` | No. Output is not otherwise reachable. |
-
-### E.3 The one feature that unbinds the most
-
-Of the three pins, **[TYP-012], the missing getter, is the cheapest and buys the
-most**. It is a declaration form rather than a semantic change; it makes `Stack`
-and `Set` writable as units indistinguishable from the built-ins; and it is
-needed by ordinary user classes regardless of whether any collection ever moves.
-
-Subscript [TYP-010] is next, and iteration [TYP-011] after it — those two
-together are what `List` and `Map` wait on, and both are larger changes, because
-each means dispatching a language construct into user code.
-
----
-
 ## 11. Functions, procedures and closures
 
 ### 11.1 Declarations
@@ -2528,6 +2426,120 @@ Annex C, C-3.
 
 ---
 
+## Annex A — grammar summary *(non-normative)*
+
+Every production stated in the chapters, collected. This annex adds nothing:
+each line appears in the chapter that specifies it, and `spec/spec.sh` checks
+that none has been added here or lost from here.
+
+⚠️ **The grammar is partial, deliberately.** Where a construct's shape was
+verified by running it rather than by writing a production, the chapter states
+it in prose and no production appears below. The gaps are named at the end of
+this annex rather than filled with plausible-looking rules, because a production
+nobody checked is exactly the kind of claim this specification exists to avoid.
+
+### Lexical
+
+```
+letter        = "a" … "z" | "A" … "Z" | "_" | "?" .
+decimal_digit = "0" … "9" .
+
+identifier    = letter { letter | decimal_digit } .
+
+integer_lit   = decimal_digit { decimal_digit } .
+double_lit    = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit } .
+char_lit      = "'" source_byte "'" | "#" decimal_digit { decimal_digit } .
+string_lit    = "'" { source_byte_other_than_quote | "''" } "'" .
+```
+
+### Declarations
+
+```
+VarDecl    = "var" identifier [ ":" Type ] [ ":=" Expression ] ";" .
+ConstDecl  = "const" identifier [ ":" Type ] ":=" Expression ";" .
+Type       = identifier [ "of" identifier ] .
+
+VarSection = "var" { identifier { "," identifier } [ ":" Type ]
+                     [ ":=" Expression ] ";" } .
+
+FunDecl    = ( "function" | "procedure" ) identifier "(" [ Params ] ")"
+             [ ":" Type ] ";" [ Sections ] Block .
+Params     = identifier [ ":" Type ] { "," identifier [ ":" Type ] } .
+
+ClassDecl  = "class" identifier [ "(" identifier ")" ] ";"
+             [ Sections ] "begin" { Member } "end" .
+EnumDecl   = "type" identifier "=" "(" identifier { "," identifier } ")" ";" .
+
+UsesStmt   = "uses" ( identifier | string_lit ) ";" .
+TestDecl   = "test" string_lit ";" Block .
+```
+
+### Statements
+
+```
+CaseStmt = "case" Expression "of" { Arm } [ "else" Statement ] "end" .
+Arm      = Expression { "," Expression } ":" Statement .
+```
+
+### What is specified in prose instead
+
+These constructs are specified by rule and verified by probe, without a
+production:
+
+| Construct | Specified by |
+| --- | --- |
+| Operator precedence and associativity | [EXP-001], [EXP-002] — a table, derived by running distinguishing cases |
+| `if`, `while`, counted `for`, `for … in` | [STM-003] … [STM-007] |
+| `break`, `Exit`, `raise`, `print` | [STM-010], [STM-014], [STM-016], [STM-022] |
+| `try` / `except` / `on` handlers | [STM-017] … [STM-019] |
+| Blocks and expression statements | [STM-001], [STM-002] |
+| Visibility sections | [DCL-011], [DCL-012] |
+
+⚠️ `Sections`, `Block`, `Member` and `Statement` are referenced above and not
+themselves defined. Completing the grammar is worth doing; inventing those four
+productions from memory is not.
+
+---
+
+## Annex B — index of built-in functions *(non-normative)*
+
+The twenty-five built-in names, with the rule specifying each. `spec/spec.sh`
+checks this list against the names the interpreter actually registers.
+
+| Name | Rule | Summary |
+| --- | --- | --- |
+| `AssertEqual` | [TST-012] | Fails unless two values are equal; test runs only |
+| `AssertTrue` | [TST-012] | Fails unless a value is truthy; test runs only |
+| `Fail` | [TST-012] | Fails outright with a message; test runs only |
+| `Array` | [COL-002] | An Array of N elements, each `nil` |
+| `Buffer` | [E.2] | Growable bytes with an explicit lifetime |
+| `List` | [COL-002] | An empty List |
+| `Map` | [COL-002] | An empty Map |
+| `Set` | [COL-002] | An empty Set, or a Set of a collection's values |
+| `Stack` | [COL-002] | An empty Stack |
+| `Char` | [RT-008] | The character with a code point, 0 … 127 |
+| `Copy` | [RT-004] | A substring, from a zero-based start, length clamped |
+| `Length` | [RT-003] | ⚠️ The length of the argument's **text**, not a count |
+| `Ord` | [RT-007] | The code point of one character, as an Integer |
+| `Pos` | [RT-005] | A zero-based index, or -1 when absent |
+| `Str` | [RT-006] | Any value rendered as text |
+| `Val` | [RT-009] | ⚠️ A number parsed from text, **always a Double** |
+| `Max` | [RT-010] | ⚠️ The greater of two **Integers** only |
+| `Mod` | [RT-011] | The remainder, its sign following the dividend |
+| `clock` | [RT-012] | Seconds since the epoch, as a Double |
+| `FileExists` | [RT-014] | Whether a named file exists |
+| `TextFile` | [E.2] | A text file handle |
+| `ParamCount` | [RT-013] | The argument count, not counting the program |
+| `ParamStr` | [RT-013] | An argument by index; 0 is the program |
+| `Write` | [RT-015] | Writes a value |
+| `WriteLn` | [RT-015] | Writes a value and `#10` |
+
+⚠️ `clock` is the only built-in spelled in lower case, and the only one whose
+name is not a noun or an imperative. Nothing depends on this; it is noted
+because a reader will wonder.
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -2999,3 +3011,114 @@ produces, since a failing test is the one moment a programmer is looking.
 ⚠️ Any change here alters the report, which [TST-008] specifies and which both
 processors must reproduce byte for byte — so it is a change to the observable
 surface and to `bootstrap/algol.c` in the same breath, not a cosmetic edit.
+
+
+## Annex E — what could be written in Algol-24 itself *(non-normative)*
+
+The collections and the built-in functions are native today. This annex asks,
+for each, whether it is native because it *must* be or only because it always
+has been — and what one feature would have to be added to unbind it.
+
+The question matters because everything moved out of the runtime is one less
+thing the C back end and the interpreter can disagree about, and one more thing
+a reader can look up in Algol-24 rather than in C.
+
+⚠️ Three rules do most of the pinning, and they are worth naming once rather
+than repeating: a class cannot be subscripted [TYP-010], cannot be iterated
+[TYP-011], and cannot expose a computed property [TYP-012]. A collection written
+in Algol-24 would work, but it would be written `L.Get(0)`, `L.Length()` and a
+loop over an index — a second-class citizen beside the built-ins.
+
+### E.1 The collections
+
+**Array — pinned, and rightly so.**
+
+`Array` is fixed-size, indexed in constant time, and holds arbitrary values.
+Nothing in the language can express that. `Buffer` stores bytes rather than
+values; a linked structure of class instances gives O(n) access; and a class
+cannot be subscripted in any case. It is the one collection that is genuinely
+primitive.
+
+*Recommendation:* keep it native, and treat it as the primitive the others are
+built on rather than as one collection among five.
+
+**Stack — unbound already, in all but syntax.**
+
+A `Stack` is `Push`, `Pop`, `Peek` and a count over a sequence. It can be
+written in Algol-24 today, in full, as a class holding a `List` — and has been:
+`spec/probes/TYP-012-stack-and-set-in-algol24.a24` is a working one, beside a
+`Set` whose membership test is a hand-written scan using no native `Contains`,
+and a `Mod` built from arithmetic alone. All three behave as the built-ins do.
+
+Nothing about it is primitive: no literal claims its name, no subscript is
+needed, and its whole surface is method calls.
+
+The only visible difference would be `S.Length()` against the built-in
+`S.Length` — [TYP-012] alone.
+
+*Recommendation:* the best first candidate to move into a unit. It would prove
+the path with the least at stake, and the only thing it waits on is a getter.
+
+**Set — writable today; would want hashing later.**
+
+`Set` needs membership. Over a `List` with a linear scan it can be written
+immediately, and the probe named above does exactly that. A hashed version is
+also expressible: `Ord` yields a character's code point as an Integer —
+`Ord('A')` is 65 — so a string hash can be computed in the language without
+reaching for anything native.
+
+Nothing pins it syntactically. `Set(L)` is an ordinary constructor call, not a
+literal form.
+
+*Recommendation:* movable, and the performance question is separable — ship the
+linear version as a unit, hash it later if it matters.
+
+**List — pinned by its literal, not by its behaviour.**
+
+A growable sequence over `Array`, doubling when full, is straightforward
+Algol-24. What pins `List` is syntax: `[1, 2]` produces one, so the language
+itself hands the name out. Subscripting [TYP-010] and `for … in` [TYP-011]
+would also have to be lifted, or every use would read `L.Get(I)`.
+
+*Recommendation:* unbinding this one is worth doing only if user-defined
+subscript and iteration arrive first. Otherwise the unit is strictly worse to
+use than the built-in it replaces.
+
+**Map — pinned by its literal, doubly.**
+
+`[:]` and `[k:v]` produce a Map, so the name is claimed the way `List`'s is,
+and the natural `M[K]` needs [TYP-010] as well. The implementation itself is
+ordinary: two sequences, or `Array` buckets with an `Ord`-based hash.
+
+⚠️ Insertion order is specified behaviour, not an accident of the
+implementation, so any replacement must keep it.
+
+*Recommendation:* same as `List`, and after it. The literal is the harder half:
+a language that lets a unit claim `[:]` is a much larger language.
+
+### E.2 The built-in functions
+
+| Native | Could it be written in Algol-24? |
+| --- | --- |
+| `Max`, `Mod` | Yes, today, from arithmetic alone. |
+| `Copy`, `Pos` | Yes, from `Length` and subscripting a String, at a cost in speed. |
+| `Val` | Yes, given `Ord` for digits. |
+| `Ord`, `Char` | No. They convert between a character and its code point, and nothing else reaches that representation. |
+| `Length` | No, for `String`. A user type's own length is [TYP-012]. |
+| `Str` | No. Rendering a `Double` in the specified shortest round-trip form needs the value's bits, which the language cannot see. |
+| `clock`, `TextFile`, `FileExists`, `ParamCount`, `ParamStr` | No. The operating system is not otherwise reachable. |
+| `Buffer` | No. It is a memory primitive with an explicit lifetime. |
+| `Write`, `WriteLn` | No. Output is not otherwise reachable. |
+
+### E.3 The one feature that unbinds the most
+
+Of the three pins, **[TYP-012], the missing getter, is the cheapest and buys the
+most**. It is a declaration form rather than a semantic change; it makes `Stack`
+and `Set` writable as units indistinguishable from the built-ins; and it is
+needed by ordinary user classes regardless of whether any collection ever moves.
+
+Subscript [TYP-010] is next, and iteration [TYP-011] after it — those two
+together are what `List` and `Map` wait on, and both are larger changes, because
+each means dispatching a language construct into user code.
+
+---

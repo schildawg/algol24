@@ -259,6 +259,47 @@ else
         && echo "  LEX-010 keywords match Scanner.a24 ($(wc -l < "$WORK/kw_source" | tr -d ' '))"
 fi
 
+# ⚠️ Annex A repeats every production the chapters state.  A repetition that
+# nothing checks is the same bet this repository has already lost twice, so
+# both directions are compared: a production stated in a chapter and missing
+# from the annex, and one in the annex that no chapter defines.
+
+awk '/^## 3\. Source code/{on=1} /^## Annex/{on=0}
+     on && /^```$/ {f = !f; next}
+     on && f && /^[A-Za-z_][A-Za-z_0-9]*[ \t]*=/ {
+         sub(/[ \t]*=.*/, ""); print
+     }' "$SPEC" | sort -u > "$WORK/prod_chapters"
+
+awk '/^## Annex A/{on=1} /^## Annex B/{on=0}
+     on && /^```$/ {f = !f; next}
+     on && f && /^[A-Za-z_][A-Za-z_0-9]*[ \t]*=/ {
+         sub(/[ \t]*=.*/, ""); print
+     }' "$SPEC" | sort -u > "$WORK/prod_annex"
+
+PROD_MISSING=$(comm -23 "$WORK/prod_chapters" "$WORK/prod_annex" | tr '\n' ' ')
+PROD_EXTRA=$(comm -13 "$WORK/prod_chapters" "$WORK/prod_annex" | tr '\n' ' ')
+[ -n "$PROD_MISSING" ] && problem "Annex A omits production(s) a chapter states: $PROD_MISSING"
+[ -n "$PROD_EXTRA" ]   && problem "Annex A states production(s) no chapter defines: $PROD_EXTRA"
+[ -z "$PROD_MISSING" ] && [ -z "$PROD_EXTRA" ] \
+    && echo "  Annex A matches the chapters ($(wc -l < "$WORK/prod_chapters" | tr -d ' ') productions)"
+
+# ⚠️ Annex B is derived from the names the interpreter registers, not from the
+# chapter that describes them, so a built-in added to the language without a
+# specification entry is caught here rather than going unnoticed.
+
+grep -oE "Builtins\.Define \('[A-Za-z]+'" compiler/Interpreter.a24 \
+  | sed "s/.*'\(.*\)'/\1/" | sort -u > "$WORK/bi_source"
+
+awk '/^## Annex B/{on=1} /^## Annex C/{on=0}
+     on && /^\| `/ { gsub(/^\| `|`.*$/, ""); print }' "$SPEC" | sort -u > "$WORK/bi_annex"
+
+BI_MISSING=$(comm -23 "$WORK/bi_source" "$WORK/bi_annex" | tr '\n' ' ')
+BI_EXTRA=$(comm -13 "$WORK/bi_source" "$WORK/bi_annex" | tr '\n' ' ')
+[ -n "$BI_MISSING" ] && problem "Annex B omits built-in(s) the interpreter registers: $BI_MISSING"
+[ -n "$BI_EXTRA" ]   && problem "Annex B lists name(s) the interpreter does not register: $BI_EXTRA"
+[ -z "$BI_MISSING" ] && [ -z "$BI_EXTRA" ] \
+    && echo "  Annex B matches Interpreter.a24 ($(wc -l < "$WORK/bi_source" | tr -d ' ') built-ins)"
+
 # ---------------------------------------------------------------- coverage --
 
 if [ "$COVERAGE" -eq 1 ]; then
