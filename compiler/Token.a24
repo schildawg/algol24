@@ -1,0 +1,48 @@
+uses TokenType;
+
+/// Token
+///
+class Token;
+var 
+   TypeOfToken : TokenType;
+   Lexeme      : String;
+   Literal     : Any;
+   LineNumber  : Integer;
+
+   /// Column of the token's first character, counted from the start of its
+   /// line.  Defaulted rather than passed, because 91 call sites construct a
+   /// Token and only the scanner knows a real offset -- the rest are synthetic
+   /// tokens built by the parser or by a test.
+   Offset      : Integer := 0;
+
+begin
+    constructor Init(TypeOfToken : TokenType, Lexeme : String, Literal : Any, LineNumber : Integer);
+    begin
+        this.TypeOfToken := TypeOfToken;
+        this.Lexeme := Lexeme;
+        this.Literal := Literal;
+        this.LineNumber := LineNumber;
+    end
+
+    function ToString() : String;
+    begin
+       Exit Str(TypeOfToken) +  ' ' + Lexeme + ' ' + Literal;
+    end
+end
+
+test 'New Token';
+begin
+    var TheToken := Token(TOKEN_STRING, 'ABC', nil, 1);
+    
+    AssertEqual(TOKEN_STRING, TheToken.TypeOfToken);
+    AssertEqual('ABC', TheToken.Lexeme);
+    AssertEqual(nil, TheToken.Literal);
+    AssertEqual(1, TheToken.LineNumber); 
+end
+
+test 'Token ToString';
+begin
+    var TheToken := Token(TOKEN_STRING, 'ABC', nil, 1);
+    
+    AssertEqual('TOKEN_STRING ABC nil', TheToken.ToString());
+end

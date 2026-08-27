@@ -1,0 +1,112 @@
+uses ObjClass;
+uses ObjFunction;
+uses Token;
+
+/// ObjInstance
+///
+class ObjInstance;
+var
+    Klass  : ObjClass;
+    Fields : Map;
+
+begin
+    /// Creates a new instance.
+    ///
+    constructor Init (Klass : ObjClass);
+    begin
+       this.Klass := Klass;
+       this.Fields := Map();
+    end
+
+    function Get (Name : Token) : Any;
+    var
+        Method : ObjFunction;
+
+    begin
+        // ⚠️ Every instance answers to ClassName, AHEAD of its fields, because
+        // the name belongs to the language rather than to the class.
+        //
+        // The C runtime has always done this and algc did not -- which nothing
+        // noticed until algc ran under algc, because algc's own NameOfClass
+        // asks every value for it.  The second implementation of a rule is
+        // where it goes missing.
+        if Str (Name.Lexeme) = 'ClassName' then Exit Klass.Name;
+
+        if Fields.Contains (Name.Lexeme) then
+        begin
+           Exit Fields.Get (Name.Lexeme);
+        end
+
+        Method := Klass.FindMethod (Name.Lexeme);
+        if Method <> Nil then Exit Method.Bind(this);
+
+        raise 'Undefined property ''' + Name.Lexeme + '''.';
+    end
+
+    procedure Set (Name : Token, Value : Any);
+    begin
+        Fields.Put (Name.Lexeme, Value);
+    end
+
+    /// To String
+    ///
+    function ToString () : String;
+    begin
+        Exit Klass.Name + ' instance';
+    end
+end
+
+/// The single instance of an 'object' declaration.
+///
+/// Declaring 'object Console;' binds Console to one of these, so the NAME is
+/// the instance -- 'Console.WriteLn(...)' rather than a lookup through a
+/// registry.
+///
+/// ⚠️ Creation is deferred to the first property or method access, so an
+/// object may refer to another declared LATER in the file.  Every access after
+/// that reaches the same instance, which is what makes mutation stick.
+///
+/// A subclass of ObjInstance rather than a peer, so that every place asking
+/// "is this an instance" keeps working -- which is why those places test with
+/// 'is' and not against a class name.
+///
+class ObjSingleton (ObjInstance);
+var
+    TheInterpreter : Any;
+
+    /// Nil until first use.
+    TheInstance : ObjInstance := Nil;
+
+begin
+    constructor Init (Klass : ObjClass, TheInterpreter : Any);
+    begin
+        this.Klass := Klass;
+        this.Fields := Map();
+        this.TheInterpreter := TheInterpreter;
+    end
+
+    function Instance () : ObjInstance;
+    begin
+        if TheInstance = Nil then
+            TheInstance := Klass.Call (TheInterpreter, List()) as ObjInstance;
+
+        Exit TheInstance;
+    end
+
+    function Get (Name : Token) : Any;
+    begin
+        Exit Instance().Get (Name);
+    end
+
+    procedure Set (Name : Token, Value : Any);
+    begin
+        Instance().Set (Name, Value);
+    end
+
+    /// Printed as its own name -- 'Console', not 'Console instance'.  What you
+    /// are holding is the object itself, not one of many.
+    function ToString () : String;
+    begin
+        Exit Klass.Name;
+    end
+end

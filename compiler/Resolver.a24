@@ -1,0 +1,1123 @@
+uses Expr;
+uses Interpreter;
+uses Parser;
+uses Scanner;
+uses Stmt;
+uses Token;
+
+/// Function Type!!!
+///
+type FunctionType = (FUN_NONE, FUN_FUNCTION, FUN_METHOD, FUN_INITIALIZER);
+
+/// Class Type!!!
+type ClassType = (CLASS_NONE, CLASS_CLASS, CLASS_SUBCLASS);
+
+/// Resolver.  Semantic analysis pass to resolve and bind variables for use in the Interpreter.
+///
+class Resolver;
+var
+   TheInterpreter  : Interpreter;
+   Scopes          : Stack;
+
+   /// Whether each declared name is constant, pushed and popped in lockstep
+   /// with Scopes, plus a map for the ones declared at the top level.
+   ///
+   /// ⚠️ EVERY name is recorded, not only the constant ones, so that an inner
+   /// 'var' shadowing an outer 'const' is still assignable.  Recording only
+   /// the constants would leave the inner name unmentioned and the search
+   /// would walk out to the outer one and refuse.
+   Constants       : Stack;
+   GlobalConstants : Map;
+
+   CurrentFunction : FunctionType;
+   CurrentClass    : ClassType;
+
+   /// The units this file may qualify against.  'System' is in every file's --
+   /// it is the built-ins, and no file imports it.  A 'uses' adds the file it
+   /// named, and only to the importer: the set is saved and replaced around a
+   /// module's own statements, which is what keeps qualification as
+   /// non-transitive as the import it follows.
+   Units    : Set;
+
+   /// Every top-level name that could answer a dot, program-wide: an object, an
+   /// enum type, a file-scope var or const.  These OUTRANK a unit of the same
+   /// name, because they mean something today and a unit qualifier would
+   /// silently take it over.
+   ///
+   /// ⚠️ Classes and functions are deliberately absent.  Neither can answer a
+   /// dot -- 'Thing.Get()' on a bare class is 'Only instances have properties.'
+   /// in every version of this language -- so the syntactic slot is free, and
+   /// that is what lets 'Scanner.ScanTokens()' work in a file whose unit and
+   /// primary class share the name.  Eighteen of algc's twenty-two units are
+   /// exactly that shape.
+   Dottable : Set;
+
+   /// Set once the pre-pass has run, since ResolveAll is both the entry point
+   /// and the recursive step.
+   Collected : Boolean := False;
+
+begin
+    /// Creates a Resolver.
+    //
+    constructor Init(TheInterpreter : Interpreter);
+    begin
+        this.TheInterpreter := TheInterpreter;
+        this.Scopes := Stack();
+        this.Constants := Stack();
+        this.GlobalConstants := Map();
+        this.CurrentFunction := FUN_NONE;
+        this.CurrentClass := CLASS_NONE;
+        this.Units := Set();
+        this.Units.Add ('System');
+        this.Dottable := Set();
+    end
+
+    /// Fills Dottable before anything is resolved.  A pre-pass rather than a
+    /// running tally, for the reason CEmitter collects its globals up front: a
+    /// function declared above an object still reaches it, so a set filled in
+    /// resolution order would let a unit win where the object should.
+    ///
+    /// Program-wide rather than per file, which over-approximates across module
+    /// boundaries -- an 'object Console' in one file stops another file
+    /// qualifying its own unit of that name.  That direction is the safe one: it
+    /// only ever declines to qualify, and never changes what a name already
+    /// meant.
+    ///
+    procedure CollectDottable (Statements : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is ObjectStmt then Dottable.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is EnumStmt   then Dottable.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is VarStmt    then Dottable.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    Dottable.Add (Str (TheStmt.Names[J].Lexeme));
+
+            if TheStmt is ModuleStmt and TheStmt.Statements <> Nil then
+                CollectDottable (TheStmt.Statements);
+        end
+    end
+
+    /// Whether the left of a dot names a unit rather than a value.
+    ///
+    /// The order is the whole rule, and it is the same order every other name in
+    /// this language follows -- nearest binding first, the outermost thing last:
+    ///
+    ///   1. a local or a parameter, which shadows everything;
+    ///   2. a top-level name that can answer a dot (Dottable);
+    ///   3. a unit.
+    ///
+    /// Steps 1 and 2 together are "current semantics", so nothing that works
+    /// today changes meaning.  Step 3 only ever claims a slot that was an error
+    /// before.
+    ///
+    function IsUnitQualifier (Obj : Any) : Boolean;
+    begin
+        if not (Obj is VariableExpr) then Exit False;
+
+        var Name := Str (Obj.Name.Lexeme);
+
+        if not Units.Contains (Name)  then Exit False;
+        if Dottable.Contains (Name)   then Exit False;
+
+        for var I := Scopes.Length - 1; I >= 0; I := I - 1 do
+            if Scopes[I].Contains (Name) then Exit False;
+
+        Exit True;
+    end
+
+    // A block statement introduces a new scope for the statements it contains.
+    //
+    procedure VisitBlockStmt (Stmt : BlockStmt);
+    begin
+        BeginScope();
+        ResolveAll(Stmt.Statements);
+        EndScope();
+    end
+
+    // Defines and declares the name of the class.
+    //
+    // # Errors
+    //
+    // Raises an error if attempting to inherit from itself.
+    //
+    procedure VisitClassStmt (Stmt : ClassStmt);
+    var
+        EnclosingClass : ClassType;
+
+    begin
+        EnclosingClass := CurrentClass;
+        CurrentClass := CLASS_CLASS;
+
+        Declare (Stmt.Name);
+        Define (Stmt.Name);
+
+        if Stmt.Superclass <> Nil and Stmt.Name.Lexeme = Stmt.Superclass.Name.Lexeme then
+        begin
+            raise 'A class can''t inherit from itself.';
+        end
+
+        if Stmt.Superclass <> Nil then
+        begin
+            CurrentClass := CLASS_SUBCLASS;
+            Resolve (Stmt.Superclass);
+        end
+
+        if Stmt.Superclass <> Nil then
+        begin
+           BeginScope();
+           Scopes.Peek().Put('super', True);
+        end
+
+        BeginScope();
+        Scopes.Peek().Put ('this', true);
+
+        for var I := 0; I < Stmt.Methods.Length; I := I + 1 do
+        begin
+            var Declaration := FUN_FUNCTION;
+            if Stmt.Methods[I].Name.Lexeme = 'Init' then
+            begin
+                Declaration := FUN_INITIALIZER;
+            end
+            ResolveFunction (Stmt.Methods[I], Declaration);
+        end
+
+        EndScope();
+        
+        if Stmt.Superclass <> Nil then EndScope();
+
+        CurrentClass := EnclosingClass;
+    end
+
+    // An enum binds its type name and every member in the current scope.
+    //
+    /// Identical to a class, and it has to be: without this, 'super' and
+    /// 'this' inside an object body never get a scope depth and reading either
+    /// fails at run time.
+    ///
+    procedure VisitObjectStmt (Stmt : ObjectStmt);
+    begin
+        VisitClassStmt (ClassStmt (Stmt.Name, Stmt.Superclass, Stmt.Methods, Stmt.Fields));
+    end
+
+    procedure VisitEnumStmt (Stmt : EnumStmt);
+    begin
+        Declare (Stmt.Name);
+        Define (Stmt.Name);
+
+        for var I := 0; I < Stmt.Members.Length; I := I + 1 do
+        begin
+            Declare (Stmt.Members[I]);
+            Define (Stmt.Members[I]);
+        end
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitExpressionStmt (Stmt : ExpressionStmt);
+    begin
+        Resolve (Stmt.Expression);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitIfStmt (Stmt : IfStmt);
+    begin
+        Resolve (Stmt.Condition);
+        Resolve (Stmt.ThenBranch);
+        if (Stmt.ElseBranch <> Nil) then Resolve (Stmt.ElseBranch);
+    end
+
+    // Traverses tree.
+    //
+    /// ⚠️ No scope is pushed for a handler.
+    ///
+    /// The handler's variable is bound at run time into whatever environment
+    /// is current.  A scope here would resolve names inside the handler at a
+    /// depth the interpreter never creates, sending every one of them a level
+    /// too shallow.
+    ///
+    procedure VisitTryStmt (Stmt : TryStmt);
+    var
+        Keys : List;
+
+    begin
+        Resolve (Stmt.TryBlock);
+
+        Keys := Stmt.Handlers.Keys();
+        for var I := 0; I < Keys.Length; I := I + 1 do
+            Resolve (Stmt.Handlers.Get (Keys[I]).Body);
+    end
+
+    /// ⚠️ NO scope is pushed for a module.
+    ///
+    /// A module's top-level declarations resolve as globals exactly as they
+    /// would have without 'uses', and the separation is made at RUN time by
+    /// the environment.  Pushing a scope here would resolve them as locals at
+    /// a depth the interpreter never creates.
+    ///
+    procedure VisitModuleStmt (Stmt : ModuleStmt);
+    var
+        Enclosing : Set;
+
+    begin
+        // Nil when another file loaded it first; resolved there.  The NAME still
+        // becomes qualifiable here -- an import is a link, and the second
+        // importer gets the same sight of it as the first.
+        if Stmt.Statements = Nil then
+        begin
+            Units.Add (Str (Stmt.UnitName));
+            Exit;
+        end
+
+        // ⚠️ The module's own statements see the module's OWN units, not the
+        // importer's.  Saving and replacing the set is what makes qualification
+        // exactly as non-transitive as the 'uses' it follows: a file that
+        // imported Scanner does not thereby let Scanner's importers write
+        // 'Token.X' because Scanner happened to import Token.
+        Enclosing := Units;
+        Units := Set();
+        Units.Add ('System');
+
+        ResolveAll (Stmt.Statements);
+
+        Units := Enclosing;
+        Units.Add (Str (Stmt.UnitName));
+    end
+
+    /// Nothing to resolve: 'break' names nothing and reads nothing.
+    ///
+    /// ⚠️ The collection is resolved BEFORE the loop variable exists, because
+    /// it is evaluated outside the loop -- so 'for var X in X do' refers to
+    /// the outer X, as it should.
+    ///
+    procedure VisitForInStmt (Stmt : ForInStmt);
+    begin
+        Resolve (Stmt.Iterable);
+
+        BeginScope ();
+        Declare (Stmt.Name);
+        Define (Stmt.Name);
+        Resolve (Stmt.Body);
+        EndScope ();
+    end
+
+    procedure VisitBreakStmt (Stmt : BreakStmt);
+    begin
+    end
+
+    procedure VisitRaiseStmt (Stmt : RaiseStmt);
+    begin
+        Resolve (Stmt.Value);
+    end
+
+    procedure VisitPrintStmt (Stmt : PrintStmt);
+    begin
+        Resolve (Stmt.Expression);
+    end
+
+    /// Runs a return statement
+    ///
+    /// # Errors
+    ///
+    /// Raises an error if at top level.
+    ///
+    procedure VisitReturnStmt (Stmt : ReturnStmt);
+    begin
+        if CurrentFunction = FUN_NONE then
+        begin
+            raise 'Can''t return from top-level code.';
+        end
+
+        if (Stmt.Value <> Nil) then 
+        begin
+            if CurrentFunction = FUN_INITIALIZER then
+            begin
+                raise 'Can''t return a value from an initializer.';
+            end
+
+            Resolve (Stmt.Value);
+        end
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitWhileStmt (Stmt : WhileStmt);
+    begin
+        Resolve (Stmt.Condition);
+        Resolve (Stmt.Body);
+    end
+
+    // A function declaration introduces a new scope for its body, and binds its parameters to that scope.  Binds its name early
+    // to enable recursion.
+    //  
+    procedure VisitFunctionStmt (Stmt : FunctionStmt);
+    begin
+        Declare (Stmt.Name);
+        Define (Stmt.Name);
+
+        ResolveFunction (Stmt, FUN_FUNCTION);
+    end
+
+    // A variable declaration adds a new variable to the current scope.
+    //
+    procedure VisitVarStmt (Stmt : VarStmt);
+    begin
+        DeclareBinding (Stmt.Name, Stmt.IsConstant);
+        if (Stmt.Initializer <> Nil) then
+        begin
+            Resolve (Stmt.Initializer);
+        end
+        Define (Stmt.Name);
+    end
+
+    /// ⚠️ Every name is declared BEFORE the initializer is resolved, so
+    /// referring to one of them inside it is caught -- the same rule a single
+    /// var gets, and for the same reason.
+    ///
+    procedure VisitVarGroupStmt (Stmt : VarGroupStmt);
+    begin
+        for var I := 0; I < Stmt.Names.Length; I := I + 1 do
+            DeclareBinding (Stmt.Names[I], Stmt.IsConstant);
+
+        if Stmt.Initializer <> Nil then Resolve (Stmt.Initializer);
+
+        for var I := 0; I < Stmt.Names.Length; I := I + 1 do
+            Define (Stmt.Names[I]);
+    end
+
+    // Assignment expressions need to have their variables resolved.
+    //
+    /// ⚠️ Only the BINDING is fixed.  'const L := List(); L.Add(X);' is fine,
+    /// and so is assigning to a field or a subscript of a constant -- what is
+    /// refused is rebinding the name itself.
+    ///
+    procedure VisitAssignExpr (TheExpr : AssignExpr);
+    begin
+        if IsConstant (TheExpr.Name) then
+            raise 'Can''t assign to constant ''' + TheExpr.Name.Lexeme + '''.';
+
+        Resolve (TheExpr.Value);
+        ResolveLocal (TheExpr, TheExpr.Name);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitBinary (TheExpr : BinaryExpr);
+    begin
+        Resolve (TheExpr.Left);
+        Resolve (TheExpr.Right);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitLogical (TheExpr : LogicalExpr);
+    begin
+        Resolve (TheExpr.Left);
+        Resolve (TheExpr.Right);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitUnary (TheExpr : UnaryExpr);
+    begin
+        Resolve (TheExpr.Right);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitCall (TheExpr : CallExpr);
+    begin
+        Resolve (TheExpr.Callee);
+        for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+        begin
+            Resolve(TheExpr.Arguments[I]);
+        end
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitGetExpr (TheExpr : GetExpr);
+    begin
+        if IsUnitQualifier (TheExpr.Obj) then
+        begin
+            TheExpr.Unit := Str (TheExpr.Obj.Name.Lexeme);
+
+            // Deliberately NOT resolving TheExpr.Obj: a unit is not a value and
+            // has no scope depth.  Resolving it would look up a variable that
+            // was never declared.
+            Exit;
+        end
+
+        Resolve(TheExpr.Obj);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitSetExpr (TheExpr : SetExpr);
+    begin
+        if IsUnitQualifier (TheExpr.Obj) then
+        begin
+            TheExpr.Unit := Str (TheExpr.Obj.Name.Lexeme);
+            Resolve(TheExpr.Value);
+            Exit;
+        end
+
+        Resolve(TheExpr.Value);
+        Resolve(TheExpr.Obj);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitSuperExpr (TheExpr : SuperExpr);
+    begin
+        // ⚠️ 'no superclass', not 'no subclass', which is what this said.  The
+        // check is for a class that has no PARENT to reach through 'super', so
+        // the old wording named the opposite relationship -- wrong rather than
+        // merely differently phrased, and it survived because no gate compares
+        // a Resolver message.
+        if CurrentClass = CLASS_NONE then
+           raise 'Can''t use ''super'' outside a class.';
+        else if CurrentClass <> CLASS_SUBCLASS then
+           raise 'Can''t use ''super'' in a class with no superclass.';
+
+        ResolveLocal(TheExpr, TheExpr.Keyword);
+    end
+
+    // Resolves ''this''.
+    //
+    // # Errors
+    //
+    // Raises an error if invoking ''this'' outside of a class.
+    //
+    procedure VisitThisExpr (TheExpr : ThisExpr);
+    begin
+        if CurrentClass = CLASS_NONE then
+        begin
+            raise 'Can''t use ''this'' outside a class.';
+        end
+
+        ResolveLocal (TheExpr, TheExpr.Keyword);
+    end
+
+    // Traverses tree.
+    //
+    /// Only the left side is resolved.  The right is a type name, not a
+    /// variable, so resolving it would look for a local called 'Dog'.
+    ///
+    procedure VisitIsExpr (TheExpr : IsExpr);
+    begin
+        Resolve (TheExpr.Obj);
+    end
+
+    procedure VisitGrouping (TheExpr : GroupingExpr);
+    begin
+        Resolve (TheExpr.Expression);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitSubscriptExpr (TheExpr : SubscriptExpr);
+    begin
+        Resolve (TheExpr.Obj);
+        Resolve (TheExpr.Index);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitSetSubscriptExpr (TheExpr : SetSubscriptExpr);
+    begin
+        Resolve (TheExpr.Obj);
+        Resolve (TheExpr.Index);
+        Resolve (TheExpr.Value);
+    end
+
+    // Traverses tree.  Every element is an expression and may name a variable.
+    //
+    procedure VisitCollectionExpr (TheExpr : CollectionExpr);
+    begin
+        for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
+            Resolve (TheExpr.Keys[I]);
+
+        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+            Resolve (TheExpr.Values[I]);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitLiteral (TheExpr : LiteralExpr);
+    begin
+    end
+
+    // Variable expressions need to have their variables resolved.
+    //
+    // # Errors
+    // 
+    // Raises an error if attmepting to initialize variable with itself.
+    //
+    function VisitVariableExpr (TheExpr : VariableExpr);
+    begin
+        if Not Scopes.IsEmpty and Scopes.Peek().Get(TheExpr.Name.Lexeme) = False then
+        begin
+           raise 'Can''t read local variable in its own initializer.';
+        end
+
+        ResolveLocal (TheExpr, TheExpr.Name);
+    end
+
+    /// Resolves a list of statements.
+    ///
+    /// Refuses two top-level declarations of one name in one file.
+    ///
+    /// ⚠️ Here rather than in the Interpreter, and that is the whole point: the
+    /// Interpreter refuses it too, but '--compile' does not run the Interpreter.
+    /// So a duplicate emitted happily and died at cc with 'redefinition of f_G'
+    /// -- a compiler emitting a program it cannot build.  The Resolver runs in
+    /// BOTH modes, which is what makes one check enough.
+    ///
+    /// ⚠️ Per FILE, not per program.  Two modules declaring one name is a
+    /// different question with a different answer -- exported, it is refused as
+    /// a clash; private, it is renamed.
+    ///
+    /// Top-level functions do not overload, so there is no kind of duplicate
+    /// this should permit.
+    ///
+    procedure CheckDuplicates (Statements : List);
+    var
+        Seen : Set;
+
+    begin
+        Seen := Set();
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is ModuleStmt then
+            begin
+                if TheStmt.Statements <> Nil then CheckDuplicates (TheStmt.Statements);
+            end
+            else
+            begin
+                var TheName := '';
+
+                // ⚠️ Test blocks included, and they must be.  A test's name
+                // token is the STRING LITERAL, so its lexeme is quoted and can
+                // never collide with an identifier -- but two tests of one name
+                // collide with each other, and the runner keys by lexeme, so the
+                // second silently replaced the first.  Excluding them left
+                // '--test' refusing a duplicate while '--compile --test' emitted
+                // it and ran both.
+                if TheStmt is FunctionStmt then TheName := Str (TheStmt.Name.Lexeme);
+
+                if TheStmt is ClassStmt  then TheName := Str (TheStmt.Name.Lexeme);
+                if TheStmt is ObjectStmt then TheName := Str (TheStmt.Name.Lexeme);
+                if TheStmt is VarStmt    then TheName := Str (TheStmt.Name.Lexeme);
+
+                if TheStmt is EnumStmt then
+                begin
+                    for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                    begin
+                        var Member := Str (TheStmt.Members[J].Lexeme);
+
+                        if Seen.Contains (Member) then
+                            raise '''' + Member + ''' is already defined.';
+
+                        Seen.Add (Member);
+                    end
+
+                    TheName := Str (TheStmt.Name.Lexeme);
+                end
+
+                if TheStmt is VarGroupStmt then
+                    for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    begin
+                        var Each := Str (TheStmt.Names[J].Lexeme);
+
+                        if Seen.Contains (Each) then
+                            raise '''' + Each + ''' is already defined.';
+
+                        Seen.Add (Each);
+                    end
+
+                if TheName <> '' then
+                begin
+                    if Seen.Contains (TheName) then
+                        raise '''' + TheName + ''' is already defined.';
+
+                    Seen.Add (TheName);
+                end
+            end
+        end
+    end
+
+    procedure ResolveAll (Statements : List);
+    begin
+        if not Collected then
+        begin
+            Collected := True;
+            CollectDottable (Statements);
+            CheckDuplicates (Statements);
+        end
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            Resolve(Statements[I]);
+        end
+    end
+
+    // Resolves statements and expressions.
+    //
+    procedure Resolve (TheExpr : Any);
+    begin
+        TheExpr.Accept (this);
+    end
+
+    // A function declaration introduces a new scope for its body, and binds its parameters to that scope.
+    //
+    procedure ResolveFunction (TheFunction : FunctionStmt, TypeOfFunction : FunctionType);
+    var
+       EnclosingFunction : FunctionType;
+
+    begin
+        EnclosingFunction := CurrentFunction;
+        CurrentFunction := TypeOfFunction as FunctionType;
+
+        BeginScope ();
+        for var I := 0; I < TheFunction.Params.Length; I := I + 1 do
+        begin
+            var Param  := TheFunction.Params[I];
+            Declare (Param);
+            Define (Param);
+        end
+        ResolveAll (TheFunction.Body);
+        EndScope();
+
+        CurrentFunction := EnclosingFunction;
+    end
+
+    // Begins a new scope.
+    //
+    procedure BeginScope ();
+    begin
+        Scopes.Push (Map());
+        Constants.Push (Map());
+    end
+
+    // Ends the current scope.
+    //
+    procedure EndScope ();
+    begin
+        Scopes.Pop ();
+        Constants.Pop ();
+    end
+
+    // Declares a variable.
+    //
+    // # Exception
+    //
+    // Raises an error if variable already exists in scope.
+    //
+    procedure Declare (Name : Token);
+    begin
+        DeclareBinding (Name, False);
+    end
+
+    /// Records a declaration, remembering whether the binding is fixed.
+    ///
+    procedure DeclareBinding (Name : Token, IsConstant : Boolean);
+    var
+       Scope : Map;
+
+    begin
+        if Scopes.IsEmpty then
+        begin
+            GlobalConstants.Put (Str (Name.Lexeme), IsConstant);
+            Exit;
+        end
+
+        Scope := Scopes.Peek() as Map;
+        if Scope.Contains (Name.Lexeme) then 
+        begin
+           raise 'Already a variable with this name in this scope.';
+        end
+
+        Scope.Put (Name.Lexeme, False);
+        Constants.Peek().Put (Str (Name.Lexeme), IsConstant);
+    end
+
+    /// Whether this name was declared constant, innermost scope first.
+    ///
+    function IsConstant (Name : Token) : Boolean;
+    var
+        Lexeme : String;
+
+    begin
+        Lexeme := Str (Name.Lexeme);
+
+        for var I := Constants.Length - 1; I >= 0; I := I - 1 do
+            if Constants[I].Contains (Lexeme) then Exit Constants[I].Get (Lexeme);
+
+        if GlobalConstants.Contains (Lexeme) then Exit GlobalConstants.Get (Lexeme);
+
+        Exit False;
+    end
+
+    // Defines a variable.
+    //
+    procedure Define (Name : Token);
+    var
+       Scope : Map;
+
+    begin
+        if Scopes.IsEmpty then Exit;
+        
+        Scope := Scopes.Peek() as Map;
+        Scope.Put (Name.Lexeme, True);
+    end
+    
+    procedure ResolveLocal (TheExpr : Expr, Name : Token);
+    begin
+        for var I : Integer := Scopes.Length - 1; I >= 0; I := I - 1 do
+        begin
+            if Scopes[I].Contains (Name.Lexeme) then
+            begin
+                TheInterpreter.Resolve (TheExpr, Scopes.Length - 1 - I);
+                Exit;
+            end
+        end
+    end
+end
+
+// Resolver should have zero hops if defined and used in same scope.
+//
+test 'Resolve Same Level';
+begin
+    var TheScanner := Scanner ('var test := true; print test;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    var Result := TheInterpreter.Locals.Get (Statements[1].Expression);
+    AssertTrue (Result = Nil);
+end
+
+
+// Resolver should have zero hops if defined and used in same scope.  Trying it two levels deep.
+//
+test 'Resolve Same Level Two Deep';
+begin
+    var TheScanner := Scanner (' begin var test := true; print test; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    // FIXME
+    //var Key : VariableExpr := Statements[0].Statements[1].Expression;
+
+    var Result := TheInterpreter.Locals.Get (Statements[0].Statements[1].Expression);
+    AssertEqual (0, Result);
+end
+
+// Usage of variable in nested scope should have one hop.
+//
+test 'Resolve One Hop';
+begin
+    var TheScanner := Scanner (' begin var test := true; begin print test; end end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    var Result := TheInterpreter.Locals.Get (Statements[0].Statements[1].Statements[0].Expression);
+    AssertEqual (1, Result);
+end
+
+// Testing two hops.
+//
+test 'Resolve Two Hops';
+begin
+    var TheScanner := Scanner (' begin var test := true; begin begin print test; end end end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    var Result := TheInterpreter.Locals.Get (Statements[0].Statements[1].Statements[0].Statements[0].Expression);
+    AssertEqual (2, Result);
+end
+
+// Testing assignment resolves locals.
+//
+test 'Resolve Assignment';
+begin
+    var TheScanner := Scanner (' begin var test := true; begin test := false; end end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    var Result := TheInterpreter.Locals.Get (Statements[0].Statements[1].Statements[0].Expression);
+    AssertEqual (1, Result);
+end
+
+// Testing logical resolves locals.
+//
+test 'Resolve Logical';
+begin
+    var TheScanner := Scanner (' begin var test := true; begin test := false or true; end end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    var Result := TheInterpreter.Locals.Get (Statements[0].Statements[1].Statements[0].Expression);
+    AssertEqual (1, Result);
+end
+
+
+// Testing unary resolves locals.
+//
+test 'Resolve Unary';
+begin
+    var TheScanner := Scanner (' begin var test := true; var test2 := not test; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+end
+
+
+// Testing binary resolves locals.
+//
+test 'Resolve Binary';
+begin
+    var TheScanner := Scanner (' begin var test := true; begin test := 1 > 2; end end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    var Result := TheInterpreter.Locals.Get (Statements[0].Statements[1].Statements[0].Expression);
+    AssertEqual (1, Result);
+end
+
+
+// Testing grouping resolves locals.
+//
+test 'Resolve Grouping';
+begin
+    var TheScanner := Scanner (' begin var test := true; var test2 := (test); end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+end
+
+
+// Tests resolving function and call.
+//
+test 'Resolve Function and Call';
+begin
+    var TheScanner := Scanner ('
+ begin
+ function abc(a, b, c); begin
+ test := 1 > 2;
+ end
+ abc(1, 2, 3);
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    AssertEqual('[VariableExpr instance:0]', Str(TheInterpreter.Locals));
+end
+
+// Tests resolving if statements
+//
+test 'Resolve If';
+begin
+    var TheScanner := Scanner ('
+ begin
+ var test := 1;
+ if test = 1 then begin
+ test := 2;
+ end
+ else begin
+ test := 3;
+ end
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    //AssertEqual('{AssignExpr instance=1, VariableExpr instance=0, AssignExpr instance=1}', Str(TheInterpreter.Locals));
+end
+
+// Tests resolving while statements
+//
+test 'Resolve While';
+begin
+    var TheScanner := Scanner ('
+ begin
+ var test := 1;
+
+ while test < 10 do begin
+ test := test + 1;
+ end
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    //AssertEqual('{VariableExpr instance=1, AssignExpr instance=1, VariableExpr instance=0}', Str(TheInterpreter.Locals));
+end
+
+
+// The resolver should report an error to Lox if a local variable is used in its own initializer.
+//
+test 'Resolve Local Variable Is Own Initializer';
+begin
+    var TheScanner := Scanner (' begin begin var test := test; end end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+
+    try    
+        TheResolver.ResolveAll(Statements);
+    except
+       on e : String do
+            begin
+               AssertEqual('Can''t read local variable in its own initializer.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// The resolver should report an error to Lox if a local variable is declared twice in same scope.
+//
+test 'Resolve Duplicate Variable';
+begin
+    var TheScanner := Scanner ('
+ function bad(); begin
+ var a := ''first'';
+ var a := ''second'';
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+
+    try    
+        TheResolver.ResolveAll(Statements);
+    except
+       on e : String do
+            begin
+               AssertEqual('Already a variable with this name in this scope.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// The resolver should report an error to Lox if a return value is not in a function block.
+//
+test 'Invalid Return';
+begin
+    var TheScanner := Scanner ('
+ Exit ''not at top level'';
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+
+    try    
+        TheResolver.ResolveAll(Statements);
+    except
+       on e : String do
+            begin
+               AssertEqual('Can''t return from top-level code.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+ 
+// The resolver should report an error to Lox if a class tries to inherit from itself.
+//
+test 'Inherit From Self';
+begin
+    var TheScanner := Scanner ('class Pie(Pie); begin end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+
+    try    
+        TheResolver.ResolveAll(Statements);
+    except
+       on e : String do
+            begin
+               AssertEqual('A class can''t inherit from itself.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end

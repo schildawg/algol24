@@ -1,0 +1,139 @@
+uses ObjFunction;
+uses ObjInstance;
+
+/// ObjClass
+///
+class ObjClass;
+var
+    Name       : String;
+    Methods    : Map;
+    Superclass : ObjClass;
+
+    /// Declared field names, in the order written.  Seeded onto every instance
+    /// so a field a class declares exists before anything assigns to it.
+    Fields     : List;
+
+begin
+    /// Creates a new instance.
+    ///
+    constructor Init (Name : String, Superclass : ObjClass, Methods : Map, Fields : List);
+    begin
+       this.Name := Name;
+       this.Methods := Methods;
+       this.Superclass := Superclass;
+       this.Fields := Fields;
+    end
+
+    /// Finds a method by name alone, for property access -- 'X.M' has no
+    /// arguments yet, so the first of that name is handed back and the call
+    /// site re-selects once it knows them.
+    ///
+    function FindMethod (Name : String) : ObjFunction;
+    begin
+        if Methods.Contains (Name) then
+        begin
+            var Found := Methods.Get (Name);
+            if Found.Length > 0 then Exit Found[0] as ObjFunction;
+        end
+
+        if Superclass <> Nil then
+        begin
+            Exit Superclass.FindMethod(Name);
+        end
+    end
+
+    /// Finds the overload of this name that these arguments fit.
+    ///
+    /// ⚠️ A failed match must fall through to the superclass rather than
+    /// return.  Returning would let a class declaring Take(String) hide an
+    /// inherited Take(Integer) entirely, which overloading across a hierarchy
+    /// has to allow.
+    ///
+    function FindOverload (Name : String, Arguments : List) : ObjFunction;
+    begin
+        if Methods.Contains (Name) then
+        begin
+            var Candidates := Methods.Get (Name);
+
+            for var I := 0; I < Candidates.Length; I := I + 1 do
+                if Candidates[I].Fits (Arguments) then Exit Candidates[I] as ObjFunction;
+        end
+
+        if Superclass <> Nil then Exit Superclass.FindOverload (Name, Arguments);
+    end
+
+    /// Puts every declared field on an instance, walking up the chain so a
+    /// parent's fields are seeded before the child's.
+    ///
+    /// ⚠️ An initializer is evaluated HERE, once per instance, which is the
+    /// whole reason it cannot be done where the class is declared.  It used to
+    /// be dropped entirely -- only the names were kept -- so 'var Count :
+    /// Integer := 7;' in a class header gave nil rather than 7, and every
+    /// field started nil however it was written.
+    ///
+    /// A field with no initializer still starts as nil, so reading one before
+    /// a constructor assigns it gives nil rather than 'Undefined property'.
+    ///
+    procedure SeedFields (Instance : ObjInstance, TheInterpreter : Any);
+    begin
+        if Superclass <> Nil then Superclass.SeedFields (Instance, TheInterpreter);
+
+        for var I := 0; I < Fields.Length; I := I + 1 do
+        begin
+            var Field := Fields[I];
+            var Value := Nil;
+
+            if Field.Initializer <> Nil then
+                Value := TheInterpreter.Evaluate (Field.Initializer);
+
+            Instance.Fields.Put (Str (Field.Name.Lexeme), Value);
+        end
+    end
+
+    /// Number of parameters in function signature.
+    ///
+    function Arity () : Integer;
+    var
+       Initializer : ObjFunction;
+
+    begin
+        Initializer := FindMethod('Init');
+        if Initializer = Nil then Exit 0;
+
+        Exit Initializer.Arity() as Integer;
+    end
+
+    /// To String
+    ///
+    function ToString () : String;
+    begin
+        Exit Name;
+    end
+
+    /// Creates an instance of the class.
+    ///
+    function Call (TheInterpreter, Arguments) : Any;
+    var
+       Instance    : ObjInstance;
+       Initializer : ObjFunction;
+
+    begin
+        Instance := ObjInstance (this) as ObjInstance;
+
+        // A declared field exists from the start, so reading one before the
+        // constructor assigns it gives nil rather than 'Undefined property'.
+        // Inherited fields first, so a subclass sees its parent's.
+        SeedFields (Instance, TheInterpreter);
+
+        // A constructor overloads like any other method.
+        Initializer := FindOverload('Init', Arguments);
+        if Initializer = Nil then Initializer := FindMethod('Init');
+
+        if Initializer <> Nil then
+        begin
+            Initializer.Bind(Instance).Call(TheInterpreter, Arguments);
+        end
+
+        Exit Instance;     
+    end  
+end

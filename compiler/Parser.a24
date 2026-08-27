@@ -1,0 +1,3209 @@
+uses Console;
+uses Expr;
+uses Interpreter;
+uses Scanner;
+uses Stmt;
+uses Token;
+uses TokenType;
+
+/// Parses a list of tokens, creating a list of statements.
+///
+/// # Example
+/// 
+/// var TheScanner:= Scanner ('3.14');
+/// var TheParser := Parser (TheScanner.ScanTokens());
+///
+/// var Result := TheParser.Primary();
+///
+/// AssertEqual(3.14, Result.Value);
+/// 
+/// Reads a whole file.
+///
+/// Here rather than in Main.a24 because the Parser is the thing that loads a
+/// module, and Main is loaded after it -- a function there would not be in
+/// scope.  ReadLn drops the terminator, so the lines are rejoined with #10,
+/// which is what the language says a line ends with and what the scanner
+/// counts.
+///
+function ReadWholeFile (Name : String) : String;
+begin
+    var F := TextFile();
+    F.Assign (Name);
+    F.Reset();
+
+    // ⚠️ A Buffer, not 'Result := Result + Line'.  That copies the whole file
+    // so far on every line, so reading an n-byte source costs n^2/2 bytes of
+    // memory that is never reclaimed -- and this compiler's own largest source
+    // is 113 KB.
+    var Result := Buffer();
+
+    while not F.Eof do
+    begin
+        Result.Append (F.ReadLn());
+        Result.Append (#10);
+    end
+
+    F.Close();
+    Exit Result.Text;
+end
+
+class Parser;
+var 
+   Tokens :  List of Token;
+   Current : Integer;
+
+   /// The file these tokens came from, so a 'uses' clause can look for its
+   /// module beside the importer before falling back to the working directory.
+   /// '' when the source did not come from a file.
+   FileName : String := '';
+
+   /// Every module file already loaded, keyed by resolved path.  SHARED with
+   /// the parsers of the files this one imports -- which is what makes a
+   /// diamond load once and stops a cycle from recursing forever.
+   Loaded : Map := [:];
+
+   /// Names marked 'private' in this file.
+   PrivateNames : List := [];
+
+   /// Whether a 'private:' marker is currently in force, and the names it has
+   /// covered in the class being parsed.
+   ///
+   /// ⚠️ Parser state rather than a parameter, because a marker's reach is
+   /// lexical and crosses the helpers that read declarations -- a var section
+   /// may begin public and turn private halfway down.
+   InPrivateSection : Boolean := False;
+   ClassPrivates    : List := [];
+
+   /// How many loops enclose the statement being parsed, so 'break' outside
+   /// one can be rejected where it is written rather than at run time.
+   ///
+   /// ⚠️ Not reset when a function body is entered.  A 'break' inside a
+   /// function declared inside a loop is therefore accepted, and would escape
+   /// the call at run time.  Odd, and deliberate.
+   LoopDepth : Integer := 0;
+
+begin
+    /// Creates a new Parser.
+    ///
+    constructor Init(Tokens : List);
+    begin
+       this.Tokens := Tokens;
+       this.Current := 0;
+    end
+
+    /// Parses a list of statements.
+    ///
+    /// Consumes an optional 'unit Name;' header and checks it against the file.
+    ///
+    /// It declares nothing and produces no statement: a unit is named by its
+    /// FILE, here as in Turbo Pascal, and the header only writes that name down
+    /// where a reader can see it.  What it buys is the check -- a file renamed
+    /// without its header, or a header copied between files, is caught here
+    /// instead of turning into a qualified name that silently reaches the wrong
+    /// unit.
+    ///
+    /// ⚠️ 'unit' is CONTEXT-SENSITIVE, matched as an identifier the way 'test'
+    /// is, and not added to the keyword table.  Keyword lookup is
+    /// case-insensitive, so promoting a common word makes every existing
+    /// identifier spelled that way a parse error -- which is what happened when
+    /// 'object' became one and cost 252 of them in a single file.
+    ///
+    procedure UnitHeader ();
+    begin
+        if not Check (TOKEN_IDENTIFIER)                  then Exit;
+        if Peek().Lexeme <> 'unit'                       then Exit;
+        if PeekNext().TypeOfToken <> TOKEN_IDENTIFIER    then Exit;
+
+        Advance();
+        var Name := Advance();
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after unit name.');
+
+        var Expected := UnitStem (FileName);
+
+        // The REPL and a scan with no file behind it have nothing to disagree
+        // with.
+        if Expected = '' or Expected = 'REPL' then Exit;
+
+        // ⚠️ Through Error, not a bare raise.  Error prints the '[ERROR] file:
+        // message' line with a caret under the offending token, which is what
+        // every other diagnostic in this parser produces and what the reference
+        // documents.  A raise alone reached the top as 'Uncaught:' with no
+        // position at all -- a check that compares the sentence and not the
+        // line around it cannot see the difference.
+        if Expected <> Str (Name.Lexeme) then
+            raise Error (Name, 'Unit ''' + Str (Name.Lexeme)
+                             + ''' must match its file name ''' + Expected + '''.');
+    end
+
+    /// The file's stem -- the name a unit answers to.  The Resolver and the
+    /// Interpreter each work this out the same way for the same reason.
+    function UnitStem (Key : String) : String;
+    var
+        Stem : String;
+
+    begin
+        Stem := Key;
+
+        for var I := Length (Key) - 1; I >= 0; I := I - 1 do
+            if Key[I] = '/' or Key[I] = '\' then
+            begin
+                Stem := Copy (Key, I + 1, Length (Key) - I - 1);
+                I := -1;
+            end
+
+        if Length (Stem) > 4 and Copy (Stem, Length (Stem) - 4, 4) = '.a24' then
+            Exit Copy (Stem, 0, Length (Stem) - 4);
+
+        Exit Stem;
+    end
+
+    function Parse () : List;
+    var 
+        Statements : List of Stmt;
+
+    begin
+        Statements := List();
+
+        UnitHeader ();
+
+        while Not IsAtEnd () do
+        begin
+            if Match (TOKEN_USES) then
+            begin
+                var TheModule := UsesStatement ();
+
+                // Nil when the file was already loaded by an earlier 'uses',
+                // so importing it twice is a no-op rather than a redefinition.
+                if TheModule <> Nil then Statements.Add (TheModule);
+            end
+            else if Match (TOKEN_PRIVATE) then
+            begin
+                var Decl := Declaration ();
+                RecordPrivate (Decl);
+                Statements.Add (Decl);
+            end
+            else Statements.Add (Declaration ());
+        end  
+        Exit Statements;
+    end
+
+    /// Parses a statement.
+    ///
+    function Statement () : Stmt;
+    begin
+        // ⚠️ Declarations are statements, so 'var' and friends are legal in a
+        // single-statement body -- an if branch, a loop body, a try block --
+        // and not only inside a begin/end.  They used to sit in Declaration()
+        // alone, which meant 'try var X := 1; ... ' would not parse.  Found by
+        // a test that raises a runtime error from a var declared inside the
+        // try.
+        if Match (TOKEN_TYPE) then Exit EnumDeclaration ();
+        if Match (TOKEN_CLASS) then Exit ClassDeclaration ();
+        if Match (TOKEN_OBJECT) then Exit ClassDeclaration ('object');
+        if Match (TOKEN_FUNCTION) then Exit ParseFunction ('function');
+        if Match (TOKEN_PROCEDURE) then Exit ParseFunction ('procedure');
+        if Match (TOKEN_VAR) then Exit VarDeclaration ();
+        if Match (TOKEN_CONST) then Exit ConstDeclaration ();
+
+        if Match (TOKEN_CASE) then Exit CaseStatement();
+        if Match (TOKEN_IF) then Exit IfStatement();
+        if Match (TOKEN_WHILE) then Exit WhileStatement();
+        if Match (TOKEN_FOR) then Exit ForStatement();
+        if Match (TOKEN_EXIT) then Exit ReturnStatement();
+        if Match (TOKEN_TRY) then Exit TryStatement();
+        if Match (TOKEN_BREAK) then Exit BreakStatement();
+        if Match (TOKEN_RAISE) then Exit RaiseStatement();
+        if Match (TOKEN_PRINT) then Exit PrintStatment();
+        if Match (TOKEN_BEGIN) then Exit BlockStmt (Block());
+
+        Exit ExpressionStatement ();
+    end
+
+    /// Parses an if statement
+    ///
+    /// # Errors
+    ///
+    /// Raises an error if no opening parenthesis after if.
+    /// Raises an error if no closing parenthesis after condition.
+    ///
+    // Parses a case statement, desugaring it into an if/else-if chain.
+    //
+    //     case X of
+    //         1:    print 'one';
+    //         2, 3: print 'two or three';
+    //     else
+    //         print 'other';
+    //     end
+    //
+    // becomes 'if X = 1 then ... else if X = 2 or X = 3 then ... else ...', so
+    // branches are tested in order, and there is no fallthrough and no jump
+    // table.  Nothing downstream learns about 'case': there is no CaseStmt, and
+    // the interpreter and resolver need no change at all.
+    //
+    // Labels are arbitrary expressions rather than constants, and there are no
+    // ranges.  That generality is why a branch takes exactly one statement --
+    // with ';' terminating rather than separating, a second statement cannot be
+    // told from the next branch's label.
+    //
+    // # Errors
+    //
+    // Raises an error if no 'of' after the condition, no ':' after a label, or
+    // no 'end' after an else branch.
+    //
+    function CaseStatement () : Stmt;
+    var
+        Left      : Expr;
+        Top       : IfStmt;
+        Current   : IfStmt;
+        Condition : Expr;
+        Branch    : IfStmt;
+
+    begin
+        Left := Expression ();
+        Consume (TOKEN_OF, 'Expect ''of'' after case condition.');
+
+        Top := Nil as IfStmt;
+        Current := Nil as IfStmt;
+
+        while True do
+        begin
+            Condition := BinaryExpr (Left, Equals (), Expression ());
+
+            // Comma-separated alternatives are just more 'or'.
+            while Match (TOKEN_COMMA) do
+                Condition := LogicalExpr (Condition, Either (),
+                                          BinaryExpr (Left, Equals (), Expression ()));
+
+            Consume (TOKEN_COLON, 'Expect '':'' after condition.');
+
+            Branch := IfStmt (Condition, Statement (), Nil);
+
+            if Top = Nil then Top := Branch;
+            else Current.ElseBranch := Branch;
+
+            Current := Branch;
+
+            if Match (TOKEN_ELSE) or Match (TOKEN_END) then Break;
+        end
+
+        if Previous().TypeOfToken = TOKEN_ELSE then
+        begin
+            Current.ElseBranch := Statement ();
+            Consume (TOKEN_END, 'Expected ''end''.');
+        end
+
+        Exit Top;
+    end
+
+    // The '=' and 'or' a desugared case is built from.  Synthetic tokens: they
+    // stand at the position of the label that produced them, so an error inside
+    // a branch still points somewhere real.
+    //
+    function Equals () : Token;
+    begin
+        Exit Token (TOKEN_EQUAL, '=', Nil, Previous().LineNumber);
+    end
+
+    function Either () : Token;
+    begin
+        Exit Token (TOKEN_OR, 'or', Nil, Previous().LineNumber);
+    end
+
+    function IfStatement () : Stmt;
+    var
+        Condition  : Expr;
+        ThenBranch : Stmt;
+        ElseBranch : Stmt;
+
+    begin
+        Condition := Expression();
+        Consume (TOKEN_THEN, 'Expect ''then'' after if condition.');
+
+        ThenBranch := Statement ();
+        if Match (TOKEN_ELSE) then
+        begin
+            ElseBranch := Statement ();
+        end
+
+        Exit IfStmt (Condition, ThenBranch, ElseBranch);
+    end
+
+    /// Parses a for statement
+    ///
+    /// # Errors
+    ///
+    /// Raise an error if no opening parenthesis after for.
+    /// Raise an error if no semicolon after loop condition.
+    /// Raise an error if no closing parenthesis after for clauses.
+    ///
+    function ForStatement () : Stmt;
+    var
+        Initializer : Stmt;
+        Increment   : Expr;
+        Condition   : Expr;
+        Body        : Stmt;
+        
+        StmtList    : List of Stmt;
+        WhileList   : List of Stmt;
+
+    begin
+        if Match (TOKEN_SEMICOLON) then
+            Initializer := Nil;
+        else if Match (TOKEN_VAR) then
+        begin
+            // 'for var X in C do' and 'for var I := 0; ...' agree up to the
+            // name, so read it and let the next token decide.
+            var Name := Consume (TOKEN_IDENTIFIER, 'Expect variable name.');
+
+            if Match (TOKEN_IN) then Exit ForInStatement (Name);
+
+            Initializer := VarDeclaration (Name);
+        end
+        else 
+            Initializer := ExpressionStatement();
+
+        if Not Check (TOKEN_SEMICOLON) then
+        begin
+           Condition := Expression ();
+        end
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after loop condition'); 
+
+        if Not Check (TOKEN_DO) then
+        begin
+           Increment := Expression ();
+        end
+        Consume (TOKEN_DO, 'Expect ''do'' after for clauses.');
+
+        LoopDepth := LoopDepth + 1;
+        Body := Statement ();
+        LoopDepth := LoopDepth - 1;
+        
+        if Increment <> Nil then
+        begin
+            StmtList := List();
+            StmtList.Add (Body);
+            StmtList.Add (ExpressionStmt (Increment));
+
+            Body := BlockStmt (StmtList);
+        end
+
+        if Condition = Nil then Condition := LiteralExpr (True);
+        Body := WhileStmt(Condition, Body);
+
+        if Initializer <> Nil then
+        begin
+            WhileList := List();
+            WhileList.Add (Initializer);
+            WhileList.Add (Body);
+
+            Body := BlockStmt (WhileList);
+        end
+
+        Exit Body;
+    end
+
+    /// Parses a while statement
+    ///
+    /// # Errors
+    ///
+    /// Raises an error if no opening parenthesis after while.
+    /// Raises an error if no closing parenthesis after condition.
+    ///
+    function WhileStatement () : Stmt;
+    var
+        Condition : Expr;
+        Body      : Stmt;
+
+    begin
+        Condition := Expression();
+        Consume (TOKEN_DO, 'Expect ''do'' after condition.');
+
+        LoopDepth := LoopDepth + 1;
+        Body := Statement ();
+        LoopDepth := LoopDepth - 1;
+
+        Exit WhileStmt (Condition, Body);
+    end
+
+    /// Parses a print statement
+    /// 
+    /// # Errors
+    ///
+    /// Raises an error if no semicolon after value.
+    ///
+    function PrintStatment () : Stmt;
+    var
+        Value : Expr;
+    
+    begin
+        Value := Expression();
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after value.');
+        
+        Exit PrintStmt (Value);
+    end
+ 
+    /// Parses a return statement.
+    ///
+    ///
+    /// # Errors
+    ///
+    /// Raises an error if no semicolon after value.
+    ///
+    function ReturnStatement () : Stmt;
+    var
+        Keyword : Token;
+        Value   : Expr;
+
+    begin
+        Keyword := Previous();
+
+        if Not Check(TOKEN_SEMICOLON) then
+        begin
+            Value := Expression();
+        end
+
+        Consume(TOKEN_SEMICOLON, 'Expect '';'' after exit value.');
+        Exit ReturnStmt(Keyword, Value);
+    end
+
+    /// Records the names a 'private' declaration introduces.
+    ///
+    /// An enum contributes its members as well as its type name: they bind as
+    /// bare names, so leaving them exported would export the type in all but
+    /// spelling.
+    ///
+    /// ⚠️ EVERY declaration kind, and the list has to be complete: a kind
+    /// missing here is not a name that fails to be private, it is a name that
+    /// is SILENTLY PUBLIC.  ObjectStmt was missing, so a 'private object' was
+    /// reachable from any importing file -- 'secret' where 'Undefined
+    /// variable' is the correct answer.
+    ///
+    /// ⚠️ It had a second symptom that made it worse than a leak.  Because the
+    /// object never reached PrivateNames, the emitter's export set kept it, so a
+    /// private object shadowing an import was refused as 'Two modules exporting
+    /// ''Solo''' -- a message that is false on its face, since that unit does
+    /// not export Solo.  No gate could see either half: comparing output needs
+    /// a test with a private object in it, and comparing emitted C says
+    /// nothing when the program is refused before any C exists.
+    ///
+    procedure RecordPrivate (Decl : Any);
+    begin
+        if Decl is FunctionStmt or Decl is ClassStmt or Decl is ObjectStmt
+                                or Decl is VarStmt then
+        begin
+            PrivateNames.Add (Str (Decl.Name.Lexeme));
+            Exit;
+        end
+
+        if Decl is VarGroupStmt then
+        begin
+            for var I := 0; I < Decl.Names.Length; I := I + 1 do
+                PrivateNames.Add (Str (Decl.Names[I].Lexeme));
+
+            Exit;
+        end
+
+        if Decl is EnumStmt then
+        begin
+            PrivateNames.Add (Str (Decl.Name.Lexeme));
+
+            for var I := 0; I < Decl.Members.Length; I := I + 1 do
+                PrivateNames.Add (Str (Decl.Members[I].Lexeme));
+
+            Exit;
+        end
+
+        // ⚠️ And a declaration kind that is not any of these is an ERROR rather
+        // than a silent no-op, which is the other half of the same hole: this
+        // procedure used to fall off the end, so 'private WriteLn(...)' was
+        // accepted and quietly ignored.
+        raise Error (Previous(), '''private'' must precede a declaration.');
+    end
+
+    /// The directory part of a path, or '' when there is none.
+    ///
+    /// String work rather than a path library, because the language has no
+    /// such library -- and this is the whole of what module resolution needs.
+    ///
+    function DirectoryOf (Path : String) : String;
+    var
+        Cut : Integer := -1;
+
+    begin
+        for var I := 0; I < Length (Path); I := I + 1 do
+            if Path[I] = '/' then Cut := I;
+
+        if Cut < 0 then Exit '';
+
+        Exit Copy (Path, 0, Cut);
+    end
+
+    /// Finds the file for a module.
+    ///
+    /// ⚠️ Beside the importing file FIRST, then the working directory.  That
+    /// order is what lets two directories hold two copies of the same file
+    /// names without either reaching the other's.
+    ///
+    function ResolveModule (Where : Token, ModuleName : String) : String;
+    var
+        TheFile : String;
+        Dir     : String;
+
+    begin
+        TheFile := ModuleName + '.a24';
+        Dir := DirectoryOf (FileName);
+
+        if Dir <> '' then
+        begin
+            var Beside := Dir + '/' + TheFile;
+            if FileExists (Beside) then Exit Beside;
+        end
+
+        if FileExists (TheFile) then Exit TheFile;
+
+        var Searched := 'the working directory';
+        if Dir <> '' then Searched := '''' + Dir + ''' or the working directory';
+
+        raise Error (Where, 'Could not find module ''' + ModuleName
+                          + ''': no ' + TheFile + ' in ' + Searched + '.');
+    end
+
+    /// Loads the file named by a 'uses' clause as a module.  Nil when it has
+    /// already been loaded.
+    ///
+    function UsesStatement () : Stmt;
+    var
+        ModuleName : String;
+        Where      : Token;
+
+    begin
+        if Match (TOKEN_STRING) then ModuleName := Str (Previous().Literal);
+        else ModuleName := Str (Consume (TOKEN_IDENTIFIER, 'Expected identifier.').Lexeme);
+
+        Where := Previous();
+        Consume (TOKEN_SEMICOLON, 'Expected '';''');
+
+        var Path := ResolveModule (Where, ModuleName);
+
+        // Keyed by the resolved file rather than the written name, so one
+        // module reached two ways loads once.
+        // ⚠️ A file already loaded yields a module node with NO statements
+        // rather than nothing at all.  Loading and visibility are different
+        // questions: the file is read once, but every file that says 'uses' for
+        // it must see it, or the second importer silently gets nothing.
+        if Loaded.Contains (Path) then
+        begin
+            var Seen := ModuleStmt (Where, Nil, List());
+            Seen.FileName := Path;
+            Seen.UnitName := UnitStem (Path);
+
+            Exit Seen;
+        end
+        Loaded.Put (Path, True);
+
+        var SubScanner := Scanner (ReadWholeFile (Path));
+        var SubParser  := Parser (SubScanner.ScanTokens());
+
+        SubParser.FileName := Path;
+
+        // The SAME map, not a copy -- a copy would let a diamond load its
+        // shared dependency twice, once down each arm.
+        SubParser.Loaded := Loaded;
+
+        var Result := SubParser.Parse();
+
+        var TheModule := ModuleStmt (Where, Result, SubParser.PrivateNames);
+        TheModule.FileName := Path;
+        TheModule.UnitName := UnitStem (Path);
+
+        Exit TheModule;
+    end
+
+    /// Parses a single 'const N := 5;'.
+    ///
+    /// The section form goes through DeclarationSection; this is the statement
+    /// form, which is what a top-level constant uses.
+    ///
+    /// # Errors
+    ///
+    /// A constant without a value is an error rather than nil: the whole point
+    /// of the binding is that it cannot be set later.
+    ///
+    function ConstDeclaration () : Stmt;
+    var
+        Name : Token;
+
+    begin
+        Name := Consume (TOKEN_IDENTIFIER, 'Expect constant name.');
+
+        var TypeName := '';
+        var Generic  := '';
+
+        if Match (TOKEN_COLON) then
+        begin
+            TypeName := Str (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+
+            if ToLower (TypeName) = 'list' and Match (TOKEN_OF) then
+                Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
+        end
+
+        if Not Match (TOKEN_ASSIGN) then
+            raise Error (Name, 'A constant must be given a value.');
+
+        var Initializer := Expression ();
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after constant declaration.');
+
+        var TheVar := VarStmt (Name, Initializer);
+        TheVar.TypeName := TypeName;
+        TheVar.Generic := Generic;
+        TheVar.IsConstant := True;
+
+        Exit TheVar;
+    end
+
+    /// Consumes a 'private:' or 'public:' marker, if one is here.
+    ///
+    /// ⚠️ The COLON is what separates this from the module-level 'private',
+    /// which prefixes a single top-level declaration and has nothing to do
+    /// with classes.  Without the lookahead, 'private function F()' inside a
+    /// class body would read as a section marker.
+    ///
+    function MatchVisibility () : Boolean;
+    begin
+        if Check (TOKEN_PRIVATE) and PeekNext().TypeOfToken = TOKEN_COLON then
+        begin
+            Advance (); Advance ();
+            InPrivateSection := True;
+            Exit True;
+        end
+
+        if Check (TOKEN_PUBLIC) and PeekNext().TypeOfToken = TOKEN_COLON then
+        begin
+            Advance (); Advance ();
+            InPrivateSection := False;
+            Exit True;
+        end
+
+        Exit False;
+    end
+
+    /// Whether a declaration section starts here.
+    ///
+    function IsDeclarationSection () : Boolean;
+    begin
+        Exit Check (TOKEN_VAR) or Check (TOKEN_CONST) or Check (TOKEN_TYPE);
+    end
+
+    /// Whether the current token ends the section being read.
+    ///
+    /// ⚠️ A section has no terminator of its own -- it runs until something
+    /// that is plainly not another declaration.  So this list has to name
+    /// everything that can follow one, and a member missing from it makes the
+    /// section swallow whatever comes next.
+    ///
+    function IsNextSection () : Boolean;
+    begin
+        if IsAtEnd () then Exit True;
+
+        Exit Check (TOKEN_END) or Check (TOKEN_BEGIN)
+          or Check (TOKEN_FUNCTION) or Check (TOKEN_PROCEDURE)
+          or Check (TOKEN_CONSTRUCTOR)
+          or Check (TOKEN_VAR) or Check (TOKEN_CONST) or Check (TOKEN_TYPE);
+    end
+
+    /// A 'var' or 'const' section: one declaration per line, no repeated
+    /// keyword, running until the next section or the body.
+    ///
+    ///     var
+    ///         Source : String;
+    ///         Current, Start, Line : Integer;
+    ///
+    /// The two differ only in whether an initializer is required and whether
+    /// the names may later be reassigned, so they share this.
+    ///
+    function DeclarationSection (IsConstant : Boolean) : List;
+    var
+        Stmts : List;
+        Noun  : String;
+
+    begin
+        Stmts := List();
+
+        Noun := 'variable';
+        if IsConstant then Noun := 'constant';
+
+        while Not IsNextSection () do
+        begin
+            // A marker may stand between two fields of one var section, not
+            // only between sections.  A loop rather than a skip, because the
+            // language has no 'continue' -- and two markers may sit together.
+            while MatchVisibility () do
+            begin
+            end
+
+            // Markers may also run right up to the end of the section.
+            if IsNextSection () then break;
+
+            var Names := List();
+            Names.Add (Consume (TOKEN_IDENTIFIER, 'Expect ' + Noun + ' name.'));
+
+            while Match (TOKEN_COMMA) do
+                Names.Add (Consume (TOKEN_IDENTIFIER, 'Expect ' + Noun + ' name.'));
+
+            // ⚠️ Recorded HERE rather than by the caller, which sees the
+            // section only once it is fully parsed -- and so would read
+            // whichever marker came last and hide every field in the section
+            // behind it.
+            if InPrivateSection then
+                for var I := 0; I < Names.Length; I := I + 1 do
+                    ClassPrivates.Add (Str (Names[I].Lexeme));
+
+            var TypeName := '';
+            var Generic  := '';
+
+            if Match (TOKEN_COLON) then
+            begin
+                TypeName := Str (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+
+                if ToLower (TypeName) = 'list' and Match (TOKEN_OF) then
+                    Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
+            end
+
+            var Initializer := Nil as Expr;
+            if Match (TOKEN_ASSIGN) then Initializer := Expression ();
+            else if IsConstant then
+                raise Error (Names[0], 'A constant must be given a value.');
+
+            Consume (TOKEN_SEMICOLON, 'Expect '';'' after ' + Noun + ' declaration.');
+
+            // One name is an ordinary declaration.  Several sharing an
+            // initializer stay together, so the expression runs once.
+            if Names.Length = 1 then
+            begin
+                var TheVar := VarStmt (Names[0], Initializer);
+                TheVar.TypeName := TypeName;
+                TheVar.Generic := Generic;
+                TheVar.IsConstant := IsConstant;
+
+                Stmts.Add (TheVar);
+            end
+            else
+            begin
+                var TheGroup := VarGroupStmt (Names, Initializer);
+                TheGroup.TypeName := TypeName;
+                TheGroup.Generic := Generic;
+                TheGroup.IsConstant := IsConstant;
+
+                Stmts.Add (TheGroup);
+            end
+        end
+
+        Exit Stmts;
+    end
+
+    /// Reads every declaration section standing before a body, appending them
+    /// to it -- so a function's locals are ordinary statements at the top of
+    /// its own block.
+    ///
+    procedure ReadDeclarationSections (Body : List);
+    begin
+        ReadDeclarationSections (Body, False);
+    end
+
+    /// The same, with visibility markers allowed between sections.
+    ///
+    /// ⚠️ Only a class or object header passes True.  A marker in a FUNCTION
+    /// header means nothing, and silently accepting one there would invent
+    /// syntax the language does not have.
+    ///
+    procedure ReadDeclarationSections (Body : List, AllowVisibility : Boolean);
+    begin
+        while True do
+        begin
+            if AllowVisibility then
+                while MatchVisibility () do
+                begin
+                end
+
+            if not IsDeclarationSection () then break;
+
+            if Match (TOKEN_VAR) then
+            begin
+                var Section := DeclarationSection (False);
+                for var I := 0; I < Section.Length; I := I + 1 do
+                    Body.Add (Section[I]);
+            end
+            else if Match (TOKEN_CONST) then
+            begin
+                var Section := DeclarationSection (True);
+                for var I := 0; I < Section.Length; I := I + 1 do
+                    Body.Add (Section[I]);
+            end
+            else
+            begin
+                Advance ();
+                while Not IsNextSection () do
+                    Body.Add (EnumDeclaration ());
+            end
+        end
+    end
+
+    /// Parses the rest of 'for var X in C do ...', the name already read.
+    ///
+    function ForInStatement (Name : Token) : Stmt;
+    var
+        Iterable : Expr;
+        Body     : Stmt;
+
+    begin
+        Iterable := Expression ();
+        Consume (TOKEN_DO, 'Expect ''do'' after ''for ... in'' clause.');
+
+        LoopDepth := LoopDepth + 1;
+        Body := Statement ();
+        LoopDepth := LoopDepth - 1;
+
+        Exit ForInStmt (Name, Iterable, Body);
+    end
+
+    /// Parses 'break;'.
+    ///
+    /// # Errors
+    ///
+    /// Raises an error when written outside a loop.  A run-time check would
+    /// have to wait for the branch to be taken, and a 'break' with no loop to
+    /// leave is wrong however the program runs.
+    ///
+    function BreakStatement () : Stmt;
+    var
+        Keyword : Token;
+
+    begin
+        Keyword := Previous();
+
+        if LoopDepth = 0 then
+            raise Error (Keyword, 'Must be inside a loop to use ''break''.');
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after ''break''.');
+        Exit BreakStmt (Keyword);
+    end
+
+    /// Parses 'raise Expr;'.
+    ///
+    function RaiseStatement () : Stmt;
+    var
+        Keyword : Token;
+        Value   : Expr;
+
+    begin
+        Keyword := Previous();
+        Value := Expression();
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after raised value.');
+        Exit RaiseStmt (Keyword, Value);
+    end
+
+    /// Parses 'try ... except ... end'.
+    ///
+    ///     try
+    ///         Risky();
+    ///     except
+    ///         on E : String do WriteLn(E);
+    ///         on E do WriteLn('anything else');
+    ///     end
+    ///
+    /// Handlers are collected into a Map keyed by type name, with an untyped
+    /// 'on E do' and any trailing statements both keyed 'default' -- an
+    /// untyped handler IS the catch-all, and keying it by its absent type
+    /// would make it unreachable.
+    ///
+    /// ⚠️ There are three ways to catch everything and one to catch nothing:
+    /// an untyped 'on E do', statements after the handlers, or an except block
+    /// with no 'on' handlers at all -- which includes an empty one, where
+    /// 'try ... except end' deliberately discards the error.  But when typed
+    /// handlers are present and none matches, the value keeps unwinding rather
+    /// than being swallowed here.
+    ///
+    /// # Errors
+    ///
+    /// A repeated handler is an error rather than a silent overwrite: two for
+    /// one type, two untyped ones, or an untyped one beside a trailing block.
+    /// The map would quietly keep the last and that branch would never run.
+    ///
+    function TryStatement () : Stmt;
+    var
+        Statements  : List;
+        Handlers    : Map;
+        HasHandlers : Boolean;
+        Variable    : Token;
+        TheType     : Token;
+        Key         : String;
+        Trailing    : Token;
+        ExceptStmts : List;
+
+    begin
+        Statements := List();
+        while Not Check (TOKEN_EXCEPT) and Not IsAtEnd () do
+            Statements.Add (Statement ());
+
+        Consume (TOKEN_EXCEPT, 'Expect ''except'' after try block.');
+
+        Handlers := Map();
+        HasHandlers := False;
+
+        while CheckWord ('on') do
+        begin
+            HasHandlers := True;
+            Advance ();
+
+            Variable := Consume (TOKEN_IDENTIFIER, 'Expected variable name.');
+
+            // Kept as a Token rather than a lexeme so a duplicate can be
+            // reported against the type that was written twice.
+            TheType := Nil;
+            if Match (TOKEN_COLON) then
+                TheType := Consume (TOKEN_IDENTIFIER, 'Expected type.');
+
+            Consume (TOKEN_DO, 'Expected ''do''.');
+
+            Key := 'default';
+            if TheType <> Nil then Key := Str (TheType.Lexeme);
+
+            if Handlers.Contains (Key) then
+            begin
+                if TheType = Nil then
+                    raise Error (Variable, 'A handler for any exception is already given.');
+
+                raise Error (TheType, 'Duplicate handler for ''' + Key + '''.');
+            end
+
+            Handlers.Put (Key, ExceptHandler (Str (Variable.Lexeme), Statement ()));
+        end
+
+        Trailing := Peek ();
+
+        ExceptStmts := List();
+        while Not Check (TOKEN_END) and Not IsAtEnd () do
+            ExceptStmts.Add (Statement ());
+
+        if Not HasHandlers or Not ExceptStmts.IsEmpty then
+        begin
+            if Not ExceptStmts.IsEmpty and Handlers.Contains ('default') then
+                raise Error (Trailing,
+                    'A handler for any exception is already given by an untyped ''on''.');
+
+            Handlers.Put ('default', ExceptHandler ('Any', BlockStmt (ExceptStmts)));
+        end
+
+        Consume (TOKEN_END, 'Expect ''end'' after except block.');
+        Exit TryStmt (BlockStmt (Statements), Handlers);
+    end
+
+    /// Parses a var declaration.
+    ///
+    /// # Errors
+    /// 
+    /// Raises an error if no variable name.
+    /// Raises an error if no semicolon after variable declaration.
+    ///
+    function VarDeclaration () : Stmt;
+    begin
+        Exit VarDeclaration (Consume (TOKEN_IDENTIFIER, 'Expect variable name.'));
+    end
+
+    /// The rest of a variable declaration, the name already consumed.
+    ///
+    /// ⚠️ Split from the above so 'for var X in C' can read the name and let
+    /// the NEXT token decide which kind of loop it is -- the two forms agree
+    /// exactly that far and nowhere after it.  An overload rather than a flag.
+    ///
+    function VarDeclaration (Name : Token) : Stmt;
+    var 
+       Initializer : Expr;
+
+    begin
+        var TypeName := '';
+        var Generic  := '';
+
+        if Match (TOKEN_COLON) then
+        begin
+            TypeName := Str (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+
+            // ⚠️ 'of' is honoured only after 'List'.  It is
+            // a keyword already -- 'case X of' -- so anywhere else it has to
+            // keep meaning what it meant, and a Map or a Set does not take one.
+            if ToLower (TypeName) = 'list' and Match (TOKEN_OF) then
+                Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
+        end
+
+        if Match (TOKEN_ASSIGN) then
+        begin
+            Initializer := Expression();
+        end 
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after variable declaration.');
+
+        var TheVar := VarStmt (Name, Initializer);
+        TheVar.TypeName := TypeName;
+        TheVar.Generic  := Generic;
+
+        Exit TheVar;
+    end
+
+    /// Parses an expression statement
+    ///
+    /// # Errors
+    /// 
+    /// Raises an error if no semicolon after expression.
+    ///
+    function ExpressionStatement () : Stmt;
+    var
+       TheExpr : Expr;
+    
+    begin
+        TheExpr := Expression();
+        Consume(TOKEN_SEMICOLON, 'Expect '';'' after expression.');
+
+        Exit ExpressionStmt (TheExpr);
+    end
+
+    // Parse a function statement.
+    //
+    // # Errors
+    //
+    // Raises an error if no function name.
+    // Raises an error if no parenthesis after name.
+    // Raises an error if missing parameter name.
+    // Raises an error if more than 255 parameters.
+    // Raises an error if no closing parenthesis after parameters.
+    // Raises an error if no opening brace before body.
+    // 
+    function ParseFunction (Kind : String) : Stmt;
+    var
+        Name   : Token;
+        Params : List of Token;
+        Body   : List of Stmt;
+
+    begin
+        Name := Consume (TOKEN_IDENTIFIER, 'Expect ' + Kind + ' name.');
+        Consume (TOKEN_LEFT_PAREN, 'Expect ''('' after ' + Kind + ' name.');
+        Params := List();
+        var ParamTypes := List();
+
+        if Not Check (TOKEN_RIGHT_PAREN) then
+        begin
+            Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));
+            ParamTypes.Add (ParameterType ());
+
+            while Match (TOKEN_COMMA) do
+            begin
+                if Params.Length >= 255 then
+                begin
+                    raise 'Can''t have more than 255 parameters.';
+                    //Error (Peek(), 'Can''t have more than 255 parameters.');
+                end
+                Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));
+                ParamTypes.Add (ParameterType ());
+            end
+        end
+        Consume (TOKEN_RIGHT_PAREN, 'Expect '')'' after parameters.');
+
+        var ReturnType := '';
+        if Match (TOKEN_COLON) then
+            ReturnType := Consume (TOKEN_IDENTIFIER, 'Expect return type.').Lexeme;
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after ' + Kind + ' signature.');
+
+        // ⚠️ Locals are read BEFORE 'begin' and prepended to the body, so they
+        // are ordinary statements at the top of the block.  Nothing downstream
+        // needs to know a var section existed.
+        Body := List();
+        ReadDeclarationSections (Body);
+
+        Consume (TOKEN_BEGIN, 'Expect ''begin'' before ' + Kind + ' body.');
+
+        var Rest := Block ();
+        for var I := 0; I < Rest.Length; I := I + 1 do
+            Body.Add (Rest[I]);
+
+        var TheFunction := FunctionStmt (Name, Params, Body);
+        TheFunction.ReturnType := ReturnType;
+        TheFunction.ParamTypes := ParamTypes;
+
+        Exit TheFunction;
+    end
+    
+    // An optional ': Type' after a parameter name, or '' when none was written.
+    //
+    function ParameterType () : String;
+    begin
+        if not Match (TOKEN_COLON) then Exit '';
+
+        Exit Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme;
+    end
+
+    // Parses a block of statements.
+    //
+    // Raises an error if no semicolon after block.
+    // 
+    function Block () : List;
+    var
+       Statements : List of Statement;
+
+    begin
+        Statements := List();
+
+        // 'and Not IsAtEnd()', or an unterminated block runs off the end of the
+        // input and reports whatever the next statement rule fails on -- 'Expect
+        // expression!' -- instead of the missing 'end'.
+        while Not Check (TOKEN_END) and Not IsAtEnd () do
+        begin
+            Statements.Add (Declaration ());
+        end 
+        
+        Consume (TOKEN_END, 'Expect ''end'' after block.');
+        Exit Statements;
+    end
+
+    // Parses an assignment.
+    //
+    // # Errors
+    //
+    // Raises an error if invalid assignment target.
+    //
+    function Assignment () : Expr;
+    var
+       TheExpr : Expr;
+       Equals  : Token;
+       Value   : Expr;
+    
+    begin
+        TheExpr := ParseOr ();
+
+        if Match (TOKEN_ASSIGN) then
+        begin
+            Equals := Previous ();
+            Value  := Assignment ();
+
+            if TheExpr.ClassName = 'VariableExpr' then
+                Exit AssignExpr (TheExpr.Name, Value);
+            else if TheExpr.ClassName = 'GetExpr' then
+                Exit SetExpr (TheExpr.Obj, TheExpr.Name, Value);
+            else if TheExpr.ClassName = 'SubscriptExpr' then
+                Exit SetSubscriptExpr (TheExpr.Obj, TheExpr.Index, Value, TheExpr.Bracket);
+
+            raise 'Invalid assignment target.';
+        end
+        Exit TheExpr;
+    end
+
+    // Parses an or expression.
+    //
+    function ParseOr () : Expr;
+    var
+       TheExpr : Expr;
+       Op      : Token;
+       Right   : Expr;
+
+    begin
+        TheExpr := ParseAnd ();
+
+        while Match (TOKEN_OR) do
+        begin
+            Op := Previous ();
+            Right := ParseAnd ();
+            TheExpr := LogicalExpr (TheExpr, Op, Right);
+        end
+       
+        Exit TheExpr;
+    end
+
+     // Parses an and expression.
+    //
+    function ParseAnd () : Expr;
+    var
+       TheExpr : Expr;
+       Op      : Token;
+       Right   : Expr;
+
+    begin
+        TheExpr := Equality ();
+
+        while Match (TOKEN_AND) do
+        begin
+            Op := Previous ();
+            Right := Equality ();
+            TheExpr := LogicalExpr (TheExpr, Op, Right);
+        end
+       
+        Exit TheExpr;
+    end   
+
+    // Parses an expression.  Calls Equality.
+    /// Parses an expression, and the optional cast that may follow it.
+    ///
+    /// ⚠️ The cast is read HERE, above assignment and therefore above 'and'
+    /// and 'or' -- so 'A and B as C' casts the whole conjunction, not B.  That
+    /// is the shape, and the reason 'is' could not be put beside it: 'as'
+    /// consumes nothing after itself, so it cannot be followed by an operator,
+    /// while 'A is Dog and B is Cat' has to parse.
+    ///
+    function Expression() : Expr;
+    var
+        TheExpr : Expr;
+
+    begin
+        TheExpr := Assignment ();
+
+        if Match (TOKEN_AS) then
+            TheExpr.Cast := Str (Consume (TOKEN_IDENTIFIER,
+                'Expect typecast identifier.').Lexeme);
+
+        Exit TheExpr;
+    end
+
+    
+    // Parses a declaration.
+    //
+    function Declaration();
+    begin
+        //try 
+            if IsTestBlock () then Exit TestDeclaration ();
+
+            Exit Statement ();
+        //except
+        //    on e : String do 
+        //        begin
+        //           Synchronize ();
+        //        end
+        //end
+    end
+
+    // Parses an enum declaration: type Colour = (Red, Green, Blue);
+    //
+    // # Errors
+    //
+    // Raises an error if no enum name, no '=', no '(' , no member name, or no
+    // closing parenthesis or semicolon.
+    //
+    // Is the parser looking at a test block?
+    //
+    // 'test' is CONTEXT-SENSITIVE, not a keyword: an identifier spelled 'test'
+    // followed by a string.  Making it a real keyword would stop anything else
+    // being called 'test', and the Lox sources in this file's own tests use it
+    // as a variable name constantly.
+    //
+    function IsTestBlock () : Boolean;
+    begin
+        if not Check (TOKEN_IDENTIFIER) then Exit False;
+        if Peek().Lexeme <> 'test' then Exit False;
+
+        Exit PeekNext().TypeOfToken = TOKEN_STRING;
+    end
+
+    // Parses a test block:
+    //
+    //     test 'Some Name';
+    //     begin
+    //         ...
+    //     end
+    //
+    // It desugars into a FunctionStmt whose NAME TOKEN IS THE STRING LITERAL,
+    // which is also how the runner tells a test from a function: a test's name
+    // token carries a literal and an identifier's does not.
+    //
+    function TestDeclaration () : Stmt;
+    var
+        Name : Token;
+        Body : List;
+
+    begin
+        Advance ();
+        Name := Consume (TOKEN_STRING, 'Expect a test name.');
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after test name.');
+        Consume (TOKEN_BEGIN, 'Expect ''begin'' before test body.');
+
+        Body := Block ();
+        Exit FunctionStmt (Name, List(), Body);
+    end
+
+    function EnumDeclaration () : Stmt;
+    var
+        Name    : Token;
+        Members : List;
+
+    begin
+        Name := Consume (TOKEN_IDENTIFIER, 'Expect enum name.');
+        Consume (TOKEN_EQUAL, 'Expect ''='' after enum declaration.');
+        Consume (TOKEN_LEFT_PAREN, 'Expect ''('' before enum members.');
+
+        Members := List();
+        Members.Add (Consume (TOKEN_IDENTIFIER, 'Expect member name.'));
+
+        while Match (TOKEN_COMMA) do
+            Members.Add (Consume (TOKEN_IDENTIFIER, 'Expect member name.'));
+
+        Consume (TOKEN_RIGHT_PAREN, 'Expect '')'' after enum members.');
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after enum declaration.');
+
+        Exit EnumStmt (Name, Members);
+    end
+
+    function ClassDeclaration ();
+    begin
+        Exit ClassDeclaration ('class');
+    end
+
+    /// Parses a class or an object.
+    ///
+    /// ⚠️ ONE rule for both, differing only in the noun in its messages and in
+    /// which node it builds at the end.  An object is a class in every respect
+    /// but what its name evaluates to, and two copies of this would be two
+    /// places for a class feature to be added and an object feature to be
+    /// forgotten.
+    ///
+    function ClassDeclaration (Kind : String);
+    var
+        Name       : Token;
+        Methods    : List;
+        Fields     : List;
+        Superclass : VariableExpr;
+
+    begin
+        Name := Consume (TOKEN_IDENTIFIER, 'Expect ' + Kind + ' name.');
+        Superclass := Nil as VariableExpr;
+
+        // A superclass is named in parentheses -- 'class Dog(Animal);' -- where
+        // Lox wrote 'class Dog < Animal'.
+        if Match (TOKEN_LEFT_PAREN) then
+        begin
+           Consume (TOKEN_IDENTIFIER, 'Expect superclass name.');
+           Superclass := VariableExpr (Previous ());
+           Consume (TOKEN_RIGHT_PAREN, 'Expect '')'' after superclass name.');
+        end
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after ' + Kind + ' declaration.');
+
+        // ⚠️ The header and the body are separate blocks: a marker runs to the
+        // next one WITHIN the block it is in, so the body starts public again
+        // however the header ended.
+        ClassPrivates := List();
+        InPrivateSection := False;
+
+        // The declaration sections standing before the body, with visibility
+        // markers allowed between them.
+        //
+        // ⚠️ A comma group is FLATTENED here into one field per name, unlike
+        // in a function body where it stays together.  A field's initializer
+        // runs once per instance in SeedFields anyway, so there is no shared
+        // evaluation to preserve -- and every later stage, from MapType to the
+        // instance's slot list, wants one entry per field.
+        Fields := List();
+        var Section := List();
+        ReadDeclarationSections (Section, True);
+
+        for var I := 0; I < Section.Length; I := I + 1 do
+        begin
+            var Each := Section[I];
+
+            if Each is VarGroupStmt then
+            begin
+                for var J := 0; J < Each.Names.Length; J := J + 1 do
+                begin
+                    var Field := VarStmt (Each.Names[J], Each.Initializer);
+                    Field.TypeName := Each.TypeName;
+                    Field.Generic := Each.Generic;
+
+                    Fields.Add (Field);
+                end
+            end
+            else Fields.Add (Each);
+        end
+
+        Consume (TOKEN_BEGIN, 'Expect ''begin'' before ' + Kind + ' body.');
+
+        // ⚠️ The header and the body are separate blocks, so a marker's reach
+        // stops here: the body starts public again however the header ended.
+        InPrivateSection := False;
+
+        // Every member carries its own keyword, unlike Lox where a method is a
+        // bare name.  A constructor is spelled 'constructor', not named 'init'.
+        Methods := List();
+        while Not Check (TOKEN_END) and Not IsAtEnd () do
+        begin
+            while MatchVisibility () do
+            begin
+            end
+
+            if Check (TOKEN_END) or IsAtEnd () then break;
+
+            // Stmt, not FunctionStmt: ParseFunction is declared to return
+            // the base, and the checker holds it to that.
+            var Method : Stmt;
+
+            if Match (TOKEN_CONSTRUCTOR) then
+                Method := ParseFunction ('constructor');
+            else if Match (TOKEN_PROCEDURE) then
+                Method := ParseFunction ('procedure');
+            else
+            begin
+                Consume (TOKEN_FUNCTION,
+                    'Expect ''function'', ''procedure'' or ''constructor'' in class body.');
+                Method := ParseFunction ('method');
+            end
+
+            if InPrivateSection then ClassPrivates.Add (Str (Method.Name.Lexeme));
+
+            Methods.Add (Method);
+        end
+
+        Consume (TOKEN_END, 'Expect ''end'' after ' + Kind + ' body.');
+
+        if Kind = 'object' then
+        begin
+            var TheObject := ObjectStmt (Name, Superclass, Methods, Fields);
+            TheObject.PrivateMembers := ClassPrivates;
+
+            Exit TheObject;
+        end
+
+        var TheClass := ClassStmt (Name, Superclass, Methods, Fields);
+        TheClass.PrivateMembers := ClassPrivates;
+
+        Exit TheClass;
+    end
+
+    // Parses an equality (!= ==).  Calls Comparison if no match.
+    //
+    function Equality() : Expr;
+    var 
+       TheExpr  : Expr;
+       Operator : Token;
+       Right    : Expr;
+       
+    begin
+       TheExpr := Comparison();
+
+       while Match (TOKEN_NOT_EQUAL) or Match (TOKEN_EQUAL) do
+       begin
+           Operator := Previous();
+           Right := Comparison();
+
+           TheExpr := BinaryExpr(TheExpr, Operator, Right); 
+       end
+
+       Exit TheExpr;
+    end
+
+    // Parses a comparison (> >= < <=).  Calls Term if no match.
+    //
+    function Comparison() : Expr;
+    var
+        TheExpr : Expr;
+        Operator : Token;
+        Right : Expr;
+
+    begin
+        TheExpr := Term();
+
+        // 'is' sits with the relational operators, so 'A is Dog and B is Cat'
+        // parses -- binding it tighter than 'and' is the whole point of putting
+        // it here rather than beside the unary operators.
+        while True do
+        begin
+            if Match (TOKEN_IS) then
+            begin
+                TheExpr := IsExpr (TheExpr,
+                    Consume (TOKEN_IDENTIFIER, 'Expect type name after ''is''.'));
+            end
+            // 'in' sits with the relational operators, as it does in Pascal.
+            else if Match (TOKEN_GREATER) or Match (TOKEN_GREATER_EQUAL) or
+                    Match (TOKEN_LESS)    or Match (TOKEN_LESS_EQUAL) or
+                    Match (TOKEN_IN) then
+            begin
+                Operator := Previous();
+                Right := Term();
+                TheExpr := BinaryExpr(TheExpr, Operator, Right);
+            end
+            else Exit TheExpr;
+        end
+        Exit TheExpr;
+    end
+
+    // Parses a term (- +).  Calls Factor if no match.
+    //
+    function Term() : Expr;
+    var
+        TheExpr : Expr;
+        Operator : Token;
+        Right : Expr;
+
+    begin
+        TheExpr := Factor();
+       
+        // ⚠️ Factor(), not Term().  Recursing into Term made '-' and '+'
+        // RIGHT-associative: 'a - b - c' parsed as 'a - (b - c)', so
+        // '2 - 1 - 1' was 2 rather than 0.  The accumulator loop is what makes
+        // it left-associative, and it only works if the right operand is one
+        // rung down.
+        while Match (TOKEN_MINUS) or Match (TOKEN_PLUS) do
+        begin
+            Operator := Previous();
+            Right := Factor();
+            TheExpr := BinaryExpr(TheExpr, Operator, Right);
+        end
+        Exit TheExpr;
+    end
+
+    // Parses a term expression (/ *).  Calls Unary if no match.
+    //
+    function Factor() : Expr;
+    var
+        TheExpr  : Expr;
+        Operator : Token;
+        Right    : Expr;
+
+    begin
+        TheExpr := Unary();
+        // ⚠️ Accumulate and keep going -- this used to Exit on the first
+        // operator, so '20 / 2 / 5' consumed '20 / 2' and left '/ 5' behind,
+        // which the caller reported as a missing ';'.  Repeated '*' or '/' did
+        // not parse at all.
+        while Match(TOKEN_SLASH) or Match(TOKEN_STAR) do
+        begin
+            Operator := Previous();
+            Right := Unary();
+
+            TheExpr := BinaryExpr(TheExpr, Operator, Right);
+        end
+        Exit TheExpr;
+    end
+
+    // Parses an unary expression (! -).  Calls Primary if no match.
+    //
+    function Unary() : Expr;
+    var
+       Operator : Token;
+       Right    : Expr;
+
+    begin
+        if Match (TOKEN_NOT) or Match (TOKEN_MINUS) then
+        begin
+            Operator := Previous();
+            Right    := Unary();
+
+            Exit UnaryExpr(Operator, Right);
+        end
+        Exit Call();
+    end
+
+    // Parses a List or Map literal, the opening bracket already consumed.
+    //
+    // '[:]' is the empty Map and '[]' the empty List -- without the colon there
+    // would be no way to tell them apart.  Otherwise a colon after the first
+    // element is what decides, and every element after it must have one too.
+    //
+    function CollectionLiteral () : Expr;
+    var
+        Keys   : List;
+        Values : List;
+        IsMap  : Boolean;
+
+    begin
+        Keys := List();
+        Values := List();
+        IsMap := False;
+
+        if Match (TOKEN_COLON) then
+        begin
+            IsMap := True;
+            Consume (TOKEN_RIGHT_BRACKET, 'Expect '']'' after map.');
+
+            Exit CollectionExpr (True, Keys, Values);
+        end
+
+        if Match (TOKEN_RIGHT_BRACKET) then Exit CollectionExpr (False, Keys, Values);
+
+        var First := Expression ();
+        if Match (TOKEN_COLON) then
+        begin
+            IsMap := True;
+            Keys.Add (First);
+            Values.Add (Expression ());
+        end
+        else Values.Add (First);
+
+        while Match (TOKEN_COMMA) do
+        begin
+            if IsMap then
+            begin
+                Keys.Add (Expression ());
+                Consume (TOKEN_COLON, 'Expect '':'' after key.');
+                Values.Add (Expression ());
+            end
+            else Values.Add (Expression ());
+        end
+
+        Consume (TOKEN_RIGHT_BRACKET, 'Expect '']'' after list.');
+        Exit CollectionExpr (IsMap, Keys, Values);
+    end
+
+    // Parses a call expression.
+    //
+    function Call () : Expr;
+    var
+       TheExpr : Expr;
+       Name    : Token;
+
+    begin
+        TheExpr := Primary();
+      
+        while True do
+        begin
+            if Match (TOKEN_LEFT_PAREN) then
+                TheExpr := FinishCall (TheExpr);
+            else if Match (TOKEN_LEFT_BRACKET) then
+                begin
+                    var Bracket := Previous ();
+                    var Index   := Expression ();
+
+                    Consume (TOKEN_RIGHT_BRACKET, 'Expect '']'' after subscript.');
+                    TheExpr := SubscriptExpr (TheExpr, Index, Bracket);
+                end
+            else if Match (TOKEN_DOT) then
+                begin
+                    Name := Consume (TOKEN_IDENTIFIER, 'Expect property name after ''.''.');
+                    TheExpr := GetExpr (TheExpr, Name);
+                end
+            else  
+                Break;
+        end
+        Exit TheExpr;
+    end
+
+    // Finishes parsing a call.
+    //
+    // # Errors
+    //
+    // Raises an error if more than 255 arguments.
+    // Raises an error if no closing parenthesis after arguments.
+    //
+    function FinishCall (Callee : Expr) : Expr;
+    var
+        Arguments : List of Expr;
+        Paren     : Token;
+
+    begin
+        Arguments := List();
+        if Not Check (TOKEN_RIGHT_PAREN) then
+        begin
+            Arguments.Add (Expression ());
+            while Match (TOKEN_COMMA) do
+            begin
+                if Arguments.Length >= 255 then 
+                    //Error (Peek(), 'Can''t have more than 255 arguments.');
+                    raise 'Can''t have more than 255 arguments.';
+
+                Arguments.Add (Expression ());
+            end
+        end
+        Paren := Consume(TOKEN_RIGHT_PAREN, 'Expect '')'' after arguments.');
+
+        Exit CallExpr (Callee, Paren, Arguments);
+    end
+
+    // Parses a primary expression:  True, False, Nil, Number, String or Grouping.
+    //
+    // # Errors
+    // 
+    // Raises an error if grouping has no closing parenthesis.
+    // Raises an error if no dot after ''super''.
+    // Raises an error if no superclass method name.
+    // Raises an error if no expression matched.
+    //
+    function Primary() : Expr;
+    var 
+        TheExpr : Expr;
+        Keyword : Token;
+        Method  : Token;
+
+    begin
+        if Match (TOKEN_FALSE) then Exit LiteralExpr(False);
+        if Match (TOKEN_TRUE) then Exit LiteralExpr(True);
+        if Match (TOKEN_NIL) then Exit LiteralExpr(nil);
+
+        if Match (TOKEN_LEFT_BRACKET) then Exit CollectionLiteral ();
+
+        if Match (TOKEN_INTEGER) or Match (TOKEN_NUMBER)
+        or Match (TOKEN_STRING)  or Match (TOKEN_CHAR) then
+        begin
+            Exit LiteralExpr (Previous().Literal);
+        end
+
+        if Match (TOKEN_SUPER) then
+        begin
+           Keyword := Previous();
+           Consume (TOKEN_DOT, 'Expect ''.'' after ''super''.');  
+           Method := Consume (TOKEN_IDENTIFIER, 'Expect superclass method name.');
+           Exit SuperExpr (Keyword, Method);  
+        end
+
+        if Match (TOKEN_THIS) then Exit ThisExpr (Previous());
+
+        if Match (TOKEN_IDENTIFIER) then
+        begin
+           Exit VariableExpr (Previous());
+        end
+
+        if Match (TOKEN_LEFT_PAREN) then
+        begin
+            TheExpr := Expression();
+            Consume (TOKEN_RIGHT_PAREN, 'Expect '')'' after expression.');
+        
+            Exit GroupingExpr (TheExpr);
+        end
+        raise 'Expect expression!';
+    end
+
+    // If token type matches, advances and returns True, otherwise False.
+    //
+    function Match(TheType : TokenType) : Boolean;
+    begin
+        if Check (TheType) then
+        begin
+            Advance();
+            Exit True;
+        end
+        Exit False;
+    end
+
+    // Returns an error.
+    //
+    // Reports a parse error and returns the message to raise.
+    //
+    // ⚠️ Reporting and raising are SEPARATE: this prints the position and the
+    // caret, and the caller raises the message so the parse unwinds.  Doing
+    // only one of them is how a run ends with no output at all, which has
+    // happened more than once.
+    //
+    // The message alone is returned, without position, because algc's own
+    // tests assert on it and a raised value is all a handler sees.  The
+    // position reaches the reader through Console, not through the string.
+    //
+    function Error(TheToken: Token, Message : String) : Any;
+    begin
+        Console.Error (TheToken, Message);
+
+        Exit Message;
+    end
+
+    // If current token matches a type then advance, otherwise throw an error.
+    //
+    // # Errors
+    //
+    // Raises an error if token not matched.
+    //
+    function Consume (TypeOfToken : TokenType, Message : String) : Token;
+    begin
+        if Check (TypeOfToken) then Exit Advance();
+
+        // Previous(), not Peek(): the error belongs on the token before the
+        // missing one -- 'var A := 1' with no ';' points at the 1, not at
+        // whatever begins the next line.
+        raise Error (Previous(), Message);
+    end
+
+    // Checks if current token matches a type.
+    //
+    function Check(TheType : TokenType) : Boolean;
+    begin
+       if IsAtEnd() then Exit False;
+       
+       Exit Peek().TypeOfToken = TheType;
+    end
+
+    /// Whether the next token is a particular identifier.
+    ///
+    /// 'on' is context-sensitive rather than a keyword, exactly as 'test' is,
+    /// so a program may still call a variable 'on'.  Matched without regard to
+    /// case, as the real keywords are.
+    ///
+    function CheckWord (Word : String) : Boolean;
+    begin
+        if Not Check (TOKEN_IDENTIFIER) then Exit False;
+
+        Exit ToLower (Str (Peek().Lexeme)) = Word;
+    end
+
+    // Returns the current token, and moves to next.
+    //
+    function Advance() : Token;
+    begin
+       if Not IsAtEnd() then Current := Current + 1;
+
+       Exit Previous();
+    end
+
+    // Is at end of source?
+    //
+    function IsAtEnd() : Boolean;
+    begin
+       Exit Peek().TypeOfToken = EOF;
+    end
+
+    // Gets the current token.
+    //
+    function Peek() : Token;
+    begin
+       Exit Tokens[Current];
+    end
+
+    // Gets the previous token.
+    //
+    // The token after the current one, for the two-token lookahead a test block
+    // needs.  Clamped at the end rather than running off it.
+    //
+    function PeekNext() : Token;
+    begin
+       if Current + 1 >= Tokens.Length then Exit Tokens[Tokens.Length - 1];
+
+       Exit Tokens[Current + 1];
+    end
+
+    function Previous() : Token;
+    begin
+       Exit Tokens[Current - 1];
+    end
+end
+
+// Parsing a false token should return a false literal.
+//
+test 'Parse False';
+begin
+    var TheScanner := Scanner ('false');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Primary();
+
+    AssertEqual(False, Result.Value);
+end
+
+// Parsing a true token should return a true literal.
+//
+test 'Parse True';
+begin
+    var TheScanner := Scanner ('true');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Primary();
+
+    AssertEqual(True, Result.Value);
+end
+
+// Parsing a nil token should return a literal of nil.
+//
+test 'Parse Nil';
+begin
+    var TheScanner:= Scanner ('nil');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Primary();
+
+    AssertEqual(Nil, Result.Value);
+end
+
+
+// Parsing a number token should return a number literal
+//
+test 'Parse Number';
+begin
+    var TheScanner:= Scanner ('3.14');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Primary();
+
+    AssertEqual(3.14, Result.Value);
+end
+
+// Parsing a string token should return a String literal.
+//
+test 'Parse String';
+begin
+    var TheScanner:= Scanner ('''ABC''');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Primary();
+
+    AssertEqual('ABC', Result.Value);
+end
+
+// Parsing a token of paranthesis should return a Grouping expression.
+//
+test 'Parse Parenthesis';
+begin
+    var TheScanner:= Scanner ('(1)');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Primary();
+
+    AssertEqual(1.0, Result.Expression.Value);
+end
+
+// When parsing parenthesis, primary should return an error when there is an unmatched closing parenthesis.
+// 
+test 'Parse Parenthesis Error';
+begin
+    var TheScanner:= Scanner ('(1');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try 
+       TheParser.Primary();
+    except
+        on e : String do 
+            begin 
+               AssertEqual ('Expect '')'' after expression.', e);
+               Exit;
+            end
+    end       
+    Fail('No error raised');
+end
+
+// Should fail if reaches the end and a valid primary expression is not matched.
+// 
+test 'Parse Primary Error';
+begin
+    var TheScanner:= Scanner ('-1');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try 
+       TheParser.Primary();
+    except
+        on e : String do 
+            begin 
+                AssertEqual ('Expect expression!', e);
+                Exit;
+            end
+    end       
+    Fail('No error raised');
+end
+
+// Negative numbers should return a unary with token type of Minus.
+//
+test 'Parse Unary Minus';
+begin
+    var TheScanner := Scanner ('-1');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Unary();
+
+    AssertEqual(TOKEN_MINUS, Result.Op.TypeOfToken);
+    AssertEqual(1.0, Result.Right.Value);
+end
+
+// Parsing ! should return a Unary
+//
+test 'Parse Unary Bang';
+begin
+    var TheScanner := Scanner ('not true');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Unary();
+
+    AssertEqual(TOKEN_NOT, Result.Op.TypeOfToken);
+    AssertEqual(True, Result.Right.Value);
+end
+
+// Parsing != should return a Binary expression.
+//
+test 'Parse Comparison Bang Equal';
+begin
+    var TheScanner := Scanner ('1 <> 2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Equality();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_NOT_EQUAL, Result.Op.TypeOfToken);
+end
+
+// Parsing == should return a Binary expression.
+//
+test 'Parse Comparison Equal Equal';
+begin
+    var TheScanner := Scanner ('1 = 2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Equality();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_EQUAL, Result.Op.TypeOfToken);
+end
+
+    
+// Parsing / should return a Binary.
+//
+test 'Parse Factor Slash';
+begin
+    var TheScanner := Scanner ('1/2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Factor();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_SLASH, Result.Op.TypeOfToken);
+end
+
+// Parsing * should return a Binary.
+//
+test 'Parse Factor Star';
+begin
+    var TheScanner := Scanner ('1*2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Factor();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_STAR, Result.Op.TypeOfToken);
+end
+
+// Parsing + should return a Binary.
+//
+test 'Parse Term Plus';
+begin
+    var TheScanner := Scanner ('1+2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Term();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_PLUS, Result.Op.TypeOfToken);
+end
+
+// Parsing - should return a Binary.
+//
+test 'Parse Term Minus';
+begin
+    var TheScanner := Scanner ('1-2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Term();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_MINUS, Result.Op.TypeOfToken);
+end
+
+// Parsing > should return a Binary.
+//
+test 'Parse Comparison Greater';
+begin
+    var TheScanner := Scanner ('1 > 2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Comparison();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_GREATER, Result.Op.TypeOfToken);
+end
+
+// Parsing >= should return a Binary.
+//
+test 'Parse Comparison Greater Equal';
+begin
+    var TheScanner := Scanner ('1 >= 2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Comparison();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_GREATER_EQUAL, Result.Op.TypeOfToken);
+end
+
+// Parsing < should return a Binary.
+//
+test 'Parse Comparison Less';
+begin
+    var TheScanner := Scanner ('1 < 2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Comparison();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_LESS, Result.Op.TypeOfToken);
+end
+
+// Parsing <= should return a Binary.
+//
+test 'Parse Comparison Less Equal';
+begin
+    var TheScanner := Scanner ('1 <= 2');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Comparison();
+
+    AssertEqual(1.0, Result.Left.Value);
+    AssertEqual(2.0, Result.Right.Value);
+    AssertEqual(TOKEN_LESS_EQUAL, Result.Op.TypeOfToken);
+end
+
+// Tests parsing a print statement.
+//
+test 'Parse Print Statement';
+begin
+    var TheScanner := Scanner ('print 123;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('PrintStmt', Result.ClassName);
+end
+
+// Print statement should end with a semicolon.
+//
+test 'Parse Print Expect Semicolon';
+begin
+    var TheScanner := Scanner ('print 123');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect '';'' after value.', e);
+                Exit;
+            end
+    end
+    Fail('No exception raised.');
+end
+
+// Test parsing an expression statement.
+//
+test 'Parse Expression Statement';
+begin
+    var TheScanner := Scanner ('a := 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('ExpressionStmt', Result.ClassName);
+end
+
+// Should not be able to assign to a rvalue.
+//
+test 'Parse Expression Invalid Assignment';
+begin
+    var TheScanner := Scanner ('1 := 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+               AssertEqual('Invalid assignment target.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Expression statement should end with a semicolon.
+//
+test 'Parse Expression Expect Semicolon';
+begin
+    var TheScanner := Scanner ('a := 1');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+               AssertEqual('Expect '';'' after expression.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Tests parsing a declaration (var statement).
+//
+test 'Parse Var Statement';
+begin
+    var TheScanner := Scanner ('var a := 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual('VarStmt', Result.ClassName);
+end
+
+// The left expression of a declaration should be a variable.
+//
+test 'Parse Var Expect Variable Name';
+begin
+    var TheScanner := Scanner ('var true := 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+               AssertEqual('Expect variable name.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// A declaration should end with a semicolon.
+//
+test 'Parse Var Expect Semicolon';
+begin
+    var TheScanner := Scanner ('var a := 1');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+               AssertEqual('Expect '';'' after variable declaration.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Verify that block statements are parsed successfully.
+//
+test 'Parse Block Statement';
+begin
+    var TheScanner := Scanner (' begin var a := 1; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual('BlockStmt', Result.ClassName);
+end
+
+// Parsing a block should return a parse error if it is does not have a closing brace.
+//
+test 'Parse Block Expect Close';
+begin
+    var TheScanner := Scanner (' begin var a := 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+               // The missing 'end' is what is wrong, and what the message now
+               // names.  Block() used to run off the end of the input and fail
+               // in whatever statement rule came next, reporting 'Expect
+               // expression!' -- and this test asserted that.
+               AssertEqual('Expect ''end'' after block.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Test parsing an or expression.
+//
+test 'Parse Or';
+begin
+    var TheScanner := Scanner ('true or false');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.ParseOr();
+
+    AssertEqual('LogicalExpr', Result.ClassName);
+end
+
+// Test parsing an and expression.
+//
+test 'Parse And';
+begin
+    var TheScanner := Scanner ('true and false');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.ParseOr();
+
+    AssertEqual('LogicalExpr', Result.ClassName);
+end
+
+// Test parsing an if statement.
+//
+test 'Parse If Statement';
+begin
+    var TheScanner := Scanner ('if true then print true; else print false;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('IfStmt', Result.ClassName);
+end  
+
+// Parsing an if statement without an opening paren should return a parse error.
+// 
+test 'Parse If Expect Then';
+begin
+    var TheScanner := Scanner ('if true print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ''then'' after if condition.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Parsing an if statement without a closing paren should return a parse error.
+//
+
+// Test parsing a while statement.
+//
+test 'Parse While Statement';
+begin
+    var TheScanner := Scanner ('while true do print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('WhileStmt', Result.ClassName);
+end  
+
+// A while statement missing a left paren should return a parse error.
+//
+test 'Parse While Expect Do';
+begin
+    var TheScanner := Scanner ('while true print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ''do'' after condition.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// A while statement missing the right paren should return a parse error.
+//
+
+// A for statement should return an elaborate while statement.
+//
+test 'Parse For Statement';
+begin
+    var TheScanner := Scanner ('for var i := 0; i < 10; i := i + 1 do print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('BlockStmt', Result.ClassName);
+end  
+
+// For statement missing opening paren should return a parse error.
+//
+test 'Parse For Expect Do';
+begin
+    var TheScanner := Scanner ('for var i := 0; i < 10; i := i + 1 print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ''do'' after for clauses.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// For statement missing closing paren should return a parse error.
+//
+
+// For statement missing a semicolon after the initializer should return a parse error.
+//
+test 'Parse For Expect Semicolon';
+begin
+    var TheScanner := Scanner ('for var i := 0 do print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect '';'' after variable declaration.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Tests parsing a function call
+//
+test 'Parse Function Call';
+begin
+    var TheScanner := Scanner ('test(1, 2);');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('ExpressionStmt', Result.ClassName);
+end  
+    
+// Parsing should accept multiple parenthesis.
+//
+test 'Parse Function Call Multiple Parenthesis';
+begin
+    var TheScanner := Scanner ('test(1, 2)();');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('ExpressionStmt', Result.ClassName);
+end  
+
+// Should return a parse error if arguments are not followed by a close paren.
+//
+test 'Parse Call Expect Closing Parenthesis';
+begin
+    var TheScanner := Scanner ('test(1, 2;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect '')'' after arguments.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if more than 255 arguments.
+//
+test 'Parse Call More Than 255';
+begin
+    var text := 'test(';
+    for var I := 1; I < 300; I := I + 1 do
+    begin
+       text := text + I + ', ';
+    end
+    text := text + '300);';
+
+    var TheScanner := Scanner (text);
+    var TheParser := Parser (TheScanner.ScanTokens() as List);
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Can''t have more than 255 arguments.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Tests parsing a function.
+//
+test 'Parse Function';
+begin
+    var TheScanner := Scanner ('function test(a, b); begin end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual('FunctionStmt', Result.ClassName);
+end  
+
+// Should return a parse error if no opening parenthesis
+//
+test 'Parse Function No Open Parenthesis';
+begin
+    var TheScanner := Scanner ('function test;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ''('' after function name.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if more than 255 parameters
+//
+test 'Parse Function More Than 255 Parameters';
+begin
+    var text := 'function test(';
+    for var I := 1; I < 300; I := I + 1 do
+    begin
+       text := text + 'param' + I + ', ';
+    end
+    text := text + 'param300); begin end';
+
+    var TheScanner := Scanner (text);
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Can''t have more than 255 parameters.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if parameter is not an identifier.
+//
+test 'Parse Function Parameter Not Identifier';
+begin
+    var TheScanner := Scanner ('function test(1, 2, 3); begin end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect parameter name.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if no closing parenthesis.
+//
+test 'Parse Function No Close Parenthesis';
+begin
+    var TheScanner := Scanner ('function test(a, b;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect '')'' after parameters.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if no opening brace.
+//
+test 'Parse Function No Begin';
+begin
+    var TheScanner := Scanner ('function test(a, b);');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ''begin'' before function body.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// A signature runs to a semicolon before its body opens.
+//
+test 'Parse Function No Semicolon';
+begin
+    var TheScanner := Scanner ('function test(a, b) begin end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect '';'' after function signature.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Tests parsing a class!!
+//
+test 'Parse Class Declaration';
+begin
+    var TheScanner := Scanner ('
+ class Breakfast; begin
+ function cook(); begin
+ print ''Egg a-fryingnot '';
+ end
+
+ function serve(who); begin
+ print ''Enjoy your breakfast, '' + who + ''.'';
+ end
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    TheParser.Declaration();
+end
+
+// Should return a parse error when there's no identifier.
+//
+test 'Parse Class No Identifier';
+begin
+    var TheScanner := Scanner ('class 123; begin end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect class name.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error when there's no opening brace.
+//
+test 'Parse Class No Begin';
+begin
+    var TheScanner := Scanner ('class Breakfast;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ''begin'' before class body.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// The class name is followed by a semicolon, then the body.
+//
+test 'Parse Class No Semicolon';
+begin
+    var TheScanner := Scanner ('class Breakfast begin end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect '';'' after class declaration.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error when there's no closing brace.
+//
+test 'Parse Class No End';
+begin
+    var TheScanner := Scanner ('class Breakfast; begin');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ''end'' after class body.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error when parses < but no superclass name.
+//
+test 'Parse Class No Superclass';
+begin
+    var TheScanner := Scanner ('
+ class Breakfast(123); begin
+ function cook(); begin
+ print ''Egg a-fryingnot '';
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect superclass name.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Class getter should have a valid property name.
+//
+test 'Parse Getter Valid Property Name';
+begin
+    var TheScanner := Scanner ('print bagel.123;');
+
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+         TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect property name after ''.''.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+  
+
+// Tests getters!!
+//
+test 'Parse Getter';
+begin
+    var TheScanner := Scanner ('print egg.scramble(3).with(cheddar);');
+
+    var TheParser := Parser (TheScanner.ScanTokens());
+    TheParser.Statement();
+end
+
+// Tests setters!!
+//
+test 'Parse Setter';
+begin
+    var TheScanner := Scanner ('print eggs.count := 42;');
+
+    var TheParser := Parser (TheScanner.ScanTokens());
+    TheParser.Statement();
+end
+
+
+// ---------------------------------------------------------------- try/except
+
+// A try block runs to 'except', and the handlers are keyed by type.
+//
+test 'Parse Try With A Typed Handler';
+begin
+    // ⚠️ 'Er' rather than 'E': a one-character literal is a Char, Name is a
+    // String, and the two are never equal however identically they print.
+    var TheScanner := Scanner ('try print 1; except on Er : String do print 2; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertTrue (Result is TryStmt);
+    AssertEqual (1, Result.Handlers.Length);
+    AssertTrue (Result.Handlers.Contains ('String'));
+    AssertEqual ('Er', Result.Handlers.Get ('String').Name);
+end
+
+// An untyped 'on E do' IS the catch-all, so it is keyed 'default' -- keying it
+// by its absent type would make it unreachable.
+//
+test 'Parse Untyped Handler Is The Catch All';
+begin
+    var TheScanner := Scanner ('try print 1; except on E do print 2; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual (1, Result.Handlers.Length);
+    AssertTrue (Result.Handlers.Contains ('default'));
+end
+
+// Statements after the handlers are the catch-all too, alongside the typed
+// ones.
+//
+test 'Parse Trailing Statements Are The Catch All';
+begin
+    var TheScanner := Scanner ('try print 1; except on E : String do print 2; print 3; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual (2, Result.Handlers.Length);
+    AssertTrue (Result.Handlers.Contains ('String'));
+    AssertTrue (Result.Handlers.Contains ('default'));
+end
+
+// An except block with no handlers at all is itself the catch-all, including
+// when it is empty -- 'try ... except end' deliberately discards.
+//
+test 'Parse Empty Except Is The Catch All';
+begin
+    var TheScanner := Scanner ('try print 1; except end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual (1, Result.Handlers.Length);
+    AssertTrue (Result.Handlers.Contains ('default'));
+end
+
+// ⚠️ A repeated handler is an error rather than a silent overwrite.  The map
+// would quietly keep the last one and that branch would never run.
+//
+test 'Parse Duplicate Typed Handler';
+begin
+    var TheScanner := Scanner ('try print 1; except on E : String do print 2; on E : String do print 3; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual ('Duplicate handler for ''String''.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+test 'Parse Duplicate Untyped Handler';
+begin
+    var TheScanner := Scanner ('try print 1; except on E do print 2; on F do print 3; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual ('A handler for any exception is already given.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+// An untyped handler and a trailing block are two spellings of the catch-all,
+// so writing both is the same duplicate.
+//
+test 'Parse Untyped Handler Beside A Trailing Block';
+begin
+    var TheScanner := Scanner ('try print 1; except on E do print 2; print 3; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual ('A handler for any exception is already given by an untyped ''on''.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+// ⚠️ Reached only at end of input.  With anything else sitting where 'except'
+// should be, the try-block loop tries to parse THAT as a statement and fails
+// there instead -- 'try print 1; end' reports 'Expect expression!' against the
+// 'end'.
+//
+test 'Parse Try Expects Except';
+begin
+    var TheScanner := Scanner ('try print 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual ('Expect ''except'' after try block.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+// 'on' is context-sensitive, not a keyword, so a program may still use it as
+// an ordinary name.
+//
+test 'Parse On Is Not A Keyword';
+begin
+    var TheScanner := Scanner ('var on := 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual ('on', Result.Name.Lexeme);
+end
+
+test 'Parse Raise';
+begin
+    var TheScanner := Scanner ('raise ''boom'';');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertTrue (Result is RaiseStmt);
+    AssertEqual ('boom', Result.Value.Value);
+end
+
+test 'Parse Raise Expects Semicolon';
+begin
+    var TheScanner := Scanner ('raise ''boom''');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual ('Expect '';'' after raised value.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+
+// ------------------------------------------------------------------- break
+
+test 'Parse Break Inside A While';
+begin
+    var TheScanner := Scanner ('while True do begin break; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertTrue (Result is WhileStmt);
+    AssertTrue (Result.Body.Statements[0] is BreakStmt);
+end
+
+test 'Parse Break Inside A For';
+begin
+    var TheScanner := Scanner ('for var I := 0; I < 3; I := I + 1 do begin break; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    // A for desugars into a block holding the initializer and a while, so the
+    // break is reached through the while's body rather than directly.
+    AssertTrue (TheParser.Statement() is BlockStmt);
+end
+
+// ⚠️ Rejected where it is written.  A run-time check would have to wait for
+// the branch to be taken, and a break with no loop to leave is wrong however
+// the program runs.
+//
+test 'Parse Break Outside A Loop';
+begin
+    var TheScanner := Scanner ('break;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual ('Must be inside a loop to use ''break''.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+// ⚠️ The depth has to come back DOWN.  Leaving it raised would accept a break
+// written after the loop it is not in, which is the same error one line later.
+//
+test 'Parse Break After A Loop Has Closed';
+begin
+    var TheScanner := Scanner ('begin while True do begin break; end break; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual ('Must be inside a loop to use ''break''.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+test 'Parse Break Expects Semicolon';
+begin
+    var TheScanner := Scanner ('while True do begin break end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual ('Expect '';'' after ''break''.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+
+// ------------------------------------------------- declaration sections
+
+test 'Parse A Function Local Var Section';
+begin
+    var TheScanner := Scanner ('function F(); var X : Integer; Y; begin Exit X; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    // ⚠️ Locals are PREPENDED to the body, so they are ordinary statements at
+    // the top of the block and nothing downstream needs to know a section was
+    // written.  Two declarations plus the Exit.
+    AssertEqual (3, Result.Body.Length);
+    AssertTrue (Result.Body[0] is VarStmt);
+    AssertTrue (Result.Body[1] is VarStmt);
+    AssertEqual ('Integer', Result.Body[0].TypeName);
+    AssertEqual ('', Result.Body[1].TypeName);
+end
+
+// ⚠️ Several names stay ONE statement.  Splitting them here would run the
+// initializer once per name, which is a different program.
+test 'Parse A Comma Group Stays A Group';
+begin
+    var TheScanner := Scanner ('function F(); var A, B, C : Integer := 0; begin Exit A; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertTrue (Result.Body[0] is VarGroupStmt);
+    AssertEqual (3, Result.Body[0].Names.Length);
+    AssertEqual ('Integer', Result.Body[0].TypeName);
+end
+
+test 'Parse A Single Name Is Not A Group';
+begin
+    var TheScanner := Scanner ('function F(); var A : Integer; begin Exit A; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    AssertTrue (TheParser.Declaration().Body[0] is VarStmt);
+end
+
+test 'Parse A Const Section';
+begin
+    var TheScanner := Scanner ('function F(); const N := 1; begin Exit N; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertTrue (Result.Body[0].IsConstant);
+end
+
+test 'Parse Var And Const Sections Together';
+begin
+    var TheScanner := Scanner ('function F(); const N := 1; var X : Integer; begin Exit X; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual (3, Result.Body.Length);
+    AssertTrue (Result.Body[0].IsConstant);
+    AssertTrue (not Result.Body[1].IsConstant);
+end
+
+test 'Parse A Constant Must Be Given A Value';
+begin
+    var TheScanner := Scanner ('const N;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual ('A constant must be given a value.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+// ⚠️ A class member must carry its keyword.  Ignoring the result of the match
+// that reads it accepts a missing one by accident -- and a real typo,
+// 'IsDigit(C : Char);', sat in Scanner.a24 unseen for exactly as long as that
+// was so.
+test 'Parse A Class Member Needs A Keyword';
+begin
+    var TheScanner := Scanner ('class C; begin Bare() : Integer; begin Exit 7; end end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual ('Expect ''function'', ''procedure'' or ''constructor'' in class body.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+test 'Parse A Class Header Flattens A Comma Group';
+begin
+    var TheScanner := Scanner ('class P; var X, Y : Integer := 0; begin end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    // Flattened, unlike in a function body: one field per name.
+    AssertEqual (2, Result.Fields.Length);
+    AssertTrue (Result.Fields[0] is VarStmt);
+    AssertEqual ('Integer', Result.Fields[1].TypeName);
+end

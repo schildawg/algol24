@@ -1,0 +1,241 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Algol-24",
+    "scopeName": "source.algol24",
+    "fileTypes": ["a24"],
+
+    "patterns": [
+        { "include": "#doc-comment" },
+        { "include": "#comment" },
+        { "include": "#char-code" },
+        { "include": "#char" },
+        { "include": "#string" },
+        { "include": "#number" },
+        { "include": "#unit" },
+        { "include": "#uses" },
+        { "include": "#declaration-name" },
+        { "include": "#test-block" },
+        { "include": "#handler" },
+        { "include": "#keyword" },
+        { "include": "#builtin-type" },
+        { "include": "#builtin-function" },
+        { "include": "#annotation" },
+        { "include": "#call" },
+        { "include": "#operator" },
+        { "include": "#punctuation" }
+    ],
+
+    "repository": {
+        "doc-comment": {
+            "comment": "/// on a declaration. Same lexeme as //, and the scanner does not tell them apart -- the parser and the reader do.",
+            "name": "comment.line.documentation.algol24",
+            "begin": "///",
+            "end": "$",
+            "patterns": [
+                {
+                    "name": "keyword.other.marker.algol24",
+                    "match": "⚠️|\\b(?i:TODO|FIXME|NOTE|RECOMMENDED)\\b"
+                }
+            ]
+        },
+
+        "comment": {
+            "comment": "// to end of line. There is no block comment form.",
+            "name": "comment.line.double-slash.algol24",
+            "match": "//.*$"
+        },
+
+        "char-code": {
+            "comment": "#27 is the Char at that code point -- '#' followed by digits, nothing else.",
+            "name": "constant.character.algol24",
+            "match": "#[0-9]+"
+        },
+
+        "char": {
+            "comment": "A one-character literal is a Char, never a String, and the two are never equal. '''' is the quote itself.",
+            "name": "constant.character.algol24",
+            "match": "'(?:[^']|'')'"
+        },
+
+        "string": {
+            "comment": "Single-quoted, a doubled quote standing for one, and newlines allowed inside.",
+            "name": "string.quoted.single.algol24",
+            "begin": "'",
+            "end": "'",
+            "applyEndPatternLast": true,
+            "patterns": [
+                {
+                    "name": "constant.character.escape.algol24",
+                    "match": "''"
+                }
+            ]
+        },
+
+        "number": {
+            "patterns": [
+                {
+                    "comment": "A Double needs a digit on both sides of the point: '1.' is an Integer and then a dot.",
+                    "name": "constant.numeric.float.algol24",
+                    "match": "\\b[0-9]+\\.[0-9]+\\b"
+                },
+                {
+                    "name": "constant.numeric.integer.algol24",
+                    "match": "\\b[0-9]+\\b"
+                }
+            ]
+        },
+
+        "unit": {
+            "comment": "'unit' is a context-sensitive identifier and not a keyword, so it is only coloured where it opens a file.",
+            "match": "^\\s*(?i:(unit))\\s+([A-Za-z_?!][A-Za-z0-9_?!]*)",
+            "captures": {
+                "1": { "name": "keyword.other.unit.algol24" },
+                "2": { "name": "entity.name.namespace.algol24" }
+            }
+        },
+
+        "uses": {
+            "comment": "A bare module name or a quoted path; the quoted form is left to the string rule.",
+            "match": "(?i:\\b(uses)\\b)\\s*([A-Za-z_?!][A-Za-z0-9_?!]*)?",
+            "captures": {
+                "1": { "name": "keyword.control.import.algol24" },
+                "2": { "name": "entity.name.namespace.algol24" }
+            }
+        },
+
+        "test-block": {
+            "comment": "'test' is a context-sensitive identifier too -- a variable may be called test -- so it is coloured only before the block's name.",
+            "match": "(?i:\\b(test)\\b)(?=\\s*')",
+            "captures": {
+                "1": { "name": "keyword.other.test.algol24" }
+            }
+        },
+
+        "handler": {
+            "comment": "'on' likewise: a keyword only where it introduces a handler, 'on e : String do'.",
+            "match": "(?i:\\b(on)\\b)(?=\\s+[A-Za-z_?!][A-Za-z0-9_?!]*\\s*:)",
+            "captures": {
+                "1": { "name": "keyword.control.exception.algol24" }
+            }
+        },
+
+        "declaration-name": {
+            "comment": "The name a declaration introduces, so it reads differently from a use of it.",
+            "patterns": [
+                {
+                    "match": "(?i:\\b(function|procedure|constructor)\\b)\\s+([A-Za-z_?!][A-Za-z0-9_?!]*)",
+                    "captures": {
+                        "1": { "name": "storage.type.function.algol24" },
+                        "2": { "name": "entity.name.function.algol24" }
+                    }
+                },
+                {
+                    "match": "(?i:\\b(class|object)\\b)\\s+([A-Za-z_?!][A-Za-z0-9_?!]*)",
+                    "captures": {
+                        "1": { "name": "storage.type.class.algol24" },
+                        "2": { "name": "entity.name.type.class.algol24" }
+                    }
+                },
+                {
+                    "comment": "A type declaration names its type on the line after 'type' as often as on the same one, so the name is caught at its '=' instead.",
+                    "match": "\\b([A-Za-z_?!][A-Za-z0-9_?!]*)\\s*(?==\\s*\\()",
+                    "captures": {
+                        "1": { "name": "entity.name.type.enum.algol24" }
+                    }
+                }
+            ]
+        },
+
+        "keyword": {
+            "patterns": [
+                {
+                    "comment": "Keywords are case-insensitive: begin, Begin and BEGIN are one word.",
+                    "name": "keyword.control.algol24",
+                    "match": "(?i:\\b(if|then|else|while|for|do|break|exit|case|of|try|except|raise|print)\\b)"
+                },
+                {
+                    "name": "keyword.operator.word.algol24",
+                    "match": "(?i:\\b(and|or|not|in|is|as)\\b)"
+                },
+                {
+                    "name": "storage.type.algol24",
+                    "match": "(?i:\\b(var|const|type|class|object|function|procedure|constructor)\\b)"
+                },
+                {
+                    "name": "storage.modifier.algol24",
+                    "match": "(?i:\\b(private|public)\\b)"
+                },
+                {
+                    "name": "keyword.control.block.algol24",
+                    "match": "(?i:\\b(begin|end)\\b)"
+                },
+                {
+                    "comment": "nil, False and the Integer 0 are falsey; 0.0, '' and any Char are truthy.",
+                    "name": "constant.language.algol24",
+                    "match": "(?i:\\b(true|false|nil)\\b)"
+                },
+                {
+                    "name": "variable.language.algol24",
+                    "match": "(?i:\\b(this|super)\\b)"
+                }
+            ]
+        },
+
+        "builtin-type": {
+            "comment": "The primitives and the built-in collections. Several name a type and construct one, so they carry the type scope in both positions.",
+            "name": "support.type.algol24",
+            "match": "(?i:\\b(Integer|Double|String|Char|Boolean|Any|List|Map|Set|Stack|Array|Buffer|TextFile|Window|Raised)\\b)"
+        },
+
+        "builtin-function": {
+            "comment": "The System module: in scope everywhere and imported by nobody.",
+            "name": "support.function.builtin.algol24",
+            "match": "(?i:\\b(AssertEqual|AssertTrue|Clock|Copy|Fail|FileExists|Length|IsEmpty|Max|Mod|Ord|ParamCount|ParamStr|Pos|Str|Val|Write|WriteLn)\\b)"
+        },
+
+        "annotation": {
+            "comment": "A declared type after a colon. The lookbehind keeps map literals out ('and':TOKEN_AND has a quote in front of the colon), the keyword list keeps case arms out ('#10 : begin'), and the '(' lookahead keeps a call in a case arm out ('#39 : ScanString()').",
+            "match": "(?<=[A-Za-z0-9_?!)\\]])\\s*:\\s*(?!(?i:begin|end|exit|if|then|else|while|for|do|break|case|of|try|except|raise|print|and|or|not|in|is|as|var|const|type|class|object|function|procedure|constructor|private|public|true|false|nil|this|super|uses)\\b)([A-Za-z_?!][A-Za-z0-9_?!]*)\\b(?!\\s*\\()",
+            "captures": {
+                "1": { "name": "entity.name.type.algol24" }
+            }
+        },
+
+        "call": {
+            "match": "\\b([A-Za-z_?!][A-Za-z0-9_?!]*)\\s*(?=\\()",
+            "captures": {
+                "1": { "name": "entity.name.function.call.algol24" }
+            }
+        },
+
+        "operator": {
+            "patterns": [
+                {
+                    "comment": "Pascal's operators, not C's. There is no '==', '!' or '!='.",
+                    "name": "keyword.operator.assignment.algol24",
+                    "match": ":="
+                },
+                {
+                    "name": "keyword.operator.comparison.algol24",
+                    "match": "<>|<=|>=|=|<|>"
+                },
+                {
+                    "name": "keyword.operator.arithmetic.algol24",
+                    "match": "\\+|-|\\*|/"
+                }
+            ]
+        },
+
+        "punctuation": {
+            "patterns": [
+                {
+                    "comment": "The semicolon TERMINATES, and the one before 'end' is required.",
+                    "name": "punctuation.terminator.algol24",
+                    "match": ";"
+                },
+                { "name": "punctuation.separator.algol24", "match": "[,:]" },
+                { "name": "punctuation.accessor.algol24", "match": "\\." }
+            ]
+        }
+    }
+}

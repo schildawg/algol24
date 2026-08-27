@@ -1,0 +1,46 @@
+{
+    "name": "algol24",
+    "displayName": "Algol-24",
+    "description": "Syntax colouring for Algol-24, the Pascal-flavoured gradually typed language whose compiler compiles itself.",
+    "version": "0.1.0",
+    "publisher": "schildawg",
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Testing"
+    ],
+    "main": "./extension.js",
+    "activationEvents": [
+        "workspaceContains:**/*.a24"
+    ],
+    "keywords": [
+        "algol",
+        "algol-24",
+        "a24",
+        "pascal"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "algol24",
+                "aliases": [
+                    "Algol-24",
+                    "algol24"
+                ],
+                "extensions": [
+                    ".a24"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "algol24",
+                "scopeName": "source.algol24",
+                "path": "./syntaxes/algol24.tmLanguage.json"
+            }
+        ]
+    }
+}

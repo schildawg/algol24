@@ -1,0 +1,477 @@
+uses Expr;
+uses Token;
+
+class Stmt;
+begin
+end
+
+/// Print Statement!
+///
+class PrintStmt (Stmt);
+var
+    Expression : Expr;
+
+begin
+    constructor Init (Expression : Expr);
+    begin
+        this.Expression := Expression;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitPrintStmt(this);
+    end   
+end
+
+///  Block Statement!
+///
+class BlockStmt (Stmt);
+var
+    Statements : List of Statement;
+
+begin
+    constructor Init (Statements : List);
+    begin
+        this.Statements := Statements;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitBlockStmt(this);
+    end   
+end
+
+/// Expression Statement
+///
+class ExpressionStmt (Stmt);
+var
+    Expression : Expr;
+
+begin
+    constructor Init (Expression : Expr);
+    begin
+        this.Expression := Expression;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitExpressionStmt(this);
+    end   
+end
+
+/// Variable Statement!
+//
+class VarStmt (Stmt);
+var
+    Name        : Token;
+    Initializer : Expr;
+
+    /// The declared type, or '' when none was written.  The checker is the
+    /// first thing that reads it.
+    TypeName    : String := '';
+
+    /// Whether the binding is fixed.  A flag rather than a node of its own,
+    /// because 'const' is purely a resolution-time concern -- the interpreter
+    /// never looks at it.
+    IsConstant  : Boolean := False;
+
+    /// The element type of a 'List of T', or '' when none was written.
+    ///
+    /// Recorded for checking and never enforced at run time -- 'List of Token'
+    /// makes Tokens[0] reduce to Token, and does not stop anything else being
+    /// added to the list.
+    Generic     : String := '';
+
+begin
+    constructor Init (Name : Token, Initializer : Expr);
+    begin
+        this.Name := Name;
+        this.Initializer := Initializer;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitVarStmt(this);
+    end   
+end
+
+/// Var Group Statement -- several names sharing one declaration.
+///
+///     var
+///         Current, Start, Line : Integer;
+///
+/// ⚠️ A node rather than N separate VarStmts, because the initializer is
+/// evaluated ONCE for the whole group and every name shares the result.
+/// Desugaring at parse time would run a side-effecting initializer once per
+/// name, which is a different program.
+///
+class VarGroupStmt (Stmt);
+var
+    Names       : List;
+    Initializer : Expr;
+
+    TypeName    : String  := '';
+    Generic     : String  := '';
+    IsConstant  : Boolean := False;
+
+begin
+    constructor Init (Names : List, Initializer : Expr);
+    begin
+        this.Names := Names;
+        this.Initializer := Initializer;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitVarGroupStmt (this);
+    end
+end
+
+/// If Statement!
+///
+class IfStmt (Stmt);
+var
+    Condition   : Expr;
+
+    // ⚠️ Stmt, not Expr.  A branch holds a STATEMENT, and declaring it Expr
+    // was simply wrong.  A checker that looks a field up by its bare name
+    // rather than its qualified one finds no global 'ElseBranch' and passes,
+    // which is how this hid; algc's looks up 'IfStmt::ElseBranch', finds the
+    // declared type, and says so.
+    ThenBranch  : Stmt;
+    ElseBranch  : Stmt;
+
+begin
+    constructor Init (Condition : Expr, ThenBranch : Stmt, ElseBranch : Stmt);
+    begin
+        this.Condition := Condition;
+        this.ThenBranch := ThenBranch;
+        this.ElseBranch := ElseBranch;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitIfStmt(this);
+    end   
+end
+
+/// One 'on E : Type do' handler: the variable the raised value binds to, and
+/// the statement to run.
+///
+/// The type itself is not held here -- it is the key the handler sits under in
+/// TryStmt.Handlers, which is what makes a duplicate detectable at parse time
+/// rather than a silent overwrite.
+///
+class ExceptHandler;
+var
+    Name : String;
+    Body : Stmt;
+
+begin
+    constructor Init (Name : String, Body : Stmt);
+    begin
+        this.Name := Name;
+        this.Body := Body;
+    end
+end
+
+/// Object Statement -- a singleton, declared like a class and reached by name.
+///
+/// The same shape as ClassStmt because an object IS a class in every respect
+/// but one: its name evaluates to the single instance rather than to the
+/// class, so 'Console.WriteLn(...)' needs no construction and no registry.
+///
+class ObjectStmt (Stmt);
+var
+    Name       : Token;
+    Superclass : VariableExpr;
+    Methods    : List;
+    Fields     : List;
+
+    /// The names a 'private:' section covered.  Collected here rather than
+    /// flagged on each declaration, because the visibility check is the only
+    /// thing that reads them.
+    PrivateMembers : List := [];
+
+begin
+    constructor Init (Name : Token, Superclass : VariableExpr, Methods : List, Fields : List);
+    begin
+        this.Name := Name;
+        this.Superclass := Superclass;
+        this.Methods := Methods;
+        this.Fields := Fields;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitObjectStmt (this);
+    end
+end
+
+/// Module Statement -- one whole file, pulled in by a 'uses' clause.
+///
+/// ⚠️ 'uses' is NOT textual inclusion.  The file becomes a single statement
+/// holding its own declarations, and the interpreter runs those in an
+/// environment of its own before MOVING the exported bindings out into the
+/// importer's.  That is what leaves a private name behind while keeping it
+/// callable from inside the module, since the module's own functions closed
+/// over the environment it is still sitting in.
+///
+class ModuleStmt (Stmt);
+var
+    /// The token of the 'uses' clause that pulled the file in, so a clash
+    /// between two modules' exports can point at a real source position.
+    Name : Token;
+
+    Statements   : List;
+
+    /// Names marked 'private', collected here rather than flagged on each
+    /// node, because the export step is the only thing that reads them.
+    PrivateNames : List;
+
+    /// The RESOLVED path this was loaded from.
+    ///
+    /// ⚠️ Not Name.Lexeme, which is the 'uses' clause as written -- 'lib/Base'
+    /// rather than the resolved 'lib/Base.a24'.  The test report groups by file
+    /// and
+    /// has to say what the interpreter says.
+    FileName : String := '';
+
+    /// The name this module answers to when a program qualifies against it --
+    /// the file's stem, so 'lib/ModA.a24' is the unit ModA.
+    ///
+    /// ⚠️ Worked out ONCE, by the Parser, and carried here.  It used to be
+    /// recomputed by the Resolver and the Interpreter as well, and two of those
+    /// three copies wrote the backslash case as '\\' -- which in this language
+    /// is a two-character String, not an escape, so it never equalled a Char and
+    /// those two never split on a Windows separator while the third did.  Three
+    /// copies of one rule is what that cost.
+    UnitName : String := '';
+
+begin
+    constructor Init (Name : Token, Statements : List, PrivateNames : List);
+    begin
+        this.Name := Name;
+        this.Statements := Statements;
+        this.PrivateNames := PrivateNames;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitModuleStmt (this);
+    end
+end
+
+/// Break Statement!
+///
+/// Carries nothing: 'break' leaves the innermost loop and there is no label to
+/// name another one and no value to hand back.  The Token is kept only so a
+/// 'break' outside a loop can be reported against itself.
+///
+class BreakStmt (Stmt);
+var
+    Keyword : Token;
+
+begin
+    constructor Init (Keyword : Token);
+    begin
+        this.Keyword := Keyword;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitBreakStmt (this);
+    end
+end
+
+/// Try Statement!
+///
+/// Handlers are a Map from type name to ExceptHandler, with the catch-all
+/// under 'default'.  A Map rather than a list because selection is a lookup
+/// per class in the raised value's chain, and because a repeated key is
+/// exactly the duplicate the parser rejects.
+///
+class TryStmt (Stmt);
+var
+    TryBlock : Stmt;
+    Handlers : Map;
+
+begin
+    constructor Init (TryBlock : Stmt, Handlers : Map);
+    begin
+        this.TryBlock := TryBlock;
+        this.Handlers := Handlers;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitTryStmt (this);
+    end
+end
+
+/// Raise Statement!
+///
+class RaiseStmt (Stmt);
+var
+    Keyword : Token;
+    Value   : Expr;
+
+begin
+    constructor Init (Keyword : Token, Value : Expr);
+    begin
+        this.Keyword := Keyword;
+        this.Value := Value;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitRaiseStmt (this);
+    end
+end
+
+/// For-In Statement -- 'for var X in C do ...'.
+///
+/// A node of its own rather than a desugaring, unlike the counted 'for' beside
+/// it, because there is no index to count with: what it walks is whatever the
+/// collection hands back, and a Map hands back keys while a String hands back
+/// Chars.
+///
+class ForInStmt (Stmt);
+var
+    Name     : Token;
+    Iterable : Expr;
+    Body     : Stmt;
+
+begin
+    constructor Init (Name : Token, Iterable : Expr, Body : Stmt);
+    begin
+        this.Name := Name;
+        this.Iterable := Iterable;
+        this.Body := Body;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitForInStmt (this);
+    end
+end
+
+/// While Statement!
+///
+class WhileStmt (Stmt);
+var
+    Condition : Expr;
+    Body      : Stmt; 
+
+begin
+    constructor Init (Condition : Expr, Body : Stmt);
+    begin
+        this.Condition := Condition;
+        this.Body := Body;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitWhileStmt(this);
+    end   
+end
+
+/// Function Statement!
+///
+class FunctionStmt (Stmt);
+var
+    Name   : Token;
+    Params : List;
+    Body   : List;
+
+    /// The declared return type, or '' when none was written.
+    ReturnType : String := '';
+
+    /// Declared parameter types, positionally, '' where none was written.
+    ParamTypes : List := [];
+
+begin
+    constructor Init (Name : Token, Params : List, Body : List);
+    begin
+        this.Name := Name;
+        this.Params := Params;
+        this.Body := Body;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitFunctionStmt(this);
+    end   
+end
+
+/// Return Statement!
+///
+class ReturnStmt (Stmt);
+var
+    Keyword : Token;
+    Value   : Expr; 
+
+begin
+    constructor Init (Keyword : Token, Value : Expr);
+    begin
+        this.Keyword := Keyword;
+        this.Value := Value;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitReturnStmt(this);
+    end   
+end
+
+/// Class Statement!
+///
+/// type Colour = (Red, Green, Blue);
+///
+class EnumStmt (Stmt);
+var
+    Name    : Token;
+    Members : List;
+
+begin
+    constructor Init (Name : Token, Members : List);
+    begin
+        this.Name := Name;
+        this.Members := Members;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitEnumStmt(this);
+    end
+end
+
+class ClassStmt (Stmt);
+var
+    Name       : Token;
+    Superclass : VariableExpr;
+    Methods    : List;
+
+    /// The 'var' section, as a list of VarStmt.  Lox had no declared fields at
+    /// all; a field appeared the moment something assigned to it.
+    Fields     : List;
+
+    /// The names a 'private:' section covered.  Collected here rather than
+    /// flagged on each declaration, because the visibility check is the only
+    /// thing that reads them.
+    PrivateMembers : List := [];
+
+begin
+    constructor Init (Name : Token, Superclass : VariableExpr, Methods : List, Fields : List);
+    begin
+        this.Name := Name;
+        this.Superclass := Superclass;
+        this.Methods := Methods;
+        this.Fields := Fields;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitClassStmt(this);
+    end   
+end

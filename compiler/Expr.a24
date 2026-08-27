@@ -1,0 +1,374 @@
+uses Token;
+
+/// The base every expression node inherits from.
+///
+/// ⚠️ 'X as T' is a FIELD here rather than a node of its own.  A cast has no
+/// operand to evaluate on the right and no effect at run time -- it exists to
+/// tell the checker what a programmer knows and it deduced otherwise -- so a
+/// node would be a wrapper that every visitor had to learn to see through.  As
+/// a field, only Reduce ever reads it.
+///
+/// '' means no cast was written.  Nil would do as well, but '' is what the
+/// checker already uses everywhere for "nothing was written here".
+///
+class Expr;
+var
+    Cast : String := '';
+
+begin
+end
+
+/// Binary Expression!
+///
+class BinaryExpr (Expr);
+var
+   Left  : Expr;
+   Op    : Token;
+   Right : Expr;
+   
+begin
+    constructor Init(Left, Op, Right);
+    begin
+        this.Left := Left;
+        this.Op := Op;
+        this.Right := Right;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitBinary(this);
+    end
+end
+
+/// Logical Expression!
+///
+class LogicalExpr (Expr);
+var
+   Left  : Expr;
+   Op    : Token;
+   Right : Expr;
+   
+begin
+    constructor Init(Left, Op, Right);
+    begin
+        this.Left := Left;
+        this.Op := Op;
+        this.Right := Right;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitLogical(this);
+    end
+end
+
+/// Grouping!
+///
+class GroupingExpr (Expr);
+var
+    Expression : Expr;
+
+begin
+    constructor Init(Expression : Expr);
+    begin
+        this.Expression := Expression;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitGrouping(this);
+    end
+end
+
+/// Literal Expression!
+///
+/// [1, 2, 3] and ['a':1, 'b':2], and [] and [:] for the empty ones.
+///
+/// One node for both, because they are told apart by a colon after the first
+/// element and nothing else about them differs.  Keys is empty for a List.
+///
+class CollectionExpr (Expr);
+var
+    IsMap  : Boolean;
+    Keys   : List;
+    Values : List;
+
+begin
+    constructor Init (IsMap : Boolean, Keys : List, Values : List);
+    begin
+        this.IsMap := IsMap;
+        this.Keys := Keys;
+        this.Values := Values;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitCollectionExpr (this);
+    end
+end
+
+/// A[I] -- reading an element.
+///
+/// Bracket is carried for the error position, the way GetExpr carries Name.
+///
+class SubscriptExpr (Expr);
+var
+    Obj     : Expr;
+    Index   : Expr;
+    Bracket : Token;
+
+begin
+    constructor Init (Obj : Expr, Index : Expr, Bracket : Token);
+    begin
+        this.Obj := Obj;
+        this.Index := Index;
+        this.Bracket := Bracket;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitSubscriptExpr (this);
+    end
+end
+
+/// A[I] := V -- writing one.
+///
+/// A separate node rather than an AssignExpr with a subscript target, because
+/// the target is not a name and nothing about it resolves like one.
+///
+class SetSubscriptExpr (Expr);
+var
+    Obj     : Expr;
+    Index   : Expr;
+    Value   : Expr;
+    Bracket : Token;
+
+begin
+    constructor Init (Obj : Expr, Index : Expr, Value : Expr, Bracket : Token);
+    begin
+        this.Obj := Obj;
+        this.Index := Index;
+        this.Value := Value;
+        this.Bracket := Bracket;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitSetSubscriptExpr (this);
+    end
+end
+
+class LiteralExpr (Expr);
+var
+    Value : Expr;
+    
+begin
+    constructor Init(Value : Expr);
+    begin
+        this.Value := Value;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitLiteral(this);
+    end
+end
+
+/// Variable Expression!
+///
+class VariableExpr (Expr);
+var
+    Name : Token;
+    
+begin
+    constructor Init(Name : Token);
+    begin
+        this.Name := Name;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitVariableExpr (this);
+    end
+end
+
+/// Assign Expression!
+///
+class AssignExpr (Expr);
+var
+    Name  : Token;
+    Value : Expr;
+    
+begin
+    constructor Init(Name : Token, Value : Expr);
+    begin
+        this.Name := Name;
+        this.Value := Value;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitAssignExpr (this);
+    end
+end
+
+/// Unary Expression!
+///
+class UnaryExpr (Expr);
+var
+   Op    : Token;
+   Right : Expr;
+
+begin
+    constructor Init(Op : Token, Right : Expr);
+    begin
+        this.Op := Op;
+        this.Right := Right;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitUnary(this);
+    end
+end
+
+/// Call Expression!
+///
+class CallExpr (Expr);
+var
+    Callee     : Expr;
+    Paren      : Token;
+    Arguments  : List;
+
+begin
+    constructor Init(Callee : Expr, Paren : Token, Arguments : List);
+    begin
+        this.Callee := Callee;
+        this.Paren := Paren;
+        this.Arguments := Arguments;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitCall(this);
+    end
+end
+
+/// Get Expression!
+///
+class GetExpr (Expr);
+var
+    Obj : Expr;
+    Name   : Token;
+
+    /// The unit this reaches through, or '' for ordinary property access.
+    ///
+    /// ⚠️ Written by the Resolver, not the Parser.  'A.B' is the same three
+    /// tokens whether A is a value or a unit, and only scope decides which: a
+    /// local named Console shadows the unit of that name exactly as it shadows
+    /// anything else.  The Parser cannot know that; the Resolver is the first
+    /// pass that can.
+    Unit : String := '';
+
+begin
+    constructor Init(Obj : Expr, Name : Token);
+    begin
+        this.Obj := Obj;
+        this.Name := Name;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitGetExpr(this);
+    end
+end
+
+/// Set Expression!
+///
+class SetExpr (Expr);
+var
+    Obj : Expr;
+    Name   : Token;
+    Value  : Expr;  
+
+    /// The unit this writes through, or '' for ordinary field assignment.
+    /// Written by the Resolver, exactly as GetExpr.Unit is -- 'A.B := C' is the
+    /// same tokens whether A is a value or a unit.
+    Unit : String := '';
+
+begin
+    constructor Init(Obj : Expr, Name : Token, Value : Expr);
+    begin
+        this.Obj := Obj;
+        this.Name := Name;
+        this.Value := Value;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitSetExpr(this);
+    end
+end
+
+/// This Expression!
+///
+class ThisExpr (Expr);
+var
+    Keyword : Token;
+    
+begin
+    constructor Init(Keyword : Token);
+    begin
+        this.Keyword := Keyword;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitThisExpr (this);
+    end
+end
+
+/// Super Expression!
+///
+class SuperExpr (Expr);
+var
+    Keyword : Token;
+    Method  : Token;
+
+begin
+    constructor Init(Keyword : Token, Method : Token);
+    begin
+        this.Keyword := Keyword;
+        this.Method := Method;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitSuperExpr (this);
+    end
+end
+
+/// Is Expression -- 'X is T', whether a value's runtime type is T or inherits
+/// from it.
+///
+/// The right side is a type NAME rather than an expression, which is why this
+/// is a node of its own rather than a BinaryExpr: there is nothing on that side
+/// to evaluate.  It holds the Token so an error can point at it.
+///
+class IsExpr (Expr);
+var
+    Obj      : Expr;
+    TypeName : Token;
+
+begin
+    constructor Init(Obj : Expr, TypeName : Token);
+    begin
+        this.Obj := Obj;
+        this.TypeName := TypeName;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitIsExpr (this);
+    end
+end

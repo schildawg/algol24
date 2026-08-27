@@ -1,0 +1,1275 @@
+uses Interpreter;
+uses Parser;
+uses Scanner;
+uses Token;
+uses TokenType;
+
+/// A scoped symbol-to-type map.
+///
+/// Parents and inferred types are flat rather than scoped, because classes are
+/// declared at the top level and never go out of scope, so nothing is gained by
+/// scoping them.
+///
+/// An absent symbol answers '' rather than raising: not knowing a type is the
+/// normal case in a gradually typed language, not an error.
+///
+class TypeLookup;
+var
+    Scopes   : List := [];
+    Types    : Map  := [:];
+
+    /// Class name to the class it inherits from.
+    Parents  : Map  := [:];
+
+    /// Deduced types, for a name declared without one.
+    Inferred : Map  := [:];
+
+    /// Declared element types -- 'List of Token' -- keyed by variable name.
+    ///
+    /// ⚠️ A TypeLookup of its own rather than a flat Map beside Parents and
+    /// Inferred, because this one has to be SCOPED.  A stale element type is
+    /// the one kind of wrong answer that is not harmless: '' and 'Any' mean
+    /// "not known" and can only lose checking, while a leftover 'Token' from
+    /// another function's L makes a correct program fail to check.
+    Generics : TypeLookup := Nil;
+
+    /// Whose body is being checked, so a bare method call can be resolved.
+    /// '' outside a class.
+    CurrentClassName : String := '';
+
+begin
+    procedure SetType (Symbol : String, TheType : String);
+    begin
+        if Scopes.IsEmpty then Types.Put (Symbol, TheType);
+        else Scopes[Scopes.Length - 1].Put (Symbol, TheType);
+    end
+
+    /// The type of a symbol, innermost scope first, or '' when unknown.
+    function GetType (Symbol : String) : String;
+    begin
+        for var I := Scopes.Length - 1; I >= 0; I := I - 1 do
+            if Scopes[I].Contains (Symbol) then Exit Str (Scopes[I].Get (Symbol));
+
+        if Types.Contains (Symbol) then Exit Str (Types.Get (Symbol));
+
+        Exit '';
+    end
+
+    procedure BeginScope ();
+    begin
+        Scopes.Add ([:]);
+
+        if Generics <> Nil then Generics.BeginScope ();
+    end
+
+    procedure EndScope ();
+    begin
+        Scopes.RemoveAt (Scopes.Length - 1);
+
+        if Generics <> Nil then Generics.EndScope ();
+    end
+end
+
+/// The gradual type checker.
+///
+/// Two passes over the top-level statements: every declaration is mapped first,
+/// so the order they are written in does not matter, and then the bodies are
+/// checked.
+///
+/// ⚠️ **'Any' means "not known" and is compatible in BOTH directions.**  That
+/// rule is easy to break one caller at a time, so there is exactly one helper
+/// -- Assignable -- and every check goes through it.  Add a caller rather than
+/// another copy.
+///
+/// Reduction lives here rather than on the Expr nodes.  Nothing depends on the
+/// placement -- reduce is called from the
+/// checker and from nowhere else -- and one dispatch is easier to keep correct
+/// than fifteen methods spread across a file of node declarations.
+///
+class TypeChecker;
+var
+    Lookup : TypeLookup;
+
+    /// The return type of the function being checked, so an 'Exit' can be
+    /// measured against it.  '' outside one, which makes every Exit acceptable.
+    CurrentReturn : String := '';
+
+    /// Class name to the list of members a 'private:' section covered.
+    PrivateMembers : Map := [:];
+
+    /// The built-ins' return types, kept apart from Lookup and never written to
+    /// again.
+    ///
+    /// ⚠️ A user declaration of the same name OVERWRITES the entry in Lookup --
+    /// which is right, since the bare name now means the declaration -- and it is
+    /// exactly why 'System.Max' cannot read its type from there.  A file
+    /// declaring 'function Max : String' made 'var N : Integer := System.Max(1, 2)'
+    /// a type mismatch, while the call itself was correctly the built-in in both
+    /// back ends.  Qualification says where to LOOK, so the type has to come from
+    /// the same place the value does.
+    BuiltinTypes : Map := [:];
+
+begin
+    constructor Init ();
+    begin
+        this.Lookup := TypeLookup();
+        this.Lookup.Generics := TypeLookup();
+
+        // ⚠️ The built-in collections' members, whose types nothing else can
+        // see: ObjCollection dispatches by hand rather than through a method
+        // table, so there is no declaration for the checker to read.  Without
+        // these, every 'Scopes.Length' on a declared Stack reduced to nothing
+        // and 'var I : Integer := Scopes.Length - 1' was a type mismatch.
+        //
+        // Only the members whose result is knowable regardless of what the
+        // collection HOLDS are listed.  Get, Pop, Peek and the rest yield an
+        // element, which is the generic's business, so they stay unregistered.
+        for var Kind in ['List', 'Map', 'Set', 'Stack', 'Array'] do
+        begin
+            Lookup.SetType (Kind + '::Length',   'Integer');
+            Lookup.SetType (Kind + '::IsEmpty',  'Boolean');
+            Lookup.SetType (Kind + '::Contains', 'Boolean');
+        end
+
+        Lookup.SetType ('List::IndexOf',  'Integer');
+        Lookup.SetType ('Array::IndexOf', 'Integer');
+
+        Lookup.SetType ('Map::Keys',   'List');
+        Lookup.SetType ('Map::Values', 'List');
+        Lookup.SetType ('Set::ToList', 'List');
+
+        // TextFile is not a collection, but it reaches the checker the same
+        // way: a handle dispatching by hand, with nothing to read a type from.
+        Lookup.SetType ('TextFile::ReadLn', 'String');
+        Lookup.SetType ('TextFile::Eof',    'Boolean');
+
+        // Nor is a Buffer, and Text is the one worth knowing: it is how a
+        // compiler gets its output back, and reducing it to nothing would let
+        // it be assigned anywhere.
+        Lookup.SetType ('Buffer::Text',    'String');
+        Lookup.SetType ('Buffer::Length',  'Integer');
+        Lookup.SetType ('Buffer::IsEmpty', 'Boolean');
+        Lookup.SetType ('Buffer::GetInt',  'Integer');
+
+        // The builtins, so a call to one reduces to something better than ''.
+        //
+        // ⚠️ Registered TWICE on purpose: into Lookup, where a user declaration
+        // may later overwrite the entry, and into BuiltinTypes, which nothing
+        // writes to again.  'System.X' reads the second.
+        Lookup.SetType ('Length', 'Integer');
+        Lookup.SetType ('Pos',    'Integer');
+        Lookup.SetType ('Copy',   'String');
+        Lookup.SetType ('Str',    'String');
+        // ⚠️ The constructors, each returning its own kind.  Only Array was
+        // here, so 'var S : Stack := Stack()' was a mismatch -- and with the
+        // variable then untyped, every 'S.Length' after it reduced to nothing
+        // too.  One missing return type poisons everything downstream of it.
+        Lookup.SetType ('Array',  'Array');
+        Lookup.SetType ('List',   'List');
+        Lookup.SetType ('Map',    'Map');
+        Lookup.SetType ('Set',    'Set');
+        Lookup.SetType ('Stack',  'Stack');
+
+        Lookup.SetType ('Buffer',     'Buffer');
+        Lookup.SetType ('TextFile',   'TextFile');
+        Lookup.SetType ('FileExists', 'Boolean');
+        Lookup.SetType ('ParamCount', 'Integer');
+        Lookup.SetType ('ParamStr',   'String');
+
+        // Both write and yield nothing.
+        Lookup.SetType ('Write',   'Nil');
+        Lookup.SetType ('WriteLn', 'Nil');
+
+        Lookup.SetType ('Ord',  'Integer');
+        Lookup.SetType ('Val',  'Double');
+        Lookup.SetType ('Char', 'Char');
+        Lookup.SetType ('Max',  'Integer');
+        Lookup.SetType ('Mod',  'Integer');
+
+        Lookup.SetType ('clock',  'Double');
+
+        for var Name in ['Length', 'Pos', 'Copy', 'Str', 'Array', 'List', 'Map',
+                         'Set', 'Stack', 'Buffer', 'TextFile', 'FileExists',
+                         'ParamCount', 'ParamStr', 'Write', 'WriteLn', 'Ord',
+                         'Val', 'Char', 'Max', 'Mod', 'clock'] do
+            BuiltinTypes.Put (Name, Lookup.GetType (Name));
+    end
+
+    /// The class that hid this member, walking UP from the given type, or ''
+    /// when nothing did.
+    ///
+    /// ⚠️ Up the chain, so a subclass cannot reach what its parent hid -- what
+    /// a parent hid stays hidden, and there is no 'protected'.
+    ///
+    function HiddenBy (TheType : String, Member : String) : String;
+    var
+        At   : String;
+        Seen : List;
+
+    begin
+        At := TheType;
+        Seen := List();
+
+        while At <> '' and At <> 'Any' and not Seen.Contains (At) do
+        begin
+            Seen.Add (At);
+
+            if PrivateMembers.Contains (At) then
+                if PrivateMembers.Get (At).Contains (Member) then Exit At;
+
+            At := Str (Lookup.Parents.Get (At));
+            if At = 'nil' then At := '';
+        end
+
+        Exit '';
+    end
+
+    /// Rejects a private member reached from outside the class that declared
+    /// it.
+    ///
+    /// ⚠️ Enforced HERE rather than at run time, so both back ends get it from
+    /// the one front end they share -- neither an instance nor the C runtime's
+    /// alg_property knows who is asking.
+    ///
+    /// It catches what it can type.  A receiver that reduces to '' or 'Any' is
+    /// not caught and the access goes through, which is the same bargain
+    /// gradual typing makes everywhere else -- and 'this' is deliberately such
+    /// a receiver, which is what keeps a class's own code free of the rule.
+    ///
+    /// The type of a receiver being dotted into.
+    ///
+    /// ⚠️ A VariableExpr reduces from the DECLARED types only, so the ordinary
+    /// 'var C := Counter()' reduces to nothing -- which would leave every
+    /// member of the language's most common receiver untypeable, and put every
+    /// private one out of reach of the visibility rule.  The DEDUCED type is
+    /// consulted here rather than inside Reduce, which the whole checker runs
+    /// on and which widening is its own change.
+    ///
+    function TypeOfReceiver (Obj : Any) : String;
+    var
+        TheType : String;
+
+    begin
+        TheType := Reduce (Obj);
+
+        if (TheType = '' or TheType = 'Any') and Obj is VariableExpr then
+        begin
+            var Deduced := Str (Lookup.Inferred.Get (Str (Obj.Name.Lexeme)));
+            if Deduced <> 'nil' and Deduced <> '' then Exit Deduced;
+        end
+
+        Exit TheType;
+    end
+
+    procedure CheckVisibility (Obj : Any, Member : Token);
+    var
+        TheType : String;
+
+    begin
+        TheType := TypeOfReceiver (Obj);
+
+        var Owner := HiddenBy (TheType, Str (Member.Lexeme));
+
+        if Owner = '' or Owner = Lookup.CurrentClassName then Exit;
+
+        raise '''' + Member.Lexeme + ''' is private to ' + Owner + '.';
+    end
+
+    /// Whether a value of type Actual may stand where Expected is declared.
+    ///
+    /// Same type, or one that inherits from it, with 'Any' matching either way
+    /// and nil inhabiting everything.
+    ///
+    function Assignable (Expected : String, Actual : String) : Boolean;
+    var
+        Parent : String;
+
+    begin
+        if Expected = '' or Actual = '' then Exit True;
+        if Expected = 'Any' or Actual = 'Any' then Exit True;
+        if Actual = 'Nil' then Exit True;
+        if Expected = Actual then Exit True;
+
+        // Walk up the chain: a Dog stands where an Animal is declared.
+        Parent := Str (Lookup.Parents.Get (Actual));
+        while Parent <> '' and Parent <> 'nil' do
+        begin
+            if Expected = Parent then Exit True;
+
+            Parent := Str (Lookup.Parents.Get (Parent));
+        end
+
+        Exit False;
+    end
+
+    /// Checks a whole program.
+    procedure Resolve (Statements : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+            MapType (Statements[I]);
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+            Check (Statements[I]);
+    end
+
+    /// Records what a declaration introduces, before anything is checked, so a
+    /// class used above where it is declared still resolves.
+    procedure MapType (TheStmt : Any);
+    var
+        Kind : String;
+
+    begin
+        Kind := ClassNameOf (TheStmt);
+
+        if Kind = 'ClassStmt' then
+        begin
+            PrivateMembers.Put (Str (TheStmt.Name.Lexeme), TheStmt.PrivateMembers);
+            Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
+
+            if TheStmt.Superclass <> Nil then
+                Lookup.Parents.Put (TheStmt.Name.Lexeme, TheStmt.Superclass.Name.Lexeme);
+
+            // A field's declared type, and a method's return type, keyed under
+            // the class -- 'Point::X'.
+            for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
+            begin
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Fields[I].Name.Lexeme,
+                                TheStmt.Fields[I].TypeName);
+
+                Lookup.Generics.SetType (Str (TheStmt.Fields[I].Name.Lexeme),
+                                         TheStmt.Fields[I].Generic);
+            end
+
+            for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Methods[I].Name.Lexeme,
+                                TheStmt.Methods[I].ReturnType);
+        end
+
+        // An object's name reduces to its own type, exactly as a class's does
+        // -- the difference between them is what the name evaluates to at run
+        // time, which the checker never asks.
+        if Kind = 'ObjectStmt' then
+        begin
+            PrivateMembers.Put (Str (TheStmt.Name.Lexeme), TheStmt.PrivateMembers);
+            Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
+
+            if TheStmt.Superclass <> Nil then
+                Lookup.Parents.Put (TheStmt.Name.Lexeme, TheStmt.Superclass.Name.Lexeme);
+
+            for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
+            begin
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Fields[I].Name.Lexeme,
+                                TheStmt.Fields[I].TypeName);
+
+                Lookup.Generics.SetType (Str (TheStmt.Fields[I].Name.Lexeme),
+                                         TheStmt.Fields[I].Generic);
+            end
+
+            for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Methods[I].Name.Lexeme,
+                                TheStmt.Methods[I].ReturnType);
+        end
+
+        if Kind = 'FunctionStmt' then Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.ReturnType);
+
+        if Kind = 'EnumStmt' then
+        begin
+            Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
+
+            for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
+            begin
+                Lookup.SetType (TheStmt.Members[I].Lexeme, TheStmt.Name.Lexeme);
+
+                // ⚠️ The QUALIFIED form too, so 'Color.Red' types as Color
+                // rather than reducing to nothing.  Registering only the bare
+                // name made 'var C : Color := Color.Red' a type mismatch while
+                // 'var C : Color := Red' was fine -- the two spellings of one
+                // value disagreeing about their own type.
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Members[I].Lexeme,
+                                TheStmt.Name.Lexeme);
+            end
+        end
+
+        if Kind = 'VarStmt' then
+        begin
+            Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.TypeName);
+            Lookup.Generics.SetType (Str (TheStmt.Name.Lexeme), TheStmt.Generic);
+        end
+
+        if Kind = 'VarGroupStmt' then
+            for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
+            begin
+                Lookup.SetType (TheStmt.Names[I].Lexeme, TheStmt.TypeName);
+                Lookup.Generics.SetType (Str (TheStmt.Names[I].Lexeme), TheStmt.Generic);
+            end
+
+        // A module's declarations were top-level ones before 'uses' grew
+        // scopes, and the checker still needs their types registered in the
+        // first pass so declaration order ACROSS FILES does not matter.
+        if Kind = 'ModuleStmt' then
+            if TheStmt.Statements <> Nil then
+                for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
+                    MapType (TheStmt.Statements[I]);
+    end
+
+    /// Checks one statement.
+    procedure Check (TheStmt : Any);
+    var
+        Kind : String;
+
+    begin
+        Kind := ClassNameOf (TheStmt);
+
+        if Kind = 'VarStmt' then
+        begin
+            Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.TypeName);
+            Lookup.Generics.SetType (Str (TheStmt.Name.Lexeme), TheStmt.Generic);
+
+            // ⚠️ The DEDUCED type, recorded for a declaration that wrote none.
+            // Without it the ordinary 'var C := Counter()' has no type at all
+            // and every private member of the language's most common receiver
+            // is out of reach of the visibility rule.
+            if TheStmt.Initializer <> Nil and TheStmt.TypeName = '' then
+                Lookup.Inferred.Put (Str (TheStmt.Name.Lexeme), Reduce (TheStmt.Initializer));
+
+            if TheStmt.Initializer <> Nil and TheStmt.TypeName <> '' then
+            begin
+                var Actual := Reduce (TheStmt.Initializer);
+
+                // ⚠️ Deliberately stricter about 'Any' than Assignable is, and
+                // the one place the gradual rule is traded for a diagnostic: a
+                // type was written here and the initializer could not be typed
+                // at all.
+                if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
+                    raise 'Type mismatch!';
+            end
+            Exit;
+        end
+
+        // Every name in the group takes the one declared type, and the one
+        // initializer is checked against it once.
+        if Kind = 'VarGroupStmt' then
+        begin
+            for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
+            begin
+                Lookup.SetType (TheStmt.Names[I].Lexeme, TheStmt.TypeName);
+                Lookup.Generics.SetType (Str (TheStmt.Names[I].Lexeme), TheStmt.Generic);
+            end
+
+            if TheStmt.Initializer <> Nil and TheStmt.TypeName <> '' then
+            begin
+                var Actual := Reduce (TheStmt.Initializer);
+
+                if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
+                    raise 'Type mismatch!';
+            end
+            Exit;
+        end
+
+        if Kind = 'ExpressionStmt' then
+        begin
+            Reduce (TheStmt.Expression);
+            Exit;
+        end
+
+        if Kind = 'PrintStmt' then
+        begin
+            Reduce (TheStmt.Expression);
+            Exit;
+        end
+
+        if Kind = 'BlockStmt' then
+        begin
+            Lookup.BeginScope();
+            for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
+                Check (TheStmt.Statements[I]);
+
+            Lookup.EndScope();
+            Exit;
+        end
+
+        if Kind = 'IfStmt' then
+        begin
+            Reduce (TheStmt.Condition);
+            Check (TheStmt.ThenBranch);
+            if TheStmt.ElseBranch <> Nil then Check (TheStmt.ElseBranch);
+            Exit;
+        end
+
+        // 'List of T' gives the loop variable an element type; anything else
+        // leaves it unknown.
+        if Kind = 'ForInStmt' then
+        begin
+            Reduce (TheStmt.Iterable);
+
+            Lookup.BeginScope();
+
+            var Element := '';
+            if TheStmt.Iterable is VariableExpr then
+                Element := Lookup.Generics.GetType (Str (TheStmt.Iterable.Name.Lexeme));
+
+            Lookup.SetType (TheStmt.Name.Lexeme, Element);
+
+            Check (TheStmt.Body);
+            Lookup.EndScope();
+            Exit;
+        end
+
+        if Kind = 'WhileStmt' then
+        begin
+            Reduce (TheStmt.Condition);
+            Check (TheStmt.Body);
+            Exit;
+        end
+
+        if Kind = 'ReturnStmt' then
+        begin
+            if TheStmt.Value <> Nil then
+            begin
+                var Actual := Reduce (TheStmt.Value);
+
+                if not Assignable (CurrentReturn, Actual) then raise 'Type mismatch!';
+            end
+            Exit;
+        end
+
+        // ⚠️ Both bodies are walked even though neither is type-checked as a
+        // unit, or an expression appearing only inside a try -- or only inside
+        // a 'raise' -- would never be visited at all.  That is the gap any
+        // statement leaves by reducing without walking: reducing nothing
+        // checks nothing.
+        //
+        // The handler variable is deliberately left untyped.  A typed handler
+        // knows its class, but binding that here would need a scope the
+        // Resolver does not push, and 'Any' is the honest answer for an
+        // untyped one.
+        if Kind = 'TryStmt' then
+        begin
+            Check (TheStmt.TryBlock);
+
+            var Keys := TheStmt.Handlers.Keys();
+            for var I := 0; I < Keys.Length; I := I + 1 do
+                Check (TheStmt.Handlers.Get (Keys[I]).Body);
+
+            Exit;
+        end
+
+        // 'break' has no type and contains no expression, so there is nothing
+        // to reduce -- but it still has to be named here or it falls off the
+        // end of the chain silently, which is only harmless by accident.
+        if Kind = 'BreakStmt' then Exit;
+
+        // ⚠️ A module's body is checked in a scope of its OWN, opening with the
+        // built-in types restored.  The first pass maps every file's
+        // declarations into one lookup, so a top-level 'function Length : String'
+        // in the importing file overwrote the built-in's entry for the whole
+        // program -- and a module that never imported it, calling the real
+        // Length, was rejected as a type mismatch.
+        //
+        // Reasserting the built-ins here and then re-mapping the module's own
+        // statements on top gives each file the chain it actually has: built-ins
+        // underneath, its own declarations and its own imports over them, and
+        // nothing from a file that merely imported IT.
+        //
+        // This does not make the checker module-aware in general -- two modules'
+        // declarations still share the outer scope, and a name from a file this
+        // one never imported still resolves.  It closes the case that rejects
+        // correct programs.
+        if Kind = 'ModuleStmt' then
+        begin
+            if TheStmt.Statements = Nil then Exit;
+
+            Lookup.BeginScope();
+
+            for var Name in BuiltinTypes do
+                Lookup.SetType (Name, Str (BuiltinTypes.Get (Name)));
+
+            for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
+                MapType (TheStmt.Statements[I]);
+
+            for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
+                Check (TheStmt.Statements[I]);
+
+            Lookup.EndScope();
+            Exit;
+        end
+
+        if Kind = 'RaiseStmt' then
+        begin
+            Reduce (TheStmt.Value);
+            Exit;
+        end
+
+        if Kind = 'FunctionStmt' then
+        begin
+            CheckFunction (TheStmt);
+            Exit;
+        end
+
+        if Kind = 'ObjectStmt' or Kind = 'ClassStmt' then
+        begin
+            var Enclosing := Lookup.CurrentClassName;
+            Lookup.CurrentClassName := TheStmt.Name.Lexeme;
+
+            // ⚠️ The fields under their BARE names, in a scope around the
+            // methods.  Fields are reachable unqualified inside a method --
+            // 'Env', not 'this.Env' -- and without this every such reference
+            // reduced to nothing, so 'var Previous : Environment := Env' was a
+            // mismatch.
+            Lookup.BeginScope();
+
+            for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
+            begin
+                var Field := TheStmt.Fields[I];
+
+                Lookup.SetType (Field.Name.Lexeme, Field.TypeName);
+                Lookup.Generics.SetType (Str (Field.Name.Lexeme), Field.Generic);
+            end
+
+            for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
+                CheckFunction (TheStmt.Methods[I]);
+
+            Lookup.EndScope();
+
+            Lookup.CurrentClassName := Enclosing;
+            Exit;
+        end
+    end
+
+    procedure CheckFunction (TheFunction : Any);
+    var
+        Enclosing : String;
+
+    begin
+        Enclosing := CurrentReturn;
+        CurrentReturn := TheFunction.ReturnType;
+
+        Lookup.BeginScope();
+
+        // ⚠️ A parameter's declared type has to be REGISTERED or every body
+        // reduces its own parameters to nothing.  That gap was found while
+        // building per-class visibility.
+        for var I := 0; I < TheFunction.Params.Length; I := I + 1 do
+            Lookup.SetType (TheFunction.Params[I].Lexeme, Str (TheFunction.ParamTypes[I]));
+
+        // ⚠️ A NESTED declaration shadows the name outside it, and that
+        // includes a builtin's registered return type.  Without this a
+        // 'function Set' declared in a body left every call to it reducing to
+        // the BUILTIN's 'Set', so returning its result from a function declared
+        // ': String' was reported as a mismatch on a program that is perfectly
+        // well typed -- a front-end error, and the kind no output comparison
+        // can see because the program never runs.
+        for var I := 0; I < TheFunction.Body.Length; I := I + 1 do
+            if ClassNameOf (TheFunction.Body[I]) = 'FunctionStmt' then
+                Lookup.SetType (TheFunction.Body[I].Name.Lexeme,
+                                TheFunction.Body[I].ReturnType);
+
+        for var I := 0; I < TheFunction.Body.Length; I := I + 1 do
+            Check (TheFunction.Body[I]);
+
+        Lookup.EndScope();
+        CurrentReturn := Enclosing;
+    end
+
+    /// The type of an expression, or '' when it cannot be worked out.
+    ///
+    /// '' and 'Any' both mean "not known"; nothing may be rejected for being
+    /// either.
+    ///
+    function Reduce (TheExpr : Any) : String;
+    var
+        Kind : String;
+
+    begin
+        if TheExpr = Nil then Exit '';
+
+        // ⚠️ A cast wins outright and stops the search.  That is the whole
+        // point of it: the programmer is overriding what would have been
+        // deduced, so deducing anyway and then comparing would defeat it.
+        //
+        // Purely a compile-time annotation -- nothing is checked at run time,
+        // so casting to a wrong type fails later at the point of use rather
+        // than at the cast.
+        if TheExpr.Cast <> '' then Exit TheExpr.Cast;
+
+        Kind := ClassNameOf (TheExpr);
+
+        if Kind = 'LiteralExpr' then Exit TypeOfValue (TheExpr.Value);
+        if Kind = 'GroupingExpr' then Exit Reduce (TheExpr.Expression);
+        if Kind = 'VariableExpr' then Exit Lookup.GetType (TheExpr.Name.Lexeme);
+
+        if Kind = 'UnaryExpr' then
+        begin
+            if TheExpr.Op.TypeOfToken = TOKEN_NOT then Exit 'Boolean';
+
+            Exit Reduce (TheExpr.Right);
+        end
+
+        // A type test is Boolean whatever it tests, but the left side still
+        // has to be reduced or an expression appearing only inside an 'is'
+        // would never be checked at all.
+        if Kind = 'IsExpr' then
+        begin
+            Reduce (TheExpr.Obj);
+
+            Exit 'Boolean';
+        end
+
+        if Kind = 'BinaryExpr' then Exit ReduceBinary (TheExpr);
+
+        // 'and' and 'or' yield an operand, so the left one's type is as good a
+        // guess as there is.
+        if Kind = 'LogicalExpr' then Exit Reduce (TheExpr.Left);
+
+        if Kind = 'AssignExpr' then
+        begin
+            var Declared := Lookup.GetType (TheExpr.Name.Lexeme);
+            var Actual   := Reduce (TheExpr.Value);
+
+            if not Assignable (Declared, Actual) then raise 'Type mismatch!';
+
+            Exit Declared;
+        end
+
+        if Kind = 'CallExpr' then
+        begin
+            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+                Reduce (TheExpr.Arguments[I]);
+
+            // Calling a class constructs one, so the type is the class itself.
+            Exit Reduce (TheExpr.Callee);
+        end
+
+        if Kind = 'GetExpr' then
+        begin
+            // A unit-qualified name is the name itself -- 'System.Copy' has the
+            // type 'Copy' has, since qualification only says where to look.
+            // There is no receiver here and so no class whose 'private:'
+            // sections could be violated; a unit's own visibility is the export
+            // set, which the Interpreter checks.
+            // ⚠️ System reads the BUILT-IN table, not Lookup: a program that
+            // declares its own Max has overwritten Lookup's entry, and that
+            // declaration is precisely what this form is written to reach past.
+            if TheExpr.Unit = 'System' then
+            begin
+                if BuiltinTypes.Contains (Str (TheExpr.Name.Lexeme)) then
+                    Exit Str (BuiltinTypes.Get (Str (TheExpr.Name.Lexeme)));
+
+                Exit '';
+            end
+
+            if TheExpr.Unit <> '' then Exit Lookup.GetType (Str (TheExpr.Name.Lexeme));
+
+            CheckVisibility (TheExpr.Obj, TheExpr.Name);
+
+            var Owner := TypeOfReceiver (TheExpr.Obj);
+            if Owner = '' or Owner = 'Any' then Exit '';
+
+            Exit Lookup.GetType (Owner + '::' + TheExpr.Name.Lexeme);
+        end
+
+        if Kind = 'SetExpr' then
+        begin
+            // A unit qualifier is not a value; there is no class here whose
+            // 'private:' sections could be violated.
+            if TheExpr.Unit <> '' then Exit Reduce (TheExpr.Value);
+
+            CheckVisibility (TheExpr.Obj, TheExpr.Name);
+
+            var Owner  := TypeOfReceiver (TheExpr.Obj);
+            var Actual := Reduce (TheExpr.Value);
+
+            if Owner <> '' and Owner <> 'Any' then
+            begin
+                var Declared := Lookup.GetType (Owner + '::' + TheExpr.Name.Lexeme);
+                if not Assignable (Declared, Actual) then raise 'Type mismatch!';
+            end
+
+            Exit Actual;
+        end
+
+        // ⚠️ 'this' reduces to NOTHING, not to the enclosing class.
+        //
+        // Leaving it untyped is deliberate: it is what keeps a class's own code
+        // free of the visibility rule, since a private member reached through
+        // an untyped receiver is never caught.  Reducing it to the class name
+        // made algc stricter than the language, and every 'this.Private'
+        // inside a subclass became an error the language allows.
+        if Kind = 'ThisExpr' then Exit '';
+
+        if Kind = 'CollectionExpr' then
+        begin
+            for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+                Reduce (TheExpr.Values[I]);
+
+            if TheExpr.IsMap then Exit 'Map';
+
+            Exit 'List';
+        end
+
+        // A subscript yields an element, and there are exactly two ways to
+        // know what kind.
+        if Kind = 'SubscriptExpr' then
+        begin
+            var Owner := Reduce (TheExpr.Obj);
+            Reduce (TheExpr.Index);
+
+            // Subscripting text yields a Char, never a one-character String.
+            if IsTextType (Owner) then Exit 'Char';
+
+            // Otherwise only a declared 'List of T' knows, and only when the
+            // thing subscripted is a plain name -- there is nowhere to have
+            // written the element type of an arbitrary expression.
+            if ClassNameOf (TheExpr.Obj) = 'VariableExpr' then
+                Exit Lookup.Generics.GetType (Str (TheExpr.Obj.Name.Lexeme));
+
+            Exit '';
+        end
+
+        if Kind = 'SetSubscriptExpr' then
+        begin
+            Reduce (TheExpr.Obj);
+            Reduce (TheExpr.Index);
+
+            Exit Reduce (TheExpr.Value);
+        end
+
+        Exit '';
+    end
+
+    /// Binary operators: comparisons are Boolean, '+' over text is a String,
+    /// and mixed Integer and Double promotes.
+    function ReduceBinary (TheExpr : Any) : String;
+    var
+        Left  : String;
+        Right : String;
+
+    begin
+        var Op := TheExpr.Op.TypeOfToken;
+
+        if Op = TOKEN_GREATER or Op = TOKEN_GREATER_EQUAL
+        or Op = TOKEN_LESS or Op = TOKEN_LESS_EQUAL
+        or Op = TOKEN_EQUAL or Op = TOKEN_NOT_EQUAL then
+        begin
+            Reduce (TheExpr.Left);
+            Reduce (TheExpr.Right);
+
+            Exit 'Boolean';
+        end
+
+        Left  := Reduce (TheExpr.Left);
+        Right := Reduce (TheExpr.Right);
+
+        if Left = '' or Right = '' or Left = 'Any' or Right = 'Any' then Exit '';
+
+        if Op = TOKEN_IN then Exit 'Boolean';
+
+        if Op = TOKEN_PLUS and (IsTextType (Left) or IsTextType (Right)) then Exit 'String';
+
+        if Left = 'Double' or Right = 'Double' then Exit 'Double';
+        if Left = Right then Exit Left;
+
+        Exit '';
+    end
+
+    function IsTextType (TheType : String) : Boolean;
+    begin
+        Exit TheType = 'String' or TheType = 'Char';
+    end
+
+    /// The type of a literal value.
+    ///
+    /// ⚠️ Nil is 'Nil' rather than '', and that is deliberate: '' means "not
+    /// known" and would make every nil assignable to nothing in particular,
+    /// where Assignable has a rule for Nil specifically.
+    ///
+    function TypeOfValue (Value : Any) : String;
+    begin
+        if Value = Nil then Exit 'Nil';
+
+        if Value is Boolean then Exit 'Boolean';
+        if Value is Integer then Exit 'Integer';
+        if Value is Double  then Exit 'Double';
+        if Value is Char    then Exit 'Char';
+        if Value is String  then Exit 'String';
+
+        Exit ClassNameOf (Value);
+    end
+
+    /// Class name of a value, or '' when it is not an instance.  The same
+    /// caught-failure type test the interpreter uses; Algol-24 has no 'is'.
+    function ClassNameOf (Obj : Any) : String;
+    begin
+        try
+            Exit Obj.ClassName;
+        except
+            on e : String do Exit '';
+        end
+    end
+end
+
+
+// ------------------------------------------------------------- generics
+
+/// Runs the checker over source, and answers whether it rejected it.
+///
+/// The checker's whole observable behaviour is "does this raise", so every
+/// test below is one call to this.
+///
+function Rejects (Source : String) : Boolean;
+begin
+    var TheScanner := Scanner (Source);
+    var TheParser  := Parser (TheScanner.ScanTokens());
+
+    try
+        TypeChecker().Resolve (TheParser.Parse());
+    except
+        on e : String do Exit True;
+    end
+
+    Exit False;
+end
+
+// 'List of T' makes a subscript over it reduce to T.
+//
+test 'Generic Subscript Reduces To The Element Type';
+begin
+    AssertTrue (not Rejects ('var T : List of String := [''abc'']; var S : String := T[0];'));
+    AssertTrue (not Rejects ('var T : List of Integer := [1]; var N : Integer := T[0];'));
+end
+
+test 'Generic Subscript Catches The Wrong Element Type';
+begin
+    AssertTrue (Rejects ('var T : List of Integer := [1]; var S : String := T[0];'));
+end
+
+// ⚠️ Without an element type a subscript is unknown, and a declared type is
+// rejected against it rather than waved through.  That is the one place the
+// gradual rule is deliberately traded for a diagnostic.
+//
+test 'Subscript With No Generic Is Rejected';
+begin
+    AssertTrue (Rejects ('var T : List := [''abc'']; var S : String := T[0];'));
+end
+
+// Subscripting text yields a Char, never a one-character String.
+//
+test 'String Subscript Reduces To Char';
+begin
+    AssertTrue (not Rejects ('var S : String := ''abc''; var C : Char := S[0];'));
+    AssertTrue (Rejects ('var S : String := ''abc''; var T : String := S[0];'));
+end
+
+// 'of' is honoured only after 'List'.  Anywhere else the type is whatever was
+// written and the 'of' is not consumed -- which is what keeps 'case X of'
+// meaning what it meant.
+//
+test 'Of Is Honoured Only After List';
+begin
+    AssertTrue (not Rejects ('var M : Map := [''a'':1];'));
+end
+
+/// ⚠️ Element types are SCOPED, and this is the case that proves it.
+///
+/// The global L has no element type, so L[0] is unknown and the declaration
+/// against it must be rejected.  With a flat map, F's 'List of Integer' would
+/// still be sitting under the name L by the time G is checked, G would accept,
+/// and a genuinely unknown subscript would have been given a type it never
+/// had.  Verified by removing the push/pop and watching this one flip.
+///
+test 'An Element Type Does Not Escape Its Scope';
+begin
+    // ⚠️ The newlines are load-bearing.  Joined without them, '...end' and
+    // 'procedure...' run together into the single identifier 'endprocedure',
+    // and the source is rejected by the PARSER -- so the test passes without
+    // the checker ever having an opinion.  Both of these did exactly that.
+    AssertTrue (Rejects (
+        'var L : List := [1];' + #10 +
+        'procedure F(); begin var L : List of Integer := [1]; end' + #10 +
+        'procedure G(); begin var N : Integer := L[0]; end'));
+end
+
+test 'An Element Type Is Not Inherited By A Plain List';
+begin
+    AssertTrue (Rejects (
+        'procedure F(); begin var L : List of Integer := [1]; end' + #10 +
+        'procedure G(); begin var L : List := [1]; var N : Integer := L[0]; end'));
+end
+
+// A class field may carry one too, so an implicit this.Field[0] reduces.
+//
+test 'A Class Field Carries An Element Type';
+begin
+    AssertTrue (not Rejects (
+        'class Lexer;' + #10 +
+        'var Tokens : List of String;' + #10 +
+        'begin function First() : String; begin Exit Tokens[0]; end end'));
+end
+
+
+// ------------------------------------------------------------------- casts
+
+// ⚠️ A cast wins outright and stops the search.  That is the point of it: the
+// programmer is overriding what would have been deduced, so deducing anyway
+// and then comparing would defeat it.
+//
+test 'A Cast Overrides An Unknown Subscript';
+begin
+    // Without the cast this is the rejected case from the generics tests: a
+    // plain List has no element type, so the subscript reduces to nothing.
+    AssertTrue (Rejects ('var L : List := [''abc'']; var S : String := L[0];'));
+
+    AssertTrue (not Rejects ('var L : List := [''abc'']; var S : String := L[0] as String;'));
+end
+
+test 'A Cast Overrides A Known Type';
+begin
+    AssertTrue (Rejects ('var N : Integer := 1; var S : String := N;'));
+
+    AssertTrue (not Rejects ('var N : Integer := 1; var S : String := N as String;'));
+end
+
+test 'A Cast Overrides A Declared Element Type';
+begin
+    AssertTrue (Rejects ('var L : List of Integer := [1]; var S : String := L[0];'));
+
+    AssertTrue (not Rejects ('var L : List of Integer := [1]; var S : String := L[0] as String;'));
+end
+
+// ⚠️ The cast is what gets checked, not the expression under it -- so casting
+// to the WRONG thing is still caught when it disagrees with the declaration.
+// A cast overrides deduction; it does not switch checking off.
+//
+test 'A Cast Is Itself Checked Against The Declaration';
+begin
+    AssertTrue (Rejects ('var S : String := ''abc'' as Integer;'));
+    AssertTrue (Rejects ('var N : Integer := 1 as String;'));
+end
+
+// A cast to a subclass still satisfies a parent annotation, because Assignable
+// walks the chain whatever the type came from.
+//
+test 'A Cast To A Subclass Satisfies A Parent';
+begin
+    AssertTrue (not Rejects (
+        'class Animal; begin end' + #10 +
+        'class Dog(Animal); begin end' + #10 +
+        'var A : Animal := Nil as Dog;'));
+end
+
+test 'A Cast Needs A Type Name';
+begin
+    var TheScanner := Scanner ('var X := 1 as ;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual ('Expect typecast identifier.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+// ------------------------------------------------------- private: / public:
+
+/// A class with one private field and one private method, for the tests below.
+const HIDER :=
+    'class Counter;'                                     + #10 +
+    'private:'                                           + #10 +
+    '    var Count : Integer := 0;'                      + #10 +
+    'begin'                                              + #10 +
+    '    procedure Bump();'                              + #10 +
+    '    begin'                                          + #10 +
+    '        Count := Count + 1;'                        + #10 +
+    '    end'                                            + #10 +
+    'private:'                                           + #10 +
+    '    procedure Advance();'                           + #10 +
+    '    begin'                                          + #10 +
+    '    end'                                            + #10 +
+    'end'                                                + #10;
+
+test 'A Private Field Is Not Readable From Outside';
+begin
+    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); print C.Count; end'));
+end
+
+test 'A Private Field Is Not Writable From Outside';
+begin
+    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); C.Count := 1; end'));
+end
+
+test 'A Private Method Is Not Callable From Outside';
+begin
+    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); C.Advance(); end'));
+end
+
+test 'A Public Member Is Reachable From Outside';
+begin
+    AssertTrue (not Rejects (HIDER + 'begin var C := Counter(); C.Bump(); end'));
+end
+
+/// ⚠️ Caught through a DECLARED receiver and a deduced one alike.  A
+/// VariableExpr reduces from the declared types only, so without the deduced
+/// type the ordinary 'var C := Counter()' would put every private member of
+/// the language's most common receiver out of reach of the rule.
+test 'A Private Member Is Caught Through A Declared Receiver';
+begin
+    AssertTrue (Rejects (HIDER + 'begin var C : Counter := Counter(); print C.Count; end'));
+end
+
+/// ⚠️ It is caught in EVERY statement kind, not only the ones that happen to
+/// resolve their expressions.  A 'print' that does nothing and a 'var' that
+/// reduces without resolving let a read slip past through either, while the
+/// same read one line later in a WriteLn was caught.
+test 'A Private Member Is Caught In Every Statement Kind';
+begin
+    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); var X := C.Count; end'));
+    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); WriteLn(C.Count); end'));
+    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); print C.Count + 1; end'));
+end
+
+/// A private member belongs to the class that DECLARED it, not to one object
+/// of it -- so another instance of the same class reaches it.
+test 'Another Instance Of The Same Class Reaches Its Privates';
+begin
+    AssertTrue (not Rejects (
+        'class Counter;'                                 + #10 +
+        'private:'                                       + #10 +
+        '    var Count : Integer := 0;'                  + #10 +
+        'begin'                                          + #10 +
+        '    function Beats(Other : Counter) : Boolean;' + #10 +
+        '    begin'                                      + #10 +
+        '        Exit Count > Other.Count;'              + #10 +
+        '    end'                                        + #10 +
+        'end'));
+end
+
+/// ⚠️ What a parent hid stays hidden.  There is no 'protected'.
+test 'A Subclass Does Not Reach What Its Parent Hid';
+begin
+    AssertTrue (Rejects (HIDER +
+        'class Sub(Counter);'                            + #10 +
+        'begin'                                          + #10 +
+        '    function Reach(C : Counter) : Integer;'     + #10 +
+        '    begin'                                      + #10 +
+        '        Exit C.Count;'                          + #10 +
+        '    end'                                        + #10 +
+        'end'));
+end
+
+/// ⚠️ 'this' is deliberately an untyped receiver, which is what keeps a
+/// class's own code -- and a subclass's -- free of the rule.
+test 'This Is Never Caught';
+begin
+    AssertTrue (not Rejects (HIDER +
+        'class Sub(Counter);'                            + #10 +
+        'begin'                                          + #10 +
+        '    function Reach() : Integer;'                + #10 +
+        '    begin'                                      + #10 +
+        '        Exit this.Count;'                       + #10 +
+        '    end'                                        + #10 +
+        'end'));
+end
+
+/// The header and the body are separate blocks, so a marker's reach stops at
+/// 'begin' and the body starts public again.
+test 'The Body Starts Public However The Header Ended';
+begin
+    AssertTrue (not Rejects (
+        'class Blocks;'                                  + #10 +
+        'private:'                                       + #10 +
+        '    var Hidden : Integer := 1;'                 + #10 +
+        'begin'                                          + #10 +
+        '    function Visible() : Integer;'              + #10 +
+        '    begin'                                      + #10 +
+        '        Exit Hidden;'                           + #10 +
+        '    end'                                        + #10 +
+        'end'                                            + #10 +
+        'begin print Blocks().Visible(); end'));
+end
+
+/// A marker may stand between two fields of one var section.
+test 'A Marker May Stand Inside A Var Section';
+begin
+    AssertTrue (Rejects (
+        'class Mixed;'                                   + #10 +
+        'var'                                            + #10 +
+        '    Open : String := ''o'';'                    + #10 +
+        'private:'                                       + #10 +
+        '    Shut : String := ''s'';'                    + #10 +
+        'begin'                                          + #10 +
+        'end'                                            + #10 +
+        'begin var M := Mixed(); print M.Shut; end'));
+
+    AssertTrue (not Rejects (
+        'class Mixed;'                                   + #10 +
+        'var'                                            + #10 +
+        '    Open : String := ''o'';'                    + #10 +
+        'private:'                                       + #10 +
+        '    Shut : String := ''s'';'                    + #10 +
+        'begin'                                          + #10 +
+        'end'                                            + #10 +
+        'begin var M := Mixed(); print M.Open; end'));
+end
+
+/// An object takes sections on the same terms as a class.
+test 'An Object Takes Visibility Sections';
+begin
+    AssertTrue (Rejects (
+        'object Registry;'                               + #10 +
+        'private:'                                       + #10 +
+        '    var Items : List := [];'                    + #10 +
+        'begin'                                          + #10 +
+        'end'                                            + #10 +
+        'begin print Registry.Items; end'));
+end
+
+/// ⚠️ The COLON is what separates this from the module-level 'private', which
+/// prefixes a single top-level declaration and has nothing to do with classes.
+test 'Module Private Is Not A Section Marker';
+begin
+    AssertTrue (not Rejects ('private var Hidden := 1;' + #10 + 'begin print Hidden; end'));
+end
+
+// -------------------------------------------------------------- enum types
+
+/// ⚠️ Both spellings of one member type as the enum.
+///
+/// algc registered only the bare name, so 'Colour.Red' reduced to nothing and
+/// a declaration against it was a mismatch -- while the same value written
+/// 'Red' was fine.  Enum comparison is identity, so the two spellings are one
+/// value; they had better also be one type.
+test 'Both Spellings Of An Enum Member Type As The Enum';
+begin
+    AssertTrue (not Rejects (
+        'type Colour = (Red, Green);' + #10 +
+        'var A : Colour := Red;'));
+
+    AssertTrue (not Rejects (
+        'type Colour = (Red, Green);' + #10 +
+        'var B : Colour := Colour.Green;'));
+end
+
+test 'An Enum Member Does Not Satisfy Another Enum';
+begin
+    AssertTrue (Rejects (
+        'type Colour = (Red, Green);' + #10 +
+        'type Size = (Small, Large);' + #10 +
+        'var A : Size := Red;'));
+
+    AssertTrue (Rejects (
+        'type Colour = (Red, Green);' + #10 +
+        'type Size = (Small, Large);' + #10 +
+        'var A : Size := Colour.Red;'));
+end
+
+test 'An Enum Type Name Types As Itself';
+begin
+    AssertTrue (not Rejects (
+        'type Colour = (Red, Green);' + #10 +
+        'var C : Colour := Colour.Red;'));
+end

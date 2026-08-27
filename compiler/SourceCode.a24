@@ -1,0 +1,66 @@
+/// The source, kept by line, so an error can show the line it happened on.
+///
+/// A singleton because the scanner fills it and the reporter reads it, and
+/// threading it between them would touch every call in between for nothing.
+///
+/// One file at a time, which is all algc handles until 'uses' arrives at step
+/// 15.  This will have to key by file name when it loads more than one.
+///
+/// ⚠️ A List indexed by line number, not a Map keyed by one.  The keys were
+/// 1, 2, 3, ... in order, which is a List with extra steps -- and that is the
+/// whole justification.  It needs no measurement and it survives Map becoming
+/// fast, which the sentence that stood here did not.
+///
+/// ⚠️ That sentence called this "the single largest consumer of Map lookups in
+/// the whole compiler", at "about 4.5 million comparisons per file".  Measured
+/// afterwards, by instrumenting map_index in two builds: the change is
+/// **0.35%** of the compiler's Map comparisons, and worth no measurable time at
+/// all -- 11.85 s against an unchanged 11.71 s on '--test Main.a24'.  The 30%
+/// that round belonged entirely to the hash index.  The mechanism was right and
+/// the magnitude was invented; a false number in a ⚠️ is worse than none,
+/// because the next person sizes their own work against it.
+///
+object SourceCode;
+var
+    Lines    : List := [];
+    FileName : String := '';
+
+begin
+    /// Starts recording a new file, discarding the last one.
+    procedure Begins (Name : String);
+    begin
+        Lines := [];
+        FileName := Name;
+    end
+
+    /// Records a line.  Position I holds line I + 1, since lines count from 1.
+    ///
+    /// The scanner calls this once per line in increasing order, so this is an
+    /// append -- but it pads rather than relying on that, because a gap would
+    /// otherwise shift every later line by one and misreport them all.
+    ///
+    procedure Add (LineNumber : Integer, Text : String);
+    begin
+        if LineNumber < 1 then Exit;
+
+        while Lines.Length < LineNumber - 1 do Lines.Add ('');
+
+        if Lines.Length = LineNumber - 1 then Lines.Add (Text);
+        else Lines[LineNumber - 1] := Text;
+    end
+
+    /// The text of a line, or '' when it was never recorded -- an error on the
+    /// last line of a file with no trailing newline, for instance.
+    function Get (LineNumber : Integer) : String;
+    begin
+        if LineNumber < 1 then Exit '';
+        if LineNumber > Lines.Length then Exit '';
+
+        Exit Str (Lines[LineNumber - 1]);
+    end
+
+    function Name () : String;
+    begin
+        Exit FileName;
+    end
+end

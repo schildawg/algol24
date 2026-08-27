@@ -1,0 +1,3224 @@
+uses Expr;
+uses ObjFunction;
+uses Stmt;
+uses TokenType;
+
+/// Emits C11 for an Algol-24 program.
+///
+/// ⚠️ What it cannot emit it REFUSES BY NAME, rather than emitting nothing.  A
+/// back end that silently dropped a class declaration would produce a binary
+/// that disagrees with the interpreter, and text comparison is the only thing
+/// verifying any of this.  Failing loudly keeps the gaps honest about their
+/// own size.
+///
+/// ⚠️ The output is a FIXED POINT, and exactly so: re-emitting this compiler
+/// from its own source must reproduce the checked-in C byte for byte, which is
+/// what makes a rebuild from the seed mean anything.  Behavioural equivalence
+/// would be the weaker test and would not serve that.
+///
+/// Coverage is the language as this compiler itself uses it, which is the only
+/// honest way to state it: algc compiles algc, so classes, objects, enums,
+/// collections, closures, modules, overloads, `try`, `case` and `for ... in`
+/// all come out.  What remains is a list of edge cases, each refused by name --
+/// an identifier carrying a character C has no spelling for, two modules
+/// claiming one name, a `var` as an unbraced branch, a function nested more
+/// than one level deep or declared inside a method, `super` used as a value,
+/// and a nested `uses`.
+
+/// Four spaces per level, built by hand because the language has no repeat.
+///
+function Indentation (Depth : Integer) : String;
+var
+    Result : String := '';
+
+begin
+    for var I := 0; I < Depth; I := I + 1 do
+        Result := Result + '    ';
+
+    Exit Result;
+end
+
+/// Escapes a string for a C literal.  Only what this emitter can produce.
+///
+/// ⚠️ Algol-24 strings have NO backslash escapes, so what is written here is
+/// literally what comes out.  A C '\n' is the two characters backslash and n,
+/// spelled '\n' -- not '\\n'.  Reading these as another language's literals is
+/// how the first draft emitted three backslashes where C wanted two.
+///
+/// And Str() around the opening quote, because a one-character literal is a
+/// Char and a String is what this accumulates into.
+///
+function QuoteC (Text : Any) : String;
+var
+    Result : String;
+
+begin
+    Result := Str ('"');
+
+    for var I := 0; I < Length (Text); I := I + 1 do
+    begin
+        var C := Str (Text)[I];
+
+        if C = '"' then Result := Result + '\"';
+        else if C = '\' then Result := Result + '\\';
+        else if C = #10 then Result := Result + '\n';
+        else if C = #9 then Result := Result + '\t';
+        else if C = #13 then Result := Result + '\r';
+        else Result := Result + Str (C);
+    end
+
+    Exit Result + Str ('"');
+end
+
+/// A module's statements plus the private-name renames active while they are
+/// emitted.
+///
+/// ⚠️ Compiled code has no runtime environment to separate a module in, so
+/// 'private' becomes a RENAME and nothing else: each module's private names
+/// get a suffix from the module, so two modules may each declare a Peek
+/// without their C symbols colliding.
+///
+/// One source file, and what the C file emitted from it needs to know: the
+/// declarations it owns, the modules it may name, and the names it hid.
+///
+class EmitUnit;
+var
+    /// The C file's stem -- the source file's, without '.a24'.
+    Name       : String;
+
+    Statements : List;
+
+    /// The modules this file said 'uses' for.  Its C includes their headers,
+    /// and no others: that is what 'uses' means, transcribed.
+    Imports    : List;
+
+    /// ⚠️ In the emitted C 'private' is exactly 'static'.  It used to be a
+    /// RENAME with the module's name as a suffix, because every module was
+    /// spliced into one file and two modules each declaring a Peek would have
+    /// collided.  With a file per module, C's own linkage says it.
+    PrivateNames : List;
+
+    /// The file these came from, for the test report's grouping.
+    FileName   : String;
+
+begin
+    constructor Init (Name : String, Statements : List, Imports : List,
+                      PrivateNames : List, FileName : String);
+    begin
+        this.Name := Name;
+        this.Statements := Statements;
+        this.Imports := Imports;
+        this.PrivateNames := PrivateNames;
+        this.FileName := FileName;
+    end
+end
+
+/// The C emitter.
+///
+class CEmitter;
+var
+    /// ⚠️ These five are BUFFERS, not Strings, and the difference is the
+    /// difference between the compiler needing 1.25 GB to compile itself and
+    /// needing a few tens of MB.
+    ///
+    /// 'X := X + Piece' allocates a fresh string and copies both operands, and
+    /// nothing is ever freed -- so accumulating an emitted file that way keeps
+    /// every intermediate, about n^2/2 bytes of live memory.  A Buffer appends
+    /// in place and grows by doubling.  Same output, same order, same bytes;
+    /// only the allocation volume changes, which is why the fixed point still
+    /// holds across this.
+    ///
+    /// ⚠️ They are never Freed.  A compiler is a batch process and the arena
+    /// gives everything back at exit; Free exists for the VM, which owns its
+    /// memory for a different reason.
+
+    /// File-scope declarations: prototypes, and the globals a top-level 'var'
+    /// becomes.
+    Declarations : Any := Buffer();
+
+    /// Whole function bodies.
+    Functions    : Any := Buffer();
+
+    /// The body of main.
+    MainBody     : Any := Buffer();
+
+    /// Closure handles and class registrations, assigned at the TOP of main.
+    ///
+    /// ⚠️ One buffer for both, in declaration order, so a function exists as a
+    /// value and a class is BUILT before any statement can pass one around or
+    /// construct one -- which is what lets a class be declared after the code
+    /// that uses it.
+    Setup        : Any := Buffer();
+
+    /// The body of the function being emitted, if any.
+    ///
+    /// ⚠️ A buffer of its own, and the reason is ordering: a NESTED function
+    /// appends itself to Functions while its enclosing one is still being
+    /// written, so the enclosing header and body can only be appended once the
+    /// body is complete.  Writing the header straight to Functions puts the
+    /// outer function first and the closure line in main.
+    Body         : Any := Buffer();
+
+    /// The C symbol of each test body, parallel to Tests -- the runner in the
+    /// main file calls them across file boundaries.
+    TestSymbols  : List;
+
+    /// The exported declarations of the module being emitted -- its header.
+    Header       : String := '';
+
+    /// The module being emitted, and the names it declared 'private'.
+    UnitName     : String := 'Main';
+    PrivateNames : List;
+
+    /// True while emitting the file the program starts from.  ⚠️ It exports
+    /// nothing: no file can 'uses' the root, so every symbol in it is static
+    /// and its header holds only the initializer.
+    RootUnit     : Boolean := False;
+
+    /// Numbers this file's test bodies.  ⚠️ Per file, and the symbol carries
+    /// the module's name: a test symbol must be reachable from the runner in
+    /// the main file, so it is exported, and two modules numbering from zero
+    /// would otherwise export the same symbol.
+    UnitTests    : Integer := 0;
+
+    /// Which buffer Line is currently writing to -- 'main' or 'body'.
+    /// A selector rather than a reference, because the language has none.
+    Target       : String := 'main';
+
+    Depth        : Integer := 1;
+
+    /// True while emitting a statement written outside any function, so a
+    /// 'var' there becomes a file-scope global rather than a local.
+    AtTopLevel   : Boolean := False;
+
+    /// Names bound as locals or parameters in the body being emitted, so a local
+    /// can shadow a field -- or a method, or a built-in -- of the same name.
+    ///
+    /// ⚠️ A LIST with marks, not a Set, because it is scoped per BLOCK and not
+    /// per function.  The interpreter scopes a 'var' to its block; while this
+    /// was a Set cleared only at a function boundary, a local whose block had
+    /// ended went on shadowing, and a bare call to a method of that name was
+    /// emitted as a call to the variable -- 'alg_call(v_Name, ...)' for a v_Name
+    /// nothing declares.  A List is what lets CloseScope drop only the names the
+    /// block added, leaving an outer binding of the same name in place.
+    Locals       : List;
+
+    /// Every function the program declares, collected before anything is
+    /// emitted so a call to one declared later still resolves.
+    Declared     : Set;
+
+    /// Numbers the slots 'and' and 'or' hold their left operand in, so each
+    /// occurrence gets its own and nesting cannot make two share one.
+    Logicals     : Integer := 0;
+
+    /// Numbers the temporaries a 'for ... in' and a 'try' need, so they nest.
+    Loops        : Integer := 0;
+
+    /// ⚠️ How many 'try' frames are open around the statement being emitted.
+    ///
+    /// A frame is pushed by setjmp and popped when the try block falls through
+    /// -- but an 'Exit' or a 'break' LEAVES the block without reaching that
+    /// pop, so the frame stays on the runtime's stack pointing at a C frame
+    /// that has returned.  The next raise longjmps into dead stack.
+    ///
+    /// It survives a shallow test, because nothing has reused that memory yet.
+    /// It did not survive algc compiling itself, which is where it was found.
+    TryDepth     : Integer := 0;
+
+    /// TryDepth as it was when the enclosing loop began, so 'break' pops only
+    /// the frames opened inside the loop.
+    LoopTryDepth : Integer := 0;
+
+    /// True while emitting a body that contains a try.
+    Volatiles    : Boolean := False;
+
+    /// The names the file being emitted must spell differently in C, because a
+    /// header it includes already declares them.
+    ///
+    /// ⚠️ Only the ROOT file ever has any.  Every other file's colliding name is
+    /// refused outright -- two modules exporting one name is `Two modules
+    /// exporting 'X'` -- but the root is not a module: nothing can import it, so
+    /// its declaration SHADOWS the import rather than competing with it, and both
+    /// interpreters run that correctly.  Its symbols are static, which does not
+    /// stop them colliding; it changes how they collide, into 'static
+    /// declaration of v_Twin follows non-static declaration'.  Emitting the
+    /// root's under a distinct symbol is the whole fix, and it is invisible
+    /// outside the file because nothing else can refer to them.
+    Renames      : Map;
+
+    /// Locals of the function being emitted that live in heap cells because a
+    /// nested function reads them.  Ordered, so a cell's index is stable
+    /// between the capture list and the body that reads it.
+    Boxed        : List;
+
+    /// The boxed names whose cell has been emitted and is still in scope, in
+    /// declaration order.
+    ///
+    /// ⚠️ Not the same thing as Boxed, and a closure's capture list is built
+    /// from THIS.  Boxed is decided for the whole body before a line is
+    /// written, so it holds names declared later, or in a sibling block -- and
+    /// a capture list built from it named a cell that does not exist yet, which
+    /// does not compile.  A function declared above a 'var' of its own body was
+    /// enough to hit it.
+    Cells        : List;
+
+    /// While emitting a nested function: the enclosing function's cells that
+    /// were in scope where it was declared, mapped to their index in the
+    /// closure's cell array.
+    Captured     : Map;
+
+    /// Every name bound at a file's top level, in any unit.  Each is a
+    /// file-scope C global, so a body may read one without it being a local of
+    /// that body.
+    ///
+    /// ⚠️ Collected up front rather than as they are emitted: a function
+    /// declared above a top-level 'var' still reads it, so a set filled in
+    /// emission order would say the name is unreachable when it is not.
+    Globals      : Set;
+
+    /// Every function declared at a file's top level, in any unit.  Shallow for
+    /// the same reason Globals is, and separate from Declared for a reason that
+    /// matters: Declared holds nested functions too, and a nested 'function Set'
+    /// is not in scope at a call site outside its parent -- so it must not
+    /// shadow Set() there, while a top-level one must.
+    TopLevel     : Set;
+
+    /// What each unit EXPORTS, by unit name -- its top-level declarations less
+    /// the ones it marked 'private'.
+    ///
+    /// ⚠️ The emitter needs this even though it flattens, and it is the one
+    /// visibility question it cannot duck.  A qualified name reaches the export
+    /// set in the interpreter, so 'ModuleHelper.Peek()' on a private Peek raises
+    /// there -- while the emitted C called f_Peek, which after 'private' became
+    /// C's own 'static' is a symbol in another translation unit and does not
+    /// link.  A build failure rather than a divergence, but the program has a
+    /// defined answer and this is where it comes from.
+    UnitExports  : Map;
+
+    /// Every top-level name each unit declares, private ones included -- what
+    /// UnitExports is before 'private' is taken out of it.  A private name still
+    /// shadows a built-in inside its own file.
+    UnitAll      : Map;
+
+    /// The names that shadow a built-in in the file being emitted: that file's
+    /// own top-level declarations plus the exports of the units it imported.
+    /// Replaced per unit.
+    ShadowNames  : Set;
+
+    /// True while emitting a nested function, so a further level can be refused
+    /// rather than silently losing a capture.
+    InsideNested : Boolean := False;
+
+    /// ⚠️ '--test' emits the test bodies plus a runner that reproduces the
+    /// interpreter's report line for line.  The assertion builtins are
+    /// registered only in this mode, matching the interpreter, which registers
+    /// them from RunTests and nowhere else.
+    EmitTests    : Boolean := False;
+
+    /// Test bodies in the order they were met, and the file each came from.
+    Tests        : List;
+    TestFiles    : List;
+
+    /// The file whose statements are being emitted.
+    CurrentFile  : String := '';
+
+    /// The file handed to --compile.
+    SourceFile   : String := '';
+
+    /// Every class the program declares, by name, so a call to one is a
+    /// construction and an ancestor's members can be found.
+    Classes      : Map;
+
+    /// Object and enum-type names, and enum members mapped to their symbols.
+    Objects      : Set;
+    EnumTypes    : Set;
+    /// Enum member name to the TYPE that declares it -- not to its symbol.
+    ///
+    /// ⚠️ It held the symbol once, built during the collect pass, which runs
+    /// before any unit is emitted and therefore before its renames exist.  A
+    /// root shadowing an imported enum got a renamed type and unrenamed members,
+    /// and the members still collided at cc.  Keeping the type and building the
+    /// symbol where it is used puts it back under the one rename hook.
+    EnumMembers  : Map;
+
+    /// The class whose body is being emitted, or '' outside one.
+    CurrentClass : String := '';
+
+    /// Field and method names visible inside that body -- its own and every
+    /// ancestor's -- so a bare name resolves to a field or a method rather
+    /// than to a global.  The interpreter reaches the same place through its
+    /// implicit 'this.field' fallback; here it has to be decided when the C is
+    /// written.
+    VisibleFields  : Set;
+    VisibleMethods : Set;
+
+begin
+    constructor Init ();
+    begin
+        this.Locals := List();
+        this.Declared := Set();
+        this.Classes := Map();
+        this.Objects := Set();
+        this.EnumTypes := Set();
+        this.EnumMembers := Map();
+        this.VisibleFields := Set();
+        this.VisibleMethods := Set();
+        this.Renames := Map();
+        this.Boxed := List();
+        this.Cells := List();
+        this.Captured := Map();
+        this.Globals := Set();
+        this.TopLevel := Set();
+        this.UnitExports := Map();
+        this.UnitAll := Map();
+        this.ShadowNames := Set();
+        this.Tests := List();
+        this.TestFiles := List();
+        this.TestSymbols := List();
+        this.PrivateNames := List();
+    end
+
+    /// Refuses a construct by name.
+    ///
+    /// ⚠️ Raises rather than emitting nothing.  The wording is part of the
+    /// observable surface, so a refusal is compared like any other output.
+    ///
+    procedure Unsupported (Construct : Any);
+    begin
+        raise Str (Construct) + ' is not supported by the C back end yet.';
+    end
+
+    /// ⚠️ Takes Any, not String, because a one-character line is a CHAR.
+    /// Line('{') passes a Char where a String is declared, which the language
+    /// rejects -- and every brace this emitter writes is one character.  Str()
+    /// on the way in is the whole of the fix.
+    ///
+    procedure Line (Text : Any);
+    begin
+        if Target = 'body' then
+            Body.Append (Indentation (Depth) + Str (Text) + #10);
+        else
+            MainBody.Append (Indentation (Depth) + Str (Text) + #10);
+    end
+
+    /// A C identifier for an Algol-24 name.
+    ///
+    /// ⚠️ Algol-24 identifiers may contain '?', which C does not allow, and
+    /// could otherwise collide with a C keyword or a runtime symbol.  Prefixing
+    /// solves both at once.  A module's private names are renamed here too.
+    ///
+    function Mangle (Prefix : String, Name : String) : String;
+    var
+        Renamed : String;
+
+    begin
+        Renamed := Str (Name);
+        if Renames.Contains (Renamed) then Renamed := Str (Renames.Get (Renamed));
+
+        Exit SymbolOf (Prefix, Renamed);
+    end
+
+    /// ⚠️ EVERY C symbol built from a user-written name goes through here.
+    /// Nine sites used to concatenate a prefix by hand -- 'k_' + Name for a
+    /// class, 'e_' + Type + '_' + Member for an enum member -- and none of them
+    /// mangled, so a class or an enum member carrying a '?' emitted
+    /// 'static Value k_Gate?;' and cc refused it.  A name reaches C through a
+    /// constructor now (ClassHandle, InitName, EnumTypeName, EnumMemberName,
+    /// MethodSymbol, VariableName, FunctionName, Cell, HandleName) and a bare
+    /// 'k_' + Name anywhere is the bug returning.
+    ///
+    function SymbolOf (Prefix : String, Name : String) : String;
+    begin
+        Exit Prefix + QuestionsOut (Name);
+    end
+
+    /// ⚠️ ClassHandle and EnumTypeName go through Mangle, and InitName does
+    /// not.  The difference is whether the symbol appears in a HEADER: a class
+    /// handle and an enum type are exported, so the root's own can collide with
+    /// an import's, while a field initializer is static in every file and two of
+    /// them in two translation units are simply two symbols.
+    ///
+    function ClassHandle (Name : String) : String;
+    begin
+        Exit Mangle ('k_', Name);
+    end
+
+    function InitName (Name : String) : String;
+    begin
+        Exit SymbolOf ('i_', Name);
+    end
+
+    function EnumTypeName (Name : String) : String;
+    begin
+        Exit Mangle ('e_', Name);
+    end
+
+    /// A member is interned by its type, so the symbol carries both.
+    ///
+    /// ⚠️ The TYPE half is renamed and the member half is not, which keeps this
+    /// consistent with EnumTypeName: a root shadowing an imported enum emits
+    /// 'e_Colour__Root_Red' against the import's 'e_Colour_Red'.  Renaming the
+    /// joined string instead would look for 'Colour_Red' in a map keyed by what
+    /// the user wrote, and never match.
+    ///
+    function EnumMemberName (TypeName : String, Member : String) : String;
+    begin
+        var Renamed := Str (TypeName);
+        if Renames.Contains (Renamed) then Renamed := Str (Renames.Get (Renamed));
+
+        Exit SymbolOf ('e_', Renamed + '_' + Member);
+    end
+
+    /// '?' is an identifier character in Algol-24 and not in C, so 'Ready?'
+    /// becomes 'Ready_q'.
+    ///
+    /// ⚠️ Not injective: a program declaring both 'Ready?' and 'Ready_q' in one
+    /// scope emits the same symbol twice.  That is a duplicate declaration, so
+    /// cc refuses it -- confusing, but never wrong code.  Making it injective
+    /// means escaping the escape ('_' -> '__'), which would rename every symbol
+    /// in every emitted file, since names like TOKEN_ and ANSI_ are everywhere.
+    ///
+    /// ⚠️ Anything else illegal in a C identifier is REFUSED rather than
+    /// emitted.  Nothing can reach it today -- the scanner admits only letters,
+    /// digits, '_' and '?' -- but this is the one place that would have to
+    /// learn about a new identifier character, and failing here beats a message
+    /// from cc about the emitter's own output.
+    ///
+    function QuestionsOut (Name : String) : String;
+    var
+        Result : String := '';
+
+    begin
+        for var I := 0; I < Length (Name); I := I + 1 do
+        begin
+            var C := Str (Name)[I];
+
+            if C = '?' then Result := Result + '_q';
+            else if C = '_' or IsLetterOrDigit (C) then Result := Result + Str (C);
+            else Unsupported ('An identifier containing ''' + Str (C) + '''');
+        end
+
+        Exit Result;
+    end
+
+    /// The characters a C identifier may carry, apart from the underscore.
+    ///
+    function IsLetterOrDigit (C : Char) : Boolean;
+    begin
+        Exit (C >= 'a' and C <= 'z') or (C >= 'A' and C <= 'Z')
+          or (C >= '0' and C <= '9');
+    end
+
+    /// Every non-alphanumeric character becomes an underscore, so a quoted
+    /// module name -- which may carry quotes and path separators -- can be used
+    /// as part of a C identifier.
+    ///
+    function Sanitize (Text : String) : String;
+    var
+        Result : String := '';
+
+    begin
+        for var I := 0; I < Length (Text); I := I + 1 do
+        begin
+            var C := Str (Text)[I];
+
+            if (C >= 'a' and C <= 'z') or (C >= 'A' and C <= 'Z')
+                                       or (C >= '0' and C <= '9') then
+                Result := Result + Str (C);
+            else Result := Result + '_';
+        end
+
+        Exit Result;
+    end
+
+    /// Splits a program into groups: each module becomes one carrying its own
+    /// renames, and everything else lands in the importer's group.
+    ///
+    /// A module's statements are otherwise ordinary top-level declarations --
+    /// there is no runtime environment to separate them.
+    ///
+    /// Splits a program into units, one per source file, in load order -- which
+    /// is dependency order, because a module's own 'uses' were followed before
+    /// it was finished.  The main file comes last.
+    ///
+    procedure CollectUnits (Statements : List, Name : String, Privates : List,
+                            Units : List, FileName : String);
+    var
+        Own     : List;
+        Imports : List;
+
+    begin
+        Own := List();
+        Imports := List();
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is ModuleStmt then
+            begin
+                var ModuleName := UnitNameOf (Str (TheStmt.FileName));
+                Imports.Add (ModuleName);
+
+                // ⚠️ Nil when another file loaded it first.  It still counts as
+                // an import -- this file may name it, so this file's C includes
+                // its header -- but it is emitted once, where it was reached.
+                //
+                // Guarded by an 'if' rather than skipped: the language has no
+                // 'continue', and an 'Exit' here would abandon the whole of
+                // CollectUnits, dropping every statement after this one.
+                if TheStmt.Statements <> Nil then
+                    CollectUnits (TheStmt.Statements, ModuleName,
+                                  TheStmt.PrivateNames, Units, Str (TheStmt.FileName));
+            end
+            else Own.Add (TheStmt);
+        end
+
+        Units.Add (EmitUnit (Name, Own, Imports, Privates, FileName));
+    end
+
+    /// The C file name for a module: its source file's stem.
+    ///
+    function UnitNameOf (Key : String) : String;
+    var
+        Start : Integer;
+        Stem  : String;
+
+    begin
+        Start := 0;
+        for var I := 0; I < Length (Key); I := I + 1 do
+            if Key[I] = '/' then Start := I + 1;
+
+        Stem := Copy (Key, Start, Length (Key) - Start);
+
+        if Length (Stem) > 4 then
+            if Copy (Stem, Length (Stem) - 4, 4) = '.a24' then
+                Stem := Copy (Stem, 0, Length (Stem) - 4);
+
+        Exit Sanitize (Stem);
+    end
+
+    function VariableName (Name : String) : String;
+    begin
+        Exit Mangle ('v_', Name);
+    end
+
+    function FunctionName (Name : String) : String;
+    begin
+        Exit Mangle ('f_', Name);
+    end
+
+    /// ⚠️ A top-level function also exists as a VALUE, so it can be passed as
+    /// an argument or kept in a collection.  The handle is the closure; f_ is
+    /// just the C function behind it.
+    function HandleName (Name : String) : String;
+    begin
+        Exit Mangle ('fn_', Name);
+    end
+
+    /// ⚠️ Every function has the same C signature whatever its arity, so any of
+    /// them can be wrapped in a closure and called through one path.
+    function Prototype (TheStmt : Any) : String;
+    var
+        Lead : String;
+
+    begin
+        Lead := 'static Value ';
+        if Exported (Str (TheStmt.Name.Lexeme)) then Lead := 'Value ';
+
+        Exit Lead + FunctionName (Str (TheStmt.Name.Lexeme))
+           + '(Value **cells, Value *args, int32_t count)';
+    end
+
+    /// Whether a top-level statement still runs when '--test' is emitting.
+    ///
+    /// ⚠️ Declarations do and nothing else does, which is the interpreter's
+    /// rule in HoistTests: a test run defines the functions, classes, objects,
+    /// enums and variables the file declares, so a test body can reach them,
+    /// and never runs the program itself.  The two back ends have to answer
+    /// this identically or '--test' means two different things.
+    ///
+    /// ⚠️ A module's statements are NOT filtered by this -- only the root
+    /// file's.  A 'uses' executes its module as a unit interpreted too, which
+    /// is how the module's environment comes to exist; it is the file being
+    /// tested whose program is held back.
+    ///
+    function RunsWhenTesting (TheStmt : Stmt) : Boolean;
+    begin
+        Exit TheStmt is FunctionStmt or TheStmt is ClassStmt
+          or TheStmt is ObjectStmt   or TheStmt is EnumStmt
+          or TheStmt is VarGroupStmt or TheStmt is VarStmt;
+    end
+
+    /// Whether a name leaves its own file.  A 'private' one does not, and needs
+    /// no rename to stay out of another module's way -- 'static' is the whole
+    /// mechanism now.
+    ///
+    function Exported (Name : String) : Boolean;
+    begin
+        if RootUnit then Exit False;
+
+        Exit not PrivateNames.Contains (Name);
+    end
+
+    /// Declares a file-scope Value: exported ones lose 'static' and gain an
+    /// 'extern' in this module's header, private ones stay invisible.
+    ///
+    procedure DeclareValue (Symbol : String, Name : String);
+    begin
+        if Exported (Name) then
+        begin
+            Declarations.Append ('Value ' + Symbol + ';' + #10);
+            Header := Header + 'extern Value ' + Symbol + ';' + #10;
+        end
+        else Declarations.Append ('static Value ' + Symbol + ';' + #10);
+    end
+
+    /// A test block is a FunctionStmt whose name token carries a literal, so
+    /// its lexeme is quoted and would not be a legal C identifier.
+    function IsTest (TheStmt : Any) : Boolean;
+    begin
+        Exit TheStmt.Name.Literal <> Nil;
+    end
+
+    /// Records every function the program declares, including nested ones.
+    procedure CollectFunctions (Statements : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is FunctionStmt then
+            begin
+                if not IsTest (TheStmt) then Declared.Add (Str (TheStmt.Name.Lexeme));
+
+                CollectFunctions (TheStmt.Body);
+            end
+
+            if TheStmt is ClassStmt then Classes.Put (Str (TheStmt.Name.Lexeme), TheStmt);
+            if TheStmt is ObjectStmt then Objects.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is EnumStmt then
+            begin
+                EnumTypes.Add (Str (TheStmt.Name.Lexeme));
+
+                for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                    EnumMembers.Put (Str (TheStmt.Members[J].Lexeme),
+                                     Str (TheStmt.Name.Lexeme));
+            end
+
+            if TheStmt is BlockStmt then CollectFunctions (TheStmt.Statements);
+        end
+    end
+
+    /// The names a file binds at its top level.  Deliberately shallow: it does
+    /// not descend into a body or into the program's 'begin ... end', because
+    /// what those bind are locals of a C function rather than file-scope values.
+    ///
+    procedure CollectGlobals (Statements : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is VarStmt then Globals.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    Globals.Add (Str (TheStmt.Names[J].Lexeme));
+
+            if TheStmt is FunctionStmt and not IsTest (TheStmt) then
+                TopLevel.Add (Str (TheStmt.Name.Lexeme));
+        end
+    end
+
+    /// Emits a whole program.
+    ///
+    /// The file being compiled, so the test report names it as the
+    /// interpreter does.
+    procedure CompilingFile (Name : String);
+    begin
+        SourceFile := Name;
+    end
+
+    procedure WithTests ();
+    begin
+        EmitTests := True;
+    end
+
+    /// Emits a program as one C file per source file, plus a header each.
+    ///
+    /// ⚠️ Returns a Map of file name to contents; the main file is last, and is
+    /// the only one with a 'main'.  A module's C file is self-contained apart
+    /// from the headers of the modules it 'uses' -- the dependency graph the
+    /// front end makes every file declare, transcribed.
+    ///
+    function Emit (Statements : List, Stem : String) : Map;
+    var
+        MainStatements : List;
+        Units          : List;
+        Files          : Map;
+        MainBodyText   : String;
+
+    begin
+        MainStatements := List();
+        Units := List();
+        Files := Map();
+        MainBodyText := '';
+
+        CollectUnits (Statements, Stem, List(), Units, SourceFile);
+
+        var Seen := Set();
+        for var U := 0; U < Units.Length; U := U + 1 do
+        begin
+            if Seen.Contains (Str (Units[U].Name)) then
+                Unsupported ('Two modules named ''' + Str (Units[U].Name) + '''');
+
+            Seen.Add (Str (Units[U].Name));
+        end
+
+        // Every function in the program, before a line is written: a call may
+        // cross a module boundary, and the emitter has to know a name is a
+        // function rather than an unimplemented builtin.
+        for var U := 0; U < Units.Length; U := U + 1 do
+            CollectFunctions (Units[U].Statements);
+
+        for var U := 0; U < Units.Length; U := U + 1 do
+            CollectGlobals (Units[U].Statements);
+
+        // What each unit exports: its top-level declarations less what it marked
+        // 'private'.  Built from the EmitUnits rather than by another walk, so
+        // it cannot drift from the split that decides which C file each
+        // declaration lands in.
+        for var U := 0; U < Units.Length; U := U + 1 do
+        begin
+            // ⚠️ There IS a method called Exported on this class, and this local
+            // shadows it -- for this block and no further.  It was renamed away
+            // for a while, because Locals used to be per function: the local
+            // outlived its block and a bare 'Exported(...)' further down this
+            // same method emitted alg_call on a variable C had never heard of.
+            // The name is back because that is fixed, and because this is the
+            // code that found it.
+            var Exported := Set();
+            var Own := Units[U].Statements;
+
+            for var I := 0; I < Own.Length; I := I + 1 do
+            begin
+                var TheStmt := Own[I];
+
+                if TheStmt is FunctionStmt and not IsTest (TheStmt) then
+                    Exported.Add (Str (TheStmt.Name.Lexeme));
+
+                if TheStmt is ClassStmt  then Exported.Add (Str (TheStmt.Name.Lexeme));
+                if TheStmt is ObjectStmt then Exported.Add (Str (TheStmt.Name.Lexeme));
+                if TheStmt is VarStmt    then Exported.Add (Str (TheStmt.Name.Lexeme));
+
+                if TheStmt is EnumStmt then
+                begin
+                    Exported.Add (Str (TheStmt.Name.Lexeme));
+
+                    for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                        Exported.Add (Str (TheStmt.Members[J].Lexeme));
+                end
+
+                if TheStmt is VarGroupStmt then
+                    for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                        Exported.Add (Str (TheStmt.Names[J].Lexeme));
+            end
+
+            var Everything := Set();
+            for var I := 0; I < Exported.ToList().Length; I := I + 1 do
+                Everything.Add (Exported.ToList()[I]);
+
+            UnitAll.Put (Str (Units[U].Name), Everything);
+
+            var Hidden := Units[U].PrivateNames;
+            for var I := 0; I < Hidden.Length; I := I + 1 do
+                Exported.Remove (Str (Hidden[I]));
+
+            UnitExports.Put (Str (Units[U].Name), Exported);
+        end
+
+        // ⚠️ Two units exporting one name do not clash while compiling -- they
+        // clash at the LINKER, on a duplicate symbol, which is past 'cc -c' and
+        // so past anything a compile-only check can observe.  The interpreter
+        // refuses the program; without this the compiler emitted it happily and
+        // the user met 'ld: 1 duplicate symbols' instead.
+        //
+        // ⚠️ The ROOT file is excluded, and must be: it exports nothing, every
+        // symbol in it is static, and a name it shares with a module it imports
+        // is ordinary shadowing rather than a collision.
+        //
+        // ⚠️ Declaration order, not set order.  The name reported has to be the
+        // same one whichever compiler is running, and a Set would put its own
+        // iteration order into the message.
+        var ExportedBy := Map();
+        for var U := 0; U < Units.Length - 1; U := U + 1 do
+        begin
+            var Visible := UnitExports.Get (Str (Units[U].Name)) as Set;
+            var Names := ExportedNames (Units[U]);
+
+            for var I := 0; I < Names.Length; I := I + 1 do
+            begin
+                var TheName := Str (Names[I]);
+
+                if Visible.Contains (TheName) then
+                begin
+                    if ExportedBy.Contains (TheName) then
+                    begin
+                        if Str (ExportedBy.Get (TheName)) <> Str (Units[U].Name) then
+                            Unsupported ('Two modules exporting ''' + TheName + '''');
+                    end
+                    else ExportedBy.Put (TheName, Str (Units[U].Name));
+                end
+            end
+        end
+
+        for var U := 0; U < Units.Length; U := U + 1 do
+        begin
+            var Unit := Units[U];
+
+            Declarations := Buffer();
+            Functions := Buffer();
+            Setup := Buffer();
+            MainBody := Buffer();
+            Header := '';
+            Target := 'main';
+
+            // ⚠️ Reset per file, and deterministically.  These number
+            // file-scope symbols, and running them across the whole program
+            // would make a module's symbols depend on what was emitted before
+            // it -- so the bootstrap's generations would not agree.
+            Logicals := 0;
+            Loops := 0;
+            UnitTests := 0;
+
+            var IsMain := U = Units.Length - 1;
+
+            UnitName := Str (Unit.Name);
+            PrivateNames := Unit.PrivateNames;
+            RootUnit := IsMain;
+            CurrentFile := Str (Unit.FileName);
+
+            // ⚠️ The names that shadow a built-in HERE, which is a per-file
+            // question and was briefly answered program-wide.  A file sees its
+            // own top-level declarations -- private ones included, since
+            // 'private' hides a name from other files and not from its own --
+            // plus what the units it imported export.  Nothing else.
+            //
+            // Program-wide, a top-level 'function Length' in any one file
+            // suppressed the built-in in EVERY file, so a module that never
+            // imported it emitted a call to a symbol it cannot see and the C did
+            // not compile.  That is strictly worse than the bug it came from: a
+            // silent wrong answer in the importing file became a build failure
+            // in a file with nothing to do with it.
+            // The names this file declares that a header it includes already
+            // declares.  Declaration order, so the emitted C does not depend on
+            // set order.
+            //
+            // ⚠️ One rule over two populations, and the condition is the same
+            // for both: a name with NO cross-file reader may be renamed, because
+            // nothing outside this file can be referring to it.  The root's
+            // names qualify because nothing can import the file a program
+            // started from; a module's 'private' names qualify because that is
+            // what 'private' means.  An EXPORTED name never qualifies -- an
+            // importer names it -- and does not need to, because two units
+            // exporting one name is refused above.
+            Renames := Map();
+
+            var Visible := Set();
+            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
+                if UnitExports.Contains (Str (Unit.Imports[I])) then
+                begin
+                    var Seen := (UnitExports.Get (Str (Unit.Imports[I])) as Set).ToList();
+                    for var J := 0; J < Seen.Length; J := J + 1 do Visible.Add (Seen[J]);
+                end
+
+            var Mine := ExportedNames (Unit);
+            for var I := 0; I < Mine.Length; I := I + 1 do
+            begin
+                var TheName := Str (Mine[I]);
+
+                if Visible.Contains (TheName) then
+                    if IsMain or Unit.PrivateNames.Contains (TheName) then
+                        Renames.Put (TheName, TheName + '__' + Str (Unit.Name));
+            end
+
+            ShadowNames := Set();
+
+            if UnitAll.Contains (Str (Unit.Name)) then
+            begin
+                var Own := (UnitAll.Get (Str (Unit.Name)) as Set).ToList();
+                for var I := 0; I < Own.Length; I := I + 1 do
+                    ShadowNames.Add (Own[I]);
+            end
+
+            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
+                if UnitExports.Contains (Str (Unit.Imports[I])) then
+                begin
+                    var Seen := (UnitExports.Get (Str (Unit.Imports[I])) as Set).ToList();
+                    for var J := 0; J < Seen.Length; J := J + 1 do
+                        ShadowNames.Add (Seen[J]);
+                end
+
+            for var I := 0; I < Unit.Statements.Length; I := I + 1 do
+            begin
+                var TheStmt := Unit.Statements[I];
+
+                if TheStmt is FunctionStmt and not IsTest (TheStmt) then
+                begin
+                    Declarations.Append (Prototype (TheStmt) + ';' + #10);
+
+                    if Exported (Str (TheStmt.Name.Lexeme)) then
+                        Header := Header + Prototype (TheStmt) + ';' + #10;
+                end
+            end
+
+            AtTopLevel := True;
+            for var I := 0; I < Unit.Statements.Length; I := I + 1 do
+            begin
+                var TheStmt := Unit.Statements[I];
+
+                // The program's 'begin ... end'.  Emitted after every module
+                // has initialized, so it is held back to the end.
+                if TheStmt is BlockStmt then
+                begin
+                    for var J := 0; J < TheStmt.Statements.Length; J := J + 1 do
+                        MainStatements.Add (TheStmt.Statements[J]);
+                end
+                else
+                begin
+                    // ⚠️ Under '--test' the root file's statements are emitted
+                    // only if they DECLARE something.  A test run builds what
+                    // the file declares and never executes its program, and
+                    // holding back the 'begin ... end' is not enough to do
+                    // that: a top-level call is an ExpressionStmt, not a block,
+                    // so 'Main();' went straight into the unit's initializer
+                    // and ran ahead of the report.  Compiled, this compiler's
+                    // own suite printed the sample program before its first
+                    // test while interpreted it printed nothing.
+                    if RunsWhenTesting (TheStmt) or not (EmitTests and IsMain) then
+                        Execute (TheStmt);
+                end
+            end
+            AtTopLevel := False;
+
+            if IsMain then
+            begin
+                // ⚠️ MainBody holds this unit's top-level var assignments at
+                // this point, and they belong in its initializer.  The program
+                // body is emitted separately, after every init has run.
+                var InitBody := MainBody;
+                MainBody := Buffer();
+
+                if EmitTests then EmitTestRunner ();
+                else
+                begin
+                    Volatiles := ContainsTry (MainStatements);
+                    Boxed := BoxesFor (MainStatements);
+                    Cells := List();
+                    HoistCells (MainStatements);
+
+                    for var I := 0; I < MainStatements.Length; I := I + 1 do
+                        Execute (MainStatements[I]);
+
+                    Boxed := List();
+                    Cells := List();
+                    Volatiles := False;
+                end
+
+                MainBodyText := MainBody.Text;
+                MainBody := InitBody;
+            end
+
+            Files.Put (Str (Unit.Name) + '.h', UnitHeader (Unit));
+            Files.Put (Str (Unit.Name) + '.c', UnitSource (Unit, Units, IsMain, MainBodyText));
+        end
+
+        Exit Files;
+    end
+
+    /// A module's header: what it exports, and nothing else.
+    ///
+    function UnitHeader (Unit : Any) : String;
+    var
+        Guard : String;
+        Text  : String;
+
+    begin
+        Guard := 'ALG_' + Upper (Str (Unit.Name)) + '_H';
+
+        Text := '/* Generated from Algol-24.  Do not edit. */' + #10;
+        Text := Text + '#ifndef ' + Guard + #10;
+        Text := Text + '#define ' + Guard + #10 + #10;
+        Text := Text + '#include "algol.h"' + #10 + #10;
+        Text := Text + Header;
+        Text := Text + 'void init_' + Str (Unit.Name) + '(void);' + #10;
+        Text := Text + #10 + '#endif' + #10;
+
+        Exit Text;
+    end
+
+    /// A module's C file.  Its own header first, then the headers of the
+    /// modules it named -- no more, which is what 'uses' now means.
+    ///
+    function UnitSource (Unit : Any, Units : List, IsMain : Boolean,
+                         Written : String) : String;
+    var
+        Text : String;
+
+    begin
+        Text := '/* Generated from Algol-24.  Do not edit. */' + #10;
+        Text := Text + '#include "' + Str (Unit.Name) + '.h"' + #10;
+
+        for var I := 0; I < Unit.Imports.Length; I := I + 1 do
+            Text := Text + '#include "' + Str (Unit.Imports[I]) + '.h"' + #10;
+
+        Text := Text + #10;
+
+        if Declarations.Length > 0 then Text := Text + Declarations.Text + #10;
+        if Functions.Length > 0 then Text := Text + Functions.Text;
+
+        // ⚠️ Everything this file has to do before anything runs, in one
+        // function the main file calls.  It cannot be a C initializer: a Value
+        // here is built by a call, and C wants a constant expression.
+        Text := Text + 'void init_' + Str (Unit.Name) + '(void) {' + #10;
+        Text := Text + Setup.Text;
+        Text := Text + MainBody.Text;
+        Text := Text + '}' + #10;
+
+        if IsMain then
+        begin
+            // ⚠️ The initializers of modules this file did not name, declared
+            // here rather than reached through headers -- exactly as the test
+            // runner declares its test symbols, and for the same reason: 'main'
+            // is not written in Algol-24, so the visibility rule that stops
+            // this file NAMING those modules does not stop it starting them.
+            //
+            // 'main' runs the whole transitive closure, because a module's
+            // file-scope vars must be set up before anything that uses it runs.
+            // Its #include list is the DIRECT imports, because that is what
+            // 'uses' means.  Both are right; they simply have to agree, and
+            // while they did not, 'Root uses Mid uses Deep' emitted init_Deep()
+            // with no declaration in sight and would not compile -- a valid
+            // program that both interpreters run.
+            //
+            // ⚠️ A STAR-shaped import graph hides this: every init it emits is
+            // covered by a direct include, so the case is reached only by a
+            // CHAIN -- 'Root uses Mid uses Deep' -- which is worth keeping a
+            // test for, since most programs are stars.
+            var Visible := Set();
+            Visible.Add (Str (Unit.Name));
+            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
+                Visible.Add (Str (Unit.Imports[I]));
+
+            var Undeclared := '';
+            for var I := 0; I < Units.Length; I := I + 1 do
+                if not Visible.Contains (Str (Units[I].Name)) then
+                    Undeclared := Undeclared + 'void init_' + Str (Units[I].Name)
+                                + '(void);' + #10;
+
+            if Undeclared <> '' then Text := Text + #10 + Undeclared;
+
+            // argc and argv are taken whether or not the program asks for them,
+            // and handed straight to the runtime -- which also keeps them used,
+            // so an ordinary program does not trip -Wunused-parameter.
+            Text := Text + #10 + 'int main(int argc, char **argv) {' + #10;
+            Text := Text + '    alg_set_arguments(argc, argv);' + #10;
+
+            // In load order, which is dependency order: a module is reached
+            // through the file that needed it, and its own 'uses' were followed
+            // before it was finished.
+            for var I := 0; I < Units.Length; I := I + 1 do
+                Text := Text + '    init_' + Str (Units[I].Name) + '();' + #10;
+
+            Text := Text + Written;
+            Text := Text + '    return 0;' + #10 + '}' + #10;
+        end
+
+        Exit Text;
+    end
+
+    /// Upper-cases a string, for an include guard.
+    ///
+    function Upper (Text : String) : String;
+    var
+        Result : String;
+
+    begin
+        Result := '';
+        for var I := 0; I < Length (Text); I := I + 1 do
+        begin
+            var C := Text[I];
+
+            if C >= 'a' then
+                if C <= 'z' then C := Char (Ord (C) - 32);
+
+            Result := Result + C;
+        end
+        Exit Result;
+    end
+
+    /// Whether A sorts before B.
+    ///
+    /// ⚠️ Written out because the language has no ordering on Strings -- '<'
+    /// is numbers and Chars only.  Chars DO compare by code point, so this
+    /// walks them one at a time, which is the ordering the report has to
+    /// match.
+    ///
+    function TextLess (A : String, B : String) : Boolean;
+    var
+        Shorter : Integer;
+
+    begin
+        Shorter := Length (A);
+        if Length (B) < Shorter then Shorter := Length (B);
+
+        for var I := 0; I < Shorter; I := I + 1 do
+        begin
+            var Left  := Str (A)[I];
+            var Right := Str (B)[I];
+
+            if Left < Right then Exit True;
+            if Right < Left then Exit False;
+        end
+
+        // A prefix sorts before what extends it.
+        Exit Length (A) < Length (B);
+    end
+
+    /// The runner, reproducing the interpreter's report line for line.
+    ///
+    /// ⚠️ Grouped by file in the order their tests were first met -- which for
+    /// 'uses' is load order, so a report reads in dependency order -- and
+    /// sorted by NAME within a file.
+    ///
+    procedure EmitTestRunner ();
+    var
+        Files : List;
+
+    begin
+        // ⚠️ Declared here rather than reached through headers.  A test may live
+        // in a module the main file never imported -- visibility is an Algol-24
+        // rule about names, and the runner is not written in Algol-24.
+        for var I := 0; I < TestSymbols.Length; I := I + 1 do
+            Declarations.Append ('Value ' + Str (TestSymbols[I])
+                          + '(Value **cells, Value *args, int32_t count);' + #10);
+
+        MainBody.Append ('    alg_test_begin(' + Str (Tests.Length) + ');' + #10);
+
+        Files := List();
+        for var I := 0; I < TestFiles.Length; I := I + 1 do
+            if not Files.Contains (TestFiles[I]) then Files.Add (TestFiles[I]);
+
+        for var F := 0; F < Files.Length; F := F + 1 do
+        begin
+            MainBody.Append ('    alg_test_file(' + QuoteC (Str (Files[F])) + ');' + #10);
+
+            // The indices of this file's tests, ordered by test name.
+            var Ordered := List();
+            for var I := 0; I < Tests.Length; I := I + 1 do
+                if TestFiles[I] = Files[F] then Ordered.Add (I);
+
+            for var A := 0; A < Ordered.Length; A := A + 1 do
+                for var B := A + 1; B < Ordered.Length; B := B + 1 do
+                    if TextLess (Str (Tests[Ordered[B]].Name.Lexeme),
+                                 Str (Tests[Ordered[A]].Name.Lexeme)) then
+                    begin
+                        var Swap := Ordered[A];
+                        Ordered[A] := Ordered[B];
+                        Ordered[B] := Swap;
+                    end
+
+            for var A := 0; A < Ordered.Length; A := A + 1 do
+                MainBody.Append ('    alg_test_run('
+                          + QuoteC (Str (Tests[Ordered[A]].Name.Literal)) + ', '
+                          + Str (TestSymbols[Ordered[A]]) + ');' + #10);
+
+            MainBody.Append ('    alg_test_end_file();' + #10);
+        end
+
+        MainBody.Append ('    return alg_test_summary();' + #10);
+    end
+
+    procedure Execute (TheStmt : Any);
+    begin
+        TheStmt.Accept (this);
+    end
+
+    function Evaluate (TheExpr : Any) : String;
+    begin
+        Exit TheExpr.Accept (this);
+    end
+
+    /// A test block: an ordinary body under a generated symbol.
+    ///
+    procedure EmitTest (TheStmt : Any);
+    var
+        Symbol : String;
+
+    begin
+        Symbol := 't_' + UnitName + '_' + Str (UnitTests);
+        UnitTests := UnitTests + 1;
+
+        Tests.Add (TheStmt);
+        TestFiles.Add (CurrentFile);
+        TestSymbols.Add (Symbol);
+
+        var EnclosingTarget := Target;
+        var EnclosingBody := Body;
+        var EnclosingLocals := Locals;
+        var EnclosingTop := AtTopLevel;
+        var EnclosingVolatiles := Volatiles;
+        var EnclosingDepth := Depth;
+        var EnclosingBoxed := Boxed;
+        var EnclosingCaptured := Captured;
+        var EnclosingCells := Cells;
+
+        Target := 'body';
+        Body := Buffer();
+        Depth := 1;
+
+        AtTopLevel := False;
+        Volatiles := ContainsTry (TheStmt.Body);
+        Boxed := BoxesFor (TheStmt.Body);
+        Captured := Map();
+        Cells := List();
+        Locals := List();
+
+        var EnclosingTryDepth := TryDepth;
+        var EnclosingLoopTry := LoopTryDepth;
+
+        TryDepth := 0;
+        LoopTryDepth := 0;
+
+        HoistCells (TheStmt.Body);
+
+        for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
+            Execute (TheStmt.Body[I]);
+
+        var Written := Body.Text;
+
+        Target := EnclosingTarget;
+        Body := EnclosingBody;
+        Locals := EnclosingLocals;
+        AtTopLevel := EnclosingTop;
+        Volatiles := EnclosingVolatiles;
+        Depth := EnclosingDepth;
+        Boxed := EnclosingBoxed;
+        Captured := EnclosingCaptured;
+        Cells := EnclosingCells;
+        TryDepth := EnclosingTryDepth;
+        LoopTryDepth := EnclosingLoopTry;
+
+        Declarations.Append ('Value ' + Symbol
+                     + '(Value **cells, Value *args, int32_t count);' + #10);
+
+        Functions.Append ('Value ' + Symbol
+                   + '(Value **cells, Value *args, int32_t count) {' + #10);
+        Functions.Append ('    (void)cells; (void)args; (void)count;' + #10);
+        Functions.Append (Written);
+        Functions.Append ('    return alg_nil();' + #10 + '}' + #10 + #10);
+    end
+
+    /// Whether a body declares a function of its own, anywhere inside it.
+    ///
+    /// ⚠️ A 'var' as the body of a branch or loop with no 'begin ... end'.
+    ///
+    /// The emitter wraps every such body in braces and the interpreter gives a
+    /// non-block body no scope at all, so the two cannot agree -- and what the
+    /// interpreter does is itself inconsistent per construct: 'if' and 'case'
+    /// leak the binding to the enclosing scope, 'while' redefines it on the
+    /// second pass and dies with '''W'' is already defined', and a 'for ... in'
+    /// body scopes it per iteration so nothing after the loop can read it.
+    ///
+    /// Refused rather than emitted, because emitting was wrong either way:
+    /// unboxed it declared inside the braces and the read after them did not
+    /// compile, and boxed it wrote through a cell HoistCells never declared --
+    /// which is the same shape as the main-block capture bug, one node in.
+    ///
+    procedure RefuseBareBinding (Body : Any);
+    begin
+        if Body is VarStmt or Body is VarGroupStmt then
+            Unsupported ('A ''var'' as an unbraced branch or loop body');
+    end
+
+    function DeclaresNested (Statements : List) : Boolean;
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is FunctionStmt then Exit True;
+
+            if TheStmt is BlockStmt and DeclaresNested (TheStmt.Statements) then Exit True;
+            if TheStmt is WhileStmt and DeclaresNested ([TheStmt.Body]) then Exit True;
+            if TheStmt is ForInStmt and DeclaresNested ([TheStmt.Body]) then Exit True;
+
+            if TheStmt is IfStmt then
+            begin
+                if DeclaresNested ([TheStmt.ThenBranch]) then Exit True;
+
+                if TheStmt.ElseBranch <> Nil and DeclaresNested ([TheStmt.ElseBranch]) then
+                    Exit True;
+            end
+
+            if TheStmt is TryStmt then
+            begin
+                if DeclaresNested ([TheStmt.TryBlock]) then Exit True;
+
+                var Handlers := TheStmt.Handlers.Values();
+                for var J := 0; J < Handlers.Length; J := J + 1 do
+                    if DeclaresNested ([Handlers[J].Body]) then Exit True;
+            end
+        end
+
+        Exit False;
+    end
+
+    /// Adds a name once, keeping insertion order.
+    ///
+    /// ⚠️ Order matters: a cell's index has to be the same in the capture list
+    /// and in the body that reads it.
+    ///
+    procedure AddOnce (Names : List, Name : String);
+    begin
+        if not Names.Contains (Name) then Names.Add (Name);
+    end
+
+    procedure CollectBindings (Statements : List, Names : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is VarStmt then AddOnce (Names, Str (TheStmt.Name.Lexeme));
+
+            // ⚠️ A comma group binds every one of its names, and missing them
+            // here means they are never boxed -- so a nested function that reads
+            // one emits 'v_A' for a local of another C function, which does not
+            // compile.  Both emitters had this, identically.
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    AddOnce (Names, Str (TheStmt.Names[J].Lexeme));
+
+            if TheStmt is ForInStmt then
+            begin
+                AddOnce (Names, Str (TheStmt.Name.Lexeme));
+                CollectBindings ([TheStmt.Body], Names);
+            end
+
+            if TheStmt is BlockStmt then CollectBindings (TheStmt.Statements, Names);
+            if TheStmt is WhileStmt then CollectBindings ([TheStmt.Body], Names);
+
+            if TheStmt is IfStmt then
+            begin
+                CollectBindings ([TheStmt.ThenBranch], Names);
+
+                if TheStmt.ElseBranch <> Nil then
+                    CollectBindings ([TheStmt.ElseBranch], Names);
+            end
+
+            // ⚠️ A try binds like any other block, and its handler binds the
+            // raised value.  Missing them here left a function declared inside
+            // a try reading its captures as plain locals -- the ForIn bug
+            // again, one node over.
+            if TheStmt is TryStmt then
+            begin
+                CollectBindings ([TheStmt.TryBlock], Names);
+
+                var Handlers := TheStmt.Handlers.Values();
+                for var J := 0; J < Handlers.Length; J := J + 1 do
+                begin
+                    AddOnce (Names, Str (Handlers[J].Name));
+                    CollectBindings ([Handlers[J].Body], Names);
+                end
+            end
+        end
+    end
+
+    /// Every name a function binds: its parameters and its locals.
+    ///
+    function BoundNames (TheStmt : Any) : List;
+    var
+        Names : List;
+
+    begin
+        Names := List();
+
+        for var I := 0; I < TheStmt.Params.Length; I := I + 1 do
+            AddOnce (Names, Str (TheStmt.Params[I].Lexeme));
+
+        CollectBindings (TheStmt.Body, Names);
+        Exit Names;
+    end
+
+    /// What a body must box before it is emitted: everything it binds, if it
+    /// declares a function of its own, and nothing otherwise.
+    ///
+    /// ⚠️ Every body that can hold a declaration has to do this, not just the
+    /// one in VisitFunctionStmt.  The program's 'begin ... end' and a 'test'
+    /// block are C function bodies too, and while they did not, a function
+    /// declared in either read its captures as plain locals of another C
+    /// function -- 'v_K' for a variable of main, which does not compile.
+    ///
+    function BoxesFor (Body : List) : List;
+    var
+        Names : List;
+
+    begin
+        Names := List();
+        if DeclaresNested (Body) then CollectBindings (Body, Names);
+
+        Exit Names;
+    end
+
+    function Cell (Name : String) : String;
+    begin
+        Exit Mangle ('c_', Name);
+    end
+
+    /// How a name is read, once cells and fields are accounted for.
+    ///
+    /// ⚠️ A captured variable is a HEAP CELL, not a copy.  Counter() hands back
+    /// a Bump that keeps incrementing the same Count, and a second Counter()
+    /// gets its own -- so the capture has to outlive the call AND be shared
+    /// with it.
+    ///
+    function Read (Name : String) : String;
+    begin
+        if Captured.Contains (Name) then
+            Exit '(*cells[' + Str (Captured.Get (Name)) + '])';
+
+        if Boxed.Contains (Name) then Exit '(*' + Cell (Name) + ')';
+
+        Exit VariableName (Name);
+    end
+
+    /// A closure over the named cells.
+    ///
+    function ClosureOf (TheStmt : Any, Cells : List) : String;
+    var
+        Array : String;
+
+    begin
+        Array := 'NULL, 0';
+
+        if Cells.Length > 0 then
+        begin
+            var Joined := '';
+            for var I := 0; I < Cells.Length; I := I + 1 do
+            begin
+                if I > 0 then Joined := Joined + ', ';
+
+                Joined := Joined + Cell (Str (Cells[I]));
+            end
+
+            Array := '(Value*[]){' + Joined + '}, ' + Str (Cells.Length);
+        end
+
+        Exit 'alg_closure(' + QuoteC (Str (TheStmt.Name.Lexeme)) + ', '
+           + FunctionName (Str (TheStmt.Name.Lexeme)) + ', ' + Array + ', '
+           + Str (TheStmt.Params.Length) + ')';
+    end
+
+    /// Whether a body contains a try, anywhere a jump could cross.
+    ///
+    /// ⚠️ Every local of such a body is declared volatile.  longjmp leaves a
+    /// non-volatile local that was modified since the setjmp with an
+    /// indeterminate value -- which happens to work at -O0 and is a real hazard
+    /// at -O2.  Over-applied deliberately: deciding exactly which locals are
+    /// live across the jump is analysis, and only bodies that use try pay for
+    /// it.  A loop counter in such a body is covered too, since a try inside a
+    /// loop makes it just as vulnerable.
+    ///
+    function ContainsTry (Statements : List) : Boolean;
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is TryStmt then Exit True;
+
+            if TheStmt is BlockStmt and ContainsTry (TheStmt.Statements) then Exit True;
+            if TheStmt is WhileStmt and ContainsTry ([TheStmt.Body]) then Exit True;
+            if TheStmt is ForInStmt and ContainsTry ([TheStmt.Body]) then Exit True;
+
+            if TheStmt is IfStmt then
+            begin
+                if ContainsTry ([TheStmt.ThenBranch]) then Exit True;
+
+                if TheStmt.ElseBranch <> Nil and ContainsTry ([TheStmt.ElseBranch]) then
+                    Exit True;
+            end
+        end
+
+        Exit False;
+    end
+
+    /// Qualifier for a local declaration in the body being emitted.
+    function Local () : String;
+    begin
+        if Volatiles then Exit 'volatile Value ';
+
+        Exit 'Value ';
+    end
+
+    /// ⚠️ The write side of what Unreachable guards on the read side: a 'var'
+    /// whose name is boxed becomes a write THROUGH its cell, which is only
+    /// right if the cell exists.  Cells is exactly 'declared, and still in
+    /// scope', so this is the invariant stated rather than assumed -- and it
+    /// makes it structurally impossible to emit '*c_Y = ...' for a c_Y nothing
+    /// declared, whatever new shape of body turns up next.
+    ///
+    procedure RequireCell (Name : String);
+    begin
+        if not Cells.Contains (Name) then Unsupported ('A capture of ''' + Name + '''');
+    end
+
+    /// A C scope opens and closes: every cell declared inside one goes out of
+    /// scope with it, and may not appear in a capture list written afterwards.
+    ///
+    /// Where a C scope began: the cells and the locals in scope at the time.
+    /// Two numbers rather than one, so a block drops the locals it added as well
+    /// as the cells.
+    ///
+    function OpenScope () : List;
+    begin
+        Exit [Cells.Length, Locals.Length];
+    end
+
+    procedure CloseScope (Mark : List);
+    begin
+        while Cells.Length > Mark[0] do Cells.RemoveAt (Cells.Length - 1);
+        while Locals.Length > Mark[1] do Locals.RemoveAt (Locals.Length - 1);
+    end
+
+    /// Declares a cell for a boxed binding, and records that it is in scope.
+    ///
+    procedure DeclareCell (Name : String, Initial : String);
+    var
+        Qualifier : String;
+
+    begin
+        Qualifier := '';
+        if Volatiles then Qualifier := 'volatile ';
+
+        Line ('Value *' + Qualifier + Cell (Name) + ' = alg_cell(' + Initial + ');');
+        Line ('(void)' + Cell (Name) + ';');
+
+        Cells.Add (Name);
+    end
+
+    /// Opens a body by declaring a cell for every boxed name the statement list
+    /// binds DIRECTLY, empty, before any of it runs.
+    ///
+    /// ⚠️ This is what lets a nested function capture a variable declared after
+    /// it -- which the interpreter allows, because a closure keeps the
+    /// environment and the binding lands in it before the call.  Compiled, the
+    /// closure is built where the declaration stands, so the cell has to exist
+    /// by then; the 'var' becomes a write through it.
+    ///
+    /// ⚠️ Per block, NOT per function, and that is the whole of per-iteration
+    /// capture: a loop body is one statement list entered afresh each pass, so
+    /// its cells are new each pass.  Hoisting them to the top of the function
+    /// instead would make every iteration share one cell, and three closures
+    /// made in a loop would all read the last value.
+    ///
+    procedure HoistCells (Statements : List);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is VarStmt and Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
+            begin
+                Locals.Add (Str (TheStmt.Name.Lexeme));
+                DeclareCell (Str (TheStmt.Name.Lexeme), 'alg_nil()');
+            end
+
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    if Boxed.Contains (Str (TheStmt.Names[J].Lexeme)) then
+                    begin
+                        Locals.Add (Str (TheStmt.Names[J].Lexeme));
+                        DeclareCell (Str (TheStmt.Names[J].Lexeme), 'alg_nil()');
+                    end
+        end
+    end
+
+    /// The handler's variable is bound in a scope of its own, so two handlers
+    /// may use the same name.
+    ///
+    procedure EmitHandlerBody (Handler : Any, Frame : String);
+    begin
+        var Mark := OpenScope ();
+
+        Line ('{');
+        Depth := Depth + 1;
+
+        Locals.Add (Str (Handler.Name));
+
+        // The handler's variable is a binding like any other: a nested function
+        // declared in the handler may capture it, so it is boxed when one does.
+        if Boxed.Contains (Str (Handler.Name)) then
+            DeclareCell (Str (Handler.Name), Frame + '.raised');
+        else
+        begin
+            Line (Local () + VariableName (Str (Handler.Name)) + ' = ' + Frame + '.raised;');
+            Line ('(void)' + VariableName (Str (Handler.Name)) + ';');
+        end
+
+        Execute (Handler.Body);
+
+        Depth := Depth - 1;
+        Line ('}');
+
+        CloseScope (Mark);
+    end
+
+    /// The declared type of each parameter, 'Any' where none was written.
+    ///
+    function DeclaredTypes (TheMethod : Any) : List;
+    var
+        Types : List;
+
+    begin
+        Types := List();
+
+        for var I := 0; I < TheMethod.Params.Length; I := I + 1 do
+        begin
+            var Declared := Str (TheMethod.ParamTypes[I]);
+            if Declared = '' then Declared := 'Any';
+
+            Types.Add (Declared);
+        end
+
+        Exit Types;
+    end
+
+    /// ⚠️ A method's C symbol carries its arity AND its declared parameter
+    /// types, because methods overload on the whole signature: two methods of
+    /// one name each taking one argument would otherwise produce the same
+    /// symbol and one would silently replace the other.
+    ///
+    function MethodSymbol (Owner : String, TheMethod : Any) : String;
+    var
+        Symbol : String;
+
+    begin
+        // ⚠️ '?' out of BOTH, because a method may be named 'Shut?' and a class
+        // may be named 'Ready?'.  This built the symbol by hand and emitted
+        // 'm_Gate_Shut?_0', which cc rejects.  Found by the first program to
+        // give a METHOD a name carrying one -- every earlier '?' was on a
+        // function or a variable.
+        Symbol := SymbolOf ('m_', Owner + '_' + Str (TheMethod.Name.Lexeme))
+                + '_' + Str (TheMethod.Params.Length);
+
+        // ⚠️ The declared types too: a parameter may be declared 'Ready?'.
+        var Types := DeclaredTypes (TheMethod);
+        for var I := 0; I < Types.Length; I := I + 1 do
+            if Types[I] <> 'Any' then
+                Symbol := Symbol + '_' + QuestionsOut (Str (Types[I]));
+
+        Exit Symbol;
+    end
+
+    /// Field or method names visible inside a body of this class: its own, and
+    /// every ancestor's.  Ancestors are classes, since only a class can be
+    /// inherited from.
+    ///
+    function NamesVisible (SuperName : String, Own : List, Fields : Boolean) : Set;
+    var
+        Names : Set;
+        At    : String;
+
+    begin
+        Names := Set();
+
+        for var I := 0; I < Own.Length; I := I + 1 do
+            Names.Add (Str (Own[I].Name.Lexeme));
+
+        At := SuperName;
+        while At <> '' do
+        begin
+            if not Classes.Contains (At) then Exit Names;
+
+            var Ancestor := Classes.Get (At);
+
+            var Inherited := Ancestor.Methods;
+            if Fields then Inherited := Ancestor.Fields;
+
+            for var I := 0; I < Inherited.Length; I := I + 1 do
+                Names.Add (Str (Inherited[I].Name.Lexeme));
+
+            At := '';
+            if Ancestor.Superclass <> Nil then At := Str (Ancestor.Superclass.Name.Lexeme);
+        end
+
+        Exit Names;
+    end
+
+    /// One method: a C function taking the receiver, the arguments and a count.
+    ///
+    procedure EmitMethod (Owner : String, TheMethod : Any);
+    var
+        EnclosingLocals : List;
+        EnclosingTop    : Boolean;
+        EnclosingDepth  : Integer;
+        Opening         : String;
+
+    begin
+        EnclosingLocals := Locals;
+        EnclosingTop := AtTopLevel;
+        EnclosingDepth := Depth;
+
+        Locals := List();
+        AtTopLevel := False;
+
+        var EnclosingTarget := Target;
+        var EnclosingBody := Body;
+
+        Target := 'body';
+        Body := Buffer();
+        Depth := 1;
+
+        var EnclosingVolatiles := Volatiles;
+        Volatiles := ContainsTry (TheMethod.Body);
+
+        // A method body is a C function of its own.  It boxes nothing -- a
+        // function declared inside one is refused -- but it must not inherit
+        // the boxes of whatever body encloses the class declaration either.
+        var EnclosingBoxed := Boxed;
+        var EnclosingCaptured := Captured;
+        var EnclosingCells := Cells;
+
+        Boxed := List();
+        Captured := Map();
+        Cells := List();
+
+        var EnclosingTryDepth := TryDepth;
+        var EnclosingLoopTry := LoopTryDepth;
+
+        TryDepth := 0;
+        LoopTryDepth := 0;
+
+        for var I := 0; I < TheMethod.Params.Length; I := I + 1 do
+        begin
+            var Name := Str (TheMethod.Params[I].Lexeme);
+            Locals.Add (Name);
+
+            Line (Local () + VariableName (Name) + ' = args[' + Str (I) + '];');
+            Line ('(void)' + VariableName (Name) + ';');
+        end
+
+        for var I := 0; I < TheMethod.Body.Length; I := I + 1 do
+            Execute (TheMethod.Body[I]);
+
+        Line ('return alg_nil();');
+
+        var Written := Body.Text;
+
+        Target := EnclosingTarget;
+        Body := EnclosingBody;
+
+        Functions.Append ('static Value ' + MethodSymbol (Owner, TheMethod)
+                   + '(Value v_this, Value *args, int32_t count) {' + #10);
+
+        Functions.Append ('    (void)v_this; (void)args; (void)count;' + #10);
+        Functions.Append (Written);
+        Functions.Append ('}' + #10 + #10);
+
+        Depth := EnclosingDepth;
+        AtTopLevel := EnclosingTop;
+        Locals := EnclosingLocals;
+        Volatiles := EnclosingVolatiles;
+        Boxed := EnclosingBoxed;
+        Captured := EnclosingCaptured;
+        Cells := EnclosingCells;
+        TryDepth := EnclosingTryDepth;
+        LoopTryDepth := EnclosingLoopTry;
+    end
+
+    /// A class becomes a file-scope handle, a C function per method, a function
+    /// that applies its field initializers, and a run of registration calls in
+    /// main.
+    ///
+    /// ⚠️ An 'object' shares this ENTIRELY.  What differs is that its name
+    /// evaluates to the instance rather than to the class, that the instance is
+    /// built on first reference so one object may name another declared later,
+    /// and that it carries an Id field holding its own name.
+    ///
+    procedure EmitClass (Name : String, Superclass : Any, Fields : List,
+                         Methods : List, IsObject : Boolean);
+    var
+        Handle    : String;
+        SuperName : String;
+        Applied   : String;
+        Initializer : String;
+
+        EnclosingClass   : String;
+        EnclosingFields  : Set;
+        EnclosingMethods : Set;
+
+    begin
+        Handle := ClassHandle (Name);
+        DeclareValue (Handle, Name);
+
+        EnclosingClass := CurrentClass;
+        EnclosingFields := VisibleFields;
+        EnclosingMethods := VisibleMethods;
+
+        SuperName := '';
+        if Superclass <> Nil then SuperName := Str (Superclass.Name.Lexeme);
+
+        CurrentClass := Name;
+        VisibleFields := NamesVisible (SuperName, Fields, True);
+        VisibleMethods := NamesVisible (SuperName, Methods, False);
+
+        // ⚠️ Every object carries an Id holding its own name, contributed by
+        // the declaration unless it declares one itself: having named the
+        // field, the program owns it.
+        var DeclaresId := False;
+        for var I := 0; I < Fields.Length; I := I + 1 do
+            if Str (Fields[I].Name.Lexeme) = 'Id' then DeclaresId := True;
+
+        var AddId := IsObject and not DeclaresId;
+        if AddId then VisibleFields.Add ('Id');
+
+        Applied := '';
+        for var I := 0; I < Fields.Length; I := I + 1 do
+        begin
+            var Value := 'alg_nil()';
+            if Fields[I].Initializer <> Nil then Value := Evaluate (Fields[I].Initializer);
+
+            Applied := Applied + '    alg_set_property(v_this, '
+                     + QuoteC (Str (Fields[I].Name.Lexeme)) + ', ' + Value + ');' + #10;
+        end
+
+        if AddId then
+            Applied := Applied + '    alg_set_property(v_this, "Id", alg_string('
+                     + QuoteC (Name) + '));' + #10;
+
+        // ⚠️ Not called 'InitName': a local of that name would shadow the
+        // function that builds it, the way 'var Set := ...' shadows Set().
+        Initializer := InitName (Name);
+        Functions.Append ('static Value ' + Initializer
+                   + '(Value v_this, Value *args, int32_t count) {' + #10);
+
+        // A class with no fields of its own leaves every parameter unused, and
+        // the generated C is built with -Werror.
+        Functions.Append ('    (void)v_this; (void)args; (void)count;' + #10);
+        Functions.Append (Applied);
+        Functions.Append ('    return alg_nil();' + #10 + '}' + #10 + #10);
+
+        for var I := 0; I < Methods.Length; I := I + 1 do
+            EmitMethod (Name, Methods[I]);
+
+        CurrentClass := EnclosingClass;
+        VisibleFields := EnclosingFields;
+        VisibleMethods := EnclosingMethods;
+
+        // ⚠️ SuperHandle, not Super: 'super' is a keyword, and keyword lookup
+        // is case-insensitive, so it cannot be a variable name.  The same
+        // collision that renamed Break to Broke and Object to Obj.
+        var SuperHandle := 'alg_nil()';
+        if SuperName <> '' then SuperHandle := ClassHandle (SuperName);
+
+        Setup.Append ('    ' + Handle + ' = alg_class(' + QuoteC (Name)
+               + ', ' + SuperHandle + ');' + #10);
+
+        for var I := 0; I < Fields.Length; I := I + 1 do
+            Setup.Append ('    alg_class_field(' + Handle + ', '
+                   + QuoteC (Str (Fields[I].Name.Lexeme)) + ');' + #10);
+
+        if AddId then
+            Setup.Append ('    alg_class_field(' + Handle + ', "Id");' + #10);
+
+        Setup.Append ('    alg_class_initializer(' + Handle + ', ' + Initializer + ');' + #10);
+
+        for var I := 0; I < Methods.Length; I := I + 1 do
+        begin
+            var TheMethod := Methods[I];
+            var Types := DeclaredTypes (TheMethod);
+
+            // ⚠️ The type array is a file-scope static rather than a compound
+            // literal at the call, so its lifetime is obviously the program's
+            // -- the class table keeps the pointer for as long as it lives.
+            var Table := 'NULL';
+            var AnyDeclared := False;
+            for var J := 0; J < Types.Length; J := J + 1 do
+                if Types[J] <> 'Any' then AnyDeclared := True;
+
+            if Types.Length > 0 then
+            begin
+                Table := 't_' + Copy (MethodSymbol (Name, TheMethod), 2,
+                                      Length (MethodSymbol (Name, TheMethod)) - 2);
+
+                var Quoted := '';
+                for var J := 0; J < Types.Length; J := J + 1 do
+                begin
+                    if J > 0 then Quoted := Quoted + ', ';
+
+                    Quoted := Quoted + QuoteC (Str (Types[J]));
+                end
+
+                Declarations.Append ('static const char *' + Table
+                             + '[] = { ' + Quoted + ' };' + #10);
+            end
+
+            Setup.Append ('    alg_class_method(' + Handle + ', '
+                   + QuoteC (Str (TheMethod.Name.Lexeme)) + ', '
+                   + MethodSymbol (Name, TheMethod) + ', '
+                   + Str (TheMethod.Params.Length) + ', ' + Table + ');' + #10);
+        end
+
+        if IsObject then
+            Setup.Append ('    alg_class_is_object(' + Handle + ');' + #10);
+    end
+
+    // ------------------------------------------------------------ statements
+
+    procedure VisitVarStmt (TheStmt : VarStmt);
+    var
+        Value : String;
+
+    begin
+        Value := 'alg_nil()';
+        if TheStmt.Initializer <> Nil then Value := Evaluate (TheStmt.Initializer);
+
+        // ⚠️ A top-level var is declared at file scope so functions can see it,
+        // but ASSIGNED in main: a C global's initializer has to be a constant
+        // expression, and every Value here is built by a call.
+        if AtTopLevel then
+        begin
+            DeclareValue (VariableName (Str (TheStmt.Name.Lexeme)),
+                          Str (TheStmt.Name.Lexeme));
+
+            Line (VariableName (Str (TheStmt.Name.Lexeme)) + ' = ' + Value + ';');
+        end
+        else if Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
+        begin
+            // The cell was declared when the block opened -- see HoistCells.
+            RequireCell (Str (TheStmt.Name.Lexeme));
+
+            Locals.Add (Str (TheStmt.Name.Lexeme));
+            Line ('*' + Cell (Str (TheStmt.Name.Lexeme)) + ' = ' + Value + ';');
+        end
+        else
+        begin
+            Locals.Add (Str (TheStmt.Name.Lexeme));
+
+            Line (Local () + VariableName (Str (TheStmt.Name.Lexeme)) + ' = ' + Value + ';');
+            Line ('(void)' + VariableName (Str (TheStmt.Name.Lexeme)) + ';');
+        end
+    end
+
+    procedure VisitExpressionStmt (TheStmt : ExpressionStmt);
+    begin
+        Line ('(void)(' + Evaluate (TheStmt.Expression) + ');');
+    end
+
+    procedure VisitBlockStmt (TheStmt : BlockStmt);
+    begin
+        var Mark := OpenScope ();
+
+        Line ('{');
+        Depth := Depth + 1;
+        HoistCells (TheStmt.Statements);
+
+        for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
+            Execute (TheStmt.Statements[I]);
+
+        Depth := Depth - 1;
+        Line ('}');
+
+        CloseScope (Mark);
+    end
+
+    procedure VisitIfStmt (TheStmt : IfStmt);
+    begin
+        RefuseBareBinding (TheStmt.ThenBranch);
+        if TheStmt.ElseBranch <> Nil then RefuseBareBinding (TheStmt.ElseBranch);
+
+        var Mark := OpenScope ();
+
+        Line ('if (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
+        Depth := Depth + 1;
+        Execute (TheStmt.ThenBranch);
+        Depth := Depth - 1;
+        CloseScope (Mark);
+
+        if TheStmt.ElseBranch <> Nil then
+        begin
+            Line ('} else {');
+            Depth := Depth + 1;
+            Execute (TheStmt.ElseBranch);
+            Depth := Depth - 1;
+            CloseScope (Mark);
+        end
+
+        Line ('}');
+    end
+
+    procedure VisitWhileStmt (TheStmt : WhileStmt);
+    begin
+        RefuseBareBinding (TheStmt.Body);
+
+        var Mark := OpenScope ();
+
+        Line ('while (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
+        Depth := Depth + 1;
+
+        var EnclosingLoopDepth := LoopTryDepth;
+        LoopTryDepth := TryDepth;
+        Execute (TheStmt.Body);
+        LoopTryDepth := EnclosingLoopDepth;
+
+        Depth := Depth - 1;
+        Line ('}');
+
+        CloseScope (Mark);
+    end
+
+    procedure VisitPrintStmt (TheStmt : PrintStmt);
+    begin
+        Line ('alg_writeln(' + Evaluate (TheStmt.Expression) + ');');
+    end
+
+    procedure VisitReturnStmt (TheStmt : ReturnStmt);
+    var
+        Value : String;
+
+    begin
+        Value := 'alg_nil()';
+        if TheStmt.Value <> Nil then Value := Evaluate (TheStmt.Value);
+
+        if TryDepth = 0 then
+        begin
+            Line ('return ' + Value + ';');
+            Exit;
+        end
+
+        // ⚠️ Through a temporary, so the expression is evaluated with the
+        // frames still active: a raise inside it must be caught by the try it
+        // is written in, not escape past a popped frame.
+        var Slot := 'ret_' + Str (Loops);
+        Loops := Loops + 1;
+
+        Line (Local () + Slot + ' = ' + Value + ';');
+
+        for var I := 0; I < TryDepth; I := I + 1 do
+            Line ('alg_pop_frame();');
+
+        Line ('return ' + Slot + ';');
+    end
+
+    /// A whole function body, written into its own buffer.
+    ///
+    procedure VisitFunctionStmt (TheStmt : FunctionStmt);
+    var
+        EnclosingLocals : List;
+        EnclosingTop    : Boolean;
+        EnclosingDepth  : Integer;
+
+    begin
+        // ⚠️ A test block's name token IS the string literal, so its lexeme is
+        // quoted and would not be a legal C identifier.  It becomes an
+        // ordinary body under a generated symbol, and only in --test mode.
+        if IsTest (TheStmt) then
+        begin
+            if EmitTests then EmitTest (TheStmt);
+
+            Exit;
+        end
+
+        // ⚠️ A nested function is emitted as a top-level C function plus a
+        // closure built where the declaration stands, so it captures the cells
+        // that exist at that moment.
+        var Nested := not AtTopLevel;
+
+        if Nested and InsideNested then
+            Unsupported ('A function nested more than one level deep');
+
+        if Nested and CurrentClass <> '' then
+            Unsupported ('A function declared inside a method');
+
+        EnclosingLocals := Locals;
+        EnclosingTop := AtTopLevel;
+        EnclosingDepth := Depth;
+
+        var EnclosingBoxed := Boxed;
+        var EnclosingCaptured := Captured;
+        var EnclosingCells := Cells;
+        var EnclosingNested := InsideNested;
+
+        Locals := List();
+
+        if Nested then
+        begin
+            // The cells in scope HERE become this one's, in the order they are
+            // passed so the indices line up.
+            var Index := Map();
+            for var I := 0; I < EnclosingCells.Length; I := I + 1 do
+                Index.Put (Str (EnclosingCells[I]), I);
+
+            Captured := Index;
+            InsideNested := True;
+        end
+        else Captured := Map();
+
+        Cells := List();
+
+        var EnclosingVolatiles := Volatiles;
+        Volatiles := ContainsTry (TheStmt.Body);
+
+        // ⚠️ A body of its own opens no frames of its own YET.  TryDepth counts
+        // the frames an 'Exit' has to pop on the way out, and while it leaked in
+        // here a function declared inside a 'try' popped the ENCLOSING
+        // function's frame when it returned -- so the next raise found no
+        // handler and the program died 'Uncaught' with a perfectly good
+        // 'except' ten lines above it.
+        var EnclosingTryDepth := TryDepth;
+        var EnclosingLoopTry := LoopTryDepth;
+
+        TryDepth := 0;
+        LoopTryDepth := 0;
+
+        // ⚠️ If this body declares functions of its own, everything it binds
+        // has to outlive the call, so it is boxed.  Boxing more than is
+        // strictly read costs an allocation and keeps the analysis to one
+        // question.
+        Boxed := List();
+        if DeclaresNested (TheStmt.Body) then Boxed := BoundNames (TheStmt);
+
+        // ⚠️ Cleared while emitting the body.  The declaration carrying it IS a
+        // top-level statement, so without this a method's 'var' became a
+        // file-scope global.
+        AtTopLevel := False;
+
+        var EnclosingTarget := Target;
+        var EnclosingBody := Body;
+
+        Target := 'body';
+        Body := Buffer();
+        Depth := 1;
+
+        for var I := 0; I < TheStmt.Params.Length; I := I + 1 do
+        begin
+            var ParamName := Str (TheStmt.Params[I].Lexeme);
+            Locals.Add (ParamName);
+
+            if Boxed.Contains (ParamName) then
+            begin
+                var Qualifier := 'Value *';
+                if Volatiles then Qualifier := 'Value *volatile ';
+
+                Line (Qualifier + Cell (ParamName) + ' = alg_cell(args[' + Str (I) + ']);');
+                Line ('(void)' + Cell (ParamName) + ';');
+
+                Cells.Add (ParamName);
+            end
+            else
+            begin
+                Line (Local () + VariableName (ParamName) + ' = args[' + Str (I) + '];');
+                Line ('(void)' + VariableName (ParamName) + ';');
+            end
+        end
+
+        HoistCells (TheStmt.Body);
+
+        for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
+            Execute (TheStmt.Body[I]);
+
+        Line ('return alg_nil();');
+
+        var Written := Body.Text;
+
+        Target := EnclosingTarget;
+        Body := EnclosingBody;
+
+        // Appended only now, so a nested function -- which added itself to
+        // Functions while this body was being written -- comes first.
+        Functions.Append (Prototype (TheStmt) + ' {' + #10);
+
+        // One line, deliberately -- three would be equivalent C and a
+        // different file, and the comparison is byte for byte.
+        Functions.Append ('    (void)cells; (void)args; (void)count;' + #10);
+        Functions.Append (Written);
+        Functions.Append ('}' + #10 + #10);
+
+        // ⚠️ The ENCLOSING function's cells, not this one's.  A nested
+        // function closes over the cells that were in scope where it was
+        // written; its own are what a function nested inside IT would capture.
+        var CapturedCells := EnclosingCells;
+
+        Depth := EnclosingDepth;
+        AtTopLevel := EnclosingTop;
+        Locals := EnclosingLocals;
+        Volatiles := EnclosingVolatiles;
+        Boxed := EnclosingBoxed;
+        Captured := EnclosingCaptured;
+        Cells := EnclosingCells;
+        TryDepth := EnclosingTryDepth;
+        LoopTryDepth := EnclosingLoopTry;
+        InsideNested := EnclosingNested;
+
+        var Name := Str (TheStmt.Name.Lexeme);
+
+        if Nested then
+        begin
+            Locals.Add (Name);
+            Line (Local () + VariableName (Name) + ' = '
+                + ClosureOf (TheStmt, CapturedCells) + ';');
+        end
+        else
+        begin
+            // A top-level function also exists as a value, so it can be passed
+            // as an argument or kept in a collection.
+            DeclareValue (HandleName (Name), Name);
+
+            Setup.Append ('    ' + HandleName (Name) + ' = '
+                   + ClosureOf (TheStmt, List()) + ';' + #10);
+        end
+    end
+
+    // ----------------------------------------------------------- expressions
+
+    function VisitLiteral (TheExpr : LiteralExpr) : String;
+    var
+        Value : Any;
+
+    begin
+        Value := TheExpr.Value;
+
+        if Value = Nil then Exit 'alg_nil()';
+        if Value = True then Exit 'alg_bool(true)';
+        if Value = False then Exit 'alg_bool(false)';
+
+        if Value is Integer then Exit 'alg_int(' + Str (Value) + ')';
+        if Value is Double then Exit 'alg_double(' + Str (Value) + ')';
+        if Value is String then Exit 'alg_string(' + QuoteC (Str (Value)) + ')';
+        if Value is Char then Exit 'alg_char_value(' + Str (Ord (Value)) + ')';
+
+        Unsupported ('A literal of type ' + TypeNameOf (Value));
+    end
+
+    function VisitVariableExpr (TheExpr : VariableExpr) : String;
+    var
+        Name : String;
+
+    begin
+        Name := Str (TheExpr.Name.Lexeme);
+
+        if Captured.Contains (Name) or Boxed.Contains (Name) then Exit Read (Name);
+
+        // ⚠️ Inside a method, a bare name that is not a local is a FIELD.  The
+        // interpreter reaches the same place through its implicit 'this.field'
+        // fallback; here it has to be decided when the C is written.
+        if CurrentClass <> '' and not Locals.Contains (Name)
+                              and VisibleFields.Contains (Name) then
+            Exit 'alg_property(v_this, ' + QuoteC (Name) + ')';
+
+        if not Locals.Contains (Name) then
+        begin
+            // An enum member binds bare as well as qualified, and both forms
+            // must be the same object because comparison is identity.
+            if EnumMembers.Contains (Name) then
+                Exit EnumMemberName (Str (EnumMembers.Get (Name)), Name);
+
+            if EnumTypes.Contains (Name) then Exit EnumTypeName (Name);
+
+            // An object's name IS its instance, built on first reference.
+            if Objects.Contains (Name) then
+                Exit 'alg_singleton(' + ClassHandle (Name) + ')';
+
+            // A function used as a value rather than called.
+            if Declared.Contains (Name) then Exit HandleName (Name);
+        end
+
+        Unreachable (Name);
+        Exit VariableName (Name);
+    end
+
+    /// ⚠️ The last resort of a bare name is 'v_Name', which is right only for a
+    /// local of the body being emitted or a file-scope global.  Inside a nested
+    /// function anything else is a capture the emitter failed to box, and
+    /// emitting it names a local of a DIFFERENT C function: the C compiler
+    /// rejects it, and what the programmer sees is a message about its own
+    /// output rather than about the program.  Refuse it here instead, the way
+    /// every other construct the back end cannot manage is refused.
+    ///
+    procedure Unreachable (Name : String);
+    begin
+        if not InsideNested then Exit;
+        if Locals.Contains (Name) then Exit;
+        if Globals.Contains (Name) then Exit;
+
+        Unsupported ('Reading ''' + Name + ''' from a nested function');
+    end
+
+    function VisitAssignExpr (TheExpr : AssignExpr) : String;
+    var
+        Name : String;
+
+    begin
+        Name := Str (TheExpr.Name.Lexeme);
+
+        if Captured.Contains (Name) or Boxed.Contains (Name) then
+            Exit '(' + Read (Name) + ' = ' + Evaluate (TheExpr.Value) + ')';
+
+        // ⚠️ The same field fallback reading a bare name gets.  Without it the
+        // READ of 'Count' inside a method resolved to the field and the WRITE
+        // did not, so 'Count := Count + 1' assigned a local that nothing else
+        // ever looked at.
+        if CurrentClass <> '' and not Locals.Contains (Name)
+                              and VisibleFields.Contains (Name) then
+            Exit 'alg_set_property(v_this, ' + QuoteC (Name) + ', '
+               + Evaluate (TheExpr.Value) + ')';
+
+        Unreachable (Name);
+        Exit '(' + VariableName (Name) + ' = ' + Evaluate (TheExpr.Value) + ')';
+    end
+
+    function VisitGrouping (TheExpr : GroupingExpr) : String;
+    begin
+        Exit '(' + Evaluate (TheExpr.Expression) + ')';
+    end
+
+    function VisitIsExpr (TheExpr : IsExpr) : String;
+    begin
+        Exit 'alg_is(' + Evaluate (TheExpr.Obj) + ', '
+           + QuoteC (Str (TheExpr.TypeName.Lexeme)) + ')';
+    end
+
+    function VisitUnary (TheExpr : UnaryExpr) : String;
+    var
+        Operand : String;
+
+    begin
+        Operand := Evaluate (TheExpr.Right);
+
+        case TheExpr.Op.TypeOfToken of
+            TOKEN_MINUS : Exit 'alg_negate(' + Operand + ')';
+            TOKEN_NOT   : Exit 'alg_not(' + Operand + ')';
+        end
+
+        Unsupported ('Unary ''' + Str (TheExpr.Op.Lexeme) + '''');
+    end
+
+    function VisitBinary (TheExpr : BinaryExpr) : String;
+    var
+        Left  : String;
+        Right : String;
+        Call  : String;
+
+    begin
+        Left  := Evaluate (TheExpr.Left);
+        Right := Evaluate (TheExpr.Right);
+
+        Call := '';
+        case TheExpr.Op.TypeOfToken of
+            TOKEN_PLUS          : Call := 'alg_add';
+            TOKEN_MINUS         : Call := 'alg_subtract';
+            TOKEN_STAR          : Call := 'alg_multiply';
+            TOKEN_SLASH         : Call := 'alg_divide';
+            TOKEN_GREATER       : Call := 'alg_greater';
+            TOKEN_GREATER_EQUAL : Call := 'alg_greater_equal';
+            TOKEN_LESS          : Call := 'alg_less';
+            TOKEN_LESS_EQUAL    : Call := 'alg_less_equal';
+            TOKEN_EQUAL         : Call := 'alg_equal';
+            TOKEN_NOT_EQUAL     : Call := 'alg_not_equal';
+            TOKEN_IN            : Call := 'alg_in';
+        end
+
+        if Call = '' then Unsupported ('Binary ''' + Str (TheExpr.Op.Lexeme) + '''');
+
+        Exit Call + '(' + Left + ', ' + Right + ')';
+    end
+
+    /// The builtins this emitter covers, mapped straight onto the runtime.
+    ///
+    /// Keyed by name AND arity, because 'Length' is both a function here and a
+    /// property on a collection and they mean the same thing.
+    ///
+    function Builtin (Name : String, Count : Integer) : String;
+    var
+        Key : String;
+
+    begin
+        Key := Name + '/' + Str (Count);
+
+        if Key = 'WriteLn/1' then Exit 'alg_writeln';
+        if Key = 'Write/1'   then Exit 'alg_write';
+        if Key = 'Str/1'     then Exit 'alg_str';
+        if Key = 'Length/1'  then Exit 'alg_length';
+        if Key = 'Copy/3'    then Exit 'alg_copy';
+        if Key = 'Pos/2'     then Exit 'alg_pos';
+        if Key = 'Char/1'    then Exit 'alg_char';
+        if Key = 'Ord/1'     then Exit 'alg_ord';
+        if Key = 'Val/1'     then Exit 'alg_val';
+        if Key = 'Max/2'     then Exit 'alg_max';
+        if Key = 'Mod/2'     then Exit 'alg_mod';
+        if Key = 'clock/0'   then Exit 'alg_clock';
+
+        if EmitTests then
+        begin
+            if Key = 'AssertTrue/1'  then Exit 'alg_assert_true';
+            if Key = 'AssertEqual/2' then Exit 'alg_assert_equal';
+            if Key = 'Fail/1'        then Exit 'alg_assert_fail';
+        end
+
+        if Key = 'FileExists/1' then Exit 'alg_file_exists';
+        if Key = 'ParamCount/0' then Exit 'alg_param_count';
+        if Key = 'ParamStr/1'   then Exit 'alg_param_str';
+
+        Exit '';
+    end
+
+    /// Arguments as an array plus a count, so every method shares one C
+    /// signature regardless of arity.
+    ///
+    function ArgumentArray (Arguments : List) : String;
+    var
+        Joined : String := '';
+
+    begin
+        if Arguments.Length = 0 then Exit 'NULL, 0';
+
+        for var I := 0; I < Arguments.Length; I := I + 1 do
+        begin
+            if I > 0 then Joined := Joined + ', ';
+
+            Joined := Joined + Str (Arguments[I]);
+        end
+
+        Exit '(Value[]){' + Joined + '}, ' + Str (Arguments.Length);
+    end
+
+    /// The names a unit declares at its top level, in the order they are
+    /// written -- which is what makes a message built from them deterministic.
+    ///
+    function ExportedNames (Unit : EmitUnit) : List;
+    var
+        Names : List;
+
+    begin
+        Names := List();
+
+        for var I := 0; I < Unit.Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Unit.Statements[I];
+
+            if TheStmt is FunctionStmt and not IsTest (TheStmt) then
+                Names.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is ClassStmt  then Names.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is ObjectStmt then Names.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is VarStmt    then Names.Add (Str (TheStmt.Name.Lexeme));
+
+            if TheStmt is EnumStmt then
+            begin
+                Names.Add (Str (TheStmt.Name.Lexeme));
+
+                for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                    Names.Add (Str (TheStmt.Members[J].Lexeme));
+            end
+
+            if TheStmt is VarGroupStmt then
+                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    Names.Add (Str (TheStmt.Names[J].Lexeme));
+        end
+
+        Exit Names;
+    end
+
+    /// The constructors.  Set takes either nothing or a List, which is how a
+    /// set literal is spelled, so it is the one with two forms.
+    ///
+    /// ⚠️ A function rather than an inline chain because 'System.Map()' has to
+    /// reach the same table by a second route.  Two copies would be a table that
+    /// could disagree with itself about what a constructor is.
+    ///
+    function ConstructorFor (Name : String, Arguments : List, Joined : String) : String;
+    begin
+        if Name = 'List'  and Arguments.Length = 0 then Exit 'alg_list()';
+        if Name = 'Map'   and Arguments.Length = 0 then Exit 'alg_map()';
+        if Name = 'Stack' and Arguments.Length = 0 then Exit 'alg_stack()';
+        if Name = 'Set'   and Arguments.Length = 0 then Exit 'alg_set()';
+        if Name = 'Set'   and Arguments.Length = 1 then Exit 'alg_set_of(' + Joined + ')';
+        if Name = 'Array' and Arguments.Length = 1 then Exit 'alg_array(' + Joined + ')';
+
+        // Its methods need nothing here: Assign, Reset and the rest go
+        // through alg_invoke, and Eof through alg_property.
+        if Name = 'TextFile' and Arguments.Length = 0 then Exit 'alg_text_file()';
+
+        // Both forms reach ONE runtime entry point, unlike Set: Buffer()
+        // is Buffer(0), since the argument means the same thing in each.
+        // Append, Free and the rest arrive through alg_invoke, and Text
+        // through alg_property.
+        if Name = 'Buffer' and Arguments.Length = 0 then Exit 'alg_buffer(alg_int(0))';
+        if Name = 'Buffer' and Arguments.Length = 1 then Exit 'alg_buffer(' + Joined + ')';
+
+        Exit '';
+    end
+
+    /// A call written through a unit -- 'System.Copy(S, 0, 3)'.
+    ///
+    /// ⚠️ System is the built-ins and nothing else, so it goes STRAIGHT to the
+    /// tables, skipping the shadow check a bare name gets.  That is the whole
+    /// point of writing it: the program has taken the bare name over, and this
+    /// is the way back to what it took.
+    ///
+    /// Any other unit is an ordinary name in the flattened program -- the C back
+    /// end still emits with no notion of who may see what -- so it resolves as a
+    /// bare call would, minus the tables, since a unit cannot export a built-in.
+    ///
+    function UnitCall (Unit : String, Name : String, Arguments : List, Joined : String) : String;
+    begin
+        // ⚠️ Not exported -- 'private', or simply not there.  The interpreter
+        // answers this at RUN time, because a unit's exports are a set it looks
+        // in, so the error is catchable and a program may rely on catching it.
+        // Refusing here instead would make the same program uncompilable, so the
+        // emitter reproduces the interpreter's message rather than its own.
+        if UnitExports.Contains (Unit) and not (UnitExports.Get (Unit) as Set).Contains (Name) then
+            Exit '(alg_error(' + QuoteC ('Undefined name ''' + Name + ''' in unit '''
+                                       + Unit + '''.') + '), alg_nil())';
+
+        if Unit = 'System' then
+        begin
+            var TheBuiltin := Builtin (Name, Arguments.Length);
+            if TheBuiltin <> '' then Exit TheBuiltin + '(' + Joined + ')';
+
+            var TheConstructor := ConstructorFor (Name, Arguments, Joined);
+            if TheConstructor <> '' then Exit TheConstructor;
+
+            Unsupported ('A call to ''' + Unit + '.' + Name + '''');
+        end
+
+        // ⚠️ Renames suspended for the same reason as UnitValue: a qualified
+        // call reaches another unit's symbol, not the root's shadowing one.
+        var Saved := Renames;
+        Renames := Map();
+
+        var Built := '';
+        if Classes.Contains (Name) then
+            Built := 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+        else if Declared.Contains (Name) then
+            Built := FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
+        else if Globals.Contains (Name) then
+            Built := 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+
+        Renames := Saved;
+
+        if Built <> '' then Exit Built;
+
+        Unsupported ('A call to ''' + Unit + '.' + Name + '''');
+        Exit '';
+    end
+
+    function VisitCall (TheExpr : CallExpr) : String;
+    var
+        Arguments : List;
+        Joined    : String;
+
+    begin
+        // ⚠️ Methods dispatch on the RECEIVER at run time, not here: in a
+        // gradually typed language the emitter frequently does not know what
+        // it is holding, which is the same reason the collections dispatch
+        // there.
+        // ⚠️ 'super.M()' is a Call over a SuperExpr, which carries the method
+        // name itself -- it is not a Get over a 'super' object.  The search
+        // starts above the class that DECLARED the running method, not above
+        // the receiver's own class, or an override would call itself.
+        if TheExpr.Callee is SuperExpr then
+        begin
+            if CurrentClass = '' then Unsupported ('''super'' outside a class');
+
+            var Emitted := List();
+            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+
+            Exit 'alg_invoke_from(' + ClassHandle (CurrentClass) + ', v_this, '
+               + QuoteC (Str (TheExpr.Callee.Method.Lexeme)) + ', '
+               + ArgumentArray (Emitted) + ')';
+        end
+
+        if TheExpr.Callee is GetExpr and TheExpr.Callee.Unit <> '' then
+        begin
+            var Emitted := List();
+            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+
+            var Text := '';
+            for var I := 0; I < Emitted.Length; I := I + 1 do
+            begin
+                if I > 0 then Text := Text + ', ';
+
+                Text := Text + Str (Emitted[I]);
+            end
+
+            // ⚠️ A unit qualifier, not a receiver.  The Resolver decided this,
+            // and the left of the dot is not a value at all -- evaluating it
+            // would emit a read of a variable that does not exist.
+            Exit UnitCall (Str (TheExpr.Callee.Unit), Str (TheExpr.Callee.Name.Lexeme),
+                           Emitted, Text);
+        end
+
+        if TheExpr.Callee is GetExpr then
+        begin
+            var Receiver := Evaluate (TheExpr.Callee.Obj);
+
+            var Emitted := List();
+            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+
+            Exit 'alg_invoke(' + Receiver + ', '
+               + QuoteC (Str (TheExpr.Callee.Name.Lexeme)) + ', '
+               + ArgumentArray (Emitted) + ')';
+        end
+
+        // Anything else that evaluates to a function -- an element of a
+        // collection, a field, the result of a call.
+        if not (TheExpr.Callee is VariableExpr) then
+        begin
+            var Emitted := List();
+            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+
+            Exit 'alg_call(' + Evaluate (TheExpr.Callee) + ', '
+               + ArgumentArray (Emitted) + ')';
+        end
+
+        Arguments := List();
+        for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+            Arguments.Add (Evaluate (TheExpr.Arguments[I]));
+
+        Joined := '';
+        for var I := 0; I < Arguments.Length; I := I + 1 do
+        begin
+            if I > 0 then Joined := Joined + ', ';
+
+            Joined := Joined + Str (Arguments[I]);
+        end
+
+        var Name := Str (TheExpr.Callee.Name.Lexeme);
+
+        // ⚠️ A name bound in this scope shadows every builtin, so 'var Set :=
+        // ...' followed by 'Set(42)' calls the variable rather than
+        // constructing a Set.
+        if Locals.Contains (Name) or Captured.Contains (Name) or Boxed.Contains (Name) then
+            Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+
+        // ⚠️ A FILE-SCOPE declaration shadows a builtin too, by exactly the same
+        // rule.  builtins is the outermost environment and every module's
+        // encloses it, so any name the program itself binds is found first --
+        // which makes the tables below the LAST thing consulted, not the first.
+        //
+        // While they came first, 'class Buffer' meant two different things:
+        // interpreted the declaration won, compiled 'alg_buffer()' did, and the
+        // program died on 'Undefined property' pointing at the method rather
+        // than at the name.  The same held for a top-level function named 'Max'
+        // and for every other builtin and constructor name.
+        //
+        // ⚠️ Declared is NOT the right set here -- it holds every function
+        // declared anywhere, including nested ones that are out of scope at the
+        // call site.  A nested 'function Set' would then shadow Set() across the
+        // whole file, which the interpreter does not do.  TopLevel is the
+        // shallow set, collected the same way Globals is.
+        var Shadowed := ShadowNames.Contains (Name);
+
+        if not Shadowed then
+        begin
+            var TheBuiltin := Builtin (Name, Arguments.Length);
+            if TheBuiltin <> '' then Exit TheBuiltin + '(' + Joined + ')';
+        end
+
+        if not Shadowed then
+        begin
+            var TheConstructor := ConstructorFor (Name, Arguments, Joined);
+            if TheConstructor <> '' then Exit TheConstructor;
+        end
+
+        if Classes.Contains (Name) then
+            Exit 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+
+        // ⚠️ A bare call inside a method is a call on 'this', and dispatches
+        // DYNAMICALLY -- Describe() calling Speak() has to reach a subclass's
+        // override, which a direct call to this class's symbol would not.
+        if CurrentClass <> '' and not Declared.Contains (Name)
+                              and VisibleMethods.Contains (Name) then
+            Exit 'alg_invoke(v_this, ' + QuoteC (Name) + ', '
+               + ArgumentArray (Arguments) + ')';
+
+        if Declared.Contains (Name) then
+            Exit FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
+
+        // A file-scope 'var' holding a function, called by its name.  Reached
+        // only now that a global shadows a builtin: before that, 'var Str' then
+        // 'Str(1)' emitted alg_str and called the builtin instead.
+        if Globals.Contains (Name) then
+            Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+
+        Unsupported ('A call to ''' + Name + '''');
+    end
+
+    // ------------------------------------------------------------ not covered
+
+    /// ⚠️ Short-circuiting, and yielding a VALUE rather than a C int, so that
+    /// 'A or B' still evaluates to one of its operands as it does interpreted
+    /// rather than collapsing to a boolean.
+    ///
+    /// ⚠️ The left operand is held in a SLOT rather than written into the
+    /// emitted C twice.  Written twice -- once for the test and once as the
+    /// result -- it is evaluated twice, so any side effect happens twice.
+    /// Algol-24's own parser is built on 'Match(X) or Match(Y)', and Match
+    /// advances a cursor, so that quietly consumed two tokens for one.
+    ///
+    /// The slot is file-scope and the sequencing makes that safe: between
+    /// writing it and reading it only alg_truthy runs, which cannot reach user
+    /// code.  Unlike a local it also survives a longjmp.
+    ///
+    function VisitLogical (TheExpr : LogicalExpr) : String;
+    var
+        Slot : String;
+        Test : String;
+
+    begin
+        var Left  := Evaluate (TheExpr.Left);
+        var Right := Evaluate (TheExpr.Right);
+
+        Slot := 'or_' + Str (Logicals);
+        Logicals := Logicals + 1;
+
+        Declarations.Append ('static Value ' + Slot + ';' + #10);
+
+        Test := '!alg_truthy(';
+        if TheExpr.Op.TypeOfToken = TOKEN_OR then Test := 'alg_truthy(';
+
+        Exit '(' + Slot + ' = ' + Left + ', ' + Test + Slot + ') ? '
+           + Slot + ' : ' + Right + ')';
+    end
+
+    /// ⚠️ A literal builds an empty collection and fills it, because C has no
+    /// expression that constructs a populated aggregate at run time.  The
+    /// keep-functions return the collection, so the whole thing stays an
+    /// expression and a literal is usable anywhere one is.
+    ///
+    function VisitCollectionExpr (TheExpr : CollectionExpr) : String;
+    var
+        Built : String;
+
+    begin
+        if TheExpr.IsMap then
+        begin
+            Built := 'alg_map()';
+
+            for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
+                Built := 'alg_map_keep(' + Built + ', ' + Evaluate (TheExpr.Keys[I])
+                       + ', ' + Evaluate (TheExpr.Values[I]) + ')';
+
+            Exit Built;
+        end
+
+        Built := 'alg_list()';
+
+        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+            Built := 'alg_list_keep(' + Built + ', ' + Evaluate (TheExpr.Values[I]) + ')';
+
+        Exit Built;
+    end
+
+    function VisitSubscriptExpr (TheExpr : SubscriptExpr) : String;
+    begin
+        Exit 'alg_subscript_get(' + Evaluate (TheExpr.Obj) + ', '
+           + Evaluate (TheExpr.Index) + ')';
+    end
+
+    function VisitSetSubscriptExpr (TheExpr : SetSubscriptExpr) : String;
+    begin
+        Exit 'alg_subscript_set(' + Evaluate (TheExpr.Obj) + ', '
+           + Evaluate (TheExpr.Index) + ', ' + Evaluate (TheExpr.Value) + ')';
+    end
+
+    /// Reached only for a property: a method CALL arrives as a Call whose
+    /// callee is this Get, and is handled there.
+    ///
+    /// A unit-qualified name READ rather than called -- 'Vals.Answer'.
+    ///
+    /// ⚠️ System has none of these.  A built-in is a C function and the back end
+    /// has no closure to stand for one, so 'System.Max' as a value is refused
+    /// where 'System.Max(1, 2)' is fine.  The interpreter can hand back the
+    /// native, which is a divergence and a deliberate one: emitting a wrapper
+    /// per built-in to close it would cost the whole table for a form nothing
+    /// writes.
+    ///
+    /// Any other unit is an ordinary name in the flattened program, so this is
+    /// exactly what a bare reference to it emits.
+    ///
+    function UnitValue (Unit : String, Name : String) : String;
+    begin
+        if UnitExports.Contains (Unit) and not (UnitExports.Get (Unit) as Set).Contains (Name) then
+            Exit '(alg_error(' + QuoteC ('Undefined name ''' + Name + ''' in unit '''
+                                       + Unit + '''.') + '), alg_nil())';
+
+        if Unit = 'System' then Unsupported ('''' + Unit + '.' + Name + ''' as a value');
+
+        // ⚠️ A qualified name reaches ANOTHER unit's symbol, so the rename that
+        // makes the root's own declaration distinct must not touch it.  Without
+        // this a root that shadows an import read its own value back through
+        // 'Held.Twin' -- the right symbol renamed out from under the one form
+        // whose whole purpose is to reach past the shadow.
+        var Saved := Renames;
+        Renames := Map();
+
+        var Built := '';
+        if EnumMembers.Contains (Name) then
+            Built := EnumMemberName (Str (EnumMembers.Get (Name)), Name);
+        else if EnumTypes.Contains (Name) then Built := EnumTypeName (Name);
+        else if Objects.Contains (Name)   then Built := 'alg_singleton(' + ClassHandle (Name) + ')';
+        else if Classes.Contains (Name)   then Built := ClassHandle (Name);
+        else if Declared.Contains (Name)  then Built := HandleName (Name);
+        else if Globals.Contains (Name)   then Built := VariableName (Name);
+
+        Renames := Saved;
+
+        if Built <> '' then Exit Built;
+
+        Unsupported ('''' + Unit + '.' + Name + ''' as a value');
+        Exit '';
+    end
+
+    function VisitGetExpr (TheExpr : GetExpr) : String;
+    begin
+        if TheExpr.Unit <> '' then
+            Exit UnitValue (Str (TheExpr.Unit), Str (TheExpr.Name.Lexeme));
+
+        Exit 'alg_property(' + Evaluate (TheExpr.Obj) + ', '
+           + QuoteC (Str (TheExpr.Name.Lexeme)) + ')';
+    end
+
+    function VisitSetExpr (TheExpr : SetExpr) : String;
+    begin
+        if TheExpr.Unit <> '' then
+        begin
+            var Written := Evaluate (TheExpr.Value);
+            var Unit := Str (TheExpr.Unit);
+            var Name := Str (TheExpr.Name.Lexeme);
+
+            if UnitExports.Contains (Unit) and not (UnitExports.Get (Unit) as Set).Contains (Name) then
+                Exit '(alg_error(' + QuoteC ('Undefined name ''' + Name + ''' in unit '''
+                                           + Unit + '''.') + '), alg_nil())';
+
+            if Unit <> 'System' and Globals.Contains (Name) then
+                Exit '(' + VariableName (Name) + ' = ' + Written + ')';
+
+            Unsupported ('An assignment to ''' + Unit + '.' + Name + '''');
+        end
+
+        Exit 'alg_set_property(' + Evaluate (TheExpr.Obj) + ', '
+           + QuoteC (Str (TheExpr.Name.Lexeme)) + ', ' + Evaluate (TheExpr.Value) + ')';
+    end
+
+    /// ⚠️ Only reached when 'super.M' is used as a VALUE rather than called.
+    /// 'super.M()' is a Call over a SuperExpr and is handled in VisitCallExpr,
+    /// so it never arrives here.
+    ///
+    /// ⚠️ The wording is fixed.  This said '''super''' and so produced a
+    /// message nothing else could -- the same class of divergence as the
+    /// runtime's invented 'Only instances have methods.', and invisible for the
+    /// same reason: a program that fails to compile emits no C, so a comparison
+    /// of emitted C never sees it.
+    function VisitSuperExpr (TheExpr : SuperExpr) : String;
+    begin
+        Unsupported ('''super'' as a value');
+    end
+
+    function VisitThisExpr (TheExpr : ThisExpr) : String;
+    begin
+        Exit 'v_this';
+    end
+
+    procedure VisitClassStmt (TheStmt : ClassStmt);
+    begin
+        EmitClass (Str (TheStmt.Name.Lexeme), TheStmt.Superclass,
+                   TheStmt.Fields, TheStmt.Methods, False);
+    end
+
+    procedure VisitObjectStmt (TheStmt : ObjectStmt);
+    begin
+        EmitClass (Str (TheStmt.Name.Lexeme), TheStmt.Superclass,
+                   TheStmt.Fields, TheStmt.Methods, True);
+    end
+
+    /// An enum type plus one interned member per name.
+    ///
+    /// ⚠️ Interned, so the bare 'Red' and the qualified 'Colour.Red' are the
+    /// same object -- enum comparison is identity, and a copy would make
+    /// 'Colour.Red = Red' false.
+    ///
+    procedure VisitEnumStmt (TheStmt : EnumStmt);
+    var
+        TheType : String;
+
+    begin
+        TheType := EnumTypeName (Str (TheStmt.Name.Lexeme));
+
+        DeclareValue (TheType, Str (TheStmt.Name.Lexeme));
+        Setup.Append ('    ' + TheType + ' = alg_enum_type('
+               + QuoteC (Str (TheStmt.Name.Lexeme)) + ');' + #10);
+
+        for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
+        begin
+            var Symbol := EnumMemberName (Str (EnumMembers.Get (Str (TheStmt.Members[I].Lexeme))),
+                                          Str (TheStmt.Members[I].Lexeme));
+
+            DeclareValue (Symbol, Str (TheStmt.Members[I].Lexeme));
+            Setup.Append ('    ' + Symbol + ' = alg_enum_member(' + TheType
+                   + ', ' + QuoteC (Str (TheStmt.Members[I].Lexeme)) + ');' + #10);
+        end
+    end
+
+    /// ⚠️ Unwound with setjmp/longjmp over a stack of frames.  WHICH handler
+    /// runs is decided by the runtime rather than by emission order, because
+    /// the most derived one wins -- a Dog picks the Dog handler even where
+    /// Animal is written first.  alg_handler walks the raised value's own class
+    /// chain and asks at each level which name is present.
+    ///
+    procedure VisitTryStmt (TheStmt : TryStmt);
+    var
+        Id       : Integer;
+        Frame    : String;
+        Handlers : List;
+        CatchAll : Any;
+        Keys     : List;
+
+    begin
+        Id := Loops;
+        Loops := Loops + 1;
+
+        Frame := 'frame_' + Str (Id);
+
+        Handlers := List();
+        CatchAll := Nil;
+
+        // Declaration order, which is the order the parser recorded them in.
+        Keys := TheStmt.Handlers.Keys();
+        for var I := 0; I < Keys.Length; I := I + 1 do
+        begin
+            if Keys[I] = 'default' then CatchAll := TheStmt.Handlers.Get (Keys[I]);
+            else Handlers.Add (Keys[I]);
+        end
+
+        Line ('{');
+        Depth := Depth + 1;
+
+        Line ('AlgFrame ' + Frame + ';');
+        Line ('alg_push_frame(&' + Frame + ');');
+        Line ('if (ALG_SETJMP(' + Frame + '.jump) == 0) {');
+        Depth := Depth + 1;
+
+        // Open only for the block: alg_raise pops before it jumps, so a
+        // handler body already runs with this frame gone.
+        TryDepth := TryDepth + 1;
+        Execute (TheStmt.TryBlock);
+        TryDepth := TryDepth - 1;
+
+        Line ('alg_pop_frame();');
+
+        Depth := Depth - 1;
+        Line ('}');
+        Line ('else {');
+        Depth := Depth + 1;
+
+        if Handlers.Length = 0 then EmitHandlerBody (CatchAll, Frame);
+        else
+        begin
+            var Names := '';
+            for var I := 0; I < Handlers.Length; I := I + 1 do
+            begin
+                if I > 0 then Names := Names + ', ';
+
+                Names := Names + QuoteC (Str (Handlers[I]));
+            end
+
+            var Table := 'names_' + Str (Id);
+            Line ('static const char *' + Table + '[] = {' + Names + '};');
+            Line ('int32_t which_' + Str (Id) + ' = alg_handler(' + Frame + '.raised, '
+                + Table + ', ' + Str (Handlers.Length) + ');');
+
+            for var I := 0; I < Handlers.Length; I := I + 1 do
+            begin
+                var Lead := 'else if';
+                if I = 0 then Lead := 'if';
+
+                Line (Lead + ' (which_' + Str (Id) + ' == ' + Str (I) + ') {');
+                Depth := Depth + 1;
+
+                EmitHandlerBody (TheStmt.Handlers.Get (Handlers[I]), Frame);
+
+                Depth := Depth - 1;
+                Line ('}');
+            end
+
+            Line ('else {');
+            Depth := Depth + 1;
+
+            // Nothing matched, so it keeps unwinding rather than being
+            // swallowed here.
+            if CatchAll <> Nil then EmitHandlerBody (CatchAll, Frame);
+            else Line ('alg_raise(' + Frame + '.raised);');
+
+            Depth := Depth - 1;
+            Line ('}');
+        end
+
+        Depth := Depth - 1;
+        Line ('}');
+
+        Depth := Depth - 1;
+        Line ('}');
+    end
+
+    procedure VisitRaiseStmt (TheStmt : RaiseStmt);
+    begin
+        if TheStmt.Value = Nil then Line ('alg_raise(alg_nil());');
+        else Line ('alg_raise(' + Evaluate (TheStmt.Value) + ');');
+    end
+
+    /// ⚠️ The collection is SNAPSHOT once, so mutating it inside the body does
+    /// not change what the loop walks -- the interpreter copies for the same
+    /// reason.  The temporaries are numbered because these nest.
+    ///
+    procedure VisitForInStmt (TheStmt : ForInStmt);
+    var
+        Id       : Integer;
+        Snapshot : String;
+        Index    : String;
+        Counter  : String;
+
+    begin
+        RefuseBareBinding (TheStmt.Body);
+
+        Id := Loops;
+        Loops := Loops + 1;
+
+        Snapshot := 'loop_' + Str (Id);
+        Index := 'at_' + Str (Id);
+
+        var Mark := OpenScope ();
+
+        Line ('{');
+        Depth := Depth + 1;
+
+        Line (Local () + Snapshot + ' = alg_iterable(' + Evaluate (TheStmt.Iterable) + ');');
+
+        Counter := 'int32_t ';
+        if Volatiles then Counter := 'volatile int32_t ';
+
+        Line ('for (' + Counter + Index + ' = 0; ' + Index + ' < alg_iterable_count('
+            + Snapshot + '); ' + Index + '++) {');
+        Depth := Depth + 1;
+
+        Locals.Add (Str (TheStmt.Name.Lexeme));
+
+        var Element := 'alg_iterable_at(' + Snapshot + ', ' + Index + ')';
+
+        // ⚠️ The loop variable is a binding like any other, so a nested
+        // function may capture it and it has to be boxed when one does.
+        // CollectBindings has always listed it; this is the site that has to
+        // agree, and while it did not, the capture list named a 'c_F' nothing
+        // declared.  The cell is built inside the loop, so each iteration
+        // captures its own element -- which is what the interpreter's fresh
+        // environment per iteration does.
+        if Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
+            DeclareCell (Str (TheStmt.Name.Lexeme), Element);
+        else
+        begin
+            Line (Local () + VariableName (Str (TheStmt.Name.Lexeme)) + ' = ' + Element + ';');
+            Line ('(void)' + VariableName (Str (TheStmt.Name.Lexeme)) + ';');
+        end
+
+        var EnclosingLoopDepth := LoopTryDepth;
+        LoopTryDepth := TryDepth;
+        Execute (TheStmt.Body);
+        LoopTryDepth := EnclosingLoopDepth;
+
+        Depth := Depth - 1;
+        Line ('}');
+
+        Depth := Depth - 1;
+        Line ('}');
+
+        CloseScope (Mark);
+    end
+
+    procedure VisitBreakStmt (TheStmt : BreakStmt);
+    begin
+        // Only the frames opened inside the loop: the ones outside it are
+        // still live once the loop is left.
+        for var I := LoopTryDepth; I < TryDepth; I := I + 1 do
+            Line ('alg_pop_frame();');
+
+        Line ('break;');
+    end
+
+    /// 'var X, Y : Integer := 0;' -- one initializer, several names.
+    ///
+    /// ⚠️ The initializer is evaluated ONCE, into a shared temporary, and each
+    /// name takes its value from there.  Emitting it per name would run any side
+    /// effect in it as many times as there are names.
+    ///
+    procedure VisitVarGroupStmt (TheStmt : VarGroupStmt);
+    var
+        Value  : String;
+        Shared : String;
+
+    begin
+        Value := 'alg_nil()';
+        if TheStmt.Initializer <> Nil then Value := Evaluate (TheStmt.Initializer);
+
+        Shared := 'shared_' + Str (Loops);
+        Loops := Loops + 1;
+
+        if AtTopLevel then
+        begin
+            Declarations.Append ('static Value ' + Shared + ';' + #10);
+            Line (Shared + ' = ' + Value + ';');
+        end
+        else Line (Local () + Shared + ' = ' + Value + ';');
+
+        for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
+        begin
+            var Name := Str (TheStmt.Names[I].Lexeme);
+
+            if AtTopLevel then
+            begin
+                DeclareValue (VariableName (Name), Name);
+                Line (VariableName (Name) + ' = ' + Shared + ';');
+            end
+            else if Boxed.Contains (Name) then
+            begin
+                RequireCell (Name);
+
+                Locals.Add (Name);
+                Line ('*' + Cell (Name) + ' = ' + Shared + ';');
+            end
+            else
+            begin
+                Locals.Add (Name);
+
+                Line (Local () + VariableName (Name) + ' = ' + Shared + ';');
+                Line ('(void)' + VariableName (Name) + ';');
+            end
+        end
+    end
+
+    /// Reached only for a 'uses' inside something other than the top level:
+    /// Flatten pulls every top-level module out before anything is emitted.
+    ///
+    procedure VisitModuleStmt (TheStmt : ModuleStmt);
+    begin
+        Unsupported ('A nested ''uses''');
+    end
+end

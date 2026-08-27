@@ -1,0 +1,3451 @@
+uses Console;
+uses Environment;
+uses Expr;
+uses ObjBuffer;
+uses ObjClass;
+uses ObjCollection;
+uses ObjEnum;
+uses ObjFile;
+uses ObjFunction;
+uses ObjInstance;
+uses Parser;
+uses Resolver;
+uses Scanner;
+uses Stmt;
+uses Token;
+uses TokenType;
+
+/// The clock native.  Lox's only one; this language has several, below.
+///
+/// At file scope rather than inside Interpreter's constructor, where it used to
+/// be: a class declared in a function body is not something the C back end
+/// emits -- classes become file-scope handles registered at the top of main --
+/// and nothing here needs it to be local.
+///
+class ClockNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 0;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit clock();
+    end
+end
+
+/// The string builtins, each a class with an Arity and a Call.
+///
+/// They wrap the host's, which is the same trick the arithmetic uses: an
+/// interpreted value is a host value, so Length here is Length there and the
+/// two implementations cannot disagree about it.
+///
+class LengthNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Length(Str(Arguments[0]));
+    end
+end
+
+class CopyNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 3;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Copy(Str(Arguments[0]), Arguments[1], Arguments[2]);
+    end
+end
+
+class PosNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 2;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Pos(Str(Arguments[0]), Str(Arguments[1]));
+    end
+end
+
+class ArrayNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    var
+       Result : ObjCollection;
+
+    begin
+        Result := ObjCollection ('Array');
+        Result.Allocate (Arguments[0]);
+
+        Exit Result;
+    end
+end
+
+/// The zero-argument collection constructors.
+///
+/// One class each rather than one parameterised by kind, because a native is
+/// selected by NAME here -- there is no dispatch table to key by kind -- and
+/// four four-line classes are less machinery than a shared one plus the thing
+/// that chooses between them.
+///
+/// Array is not among them: it takes a size, so it has its own above.
+///
+class ListNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 0;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit ObjCollection ('List');
+    end
+end
+
+class MapNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 0;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit ObjCollection ('Map');
+    end
+end
+
+class SetNative;
+begin
+    /// ⚠️ -1 means "the arity is a range, so this native checks it itself".
+    /// Set takes nothing or one List, and the two failures are reported
+    /// differently -- a count that cannot match, and a count that can match
+    /// with the wrong type -- so neither can come from VisitCall's single
+    /// check.
+    function Arity () : Integer;
+    begin
+        Exit -1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    var
+        Result : ObjCollection;
+
+    begin
+        if Arguments.Length > 1 then
+            raise 'Expected 0 or 1 arguments but got ' + Str (Arguments.Length) + '.';
+
+        Result := ObjCollection ('Set');
+
+        if Arguments.Length = 1 then
+        begin
+            var From := Arguments[0];
+
+            if not (From is ObjCollection) or From.Kind <> 'List' then
+                raise 'Set expects (List) but got (' + TypeNameOf (From) + ').';
+
+            // Through Add, so duplicates collapse -- which is what makes
+            // Set([1, 2, 2]) the way a set literal is spelled.
+            for var I := 0; I < From.Items.Length; I := I + 1 do
+                Result.Invoke ('Add', [From.Items[I]]);
+        end
+
+        Exit Result;
+    end
+end
+
+class StackNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 0;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit ObjCollection ('Stack');
+    end
+end
+
+/// The interpreted program's own arguments -- NOT algc's.
+///
+/// ⚠️ Delegating to the host's ParamStr would report algc's command line:
+/// running 'algc --test Files.a24' would give ParamCount() = 2 where the same
+/// suite run directly gives 0.  A program has to see its OWN arguments however
+/// it was started, so Main hands them over here.
+///
+/// ParamStr(0) is the program and 1 upward are its arguments, as in Turbo
+/// Pascal; ParamCount counts the arguments, not the program.
+///
+var ProgramArguments : List := [];
+
+procedure SetProgramArguments (Arguments : List);
+begin
+    ProgramArguments := Arguments;
+end
+
+/// ⚠️ Whether an interpreted program's output is being swallowed.
+///
+/// A test run flips output to a buffer so a program's own Write and
+/// WriteLn do not interleave with the test report.  'print' deliberately
+/// bypasses that and still reaches stdout, which is why the two exist.
+///
+var OutputSuppressed : Boolean := False;
+
+procedure SuppressOutput (Suppress : Boolean);
+begin
+    OutputSuppressed := Suppress;
+end
+
+class WriteNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        if not OutputSuppressed then Write (Stringify (TheInterpreter, Arguments[0]));
+
+        Exit Nil;
+    end
+end
+
+class WriteLnNative;
+begin
+    /// -1: WriteLn takes a value or nothing, and the native invoker selects
+    /// between those by arity.
+    function Arity () : Integer;
+    begin
+        Exit -1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        if Arguments.Length > 1 then
+            raise 'Expected 0 or 1 arguments but got ' + Str (Arguments.Length) + '.';
+
+        if not OutputSuppressed then
+        begin
+            if Arguments.Length = 0 then WriteLn ('');
+            else WriteLn (Stringify (TheInterpreter, Arguments[0]));
+        end
+
+        Exit Nil;
+    end
+end
+
+/// The remaining string and numeric builtins algc's own source reaches for.
+///
+/// ⚠️ Found by running algc under algc: the outer copy has these from the host
+/// and never noticed the inner copy did not.  A builtin missing from the
+/// interpreted globals is invisible until a program that needs it is run --
+/// and algc's own scanner is such a program.
+///
+class OrdNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        // ⚠️ An interpreted enum member is an ObjEnum, not a host one, so the
+        // host's Ord cannot see its ordinal -- the same reason Stringify has
+        // to call an interpreted ToString itself.  Everything else delegates.
+        if Arguments[0] is ObjEnum then Exit Arguments[0].Ordinal;
+
+        Exit Ord (Arguments[0]);
+    end
+end
+
+/// ⚠️ Val parses; Ord gives an ordinal.  These were one builtin named Ord
+/// which did the parsing -- Turbo Pascal's Val under the wrong name -- and the
+/// misnaming blocked the C emitter: writing 'alg_char_value(65)' needs a
+/// character's code point, and the name for that operation was taken by its
+/// opposite.
+class ValNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Val (Arguments[0]);
+    end
+end
+
+class CharNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Char (Arguments[0]);
+    end
+end
+
+class MaxNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 2;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Max (Arguments[0], Arguments[1]);
+    end
+end
+
+class ModNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 2;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Mod (Arguments[0], Arguments[1]);
+    end
+end
+
+class TextFileNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 0;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit ObjFile ();
+    end
+end
+
+/// ⚠️ Arity -1: Buffer takes nothing or a size, so this checks its own count.
+/// The same arrangement SetNative uses, and for the same reason -- VisitCall's
+/// single check cannot express a range.
+///
+class BufferNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit -1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        if Arguments.Length > 1 then
+            raise 'Expected 0 or 1 arguments but got ' + Str (Arguments.Length) + '.';
+
+        // Buffer() and Buffer(0) are the same thing to the host, which is why
+        // ObjBuffer has one constructor rather than two.
+        if Arguments.Length = 0 then Exit ObjBuffer (0);
+
+        Exit ObjBuffer (Arguments[0]);
+    end
+end
+
+class FileExistsNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit FileExists (Str (Arguments[0]));
+    end
+end
+
+class ParamCountNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 0;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        // The program itself is not one of them.
+        Exit ProgramArguments.Length - 1;
+    end
+end
+
+class ParamStrNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    var
+        At : Integer;
+
+    begin
+        At := Arguments[0];
+
+        // Out of range is '', not an error -- which is what lets a program ask
+        // for an argument it may not have been given.
+        if At < 0 or At >= ProgramArguments.Length then Exit '';
+
+        Exit ProgramArguments[At];
+    end
+end
+
+/// Renders a value as text.
+///
+/// ⚠️ A class with a ToString() method decides how it prints, and algc did not
+/// honour that at all -- 'print Money()' gave 'Money instance' rather than
+/// '$5'.  Delegating straight to the host worked only because at one
+/// level of interpretation every value algc holds is a HOST value, whose own
+/// toString does the right thing.  The moment algc interprets algc, the
+/// collections it is handed are interpreted instances and the host renders
+/// them as 'ObjCollection instance'.
+///
+/// Recursive on the result, so a ToString that returns another object with a
+/// ToString still resolves.
+///
+function Stringify (TheInterpreter : Any, Value : Any) : String;
+begin
+    if Value = Nil then Exit 'nil';
+
+    if Value is ObjInstance then
+    begin
+        var Method := Value.Klass.FindMethod ('ToString');
+
+        if Method <> Nil then
+            Exit Stringify (TheInterpreter, Method.Bind (Value).Call (TheInterpreter, List()));
+    end
+
+    // ⚠️ A collection is rendered HERE rather than by its own ToString, because
+    // its ELEMENTS have to come back through this function: an element with a
+    // ToString decides how it prints wherever it appears, and ObjCollection had
+    // no way to say so -- it handed Items to Str, which is the host's rule and
+    // knows nothing about an ObjInstance of ours.  '[Range instance]' where
+    // '[1..2]' is right.
+    if Value is ObjCollection then
+    begin
+        var Result := '[';
+        var First  := True;
+
+        if Value.Kind = 'Map' then
+            for var Key in Value.Pairs.Keys() do
+            begin
+                if not First then Result := Result + ', ';
+                First := False;
+
+                Result := Result + Stringify (TheInterpreter, Key) + ':'
+                        + Stringify (TheInterpreter, Value.Pairs.Get (Key));
+            end
+        else
+            for var Element in Value.Items do
+            begin
+                if not First then Result := Result + ', ';
+                First := False;
+
+                Result := Result + Stringify (TheInterpreter, Element);
+            end
+
+        Exit Result + ']';
+    end
+
+    Exit Str (Value);
+end
+
+class StrNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Stringify (TheInterpreter, Arguments[0]);
+    end
+end
+
+/// The assertions, registered only while --test is running.
+///
+/// They are registered from RunTests and nowhere else, so a program that calls
+/// AssertEqual outside a test run gets 'Undefined variable' rather than a
+/// silent pass.
+///
+/// A failure raises a String, which is what makes the runner able to report it
+/// -- there is no other channel from inside a test body.
+///
+class AssertTrueNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        if not TheInterpreter.IsTruthy (Arguments[0]) then
+            raise 'Assertion ''left = right'' failed.';
+
+        Exit Nil;
+    end
+end
+
+class AssertEqualNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 2;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        if not TheInterpreter.IsEqual (Arguments[0], Arguments[1]) then
+        begin
+            var Left  := Str (Arguments[0]);
+            var Right := Str (Arguments[1]);
+
+            // Types named only when the printed forms match, which is the case
+            // that otherwise reads as nonsense -- a Char and a String both
+            // print as 3, and the two are never equal.
+            if Left = Right then
+                raise 'Assertion ''left = right'' failed.  Expected '
+                    + TypeNameOf (Arguments[0]) + ' ''' + Left + ''' but got '
+                    + TypeNameOf (Arguments[1]) + ' ''' + Right + '''.';
+
+            raise 'Assertion ''left = right'' failed.  Expected ''' + Left
+                + ''' but got ''' + Right + '''.';
+        end
+
+        Exit Nil;
+    end
+end
+
+class FailNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        raise 'Failed.  ' + Str(Arguments[0]);
+    end
+end
+
+/// Interpreter!!!
+///
+class Interpreter;
+var 
+    Env     : Environment;
+
+    /// The native functions, and nothing else.  Every module's environment
+    /// encloses this one, because it is the whole of what a file may see
+    /// without asking for it.
+    Builtins : Environment;
+
+    /// The top level of the file the run started from.  ⚠️ Deliberately NOT the
+    /// root: it is one more file, with no more reach than any module it
+    /// imports, so a module cannot see the program's own declarations either.
+    Globals : Environment;
+
+    Locals  : Map;
+
+    /// Every module loaded, by resolved path.  A module is loaded once and
+    /// lives for the run; the several files that import it all link to this one
+    /// environment, which is what keeps a mutable export a single binding.
+    Modules : Map;
+
+    /// The same environments, keyed by the name a 'uses' clause spelled, so a
+    /// qualified 'Scanner.ScanTokens' can find one.  Separate from Modules
+    /// because that is keyed by resolved PATH -- two files may be imported under
+    /// one name, and the path is what decides identity.
+    ///
+    /// ⚠️ Last one wins on a name clash, which is reachable only by importing
+    /// two different files of the same name into one program -- two directories
+    /// each holding a 'Scanner.a24', say.
+    /// Qualification is the only thing affected; the bare names
+    /// keep resolving through the import links as they always have.
+    UnitsByName : Map;
+
+begin
+    constructor Init ();
+    begin
+        this.Builtins := Environment();
+        this.Globals := Environment();
+        this.Globals.Enclosing := Builtins;
+        this.Locals := Map();
+        this.Modules := Map();
+        this.UnitsByName := Map();
+
+        this.Env := Globals;
+        
+        Builtins.Define ('clock', ClockNative());
+
+        // Str on the way in, because a Char is not a String and these all take
+        // text -- the same widening the native invoker does for its own.
+        Builtins.Define ('Length', LengthNative());
+        Builtins.Define ('Copy',   CopyNative());
+        Builtins.Define ('Pos',    PosNative());
+        Builtins.Define ('Str',    StrNative());
+        Builtins.Define ('Array',  ArrayNative());
+        Builtins.Define ('List',   ListNative());
+        Builtins.Define ('Map',    MapNative());
+        Builtins.Define ('Set',    SetNative());
+        Builtins.Define ('Stack',  StackNative());
+
+        Builtins.Define ('Ord',  OrdNative());
+        Builtins.Define ('Val',  ValNative());
+        Builtins.Define ('Char', CharNative());
+        Builtins.Define ('Max',  MaxNative());
+        Builtins.Define ('Mod',  ModNative());
+
+        Builtins.Define ('Write',   WriteNative());
+        Builtins.Define ('WriteLn', WriteLnNative());
+
+        Builtins.Define ('Buffer',     BufferNative());
+        Builtins.Define ('TextFile',   TextFileNative());
+        Builtins.Define ('FileExists', FileExistsNative());
+        Builtins.Define ('ParamCount', ParamCountNative());
+        Builtins.Define ('ParamStr',   ParamStrNative());
+    end
+
+    /// Interprets a list of statements
+    ///
+    procedure Interpret (Statements : List);
+    begin
+        try
+            for var I : Integer := 0; I < Statements.Length; I := I + 1 do
+            begin
+               Execute (Statements[I]);     
+            end 
+        except
+            // ⚠️ An uncaught 'raise' from the program, unwrapped on the way
+            // out.  Without this the wrapper reached the user and the report
+            // read 'Raised instance', naming a class of this interpreter's
+            // that no program can see, in place of what was actually raised.
+            on e : Raised do raise Str (e.Value);
+        end
+    end
+
+    /// Runs every test block and reports.
+    ///
+    /// Declarations are hoisted first -- a test body calls the functions and
+    /// builds the classes the file declares, and the main block is never run.
+    /// Tests are sorted by name, so the report does not depend on the order
+    /// they happen to appear in.
+    ///
+    /// Returns the number that failed, so the caller can set an exit code.
+    ///
+    /// Defines what a test run needs, and collects the test blocks.
+    ///
+    /// ⚠️ A module is executed as a UNIT -- one call, which builds its
+    /// environment and exports from it -- and then walked again with Define
+    /// off, purely to find the tests it declares.  Executing its statements
+    /// individually here instead would define them straight into the global
+    /// environment and undo the module's scoping entirely, which is the whole
+    /// thing 'uses' exists to provide.
+    ///
+    /// ⚠️ Files and ByFile keep the report GROUPED, in the order each file's
+    /// first test was met -- which for 'uses' is load order, so a multi-file
+    /// report reads in dependency order.  This runner printed one flat list
+    /// under the root file's name, and nothing could see the difference
+    /// because no suite had a test in an imported module until one was added
+    /// for exactly that reason.
+    ///
+    /// Collects the test blocks a program can reach, and defines what they
+    /// need in order to run.
+    ///
+    /// ⚠️ Hoisted names every file whose tests have been taken, and a file is
+    /// taken ONCE however many ways it is reached.  The import-only guard below
+    /// is not enough on its own: it only covers a module met a second time,
+    /// and the ROOT file is not a module.  Nothing enters the root in the
+    /// parser's Loaded map, so a module that imports the root -- Parser uses
+    /// Interpreter, which uses Parser -- loads it a second time with its
+    /// statements intact, and every test in it was reported twice.  Running
+    /// Parser.a24 gave 273 results for 190 tests, its own 83 counted double.
+    ///
+    /// ⚠️ COLLECT and the walk are separate questions, and answering them with
+    /// one flag is wrong.  Declining to walk a file already taken also declines
+    /// everything BENEATH it, which for a cycle is most of the program: the
+    /// second copy of Interpreter reached through Parser is where Resolver is
+    /// imported, so skipping the copy lost Resolver and Parser entirely and
+    ///'--test Interpreter.a24' fell from 190 tests to 91.  The traversal always
+    /// descends; only the collecting stops.
+    ///
+    procedure HoistTests (Statements : List, Tests : List, ByName : Map, Define : Boolean,
+                          Scope : Environment, DeclaredIn : Map,
+                          File : String, Files : List, ByFile : Map, Hoisted : Set,
+                          Collect : Boolean);
+    begin
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+            var TheStmt := Statements[I];
+
+            if TheStmt is ModuleStmt then
+            begin
+                if Define then Execute (TheStmt);
+
+                // ⚠️ An import-only node carries no statements, and its tests
+                // were hoisted where the module was loaded.  Hoisting them again
+                // would report every test in a shared module once per importer;
+                // reaching for Length on Nil aborts the run outright, which is
+                // what it did -- 'Only a collection or a String has ''Length'''
+                // and no report at all.
+                if TheStmt.Statements <> Nil then
+                begin
+                    // First time this file is met wins; later copies are walked
+                    // for what they import and contribute no tests of their own.
+                    var Mine := not Hoisted.Contains (Str (TheStmt.FileName));
+                    if Mine then Hoisted.Add (Str (TheStmt.FileName));
+
+                    HoistTests (TheStmt.Statements, Tests, ByName, False,
+                                Modules.Get (TheStmt.FileName) as Environment, DeclaredIn,
+                                Str (TheStmt.FileName), Files, ByFile, Hoisted, Mine);
+                end
+            end
+
+            // A test is a FunctionStmt whose name token carries a literal,
+            // which only a string-literal name does.
+            else if TheStmt is FunctionStmt then
+            begin
+                if Define then Execute (TheStmt);
+
+                if TheStmt.Name.Literal <> Nil and Collect then
+                begin
+                    Tests.Add (TheStmt.Name.Lexeme);
+                    ByName.Put (TheStmt.Name.Lexeme, TheStmt);
+
+                    // ⚠️ Which environment the test was DECLARED in, because
+                    // that is the only place its name is bound.  The runner
+                    // used to resolve every test from Globals, which reaches
+                    // the root's own names and its imports' -- and 'uses' is
+                    // not transitive, so a test two hops down was 'Undefined
+                    // variable', naming itself.  The rule was being applied
+                    // correctly to something it does not govern: visibility is
+                    // about what Algol-24 code may reach, and the runner is not
+                    // Algol-24 code -- the same reason main declares
+                    // initializers for modules the root file never named.
+                    DeclaredIn.Put (TheStmt.Name.Lexeme, Scope);
+
+                    if not Files.Contains (File) then
+                    begin
+                        Files.Add (File);
+                        ByFile.Put (File, List());
+                    end
+                    (ByFile.Get (File) as List).Add (TheStmt.Name.Lexeme);
+                end
+            end
+
+            else if Define and (TheStmt is ClassStmt
+                             or TheStmt is ObjectStmt
+                             or TheStmt is EnumStmt
+                             or TheStmt is VarGroupStmt
+                             or TheStmt is VarStmt) then
+                Execute (TheStmt);
+        end
+    end
+
+    function RunTests (Statements : List, FileName : String) : Integer;
+    var
+        Tests  : List;
+        Passed : Integer;
+        Failed : Integer;
+
+    begin
+        Builtins.Define ('AssertTrue',  AssertTrueNative());
+        Builtins.Define ('AssertEqual', AssertEqualNative());
+        Builtins.Define ('Fail',        FailNative());
+
+        // A program's own output would otherwise interleave with the report.
+        SuppressOutput (True);
+
+        // Two collections rather than one: the tests are sorted by name, and
+        // Sort orders text, not class instances.
+        Tests := List();
+        var ByName := [:];
+        var DeclaredIn := [:];
+        var Files := List();
+        var ByFile := [:];
+
+        // ⚠️ Seeded with the ROOT's own file, before anything is walked.  Its
+        // 'uses' clauses come first, so a cycle reaches the root's second copy
+        // BEFORE the root's own tests; claiming the name up front is what keeps
+        // the copy that is hoisted the one declared in Globals rather than the
+        // one inside some module's environment.
+        var Hoisted := Set();
+        Hoisted.Add (FileName);
+
+        HoistTests (Statements, Tests, ByName, True, Globals, DeclaredIn,
+                    FileName, Files, ByFile, Hoisted, True);
+
+        WriteLn (INFO + 'Running ' + Str(Tests.Length) + ' tests...');
+
+        Passed := 0;
+        Failed := 0;
+
+        var Ordered := List();
+        for var F := 0; F < Files.Length; F := F + 1 do
+        begin
+            // By lexeme, the quoted form, and sorted WITHIN a file rather than
+            // across the whole report.
+            var Group := ByFile.Get (Files[F]) as List;
+            Group.Sort();
+
+            Ordered.Add (Files[F]);
+            for var J := 0; J < Group.Length; J := J + 1 do Ordered.Add (Group[J]);
+        end
+
+        for var I := 0; I < Ordered.Length; I := I + 1 do
+        begin
+            // A file name rather than a test: open its section and move on.
+            if not ByName.Contains (Ordered[I]) then
+            begin
+                if I > 0 then WriteLn (INFO);
+
+                WriteLn (INFO + '< ' + ANSI_CYAN + Str (Ordered[I]) + ANSI_RESET + ' >');
+            end
+            else
+            begin
+            var TheTest := ByName.Get (Ordered[I]);
+            var Name    := Str(TheTest.Name.Literal);
+
+            try
+                var Scope := Globals;
+                if DeclaredIn.Contains (Ordered[I]) then
+                    Scope := DeclaredIn.Get (Ordered[I]) as Environment;
+
+                var Body := Scope.Get (TheTest.Name);
+                Body.Call (this, List());
+
+                Passed := Passed + 1;
+                WriteLn (Report (Name, 'PASS'));
+            except
+                on e : String do
+                    begin
+                        Failed := Failed + 1;
+                        WriteLn (Report (Name, 'FAIL'));
+                        WriteLn (ERROR + FileName + ': ' + e);
+                    end
+
+                // A test whose body raises and does not catch is a FAILING
+                // test, not a reason to abandon the run.  It used to escape
+                // here and take the whole report with it, so the tests after
+                // it never ran and nothing said why.
+                on e : Raised do
+                    begin
+                        Failed := Failed + 1;
+                        WriteLn (Report (Name, 'FAIL'));
+                        WriteLn (ERROR + FileName + ': ' + Str (e.Value));
+                    end
+            end
+            end
+        end
+
+        WriteLn (INFO);
+
+        if Failed = 0 then
+            WriteLn (INFO + ANSI_GREEN + 'All ' + Str(Passed) + ' tests passed.' + ANSI_RESET);
+        else
+            WriteLn (INFO + ANSI_RED + Str(Failed) + ' of ' + Str(Passed + Failed)
+                          + ' tests failed.' + ANSI_RESET);
+
+        Exit Failed;
+    end
+
+    /// One result line, with the dot leader clamped so a long name cannot
+    /// produce a negative repeat count.
+    ///
+    function Report (Name : String, Status : String) : String;
+    var
+        Dots : Integer;
+
+    begin
+        Dots := 55 - Length(Name);
+        if Dots < 1 then Dots := 1;
+
+        var Leader := '';
+        for var I := 0; I < Dots; I := I + 1 do
+            Leader := Leader + '.';
+
+        // ⚠️ The leader is measured on the NAME alone, before any colour is
+        // added.  Escapes are bytes with no width, so counting them would pad
+        // every line by the length of a code and the dots would not line up.
+        var Tint := ANSI_GREEN;
+        if Status = 'FAIL' then Tint := ANSI_RED;
+
+        Exit INFO + 'Test: ' + Name + ' ' + Leader + ' [ ' + Tint + Status + ANSI_RESET + ' ]';
+    end
+
+    /// Interprets a literal value.
+    ///
+    function VisitLiteral (TheExpr : LiteralExpr) : Any;
+    begin
+        Exit TheExpr.Value; 
+    end
+
+    /// Interprets a logical expression (and, or).
+    ///
+    function VisitLogical (TheExpr : LogicalExpr) : Any;
+    var
+        Left : Any;
+
+    begin
+        Left := Evaluate (TheExpr.Left);
+
+        if TheExpr.Op.TypeOfToken = TOKEN_OR then
+            begin
+                if IsTruthy (Left) then Exit Left;
+            end
+        else
+            if Not IsTruthy (Left) then Exit Left;
+        
+        Exit Evaluate(TheExpr.Right);
+    end
+
+    /// Interprets a grouping expression.
+    ///
+    function VisitGrouping (TheExpr : GroupingExpr) : Any;
+    begin
+        Exit Evaluate (TheExpr.Expression);
+    end
+
+    
+    /// Interprets an unary expression.
+    ///
+    function VisitUnary (TheExpr : UnaryExpr);
+    var
+        Right : Any;
+
+    begin
+        Right := Evaluate (TheExpr.Right);
+
+        case TheExpr.Op.TypeOfToken of
+            TOKEN_MINUS : Exit -Right;
+            TOKEN_NOT  : Exit Not IsTruthy(Right);
+        end           
+    end
+
+    /// Builds a List or Map literal.
+    ///
+    function VisitCollectionExpr (TheExpr : CollectionExpr) : Any;
+    var
+        Result : ObjCollection;
+
+    begin
+        if TheExpr.IsMap then
+        begin
+            Result := ObjCollection ('Map');
+
+            for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
+                Result.Pairs.Put (Evaluate (TheExpr.Keys[I]), Evaluate (TheExpr.Values[I]));
+
+            Exit Result;
+        end
+
+        Result := ObjCollection ('List');
+        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+            Result.Items.Add (Evaluate (TheExpr.Values[I]));
+
+        Exit Result;
+    end
+
+    /// A[I].
+    ///
+    /// A String yields a Char, a Map looks up by key, and a List or Array by
+    /// position.  Anything else is not subscriptable.
+    ///
+    function VisitSubscriptExpr (TheExpr : SubscriptExpr) : Any;
+    var
+        Target : Any;
+        Index  : Any;
+
+    begin
+        Target := Evaluate (TheExpr.Obj);
+        Index  := Evaluate (TheExpr.Index);
+
+        if Target is ObjCollection then Exit Target.At (Index);
+        if Target is ObjBuffer     then Exit Target.At (Index);
+
+        // Not a collection, so the only thing left that can be subscripted is
+        // a String -- and subscripting one yields a Char.
+        if IsText (Target) then Exit Str(Target)[Index];
+
+        raise 'Subscript target should be an ordinal.';
+    end
+
+    /// A[I] := V.
+    ///
+    function VisitSetSubscriptExpr (TheExpr : SetSubscriptExpr) : Any;
+    var
+        Target : Any;
+        Index  : Any;
+        Value  : Any;
+
+    begin
+        Target := Evaluate (TheExpr.Obj);
+        Index  := Evaluate (TheExpr.Index);
+        Value  := Evaluate (TheExpr.Value);
+
+        if Target is ObjCollection then Exit Target.PutAt (Index, Value);
+        if Target is ObjBuffer     then Exit Target.PutAt (Index, Value);
+
+        if IsText (Target) then raise 'Strings are immutable.';
+
+        raise 'Subscript target should be an ordinal.';
+    end
+
+    /// Whether a value is text, which is the one non-collection thing that can
+    /// be subscripted.
+    ///
+    /// Both, because a Char is text and is not a String -- a one-character
+    /// literal scans as a Char, and 'C[0]' has to reach it.
+    ///
+    function IsText (Obj : Any) : Boolean;
+    begin
+        Exit Obj is String or Obj is Char;
+    end
+
+    /// 'X is T' -- whether the value's runtime type is T, or inherits from it.
+    ///
+    /// Nil is of no type at all, as it is to the C runtime's alg_is:
+    /// 'nil is Animal' is False rather than an error, so a test may be written
+    /// against a value that might not be there.
+    ///
+    /// The name is matched case-insensitively because the language's own type
+    /// names are ('Integer' and 'INTEGER' are one type), while the identifiers
+    /// a program declares are not -- so this compares lowered on both sides
+    /// exactly as the keyword table does.
+    ///
+    function VisitIsExpr (TheExpr : IsExpr) : Boolean;
+    var
+        Value   : Any;
+        TheName : String;
+
+    begin
+        Value := Evaluate (TheExpr.Obj);
+        if Value = Nil then Exit False;
+
+        TheName := ToLower (Str (TheExpr.TypeName.Lexeme));
+
+        if ToLower (TypeNameOf (Value)) = TheName then Exit True;
+
+        // Walk the chain, so a Dog is an Animal.
+        Exit InheritsFrom (Value, Str (TheExpr.TypeName.Lexeme));
+    end
+
+    /// Interprets a variable expression.
+    ///
+    /// A bare name that is not a variable is retried as 'this.<name>', which is
+    /// how a method reaches its own fields without writing 'this' every time.
+    ///
+    /// ⚠️ Written as a FALLBACK rather than as a resolver decision: the name is
+    /// looked up first and only reinterpreted when that fails.  Two things depend on the shape.  A local shadows a field of the
+    /// same name, because the local is found first.  And the reported error is
+    /// the ORIGINAL lookup failure, not the fallback's -- a misspelled variable
+    /// should say the variable is undefined, not the property.
+    ///
+    function VisitVariableExpr (TheExpr : VariableExpr);
+    begin
+        try
+            Exit LookupVariable (TheExpr.Name, TheExpr);
+        except
+            on e : String do Exit ThisField (TheExpr.Name, e);
+        end
+    end
+
+    /// Reads Name as a field of 'this', or re-raises the original failure.
+    ///
+    function ThisField (Name : Token, Original : String) : Any;
+    var
+        Obj : Any;
+
+    begin
+        try
+            Obj := Env.Get (Token (TOKEN_THIS, 'this', Nil, Name.LineNumber));
+            Exit Obj.Get (Name);
+        except
+            on e : String do raise Original;
+        end
+    end
+
+    /// Writes Name as a field of 'this', or re-raises the original failure.
+    ///
+    procedure SetThisField (Name : Token, Value : Any, Original : String);
+    var
+        Obj : Any;
+
+    begin
+        try
+            Obj := Env.Get (Token (TOKEN_THIS, 'this', Nil, Name.LineNumber));
+            Obj.Set (Name, Value);
+        except
+            on e : String do raise Original;
+        end
+    end
+
+    /// Finds a variable by distance or in globals.
+    //
+    function LookupVariable (Name : Token, TheExpr : Expr);
+    var
+        Distance : Integer;
+
+    begin    
+        Distance := Locals.Get (TheExpr) As Integer;
+        if Distance <> Nil then Exit Env.GetAt (Distance, Name.Lexeme);
+
+        // ⚠️ The environment chain IS the visibility rule -- own bindings, then
+        // the modules this file said 'uses' for, then the built-ins.  There used
+        // to be a fallback to Globals on failure, and it fired precisely when a
+        // name was out of scope: Globals is the ROOT FILE's environment and its
+        // Get searches that file's imports too, so any module reaching a name it
+        // had not imported landed in the root's namespace and, through it, in
+        // every sibling's exports.
+        //
+        // ⚠️ The comment that stood here said 'Env.Get walks the chain and
+        // reaches globals anyway'.  That was true before 'uses' was scoped per
+        // file, and stopped being true when a module's environment came to
+        // enclose Builtins rather than Globals -- so the justification outlived
+        // the design it described, and the code it justified was the one thing
+        // defeating the replacement.
+        try
+            Exit Env.Get (Name);
+        except
+            on e : String do raise SuggestUnit (Name, e);
+        end
+    end
+
+    /// Adds "and here is where it lives" to an undefined name, when a loaded
+    /// module exports one of that name.
+    ///
+    /// ⚠️ Enforcing visibility made a whole class of program newly fail, and
+    /// 'Undefined variable ''Helper''.' is indistinguishable from a typo -- for a
+    /// name the reader can see in another file.  This is the difference between a
+    /// missing 'uses' and a misspelling, which the message could not tell apart.
+    ///
+    /// ⚠️ It is NOT a third implementation of visibility, and that distinction is
+    /// what makes it affordable.  It runs only after the environment chain has
+    /// already decided, changes no outcome, and re-derives no rule -- it reads
+    /// the modules that are already loaded to explain a failure that has already
+    /// happened.
+    ///
+    /// ⚠️ Raised here rather than in Environment, which is the reason it can be
+    /// done at all: Environment knows nothing about modules and should not, so
+    /// the enrichment belongs one frame up, where both the name and the loaded
+    /// modules are in hand.
+    ///
+    /// ⚠️ UnitsByName is walked in LOAD order, because the suggestion is
+    /// user-visible text and the two implementations have to name the same unit.
+    ///
+    function SuggestUnit (Name : Token, Message : String) : String;
+    begin
+        var Units := UnitsByName.Keys();
+
+        for var I := 0; I < Units.Length; I := I + 1 do
+        begin
+            var ModuleEnv := UnitsByName.Get (Units[I]) as Environment;
+
+            // Only what the unit EXPORTS: 'uses' would not reach a private name,
+            // so naming it would be advice that does not work -- the mistake the
+            // 'mark it private' message made one finding over.
+            if ModuleEnv.Exports <> Nil and ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
+                Exit Str (Message) + ' Unit ''' + Str (Units[I])
+                   + ''' exports it; this file has no ''uses'' for it.';
+        end
+
+        // ⚠️ The other half, and it needs a different sentence because it has a
+        // different remedy.  A module reaching a name the ENTRY POINT declares
+        // is just as undiagnosable, and 'add a uses' is advice that cannot be
+        // taken: nothing can import the file a program started from.  The fix is
+        // to move the declaration into a module, so the message says what is
+        // wrong rather than what to type.
+        if Env <> Globals and Globals.Values.Contains (Str (Name.Lexeme)) then
+            Exit Str (Message)
+               + ' The file the program started from declares it, and no file can ''uses'' that.';
+
+        Exit Str (Message);
+    end
+
+    /// Interprets a binary expression.
+    ///
+    function VisitBinary (TheExpr : BinaryExpr);
+    var
+        Left  : Any;
+        Right : Any;
+
+    begin
+        Left  := Evaluate (TheExpr.Left);
+        Right := Evaluate (TheExpr.Right);
+
+        case TheExpr.Op.TypeOfToken of
+           TOKEN_GREATER       : Exit Left > Right;
+           TOKEN_GREATER_EQUAL : Exit Left >= Right;
+           TOKEN_LESS          : Exit Left < Right;
+           TOKEN_LESS_EQUAL    : Exit Left <= Right;
+           
+           TOKEN_NOT_EQUAL    : Exit Not IsEqual (Left, Right);
+           TOKEN_EQUAL   : Exit IsEqual (Left, Right); 
+           
+           // ⚠️ Operands reversed: 'X in C' asks the COLLECTION whether it
+           // holds the value, so the right operand is the receiver.
+           TOKEN_IN : Exit Contains (Right, Left);
+
+           TOKEN_PLUS  : Exit Left + Right;
+           TOKEN_MINUS : Exit Left - Right;
+           TOKEN_SLASH : Exit Left / Right;
+           TOKEN_STAR  : Exit Left * Right;
+        end
+    end
+
+    /// Interprets a call expression.
+    ///
+    /// # Errors
+    ///
+    /// Returns a runtime error if called with wrong number of parameters.
+    ///
+    function VisitCall (TheExpr : CallExpr) : Any;
+    var
+        Callee    : Any;
+        Arguments : List;
+
+    begin
+        Callee := Evaluate (TheExpr.Callee);
+  
+        Arguments := List();
+        for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+        begin
+            Arguments.Add (Evaluate (TheExpr.Arguments[I]));
+        end
+
+        // ⚠️ Callability is STRUCTURAL, like every other protocol here: a
+        // thing is callable when it answers to Arity, which the natives, the
+        // collection methods, ObjFunction and ObjClass all do.  There is no
+        // LoxCallable to test against, and adding one would mean naming every
+        // native in a list that a new native could be left out of.
+        //
+        // Without this, calling something uncallable failed further in with
+        // 'Undefined property ''Arity''.' -- an internal detail rather than
+        // what the program actually did wrong.  An 'object' name is the
+        // case that reaches it: a singleton is an instance, and calling it is
+        // not construction.
+        if not IsCallable (Callee) then
+        begin
+            raise 'Can only call functions and classes.';
+        end
+
+        // Overloads select on the whole signature, and property access could
+        // not: 'X.M' hands back the first method of that name because the
+        // arguments are not known until here.  Re-select now that they are.
+        if Callee is ObjFunction then
+        begin
+            if Callee.Owner <> Nil then
+            begin
+                var Better := Callee.Owner.FindOverload (Callee.Declaration.Name.Lexeme, Arguments);
+
+                // Nothing fitting is a real failure, not a reason to call
+                // whichever overload happened to be declared first.
+                if Better = Nil then raise 'No matching signature for function.';
+
+                Callee := Better.Bind (Callee.Bound);
+            end
+        end
+
+        // A negative arity means the callee checks its own, which is how a
+        // native with a range of legal counts reports the two failures
+        // separately.
+        if Callee.Arity() >= 0 and Arguments.Length <> Callee.Arity() then
+        begin
+            // RuntimeError was never declared anywhere, so this line raised
+            // 'Undefined variable' instead of the message it names, and only on
+            // a path no test reaches.  The C back end refuses to emit a call to
+            // an undeclared name, which is how it surfaced.  Raising a String
+            // is what every other error in this file does.
+            raise 'Expected ' + Callee.Arity() + ' arguments but got ' + Arguments.Length + '.';
+        end
+
+        Exit Callee.Call (this, Arguments);
+    end
+
+    // Gets a property.
+    //
+    // # Errors
+    // 
+    // Raises an error if attempting to get a property on a non-instance.
+    //    
+    /// Writes a name through its unit.
+    ///
+    /// ⚠️ System is refused rather than written.  Its names are the natives, and
+    /// a program that could rebind one would be changing what every other file
+    /// means by it -- the opposite of what qualification is for.
+    ///
+    procedure AssignQualified (Unit : String, Name : Token, Value : Any);
+    var
+        ModuleEnv : Environment;
+
+    begin
+        if Unit = 'System' then
+            raise 'Can''t assign to ''' + Str (Name.Lexeme) + ''' in unit ''System''.';
+
+        if not UnitsByName.Contains (Unit) then
+            raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
+
+        ModuleEnv := UnitsByName.Get (Unit) as Environment;
+
+        if ModuleEnv.Exports = Nil or not ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
+            raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
+
+        ModuleEnv.Values.Put (Str (Name.Lexeme), Value);
+    end
+
+    /// A name reached through a unit.
+    ///
+    /// ⚠️ Only what the unit EXPORTS, which is what makes qualification respect
+    /// 'private' rather than route around it.  'System' exports everything: the
+    /// built-ins are the whole of it, and none of them is private.
+    ///
+    function Qualified (Unit : String, Name : Token) : Any;
+    var
+        ModuleEnv : Environment;
+
+    begin
+        if Unit = 'System' then
+        begin
+            if not Builtins.Values.Contains (Str (Name.Lexeme)) then
+                raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''System''.';
+
+            Exit Builtins.Values.Get (Str (Name.Lexeme));
+        end
+
+        // Nothing can reach here with an unknown unit -- the Resolver only marks
+        // a name it found in the unit set -- but a module that failed to load
+        // would leave the map without it.
+        if not UnitsByName.Contains (Unit) then
+            raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
+
+        ModuleEnv := UnitsByName.Get (Unit) as Environment;
+
+        if ModuleEnv.Exports = Nil or not ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
+            raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
+
+        Exit ModuleEnv.Values.Get (Str (Name.Lexeme));
+    end
+
+    function VisitGetExpr (TheExpr : GetExpr) : Any;
+    var
+       Obj : Any;
+
+    begin
+        // A unit qualifier, decided by the Resolver.  It is not a value and is
+        // never evaluated -- 'System' names no variable, and neither does a unit
+        // whose file declares no class of its own name.
+        if TheExpr.Unit <> '' then Exit Qualified (TheExpr.Unit, TheExpr.Name);
+
+        Obj := Evaluate (TheExpr.Obj);
+
+        // An enum type is dotted into as well as an instance: Colour.Red.
+        //
+        // ⚠️ Tested with 'is', not against a class name, so an ObjSingleton --
+        // which IS an ObjInstance -- passes.  Comparing names would have made
+        // every object declaration unusable the moment it was reached.
+        if not (Obj is ObjInstance or Obj is ObjEnumType
+             or Obj is ObjCollection or Obj is ObjFile
+             or Obj is ObjBuffer) then
+        begin
+            raise 'Only instances have properties.';
+        end
+
+        Exit Obj.Get (TheExpr.Name);
+    end
+
+    // Sets a property.
+    //
+    // # Errors
+    // 
+    // Raises an error if attempting to set a property on a non-instance.
+    //
+    function VisitSetExpr (TheExpr : SetExpr) : Any;
+    var
+       Obj : Any;
+       Value  : Any;
+
+    begin
+        // A write through a unit reaches the module's own binding, which is the
+        // qualified spelling of what a bare assignment already does: a module
+        // keeps its environment for the run and an exported var is one binding
+        // however many files touch it.
+        if TheExpr.Unit <> '' then
+        begin
+            Value := Evaluate (TheExpr.Value);
+            AssignQualified (Str (TheExpr.Unit), TheExpr.Name, Value);
+
+            Exit Value;
+        end
+
+        Obj := Evaluate (TheExpr.Obj);
+
+        if not (Obj is ObjInstance) then
+        begin
+            raise 'Only instances have fields.';
+        end
+        
+        Value := Evaluate (TheExpr.Value);
+        Obj.Set (TheExpr.Name, Value);
+
+        Exit Value;
+    end
+
+    // Evaluates ''super''.
+    //
+    function VisitSuperExpr (TheExpr : SuperExpr) : Any;
+    var
+        Distance   : Integer;
+        Superclass : ObjClass;
+        Obj     : ObjInstance;
+        Method     : ObjFunction;
+
+    begin
+        Distance := Locals.Get(TheExpr) as Integer;
+
+        Superclass := Env.GetAt (Distance, 'super') as ObjClass;
+        Obj := Env.GetAt (Distance - 1, 'this') as ObjInstance;
+        Method := Superclass.FindMethod (TheExpr.Method.Lexeme);
+
+        Exit Method.Bind(Obj);
+    end
+
+    // Evaluates ''this''.
+    //
+    function VisitThisExpr (TheExpr : ThisExpr) : Any;
+    begin
+        Exit LookupVariable (TheExpr.Keyword, TheExpr);
+    end
+
+    /// Class name of a value, or '' when it is not an instance.
+    ///
+    /// Asks what a value is, where 'is' asks whether it is a given thing --
+    /// so this survives the operator rather than being replaced by it.  What
+    /// went away are the callers that only wanted to compare the answer
+    /// against one literal name.
+    ///
+    /// ClassName raises on anything that is not an instance -- a number, a
+    /// String, nil -- so it has to be a caught failure.
+    ///
+    function ClassNameOf (Obj : Any) : String;
+    begin
+        try
+            Exit Obj.ClassName;
+        except
+            on e : String do Exit '';
+        end
+    end
+
+    // Is object truthy?
+    //
+    function IsTruthy (Obj : Any) : Boolean;
+    begin
+        If Obj = Nil or Obj = False then Exit False;
+
+        // ⚠️ The INTEGER zero is falsey, and 0.0 is not.  That asymmetry is
+        // the language's, not an oversight: Declarations.a24 has a test named
+        // for it.  Missing here, so '0' was truthy -- the one test of
+        // twenty-nine that suite failed on.
+        if Obj is Integer then Exit Obj <> 0;
+
+        // An enum member is falsey when its ordinal is zero, so the FIRST
+        // member of every enum is false and every later one is true.  Surprising,
+        // and it is the rule.
+        if Obj is ObjEnum then Exit Obj.Ordinal <> 0;
+
+        Exit True; 
+    end
+
+    // Are objects equal?
+    //
+    function IsEqual (A : Any, B : Any) : Boolean;
+    begin
+       if A = Nil and B = Nil then Exit True;
+       if A = Nil then Exit False;
+
+       Exit A = B;
+    end
+    
+    /// Performs double-dispatch evaluation of expression.
+    ///
+    function Evaluate(TheExpr : Expr) : Any;
+    begin
+        Exit TheExpr.Accept(this);
+    end
+
+    /// Runs a statement.
+    ///
+    procedure Execute (TheStmt : Stmt);
+    begin
+        TheStmt.Accept (this);
+    end
+
+    procedure Resolve (TheExpr : Expr, Depth : Integer);
+    begin
+        Locals.Put (TheExpr, Depth);
+    end
+
+    /// Runs a list of statements in a new environment scope.
+    ///
+    procedure ExecuteBlock (Statements : List, NewEnv : Environment);
+    var 
+        PreviousEnv : Environment;
+
+    begin
+        PreviousEnv := this.Env as Environment;
+        
+        // ⚠️ The restore has to happen for ANYTHING leaving this block, not
+        // just for Return.  It used to name Return alone, which was complete
+        // while Exit was the only thing that unwound; the moment 'raise'
+        // exists, a value thrown past here left this.Env pointing at a scope
+        // that had already been left, and every later lookup ran in it.  An
+        // untyped handler is the language's nearest thing to 'finally', which
+        // does not exist.
+        try 
+            this.Env := NewEnv;
+            for var I := 0; I < Statements.Length; I := I + 1 do
+            begin
+               Execute (Statements[I]);
+            end
+        except
+            on e do
+                begin
+                    this.Env := PreviousEnv;
+                    raise e;
+                end
+        end
+        this.Env := PreviousEnv;
+    end
+
+    /// Runs a block statement.
+    ///
+    procedure VisitBlockStmt (TheStmt : BlockStmt);
+    begin
+        var NewEnv : Environment := Environment();
+        NewEnv.Enclosing := Env;
+
+        ExecuteBlock (TheStmt.Statements, NewEnv);
+    end
+
+    /// Runs a class statement.
+    ///
+    /// # Errors
+    ///
+    /// Raises an error if superclass is not a class.
+    ///
+    procedure VisitClassStmt (TheStmt : ClassStmt);
+    var
+       Klass       : ObjClass;
+       Superclass  : Any;
+       Methods     : Map;
+       TheFunction : ObjFunction;
+
+    begin
+        Superclass := Nil;
+        if TheStmt.Superclass <> Nil then
+        begin  
+            Superclass := Evaluate (TheStmt.Superclass);
+            if Superclass.ClassName <> 'ObjClass' then
+            begin
+                raise 'Superclass must be a class.';
+            end
+        end
+
+        Env.Define (TheStmt.Name.Lexeme, Nil);
+
+        if TheStmt.Superclass <> Nil then
+        begin
+            var Previous : Environment := Env;
+            Env := Environment();
+            Env.Enclosing := Previous;
+            Env.Define ('super', Superclass);
+        end
+
+        Methods := Map();
+        for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
+        begin
+            var Method := TheStmt.Methods[I];
+
+            TheFunction := ObjFunction (Method, Env, Method.Name.Lexeme = 'Init');
+            // A name maps to every overload declared under it, in the order
+            // written, so the first that fits wins -- which is what the C
+            // runtime's forwards scan does and what the interpreter does with
+            // its first-declaration-plus-overloads list.
+            if not Methods.Contains (Method.Name.Lexeme) then
+                Methods.Put (Method.Name.Lexeme, List());
+
+            Methods.Get (Method.Name.Lexeme).Add (TheFunction);
+        end
+        // The whole declarations, not just the names: a field's initializer
+        // has to survive to SeedFields, which runs once per instance.  Passing
+        // names alone is what dropped every initializer on the floor.
+
+        // The LEXEME, not the token.  ObjClass.Name is declared String and was
+        // being handed a Token, so 'print Dog()' rendered the token's own
+        // ToString -- 'TOKEN_IDENTIFIER Dog nil instance' rather than
+        // 'Dog instance'.
+        Klass := ObjClass (TheStmt.Name.Lexeme, Superclass, Methods, TheStmt.Fields) as ObjClass;
+
+        // Owner is set here rather than in the loop above, because the class
+        // does not exist until this line.  A method needs it so a call site can
+        // re-select an overload once it knows the argument types.
+        for var Name in Methods.Keys() do
+            for var I := 0; I < Methods.Get(Name).Length; I := I + 1 do
+                Methods.Get(Name)[I].Owner := Klass;
+
+        if Superclass <> Nil then
+        begin
+            Env := Env.Enclosing as Environment;
+        end
+
+        Env.Assign (TheStmt.Name, Klass);
+    end
+
+    /// Declares an object: one class, and its name bound to the single
+    /// instance of it.
+    ///
+    /// Shares VisitClassStmt entirely -- an object is a class in every respect
+    /// but what its name evaluates to.
+    ///
+    procedure VisitObjectStmt (TheStmt : ObjectStmt);
+    var
+        Klass : ObjClass;
+
+    begin
+        // ⚠️ Every object carries its own name in an Id field, which is how a
+        // value identifies itself once you are holding it rather than naming
+        // it.  Contributed as an ordinary declared field rather than written
+        // into the instance afterwards, so nothing depends on creating a field
+        // the class never declared.
+        //
+        // Only when the object does not declare Id itself: a declaration wins
+        // outright, including one written without a value.  Having named the
+        // field, the program owns it.
+        var HasId := False;
+        for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
+            if TheStmt.Fields[I].Name.Lexeme = 'Id' then HasId := True;
+
+        if not HasId then
+        begin
+            var IdName := Token (TOKEN_IDENTIFIER, 'Id', Nil, TheStmt.Name.LineNumber);
+            TheStmt.Fields.Add (VarStmt (IdName, LiteralExpr (Str (TheStmt.Name.Lexeme))));
+        end
+
+        VisitClassStmt (ClassStmt (TheStmt.Name, TheStmt.Superclass,
+                                   TheStmt.Methods, TheStmt.Fields));
+
+        // The name IS the instance, built on first use -- which is what lets
+        // one object name another declared further down the file.
+        Klass := Env.Get (TheStmt.Name) as ObjClass;
+        Env.Assign (TheStmt.Name, ObjSingleton (Klass, this));
+    end
+
+    /// Declares an enum: binds the type name, and each member both bare and
+    /// under the type.
+    ///
+    /// Both bindings are the SAME object, because enum equality is identity --
+    /// 'Colour.Red = Red' has to be true.
+    ///
+    procedure VisitEnumStmt (TheStmt : EnumStmt);
+    var
+        TheType : ObjEnumType;
+
+    begin
+        TheType := ObjEnumType (TheStmt.Name.Lexeme);
+
+        for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
+        begin
+            var MemberName := TheStmt.Members[I].Lexeme;
+            Env.Define (MemberName, TheType.Add (MemberName));
+        end
+
+        Env.Define (TheStmt.Name.Lexeme, TheType);
+    end
+
+    /// Runs an expression statement.
+    ///
+    procedure VisitExpressionStmt (Stmt : ExpressionStmt);
+    begin
+        Evaluate (Stmt.Expression);
+    end
+
+    /// Runs a function statement.
+    ///
+    procedure VisitFunctionStmt (TheStmt : FunctionStmt);
+    var 
+        TheFunction : ObjFunction;
+
+    begin
+        TheFunction := ObjFunction (TheStmt, Env, False);
+
+        // ⚠️ Before the Define below, which would otherwise let two functions of
+        // one name share it -- Define exempts a function replacing a function,
+        // so the check has to be here rather than there.
+        //
+        // Top-level functions do NOT overload in this language. algc did not
+        // refuse it: it ran the program and
+        // the LAST declaration won, which is the shape a duplicate hides in
+        // inside a large file. Its own compiler disagreed with it too --
+        // 'redefinition of f_G' from cc -- so the interpreter was at odds with
+        // the back end.
+        if Env.Values.Contains (Str (TheStmt.Name.Lexeme)) then
+            raise '''' + Str (TheStmt.Name.Lexeme) + ''' is already defined.';
+
+        Env.Define (TheStmt.Name.Lexeme, TheFunction);
+    end
+
+    /// Runs an if statement.
+    ///
+    procedure VisitIfStmt (Stmt : IfStmt);
+    begin
+        if IsTruthy (Evaluate (Stmt.Condition)) then
+            Execute (Stmt.ThenBranch);
+        else if Stmt.ElseBranch <> Nil then
+            Execute (Stmt.ElseBranch);
+    end
+
+    /// Runs a while statement.
+    ///
+    /// ⚠️ The one place a Break is caught, and it catches it silently.
+    ///
+    /// 'for' desugars into a While, so this covers both kinds of loop -- and
+    /// it is why a break inside a for skips the increment as well as the rest
+    /// of the body, which is what leaving the loop means.
+    ///
+    procedure VisitWhileStmt (Stmt : WhileStmt);
+    begin
+        try
+            while IsTruthy (Evaluate (Stmt.Condition)) do
+            begin
+                Execute (Stmt.Body);
+            end
+        except
+            on e : Broke do Exit;
+        end
+    end
+
+    /// Whether a collection holds a value -- the right operand of 'in'.
+    ///
+    /// ⚠️ Matching is exactly what the collection's own Contains does, so it
+    /// compares by value as that does: '1 in Set([1.0])' is false even though
+    /// '1 = 1.0' is true.  Deferring to Invoke rather than reimplementing the
+    /// comparison here is what keeps those two answers the same.
+    ///
+    /// A String is searched for a SUBSTRING, not for a character, so
+    /// '''ell'' in ''hello''' is true.
+    ///
+    /// The instance case is structural, like Elements() for 'for ... in': any
+    /// class with a Contains method answers membership.
+    ///
+    function Contains (Collection : Any, Value : Any) : Boolean;
+    begin
+        if Collection is ObjCollection then Exit Collection.Invoke ('Contains', [Value]);
+
+        if Collection is ObjEnumType then Exit Collection.Members.Values().Contains (Value);
+
+        if Collection is ObjInstance then
+        begin
+            var Method := Collection.Klass.FindMethod ('Contains');
+            if Method <> Nil then
+                Exit IsTruthy (Method.Bind (Collection).Call (this, [Value]));
+        end
+
+        if IsText (Collection) then
+        begin
+            if Value = Nil then Exit False;
+
+            Exit Pos (Str (Collection), Str (Value)) >= 0;
+        end
+
+        raise 'Right operand of ''in'' must be a collection or a String.';
+    end
+
+    /// Whether a value can be called: it answers to Arity.
+    ///
+    function IsCallable (Value : Any) : Boolean;
+    begin
+        if Value = Nil then Exit False;
+
+        try
+            var TheArity := Value.Arity;
+            Exit True;
+        except
+            on e : String do Exit False;
+        end
+    end
+
+    /// The values 'for ... in' walks over.
+    ///
+    /// ⚠️ A Map yields its KEYS, a String its Chars, and everything else its
+    /// elements -- all in insertion order, which is part of the language
+    /// rather than an accident of the backing store.  A second implementation
+    /// has to reproduce that order, so it cannot be left to whatever a host's
+    /// hashing happens to do.
+    ///
+    /// ⚠️ The last case is STRUCTURAL, not declared: any class with an
+    /// Elements() method is iterable.  Algol-24 has no interfaces, so a
+    /// protocol is a name the runtime looks for rather than a type to conform
+    /// to.  Elements() is asked once and the result walked -- it is never
+    /// asked of the result, which is what keeps a class whose Elements()
+    /// returns itself from recursing forever.
+    ///
+    function ElementsOf (Where : Token, Target : Any) : List;
+    var
+        Result : List;
+
+    begin
+        Result := List();
+
+        if Target is ObjCollection then
+        begin
+            if Target.Kind = 'Map' then Exit Target.Pairs.Keys();
+
+            // A copy, so mutating the collection inside the loop cannot change
+            // what it walks.
+            for var I := 0; I < Target.Items.Length; I := I + 1 do
+                Result.Add (Target.Items[I]);
+
+            Exit Result;
+        end
+
+        if Target is ObjEnumType then Exit Target.Members.Values();
+
+        if Target is ObjInstance then
+        begin
+            var Elements := Target.Klass.FindMethod ('Elements');
+            if Elements <> Nil then
+                Exit ElementsOf (Where, Elements.Bind (Target).Call (this, List()));
+        end
+
+        if IsText (Target) then
+        begin
+            var Text := Str (Target);
+            for var I := 0; I < Length (Text); I := I + 1 do
+                Result.Add (Text[I]);
+
+            Exit Result;
+        end
+
+        raise 'Can only iterate a collection or a String.';
+    end
+
+    /// Runs 'for var X in C do ...'.
+    ///
+    procedure VisitForInStmt (TheStmt : ForInStmt);
+    var
+        Elements : List;
+
+    begin
+        Elements := ElementsOf (TheStmt.Name, Evaluate (TheStmt.Iterable));
+
+        try
+            for var I := 0; I < Elements.Length; I := I + 1 do
+            begin
+                // A fresh scope per pass, so a closure made in the body
+                // captures THAT pass's value rather than the last one.
+                var Scope := Environment();
+                Scope.Enclosing := Env;
+                Scope.Define (TheStmt.Name.Lexeme, Elements[I]);
+
+                ExecuteBlock ([TheStmt.Body], Scope);
+            end
+        except
+            on e : Broke do Exit;
+        end
+    end
+
+    procedure VisitBreakStmt (TheStmt : BreakStmt);
+    begin
+        raise Broke ();
+    end
+
+    /// Runs a module's declarations, then hands the exported ones over.
+    ///
+    /// ⚠️ Exports are MOVED, not copied.  A copy leaves two bindings for one
+    /// name -- the module's and the importer's -- and a later assignment
+    /// updates whichever the environment chain reaches first while the other
+    /// goes stale.  This exact bug happened here, and Scanner.a24's HadError
+    /// tests are what caught it.
+    ///
+    /// The module's environment survives regardless, because the module's own
+    /// functions closed over it.  That is precisely what keeps a private
+    /// helper callable from inside and invisible from outside: it is still
+    /// sitting there, just no longer reachable by name from the importer.
+    ///
+    procedure VisitModuleStmt (TheStmt : ModuleStmt);
+    var
+        Importer  : Environment;
+        ModuleEnv : Environment;
+        Exported  : List;
+
+    begin
+        Importer := Env;
+
+        // Already loaded, by this file or another.  Nothing is run again -- the
+        // file only gains SIGHT of it.
+        if Modules.Contains (TheStmt.FileName) then
+        begin
+            Importer.Imports.Add (Modules.Get (TheStmt.FileName));
+            UnitsByName.Put (Str (TheStmt.UnitName), Modules.Get (TheStmt.FileName));
+            Exit;
+        end
+
+        ModuleEnv := Environment();
+        ModuleEnv.Enclosing := Builtins;
+
+        // ⚠️ Registered BEFORE its statements run.  A cycle reaches this module
+        // again while it is still loading, and the link made then must be to
+        // this same environment -- which is safe because a name is looked up
+        // when it is used, by which time every module has loaded.
+        Modules.Put (TheStmt.FileName, ModuleEnv);
+
+        ExecuteBlock (TheStmt.Statements, ModuleEnv);
+
+        Exported := List();
+
+        var Names := ModuleEnv.Values.Keys();
+        for var I := 0; I < Names.Length; I := I + 1 do
+        begin
+            var TheName := Names[I];
+
+            // An 'if' around the body rather than a skip, because the language
+            // has no 'continue'.  One level of nesting, which is exactly the
+            // reading the wish-list entry predicted -- and still fine.
+            if not TheStmt.PrivateNames.Contains (TheName) then
+            begin
+                Exported.Add (TheName);
+
+                // Two modules exporting one name is an error rather than a
+                // silent shadowing.
+                //
+                // ⚠️ There used to be an exemption here for a function meeting a
+                // function, on the grounds that functions overload.  Top-level
+                // ones do NOT in this language -- two in one file is already
+                // 'already defined' -- and the exemption was exactly what let
+                // two modules export one function.
+                // That emits cleanly from both compilers and then dies at the
+                // LINKER on a duplicate symbol, which is past anything a
+                // compile-only check can observe.
+                //
+                // ⚠️ Asked of the importer's IMPORTS, not of its own bindings: a
+                // file's own declaration of an imported name is shadowing, not a
+                // clash, and the nearest binding wins as it does over a built-in.
+                // Checking its own bindings instead catches the opposite case,
+                // and makes exactly the wrong programs legal.
+                var Owner := Importer.OwnerOf (TheName);
+
+                // ⚠️ Not a clash with itself: importing one module twice is a
+                // no-op, and the second 'uses' finds the first holding the name.
+                if Owner <> Nil and Owner <> ModuleEnv then
+                    raise '''' + TheName
+                        + ''' is already defined; mark it private in one of the modules.';
+
+            end
+        end
+
+        // ⚠️ Nothing is moved or copied.  The module keeps its own environment
+        // for the life of the run and an import is a LINK to it, so a name has
+        // exactly one binding wherever it is read or written from.  Moving the
+        // exports into the importer -- which for a top-level 'uses' meant the
+        // globals -- is what used to make every module visible to every other
+        // one, asked for or not.
+        ModuleEnv.Exports := Set();
+        for var I := 0; I < Exported.Length; I := I + 1 do
+            ModuleEnv.Exports.Add (Exported[I]);
+
+        Importer.Imports.Add (ModuleEnv);
+        UnitsByName.Put (Str (TheStmt.UnitName), ModuleEnv);
+    end
+
+    /// Runs 'raise Expr;'.
+    ///
+    procedure VisitRaiseStmt (TheStmt : RaiseStmt);
+    begin
+        raise Raised (Evaluate (TheStmt.Value));
+    end
+
+    /// Which handler catches this value, or Nil for none.
+    ///
+    /// ⚠️ Matching starts at the value's own class and walks UP its
+    /// superclasses, asking at each level which handler is written for it.
+    /// So the most derived handler wins however the handlers were ordered -- a
+    /// raised Dog picks 'on E : Dog' even where 'on E : Animal' appears first.
+    /// Scanning the handlers in written order instead would make the first one
+    /// that merely fits win, which is a different language.
+    ///
+    /// A non-class value has no hierarchy and matches its type name exactly --
+    /// and that name comes from TypeNameOf, so 'Char' and 'List' rather than
+    /// this interpreter's own ObjCollection.
+    ///
+    function FindHandler (Handlers : Map, Value : Any) : ExceptHandler;
+    var
+        Klass : ObjClass;
+
+    begin
+        if Value is ObjInstance then
+        begin
+            Klass := Value.Klass;
+            while Klass <> Nil do
+            begin
+                var TheName := Str (Klass.Name);
+                if Handlers.Contains (TheName) then Exit Handlers.Get (TheName) as ExceptHandler;
+
+                Klass := Klass.Superclass;
+            end
+
+            Exit Nil;
+        end
+
+        var TypeName := TypeNameOf (Value);
+        if Handlers.Contains (TypeName) then Exit Handlers.Get (TypeName) as ExceptHandler;
+
+        Exit Nil;
+    end
+
+    /// Runs the handler that catches this value, or re-raises when none does.
+    ///
+    /// Original rather than Value on the way back out, so an enclosing try
+    /// sees exactly what was raised -- re-raising the unwrapped value would
+    /// turn a program's 'raise MyError()' into something an outer handler
+    /// could no longer tell from an interpreter error.
+    ///
+    procedure Handle (TheStmt : TryStmt, Value : Any, Original : Any);
+    var
+        Handler : ExceptHandler;
+
+    begin
+        Handler := FindHandler (TheStmt.Handlers, Value);
+
+        if Handler = Nil and TheStmt.Handlers.Contains ('default') then
+            Handler := TheStmt.Handlers.Get ('default') as ExceptHandler;
+
+        // No handler matched and there is no catch-all, so the value keeps
+        // unwinding instead of being swallowed here.
+        if Handler = Nil then raise Original;
+
+        // Bound in the CURRENT environment rather than a scope of its own,
+        // because the Resolver computed the depths inside the handler against
+        // this shape -- a scope here that it never saw sends every resolved
+        // name one level too shallow.
+        Env.Define (Handler.Name, Value);
+
+        Execute (Handler.Body);
+    end
+
+    /// Runs 'try ... except ... end'.
+    ///
+    /// Three things can arrive here and they are not the same:
+    ///
+    /// - Return is 'Exit' passing through, and must not be caught.  A function
+    ///   that returns from inside a try returns.
+    /// - Raised is the program's own 'raise', and carries the value it raised.
+    /// - a String is an error from this interpreter's runtime, and the program
+    ///   catches it as a String -- which is why error messages are part of the
+    ///   observable surface rather than diagnostics.
+    ///
+    procedure VisitTryStmt (TheStmt : TryStmt);
+    begin
+        try
+            Execute (TheStmt.TryBlock);
+        except
+            on e : Return do raise e;
+            on e : Raised do Handle (TheStmt, e.Value, e);
+            on e : String do Handle (TheStmt, e, e);
+        end
+    end
+
+    /// Runs a print statement
+    ///
+    procedure VisitPrintStmt (Stmt : PrintStmt);
+    var
+        Value : Any;
+
+    begin
+        Value := Evaluate (Stmt.Expression);
+        WriteLn (Stringify (this, Value));
+    end
+
+    /// Runs a return statement
+    ///
+    procedure VisitReturnStmt (Stmt : ReturnStmt);
+    var
+        Value : Any;
+
+    begin
+        if Stmt.Value <> Nil then Value := Evaluate (Stmt.Value);
+
+        raise Return (Value);
+    end
+
+    /// Runs a variable statement
+    ///
+    procedure VisitVarStmt (Stmt : VarStmt);
+    var
+        Value : Any;
+
+    begin
+        if Stmt.Initializer <> Nil then
+        begin
+            Value := Evaluate (Stmt.Initializer);
+        end
+
+        Env.Define (Stmt.Name.Lexeme, Value);
+    end
+
+    /// ⚠️ Evaluated ONCE for the whole group, so a side effect in the
+    /// initializer happens once and every name shares the result.  That is the
+    /// entire reason this is a node rather than N VarStmts.
+    ///
+    procedure VisitVarGroupStmt (TheStmt : VarGroupStmt);
+    var
+        Value : Any;
+
+    begin
+        if TheStmt.Initializer <> Nil then
+            Value := Evaluate (TheStmt.Initializer);
+
+        for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
+            Env.Define (TheStmt.Names[I].Lexeme, Value);
+    end
+
+    // Evaluates an assign expression.
+    //
+    function VisitAssignExpr (Expr : AssignExpr) : Any;
+    var
+        Value    : Any;
+        Distance : Integer;
+    
+    begin
+        Value := Evaluate (Expr.Value);
+        Distance := Locals.Get (Expr) as Integer;
+
+        // The same fallback as reading: an assignment to a name that is not a
+        // variable is an assignment to a field of 'this'.  Both branches need
+        // it, because a method's own field is unresolved either way.
+        if Distance <> Nil then
+        begin
+            try
+                Env.AssignAt (Distance, Expr.Name, Value);
+            except
+                on e : String do SetThisField (Expr.Name, Value, e);
+            end
+        end
+        else
+        begin
+            // ⚠️ Env.Assign, NOT Globals.Assign.
+            //
+            // Reads and writes have to travel the same path: LookupVariable
+            // resolves an unresolved name with Env.Get, which walks the chain,
+            // so this must mirror it.  Writing straight to Globals agreed with
+            // that only while every unresolved name really was global -- the
+            // moment 'uses' put a module's privates in an environment BELOW
+            // globals, a module's own function could read its private var and
+            // not assign to it.  Scanner.a24's HadError tests are what caught
+            // it.
+            try
+                Env.Assign (Expr.Name, Value);
+            except
+                on e : String do SetThisField (Expr.Name, Value, e);
+            end
+        end
+
+        Exit Value;
+    end
+end
+
+/// Return value.
+///
+/// A 'break', travelling as a host exception.
+///
+/// ⚠️ Named Broke, not Break, and not by preference: adding 'break' to the
+/// language made it a keyword, keyword lookup is case-insensitive, and a class
+/// cannot be named one.  The same collision that renamed Lox's Expr.Get.object
+/// field to Obj when 'object' singletons arrived.  Past tense to sit beside
+/// Raised, which is past tense for the same reason it is not called Raise.
+///
+/// The third of these -- Return for Exit, Raised for raise, Broke for break --
+/// and they are deliberately three classes rather than one with a tag, because
+/// every place that unwinds treats them differently, and the handler list is
+/// where that difference is written down.
+///
+/// It carries nothing.  There is no labelled break, so the innermost loop is
+/// always the one that catches.
+///
+class Broke;
+begin
+end
+
+/// An interpreted 'raise', travelling as a host exception.
+///
+/// The same trick Return uses for 'Exit': this interpreter has no stack to
+/// unwind of its own, so it borrows the host's.  Wrapped rather than raised
+/// bare so that a raised String from the PROGRAM stays distinguishable from a
+/// String raised by this interpreter's own runtime -- both are catchable as
+/// 'String' by the program, but only one of them has already been through
+/// FindHandler.
+///
+class Raised;
+var
+    Value : Any;
+
+begin
+    constructor Init (Value : Any);
+    begin
+        this.Value := Value;
+    end
+end
+
+class Return;
+var 
+    Value : Any;
+
+begin
+    constructor Init (Value : Any);
+    begin
+        this.Value := Value;
+    end
+end 
+
+// Evaluating a literal should return the value.
+//
+test 'Evaluate Literal';
+begin
+    // Arrange
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheExpr : Expr := LiteralExpr(3.16);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(3.16, Value);
+end
+
+// Evaluating a grouping should return the value of the inside expression.
+//
+test 'Evaluate Grouping';
+begin
+    // Arrange
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheExpr : Expr := LiteralExpr(3.16);
+    TheExpr := GroupingExpr(TheExpr);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(3.16, Value);
+end
+
+// Evaluating an unary number with a minus operator should negate the number.
+//
+test 'Evaluate Unary Minus';
+begin
+    // Arrange
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheExpr : Expr := LiteralExpr(3.16);
+    TheExpr := UnaryExpr(Token(TOKEN_MINUS, '-', nil, 1), TheExpr);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(-3.16, Value);
+end
+
+// Should return a runtime error if expression of minus unary is not a number.
+//
+test 'Evaluate Unary Minus Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheExpr : Expr := LiteralExpr(True);
+    TheExpr := UnaryExpr(Token(TOKEN_MINUS, '-', nil, 1), TheExpr);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+        // FIXME
+        //var Value := TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operand must be a number.', e);
+               Exit;
+           end
+    end       
+    Fail('No error raised');
+end
+
+// Unary expression with bang operator of boolean true should return false.
+//
+test 'Evaluate Unary Bang True';
+begin
+    // Arrange
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheExpr : Expr := LiteralExpr(True);
+    TheExpr := UnaryExpr(Token(TOKEN_NOT, '!', nil, 1), TheExpr);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(False, Value);
+end
+
+
+// Unary expression with bang operator of boolean false should return true.
+//
+test 'Evaluate Unary Bang False';
+begin
+    // Arrange
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheExpr : Expr := LiteralExpr(False);
+    TheExpr := UnaryExpr(Token(TOKEN_NOT, '!', nil, 1), TheExpr);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+// Unary expression with bang operand with nil value should return true.  (Nil has truthy value of false)
+//
+test 'Evaluate Unary Bang Nil';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheExpr : Expr := LiteralExpr(Nil);
+    TheExpr := UnaryExpr(Token(TOKEN_NOT, '!', nil, 1), TheExpr);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+// Unary expression with bang operator with any other value should return false.  (Non-nil has truthy value of true)
+//
+test 'Evaluate Unary Bang Non-Nil';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheExpr : Expr := LiteralExpr('Hi');
+    TheExpr := UnaryExpr(Token(TOKEN_NOT, '!', nil, 1), TheExpr);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(False, Value);
+end
+
+// Minus binary expression should return the left minus right.
+//
+test 'Evaluate Binary Minus';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Minus := Token(TOKEN_MINUS, '-', Nil, 1);
+    var Left  := LiteralExpr(2.0);
+    var Right := LiteralExpr(1.0);
+
+    var TheExpr := BinaryExpr(Left, Minus, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(1.0, Value);
+end
+
+// Minus should return a runtime error if left expression is not a number.
+//
+test 'Evaluate Minus Left Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Minus := Token(TOKEN_MINUS, '-', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(1.0);
+
+    var TheExpr := BinaryExpr(Left, Minus, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// Minus should return a runtime error if right expression is not a number.
+//
+test 'Evaluate Minus Right Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Minus := Token(TOKEN_MINUS, '-', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(False);
+
+    var TheExpr := BinaryExpr(Left, Minus, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// Slash binary expression should return the left divided by right.
+// 
+test 'Evaluate Binary Slash';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Slash := Token(TOKEN_SLASH, '/', Nil, 1);
+    var Left  := LiteralExpr(4.0);
+    var Right := LiteralExpr(2.0);
+
+    var TheExpr := BinaryExpr(Left, Slash, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(2.0, Value);
+end
+
+// Slash should return a runtime error if left expression is not a number.
+//
+test 'Evaluate Slash Left Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Slash := Token(TOKEN_SLASH, '-', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(1.0);
+
+    var TheExpr := BinaryExpr(Left, Slash, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// Slash should return a runtime error if right expression is not a number.
+//
+test 'Evaluate Slash Right Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Slash := Token(TOKEN_SLASH, '/', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(False);
+
+    var TheExpr := BinaryExpr(Left, Slash, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// Star binary expression should return the left divided by right.
+// 
+test 'Evaluate Binary Star';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Star := Token(TOKEN_STAR, '*', Nil, 1);
+    var Left  := LiteralExpr(2.0);
+    var Right := LiteralExpr(2.0);
+
+    var TheExpr := BinaryExpr(Left, Star, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(4.0, Value);
+end
+
+// Star should return a runtime error if left expression is not a number.
+//
+test 'Evaluate Star Left Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Star := Token(TOKEN_STAR, '*', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(1.0);
+
+    var TheExpr := BinaryExpr(Left, Star, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// Star should return a runtime error if right expression is not a number.
+//
+test 'Evaluate Star Right Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Star := Token(TOKEN_STAR, '*', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(False);
+
+    var TheExpr := BinaryExpr(Left, Star, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// Plus should add two numbers.
+//
+test 'Evaluate Binary Plus Double';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Plus := Token(TOKEN_PLUS, '+', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, Plus, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(6.0, Value);
+end
+
+// Plus should concatenate two strings.
+//
+test 'Evaluate Binary Plus String';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Plus := Token(TOKEN_PLUS, '+', Nil, 1);
+    var Left  := LiteralExpr('ABC');
+    var Right := LiteralExpr('DEF');
+
+    var TheExpr := BinaryExpr(Left, Plus, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual('ABCDEF', Value);
+end
+
+// Plus only supports two numbers and two strings.  Any other combination should return a runtime error.
+//
+test 'Evaluate Binary Plus Mixed';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Plus := Token(TOKEN_PLUS, '+', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, Plus, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be two numbers, or two strings.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// Test that Greater returns true if left is greater than right.
+//
+test 'Evaluate Binary Greater';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Greater := Token(TOKEN_GREATER, '>', Nil, 1);
+    var Left  := LiteralExpr(4.0);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, Greater, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+// For Greater, if left is not a number a runtime error should be returned.
+//
+test 'Evaluate Binary Greater Left Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Greater := Token(TOKEN_GREATER, '>', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, Greater, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// For Greater, if left is not a number a runtime error should be returned.
+//
+test 'Evaluate Binary Greater Right Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Greater := Token(TOKEN_GREATER, '>', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(True);
+
+    var TheExpr := BinaryExpr(Left, Greater, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+   
+// Test that >= returns true if left is greater than right.
+//
+test 'Evaluate Binary Greater Equal';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var GreaterEqual := Token(TOKEN_GREATER_EQUAL, '>=', Nil, 1);
+    var Left  := LiteralExpr(4.0);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, GreaterEqual, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+// For >=, if left is not a number a runtime error should be returned.
+//
+test 'Evaluate Binary Greater Equal Left Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var GreaterEqual := Token(TOKEN_GREATER_EQUAL, '>=', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, GreaterEqual, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// For >=, if left is not a number a runtime error should be returned.
+//
+test 'Evaluate Binary Greater Equal Right Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var GreaterEqual := Token(TOKEN_GREATER_EQUAL, '>=', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(True);
+
+    var TheExpr := BinaryExpr(Left, GreaterEqual, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// Tests that Less returns true if left is less than right.
+//
+test 'Evaluate Binary Less';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Less := Token(TOKEN_LESS, '<', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(4.0);
+
+    var TheExpr := BinaryExpr(Left, Less, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+// For <, if left is not a number a runtime error should be returned.
+//
+test 'Evaluate Binary Less Left Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Less := Token(TOKEN_LESS, '<=', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, Less, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// For <, if left is not a number a runtime error should be returned.
+//
+test 'Evaluate Binary Less Right Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Less := Token(TOKEN_LESS, '<', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(True);
+
+    var TheExpr := BinaryExpr(Left, Less, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', Str(e));
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+
+// Tests that <= returns true if left is less than right.
+//
+test 'Evaluate Binary Less Equal';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var LessEqual := Token(TOKEN_LESS_EQUAL, '<=', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(4.0);
+
+    var TheExpr := BinaryExpr(Left, LessEqual, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+// For <=, if left is not a number a runtime error should be returned.
+//
+test 'Evaluate Binary Less Equal Left Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var LessEqual := Token(TOKEN_LESS_EQUAL, '<=', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, LessEqual, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// For <=, if left is not a number a runtime error should be returned.
+//
+test 'Evaluate Binary Less Equal Right Not Number';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var LessEqual := Token(TOKEN_LESS_EQUAL, '<=', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(True);
+
+    var TheExpr := BinaryExpr(Left, LessEqual, Right);
+
+    try 
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do 
+           begin 
+               AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end   
+    Fail('No error raised');
+end
+
+// For != the values Nil and Nil value should return true.
+//
+test 'Evaluate Binary Bang Equal Nil';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var BangEqual := Token(TOKEN_NOT_EQUAL, '!=', Nil, 1);
+    var Left  := LiteralExpr(Nil);
+    var Right := LiteralExpr(Nil);
+
+    var TheExpr := BinaryExpr(Left, BangEqual, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(False, Value);
+end
+
+
+// For != the values Nil and Some value should return true.
+//
+test 'Evaluate Binary Bang Equal Nil And Some';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var BangEqual := Token(TOKEN_NOT_EQUAL, '!=', Nil, 1);
+    var Left  := LiteralExpr(Nil);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, BangEqual, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+// For != the values Nil and Some value should return true.
+//
+test 'Evaluate Binary Bang Equal Unequal Values';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var BangEqual := Token(TOKEN_NOT_EQUAL, '!=', Nil, 1);
+    var Left  := LiteralExpr(True);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, BangEqual, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+/// For == equal values should return true.
+//
+test 'Evaluate Binary Equal Equal';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var EqualEqual := Token(TOKEN_EQUAL, '==', Nil, 1);
+    var Left  := LiteralExpr(3.0);
+    var Right := LiteralExpr(3.0);
+
+    var TheExpr := BinaryExpr(Left, EqualEqual, Right);
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(True, Value);
+end
+
+// Print statements should display the expression to the console.  For now there are no side effects to test. 
+//
+test 'Execute Print Statement';
+begin
+    var TheScanner := Scanner ('print 123;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    // TODO: Figure out how to assert.
+end
+   
+// A variable declaration should define a variable in environment and allow a value to be assigned to it.
+//
+test 'Execute Expression Statement';
+begin
+    var TheScanner := Scanner ('var test := 1; test := 2;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(2.0, Value);    
+end
+
+// Verifies that a block can be executed.
+//
+test 'Execute Block Statement';
+begin
+    var TheScanner := Scanner ('var test := 1; begin test := 5; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(5.0, Value);    
+end
+
+// Tests that if statement is executed when the expression evaluates to true.
+//
+test 'Execute If Statement';
+begin
+    var TheScanner := Scanner ('
+ var a := 0;
+ var test := true;
+
+ if test then begin
+ a := 5;
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
+    
+    AssertEqual(5.0, Value);    
+end
+
+// If an else clause exists, it should be executed when the expression evaluates to false.
+//
+test 'Execute Else Statement';
+begin
+    var TheScanner := Scanner ('
+ var test := false;
+ var a := 0;
+
+ if test then begin
+ a := 5;
+ end
+ else begin
+ a := 6;
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
+    
+    AssertEqual(6.0, Value);    
+end
+
+// Tests executing the logical or operator.
+//
+test 'Execute Logical Or';
+begin
+    var TheScanner := Scanner ('var test := true or false;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(True, Value);    
+end
+
+// Tests executing the logical and operator.
+//
+test 'Execute Logical And';
+begin
+    var TheScanner := Scanner ('var test := true and false;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(False, Value);    
+end
+
+
+// When evaluating logical operators values nil is treated as ''truthy'' false, and all other values as true.
+//
+test 'Execute Logical Truthy';
+begin
+    var TheScanner := Scanner ('var test := ''hi'' or 0 or false and nil;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual('hi', Value);    
+end
+
+// Tests executing a while loop.
+//
+test 'Execute While Loop';
+begin
+    var TheScanner := Scanner ('
+ var a := 0;
+ var b := true;
+
+ while b do begin
+ b := false;
+ a := 42;
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
+    
+    AssertEqual(42.0, Value);    
+end
+
+// Tests executing a for loop.  For loops are not directly supported in the Interpreter, but are syntactic sugar
+// in the parser creating a while loop to be run.  
+test 'Execute For Loop';
+begin
+
+    var TheScanner := Scanner ('
+ var a := 0;
+ var temp;
+
+ for var b := 1; a < 5; b := temp + b do begin
+ print a;
+ temp := a;
+ a := b;
+ end
+');
+
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+
+    // FIXME
+    // TheInterpreter.Interpret(Statements);
+
+    // var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
+    
+    // AssertEqual(5.0, Value);    
+end
+
+// Test calling clock native function.
+//
+test 'Native Function Clock';
+begin
+    var TheScanner := Scanner ('
+ var Abc := clock();
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'Abc', nil, 1));
+    
+    AssertTrue(Value <> Nil);    
+end
+
+// Test clock to string.
+//
+test 'Native Function Clock String';
+begin
+    var TheScanner := Scanner ('
+ var Abc := clock;
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'Abc', nil, 1));
+    
+    AssertEqual('ClockNative instance', Str(Value));    
+end
+
+// Try to call a non-function should should report runtime error to Lox.
+//
+test 'Call Non Function';
+begin
+    var TheScanner := Scanner ('
+ ''totally not a functions''();
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                // Was 'Only instances have properties.' with a FIXME beside
+                // it: calling a non-callable fell through to a property access
+                // and reported that instead.  The callability check in
+                // VisitCall is what made this say the right thing.
+                AssertEqual('Can only call functions and classes.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end
+
+// Calling a function with the wrong number of arguments should report runtime error to Lox.
+//
+test 'Call Wrong Number Of Arguments';
+begin
+    var TheScanner := Scanner ('
+ function fib(n); begin
+ if n < 2 then Exit n;
+
+ Exit fib(n - 1) + fib(n - 2);
+ end
+
+ var test := fib(1, 1);
+ print(fib(1));
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                // FIXME
+                // AssertEqual('Only instances have properties.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end
+
+// Tests calling a recursive function.
+//
+test 'Call Recursive Function';
+begin
+    var TheScanner := Scanner ('
+ function fib(n); begin
+ if n < 2 then Exit n;
+
+ Exit fib(n - 1) + fib(n - 2);
+ end
+ var test := fib(7);
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    
+    TheResolver.ResolveAll(Statements);
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(13.0, Value);    
+end
+
+// Tests local functions!!!
+//
+test 'Interpret Local Function';
+begin
+    var TheScanner := Scanner ('
+ function makeCounter(); begin
+ var i := 0;
+ function count(); begin
+ i := i + 1;
+ print i;
+ end
+ Exit count;
+ end
+
+ var counter := makeCounter();
+ counter();
+ counter();
+');
+
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+    TheResolver.ResolveAll(Statements);
+    TheInterpreter.Interpret(Statements);
+
+end
+
+// Tests invalid getter
+//
+test 'Call Invalid Getter';
+begin
+    var TheScanner := Scanner ('
+ var test := false;
+
+ print test.len;
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                AssertEqual('Only instances have properties.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end
+
+// Tests undefined getter
+//
+test 'Call Undefined Getter';
+begin
+    var TheScanner := Scanner ('
+ class Bagel; begin end
+ var bagel := Bagel();
+
+ print bagel.flavor;
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                AssertEqual('Undefined property ''flavor''.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end
+
+// Tests setters and getters!!
+//
+test 'Call Setters And Getters';
+begin
+    var TheScanner := Scanner ('
+ class Bagel; begin end
+ var bagel := Bagel();
+ bagel.flavor := ''Yummy'';
+
+ print bagel.flavor;
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+    TheInterpreter.Interpret(Statements);
+end
+
+// Tests trying to inherit from a non-class.
+//
+test 'Inherit Not A Class';
+begin
+    var TheScanner := Scanner ('
+ var NotAClass := ''Totally not a classnot not not '';
+
+ class Subclass(NotAClass); begin end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                AssertEqual('Only instances have properties.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end

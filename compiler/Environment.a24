@@ -1,0 +1,318 @@
+uses Token;
+uses TokenType;
+
+/// Environment!
+///
+class Environment;
+var
+    Values    : Map;
+    Enclosing : Environment;
+
+    /// The modules this file said 'uses' for -- searched after its own names and
+    /// before the enclosing scope.
+    ///
+    /// ⚠️ Searched for the owner's OWN bindings only, never through the owner's
+    /// imports in turn.  That one rule is what makes 'uses' non-transitive: a
+    /// file sees what it asked for, not what its imports asked for.  It is also
+    /// why the search cannot cycle -- which it must not, because the real
+    /// dependency graph does, a class and its instances naming each other.
+    Imports : List;
+
+    /// The names an importer may see, or Nil in an ordinary scope where the
+    /// question does not arise.  Set once, when the module has finished running.
+    Exports : Set;
+
+begin
+    constructor Init ();
+    begin
+       this.Values := Map();
+       this.Enclosing := Nil;
+       this.Imports := List();
+       this.Exports := Nil;
+    end
+
+    /// Whether an importer may see this name.
+    ///
+    function IsExported (Name : String) : Boolean;
+    begin
+        if Exports = Nil then Exit True;
+
+        Exit Exports.Contains (Name);
+    end
+
+    /// The imported module that owns this name, or Nil.  Deliberately the
+    /// module's own map rather than a lookup on it -- see Imports.
+    ///
+    function OwnerOf (Name : String) : Any;
+    begin
+        for var I := 0; I < Imports.Length; I := I + 1 do
+        begin
+            var TheModule := Imports[I] as Environment;
+
+            if TheModule.Values.Contains (Name) then
+                if TheModule.IsExported (Name) then Exit TheModule;
+        end
+        Exit Nil;
+    end
+
+    /// Defines a variable at the local scope.
+    ///
+    procedure Define (Name : String, Value : Any);
+    begin
+        Values.Put (Str(Name), Value);
+    end
+
+    /// Assigns a value to an existing variable.  Walks up the enclosing Environments until it finds the variable defined.
+    ///
+    /// # Errors
+    ///
+    /// Returns a runtime error if reaches the top-level environment (Enclosing is Nil) and does not find the variable.
+    ///
+    procedure Assign (Name : Token, Value : Any);
+    begin
+        if Values.Contains(Str(Name.Lexeme)) then
+        begin
+            Values.Put (Str(Name.Lexeme), Value);
+            Exit;
+        end
+
+        // ⚠️ Written where it lives, in the module that declared it.  Defining a
+        // copy here would leave two bindings for one name, and a later read
+        // would find whichever came first while the other went stale.
+        var Owner := OwnerOf (Str(Name.Lexeme));
+        if Owner <> Nil then
+        begin
+            (Owner as Environment).Values.Put (Str(Name.Lexeme), Value);
+            Exit;
+        end
+
+        if Enclosing <> Nil then 
+        begin
+            Enclosing.Assign(Name, Value);
+            Exit;
+        end
+        raise 'Undefined variable ''' + Name.Lexeme + '''.';
+    end
+
+    /// Gets a variable from the local scope, or looks in the enclosing environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns a runtime error if reaches the top-level environment and does not find the variable.
+    ///
+    function Get (Name : Token) : Any;
+    begin
+        if Values.Contains( Str(Name.Lexeme)) then
+        begin
+            Exit Values.Get (Str(Name.Lexeme));
+        end
+
+        var Owner := OwnerOf (Str(Name.Lexeme));
+        if Owner <> Nil then Exit (Owner as Environment).Values.Get (Str(Name.Lexeme));
+
+        if Enclosing <> Nil then Exit Enclosing.Get(Name);
+
+        raise 'Undefined variable ''' + Name.Lexeme + '''.'; 
+    end
+
+    /// Gets a variable from the local scope, or looks in the enclosing environment.  The parameter ''distance'' is how many
+    /// hops up ancestor environments to reach the correct scope.
+    ///
+    function GetAt (Distance : Integer, Name : String) : Any;
+    begin
+        Exit Ancestor (Distance).Values.Get(Name);
+    end
+
+    /// Assigns a value to an existing variable.  The parameter ''distance'' is how many hops up ancestor environments to reach
+    ///  the correct scope.
+    ///
+    /// Assigns to a name a known number of scopes out.
+    ///
+    /// ⚠️ Keyed by Name.Lexeme, not by Name.  It took the Token itself as the
+    /// key once, so a write landed in Values under a Token while GetAt read
+    /// under a String and never saw it -- an assignment inside a block silently
+    /// did nothing.
+    ///
+    procedure AssignAt (Distance : Integer, Name : Token, Value : Any);
+    begin
+        Ancestor (Distance).Values.Put(Name.Lexeme, Value);
+    end
+
+    // Hops up the ancestor chain by a ''distance''
+    //
+    function Ancestor (Distance : Integer) : Any;
+    var
+        Env : Environment;
+
+    begin
+        Env := this as Environment;
+        for var I := 0; I < Distance; I := I + 1 do
+        begin
+           Env := Env.Enclosing as Environment;
+        end
+        Exit Env;
+    end
+end
+
+// Tests creating an environment, defining a variable and retrieving it.
+//
+test 'Test Environment';
+begin
+    var Env := Environment();
+
+    Env.Define ('test', 1.0);
+
+    var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
+
+    var Result := Env.Get (TheToken);
+    AssertEqual(1.0, Result);
+end
+
+// A variable defined in an environment should be able to be accessed from a lower scope.
+//
+test 'Test Environment Two Deep';
+begin
+    var Globals : Environment := Environment();
+    Globals.Define ('test', 1.0);
+
+    var Env := Environment();
+    Env.Enclosing := Globals as Environment;
+    Env.Define ('test', 2.0);
+
+    var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
+
+    AssertEqual(2.0, Env.Get (TheToken));
+    AssertEqual(1.0, Globals.Get (TheToken));
+end
+
+
+// Too often something goes wrong at 3 :)  So we are checking that a variable can be accessed from a scope three
+// levels deep.
+test 'Test Environment Three Deep';
+begin
+    var Globals := Environment();
+    Globals.Define ('test', 1.0);
+
+    var Env := Environment();
+    Env.Enclosing := Globals as Environment;
+
+    var InnerEnv := Environment();
+    InnerEnv.Enclosing := Env as Environment;
+
+    var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
+
+    AssertEqual(1.0, InnerEnv.Get (TheToken));
+end
+
+// Assigning a value to a defined variable should change the value returned from Get().
+//
+test 'Test Environment Assign';
+begin
+    var Globals := Environment();
+    Globals.Define ('test', 1.0);
+
+    var Env := Environment();
+    Env.Enclosing := Globals as Environment;
+
+    var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
+
+    Env.Assign(TheToken, 2.0);
+
+    AssertEqual(2.0, Env.Get (TheToken));
+end
+
+// Attempting to assign a value to an identifier with no variable defined should return a runtime error.
+//
+test 'Test Environment Assign Not Defined';
+begin
+    var Env := Environment();
+    var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
+    try
+        Env.Assign(TheToken, 2.0);
+    except
+        on e : String do
+            begin
+                AssertEqual('Undefined variable ''test''.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception thrown.');
+end
+
+// Attempting to get a value that is not defined should return a runtime error.
+//
+test 'Test Environment Get Not Defined';
+begin
+    var Env := Environment();
+    var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
+    
+    try
+        Env.Get(TheToken);
+    except
+        on e : String do
+            begin
+                AssertEqual('Undefined variable ''test''.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception thrown.');
+end
+
+test 'Test Get At';
+begin
+    var Globals := Environment();
+    Globals.Define ('test', 1.0);
+
+    var Env := Environment();
+    Env.Enclosing := Globals as Environment;
+    Env.Define ('test', 2.0);
+    var InnerEnv := Environment();
+    InnerEnv.Enclosing := Env as Environment;
+
+
+    AssertEqual(1.0, InnerEnv.GetAt (2, 'test'));
+    AssertEqual(2.0, InnerEnv.GetAt (1, 'test'));
+end
+
+test 'Test Assign At';
+begin
+    var Globals := Environment();
+    Globals.Define ('test', 1.0);
+
+    var Env := Environment();
+    Env.Enclosing := Globals as Environment;
+
+    var InnerEnv := Environment();
+    InnerEnv.Enclosing := Env as Environment;
+
+    var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
+    InnerEnv.AssignAt (2, TheToken, 5.0);
+
+    AssertEqual(5.0, InnerEnv.Get (TheToken));
+end
+
+// Writing at a distance and reading it back at the same distance.
+//
+// The test above built a Token and then handed AssignAt a String, so it never
+// exercised what the interpreter actually does -- and AssignAt keyed the map by
+// whatever it was given.  With a Token it stored under the Token and GetAt read
+// under the lexeme, so every assignment inside a block was silently lost.
+//
+test 'Assign At Then Get At';
+begin
+    var Outer := Environment();
+    var Inner := Environment();
+    Inner.Enclosing := Outer as Environment;
+
+    // Names of more than one character: a one-character literal is a Char, not
+    // a String, and Define declares a String.
+    var TheToken := Token(TOKEN_IDENTIFIER, 'Near', Nil, 0);
+
+    Inner.Define ('Near', 1.0);
+    Inner.AssignAt (0, TheToken, 2.0);
+    AssertEqual(2.0, Inner.GetAt (0, 'Near'));
+
+    Outer.Define ('Far', 1.0);
+    Inner.AssignAt (1, Token(TOKEN_IDENTIFIER, 'Far', Nil, 0), 3.0);
+    AssertEqual(3.0, Inner.GetAt (1, 'Far'));
+end
