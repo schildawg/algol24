@@ -1,0 +1,9 @@
+LF:
+  line 1 length 5
+  line 2 length 4
+CRLF:
+  line 1 length 5
+  line 2 length 4
+CR:
+  line 1 length 10
+exit: 0

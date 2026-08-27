@@ -11,3 +11,12 @@
 # The same applies to every .actual: it is a byte-for-byte record of what an
 # implementation printed, and a rewritten byte is a false record.
 spec/probes/** -text
+
+# ⚠️ Same reason, and the same trap.  conformance/0006 has CRLF endings because
+# it exists to show that CRLF and LF report identical line numbers; normalized
+# to LF it would still pass, for entirely the wrong reason.  The refusal and
+# defect corpora are held byte-exact on the same grounds: an .expected or a
+# .current is a record of bytes an implementation produced.
+conformance/** -text
+refusals/**   -text
+defects/**    -text

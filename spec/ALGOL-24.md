@@ -141,7 +141,7 @@ bytes and attaches no encoding to either. See DEF-01.
     interpreter  compiler/Scanner.a24  ScanTokens
     compiler     bootstrap/algol.c     alg_length
     unit         Scan A Whole Program
-    conformance  TBD
+    defect       DEF-01-text-is-bytes.a24
 
 **[SRC-002]**  Outside comments, string literals and character literals, every
 character must be one the scanner recognises — a letter [SRC-005], a digit, or
@@ -153,7 +153,7 @@ here, including letters that [SRC-005] admits. See DEF-01.
 
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Unrecognized Character Is Recorded
-    conformance  TBD
+    refusal      0001-unexpected-character.a24
 
 **[SRC-003]**  Inside a comment, a string literal or a character literal, any
 byte is permitted and is carried through unchanged. A program may therefore
@@ -162,7 +162,7 @@ it.
 
     interpreter  compiler/Scanner.a24  ScanString
     compiler     bootstrap/algol.c     alg_string
-    conformance  TBD
+    conformance  0001-source-is-utf8-text.a24
 
 **[SRC-004]**  `Length` of a String is its count of **characters**, and
 subscripting a String yields the character at that position. `Length('café')` is
@@ -176,7 +176,7 @@ and `Ord` [16.2].
 
     interpreter  compiler/Interpreter.a24  LengthNative
     compiler     bootstrap/algol.c         alg_length
-    conformance  TBD
+    defect       DEF-01-text-is-bytes.a24
 
 > `Length('café')` is 5, not 4, in both processors. Verified.
 
@@ -200,7 +200,7 @@ DEF-01.
 
     interpreter  compiler/Scanner.a24  IsAlpha
     unit         Scan Identifier With A Question Mark
-    conformance  TBD
+    conformance  0002-letters-and-digits.a24
 
 ⚠️ **`?` is a letter; `!` is not.** `Gate?` is a single identifier — one word to
 the scanner, and one word to double-click. `Gate!` is not: the `!` is refused as
@@ -209,23 +209,39 @@ negation `not` and inequality `<>`.
 
 ### 3.3 Line termination
 
-**[SRC-006]**  A line ends at `#10`. It is the only byte that advances the line
-count used by diagnostics.
+**[SRC-006]**  A line ends at `#10`. A `#13` immediately preceding it is part of
+the terminator and is absorbed with it, so a file with CRLF endings and the same
+file with LF endings report identical line numbers.
 
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Newline
     unit         Scan Comment Ends At Newline
-    conformance  TBD
+    conformance  0006-line-endings-lf.a24
 
-**[SRC-007]**  `#13` is whitespace. It does not end a line, does not advance
-the line count, and is not required to be followed by `#10`.
+**[SRC-007]**  Any **other** `#13` is not a terminator. In source it is
+whitespace [SRC-008]; in data it is ordinary text that `ReadLn` returns
+[RT-016].
 
-⚠️ A file whose only line endings are `#13` therefore scans as a **single
-line**, and every diagnostic in it reports `line 1`. This is accepted rather
-than fixed: carriage-return-only text is no longer produced by any live system.
+⚠️ A file whose only line endings are `#13` therefore holds **one line**, in
+source and in data alike. Every diagnostic in such a source file reports
+`line 1`.
+
+⚠️ A sharper consequence, from this rule meeting [LEX-001]: a comment runs to
+`#10` or to end of file, so **a `//` comment in a file with no `#10` anywhere
+swallows the rest of the file**. A CR-only source beginning with a comment is
+therefore an empty program that runs and does nothing, rather than one that
+fails to compile.
+
+This follows from having a single rule rather than three, and it is the reason
+for having one: `#10` terminates everywhere, `#13#10` counts once, and a stray
+`#13` is never a terminator in either subsystem. Admitting a lone `#13` as a
+third convention would buy compatibility with a format no live system produces,
+at the cost of changing how `ReadLn` splits data — so a program reading text
+with embedded `#13` bytes that are not line endings would start dividing it
+differently.
 
     interpreter  compiler/Scanner.a24  ScanToken
-    conformance  TBD
+    conformance  0007-carriage-return-only.a24
 
 > A file with CRLF endings and the same file with LF endings report identical
 > line numbers. A lone `#13` between two statements separates them as any other
@@ -235,12 +251,12 @@ than fixed: carriage-return-only text is no longer produced by any live system.
 is otherwise insignificant.
 
     interpreter  compiler/Scanner.a24  ScanToken
-    conformance  TBD
+    conformance  0003-line-termination.a24
 
 **[SRC-009]**  The final line of a file need not be terminated.
 
     interpreter  compiler/Scanner.a24  IsAtEnd
-    conformance  TBD
+    conformance  0004-final-line-need-not-be-terminated.a24
 
 ### 3.4 Case
 
@@ -249,7 +265,7 @@ is otherwise insignificant.
 
     interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Keywords
-    conformance  TBD
+    conformance  0005-keywords-are-case-insensitive.a24
 
 **[SRC-011]**  Identifiers are matched **case-insensitively**, as keywords are.
 `Xyz` and `xyz` are one name, and declaring both in one scope is a duplicate
@@ -267,7 +283,7 @@ a program declaring `Xyz` and misspelling it `xyZ` is told about `xyZ`.
 
     interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Identifier
-    conformance  TBD
+    defect       DEF-02-identifiers-are-case-sensitive.a24
 
 ⚠️ The asymmetry is deliberate and is the one place the language departs from
 Pascal's uniform case-insensitivity. A program may declare `Count` and `count`
@@ -2151,6 +2167,18 @@ not count it, so a program run with no arguments reports zero.
     interpreter  compiler/Interpreter.a24  FileExistsNative
     compiler     bootstrap/algol.c         alg_file_exists
     conformance  TBD
+
+**[RT-016]**  `ReadLn` on a `TextFile` splits on the same rule as the scanner
+[SRC-006], [SRC-007]: a line ends at `#10`, which is **not** returned; a `#13`
+immediately before it comes off with it; and any other `#13` is ordinary text
+returned as part of the line.
+
+A file whose only line endings are `#13` is therefore read as a single line
+containing those bytes.
+
+    interpreter  compiler/ObjFile.a24  Invoke
+    compiler     bootstrap/algol.c     file_read_line
+    conformance  0008-readln-line-rule.a24
 
 **[RT-015]**  `Write(V)` and `WriteLn(V)` write the stringified value to
 standard output, `WriteLn` following it with `#10` — always that byte, never the

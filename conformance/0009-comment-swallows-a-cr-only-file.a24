@@ -1,0 +1,1 @@
+// spec: SRC-007, LEX-001//// This whole file uses lone #13 and begins with a comment. Because a comment// runs to #10 or end of file, and there is no #10 anywhere, the comment// swallows the entire file -- including the WriteLn below, which never runs.WriteLn ('never reached');

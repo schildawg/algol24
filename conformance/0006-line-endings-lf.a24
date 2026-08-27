@@ -1,0 +1,7 @@
+// spec: SRC-006
+//
+// LF endings. The error is on line 7; its CRLF twin must agree.
+
+var A := 1;
+var B := 2;
+$

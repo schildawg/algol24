@@ -1,0 +1,5 @@
+// spec: SRC-007
+//
+// The body below is separated by lone #13, which is not a terminator, so
+// every statement sits on line 5 and the error reports line 5.
+var A := 1;var B := 2;$

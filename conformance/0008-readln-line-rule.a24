@@ -1,0 +1,42 @@
+// spec: RT-016
+//
+// ReadLn splits on the same rule as the scanner: #10 terminates, a #13 before
+// it is absorbed, any other #13 is ordinary text.
+
+procedure Write3 (Name : String, Body : String);
+var
+    F : TextFile;
+begin
+    F := TextFile();
+    F.Assign (Name);
+    F.Rewrite();
+    F.Write (Body);
+    F.Close();
+end
+
+procedure Show (Name : String);
+var
+    F : TextFile;
+    N : Integer := 0;
+begin
+    F := TextFile();
+    F.Assign (Name);
+    F.Reset();
+    while not F.Eof do
+    begin
+        var L := F.ReadLn();
+        N := N + 1;
+        WriteLn ('  line ' + Str(N) + ' length ' + Str(Length(L)));
+    end
+    F.Close();
+    F.Assign (Name);
+    F.Erase();
+end
+
+Write3 ('t-lf.txt',   'alpha' + #10 + 'beta' + #10);
+Write3 ('t-crlf.txt', 'alpha' + #13 + #10 + 'beta' + #13 + #10);
+Write3 ('t-cr.txt',   'alpha' + #13 + 'beta' + #13);
+
+WriteLn ('LF:');   Show ('t-lf.txt');
+WriteLn ('CRLF:'); Show ('t-crlf.txt');
+WriteLn ('CR:');   Show ('t-cr.txt');

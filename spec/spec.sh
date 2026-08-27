@@ -92,7 +92,7 @@ awk '
         rule = substr($0, RSTART + 1, RLENGTH - 2)
         next
     }
-    /^[ \t]+(interpreter|compiler|unit|conformance)[ \t]/ {
+    /^[ \t]+(interpreter|compiler|unit|conformance|refusal|defect)[ \t]/ {
         if (rule == "") next
         line = $0
         sub(/^[ \t]+/, "", line)
@@ -195,8 +195,25 @@ done < "$WORK/cites"
 MISSING_CONF=0
 TBD=0
 
+# ⚠️ A rule is covered three ways, not one.  A valid program in conformance/, an
+# invalid one in refusals/, or -- where the specification has decided something
+# the implementation does not yet do -- a reproduction in defects/.  Counting
+# only the first would report a rule as uncovered when it is precisely tracked.
 while IFS="$(printf '\t')" read -r rule key value; do
-    [ "$key" = "conformance" ] || continue
+    case "$key" in
+        conformance) _dir=conformance ;;
+        refusal)     _dir=refusals ;;
+        defect)      _dir=defects ;;
+        *) continue ;;
+    esac
+
+    if [ "$key" != conformance ]; then
+        if [ ! -f "$_dir/$value" ]; then
+            problem "$rule cites a $key case that does not exist: $value"
+            MISSING_CONF=$((MISSING_CONF + 1))
+        fi
+        continue
+    fi
 
     if [ "$value" = "TBD" ]; then
         # ⚠️ The reserved -000 illustration is excluded here for the same
@@ -213,18 +230,26 @@ while IFS="$(printf '\t')" read -r rule key value; do
     fi
 done < "$WORK/cites"
 
+for k in unit conformance refusal defect; do
+    awk -F'\t' -v k="$k" '$2==k{print $1}' "$WORK/cites" | sort -u > "$WORK/has_$k"
+done
+cat "$WORK/has_conformance" "$WORK/has_refusal" "$WORK/has_defect" 2>/dev/null \
+  | sort -u > "$WORK/has_any"
+
 [ "$MISSING_CONF" -eq 0 ] && echo "  $TBD rule(s) await a conformance program (TBD)"
 
 # ⚠️ Every rule must carry BOTH keys.  A rule with neither is not "not yet
 # covered" -- it is unaccounted for, and the difference is the whole point of
 # writing TBD down rather than leaving the line out.
-for k in unit conformance; do
-    awk -F'\t' -v k="$k" '$2==k{print $1}' "$WORK/cites" | sort -u > "$WORK/has_$k"
-done
 sort -u "$WORK/ids" > "$WORK/allids"
-comm -23 "$WORK/allids" "$WORK/has_conformance" > "$WORK/no_conf"
+# ⚠️ Every rule must be accounted for by ONE of the three, and 'conformance TBD'
+# counts: an admitted gap is accounted for, an absent line is not. The point is
+# that no rule can be silently unclaimed.
+comm -23 "$WORK/allids" "$WORK/has_any" > "$WORK/no_conf"
 if [ -s "$WORK/no_conf" ]; then
-    while read -r r; do problem "$r carries no conformance line, not even TBD"; done < "$WORK/no_conf"
+    while read -r r; do
+        problem "$r is unaccounted for — needs a conformance, refusal or defect line"
+    done < "$WORK/no_conf"
 fi
 
 # ------------------------------------------------------------------ tables --
@@ -310,6 +335,8 @@ if [ "$COVERAGE" -eq 1 ]; then
 
     echo "  pinned by a unit test:   $(wc -l < "$WORK/has_unit" | tr -d ' ') of $RULE_COUNT"
     echo "  covered by conformance:  $(( $(wc -l < "$WORK/allids" | tr -d ' ') - TBD )) of $RULE_COUNT"
+    echo "  tracked by a defect:     $(wc -l < "$WORK/has_defect" | tr -d ' ') of $RULE_COUNT"
+    echo "  covered by a refusal:    $(wc -l < "$WORK/has_refusal" | tr -d ' ') of $RULE_COUNT"
 
     if [ -s "$WORK/no_unit" ]; then
         echo "  no unit test pins these:"
