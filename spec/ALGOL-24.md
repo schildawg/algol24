@@ -190,3 +190,140 @@ carries.
 ⚠️ The asymmetry is deliberate and is the one place the language departs from
 Pascal's uniform case-insensitivity. A program may declare `Count` and `count`
 as two variables; it may not declare a variable named `Begin`.
+
+---
+
+## 4. Lexical elements
+
+### 4.1 Comments
+
+**[LEX-001]**  A comment begins with `//` and runs to the end of the line, or to
+the end of the file if no `#10` follows. It is discarded and forms no token.
+
+    interpreter  compiler/Scanner.a24  ScanToken
+    tests        Scan Comment
+    tests        Scan Comment Ends At Newline
+
+**[LEX-002]**  `///` is not a distinct form. The scanner sees `//` followed by a
+comment whose first character is `/`, and treats it as any other comment.
+
+    interpreter  compiler/Scanner.a24  ScanToken
+
+> The project writes documentation comments as `///` by convention, and tools
+> may treat them specially. The language does not.
+
+**[LEX-003]**  There are no block comments and no nesting. `{ … }` and
+`(* … *)` are not comments: the braces are refused as unexpected characters,
+and the parenthesis form is read as an expression.
+
+    interpreter  compiler/Scanner.a24  ScanToken
+
+### 4.2 Tokens
+
+**[LEX-004]**  A token is an identifier, a keyword, a literal, or an operator
+or item of punctuation. Whitespace and comments separate tokens and are
+otherwise discarded.
+
+    interpreter  compiler/Scanner.a24  ScanTokens
+    tests        Scan Tokens
+
+**[LEX-005]**  Where a shorter and a longer token both match, the longer is
+taken. `<` followed by `>` is one `<>`; `<` followed by anything else is a `<`
+on its own.
+
+    interpreter  compiler/Scanner.a24  ScanToken
+    tests        Scan Less Is Not Greedy
+
+> `<<><=<` scans as `<`, `<>`, `<=`, `<` — four tokens.
+
+**[LEX-006]**  There is no automatic semicolon insertion. A line ending is
+whitespace and never stands in for a `;`.
+
+    interpreter  compiler/Scanner.a24  ScanToken
+
+### 4.3 Identifiers
+
+**[LEX-007]**  An identifier is a letter followed by any number of letters and
+digits. `letter` and `decimal_digit` are as defined in [SRC-005], so `_` and
+`?` are letters.
+
+```
+identifier = letter { letter | decimal_digit } .
+```
+
+    interpreter  compiler/Scanner.a24  ScanIdentifier
+    tests        Scan Identifier
+    tests        Scan Identifier With A Question Mark
+
+**[LEX-008]**  Because `?` and `_` are letters, either may begin an identifier,
+and `?` alone is a well-formed identifier.
+
+    interpreter  compiler/Scanner.a24  IsAlpha
+
+> `var ?abc := 7;` declares a variable. So does `var ? := 7;`. See Annex D.
+
+**[LEX-009]**  An identifier may not be spelled the same as a keyword in any
+case, because the keyword is recognised first. `var begin := 7;` and
+`var BEGIN := 7;` are both refused with `Expect variable name.`
+
+    interpreter  compiler/Scanner.a24  ScanIdentifier
+    tests        Scan Keywords
+
+### 4.4 Keywords
+
+**[LEX-010]**  The following 38 words are keywords and are matched
+case-insensitively per [SRC-010]:
+
+```
+and     as       begin   break   case    class     const   constructor
+do      else     end     except  exit    false     for     function
+if      in       is      nil     not     object    of      or
+print   private  procedure       public  raise     super   then
+this    true     try     type    uses    var       while
+```
+
+    interpreter  compiler/Scanner.a24  Keywords
+    tests        Scan Keywords
+
+**[LEX-011]**  `unit`, `test` and `on` are **not** keywords. They are ordinary
+identifiers that the grammar recognises by position — `unit` opening a file,
+`test` before a block's quoted name, `on` introducing a handler — and each may
+be used as a variable name.
+
+    interpreter  compiler/Scanner.a24  Keywords
+    interpreter  compiler/Parser.a24   UnitHeader
+    tests        Parse On Is Not A Keyword
+
+> `var test := 7;` is a valid declaration, and so are the `unit` and `on`
+> forms. Verified in all three.
+
+### 4.5 Operators and punctuation
+
+**[LEX-012]**  The following are operators and punctuation:
+
+```
+(    )    [    ]    ,    .    ;    :
++    -    *    /    =    :=
+<    <=   >    >=   <>
+```
+
+    interpreter  compiler/Scanner.a24  ScanToken
+    tests        Scan Operators
+
+**[LEX-013]**  `=` is equality and `:=` is assignment. Inequality is `<>`.
+There is no `==`, no `!` and no `!=`; `!` is not a character the scanner
+accepts anywhere outside a comment or a literal.
+
+    interpreter  compiler/Scanner.a24   ScanToken
+    interpreter  compiler/TokenType.a24 TOKEN_ASSIGN
+    tests        Scan Operators
+
+**[LEX-014]**  `and`, `or`, `not`, `in`, `is` and `as` are operators spelled as
+keywords rather than punctuation, and are subject to [SRC-010].
+
+    interpreter  compiler/Scanner.a24  Keywords
+    tests        Scan Keywords
+
+⚠️ `{` and `}` are not tokens of the language at all — not as comment
+delimiters, not as block delimiters, and not as set constructors. A block is
+`begin` … `end`; a collection literal uses `[` and `]`.

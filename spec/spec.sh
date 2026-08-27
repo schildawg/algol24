@@ -185,6 +185,38 @@ done < "$WORK/cites"
 [ "$MISSING_TEST" -eq 0 ] && [ -s "$WORK/testnames" ] \
     && echo "  $CITED_TESTS test citation(s) name tests the suite runs"
 
+# ------------------------------------------------------------------ tables --
+#
+# ⚠️ A list transcribed into prose is the most rot-prone thing a specification
+# can hold, and this repository has already lost one: the VS Code grammar's
+# keyword list was a hand copy that nothing checked.  Any enumeration the
+# specification states must be derived from the source and compared, not
+# trusted.  This is the first of that family; operators and built-ins will want
+# the same treatment.
+
+echo
+echo "Tables"
+
+sed -n '/var  Keywords := \[/,/TOKEN_WHILE\];/p' compiler/Scanner.a24 \
+  | grep -oE "'[a-z]+':" | tr -d "':" | sort -u > "$WORK/kw_source"
+
+awk '/\*\*\[LEX-010\]\*\*/{f=1}
+     f && /^```$/ { c++; if (c == 2) exit; next }
+     f && c == 1  { print }' "$SPEC" \
+  | tr -s ' \n' '\n' | grep -vE '^$' | sort -u > "$WORK/kw_spec"
+
+if [ ! -s "$WORK/kw_source" ] || [ ! -s "$WORK/kw_spec" ]; then
+    problem "the keyword table could not be read from one side or the other"
+else
+    KW_MISSING=$(comm -23 "$WORK/kw_source" "$WORK/kw_spec" | tr '\n' ' ')
+    KW_EXTRA=$(comm -13 "$WORK/kw_source" "$WORK/kw_spec" | tr '\n' ' ')
+
+    [ -n "$KW_MISSING" ] && problem "LEX-010 omits keyword(s) the scanner has: $KW_MISSING"
+    [ -n "$KW_EXTRA" ]   && problem "LEX-010 lists word(s) the scanner does not: $KW_EXTRA"
+    [ -z "$KW_MISSING" ] && [ -z "$KW_EXTRA" ] \
+        && echo "  LEX-010 keywords match Scanner.a24 ($(wc -l < "$WORK/kw_source" | tr -d ' '))"
+fi
+
 # ---------------------------------------------------------------- coverage --
 
 if [ "$COVERAGE" -eq 1 ]; then
