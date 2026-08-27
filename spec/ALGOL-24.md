@@ -1060,6 +1060,167 @@ is readable and writable from anywhere.
 
 ---
 
+## 9. Expressions
+
+### 9.1 Precedence and associativity
+
+**[EXP-001]**  Operators bind in this order, tightest first:
+
+| | Operators |
+| --- | --- |
+| 1 | `f(…)` call · `a[i]` subscript · `a.b` property |
+| 2 | `-` unary · `not` |
+| 3 | `*` · `/` |
+| 4 | `+` · `-` |
+| 5 | `<` · `<=` · `>` · `>=` · `in` · `is` |
+| 6 | `=` · `<>` |
+| 7 | `and` |
+| 8 | `or` |
+| 9 | `as` |
+| 10 | `:=` |
+
+    interpreter  compiler/Parser.a24  Expression
+    unit         Parse Term Plus
+    unit         Parse Factor Star
+    conformance  TBD
+
+> `1 + 2 * 3` is 7, `-2 * 3` is -6, `not True and False` is false,
+> `True or False and False` is true, and `False = False and False` is false.
+> Each distinguishes its pair. Verified.
+
+**[EXP-002]**  Binary operators of one level are left-associative:
+`10 - 2 - 3` is 5 and `12 / 2 / 3` is 2.
+
+    interpreter  compiler/Parser.a24  Term
+    conformance  TBD
+
+**[EXP-003]**  `as` binds looser than `or`, so `A and B as C` casts the whole
+conjunction rather than `B`. Because a cast has no runtime effect [VAL-007],
+this is observable only through the checker.
+
+    interpreter  compiler/Parser.a24  Expression
+    conformance  TBD
+
+### 9.2 Arithmetic
+
+**[EXP-004]**  Integer arithmetic yields an Integer, **including `/`**, which
+divides and truncates toward zero: `7 / 2` is 3 and `-7 / 2` is -3.
+
+    interpreter  compiler/Interpreter.a24  VisitBinary
+    compiler     bootstrap/algol.c         alg_divide
+    unit         Evaluate Binary Slash
+    conformance  TBD
+
+**[EXP-005]**  A Double on either side promotes the operation and the result:
+`7.0 / 2` and `7 / 2.0` are both 3.5, and `1 + 2.0` is `3.0`.
+
+    interpreter  compiler/Interpreter.a24  VisitBinary
+    unit         Evaluate Binary Plus Mixed
+    conformance  TBD
+
+**[EXP-006]**  ⚠️ Integer division by zero is the runtime error `Division by
+zero.` **Double division by zero is not an error**: it yields `Infinity`,
+`-Infinity` or `NaN`, and the program continues.
+
+    interpreter  compiler/Interpreter.a24  VisitBinary
+    compiler     bootstrap/algol.c         alg_divide
+    conformance  TBD
+
+> See Annex D.
+
+**[EXP-007]**  Arithmetic wraps silently at the bounds of a 32-bit Integer — see
+[LEX-018].
+
+    compiler     bootstrap/algol.c  alg_add
+    conformance  TBD
+
+### 9.3 Concatenation
+
+**[EXP-008]**  `+` concatenates when **either** operand is a String or a Char,
+converting the other. `'x' + 1` is `x1`, `1 + 'x'` is `1x`, and `'a' + 'b'` —
+two Chars — is the String `ab`.
+
+    interpreter  compiler/Interpreter.a24  VisitBinary
+    compiler     bootstrap/algol.c         alg_add
+    unit         Evaluate Binary Plus String
+    conformance  TBD
+
+### 9.4 Logical operators
+
+**[EXP-009]**  `and` and `or` **short-circuit**. The right operand is evaluated
+only when the left does not decide the result.
+
+    interpreter  compiler/Interpreter.a24  VisitLogical
+    unit         Execute Logical And
+    unit         Execute Logical Or
+    conformance  TBD
+
+**[EXP-010]**  Both operators test truthiness [VAL-008] rather than requiring a
+Boolean.
+
+    interpreter  compiler/Interpreter.a24  IsTruthy
+    unit         Execute Logical Truthy
+    conformance  TBD
+
+### 9.5 Calls
+
+**[EXP-011]**  A call checks arity. A mismatch is `Expected N arguments but got
+M.`
+
+    interpreter  compiler/Interpreter.a24  VisitCall
+    unit         Call Wrong Number Of Arguments
+    conformance  TBD
+
+**[EXP-012]**  Calling something that is neither a function nor a class is
+`Can only call functions and classes.`
+
+    interpreter  compiler/Interpreter.a24  VisitCall
+    unit         Call Non Function
+    conformance  TBD
+
+**[EXP-013]**  Where a name is overloaded, selection is made on the **whole
+signature** — the number of arguments and the type of each — and is made **at
+run time**, from the arguments actually passed.
+
+    interpreter  compiler/ObjClass.a24  FindOverload
+    compiler     bootstrap/algol.c      alg_invoke
+    conformance  TBD
+
+**[EXP-014]**  When no overload fits, the call fails with `No matching signature
+for function.`
+
+⚠️ A `Char` does not fit a `String` parameter [LEX-026], so `M('x')` selects no
+overload declared `String` — a one-character argument is not the type it looks
+like.
+
+    interpreter  compiler/ObjClass.a24  FindOverload
+    conformance  TBD
+
+### 9.6 Subscripting
+
+**[EXP-015]**  Subscripting a String yields the `Char` at that byte position,
+counted from zero. An index outside the value is `Index N out of range 0..M.`
+
+    interpreter  compiler/Interpreter.a24  VisitSubscript
+    compiler     bootstrap/algol.c         alg_subscript_get
+    conformance  TBD
+
+**[EXP-016]**  A class instance may not be subscripted — see [TYP-010].
+
+    interpreter  compiler/Interpreter.a24  VisitSubscript
+    conformance  TBD
+
+### 9.7 Assignment
+
+**[EXP-017]**  Assignment is an **expression**, and its value is the value
+assigned: `X := (Y := 1)` leaves both at 1.
+
+    interpreter  compiler/Parser.a24  Assignment
+    unit         Resolve Assignment
+    conformance  TBD
+
+---
+
 ## Annex E — what could be written in Algol-24 itself *(non-normative)*
 
 The collections and the built-in functions are native today. This annex asks,
@@ -1316,3 +1477,22 @@ currently allows.
 known, and leave the static check as the early warning it already is. Failing
 that, say plainly in the language's documentation that `private:` is a
 convention the checker helps with rather than a boundary.
+
+**D-10 — Integer division by zero raises; Double division by zero does not.**
+*(refers to [EXP-006])*
+
+`1 / 0` is the runtime error `Division by zero.` `1.0 / 0` is `Infinity`, and
+`0.0 / 0` is `NaN`, and neither stops the program. So whether dividing by zero
+is a bug or a value depends on which numeric type reached the operator — and
+[EXP-005] means an Integer becomes a Double whenever it meets one, so the same
+expression can change category with an edit far from it.
+
+The Double behaviour is IEEE 754 and is what C does for free; the Integer
+behaviour has no such answer available, since there is no integer infinity to
+produce.
+
+*Recommended:* keep both. They are each correct for their type, and the
+alternatives are worse — raising on Double division would depart from IEEE for
+no gain, and returning a value for Integer division would have to invent one.
+This belongs in the language's documentation rather than in its defect list, and
+is recorded here only because the asymmetry is genuinely surprising.

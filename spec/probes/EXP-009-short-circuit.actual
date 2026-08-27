@@ -1,0 +1,9 @@
+Uncaught: No matching signature for function.
+-- short circuit --
+False and Boom() ran: 0
+True  or  Boom() ran: 0
+True  and Boom() ran: 1
+False or  Boom() ran: 1
+-- overloads --
+Area(1)   : integer
+exit: 70

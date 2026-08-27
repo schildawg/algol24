@@ -1,0 +1,31 @@
+// spec: EXP-001, EXP-002, EXP-004, EXP-005, EXP-008
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+procedure S (L : String, V : Any);
+begin
+    WriteLn (L + ' = ' + Str (V));
+end
+WriteLn('-- precedence --');
+S ('1 + 2 * 3        ', 1 + 2 * 3);
+S ('(1 + 2) * 3      ', (1 + 2) * 3);
+S ('-2 * 3           ', -2 * 3);
+S ('10 - 2 - 3       ', 10 - 2 - 3);
+S ('12 / 2 / 3       ', 12 / 2 / 3);
+S ('1 + 1 = 2        ', 1 + 1 = 2);
+S ('1 < 2 = True     ', 1 < 2 = True);
+S ('not True and False', not True and False);
+S ('True or False and False', True or False and False);
+S ('False and True or True', False and True or True);
+WriteLn('-- division --');
+S ('7 / 2            ', 7 / 2);
+S ('7.0 / 2          ', 7.0 / 2);
+S ('7 / 2.0          ', 7 / 2.0);
+S ('-7 / 2           ', -7 / 2);
+WriteLn('-- plus --');
+S ('1 + 2            ', 1 + 2);
+S ('1 + 2.0          ', 1 + 2.0);
+S ('''a'' + ''b''        ', 'a' + 'b');
+S ('''x'' + 1          ', 'x' + 1);
+S ('1 + ''x''          ', 1 + 'x');

@@ -1,0 +1,10 @@
+// spec: EXP-011, EXP-012
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+function F(A : Integer) : Integer;
+begin
+    Exit A;
+end
+WriteLn(F(1, 2));

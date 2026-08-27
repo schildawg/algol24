@@ -1,0 +1,25 @@
+// spec: EXP-013, EXP-014
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+class Shape;
+begin
+    function Area(N : Integer) : String;
+    begin
+        Exit 'integer';
+    end
+    function Area(N : String) : String;
+    begin
+        Exit 'string';
+    end
+    function Area(A : Integer, B : Integer) : String;
+    begin
+        Exit 'two integers';
+    end
+end
+var S := Shape();
+WriteLn('Area(1)     : ' + S.Area(1));
+WriteLn('Area(''xy'')  : ' + S.Area('xy'));
+WriteLn('Area(1,2)   : ' + S.Area(1, 2));
+WriteLn('Area(1.5)   : ' + S.Area(1.5));

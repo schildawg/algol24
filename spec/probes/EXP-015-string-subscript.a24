@@ -1,0 +1,8 @@
+// spec: EXP-015
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn('abc'[0]);
+WriteLn('abc'[1] is Char);
+WriteLn('abc'[9]);

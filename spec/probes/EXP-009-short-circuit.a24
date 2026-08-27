@@ -1,0 +1,33 @@
+// spec: EXP-009, EXP-013
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var Ran := 0;
+function Boom() : Boolean;
+begin
+    Ran := Ran + 1;
+    Exit True;
+end
+
+WriteLn('-- short circuit --');
+Ran := 0; var A := False and Boom(); WriteLn('False and Boom() ran: ' + Str(Ran));
+Ran := 0; var B := True  or  Boom(); WriteLn('True  or  Boom() ran: ' + Str(Ran));
+Ran := 0; var C := True  and Boom(); WriteLn('True  and Boom() ran: ' + Str(Ran));
+Ran := 0; var D := False or  Boom(); WriteLn('False or  Boom() ran: ' + Str(Ran));
+
+WriteLn('-- overloads --');
+class Shape;
+begin
+    function Area(N : Integer) : String;
+    begin
+        Exit 'integer';
+    end
+    function Area(N : String) : String;
+    begin
+        Exit 'string';
+    end
+end
+var S := Shape();
+WriteLn('Area(1)   : ' + S.Area(1));
+WriteLn('Area(''x'') : ' + S.Area('x'));

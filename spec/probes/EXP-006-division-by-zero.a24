@@ -1,0 +1,9 @@
+// spec: EXP-006
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn(1.0 / 0);
+WriteLn(-1.0 / 0);
+WriteLn(0.0 / 0);
+WriteLn(1 / 0);

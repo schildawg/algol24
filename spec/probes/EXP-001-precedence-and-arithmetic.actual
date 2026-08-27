@@ -1,0 +1,23 @@
+-- precedence --
+1 + 2 * 3         = 7
+(1 + 2) * 3       = 9
+-2 * 3            = -6
+10 - 2 - 3        = 5
+12 / 2 / 3        = 2
+1 + 1 = 2         = true
+1 < 2 = True      = true
+not True and False = false
+True or False and False = true
+False and True or True = true
+-- division --
+7 / 2             = 3
+7.0 / 2           = 3.5
+7 / 2.0           = 3.5
+-7 / 2            = -3
+-- plus --
+1 + 2             = 3
+1 + 2.0           = 3.0
+'a' + 'b'         = ab
+'x' + 1           = x1
+1 + 'x'           = 1x
+exit: 0

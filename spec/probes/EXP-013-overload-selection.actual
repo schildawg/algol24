@@ -1,0 +1,5 @@
+Uncaught: No matching signature for function.
+Area(1)     : integer
+Area('xy')  : string
+Area(1,2)   : two integers
+exit: 70
