@@ -1,0 +1,80 @@
+// spec: TYP-010, TYP-011, TYP-012
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+//
+// Evidence for Annex E: Stack and Set written in Algol-24 itself, and
+// Mod from arithmetic alone. What they cannot do is expose Count as a
+// parenless property, which is TYP-012.
+
+class MyStack;
+var
+    Items : List := [];
+
+begin
+    procedure Push (Item : Any);
+    begin
+        Items.Add (Item);
+    end
+
+    function Pop () : Any;
+    begin
+        var Top := Items[Items.Length - 1];
+        Items.RemoveAt (Items.Length - 1);
+        Exit Top;
+    end
+
+    function Peek () : Any;
+    begin
+        Exit Items[Items.Length - 1];
+    end
+
+    function Count () : Integer;
+    begin
+        Exit Items.Length;
+    end
+end
+
+// A Set with the membership test written out, using no native Contains.
+class MySet;
+var
+    Items : List := [];
+
+begin
+    function Has (Item : Any) : Boolean;
+    begin
+        for var I := 0; I < Items.Length; I := I + 1 do
+            if Items[I] = Item then Exit True;
+        Exit False;
+    end
+
+    procedure Add (Item : Any);
+    begin
+        if not Has (Item) then Items.Add (Item);
+    end
+
+    function Count () : Integer;
+    begin
+        Exit Items.Length;
+    end
+end
+
+var S := MyStack();
+S.Push (1); S.Push (2); S.Push (3);
+WriteLn ('stack pop  : ' + Str (S.Pop()));
+WriteLn ('stack peek : ' + Str (S.Peek()));
+WriteLn ('stack count: ' + Str (S.Count()));
+
+var T := MySet();
+T.Add (1); T.Add (2); T.Add (1); T.Add (2);
+WriteLn ('set count  : ' + Str (T.Count()));
+WriteLn ('set has 2  : ' + Str (T.Has (2)));
+WriteLn ('set has 9  : ' + Str (T.Has (9)));
+
+// Mod from arithmetic alone
+function MyMod (A : Integer, B : Integer) : Integer;
+begin
+    Exit A - (A / B) * B;
+end
+WriteLn ('7 mod 3    : ' + Str (MyMod (7, 3)) + '  native: ' + Str (Mod (7, 3)));
+WriteLn ('9 mod 3    : ' + Str (MyMod (9, 3)) + '  native: ' + Str (Mod (9, 3)));

@@ -1,0 +1,11 @@
+// spec: TYP-001, TYP-003
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn(1 is Integer);
+WriteLn(1.5 is Double);
+WriteLn('ab' is String);
+WriteLn('a' is Char);
+WriteLn('a' is String);
+WriteLn(True is Boolean);

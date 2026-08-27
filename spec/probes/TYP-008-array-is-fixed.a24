@@ -1,0 +1,11 @@
+// spec: TYP-008
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var A := Array(3);
+WriteLn(A.Length);
+WriteLn(A[0] = nil);
+A[0] := 'x';
+WriteLn(A[0]);
+A[5] := 1;

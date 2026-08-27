@@ -1,0 +1,16 @@
+// spec: TYP-007
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+var L := [1];
+var M := [1:2];
+var S := Set([1]);
+var K := Stack();
+var A := Array(1);
+WriteLn(L is List);
+WriteLn(L is Set);
+WriteLn(M is Map);
+WriteLn(S is Set);
+WriteLn(K is Stack);
+WriteLn(A is Array);

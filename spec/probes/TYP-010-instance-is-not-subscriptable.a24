@@ -1,0 +1,14 @@
+// spec: TYP-010
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+class Box;
+begin
+  function At(I : Integer) : Integer;
+  begin
+    Exit 9;
+  end
+end
+var B := Box();
+WriteLn(B[0]);
