@@ -1,0 +1,6 @@
+// spec: STM-004
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+if True then if False then WriteLn('inner-then'); else WriteLn('inner-else');

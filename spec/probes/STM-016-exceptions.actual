@@ -1,0 +1,11 @@
+-- typed handler --
+  caught String: text
+-- most derived wins, whatever the order --
+  caught Derived
+-- untyped handler is the catch-all --
+  caught anything
+-- raise carries any value --
+  caught Integer: 42
+-- a runtime error is catchable as a String --
+  caught: Division by zero.
+exit: 0

@@ -1,0 +1,15 @@
+-- case --
+  one
+  two or three
+  two or three
+  other
+-- case with no else --
+  one
+  fell through
+  fell through
+-- case does not fall through --
+  matched one
+-- case on a String --
+  ab
+  other
+exit: 0

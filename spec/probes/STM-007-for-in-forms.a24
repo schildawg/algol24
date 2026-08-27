@@ -1,0 +1,12 @@
+// spec: STM-007
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+for var C in 'abc' do Write(C);
+WriteLn('');
+var M := [1:'a', 2:'b'];
+for var K in M do Write(Str(K));
+WriteLn('');
+for var X in [7,8] do Write(Str(X));
+WriteLn('');

@@ -1,0 +1,7 @@
+-- is the collection snapshotted? --
+1 2 3 
+after: 4
+-- how does case compare? --
+  matched Integer 1
+  matched Integer 1
+exit: 0

@@ -1,0 +1,18 @@
+// spec: STM-014
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+function F() : Integer;
+begin
+    Exit 7;
+    WriteLn('unreached');
+end
+procedure P();
+begin
+    Exit;
+    WriteLn('unreached');
+end
+WriteLn(F());
+P();
+WriteLn('done');

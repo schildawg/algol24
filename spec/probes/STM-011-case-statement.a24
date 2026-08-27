@@ -1,0 +1,45 @@
+// spec: STM-011, STM-012, STM-013
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn('-- case --');
+procedure Which (N : Integer);
+begin
+    case N of
+        1     : WriteLn('  one');
+        2, 3  : WriteLn('  two or three');
+        else    WriteLn('  other');
+    end
+end
+Which(1); Which(2); Which(3); Which(9);
+
+WriteLn('-- case with no else --');
+procedure Bare (N : Integer);
+begin
+    case N of
+        1 : WriteLn('  one');
+    end
+    WriteLn('  fell through');
+end
+Bare(1); Bare(5);
+
+WriteLn('-- case does not fall through --');
+procedure NoFall (N : Integer);
+begin
+    case N of
+        1 : WriteLn('  matched one');
+        2 : WriteLn('  matched two');
+    end
+end
+NoFall(1);
+
+WriteLn('-- case on a String --');
+procedure OnText (S : String);
+begin
+    case S of
+        'ab' : WriteLn('  ab');
+        else   WriteLn('  other');
+    end
+end
+OnText('ab'); OnText('zz');

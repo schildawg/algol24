@@ -1,0 +1,47 @@
+// spec: STM-016, STM-017, STM-018, STM-019, STM-020
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+class Base;
+begin
+end
+class Derived (Base);
+begin
+end
+
+WriteLn('-- typed handler --');
+try
+    raise 'text';
+except
+    on e : String do WriteLn('  caught String: ' + e);
+end
+
+WriteLn('-- most derived wins, whatever the order --');
+try
+    raise Derived();
+except
+    on e : Base    do WriteLn('  caught Base');
+    on e : Derived do WriteLn('  caught Derived');
+end
+
+WriteLn('-- untyped handler is the catch-all --');
+try
+    raise 42;
+except
+    WriteLn('  caught anything');
+end
+
+WriteLn('-- raise carries any value --');
+try
+    raise 42;
+except
+    on e : Integer do WriteLn('  caught Integer: ' + Str(e));
+end
+
+WriteLn('-- a runtime error is catchable as a String --');
+try
+    var Z := 1 / 0;
+except
+    on e : String do WriteLn('  caught: ' + e);
+end

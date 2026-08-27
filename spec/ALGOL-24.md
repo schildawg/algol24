@@ -1221,6 +1221,188 @@ assigned: `X := (Y := 1)` leaves both at 1.
 
 ---
 
+## 10. Statements
+
+### 10.1 Blocks and expression statements
+
+**[STM-001]**  A block is `begin` … `end` and may be empty.
+
+    interpreter  compiler/Interpreter.a24  VisitBlockStmt
+    unit         Execute Block Statement
+    conformance  TBD
+
+**[STM-002]**  A declaration is a statement, so a `var` may stand as the body of
+a branch or a loop without a block around it.
+
+    interpreter  compiler/Parser.a24  Statement
+    conformance  TBD
+
+### 10.2 Conditionals
+
+**[STM-003]**  `if Cond then S` with an optional `else S`. The condition is
+tested for truthiness [VAL-008], not required to be a Boolean. A missing `then`
+is `Expect 'then' after if condition.`
+
+    interpreter  compiler/Interpreter.a24  VisitIfStmt
+    unit         Execute If Statement
+    unit         Execute Else Statement
+    unit         Parse If Expect Then
+    conformance  TBD
+
+**[STM-004]**  An `else` binds to the **nearest** unmatched `if`.
+
+    interpreter  compiler/Parser.a24  IfStatement
+    conformance  TBD
+
+### 10.3 Loops
+
+**[STM-005]**  `while Cond do S`. A missing `do` is `Expect 'do' after
+condition.`
+
+    interpreter  compiler/Interpreter.a24  VisitWhileStmt
+    unit         Execute While Loop
+    unit         Parse While Expect Do
+    conformance  TBD
+
+**[STM-006]**  The counted form is `for Init ; Cond ; Step do S`, and it
+**desugars into a block** holding the initializer and a `while` — which is why
+its variable is scoped [DCL-008].
+
+    interpreter  compiler/Parser.a24  ForStatement
+    unit         Execute For Loop
+    unit         Parse For Statement
+    conformance  TBD
+
+**[STM-007]**  `for var X in C do S` walks a collection or a String. Over a
+String it yields each `Char`; over a `Map` it yields each **key**.
+
+    interpreter  compiler/Interpreter.a24  VisitForInStmt
+    conformance  TBD
+
+**[STM-008]**  Iterating anything else is `Can only iterate a collection or a
+String.` — see [TYP-011].
+
+    interpreter  compiler/Interpreter.a24  VisitForInStmt
+    conformance  TBD
+
+**[STM-009]**  ⚠️ The collection is **snapshotted** when the loop begins.
+Adding to it inside the loop does not lengthen the walk.
+
+    interpreter  compiler/Interpreter.a24  VisitForInStmt
+    compiler     bootstrap/algol.c         alg_iterable
+    conformance  TBD
+
+**[STM-010]**  `break` leaves the innermost enclosing loop. Outside a loop it is
+refused **where it is written** — a parse-time check — with `Must be inside a
+loop to use 'break'.`
+
+    interpreter  compiler/Parser.a24  BreakStatement
+    unit         Parse Break Inside A While
+    unit         Parse Break Outside A Loop
+    conformance  TBD
+
+### 10.4 Case
+
+**[STM-011]**  A `case` names a value, then arms, then `end`. An arm may list
+several values separated by commas, and a final `else` is optional.
+
+```
+CaseStmt = "case" Expression "of" { Arm } [ "else" Statement ] "end" .
+Arm      = Expression { "," Expression } ":" Statement .
+```
+
+    interpreter  compiler/Parser.a24  CaseStatement
+    conformance  TBD
+
+**[STM-012]**  ⚠️ `case` **desugars into an if/else-if chain**. There is no case
+statement downstream of the parser, and two consequences follow from that rather
+than from any rule of their own:
+
+- Arms compare with `=` [VAL-009], so a `Double` matches an `Integer` arm of the
+  same value — `1.0` matches the arm `1`.
+- There is no fall-through. At most one arm runs.
+
+    interpreter  compiler/Parser.a24  CaseStatement
+    conformance  TBD
+
+**[STM-013]**  When no arm matches and there is no `else`, nothing happens and
+execution continues after the `end`.
+
+    interpreter  compiler/Parser.a24  CaseStatement
+    conformance  TBD
+
+### 10.5 Exit
+
+**[STM-014]**  `Exit` returns from the enclosing function or procedure, with a
+value in a function and bare in a procedure. Statements after it do not run.
+
+    interpreter  compiler/Interpreter.a24  VisitReturnStmt
+    conformance  TBD
+
+**[STM-015]**  `Exit` at the top level is refused with `Can't return from
+top-level code.`
+
+    interpreter  compiler/Resolver.a24  VisitReturnStmt
+    unit         Invalid Return
+    conformance  TBD
+
+### 10.6 Exceptions
+
+**[STM-016]**  `raise E` carries **any value** — a String, an Integer, a class
+instance, anything.
+
+    interpreter  compiler/Interpreter.a24  VisitRaiseStmt
+    unit         Parse Raise
+    conformance  TBD
+
+**[STM-017]**  A handler is written `on e : T do S` and matches on the runtime
+type name of the raised value. A handler for a base class catches a derived
+value.
+
+    interpreter  compiler/Interpreter.a24  VisitTryStmt
+    unit         Parse Try With A Typed Handler
+    conformance  TBD
+
+**[STM-018]**  ⚠️ The **most derived** matching handler runs, however the
+handlers are ordered. Writing the base first does not shadow the derived one.
+
+    interpreter  compiler/Interpreter.a24  VisitTryStmt
+    compiler     bootstrap/algol.c         alg_handler
+    conformance  TBD
+
+**[STM-019]**  A handler written without `on` is the catch-all and matches any
+raised value.
+
+    interpreter  compiler/Interpreter.a24  VisitTryStmt
+    unit         Parse Untyped Handler Is The Catch All
+    unit         Parse Empty Except Is The Catch All
+    conformance  TBD
+
+**[STM-020]**  A runtime error raised by the language is catchable **as a
+String**, carrying the diagnostic as its value: dividing by zero inside a `try`
+is caught by `on e : String` with `e` equal to `Division by zero.`
+
+    interpreter  compiler/Interpreter.a24  VisitTryStmt
+    compiler     bootstrap/algol.c         alg_error
+    conformance  TBD
+
+**[STM-021]**  A value raised and never caught ends the program, printing
+`Uncaught: ` followed by the value, and exits with status **70**.
+
+    interpreter  compiler/Main.a24  Main
+    compiler     bootstrap/algol.c  alg_raise
+    conformance  TBD
+
+### 10.7 print
+
+**[STM-022]**  `print E` writes the stringified value followed by a newline.
+
+    interpreter  compiler/Interpreter.a24  VisitPrintStmt
+    unit         Execute Print Statement
+    conformance  TBD
+
+---
+
 ## Annex E — what could be written in Algol-24 itself *(non-normative)*
 
 The collections and the built-in functions are native today. This annex asks,

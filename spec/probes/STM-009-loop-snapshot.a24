@@ -1,0 +1,25 @@
+// spec: STM-009, STM-012
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+WriteLn('-- is the collection snapshotted? --');
+var L := [1, 2, 3];
+for var X in L do
+begin
+    Write (Str(X) + ' ');
+    if X = 1 then L.Add (99);
+end
+WriteLn('');
+WriteLn('after: ' + Str(L.Length));
+
+WriteLn('-- how does case compare? --');
+procedure C (N : Any);
+begin
+    case N of
+        1 : WriteLn('  matched Integer 1');
+        else WriteLn('  no match');
+    end
+end
+C(1);
+C(1.0);

@@ -1,0 +1,5 @@
+Uncaught: Must be inside a loop to use 'break'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/STM-010-break-outside-a-loop.a24: Must be inside a loop to use 'break'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]6 | break;
+[WHITE][[RED]ERROR[RESET]]   |[RED] ^^^^^[RESET]
+exit: 70
