@@ -1,0 +1,29 @@
+// spec: ENU-002, ENU-005, ENU-006, ENU-007, ENU-009
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+
+type Colour = (RED, GREEN, BLUE);
+
+WriteLn('-- access and rendering --');
+WriteLn('  bare       : ' + Str(RED));
+WriteLn('  qualified  : ' + Str(Colour.RED));
+WriteLn('  identical  : ' + Str(RED = Colour.RED));
+WriteLn('  is Colour  : ' + Str(RED is Colour));
+WriteLn('  RED = GREEN: ' + Str(RED = GREEN));
+
+WriteLn('-- truthiness follows the ordinal --');
+if RED   then WriteLn('  RED truthy');   else WriteLn('  RED FALSEY (first member)');
+if GREEN then WriteLn('  GREEN truthy'); else WriteLn('  GREEN falsey');
+if BLUE  then WriteLn('  BLUE truthy');  else WriteLn('  BLUE falsey');
+
+WriteLn('-- in a case --');
+procedure Pick (C : Colour);
+begin
+    case C of
+        RED   : WriteLn('  red');
+        GREEN : WriteLn('  green');
+        else    WriteLn('  other');
+    end
+end
+Pick(RED); Pick(BLUE);

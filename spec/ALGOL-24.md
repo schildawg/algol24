@@ -1757,6 +1757,89 @@ and classes.`
 
 ---
 
+## 13. Enumerations
+
+### 13.1 Declaration
+
+**[ENU-001]**  An enumeration is declared with `type`, naming its members in
+order.
+
+```
+EnumDecl = "type" identifier "=" "(" identifier { "," identifier } ")" ";" .
+```
+
+    interpreter  compiler/Parser.a24  EnumDeclaration
+    conformance  TBD
+
+**[ENU-002]**  Each member is bound as a **bare name** in the enclosing scope and
+is also reachable qualified as `Type.Member`. Both spellings denote the **same
+interned object**, so `RED = Colour.RED` is true.
+
+    interpreter  compiler/ObjEnum.a24  ObjEnumType
+    compiler     bootstrap/algol.c     alg_enum_member
+    unit         Both Spellings Of An Enum Member Type As The Enum
+    conformance  TBD
+
+**[ENU-003]**  Because members bind as bare names, two enumerations may not
+share a member name: the second is `'A' is already defined.`
+
+    interpreter  compiler/Interpreter.a24  VisitEnumStmt
+    conformance  TBD
+
+**[ENU-004]**  Naming a member the type does not have is `Undefined enum member
+'X'.`
+
+    interpreter  compiler/ObjEnum.a24  ObjEnumType
+    conformance  TBD
+
+### 13.2 Values
+
+**[ENU-005]**  Members compare by **identity** [VAL-011]. A member of one
+enumeration is never equal to a member of another, whatever they are called.
+
+    interpreter  compiler/Interpreter.a24  IsEqual
+    unit         An Enum Member Does Not Satisfy Another Enum
+    conformance  TBD
+
+**[ENU-006]**  `M is T` is true for the member's own type and false for every
+other.
+
+    interpreter  compiler/Interpreter.a24  VisitIsExpr
+    unit         An Enum Type Name Types As Itself
+    conformance  TBD
+
+**[ENU-007]**  A member renders as its bare name: `Str(RED)` is `RED`.
+
+    interpreter  compiler/ObjEnum.a24  ToString
+    conformance  TBD
+
+**[ENU-008]**  Members are **not ordered**. `RED < GREEN` is `Operands must be
+numbers.`
+
+    interpreter  compiler/Interpreter.a24  VisitBinary
+    conformance  TBD
+
+### 13.3 The ordinal
+
+**[ENU-009]**  ⚠️ The **first member of every enumeration is falsey**, and every
+later member is truthy, because truthiness reads the member's position [VAL-008].
+
+    interpreter  compiler/Interpreter.a24  IsTruthy
+    compiler     bootstrap/algol.c         alg_truthy
+    conformance  TBD
+
+**[ENU-010]**  ⚠️ A member is otherwise **opaque**. It has no reachable
+properties: `RED.Ordinal` is `Only instances have properties.` The position that
+decides [ENU-009] cannot be read by a program.
+
+    interpreter  compiler/ObjEnum.a24  ObjEnum
+    conformance  TBD
+
+> A program can discover whether a member is falsey only by testing it for
+> truth. See Annex D.
+
+---
+
 ## Annex C — compiler divergences *(non-normative)*
 
 Where the C back end does not do what the interpreter does. The interpreter is
@@ -2018,3 +2101,27 @@ inheritance errors already use — `'X' is not a class.` — which sits beside
 `A class can't inherit from itself.` and needs no new machinery. This is the
 cheapest entry in this annex to act on and the one a newcomer is likeliest to
 hit.
+
+**D-13 — Truthiness reads a value a program cannot.** *(refers to [ENU-009],
+[ENU-010])*
+
+The first member of every enumeration is falsey, because truthiness reads the
+member's ordinal — and the ordinal is not reachable from the language. `RED` is
+false and `GREEN` is true, and a program can discover which is which only by
+testing each for truth.
+
+So `if Colour then` depends on where a member sits in a list that the program
+cannot inspect, and reordering an enumeration's members silently changes the
+truth of every conditional written over it. Nothing warns, because nothing
+about the declaration looks conditional.
+
+The rule exists so that enumerations behave like the small integers they are
+represented by, which is a real convention and not an accident.
+
+*Recommended:* two things, and the first is worth doing whichever way the second
+goes. **Expose the ordinal**, so the value that governs the behaviour can at
+least be read and compared; `Ordinal` already exists on the implementation's own
+class and simply is not published. **Then reconsider [ENU-009] itself** — an
+enumeration member is not a number, nothing else in the language makes a
+declared name falsey by position, and a first member that is false is a trap
+laid for whoever adds a member at the front.

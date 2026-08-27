@@ -1,0 +1,14 @@
+-- access and rendering --
+  bare       : RED
+  qualified  : RED
+  identical  : true
+  is Colour  : true
+  RED = GREEN: false
+-- truthiness follows the ordinal --
+  RED FALSEY (first member)
+  GREEN truthy
+  BLUE truthy
+-- in a case --
+  red
+  other
+exit: 0
