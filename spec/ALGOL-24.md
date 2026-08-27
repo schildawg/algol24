@@ -1277,14 +1277,14 @@ declared inside it is not visible after it: reading one is `Undefined variable
 'X'.`
 
     interpreter  compiler/Resolver.a24  BeginScope
-    conformance  TBD
+    conformance  0039-blocks-and-scope.a24
 
 **[DCL-002]**  A block sees every name of the scopes enclosing it.
 
     interpreter  compiler/Resolver.a24  ResolveLocal
     unit         Resolve One Hop
     unit         Resolve Two Hops
-    conformance  TBD
+    conformance  0039-blocks-and-scope.a24
 
 ### 8.2 Shadowing
 
@@ -1293,13 +1293,13 @@ of its scope. The outer binding is untouched and reappears when the scope ends.
 
     interpreter  compiler/Resolver.a24  Declare
     unit         Resolve Same Level
-    conformance  TBD
+    conformance  0040-shadowing.a24
 
 **[DCL-004]**  A `var` may shadow a `const`. The inner name is an ordinary
 variable and may be assigned; the outer constant is unaffected.
 
     interpreter  compiler/Resolver.a24  DeclareBinding
-    conformance  TBD
+    conformance  0040-shadowing.a24
 
 ### 8.3 Declaration and use
 
@@ -1309,24 +1309,42 @@ initializer.`, even where an outer `X` exists.
 
     interpreter  compiler/Resolver.a24  ResolveLocal
     unit         Resolve Local Variable Is Own Initializer
-    conformance  TBD
+    refusal      0015-own-initializer.a24
 
-**[DCL-006]**  Declarations take effect **in order of execution**. A top-level
-name does not exist until its declaration has run, so calling a function written
-below the call fails with `Undefined variable 'F'.`
+**[DCL-006]**  A **function or class** declared at the top level of a file is
+visible throughout that file, wherever it is written. A call may precede the
+declaration, so a program may be organized from the top down.
+
+⚠️ **NOT YET IMPLEMENTED.** The interpreter creates the binding when the
+declaration runs, so a call above it is `Undefined variable 'F'.` The compiled
+back end already does what this rule requires. See DEF-15.
 
     interpreter  compiler/Interpreter.a24  VisitFunctionStmt
-    conformance  TBD
+    defect       DEF-15-declarations-are-not-hoisted.a24
+
+**[DCL-016]**  A **variable or constant** is not visible before its declaration
+has run. Its initializer is an expression evaluated in order [VAR-014], and a
+name read before that has no value to give — so it is an error, not `nil`.
+
+⚠️ The split is deliberate. A function or class declaration is complete as soon
+as it is read and has nothing to execute; a `var` has an initializer whose
+effects belong at the point it is written. Hoisting the first is what lets a
+file be read top-down; hoisting the second would silently substitute `nil` for a
+value that does not exist yet.
+
+    interpreter  compiler/Interpreter.a24  VisitVarStmt
+    conformance  0044-variables-are-not-hoisted.a24
 
 **[DCL-007]**  A free name in a function body is resolved **when the body runs**,
 not where it is written. Two functions may therefore call each other, provided
 neither is called before both declarations have run.
 
     interpreter  compiler/Interpreter.a24  LookupVariable
-    conformance  TBD
+    conformance  0041-mutual-recursion.a24
 
-> [DCL-006] and [DCL-007] together are why mutual recursion works while a
-> forward call does not.
+> This is why mutual recursion works even under the current implementation,
+> where [DCL-006] does not: the *call* inside a body is resolved late, so only a
+> call at the top level, above the declaration, meets the missing binding.
 
 ### 8.4 Loop variables
 
@@ -1340,7 +1358,7 @@ the variable is scoped because it is inside a block.
     interpreter  compiler/Parser.a24    ForStatement
     interpreter  compiler/Resolver.a24  VisitForInStmt
     unit         Parse For Statement
-    conformance  TBD
+    conformance  0039-blocks-and-scope.a24
 
 ### 8.5 this and super
 
@@ -1349,14 +1367,15 @@ class.`
 
     interpreter  compiler/Resolver.a24  VisitThisExpr
     unit         This Is Never Caught
-    conformance  TBD
+    refusal      0016-this-outside-a-class.a24
 
 **[DCL-010]**  `super` outside a class is refused with `Can't use 'super'
 outside a class.`, and inside a class having no superclass with `Can't use
 'super' in a class with no superclass.`
 
     interpreter  compiler/Resolver.a24  VisitSuperExpr
-    conformance  TBD
+    refusal      0017-super-outside-a-class.a24
+    refusal      0018-super-with-no-superclass.a24
 
 ### 8.6 Visibility
 
@@ -1367,21 +1386,22 @@ marker is public.
     interpreter  compiler/Parser.a24  ReadDeclarationSections
     unit         A Public Member Is Reachable From Outside
     unit         A Private Field Is Not Readable From Outside
-    conformance  TBD
+    conformance  0042-visibility.a24
+    refusal      0019-private-through-a-typed-receiver.a24
 
 **[DCL-012]**  The body starts public however the header ended. A `private:` in
 the header does not carry across `begin`.
 
     interpreter  compiler/Parser.a24  ReadDeclarationSections
     unit         The Body Starts Public However The Header Ended
-    conformance  TBD
+    conformance  0042-visibility.a24
 
 **[DCL-013]**  Privacy belongs to the **class**, not to the object. A method may
 reach the private members of another instance of its own class.
 
     interpreter  compiler/TypeChecker.a24  CheckVisibility
     unit         Another Instance Of The Same Class Reaches Its Privates
-    conformance  TBD
+    conformance  0042-visibility.a24
 
 **[DCL-014]**  A subclass does not reach what its parent hid. Reading a parent's
 private member through a receiver declared as the parent is refused with
@@ -1389,20 +1409,38 @@ private member through a receiver declared as the parent is refused with
 
     interpreter  compiler/TypeChecker.a24  CheckVisibility
     unit         A Subclass Does Not Reach What Its Parent Hid
-    conformance  TBD
+    refusal      0020-subclass-does-not-reach-what-a-parent-hid.a24
 
-**[DCL-015]**  ⚠️ Visibility is checked **statically, and only where the
-receiver's type is known**. Reached through a bare name inside a method — which
-resolves through `this` — or through a receiver declared `Any`, a private member
-is readable and writable from anywhere.
+**[DCL-015]**  ⚠️ **`private:` is advisory.** It is checked **statically, and
+only where the receiver's type is known**. Reached through a receiver declared
+`Any`, or through a bare name inside a method — which resolves through `this`,
+and `this` has no type — a private member is readable and writable from
+anywhere.
+
+```
+var C : Any := Counter ();
+WriteLn (C.Count);        // the private field, read
+C.Count := 99;            // and written
+```
+
+This is normative: `private:` states an intention and buys a diagnostic wherever
+types are written down. It is **not** a boundary, and a program must not rely on
+it as one. Both processors agree, so it is a property of the language rather
+than of one implementation.
+
+⚠️ **The guarantee is therefore strongest exactly where it is least needed** —
+in well-annotated code — and absent from the code most likely to be reaching
+somewhere it should not. That is an honest description of a checker in a
+gradually typed language, not an accident, and D-9 records what enforcing it
+would cost.
+
+⚠️ `as` becoming a checked conversion [VAL-007] does not close this. Member
+access is not one of the assignment contexts [VAR-017], so nothing obliges a
+receiver to be narrowed before it is read through.
 
     interpreter  compiler/TypeChecker.a24  CheckVisibility
     unit         A Private Member Is Caught Through A Declared Receiver
-    conformance  TBD
-
-> `var C : Any := Counter(); C.Count` yields the private field. A subclass
-> reading its parent's private member by bare name gets it, while the same
-> member through a typed receiver is refused. See Annex D.
+    conformance  0043-visibility-is-advisory.a24
 
 ---
 
@@ -3106,6 +3144,66 @@ Which processor is right is not obvious and is left to chapter 16: a String
 answering `.Length` with a character count is arguably what a reader expects,
 and it is the only spelling that would agree with a collection's.
 
+**C-10 — The compiled back end hoists variables.** *(silent)*
+*(refers to [DCL-016])*
+
+```
+WriteLn (V);
+var V := 7;
+```
+
+Interpreted this is `Undefined variable 'V'.` Compiled it prints `nil`.
+
+Every top-level name is emitted at C file scope, so it exists from the start of
+the program; a variable simply holds `nil` until its initializer runs. The same
+applies to a class constructed above its declaration.
+
+⚠️ **This is the silent direction again, and the worst instance of it.** The
+compiler does not merely accept a refused program — it substitutes a **value**
+for a diagnostic, so the program runs to completion with `nil` where a number
+was meant, and nothing anywhere says so.
+
+⚠️ **The compiler is only half wrong.** Hoisting a *function or class* is what
+[DCL-006] now requires and the interpreter is the defect there (DEF-15).
+Hoisting a *variable* is what [DCL-016] forbids and the compiler is the defect
+here. One mechanism, correct for one kind of declaration and not the other,
+which is why it took a rule split to describe.
+
+**C-11 — A top-level block is reordered.** *(silent)*
+
+```
+WriteLn ('one');
+begin
+    WriteLn ('two');
+end
+WriteLn ('three');
+```
+
+| Interpreted | Compiled |
+| --- | --- |
+| `one two three` | `one three two` |
+
+A bare `begin` … `end` at the top level runs **in place** interpreted and
+**after every other top-level statement** compiled. With two such blocks, both
+are deferred and run in their own order at the end.
+
+⚠️ **Statement order is not preserved**, which makes this the most damaging
+silent divergence recorded. C-6 crashes, which is at least noticeable; C-10
+substitutes `nil` for a diagnostic, which a careful reader may spot. This one
+runs every statement, produces no error, and simply performs them in a different
+order — so a program whose blocks write files, print, or set variables the rest
+of the file reads will behave differently under the two processors with nothing
+to indicate it.
+
+The emitter treats a top-level block as the program's main body, which is right
+for the one block a program conventionally ends with and wrong for a block
+appearing anywhere else.
+
+⚠️ It also constrains the conformance corpus: any case using a bare top-level
+block to demonstrate scoping cannot be run under both processors.
+`conformance/0040` puts its blocks inside procedures for exactly this reason,
+which keeps the cross-check.
+
 ---
 
 ## Annex D — advisory notes *(non-normative)*
@@ -3269,10 +3367,20 @@ visibility rule. Typing `this` as its class would make the bare-name case work
 and would also make every `this.Private` inside a subclass an error the language
 currently allows.
 
-*Recommended:* enforce it at run time on the instance, where the class is always
-known, and leave the static check as the early warning it already is. Failing
-that, say plainly in the language's documentation that `private:` is a
-convention the checker helps with rather than a boundary.
+**Resolved by saying so plainly.** [DCL-015] now states normatively that
+`private:` is advisory — an intention that buys a diagnostic wherever types are
+written, and not a boundary a program may rely on.
+
+⚠️ The alternative was enforcing it at run time on the instance, where the class
+is always known. That closes the hole completely and was the earlier
+recommendation here, but it puts a check on **every property access** — which is
+the cost the whole type-system direction of this specification exists to avoid.
+[VAR-006] tightened declarations so the C back end could trust a declared type
+and emit without runtime checks; paying one back here, on the most frequent
+operation a program performs, would trade away more than it buys.
+
+Nothing is lost that was ever really held: the guarantee was already absent
+whenever a type was omitted, and the change is to stop implying otherwise.
 
 **D-10 — Integer division by zero raises; Double division by zero does not.**
 *(refers to [EXP-006])*
@@ -3867,6 +3975,26 @@ work**, not the comparison: a Map and a Set bucket by a hash, and an Integer and
 a Double of the same numeric value must land in the same bucket or the lookup
 will not find what the comparison would have matched. Changing the comparison
 alone would leave `Contains` answering false for a key the Map holds.
+
+**DEF-15 — Functions and classes are not hoisted.**
+*(violates [DCL-006])*
+
+A call above the declaration is `Undefined variable 'F'.`, and constructing a
+class written below is `Undefined variable 'Dog'.`, so a file must be organized
+bottom-up. The compiled back end already does what the rule requires.
+
+*Reproduce:* `defects/DEF-15-declarations-are-not-hoisted.a24`
+
+⚠️ **Only the interpreter is wrong, and only about half of what it does.** The
+same mechanism in the compiler also hoists *variables*, which [DCL-016] forbids
+— recorded separately as C-10. Fixing this defect must not be done by adopting
+the compiler's behaviour wholesale.
+
+*Scope of the fix.* Top-level function and class declarations are bound in a
+pass before the statements run, in the same way `HoistTests` already walks a
+file ahead of execution. ⚠️ Only functions and classes: a `var` keeps its
+initializer at the point it is written, so binding it early would substitute
+`nil` for a diagnostic.
 
 ---
 

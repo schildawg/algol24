@@ -1,0 +1,42 @@
+// spec: DCL-011, DCL-012, DCL-013
+//
+
+class Counter;
+private:
+var Count : Integer;
+public:
+var Name : String;
+
+begin
+    constructor Init (N);
+    begin
+        this.Count := 0;
+        this.Name  := N;
+    end
+
+    // DCL-012: the body starts public however the header ended.  The header
+    // above closed under 'public:', and this method is reachable regardless.
+    procedure Bump (); begin this.Count := this.Count + 1; end
+
+    function Value (); begin Exit this.Count; end
+
+    // DCL-013: privacy belongs to the CLASS, not to the object -- a method may
+    // reach the private members of another instance of its own class.
+    function Total (Other : Counter);
+    begin
+        Exit this.Count + Other.Count;
+    end
+end
+
+var A := Counter ('a');
+var B := Counter ('b');
+
+A.Bump ();
+A.Bump ();
+B.Bump ();
+
+// DCL-011: a public member is reachable from outside.
+WriteLn (A.Name);
+WriteLn (A.Value ());
+
+WriteLn (A.Total (B));

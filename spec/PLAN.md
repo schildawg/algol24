@@ -468,7 +468,24 @@ done badly.
 | 5 Constants and variables | 18 | A written type is enforced everywhere; `as` becomes checked; Pascal widening at six assignment contexts; element types flow to reads |
 | 6 Types | 13 | `is` must name a declared type; the three limits on a class type become planned work, not faults |
 | 7 Properties of types and values | 14 | Membership follows equality; Pascal's `Char`/`String` equality rejected; truthiness kept |
-| 8 onwards | 164 | — |
+| 8 Declarations and scope | 16 | Functions and classes hoist, variables do not; `private:` is normatively advisory |
+| 9 onwards | 148 | — |
+
+⚠️ **Chapter 8's main decision required splitting one rule in two because the
+two processors were each wrong about a different half.** The compiled back end
+hoists every top-level name; the interpreter hoists none. Hoisting a function or
+class is right — nothing executes, and it lets a file be read top-down — so
+[DCL-006] says so and the interpreter is the defect. Hoisting a *variable* is
+wrong — its initializer runs in order, and reading early yields `nil` where an
+error is honest — so [DCL-016] says so and the compiler is the defect. One
+mechanism, correct for one kind of declaration and not the other.
+
+⚠️ **The corpus itself is now shaped by a divergence.** C-11 reorders a bare
+top-level `begin` … `end`, so any case using one to demonstrate scoping cannot
+run under both processors. `conformance/0040` puts its blocks inside procedures
+to keep the cross-check rather than opting out — worth doing wherever a case can
+be rewritten to avoid a known divergence instead of surrendering half its
+value.
 
 ⚠️ **Three of chapter 7's probes were empty files** — a header comment and no
 program. `record.sh` recorded "no output, exit 0" as their behaviour and

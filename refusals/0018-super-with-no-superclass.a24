@@ -1,0 +1,19 @@
+// spec: DCL-010
+//
+// A different message from 0017: 'super' is legal syntax inside a class, and
+// what is wrong is that this class has no parent.
+//
+// ⚠️ The method is named 'Attempt', not 'Try'.  'try' is a keyword [LEX-010]
+// and keywords fold case [SRC-010], so 'Try' is the keyword and the parser
+// answers 'Expect procedure name.' -- a different refusal from the one this
+// case exists to pin.
+
+class Lonely;
+begin
+    procedure Attempt ();
+    begin
+        super.Something ();
+    end
+end
+
+Lonely ().Attempt ();

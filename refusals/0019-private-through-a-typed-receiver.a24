@@ -1,0 +1,14 @@
+// spec: DCL-011
+//
+// Where the receiver's type IS known, the static check applies.
+
+class Counter;
+private:
+var Count : Integer;
+public:
+begin
+    constructor Init (); begin this.Count := 0; end
+end
+
+var C : Counter := Counter ();
+WriteLn (C.Count);

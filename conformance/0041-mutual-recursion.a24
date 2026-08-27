@@ -1,0 +1,20 @@
+// spec: DCL-007
+//
+// A free name in a function body is resolved WHEN THE BODY RUNS, not where it
+// is written, so two functions may call each other.
+
+function IsEven (N);
+begin
+    if N = 0 then Exit True;
+    Exit IsOdd (N - 1);
+end
+
+function IsOdd (N);
+begin
+    if N = 0 then Exit False;
+    Exit IsEven (N - 1);
+end
+
+WriteLn (IsEven (4));
+WriteLn (IsEven (7));
+WriteLn (IsOdd (7));

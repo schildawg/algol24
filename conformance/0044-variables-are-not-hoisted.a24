@@ -1,0 +1,19 @@
+// spec: DCL-016
+//
+// compiled: no
+//
+// ⚠️ Opted out of the compiled half because of C-10, which is exactly what this
+// case pins: the compiled back end hoists variables and prints 'nil' here,
+// substituting a VALUE for a diagnostic.
+//
+// ⚠️ Also C-8 -- the run ends in an uncaught runtime error.
+
+var Ready := 'declared';
+WriteLn (Ready);
+
+// A variable is not visible before its declaration has run.  Its initializer
+// is an expression evaluated in order, and a name read before that has no
+// value to give -- so this is an error, not nil.
+WriteLn (Later);
+
+var Later := 7;

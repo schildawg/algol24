@@ -1,0 +1,11 @@
+// spec: DCL-005
+//
+// A local may not be read in its own initializer, even where an outer name of
+// the same spelling exists.
+
+var X := 1;
+
+begin
+    var X := X;
+    WriteLn (X);
+end
