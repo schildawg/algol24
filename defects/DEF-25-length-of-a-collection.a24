@@ -1,0 +1,22 @@
+// spec: RT-003
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// RT-003 refuses Length of a collection -- 'Length expects text; use .Length
+// for a collection.'  It stringifies instead and measures the rendering, so
+// this prints 12 where L.Length is 3.
+//
+// ⚠️ The failure mode is the bad one: a plausible NUMBER rather than an error.
+// A program asking Length(L) gets an answer, uses it, and is wrong.
+//
+// ⚠️ D-15 claimed the two coincide for small lists of one-digit numbers. They
+// never do -- a List of n one-digit numbers renders as 3n characters against a
+// count of n -- and the second pair below shows it.
+
+var L := [10, 20, 30];
+
+WriteLn (L.Length);
+WriteLn (Length (L));
+
+var Small := [1, 2];
+WriteLn (Str (Small.Length) + ' ' + Str (Length (Small)));

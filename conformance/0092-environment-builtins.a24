@@ -1,0 +1,11 @@
+// spec: RT-013, RT-014
+//
+
+// RT-013: ParamStr(0) is the program's own name, and ParamCount does not count
+// it -- so a program run with no arguments reports zero.
+WriteLn (ParamCount ());
+WriteLn (Length (ParamStr (0)) > 0);
+
+// RT-014: FileExists.
+WriteLn (FileExists ('conformance/0092-environment-builtins.a24'));
+WriteLn (FileExists ('no-such-file-anywhere.a24'));

@@ -1,0 +1,18 @@
+// spec: RT-004, RT-005, RT-007
+//
+
+// RT-004: Copy counts from zero, and the length is CLAMPED to what remains.
+WriteLn (Copy ('abcdef', 0, 3));
+WriteLn (Copy ('abcdef', 3, 3));
+WriteLn (Copy ('abcdef', 3, 99));
+WriteLn (Copy ('abcdef', 6, 1));
+
+// RT-005: Pos is zero-based, and -1 when absent.
+WriteLn (Pos ('abcdef', 'a'));
+WriteLn (Pos ('abcdef', 'cd'));
+WriteLn (Pos ('abcdef', 'z'));
+
+// RT-007: Ord answers a code point as an Integer.
+WriteLn (Ord ('A'));
+WriteLn (Ord ('A') is Integer);
+WriteLn (Ord (' '));

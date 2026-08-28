@@ -539,7 +539,20 @@ done badly.
 | 13 Enumerations | 11 | Shared member names accepted, ambiguity refused at the use; a member answers `Ordinal`; whether the first member is falsey is **open** |
 | 14 Collections | 15 | Member names fold case; membership follows equality; the member matrix is checked live |
 | 15 Modules | 14 | Modules may share exported names, ambiguity refused at the use; cycles between modules **work** |
-| 16 onwards | 43 | — |
+| 16 Built-in functions | 17 | `Length` refuses a collection; a String gains `.Length`; `Val` and `Max` made usable together |
+| 17 onwards | 30 | — |
+
+⚠️ **Chapter 16 corrected an Annex D entry that had invented a detail.** D-15
+said `Length(L)` and `L.Length` "even coincide at small sizes before
+diverging". They never coincide: a List of *n* one-digit numbers renders as `3n`
+characters against a count of *n*. The claim was plausible, was never run, and
+had been repeated into a defect case before the recording contradicted it.
+
+⚠️ That is the third inherited claim this pass to fail on contact with a run —
+after [CLS-014]'s superclass timing and [MOD-012]'s cycles. All three were
+written from reasoning about the code rather than from executing it, and all
+three were wrong in the same direction: more confident than the evidence
+supported.
 
 ⚠️ **Chapter 15 overturned a rule that had been wrong since it was written, and
 a probe was the reason.** [MOD-012] said "circular imports do not work" and gave

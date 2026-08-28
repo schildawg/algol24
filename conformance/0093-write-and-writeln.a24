@@ -1,0 +1,19 @@
+// spec: RT-015
+//
+// Write does not terminate the line; WriteLn follows the value with #10 --
+// always that byte, never the host's separator, so one program writes the same
+// bytes everywhere.
+
+Write ('a');
+Write ('b');
+WriteLn ('c');
+
+WriteLn (42);
+WriteLn (1.5);
+WriteLn (True);
+WriteLn (nil);
+WriteLn ([1, 2]);
+
+// An empty WriteLn is just the newline.
+WriteLn ('');
+WriteLn ('after the blank line');

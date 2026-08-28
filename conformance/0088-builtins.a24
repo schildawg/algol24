@@ -1,0 +1,29 @@
+// spec: RT-001
+//
+// The twenty-two always-available names are reachable, bare and qualified
+// against System [MOD-011].  The list itself is checked against the
+// interpreter by spec/spec.sh; this shows they answer.
+
+WriteLn (Length ('abc'));
+WriteLn (Copy ('abcdef', 0, 3));
+WriteLn (Pos ('abcdef', 'cd'));
+WriteLn (Str (42));
+WriteLn (Ord ('A'));
+WriteLn (Char (65));
+WriteLn (Val ('1.5'));
+WriteLn (Max (2, 7));
+WriteLn (Mod (7, 3));
+WriteLn (clock () is Double);
+
+WriteLn (List () is List);
+WriteLn (Set () is Set);
+WriteLn (Stack () is Stack);
+WriteLn (Array (1) is Array);
+WriteLn (Map () is Map);
+WriteLn (Buffer () is Buffer);
+WriteLn (TextFile () is TextFile);
+WriteLn (FileExists ('no-such-file-anywhere') = False);
+WriteLn (ParamCount ());
+WriteLn (Length (ParamStr (0)) > 0);
+Write ('written');
+WriteLn ('');

@@ -2620,29 +2620,58 @@ ParamCount    ParamStr
 Write   WriteLn
 ```
 
+⚠️ The list is checked against the names the interpreter registers by
+`spec/spec.sh`; Annex B is the index.
+
     interpreter  compiler/Interpreter.a24  Builtins
-    conformance  TBD
+    conformance  0088-builtins.a24
 
 **[RT-002]**  The remaining three — `AssertTrue`, `AssertEqual` and `Fail` — are
 registered **only while `--test` is running** [see 19]. Calling one outside a
 test run is `Undefined variable 'AssertTrue'.`
 
     interpreter  compiler/Interpreter.a24  RunTests
-    conformance  TBD
+    refusal      0030-assert-outside-a-test-run.a24
 
 ### 16.2 Text
 
-**[RT-003]**  ⚠️ `Length(V)` **stringifies its argument and measures the text**,
-in bytes. It is not a collection's count: for a List of three elements
-`Length(L)` is the length of `[10, 20, 30]` — twelve — while `L.Length` is
-three.
+**[RT-003]**  `Length(V)` measures **text**, in characters [SRC-004]. It takes
+a String or a Char. Given a collection it is refused — `Length expects text; use
+.Length for a collection.` — because a collection's count is a property
+[COL-003] and the two are different questions.
+
+⚠️ **NOT YET IMPLEMENTED, in two ways.** It stringifies whatever it is given and
+measures that, so `Length([10, 20, 30])` is **12** — the length of the rendering
+— where `L.Length` is 3. And it measures bytes rather than characters. See
+DEF-25 and DEF-01.
+
+⚠️ **The failure mode is the bad one:** the wrong call returns a *plausible
+number* rather than an error, and for a List of one-digit numbers the two even
+coincide at small sizes before diverging. A program asking `Length(L)` gets an
+answer, uses it, and is wrong.
+
+⚠️ A program that means the rendering writes `Length(Str(L))`, which is what it
+is getting today by accident.
 
     interpreter  compiler/Interpreter.a24  LengthNative
     compiler     bootstrap/algol.c         alg_length
-    conformance  TBD
+    defect       DEF-25-length-of-a-collection.a24
 
-> Two different things are spelled `Length`, and the wrong one returns a
-> plausible number rather than an error. See Annex D.
+**[RT-017]**  A `String` answers `Length` as a **property**, its count of
+characters: `'abc'.Length` is 3. This is the same count `Length('abc')` gives,
+and the same spelling every collection uses [COL-003].
+
+⚠️ **NOT YET IMPLEMENTED.** The interpreter refuses it with `Only instances have
+properties.` The **compiled** back end already answers 3, so this is one of the
+two rules in this specification where the C back end is right and the
+interpreter is the one to change (C-9, with [COL-006] the other). See DEF-26.
+
+⚠️ A String is already iterable [STM-007] and subscriptable [EXP-015]; not
+answering for its own length was the odd one out.
+
+    interpreter  compiler/ObjInstance.a24  Get
+    compiler     bootstrap/algol.c         alg_property
+    defect       DEF-26-a-string-has-no-length-property.a24
 
 **[RT-004]**  `Copy(Text, Begin, Length)` takes a substring, counting from zero.
 The length is clamped to what remains, so `Copy('abcdef', 3, 99)` is `def`. A
@@ -2650,14 +2679,14 @@ start outside the text is `Copy failed: Start -2 out of range 0..6.`
 
     interpreter  compiler/Interpreter.a24  CopyNative
     compiler     bootstrap/algol.c         alg_copy
-    conformance  TBD
+    conformance  0089-text-builtins.a24
 
 **[RT-005]**  `Pos(Text, Part)` answers the zero-based index of `Part` within
 `Text`, or **-1** when it is absent.
 
     interpreter  compiler/Interpreter.a24  PosNative
     compiler     bootstrap/algol.c         alg_pos
-    conformance  TBD
+    conformance  0089-text-builtins.a24
 
 **[RT-006]**  `Str(V)` renders any value: an Integer bare, a Double always with
 a point (`1.0`), a Boolean lowercase (`true`), `nil` as `nil`, a List as
@@ -2665,38 +2694,53 @@ a point (`1.0`), a Boolean lowercase (`true`), `nil` as `nil`, a List as
 
     interpreter  compiler/Interpreter.a24  Stringify
     compiler     bootstrap/algol.c         alg_str
-    conformance  TBD
+    conformance  0090-str.a24
 
 **[RT-007]**  `Ord(C)` answers the code point of a single character, as an
 **Integer**. Anything longer is `Ord failed: 'ab' has no ordinal.`
 
     interpreter  compiler/Interpreter.a24  OrdNative
     compiler     bootstrap/algol.c         alg_ord
-    conformance  TBD
+    conformance  0089-text-builtins.a24
 
-**[RT-008]**  `Char(N)` answers the character with code point `N`, limited to
-0 … 127 [LEX-025]. `Ord` and `Char` are inverse within that range.
+**[RT-008]**  `Char(N)` answers the character with code point `N`, over the
+range of [LEX-025] — 0 … 10FFFF, excluding the surrogates. `Ord` and `Char` are
+inverse across it.
+
+⚠️ **NOT YET IMPLEMENTED.** The range is 0 … 127. See DEF-06.
 
     interpreter  compiler/Interpreter.a24  CharNative
     compiler     bootstrap/algol.c         alg_char
-    conformance  TBD
+    defect       DEF-06-char-range-and-diagnostic.a24
 
 ### 16.3 Numeric
 
-**[RT-009]**  ⚠️ `Val(S)` parses a number from text and **always yields a
-Double**, even where the text is integral: `Val('42')` is `42.0` and
-`Val('42') is Integer` is false. Failure is `Val failed: 'abc' is not a number.`
+**[RT-009]**  `Val(S)` parses a number from text, answering an **Integer** where
+the text has no point and a **Double** where it has one — reading the same
+characters the literal rules do [LEX-015], [LEX-020]. Failure is `Val failed:
+'abc' is not a number.`
+
+⚠️ **NOT YET IMPLEMENTED.** It always yields a Double, so `Val('42')` is `42.0`
+and `Val('42') is Integer` is false. See DEF-27.
 
     interpreter  compiler/Interpreter.a24  ValNative
     compiler     bootstrap/algol.c         alg_val
-    conformance  TBD
+    defect       DEF-27-val-and-max-do-not-meet.a24
 
-**[RT-010]**  ⚠️ `Max(A, B)` takes **Integers only**. `Max(3.5, 2)` is `Max
-expects Integers.`
+**[RT-010]**  `Max(A, B)` takes any two numbers and promotes as every other
+numeric operator does [EXP-005], so `Max(3.5, 2)` is `3.5`.
+
+⚠️ **NOT YET IMPLEMENTED.** It takes Integers only: `Max(3.5, 2)` is `Max expects
+Integers.` See DEF-27.
+
+⚠️ **[RT-009] and [RT-010] are one defect, not two.** Individually each is
+defensible; together they leave `Max(Val(A), Val(B))` failing for **every**
+input, so text holding two numbers cannot be compared without going outside both
+built-ins.
 
     interpreter  compiler/Interpreter.a24  MaxNative
     compiler     bootstrap/algol.c         alg_max
-    conformance  TBD
+    defect       DEF-27-val-and-max-do-not-meet.a24
 
 **[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
 dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
@@ -2704,14 +2748,14 @@ zero.`
 
     interpreter  compiler/Interpreter.a24  ModNative
     compiler     bootstrap/algol.c         alg_mod
-    conformance  TBD
+    conformance  0091-numeric-builtins.a24
 
 **[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
 millisecond resolution.
 
     interpreter  compiler/Interpreter.a24  ClockNative
     compiler     bootstrap/algol.c         alg_clock
-    conformance  TBD
+    conformance  0091-numeric-builtins.a24
 
 ### 16.4 Environment
 
@@ -2720,13 +2764,21 @@ not count it, so a program run with no arguments reports zero.
 
     interpreter  compiler/Interpreter.a24  ParamCountNative
     compiler     bootstrap/algol.c         alg_param_count
-    conformance  TBD
+    conformance  0092-environment-builtins.a24
 
 **[RT-014]**  `FileExists(Name)` answers whether the named file exists.
 
     interpreter  compiler/Interpreter.a24  FileExistsNative
     compiler     bootstrap/algol.c         alg_file_exists
-    conformance  TBD
+    conformance  0092-environment-builtins.a24
+
+**[RT-015]**  `Write(V)` and `WriteLn(V)` write the stringified value to
+standard output, `WriteLn` following it with `#10` — always that byte, never the
+host's line separator, so one program writes the same bytes everywhere.
+
+    interpreter  compiler/Interpreter.a24  WriteLnNative
+    compiler     bootstrap/algol.c         alg_writeln
+    conformance  0093-write-and-writeln.a24
 
 **[RT-016]**  `ReadLn` on a `TextFile` splits on the same rule as the scanner
 [SRC-006], [SRC-007]: a line ends at `#10`, which is **not** returned; a `#13`
@@ -2739,14 +2791,6 @@ containing those bytes.
     interpreter  compiler/ObjFile.a24  Invoke
     compiler     bootstrap/algol.c     file_read_line
     conformance  0008-readln-line-rule.a24
-
-**[RT-015]**  `Write(V)` and `WriteLn(V)` write the stringified value to
-standard output, `WriteLn` following it with `#10` — always that byte, never the
-host's line separator, so one program writes the same bytes everywhere.
-
-    interpreter  compiler/Interpreter.a24  WriteLnNative
-    compiler     bootstrap/algol.c         alg_writeln
-    conformance  TBD
 
 ---
 
@@ -3943,17 +3987,30 @@ argument and measures the text, so `Length(L)` is the length of `[10, 20, 30]`.
 
 ⚠️ The failure mode is the bad one: the wrong call returns a **plausible
 number** rather than an error. A program asking `Length(L)` of a collection gets
-an answer, uses it, and is wrong — and for a List of one-digit numbers the two
-even coincide at small sizes before diverging.
+an answer, uses it, and is wrong.
+
+⚠️ **Corrected.** This entry claimed the two coincide for small lists of
+one-digit numbers before diverging. They never coincide: a List of *n* one-digit
+numbers renders as `[1, 2, 3]`, which is `3n` characters, against a count of
+*n* — so `0/2`, `1/3`, `2/6`, `3/9`. The claim was plausible and wrong, and the
+rule is no weaker without it.
 
 The function is right for its intended argument. `Length('abc')` is 3, which is
 what a Pascal programmer expects, and the collection property is right too. Only
 the shared name is wrong.
 
-*Recommended:* make `Length` of a collection refuse rather than stringify —
+**Resolved.** [RT-003] refuses `Length` of a collection —
 `Length expects text; use .Length for a collection.` A program that means the
-count says so, and one that means the rendering can write `Length(Str(L))`,
-which is what it is getting today by accident.
+count says so, and one that means the rendering writes `Length(Str(L))`, which
+is what it is getting today by accident. Tracked by DEF-25.
+
+⚠️ Verified safe against the largest body of Algol-24 that exists: every
+`Length(…)` call in `compiler/*.a24` is on text.
+
+⚠️ [RT-017] closes the other half of the confusion by giving a String the same
+`.Length` property every collection has, so `.Length` becomes the uniform
+spelling for "how many" and `Length(…)` is left meaning only "how long is this
+text".
 
 **D-16 — `Val` always yields a Double, and `Max` never accepts one.** *(refers
 to [RT-009], [RT-010])*
@@ -3968,11 +4025,14 @@ Given [VAR-004], which refuses `var X : Integer := 1.5;` and even
 `var X : Double := 1;`, a program has no smooth path from parsed text to an
 Integer at all.
 
-*Recommended:* let `Val` answer an Integer where the text has no point and a
-Double where it has one, matching how the literal rules already read the same
-characters [LEX-015], [LEX-020]; and let `Max` take numbers, promoting as every
-other numeric operator does [EXP-005]. Either change alone helps; both together
-close the gap.
+**Resolved, both halves.** [RT-009] makes `Val` answer an Integer where the
+text has no point and a Double where it has one, reading the same characters the
+literal rules do [LEX-015], [LEX-020]. [RT-010] lets `Max` take any two numbers,
+promoting as every other numeric operator does [EXP-005].
+
+⚠️ They are **one** defect, DEF-27, rather than two. Either change alone helps,
+but only both together make `Max(Val(A), Val(B))` — which fails for every input
+today — work at all.
 
 **D-17 — A type error says only "Type mismatch!"** *(refers to [ERR-006])*
 
@@ -4633,6 +4693,56 @@ its environment **before its own body runs**.
 
 ⚠️ Fixing this also removes C-1, the only known case of a valid program having no
 compiled form.
+
+**DEF-25 — `Length` of a collection returns the length of its rendering.**
+*(violates [RT-003])*
+
+`Length([10, 20, 30])` is 12 rather than being refused: the built-in stringifies
+whatever it is given and measures that. `LengthNative` is literally
+`Exit Length(Str(Arguments[0]))`.
+
+*Reproduce:* `defects/DEF-25-length-of-a-collection.a24`
+
+⚠️ **A plausible number rather than an error**, which is the worse failure. The
+two are never equal — a List of *n* one-digit numbers renders as `3n` characters
+against a count of *n* — so every such call is wrong by a factor of three and
+none of them says so.
+
+*Scope of the fix.* `LengthNative` refuses a collection instead of stringifying
+it. ⚠️ Verified safe: every `Length(…)` call in `compiler/*.a24` is on text.
+
+**DEF-26 — A String has no `Length` property.**
+*(violates [RT-017])*
+
+`'abc'.Length` is `Only instances have properties.` A String is iterable and
+subscriptable but does not answer for its own length, while every collection
+does.
+
+*Reproduce:* `defects/DEF-26-a-string-has-no-length-property.a24`
+
+⚠️ **The compiled back end already answers 3** (C-9). With [COL-006] this is one
+of only two rules where the C back end is right and the interpreter is the one
+to change — everything else in Annex C runs the other way.
+
+*Scope of the fix.* The property path answers `Length` for a String from its
+character count, as `alg_property` already does in the C runtime.
+
+**DEF-27 — `Val` and `Max` cannot be used together.**
+*(violates [RT-009], [RT-010])*
+
+`Val('42')` is `42.0` rather than `42`, and `Max` refuses anything but Integers,
+so `Max(Val(A), Val(B))` is `Max expects Integers.` for **every** input.
+
+*Reproduce:* `defects/DEF-27-val-and-max-do-not-meet.a24`
+
+⚠️ **One defect, not two.** Each built-in is defensible alone; the fault is that
+the output of one cannot be the input of the other, and no program can work
+around it without leaving both.
+
+*Scope of the fix.* `ValNative` reads the text the way [LEX-015] and [LEX-020]
+do and answers the matching type; `MaxNative` accepts two numbers and promotes.
+⚠️ It should land with DEF-10 — once widening works, `Max` promoting is the same
+rule the operators use rather than a special case in one built-in.
 
 ---
 
