@@ -1,0 +1,17 @@
+// spec: TST-001
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// ⚠️ Run as an ORDINARY program, not a test run: the file does not parse, so
+// there is nothing for --test to collect and the diagnostic is the whole of
+// the output either way.
+//
+// TST-001 accepts either quoted form, so 'test ''X'';' names a test called X.
+// Only a String is accepted, and 'X' is a Char [LEX-023] -- so this is not
+// recognised as a test declaration at all.  It parses as the identifier 'test'
+// followed by a Char, and the diagnostic mentions neither tests nor names.
+
+test 'X';
+begin
+    AssertTrue (True);
+end

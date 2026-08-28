@@ -1,0 +1,7 @@
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Running 2 tests...
+[WHITE][[BLUE]INFO[WHITE]] [RESET]< [CYAN]conformance/0103-a-test-run.a24[RESET] >
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: A declaration is still available ....................... [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: Output from a test body is swallowed ................... [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]
+[WHITE][[BLUE]INFO[WHITE]] [RESET][GREEN]All 2 tests passed.[RESET]
+exit: 0

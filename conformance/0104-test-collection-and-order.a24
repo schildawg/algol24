@@ -1,0 +1,26 @@
+// spec: TST-004, TST-005
+// run: --test
+//
+// Tests are reported SORTED BY NAME within a file, not in source order -- the
+// three below are declared Zebra, Alpha, Middle and reported Alpha, Middle,
+// Zebra.
+//
+// Files come in the order their first test was met, which for uses is load
+// order, and each file contributes once however many ways it is reached.
+
+uses 'modules/Tested';
+
+test 'Zebra is reported last';
+begin
+    AssertTrue (True);
+end
+
+test 'Alpha is reported first';
+begin
+    AssertTrue (True);
+end
+
+test 'Middle is reported between them';
+begin
+    AssertTrue (True);
+end

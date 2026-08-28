@@ -1,0 +1,29 @@
+// spec: TST-009
+// run: --test
+//
+// The dot leader is 55 - Length(name) dots, clamped to a minimum of one, so a
+// name longer than the banner still produces a well-formed line.
+//
+// ⚠️ The shortest name here is two characters, not one.  A one-character name
+// is a Char rather than a String [LEX-023] and is not accepted as a test name
+// at all -- DEF-31.
+
+test 'Xy';
+begin
+    AssertTrue (True);
+end
+
+test 'A name of exactly forty characters here!';
+begin
+    AssertTrue (True);
+end
+
+test 'A name of exactly fifty-four characters, padded out ok';
+begin
+    AssertTrue (True);
+end
+
+test 'A name far longer than the banner allows, which must still produce a well-formed line';
+begin
+    AssertTrue (True);
+end

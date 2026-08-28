@@ -102,8 +102,15 @@ run_case() {
     _src=$1
     _want_compiled=$2
 
+    # ⚠️ A case may ask to be run differently. '// run: --test' makes this a
+    # test run, which chapter 19 needs: the report is the thing being pinned,
+    # and an ordinary run would execute the program and skip the tests
+    # entirely. Same directive spec/probes/record.sh uses.
+    _args=$(sed -n 's|^// run: ||p' "$_src" | head -1)
+
     _status=0
-    "$ALGC" "$_src" > "$WORK/raw" 2>&1 || _status=$?
+    # shellcheck disable=SC2086
+    "$ALGC" $_args "$_src" > "$WORK/raw" 2>&1 || _status=$?
     { render < "$WORK/raw"; echo "exit: $_status"; } > "$WORK/interpreted"
 
     COMPILED_RAN=0
@@ -111,7 +118,11 @@ run_case() {
 
     rm -rf "$WORK/out"; mkdir -p "$WORK/out"
     _emit=0
-    "$ALGC" --compile --out="$WORK/out" "$_src" > "$WORK/emit" 2>&1 || _emit=$?
+    # ⚠️ '--compile --test' emits the tests plus a runner, so a case asking for
+    # a test run is compiled as one. Compiling it as an ordinary program would
+    # compare a test report against a program that ran nothing.
+    # shellcheck disable=SC2086
+    "$ALGC" --compile $_args --out="$WORK/out" "$_src" > "$WORK/emit" 2>&1 || _emit=$?
     if [ "$_emit" -ne 0 ]; then
         # ⚠️ Rendered exactly as the interpreted run is, with no marker of its
         # own.  The front end is shared [1.1], so a program refused when it is

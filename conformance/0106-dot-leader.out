@@ -1,0 +1,9 @@
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Running 4 tests...
+[WHITE][[BLUE]INFO[WHITE]] [RESET]< [CYAN]conformance/0106-dot-leader.a24[RESET] >
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: A name far longer than the banner allows, which must still produce a well-formed line . [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: A name of exactly fifty-four characters, padded out ok . [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: A name of exactly forty characters here! ............... [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: Xy ..................................................... [ [GREEN]PASS[RESET] ]
+[WHITE][[BLUE]INFO[WHITE]] [RESET]
+[WHITE][[BLUE]INFO[WHITE]] [RESET][GREEN]All 4 tests passed.[RESET]
+exit: 0

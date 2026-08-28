@@ -1,0 +1,22 @@
+// spec: TST-003, TST-006, TST-011
+// run: --test
+//
+// A test run executes the test blocks INSTEAD of the program: the top-level
+// statements do not run, only the declarations they would have created.
+
+WriteLn ('a top-level statement, which must not run');
+
+function Helper (); begin Exit 7; end
+
+test 'A declaration is still available';
+begin
+    AssertEqual (7, Helper ());
+end
+
+test 'Output from a test body is swallowed';
+begin
+    WriteLn ('this must not appear in the report');
+    AssertTrue (True);
+end
+
+// TST-011: every test passed, so the summary says so and the run exits 0.

@@ -3010,24 +3010,34 @@ surface on which two implementations are compared.
 
 ### 19.1 Declaration
 
-**[TST-001]**  A test is written `test` followed by a string literal naming it,
-then a block.
+**[TST-001]**  A test is written `test` followed by a **quoted literal** naming
+it, then a block.
 
 ```
-TestDecl = "test" string_lit ";" Block .
+TestDecl = "test" ( string_lit | char_lit ) ";" Block .
 ```
 
 `test` is not a keyword [LEX-011]; it is recognised here by the quoted name that
 follows it, so a variable may still be called `test`.
 
+⚠️ **Either quoted form**, because the name is *text* and a one-character name is
+an ordinary thing to write. `'X'` is a Char rather than a String [LEX-023], and
+that distinction belongs to values rather than to a declaration naming itself.
+
+⚠️ **NOT YET IMPLEMENTED.** Only a String is accepted, so `test 'X';` is not
+recognised as a test declaration at all — it parses as the identifier `test`
+followed by a Char, and fails with `Expect ';' after expression.`, a diagnostic
+that names neither tests nor the length of the name. See DEF-31.
+
     interpreter  compiler/Parser.a24  Declaration
-    conformance  TBD
+    conformance  0102-test-declaration.a24
+    defect       DEF-31-a-one-character-test-name.a24
 
 **[TST-002]**  A test block is a declaration and does not run when the program
 runs.
 
     interpreter  compiler/Interpreter.a24  HoistTests
-    conformance  TBD
+    conformance  0102-test-declaration.a24
 
 ### 19.2 Running
 
@@ -3036,34 +3046,34 @@ The top-level statements do not run — only the declarations they would have
 created.
 
     interpreter  compiler/Interpreter.a24  RunTests
-    conformance  TBD
+    conformance  0103-a-test-run.a24
 
 **[TST-004]**  Tests are collected from the root file and from every module it
 reaches, each file contributing once however many ways it is reached.
 
     interpreter  compiler/Interpreter.a24  HoistTests
-    conformance  TBD
+    conformance  0104-test-collection-and-order.a24
 
 **[TST-005]**  Tests are reported **sorted by name within a file**, and files in
 the order their first test was met — which for `uses` is load order. Source
 order within a file is not preserved.
 
     interpreter  compiler/Interpreter.a24  RunTests
-    conformance  TBD
+    conformance  0104-test-collection-and-order.a24
 
 **[TST-006]**  A program's own `Write` and `WriteLn` output is **swallowed**
 during a test run, so it cannot interleave with the report.
 
     interpreter  compiler/Interpreter.a24  SuppressOutput
     compiler     bootstrap/algol.c         alg_test_begin
-    conformance  TBD
+    conformance  0103-a-test-run.a24
 
 **[TST-007]**  A value raised inside a test body and not caught makes that test
 **fail**; it does not end the run, and later tests still execute.
 
     interpreter  compiler/Interpreter.a24  RunTests
     compiler     bootstrap/algol.c         alg_test_run
-    conformance  TBD
+    conformance  0105-report-format.a24
 
 ### 19.3 The report
 
@@ -3083,14 +3093,14 @@ separates files and precedes the summary.
 
     interpreter  compiler/Interpreter.a24  Report
     compiler     bootstrap/algol.c         alg_test_run
-    conformance  TBD
+    conformance  0105-report-format.a24
 
 **[TST-009]**  The dot leader is `55 - Length(name)` dots, clamped to a minimum
 of one, so a name longer than the banner still produces a well-formed line.
 
     interpreter  compiler/Interpreter.a24  Report
     compiler     bootstrap/algol.c         alg_test_run
-    conformance  TBD
+    conformance  0106-dot-leader.a24
 
 **[TST-010]**  The report is coloured, and the colours are part of it: the
 `[INFO]` tag white and blue, `[ERROR]` white and red, the file name cyan, `PASS`
@@ -3102,14 +3112,14 @@ or transliterates them.
 
     interpreter  compiler/Console.a24  INFO
     compiler     bootstrap/algol.c     INFO_TAG
-    conformance  TBD
+    conformance  0105-report-format.a24
 
 **[TST-011]**  The summary is `All N tests passed.` or `N of M tests failed.`,
 and the run exits **0** when every test passed and **70** when any failed.
 
     interpreter  compiler/Interpreter.a24  RunTests
     compiler     bootstrap/algol.c         alg_test_summary
-    conformance  TBD
+    conformance  0103-a-test-run.a24
 
 ### 19.4 Assertions
 
@@ -3117,32 +3127,56 @@ and the run exits **0** when every test passed and **70** when any failed.
 
 | Call | Message on failure |
 | --- | --- |
-| `AssertTrue(V)` | `Assertion 'left = right' failed.` |
-| `AssertEqual(E, A)` | `Assertion 'left = right' failed.  Expected 'E' but got 'A'.` |
+| `AssertTrue(V)` | `Assertion failed.  Expected true but got 'V'.` |
+| `AssertEqual(E, A)` | `Assertion failed.  Expected 'E' but got 'A'.` |
+| `AssertEqual(E, A)`, where the two render alike | `Assertion failed.  Expected T 'E' but got U 'A'.` |
 | `Fail(M)` | `Failed.  M` |
 
-⚠️ Two spaces follow the full stop in the second and third, and `AssertTrue`
-reports a comparison it did not make.
+Two spaces follow the full stop in each.
+
+⚠️ **The third form is not an alternative wording but a different case**, and it
+is the reason the second is not enough: a `Char` and a `String` both render as
+`3` and are never equal [LEX-026], so a message quoting only the rendered values
+would read `Expected '3' but got '3'.` Naming the types is what makes that
+legible. Both processors already do this, and it was missing from this table.
+
+⚠️ **NOT YET IMPLEMENTED.** Every form begins `Assertion 'left = right' failed.`
+— including `AssertTrue`, which made no comparison and has no left or right. The
+stem reads like a template nobody filled in, and for `AssertTrue` it describes
+an equality test that did not happen while saying nothing about the value that
+was false. See DEF-30.
 
     interpreter  compiler/Interpreter.a24  AssertTrueNative
     compiler     bootstrap/algol.c         alg_assert_equal
-    conformance  TBD
+    defect       DEF-30-assertion-messages.a24
 
 **[TST-013]**  `AssertEqual` compares with `=` [VAL-009], so it promotes
 numerically and holds a `Char` unequal to a `String` [LEX-026].
 
     interpreter  compiler/Interpreter.a24  AssertEqualNative
-    conformance  TBD
+    conformance  0107-assert-equal-comparison.a24
 
 ### 19.5 Compiled runs
 
-**[TST-014]**  ⚠️ **compile-only divergence.** A compiled report omits the
-`[ERROR]` line after a failure, because compiled code has no line information
-to build one from. Every other line is byte-identical, colour included. See
-Annex C, C-3.
+**[TST-014]**  The report is **the same from any implementation**, line for
+line and colour for colour. It is the surface on which two implementations are
+compared, so a difference in it is a difference in conformance and not a matter
+of presentation.
 
-    compiler     bootstrap/algol.c  alg_test_run
-    conformance  TBD
+⚠️ The interpreter meets this; the **compiled back end does not**. Its report
+omits the `[ERROR]` line after a failure, because compiled code carries no line
+information to build one from (C-3). Every other line is byte-identical, colour
+included. `conformance/0105` pins the interpreted report, and its compiled half
+is expected to differ by exactly those lines — a compiler gap, not an
+interpreter defect.
+
+⚠️ This rule previously stated only that the compiled report differs, which said
+nothing about what an implementation must **do**. The requirement is agreement;
+C-3 is the current distance from it.
+
+    interpreter  compiler/Interpreter.a24  Report
+    compiler     bootstrap/algol.c         alg_test_run
+    conformance  0105-report-format.a24
 
 ---
 
@@ -4124,10 +4158,17 @@ when a truth test did, and given nothing about what was actually false.
 
 `Fail(M)` produces `Failed.  M`, with two spaces, which is a third shape again.
 
-*Recommended:* give `AssertTrue` its own stem — `Assertion failed: expected
-true.` — and keep the operand clause for the assertion that has operands. The
-three messages are read far more often than any other output this language
-produces, since a failing test is the one moment a programmer is looking.
+**Resolved, and further than recommended.** The phantom stem goes from *every*
+form, not only from `AssertTrue`: `'left = right'` names operands that no
+message ever fills in, and reads like a template left unfinished. [TST-012] now
+specifies `Assertion failed.` followed by two spaces and a clause that carries
+the actual values — `Expected true but got 'V'.` for `AssertTrue`, and
+`Expected 'E' but got 'A'.` for `AssertEqual`. Tracked by DEF-30.
+
+⚠️ The type-naming form was **missing from the table entirely** and is kept: a
+`Char` and a `String` both render as `3`, so a message quoting only the rendered
+values would read `Expected '3' but got '3'.` Both processors already produce
+it. Documenting it was as valuable as fixing the stem.
 
 ⚠️ Any change here alters the report, which [TST-008] specifies and which both
 processors must reproduce byte for byte — so it is a change to the observable
@@ -4850,6 +4891,62 @@ than they do now, each reported by five words that say nothing.
 Each has the offending expression in hand, so each can report through
 `Console.Error` with the token and both type names — `Expected Integer, found
 String.` The information is discarded rather than absent.
+
+**DEF-30 — Every assertion message begins with a comparison that was not made.**
+*(violates [TST-012])*
+
+All three assertions produce a message beginning `Assertion 'left = right'
+failed.` — a stem naming operands that no message ever fills in, reading like a
+template nobody finished.
+
+For `AssertTrue` it is worse than untidy: it describes an equality test that did
+not happen and says nothing at all about the value that was false.
+
+```
+AssertTrue (False)   →  Assertion 'left = right' failed.
+```
+
+*Reproduce:* `defects/DEF-30-assertion-messages.a24`
+
+⚠️ **These three messages are read more often than any other output this
+language produces**, because a failing test is the one moment a programmer is
+looking at output rather than writing code.
+
+⚠️ The type-naming form is **correct and must be kept**: a `Char` and a `String`
+both render as `a`, so a message quoting only the rendered values would read
+`Expected 'a' but got 'a'.` Both processors already produce it, and [TST-012]
+had omitted it from its table entirely.
+
+*Scope of the fix.* Three sites in `compiler/Interpreter.a24` and two in
+`bootstrap/algol.c`. ⚠️ It changes the **report**, which [TST-008] specifies and
+which both processors must reproduce byte for byte — so the interpreter and the
+C runtime must change together, and `conformance/0105` records the current text.
+No test in `compiler/*.a24` asserts on these strings, so the suite itself is
+unaffected.
+
+**DEF-31 — A test cannot have a one-character name.**
+*(violates [TST-001])*
+
+```
+test 'X';
+begin
+    AssertTrue (True);
+end
+```
+
+is not recognised as a test declaration. `'X'` is a Char rather than a String
+[LEX-023], and only a String is accepted, so this parses as the identifier
+`test` followed by a Char and fails with `Expect ';' after expression.` — a
+diagnostic naming neither tests nor names.
+
+*Reproduce:* `defects/DEF-31-a-one-character-test-name.a24`
+
+⚠️ The name of a test is **text**, and the Char/String distinction belongs to
+values rather than to a declaration naming itself.
+
+*Scope of the fix.* The lookahead in `compiler/Parser.a24`'s `Declaration`
+accepts either quoted form. ⚠️ It must accept both rather than switching, or
+every existing test name breaks.
 
 ---
 

@@ -1,0 +1,5 @@
+Uncaught: Expect ';' after expression.
+[WHITE][[RED]ERROR[WHITE]] [RESET]defects/DEF-31-a-one-character-test-name.a24: Expect ';' after expression.
+[WHITE][[RED]ERROR[WHITE]] [RESET]14 | test 'X';
+[WHITE][[RED]ERROR[RESET]]    |[RED] ^^^^[RESET]
+exit: 70

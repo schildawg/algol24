@@ -1,0 +1,31 @@
+// spec: TST-007, TST-008, TST-010, TST-014
+// run: --test
+//
+// ⚠️ Expected to FAIL compiled, because of C-3: the compiled report omits the
+// [ERROR] line after a failure, having no line information to build one from.
+// Every other line is byte-identical, colour included -- which is what TST-014
+// requires and what this case measures the distance from.
+//
+// ⚠️ The colours are part of the report [TST-010].  The harness transliterates
+// the escapes rather than stripping them, so a change of colour is a change of
+// expected output.
+
+test 'A raise is a failure, not an abort';
+begin
+    raise 'thrown';
+end
+
+test 'B still runs after the failure above';
+begin
+    AssertTrue (True);
+end
+
+test 'C fails on an assertion';
+begin
+    AssertEqual (5, 4);
+end
+
+test 'D still runs after that one too';
+begin
+    AssertTrue (True);
+end

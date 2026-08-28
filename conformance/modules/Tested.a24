@@ -1,0 +1,6 @@
+unit Tested;
+
+test 'A test in an imported module';
+begin
+    AssertTrue (True);
+end

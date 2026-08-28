@@ -542,7 +542,26 @@ done badly.
 | 16 Built-in functions | 17 | `Length` refuses a collection; a String gains `.Length`; `Val` and `Max` made usable together |
 | 17 Program initialization | 7 | A run that never began must fail; module and statement order pinned |
 | 18 Errors | 9 | A type error must say what and where; [ERR-004] stops mandating a mechanism |
-| 19 | 14 | — |
+| 19 Test blocks | 14 | Assertion messages say what happened; a test may have a one-character name |
+
+**The conformance pass is complete. 0 of 260 rules await a case.**
+
+⚠️ **Chapter 19 found a rule that had been describing the compiler.** [TST-014]
+said only that a compiled report omits the `[ERROR]` line — a statement about an
+implementation that told a reader nothing about what to build. It now requires
+what matters: **the report is the same from any implementation, line for line
+and colour for colour**, because it is the surface on which two implementations
+are compared. C-3 is the current distance from that, not the rule itself.
+
+⚠️ That is the second such rule in two chapters, after [ERR-004] mandated a
+flag. Both were written while the implementation was the only thing to look at,
+and both read as descriptions rather than requirements.
+
+⚠️ **[LEX-023] has now bitten the corpus three times** — `'c'` as a String in
+chapter 5, `Try` as a keyword in chapter 8, and `'X'` as a test name here. The
+third was not my mistake but a real defect: a test cannot have a one-character
+name, because its name is parsed as a String and a one-character literal is a
+Char. A decided lexical rule reaches further than the chapter that decided it.
 
 ⚠️ **Chapter 18 found the specification mandating an implementation.**
 [ERR-004] said a scan error is "recorded rather than raised: the scanner sets a
