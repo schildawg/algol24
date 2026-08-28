@@ -1,12 +1,12 @@
 # The Algol-24 Programming Language Specification
 
-> **Status: the conformance pass is complete.** Nineteen chapters and eight
-> annexes, 260 rules. Every rule is **decided** — what the language should do —
-> and every rule is claimed by a case: a program in `conformance/`, a refusal in
+> **Status: Gen 0 — read, corrected and signed off.** Nineteen chapters and
+> eight annexes, 261 rules. Every rule is **decided** — what the language should
+> do — and every rule is claimed by a case: a program in `conformance/`, a refusal in
 > `refusals/`, or a reproduction in `defects/`. None awaits one.
 >
 > ⚠️ **This document is now the authority, and the implementation is measured
-> against it** [1.1]. Where the two disagree, **31 defects** in Annex F say so
+> against it** [1.1]. Where the two disagree, **33 defects** in Annex F say so
 > and carry a reproduction that passes while the fault persists. A rule ahead of
 > the implementation says which of three things it is — `NOT YET IMPLEMENTED`,
 > `PARTLY IMPLEMENTED`, or `PLANNED — a later generation` — and `spec/spec.sh`
@@ -15,6 +15,11 @@
 > Fifteen divergences between the interpreter and the C back end are recorded in
 > Annex C, six of them silent. Annex D's eighteen advisory notes are all
 > resolved. Annex H holds nine changes planned for later generations.
+>
+> ⚠️ **From this tag onward the document leads and the implementation follows.**
+> A defect is closed by changing the code; a rule is changed only by deciding to
+> change the language, and the reason is recorded here when it is. See
+> `spec/PLAN.md` for the generations.
 
 ---
 
