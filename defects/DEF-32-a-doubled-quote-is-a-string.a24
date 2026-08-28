@@ -1,0 +1,19 @@
+// spec: LEX-023, LEX-029
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// LEX-029 makes '''' the Char holding a quote: one character of VALUE, however
+// many of source.  It is a String of length one instead, because LEX-023 was
+// measuring the source span.
+//
+// ⚠️ Three consequences, and the second is the one that settles it: the same
+// character carries two types depending on how it is spelled, is not equal to
+// itself across those spellings, and has an ordinal under one spelling only.
+//
+// The expected output is true, true, true, 39 -- and Ord succeeding is part of
+// it, which is why that line is last.
+
+WriteLn ('''' is Char);
+WriteLn (#39 is Char);
+WriteLn ('''' = #39);
+WriteLn (Ord (''''));

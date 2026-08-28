@@ -604,16 +604,27 @@ change this rule. See Annex H.
 
 ### 4.8 Character literals
 
-**[LEX-023]**  A quoted literal enclosing exactly one character **of source** is
-a Char rather than a String. `'a'` and `'é'` are both Chars.
+**[LEX-023]**  A quoted literal denoting exactly one character is a Char rather
+than a String. `'a'`, `'é'` and `''''` are all Chars; `''` is the empty String
+and `'ab'` a String of two.
 
-⚠️ **The measurement is taken on the source span between the quotes, not on the
-value**, and the distinction is load-bearing. `''''` is a doubled quote — two
-characters of source, one character of value — and it is a String [LEX-029].
-Measuring the value would silently reclassify it.
+⚠️ **The measurement is on the VALUE, not on the source span.** A doubled quote
+`''''` is two characters of source and one character of value, and it is the
+value that decides — because the doubling is *notation for a character*, and
+notation must not change a type.
 
-⚠️ **NOT YET IMPLEMENTED.** The implementation measures the span in *bytes*, so
-`'é'` is a String of length 2. See DEF-01.
+⚠️ **This was the other way round, and was wrong.** Measuring the span made the
+same character carry two types depending on how it was spelled:
+
+```
+''''  is Char  →  false            #39  is Char  →  true
+''''  =  #39   →  false            a character not equal to itself
+Ord ('''')     →  Ord failed: ''' has no ordinal.
+```
+
+⚠️ **NOT YET IMPLEMENTED, twice over.** The implementation measures the span,
+and measures it in *bytes* — so `''''` is a String and `'é'` is a String of
+length 2. See DEF-32 and DEF-01.
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan One Character Is A Char
@@ -625,8 +636,13 @@ the character with that code point: `#65` is `A`, `#10` is a line feed and
 Error: Invalid character: C`.
 
 ```
-char_lit = "'" source_character "'" | "#" decimal_digit { decimal_digit } .
+char_lit = "'" ( source_character_other_than_quote | "''" ) "'"
+         | "#" decimal_digit { decimal_digit } .
 ```
+
+⚠️ `char_lit` and `string_lit` are not distinguished by the grammar — both open
+with a quote — and are not meant to be. [LEX-023] decides between them by
+counting the characters the literal denotes.
 
     interpreter  compiler/Scanner.a24  ScanChar
     unit         Scan Char By Code Point
@@ -681,14 +697,27 @@ concatenated.
     interpreter  compiler/Scanner.a24  ScanString
     conformance  0016-string-literals.a24
 
-**[LEX-029]**  `''` is the empty String. `''''` is a String of length one
-holding a quote — **not** a Char, because [LEX-023] measures the source span,
-which is two characters.
+**[LEX-029]**  `''` is the empty String — zero characters, and there is no
+empty Char. `''''` is the **Char** holding a quote: one character of value,
+however many of source [LEX-023].
+
+⚠️ `''''` and `#39` are therefore the same value, and equal. They are two
+spellings of one character.
+
+⚠️ **NOT YET IMPLEMENTED.** `''''` is a String of length one. See DEF-32.
+
+⚠️ **There is then no literal for a one-character String**, and that is not a
+loss. `var S : String := 'c';` is already a type mismatch for every character
+but the quote [LEX-023], so `''''` being writable was an accident of the
+measurement rather than a way of writing anything. Once a Char widens to a
+String at an assignment context [VAR-004], `var S : String := 'a';` is how one
+is written, and it works for every character alike.
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan Empty String
     unit         Scan An Escaped Quote Is A String
     conformance  0016-string-literals.a24
+    defect       DEF-32-a-doubled-quote-is-a-string.a24
 
 **[LEX-030]**  A string literal may span lines. The line feed is part of its
 value and advances the line count, so `'one` ⏎ `two'` is seven characters.
@@ -5038,6 +5067,37 @@ values rather than to a declaration naming itself.
 *Scope of the fix.* The lookahead in `compiler/Parser.a24`'s `Declaration`
 accepts either quoted form. ⚠️ It must accept both rather than switching, or
 every existing test name breaks.
+
+**DEF-32 — A doubled quote is a String.**
+*(violates [LEX-023], [LEX-029])*
+
+`''''` is a String of length one where [LEX-029] makes it the Char holding a
+quote. The scanner classifies by the **source span** between the quotes rather
+than by the value the literal denotes, and the doubled quote is the one case
+where the two differ.
+
+*Reproduce:* `defects/DEF-32-a-doubled-quote-is-a-string.a24`
+
+⚠️ **Three consequences, and the second settles it.** The same character carries
+two types depending on how it is spelled; it is not equal to itself across those
+spellings; and it has an ordinal under one spelling only.
+
+```
+''''  is Char  →  false            #39  is Char  →  true
+''''  =  #39   →  false
+Ord ('''')     →  Ord failed: ''' has no ordinal.
+```
+
+*Scope of the fix.* `ScanString` counts the characters the literal **denotes**
+rather than the span it occupies, so a doubled quote counts as one. ⚠️ It should
+land with DEF-01, which changes that count from bytes to characters — the same
+line of code decides both, and fixing one without the other means touching it
+twice.
+
+⚠️ **It removes the only literal for a one-character String**, which is correct
+and not a loss: `var S : String := 'c';` is already a type mismatch for every
+other character, so `''''` being writable was an accident of the measurement.
+DEF-10's widening is what makes one-character Strings writable properly.
 
 ---
 

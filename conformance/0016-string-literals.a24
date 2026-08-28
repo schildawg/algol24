@@ -4,11 +4,14 @@
 // LEX-027: single quotes, and a quote within is written twice.
 WriteLn ('it''s');
 
-// LEX-029: '' is empty; '''' is a String of length one holding a quote -- NOT
-// a Char, because LEX-023 measures the source span, which is two characters.
+// LEX-029: '' is the empty String -- zero characters, and there is no empty
+// Char.
 WriteLn (Length (''));
-WriteLn (Length (''''));
-WriteLn ('''' is String);
+WriteLn ('' is String);
+
+// ⚠️ '''' is NOT exercised here.  LEX-029 makes it the Char holding a quote and
+// the implementation makes it a String of length one, so it is DEF-32's and
+// cannot be a commitment this case pins.
 
 // LEX-028: no backslash escapes.  This is four characters and the one at
 // index 1 is the backslash itself.

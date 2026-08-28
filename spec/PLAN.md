@@ -5,7 +5,7 @@ case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
 in `defects/`. The conformance pass decided what the language *should* do. This
 plan is the work of making the interpreter do it.
 
-**31 defects stand between the two.** Each one is a rule the specification
+**32 defects stand between the two.** Each one is a rule the specification
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
@@ -137,7 +137,10 @@ one to change.
 **Wave 5 — the large ones.** DEF-01 (text is characters, not bytes) is the
 biggest change the specification asks for and touches the scanner, both
 runtimes, `Length`/`Copy`/`Pos`/subscript, `Ord`/`Char` and the emitter's
-mangling. DEF-08 and DEF-06's range ride with it. DEF-14 (membership follows
+mangling. DEF-08, DEF-06's range and **DEF-32** ride with it — ⚠️ DEF-32
+especially, because the same line that counts a literal's length decides both
+whether it counts bytes or characters and whether a doubled quote counts as one;
+fixing them separately means touching it twice. DEF-14 (membership follows
 equality) is independent but needs the hash.
 
 **Wave 6 — the report.** DEF-30 changes text both processors must reproduce
@@ -215,10 +218,10 @@ For the record, and because the numbers say where the effort went.
 | | |
 | --- | --- |
 | Rules | 260, none awaiting a case |
-| Case files | 169 — 108 conformance, 29 refusals, 32 defects |
+| Case files | 170 — 108 conformance, 29 refusals, 33 defects |
 | Rules citing a conformance program | 196 |
 | Rules citing a refusal | 30 |
-| Rules citing a defect | 45 |
+| Rules citing a defect | 46 |
 | Probes | 134 |
 
 ⚠️ **Those three do not sum to 260, and are not meant to.** A case usually
