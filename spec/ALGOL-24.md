@@ -3732,11 +3732,46 @@ zero-based position, so the value that governs the behaviour can be read and
 compared. `Ordinal` already exists on the implementation's own class and simply
 is not published. Tracked by DEF-21.
 
-⚠️ **[ENU-009] itself is still open**, and is the larger half. An enumeration
-member is not a number, nothing else in the language makes a declared name
-falsey by position, and a first member that is false is a trap laid for whoever
-adds a member at the front — reordering an enumeration silently changes the
-truth of every conditional written over it.
+⚠️ **[ENU-009] itself is still open**, and is the larger half. The case against
+it: an enumeration member is not a number, nothing else in the language makes a
+declared name falsey by position, and reordering an enumeration silently changes
+the truth of every conditional written over it.
+
+⚠️ **The case for it is stronger, and was missed when this entry was written.**
+Position-based truthiness is what lets a program declare its own two-valued
+types and use them directly in a condition:
+
+```
+type Flag   = (Off, On);
+type Answer = (No, Yes);
+```
+
+`if F then` reads correctly for both, with no comparison and no conversion. The
+convention that falls out — put the absent, off or zero member first — is
+already the one this compiler follows in `FUN_NONE` and `CLASS_NONE`. Under that
+reading the rule is a feature with a discipline attached, not a trap, and the
+discipline is the same one a `case` statement already asks for.
+
+⚠️ **And the original complaint is half answered.** This entry's title says
+truthiness reads a value a program *cannot* — but [ENU-010] now requires the
+ordinal to be readable. Position-based truthiness over a *visible* position is a
+stated rule rather than hidden machinery, which is most of what was wrong with
+it.
+
+⚠️ **A further prospect, and a separable one: it could remove the built-in
+Boolean**, leaving `type Boolean = (False, True)` as an ordinary enumeration.
+Two costs argue for keeping the two questions apart:
+
+- **[ENU-011] collides with it.** Members bind bare, so any program declaring an
+  enumeration with a `True`, `False`, `Yes` or `No` member would make that bare
+  name ambiguous — and those names appear in almost every program. Boolean would
+  have to be exempt from the ambiguity rule, which is a special case
+  reintroduced one level down.
+- **Representation.** `VAL_BOOL` is a distinct runtime tag while an enumeration
+  member is an interned object, so this puts an indirection on the most common
+  value a program has. That runs against the reason [VAR-006] was tightened.
+
+`true` and `false` are also keywords [LEX-010], which would drop from 37 to 35.
 
 Changing it would reverse part of [VAL-008], which the conformance pass decided
 in chapter 7, so it is recorded here rather than taken unilaterally. Evidence
