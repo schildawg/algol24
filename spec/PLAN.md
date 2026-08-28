@@ -33,6 +33,10 @@ up as compiler defects when the time comes:
 - **C-1** closes with DEF-24 — giving the root a module identity.
 - **C-12** closes with DEF-17 — the language stops allowing what the compiler
   already refused.
+- **C-6** may close with **H-6** rather than with a repair: giving a class a
+  `property` member makes bare `B.Length` on a *method* an error, so the
+  construct that segfaults stops being writable. That is a later generation, not
+  Gen 2 work, so it may still need writing up as a compiler defect first.
 - **C-4** and **C-9** *reverse*: [SRC-011] and [RT-017] make the compiler right
   and the interpreter the one to change, so they are Gen 1 work (DEF-02,
   DEF-26) rather than Gen 2 work.

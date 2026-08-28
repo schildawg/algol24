@@ -3510,9 +3510,10 @@ processors accept and crashes it, without a diagnostic, in the processor that is
 supposed to be the fast one. `alg_property` has no case for a method reached
 without a call.
 
-⚠️ It is also the reason `conformance/0033` carries `// compiled: no`. The case
-pins the interpreted behaviour, which is the language; the compiled half cannot
-run at all, and a harness cannot record a crash as an expectation.
+⚠️ **This entry may close by removal rather than by repair.** H-6 would make
+bare `B.Length` on a method an error — the spelling being wanted for properties
+— so the construct that crashes would stop being writable. Reading a method as
+a value appears nowhere in `compiler/*.a24`, so nothing depends on it.
 
 **C-7 — Two runtime diagnostics are worded differently.** *(loud)*
 *(refers to [TYP-009], [TYP-010])*
@@ -5226,6 +5227,58 @@ String.` today. Pinned by `conformance/0032-instance-is-not-iterable.a24`.
 A method read without parentheses yields the method. There is no getter, so a
 class cannot expose a computed `Length` the way every collection does. Pinned by
 `conformance/0033-no-computed-property.a24`.
+
+### The shape
+
+**Declared by the class, not marked by the caller.** A member kind beside
+`function`, `procedure` and `constructor`, needing no new punctuation:
+
+```
+class Box;
+var Items : List;
+begin
+    constructor Init ();  begin this.Items := []; end
+    property Length ();   begin Exit this.Items.Length; end
+end
+```
+
+`B.Length` then reads as a value with no parentheses and no sigil, so a
+user-written `Stack` is indistinguishable from the built-in.
+
+⚠️ **A marker at the use site — `B.^Length` — was considered and rejected.** It
+would leave the replacement visibly second-class: an Algol-24 `Stack` needing
+`S.^Length` where the built-in takes `S.Length` preserves exactly the asymmetry
+H-6 exists to remove, and that asymmetry is the reason Annex E gives for not
+moving `List` and `Map` out of the core. It also puts the decision in the wrong
+place — whether `Length` is a field, a computed value or a method is the
+**class's** interface, and the resolver has to know statically which it is
+before the emitter can do anything useful with it.
+
+### A sigil belongs, but in the other direction
+
+Bare `B.Length` on a method yields the **method** today, silently, where a call
+was almost always meant. With `property` in hand that spelling is wanted for
+properties, so the three cases separate:
+
+| | |
+| --- | --- |
+| `B.Length` | a field or a property — an **error** if `Length` is a method |
+| `B.Length ()` | a call |
+| `@B.Length` | the method as a value, said deliberately |
+
+⚠️ **The construct being displaced is free to take.** Reading a method as a
+value appears nowhere in `compiler/*.a24` — the largest body of Algol-24 there
+is — and it **crashes the compiled program** (C-6). Nothing can be relying on
+it, and making it an error closes C-6 by removing the construct rather than
+implementing it.
+
+⚠️ [FUN-011] already makes a subprogram's bare name a value, and that stays.
+The sigil is needed only on a **receiver**, which is the one place that spelling
+collides with property access.
+
+⚠️ `@` is unclaimed — not an operator [LEX-012] and not a letter [SRC-005]. It
+is the character `conformance/0099` currently uses to provoke a scan error,
+which is a one-line change if this lands.
 
 ⚠️ **H-4, H-5 and H-6 are one piece of work, not three.** They are exactly what
 Annex E identifies as pinning the collections to being native: a `Stack` written
