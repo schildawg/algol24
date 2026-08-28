@@ -2223,12 +2223,32 @@ implicitly.
 
 ### 13.3 The ordinal
 
-**[ENU-009]**  ⚠️ The **first member of every enumeration is falsey**, and every
-later member is truthy, because truthiness reads the member's position [VAL-008].
+**[ENU-009]**  The **first member of every enumeration is falsey**, and every
+later member is truthy, because truthiness reads the member's position
+[VAL-008].
+
+This is deliberate. It lets a program declare its own two-valued types and use
+them directly in a condition, with no comparison and no conversion:
+
+```
+type Flag   = (Off, On);
+type Answer = (No, Yes);
+
+if F then …
+```
+
+⚠️ **The discipline it asks for: put the absent, off or zero member first.** The
+position is part of the declaration's meaning, so reordering members changes the
+truth of every condition written over them — in the same way, and for the same
+reason, that reordering a `case`'s arms changes which one runs. The position is
+readable [ENU-010], so nothing here is hidden.
+
+⚠️ This compiler's own enumerations already follow the convention: `FUN_NONE`
+and `CLASS_NONE` are the first members of `FunctionType` and `ClassType`.
 
     interpreter  compiler/Interpreter.a24  IsTruthy
     compiler     bootstrap/algol.c         alg_truthy
-    conformance  TBD
+    conformance  0074-enum-truthiness.a24
 
 **[ENU-010]**  A member answers `Ordinal`, its **zero-based position** in the
 declaration. `RED.Ordinal` is 0 and `BLUE.Ordinal` is 2. It answers no other
@@ -2256,7 +2276,7 @@ already; it is simply not published.
 A bracketed list of `key : value` pairs is a `Map`, and `[:]` is an empty one.
 
     interpreter  compiler/Parser.a24  Primary
-    conformance  TBD
+    conformance  0075-collection-construction.a24
 
 **[COL-002]**  `List()`, `Set()`, `Stack()` and `Map()` construct empty
 collections, `Set(L)` builds a Set from a collection, and `Array(N)` an Array of
@@ -2264,7 +2284,7 @@ collections, `Set(L)` builds a Set from a collection, and `Array(N)` an Array of
 
     interpreter  compiler/Interpreter.a24  ArrayNative
     compiler     bootstrap/algol.c         alg_array
-    conformance  TBD
+    conformance  0075-collection-construction.a24
 
 ### 14.2 Members
 
@@ -2285,29 +2305,47 @@ collections, `Set(L)` builds a Set from a collection, and `Array(N)` an Array of
 | `ToList` | | ● | | | |
 | `Push` `Pop` `Peek` | | | ● | | |
 
+⚠️ This table is checked against the interpreter by `spec/spec.sh`, which asks
+`spec/members.a24` which members each kind actually answers for. A matrix
+transcribed into a specification and checked by nobody is the most rot-prone
+thing this document can hold.
+
     interpreter  compiler/ObjCollection.a24  Get
-    conformance  TBD
+    conformance  0076-collection-members.a24
 
 **[COL-004]**  ⚠️ A `List` has **no `Remove`**. Removing a value from a List
 means finding it with `IndexOf` and passing that to `RemoveAt`, while a `Set` and
 a `Map` remove by value and by key directly.
 
+⚠️ The asymmetry has a reason, and it is not an oversight. A List may hold the
+same value more than once, so "remove this value" has no single meaning — the
+first, the last, or all of them — while a Set holds each value once and a Map
+each key once, so for those it has exactly one. Making a program write `IndexOf`
+and `RemoveAt` is making it say which it meant.
+
     interpreter  compiler/ObjCollection.a24  Get
-    conformance  TBD
+    conformance  0076-collection-members.a24
 
 **[COL-005]**  A member a kind does not have is `Undefined property 'X'.`
 
     interpreter  compiler/ObjCollection.a24  Get
-    conformance  TBD
+    conformance  0077-undefined-collection-member.a24
 
-**[COL-006]**  ⚠️ A collection member's name is matched **exactly**. `L.add(2)`
-is `Undefined property 'add'.`
+**[COL-006]**  A collection member's name is matched **case-insensitively**,
+as every name in the language is [SRC-011]. `L.Add(2)` and `L.add(2)` are the
+same member.
 
-⚠️ **compile-only divergence.** The C back end matches these names
-case-insensitively and accepts `L.add(2)`. See Annex C.
+⚠️ **NOT YET IMPLEMENTED.** The interpreter matches exactly, so `L.add(2)` is
+`Undefined property 'add'.` See DEF-02.
+
+⚠️ **This is the one place where the C back end is already right and the
+interpreter is the one to change** (C-4). The compiler compares these names with
+`alg_stricmp`, which was recorded as a divergence when the interpreter was taken
+to be the authority; [SRC-011] reverses that. It is also the safer direction to
+move, since it can only make programs start working.
 
     interpreter  compiler/ObjCollection.a24  Get
-    conformance  TBD
+    defect       DEF-02-identifiers-are-case-sensitive.a24
 
 ### 14.3 Order
 
@@ -2317,7 +2355,7 @@ because both processors must produce the same output.
 
     interpreter  compiler/ObjCollection.a24  Items
     compiler     bootstrap/algol.c           alg_iterable
-    conformance  TBD
+    conformance  0078-collection-order.a24
 
 **[COL-008]**  Re-assigning an existing Map key keeps the key's **original
 position**. `Put` on a key already present replaces the value and does not move
@@ -2325,13 +2363,13 @@ it to the end.
 
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           alg_put
-    conformance  TBD
+    conformance  0078-collection-order.a24
 
 **[COL-009]**  `Keys()` and `Values()` answer in that same order, so the two
 correspond element for element.
 
     interpreter  compiler/ObjCollection.a24  Invoke
-    conformance  TBD
+    conformance  0078-collection-order.a24
 
 ### 14.4 Behaviour
 
@@ -2339,22 +2377,30 @@ correspond element for element.
 leaves its length unchanged.
 
     interpreter  compiler/ObjCollection.a24  Invoke
-    conformance  TBD
+    conformance  0079-collection-behaviour.a24
 
 **[COL-011]**  ⚠️ `Remove` answers **different kinds of thing** by kind. A `Map`
 returns the value removed, and `nil` when the key was absent. A `Set` returns
 whether there was anything to remove.
 
+⚠️ Each answer is the useful one for its kind — a Map's removed value is worth
+having, and a Set has nothing to hand back but whether it did anything — but the
+two cannot be used interchangeably, and nothing in the call says which is coming.
+
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           alg_remove
-    conformance  TBD
+    conformance  0079-collection-behaviour.a24
 
-**[COL-012]**  Membership — `Contains`, `in`, and Map key lookup — compares
-strictly, without numeric promotion. See [VAL-013].
+**[COL-012]**  Membership — `Contains`, `in`, and Map key lookup — uses the
+equality of [VAL-009], so a collection holding `1.0` contains `1`. See
+[VAL-013].
+
+⚠️ **NOT YET IMPLEMENTED.** All three compare strictly, without numeric
+promotion. See DEF-14.
 
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           strict_equals
-    conformance  TBD
+    defect       DEF-14-membership-does-not-follow-equality.a24
 
 **[COL-013]**  `Sort` orders in place and is **stable**. It orders numbers
 against numbers and text against text; mixing them is `Can only sort numbers
@@ -2362,7 +2408,7 @@ against numbers, or text against text.`
 
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           alg_sort
-    conformance  TBD
+    conformance  0080-sort.a24
 
 **[COL-014]**  Subscripting reads by position for a `List` and an `Array` and by
 key for a `Map`. A `Set` has no positions and is refused with `Subscript target
@@ -2370,13 +2416,13 @@ should be an ordinal.`
 
     interpreter  compiler/ObjCollection.a24  At
     compiler     bootstrap/algol.c           alg_subscript_get
-    conformance  TBD
+    conformance  0081-subscripting-by-kind.a24
 
 **[COL-015]**  An `Array` is fixed in size and does not grow on assignment — see
 [TYP-008].
 
     interpreter  compiler/ObjCollection.a24  At
-    conformance  TBD
+    conformance  0029-array-is-fixed.a24
 
 ---
 
@@ -3727,13 +3773,19 @@ about the declaration looks conditional.
 The rule exists so that enumerations behave like the small integers they are
 represented by, which is a real convention and not an accident.
 
-**Half resolved.** [ENU-010] now requires a member to answer `Ordinal`, its
-zero-based position, so the value that governs the behaviour can be read and
-compared. `Ordinal` already exists on the implementation's own class and simply
-is not published. Tracked by DEF-21.
+**Resolved, in both halves and in opposite directions.**
 
-⚠️ **[ENU-009] itself is still open**, and is the larger half. The case against
-it: an enumeration member is not a number, nothing else in the language makes a
+[ENU-010] requires a member to answer `Ordinal`, its zero-based position, so the
+value that governs the behaviour can be read and compared. `Ordinal` already
+exists on the implementation's own class and simply is not published. Tracked by
+DEF-21.
+
+[ENU-009] is **kept**, and stated as a feature rather than tolerated as a
+quirk — position-based truthiness is what makes `(Off, On)` and `(No, Yes)`
+usable directly in a condition. The entry below records the reasoning, which
+began as an argument for changing it and ended as the argument for keeping it.
+
+⚠️ **[ENU-009] is settled: it stays.** The case against it was: an enumeration member is not a number, nothing else in the language makes a
 declared name falsey by position, and reordering an enumeration silently changes
 the truth of every conditional written over it.
 
@@ -3758,9 +3810,10 @@ ordinal to be readable. Position-based truthiness over a *visible* position is a
 stated rule rather than hidden machinery, which is most of what was wrong with
 it.
 
-⚠️ **A further prospect, and a separable one: it could remove the built-in
+⚠️ **A further prospect, TABLED and separable: it could remove the built-in
 Boolean**, leaving `type Boolean = (False, True)` as an ordinary enumeration.
-Two costs argue for keeping the two questions apart:
+This is not decided and is not scheduled. Two costs argue for keeping the two
+questions apart:
 
 - **[ENU-011] collides with it.** Members bind bare, so any program declaring an
   enumeration with a `True`, `False`, `Yes` or `No` member would make that bare

@@ -1,0 +1,71 @@
+// Prints every (kind, member) pair the interpreter actually answers for, as
+// machine-readable lines: "Kind Member".
+//
+// ⚠️ This is not a probe and not a conformance case. It is the SOURCE the
+// [COL-003] member matrix is checked against, run live by spec/spec.sh -- the
+// same treatment the keyword table and Annex B already get. A matrix
+// transcribed into a specification and checked by nobody is the most rot-prone
+// thing this document can hold.
+
+var Kinds := ['List', 'Set', 'Stack', 'Array', 'Map'];
+
+var Names := ['Length', 'IsEmpty', 'Contains', 'Get', 'Add', 'Insert',
+              'Remove', 'RemoveAt', 'IndexOf', 'Sort', 'Clear', 'Set',
+              'Fill', 'Put', 'Keys', 'Values', 'ToList', 'Push', 'Pop',
+              'Peek'];
+
+function Make (Kind);
+begin
+    if Kind = 'List'  then Exit List ();
+    if Kind = 'Set'   then Exit Set ();
+    if Kind = 'Stack' then Exit Stack ();
+    if Kind = 'Array' then Exit Array (1);
+    Exit Map ();
+end
+
+for var K in Kinds do
+begin
+    for var N in Names do
+    begin
+        var C := Make (K);
+
+        // ⚠️ Reading the member is the test, not calling it: a call would fail
+        // for want of arguments and could not be told apart from the member
+        // being absent. COL-005 makes a missing member raise, so a member that
+        // reads without raising is one the kind has.
+        try
+            var Ignored := C.Get;
+            if N = 'Get' then WriteLn (K + ' ' + N);
+        except
+            // not this one
+        end
+
+        try
+            var Probe := 0;
+            case N of
+                'Length'   : Probe := C.Length;
+                'IsEmpty'  : Probe := C.IsEmpty;
+                'Contains' : Probe := C.Contains;
+                'Add'      : Probe := C.Add;
+                'Insert'   : Probe := C.Insert;
+                'Remove'   : Probe := C.Remove;
+                'RemoveAt' : Probe := C.RemoveAt;
+                'IndexOf'  : Probe := C.IndexOf;
+                'Sort'     : Probe := C.Sort;
+                'Clear'    : Probe := C.Clear;
+                'Set'      : Probe := C.Set;
+                'Fill'     : Probe := C.Fill;
+                'Put'      : Probe := C.Put;
+                'Keys'     : Probe := C.Keys;
+                'Values'   : Probe := C.Values;
+                'ToList'   : Probe := C.ToList;
+                'Push'     : Probe := C.Push;
+                'Pop'      : Probe := C.Pop;
+                'Peek'     : Probe := C.Peek;
+            end
+            if N <> 'Get' then WriteLn (K + ' ' + N);
+        except
+            // not this one
+        end
+    end
+end

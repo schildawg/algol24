@@ -380,6 +380,48 @@ else
         && echo "  LEX-010 keywords match Scanner.a24 ($(wc -l < "$WORK/kw_norm" | tr -d ' ') in the language, $(( $(wc -l < "$WORK/kw_spec" | tr -d ' ') - $(wc -l < "$WORK/kw_norm" | tr -d ' ') )) registered in error)"
 fi
 
+# ⚠️ [COL-003]'s member matrix is five kinds by twenty names, transcribed by
+# hand, and it is the single most rot-prone thing in the document.  spec/
+# members.a24 asks the interpreter which members each kind actually answers for,
+# and the table is compared against the answer -- the same treatment the keyword
+# table and Annex B get, for the same reason.
+
+if [ -x bootstrap/algc ]; then
+    bootstrap/algc spec/members.a24 2>/dev/null | sort -u > "$WORK/mem_source"
+
+    awk '/\*\*\[COL-003\]\*\*/{f=1}
+         f && /^\*\*\[COL-004\]\*\*/{exit}
+         f && /^\| /{print}' "$SPEC" > "$WORK/mem_table"
+
+    awk -F'|' 'NR==1 {
+                   for (i = 3; i <= NF - 1; i++) { gsub(/ /, "", $i); kind[i] = $i }
+                   next
+               }
+               NR == 2 { next }
+               {
+                   n = split($2, names, " ")
+                   for (i = 3; i <= NF - 1; i++) {
+                       cell = $i; gsub(/ /, "", cell)
+                       if (cell == "●")
+                           for (j = 1; j <= n; j++) {
+                               nm = names[j]; gsub(/`/, "", nm)
+                               if (nm != "") print kind[i] " " nm
+                           }
+                   }
+               }' "$WORK/mem_table" | sort -u > "$WORK/mem_spec"
+
+    if [ ! -s "$WORK/mem_source" ] || [ ! -s "$WORK/mem_spec" ]; then
+        problem "the COL-003 member matrix could not be read from one side or the other"
+    else
+        MEM_MISSING=$(comm -23 "$WORK/mem_source" "$WORK/mem_spec" | tr '\n' ',' | sed 's/,$//')
+        MEM_EXTRA=$(comm -13 "$WORK/mem_source" "$WORK/mem_spec" | tr '\n' ',' | sed 's/,$//')
+        [ -n "$MEM_MISSING" ] && problem "COL-003 omits member(s) the interpreter answers for: $MEM_MISSING"
+        [ -n "$MEM_EXTRA" ]   && problem "COL-003 claims member(s) the interpreter does not answer for: $MEM_EXTRA"
+        [ -z "$MEM_MISSING" ] && [ -z "$MEM_EXTRA" ] \
+            && echo "  COL-003 matches the interpreter ($(wc -l < "$WORK/mem_source" | tr -d ' ') kind/member pairs)"
+    fi
+fi
+
 # ⚠️ Annex A repeats every production the chapters state.  A repetition that
 # nothing checks is the same bet this repository has already lost twice, so
 # both directions are compared: a production stated in a chapter and missing

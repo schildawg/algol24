@@ -1,0 +1,21 @@
+// spec: COL-010, COL-011
+//
+
+// COL-010: a Set holds each value once.
+var S := Set ([1, 1, 2]);
+WriteLn (S.Length);
+S.Add (2);
+WriteLn (S.Length);
+S.Add (3);
+WriteLn (S.Length);
+
+// COL-011: Remove answers DIFFERENT KINDS OF THING by kind.
+// A Map returns the value removed, and nil when the key was absent.
+var M := [1 : 'one'];
+WriteLn (M.Remove (1));
+WriteLn (M.Remove (99));
+
+// A Set returns whether there was anything to remove.
+var T := Set ([1]);
+WriteLn (T.Remove (1));
+WriteLn (T.Remove (99));

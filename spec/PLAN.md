@@ -513,7 +513,19 @@ done badly.
 | 11 Functions and closures | 12 | `procedure` may not `Exit` a value; parameter types enforced everywhere |
 | 12 Classes and objects | 16 | Inheriting from a non-class gets a message about inheritance |
 | 13 Enumerations | 11 | Shared member names accepted, ambiguity refused at the use; a member answers `Ordinal`; whether the first member is falsey is **open** |
-| 14 onwards | 70 | — |
+| 14 Collections | 15 | Member names fold case; membership follows equality; the member matrix is checked live |
+| 15 onwards | 55 | — |
+
+⚠️ **Two of chapter 14's fifteen rules contradicted decisions already made**, and
+neither was a judgement call. [COL-006] said collection member names are matched
+exactly, which [SRC-011] reversed in chapter 3. [COL-012] said membership
+compares strictly, which [VAL-013] reversed in chapter 7. Both now cite the
+defect that already tracks them — DEF-02 and DEF-14 — rather than carrying a
+second, contradictory statement of the same behaviour.
+
+⚠️ [COL-006] is **the one place where the C back end is already right and the
+interpreter is the one to change.** Every other Annex C entry runs the other
+way.
 
 ⚠️ **Chapter 13 left a rule undecided on purpose.** [ENU-009] makes the first
 member of every enumeration falsey, so reordering an enumeration silently

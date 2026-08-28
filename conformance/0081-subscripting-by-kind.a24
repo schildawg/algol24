@@ -1,0 +1,19 @@
+// spec: COL-014
+//
+// ⚠️ Expected to FAIL compiled, because of C-8.
+
+// By POSITION for a List and an Array.
+var L := [10, 20, 30];
+WriteLn (L[1]);
+
+var A := Array (2);
+A[0] := 'x';
+WriteLn (A[0]);
+
+// By KEY for a Map -- the subscript is the key, not a position.
+var M := [7 : 'seven'];
+WriteLn (M[7]);
+
+// A Set has no positions.
+var S := Set ([1, 2]);
+WriteLn (S[0]);
