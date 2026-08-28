@@ -5,7 +5,7 @@ case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
 in `defects/`. The conformance pass decided what the language *should* do. This
 plan is the work of making the interpreter do it.
 
-**32 defects stand between the two.** Each one is a rule the specification
+**33 defects stand between the two.** Each one is a rule the specification
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
@@ -124,7 +124,13 @@ this plan cheaper to execute.
 
 **Wave 2 — the type system, in order.** DEF-12, then DEF-16 (`as` binds
 tightly — a latent oddity becomes a live fault once the cast checks), then
-DEF-10 with DEF-19 and DEF-27, then DEF-09.
+DEF-10 with **DEF-33**, DEF-19 and DEF-27, then DEF-09.
+
+⚠️ **DEF-33 before DEF-19, and DEF-19 probably closes with it.** Making a
+top-level subprogram overload sends it through `FindOverload`, which compares
+whole signatures — so its declared parameter types are checked as a consequence.
+Attempting DEF-19 separately means writing a comparison path DEF-33 then makes
+redundant.
 
 **Wave 3 — parsing and scoping.** DEF-03 (identifier marks), DEF-17 (declaration
 as an unbraced body — ⚠️ this one *removes* C-12), DEF-15 (hoisting), DEF-11
@@ -221,11 +227,11 @@ For the record, and because the numbers say where the effort went.
 
 | | |
 | --- | --- |
-| Rules | 260, none awaiting a case |
-| Case files | 170 — 108 conformance, 29 refusals, 33 defects |
+| Rules | 261, none awaiting a case |
+| Case files | 171 — 108 conformance, 29 refusals, 34 defects |
 | Rules citing a conformance program | 196 |
 | Rules citing a refusal | 30 |
-| Rules citing a defect | 46 |
+| Rules citing a defect | 47 |
 | Probes | 134 |
 
 ⚠️ **Those three do not sum to 260, and are not meant to.** A case usually

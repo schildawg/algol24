@@ -883,6 +883,10 @@ later. See DEF-09.
 **[VAR-007]**  A name may not be declared twice in one scope. The second is
 refused with `'X' is already defined.`
 
+⚠️ **Two subprograms of one name are not a duplicate** where their signatures
+differ: they are overloads [FUN-013], selected between at the call. Two with the
+*same* signature are a duplicate like any other name.
+
     interpreter  compiler/Resolver.a24  CheckDuplicates
     unit         Resolve Duplicate Variable
     refusal      0009-no-redeclaration.a24
@@ -1991,10 +1995,10 @@ declared is `No matching signature for function.`
     interpreter  compiler/ObjClass.a24  FindOverload
     refusal      0025-method-parameter-type-is-enforced.a24
 
-> A method's types are checked because overload selection compares whole
-> signatures [EXP-013]. A top-level subprogram does not overload, so nothing
-> ever compares its parameters — which is the cause of DEF-19 rather than a
-> decision anyone made.
+> Types are checked because overload selection compares whole signatures
+> [EXP-013]. That is why [FUN-013] matters beyond overloading itself: a
+> subprogram that goes through selection has its parameters compared as a
+> consequence, which is what DEF-19 is waiting for.
 
 **[FUN-008]**  A declared **return** type **is** enforced. `Exit` of a value
 that does not fit is `Type mismatch!`
@@ -2032,6 +2036,35 @@ called from wherever it comes to rest.
     conformance  0062-subprograms-as-values.a24
 
 ### 11.5 Nesting
+
+**[FUN-013]**  A **top-level** subprogram overloads on the whole signature,
+exactly as a method does [EXP-013]. Several may share a name where their
+signatures differ, and the call selects between them at run time from the
+arguments actually passed.
+
+```
+function Area (N : Integer);              begin Exit 'integer';      end
+function Area (S : String);               begin Exit 'string';       end
+function Area (A : Integer, B : Integer); begin Exit 'two integers'; end
+```
+
+⚠️ **NOT YET IMPLEMENTED.** The second declaration is refused with `'Area' is
+already defined.`, so a name belongs to one subprogram whatever its signature.
+See DEF-33.
+
+⚠️ Nothing in this specification ever restricted overloading to methods.
+[EXP-013] and [EXP-014] describe selection without qualification; the
+restriction lived in two of this document's own notes and in a comment in
+`compiler/Resolver.a24`, none of which was a rule.
+
+⚠️ **This is upstream of DEF-19.** A subprogram that goes through overload
+selection has its declared parameter types compared as part of being selected —
+which is exactly why a *method's* types are enforced and a top-level
+subprogram's are not [FUN-006]. Fixing this fixes that.
+
+    interpreter  compiler/Resolver.a24  CheckDuplicates
+    compiler     compiler/CEmitter.a24  MethodSymbol
+    defect       DEF-33-a-top-level-subprogram-does-not-overload.a24
 
 **[FUN-012]**  Subprograms may be declared inside subprograms, to any depth.
 
@@ -4770,9 +4803,9 @@ value**, so the compiler's own sources need no change.
 *(violates [FUN-006], [VAR-017])*
 
 `function G (N : Integer)` accepts a String, a Double or a Boolean. Only the
-arity is checked, because a top-level subprogram does not overload and nothing
-ever compares its parameters — while the same signature as a **method** refuses
-all three.
+arity is checked, because a top-level subprogram does not go through overload
+selection and nothing ever compares its parameters — while the same signature as
+a **method** refuses all three.
 
 *Reproduce:* `defects/DEF-19-top-level-parameter-types-unenforced.a24`, with
 `refusals/0025-method-parameter-type-is-enforced.a24` for the contrast.
@@ -4781,10 +4814,15 @@ all three.
 parameter as one of the six assignment contexts, so this was a contradiction to
 propagate rather than a decision to make.
 
-*Scope of the fix.* The comparison exists in `Fits`; what is missing is calling
-it from the plain-call path where there is nothing to select between. ⚠️ It
-should land with DEF-10, since a parameter must **widen** as well as match — a
-Char argument reaching a String parameter is correct and must not start failing.
+*Scope of the fix.* ⚠️ **Attempt this through DEF-33, not beside it.** Making a
+top-level subprogram overload sends it through `FindOverload`, which compares
+whole signatures — so its parameters are checked as a consequence and this
+defect closes with that one. Fixing it separately means writing a second
+comparison path that DEF-33 then makes redundant.
+
+The comparison itself exists in `Fits`. ⚠️ It should land with DEF-10, since a
+parameter must **widen** as well as match — a Char argument reaching a String
+parameter is correct and must not start failing.
 
 **DEF-20 — Inheriting from a non-class reports the wrong thing.**
 *(violates [CLS-014])*
@@ -5099,6 +5137,41 @@ twice.
 and not a loss: `var S : String := 'c';` is already a type mismatch for every
 other character, so `''''` being writable was an accident of the measurement.
 DEF-10's widening is what makes one-character Strings writable properly.
+
+**DEF-33 — A top-level subprogram does not overload.**
+*(violates [FUN-013], [VAR-007])*
+
+Two top-level subprograms sharing a name are refused with `'Area' is already
+defined.` however their signatures differ, so a name belongs to one subprogram.
+The same signatures **as methods** work today —
+`conformance/0050-overload-selection.a24` declares four overloads of `Take` on a
+class and selects between them.
+
+*Reproduce:* `defects/DEF-33-a-top-level-subprogram-does-not-overload.a24`
+
+⚠️ **Nothing ever specified the restriction.** [EXP-013] and [EXP-014] describe
+selection without qualifying it to methods. The claim lived in two notes in this
+document and in a comment in `compiler/Resolver.a24`, and CLAUDE.md had already
+flagged it as one of the assertions that lost its source when the language's
+previous specification was cut.
+
+⚠️ **DEF-19 closes with this one.** A subprogram that goes through overload
+selection has its parameters compared as part of being selected. Attempting
+DEF-19 separately means writing a comparison path this defect then makes
+redundant.
+
+*Scope of the fix.* Three places, and the machinery exists in all three:
+
+| Where | What changes |
+| --- | --- |
+| `Resolver.a24` `CheckDuplicates` | a name repeated with a *different* signature is not a duplicate |
+| the call path | a top-level call resolves through `FindOverload`, as a method call does |
+| `CEmitter.a24` | a top-level function is mangled by signature, as `MethodSymbol` already does for methods — `f_Name` alone cannot hold two |
+
+⚠️ The comment at `compiler/Resolver.a24`'s `CheckDuplicates` states the
+restriction as a decision — "Top-level functions do not overload, so there is no
+kind of duplicate this should permit." It must be corrected with the code, as
+DEF-02's comment must.
 
 ---
 
