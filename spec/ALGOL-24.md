@@ -189,7 +189,8 @@ and `Ord` [16.2].
     compiler     bootstrap/algol.c         alg_length
     defect       DEF-01-text-is-bytes.a24
 
-> `Length('café')` is 5, not 4, in both processors. Verified.
+> `Length('café')` is 5, not 4, in both processors — the defect above, recorded
+> as evidence for it rather than as the rule.
 
 ⚠️ **[SRC-002] and [SRC-003] together mean an identifier is ASCII while a
 string is not.** The restriction is on the *program text the scanner reads*,
@@ -306,9 +307,14 @@ a program declaring `Xyz` and misspelling it `xyZ` is told about `xyZ`.
     unit         Scan Identifier
     defect       DEF-02-identifiers-are-case-sensitive.a24
 
-⚠️ The asymmetry is deliberate and is the one place the language departs from
-Pascal's uniform case-insensitivity. A program may declare `Count` and `count`
-as two variables; it may not declare a variable named `Begin`.
+⚠️ **Folding is uniform**, as Pascal's is: a name is a name whether it is a
+keyword, a variable, a field, a method or a type [VAL-006]. A program may not
+declare `Count` and `count` as two variables, and may not declare a variable
+named `Begin` [LEX-009].
+
+⚠️ **A module name is the one exception**, and it is not the language's to
+make: a module names a file, and the filesystem decides how that name is
+matched. See [MOD-002].
 
 ---
 
@@ -4416,6 +4422,12 @@ declaring both in one scope is accepted where it should be a duplicate
 
 *Scope of the fix.* Every name lookup folds ASCII case — variables, fields,
 methods, unit-qualified names — while the lexeme is preserved for diagnostics.
+
+⚠️ **A comment in `compiler/Scanner.a24` states the defect as a decision.**
+`ScanIdentifier` is introduced with "Identifiers stay case-sensitive: only the
+lookup is lowered, never the lexeme" — accurate today and misleading, because it
+reads as design rather than as a known gap. It must be corrected with the code,
+or the next reader takes it for the rule.
 `Scanner.a24` already folds for keyword lookup and `algol.c` already has
 `alg_stricmp`, so the machinery exists in both.
 
