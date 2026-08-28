@@ -4032,20 +4032,31 @@ So there is one shape of problem rather than three, and it is the one this
 repository already knew about — the root is never entered in the loader's map,
 so it is parsed twice.
 
-*Recommended:* give the root a module identity, so a `uses` pointing back at it
-resolves to the copy already loaded — which is what [MOD-003] does for every
-other file and what makes [MOD-012] work. That is more than a guard: an
-import-only node carries no statements, and the importer genuinely needs the
-root's exports, so the root must be registered with its environment before its
-own body runs.
+**Resolved.** [MOD-012] states that cycles between modules work, which they do.
+[MOD-014] requires the root case to work the same way, and DEF-24 tracks the
+distance.
 
-Refusing the root cycle by name would also be an improvement on the present
-diagnostic, and is much the smaller change; being told
-about them plainly is worth having either way.
+The fix is to give the root a module identity, so a `uses` pointing back at it
+resolves to the copy already loaded — what [MOD-003] does for every other file
+and what makes [MOD-012] work. That is more than a guard: an import-only node
+carries no statements, and the importer genuinely needs the root's exports, so
+the root must be registered with its environment **before its own body runs**.
 
-⚠️ This is not hypothetical for this repository. `compiler/Parser.a24` uses
-`Interpreter`, which uses `Parser`, so the compiler's own source contains a
-cycle — which is why it cannot be compiled by itself [Annex C, C-1].
+Refusing the root cycle by name would be an improvement on the present
+diagnostic and is much the smaller change, but it settles for less than
+[MOD-014] asks.
+
+⚠️ **Not hypothetical for this repository, and narrower than it once read.**
+`compiler/Parser.a24` uses `Interpreter`, which uses `Parser` — a cycle between
+two modules, which works, interpreted and compiled alike. The compiler compiles
+itself and reaches a fixed point.
+
+What fails is making a file in that cycle the **root**:
+`algc --compile compiler/Parser.a24` refuses with `Two modules named 'Parser' is
+not supported by the C back end yet.` [Annex C, C-1]. `compiler/Main.a24` is
+unaffected because nothing imports it, which is why the whole suite compiles.
+An earlier version of this entry said the compiler's own source could not be
+compiled by itself; that was wrong.
 
 **D-15 — Two different things are spelled `Length`.** *(refers to [RT-003])*
 
