@@ -1,5 +1,6 @@
-uses CycB;
-function AName() : String;
+uses 'CycB';
+
+function AName () : String;
 begin
-    Exit 'A';
+    Exit 'Ay';
 end

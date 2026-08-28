@@ -1,0 +1,14 @@
+// spec: MOD-003
+//
+// A module is loaded and executed ONCE, keyed by its resolved path, however
+// many files import it.
+//
+// Counted's body prints when it runs.  This file imports it directly, and also
+// imports AlsoUsesCounted which imports it too -- so a second execution would
+// print a second line.
+
+uses 'modules/Counted';
+uses 'modules/AlsoUsesCounted';
+
+WriteLn (CountedName ());
+WriteLn (Reach ());

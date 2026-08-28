@@ -1,0 +1,15 @@
+// spec: MOD-012
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+//
+// ⚠️ The fixtures used to return 'A' and 'B' from functions declared ': String'.
+// A one-character literal is a Char [LEX-023], so they failed with
+// 'Type mismatch!' whether or not there was a cycle -- and that recording was
+// read as evidence that cycles fail. It was evidence of DEF-10. The literals
+// are now two characters, so this probe measures the cycle.
+
+// CycA uses CycB and CycB uses CycA.
+uses 'modules/CycA';
+
+WriteLn (AName ());

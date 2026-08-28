@@ -1,0 +1,12 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Exports 'Shared', deliberately the same name Beta exports, and 'OnlyAlpha',
+// which nothing else does.
+
+unit Alpha;
+
+function Shared ();    begin Exit 'from Alpha'; end
+function OnlyAlpha (); begin Exit 'only in Alpha'; end
+
+private
+function Hidden ();    begin Exit 'hidden'; end

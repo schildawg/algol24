@@ -1,0 +1,29 @@
+// spec: MOD-008, MOD-013
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// MOD-008 accepts both imports below.  MOD-013 then refuses only the AMBIGUOUS
+// BARE USE, and the qualifier resolves it.  So this program should print:
+//
+//     from Alpha        (Alpha.Shared, qualified)
+//     from Beta         (Beta.Shared, qualified -- a different function)
+//     only in Alpha     (bare, exported by only Alpha -- unambiguous)
+//     only in Beta      (bare, exported by only Beta -- unambiguous)
+//
+// and only then be refused, at the bare 'Shared', with
+// ''Shared' is ambiguous: Alpha or Beta.'
+//
+// The second IMPORT is refused instead, with ''Shared' is already defined;
+// mark it private in one of the modules.' -- advice to edit a module because
+// of what some other module happens to export.
+
+uses 'modules/Alpha';
+uses 'modules/Beta';
+
+WriteLn (Alpha.Shared ());
+WriteLn (Beta.Shared ());
+
+WriteLn (OnlyAlpha ());
+WriteLn (OnlyBeta ());
+
+WriteLn (Shared ());

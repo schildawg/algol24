@@ -1,0 +1,5 @@
+unit CycB;
+
+uses 'CycA';
+
+function BName (); begin Exit 'from CycB'; end

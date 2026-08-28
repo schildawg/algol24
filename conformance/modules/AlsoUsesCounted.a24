@@ -1,0 +1,7 @@
+// A fixture for chapter 15, not a conformance case.
+
+unit AlsoUsesCounted;
+
+uses 'Counted';
+
+function Reach (); begin Exit CountedName (); end

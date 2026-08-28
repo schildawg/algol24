@@ -1,0 +1,17 @@
+// spec: MOD-012
+//
+// CycA uses CycB and CycB uses CycA.  Both load, both bodies run, and the
+// functions of each are callable -- because a module is loaded once by
+// resolved path [MOD-003], so the second import finds the entry already made
+// rather than descending again.
+//
+// ⚠️ This case exists because the specification said the opposite. MOD-012 read
+// 'circular imports do not work', on the strength of a probe whose fixtures
+// returned 'A' and 'B' from functions declared ': String'. A one-character
+// literal is a Char [LEX-023], so those functions failed with 'Type mismatch!'
+// whether or not a cycle existed.
+
+uses 'modules/CycA';
+
+WriteLn (AName ());
+WriteLn (CycA.AName ());

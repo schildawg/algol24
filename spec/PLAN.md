@@ -538,7 +538,21 @@ done badly.
 | 12 Classes and objects | 16 | Inheriting from a non-class gets a message about inheritance |
 | 13 Enumerations | 11 | Shared member names accepted, ambiguity refused at the use; a member answers `Ordinal`; whether the first member is falsey is **open** |
 | 14 Collections | 15 | Member names fold case; membership follows equality; the member matrix is checked live |
-| 15 onwards | 55 | — |
+| 15 Modules | 14 | Modules may share exported names, ambiguity refused at the use; cycles between modules **work** |
+| 16 onwards | 43 | — |
+
+⚠️ **Chapter 15 overturned a rule that had been wrong since it was written, and
+a probe was the reason.** [MOD-012] said "circular imports do not work" and gave
+`Type mismatch!` as the evidence. Cycles between modules work fine. The
+`Type mismatch!` came from the probe's own fixtures, which returned `'A'` and
+`'B'` from functions declared `: String` — a one-character literal is a Char
+[LEX-023], so those functions failed whether or not a cycle existed.
+
+A probe recorded a real failure, of a different thing, and the rule was written
+from it. The recording was never wrong; the inference was. ⚠️ **A probe proves
+that a program did something, not why** — and a fixture that fails for an
+unrelated reason is indistinguishable from one that fails for the reason being
+studied.
 
 ⚠️ **Two of chapter 14's fifteen rules contradicted decisions already made**, and
 neither was a judgement call. [COL-006] said collection member names are matched

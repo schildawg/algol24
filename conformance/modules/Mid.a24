@@ -1,0 +1,14 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Imports Deep, so 'uses is not transitive' can be shown: an importer of Mid
+// sees Mid's names and not Deep's.
+
+unit Mid;
+
+uses 'Deep';
+
+function MidName ();      begin Exit 'from Mid'; end
+function MidReachesDeep (); begin Exit DeepName (); end
+
+private
+function Hidden (); begin Exit 'hidden'; end

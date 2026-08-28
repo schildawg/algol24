@@ -1,0 +1,6 @@
+// A fixture for chapter 15, not a conformance case.  Its unit header
+// deliberately does not match its file name.
+
+unit Wrong;
+
+function W (); begin Exit 1; end

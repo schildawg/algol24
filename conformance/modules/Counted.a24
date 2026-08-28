@@ -1,0 +1,9 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Its body prints, so a second import re-running it would be visible.
+
+unit Counted;
+
+WriteLn ('Counted body ran');
+
+function CountedName (); begin Exit 'from Counted'; end

@@ -1,0 +1,6 @@
+// A fixture for chapter 15, not a conformance case.
+
+unit Beta;
+
+function Shared ();   begin Exit 'from Beta'; end
+function OnlyBeta (); begin Exit 'only in Beta'; end

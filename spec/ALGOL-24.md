@@ -2459,7 +2459,7 @@ UsesStmt = "uses" ( identifier | string_lit ) ";" .
 ```
 
     interpreter  compiler/Parser.a24  UsesStatement
-    conformance  TBD
+    conformance  0082-module-import.a24
 
 **[MOD-002]**  ⚠️ A module name is the one place [SRC-011] does **not** reach.
 It names a file, and the filesystem decides how that name is matched — case-
@@ -2476,20 +2476,20 @@ without either reaching the other's. Failure is `Could not find module 'X': no
 X.a24 in …`
 
     interpreter  compiler/Parser.a24  ResolveModule
-    conformance  TBD
+    conformance  0082-module-import.a24
 
 **[MOD-003]**  A module is loaded and executed **once**, keyed by its resolved
 path, however many files import it. A second import of the same file sees the
 names without re-running the body.
 
     interpreter  compiler/Parser.a24  UsesStatement
-    conformance  TBD
+    conformance  0083-module-runs-once.a24
 
 **[MOD-004]**  A file may open with `unit N;`. If present, `N` must match the
 file's own name: `Unit 'Wrong' must match its file name 'Mismatch'.`
 
     interpreter  compiler/Parser.a24  UnitHeader
-    conformance  TBD
+    refusal      0029-unit-name-must-match-the-file.a24
 
 ### 15.2 Exports
 
@@ -2497,7 +2497,7 @@ file's own name: `Unit 'Wrong' must match its file name 'Mismatch'.`
 `private`.
 
     interpreter  compiler/Interpreter.a24  VisitModuleStmt
-    conformance  TBD
+    conformance  0082-module-import.a24
 
 **[MOD-006]**  At the top level of a module, `private` precedes a **single
 declaration** and hides it. It is not a section marker there, unlike inside a
@@ -2505,19 +2505,48 @@ class [DCL-011].
 
     interpreter  compiler/Parser.a24  RecordPrivate
     unit         Module Private Is Not A Section Marker
-    conformance  TBD
+    conformance  0082-module-import.a24
 
 **[MOD-007]**  A private name is invisible to an importer both bare and
 qualified. Qualified, it is `Undefined name 'Hidden' in unit 'Mid'.`
 
     interpreter  compiler/Interpreter.a24  Qualified
-    conformance  TBD
+    conformance  0084-module-private.a24
 
-**[MOD-008]**  Two imported modules exporting one name is refused: `'Clash' is
-already defined; mark it private in one of the modules.`
+**[MOD-008]**  Two imported modules **may** export one name. Importing both is
+accepted, and neither module is affected by the other.
+
+⚠️ **NOT YET IMPLEMENTED.** The second import is refused with `'Clash' is
+already defined; mark it private in one of the modules.` — so a module cannot be
+imported alongside another that happens to export a name it also exports, and
+the advice given is to change one of them. See DEF-23.
 
     interpreter  compiler/Interpreter.a24  VisitModuleStmt
-    conformance  TBD
+    defect       DEF-23-modules-may-not-share-exported-names.a24
+
+**[MOD-013]**  A **bare** name exported by more than one imported module is
+ambiguous, and using it is refused with
+`'Shared' is ambiguous: Alpha or Beta.` The qualifier [MOD-010] resolves it:
+`Alpha.Shared()` and `Beta.Shared()` are two different functions.
+
+A bare name exported by only one imported module is unambiguous and needs no
+qualifier, which is the ordinary case.
+
+⚠️ **The refusal belongs to the use, not to the import.** Two modules that
+export a common name and are never used ambiguously coexist without complaint,
+and a program is told about a name only where it actually cannot be resolved.
+
+⚠️ This is [ENU-011] applied to units, and for the same reason: a name that
+cannot be resolved is a property of the *use*, not of the declaration. It also
+removes the need for the advice the old diagnostic gave — a module should not
+have to be edited because of what some other module, possibly written by someone
+else, happens to export.
+
+⚠️ **NOT YET IMPLEMENTED.** The import is refused first [MOD-008], so no program
+reaches the ambiguous use. See DEF-23.
+
+    interpreter  compiler/Interpreter.a24  VisitModuleStmt
+    defect       DEF-23-modules-may-not-share-exported-names.a24
 
 ### 15.3 Visibility
 
@@ -2530,40 +2559,49 @@ Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' f
 ```
 
     interpreter  compiler/Interpreter.a24  LookupVariable
-    conformance  TBD
+    conformance  0085-uses-is-not-transitive.a24
 
 **[MOD-010]**  An exported name may be qualified by its unit — `Mid.MidName()` —
 and the qualifier is resolved statically as a unit rather than evaluated as a
 value.
 
     interpreter  compiler/Interpreter.a24  Qualified
-    conformance  TBD
+    conformance  0082-module-import.a24
 
 **[MOD-011]**  `System` is the unit of the built-in functions. No file imports
 it and every file may qualify against it: `System.Copy('abcdef', 0, 3)`.
 
     interpreter  compiler/Resolver.a24  Units
-    conformance  TBD
+    conformance  0086-system-unit.a24
 
 ### 15.4 Cycles
 
-**[MOD-012]**  ⚠️ **Circular imports do not work**, and fail differently
-depending on the shape:
+**[MOD-012]**  A cycle **between modules** works. `A` uses `B` and `B` uses
+`A`, and both are loaded, both bodies run, and the functions of each are
+callable — because a module is loaded once by resolved path [MOD-003], so the
+second import finds the entry already made rather than descending again.
 
-- Between modules — `A` uses `B` and `B` uses `A` — the program fails with
-  `Type mismatch!`, a diagnostic having nothing to do with types.
-- Through the **root** file — a module importing the file that is being run —
-  the root's own imports fail with `Undefined variable 'X'.` even though the
-  root's body has already run.
-
-⚠️ **compile-only divergence.** A cycle through the root also refuses to
-compile, with `Two modules named 'X' is not supported by the C back end yet.`
-See Annex C, C-1.
+Cycles of three and more behave the same way.
 
     interpreter  compiler/Parser.a24  UsesStatement
-    conformance  TBD
+    conformance  0087-cycles-between-modules-work.a24
 
-> See Annex D.
+**[MOD-014]**  A cycle **through the root file** — a module importing the file
+that is being run — does **not** work. The root's own imported names are
+undefined when its body runs: `Undefined variable 'ModName'.`, after
+`root body ran` has already printed.
+
+⚠️ **NOT YET IMPLEMENTED.** The specification requires a root cycle to behave as
+[MOD-012] does, or to be refused by name. It does neither. See DEF-24.
+
+⚠️ The cause is that the root is never entered in the loader's map of loaded
+files, so a module importing it back parses it a **second** time and the two
+copies do not share their names. Compiled, the same shape refuses with `Two
+modules named 'X' is not supported by the C back end yet.` (C-1), which at least
+names the right subject.
+
+    interpreter  compiler/Parser.a24  UsesStatement
+    defect       DEF-24-a-cycle-through-the-root.a24
 
 ---
 
@@ -3857,25 +3895,34 @@ body of Algol-24 that exists.
 **D-14 — Circular imports fail, and say something else.** *(refers to
 [MOD-012])*
 
-A cycle between two modules fails with `Type mismatch!` — a sentence about types
-for a program whose types are fine. A cycle through the root file fails with
-`Undefined variable 'B'.` for a name the root plainly imports, and only after
-the root's own body has already run. Compiled, the same cycle refuses with `Two
-modules named 'X'`, which at least names the right subject.
+⚠️ **This entry was largely wrong, and running it is what showed that.** It said
+a cycle between two modules fails with `Type mismatch!` It does not: cycles
+between modules **work**, and so do cycles of three or more [MOD-012].
 
-Three shapes of one problem, three diagnostics, none of which says "these
-modules import each other".
+The `Type mismatch!` came from the probe's own fixtures, which returned `'A'`
+and `'B'` from functions declared `: String`. A one-character literal is a Char
+[LEX-023], so those functions failed whether or not any cycle existed — the
+recording was evidence of DEF-10 and was read as evidence about modules. The
+fixtures now return two-character strings and the probe records `Ay`.
 
-Cycles are not obviously *wrong* to reject: a language that loads and executes
-each module once, in order, has a genuine question about what a half-initialized
-module should expose, and refusing is a defensible answer. But refusing is not
-what happens — the failures come from machinery downstream noticing that
-something is missing.
+What remains true is the **root** case [MOD-014]: a module importing the file
+being run leaves the root's own imported names undefined, after the root's body
+has already printed. Compiled, the same shape refuses with `Two modules named
+'X'` (C-1), which at least names the right subject.
 
-*Recommended:* detect the cycle where it happens, in the parser's `uses`
-handling, and refuse it by name — `Circular import: 'A' uses 'B' uses 'A'.` The
-loader already keeps the map that would make this a few lines. Whether cycles
-should later be *supported* is a separate and much larger question; being told
+So there is one shape of problem rather than three, and it is the one this
+repository already knew about — the root is never entered in the loader's map,
+so it is parsed twice.
+
+*Recommended:* give the root a module identity, so a `uses` pointing back at it
+resolves to the copy already loaded — which is what [MOD-003] does for every
+other file and what makes [MOD-012] work. That is more than a guard: an
+import-only node carries no statements, and the importer genuinely needs the
+root's exports, so the root must be registered with its environment before its
+own body runs.
+
+Refusing the root cycle by name would also be an improvement on the present
+diagnostic, and is much the smaller change; being told
 about them plainly is worth having either way.
 
 ⚠️ This is not hypothetical for this repository. `compiler/Parser.a24` uses
@@ -4536,6 +4583,56 @@ records that the bare name now denotes more than one member. Resolving a bare
 name that carries more than one binding is then the refusal, with
 `'A' is ambiguous: First or Second.` The qualified path already works and needs
 no change.
+
+**DEF-23 — Two imported modules may not export one name.**
+*(violates [MOD-008], [MOD-013])*
+
+Importing two modules that both export `Shared` is refused with `'Shared' is
+already defined; mark it private in one of the modules.` — advice to edit a
+module because of what some other module, possibly written by someone else,
+happens to export. The qualified forms `Alpha.Shared()` and `Beta.Shared()`,
+which are unambiguous, never get a chance to help.
+
+*Reproduce:* `defects/DEF-23-modules-may-not-share-exported-names.a24`
+
+⚠️ **The refusal is in the wrong place rather than wrong outright**, exactly as
+DEF-22 is for enumerations. A shared exported name is only a problem where a
+*bare* use cannot be resolved.
+
+*Scope of the fix.* `VisitModuleStmt` stops refusing a name already exported by
+another imported module and instead records that the bare name now denotes more
+than one. Resolving a bare name carrying more than one binding is then the
+refusal, with `'Shared' is ambiguous: Alpha or Beta.` The qualified path already
+works.
+
+**DEF-24 — A cycle through the root file does not work.**
+*(violates [MOD-014])*
+
+A module importing the file being run leaves the root's own imported names
+undefined: the root's body prints `root body ran`, and the next line is
+`Undefined variable 'ModName'.` A cycle between two ordinary modules works
+[MOD-012], so this is the root specifically.
+
+*Reproduce:* `defects/DEF-24-a-cycle-through-the-root.a24`
+
+⚠️ The root is never entered in the loader's map of loaded files, so a module
+importing it back parses it a **second** time and the two copies do not share
+their names.
+
+⚠️ **It degenerates badly with a relative path.** Where the importing module
+names the root as `'../Root'`, the search directory accumulates `/../modules`
+dozens of times before failing, so the diagnostic is a line of repeated path
+segments. A `..` path to a non-root module resolves correctly, so this is the
+cycle showing through rather than a fault in path resolution.
+
+*Scope of the fix.* Give the root a module identity, so a `uses` pointing back at
+it resolves to the copy already loaded — what [MOD-003] does for every other
+file. ⚠️ More than a guard: an import-only node carries no statements and the
+importer genuinely needs the root's exports, so the root must be registered with
+its environment **before its own body runs**.
+
+⚠️ Fixing this also removes C-1, the only known case of a valid program having no
+compiled form.
 
 ---
 
