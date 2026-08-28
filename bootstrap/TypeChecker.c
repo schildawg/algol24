@@ -1,5 +1,6 @@
 /* Generated from Algol-24.  Do not edit. */
 #include "TypeChecker.h"
+#include "Console.h"
 #include "Interpreter.h"
 #include "Parser.h"
 #include "Scanner.h"
@@ -46,6 +47,7 @@ static const char *t_TypeChecker_HiddenBy_2_String_String[] = { "String", "Strin
 static const char *t_TypeChecker_TypeOfReceiver_1[] = { "Any" };
 static const char *t_TypeChecker_CheckVisibility_2_Token[] = { "Any", "Token" };
 static const char *t_TypeChecker_Assignable_2_String_String[] = { "String", "String" };
+static const char *t_TypeChecker_Mismatch_3_Token_String_String[] = { "Token", "String", "String" };
 static const char *t_TypeChecker_Resolve_1_List[] = { "List" };
 static const char *t_TypeChecker_MapType_1[] = { "Any" };
 static const char *t_TypeChecker_Check_1[] = { "Any" };
@@ -294,6 +296,28 @@ static Value m_TypeChecker_Assignable_2_String_String(Value v_this, Value *args,
     return alg_nil();
 }
 
+static Value m_TypeChecker_Mismatch_3_Token_String_String(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Where = args[0];
+    (void)v_Where;
+    Value v_Expected = args[1];
+    (void)v_Expected;
+    Value v_Actual = args[2];
+    (void)v_Actual;
+    Value v_Found = alg_nil();
+    (void)v_Found;
+    Value v_Message = alg_nil();
+    (void)v_Message;
+    (void)((v_Found = v_Actual));
+    if (alg_truthy(alg_equal(v_Actual, alg_string("")))) {
+        (void)((v_Found = alg_string("an untyped expression")));
+    }
+    (void)((v_Message = alg_add(alg_add(alg_add(alg_add(alg_string("Expected "), v_Expected), alg_string(", found ")), v_Found), alg_char_value(46))));
+    (void)(alg_invoke(alg_singleton(k_Console), "Error", (Value[]){v_Where, v_Message}, 2));
+    return v_Message;
+    return alg_nil();
+}
+
 static Value m_TypeChecker_Resolve_1_List(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Statements = args[0];
@@ -470,7 +494,7 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
                     Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Initializer")}, 1);
                     (void)v_Actual;
                     if (alg_truthy((or_12 = (or_11 = alg_equal(v_Actual, alg_string("")), alg_truthy(or_11) ? or_11 : alg_equal(v_Actual, alg_string("Any"))), alg_truthy(or_12) ? or_12 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_TheStmt, "TypeName"), v_Actual}, 2))))) {
-                        alg_raise(alg_string("Type mismatch!"));
+                        alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_TheStmt, "Name"), alg_property(v_TheStmt, "TypeName"), v_Actual}, 3));
                     }
                 }
             }
@@ -497,7 +521,7 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
                     Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Initializer")}, 1);
                     (void)v_Actual;
                     if (alg_truthy((or_15 = (or_14 = alg_equal(v_Actual, alg_string("")), alg_truthy(or_14) ? or_14 : alg_equal(v_Actual, alg_string("Any"))), alg_truthy(or_15) ? or_15 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_TheStmt, "TypeName"), v_Actual}, 2))))) {
-                        alg_raise(alg_string("Type mismatch!"));
+                        alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_subscript_get(alg_property(v_TheStmt, "Names"), alg_int(0)), alg_property(v_TheStmt, "TypeName"), v_Actual}, 3));
                     }
                 }
             }
@@ -572,7 +596,7 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
                     Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Value")}, 1);
                     (void)v_Actual;
                     if (alg_truthy(alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_this, "CurrentReturn"), v_Actual}, 2)))) {
-                        alg_raise(alg_string("Type mismatch!"));
+                        alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_TheStmt, "Keyword"), alg_property(v_this, "CurrentReturn"), v_Actual}, 3));
                     }
                 }
             }
@@ -784,7 +808,7 @@ static Value m_TypeChecker_Reduce_1(Value v_this, Value *args, int32_t count) {
             Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Value")}, 1);
             (void)v_Actual;
             if (alg_truthy(alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_Declared, v_Actual}, 2)))) {
-                alg_raise(alg_string("Type mismatch!"));
+                alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_TheExpr, "Name"), v_Declared, v_Actual}, 3));
             }
             return v_Declared;
         }
@@ -841,7 +865,7 @@ static Value m_TypeChecker_Reduce_1(Value v_this, Value *args, int32_t count) {
                     Value v_Declared = alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_Owner, alg_string("::")), alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))}, 1);
                     (void)v_Declared;
                     if (alg_truthy(alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_Declared, v_Actual}, 2)))) {
-                        alg_raise(alg_string("Type mismatch!"));
+                        alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_TheExpr, "Name"), v_Declared, v_Actual}, 3));
                     }
                 }
             }
@@ -1059,6 +1083,7 @@ void init_TypeChecker(void) {
     alg_class_method(k_TypeChecker, "TypeOfReceiver", m_TypeChecker_TypeOfReceiver_1, 1, t_TypeChecker_TypeOfReceiver_1);
     alg_class_method(k_TypeChecker, "CheckVisibility", m_TypeChecker_CheckVisibility_2_Token, 2, t_TypeChecker_CheckVisibility_2_Token);
     alg_class_method(k_TypeChecker, "Assignable", m_TypeChecker_Assignable_2_String_String, 2, t_TypeChecker_Assignable_2_String_String);
+    alg_class_method(k_TypeChecker, "Mismatch", m_TypeChecker_Mismatch_3_Token_String_String, 3, t_TypeChecker_Mismatch_3_Token_String_String);
     alg_class_method(k_TypeChecker, "Resolve", m_TypeChecker_Resolve_1_List, 1, t_TypeChecker_Resolve_1_List);
     alg_class_method(k_TypeChecker, "MapType", m_TypeChecker_MapType_1, 1, t_TypeChecker_MapType_1);
     alg_class_method(k_TypeChecker, "Check", m_TypeChecker_Check_1, 1, t_TypeChecker_Check_1);

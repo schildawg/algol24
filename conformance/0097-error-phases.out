@@ -1,2 +1,5 @@
-Uncaught: Type mismatch!
+Uncaught: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]conformance/0097-error-phases.a24: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]7 | var X : Integer := 'text';
+[WHITE][[RED]ERROR[RESET]]   |[RED]     ^[RESET]
 exit: 70

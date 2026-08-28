@@ -5,7 +5,7 @@ case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
 in `defects/`. The conformance pass decided what the language *should* do. This
 plan is the work of making the interpreter do it.
 
-**33 defects stand between the two.** Each one is a rule the specification
+**32 defects stand between the two.** *(33 found; DEF-29 is fixed.)* Each one is a rule the specification
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
@@ -117,10 +117,11 @@ error), DEF-21 (publish `Ordinal`), DEF-25 (`Length` refuses a collection),
 DEF-26 (a String answers `.Length`), DEF-28 (a file that cannot be read exits
 non-zero), DEF-31 (a one-character test name), DEF-06's diagnostic half.
 
-⚠️ **DEF-29 belongs in this wave and is worth doing first.** Every subsequent
-wave produces type errors while it is being debugged, and today each one says
-`Type mismatch!` and nothing else. Fixing the diagnostic first makes the rest of
-this plan cheaper to execute.
+⚠️ **DEF-29 — done.** It was taken first for the reason it should have been:
+every later fix produces type errors while it is being debugged, and each one
+used to say `Type mismatch!` and nothing else. All five sites now report through
+`Console.Error` with the offending token and both type names, and the two cases
+that pinned it are `conformance/0108` and `0109`.
 
 **Wave 2 — the type system, in order.** DEF-12, then DEF-16 (`as` binds
 tightly — a latent oddity becomes a live fault once the cast checks), then

@@ -1,0 +1,16 @@
+// spec: ERR-006
+//
+// A type error carries the same three-line excerpt a parse error does, and
+// names both types.
+//
+// ⚠️ This case was defects/DEF-29 until the checker was fixed.  It said
+// 'Type mismatch!' and nothing else -- no file, no line, no token, neither
+// type, and the same five words for every mismatch the checker could find.
+// The information was discarded rather than absent: every one of the five
+// sites that raises had the token in hand.
+//
+// ⚠️ The caret names the DECLARATION, not the offending value.  A literal
+// carries no token [Expr.a24], so there is nothing to point at inside the
+// initializer without giving one to every expression.
+
+var Count : Integer := 'text';

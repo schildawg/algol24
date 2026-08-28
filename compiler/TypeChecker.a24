@@ -1,3 +1,4 @@
+uses Console;
 uses Interpreter;
 uses Parser;
 uses Scanner;
@@ -302,6 +303,33 @@ begin
         Exit False;
     end
 
+    /// Reports a type error the way a parse error is reported, and yields the
+    /// message so the caller can raise it -- the shape 'Parser.Error' uses.
+    ///
+    /// ⚠️ Every one of the five sites that raises a mismatch has the offending
+    /// token in hand.  The old message discarded it and said 'Type mismatch!',
+    /// which named no file, no line, no token and neither type, and said the
+    /// same five words for every mismatch the checker could find.  The
+    /// information was thrown away rather than missing [ERR-006].
+    ///
+    /// ⚠️ An expression the checker could not type at all reduces to '', which
+    /// is not a type name and must not be printed as one.
+    function Mismatch (Where : Token, Expected : String, Actual : String) : String;
+    var
+        Found   : String;
+        Message : String;
+
+    begin
+        Found := Actual;
+        if Actual = '' then Found := 'an untyped expression';
+
+        Message := 'Expected ' + Expected + ', found ' + Found + '.';
+
+        Console.Error (Where, Message);
+
+        Exit Message;
+    end
+
     /// Checks a whole program.
     procedure Resolve (Statements : List);
     begin
@@ -441,7 +469,7 @@ begin
                 // type was written here and the initializer could not be typed
                 // at all.
                 if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
-                    raise 'Type mismatch!';
+                    raise Mismatch (TheStmt.Name, TheStmt.TypeName, Actual);
             end
             Exit;
         end
@@ -461,7 +489,7 @@ begin
                 var Actual := Reduce (TheStmt.Initializer);
 
                 if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
-                    raise 'Type mismatch!';
+                    raise Mismatch (TheStmt.Names[0], TheStmt.TypeName, Actual);
             end
             Exit;
         end
@@ -528,7 +556,8 @@ begin
             begin
                 var Actual := Reduce (TheStmt.Value);
 
-                if not Assignable (CurrentReturn, Actual) then raise 'Type mismatch!';
+                if not Assignable (CurrentReturn, Actual) then
+                    raise Mismatch (TheStmt.Keyword, CurrentReturn, Actual);
             end
             Exit;
         end
@@ -726,7 +755,8 @@ begin
             var Declared := Lookup.GetType (TheExpr.Name.Lexeme);
             var Actual   := Reduce (TheExpr.Value);
 
-            if not Assignable (Declared, Actual) then raise 'Type mismatch!';
+            if not Assignable (Declared, Actual) then
+                raise Mismatch (TheExpr.Name, Declared, Actual);
 
             Exit Declared;
         end
@@ -782,7 +812,8 @@ begin
             if Owner <> '' and Owner <> 'Any' then
             begin
                 var Declared := Lookup.GetType (Owner + '::' + TheExpr.Name.Lexeme);
-                if not Assignable (Declared, Actual) then raise 'Type mismatch!';
+                if not Assignable (Declared, Actual) then
+                    raise Mismatch (TheExpr.Name, Declared, Actual);
             end
 
             Exit Actual;

@@ -1,4 +1,8 @@
-// spec: ERR-006, ERR-002
+// spec: ERR-006
+//
+// ⚠️ Renamed. It was ERR-006-type-error-has-no-location, and recorded
+// 'Uncaught: Type mismatch!' with nothing under it, until the checker was
+// fixed. The recording above is the same program., ERR-002
 //
 // A probe, not a conformance test. It records what the implementation
 // DOES; nothing here asserts what it should do.

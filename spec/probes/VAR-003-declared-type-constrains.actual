@@ -1,2 +1,5 @@
-Uncaught: Type mismatch!
+Uncaught: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/VAR-003-declared-type-constrains.a24: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]7 | X := 'text';
+[WHITE][[RED]ERROR[RESET]]   |[RED] ^[RESET]
 exit: 70

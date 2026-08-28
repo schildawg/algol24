@@ -1,0 +1,5 @@
+Uncaught: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/ERR-006-type-error-shape.a24: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]15 | var X : Integer := 'text';
+[WHITE][[RED]ERROR[RESET]]    |[RED]     ^[RESET]
+exit: 70

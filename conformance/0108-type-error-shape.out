@@ -1,0 +1,5 @@
+Uncaught: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]conformance/0108-type-error-shape.a24: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]16 | var Count : Integer := 'text';
+[WHITE][[RED]ERROR[RESET]]    |[RED]     ^^^^^[RESET]
+exit: 70

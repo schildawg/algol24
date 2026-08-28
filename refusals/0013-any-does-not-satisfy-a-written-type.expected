@@ -1,2 +1,5 @@
-Uncaught: Type mismatch!
+Uncaught: Expected Integer, found Any.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0013-any-does-not-satisfy-a-written-type.a24: Expected Integer, found Any.
+[WHITE][[RED]ERROR[WHITE]] [RESET]7 | var I : Integer := A;
+[WHITE][[RED]ERROR[RESET]]   |[RED]     ^[RESET]
 exit: 70

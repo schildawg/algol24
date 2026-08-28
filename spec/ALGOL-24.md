@@ -3053,20 +3053,29 @@ error does [ERR-005], and names both types:
 ```
 Uncaught: Expected Integer, found String.
 [ERROR] e.a24: Expected Integer, found String.
-[ERROR] 2 | var X : Integer := 'text';
-[ERROR]   |                    ^^^^^^
+[ERROR] 1 | var Count : Integer := 'text';
+[ERROR]   |     ^^^^^
 ```
 
-⚠️ **NOT YET IMPLEMENTED.** It prints `Uncaught: Type mismatch!` and nothing
-else — no file, no line, no token, neither type, and the same five words for
-every mismatch the checker finds. See DEF-29.
+An expression the checker could not type at all is `an untyped expression`
+rather than a type name:
+
+```
+Uncaught: Expected Integer, found an untyped expression.
+```
+
+⚠️ **The caret names the declaration or the assignment, not the offending
+value.** A literal carries no token, so there is nothing inside the initializer
+to point at without giving every expression one — and the message already names
+both types, which is what the caret would otherwise have to convey.
 
 ⚠️ **This compounds with [ERR-002]:** a type error stops the program before any
 statement runs, so there is no output to orient by either. The message is the
-only information available and it carries none.
+only information available, which is why it has to carry some.
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    defect       DEF-29-a-type-error-says-nothing.a24
+    interpreter  compiler/TypeChecker.a24  Mismatch
+    conformance  0108-type-error-shape.a24
+    conformance  0109-type-error-untyped.a24
 
 ### 18.3 Catching
 
@@ -4288,12 +4297,18 @@ surface harder to locate, not easier.
 carries [ERR-005] and both type names — `Expected Integer, found String.` The
 token is in hand at every one of the five sites that raise this, so the
 information is discarded rather than absent, and `Console.Error` already
-produces the shape two phases earlier. Tracked by DEF-29.
+produces the shape two phases earlier.
 
-⚠️ This remains the single cheapest improvement to the language's usability in
-this annex, and it grew cheaper while the conformance pass ran: DEF-19 will make
-parameter types enforced, so mismatches will surface in *more* places than they
-do now — each of them reported by five words that say nothing.
+⚠️ **Done.** [ERR-006] is implemented: all five sites report through
+`Console.Error` with the offending token and both type names. It was the
+cheapest improvement in this annex and the first taken, because every later
+generation-1 fix produces type errors while it is being debugged.
+
+⚠️ One refinement the implementation forced, recorded rather than quietly made:
+this entry's example put the caret under the offending *value*. A literal
+carries no token, so the caret names the declaration instead — reaching the
+value would mean giving every expression a token, which is a change to
+`Expr.a24` and the parser for a caret the message already makes unnecessary.
 
 **D-18 — `AssertTrue` reports a comparison it did not make.** *(refers to
 [TST-012])*
@@ -5036,34 +5051,6 @@ reproduction.
 raise rather than returning, so the failure reaches the same exit path every
 other failure uses [INI-006]. A directory should say so rather than printing
 nothing.
-
-**DEF-29 — A type error says nothing.**
-*(violates [ERR-006])*
-
-```
-Uncaught: Type mismatch!
-```
-
-is the whole diagnostic, for every mismatch the checker finds — no file, no
-line, no token, neither of the types involved, and the same five words each
-time.
-
-*Reproduce:* `defects/DEF-29-a-type-error-says-nothing.a24`
-
-⚠️ **The machinery exists and is used two phases earlier.** A parse error prints
-the file, the line, the source text and a caret under the offending token
-[ERR-005] — compare `conformance/0100` against the recording above for the same
-shape of program. `Console.Error` produces it, and the checker does not call it.
-
-⚠️ **It compounds with [ERR-002]**, which stops the program before any statement
-runs, so there is no output to orient by either. And it will compound with
-DEF-19: once parameter types are enforced, mismatches surface in *more* places
-than they do now, each reported by five words that say nothing.
-
-*Scope of the fix.* Five sites in `compiler/TypeChecker.a24` raise this string.
-Each has the offending expression in hand, so each can report through
-`Console.Error` with the token and both type names — `Expected Integer, found
-String.` The information is discarded rather than absent.
 
 **DEF-30 — Every assertion message begins with a comparison that was not made.**
 *(violates [TST-012])*
