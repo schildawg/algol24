@@ -10,5 +10,17 @@ bootstrap/algc
 out/
 build/
 
+# The specification rendered for printing.
+#
+# ⚠️ A GENERATED artifact, and it goes stale the moment ALGOL-24.md changes --
+# silently, because nothing compares the two.  That is the same failure the
+# corpus is built to avoid (see conformance/README.md), just slower: a file that
+# looks authoritative and agrees with nothing.  The one that was tracked
+# predated the conformance pass and still claimed 248 rules all awaiting a
+# conformance program.
+#
+# Regenerate from ALGOL-24.md when a copy on paper is wanted.
+spec/ALGOL-24.pdf
+
 # macOS
 .DS_Store
