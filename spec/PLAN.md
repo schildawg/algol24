@@ -5,7 +5,7 @@ case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
 in `defects/`. The conformance pass decided what the language *should* do. This
 plan is the work of making the interpreter do it.
 
-**24 defects stand between the two.** *(33 found; nine are fixed — wave 1.)* Each one is a rule the specification
+**22 defects stand between the two.** *(33 found; eleven are fixed.)* Each one is a rule the specification
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
@@ -137,8 +137,11 @@ used to say `Type mismatch!` and nothing else. All five sites now report through
 `Console.Error` with the offending token and both type names, and the two cases
 that pinned it are `conformance/0108` and `0109`.
 
-**Wave 2 — the type system, in order.** DEF-12, then DEF-16 (`as` binds
-tightly — a latent oddity becomes a live fault once the cast checks), then
+**Wave 2 — DEF-12 and DEF-16 done.** `as` is a checked conversion and binds at
+the unary level. ⚠️ The order mattered exactly as recorded: `False and 5 as
+Integer` was `(False and 5) as Integer` under the old precedence, which is a
+Boolean cast to Integer — harmless while a cast did nothing, and a raise the
+moment DEF-12 landed. Remaining:
 DEF-10 with **DEF-33**, DEF-19 and DEF-27, then DEF-09.
 
 ⚠️ **DEF-33 before DEF-19, and DEF-19 probably closes with it.** Making a

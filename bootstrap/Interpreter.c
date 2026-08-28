@@ -99,6 +99,7 @@ static Value or_19;
 static Value or_20;
 static Value or_21;
 static Value or_22;
+static Value or_23;
 static const char *t_Interpreter_Interpret_1_List[] = { "List" };
 static const char *t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean[] = { "List", "List", "Map", "Boolean", "Environment", "Map", "String", "List", "Map", "Set", "Boolean" };
 static const char *t_Interpreter_RunTests_2_List_String[] = { "List", "String" };
@@ -111,6 +112,7 @@ static const char *t_Interpreter_VisitCollectionExpr_1_CollectionExpr[] = { "Col
 static const char *t_Interpreter_VisitSubscriptExpr_1_SubscriptExpr[] = { "SubscriptExpr" };
 static const char *t_Interpreter_VisitSetSubscriptExpr_1_SetSubscriptExpr[] = { "SetSubscriptExpr" };
 static const char *t_Interpreter_IsText_1[] = { "Any" };
+static const char *t_Interpreter_SatisfiesType_2_String[] = { "Any", "String" };
 static const char *t_Interpreter_VisitIsExpr_1_IsExpr[] = { "IsExpr" };
 static const char *t_Interpreter_VisitVariableExpr_1_VariableExpr[] = { "VariableExpr" };
 static const char *t_Interpreter_ThisField_2_Token_String[] = { "Token", "String" };
@@ -1336,23 +1338,30 @@ static Value m_Interpreter_IsText_1(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value m_Interpreter_SatisfiesType_2_String(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Value = args[0];
+    (void)v_Value;
+    Value v_TheName = args[1];
+    (void)v_TheName;
+    if (alg_truthy(alg_equal(f_ToLower(NULL, (Value[]){f_TypeNameOf(NULL, (Value[]){v_Value}, 1)}, 1), f_ToLower(NULL, (Value[]){v_TheName}, 1)))) {
+        return alg_bool(true);
+    }
+    return f_InheritsFrom(NULL, (Value[]){v_Value, v_TheName}, 2);
+    return alg_nil();
+}
+
 static Value m_Interpreter_VisitIsExpr_1_IsExpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
     Value v_Value = alg_nil();
     (void)v_Value;
-    Value v_TheName = alg_nil();
-    (void)v_TheName;
     (void)((v_Value = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheExpr, "Obj")}, 1)));
     if (alg_truthy(alg_equal(v_Value, alg_nil()))) {
         return alg_bool(false);
     }
-    (void)((v_TheName = f_ToLower(NULL, (Value[]){alg_str(alg_property(alg_property(v_TheExpr, "TypeName"), "Lexeme"))}, 1)));
-    if (alg_truthy(alg_equal(f_ToLower(NULL, (Value[]){f_TypeNameOf(NULL, (Value[]){v_Value}, 1)}, 1), v_TheName))) {
-        return alg_bool(true);
-    }
-    return f_InheritsFrom(NULL, (Value[]){v_Value, alg_str(alg_property(alg_property(v_TheExpr, "TypeName"), "Lexeme"))}, 2);
+    return alg_invoke(v_this, "SatisfiesType", (Value[]){v_Value, alg_str(alg_property(alg_property(v_TheExpr, "TypeName"), "Lexeme"))}, 2);
     return alg_nil();
 }
 
@@ -1846,7 +1855,17 @@ static Value m_Interpreter_Evaluate_1_Expr(Value v_this, Value *args, int32_t co
     (void)v_this; (void)args; (void)count;
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
-    return alg_invoke(v_TheExpr, "Accept", (Value[]){v_this}, 1);
+    Value v_Value = alg_nil();
+    (void)v_Value;
+    (void)((v_Value = alg_invoke(v_TheExpr, "Accept", (Value[]){v_this}, 1)));
+    if (alg_truthy((or_21 = alg_not_equal(alg_property(v_TheExpr, "Cast"), alg_string("")), !alg_truthy(or_21) ? or_21 : alg_not_equal(v_Value, alg_nil())))) {
+        {
+            if (alg_truthy(alg_not(alg_invoke(v_this, "SatisfiesType", (Value[]){v_Value, alg_property(v_TheExpr, "Cast")}, 2)))) {
+                alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Cannot cast "), f_TypeNameOf(NULL, (Value[]){v_Value}, 1)), alg_string(" to ")), alg_property(v_TheExpr, "Cast")), alg_char_value(46)));
+            }
+        }
+    }
+    return v_Value;
     return alg_nil();
 }
 
@@ -2358,7 +2377,7 @@ static Value m_Interpreter_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *arg
                             (void)(alg_invoke(v_Exported, "Add", (Value[]){v_TheName}, 1));
                             Value v_Owner = alg_invoke(v_Importer, "OwnerOf", (Value[]){v_TheName}, 1);
                             (void)v_Owner;
-                            if (alg_truthy((or_21 = alg_not_equal(v_Owner, alg_nil()), !alg_truthy(or_21) ? or_21 : alg_not_equal(v_Owner, v_ModuleEnv)))) {
+                            if (alg_truthy((or_22 = alg_not_equal(v_Owner, alg_nil()), !alg_truthy(or_22) ? or_22 : alg_not_equal(v_Owner, v_ModuleEnv)))) {
                                 alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined; mark it private in one of the modules.")));
                             }
                         }
@@ -2436,7 +2455,7 @@ static Value m_Interpreter_Handle_3_TryStmt(Value v_this, Value *args, int32_t c
     Value v_Handler = alg_nil();
     (void)v_Handler;
     (void)((v_Handler = alg_invoke(v_this, "FindHandler", (Value[]){alg_property(v_TheStmt, "Handlers"), v_Value}, 2)));
-    if (alg_truthy((or_22 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_22) ? or_22 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
+    if (alg_truthy((or_23 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_23) ? or_23 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
         (void)((v_Handler = alg_invoke(alg_property(v_TheStmt, "Handlers"), "Get", (Value[]){alg_string("default")}, 1)));
     }
     if (alg_truthy(alg_equal(v_Handler, alg_nil()))) {
@@ -2780,6 +2799,7 @@ void init_Interpreter(void) {
     alg_class_method(k_Interpreter, "VisitSubscriptExpr", m_Interpreter_VisitSubscriptExpr_1_SubscriptExpr, 1, t_Interpreter_VisitSubscriptExpr_1_SubscriptExpr);
     alg_class_method(k_Interpreter, "VisitSetSubscriptExpr", m_Interpreter_VisitSetSubscriptExpr_1_SetSubscriptExpr, 1, t_Interpreter_VisitSetSubscriptExpr_1_SetSubscriptExpr);
     alg_class_method(k_Interpreter, "IsText", m_Interpreter_IsText_1, 1, t_Interpreter_IsText_1);
+    alg_class_method(k_Interpreter, "SatisfiesType", m_Interpreter_SatisfiesType_2_String, 2, t_Interpreter_SatisfiesType_2_String);
     alg_class_method(k_Interpreter, "VisitIsExpr", m_Interpreter_VisitIsExpr_1_IsExpr, 1, t_Interpreter_VisitIsExpr_1_IsExpr);
     alg_class_method(k_Interpreter, "VisitVariableExpr", m_Interpreter_VisitVariableExpr_1_VariableExpr, 1, t_Interpreter_VisitVariableExpr_1_VariableExpr);
     alg_class_method(k_Interpreter, "ThisField", m_Interpreter_ThisField_2_Token_String, 2, t_Interpreter_ThisField_2_Token_String);

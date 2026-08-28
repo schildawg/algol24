@@ -1,0 +1,27 @@
+// spec: VAL-007
+//
+// ⚠️ Expected to FAIL compiled, because of C-8.
+//
+// 'as' is a checked conversion.  It is the only way a value crosses from
+// untyped into typed [VAR-006], so the strictness there is reasonable only if
+// the crossing is verified -- a cast that could not fail would make the
+// boundary a formality and every declared type beyond it a claim nothing had
+// checked.
+
+var Good : Any := 1;
+WriteLn (Good as Integer);
+WriteLn ((Good as Integer) + 1);
+
+// A class hierarchy: a cast to a base class succeeds, by the rule 'is' uses.
+class Animal; begin end
+class Dog (Animal); begin end
+var D : Any := Dog ();
+WriteLn (D as Animal is Dog);
+
+// nil satisfies every type [VAR-005] and therefore passes every cast.
+var Nothing : Any := nil;
+WriteLn (Nothing as Integer);
+
+// And a cast that does not hold raises.
+var Bad : Any := 'text';
+WriteLn (Bad as Integer);

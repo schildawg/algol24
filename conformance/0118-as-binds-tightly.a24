@@ -1,0 +1,20 @@
+// spec: EXP-003
+//
+// 'as' binds at the unary level and applies to the operand beside it, not to
+// everything to its left.
+
+var A : Any := 5;
+
+// Under the old precedence this did not parse at all: the cast consumed the
+// expression and the comparison had nothing to attach to.
+WriteLn (A as Integer > 3);
+WriteLn (A as Integer + 1);
+
+// ⚠️ The line that distinguishes the two readings now that a cast is checked.
+// 'and' yields its LEFT operand when that is falsey, so the old reading was
+// '(False and 5) as Integer' -- a Boolean cast to Integer, which raises.  The
+// new one casts 5, which is already an Integer, and the conjunction is False.
+WriteLn (False and 5 as Integer);
+
+// And the ordinary case: the cast applies to B, not to the conjunction.
+WriteLn (True and A as Integer);

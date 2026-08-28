@@ -1056,21 +1056,28 @@ begin
     /// a program declares are not -- so this compares lowered on both sides
     /// exactly as the keyword table does.
     ///
+    /// Whether a value satisfies a type name, by the rule 'is' uses: its own
+    /// type, or a class it inherits from [VAL-003].
+    ///
+    /// ⚠️ Shared with the cast in Evaluate, so 'X as T' and 'X is T' cannot
+    /// come to disagree about what T means.
+    function SatisfiesType (Value : Any, TheName : String) : Boolean;
+    begin
+        if ToLower (TypeNameOf (Value)) = ToLower (TheName) then Exit True;
+
+        // Walk the chain, so a Dog is an Animal.
+        Exit InheritsFrom (Value, TheName);
+    end
+
     function VisitIsExpr (TheExpr : IsExpr) : Boolean;
     var
-        Value   : Any;
-        TheName : String;
+        Value : Any;
 
     begin
         Value := Evaluate (TheExpr.Obj);
         if Value = Nil then Exit False;
 
-        TheName := ToLower (Str (TheExpr.TypeName.Lexeme));
-
-        if ToLower (TypeNameOf (Value)) = TheName then Exit True;
-
-        // Walk the chain, so a Dog is an Animal.
-        Exit InheritsFrom (Value, Str (TheExpr.TypeName.Lexeme));
+        Exit SatisfiesType (Value, Str (TheExpr.TypeName.Lexeme));
     end
 
     /// Interprets a variable expression.
@@ -1523,8 +1530,31 @@ begin
     /// Performs double-dispatch evaluation of expression.
     ///
     function Evaluate(TheExpr : Expr) : Any;
+    var
+        Value : Any;
+
     begin
-        Exit TheExpr.Accept(this);
+        Value := TheExpr.Accept(this);
+
+        // ⚠️ 'as' is a CHECKED conversion [VAL-007], and it is the only way a
+        // value crosses from untyped into typed [VAR-006] -- so the strictness
+        // there is reasonable only if the crossing is verified.  A cast that
+        // could not fail would make the boundary a formality and every declared
+        // type beyond it a claim nothing had checked.
+        //
+        // ⚠️ 'as' sets a FIELD on the expression rather than wrapping it, so
+        // this is where every cast in the language passes, whatever the shape
+        // of the expression carrying it.
+        //
+        // ⚠️ nil satisfies every type [VAR-005] and therefore passes every cast.
+        if TheExpr.Cast <> '' and Value <> Nil then
+        begin
+            if not SatisfiesType (Value, TheExpr.Cast) then
+                raise 'Cannot cast ' + TypeNameOf (Value) + ' to '
+                    + TheExpr.Cast + '.';
+        end
+
+        Exit Value;
     end
 
     /// Runs a statement.

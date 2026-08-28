@@ -1215,11 +1215,14 @@ the expression has type `T`, and verifies the claim when the program runs: if
 not fail would make the boundary a formality, and every declared type downstream
 of it a claim nothing had checked.
 
-⚠️ **NOT YET IMPLEMENTED.** The cast has no runtime effect at all: `X as Integer`
-where `X` holds `'text'` yields `'text'` and raises nothing. See DEF-12.
+A cast that does not hold raises `Cannot cast String to Integer.`
 
-    interpreter  compiler/TypeChecker.a24  Reduce
-    defect       DEF-12-as-is-unchecked.a24
+⚠️ The test is the one `is` uses [VAL-003] — the value's own type, or a class it
+inherits from — and deliberately the same code, so `X as T` and `X is T` cannot
+come to disagree about what `T` means.
+
+    interpreter  compiler/Interpreter.a24  SatisfiesType
+    conformance  0117-as-is-checked.a24
 
 ### 7.4 Truthiness
 
@@ -1544,18 +1547,13 @@ receiver to be narrowed before it is read through.
 applies to the operand beside it and to nothing further: `A and B as C` is
 `A and (B as C)`, and `A as Integer > 3` is `(A as Integer) > 3`.
 
-⚠️ **NOT YET IMPLEMENTED.** `as` binds looser than `or`, so `A and B as C` casts
-the whole conjunction, and `A as Integer > 3` does not parse at all — the cast
-consumes the expression and the comparison is left over, giving
-`Expect ')' after arguments.` See DEF-16.
-
 ⚠️ The binding stopped being cosmetic when `as` became a checked conversion
-[VAL-007]. A cast covering a conjunction now **raises** when the conjunction is
-not of the named type, which is almost never what was written; while a cast had
-no runtime effect, the same reading was merely an oddity in the checker.
+[VAL-007]. Under the old reading `False and 5 as Integer` was
+`(False and 5) as Integer` — a Boolean cast to Integer, which raises. It is now
+`False and (5 as Integer)`, which is `False`.
 
-    interpreter  compiler/Parser.a24  Expression
-    defect       DEF-16-as-binds-too-loosely.a24
+    interpreter  compiler/Parser.a24  Unary
+    conformance  0118-as-binds-tightly.a24
 
 ### 9.2 Arithmetic
 
@@ -3940,8 +3938,8 @@ cast silences the checker and is never verified, so the one construct a
 programmer reaches for when they know more than the checker does is also the one
 that cannot tell them when they are wrong.
 
-**Resolved.** `as` is a checked conversion and raises when the value is not of
-the named type [VAL-007]. The cost falls only on programs that use `as`, which
+**Resolved, and done.** `as` is a checked conversion and raises when the value
+is not of the named type [VAL-007]. The cost falls only on programs that use `as`, which
 are the programs that asked for the assurance, and a cast that cannot fail is
 not an assurance at all.
 
@@ -3949,7 +3947,7 @@ not an assurance at all.
 crosses from untyped into typed, so the strictness there is only reasonable if
 the crossing is verified; an unchecked cast would have made the boundary a
 formality and every declared type beyond it a claim nothing had checked. The two
-rules were decided together and neither stands alone. Tracked by DEF-12.
+rules were decided together and neither stands alone. Both are now implemented.
 
 **D-8 — Empty is truthy.** *(refers to [VAL-008])*
 
@@ -4689,22 +4687,6 @@ than one. ⚠️ The checker must then decide what a `Map of T` means — the va
 type, almost certainly, since that is what a subscript and a `Get` yield — and
 say so in [VAR-016] before the parser admits the syntax.
 
-**DEF-12 — `as` is unchecked.** *(violates [VAL-007])*
-
-`X as Integer` where `X` holds `'text'` yields `'text'` and raises nothing. The
-cast silences the checker and verifies nothing.
-
-*Reproduce:* `defects/DEF-12-as-is-unchecked.a24`
-
-⚠️ **This is DEF-09's prerequisite, not a separate errand.** [VAR-006] sends
-every untyped-to-typed crossing through `as`; if `as` does not check, tightening
-the assignment path only moves the hole rather than closing it. Fix this one
-first.
-
-*Scope of the fix.* The cast becomes a runtime operation in both processors
-rather than a checker-only annotation: it tests the value against the named type
-and raises on failure, with `nil` passing every cast [VAR-005].
-
 **DEF-13 — An unknown type name in `is` is silently false.**
 *(violates [TYP-013])*
 
@@ -4766,32 +4748,6 @@ pass before the statements run, in the same way `HoistTests` already walks a
 file ahead of execution. ⚠️ Only functions and classes: a `var` keeps its
 initializer at the point it is written, so binding it early would substitute
 `nil` for a diagnostic.
-
-**DEF-16 — `as` binds too loosely.**
-*(violates [EXP-003])*
-
-`as` sits below `and` and `or` rather than with the unary operators, so
-`A and B as C` casts the whole conjunction, and `A as Integer > 3` does not
-parse at all — the cast consumes the expression and the comparison is left over,
-giving `Expect ')' after arguments.`
-
-*Reproduce:* `defects/DEF-16-as-binds-too-loosely.a24`
-
-⚠️ **Only the parse failure is reproducible today.** The other symptom — a cast
-covering a conjunction — prints the same value under either precedence, because
-a cast has no runtime effect (DEF-12) and `and` yields an operand. It becomes
-observable the moment DEF-12 is fixed.
-
-⚠️ **This mattered less before `as` was checked.** A cast covering a conjunction
-had no runtime effect and was merely an oddity in the checker; under [VAL-007]
-it raises when the conjunction is not of the named type. Fixing DEF-12 without
-this one makes a latent oddity into a live fault.
-
-*Scope of the fix.* `as` moves from its own level in `Parser.a24`'s expression
-chain to the unary level. ⚠️ Not purely additive: `A and B as C` changes meaning.
-Nothing in `compiler/*.a24` uses `as` next to a binary operator, so the change is
-safe there, but it is a change to what an existing program means rather than
-only to what parses.
 
 **DEF-17 — A declaration is accepted as an unbraced branch or loop body.**
 *(violates [STM-002])*

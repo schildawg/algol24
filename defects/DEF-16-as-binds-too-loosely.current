@@ -1,5 +1,0 @@
-Uncaught: Expect ')' after arguments.
-[WHITE][[RED]ERROR[WHITE]] [RESET]defects/DEF-16-as-binds-too-loosely.a24: Expect ')' after arguments.
-[WHITE][[RED]ERROR[WHITE]] [RESET]19 | WriteLn (A as Integer > 3);
-[WHITE][[RED]ERROR[RESET]]    |[RED]               ^^^^^^^[RESET]
-exit: 70

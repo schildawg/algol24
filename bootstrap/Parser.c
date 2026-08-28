@@ -1146,9 +1146,6 @@ static Value m_Parser_Expression_0(Value v_this, Value *args, int32_t count) {
     Value v_TheExpr = alg_nil();
     (void)v_TheExpr;
     (void)((v_TheExpr = alg_invoke(v_this, "Assignment", NULL, 0)));
-    if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_AS}, 1))) {
-        (void)(alg_set_property(v_TheExpr, "Cast", alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect typecast identifier.")}, 2), "Lexeme"))));
-    }
     return v_TheExpr;
     return alg_nil();
 }
@@ -1428,6 +1425,8 @@ static Value m_Parser_Unary_0(Value v_this, Value *args, int32_t count) {
     (void)v_Operator;
     Value v_Right = alg_nil();
     (void)v_Right;
+    Value v_TheExpr = alg_nil();
+    (void)v_TheExpr;
     if (alg_truthy((or_36 = alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_NOT}, 1), alg_truthy(or_36) ? or_36 : alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_MINUS}, 1)))) {
         {
             (void)((v_Operator = alg_invoke(v_this, "Previous", NULL, 0)));
@@ -1435,7 +1434,11 @@ static Value m_Parser_Unary_0(Value v_this, Value *args, int32_t count) {
             return alg_new(k_UnaryExpr, (Value[]){v_Operator, v_Right}, 2);
         }
     }
-    return alg_invoke(v_this, "Call", NULL, 0);
+    (void)((v_TheExpr = alg_invoke(v_this, "Call", NULL, 0)));
+    if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_AS}, 1))) {
+        (void)(alg_set_property(v_TheExpr, "Cast", alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_IDENTIFIER, alg_string("Expect typecast identifier.")}, 2), "Lexeme"))));
+    }
+    return v_TheExpr;
     return alg_nil();
 }
 

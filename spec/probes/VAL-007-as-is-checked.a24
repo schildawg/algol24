@@ -1,0 +1,13 @@
+// spec: VAL-007
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+//
+// ⚠️ Renamed from '-as-is-unchecked'. It used to record 'text', false, true --
+// a cast that silenced the checker and verified nothing. It now raises.
+
+var Good : Any := 1;
+WriteLn(Good as Integer);
+
+var Bad : Any := 'text';
+WriteLn(Bad as Integer);

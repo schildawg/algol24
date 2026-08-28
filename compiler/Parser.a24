@@ -1279,10 +1279,6 @@ begin
     begin
         TheExpr := Assignment ();
 
-        if Match (TOKEN_AS) then
-            TheExpr.Cast := Str (Consume (TOKEN_IDENTIFIER,
-                'Expect typecast identifier.').Lexeme);
-
         Exit TheExpr;
     end
 
@@ -1612,10 +1608,22 @@ begin
 
     // Parses an unary expression (! -).  Calls Primary if no match.
     //
+    /// ⚠️ 'as' binds HERE, at the unary level, and applies to the operand
+    /// beside it and nothing further: 'A and B as C' is 'A and (B as C)', and
+    /// 'A as Integer > 3' is '(A as Integer) > 3' [EXP-003].
+    ///
+    /// It used to bind below 'or', in Expression, which had two consequences.
+    /// 'A and B as C' cast the whole conjunction -- an oddity while a cast had
+    /// no runtime effect, and a live fault once it raises [VAL-007].  And
+    /// 'A as Integer > 3' did not parse AT ALL: the cast consumed the
+    /// expression and the comparison had nothing to attach to, giving
+    /// 'Expect '')'' after arguments.'
+    ///
     function Unary() : Expr;
     var
        Operator : Token;
        Right    : Expr;
+       TheExpr  : Expr;
 
     begin
         if Match (TOKEN_NOT) or Match (TOKEN_MINUS) then
@@ -1625,7 +1633,16 @@ begin
 
             Exit UnaryExpr(Operator, Right);
         end
-        Exit Call();
+
+        TheExpr := Call();
+
+        // ⚠️ A field on the expression rather than a node of its own, which is
+        // what lets Evaluate check every cast in one place.
+        if Match (TOKEN_AS) then
+            TheExpr.Cast := Str (Consume (TOKEN_IDENTIFIER,
+                'Expect typecast identifier.').Lexeme);
+
+        Exit TheExpr;
     end
 
     // Parses a List or Map literal, the opening bracket already consumed.
