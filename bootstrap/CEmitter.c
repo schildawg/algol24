@@ -681,7 +681,16 @@ static Value m_CEmitter_CollectFunctions_1_List(Value v_this, Value *args, int32
                                 (void)v_J;
                                 while (alg_truthy(alg_less(v_J, alg_property(alg_property(v_TheStmt, "Members"), "Length")))) {
                                     {
-                                        (void)(alg_invoke(alg_property(v_this, "EnumMembers"), "Put", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_J), "Lexeme")), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 2));
+                                        {
+                                            Value v_Member = alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_J), "Lexeme"));
+                                            (void)v_Member;
+                                            if (alg_truthy(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_Member}, 1))) {
+                                                if (alg_truthy(alg_not_equal(alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){v_Member}, 1)), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))))) {
+                                                    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two enumerations binding '"), v_Member), alg_string("'"))}, 1));
+                                                }
+                                            }
+                                            (void)(alg_invoke(alg_property(v_this, "EnumMembers"), "Put", (Value[]){v_Member, alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 2));
+                                        }
                                         (void)((v_J = alg_add(v_J, alg_int(1))));
                                     }
                                 }

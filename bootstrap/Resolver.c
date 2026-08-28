@@ -654,7 +654,10 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
     (void)v_Statements;
     Value v_Seen = alg_nil();
     (void)v_Seen;
+    Value v_MemberOwner = alg_nil();
+    (void)v_MemberOwner;
     (void)((v_Seen = alg_set()));
+    (void)((v_MemberOwner = alg_map()));
     {
         Value v_I = alg_int(0);
         (void)v_I;
@@ -687,6 +690,8 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
                             }
                             if (alg_truthy(alg_is(v_TheStmt, "EnumStmt"))) {
                                 {
+                                    Value v_Owner = alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"));
+                                    (void)v_Owner;
                                     {
                                         Value v_J = alg_int(0);
                                         (void)v_J;
@@ -698,7 +703,12 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
                                                     if (alg_truthy(alg_invoke(v_Seen, "Contains", (Value[]){v_Member}, 1))) {
                                                         alg_raise(alg_add(alg_add(alg_string("'"), v_Member), alg_string("' is already defined.")));
                                                     }
-                                                    (void)(alg_invoke(v_Seen, "Add", (Value[]){v_Member}, 1));
+                                                    if (alg_truthy(alg_invoke(v_MemberOwner, "Contains", (Value[]){v_Member}, 1))) {
+                                                        if (alg_truthy(alg_equal(alg_str(alg_invoke(v_MemberOwner, "Get", (Value[]){v_Member}, 1)), v_Owner))) {
+                                                            alg_raise(alg_add(alg_add(alg_string("'"), v_Member), alg_string("' is already defined.")));
+                                                        }
+                                                    }
+                                                    (void)(alg_invoke(v_MemberOwner, "Put", (Value[]){v_Member, v_Owner}, 2));
                                                 }
                                                 (void)((v_J = alg_add(v_J, alg_int(1))));
                                             }
@@ -719,6 +729,9 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
                                                 if (alg_truthy(alg_invoke(v_Seen, "Contains", (Value[]){v_Each}, 1))) {
                                                     alg_raise(alg_add(alg_add(alg_string("'"), v_Each), alg_string("' is already defined.")));
                                                 }
+                                                if (alg_truthy(alg_invoke(v_MemberOwner, "Contains", (Value[]){v_Each}, 1))) {
+                                                    alg_raise(alg_add(alg_add(alg_string("'"), v_Each), alg_string("' is already defined.")));
+                                                }
                                                 (void)(alg_invoke(v_Seen, "Add", (Value[]){v_Each}, 1));
                                             }
                                             (void)((v_J = alg_add(v_J, alg_int(1))));
@@ -729,6 +742,9 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
                             if (alg_truthy(alg_not_equal(v_TheName, alg_string("")))) {
                                 {
                                     if (alg_truthy(alg_invoke(v_Seen, "Contains", (Value[]){v_TheName}, 1))) {
+                                        alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined.")));
+                                    }
+                                    if (alg_truthy(alg_invoke(v_MemberOwner, "Contains", (Value[]){v_TheName}, 1))) {
                                         alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined.")));
                                     }
                                     (void)(alg_invoke(v_Seen, "Add", (Value[]){v_TheName}, 1));

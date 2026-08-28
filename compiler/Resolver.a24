@@ -586,12 +586,22 @@ begin
     /// Top-level functions do not overload, so there is no kind of duplicate
     /// this should permit.
     ///
+    /// ⚠️ One kind IS permitted: a member name shared by two ENUMERATIONS
+    /// [ENU-003].  Those are tracked apart from everything else, in MemberOwner,
+    /// because the clash is only real where a bare use cannot be resolved
+    /// [ENU-011] and the qualified 'First.A' always could.  A member meeting a
+    /// var, a function or a class is still a duplicate -- nothing qualifies
+    /// those -- and so is a member repeated within ONE enumeration, which is why
+    /// the owner is recorded rather than just the name.
+    ///
     procedure CheckDuplicates (Statements : List);
     var
-        Seen : Set;
+        Seen        : Set;
+        MemberOwner : Map;
 
     begin
         Seen := Set();
+        MemberOwner := Map();
 
         for var I := 0; I < Statements.Length; I := I + 1 do
         begin
@@ -620,6 +630,8 @@ begin
 
                 if TheStmt is EnumStmt then
                 begin
+                    var Owner := Str (TheStmt.Name.Lexeme);
+
                     for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
                     begin
                         var Member := Str (TheStmt.Members[J].Lexeme);
@@ -627,7 +639,13 @@ begin
                         if Seen.Contains (Member) then
                             raise '''' + Member + ''' is already defined.';
 
-                        Seen.Add (Member);
+                        // Repeated within one enumeration -- a plain duplicate,
+                        // with no qualified form that could tell them apart.
+                        if MemberOwner.Contains (Member) then
+                            if Str (MemberOwner.Get (Member)) = Owner then
+                                raise '''' + Member + ''' is already defined.';
+
+                        MemberOwner.Put (Member, Owner);
                     end
 
                     TheName := Str (TheStmt.Name.Lexeme);
@@ -641,12 +659,18 @@ begin
                         if Seen.Contains (Each) then
                             raise '''' + Each + ''' is already defined.';
 
+                        if MemberOwner.Contains (Each) then
+                            raise '''' + Each + ''' is already defined.';
+
                         Seen.Add (Each);
                     end
 
                 if TheName <> '' then
                 begin
                     if Seen.Contains (TheName) then
+                        raise '''' + TheName + ''' is already defined.';
+
+                    if MemberOwner.Contains (TheName) then
                         raise '''' + TheName + ''' is already defined.';
 
                     Seen.Add (TheName);

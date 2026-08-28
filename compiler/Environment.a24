@@ -22,6 +22,19 @@ var
     /// question does not arise.  Set once, when the module has finished running.
     Exports : Set;
 
+    /// This module's unit name, for a diagnostic that has to say WHICH modules
+    /// disagree.  Empty in an ordinary scope.
+    UnitName : String;
+
+    /// Bare names that more than one enumeration in this scope binds, mapped to
+    /// the enumerations that bind them -- 'First or Second'.
+    ///
+    /// ⚠️ An ambiguous name is REMOVED from Values rather than left in it, so
+    /// the hit path stays exactly as fast as it was and the check below lands
+    /// on the miss path, which was already the slow one.  Nil where the
+    /// question has never arisen, which is almost every scope.
+    Ambiguous : Map;
+
 begin
     constructor Init ();
     begin
@@ -29,6 +42,54 @@ begin
        this.Enclosing := Nil;
        this.Imports := List();
        this.Exports := Nil;
+       this.UnitName := '';
+       this.Ambiguous := Nil;
+    end
+
+    /// Records that a bare name now denotes more than one thing here, and takes
+    /// it out of Values so that reading it cannot quietly find one of them.
+    ///
+    /// ⚠️ The name is only refused where it is USED.  Two enumerations sharing a
+    /// member coexist perfectly well [ENU-003]; it is the unresolvable bare use
+    /// that is the error [ENU-011], and the qualified form still works.
+    ///
+    procedure MarkAmbiguous (Name : String, Owners : String);
+    begin
+        if Ambiguous = Nil then Ambiguous := Map();
+
+        Ambiguous.Put (Str (Name), Owners);
+        Values.Remove (Str (Name));
+    end
+
+    /// Raises for a bare name that more than one imported module exports,
+    /// naming them all.  Walks Imports a second time deliberately: this is the
+    /// error path, and doing it here keeps OwnerOf's loop allocation-free.
+    ///
+    procedure RaiseAmbiguousImport (Name : String);
+    var
+        Owners : String;
+        Seen   : Set;
+
+    begin
+        Owners := '';
+        Seen := Set();
+
+        for var I := 0; I < Imports.Length; I := I + 1 do
+        begin
+            var TheModule := Imports[I] as Environment;
+
+            if TheModule.Values.Contains (Name) then
+                if TheModule.IsExported (Name) then
+                    if not Seen.Contains (TheModule.UnitName) then
+                    begin
+                        Seen.Add (TheModule.UnitName);
+
+                        if Owners = '' then Owners := TheModule.UnitName;
+                        else Owners := Owners + ' or ' + TheModule.UnitName;
+                    end
+        end
+
+        raise '''' + Str (Name) + ''' is ambiguous: ' + Owners + '.';
     end
 
     /// Whether an importer may see this name.
@@ -43,16 +104,39 @@ begin
     /// The imported module that owns this name, or Nil.  Deliberately the
     /// module's own map rather than a lookup on it -- see Imports.
     ///
+    /// ⚠️ Two modules exporting one name is not refused where they are
+    /// IMPORTED, only where a bare use cannot be resolved [MOD-013].  Importing
+    /// two modules that happen to share an exported name is fine as long as the
+    /// program says which one it means, and 'Alpha.Shared()' always could.
+    /// This used to refuse the import with advice to mark the name private in
+    /// one of the modules -- advice to edit a module because of what some other
+    /// module, possibly written by someone else, happens to export.
+    ///
     function OwnerOf (Name : String) : Any;
+    var
+        Found : Environment;
+
     begin
+        Found := Nil;
+
         for var I := 0; I < Imports.Length; I := I + 1 do
         begin
             var TheModule := Imports[I] as Environment;
 
             if TheModule.Values.Contains (Name) then
-                if TheModule.IsExported (Name) then Exit TheModule;
+                if TheModule.IsExported (Name) then
+                begin
+                    // ⚠️ Not a clash with itself: importing one module twice
+                    // leaves the same environment in Imports twice, and one
+                    // module is never ambiguous with itself.
+                    if Found <> Nil and TheModule <> Found then
+                        RaiseAmbiguousImport (Name);
+
+                    Found := TheModule;
+                end
         end
-        Exit Nil;
+
+        Exit Found;
     end
 
     /// Defines a variable at the local scope.
@@ -75,6 +159,11 @@ begin
             Values.Put (Str(Name.Lexeme), Value);
             Exit;
         end
+
+        if Ambiguous <> Nil then
+            if Ambiguous.Contains (Str(Name.Lexeme)) then
+                raise '''' + Str (Name.Lexeme) + ''' is ambiguous: '
+                    + Str (Ambiguous.Get (Str(Name.Lexeme))) + '.';
 
         // ⚠️ Written where it lives, in the module that declared it.  Defining a
         // copy here would leave two bindings for one name, and a later read
@@ -106,6 +195,11 @@ begin
         begin
             Exit Values.Get (Str(Name.Lexeme));
         end
+
+        if Ambiguous <> Nil then
+            if Ambiguous.Contains (Str(Name.Lexeme)) then
+                raise '''' + Str (Name.Lexeme) + ''' is ambiguous: '
+                    + Str (Ambiguous.Get (Str(Name.Lexeme))) + '.';
 
         var Owner := OwnerOf (Str(Name.Lexeme));
         if Owner <> Nil then Exit (Owner as Environment).Values.Get (Str(Name.Lexeme));

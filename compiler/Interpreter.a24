@@ -1276,6 +1276,15 @@ begin
     ///
     function SuggestUnit (Name : Token, Message : String) : String;
     begin
+        // ⚠️ ONLY an undefined name is enriched.  Env.Get raises for more than
+        // one reason now -- a bare name two imported modules export is
+        // 'ambiguous' rather than undefined [MOD-013] -- and the catch site
+        // cannot tell them apart, so the test belongs here.  Enriching the
+        // ambiguity gave ''Shared' is ambiguous: Alpha or Beta. Unit 'Alpha'
+        // exports it; this file has no ''uses'' for it.', which is advice to add
+        // an import to a file that already has two.
+        if Copy (Message, 0, 19) <> 'Undefined variable ' then Exit Str (Message);
+
         var Units := UnitsByName.Keys();
 
         for var I := 0; I < Units.Length; I := I + 1 do
@@ -1854,8 +1863,30 @@ begin
 
         for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
         begin
-            var MemberName := TheStmt.Members[I].Lexeme;
-            Env.Define (MemberName, TheType.Add (MemberName));
+            var MemberName := Str (TheStmt.Members[I].Lexeme);
+            var Member := TheType.Add (MemberName);
+
+            // ⚠️ Two enumerations may share a member name [ENU-003].  The
+            // declaration used to be refused with ''A' is already defined.', so
+            // adding a member to one enumeration could break an unrelated one
+            // elsewhere in the program, and 'First.A' -- which is unambiguous
+            // and always worked -- never got a chance to help.
+            //
+            // The name is refused where it cannot be RESOLVED instead
+            // [ENU-011]: the bare form is marked ambiguous and the qualified
+            // form goes on working, because it reaches the member through the
+            // type rather than through this binding.
+            var Clash := Env.Values.Contains (MemberName);
+            if Clash then Clash := Env.Values.Get (MemberName) is ObjEnum;
+            if Clash then
+                Clash := (Env.Values.Get (MemberName) as ObjEnum).TypeName
+                    <> TheType.Name;
+
+            if Clash then
+                Env.MarkAmbiguous (MemberName,
+                    (Env.Values.Get (MemberName) as ObjEnum).TypeName
+                        + ' or ' + TheType.Name);
+            else Env.Define (MemberName, Member);
         end
 
         Env.Define (TheStmt.Name.Lexeme, TheType);
@@ -2091,6 +2122,7 @@ begin
 
         ModuleEnv := Environment();
         ModuleEnv.Enclosing := Builtins;
+        ModuleEnv.UnitName := Str (TheStmt.UnitName);
 
         // ⚠️ Registered BEFORE its statements run.  A cycle reaches this module
         // again while it is still loading, and the link made then must be to
@@ -2110,36 +2142,23 @@ begin
             // An 'if' around the body rather than a skip, because the language
             // has no 'continue'.  One level of nesting, which is exactly the
             // reading the wish-list entry predicted -- and still fine.
+            // ⚠️ Two modules exporting one name is NOT refused here [MOD-013].
+            // It used to be, with 'mark it private in one of the modules' --
+            // advice to edit a module because of what some other module,
+            // possibly written by someone else, happens to export.
+            // 'Alpha.Shared()' and 'Beta.Shared()' are unambiguous and always
+            // worked, and never got a chance to help.
+            //
+            // The refusal moved to Environment.OwnerOf, which is where a bare
+            // use is resolved and so the only place the ambiguity is real.
+            //
+            // ⚠️ Two modules exporting one FUNCTION still emits cleanly from
+            // both back ends and then dies at the LINKER on a duplicate symbol.
+            // That is a compiler gap, not a reason to refuse the program: the
+            // interpreter runs it correctly, and the emitter is what has to
+            // learn to rename.
             if not TheStmt.PrivateNames.Contains (TheName) then
-            begin
                 Exported.Add (TheName);
-
-                // Two modules exporting one name is an error rather than a
-                // silent shadowing.
-                //
-                // ⚠️ There used to be an exemption here for a function meeting a
-                // function, on the grounds that functions overload.  Top-level
-                // ones do NOT in this language -- two in one file is already
-                // 'already defined' -- and the exemption was exactly what let
-                // two modules export one function.
-                // That emits cleanly from both compilers and then dies at the
-                // LINKER on a duplicate symbol, which is past anything a
-                // compile-only check can observe.
-                //
-                // ⚠️ Asked of the importer's IMPORTS, not of its own bindings: a
-                // file's own declaration of an imported name is shadowing, not a
-                // clash, and the nearest binding wins as it does over a built-in.
-                // Checking its own bindings instead catches the opposite case,
-                // and makes exactly the wrong programs legal.
-                var Owner := Importer.OwnerOf (TheName);
-
-                // ⚠️ Not a clash with itself: importing one module twice is a
-                // no-op, and the second 'uses' finds the first holding the name.
-                if Owner <> Nil and Owner <> ModuleEnv then
-                    raise '''' + TheName
-                        + ''' is already defined; mark it private in one of the modules.';
-
-            end
         end
 
         // ⚠️ Nothing is moved or copied.  The module keeps its own environment

@@ -107,7 +107,6 @@ static Value or_27;
 static Value or_28;
 static Value or_29;
 static Value or_30;
-static Value or_31;
 static const char *t_Interpreter_Hoist_1_List[] = { "List" };
 static const char *t_Interpreter_Interpret_1_List[] = { "List" };
 static const char *t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean[] = { "List", "List", "Map", "Boolean", "Environment", "Map", "String", "List", "Map", "Set", "Boolean" };
@@ -1605,6 +1604,9 @@ static Value m_Interpreter_SuggestUnit_2_Token_String(Value v_this, Value *args,
     (void)v_Name;
     Value v_Message = args[1];
     (void)v_Message;
+    if (alg_truthy(alg_not_equal(alg_copy(v_Message, alg_int(0), alg_int(19)), alg_string("Undefined variable ")))) {
+        return alg_str(v_Message);
+    }
     Value v_Units = alg_invoke(alg_property(v_this, "UnitsByName"), "Keys", NULL, 0);
     (void)v_Units;
     {
@@ -2171,9 +2173,23 @@ static Value m_Interpreter_VisitEnumStmt_1_EnumStmt(Value v_this, Value *args, i
         while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Members"), "Length")))) {
             {
                 {
-                    Value v_MemberName = alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme");
+                    Value v_MemberName = alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme"));
                     (void)v_MemberName;
-                    (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){v_MemberName, alg_invoke(v_TheType, "Add", (Value[]){v_MemberName}, 1)}, 2));
+                    Value v_Member = alg_invoke(v_TheType, "Add", (Value[]){v_MemberName}, 1);
+                    (void)v_Member;
+                    Value v_Clash = alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Contains", (Value[]){v_MemberName}, 1);
+                    (void)v_Clash;
+                    if (alg_truthy(v_Clash)) {
+                        (void)((v_Clash = alg_is(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){v_MemberName}, 1), "ObjEnum")));
+                    }
+                    if (alg_truthy(v_Clash)) {
+                        (void)((v_Clash = alg_not_equal(alg_property((alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){v_MemberName}, 1)), "TypeName"), alg_property(v_TheType, "Name"))));
+                    }
+                    if (alg_truthy(v_Clash)) {
+                        (void)(alg_invoke(alg_property(v_this, "Env"), "MarkAmbiguous", (Value[]){v_MemberName, alg_add(alg_add(alg_property((alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){v_MemberName}, 1)), "TypeName"), alg_string(" or ")), alg_property(v_TheType, "Name"))}, 2));
+                    } else {
+                        (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){v_MemberName, v_Member}, 2));
+                    }
                 }
                 (void)((v_I = alg_add(v_I, alg_int(1))));
             }
@@ -2462,6 +2478,7 @@ static Value m_Interpreter_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *arg
     }
     (void)((v_ModuleEnv = alg_new(k_Environment, NULL, 0)));
     (void)(alg_set_property(v_ModuleEnv, "Enclosing", alg_property(v_this, "Builtins")));
+    (void)(alg_set_property(v_ModuleEnv, "UnitName", alg_str(alg_property(v_TheStmt, "UnitName"))));
     (void)(alg_invoke(alg_property(v_this, "Modules"), "Put", (Value[]){alg_property(v_TheStmt, "FileName"), v_ModuleEnv}, 2));
     (void)(alg_invoke(v_this, "ExecuteBlock", (Value[]){alg_property(v_TheStmt, "Statements"), v_ModuleEnv}, 2));
     (void)((v_Exported = alg_list()));
@@ -2476,14 +2493,7 @@ static Value m_Interpreter_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *arg
                     Value v_TheName = alg_subscript_get(v_Names, v_I);
                     (void)v_TheName;
                     if (alg_truthy(alg_not(alg_invoke(alg_property(v_TheStmt, "PrivateNames"), "Contains", (Value[]){v_TheName}, 1)))) {
-                        {
-                            (void)(alg_invoke(v_Exported, "Add", (Value[]){v_TheName}, 1));
-                            Value v_Owner = alg_invoke(v_Importer, "OwnerOf", (Value[]){v_TheName}, 1);
-                            (void)v_Owner;
-                            if (alg_truthy((or_30 = alg_not_equal(v_Owner, alg_nil()), !alg_truthy(or_30) ? or_30 : alg_not_equal(v_Owner, v_ModuleEnv)))) {
-                                alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined; mark it private in one of the modules.")));
-                            }
-                        }
+                        (void)(alg_invoke(v_Exported, "Add", (Value[]){v_TheName}, 1));
                     }
                 }
                 (void)((v_I = alg_add(v_I, alg_int(1))));
@@ -2558,7 +2568,7 @@ static Value m_Interpreter_Handle_3_TryStmt(Value v_this, Value *args, int32_t c
     Value v_Handler = alg_nil();
     (void)v_Handler;
     (void)((v_Handler = alg_invoke(v_this, "FindHandler", (Value[]){alg_property(v_TheStmt, "Handlers"), v_Value}, 2)));
-    if (alg_truthy((or_31 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_31) ? or_31 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
+    if (alg_truthy((or_30 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_30) ? or_30 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
         (void)((v_Handler = alg_invoke(alg_property(v_TheStmt, "Handlers"), "Get", (Value[]){alg_string("default")}, 1)));
     }
     if (alg_truthy(alg_equal(v_Handler, alg_nil()))) {

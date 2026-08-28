@@ -1,0 +1,6 @@
+Uncaught: 'Shared' is ambiguous: Alpha or Beta.
+from Alpha
+from Beta
+only in Alpha
+only in Beta
+exit: 70

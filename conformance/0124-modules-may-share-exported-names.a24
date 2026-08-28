@@ -1,0 +1,24 @@
+// spec: MOD-008, MOD-013
+//
+// Two imported modules may export the same name.  The IMPORTS are accepted;
+// only a BARE use that cannot be resolved is refused, and the qualifier
+// resolves it.
+//
+// ⚠️ The refusal used to be at the second import -- ''Shared' is already
+// defined; mark it private in one of the modules.' -- advice to edit a module
+// because of what some other module, possibly written by someone else, happens
+// to export.  'Alpha.Shared()' and 'Beta.Shared()' are unambiguous and always
+// worked.
+
+uses 'modules/Alpha';
+uses 'modules/Beta';
+
+WriteLn (Alpha.Shared ());
+WriteLn (Beta.Shared ());
+
+// Bare, and exported by only one module each.
+WriteLn (OnlyAlpha ());
+WriteLn (OnlyBeta ());
+
+// ⚠️ Bare 'Shared' is the error, and it is the LAST thing that happens.
+WriteLn (Shared ());

@@ -2271,12 +2271,13 @@ interned object**, so `RED = Colour.RED` is true.
 `type First = (A, B);` and `type Second = (A, C);` in one scope is accepted, and
 neither declaration is affected by the other.
 
-⚠️ **NOT YET IMPLEMENTED.** The second declaration is refused with
-`'A' is already defined.`, so adding a member to one enumeration can break an
-unrelated one elsewhere in the program. See DEF-22.
+⚠️ The declaration used to be refused with `'A' is already defined.`, so adding
+a member to one enumeration could break an unrelated one elsewhere in the
+program — and `First.A`, which is unambiguous, never got a chance to help.
 
     interpreter  compiler/Interpreter.a24  VisitEnumStmt
-    defect       DEF-22-shared-enum-member-names.a24
+    interpreter  compiler/Resolver.a24     CheckDuplicates
+    conformance  0123-enumerations-may-share-member-names.a24
 
 **[ENU-011]**  A **bare** member name bound by more than one enumeration in
 scope is ambiguous, and using it is refused with
@@ -2290,11 +2291,15 @@ qualifier, which is the ordinary case and the reason members bind bare at all.
 that never meet an ambiguous use coexist without complaint, and a program is
 told about a name only where it actually cannot be resolved.
 
-⚠️ **NOT YET IMPLEMENTED.** The declaration is refused first [ENU-003], so no
-program reaches the ambiguous use. See DEF-22.
+⚠️ The ambiguous name is **removed** from the scope's bindings rather than left
+in it holding one of the two, so a bare read cannot quietly find one. The
+qualified form is unaffected: it reaches the member through the enumeration
+rather than through that binding.
 
-    interpreter  compiler/Interpreter.a24  VisitEnumStmt
-    defect       DEF-22-shared-enum-member-names.a24
+⚠️ **Compiled, the declaration is refused** rather than the use — C-20.
+
+    interpreter  compiler/Environment.a24  MarkAmbiguous
+    conformance  0123-enumerations-may-share-member-names.a24
 
 **[ENU-004]**  Naming a member the type does not have is `Undefined enum member
 'X'.`
@@ -2625,13 +2630,12 @@ qualified. Qualified, it is `Undefined name 'Hidden' in unit 'Mid'.`
 **[MOD-008]**  Two imported modules **may** export one name. Importing both is
 accepted, and neither module is affected by the other.
 
-⚠️ **NOT YET IMPLEMENTED.** The second import is refused with `'Clash' is
-already defined; mark it private in one of the modules.` — so a module cannot be
-imported alongside another that happens to export a name it also exports, and
-the advice given is to change one of them. See DEF-23.
+⚠️ The import used to be refused with `'Clash' is already defined; mark it
+private in one of the modules.` — advice to edit a module because of what some
+other module, possibly written by someone else, happens to export.
 
     interpreter  compiler/Interpreter.a24  VisitModuleStmt
-    defect       DEF-23-modules-may-not-share-exported-names.a24
+    conformance  0124-modules-may-share-exported-names.a24
 
 **[MOD-013]**  A **bare** name exported by more than one imported module is
 ambiguous, and using it is refused with
@@ -2651,11 +2655,15 @@ removes the need for the advice the old diagnostic gave — a module should not
 have to be edited because of what some other module, possibly written by someone
 else, happens to export.
 
-⚠️ **NOT YET IMPLEMENTED.** The import is refused first [MOD-008], so no program
-reaches the ambiguous use. See DEF-23.
+⚠️ Detected where the name is **resolved through the imports**, which is the
+only place the ambiguity is real. Importing one module twice is not a clash with
+itself: the same environment appearing twice in the import list is still one
+module.
 
-    interpreter  compiler/Interpreter.a24  VisitModuleStmt
-    defect       DEF-23-modules-may-not-share-exported-names.a24
+⚠️ **Compiled, the program is refused** rather than run — C-21.
+
+    interpreter  compiler/Environment.a24  OwnerOf
+    conformance  0124-modules-may-share-exported-names.a24
 
 ### 15.3 Visibility
 
@@ -3862,6 +3870,35 @@ rule and the front end is shared, so both processors already agree that
 
 ---
 
+**C-20 — Two enumerations binding one member is refused compiled.** *(loud)*
+
+Two enumerations may share a member name [ENU-003] and the interpreter runs the
+program, refusing only the ambiguous bare use [ENU-011]. The emitter refuses the
+whole program with `Two enumerations binding 'A' is not supported by the C back
+end yet.`
+
+⚠️ **It used to be silent, and that was worse.** The emitter keys each member's C
+symbol by the member name alone, so the second enumeration's entry overwrote the
+first's and the first's members began resolving to the second's symbols. The
+ambiguous use that [ENU-011] refuses printed a member instead. The refusal was
+added deliberately, in preference to emitting a wrong answer.
+
+*Fix:* key the member map on the owning enumeration as well as the member.
+
+**C-21 — Two modules exporting one name is refused compiled.** *(loud)*
+
+Two imported modules may export one name [MOD-008] and the interpreter runs the
+program, refusing only the ambiguous bare use [MOD-013]. The emitter refuses with
+`Two modules exporting 'Shared' is not supported by the C back end yet.`
+
+⚠️ Two modules exporting one **function** would emit cleanly from both back ends
+and then die at the **linker** on a duplicate symbol — past anything a
+compile-only check can observe — which is why the refusal is worth keeping until
+the emitter learns to rename.
+
+*Fix:* rename the colliding symbol per unit, as a private name colliding across
+units already is.
+
 ## Annex D — advisory notes *(non-normative)*
 
 Where the specified behaviour looks like a mistake. Nothing here weakens the
@@ -4811,50 +4848,6 @@ comparison path that DEF-33 then makes redundant.
 The comparison itself exists in `Fits`. ⚠️ It should land with DEF-10, since a
 parameter must **widen** as well as match — a Char argument reaching a String
 parameter is correct and must not start failing.
-
-**DEF-22 — Two enumerations may not share a member name.**
-*(violates [ENU-003], [ENU-011])*
-
-`type First = (A, B);` followed by `type Second = (A, C);` is refused with
-`'A' is already defined.`, so adding a member to one enumeration can break an
-unrelated one elsewhere in the program — and the qualified form `First.A`, which
-would be unambiguous, never gets a chance to help.
-
-*Reproduce:* `defects/DEF-22-shared-enum-member-names.a24`
-
-⚠️ **The refusal is in the wrong place rather than wrong outright.** A shared
-member name is only a problem where a *bare* use cannot be resolved. Two
-enumerations that never meet such a use coexist perfectly well, and a program
-should be told about a name where it actually cannot be resolved — not where it
-was declared.
-
-*Scope of the fix.* Two parts, and the first is a deletion. `VisitEnumStmt`
-stops refusing a member name already bound by another enumeration, and instead
-records that the bare name now denotes more than one member. Resolving a bare
-name that carries more than one binding is then the refusal, with
-`'A' is ambiguous: First or Second.` The qualified path already works and needs
-no change.
-
-**DEF-23 — Two imported modules may not export one name.**
-*(violates [MOD-008], [MOD-013])*
-
-Importing two modules that both export `Shared` is refused with `'Shared' is
-already defined; mark it private in one of the modules.` — advice to edit a
-module because of what some other module, possibly written by someone else,
-happens to export. The qualified forms `Alpha.Shared()` and `Beta.Shared()`,
-which are unambiguous, never get a chance to help.
-
-*Reproduce:* `defects/DEF-23-modules-may-not-share-exported-names.a24`
-
-⚠️ **The refusal is in the wrong place rather than wrong outright**, exactly as
-DEF-22 is for enumerations. A shared exported name is only a problem where a
-*bare* use cannot be resolved.
-
-*Scope of the fix.* `VisitModuleStmt` stops refusing a name already exported by
-another imported module and instead records that the bare name now denotes more
-than one. Resolving a bare name carrying more than one binding is then the
-refusal, with `'Shared' is ambiguous: Alpha or Beta.` The qualified path already
-works.
 
 **DEF-24 — A cycle through the root file does not work.**
 *(violates [MOD-014])*

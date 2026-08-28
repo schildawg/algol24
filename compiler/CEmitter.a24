@@ -703,8 +703,23 @@ begin
                 EnumTypes.Add (Str (TheStmt.Name.Lexeme));
 
                 for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
-                    EnumMembers.Put (Str (TheStmt.Members[J].Lexeme),
-                                     Str (TheStmt.Name.Lexeme));
+                begin
+                    var Member := Str (TheStmt.Members[J].Lexeme);
+
+                    // ⚠️ Two enumerations may share a member name [ENU-003], and
+                    // this map cannot hold both: the second Put wins, so the
+                    // FIRST enumeration's members start resolving to symbols
+                    // belonging to the second.  Compiled, the ambiguous bare use
+                    // that [ENU-011] refuses printed a member instead -- a
+                    // silent wrong answer, which is the one thing this back end
+                    // must never emit.  Refused by name until the map can key on
+                    // the owner as well as the member.
+                    if EnumMembers.Contains (Member) then
+                        if Str (EnumMembers.Get (Member)) <> Str (TheStmt.Name.Lexeme) then
+                            Unsupported ('Two enumerations binding ''' + Member + '''');
+
+                    EnumMembers.Put (Member, Str (TheStmt.Name.Lexeme));
+                end
             end
 
             if TheStmt is BlockStmt then CollectFunctions (TheStmt.Statements);

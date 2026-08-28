@@ -1,0 +1,28 @@
+// spec: ENU-003, ENU-011
+//
+// Two enumerations may bind the same member name.  The DECLARATIONS are
+// accepted; only a BARE use that cannot be resolved is refused, and the
+// qualified form resolves it.
+//
+// ⚠️ The refusal used to be at the second declaration -- ''A' is already
+// defined.' -- so adding a member to one enumeration could break an unrelated
+// one elsewhere in the program, and 'First.A', which is unambiguous and always
+// worked, never got a chance to help.
+
+type First  = (A, B);
+type Second = (A, C);
+
+// Qualified: unambiguous, and they are different members of different types.
+WriteLn (First.A);
+WriteLn (Second.A);
+WriteLn (First.A = Second.A);
+
+// Bare, and bound by only one enumeration each.  A shared name does not make
+// its neighbours ambiguous.
+WriteLn (B);
+WriteLn (C);
+
+// ⚠️ Bare 'A' is the error, and it is the LAST thing that happens: everything
+// above ran.  A name is refused where it cannot be resolved, not where it was
+// declared.
+WriteLn (A);
