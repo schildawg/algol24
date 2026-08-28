@@ -1,16 +1,20 @@
 # The Algol-24 Programming Language Specification
 
-> **Status: first draft complete.** Nineteen chapters and five annexes, 248
-> rules, each verified by running the interpreter rather than by reading it.
+> **Status: the conformance pass is complete.** Nineteen chapters and eight
+> annexes, 260 rules. Every rule is **decided** — what the language should do —
+> and every rule is claimed by a case: a program in `conformance/`, a refusal in
+> `refusals/`, or a reproduction in `defects/`. None awaits one.
 >
-> ⚠️ **No rule is covered by a conformance program yet.** Every rule carries
-> `conformance TBD`, and that number is 248 of 248. What exists is evidence —
-> `spec/probes/` holds the programs each rule was verified with and a recording
-> of what the implementation did — and evidence is not a commitment. Deciding
-> which behaviours to conform *to* is a separate pass; see `spec/PLAN.md` §7.
+> ⚠️ **This document is now the authority, and the implementation is measured
+> against it** [1.1]. Where the two disagree, **31 defects** in Annex F say so
+> and carry a reproduction that passes while the fault persists. A rule ahead of
+> the implementation says which of three things it is — `NOT YET IMPLEMENTED`,
+> `PARTLY IMPLEMENTED`, or `PLANNED — a later generation` — and `spec/spec.sh`
+> enforces that each points somewhere.
 >
-> Two silent divergences between the interpreter and the C back end are recorded
-> in Annex C, and eighteen behaviours that look like defects in Annex D.
+> Fifteen divergences between the interpreter and the C back end are recorded in
+> Annex C, six of them silent. Annex D's eighteen advisory notes are all
+> resolved. Annex H holds nine changes planned for later generations.
 
 ---
 
@@ -87,10 +91,17 @@ pinning the interpreter's behaviour therefore pins the language's. But another
 implementation has no `Scanner` class to test, so a unit test can never be run
 against it. Only a conformance program can.
 
-**Every rule carries a `conformance` line**, and where no program exists yet its
-value is the literal `TBD` — so the gap is stated in the specification rather
-than left to be discovered. `spec.sh` requires the line, counts the TBDs, and
-`grep 'conformance  TBD' ALGOL-24.md` is the corpus's backlog.
+**Every rule is claimed by a case**, cited as `conformance`, `refusal` or
+`defect`. Which of the three is decided by one question — is the interpreter
+right? — and `conformance/README.md` explains it. Where no case existed the
+value was the literal `TBD`, so the gap was stated rather than left to be
+discovered; **that backlog is now empty**, and `spec.sh` still requires the line
+so a new rule cannot be added without one.
+
+⚠️ A rule may cite more than one, and most cases pin more than one rule. A
+partly implemented rule cites a conformance program for the half that works and
+a defect for the half that does not, so the per-kind counts overlap and do not
+sum to the total. `spec.sh --coverage` reports them separately.
 
 `unit` is cited where a test happens to pin the rule and omitted where none
 does. It is deliberately not mandatory: a unit test is a test of algc, and
@@ -4619,7 +4630,7 @@ giving `Expect ')' after arguments.`
 
 ⚠️ **Only the parse failure is reproducible today.** The other symptom — a cast
 covering a conjunction — prints the same value under either precedence, because
-a cast has no runtime effect [DEF-12] and `and` yields an operand. It becomes
+a cast has no runtime effect (DEF-12) and `and` yields an operand. It becomes
 observable the moment DEF-12 is fixed.
 
 ⚠️ **This mattered less before `as` was checked.** A cast covering a conjunction

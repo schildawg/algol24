@@ -68,6 +68,8 @@ echo
 echo "Identifiers"
 
 awk '{print $2}' "$WORK/rules" > "$WORK/ids"
+grep -oE '^\*\*\[[A-Z]+-[0-9]+\]' "$SPEC" | sed 's/^\*\*\[//; s/\]$//' \
+  | sort -u > "$WORK/ids_sorted"
 
 # ⚠️ Malformed IDs are caught by the grep above never matching them, which
 # would silently DROP the rule rather than report it.  So count the loose
@@ -357,6 +359,23 @@ if [ -n "$UNCITED" ]; then
     problem "case file(s) no rule cites: $UNCITED"
 else
     echo "  every case file is cited ($(wc -l < "$WORK/cases_on_disk" | tr -d ' ') files)"
+fi
+
+# ⚠️ A cross-reference like [VAR-017] must name a rule that exists.  Nothing
+# checked this until the specification was finished and about to be read
+# carefully, and a dangling reference is the most frustrating thing a reader can
+# meet: it looks deliberate, and following it costs a search that ends nowhere.
+#
+# ⚠️ Defect and annex identifiers -- DEF-12, C-4, D-15, H-9 -- are deliberately
+# NOT bracketed, so that the brackets mean one thing.  One had slipped through.
+
+grep -oE '\[[A-Z]+-[0-9]+\]' "$SPEC" | tr -d '[]' | sort -u > "$WORK/xrefs"
+
+DANGLING=$(comm -23 "$WORK/xrefs" "$WORK/ids_sorted" | tr '\n' ' ')
+if [ -n "$DANGLING" ]; then
+    problem "cross-reference(s) to a rule that does not exist: $DANGLING"
+else
+    echo "  $(wc -l < "$WORK/xrefs" | tr -d ' ') distinct rule cross-reference(s) resolve"
 fi
 
 # ------------------------------------------------------------------ tables --

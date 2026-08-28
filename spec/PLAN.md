@@ -9,6 +9,40 @@ plan is the work of making the interpreter do it.
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
+## 0. The road to v1
+
+| | | Ends when |
+| --- | --- | --- |
+| **Gen 0** | The specification is written and reviewed. | The spec is read carefully and signed off. Merge to `main`, tag **Gen 0**. |
+| **Gen 1** | The spec is authoritative and conformance is enforcement. Work through the defects until there are none. | `defects/` is empty. Tag **Gen 1**. |
+| **Gen 2** | Turn on the compiler. Annex C's divergences become defects and are worked through the same way. | Conformance passes under **both** processors and no defect remains. Tag **Gen 2**. |
+| **v1** | New language features and a runtime library, prioritized, each staying within conformance. | Release. |
+
+⚠️ **What changes at the Gen 1 → Gen 2 boundary is the corpus doctrine itself.**
+Today a case is classified by one question — *is the interpreter right?* — and
+compiler gaps are reported but do not fail the run
+(`conformance/README.md`). At Gen 2 that relaxation ends: `./conform.sh
+--strict` becomes the gate, and each Annex C entry earns a defect of its own.
+The classification question does not change, because by then the interpreter
+matches the specification and "is the interpreter right?" is answered yes
+everywhere; what changes is that the compiler is no longer excused.
+
+⚠️ **Four Annex C entries will not survive to Gen 2**, and should not be written
+up as compiler defects when the time comes:
+
+- **C-1** closes with DEF-24 — giving the root a module identity.
+- **C-12** closes with DEF-17 — the language stops allowing what the compiler
+  already refused.
+- **C-4** and **C-9** *reverse*: [SRC-011] and [RT-017] make the compiler right
+  and the interpreter the one to change, so they are Gen 1 work (DEF-02,
+  DEF-26) rather than Gen 2 work.
+
+⚠️ **Nothing after Gen 0 may change a rule without a reason recorded in the
+specification.** The point of signing off is that the document stops being a
+description of the implementation and starts being the thing the implementation
+is measured against — so a defect is closed by changing the code, and a rule is
+changed only by deciding to change the language.
+
 ## 1. What "done" means
 
 ```
