@@ -16,6 +16,11 @@ begin
     WriteLn ('3, from a block in place');
 end
 
+// ⚠️ A counted for is a block too [STM-006], so this is deferred compiled for
+// the same reason -- and it is the case that matters, because a bare block at
+// the top level is rare and a counted loop is ordinary code.
+for var I := 1; I <= 2; I := I + 1 do WriteLn ('3.' + Str (I) + ', from a loop in place');
+
 procedure P (); begin WriteLn ('5, when called'); end
 
 WriteLn ('4');

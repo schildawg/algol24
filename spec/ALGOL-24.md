@@ -3591,6 +3591,29 @@ A bare `begin` … `end` at the top level runs **in place** interpreted and
 **after every other top-level statement** compiled. With two such blocks, both
 are deferred and run in their own order at the end.
 
+⚠️ **A counted `for` is affected too, and that is the case that matters.**
+[STM-006] desugars it into a block holding the initializer and a `while`, so a
+top-level counted loop is a top-level block and is deferred with the rest:
+
+```
+WriteLn ('one');
+for var I := 1; I <= 2; I := I + 1 do WriteLn ('  loop ' + Str (I));
+WriteLn ('two');
+```
+
+| Interpreted | Compiled |
+| --- | --- |
+| `one` `loop 1` `loop 2` `two` | `one` `two` `loop 1` `loop 2` |
+
+A bare block at the top level is rare; a counted loop is ordinary code, so the
+divergence is far more reachable than the entry first suggested. It was found by
+running the first three-line program written to try the VS Code **Run Both**
+command.
+
+⚠️ **Scoped by running each shape.** These are *not* affected, because the block
+in each is a body rather than a top-level statement: a `while` with a block
+body, a `for … in`, and an `if`.
+
 ⚠️ **Statement order is not preserved**, which makes this the most damaging
 silent divergence recorded. C-6 crashes, which is at least noticeable; C-10
 substitutes `nil` for a diagnostic, which a careful reader may spot. This one
