@@ -512,7 +512,17 @@ done badly.
 | 10 Statements | 23 | A declaration may not be an unbraced body; most-derived handler selection kept and made total |
 | 11 Functions and closures | 12 | `procedure` may not `Exit` a value; parameter types enforced everywhere |
 | 12 Classes and objects | 16 | Inheriting from a non-class gets a message about inheritance |
-| 13 onwards | 80 | — |
+| 13 Enumerations | 10 | A member answers `Ordinal`; whether the first member is falsey is **open** |
+| 14 onwards | 70 | — |
+
+⚠️ **Chapter 13 left a rule undecided on purpose.** [ENU-009] makes the first
+member of every enumeration falsey, so reordering an enumeration silently
+changes the truth of every conditional written over it. That looks wrong, and
+the evidence says changing it is safe — the compiler's own two enumerations are
+compared explicitly at all five use sites and never tested bare. But changing it
+reverses part of [VAL-008], which chapter 7 decided, and reopening a decided
+rule is not a call to make while writing the chapter that meets it. It is
+recorded in D-13 with the evidence attached.
 
 ⚠️ **Chapter 12 corrected a rule by running it.** [CLS-014] and D-12 both said
 the superclass check happens at construction. It does not — the declaration is

@@ -1,0 +1,13 @@
+// spec: ENU-008
+//
+// ⚠️ Expected to FAIL compiled, because of C-8.
+//
+// Members compare for equality but do not order.  A program needing an order
+// compares ordinals [ENU-010].
+
+type Colour = (RED, GREEN, BLUE);
+
+WriteLn (RED = RED);
+WriteLn (RED <> GREEN);
+
+WriteLn (RED < GREEN);

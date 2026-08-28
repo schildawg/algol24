@@ -2143,7 +2143,7 @@ EnumDecl = "type" identifier "=" "(" identifier { "," identifier } ")" ";" .
 ```
 
     interpreter  compiler/Parser.a24  EnumDeclaration
-    conformance  TBD
+    conformance  0071-enumerations.a24
 
 **[ENU-002]**  Each member is bound as a **bare name** in the enclosing scope and
 is also reachable qualified as `Type.Member`. Both spellings denote the **same
@@ -2152,19 +2152,24 @@ interned object**, so `RED = Colour.RED` is true.
     interpreter  compiler/ObjEnum.a24  ObjEnumType
     compiler     bootstrap/algol.c     alg_enum_member
     unit         Both Spellings Of An Enum Member Type As The Enum
-    conformance  TBD
+    conformance  0071-enumerations.a24
 
 **[ENU-003]**  Because members bind as bare names, two enumerations may not
 share a member name: the second is `'A' is already defined.`
 
+⚠️ The qualified form `Type.Member` [ENU-002] exists and would be unambiguous,
+but it does not rescue the declaration — the collision happens when the members
+are bound, before any use. Adding a member to one enumeration can therefore
+break an unrelated one elsewhere in the program.
+
     interpreter  compiler/Interpreter.a24  VisitEnumStmt
-    conformance  TBD
+    refusal      0028-enum-members-share-one-scope.a24
 
 **[ENU-004]**  Naming a member the type does not have is `Undefined enum member
 'X'.`
 
     interpreter  compiler/ObjEnum.a24  ObjEnumType
-    conformance  TBD
+    conformance  0072-unknown-enum-member.a24
 
 ### 13.2 Values
 
@@ -2173,25 +2178,30 @@ enumeration is never equal to a member of another, whatever they are called.
 
     interpreter  compiler/Interpreter.a24  IsEqual
     unit         An Enum Member Does Not Satisfy Another Enum
-    conformance  TBD
+    conformance  0071-enumerations.a24
 
 **[ENU-006]**  `M is T` is true for the member's own type and false for every
 other.
 
     interpreter  compiler/Interpreter.a24  VisitIsExpr
     unit         An Enum Type Name Types As Itself
-    conformance  TBD
+    conformance  0071-enumerations.a24
 
 **[ENU-007]**  A member renders as its bare name: `Str(RED)` is `RED`.
 
     interpreter  compiler/ObjEnum.a24  ToString
-    conformance  TBD
+    conformance  0071-enumerations.a24
 
 **[ENU-008]**  Members are **not ordered**. `RED < GREEN` is `Operands must be
 numbers.`
 
+⚠️ A program that needs an order compares ordinals [ENU-010]. The operators are
+left alone deliberately: `<` on two members would have to mean position, and
+position is exactly the property [ENU-009] shows to be a trap when it acts
+implicitly.
+
     interpreter  compiler/Interpreter.a24  VisitBinary
-    conformance  TBD
+    conformance  0073-enum-members-are-not-ordered.a24
 
 ### 13.3 The ordinal
 
@@ -2202,15 +2212,21 @@ later member is truthy, because truthiness reads the member's position [VAL-008]
     compiler     bootstrap/algol.c         alg_truthy
     conformance  TBD
 
-**[ENU-010]**  ⚠️ A member is otherwise **opaque**. It has no reachable
-properties: `RED.Ordinal` is `Only instances have properties.` The position that
-decides [ENU-009] cannot be read by a program.
+**[ENU-010]**  A member answers `Ordinal`, its **zero-based position** in the
+declaration. `RED.Ordinal` is 0 and `BLUE.Ordinal` is 2. It answers no other
+property.
+
+⚠️ **NOT YET IMPLEMENTED.** A member is opaque: `RED.Ordinal` is `Only instances
+have properties.`, so the position that decides [ENU-009] cannot be read by a
+program at all — and a program can discover whether a member is falsey only by
+testing it for truth. See DEF-21.
+
+⚠️ The ordinal is what a program needs to order members [ENU-008], to index an
+array by one, or to write one out and read it back. It exists in both runtimes
+already; it is simply not published.
 
     interpreter  compiler/ObjEnum.a24  ObjEnum
-    conformance  TBD
-
-> A program can discover whether a member is falsey only by testing it for
-> truth. See Annex D.
+    defect       DEF-21-enum-ordinal-is-not-reachable.a24
 
 ---
 
@@ -3693,13 +3709,23 @@ about the declaration looks conditional.
 The rule exists so that enumerations behave like the small integers they are
 represented by, which is a real convention and not an accident.
 
-*Recommended:* two things, and the first is worth doing whichever way the second
-goes. **Expose the ordinal**, so the value that governs the behaviour can at
-least be read and compared; `Ordinal` already exists on the implementation's own
-class and simply is not published. **Then reconsider [ENU-009] itself** — an
-enumeration member is not a number, nothing else in the language makes a
-declared name falsey by position, and a first member that is false is a trap
-laid for whoever adds a member at the front.
+**Half resolved.** [ENU-010] now requires a member to answer `Ordinal`, its
+zero-based position, so the value that governs the behaviour can be read and
+compared. `Ordinal` already exists on the implementation's own class and simply
+is not published. Tracked by DEF-21.
+
+⚠️ **[ENU-009] itself is still open**, and is the larger half. An enumeration
+member is not a number, nothing else in the language makes a declared name
+falsey by position, and a first member that is false is a trap laid for whoever
+adds a member at the front — reordering an enumeration silently changes the
+truth of every conditional written over it.
+
+Changing it would reverse part of [VAL-008], which the conformance pass decided
+in chapter 7, so it is recorded here rather than taken unilaterally. Evidence
+gathered for whoever decides: the compiler's own two enumerations are compared
+explicitly at all five of their use sites — `if CurrentFunction = FUN_NONE then`
+— and never tested for truth bare, so the change is safe against the largest
+body of Algol-24 that exists.
 
 **D-14 — Circular imports fail, and say something else.** *(refers to
 [MOD-012])*
@@ -4332,6 +4358,28 @@ correction came from running the case, not from reading the code.
 
 *Scope of the fix.* `VisitClassStmt` in `compiler/Interpreter.a24` raises its own
 message rather than falling through to the property-access path.
+
+**DEF-21 — An enumeration member's ordinal is not reachable.**
+*(violates [ENU-010])*
+
+`RED.Ordinal` is `Only instances have properties.` A member answers no property
+at all, so its position cannot be read — while that same position decides the
+member's truthiness [ENU-009]. A program can discover whether a member is falsey
+only by testing it for truth.
+
+*Reproduce:* `defects/DEF-21-enum-ordinal-is-not-reachable.a24`
+
+⚠️ The ordinal is also what a program needs in order to put members in an order
+[ENU-008], to index an array by one, or to write one out and read it back. None
+of that is reachable today.
+
+*Scope of the fix.* `ObjEnum` already carries the position; `Get` answers
+`Ordinal` from it, in the way `ObjInstance` answers `ClassName` [CLS-008], and
+the C runtime does the same in `alg_property`.
+
+⚠️ **This is the smaller half of D-13.** The larger half — whether the first
+member of an enumeration should be falsey at all — is still open, because
+changing it reverses part of [VAL-008], decided in chapter 7.
 
 ---
 

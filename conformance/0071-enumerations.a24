@@ -1,0 +1,32 @@
+// spec: ENU-001, ENU-002, ENU-005, ENU-006, ENU-007
+//
+
+type Colour = (RED, GREEN, BLUE);
+type Fruit  = (APPLE, PEAR);
+
+// ENU-002: each member binds as a BARE NAME and is also reachable qualified.
+// Both spellings denote the same interned object.
+WriteLn (RED);
+WriteLn (Colour.RED);
+WriteLn (RED = Colour.RED);
+
+// ENU-007: a member renders as its bare name.
+WriteLn (Str (BLUE));
+
+// ENU-006: 'is' is true for the member's own type and false for every other.
+WriteLn (RED is Colour);
+WriteLn (RED is Fruit);
+WriteLn (APPLE is Fruit);
+
+// ENU-005: members compare by IDENTITY.  A member is never equal to a member
+// of another enumeration, whatever they are called, and not to its own name as
+// text.
+WriteLn (RED = GREEN);
+WriteLn (RED = APPLE);
+WriteLn (RED = 'RED');
+
+// ENU-001: the members are named in order, and the declaration is the only
+// place that order appears.
+var Seen := '';
+for var C in [RED, GREEN, BLUE] do Seen := Seen + Str (C) + ' ';
+WriteLn (Seen);
