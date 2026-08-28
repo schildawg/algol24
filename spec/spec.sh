@@ -233,8 +233,12 @@ while IFS="$(printf '\t')" read -r rule key value; do
     fi
 done < "$WORK/cites"
 
+# ⚠️ The reserved -000 illustration is excluded here as it is from the rule
+# count, or 'accounted for' reports 261 of 260 -- a total larger than the thing
+# it is a total of, which is the shape of a number nobody checks.
 for k in unit conformance refusal defect; do
-    awk -F'\t' -v k="$k" '$2==k{print $1}' "$WORK/cites" | sort -u > "$WORK/has_$k"
+    awk -F'\t' -v k="$k" '$2==k{print $1}' "$WORK/cites" \
+      | grep -v -- '-000$' | sort -u > "$WORK/has_$k"
 done
 cat "$WORK/has_conformance" "$WORK/has_refusal" "$WORK/has_defect" 2>/dev/null \
   | sort -u > "$WORK/has_any"
@@ -333,6 +337,26 @@ if [ -s "$WORK/annex_order" ]; then
     done < "$WORK/annex_order"
 else
     echo "  annex entries are numbered in order"
+fi
+
+# ⚠️ Both directions.  Every case the specification cites must exist -- checked
+# above -- and every case that exists must be cited by some rule.  Without the
+# second, a case can sit in the corpus running green while no rule points at it,
+# so a reader following a rule never finds its reproduction and nobody notices
+# the citation was never written.  Six files were in that state when this check
+# was added.
+
+find conformance refusals defects -maxdepth 1 -name '*.a24' 2>/dev/null \
+  | sed 's|.*/||' | sort -u > "$WORK/cases_on_disk"
+
+awk -F'\t' '$2=="conformance"||$2=="refusal"||$2=="defect" {print $3}' "$WORK/cites" \
+  | grep -v '^TBD$' | sort -u > "$WORK/cases_cited"
+
+UNCITED=$(comm -23 "$WORK/cases_on_disk" "$WORK/cases_cited" | tr '\n' ' ')
+if [ -n "$UNCITED" ]; then
+    problem "case file(s) no rule cites: $UNCITED"
+else
+    echo "  every case file is cited ($(wc -l < "$WORK/cases_on_disk" | tr -d ' ') files)"
 fi
 
 # ------------------------------------------------------------------ tables --
@@ -471,10 +495,20 @@ if [ "$COVERAGE" -eq 1 ]; then
 
     comm -23 "$WORK/allids" "$WORK/has_unit" > "$WORK/no_unit"
 
+    # ⚠️ Each of these counts the rules citing that KIND, and they overlap: a
+    # rule may cite a conformance program for the half that works and a defect
+    # for the half that does not, so they do not sum to the total.
+    #
+    # ⚠️ 'covered by conformance' was once computed as (total - TBD), which
+    # measures how many rules are ACCOUNTED FOR rather than how many cite a
+    # conformance program. While TBD was non-zero the number looked plausible;
+    # when TBD reached zero it read '260 of 260' and claimed full conformance
+    # coverage for a document where 64 rules cite only a refusal or a defect.
     echo "  pinned by a unit test:   $(wc -l < "$WORK/has_unit" | tr -d ' ') of $RULE_COUNT"
-    echo "  covered by conformance:  $(( $(wc -l < "$WORK/allids" | tr -d ' ') - TBD )) of $RULE_COUNT"
-    echo "  tracked by a defect:     $(wc -l < "$WORK/has_defect" | tr -d ' ') of $RULE_COUNT"
-    echo "  covered by a refusal:    $(wc -l < "$WORK/has_refusal" | tr -d ' ') of $RULE_COUNT"
+    echo "  cite a conformance program: $(( $(wc -l < "$WORK/has_conformance" | tr -d ' ') - TBD )) of $RULE_COUNT"
+    echo "  cite a refusal:          $(wc -l < "$WORK/has_refusal" | tr -d ' ') of $RULE_COUNT"
+    echo "  cite a defect:           $(wc -l < "$WORK/has_defect" | tr -d ' ') of $RULE_COUNT"
+    echo "  accounted for:           $(wc -l < "$WORK/has_any" | tr -d ' ') of $RULE_COUNT (the gate; overlaps above)"
 
     if [ -s "$WORK/no_unit" ]; then
         echo "  no unit test pins these:"

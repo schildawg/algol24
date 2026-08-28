@@ -181,10 +181,18 @@ For the record, and because the numbers say where the effort went.
 | | |
 | --- | --- |
 | Rules | 260, none awaiting a case |
-| Conformance programs | 108 |
-| Refusals | 29 |
-| Defects | 32 files, 31 defects |
+| Case files | 169 — 108 conformance, 29 refusals, 32 defects |
+| Rules citing a conformance program | 196 |
+| Rules citing a refusal | 30 |
+| Rules citing a defect | 45 |
 | Probes | 134 |
+
+⚠️ **Those three do not sum to 260, and are not meant to.** A case usually
+pins several rules — 1.7 on average, and `conformance/0058-exceptions.a24`
+covers five — and a rule that is *partly* implemented cites both a conformance
+program for the half that works and a defect for the half that does not. The
+number that must reach 260 is **accounted for**, which `spec.sh` reports
+separately and gates on.
 | Annex C — compiler divergences | 15 |
 | Annex D — advisory notes | 18, every one resolved |
 | Annex H — planned generations | 9 |

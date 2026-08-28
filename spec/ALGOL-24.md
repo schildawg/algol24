@@ -217,10 +217,15 @@ Neither mark is an operator. The language spells negation `not` and inequality
 the terminator and is absorbed with it, so a file with CRLF endings and the same
 file with LF endings report identical line numbers.
 
+⚠️ The two cases below are a **pair**, and neither proves the rule alone: they
+are the same program with different line endings, and the rule is that they
+report identically.
+
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Newline
     unit         Scan Comment Ends At Newline
     conformance  0006-line-endings-lf.a24
+    conformance  0006-line-endings-crlf.a24
 
 **[SRC-007]**  Any **other** `#13` is not a terminator. In source it is
 whitespace [SRC-008]; in data it is ordinary text that `ReadLn` returns
@@ -246,6 +251,7 @@ differently.
 
     interpreter  compiler/Scanner.a24  ScanToken
     conformance  0007-carriage-return-only.a24
+    conformance  0009-comment-swallows-a-cr-only-file.a24
 
 > A file with CRLF endings and the same file with LF endings report identical
 > line numbers. A lone `#13` between two statements separates them as any other
@@ -384,6 +390,7 @@ leads an identifier and `var ? := 7;` declares a variable; and it does not admit
 
     interpreter  compiler/Scanner.a24  IsAlpha
     defect       DEF-03-identifier-marks.a24
+    defect       DEF-03b-bang-is-not-an-identifier-mark.a24
 
 > The rule exists so that `Gate?` can be one word without `?` also becoming a
 > name. A trailing mark reads as punctuation on a word; a leading one reads as
@@ -821,6 +828,7 @@ later. See DEF-09.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     conformance  0020-any-accepts-every-value.a24
+    defect       DEF-09-assignment-escapes-the-type.a24
 
 > `Assignable` itself permits `Any` in both directions; the strictness lives in
 > an extra check on the declaration (`compiler/TypeChecker.a24`, `MapType`).
@@ -843,6 +851,7 @@ variable declaration.` See DEF-11.
 
     interpreter  compiler/Parser.a24  VarDeclaration
     conformance  0019-declaration-forms.a24
+    defect       DEF-11-of-is-list-only.a24
 
 **[VAR-016]**  An element type is a **source of types for reads, and no
 constraint on writes.** Given `var L : List of Integer`:
@@ -1608,6 +1617,7 @@ for function.` See DEF-10.
 
     interpreter  compiler/ObjClass.a24  FindOverload
     conformance  0050-overload-selection.a24
+    defect       DEF-10b-widening-at-a-parameter.a24
 
 ### 9.6 Subscripting
 
