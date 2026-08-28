@@ -883,12 +883,13 @@ ordinary and unremarkable; the rule bites only where a type was written down.
 declaration and an assignment, which is the rule above. A value the **checker
 could not type** is refused at a declaration and accepted at an assignment.
 
-⚠️ **That remaining asymmetry is forced, and the reason matters.** The checker
-cannot type ordinary locals in nested scopes — `var C := Copy (Text, I, 1);`
-reduces to no type although `Copy` returns a String — so refusing an untyped
-value at an assignment refuses correct code, `compiler/Scanner.a24`'s own
-`Result := Result + C` first. Refusing a *program* for the *checker's* blind
-spot is the wrong trade.
+⚠️ **That remaining asymmetry is forced by weak inference, and the diagnosis
+narrowed twice.** It is not that locals in nested scopes cannot be typed — it is
+that a variable declared **without** a type does not carry its inferred type
+into an expression. `var C := Copy (Text, I, 1);` records `String` for `C` and
+`Result := Result + C` still reduces to nothing, so refusing an untyped value at
+an assignment refuses correct code — `compiler/Scanner.a24`'s own `ToLower`
+first. Refusing a *program* for the *checker's* blind spot is the wrong trade.
 
 ⚠️ The declaration keeps the strictness because it is rare enough not to meet
 the blind spot, and because four tests of element-type scoping observe the
@@ -2825,6 +2826,13 @@ characters the literal rules do [LEX-015], [LEX-020]. Failure is `Val failed:
 ⚠️ Text that is neither — `'1e5'`, which no literal rule spells [LEX-022] — is
 a Double, since only an integer literal yields an Integer.
 
+⚠️ **`Val` therefore has no static type**, and a checker cannot give it one: the
+answer depends on the *content* of the text, not on its type. A typed
+declaration needs a cast — `var D : Double := Val (S) as Double;` — which is
+checked [VAL-007] and fails loudly when the text held the other kind. Declaring
+`Val` to be Double, as this implementation once did, is a lie in both
+directions: it refused `var I : Integer := Val ('42');`, which works.
+
     interpreter  compiler/Interpreter.a24  ValNative
     compiler     bootstrap/algol.c         alg_val
     conformance  0119-val-and-max.a24
@@ -2833,6 +2841,12 @@ a Double, since only an integer literal yields an Integer.
 numeric operator does [EXP-005], so `Max(3.5, 2)` is `3.5`.
 
 Anything that is not a number is `Max expects numbers.`
+
+⚠️ **`Max`'s type comes from its arguments**, not from a table: two Integers give
+an Integer and anything with a Double gives a Double. Declaring it Integer, as
+this implementation once did, let `var M : Integer := Max (3.5, 2);` be accepted
+and leave a **Double in an Integer** — a declared type violated with nothing
+said, which is worse than refusing a correct program.
 
 ⚠️ **[RT-009] and [RT-010] were one defect, not two.** Individually each was
 defensible; together they left `Max(Val(A), Val(B))` failing for **every**
@@ -4683,11 +4697,17 @@ as the declaration being too strict, because the declaration is what produces a
 diagnostic. But the assignment is where an untyped value enters a typed variable
 with nothing checking it, which is precisely what [VAR-006] exists to prevent.
 
-*Scope of the fix.* ⚠️ **It is an inference problem, not a rule problem.** Make
-the checker type what it plainly can — a local initialized from a built-in whose
-return type is known, inside a nested block — and the untyped half of this
-defect stops arising. Tightening the rule without that refuses correct programs;
-that was tried, and `compiler/Scanner.a24` refused to compile.
+*Scope of the fix.* ⚠️ **It is an inference problem, not a rule problem**, and
+one step of it is done: `Copy`, `Str`, `Length`, `Pos`, `Ord`, `ParamStr`,
+`ParamCount` and `FileExists` had **no registered return type at all**, so
+`Copy (T, 0, 1)` reduced to nothing and `var S : String := Copy (T, 0, 1);` was
+refused. They are registered now.
+
+What remains is the larger step: `Lookup.Inferred` records a type for a
+variable declared without one, and `Reduce` does not consult it — so `var C :=
+Copy (...)` knows `C` is a String and `Result + C` still reduces to nothing.
+Tightening the rule without that refuses correct programs; that was tried, and
+`compiler/Scanner.a24` refused to compile.
 
 ⚠️ **Tightening it also bricks the bootstrap**, which is worth knowing before
 trying again. A checker that refuses the compiler's own sources cannot emit a
