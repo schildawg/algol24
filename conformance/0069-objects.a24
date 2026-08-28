@@ -1,0 +1,24 @@
+// spec: CLS-015
+//
+
+// CLS-015: an object is a class with exactly one instance, reached by the name.
+object Config;
+var Name : String := 'config';
+begin
+    function Ask (); begin Exit Later.Value (); end
+end
+
+// The instance is built on FIRST USE, so an object may refer to another
+// declared below it.
+object Later;
+begin
+    function Value (); begin Exit 'from Later'; end
+end
+
+WriteLn (Config.Name);
+WriteLn (Config.Ask ());
+
+// Exactly one instance: two references are the same object.
+var A := Config;
+var B := Config;
+WriteLn (A = B);

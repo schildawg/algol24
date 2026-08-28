@@ -1,0 +1,40 @@
+// spec: CLS-007, CLS-008, CLS-009
+//
+
+class Thing;
+var Field : String := 'field';
+begin
+    constructor Init (); begin end
+    function Method (); begin Exit 'method'; end
+end
+
+var T := Thing ();
+
+// CLS-007: a field is read without parentheses, a method called with them.
+WriteLn (T.Field);
+WriteLn (T.Method ());
+
+// CLS-008: every instance answers ClassName.
+WriteLn (T.ClassName);
+
+// And it answers AHEAD of its fields: the name belongs to the language, so a
+// field of that name cannot take it.
+class Shadow;
+var ClassName : String := 'field value';
+begin
+    constructor Init (); begin end
+end
+WriteLn (Shadow ().ClassName);
+
+// CLS-009: with no ToString, an instance renders as its class name and
+// ' instance'.
+WriteLn (Str (Thing ()));
+
+// With one, the class decides.
+class Pretty;
+begin
+    constructor Init (); begin end
+    function ToString (); begin Exit 'I am pretty'; end
+end
+WriteLn (Str (Pretty ()));
+WriteLn (Pretty ());

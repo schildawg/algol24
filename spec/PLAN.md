@@ -511,7 +511,15 @@ done badly.
 | 9 Expressions | 17 | `as` binds tightly; a parameter widens like any assignment context; division-by-zero asymmetry kept |
 | 10 Statements | 23 | A declaration may not be an unbraced body; most-derived handler selection kept and made total |
 | 11 Functions and closures | 12 | `procedure` may not `Exit` a value; parameter types enforced everywhere |
-| 12 onwards | 96 | — |
+| 12 Classes and objects | 16 | Inheriting from a non-class gets a message about inheritance |
+| 13 onwards | 80 | — |
+
+⚠️ **Chapter 12 corrected a rule by running it.** [CLS-014] and D-12 both said
+the superclass check happens at construction. It does not — the declaration is
+refused even when the class is never constructed, which a `WriteLn` on either
+side of it shows immediately. The defect is a message and nothing else, which
+makes it much smaller than it had been recorded as being. Reading the code had
+produced the wrong answer twice; one run settled it.
 
 ⚠️ **Chapter 11 had almost nothing to decide, and that is the expected shape
 from here.** [FUN-006] said a top-level parameter's declared type is not

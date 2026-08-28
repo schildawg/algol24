@@ -1,0 +1,5 @@
+// spec: CLS-013
+//
+class A (A);
+begin
+end

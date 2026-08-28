@@ -1,0 +1,14 @@
+// spec: CLS-016
+//
+// ⚠️ Expected to FAIL compiled, because of C-8.
+//
+// An object is not a class; it is already the instance.
+
+object Config;
+begin
+    function Value (); begin Exit 1; end
+end
+
+WriteLn (Config.Value ());
+
+WriteLn (Config ());

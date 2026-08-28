@@ -1,0 +1,23 @@
+// spec: CLS-014
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// CLS-014 requires 'X' is not a class. -- the shape the other inheritance
+// errors use.  The message is 'Only instances have properties.' instead, which
+// names neither the class, nor the superclass, nor inheritance, and describes
+// a property access the program never wrote.
+//
+// ⚠️ The WriteLn above the declaration is deliberate: it prints, and the one
+// below does not, which shows the check fires AT THE DECLARATION and not at
+// construction.  The first draft of this case asserted the opposite, and
+// running it is what corrected the rule.
+
+var X := 1;
+
+WriteLn ('reached the declaration');
+
+class C (X);
+begin
+end
+
+WriteLn ('never reached, and the class is never constructed');

@@ -2002,13 +2002,13 @@ ClassDecl = "class" identifier [ "(" identifier ")" ] ";"
     interpreter  compiler/Parser.a24  ClassDeclaration
     unit         Parse Class Declaration
     unit         Parse Class No Begin
-    conformance  TBD
+    conformance  0064-class-declaration-and-fields.a24
 
 **[CLS-002]**  Fields are declared in `var` sections of the header [VAR-009];
 methods in the body. Visibility markers apply to both [DCL-011].
 
     interpreter  compiler/Parser.a24  ClassDeclaration
-    conformance  TBD
+    conformance  0064-class-declaration-and-fields.a24
 
 ### 12.2 Construction
 
@@ -2016,14 +2016,14 @@ methods in the body. Visibility markers apply to both [DCL-011].
 
     interpreter  compiler/Interpreter.a24  VisitCall
     compiler     bootstrap/algol.c         alg_new
-    conformance  TBD
+    conformance  0065-construction.a24
 
 **[CLS-004]**  A constructor is a member named `constructor Init`. Construction
 checks its arity, and a class with no constructor takes no arguments —
 `C(1, 2)` on such a class is `Expected 0 arguments but got 2.`
 
     interpreter  compiler/ObjClass.a24  FindMethod
-    conformance  TBD
+    conformance  0065-construction.a24
 
 **[CLS-005]**  ⚠️ A field's initializer is evaluated **once per instance**, at
 construction. Two instances of a class whose field is `List := []` hold two
@@ -2031,12 +2031,12 @@ different Lists.
 
     interpreter  compiler/ObjClass.a24  SeedFields
     compiler     bootstrap/algol.c      alg_class_field
-    conformance  TBD
+    conformance  0064-class-declaration-and-fields.a24
 
 **[CLS-006]**  A field with no initializer begins as `nil` [VAR-002].
 
     interpreter  compiler/ObjClass.a24  SeedFields
-    conformance  TBD
+    conformance  0064-class-declaration-and-fields.a24
 
 ### 12.3 Members
 
@@ -2045,7 +2045,7 @@ them. There is no getter declaration — see [TYP-012].
 
     interpreter  compiler/ObjInstance.a24  Get
     unit         Call Setters And Getters
-    conformance  TBD
+    conformance  0066-members.a24
 
 **[CLS-008]**  Every instance answers `ClassName`, and does so **ahead of its
 fields**: the name belongs to the language, so a field of that name cannot take
@@ -2053,21 +2053,21 @@ it.
 
     interpreter  compiler/ObjInstance.a24  Get
     compiler     bootstrap/algol.c         alg_property
-    conformance  TBD
+    conformance  0066-members.a24
 
 **[CLS-009]**  A class declaring `ToString()` decides how its instances render
-through `Str` and `print`. With none, an instance renders as its class name
-followed by ` instance` — `C instance`.
+through `Str` [RT-006] and wherever a value is written [RT-015]. With none, an
+instance renders as its class name followed by ` instance` — `C instance`.
 
     interpreter  compiler/Interpreter.a24  Stringify
-    conformance  TBD
+    conformance  0066-members.a24
 
 **[CLS-010]**  Reading or calling a member the class does not have is
 `Undefined property 'X'.`
 
     interpreter  compiler/ObjInstance.a24  Get
     unit         Call Undefined Getter
-    conformance  TBD
+    conformance  0067-undefined-property.a24
 
 ### 12.4 Inheritance
 
@@ -2075,32 +2075,42 @@ followed by ` instance` — `C instance`.
 method of the same name overrides the inherited one.
 
     interpreter  compiler/ObjClass.a24  FindMethod
-    conformance  TBD
+    conformance  0068-inheritance.a24
 
 **[CLS-012]**  `super.M()` calls the version above the class that declared the
 calling method, not above the runtime class.
 
+⚠️ It binds to the class that **declared** the method, not to the runtime class
+of `this`. A method in `B` calling `super.Who()` reaches `A`'s version even when
+the receiver is a `C` below `B`.
+
     interpreter  compiler/Interpreter.a24  VisitSuperExpr
     compiler     bootstrap/algol.c         alg_invoke_from
-    conformance  TBD
+    conformance  0068-inheritance.a24
 
 **[CLS-013]**  A class may not inherit from itself: `A class can't inherit from
 itself.`
 
     interpreter  compiler/Resolver.a24  VisitClassStmt
     unit         Inherit From Self
-    conformance  TBD
+    refusal      0027-inherit-from-self.a24
 
-**[CLS-014]**  A superclass must be a class. Naming a variable holding
-something else fails at construction with `Only instances have properties.`, and
-naming nothing at all with `Undefined variable 'X'.`
+**[CLS-014]**  A superclass must be a class, and is checked **where it is
+declared** rather than where an instance is later built. Naming something that
+is not a class is `'X' is not a class.`, beside the existing
+`A class can't inherit from itself.` [CLS-013].
+
+Naming a name that denotes nothing is `Undefined variable 'X'.`
+
+⚠️ **PARTLY IMPLEMENTED.** The **timing is right** — the check fires at the
+declaration, and a program that never constructs the class is still refused —
+but the **message is wrong**: `Only instances have properties.`, a sentence
+naming neither the class, nor the superclass, nor inheritance, and describing a
+property access the program never wrote. See DEF-20.
 
     interpreter  compiler/Interpreter.a24  VisitClassStmt
     unit         Inherit Not A Class
-    conformance  TBD
-
-> ⚠️ The first message describes neither the mistake nor the construct. See
-> Annex D.
+    defect       DEF-20-superclass-message-is-wrong.a24
 
 ### 12.5 Objects
 
@@ -2111,13 +2121,13 @@ to another declared later in the file.
     interpreter  compiler/Parser.a24  ClassDeclaration
     compiler     bootstrap/algol.c    alg_singleton
     unit         An Object Takes Visibility Sections
-    conformance  TBD
+    conformance  0069-objects.a24
 
 **[CLS-016]**  An object is not callable. `Config()` is `Can only call functions
 and classes.`
 
     interpreter  compiler/Interpreter.a24  VisitCall
-    conformance  TBD
+    conformance  0070-object-is-not-callable.a24
 
 ---
 
@@ -3198,6 +3208,7 @@ run at all, and a harness cannot record a crash as an expectation.
 | --- | --- | --- |
 | `List ().ClassName` | `Undefined property 'ClassName'.` | `Only instances have properties.` |
 | `B[0]` on an instance | `Subscript target should be an ordinal.` | `Only a collection or a String can be subscripted.` |
+| `C (1, 2)` on a class with no constructor | `Expected 0 arguments but got 2.` | `This class takes no constructor arguments.` |
 
 Both processors refuse both programs, so nothing runs that should not — but the
 text differs, and [ERR-002] requires a diagnostic to be the same wherever it is
@@ -3356,6 +3367,30 @@ strictly better than a valid-looking emission that fails downstream.
 
 ⚠️ It also constrains the corpus: `conformance/0054` puts its loops inside a
 procedure to keep the cross-check, as `conformance/0040` does for C-11.
+
+**C-15 — A call to an object will not compile.** *(loud)*
+*(refers to [CLS-016])*
+
+```
+object Config;
+begin
+    function Value (); begin Exit 1; end
+end
+WriteLn (Config ());
+```
+
+```
+A call to 'Config' is not supported by the C back end yet.
+```
+
+Interpreted the program runs until the call, which raises `Can only call
+functions and classes.` [CLS-016].
+
+⚠️ The program is a **valid** one whose defined behaviour is to raise. The
+emitter refuses it rather than emitting something that raises, so a program the
+language merely rejects at run time has no compiled form at all. That is the
+right way round for a gap — loud, named, and impossible to miss — but it is
+still a program the two processors do not agree on.
 
 **C-14 — Compiled code does not check arity.** *(silent)*
 *(refers to [EXP-011])*
@@ -3624,19 +3659,23 @@ end
 
 fails with `Only instances have properties.` — a sentence naming neither the
 class, nor the superclass, nor inheritance, and describing a property access the
-program never wrote. The check happens where the superclass is used rather than
-where it is declared, so the message belongs to the machinery rather than to the
+program never wrote. The message belongs to the machinery rather than to the
 mistake.
+
+⚠️ **Corrected.** This entry previously said the check happens where the
+superclass is *used* rather than where it is declared. It does not: the
+declaration above is refused even when the class is never constructed. Only the
+wording is at fault, which makes this smaller than it was recorded as being —
+and is why it was worth running rather than reasoning about.
 
 Diagnostics are part of the observable surface [1.2], so this is a specified
 behaviour and not merely a rough edge — a conforming implementation must
 reproduce the misleading sentence exactly.
 
-*Recommended:* refuse it at the declaration with the shape the other
-inheritance errors already use — `'X' is not a class.` — which sits beside
-`A class can't inherit from itself.` and needs no new machinery. This is the
-cheapest entry in this annex to act on and the one a newcomer is likeliest to
-hit.
+**Resolved.** [CLS-014] requires the shape the other inheritance errors already
+use — `'X' is not a class.`, beside `A class can't inherit from itself.` The
+check already happens in the right place, so this is a message and nothing else.
+Tracked by DEF-20.
 
 **D-13 — Truthiness reads a value a program cannot.** *(refers to [ENU-009],
 [ENU-010])*
@@ -4268,6 +4307,31 @@ propagate rather than a decision to make.
 it from the plain-call path where there is nothing to select between. ⚠️ It
 should land with DEF-10, since a parameter must **widen** as well as match — a
 Char argument reaching a String parameter is correct and must not start failing.
+
+**DEF-20 — Inheriting from a non-class reports the wrong thing.**
+*(violates [CLS-014])*
+
+```
+var X := 1;
+class C (X);
+begin
+end
+```
+
+is refused with `Only instances have properties.` where [CLS-014] requires
+`'X' is not a class.` The sentence names neither the class, nor the superclass,
+nor inheritance, and describes a property access the program never wrote.
+
+*Reproduce:* `defects/DEF-20-superclass-message-is-wrong.a24`
+
+⚠️ **Smaller than it was first recorded as being.** Both [CLS-014] and D-12 said
+the check happens at construction; it does not. The declaration above is refused
+even when the class is never constructed, which the reproduction demonstrates
+with a `WriteLn` on either side of it. Only the wording is at fault — and that
+correction came from running the case, not from reading the code.
+
+*Scope of the fix.* `VisitClassStmt` in `compiler/Interpreter.a24` raises its own
+message rather than falling through to the property-access path.
 
 ---
 
