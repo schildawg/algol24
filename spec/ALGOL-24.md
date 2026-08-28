@@ -3368,6 +3368,29 @@ strictly better than a valid-looking emission that fails downstream.
 ⚠️ It also constrains the corpus: `conformance/0054` puts its loops inside a
 procedure to keep the cross-check, as `conformance/0040` does for C-11.
 
+**C-14 — Compiled code does not check arity.** *(silent)*
+*(refers to [EXP-011])*
+
+```
+function One (A); begin Exit A; end
+WriteLn (One (1, 2));
+WriteLn ('kept going');
+```
+
+Interpreted this is `Uncaught: Expected 1 arguments but got 2.` Compiled it
+prints `1` and then `kept going` — the extra argument is discarded and the
+program runs on. Too *few* arguments is accepted as well.
+
+⚠️ **This was invisible while `conformance/0049` opted out of the compiled
+half.** It was found within minutes of removing the opt-outs, which is the
+argument for not having them: an opt-out records nothing and notices nothing,
+and the case it silences is exactly the case that would have found the bug.
+
+⚠️ Silent and unbounded. C-4 accepts a lowercase member name; this accepts any
+call with any number of arguments, so every arity error in a program compiled by
+this back end is undetected, and a function reading a parameter that was never
+passed gets whatever the calling convention left there.
+
 **C-15 — A call to an object will not compile.** *(loud)*
 *(refers to [CLS-016])*
 
@@ -3391,29 +3414,6 @@ emitter refuses it rather than emitting something that raises, so a program the
 language merely rejects at run time has no compiled form at all. That is the
 right way round for a gap — loud, named, and impossible to miss — but it is
 still a program the two processors do not agree on.
-
-**C-14 — Compiled code does not check arity.** *(silent)*
-*(refers to [EXP-011])*
-
-```
-function One (A); begin Exit A; end
-WriteLn (One (1, 2));
-WriteLn ('kept going');
-```
-
-Interpreted this is `Uncaught: Expected 1 arguments but got 2.` Compiled it
-prints `1` and then `kept going` — the extra argument is discarded and the
-program runs on. Too *few* arguments is accepted as well.
-
-⚠️ **This was invisible while `conformance/0049` opted out of the compiled
-half.** It was found within minutes of removing the opt-outs, which is the
-argument for not having them: an opt-out records nothing and notices nothing,
-and the case it silences is exactly the case that would have found the bug.
-
-⚠️ Silent and unbounded. C-4 accepts a lowercase member name; this accepts any
-call with any number of arguments, so every arity error in a program compiled by
-this back end is undetected, and a function reading a parameter that was never
-passed gets whatever the calling convention left there.
 
 ---
 
