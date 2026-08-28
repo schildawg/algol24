@@ -253,8 +253,15 @@ begin
     var 
        Value : String;
 
+       /// ⚠️ The line the string OPENED on, not the line the scan reaches.
+       /// An unterminated string runs to end of file, so reporting where the
+       /// scan stopped names the one place the fault certainly is not -- on a
+       /// large source, hundreds of lines from the stray quote [LEX-031].
+       Opened : Integer;
+
     begin
         Value := '';
+        Opened := Line;
 
         while not IsAtEnd() do
         begin
@@ -274,7 +281,7 @@ begin
         if IsAtEnd() then
         begin
             HadError := True;
-            LastError := '[line ' + Line + '] Error: Unterminated string.';
+            LastError := '[line ' + Opened + '] Error: Unterminated string.';
             Exit;
         end
         Advance();
@@ -303,7 +310,25 @@ begin
 
         while IsDigit(Peek()) do Advance();
 
-        AddToken(TOKEN_CHAR, Char(ToInteger(Copy(Source, Start + 1, Current - Start - 1))));
+        var Code := ToInteger(Copy(Source, Start + 1, Current - Start - 1));
+
+        // ⚠️ Checked HERE rather than left to the Char built-in.  ScanChar used
+        // to build the value by calling Char, which raises -- so an
+        // out-of-range '#200' arrived as an uncaught 'Char is limited to
+        // 0..127.' with no line and no caret, unlike every other scan error.
+        // It is a scan error and is now recorded as one [ERR-004].
+        //
+        // ⚠️ The RANGE is still 0..127 and is wrong: LEX-025 makes a Char a
+        // Unicode code point, and widening it belongs with DEF-01, which is
+        // where a Char stops being a byte.  Only the diagnostic is fixed here.
+        if Code > 127 then
+        begin
+            HadError := True;
+            LastError := '[line ' + Line + '] Error: Char is limited to 0..127.';
+            Exit;
+        end
+
+        AddToken(TOKEN_CHAR, Char(Code));
     end
 
     // Does the character match?  

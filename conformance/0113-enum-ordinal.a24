@@ -1,0 +1,20 @@
+// spec: ENU-010
+//
+// A member answers its zero-based position, and nothing else.
+
+type Colour = (RED, GREEN, BLUE);
+
+WriteLn (RED.Ordinal);
+WriteLn (GREEN.Ordinal);
+WriteLn (BLUE.Ordinal);
+WriteLn (RED.Ordinal is Integer);
+
+// ⚠️ The position GOVERNS behaviour: truthiness reads it, so the first member
+// of every enumeration is falsey [ENU-009].  A program could once discover
+// that only by testing a member for truth.
+if RED then WriteLn ('RED truthy'); else WriteLn ('RED falsey');
+WriteLn (RED.Ordinal = 0);
+
+// It is also what a program needs to put members in an order, which they do
+// not have themselves [ENU-008].
+WriteLn (RED.Ordinal < BLUE.Ordinal);

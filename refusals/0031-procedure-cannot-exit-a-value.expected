@@ -1,0 +1,5 @@
+Uncaught: A procedure cannot exit a value.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0031-procedure-cannot-exit-a-value.a24: A procedure cannot exit a value.
+[WHITE][[RED]ERROR[WHITE]] [RESET]9 |     Exit 7;
+[WHITE][[RED]ERROR[RESET]]   |[RED]     ^^^^[RESET]
+exit: 70

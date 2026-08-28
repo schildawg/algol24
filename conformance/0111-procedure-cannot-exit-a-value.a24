@@ -1,0 +1,28 @@
+// spec: FUN-003
+//
+// A procedure may not Exit a value, so the word means something: without it a
+// reader cannot tell from a declaration whether a call has a result worth
+// using, which the C back end must also decide and every caller must otherwise
+// guard.
+//
+// ⚠️ A bare 'Exit;' is how a procedure returns early and stays legal.
+
+procedure Early (Stop);
+begin
+    WriteLn ('before');
+    if Stop then Exit;
+    WriteLn ('after');
+end
+
+Early (True);
+Early (False);
+
+// ⚠️ A function declared INSIDE a procedure may still exit a value -- the
+// restriction is saved and restored around a body, not merely set.
+procedure Outer ();
+begin
+    function Inner (); begin Exit 7; end
+    WriteLn (Inner ());
+end
+
+Outer ();

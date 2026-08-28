@@ -5,7 +5,7 @@ case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
 in `defects/`. The conformance pass decided what the language *should* do. This
 plan is the work of making the interpreter do it.
 
-**32 defects stand between the two.** *(33 found; DEF-29 is fixed.)* Each one is a rule the specification
+**24 defects stand between the two.** *(33 found; nine are fixed — wave 1.)* Each one is a rule the specification
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
@@ -110,12 +110,26 @@ declaration and not the other.
 
 ## 3. Suggested sequence
 
-**Wave 1 — local, no dependencies, each a few lines.** DEF-07 (unterminated
-string reports the opening line), DEF-13 (unknown type name in `is`), DEF-18
-(a procedure may not `Exit` a value), DEF-20 (name the class in an inheritance
-error), DEF-21 (publish `Ordinal`), DEF-25 (`Length` refuses a collection),
-DEF-26 (a String answers `.Length`), DEF-28 (a file that cannot be read exits
-non-zero), DEF-31 (a one-character test name), DEF-06's diagnostic half.
+**Wave 1 — done, except DEF-13.** DEF-29 (a type error says what and where),
+DEF-07 (the opening line), DEF-18 (a procedure may not `Exit` a value), DEF-20
+(name the class), DEF-21 (publish `Ordinal`), DEF-25 (`Length` refuses a
+collection), DEF-26 (a String answers `.Length`), DEF-28 (a file that cannot be
+read exits non-zero), DEF-31 (a one-character test name), and DEF-06's
+diagnostic half.
+
+⚠️ **DEF-13 is deferred and did not belong in wave 1.** Refusing an unknown type
+name in `is` needs a registry of declared type names, and there is none:
+`Lookup.Parents` holds only classes that *have* a superclass, and enumerations
+are not tracked at all. Building one risks refusing a legitimate name — the
+compiler's own sources first — which is a different size of change from the rest
+of this wave. It wants doing beside DEF-33, where overload selection is already
+comparing type names.
+
+⚠️ **Wave 1 opened three compiler gaps and closed one.** C-16, C-17 and C-18 are
+new because the interpreter moved and the C runtime has not; C-9 closed, because
+the interpreter came up to the compiler. That is the expected shape — the
+compiler is generation 2 — but the count going *up* while the language gets more
+correct is worth expecting rather than being alarmed by.
 
 ⚠️ **DEF-29 — done.** It was taken first for the reason it should have been:
 every later fix produces type errors while it is being debugged, and each one

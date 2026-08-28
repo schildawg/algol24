@@ -4,6 +4,7 @@
 
 Value k_ObjEnum;
 static const char *t_ObjEnum_Init_3_String_String_Integer[] = { "String", "String", "Integer" };
+static const char *t_ObjEnum_Get_1_Token[] = { "Token" };
 Value k_ObjEnumType;
 static const char *t_ObjEnumType_Init_1_String[] = { "String" };
 static const char *t_ObjEnumType_Add_1_String[] = { "String" };
@@ -34,6 +35,17 @@ static Value m_ObjEnum_Init_3_String_String_Integer(Value v_this, Value *args, i
 static Value m_ObjEnum_ToString_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_property(v_this, "Name");
+    return alg_nil();
+}
+
+static Value m_ObjEnum_Get_1_Token(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_TheName = args[0];
+    (void)v_TheName;
+    if (alg_truthy(alg_equal(alg_str(alg_property(v_TheName, "Lexeme")), alg_string("Ordinal")))) {
+        return alg_property(v_this, "Ordinal");
+    }
+    alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(v_TheName, "Lexeme"))), alg_string("'.")));
     return alg_nil();
 }
 
@@ -90,6 +102,7 @@ void init_ObjEnum(void) {
     alg_class_initializer(k_ObjEnum, i_ObjEnum);
     alg_class_method(k_ObjEnum, "Init", m_ObjEnum_Init_3_String_String_Integer, 3, t_ObjEnum_Init_3_String_String_Integer);
     alg_class_method(k_ObjEnum, "ToString", m_ObjEnum_ToString_0, 0, NULL);
+    alg_class_method(k_ObjEnum, "Get", m_ObjEnum_Get_1_Token, 1, t_ObjEnum_Get_1_Token);
     k_ObjEnumType = alg_class("ObjEnumType", alg_nil());
     alg_class_field(k_ObjEnumType, "Name");
     alg_class_field(k_ObjEnumType, "Members");

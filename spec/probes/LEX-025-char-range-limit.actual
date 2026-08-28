@@ -1,2 +1,2 @@
-Char is limited to 0..127.
+Uncaught: [line 6] Error: Char is limited to 0..127.
 exit: 70

@@ -1,0 +1,22 @@
+// spec: LEX-031
+//
+// The diagnostic names the line the string OPENED on -- the one place the
+// fault certainly is -- not the line the scan reached, which is the end of the
+// file.
+//
+// ⚠️ The filler below carries NO QUOTES, and that is the point.  This case was
+// defects/DEF-07, whose filler was 'WriteLn (''filler'');' four times: those
+// quotes PAIR UP with the stray one, so the genuinely unterminated string
+// opened on the last filler line and the fix moved the answer by one. The case
+// claimed the filler existed "so that a fix is visible in the recording rather
+// than being a difference of one", and it did the opposite.
+
+var A := 1;
+var B := 2;
+
+WriteLn ('oops);
+
+var C := 3;
+var D := 4;
+var E := 5;
+var F := 6;

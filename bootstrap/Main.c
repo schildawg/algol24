@@ -277,8 +277,7 @@ static Value f_Main(Value **cells, Value *args, int32_t count) {
             }
             if (alg_truthy(alg_not(alg_file_exists(v_Name)))) {
                 {
-                    (void)(alg_writeln(alg_add(alg_string("algc: cannot open "), v_Name)));
-                    return alg_nil();
+                    alg_raise(alg_add(alg_string("algc: cannot open "), v_Name));
                 }
             }
             (void)(f_Compile(NULL, (Value[]){f_ReadSource(NULL, (Value[]){v_Name}, 1), v_Name, v_WantTests, v_OutDir}, 4));
@@ -290,8 +289,7 @@ static Value f_Main(Value **cells, Value *args, int32_t count) {
             (void)((v_Name = alg_param_str(alg_int(2))));
             if (alg_truthy(alg_not(alg_file_exists(v_Name)))) {
                 {
-                    (void)(alg_writeln(alg_add(alg_string("algc: cannot open "), v_Name)));
-                    return alg_nil();
+                    alg_raise(alg_add(alg_string("algc: cannot open "), v_Name));
                 }
             }
             (void)(f_SetProgramArguments(NULL, (Value[]){f_ArgumentsFrom(NULL, (Value[]){alg_int(2)}, 1)}, 1));
@@ -304,8 +302,7 @@ static Value f_Main(Value **cells, Value *args, int32_t count) {
     (void)((v_Name = alg_param_str(alg_int(1))));
     if (alg_truthy(alg_not(alg_file_exists(v_Name)))) {
         {
-            (void)(alg_writeln(alg_add(alg_string("algc: cannot open "), v_Name)));
-            return alg_nil();
+            alg_raise(alg_add(alg_string("algc: cannot open "), v_Name));
         }
     }
     (void)(f_SetProgramArguments(NULL, (Value[]){f_ArgumentsFrom(NULL, (Value[]){alg_int(1)}, 1)}, 1));

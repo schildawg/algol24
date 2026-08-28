@@ -1,0 +1,12 @@
+// spec: FUN-003
+//
+// A procedure may not Exit a value.  Refused where it is written, so the word
+// means something: without it a reader cannot tell from a declaration whether
+// a call has a result worth using.
+
+procedure P ();
+begin
+    Exit 7;
+end
+
+WriteLn (P ());

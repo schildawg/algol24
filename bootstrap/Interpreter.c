@@ -98,6 +98,7 @@ static Value or_18;
 static Value or_19;
 static Value or_20;
 static Value or_21;
+static Value or_22;
 static const char *t_Interpreter_Interpret_1_List[] = { "List" };
 static const char *t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean[] = { "List", "List", "Map", "Boolean", "Environment", "Map", "String", "List", "Map", "Set", "Boolean" };
 static const char *t_Interpreter_RunTests_2_List_String[] = { "List", "String" };
@@ -198,6 +199,9 @@ static Value m_LengthNative_Call_2(Value v_this, Value *args, int32_t count) {
     (void)v_TheInterpreter;
     Value v_Arguments = args[1];
     (void)v_Arguments;
+    if (alg_truthy(alg_is(alg_subscript_get(v_Arguments, alg_int(0)), "ObjCollection"))) {
+        alg_raise(alg_string("Length expects text; use .Length for a collection."));
+    }
     return alg_length(alg_str(alg_subscript_get(v_Arguments, alg_int(0))));
     return alg_nil();
 }
@@ -1700,7 +1704,15 @@ static Value m_Interpreter_VisitGetExpr_1_GetExpr(Value v_this, Value *args, int
         return alg_invoke(v_this, "Qualified", (Value[]){alg_property(v_TheExpr, "Unit"), alg_property(v_TheExpr, "Name")}, 2);
     }
     (void)((v_Obj = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheExpr, "Obj")}, 1)));
-    if (alg_truthy(alg_not(((or_17 = (or_16 = (or_15 = (or_14 = alg_is(v_Obj, "ObjInstance"), alg_truthy(or_14) ? or_14 : alg_is(v_Obj, "ObjEnumType")), alg_truthy(or_15) ? or_15 : alg_is(v_Obj, "ObjCollection")), alg_truthy(or_16) ? or_16 : alg_is(v_Obj, "ObjFile")), alg_truthy(or_17) ? or_17 : alg_is(v_Obj, "ObjBuffer")))))) {
+    if (alg_truthy(alg_is(v_Obj, "String"))) {
+        {
+            if (alg_truthy(alg_equal(alg_str(alg_property(alg_property(v_TheExpr, "Name"), "Lexeme")), alg_string("Length")))) {
+                return alg_length(v_Obj);
+            }
+            alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))), alg_string("'.")));
+        }
+    }
+    if (alg_truthy(alg_not(((or_18 = (or_17 = (or_16 = (or_15 = (or_14 = alg_is(v_Obj, "ObjInstance"), alg_truthy(or_14) ? or_14 : alg_is(v_Obj, "ObjEnumType")), alg_truthy(or_15) ? or_15 : alg_is(v_Obj, "ObjEnum")), alg_truthy(or_16) ? or_16 : alg_is(v_Obj, "ObjCollection")), alg_truthy(or_17) ? or_17 : alg_is(v_Obj, "ObjFile")), alg_truthy(or_18) ? or_18 : alg_is(v_Obj, "ObjBuffer")))))) {
         {
             alg_raise(alg_string("Only instances have properties."));
         }
@@ -1801,7 +1813,7 @@ static Value m_Interpreter_IsTruthy_1(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_Obj = args[0];
     (void)v_Obj;
-    if (alg_truthy((or_18 = alg_equal(v_Obj, alg_nil()), alg_truthy(or_18) ? or_18 : alg_equal(v_Obj, alg_bool(false))))) {
+    if (alg_truthy((or_19 = alg_equal(v_Obj, alg_nil()), alg_truthy(or_19) ? or_19 : alg_equal(v_Obj, alg_bool(false))))) {
         return alg_bool(false);
     }
     if (alg_truthy(alg_is(v_Obj, "Integer"))) {
@@ -1820,7 +1832,7 @@ static Value m_Interpreter_IsEqual_2(Value v_this, Value *args, int32_t count) {
     (void)v_A;
     Value v_B = args[1];
     (void)v_B;
-    if (alg_truthy((or_19 = alg_equal(v_A, alg_nil()), !alg_truthy(or_19) ? or_19 : alg_equal(v_B, alg_nil())))) {
+    if (alg_truthy((or_20 = alg_equal(v_A, alg_nil()), !alg_truthy(or_20) ? or_20 : alg_equal(v_B, alg_nil())))) {
         return alg_bool(true);
     }
     if (alg_truthy(alg_equal(v_A, alg_nil()))) {
@@ -1928,9 +1940,9 @@ static Value m_Interpreter_VisitClassStmt_1_ClassStmt(Value v_this, Value *args,
     if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Superclass"), alg_nil()))) {
         {
             (void)((v_Superclass = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheStmt, "Superclass")}, 1)));
-            if (alg_truthy(alg_not_equal(alg_property(v_Superclass, "ClassName"), alg_string("ObjClass")))) {
+            if (alg_truthy(alg_not((alg_is(v_Superclass, "ObjClass"))))) {
                 {
-                    alg_raise(alg_string("Superclass must be a class."));
+                    alg_raise(alg_add(alg_add(alg_string("'"), alg_str(alg_property(alg_property(alg_property(v_TheStmt, "Superclass"), "Name"), "Lexeme"))), alg_string("' is not a class.")));
                 }
             }
         }
@@ -2346,7 +2358,7 @@ static Value m_Interpreter_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *arg
                             (void)(alg_invoke(v_Exported, "Add", (Value[]){v_TheName}, 1));
                             Value v_Owner = alg_invoke(v_Importer, "OwnerOf", (Value[]){v_TheName}, 1);
                             (void)v_Owner;
-                            if (alg_truthy((or_20 = alg_not_equal(v_Owner, alg_nil()), !alg_truthy(or_20) ? or_20 : alg_not_equal(v_Owner, v_ModuleEnv)))) {
+                            if (alg_truthy((or_21 = alg_not_equal(v_Owner, alg_nil()), !alg_truthy(or_21) ? or_21 : alg_not_equal(v_Owner, v_ModuleEnv)))) {
                                 alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined; mark it private in one of the modules.")));
                             }
                         }
@@ -2424,7 +2436,7 @@ static Value m_Interpreter_Handle_3_TryStmt(Value v_this, Value *args, int32_t c
     Value v_Handler = alg_nil();
     (void)v_Handler;
     (void)((v_Handler = alg_invoke(v_this, "FindHandler", (Value[]){alg_property(v_TheStmt, "Handlers"), v_Value}, 2)));
-    if (alg_truthy((or_21 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_21) ? or_21 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
+    if (alg_truthy((or_22 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_22) ? or_22 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
         (void)((v_Handler = alg_invoke(alg_property(v_TheStmt, "Handlers"), "Get", (Value[]){alg_string("default")}, 1)));
     }
     if (alg_truthy(alg_equal(v_Handler, alg_nil()))) {

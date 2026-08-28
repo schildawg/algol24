@@ -82,6 +82,13 @@ var
    /// the call at run time.  Odd, and deliberate.
    LoopDepth : Integer := 0;
 
+   /// Whether the body being parsed belongs to a 'procedure' rather than a
+   /// 'function', so 'Exit E;' can be refused where it means nothing [FUN-003].
+   ///
+   /// ⚠️ Saved and restored around a body, not merely set: a function may be
+   /// declared inside a procedure, and its 'Exit E' is perfectly legal.
+   InProcedure : Boolean := False;
+
 begin
     /// Creates a new Parser.
     ///
@@ -459,6 +466,14 @@ begin
 
         if Not Check(TOKEN_SEMICOLON) then
         begin
+            // ⚠️ The word means something, or it means nothing.  Without this a
+            // procedure may return a value and a caller may use it, so
+            // 'procedure' documents intent and constrains nothing -- and no
+            // reader can tell from a declaration whether a call has a result
+            // worth using [FUN-003].
+            if InProcedure then
+                raise Error (Keyword, 'A procedure cannot exit a value.');
+
             Value := Expression();
         end
 
@@ -1122,7 +1137,16 @@ begin
 
         Consume (TOKEN_BEGIN, 'Expect ''begin'' before ' + Kind + ' body.');
 
+        // ⚠️ Saved and restored, not merely set: a function declared inside a
+        // procedure may exit a value, and the enclosing procedure still may not
+        // once its own body resumes.
+        var WasInProcedure := InProcedure;
+        InProcedure := Kind = 'procedure';
+
         var Rest := Block ();
+
+        InProcedure := WasInProcedure;
+
         for var I := 0; I < Rest.Length; I := I + 1 do
             Body.Add (Rest[I]);
 
@@ -1298,7 +1322,12 @@ begin
         if not Check (TOKEN_IDENTIFIER) then Exit False;
         if Peek().Lexeme <> 'test' then Exit False;
 
-        Exit PeekNext().TypeOfToken = TOKEN_STRING;
+        // ⚠️ Either quoted form.  A one-character name is a Char and not a
+        // String [LEX-023], so 'test ''X'';' used to be an identifier followed
+        // by a Char and failed with 'Expect '';'' after expression.' -- a
+        // diagnostic naming neither tests nor names [TST-001].
+        Exit PeekNext().TypeOfToken = TOKEN_STRING
+          or PeekNext().TypeOfToken = TOKEN_CHAR;
     end
 
     // Parses a test block:
@@ -1319,7 +1348,9 @@ begin
 
     begin
         Advance ();
-        Name := Consume (TOKEN_STRING, 'Expect a test name.');
+
+        if Check (TOKEN_CHAR) then Name := Advance();
+        else Name := Consume (TOKEN_STRING, 'Expect a test name.');
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after test name.');
         Consume (TOKEN_BEGIN, 'Expect ''begin'' before test body.');
 

@@ -298,7 +298,10 @@ static Value m_Scanner_ScanString_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Value = alg_nil();
     (void)v_Value;
+    Value v_Opened = alg_nil();
+    (void)v_Opened;
     (void)((v_Value = alg_string("")));
+    (void)((v_Opened = alg_property(v_this, "Line")));
     while (alg_truthy(alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0)))) {
         {
             if (alg_truthy(alg_equal(alg_invoke(v_this, "Peek", NULL, 0), alg_char_value(39)))) {
@@ -318,7 +321,7 @@ static Value m_Scanner_ScanString_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_invoke(v_this, "IsAtEnd", NULL, 0))) {
         {
             (void)((v_HadError = alg_bool(true)));
-            (void)((v_LastError = alg_add(alg_add(alg_string("[line "), alg_property(v_this, "Line")), alg_string("] Error: Unterminated string."))));
+            (void)((v_LastError = alg_add(alg_add(alg_string("[line "), v_Opened), alg_string("] Error: Unterminated string."))));
             return alg_nil();
         }
     }
@@ -343,7 +346,16 @@ static Value m_Scanner_ScanChar_0(Value v_this, Value *args, int32_t count) {
     while (alg_truthy(alg_invoke(v_this, "IsDigit", (Value[]){alg_invoke(v_this, "Peek", NULL, 0)}, 1))) {
         (void)(alg_invoke(v_this, "Advance", NULL, 0));
     }
-    (void)(alg_invoke(v_this, "AddToken", (Value[]){e_TokenType_TOKEN_CHAR, alg_char(f_ToInteger(NULL, (Value[]){alg_copy(alg_property(v_this, "Source"), alg_add(alg_property(v_this, "Start"), alg_int(1)), alg_subtract(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start")), alg_int(1)))}, 1))}, 2));
+    Value v_Code = f_ToInteger(NULL, (Value[]){alg_copy(alg_property(v_this, "Source"), alg_add(alg_property(v_this, "Start"), alg_int(1)), alg_subtract(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start")), alg_int(1)))}, 1);
+    (void)v_Code;
+    if (alg_truthy(alg_greater(v_Code, alg_int(127)))) {
+        {
+            (void)((v_HadError = alg_bool(true)));
+            (void)((v_LastError = alg_add(alg_add(alg_string("[line "), alg_property(v_this, "Line")), alg_string("] Error: Char is limited to 0..127."))));
+            return alg_nil();
+        }
+    }
+    (void)(alg_invoke(v_this, "AddToken", (Value[]){e_TokenType_TOKEN_CHAR, alg_char(v_Code)}, 2));
     return alg_nil();
 }
 

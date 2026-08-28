@@ -23,10 +23,25 @@ begin
         this.Ordinal := Ordinal;
     end
 
-    /// Printed as its bare name, which is what 'print Red' shows.
+    /// Printed as its bare name.
     function ToString () : String;
     begin
         Exit Name;
+    end
+
+    /// A member answers exactly one property: its zero-based position.
+    ///
+    /// ⚠️ The position GOVERNS behaviour -- truthiness reads it, so the first
+    /// member of every enumeration is falsey [ENU-009] -- and a program used to
+    /// have no way to read it, so it could discover whether a member was falsey
+    /// only by testing it for truth.  It is also what a program needs to order
+    /// members [ENU-008], to index an array by one, or to write one out and
+    /// read it back [ENU-010].
+    function Get (TheName : Token) : Any;
+    begin
+        if Str (TheName.Lexeme) = 'Ordinal' then Exit Ordinal;
+
+        raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end
 end
 

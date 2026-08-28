@@ -659,18 +659,18 @@ surrogate range D800 … DFFF, which encodes no character. A `#` literal outside
 that range is refused when the program is read, with the shape every other
 scan error has — `[line N] Error: …` — because that is where it is detected.
 
-⚠️ **NOT YET IMPLEMENTED.** Two ways. The range is 0 … 127, so `#200` is refused
-where the specification admits it; and the refusal is raised rather than
-recorded, so it arrives as `Uncaught: Char is limited to 0..127.` with no line
-number and no source caret, unlike every other scan error [ERR-004]. See DEF-06.
+⚠️ **NOT YET IMPLEMENTED.** The range is 0 … 127, so `#200` is refused where
+the specification admits it. See DEF-06.
 
-    interpreter  compiler/Interpreter.a24  CharNative
-    compiler     bootstrap/algol.c         alg_char
-    defect       DEF-06-char-range-and-diagnostic.a24
+⚠️ **The diagnostic half is done.** It used to arrive as
+`Uncaught: Char is limited to 0..127.` with no line and no caret, because
+`ScanChar` built the value by calling the `Char` built-in, which raises. It is a
+scan error and is now reported as one [ERR-004]. The range moves with DEF-01 —
+widening a Char is the same change as a String of characters rather than bytes.
 
-> `ScanChar` builds the value by calling the `Char` built-in during the scan
-> (`compiler/Scanner.a24`), which is why a range failure surfaces as a runtime
-> raise from inside the scanner rather than as a scan error.
+    interpreter  compiler/Scanner.a24  ScanChar
+    compiler     bootstrap/algol.c     alg_char
+    defect       DEF-06-char-range.a24
 
 **[LEX-026]**  A Char and a String are never equal, however alike they look.
 `'a' = 'a'` is true because both sides are Chars; `Copy('abc', 0, 1) = 'a'` is
@@ -734,14 +734,13 @@ value and advances the line count, so `'one` ⏎ `two'` is seven characters.
 reading `[line N] Error: Unterminated string.`, where N is the line the string
 **opened** on.
 
-⚠️ **NOT YET IMPLEMENTED.** N is the line the scan *reached*, which is the last
-line of the file. On a large source the two differ by however much text follows
-the stray quote, and the line reported is the one place the fault certainly is
-not. See DEF-07.
+⚠️ A quote closes the string before it. A file with several stray quotes
+therefore reports the last *unpaired* one, which is the string that actually
+runs to the end.
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan Unterminated String
-    defect       DEF-07-unterminated-string-line.a24
+    conformance  0110-unterminated-string-line.a24
 
 **[LEX-032]**  `#0` is not a Char. A code point of 0 is refused exactly as an
 out-of-range one is [LEX-025], when the program is read.
@@ -1954,9 +1953,8 @@ its result is always `nil` [FUN-002].
 
 A **function** may `Exit` a value or not, and yields `nil` when it does not.
 
-⚠️ **NOT YET IMPLEMENTED.** The two words are interchangeable: a procedure may
-`Exit` a value and a caller may use it, so `procedure P(); begin Exit 7; end`
-followed by `WriteLn(P())` prints 7. See DEF-18.
+⚠️ A function declared **inside** a procedure may still exit a value: the
+restriction belongs to the body being parsed, not to everything within it.
 
 ⚠️ The restriction is what makes the word mean something. Without it `procedure`
 is a comment, and a reader cannot tell from a declaration whether a call has a
@@ -1964,7 +1962,8 @@ result worth using — which the C back end must also decide, and which every
 caller must otherwise guard.
 
     interpreter  compiler/Parser.a24  ParseFunction
-    defect       DEF-18-a-procedure-may-exit-a-value.a24
+    conformance  0111-procedure-cannot-exit-a-value.a24
+    refusal      0031-procedure-cannot-exit-a-value.a24
 
 **[FUN-004]**  A declaration may not have more than 255 parameters:
 `Can't have more than 255 parameters.`
@@ -2196,15 +2195,15 @@ is not a class is `'X' is not a class.`, beside the existing
 
 Naming a name that denotes nothing is `Undefined variable 'X'.`
 
-⚠️ **PARTLY IMPLEMENTED.** The **timing is right** — the check fires at the
-declaration, and a program that never constructs the class is still refused —
-but the **message is wrong**: `Only instances have properties.`, a sentence
-naming neither the class, nor the superclass, nor inheritance, and describing a
-property access the program never wrote. See DEF-20.
+⚠️ The check fires at the declaration, so a program that never constructs the
+class is still refused. It used to ask the superclass for `.ClassName` first,
+which raised `Only instances have properties.` before the comparison meant to
+reject it could run — a sentence naming neither the class, nor the superclass,
+nor inheritance.
 
     interpreter  compiler/Interpreter.a24  VisitClassStmt
     unit         Inherit Not A Class
-    defect       DEF-20-superclass-message-is-wrong.a24
+    conformance  0112-inherit-from-a-non-class.a24
 
 ### 12.5 Objects
 
@@ -2348,17 +2347,13 @@ and `CLASS_NONE` are the first members of `FunctionType` and `ClassType`.
 declaration. `RED.Ordinal` is 0 and `BLUE.Ordinal` is 2. It answers no other
 property.
 
-⚠️ **NOT YET IMPLEMENTED.** A member is opaque: `RED.Ordinal` is `Only instances
-have properties.`, so the position that decides [ENU-009] cannot be read by a
-program at all — and a program can discover whether a member is falsey only by
-testing it for truth. See DEF-21.
-
 ⚠️ The ordinal is what a program needs to order members [ENU-008], to index an
-array by one, or to write one out and read it back. It exists in both runtimes
-already; it is simply not published.
+array by one, or to write one out and read it back. It also governs truthiness
+[ENU-009], and a program could once discover that only by testing a member for
+truth.
 
-    interpreter  compiler/ObjEnum.a24  ObjEnum
-    defect       DEF-21-enum-ordinal-is-not-reachable.a24
+    interpreter  compiler/ObjEnum.a24  Get
+    conformance  0113-enum-ordinal.a24
 
 ---
 
@@ -2734,38 +2729,34 @@ a String or a Char. Given a collection it is refused — `Length expects text; u
 .Length for a collection.` — because a collection's count is a property
 [COL-003] and the two are different questions.
 
-⚠️ **NOT YET IMPLEMENTED, in two ways.** It stringifies whatever it is given and
-measures that, so `Length([10, 20, 30])` is **12** — the length of the rendering
-— where `L.Length` is 3. And it measures bytes rather than characters. See
-DEF-25 and DEF-01.
+⚠️ **PARTLY IMPLEMENTED.** A collection is now refused. It still measures
+**bytes** rather than characters, which moves with DEF-01.
 
-⚠️ **The failure mode is the bad one:** the wrong call returns a *plausible
-number* rather than an error, and for a List of one-digit numbers the two even
-coincide at small sizes before diverging. A program asking `Length(L)` gets an
-answer, uses it, and is wrong.
+⚠️ It used to stringify whatever it was given, so `Length([10, 20, 30])` was
+**12** — the length of the rendering — where `L.Length` is 3. The failure mode
+was the bad one: a *plausible number* rather than an error, and the two are
+never equal, since a List of *n* one-digit numbers renders as `3n` characters.
 
 ⚠️ A program that means the rendering writes `Length(Str(L))`, which is what it
-is getting today by accident.
+was getting by accident.
 
     interpreter  compiler/Interpreter.a24  LengthNative
     compiler     bootstrap/algol.c         alg_length
-    defect       DEF-25-length-of-a-collection.a24
+    conformance  0115-length-refuses-a-collection.a24
 
 **[RT-017]**  A `String` answers `Length` as a **property**, its count of
 characters: `'abc'.Length` is 3. This is the same count `Length('abc')` gives,
 and the same spelling every collection uses [COL-003].
 
-⚠️ **NOT YET IMPLEMENTED.** The interpreter refuses it with `Only instances have
-properties.` The **compiled** back end already answers 3, so this is one of the
-two rules in this specification where the C back end is right and the
-interpreter is the one to change (C-9, with [COL-006] the other). See DEF-26.
-
 ⚠️ A String is already iterable [STM-007] and subscriptable [EXP-015]; not
-answering for its own length was the odd one out.
+answering for its own length was the odd one out. The **compiled** back end
+answered 3 while the interpreter refused, which was C-9 — the fix closed the
+divergence by bringing the interpreter to the compiler, one of only two rules
+where that was the direction.
 
-    interpreter  compiler/ObjInstance.a24  Get
+    interpreter  compiler/Interpreter.a24  VisitGetExpr
     compiler     bootstrap/algol.c         alg_property
-    defect       DEF-26-a-string-has-no-length-property.a24
+    conformance  0114-string-length-property.a24
 
 **[RT-004]**  `Copy(Text, Begin, Length)` takes a substring, counting from zero.
 The length is clamped to what remains, so `Copy('abcdef', 3, 99)` is `def`. A
@@ -2805,7 +2796,7 @@ inverse across it.
 
     interpreter  compiler/Interpreter.a24  CharNative
     compiler     bootstrap/algol.c         alg_char
-    defect       DEF-06-char-range-and-diagnostic.a24
+    defect       DEF-06-char-range.a24
 
 ### 16.3 Numeric
 
@@ -2948,17 +2939,18 @@ produces two different orders. See Annex C, C-5.
 status **0**, and **only** such a program does. A run that never began — because
 the file could not be read — is a failure and exits non-zero [INI-006].
 
-⚠️ **PARTLY IMPLEMENTED.** A program that reaches the end does exit 0. A run
-that never began does **not** fail: `algc no-such-file.a24` prints `algc: cannot
-open no-such-file.a24` and exits **0**, so the driver reports a failure and
-reports success at the same time. Naming a directory prints nothing and also
-exits 0. See DEF-28.
+⚠️ **No case in `conformance/` covers the second half, and none can.** Every
+case is run by handing `algc` a file that exists, so a run that never began is
+not reachable from inside the corpus. It is checked by hand:
 
-⚠️ **DEF-28 has no case in `defects/`, and cannot have one.** The fault is in the
-driver rather than in anything a program can do, and every case in the corpus is
-run by handing `algc` a file that exists. A case that ran and exited 0 would
-record exactly what a *correct* implementation produces, proving nothing — so
-the reproduction is a shell command, given in Annex F.
+```
+$ bootstrap/algc /no/such/file.a24 ; echo $?
+algc: cannot open /no/such/file.a24
+70
+```
+
+It used to print that line and exit **0**, so the driver reported a failure and
+reported success at the same time.
 
     interpreter  compiler/Main.a24  Main
     conformance  0094-program-order.a24
@@ -2975,7 +2967,7 @@ error, which are reported before any statement runs.
 > unconsidered. A caller wanting to tell a compile error from a runtime one
 > reads the diagnostic; the alternative — a second status for failures found
 > before execution — buys a little for tooling and costs every existing caller a
-> change. What is *not* deliberate is a failure exiting **0**, which is DEF-28.
+> change. What was *not* deliberate was a failure exiting **0**, and that is fixed.
 
 ### 17.4 Arguments
 
@@ -3098,7 +3090,7 @@ mistyped declaration in a handler does not suppress it.
 it [INI-006].
 
 ⚠️ A failure that never reaches a phase at all — a file that cannot be read — is
-still a failure and must not exit 0 [INI-005]. See DEF-28.
+still a failure and must not exit 0 [INI-005].
 
     interpreter  compiler/Main.a24  Main
     conformance  0096-exit-status.a24
@@ -3127,14 +3119,9 @@ follows it, so a variable may still be called `test`.
 an ordinary thing to write. `'X'` is a Char rather than a String [LEX-023], and
 that distinction belongs to values rather than to a declaration naming itself.
 
-⚠️ **NOT YET IMPLEMENTED.** Only a String is accepted, so `test 'X';` is not
-recognised as a test declaration at all — it parses as the identifier `test`
-followed by a Char, and fails with `Expect ';' after expression.`, a diagnostic
-that names neither tests nor the length of the name. See DEF-31.
-
     interpreter  compiler/Parser.a24  Declaration
     conformance  0102-test-declaration.a24
-    defect       DEF-31-a-one-character-test-name.a24
+    conformance  0116-one-character-test-name.a24
 
 **[TST-002]**  A test block is a declaration and does not run when the program
 runs.
@@ -3606,31 +3593,6 @@ comments claimed a divergence they did not have.
 ⚠️ Unlike C-3, this is not a consequence of compiled code lacking line
 information — the prefix needs nothing the compiled program does not have.
 
-**C-9 — A String has a `.Length` property compiled and none interpreted.**
-*(silent)*
-*(refers to [RT-003], [TYP-012])*
-
-```
-WriteLn ('abc'.Length);
-```
-
-Interpreted this is `Uncaught: Only instances have properties.` Compiled it
-prints `3`.
-
-⚠️ **The dangerous direction, as with C-4:** the compiler accepts a program the
-language refuses. A program developed against the compiler can read `.Length`
-off a String throughout and fail on the first interpreted run, with neither
-processor having warned that they disagree.
-
-⚠️ A collection's `.Length` works in both, so this is specific to Strings, and it
-sits next to the confusion D-15 records — `Length(V)` measures *text* while
-`V.Length` is a *count*, and here one processor offers a third spelling the
-other does not have.
-
-Which processor is right is not obvious and is left to chapter 16: a String
-answering `.Length` with a character count is arguably what a reader expects,
-and it is the only spelling that would agree with a collection's.
-
 **C-10 — The compiled back end hoists variables.** *(silent)*
 *(refers to [DCL-016])*
 
@@ -3822,6 +3784,48 @@ emitter refuses it rather than emitting something that raises, so a program the
 language merely rejects at run time has no compiled form at all. That is the
 right way round for a gap — loud, named, and impossible to miss — but it is
 still a program the two processors do not agree on.
+
+**C-16 — Inheriting from a non-class emits invalid C.** *(loud, in the wrong place)*
+*(refers to [CLS-014])*
+
+```
+var X := 1;
+class C (X);
+begin
+end
+```
+
+```
+error: use of undeclared identifier 'k_X'
+```
+
+The emitter writes `alg_class("C", k_X)` for a superclass that is not a class,
+and `k_X` names a class handle that was never emitted because `X` is a variable.
+The interpreter refuses the program with `'X' is not a class.`
+
+⚠️ **The emitter breaks its own contract**, as it does in C-13: it is supposed
+to refuse by name what it cannot emit, and instead produces C that `cc` rejects,
+so the diagnostic names a generated symbol rather than the declaration the
+programmer wrote.
+
+**C-17 — An enum member has no properties compiled.** *(loud)*
+*(refers to [ENU-010])*
+
+`RED.Ordinal` is `Only instances have properties.` compiled, where the
+interpreter answers `0`.
+
+⚠️ **New in generation 1**, and expected: the interpreter gained the property
+and the C runtime has not. `alg_property` needs the case `ObjEnum` now has.
+
+**C-18 — `Length` of a collection is not refused compiled.** *(silent)*
+*(refers to [RT-003])*
+
+`Length([10, 20, 30])` is refused interpreted — `Length expects text; use
+.Length for a collection.` — and compiled it returns the length of the
+rendering, as the interpreter used to.
+
+⚠️ **Silent, and the same trap the interpreter just lost**: a plausible number
+rather than an error. `alg_length` needs the refusal `LengthNative` gained.
 
 ---
 
@@ -4083,7 +4087,8 @@ reproduce the misleading sentence exactly.
 **Resolved.** [CLS-014] requires the shape the other inheritance errors already
 use — `'X' is not a class.`, beside `A class can't inherit from itself.` The
 check already happens in the right place, so this is a message and nothing else.
-Tracked by DEF-20.
+Done: `VisitClassStmt` tests the superclass with `is` rather than asking it for
+a property, so the comparison meant to reject it is now reached.
 
 **D-13 — Truthiness reads a value a program cannot.** *(refers to [ENU-009],
 [ENU-010])*
@@ -4105,8 +4110,7 @@ represented by, which is a real convention and not an accident.
 
 [ENU-010] requires a member to answer `Ordinal`, its zero-based position, so the
 value that governs the behaviour can be read and compared. `Ordinal` already
-exists on the implementation's own class and simply is not published. Tracked by
-DEF-21.
+existed on the implementation's own class and simply was not published. Done.
 
 [ENU-009] is **kept**, and stated as a feature rather than tolerated as a
 quirk — position-based truthiness is what makes `(Off, On)` and `(No, Yes)`
@@ -4238,7 +4242,7 @@ the shared name is wrong.
 **Resolved.** [RT-003] refuses `Length` of a collection —
 `Length expects text; use .Length for a collection.` A program that means the
 count says so, and one that means the rendering writes `Length(Str(L))`, which
-is what it is getting today by accident. Tracked by DEF-25.
+is what it was getting by accident. Done.
 
 ⚠️ Verified safe against the largest body of Algol-24 that exists: every
 `Length(…)` call in `compiler/*.a24` is on text.
@@ -4597,7 +4601,7 @@ the scan, so a range failure surfaces as a bare `Char is limited to 0..127.`
 with no line number and no source caret, unlike every other scan error
 [ERR-004].
 
-*Reproduce:* `defects/DEF-06-char-range-and-diagnostic.a24`
+*Reproduce:* `defects/DEF-06-char-range.a24`
 
 ⚠️ The diagnostic half is worth fixing **whatever** the range turns out to be.
 It is not really about Unicode; it is a scan error escaping as a raise.
@@ -4606,19 +4610,6 @@ It is not really about Unicode; it is a scan error escaping as a raise.
 and a String of characters are the same change. The diagnostic is independent:
 `ScanChar` checks the range itself and records an error rather than calling a
 built-in that raises.
-
-**DEF-07 — An unterminated string reports the wrong line.**
-*(violates [LEX-031])*
-
-The diagnostic names the line the scan *reached* — the end of the file — rather
-than the line the string opened on. The two differ by however much text follows
-the stray quote, and the line reported is the one place the fault certainly is
-not.
-
-*Reproduce:* `defects/DEF-07-unterminated-string-line.a24`
-
-*Scope of the fix.* `ScanString` records the line at the opening quote and uses
-it in the message. `Line` is already tracked; nothing new has to be measured.
 
 **DEF-08 — `#0` is accepted and truncates a String.**
 *(violates [LEX-032])*
@@ -4727,6 +4718,13 @@ reports success.
 ⚠️ The same undefined name used as a **value** is `Undefined variable`, so this
 is an inconsistency in one operator rather than a general looseness about names.
 
+⚠️ **Deferred out of wave 1.** Every other local fix in that wave was a few
+lines; this one needs a registry of declared type names that does not exist —
+`Lookup.Parents` holds only classes that *have* a superclass, and enumerations
+are not tracked at all. Building one risks refusing a legitimate name, the
+compiler's own sources first. It wants doing beside DEF-33, where overload
+selection is already comparing type names.
+
 *Scope of the fix.* The resolver already walks every `IsExpr` for the receiver;
 it checks the type name against the declared types and records an error when it
 denotes nothing. ⚠️ `Any` must stay legal there even though `X is Any` is always
@@ -4815,19 +4813,6 @@ where a branch or loop body is expected, with a message of its own rather than
 the emitter's "not supported yet" wording — the construct is not unimplemented,
 it is not part of the language.
 
-**DEF-18 — A procedure may `Exit` a value.**
-*(violates [FUN-003])*
-
-`procedure P (); begin Exit 7; end` is accepted, and `WriteLn (P ())` prints 7,
-so `function` and `procedure` are interchangeable and the word documents nothing.
-
-*Reproduce:* `defects/DEF-18-a-procedure-may-exit-a-value.a24`
-
-*Scope of the fix.* The parser knows which word opened the declaration; `Exit`
-with a value inside a procedure is refused there. ⚠️ Verified safe against the
-largest body of Algol-24 that exists: **no procedure in `compiler/*.a24` exits a
-value**, so the compiler's own sources need no change.
-
 **DEF-19 — A top-level subprogram's parameter types are not enforced.**
 *(violates [FUN-006], [VAR-017])*
 
@@ -4852,53 +4837,6 @@ comparison path that DEF-33 then makes redundant.
 The comparison itself exists in `Fits`. ⚠️ It should land with DEF-10, since a
 parameter must **widen** as well as match — a Char argument reaching a String
 parameter is correct and must not start failing.
-
-**DEF-20 — Inheriting from a non-class reports the wrong thing.**
-*(violates [CLS-014])*
-
-```
-var X := 1;
-class C (X);
-begin
-end
-```
-
-is refused with `Only instances have properties.` where [CLS-014] requires
-`'X' is not a class.` The sentence names neither the class, nor the superclass,
-nor inheritance, and describes a property access the program never wrote.
-
-*Reproduce:* `defects/DEF-20-superclass-message-is-wrong.a24`
-
-⚠️ **Smaller than it was first recorded as being.** Both [CLS-014] and D-12 said
-the check happens at construction; it does not. The declaration above is refused
-even when the class is never constructed, which the reproduction demonstrates
-with a `WriteLn` on either side of it. Only the wording is at fault — and that
-correction came from running the case, not from reading the code.
-
-*Scope of the fix.* `VisitClassStmt` in `compiler/Interpreter.a24` raises its own
-message rather than falling through to the property-access path.
-
-**DEF-21 — An enumeration member's ordinal is not reachable.**
-*(violates [ENU-010])*
-
-`RED.Ordinal` is `Only instances have properties.` A member answers no property
-at all, so its position cannot be read — while that same position decides the
-member's truthiness [ENU-009]. A program can discover whether a member is falsey
-only by testing it for truth.
-
-*Reproduce:* `defects/DEF-21-enum-ordinal-is-not-reachable.a24`
-
-⚠️ The ordinal is also what a program needs in order to put members in an order
-[ENU-008], to index an array by one, or to write one out and read it back. None
-of that is reachable today.
-
-*Scope of the fix.* `ObjEnum` already carries the position; `Get` answers
-`Ordinal` from it, in the way `ObjInstance` answers `ClassName` [CLS-008], and
-the C runtime does the same in `alg_property`.
-
-⚠️ **This is the smaller half of D-13.** The larger half — whether the first
-member of an enumeration should be falsey at all — is still open, because
-changing it reverses part of [VAL-008], decided in chapter 7.
 
 **DEF-22 — Two enumerations may not share a member name.**
 *(violates [ENU-003], [ENU-011])*
@@ -4973,39 +4911,6 @@ its environment **before its own body runs**.
 ⚠️ Fixing this also removes C-1, the only known case of a valid program having no
 compiled form.
 
-**DEF-25 — `Length` of a collection returns the length of its rendering.**
-*(violates [RT-003])*
-
-`Length([10, 20, 30])` is 12 rather than being refused: the built-in stringifies
-whatever it is given and measures that. `LengthNative` is literally
-`Exit Length(Str(Arguments[0]))`.
-
-*Reproduce:* `defects/DEF-25-length-of-a-collection.a24`
-
-⚠️ **A plausible number rather than an error**, which is the worse failure. The
-two are never equal — a List of *n* one-digit numbers renders as `3n` characters
-against a count of *n* — so every such call is wrong by a factor of three and
-none of them says so.
-
-*Scope of the fix.* `LengthNative` refuses a collection instead of stringifying
-it. ⚠️ Verified safe: every `Length(…)` call in `compiler/*.a24` is on text.
-
-**DEF-26 — A String has no `Length` property.**
-*(violates [RT-017])*
-
-`'abc'.Length` is `Only instances have properties.` A String is iterable and
-subscriptable but does not answer for its own length, while every collection
-does.
-
-*Reproduce:* `defects/DEF-26-a-string-has-no-length-property.a24`
-
-⚠️ **The compiled back end already answers 3** (C-9). With [COL-006] this is one
-of only two rules where the C back end is right and the interpreter is the one
-to change — everything else in Annex C runs the other way.
-
-*Scope of the fix.* The property path answers `Length` for a String from its
-character count, as `alg_property` already does in the C runtime.
-
 **DEF-27 — `Val` and `Max` cannot be used together.**
 *(violates [RT-009], [RT-010])*
 
@@ -5022,35 +4927,6 @@ around it without leaving both.
 do and answers the matching type; `MaxNative` accepts two numbers and promotes.
 ⚠️ It should land with DEF-10 — once widening works, `Max` promoting is the same
 rule the operators use rather than a special case in one built-in.
-
-**DEF-28 — A file that cannot be read exits 0.**
-*(violates [INI-005])*
-
-```
-$ bootstrap/algc /no/such/file.a24 ; echo $?
-algc: cannot open /no/such/file.a24
-0
-
-$ bootstrap/algc compiler ; echo $?
-0
-```
-
-The driver reports a failure and reports success at the same time, so no caller
-can tell a program that ran from one that was never found. Naming a directory
-does not even print.
-
-⚠️ **No case in `defects/` reproduces this, and none can.** The fault is in the
-driver, and every case in the corpus is run by handing `algc` a file that
-exists. A case that ran and exited 0 would record exactly what a correct
-implementation produces — a defect test that passes for the wrong reason, which
-is the failure this corpus has already been caught by twice (the CRLF probe git
-normalized, and the first draft of DEF-16). The shell commands above are the
-reproduction.
-
-*Scope of the fix.* The three `algc: cannot open` sites in `compiler/Main.a24`
-raise rather than returning, so the failure reaches the same exit path every
-other failure uses [INI-006]. A directory should say so rather than printing
-nothing.
 
 **DEF-30 — Every assertion message begins with a comparison that was not made.**
 *(violates [TST-012])*
@@ -5083,30 +4959,6 @@ which both processors must reproduce byte for byte — so the interpreter and th
 C runtime must change together, and `conformance/0105` records the current text.
 No test in `compiler/*.a24` asserts on these strings, so the suite itself is
 unaffected.
-
-**DEF-31 — A test cannot have a one-character name.**
-*(violates [TST-001])*
-
-```
-test 'X';
-begin
-    AssertTrue (True);
-end
-```
-
-is not recognised as a test declaration. `'X'` is a Char rather than a String
-[LEX-023], and only a String is accepted, so this parses as the identifier
-`test` followed by a Char and fails with `Expect ';' after expression.` — a
-diagnostic naming neither tests nor names.
-
-*Reproduce:* `defects/DEF-31-a-one-character-test-name.a24`
-
-⚠️ The name of a test is **text**, and the Char/String distinction belongs to
-values rather than to a declaration naming itself.
-
-*Scope of the fix.* The lookahead in `compiler/Parser.a24`'s `Declaration`
-accepts either quoted form. ⚠️ It must accept both rather than switching, or
-every existing test name breaks.
 
 **DEF-32 — A doubled quote is a String.**
 *(violates [LEX-023], [LEX-029])*

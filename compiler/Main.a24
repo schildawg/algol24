@@ -318,8 +318,7 @@ begin
 
         if not FileExists(Name) then
         begin
-            WriteLn('algc: cannot open ' + Name);
-            Exit;
+            raise 'algc: cannot open ' + Name;
         end
 
         Compile(ReadSource(Name), Name, WantTests, OutDir);
@@ -331,8 +330,7 @@ begin
         Name := ParamStr(2);
         if not FileExists(Name) then
         begin
-            WriteLn('algc: cannot open ' + Name);
-            Exit;
+            raise 'algc: cannot open ' + Name;
         end
 
         // A failure has to reach the exit code, and the language has no Halt --
@@ -349,8 +347,7 @@ begin
     Name := ParamStr(1);
     if not FileExists(Name) then
     begin
-        WriteLn('algc: cannot open ' + Name);
-        Exit;
+        raise 'algc: cannot open ' + Name;
     end
 
     SetProgramArguments (ArgumentsFrom (1));

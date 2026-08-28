@@ -1,14 +1,20 @@
-// spec: FUN-002, FUN-003
+// spec: FUN-002
 //
 // A probe, not a conformance test. It records what the implementation
 // DOES; nothing here asserts what it should do.
+//
+// ⚠️ This probe used to carry FUN-003 too, with a procedure exiting a value.
+// That is refused now, so the probe would have recorded the refusal and
+// measured nothing about FUN-002. The refusal has its own case,
+// refusals/0031-procedure-cannot-exit-a-value.a24.
 
 function F() : Integer;
 begin
 end
+
 procedure P();
 begin
-    Exit 7;
 end
+
 WriteLn(F() = nil);
-WriteLn(P());
+WriteLn(P() = nil);

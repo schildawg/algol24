@@ -1,0 +1,20 @@
+// spec: RT-017
+//
+// A String answers Length as a property, the same spelling every collection
+// uses -- and the same count Length(S) gives.
+
+var S := 'abc';
+
+WriteLn (S.Length);
+WriteLn (Length (S));
+WriteLn (S.Length = Length (S));
+WriteLn (''.Length);
+
+// A String was already iterable and subscriptable; not answering for its own
+// length was the odd one out.
+WriteLn (S[0]);
+for var C in S do Write (C);
+WriteLn ('');
+
+// A collection answers the same way.
+WriteLn ([1, 2, 3].Length);

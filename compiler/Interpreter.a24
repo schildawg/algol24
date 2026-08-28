@@ -50,6 +50,14 @@ begin
 
     function Call (TheInterpreter, Arguments) : Any;
     begin
+        // ⚠️ A collection has a COUNT, and it is a property [COL-003].  This
+        // stringifies whatever it is given, so 'Length([10, 20, 30])' was 12 --
+        // the length of the rendering -- where 'L.Length' is 3.  A plausible
+        // NUMBER rather than an error, and the two are never equal: a List of
+        // n one-digit numbers renders as 3n characters [RT-003].
+        if Arguments[0] is ObjCollection then
+            raise 'Length expects text; use .Length for a collection.';
+
         Exit Length(Str(Arguments[0]));
     end
 end
@@ -1373,12 +1381,24 @@ begin
 
         Obj := Evaluate (TheExpr.Obj);
 
-        // An enum type is dotted into as well as an instance: Colour.Red.
+        // ⚠️ A String answers Length, and is not an object with a Get.  It is
+        // already iterable [STM-007] and subscriptable [EXP-015]; not answering
+        // for its own length was the odd one out, and the COMPILED back end
+        // already answered 3 where this raised [RT-017].
+        if Obj is String then
+        begin
+            if Str (TheExpr.Name.Lexeme) = 'Length' then Exit Length (Obj);
+
+            raise 'Undefined property ''' + Str (TheExpr.Name.Lexeme) + '''.';
+        end
+
+        // An enum type is dotted into as well as an instance: Colour.Red.  So
+        // is an enum MEMBER, which answers its Ordinal [ENU-010].
         //
         // ⚠️ Tested with 'is', not against a class name, so an ObjSingleton --
         // which IS an ObjInstance -- passes.  Comparing names would have made
         // every object declaration unusable the moment it was reached.
-        if not (Obj is ObjInstance or Obj is ObjEnumType
+        if not (Obj is ObjInstance or Obj is ObjEnumType or Obj is ObjEnum
              or Obj is ObjCollection or Obj is ObjFile
              or Obj is ObjBuffer) then
         begin
@@ -1579,9 +1599,16 @@ begin
         if TheStmt.Superclass <> Nil then
         begin  
             Superclass := Evaluate (TheStmt.Superclass);
-            if Superclass.ClassName <> 'ObjClass' then
+
+            // ⚠️ 'is', not '.ClassName'.  Asking a non-instance for a property
+            // raised 'Only instances have properties.' BEFORE this comparison
+            // could run -- a sentence naming neither the class, nor the
+            // superclass, nor inheritance, and describing an access the program
+            // never wrote [CLS-014].
+            if not (Superclass is ObjClass) then
             begin
-                raise 'Superclass must be a class.';
+                raise '''' + Str (TheStmt.Superclass.Name.Lexeme)
+                    + ''' is not a class.';
             end
         end
 
@@ -3443,7 +3470,12 @@ begin
     except
        on e : String do 
             begin
-                AssertEqual('Only instances have properties.', Str(e));
+                // ⚠️ Was 'Only instances have properties.', which named neither
+                // the class, nor the superclass, nor inheritance, and described
+                // a property access the program never wrote.  It came from
+                // asking a non-instance for '.ClassName' BEFORE the comparison
+                // meant to reject it could run [CLS-014].
+                AssertEqual('''NotAClass'' is not a class.', Str(e));
                 Exit;
             end
     end

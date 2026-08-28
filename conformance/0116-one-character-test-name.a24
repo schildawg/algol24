@@ -1,0 +1,16 @@
+// spec: TST-001
+// run: --test
+//
+// A test is named by a quoted literal, either form.  A one-character name is a
+// Char rather than a String [LEX-023], and the name of a test is text -- the
+// distinction belongs to values, not to a declaration naming itself.
+
+test 'X';
+begin
+    AssertTrue (True);
+end
+
+test 'A longer name';
+begin
+    AssertTrue (True);
+end
