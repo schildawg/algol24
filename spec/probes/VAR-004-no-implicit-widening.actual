@@ -1,5 +1,0 @@
-Uncaught: Expected Double, found Integer.
-[WHITE][[RED]ERROR[WHITE]] [RESET]spec/probes/VAR-004-no-implicit-widening.a24: Expected Double, found Integer.
-[WHITE][[RED]ERROR[WHITE]] [RESET]6 | var X : Double := 1;
-[WHITE][[RED]ERROR[RESET]]   |[RED]     ^[RESET]
-exit: 70

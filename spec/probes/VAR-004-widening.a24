@@ -1,0 +1,16 @@
+// spec: VAR-004
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+//
+// ⚠️ Renamed from '-no-implicit-widening', which is no longer what it records.
+// It used to print nothing and exit 70 on a type mismatch.
+
+var D : Double := 1;
+WriteLn (D);
+
+var S : String := 'a';
+WriteLn (S.Length);
+
+function F (X : Double); begin Exit X; end
+WriteLn (F (1));

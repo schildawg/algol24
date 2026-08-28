@@ -230,7 +230,12 @@ static Value m_ObjFunction_Call_2(Value v_this, Value *args, int32_t count) {
         while (alg_truthy(alg_less(v_I, alg_property(alg_property(alg_property(v_this, "Declaration"), "Params"), "Length")))) {
             {
                 {
-                    (void)(alg_invoke(v_Env, "Define", (Value[]){alg_property(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "Params"), v_I), "Lexeme"), alg_subscript_get(v_Arguments, v_I)}, 2));
+                    volatile Value v_Declared = alg_string("");
+                    (void)v_Declared;
+                    if (alg_truthy(alg_less(v_I, alg_property(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), "Length")))) {
+                        (void)((v_Declared = alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_I))));
+                    }
+                    (void)(alg_invoke(v_Env, "Define", (Value[]){alg_property(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "Params"), v_I), "Lexeme"), alg_invoke(v_TheInterpreter, "Widen", (Value[]){alg_subscript_get(v_Arguments, v_I), v_Declared}, 2)}, 2));
                 }
                 (void)((v_I = alg_add(v_I, alg_int(1))));
             }
@@ -256,7 +261,7 @@ static Value m_ObjFunction_Call_2(Value v_this, Value *args, int32_t count) {
                         if (alg_truthy(alg_property(v_this, "IsInitializer"))) {
                             return alg_invoke(alg_property(v_this, "Closure"), "GetAt", (Value[]){alg_int(0), alg_string("this")}, 2);
                         }
-                        return alg_property(v_e, "Value");
+                        return alg_invoke(v_TheInterpreter, "Widen", (Value[]){alg_property(v_e, "Value"), alg_str(alg_property(alg_property(v_this, "Declaration"), "ReturnType"))}, 2);
                     }
                 }
             }

@@ -1,16 +1,33 @@
 // spec: VAR-004, VAR-017
 //
-// VAR-004 widens Integer to Double and Char to String at every assignment
-// context.  None of these is accepted; each is 'Type mismatch!'
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
 //
-//     var S : String := 'a';                       -- Char to String
-//     function F () : Double; begin Exit 1; end    -- at a return
+// ⚠️ PART OF THIS IS FIXED.  A value widens at four of the six assignment
+// contexts [VAR-017] and is CONVERTED there -- a declaration, a const, a
+// parameter and a declared return type.  The checker admits all six.
 //
-// ⚠️ One observation per program, as with DEF-03: the check is whole-program
-// and compile-time, so nothing else in the file runs and the other two cases
-// need their own runs.  The operators that DO widen are pinned separately, by
-// conformance/0025-operators-widen.a24 -- put side by side, that pair is the
-// defect: a written type means something narrower than '+' does.
+// What remains is the conversion at a plain ASSIGNMENT and at a FIELD, and the
+// obstacle is structural rather than fiddly: the interpreter does not know a
+// variable's declared type at run time.  Env stores values, not types, so
+// 'D := 1' has nothing to widen against.  A declaration knows its own type, a
+// parameter and a return type are on the function, and an assignment is the
+// case with nowhere to read it from.
+//
+// So this prints 1.0 twice and then 1 twice.
 
-var X : Double := 1;
-WriteLn (X);
+var A : Double := 1;
+WriteLn (A);
+
+function F (X : Double); begin Exit X; end
+WriteLn (F (1));
+
+var B : Double := 0.0;
+B := 1;
+WriteLn (B);
+
+class K;
+var Field : Double;
+begin
+    constructor Init (); begin this.Field := 1; end
+end
+WriteLn (K ().Field);

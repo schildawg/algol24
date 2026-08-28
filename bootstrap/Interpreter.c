@@ -50,10 +50,15 @@ static const char *t_WriteLnNative_Call_2[] = { "Any", "Any" };
 Value k_OrdNative;
 static const char *t_OrdNative_Call_2[] = { "Any", "Any" };
 Value k_ValNative;
+static Value or_1;
+static Value or_2;
 static const char *t_ValNative_Call_2[] = { "Any", "Any" };
 Value k_CharNative;
 static const char *t_CharNative_Call_2[] = { "Any", "Any" };
 Value k_MaxNative;
+static Value or_3;
+static Value or_4;
+static Value or_5;
 static const char *t_MaxNative_Call_2[] = { "Any", "Any" };
 Value k_ModNative;
 static const char *t_ModNative_Call_2[] = { "Any", "Any" };
@@ -66,7 +71,7 @@ static const char *t_FileExistsNative_Call_2[] = { "Any", "Any" };
 Value k_ParamCountNative;
 static const char *t_ParamCountNative_Call_2[] = { "Any", "Any" };
 Value k_ParamStrNative;
-static Value or_1;
+static Value or_6;
 static const char *t_ParamStrNative_Call_2[] = { "Any", "Any" };
 Value fn_Stringify;
 Value k_StrNative;
@@ -78,11 +83,6 @@ static const char *t_AssertEqualNative_Call_2[] = { "Any", "Any" };
 Value k_FailNative;
 static const char *t_FailNative_Call_2[] = { "Any", "Any" };
 Value k_Interpreter;
-static Value or_2;
-static Value or_3;
-static Value or_4;
-static Value or_5;
-static Value or_6;
 static Value or_7;
 static Value or_8;
 static Value or_9;
@@ -100,6 +100,14 @@ static Value or_20;
 static Value or_21;
 static Value or_22;
 static Value or_23;
+static Value or_24;
+static Value or_25;
+static Value or_26;
+static Value or_27;
+static Value or_28;
+static Value or_29;
+static Value or_30;
+static Value or_31;
 static const char *t_Interpreter_Interpret_1_List[] = { "List" };
 static const char *t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean[] = { "List", "List", "Map", "Boolean", "Environment", "Map", "String", "List", "Map", "Set", "Boolean" };
 static const char *t_Interpreter_RunTests_2_List_String[] = { "List", "String" };
@@ -130,6 +138,7 @@ static const char *t_Interpreter_VisitThisExpr_1_ThisExpr[] = { "ThisExpr" };
 static const char *t_Interpreter_ClassNameOf_1[] = { "Any" };
 static const char *t_Interpreter_IsTruthy_1[] = { "Any" };
 static const char *t_Interpreter_IsEqual_2[] = { "Any", "Any" };
+static const char *t_Interpreter_Widen_2_String[] = { "Any", "String" };
 static const char *t_Interpreter_Evaluate_1_Expr[] = { "Expr" };
 static const char *t_Interpreter_Execute_1_Stmt[] = { "Stmt" };
 static const char *t_Interpreter_Resolve_2_Expr_Integer[] = { "Expr", "Integer" };
@@ -498,7 +507,47 @@ static Value m_ValNative_Call_2(Value v_this, Value *args, int32_t count) {
     (void)v_TheInterpreter;
     Value v_Arguments = args[1];
     (void)v_Arguments;
-    return alg_val(alg_subscript_get(v_Arguments, alg_int(0)));
+    Value v_Text = alg_nil();
+    (void)v_Text;
+    Value v_Digits = alg_nil();
+    (void)v_Digits;
+    Value v_Result = alg_nil();
+    (void)v_Result;
+    Value v_Sign = alg_nil();
+    (void)v_Sign;
+    (void)((v_Text = alg_str(alg_subscript_get(v_Arguments, alg_int(0)))));
+    Value v_AsDouble = alg_val(v_Text);
+    (void)v_AsDouble;
+    (void)((v_Sign = alg_int(1)));
+    (void)((v_Digits = v_Text));
+    if (alg_truthy((or_1 = alg_greater(alg_length(v_Digits), alg_int(0)), !alg_truthy(or_1) ? or_1 : alg_equal(alg_subscript_get(v_Digits, alg_int(0)), alg_char_value(45))))) {
+        {
+            (void)((v_Sign = alg_negate(alg_int(1))));
+            (void)((v_Digits = alg_copy(v_Digits, alg_int(1), alg_subtract(alg_length(v_Digits), alg_int(1)))));
+        }
+    }
+    if (alg_truthy(alg_equal(alg_length(v_Digits), alg_int(0)))) {
+        return v_AsDouble;
+    }
+    (void)((v_Result = alg_int(0)));
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_length(v_Digits)))) {
+            {
+                {
+                    Value v_C = alg_subscript_get(v_Digits, v_I);
+                    (void)v_C;
+                    if (alg_truthy((or_2 = alg_less(v_C, alg_char_value(48)), alg_truthy(or_2) ? or_2 : alg_greater(v_C, alg_char_value(57))))) {
+                        return v_AsDouble;
+                    }
+                    (void)((v_Result = alg_add(alg_multiply(v_Result, alg_int(10)), (alg_subtract(alg_ord(v_C), alg_ord(alg_char_value(48)))))));
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    return alg_multiply(v_Sign, v_Result);
     return alg_nil();
 }
 
@@ -540,7 +589,19 @@ static Value m_MaxNative_Call_2(Value v_this, Value *args, int32_t count) {
     (void)v_TheInterpreter;
     Value v_Arguments = args[1];
     (void)v_Arguments;
-    return alg_max(alg_subscript_get(v_Arguments, alg_int(0)), alg_subscript_get(v_Arguments, alg_int(1)));
+    Value v_A = alg_nil();
+    (void)v_A;
+    Value v_B = alg_nil();
+    (void)v_B;
+    (void)((v_A = alg_subscript_get(v_Arguments, alg_int(0))));
+    (void)((v_B = alg_subscript_get(v_Arguments, alg_int(1))));
+    if (alg_truthy(alg_not(((or_5 = ((or_3 = alg_is(v_A, "Integer"), alg_truthy(or_3) ? or_3 : alg_is(v_A, "Double"))), !alg_truthy(or_5) ? or_5 : ((or_4 = alg_is(v_B, "Integer"), alg_truthy(or_4) ? or_4 : alg_is(v_B, "Double")))))))) {
+        alg_raise(alg_string("Max expects numbers."));
+    }
+    if (alg_truthy(alg_greater(v_A, v_B))) {
+        return v_A;
+    }
+    return v_B;
     return alg_nil();
 }
 
@@ -675,7 +736,7 @@ static Value m_ParamStrNative_Call_2(Value v_this, Value *args, int32_t count) {
     Value v_At = alg_nil();
     (void)v_At;
     (void)((v_At = alg_subscript_get(v_Arguments, alg_int(0))));
-    if (alg_truthy((or_1 = alg_less(v_At, alg_int(0)), alg_truthy(or_1) ? or_1 : alg_greater_equal(v_At, alg_property(v_ProgramArguments, "Length"))))) {
+    if (alg_truthy((or_6 = alg_less(v_At, alg_int(0)), alg_truthy(or_6) ? or_6 : alg_greater_equal(v_At, alg_property(v_ProgramArguments, "Length"))))) {
         return alg_string("");
     }
     return alg_subscript_get(v_ProgramArguments, v_At);
@@ -984,7 +1045,7 @@ static Value m_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_S
                                 if (alg_truthy(v_Define)) {
                                     (void)(alg_invoke(v_this, "Execute", (Value[]){v_TheStmt}, 1));
                                 }
-                                if (alg_truthy((or_2 = alg_not_equal(alg_property(alg_property(v_TheStmt, "Name"), "Literal"), alg_nil()), !alg_truthy(or_2) ? or_2 : v_Collect))) {
+                                if (alg_truthy((or_7 = alg_not_equal(alg_property(alg_property(v_TheStmt, "Name"), "Literal"), alg_nil()), !alg_truthy(or_7) ? or_7 : v_Collect))) {
                                     {
                                         (void)(alg_invoke(v_Tests, "Add", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1));
                                         (void)(alg_invoke(v_ByName, "Put", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_TheStmt}, 2));
@@ -1000,7 +1061,7 @@ static Value m_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_S
                                 }
                             }
                         } else {
-                            if (alg_truthy((or_7 = v_Define, !alg_truthy(or_7) ? or_7 : ((or_6 = (or_5 = (or_4 = (or_3 = alg_is(v_TheStmt, "ClassStmt"), alg_truthy(or_3) ? or_3 : alg_is(v_TheStmt, "ObjectStmt")), alg_truthy(or_4) ? or_4 : alg_is(v_TheStmt, "EnumStmt")), alg_truthy(or_5) ? or_5 : alg_is(v_TheStmt, "VarGroupStmt")), alg_truthy(or_6) ? or_6 : alg_is(v_TheStmt, "VarStmt")))))) {
+                            if (alg_truthy((or_12 = v_Define, !alg_truthy(or_12) ? or_12 : ((or_11 = (or_10 = (or_9 = (or_8 = alg_is(v_TheStmt, "ClassStmt"), alg_truthy(or_8) ? or_8 : alg_is(v_TheStmt, "ObjectStmt")), alg_truthy(or_9) ? or_9 : alg_is(v_TheStmt, "EnumStmt")), alg_truthy(or_10) ? or_10 : alg_is(v_TheStmt, "VarGroupStmt")), alg_truthy(or_11) ? or_11 : alg_is(v_TheStmt, "VarStmt")))))) {
                                 (void)(alg_invoke(v_this, "Execute", (Value[]){v_TheStmt}, 1));
                             }
                         }
@@ -1334,7 +1395,7 @@ static Value m_Interpreter_IsText_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Obj = args[0];
     (void)v_Obj;
-    return (or_8 = alg_is(v_Obj, "String"), alg_truthy(or_8) ? or_8 : alg_is(v_Obj, "Char"));
+    return (or_13 = alg_is(v_Obj, "String"), alg_truthy(or_13) ? or_13 : alg_is(v_Obj, "Char"));
     return alg_nil();
 }
 
@@ -1531,7 +1592,7 @@ static Value m_Interpreter_SuggestUnit_2_Token_String(Value v_this, Value *args,
                 {
                     Value v_ModuleEnv = alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){alg_subscript_get(v_Units, v_I)}, 1);
                     (void)v_ModuleEnv;
-                    if (alg_truthy((or_9 = alg_not_equal(alg_property(v_ModuleEnv, "Exports"), alg_nil()), !alg_truthy(or_9) ? or_9 : alg_invoke(alg_property(v_ModuleEnv, "Exports"), "Contains", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1)))) {
+                    if (alg_truthy((or_14 = alg_not_equal(alg_property(v_ModuleEnv, "Exports"), alg_nil()), !alg_truthy(or_14) ? or_14 : alg_invoke(alg_property(v_ModuleEnv, "Exports"), "Contains", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1)))) {
                         return alg_add(alg_add(alg_add(alg_str(v_Message), alg_string(" Unit '")), alg_str(alg_subscript_get(v_Units, v_I))), alg_string("' exports it; this file has no 'uses' for it."));
                     }
                 }
@@ -1539,7 +1600,7 @@ static Value m_Interpreter_SuggestUnit_2_Token_String(Value v_this, Value *args,
             }
         }
     }
-    if (alg_truthy((or_10 = alg_not_equal(alg_property(v_this, "Env"), alg_property(v_this, "Globals")), !alg_truthy(or_10) ? or_10 : alg_invoke(alg_property(alg_property(v_this, "Globals"), "Values"), "Contains", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1)))) {
+    if (alg_truthy((or_15 = alg_not_equal(alg_property(v_this, "Env"), alg_property(v_this, "Globals")), !alg_truthy(or_15) ? or_15 : alg_invoke(alg_property(alg_property(v_this, "Globals"), "Values"), "Contains", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1)))) {
         return alg_add(alg_str(v_Message), alg_string(" The file the program started from declares it, and no file can 'uses' that."));
     }
     return alg_str(v_Message);
@@ -1643,7 +1704,7 @@ static Value m_Interpreter_VisitCall_1_CallExpr(Value v_this, Value *args, int32
             }
         }
     }
-    if (alg_truthy((or_11 = alg_greater_equal(alg_invoke(v_Callee, "Arity", NULL, 0), alg_int(0)), !alg_truthy(or_11) ? or_11 : alg_not_equal(alg_property(v_Arguments, "Length"), alg_invoke(v_Callee, "Arity", NULL, 0))))) {
+    if (alg_truthy((or_16 = alg_greater_equal(alg_invoke(v_Callee, "Arity", NULL, 0), alg_int(0)), !alg_truthy(or_16) ? or_16 : alg_not_equal(alg_property(v_Arguments, "Length"), alg_invoke(v_Callee, "Arity", NULL, 0))))) {
         {
             alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Expected "), alg_invoke(v_Callee, "Arity", NULL, 0)), alg_string(" arguments but got ")), alg_property(v_Arguments, "Length")), alg_char_value(46)));
         }
@@ -1669,7 +1730,7 @@ static Value m_Interpreter_AssignQualified_3_String_Token(Value v_this, Value *a
         alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), alg_str(alg_property(v_Name, "Lexeme"))), alg_string("' in unit '")), v_Unit), alg_string("'.")));
     }
     (void)((v_ModuleEnv = alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){v_Unit}, 1)));
-    if (alg_truthy((or_12 = alg_equal(alg_property(v_ModuleEnv, "Exports"), alg_nil()), alg_truthy(or_12) ? or_12 : alg_not(alg_invoke(alg_property(v_ModuleEnv, "Exports"), "Contains", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1))))) {
+    if (alg_truthy((or_17 = alg_equal(alg_property(v_ModuleEnv, "Exports"), alg_nil()), alg_truthy(or_17) ? or_17 : alg_not(alg_invoke(alg_property(v_ModuleEnv, "Exports"), "Contains", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1))))) {
         alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), alg_str(alg_property(v_Name, "Lexeme"))), alg_string("' in unit '")), v_Unit), alg_string("'.")));
     }
     (void)(alg_invoke(alg_property(v_ModuleEnv, "Values"), "Put", (Value[]){alg_str(alg_property(v_Name, "Lexeme")), v_Value}, 2));
@@ -1696,7 +1757,7 @@ static Value m_Interpreter_Qualified_2_String_Token(Value v_this, Value *args, i
         alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), alg_str(alg_property(v_Name, "Lexeme"))), alg_string("' in unit '")), v_Unit), alg_string("'.")));
     }
     (void)((v_ModuleEnv = alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){v_Unit}, 1)));
-    if (alg_truthy((or_13 = alg_equal(alg_property(v_ModuleEnv, "Exports"), alg_nil()), alg_truthy(or_13) ? or_13 : alg_not(alg_invoke(alg_property(v_ModuleEnv, "Exports"), "Contains", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1))))) {
+    if (alg_truthy((or_18 = alg_equal(alg_property(v_ModuleEnv, "Exports"), alg_nil()), alg_truthy(or_18) ? or_18 : alg_not(alg_invoke(alg_property(v_ModuleEnv, "Exports"), "Contains", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1))))) {
         alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), alg_str(alg_property(v_Name, "Lexeme"))), alg_string("' in unit '")), v_Unit), alg_string("'.")));
     }
     return alg_invoke(alg_property(v_ModuleEnv, "Values"), "Get", (Value[]){alg_str(alg_property(v_Name, "Lexeme"))}, 1);
@@ -1721,7 +1782,7 @@ static Value m_Interpreter_VisitGetExpr_1_GetExpr(Value v_this, Value *args, int
             alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))), alg_string("'.")));
         }
     }
-    if (alg_truthy(alg_not(((or_18 = (or_17 = (or_16 = (or_15 = (or_14 = alg_is(v_Obj, "ObjInstance"), alg_truthy(or_14) ? or_14 : alg_is(v_Obj, "ObjEnumType")), alg_truthy(or_15) ? or_15 : alg_is(v_Obj, "ObjEnum")), alg_truthy(or_16) ? or_16 : alg_is(v_Obj, "ObjCollection")), alg_truthy(or_17) ? or_17 : alg_is(v_Obj, "ObjFile")), alg_truthy(or_18) ? or_18 : alg_is(v_Obj, "ObjBuffer")))))) {
+    if (alg_truthy(alg_not(((or_23 = (or_22 = (or_21 = (or_20 = (or_19 = alg_is(v_Obj, "ObjInstance"), alg_truthy(or_19) ? or_19 : alg_is(v_Obj, "ObjEnumType")), alg_truthy(or_20) ? or_20 : alg_is(v_Obj, "ObjEnum")), alg_truthy(or_21) ? or_21 : alg_is(v_Obj, "ObjCollection")), alg_truthy(or_22) ? or_22 : alg_is(v_Obj, "ObjFile")), alg_truthy(or_23) ? or_23 : alg_is(v_Obj, "ObjBuffer")))))) {
         {
             alg_raise(alg_string("Only instances have properties."));
         }
@@ -1822,7 +1883,7 @@ static Value m_Interpreter_IsTruthy_1(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_Obj = args[0];
     (void)v_Obj;
-    if (alg_truthy((or_19 = alg_equal(v_Obj, alg_nil()), alg_truthy(or_19) ? or_19 : alg_equal(v_Obj, alg_bool(false))))) {
+    if (alg_truthy((or_24 = alg_equal(v_Obj, alg_nil()), alg_truthy(or_24) ? or_24 : alg_equal(v_Obj, alg_bool(false))))) {
         return alg_bool(false);
     }
     if (alg_truthy(alg_is(v_Obj, "Integer"))) {
@@ -1841,13 +1902,32 @@ static Value m_Interpreter_IsEqual_2(Value v_this, Value *args, int32_t count) {
     (void)v_A;
     Value v_B = args[1];
     (void)v_B;
-    if (alg_truthy((or_20 = alg_equal(v_A, alg_nil()), !alg_truthy(or_20) ? or_20 : alg_equal(v_B, alg_nil())))) {
+    if (alg_truthy((or_25 = alg_equal(v_A, alg_nil()), !alg_truthy(or_25) ? or_25 : alg_equal(v_B, alg_nil())))) {
         return alg_bool(true);
     }
     if (alg_truthy(alg_equal(v_A, alg_nil()))) {
         return alg_bool(false);
     }
     return alg_equal(v_A, v_B);
+    return alg_nil();
+}
+
+static Value m_Interpreter_Widen_2_String(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Value = args[0];
+    (void)v_Value;
+    Value v_Declared = args[1];
+    (void)v_Declared;
+    if (alg_truthy((or_26 = alg_equal(v_Declared, alg_string("")), alg_truthy(or_26) ? or_26 : alg_equal(v_Value, alg_nil())))) {
+        return v_Value;
+    }
+    if (alg_truthy((or_27 = alg_equal(v_Declared, alg_string("Double")), !alg_truthy(or_27) ? or_27 : alg_is(v_Value, "Integer")))) {
+        return alg_multiply(v_Value, alg_double(1.0));
+    }
+    if (alg_truthy((or_28 = alg_equal(v_Declared, alg_string("String")), !alg_truthy(or_28) ? or_28 : alg_is(v_Value, "Char")))) {
+        return alg_str(v_Value);
+    }
+    return v_Value;
     return alg_nil();
 }
 
@@ -1858,7 +1938,7 @@ static Value m_Interpreter_Evaluate_1_Expr(Value v_this, Value *args, int32_t co
     Value v_Value = alg_nil();
     (void)v_Value;
     (void)((v_Value = alg_invoke(v_TheExpr, "Accept", (Value[]){v_this}, 1)));
-    if (alg_truthy((or_21 = alg_not_equal(alg_property(v_TheExpr, "Cast"), alg_string("")), !alg_truthy(or_21) ? or_21 : alg_not_equal(v_Value, alg_nil())))) {
+    if (alg_truthy((or_29 = alg_not_equal(alg_property(v_TheExpr, "Cast"), alg_string("")), !alg_truthy(or_29) ? or_29 : alg_not_equal(v_Value, alg_nil())))) {
         {
             if (alg_truthy(alg_not(alg_invoke(v_this, "SatisfiesType", (Value[]){v_Value, alg_property(v_TheExpr, "Cast")}, 2)))) {
                 alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Cannot cast "), f_TypeNameOf(NULL, (Value[]){v_Value}, 1)), alg_string(" to ")), alg_property(v_TheExpr, "Cast")), alg_char_value(46)));
@@ -2377,7 +2457,7 @@ static Value m_Interpreter_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *arg
                             (void)(alg_invoke(v_Exported, "Add", (Value[]){v_TheName}, 1));
                             Value v_Owner = alg_invoke(v_Importer, "OwnerOf", (Value[]){v_TheName}, 1);
                             (void)v_Owner;
-                            if (alg_truthy((or_22 = alg_not_equal(v_Owner, alg_nil()), !alg_truthy(or_22) ? or_22 : alg_not_equal(v_Owner, v_ModuleEnv)))) {
+                            if (alg_truthy((or_30 = alg_not_equal(v_Owner, alg_nil()), !alg_truthy(or_30) ? or_30 : alg_not_equal(v_Owner, v_ModuleEnv)))) {
                                 alg_raise(alg_add(alg_add(alg_string("'"), v_TheName), alg_string("' is already defined; mark it private in one of the modules.")));
                             }
                         }
@@ -2455,7 +2535,7 @@ static Value m_Interpreter_Handle_3_TryStmt(Value v_this, Value *args, int32_t c
     Value v_Handler = alg_nil();
     (void)v_Handler;
     (void)((v_Handler = alg_invoke(v_this, "FindHandler", (Value[]){alg_property(v_TheStmt, "Handlers"), v_Value}, 2)));
-    if (alg_truthy((or_23 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_23) ? or_23 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
+    if (alg_truthy((or_31 = alg_equal(v_Handler, alg_nil()), !alg_truthy(or_31) ? or_31 : alg_invoke(alg_property(v_TheStmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
         (void)((v_Handler = alg_invoke(alg_property(v_TheStmt, "Handlers"), "Get", (Value[]){alg_string("default")}, 1)));
     }
     if (alg_truthy(alg_equal(v_Handler, alg_nil()))) {
@@ -2543,7 +2623,7 @@ static Value m_Interpreter_VisitVarStmt_1_VarStmt(Value v_this, Value *args, int
     (void)v_Value;
     if (alg_truthy(alg_not_equal(alg_property(v_Stmt, "Initializer"), alg_nil()))) {
         {
-            (void)((v_Value = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_Stmt, "Initializer")}, 1)));
+            (void)((v_Value = alg_invoke(v_this, "Widen", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_Stmt, "Initializer")}, 1), alg_str(alg_property(v_Stmt, "TypeName"))}, 2)));
         }
     }
     (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(v_Stmt, "Name"), "Lexeme"), v_Value}, 2));
@@ -2817,6 +2897,7 @@ void init_Interpreter(void) {
     alg_class_method(k_Interpreter, "ClassNameOf", m_Interpreter_ClassNameOf_1, 1, t_Interpreter_ClassNameOf_1);
     alg_class_method(k_Interpreter, "IsTruthy", m_Interpreter_IsTruthy_1, 1, t_Interpreter_IsTruthy_1);
     alg_class_method(k_Interpreter, "IsEqual", m_Interpreter_IsEqual_2, 2, t_Interpreter_IsEqual_2);
+    alg_class_method(k_Interpreter, "Widen", m_Interpreter_Widen_2_String, 2, t_Interpreter_Widen_2_String);
     alg_class_method(k_Interpreter, "Evaluate", m_Interpreter_Evaluate_1_Expr, 1, t_Interpreter_Evaluate_1_Expr);
     alg_class_method(k_Interpreter, "Execute", m_Interpreter_Execute_1_Stmt, 1, t_Interpreter_Execute_1_Stmt);
     alg_class_method(k_Interpreter, "Resolve", m_Interpreter_Resolve_2_Expr_Integer, 2, t_Interpreter_Resolve_2_Expr_Integer);

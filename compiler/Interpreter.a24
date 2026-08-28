@@ -300,9 +300,50 @@ begin
         Exit 1;
     end
 
+    /// ⚠️ An INTEGER where the text is one, reading the same characters the
+    /// literal rules do [LEX-015].  It used to answer a Double always, so
+    /// 'Val(''42'')' was 42.0 -- and the result could not then be passed to
+    /// 'Max', which took Integers only.  The two were individually defensible
+    /// and jointly unusable: 'Max(Val(A), Val(B))' failed for EVERY input
+    /// [RT-009, RT-010].
+    ///
+    /// ⚠️ The digits are accumulated by hand rather than converted from the
+    /// Double.  There is no narrowing conversion in the language, and 'as' is a
+    /// CHECKED cast now [VAL-007] -- 'D as Integer' on a Double raises.
     function Call (TheInterpreter, Arguments) : Any;
+    var
+        Text   : String;
+        Digits : String;
+        Result : Integer;
+        Sign   : Integer;
+
     begin
-        Exit Val (Arguments[0]);
+        Text := Str (Arguments[0]);
+
+        // The host Val validates, and raises the diagnostic RT-009 specifies
+        // for text that is not a number at all.
+        var AsDouble := Val (Text);
+
+        Sign   := 1;
+        Digits := Text;
+        if Length (Digits) > 0 and Digits[0] = '-' then
+        begin
+            Sign   := -1;
+            Digits := Copy (Digits, 1, Length (Digits) - 1);
+        end
+
+        if Length (Digits) = 0 then Exit AsDouble;
+
+        Result := 0;
+        for var I := 0; I < Length (Digits); I := I + 1 do
+        begin
+            var C := Digits[I];
+            if C < '0' or C > '9' then Exit AsDouble;
+
+            Result := Result * 10 + (Ord (C) - Ord ('0'));
+        end
+
+        Exit Sign * Result;
     end
 end
 
@@ -326,9 +367,24 @@ begin
         Exit 2;
     end
 
+    /// ⚠️ Any two NUMBERS, promoting as every other numeric operator does
+    /// [EXP-005].  It took Integers only, which with Val always yielding a
+    /// Double left 'Max(Val(A), Val(B))' failing for every input [RT-010].
     function Call (TheInterpreter, Arguments) : Any;
+    var
+        A : Any;
+        B : Any;
+
     begin
-        Exit Max (Arguments[0], Arguments[1]);
+        A := Arguments[0];
+        B := Arguments[1];
+
+        if not ((A is Integer or A is Double) and (B is Integer or B is Double)) then
+            raise 'Max expects numbers.';
+
+        if A > B then Exit A;
+
+        Exit B;
     end
 end
 
@@ -1529,6 +1585,23 @@ begin
     
     /// Performs double-dispatch evaluation of expression.
     ///
+    /// Converts a value to a declared type where the two differ by a widening,
+    /// and hands it back unchanged otherwise.
+    ///
+    /// ⚠️ The CONVERSION, not merely the permission.  VAR-004 says the variable
+    /// holds the wider type afterwards -- 'var X : Double := 1;' gives X the
+    /// Double 1.0 -- so a declaration never misdescribes what it holds, and the
+    /// C back end can rely on a declared type meaning what it says.
+    function Widen (Value : Any, Declared : String) : Any;
+    begin
+        if Declared = '' or Value = Nil then Exit Value;
+
+        if Declared = 'Double' and Value is Integer then Exit Value * 1.0;
+        if Declared = 'String' and Value is Char    then Exit Str (Value);
+
+        Exit Value;
+    end
+
     function Evaluate(TheExpr : Expr) : Any;
     var
         Value : Any;
@@ -2177,7 +2250,7 @@ begin
     begin
         if Stmt.Initializer <> Nil then
         begin
-            Value := Evaluate (Stmt.Initializer);
+            Value := Widen (Evaluate (Stmt.Initializer), Str (Stmt.TypeName));
         end
 
         Env.Define (Stmt.Name.Lexeme, Value);

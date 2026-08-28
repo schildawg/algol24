@@ -1,0 +1,11 @@
+// spec: RT-010
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+//
+// ⚠️ Renamed from '-max-is-integers-only'. It used to record
+// 'Max expects Integers.' for the second line.
+
+WriteLn (Max (3, 7));
+WriteLn (Max (3.5, 2));
+WriteLn (Max (Val ('3'), Val ('7')));

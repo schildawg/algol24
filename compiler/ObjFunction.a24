@@ -189,7 +189,15 @@ begin
 
         for var I := 0; I < Declaration.Params.Length; I := I + 1 do
         begin
-            Env.Define (Declaration.Params[I].Lexeme, Arguments[I]);
+            // ⚠️ A parameter is an assignment context [VAR-017], so an argument
+            // widens on the way in and the parameter holds the wider type --
+            // 'F (1)' into 'X : Double' binds 1.0, not 1.
+            var Declared := '';
+            if I < Declaration.ParamTypes.Length then
+                Declared := Str (Declaration.ParamTypes[I]);
+
+            Env.Define (Declaration.Params[I].Lexeme,
+                        TheInterpreter.Widen (Arguments[I], Declared));
         end
         
         try 
@@ -198,7 +206,10 @@ begin
             on e : Return do
                 begin
                     if IsInitializer then Exit Closure.GetAt (0, 'this');
-                    Exit e.Value;
+
+                    // ⚠️ A declared return type is an assignment context too, so
+                    // 'Exit 1' from a function declared ': Double' yields 1.0.
+                    Exit TheInterpreter.Widen (e.Value, Str (Declaration.ReturnType));
                 end
         end
 

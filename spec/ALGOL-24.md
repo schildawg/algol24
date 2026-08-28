@@ -804,9 +804,11 @@ the point it arrives. There are two widening pairs:
 The variable holds the wider type afterwards. A declaration never misdescribes
 what it holds.
 
-⚠️ **NOT YET IMPLEMENTED.** Neither widening is applied where a type is written:
-`var X : Double := 1;`, `var S : String := 'a';` and an `Exit 1` from a function
-declared `: Double` are each `Type mismatch!` See DEF-10.
+⚠️ **PARTLY IMPLEMENTED.** The checker admits both widenings at all six
+contexts, and the value is **converted** at four of them — a declaration, a
+`const`, a parameter and a declared return type. A plain assignment and a field
+accept the value and do not convert it, so `D := 1` leaves `D` holding an
+Integer. See DEF-10.
 
 ⚠️ **The rules already exist; they are simply not applied here.** `1 + 1.5` is
 `2.5`, `'a' + 'bc'` is `abc`, and `'a' + 'b'` is a String of two characters — the
@@ -829,6 +831,12 @@ X := E ;                  Obj.Field := E ;
 Exit E ;   (against a declared return type)
 F (E) ;    (against a declared parameter type)
 ```
+
+⚠️ **PARTLY IMPLEMENTED**, and the obstacle is structural: the interpreter does
+not know a variable's declared type at run time. `Env` stores values, not types,
+so a plain `X := 1` has nothing to widen against — a declaration knows its own
+type, a parameter and a return type are on the function, and an assignment is
+the one context with nowhere to read it from. See DEF-10.
 
 ⚠️ **Comparison is not among them and does not widen.** `'a'` and
 `Copy('abc', 0, 1)` remain unequal [LEX-026]. A widening converts *toward a
@@ -2803,27 +2811,26 @@ the text has no point and a **Double** where it has one — reading the same
 characters the literal rules do [LEX-015], [LEX-020]. Failure is `Val failed:
 'abc' is not a number.`
 
-⚠️ **NOT YET IMPLEMENTED.** It always yields a Double, so `Val('42')` is `42.0`
-and `Val('42') is Integer` is false. See DEF-27.
+⚠️ Text that is neither — `'1e5'`, which no literal rule spells [LEX-022] — is
+a Double, since only an integer literal yields an Integer.
 
     interpreter  compiler/Interpreter.a24  ValNative
     compiler     bootstrap/algol.c         alg_val
-    defect       DEF-27-val-and-max-do-not-meet.a24
+    conformance  0119-val-and-max.a24
 
 **[RT-010]**  `Max(A, B)` takes any two numbers and promotes as every other
 numeric operator does [EXP-005], so `Max(3.5, 2)` is `3.5`.
 
-⚠️ **NOT YET IMPLEMENTED.** It takes Integers only: `Max(3.5, 2)` is `Max expects
-Integers.` See DEF-27.
+Anything that is not a number is `Max expects numbers.`
 
-⚠️ **[RT-009] and [RT-010] are one defect, not two.** Individually each is
-defensible; together they leave `Max(Val(A), Val(B))` failing for **every**
-input, so text holding two numbers cannot be compared without going outside both
-built-ins.
+⚠️ **[RT-009] and [RT-010] were one defect, not two.** Individually each was
+defensible; together they left `Max(Val(A), Val(B))` failing for **every**
+input, so text holding two numbers could not be compared without going outside
+both built-ins.
 
     interpreter  compiler/Interpreter.a24  MaxNative
     compiler     bootstrap/algol.c         alg_max
-    defect       DEF-27-val-and-max-do-not-meet.a24
+    conformance  0119-val-and-max.a24
 
 **[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
 dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
@@ -4669,9 +4676,18 @@ that exists; expect casts to be needed at boundaries that currently have none.
 **DEF-10 — Widening is refused wherever a type is written.**
 *(violates [VAR-004], [VAR-017], [EXP-014])*
 
-Neither widening pair is applied at an assignment context. `var X : Double := 1;`,
-`var S : String := 'a';` and an `Exit 1` from a function declared `: Double` are
-each `Type mismatch!` Narrowing is correctly refused.
+⚠️ **Mostly fixed.** The checker admits both pairs at all six contexts and the
+value is converted at four — a declaration, a `const`, a parameter and a
+declared return type. What remains is a plain **assignment** and a **field**:
+`D := 1` where `D` is declared `Double` is accepted and leaves an Integer in it,
+so the declaration misdescribes what it holds.
+
+⚠️ **The obstacle is structural, and the scope note below understated it.** The
+interpreter does not know a variable's declared type at run time — `Env` stores
+values, not types. A declaration knows its own type, and a parameter and a
+return type are on the function; an assignment is the one context with nowhere
+to read it from. Closing it means either storing declared types in the
+environment or annotating the assignment node from the checker.
 
 ⚠️ **A parameter is an assignment context too**, so the same gap shows up in
 overload selection: with only a `String` overload declared, `Take('a')` is
@@ -4887,23 +4903,6 @@ its environment **before its own body runs**.
 
 ⚠️ Fixing this also removes C-1, the only known case of a valid program having no
 compiled form.
-
-**DEF-27 — `Val` and `Max` cannot be used together.**
-*(violates [RT-009], [RT-010])*
-
-`Val('42')` is `42.0` rather than `42`, and `Max` refuses anything but Integers,
-so `Max(Val(A), Val(B))` is `Max expects Integers.` for **every** input.
-
-*Reproduce:* `defects/DEF-27-val-and-max-do-not-meet.a24`
-
-⚠️ **One defect, not two.** Each built-in is defensible alone; the fault is that
-the output of one cannot be the input of the other, and no program can work
-around it without leaving both.
-
-*Scope of the fix.* `ValNative` reads the text the way [LEX-015] and [LEX-020]
-do and answers the matching type; `MaxNative` accepts two numbers and promotes.
-⚠️ It should land with DEF-10 — once widening works, `Max` promoting is the same
-rule the operators use rather than a special case in one built-in.
 
 **DEF-30 — Every assertion message begins with a comparison that was not made.**
 *(violates [TST-012])*

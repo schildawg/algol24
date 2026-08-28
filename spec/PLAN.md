@@ -5,7 +5,7 @@ case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
 in `defects/`. The conformance pass decided what the language *should* do. This
 plan is the work of making the interpreter do it.
 
-**22 defects stand between the two.** *(33 found; eleven are fixed.)* Each one is a rule the specification
+**21 defects stand between the two.** *(33 found; twelve fixed, DEF-10 mostly.)* Each one is a rule the specification
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
@@ -142,7 +142,22 @@ the unary level. ⚠️ The order mattered exactly as recorded: `False and 5 as
 Integer` was `(False and 5) as Integer` under the old precedence, which is a
 Boolean cast to Integer — harmless while a cast did nothing, and a raise the
 moment DEF-12 landed. Remaining:
-DEF-10 with **DEF-33**, DEF-19 and DEF-27, then DEF-09.
+DEF-10 (mostly) and DEF-27 done. **DEF-33 remains, and it is bigger than this
+plan assumed.**
+
+⚠️ **DEF-33 is not a wave-2-sized change.** Making a top-level subprogram
+overload needs more than relaxing `CheckDuplicates`: an environment binds one
+name to one value, so two functions of a name cannot both be reachable. Methods
+get selection from `ObjClass.FindOverload`, and top-level functions have no
+equivalent structure — the fix needs an overload set in the environment, or
+mangled names resolved at the call. DEF-19 waits on it, as recorded.
+
+⚠️ **DEF-10 is four contexts of six**, and the remainder is structural rather
+than fiddly: the interpreter does not know a variable's declared type at run
+time. `Env` stores values, not types, so a plain `X := 1` has nothing to widen
+against. Closing it means storing declared types in the environment, or
+annotating the assignment node from the checker — which is the same plumbing
+DEF-09 needs, so the two want doing together.
 
 ⚠️ **DEF-33 before DEF-19, and DEF-19 probably closes with it.** Making a
 top-level subprogram overload sends it through `FindOverload`, which compares

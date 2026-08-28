@@ -12,8 +12,8 @@
   Char(65)            = A
   Ord(Char(65))       = 65
 -- Val --
-  Val('42')           = 42.0
-  Val('42') is Integer = false
+  Val('42')           = 42
+  Val('42') is Integer = true
   Val('3.5')          = 3.5
   Val('3.5') is Double = true
 -- Max and Mod --

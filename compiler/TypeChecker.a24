@@ -291,6 +291,18 @@ begin
         if Actual = 'Nil' then Exit True;
         if Expected = Actual then Exit True;
 
+        // ⚠️ The two WIDENING pairs [VAR-004].  The operators already do both --
+        // '1 + 1.5' is 2.5 and '''a'' + ''bc''' is abc -- so refusing them
+        // where a type is WRITTEN made a declared type mean something narrower
+        // than '+' does.  That inconsistency was the defect; the widening
+        // itself is settled behaviour everywhere else.
+        //
+        // ⚠️ One direction only.  Narrowing stays refused [VAR-018]: the value
+        // does not fit, and choosing how to lose the fraction is not a decision
+        // a declaration should make silently.
+        if Expected = 'Double' and Actual = 'Integer' then Exit True;
+        if Expected = 'String' and Actual = 'Char'    then Exit True;
+
         // Walk up the chain: a Dog stands where an Animal is declared.
         Parent := Str (Lookup.Parents.Get (Actual));
         while Parent <> '' and Parent <> 'nil' do
@@ -988,7 +1000,12 @@ end
 test 'String Subscript Reduces To Char';
 begin
     AssertTrue (not Rejects ('var S : String := ''abc''; var C : Char := S[0];'));
-    AssertTrue (Rejects ('var S : String := ''abc''; var T : String := S[0];'));
+
+    // ⚠️ Integer, not String.  This used to prove the subscript was a Char by
+    // showing a String declaration REFUSED it -- and a Char widens to a String
+    // now [VAR-004], so that proof accepts.  An Integer is the nearest type a
+    // Char still does not reach.
+    AssertTrue (Rejects ('var S : String := ''abc''; var N : Integer := S[0];'));
 end
 
 // 'of' is honoured only after 'List'.  Anywhere else the type is whatever was
