@@ -1,7 +1,0 @@
-// spec: VAR-008
-//
-// VAR-008 admits an element type on every collection.  Only List parses one;
-// this is refused with 'Expect ';' after variable declaration.'
-
-var M : Map of Integer := [:];
-WriteLn (M.Length);

@@ -1,7 +1,0 @@
-// spec: LEX-008
-//
-// A probe, not a conformance test. It records what the implementation
-// DOES; nothing here asserts what it should do.
-
-var ? := 7;
-WriteLn(?);

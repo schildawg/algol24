@@ -1,7 +1,0 @@
-// spec: LEX-007
-//
-// '!' is an identifier mark, so 'Send!' is one identifier.  The scanner
-// refuses the character instead.
-
-var Send! := 1;
-WriteLn (Send!);

@@ -1,0 +1,10 @@
+// spec: SRC-005
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+//
+// ⚠️ Renamed from '-bang-is-not-a-letter'. It is a MARK now: it continues an
+// identifier and may not begin one, so 'Send!' is one word.
+
+var Send! := 1;
+WriteLn (Send!);

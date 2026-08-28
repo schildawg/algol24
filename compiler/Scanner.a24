@@ -414,18 +414,35 @@ begin
     // character was recorded and never reported, algc dropped the '?' and read
     // 'Ready' instead of refusing, so the mistake was invisible.
     //
+    /// A LETTER, which may begin an identifier.
+    ///
+    /// ⚠️ '?' is not one, and used not to be excluded.  Classing it as a letter
+    /// so that 'Gate?' scans as one word also let it BEGIN an identifier, and
+    /// 'var ? := 7;' declared a variable named '?' -- which fell out of the
+    /// letter class rather than from any decision [SRC-005, LEX-008].
     function IsAlpha(C : Char) : Boolean;
     begin
         Exit (C >= 'a' and C <= 'z') or
              (C >= 'A' and C <= 'Z') or
-             (C = '_') or (C = '?');
+             (C = '_');
     end
 
-    // Is the character alphanumeric?
+    /// An identifier MARK: may continue an identifier, may not begin one.
+    ///
+    /// ⚠️ 'Gate?' asks and 'Send!' does; neither '?' nor '!' alone is a name.
+    /// A trailing mark reads as punctuation on a word, and a leading one reads
+    /// as an operator the language does not have [SRC-005].
+    function IsMark(C : Char) : Boolean;
+    begin
+        Exit (C = '?') or (C = '!');
+    end
+
+    // Is the character alphanumeric, or a mark?  Everything an identifier may
+    // continue with.
     //
     function IsAlphaNumeric(C : Char) : Boolean;
     begin
-        Exit IsAlpha(C) or IsDigit(C);
+        Exit IsAlpha(C) or IsDigit(C) or IsMark(C);
     end
 
     // Is the character a digit?

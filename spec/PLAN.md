@@ -5,7 +5,7 @@ case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
 in `defects/`. The conformance pass decided what the language *should* do. This
 plan is the work of making the interpreter do it.
 
-**21 defects stand between the two.** *(33 found; twelve fixed; DEF-10 and DEF-09 partly.)* Each one is a rule the specification
+**17 defects stand between the two.** *(33 found; sixteen fixed; DEF-09, DEF-10 and DEF-15 partly.)* Each one is a rule the specification
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
@@ -165,10 +165,20 @@ whole signatures — so its declared parameter types are checked as a consequenc
 Attempting DEF-19 separately means writing a comparison path DEF-33 then makes
 redundant.
 
-**Wave 3 — parsing and scoping.** DEF-03 (identifier marks), DEF-17 (declaration
-as an unbraced body — ⚠️ this one *removes* C-12), DEF-15 (hoisting), DEF-11
-(`of` on every collection), DEF-05 (overflow: the literal half is small and
-local, the arithmetic half touches every operator).
+**Wave 3 — done except DEF-05.** DEF-03 (identifier marks), DEF-17 (a
+declaration may not be an unbraced body — ⚠️ this one *removed* C-12, the only
+Annex C entry to close by the language moving), DEF-11 (`of` on every
+collection), and DEF-15's function half.
+
+⚠️ **DEF-15's class half was tried and backed out.** A class declaration
+*evaluates* its superclass, so hoisting the declaration hoists the evaluation —
+which broke `class B (A); … class A;` and made [CLS-014]'s `'X' is not a class.`
+unreachable for any name declared in the same file. It needs a two-phase
+declaration: bind the name at hoist time, resolve the superclass where the
+declaration stands.
+
+**DEF-05 remains**: the literal half is small and local, the arithmetic half
+touches every operator.
 
 **Wave 4 — names and modules.** DEF-22 and DEF-23 are the same shape — accept
 the declaration, refuse the ambiguous bare use — and should be done together.

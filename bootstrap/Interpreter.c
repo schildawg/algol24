@@ -108,6 +108,7 @@ static Value or_28;
 static Value or_29;
 static Value or_30;
 static Value or_31;
+static const char *t_Interpreter_Hoist_1_List[] = { "List" };
 static const char *t_Interpreter_Interpret_1_List[] = { "List" };
 static const char *t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean[] = { "List", "List", "Map", "Boolean", "Environment", "Map", "String", "List", "Map", "Set", "Boolean" };
 static const char *t_Interpreter_RunTests_2_List_String[] = { "List", "String" };
@@ -949,6 +950,25 @@ static Value m_Interpreter_Init_0(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value m_Interpreter_Hoist_1_List(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Statements = args[0];
+    (void)v_Statements;
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+            {
+                if (alg_truthy(alg_is(alg_subscript_get(v_Statements, v_I), "FunctionStmt"))) {
+                    (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(v_Statements, v_I)}, 1));
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    return alg_nil();
+}
+
 static Value m_Interpreter_Interpret_1_List(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     volatile Value v_Statements = args[0];
@@ -958,13 +978,16 @@ static Value m_Interpreter_Interpret_1_List(Value v_this, Value *args, int32_t c
         alg_push_frame(&frame_2);
         if (ALG_SETJMP(frame_2.jump) == 0) {
             {
+                (void)(alg_invoke(v_this, "Hoist", (Value[]){v_Statements}, 1));
                 {
                     volatile Value v_I = alg_int(0);
                     (void)v_I;
                     while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
                         {
                             {
-                                (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(v_Statements, v_I)}, 1));
+                                if (alg_truthy(alg_not((alg_is(alg_subscript_get(v_Statements, v_I), "FunctionStmt"))))) {
+                                    (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(v_Statements, v_I)}, 1));
+                                }
                             }
                             (void)((v_I = alg_add(v_I, alg_int(1))));
                         }
@@ -2867,6 +2890,7 @@ void init_Interpreter(void) {
     alg_class_field(k_Interpreter, "UnitsByName");
     alg_class_initializer(k_Interpreter, i_Interpreter);
     alg_class_method(k_Interpreter, "Init", m_Interpreter_Init_0, 0, NULL);
+    alg_class_method(k_Interpreter, "Hoist", m_Interpreter_Hoist_1_List, 1, t_Interpreter_Hoist_1_List);
     alg_class_method(k_Interpreter, "Interpret", m_Interpreter_Interpret_1_List, 1, t_Interpreter_Interpret_1_List);
     alg_class_method(k_Interpreter, "HoistTests", m_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean, 11, t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean);
     alg_class_method(k_Interpreter, "RunTests", m_Interpreter_RunTests_2_List_String, 2, t_Interpreter_RunTests_2_List_String);

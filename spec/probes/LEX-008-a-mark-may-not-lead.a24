@@ -1,0 +1,10 @@
+// spec: LEX-008
+//
+// A probe, not a conformance test. It records what the implementation
+// DOES; nothing here asserts what it should do.
+//
+// ⚠️ Renamed from '-bare-question-identifier', which recorded '7' -- '?' used
+// to be a letter, so 'var ? := 7;' declared a variable named '?'.
+
+var ? := 7;
+WriteLn (?);

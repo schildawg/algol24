@@ -1,0 +1,23 @@
+// spec: DCL-006
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// ⚠️ THE FUNCTION HALF IS FIXED.  A call above a function works; see
+// conformance/0122.
+//
+// A CLASS is still not hoisted, so constructing one written below fails.  The
+// reason it was not done with the functions: a class declaration EVALUATES its
+// superclass, so hoisting the declaration hoists the evaluation -- which broke
+// 'class B (A); ... class A;' and made CLS-014's ''X'' is not a class.'
+// unreachable for any name declared in the same file.  It needs a two-phase
+// declaration: bind the name at hoist time, resolve the superclass where the
+// declaration stands.
+
+var D := Dog ();
+
+class Dog;
+begin
+    constructor Init (); begin end
+end
+
+WriteLn (D is Dog);

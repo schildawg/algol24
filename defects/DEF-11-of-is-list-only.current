@@ -1,5 +1,0 @@
-Uncaught: Expect ';' after variable declaration.
-[WHITE][[RED]ERROR[WHITE]] [RESET]defects/DEF-11-of-is-list-only.a24: Expect ';' after variable declaration.
-[WHITE][[RED]ERROR[WHITE]] [RESET]6 | var M : Map of Integer := [:];
-[WHITE][[RED]ERROR[RESET]]   |[RED]         ^^^[RESET]
-exit: 70

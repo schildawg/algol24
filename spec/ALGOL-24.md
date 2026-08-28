@@ -391,28 +391,19 @@ identifier = letter { letter | decimal_digit | identifier_mark } .
 `Gate?`, `Send!`, `_under` and `a1b2` are identifiers. `Ready?Set` is one
 identifier too: a mark does not end a word.
 
-⚠️ **PARTLY IMPLEMENTED.** The `?` mark works; `!` is refused as an unexpected
-character wherever it appears. See DEF-03. The conformance program below
-therefore exercises `?` alone — the `!` half is a commitment the implementation
-does not yet meet, and pinning it there would only make the corpus red.
-
     interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Identifier
     unit         Scan Identifier With A Question Mark
     conformance  0010-identifier-forms.a24
+    conformance  0120-identifier-marks.a24
 
 **[LEX-008]**  An identifier mark may not **begin** an identifier. `?` and `!`
 alone are not identifiers, and neither are `?abc` and `!abc`: the mark is
 refused as an unexpected character [SRC-002], because nothing else in the
 language claims it.
 
-⚠️ **NOT YET IMPLEMENTED.** The implementation classes `?` as a letter, so it
-leads an identifier and `var ? := 7;` declares a variable; and it does not admit
-`!` in an identifier at all. See DEF-03.
-
-    interpreter  compiler/Scanner.a24  IsAlpha
-    defect       DEF-03-identifier-marks.a24
-    defect       DEF-03b-bang-is-not-an-identifier-mark.a24
+    interpreter  compiler/Scanner.a24  IsMark
+    refusal      0032-a-mark-may-not-begin-an-identifier.a24
 
 > The rule exists so that `Gate?` can be one word without `?` also becoming a
 > name. A trailing mark reads as punctuation on a word; a leading one reads as
@@ -919,13 +910,12 @@ differ: they are overloads [FUN-013], selected between at the call. Two with the
 `var L : List of Integer := [];`. Every collection type accepts one — `List`,
 `Map`, `Set` and `Array`.
 
-⚠️ **PARTLY IMPLEMENTED.** `of` parses only after `List`. `Map of Integer`,
-`Set of Integer` and `Array of Integer` are each refused with `Expect ';' after
-variable declaration.` See DEF-11.
+⚠️ For a `Map` the element type is the **value** type, since that is what a
+subscript and a `Get` yield [VAR-016]. A Map's keys are not constrained.
 
-    interpreter  compiler/Parser.a24  VarDeclaration
+    interpreter  compiler/Parser.a24  IsCollectionType
     conformance  0019-declaration-forms.a24
-    defect       DEF-11-of-is-list-only.a24
+    conformance  0121-element-type-on-every-collection.a24
 
 **[VAR-016]**  An element type is a **source of types for reads, and no
 constraint on writes.** Given `var L : List of Integer`:
@@ -1401,12 +1391,17 @@ initializer.`, even where an outer `X` exists.
 visible throughout that file, wherever it is written. A call may precede the
 declaration, so a program may be organized from the top down.
 
-⚠️ **NOT YET IMPLEMENTED.** The interpreter creates the binding when the
-declaration runs, so a call above it is `Undefined variable 'F'.` The compiled
-back end already does what this rule requires. See DEF-15.
+⚠️ **PARTLY IMPLEMENTED.** A **function** is hoisted. A **class** is not, and
+the reason is worth stating: a class declaration *evaluates* its superclass, so
+hoisting the declaration hoists the evaluation — which breaks
+`class B (A); … class A;` and makes [CLS-014]'s `'X' is not a class.`
+unreachable for any name declared in the same file. Doing it properly needs a
+two-phase class declaration: bind the name at hoist time, resolve the superclass
+where the declaration stands. See DEF-15.
 
-    interpreter  compiler/Interpreter.a24  VisitFunctionStmt
-    defect       DEF-15-declarations-are-not-hoisted.a24
+    interpreter  compiler/Interpreter.a24  Hoist
+    conformance  0122-functions-are-hoisted.a24
+    defect       DEF-15-classes-are-not-hoisted.a24
 
 **[DCL-016]**  A **variable or constant** is not visible before its declaration
 has run. Its initializer is an expression evaluated in order [VAR-014], and a
@@ -1420,6 +1415,7 @@ value that does not exist yet.
 
     interpreter  compiler/Interpreter.a24  VisitVarStmt
     conformance  0044-variables-are-not-hoisted.a24
+    refusal      0033-a-variable-is-not-hoisted.a24
 
 **[DCL-007]**  A free name in a function body is resolved **when the body runs**,
 not where it is written. Two functions may therefore call each other, provided
@@ -1735,24 +1731,20 @@ assigned: `X := (Y := 1)` leaves both at 1.
 **[STM-002]**  A declaration may **not** stand as the body of a branch or a
 loop. `if C then var X := 1;` is refused; the declaration must be inside a block.
 
-⚠️ **NOT YET IMPLEMENTED.** The interpreter accepts it, and the declared name
-**escapes into the enclosing scope** — so whether the name exists is decided by
-a runtime condition:
+⚠️ It used to be accepted, and the declared name **escaped into the enclosing
+scope** — so whether the name existed was decided by a runtime condition, and a
+loop body never entered behaved the same way.
 
-```
-if True  then var X := 1;   WriteLn (X);    // 1
-if False then var X := 1;   WriteLn (X);    // Undefined variable 'X'.
-```
+⚠️ Fixing it **removed** a divergence rather than creating one: the C back end
+already refused the construct (C-12), so the language, the compiler and the
+interpreter now agree. It is the only entry in Annex C that closed by the
+*language* moving.
 
-A loop body that is never entered behaves the same way. See DEF-17.
+⚠️ A declaration stays legal as a `try` body, which is a statement rather than a
+branch: `try var X := 1; …` has to parse.
 
-⚠️ The C back end already refuses this (C-12), so fixing the defect **removes** a
-divergence rather than creating one — the only rule in this specification so far
-of which that is true. It is also why the construct has no defender: either the
-declaration is dead, or the name leaks conditionally.
-
-    interpreter  compiler/Parser.a24  Statement
-    defect       DEF-17-declaration-as-an-unbraced-body.a24
+    interpreter  compiler/Parser.a24  BodyStatement
+    refusal      0034-declaration-as-an-unbraced-body.a24
 
 ### 10.2 Conditionals
 
@@ -2933,7 +2925,7 @@ every top-level name when its declaration runs, so a call above a function is
 `Undefined variable 'F'.` See DEF-15.
 
     interpreter  compiler/Interpreter.a24  Interpret
-    defect       DEF-15-declarations-are-not-hoisted.a24
+    defect       DEF-15-classes-are-not-hoisted.a24
 
 ### 17.2 Module initialization
 
@@ -3705,26 +3697,6 @@ appearing anywhere else.
 block to demonstrate scoping cannot be run under both processors.
 `conformance/0040` puts its blocks inside procedures for exactly this reason,
 which keeps the cross-check.
-
-**C-12 — A declaration as an unbraced branch or loop body will not compile.**
-*(loud)*
-*(refers to [STM-002])*
-
-```
-if True then var X := 1;
-```
-
-```
-A 'var' as an unbraced branch or loop body is not supported by the C back end yet.
-```
-
-The same program runs interpreted, and the declared name escapes into the
-enclosing scope.
-
-⚠️ **The compiler is right and the interpreter is wrong**, which makes this the
-only divergence in this annex that [STM-002] resolves by moving the *language*
-toward the compiler. Fixing DEF-17 removes the entry rather than leaving a gap
-to be implemented.
 
 **C-13 — Two counted `for` loops sharing a variable name at the top level emit
 invalid C.** *(loud, but in the wrong place)*
@@ -4589,26 +4561,6 @@ case-insensitively by the compiler and exactly by the interpreter; under
 [SRC-011] the compiler is right and the interpreter is the one to change. That
 is the safer direction — it can only make programs start working.
 
-**DEF-03 — Identifier marks are wrong in both directions.**
-*(violates [SRC-005], [LEX-007], [LEX-008])*
-
-`?` is classed as a letter rather than a mark, so it may begin an identifier and
-`var ? := 7;` declares a variable. `!` is not admitted in an identifier at all,
-so `Send!` is refused as an unexpected character.
-
-*Reproduce:* `defects/DEF-03-identifier-marks.a24`,
-`defects/DEF-03b-bang-is-not-an-identifier-mark.a24`
-
-⚠️ **Two files, because the two halves cannot share one.** A program that uses
-`!` is refused during the scan, which ends the run before anything else in it
-can be observed — so the `?` half would never execute. This is the general
-shape of the problem: a defect in the scanner admits only one observation per
-program.
-
-*Scope of the fix.* `IsAlpha` stops answering true for `?`; a new predicate
-answers for `?` and `!`; `ScanIdentifier` accepts a mark only after the first
-character. Annex G's mangling already maps both marks.
-
 **DEF-04 — `print` is a keyword and a statement.**
 *(violates [LEX-010], [STM-022])*
 
@@ -4751,19 +4703,6 @@ misdescribes. The conversions themselves already exist in both runtimes, since
 the operators perform them; this is a matter of calling them from one more
 place.
 
-**DEF-11 — `of` parses only after `List`.** *(violates [VAR-008])*
-
-`Map of Integer`, `Set of Integer` and `Array of Integer` are each refused with
-`Expect ';' after variable declaration.`, so only a List may carry an element
-type.
-
-*Reproduce:* `defects/DEF-11-of-is-list-only.a24`
-
-*Scope of the fix.* The `of` clause is parsed for any collection type rather
-than one. ⚠️ The checker must then decide what a `Map of T` means — the value
-type, almost certainly, since that is what a subscript and a `Get` yield — and
-say so in [VAR-016] before the parser admits the syntax.
-
 **DEF-13 — An unknown type name in `is` is silently false.**
 *(violates [TYP-013])*
 
@@ -4809,42 +4748,29 @@ alone would leave `Contains` answering false for a key the Map holds.
 **DEF-15 — Functions and classes are not hoisted.**
 *(violates [DCL-006])*
 
-A call above the declaration is `Undefined variable 'F'.`, and constructing a
-class written below is `Undefined variable 'Dog'.`, so a file must be organized
-bottom-up. The compiled back end already does what the rule requires.
+⚠️ **Functions are hoisted; classes are not.** A call above a function works;
+constructing a class written below is still `Undefined variable 'Dog'.`
 
-*Reproduce:* `defects/DEF-15-declarations-are-not-hoisted.a24`
+*Reproduce:* `defects/DEF-15-classes-are-not-hoisted.a24`
 
-⚠️ **Only the interpreter is wrong, and only about half of what it does.** The
-same mechanism in the compiler also hoists *variables*, which [DCL-016] forbids
-— recorded separately as C-10. Fixing this defect must not be done by adopting
-the compiler's behaviour wholesale.
+⚠️ **The class half is harder than it looks, and was tried.** A class
+declaration *evaluates* its superclass, so hoisting the declaration hoists the
+evaluation. Two things broke that had been working:
 
-*Scope of the fix.* Top-level function and class declarations are bound in a
-pass before the statements run, in the same way `HoistTests` already walks a
-file ahead of execution. ⚠️ Only functions and classes: a `var` keeps its
-initializer at the point it is written, so binding it early would substitute
-`nil` for a diagnostic.
+```
+class B (A); … class A;      Undefined variable 'A'.
+var X := 1;  class C (X);    the same, in place of CLS-014's 'X' is not a class.
+```
 
-**DEF-17 — A declaration is accepted as an unbraced branch or loop body.**
-*(violates [STM-002])*
+The second is the worse loss: it makes a diagnostic written for exactly that
+mistake unreachable for any name declared in the same file, `const` or `var`
+alike.
 
-`if C then var X := 1;` is accepted, and the declared name escapes into the
-enclosing scope — so whether `X` exists is decided by the branch, and reading it
-after a false condition is `Undefined variable 'X'.` A loop body never entered
-behaves the same way.
-
-*Reproduce:* `defects/DEF-17-declaration-as-an-unbraced-body.a24`
-
-⚠️ **Fixing this removes C-12 rather than implementing it.** The C back end
-already refuses the construct, so the language, the compiler and the interpreter
-end up agreeing — the only entry in Annex C of which that is true. Every other
-divergence there needs the compiler brought up to the language.
-
-*Scope of the fix.* `Statement` in `compiler/Parser.a24` refuses a declaration
-where a branch or loop body is expected, with a message of its own rather than
-the emitter's "not supported yet" wording — the construct is not unimplemented,
-it is not part of the language.
+*Scope of the fix.* A **two-phase** class declaration: bind the name at hoist
+time so a construction above it resolves, and evaluate the superclass where the
+declaration stands so its dependencies have run. ⚠️ Still only functions and
+classes — a `var` keeps its initializer where it is written, and the compiled
+back end hoists every top-level name and is wrong about exactly that (C-10).
 
 **DEF-19 — A top-level subprogram's parameter types are not enforced.**
 *(violates [FUN-006], [VAR-017])*

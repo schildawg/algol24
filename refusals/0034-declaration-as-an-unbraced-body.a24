@@ -1,0 +1,11 @@
+// spec: STM-002
+//
+// A declaration may not be the body of a branch or a loop.  It used to be
+// accepted, and the name ESCAPED into the enclosing scope -- so whether it
+// existed was decided by a runtime condition.
+//
+// ⚠️ Fixing this REMOVED a compiler divergence rather than creating one: the C
+// back end already refused the construct (C-12), so the language, the compiler
+// and the interpreter now agree.
+
+if True then var X := 1;

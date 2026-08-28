@@ -1,0 +1,15 @@
+// spec: DCL-006, INI-002
+//
+// A top-level FUNCTION is visible throughout its file, so a call may precede
+// the declaration and a file may be organized from the top down.
+
+WriteLn (Greet ());
+WriteLn (Total (2, 3));
+
+function Greet ();          begin Exit 'called from above'; end
+function Total (A, B);      begin Exit A + B; end
+
+// ⚠️ A VARIABLE is not hoisted: its initializer runs in order, and a name read
+// before that has no value to give -- see refusals/0033.
+var Ready := 'declared in order';
+WriteLn (Ready);

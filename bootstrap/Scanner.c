@@ -26,11 +26,13 @@ static Value or_7;
 static Value or_8;
 static Value or_9;
 static Value or_10;
+static Value or_11;
 static const char *t_Scanner_Init_1[] = { "Any" };
 static const char *t_Scanner_Match_1_Char[] = { "Char" };
 static const char *t_Scanner_AddToken_1_TokenType[] = { "TokenType" };
 static const char *t_Scanner_AddToken_2_TokenType[] = { "TokenType", "Any" };
 static const char *t_Scanner_IsAlpha_1_Char[] = { "Char" };
+static const char *t_Scanner_IsMark_1_Char[] = { "Char" };
 static const char *t_Scanner_IsAlphaNumeric_1_Char[] = { "Char" };
 static const char *t_Scanner_IsDigit_1_Char[] = { "Char" };
 
@@ -437,7 +439,15 @@ static Value m_Scanner_IsAlpha_1_Char(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_8 = (or_7 = (or_6 = ((or_4 = alg_greater_equal(v_C, alg_char_value(97)), !alg_truthy(or_4) ? or_4 : alg_less_equal(v_C, alg_char_value(122)))), alg_truthy(or_6) ? or_6 : ((or_5 = alg_greater_equal(v_C, alg_char_value(65)), !alg_truthy(or_5) ? or_5 : alg_less_equal(v_C, alg_char_value(90))))), alg_truthy(or_7) ? or_7 : (alg_equal(v_C, alg_char_value(95)))), alg_truthy(or_8) ? or_8 : (alg_equal(v_C, alg_char_value(63))));
+    return (or_7 = (or_6 = ((or_4 = alg_greater_equal(v_C, alg_char_value(97)), !alg_truthy(or_4) ? or_4 : alg_less_equal(v_C, alg_char_value(122)))), alg_truthy(or_6) ? or_6 : ((or_5 = alg_greater_equal(v_C, alg_char_value(65)), !alg_truthy(or_5) ? or_5 : alg_less_equal(v_C, alg_char_value(90))))), alg_truthy(or_7) ? or_7 : (alg_equal(v_C, alg_char_value(95))));
+    return alg_nil();
+}
+
+static Value m_Scanner_IsMark_1_Char(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_C = args[0];
+    (void)v_C;
+    return (or_8 = (alg_equal(v_C, alg_char_value(63))), alg_truthy(or_8) ? or_8 : (alg_equal(v_C, alg_char_value(33))));
     return alg_nil();
 }
 
@@ -445,7 +455,7 @@ static Value m_Scanner_IsAlphaNumeric_1_Char(Value v_this, Value *args, int32_t 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_9 = alg_invoke(v_this, "IsAlpha", (Value[]){v_C}, 1), alg_truthy(or_9) ? or_9 : alg_invoke(v_this, "IsDigit", (Value[]){v_C}, 1));
+    return (or_10 = (or_9 = alg_invoke(v_this, "IsAlpha", (Value[]){v_C}, 1), alg_truthy(or_9) ? or_9 : alg_invoke(v_this, "IsDigit", (Value[]){v_C}, 1)), alg_truthy(or_10) ? or_10 : alg_invoke(v_this, "IsMark", (Value[]){v_C}, 1));
     return alg_nil();
 }
 
@@ -453,7 +463,7 @@ static Value m_Scanner_IsDigit_1_Char(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_10 = alg_greater_equal(v_C, alg_char_value(48)), !alg_truthy(or_10) ? or_10 : alg_less_equal(v_C, alg_char_value(57)));
+    return (or_11 = alg_greater_equal(v_C, alg_char_value(48)), !alg_truthy(or_11) ? or_11 : alg_less_equal(v_C, alg_char_value(57)));
     return alg_nil();
 }
 
@@ -483,6 +493,7 @@ void init_Scanner(void) {
     alg_class_method(k_Scanner, "IsAtEnd", m_Scanner_IsAtEnd_0, 0, NULL);
     alg_class_method(k_Scanner, "Advance", m_Scanner_Advance_0, 0, NULL);
     alg_class_method(k_Scanner, "IsAlpha", m_Scanner_IsAlpha_1_Char, 1, t_Scanner_IsAlpha_1_Char);
+    alg_class_method(k_Scanner, "IsMark", m_Scanner_IsMark_1_Char, 1, t_Scanner_IsMark_1_Char);
     alg_class_method(k_Scanner, "IsAlphaNumeric", m_Scanner_IsAlphaNumeric_1_Char, 1, t_Scanner_IsAlphaNumeric_1_Char);
     alg_class_method(k_Scanner, "IsDigit", m_Scanner_IsDigit_1_Char, 1, t_Scanner_IsDigit_1_Char);
     v_DIGITS = alg_string("0123456789");

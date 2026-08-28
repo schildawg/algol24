@@ -295,7 +295,7 @@ begin
 
         if Previous().TypeOfToken = TOKEN_ELSE then
         begin
-            Current.ElseBranch := Statement ();
+            Current.ElseBranch := BodyStatement ();
             Consume (TOKEN_END, 'Expected ''end''.');
         end
 
@@ -316,6 +316,51 @@ begin
         Exit Token (TOKEN_OR, 'or', Nil, Previous().LineNumber);
     end
 
+    /// The body of a branch or a loop, where a DECLARATION is refused.
+    ///
+    /// ⚠️ Not merely useless -- actively wrong.  A declaration here escapes into
+    /// the ENCLOSING scope, so whether the name exists is decided by a runtime
+    /// condition: 'if True then var X := 1;' leaves X defined and the same
+    /// program with a false condition leaves it undefined [STM-002].
+    ///
+    /// ⚠️ Declarations stay legal in Statement itself, because a 'try' body is
+    /// a statement and 'try var X := 1; ...' has to parse.  This is the branch
+    /// and loop positions only.
+    ///
+    /// ⚠️ The C back end already refused this, so fixing it makes the language,
+    /// the compiler and the interpreter agree -- the one entry in Annex C that
+    /// closes by the LANGUAGE moving rather than the compiler (C-12).
+    function BodyStatement () : Stmt;
+    begin
+        if Check (TOKEN_VAR) or Check (TOKEN_CONST) or Check (TOKEN_TYPE)
+        or Check (TOKEN_CLASS) or Check (TOKEN_OBJECT)
+        or Check (TOKEN_FUNCTION) or Check (TOKEN_PROCEDURE) then
+            raise Error (Peek (),
+                'A declaration cannot be a branch or loop body; use ''begin'' ... ''end''.');
+
+        Exit Statement ();
+    end
+
+    /// A collection type name, which may carry an element type [VAR-008].
+    ///
+    /// ⚠️ Every collection, not only List.  'Map of Integer', 'Set of Integer'
+    /// and 'Array of Integer' were each refused with 'Expect '';'' after
+    /// variable declaration.' -- so only a List could say what it held, and
+    /// there was no reason for that but the one name being spelled out here.
+    ///
+    /// ⚠️ For a Map the element type is the VALUE type, because that is what a
+    /// subscript and a Get yield [VAR-016]; a Map's keys are not constrained.
+    function IsCollectionType (TypeName : String) : Boolean;
+    var
+        Lowered : String;
+
+    begin
+        Lowered := ToLower (TypeName);
+
+        Exit Lowered = 'list'  or Lowered = 'map'   or Lowered = 'set'
+          or Lowered = 'stack' or Lowered = 'array';
+    end
+
     function IfStatement () : Stmt;
     var
         Condition  : Expr;
@@ -326,10 +371,10 @@ begin
         Condition := Expression();
         Consume (TOKEN_THEN, 'Expect ''then'' after if condition.');
 
-        ThenBranch := Statement ();
+        ThenBranch := BodyStatement ();
         if Match (TOKEN_ELSE) then
         begin
-            ElseBranch := Statement ();
+            ElseBranch := BodyStatement ();
         end
 
         Exit IfStmt (Condition, ThenBranch, ElseBranch);
@@ -382,7 +427,7 @@ begin
         Consume (TOKEN_DO, 'Expect ''do'' after for clauses.');
 
         LoopDepth := LoopDepth + 1;
-        Body := Statement ();
+        Body := BodyStatement ();
         LoopDepth := LoopDepth - 1;
         
         if Increment <> Nil then
@@ -426,7 +471,7 @@ begin
         Consume (TOKEN_DO, 'Expect ''do'' after condition.');
 
         LoopDepth := LoopDepth + 1;
-        Body := Statement ();
+        Body := BodyStatement ();
         LoopDepth := LoopDepth - 1;
 
         Exit WhileStmt (Condition, Body);
@@ -658,7 +703,7 @@ begin
         begin
             TypeName := Str (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
 
-            if ToLower (TypeName) = 'list' and Match (TOKEN_OF) then
+            if IsCollectionType (TypeName) and Match (TOKEN_OF) then
                 Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
         end
 
@@ -780,7 +825,7 @@ begin
             begin
                 TypeName := Str (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
 
-                if ToLower (TypeName) = 'list' and Match (TOKEN_OF) then
+                if IsCollectionType (TypeName) and Match (TOKEN_OF) then
                     Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
             end
 
@@ -875,7 +920,7 @@ begin
         Consume (TOKEN_DO, 'Expect ''do'' after ''for ... in'' clause.');
 
         LoopDepth := LoopDepth + 1;
-        Body := Statement ();
+        Body := BodyStatement ();
         LoopDepth := LoopDepth - 1;
 
         Exit ForInStmt (Name, Iterable, Body);
@@ -1047,7 +1092,7 @@ begin
             // ⚠️ 'of' is honoured only after 'List'.  It is
             // a keyword already -- 'case X of' -- so anywhere else it has to
             // keep meaning what it meant, and a Map or a Set does not take one.
-            if ToLower (TypeName) = 'list' and Match (TOKEN_OF) then
+            if IsCollectionType (TypeName) and Match (TOKEN_OF) then
                 Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
         end
 

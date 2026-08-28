@@ -707,12 +707,47 @@ begin
 
     /// Interprets a list of statements
     ///
+    /// Binds the FUNCTIONS and CLASSES of a statement list before any of it
+    /// runs, so a call may precede the declaration and a file may be organized
+    /// from the top down [DCL-006].
+    ///
+    /// ⚠️ Functions and classes ONLY.  A variable's initializer runs in order
+    /// and a name read before it has no value to give, so hoisting one would
+    /// substitute nil for a diagnostic [DCL-016].  The compiled back end hoists
+    /// every top-level name and is wrong about exactly that half (C-10) -- this
+    /// must not be fixed by copying it.
+    ///
+    /// ⚠️ FUNCTIONS ONLY for now, though [DCL-006] says classes too.  A class
+    /// declaration EVALUATES its superclass, so hoisting the declaration hoists
+    /// the evaluation -- and two things break that were working:
+    ///
+    ///   class B (A); ... class A;        'Undefined variable ''A''.'
+    ///   var X := 1;  class C (X);        the same, in place of CLS-014's
+    ///                                    ''X'' is not a class.'
+    ///
+    /// The second is the worse loss: it makes a diagnostic written for exactly
+    /// that mistake unreachable for any name declared in the same file, const
+    /// or var alike.  Doing it properly needs a TWO-PHASE class declaration --
+    /// bind the name at hoist time, resolve the superclass where the
+    /// declaration stands -- which is more than this fix.  See DEF-15.
+    procedure Hoist (Statements : List);
+    begin
+        for var I : Integer := 0; I < Statements.Length; I := I + 1 do
+            if Statements[I] is FunctionStmt then Execute (Statements[I]);
+    end
+
     procedure Interpret (Statements : List);
     begin
         try
+            Hoist (Statements);
+
             for var I : Integer := 0; I < Statements.Length; I := I + 1 do
             begin
-               Execute (Statements[I]);     
+               // ⚠️ Skipped, because Hoist already ran them.  Executing a
+               // declaration twice defines the name twice, and the second is
+               // ''X'' is already defined.'
+               if not (Statements[I] is FunctionStmt) then
+                   Execute (Statements[I]);     
             end 
         except
             // ⚠️ An uncaught 'raise' from the program, unwrapped on the way
@@ -3573,11 +3608,9 @@ begin
     except
        on e : String do 
             begin
-                // ⚠️ Was 'Only instances have properties.', which named neither
-                // the class, nor the superclass, nor inheritance, and described
-                // a property access the program never wrote.  It came from
-                // asking a non-instance for '.ClassName' BEFORE the comparison
-                // meant to reject it could run [CLS-014].
+                // ⚠️ Was 'Only instances have properties.', which named
+                // neither the class, nor the superclass, nor inheritance, and
+                // described a property access the program never wrote [CLS-014].
                 AssertEqual('''NotAClass'' is not a class.', Str(e));
                 Exit;
             end
