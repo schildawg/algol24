@@ -485,6 +485,30 @@ within minutes of removing them, in a case that had been opted out since the day
 it was written. C-9, C-11 and C-13 had no reproduction anywhere while the markers
 stood. The markers are gone and will not come back.
 
+### 7.6 A retired rule is not a falsified one
+
+⚠️ A case leaves the corpus for two very different reasons, and they must not
+look alike in a diff.
+
+**Withdrawn** — the case pinned the wrong behaviour. `refusals/0028` pinned two
+enumerations being unable to share a member name; the decision went the other
+way, so the case was deleted and a defect took its place. This is a correction,
+and the case was wrong from the moment it was written.
+
+**Retired** — the rule stopped describing the *language*. The collections are
+moving out of the core into a unit written in Algol-24 (Annex H, H-9), and when
+they do, most of chapter 14's rules leave the specification and their
+conformance cases become **unit tests of that unit**. Nothing was wrong; the
+subject changed from a language feature to a library.
+
+The chapter 14 cases are worth writing now for exactly that reason: they are the
+behavioural target the unit has to meet, and writing them before the move is
+what makes the move checkable.
+
+⚠️ Two things survive the move and are not provisional: `Array`, which nothing
+in the language can express, and [COL-007]'s insertion order, which binds a unit
+as a third implementation exactly as it binds the two processors.
+
 ## 8. Phasing
 
 Realistically 15,000–25,000 words. Delivering it in one drop is how it gets

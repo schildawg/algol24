@@ -2270,6 +2270,27 @@ already; it is simply not published.
 
 ## 14. Collections
 
+⚠️ **This chapter describes the collections as built-ins, which is what they are
+today and not what they are meant to remain.** The intent is to move everything
+not genuinely pinned to the core out into a unit written in Algol-24 — see
+Annex E for which of the five are pinned and by what, and Annex H, H-9 for the
+work. What survives in the core is `Array`, which nothing in the language can
+express, and the literal forms `[…]` and `[:]`, which hand out the names `List`
+and `Map` before any unit can.
+
+⚠️ **The rules below are therefore expected to leave this specification**, and
+their conformance cases with them. That is not a failure of either: a rule that
+stops describing the *language* because its subject became a *library* has been
+retired, not falsified, and the cases that pinned it become the unit tests of
+the unit that replaces it. They are worth writing now precisely because they are
+the behavioural target that unit has to meet.
+
+⚠️ One rule in this chapter is **not** provisional in that way. [COL-007]
+specifies insertion order for every collection, including `Set` and `Map`, and
+any replacement must reproduce it — it was specified rather than left to the
+representation because both processors must agree, and a unit is a third
+implementation with the same obligation.
+
 ### 14.1 Construction
 
 **[COL-001]**  A bracketed list of values is a `List`, and `[]` is an empty one.
@@ -3965,9 +3986,15 @@ The collections and the built-in functions are native today. This annex asks,
 for each, whether it is native because it *must* be or only because it always
 has been — and what one feature would have to be added to unbind it.
 
-The question matters because everything moved out of the runtime is one less
-thing the C back end and the interpreter can disagree about, and one more thing
-a reader can look up in Algol-24 rather than in C.
+⚠️ **This is the plan, not an idle question.** The intent is to move the
+collections out of the core language and into a unit written in Algol-24
+wherever they are not genuinely pinned, and this annex is the survey of what
+that costs. Annex H, H-9 carries the work; chapter 14 records the behaviour the
+unit will have to reproduce.
+
+The reason is the one below, and it is worth more than the tidiness: everything
+moved out of the runtime is one less thing the C back end and the interpreter
+can disagree about — and Annex C is now fifteen entries long.
 
 ⚠️ Three rules do most of the pinning, and they are worth naming once rather
 than repeating: a class cannot be subscripted [TYP-010], cannot be iterated
@@ -4645,3 +4672,39 @@ particular spellings, and H-7 is the built-in case of an ordering that
 overloading would let a program supply for itself. Several rules in chapters 6
 and 7 are shaped by the language having no answer here, and they will want
 revisiting together rather than one at a time.
+
+**H-9 — The collections as a unit written in Algol-24.**
+*(will retire most of chapter 14)*
+
+Everything in chapter 14 that is not genuinely pinned moves out of the core and
+into a unit written in Algol-24. Annex E is the survey of what is pinned and by
+what; in short:
+
+| | |
+| --- | --- |
+| `Array` | **stays.** Fixed-size, constant-time, holding arbitrary values — nothing in the language can express it, and it is the primitive the others are built on. |
+| `Stack` | movable today. Its whole surface is method calls and no literal claims its name. The best first candidate. |
+| `Set` | movable today with a linear scan; hashable later using `Ord`. |
+| `List` | pinned by `[…]`, and not worth moving until H-4 and H-5 arrive. |
+| `Map` | pinned by `[:]` and `[k : v]`, and by wanting `M[K]`. |
+
+⚠️ **H-4, H-5 and H-6 are prerequisites for the last two**, not merely desirable
+alongside them. Without a subscript operator, an iteration protocol and a
+computed property, a `List` written in Algol-24 reads `L.Get(I)` and
+`L.Length()` and needs an index loop — strictly worse to use than the built-in
+it replaces, which is not a trade worth making.
+
+⚠️ **[COL-007] is the constraint that outlives the move.** Insertion order is
+specified for every collection, `Set` and `Map` included, so a unit is a third
+implementation bound by it exactly as the two processors are.
+
+⚠️ **The point is Annex C.** Everything moved out of the runtime is one thing
+the two processors can no longer disagree about, and that annex is now fifteen
+entries long. `spec/probes/TYP-012-stack-and-set-in-algol24.a24` already holds a
+working `Stack` and `Set` written in the language, so the path is not
+speculative.
+
+⚠️ When a collection moves, its rules leave this specification and its
+conformance cases become **unit tests of the unit**. A rule retired because its
+subject became a library has not been falsified — the distinction matters to
+anyone reading `conformance/` later and wondering where the cases went.
