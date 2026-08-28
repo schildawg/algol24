@@ -541,7 +541,21 @@ done badly.
 | 15 Modules | 14 | Modules may share exported names, ambiguity refused at the use; cycles between modules **work** |
 | 16 Built-in functions | 17 | `Length` refuses a collection; a String gains `.Length`; `Val` and `Max` made usable together |
 | 17 Program initialization | 7 | A run that never began must fail; module and statement order pinned |
-| 18 onwards | 23 | — |
+| 18 Errors | 9 | A type error must say what and where; [ERR-004] stops mandating a mechanism |
+| 19 | 14 | — |
+
+⚠️ **Chapter 18 found the specification mandating an implementation.**
+[ERR-004] said a scan error is "recorded rather than raised: the scanner sets a
+flag and keeps the message, and a driver must ask." That describes how this
+implementation happens to work, and a specification that mandates a mechanism
+forbids a better one. The requirement is the shape of the message and that no
+statement runs; the flag, and the hazard that comes with it — `HadError` is
+module-level, so two scanners in one process share it — moved to Annex G.1 as
+guidance.
+
+⚠️ Worth watching for in the remaining chapter: the same shape of mistake.
+A rule that names a field, a flag or a call order is usually describing the
+implementation rather than the language.
 
 ⚠️ **Chapter 17 produced a defect that cannot have a case, and saying so was the
 right answer.** `algc no-such-file.a24` prints its error and exits 0. The fault

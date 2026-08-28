@@ -1,0 +1,16 @@
+// spec: ERR-001, ERR-002
+//
+// ⚠️ Expected to FAIL compiled, because of C-8.
+//
+// The first four phases -- scan, parse, resolve, check -- complete over the
+// WHOLE program before any statement runs.  The WriteLn below is the first
+// statement and it does not run, because a type error further down was found
+// two phases earlier.
+//
+// A program cannot produce output and then fail to compile: the expected
+// output is the diagnostic and nothing else.
+
+WriteLn ('this line is never reached');
+WriteLn ('nor this one');
+
+var X : Integer := 'text';

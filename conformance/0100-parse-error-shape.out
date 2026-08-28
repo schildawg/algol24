@@ -1,0 +1,5 @@
+Uncaught: Expect variable name.
+[WHITE][[RED]ERROR[WHITE]] [RESET]conformance/0100-parse-error-shape.a24: Expect variable name.
+[WHITE][[RED]ERROR[WHITE]] [RESET]10 | var := 1;
+[WHITE][[RED]ERROR[RESET]]    |[RED] ^^^[RESET]
+exit: 70

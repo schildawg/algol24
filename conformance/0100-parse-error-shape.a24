@@ -1,0 +1,10 @@
+// spec: ERR-005
+//
+// A parse or resolution error prints the message and a three-line excerpt
+// naming the file, the line, and the offending token.
+//
+// ⚠️ The excerpt is part of the observable surface, colour included: the
+// harness transliterates the escapes rather than stripping them, so a change
+// of colour is a change of expected output.
+
+var := 1;

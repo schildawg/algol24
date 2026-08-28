@@ -2904,19 +2904,20 @@ follow from index 1.
 — its imports included — before any statement is executed.
 
     interpreter  compiler/Main.a24  Run
-    conformance  TBD
+    conformance  0097-error-phases.a24
 
 **[ERR-002]**  An error in any of the first four phases means **no statement
 runs at all**. A program cannot produce output and then fail to compile.
 
     interpreter  compiler/Main.a24  Run
-    conformance  TBD
+    conformance  0097-error-phases.a24
+    refusal      0008-declared-type-constrains.a24
 
 **[ERR-003]**  A runtime error occurs during execution. Statements before it
 have run and their output stands.
 
     interpreter  compiler/Interpreter.a24  Interpret
-    conformance  TBD
+    conformance  0098-runtime-errors-follow-output.a24
 
 ### 18.2 Diagnostics
 
@@ -2924,15 +2925,20 @@ Diagnostics are part of the observable surface [1.2]; their wording and shape
 are specified.
 
 **[ERR-004]**  A **scan** error reads `[line N] Error: <message>` and carries no
-source excerpt.
+source excerpt. Like every error in the first four phases it prevents execution
+[ERR-002].
 
-⚠️ It is **recorded rather than raised**: the scanner sets a flag and keeps the
-message, and a driver must ask. A driver that does not ask will scan a damaged
-token stream and carry on.
+⚠️ **That is the whole of the requirement.** This rule previously went on to say
+the error is "recorded rather than raised: the scanner sets a flag and keeps the
+message, and a driver must ask" — which describes how *this* implementation
+happens to work, not what an implementation must do. A specification that
+mandates a mechanism forbids a better one; what matters is that the error is
+reported in the shape above and that no statement runs. The mechanism, and the
+hazard that comes with it, are recorded in Annex G, G.1.
 
     interpreter  compiler/Scanner.a24  HadError
     unit         Scan Unrecognized Character Is Recorded
-    conformance  TBD
+    conformance  0099-scan-error-shape.a24
 
 **[ERR-005]**  A **parse** or **resolution** error prints the message and a
 three-line excerpt naming the file, the line, and the offending token:
@@ -2945,21 +2951,28 @@ Uncaught: Expect variable name.
 ```
 
     interpreter  compiler/Console.a24  Error
-    conformance  TBD
+    conformance  0100-parse-error-shape.a24
 
-**[ERR-006]**  ⚠️ A **type** error prints only:
+**[ERR-006]**  A **type** error carries the same three-line excerpt a parse
+error does [ERR-005], and names both types:
 
 ```
-Uncaught: Type mismatch!
+Uncaught: Expected Integer, found String.
+[ERROR] e.a24: Expected Integer, found String.
+[ERROR] 2 | var X : Integer := 'text';
+[ERROR]   |                    ^^^^^^
 ```
 
-It names no file, no line, no token and neither of the types involved, and the
-same five words are used for every mismatch the checker finds.
+⚠️ **NOT YET IMPLEMENTED.** It prints `Uncaught: Type mismatch!` and nothing
+else — no file, no line, no token, neither type, and the same five words for
+every mismatch the checker finds. See DEF-29.
+
+⚠️ **This compounds with [ERR-002]:** a type error stops the program before any
+statement runs, so there is no output to orient by either. The message is the
+only information available and it carries none.
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
-
-> See Annex D.
+    defect       DEF-29-a-type-error-says-nothing.a24
 
 ### 18.3 Catching
 
@@ -2967,22 +2980,25 @@ same five words are used for every mismatch the checker finds.
 String carrying the diagnostic [STM-020].
 
     interpreter  compiler/Interpreter.a24  VisitTryStmt
-    conformance  TBD
+    conformance  0101-catching.a24
 
 **[ERR-008]**  A `try` around a scan, parse, resolution or type error catches
 nothing, because those phases complete before the `try` is reached. Wrapping a
 mistyped declaration in a handler does not suppress it.
 
     interpreter  compiler/Main.a24  Run
-    conformance  TBD
+    conformance  0101-catching.a24
 
 ### 18.4 Status
 
 **[ERR-009]**  Every failure exits with status **70**, whichever phase reported
 it [INI-006].
 
+⚠️ A failure that never reaches a phase at all — a file that cannot be read — is
+still a failure and must not exit 0 [INI-005]. See DEF-28.
+
     interpreter  compiler/Main.a24  Main
-    conformance  TBD
+    conformance  0096-exit-status.a24
 
 ---
 
@@ -4081,11 +4097,16 @@ is the only information available, and it carries none.
 surface in fewer places than a reader expects — which makes the ones that do
 surface harder to locate, not easier.
 
-*Recommended:* raise through `Console.Error` with the offending token, as the
-parser does, and name both types — `Expected Integer, found String.` The token
-is in hand at every one of the five sites that raise this; the message is
-discarded rather than absent. This is the single cheapest improvement to the
-language's usability in this annex.
+**Resolved.** [ERR-006] now requires the three-line excerpt a parse error
+carries [ERR-005] and both type names — `Expected Integer, found String.` The
+token is in hand at every one of the five sites that raise this, so the
+information is discarded rather than absent, and `Console.Error` already
+produces the shape two phases earlier. Tracked by DEF-29.
+
+⚠️ This remains the single cheapest improvement to the language's usability in
+this annex, and it grew cheaper while the conformance pass ran: DEF-19 will make
+parameter types enforced, so mismatches will surface in *more* places than they
+do now — each of them reported by five words that say nothing.
 
 **D-18 — `AssertTrue` reports a comparison it did not make.** *(refers to
 [TST-012])*
@@ -4802,6 +4823,34 @@ raise rather than returning, so the failure reaches the same exit path every
 other failure uses [INI-006]. A directory should say so rather than printing
 nothing.
 
+**DEF-29 — A type error says nothing.**
+*(violates [ERR-006])*
+
+```
+Uncaught: Type mismatch!
+```
+
+is the whole diagnostic, for every mismatch the checker finds — no file, no
+line, no token, neither of the types involved, and the same five words each
+time.
+
+*Reproduce:* `defects/DEF-29-a-type-error-says-nothing.a24`
+
+⚠️ **The machinery exists and is used two phases earlier.** A parse error prints
+the file, the line, the source text and a caret under the offending token
+[ERR-005] — compare `conformance/0100` against the recording above for the same
+shape of program. `Console.Error` produces it, and the checker does not call it.
+
+⚠️ **It compounds with [ERR-002]**, which stops the program before any statement
+runs, so there is no output to orient by either. And it will compound with
+DEF-19: once parameter types are enforced, mismatches surface in *more* places
+than they do now, each reported by five words that say nothing.
+
+*Scope of the fix.* Five sites in `compiler/TypeChecker.a24` raise this string.
+Each has the offending expression in hand, so each can report through
+`Console.Error` with the token and both type names — `Expected Integer, found
+String.` The information is discarded rather than absent.
+
 ---
 
 ## Annex G — implementation notes *(non-normative)*
@@ -4809,7 +4858,28 @@ nothing.
 Guidance for implementers. Nothing here is a rule; an implementation may reach
 these ends by other means.
 
-### G.1 Mangling identifiers into C
+### G.1 Reporting a scan error
+
+[ERR-004] specifies the shape of a scan error and that it prevents execution. It
+deliberately says nothing about the mechanism, because this implementation's
+mechanism has a hazard worth describing rather than mandating.
+
+`compiler/Scanner.a24` **records** rather than raises: it sets `HadError` and
+keeps the message in `LastError`, and a driver must ask. Two consequences follow:
+
+- **A driver that does not ask carries on** over a damaged token stream.
+  `compiler/Main.a24` calls `CheckScanned` **twice** — once after scanning for
+  the right message, and once after parsing so that modules loaded by `uses` are
+  covered — and both calls are load-bearing.
+- ⚠️ **`HadError` and `LastError` are module-level, not per instance.** Two
+  scanners in one process share them, so an error from one is visible to the
+  other and a later clean scan does not clear an earlier failure. Nothing in the
+  language reaches this — a program cannot construct a `Scanner` — but any tool
+  that scans more than one source in a process can.
+
+An implementation that raises instead has neither problem and conforms equally.
+
+### G.2 Mangling identifiers into C
 
 The C back end must map an Algol-24 identifier — which may hold `_`, any Unicode
 letter, and the marks `?` and `!` [SRC-005] — onto a C identifier, which may
