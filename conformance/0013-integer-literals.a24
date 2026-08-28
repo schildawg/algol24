@@ -12,3 +12,12 @@ WriteLn (007);
 // which is why '2-1' is a subtraction rather than two adjacent expressions.
 WriteLn (-5);
 WriteLn (2-1);
+
+// LEX-033: the largest Integer literal, and the largest that is accepted.
+WriteLn (2147483647);
+WriteLn (1234567890);
+
+// ⚠️ Because there is no negative literal, '-2147483648' is unary minus applied
+// to 2147483648 -- which LEX-033 refuses.  The most negative Integer therefore
+// cannot be written as a literal, and this is how it is reached instead.
+WriteLn (-2147483647 - 1);

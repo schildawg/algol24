@@ -1,0 +1,13 @@
+// spec: LEX-033
+//
+// A literal outside the 32-bit range is refused where it is READ.  It used to
+// wrap: '2147483648' was the integer -2147483648 and '99999999999999' was
+// 276447231 -- a value the source states plainly, silently replaced by a
+// different one.
+//
+// ⚠️ 2147483647 is the largest that is accepted, and conformance/0013 pins it.
+// There is no negative literal [LEX-019], so '-2147483648' is the unary minus
+// applied to 2147483648 -- which means the most negative Integer cannot be
+// written as a literal at all.  That is the same gap C has.
+
+WriteLn (2147483648);

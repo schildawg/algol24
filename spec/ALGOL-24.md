@@ -534,7 +534,8 @@ integer 7, not an octal.
 
 ⚠️ **NOT YET IMPLEMENTED.** Both processors wrap silently, so `2147483647 + 1`
 is `-2147483648` and a program can compute a wrong answer with no sign of it.
-See DEF-05.
+See DEF-05. The *literal* half of that defect is fixed — [LEX-033] — and this
+arithmetic half is what is left of it.
 
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         alg_add
@@ -544,11 +545,19 @@ See DEF-05.
 when the program is read, not when it runs. It is a value the source states
 plainly and the processor can check without executing anything.
 
-⚠️ **NOT YET IMPLEMENTED.** The literal wraps silently, so `2147483648` is the
-integer `-2147483648` and `99999999999999` is `276447231`. See DEF-05.
+The scanner compares the digits as **text** against `2147483647`, rather than
+computing the value and testing it: the arithmetic that would compute the value
+is exactly the arithmetic that wraps, so a value large enough to be refused is a
+value too large to be computed first.
 
-    interpreter  compiler/Scanner.a24  ToInteger
-    defect       DEF-05-integer-overflow-is-silent.a24
+⚠️ Because there is no negative literal [LEX-019], `-2147483648` is unary minus
+applied to `2147483648`, which this rule refuses. **The most negative Integer
+cannot be written as a literal at all** and must be reached by arithmetic, as
+`-2147483647 - 1`. This is the same gap C has, and for the same reason.
+
+    interpreter  compiler/Scanner.a24  ExceedsInteger
+    conformance  0013-integer-literals.a24
+    refusal      0035-integer-literal-out-of-range.a24
 
 > The two halves are separated because they cost differently. A literal is
 > checked once, while it is being scanned; an arithmetic result must be checked
@@ -1606,7 +1615,8 @@ infinity to return for the other.
 **[EXP-007]**  Arithmetic that leaves the bounds of a 32-bit Integer **raises**
 — see [LEX-018].
 
-⚠️ **NOT YET IMPLEMENTED.** It wraps silently in both processors. See DEF-05.
+⚠️ **NOT YET IMPLEMENTED.** It wraps silently in both processors. See DEF-05,
+of which this is now the whole remainder — the literal half is done [LEX-033].
 
     compiler     bootstrap/algol.c  alg_add
     defect       DEF-05-integer-overflow-is-silent.a24
@@ -3867,8 +3877,9 @@ result to raise [LEX-018]. The two were separated because they cost
 differently: a literal is checked once during the scan, while an arithmetic
 result must be checked on every operation a program performs.
 
-The implementation wraps in both cases, silently and identically in both
-processors, which is what C does natively. Tracked by DEF-05.
+The literal half is implemented. The arithmetic half still wraps, silently and
+identically in both processors, which is what C does natively; it is what DEF-05
+now tracks.
 
 **D-2 — `?` alone is a valid identifier.** *(refers to [LEX-008])*
 
@@ -4583,17 +4594,21 @@ of this fix, not after it.
 **DEF-05 — Integer overflow is silent.**
 *(violates [LEX-018], [LEX-033])*
 
-An out-of-range literal wraps instead of being refused, so `2147483648` is
-`-2147483648` and `99999999999999` is `276447231`. Arithmetic wraps instead of
-raising, so `2147483647 + 1` is `-2147483648`. Both processors agree, because
-both let C's native wrapping through.
+Arithmetic wraps instead of raising, so `2147483647 + 1` is `-2147483648`. Both
+processors agree, because both let C's native wrapping through.
 
 *Reproduce:* `defects/DEF-05-integer-overflow-is-silent.a24`
 
-*Scope of the fix.* The literal half is small and local: `ToInteger` in the
-scanner learns the range and records a scan error. The arithmetic half touches
-every operator in `VisitBinary` and in `alg_add` and its neighbours, and it is
-the half that costs at run time.
+⚠️ **The literal half is fixed.** `2147483648` and `99999999999999` are now
+refused where they are read — [LEX-033], `refusals/0035`. Because the scanner is
+shared by both back ends, the compiled path refuses them at compile time too, so
+this fix carried to the compiler for free. What is left of DEF-05 is arithmetic
+alone, and the defect case has been narrowed to it.
+
+*Scope of what remains.* Every operator in `VisitBinary`, and `alg_add` and its
+neighbours in the runtime. Unlike the literal half — checked once, during the
+scan — this one costs on every operation a program performs, which is why the
+two were separated in the first place.
 
 **DEF-06 — A Char is limited to 0 … 127, and says so in the wrong shape.**
 *(violates [LEX-024], [LEX-025])*
