@@ -911,6 +911,7 @@ static Value i_Interpreter(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Globals", alg_nil());
     alg_set_property(v_this, "Locals", alg_nil());
     alg_set_property(v_this, "Modules", alg_nil());
+    alg_set_property(v_this, "RootFile", alg_nil());
     alg_set_property(v_this, "UnitsByName", alg_nil());
     return alg_nil();
 }
@@ -922,6 +923,7 @@ static Value m_Interpreter_Init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_set_property(alg_property(v_this, "Globals"), "Enclosing", alg_property(v_this, "Builtins")));
     (void)(alg_set_property(v_this, "Locals", alg_map()));
     (void)(alg_set_property(v_this, "Modules", alg_map()));
+    (void)(alg_set_property(v_this, "RootFile", alg_string("")));
     (void)(alg_set_property(v_this, "UnitsByName", alg_map()));
     (void)(alg_set_property(v_this, "Env", alg_property(v_this, "Globals")));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("clock"), alg_new(k_ClockNative, NULL, 0)}, 2));
@@ -968,6 +970,15 @@ static Value m_Interpreter_Hoist_1_List(Value v_this, Value *args, int32_t count
     return alg_nil();
 }
 
+static Value m_Interpreter_RegisterRoot_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    if (alg_truthy(alg_equal(alg_property(v_this, "RootFile"), alg_string("")))) {
+        return alg_nil();
+    }
+    (void)(alg_invoke(alg_property(v_this, "Modules"), "Put", (Value[]){alg_property(v_this, "RootFile"), alg_property(v_this, "Globals")}, 2));
+    return alg_nil();
+}
+
 static Value m_Interpreter_Interpret_1_List(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     volatile Value v_Statements = args[0];
@@ -977,6 +988,7 @@ static Value m_Interpreter_Interpret_1_List(Value v_this, Value *args, int32_t c
         alg_push_frame(&frame_2);
         if (ALG_SETJMP(frame_2.jump) == 0) {
             {
+                (void)(alg_invoke(v_this, "RegisterRoot", NULL, 0));
                 (void)(alg_invoke(v_this, "Hoist", (Value[]){v_Statements}, 1));
                 {
                     volatile Value v_I = alg_int(0);
@@ -1108,6 +1120,8 @@ static Value m_Interpreter_RunTests_2_List_String(Value v_this, Value *args, int
     (void)v_Passed;
     volatile Value v_Failed = alg_nil();
     (void)v_Failed;
+    (void)(alg_set_property(v_this, "RootFile", alg_str(v_FileName)));
+    (void)(alg_invoke(v_this, "RegisterRoot", NULL, 0));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("AssertTrue"), alg_new(k_AssertTrueNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("AssertEqual"), alg_new(k_AssertEqualNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Fail"), alg_new(k_FailNative, NULL, 0)}, 2));
@@ -2471,6 +2485,11 @@ static Value m_Interpreter_VisitModuleStmt_1_ModuleStmt(Value v_this, Value *arg
     (void)((v_Importer = alg_property(v_this, "Env")));
     if (alg_truthy(alg_invoke(alg_property(v_this, "Modules"), "Contains", (Value[]){alg_property(v_TheStmt, "FileName")}, 1))) {
         {
+            Value v_Already = alg_invoke(alg_property(v_this, "Modules"), "Get", (Value[]){alg_property(v_TheStmt, "FileName")}, 1);
+            (void)v_Already;
+            if (alg_truthy(alg_equal(alg_property(v_Already, "UnitName"), alg_string("")))) {
+                (void)(alg_set_property(v_Already, "UnitName", alg_str(alg_property(v_TheStmt, "UnitName"))));
+            }
             (void)(alg_invoke(alg_property(v_Importer, "Imports"), "Add", (Value[]){alg_invoke(alg_property(v_this, "Modules"), "Get", (Value[]){alg_property(v_TheStmt, "FileName")}, 1)}, 1));
             (void)(alg_invoke(alg_property(v_this, "UnitsByName"), "Put", (Value[]){alg_str(alg_property(v_TheStmt, "UnitName")), alg_invoke(alg_property(v_this, "Modules"), "Get", (Value[]){alg_property(v_TheStmt, "FileName")}, 1)}, 2));
             return alg_nil();
@@ -2897,10 +2916,12 @@ void init_Interpreter(void) {
     alg_class_field(k_Interpreter, "Globals");
     alg_class_field(k_Interpreter, "Locals");
     alg_class_field(k_Interpreter, "Modules");
+    alg_class_field(k_Interpreter, "RootFile");
     alg_class_field(k_Interpreter, "UnitsByName");
     alg_class_initializer(k_Interpreter, i_Interpreter);
     alg_class_method(k_Interpreter, "Init", m_Interpreter_Init_0, 0, NULL);
     alg_class_method(k_Interpreter, "Hoist", m_Interpreter_Hoist_1_List, 1, t_Interpreter_Hoist_1_List);
+    alg_class_method(k_Interpreter, "RegisterRoot", m_Interpreter_RegisterRoot_0, 0, NULL);
     alg_class_method(k_Interpreter, "Interpret", m_Interpreter_Interpret_1_List, 1, t_Interpreter_Interpret_1_List);
     alg_class_method(k_Interpreter, "HoistTests", m_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean, 11, t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean);
     alg_class_method(k_Interpreter, "RunTests", m_Interpreter_RunTests_2_List_String, 2, t_Interpreter_RunTests_2_List_String);

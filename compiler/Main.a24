@@ -169,6 +169,7 @@ begin
     CheckScanned ();
 
     TheInterpreter := Interpreter();
+    TheInterpreter.RootFile := FileName;
 
     TheResolver := Resolver(TheInterpreter);
     TheResolver.ResolveAll(Stmts);

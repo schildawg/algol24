@@ -1,0 +1,11 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Imports the root file back, by a working-directory path.
+//
+// ⚠️ Named by a working-directory path, because Loaded keys on the path STRING
+// and the root's own name must match the one resolved for it here character for
+// character -- see Parser.Parse.
+
+uses 'conformance/0125-a-cycle-through-the-root';
+
+function ModName (); begin Exit 'from the module'; end

@@ -65,13 +65,13 @@ cp bootstrap/algol.c bootstrap/algol.h DIR/ && cc -std=c11 -O2 -o DIR/prog DIR/*
 
 ⚠️ This makes **running algc under algc** (`bootstrap/algc compiler/Main.a24 --test <file>`) unreliable for anything large. It is a tempting way to try a change to the interpreter without reseeding, and it works for small files — `Token.a24`, `Scanner.a24` — but on `Parser.a24` or `Main.a24` it produces no report at all. Reseed and test with the real binary instead.
 
-**A file in an import cycle with the root is loaded twice.** The root is never entered in the parser's `Loaded` map (`compiler/Parser.a24`, `UsesStatement`), so when a module imports the root back — `Parser` uses `Interpreter`, which uses `Parser` — the root is parsed a second time with its statements intact.
+**A file in an import cycle with the root — fixed.** The root used to be the one file never entered in the parser's `Loaded` map, so when a module imported the root back — `Parser` uses `Interpreter`, which uses `Parser` — the root was parsed a second time with its statements intact.
 
-The *test-runner* symptom is fixed: `HoistTests` keeps a `Hoisted` set and collects each file's tests once. Verified — `--test compiler/Parser.a24` went from 273 results for 190 tests to a clean 190, `Interpreter.a24` and `Resolver.a24` likewise report 190, `TypeChecker.a24` 220, `Main.a24` unchanged at 221, and no file reports a duplicate.
+`Parser.Parse` now enters the file being parsed in `Loaded` before reading its own `uses` clauses, and `Interpreter.RegisterRoot` registers the root's environment (the globals themselves, not a copy) in `Modules` before its body runs. `--compile --test compiler/Parser.a24` emits where it used to refuse with `Two modules named 'Parser' is not supported by the C back end yet.`, which was the only known case of a valid program having no compiled form.
 
-⚠️ **The double load itself remains**, and it still breaks the C back end: `--compile --test compiler/Parser.a24` refuses with `Two modules named 'Parser' is not supported by the C back end yet.` So a file in a cycle with the root runs interpreted but will not compile. `Main.a24` is unaffected — nothing imports it — which is why the full suite compiles and both processors agree on it exactly.
+⚠️ **Registration is needed in every driver, not just `Run`.** An import-only node carries no statements, so a root that is not registered makes `VisitModuleStmt` take the not-yet-loaded branch and execute nothing at all. `--test` on a file in a cycle with the root failed on exactly that, and `RunTests` registers the root for the same reason `Interpret` does.
 
-The real fix is to give the root a module identity so a `uses` pointing back at it resolves to the copy already loaded. That is more than a guard: an import-only node carries no statements, and the importer genuinely needs the root's exports, so the root would have to be registered in `Modules` with its environment before its own body runs.
+⚠️ **Identity is the path string.** `Loaded` keys on the resolved path, so the root's own name and the name a module resolves for it must match character for character.
 
 ### Running the tests
 

@@ -171,6 +171,20 @@ begin
     begin
         Statements := List();
 
+        // ⚠️ The file being parsed is entered in Loaded BEFORE its own 'uses'
+        // clauses are read, so a module that imports it back finds it already
+        // loaded [MOD-014].  A sub-parser's path is put there by UsesStatement
+        // already, which makes this a no-op for every file but the ROOT -- and
+        // the root was the one file it was never done for.  A cycle through the
+        // root parsed the root a SECOND time, and the two copies did not share
+        // their names.
+        //
+        // ⚠️ Identity is the path STRING, as it is throughout Loaded, so the
+        // root's own name and the name a module resolves for it must match
+        // character for character.  ResolveModule answers the working-directory
+        // path, which is what the driver was given.
+        if FileName <> '' then Loaded.Put (FileName, True);
+
         UnitHeader ();
 
         while Not IsAtEnd () do

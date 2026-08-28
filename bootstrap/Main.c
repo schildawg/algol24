@@ -127,6 +127,7 @@ static Value f_Run(Value **cells, Value *args, int32_t count) {
     (void)((v_Stmts = alg_invoke(v_TheParser, "Parse", NULL, 0)));
     (void)(f_CheckScanned(NULL, NULL, 0));
     (void)((v_TheInterpreter = alg_new(k_Interpreter, NULL, 0)));
+    (void)(alg_set_property(v_TheInterpreter, "RootFile", v_FileName));
     (void)((v_TheResolver = alg_new(k_Resolver, (Value[]){v_TheInterpreter}, 1)));
     (void)(alg_invoke(v_TheResolver, "ResolveAll", (Value[]){v_Stmts}, 1));
     (void)(alg_invoke(alg_new(k_TypeChecker, NULL, 0), "Resolve", (Value[]){v_Stmts}, 1));

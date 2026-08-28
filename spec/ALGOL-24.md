@@ -2704,21 +2704,29 @@ Cycles of three and more behave the same way.
     conformance  0087-cycles-between-modules-work.a24
 
 **[MOD-014]**  A cycle **through the root file** — a module importing the file
-that is being run — does **not** work. The root's own imported names are
-undefined when its body runs: `Undefined variable 'ModName'.`, after
-`root body ran` has already printed.
+that is being run — works as [MOD-012] does. The root is a module in its own
+right: a `uses` naming it resolves to the file already loaded, and to the
+environment already running.
 
-⚠️ **NOT YET IMPLEMENTED.** The specification requires a root cycle to behave as
-[MOD-012] does, or to be refused by name. It does neither. See DEF-24.
+The root's environment is registered **before its own body runs**, which is
+exactly the position an ordinary module is in when a cycle reaches it. An
+import-only node carries no statements, so the importer needs the environment to
+exist by the time it links to it; a name is looked up when it is *used*, by which
+time everything has loaded.
 
-⚠️ The cause is that the root is never entered in the loader's map of loaded
-files, so a module importing it back parses it a **second** time and the two
-copies do not share their names. Compiled, the same shape refuses with `Two
-modules named 'X' is not supported by the C back end yet.` (C-1), which at least
-names the right subject.
+⚠️ The root's own environment is the **globals**, not a copy, so the importer
+sees the same bindings. It exports every name it declares.
 
-    interpreter  compiler/Parser.a24  UsesStatement
-    defect       DEF-24-a-cycle-through-the-root.a24
+⚠️ The root used to be the one file never entered in the loader's map, so a
+module importing it back parsed it a **second** time and the two copies did not
+share their names — the root's body printed and then its own imported name was
+undefined. Compiled, the duplicate refused with `Two modules named 'X' is not
+supported by the C back end yet.`, which was the only known case of a valid
+program having no compiled form.
+
+    interpreter  compiler/Parser.a24       Parse
+    interpreter  compiler/Interpreter.a24  RegisterRoot
+    conformance  0125-a-cycle-through-the-root.a24
 
 ---
 
@@ -3463,19 +3471,21 @@ within minutes of removing them, in a case that had been opted out since it was
 written — and C-9, C-11 and C-13 had no reproduction at all while the markers
 stood.
 
-**C-1 — A file in an import cycle with the root will not compile.** *(loud)*
+**C-1 — A file in an import cycle with the root will not compile.**
+***Withdrawn.***
 
-The root file is never entered in the parser's `Loaded` map, so a module
-importing the root back parses it a second time, and the emitter then sees two
-units of one name:
+The root file was never entered in the parser's `Loaded` map, so a module
+importing the root back parsed it a second time and the emitter saw two units of
+one name — `Two modules named 'Parser' is not supported by the C back end yet.`
+This was the only known case of a valid program having no compiled form.
 
-```
-Two modules named 'Parser' is not supported by the C back end yet.
-```
+⚠️ **Withdrawn because the cause was removed, not because the emitter changed.**
+The root is registered as a module now [MOD-014], so the duplicate the emitter
+was refusing no longer exists. `--compile --test compiler/Parser.a24` emits, and
+`conformance/0125` compiles and runs identically to the interpreted form.
 
-`compiler/Parser.a24` uses `Interpreter`, which uses `Parser`, so the compiler's
-own source is an instance. The same file runs correctly interpreted. This is
-currently the only known case of a valid program having no compiled form.
+⚠️ The number is not reused. A withdrawn entry stays where it is, because the
+divergence it described was real and citing it should keep working.
 
 **C-2 — Functions may not nest more than one level deep.** *(loud)*
 *(refers to [FUN-012])*
@@ -4848,35 +4858,6 @@ comparison path that DEF-33 then makes redundant.
 The comparison itself exists in `Fits`. ⚠️ It should land with DEF-10, since a
 parameter must **widen** as well as match — a Char argument reaching a String
 parameter is correct and must not start failing.
-
-**DEF-24 — A cycle through the root file does not work.**
-*(violates [MOD-014])*
-
-A module importing the file being run leaves the root's own imported names
-undefined: the root's body prints `root body ran`, and the next line is
-`Undefined variable 'ModName'.` A cycle between two ordinary modules works
-[MOD-012], so this is the root specifically.
-
-*Reproduce:* `defects/DEF-24-a-cycle-through-the-root.a24`
-
-⚠️ The root is never entered in the loader's map of loaded files, so a module
-importing it back parses it a **second** time and the two copies do not share
-their names.
-
-⚠️ **It degenerates badly with a relative path.** Where the importing module
-names the root as `'../Root'`, the search directory accumulates `/../modules`
-dozens of times before failing, so the diagnostic is a line of repeated path
-segments. A `..` path to a non-root module resolves correctly, so this is the
-cycle showing through rather than a fault in path resolution.
-
-*Scope of the fix.* Give the root a module identity, so a `uses` pointing back at
-it resolves to the copy already loaded — what [MOD-003] does for every other
-file. ⚠️ More than a guard: an import-only node carries no statements and the
-importer genuinely needs the root's exports, so the root must be registered with
-its environment **before its own body runs**.
-
-⚠️ Fixing this also removes C-1, the only known case of a valid program having no
-compiled form.
 
 **DEF-30 — Every assertion message begins with a comparison that was not made.**
 *(violates [TST-012])*

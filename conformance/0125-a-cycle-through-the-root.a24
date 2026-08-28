@@ -1,0 +1,18 @@
+// spec: MOD-014
+//
+// modules/BackRef imports this file back.  A cycle through the ROOT works the
+// way a cycle between two ordinary modules does [MOD-012].
+//
+// ⚠️ The root used to be the one file never entered in the loader's map, so
+// BackRef parsed it a SECOND time and the two copies did not share their names:
+// the root's body printed, and then its own imported name was undefined.
+//
+// ⚠️ This is also the case that used to have no compiled form at all -- the
+// duplicate made the emitter refuse with 'Two modules named ... is not supported
+// by the C back end yet.'  Both processors run it now, identically.
+
+uses 'modules/BackRef';
+
+WriteLn ('root body ran');
+
+WriteLn (ModName ());

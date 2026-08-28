@@ -651,6 +651,11 @@ var
     /// environment, which is what keeps a mutable export a single binding.
     Modules : Map;
 
+    /// The file the program was started from, or '' where there is none.  Set
+    /// by the driver so the root can be registered as a module in its own
+    /// right -- see RegisterRoot.
+    RootFile : String;
+
     /// The same environments, keyed by the name a 'uses' clause spelled, so a
     /// qualified 'Scanner.ScanTokens' can find one.  Separate from Modules
     /// because that is keyed by resolved PATH -- two files may be imported under
@@ -671,6 +676,7 @@ begin
         this.Globals.Enclosing := Builtins;
         this.Locals := Map();
         this.Modules := Map();
+        this.RootFile := '';
         this.UnitsByName := Map();
 
         this.Env := Globals;
@@ -736,9 +742,31 @@ begin
             if Statements[I] is FunctionStmt then Execute (Statements[I]);
     end
 
+    /// Registers the entry-point file as a module, so a 'uses' pointing back at
+    /// it resolves to the environment already running rather than to a copy.
+    ///
+    /// ⚠️ BEFORE the root's own statements run, and that is the whole point.  An
+    /// import-only node carries no statements, so the importer genuinely needs
+    /// the root's environment to exist by the time it links to it -- and the
+    /// root's body has not run yet, which is exactly the position an ordinary
+    /// module is in when a cycle reaches it [MOD-012].  A name is looked up when
+    /// it is USED, by which time everything has loaded.
+    ///
+    /// ⚠️ Globals rather than a fresh environment, because the root's names live
+    /// in Globals and the importer must see the same bindings, not copies.  Its
+    /// Exports stays Nil, so the root exports every name it declares.
+    ///
+    procedure RegisterRoot ();
+    begin
+        if RootFile = '' then Exit;
+
+        Modules.Put (RootFile, Globals);
+    end
+
     procedure Interpret (Statements : List);
     begin
         try
+            RegisterRoot ();
             Hoist (Statements);
 
             for var I : Integer := 0; I < Statements.Length; I := I + 1 do
@@ -883,6 +911,14 @@ begin
         Failed : Integer;
 
     begin
+        // ⚠️ Here too, not only in Interpret.  A module importing the root back
+        // now gets an import-only node [MOD-014], and an import-only node has no
+        // statements to run -- so if the root is not registered, VisitModuleStmt
+        // takes the not-yet-loaded branch and executes nothing at all.  '--test'
+        // on a file in a cycle with the root failed on exactly that.
+        RootFile := Str (FileName);
+        RegisterRoot ();
+
         Builtins.Define ('AssertTrue',  AssertTrueNative());
         Builtins.Define ('AssertEqual', AssertEqualNative());
         Builtins.Define ('Fail',        FailNative());
@@ -2115,6 +2151,12 @@ begin
         // file only gains SIGHT of it.
         if Modules.Contains (TheStmt.FileName) then
         begin
+            // The root is registered before it has a unit name, because nothing
+            // named it until a 'uses' did.  Filled in here so an ambiguity
+            // naming the root [MOD-013] can say which unit it means.
+            var Already := Modules.Get (TheStmt.FileName) as Environment;
+            if Already.UnitName = '' then Already.UnitName := Str (TheStmt.UnitName);
+
             Importer.Imports.Add (Modules.Get (TheStmt.FileName));
             UnitsByName.Put (Str (TheStmt.UnitName), Modules.Get (TheStmt.FileName));
             Exit;

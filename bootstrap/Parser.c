@@ -185,6 +185,9 @@ static Value m_Parser_Parse_0(Value v_this, Value *args, int32_t count) {
     Value v_Statements = alg_nil();
     (void)v_Statements;
     (void)((v_Statements = alg_list()));
+    if (alg_truthy(alg_not_equal(alg_property(v_this, "FileName"), alg_string("")))) {
+        (void)(alg_invoke(alg_property(v_this, "Loaded"), "Put", (Value[]){alg_property(v_this, "FileName"), alg_bool(true)}, 2));
+    }
     (void)(alg_invoke(v_this, "UnitHeader", NULL, 0));
     while (alg_truthy(alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0)))) {
         {
