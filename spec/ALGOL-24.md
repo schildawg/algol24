@@ -3825,6 +3825,27 @@ rendering, as the interpreter used to.
 ⚠️ **Silent, and the same trap the interpreter just lost**: a plausible number
 rather than an error. `alg_length` needs the refusal `LengthNative` gained.
 
+**C-19 — A cast is not checked compiled.** *(silent)*
+*(refers to [VAL-007])*
+
+```
+var Bad : Any := 'text';
+WriteLn (Bad as Integer);
+```
+
+Interpreted this is `Cannot cast String to Integer.` Compiled it prints `text`,
+which is what the interpreter did before DEF-12.
+
+⚠️ **New in generation 1, and the most consequential of the three so far.**
+[VAR-006] routes every untyped-to-typed crossing through `as`, so a compiled
+program has no verified boundary at all: a value of the wrong type passes into a
+declared type and nothing anywhere says so. The emitter records the cast — the
+parser stores it on the expression — and `alg_*` never tests it.
+
+⚠️ The *precedence* half of the same work needs nothing: [EXP-003] is a parsing
+rule and the front end is shared, so both processors already agree that
+`False and 5 as Integer` is `False`.
+
 ---
 
 ## Annex D — advisory notes *(non-normative)*
