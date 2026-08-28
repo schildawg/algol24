@@ -4,6 +4,7 @@
 #
 #   ./spec/spec.sh              # all checks
 #   ./spec/spec.sh --coverage   # also list rules citing no test
+#   ./spec/spec.sh --gaps       # which chapters still await a case, and which rules
 #
 # A specification is the largest unchecked copy a repository can own, and this
 # one names files, symbols and tests that live elsewhere and move. Nothing here
@@ -21,10 +22,12 @@ cd "$(dirname "$0")/.."
 
 SPEC="spec/ALGOL-24.md"
 COVERAGE=0
+GAPS_REPORT=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --coverage) COVERAGE=1 ;;
+        --gaps)     GAPS_REPORT=1 ;;
         -h|--help)
             sed -n '2,/^set -eu/p' "$0" | sed 's/^#\{1,2\} \{0,1\}//; s/^#$//; /^set -eu$/d'
             exit 0 ;;
@@ -435,6 +438,42 @@ if [ "$COVERAGE" -eq 1 ]; then
         echo "  no unit test pins these:"
         sed 's/^/    /' "$WORK/no_unit"
     fi
+fi
+
+# ⚠️ Which chapters still have rules with no case of their own.  'conformance
+# TBD' is an honest admission rather than an error, so it does not fail the run
+# -- but a per-chapter count is what says how much of the conformance pass is
+# left, and a bare total does not.
+#
+# Every rule ends with exactly one of three, decided by ONE question -- is the
+# interpreter right?  It refuses: a case in refusals/.  It is right: a case in
+# conformance/.  It is wrong: a case in defects/.  What the compiler does never
+# enters into it; see Annex C.
+
+if [ "$GAPS_REPORT" -eq 1 ]; then
+    echo
+    echo "Rules still awaiting a case, by chapter"
+    awk '/^## /{ chap = $0; sub(/^## /, "", chap) }
+         /^\*\*\[[A-Z]+-[0-9]+\]\*\*/ {
+             match($0, /\[[A-Z]+-[0-9]+\]/)
+             id = substr($0, RSTART + 1, RLENGTH - 2)
+             if (id ~ /-000$/) next
+             cur = id; total[chap]++; order[++n] = chap
+         }
+         /^[ \t]+conformance[ \t]+TBD[ \t]*$/ {
+             if (cur != "") { tbd[chap]++; ids[chap] = ids[chap] " " cur }
+         }
+         END {
+             for (i = 1; i <= n; i++) {
+                 c = order[i]
+                 if (seen[c]) continue
+                 seen[c] = 1
+                 if (tbd[c] > 0)
+                     printf "  %3d of %3d  %s\n     %s\n", tbd[c], total[c], c, ids[c]
+             }
+             for (i = 1; i <= n; i++) { c = order[i]; if (!done[c]) { done[c]=1; g += tbd[c]; r += total[c] } }
+             printf "  %d of %d rules await a case.\n", g, r
+         }' "$SPEC"
 fi
 
 echo

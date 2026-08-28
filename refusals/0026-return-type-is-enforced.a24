@@ -1,0 +1,10 @@
+// spec: FUN-008
+//
+// A declared return type is enforced.
+
+function F () : Integer;
+begin
+    Exit 'a string';
+end
+
+WriteLn (F ());

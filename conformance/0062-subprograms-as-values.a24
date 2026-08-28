@@ -1,0 +1,21 @@
+// spec: FUN-011
+//
+
+function Double (N); begin Exit N * 2; end
+function Triple (N); begin Exit N * 3; end
+
+// Assigned to a variable and called from there.
+var F := Double;
+WriteLn (F (5));
+
+// Passed as an argument.
+function Apply (G, N); begin Exit G (N); end
+WriteLn (Apply (Triple, 5));
+
+// Stored in a collection and called from where it came to rest.
+var Ops := [Double, Triple];
+WriteLn (Ops[0] (7));
+WriteLn (Ops[1] (7));
+
+var ByName := ['double' : Double];
+WriteLn (ByName.Get ('double') (9));

@@ -1,0 +1,14 @@
+// spec: FUN-003
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// FUN-003 refuses 'Exit E;' inside a procedure, so this program must not run.
+// The two words are interchangeable instead: the procedure returns 7 and the
+// caller uses it.
+
+procedure P ();
+begin
+    Exit 7;
+end
+
+WriteLn (P ());

@@ -1876,57 +1876,75 @@ Params   = identifier [ ":" Type ] { "," identifier [ ":" Type ] } .
     interpreter  compiler/Parser.a24  ParseFunction
     unit         Parse Function
     unit         Parse Function No Open Parenthesis
-    conformance  TBD
+    conformance  0060-subprogram-declarations.a24
 
 **[FUN-002]**  A subprogram that returns without a value yields `nil`.
 
     interpreter  compiler/Interpreter.a24  VisitReturnStmt
-    conformance  TBD
+    conformance  0060-subprogram-declarations.a24
 
-**[FUN-003]**  ⚠️ `function` and `procedure` are **not distinguished** by the
-language. A procedure may `Exit` a value, and a caller may use the result of
-either. The choice of word documents intent and constrains nothing.
+**[FUN-003]**  A **procedure** may not `Exit` a value. `Exit E;` inside one is
+refused; `Exit;` and falling off the end are the ways a procedure returns, and
+its result is always `nil` [FUN-002].
+
+A **function** may `Exit` a value or not, and yields `nil` when it does not.
+
+⚠️ **NOT YET IMPLEMENTED.** The two words are interchangeable: a procedure may
+`Exit` a value and a caller may use it, so `procedure P(); begin Exit 7; end`
+followed by `WriteLn(P())` prints 7. See DEF-18.
+
+⚠️ The restriction is what makes the word mean something. Without it `procedure`
+is a comment, and a reader cannot tell from a declaration whether a call has a
+result worth using — which the C back end must also decide, and which every
+caller must otherwise guard.
 
     interpreter  compiler/Parser.a24  ParseFunction
-    conformance  TBD
+    defect       DEF-18-a-procedure-may-exit-a-value.a24
 
 **[FUN-004]**  A declaration may not have more than 255 parameters:
 `Can't have more than 255 parameters.`
 
     interpreter  compiler/Parser.a24  ParseFunction
     unit         Parse Function More Than 255 Parameters
-    conformance  TBD
+    refusal      0024-too-many-parameters.a24
 
 ### 11.2 Parameters and results
 
 **[FUN-005]**  A call checks the number of arguments — see [EXP-011].
 
     interpreter  compiler/Interpreter.a24  VisitCall
-    conformance  TBD
+    conformance  0049-call-failures.a24
 
-**[FUN-006]**  ⚠️ A **top-level** subprogram's declared parameter types are
-**not enforced**. `function F(N : Integer)` accepts a String, a Double or a
-Boolean without complaint, from a literal or through a variable of any declared
-type.
+**[FUN-006]**  A subprogram's declared parameter types are enforced on every
+call, whether it is a top-level subprogram or a method. A parameter is an
+assignment context [VAR-017], so an argument must have the declared type, widen
+to it [VAR-004], or be `nil` [VAR-005].
+
+⚠️ **NOT YET IMPLEMENTED for a top-level subprogram.** `function F(N : Integer)`
+accepts a String, a Double or a Boolean without complaint. Only the arity is
+checked. A **method's** types are enforced [FUN-007], so the same annotation is
+a contract in one place and decoration in the other. See DEF-19.
 
     interpreter  compiler/Interpreter.a24  VisitCall
-    conformance  TBD
+    defect       DEF-19-top-level-parameter-types-unenforced.a24
 
 **[FUN-007]**  A **method's** parameter types **are** enforced, because a method
 goes through overload selection [EXP-013]. Passing a String where `Integer` is
 declared is `No matching signature for function.`
 
     interpreter  compiler/ObjClass.a24  FindOverload
-    conformance  TBD
+    refusal      0025-method-parameter-type-is-enforced.a24
 
-> [FUN-006] and [FUN-007] together mean the same annotation is decoration on a
-> function and a contract on a method. See Annex D.
+> A method's types are checked because overload selection compares whole
+> signatures [EXP-013]. A top-level subprogram does not overload, so nothing
+> ever compares its parameters — which is the cause of DEF-19 rather than a
+> decision anyone made.
 
 **[FUN-008]**  A declared **return** type **is** enforced. `Exit` of a value
 that does not fit is `Type mismatch!`
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  TBD
+    refusal      0026-return-type-is-enforced.a24
 
 ### 11.3 Closures
 
@@ -1937,14 +1955,14 @@ same variable.
 
     interpreter  compiler/ObjFunction.a24  ObjFunction
     compiler     bootstrap/algol.c         alg_cell
-    conformance  TBD
+    conformance  0061-closures.a24
 
 **[FUN-010]**  Each call to the enclosing subprogram creates a **fresh** set of
 captured variables. Two counters made the same way do not share a count.
 
     interpreter  compiler/Environment.a24  Environment
     compiler     bootstrap/algol.c         alg_closure
-    conformance  TBD
+    conformance  0061-closures.a24
 
 ### 11.4 Subprograms as values
 
@@ -1955,18 +1973,17 @@ called from wherever it comes to rest.
     interpreter  compiler/ObjFunction.a24  ObjFunction
     compiler     bootstrap/algol.c         alg_call
     unit         Interpret Local Function
-    conformance  TBD
+    conformance  0062-subprograms-as-values.a24
 
 ### 11.5 Nesting
 
 **[FUN-012]**  Subprograms may be declared inside subprograms, to any depth.
 
-⚠️ **compile-only divergence.** The C back end refuses more than one level with
-`A function nested more than one level deep is not supported by the C back end
-yet.` See Annex C.
+⚠️ The C back end refuses more than one level (C-2), so `conformance/0063` is
+one of the cases expected to fail its compiled half.
 
     interpreter  compiler/Parser.a24  ParseFunction
-    conformance  TBD
+    conformance  0063-nesting.a24
 
 ---
 
@@ -3583,10 +3600,17 @@ checked.
 not — which is the reverse of what a reader would guess, since arguments come
 from outside and are the less trustworthy of the two.
 
-*Recommended:* check parameter types on every call, not only where an overload
-has to be chosen. The check already exists in `Fits`; what is missing is calling
-it when there is nothing to select between. Until then, a type annotation on a
-top-level parameter should be read as a comment.
+**Resolved.** [FUN-006] requires parameter types to be enforced on every call,
+top-level subprogram or method alike. The check already exists in `Fits`; what
+is missing is calling it when there is nothing to select between. Tracked by
+DEF-19.
+
+⚠️ This was not really an open question by the time it was reached: [VAR-017]
+had already listed a parameter as one of the six assignment contexts, so
+[FUN-006] as written contradicted a decided rule. The direction-of-surprise
+note above still stands and is worth keeping — a declared *return* type is
+checked while the arguments are not, which is the reverse of what a reader would
+guess.
 
 **D-12 — Inheriting from a non-class reports the wrong thing.**
 *(refers to [CLS-014])*
@@ -4211,6 +4235,39 @@ divergence there needs the compiler brought up to the language.
 where a branch or loop body is expected, with a message of its own rather than
 the emitter's "not supported yet" wording — the construct is not unimplemented,
 it is not part of the language.
+
+**DEF-18 — A procedure may `Exit` a value.**
+*(violates [FUN-003])*
+
+`procedure P (); begin Exit 7; end` is accepted, and `WriteLn (P ())` prints 7,
+so `function` and `procedure` are interchangeable and the word documents nothing.
+
+*Reproduce:* `defects/DEF-18-a-procedure-may-exit-a-value.a24`
+
+*Scope of the fix.* The parser knows which word opened the declaration; `Exit`
+with a value inside a procedure is refused there. ⚠️ Verified safe against the
+largest body of Algol-24 that exists: **no procedure in `compiler/*.a24` exits a
+value**, so the compiler's own sources need no change.
+
+**DEF-19 — A top-level subprogram's parameter types are not enforced.**
+*(violates [FUN-006], [VAR-017])*
+
+`function G (N : Integer)` accepts a String, a Double or a Boolean. Only the
+arity is checked, because a top-level subprogram does not overload and nothing
+ever compares its parameters — while the same signature as a **method** refuses
+all three.
+
+*Reproduce:* `defects/DEF-19-top-level-parameter-types-unenforced.a24`, with
+`refusals/0025-method-parameter-type-is-enforced.a24` for the contrast.
+
+⚠️ Not an open question by the time it was reached: [VAR-017] already listed a
+parameter as one of the six assignment contexts, so this was a contradiction to
+propagate rather than a decision to make.
+
+*Scope of the fix.* The comparison exists in `Fits`; what is missing is calling
+it from the plain-call path where there is nothing to select between. ⚠️ It
+should land with DEF-10, since a parameter must **widen** as well as match — a
+Char argument reaching a String parameter is correct and must not start failing.
 
 ---
 

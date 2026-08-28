@@ -1,0 +1,22 @@
+// spec: FUN-012
+//
+// ⚠️ Expected to FAIL compiled, because of C-2: the C back end refuses a
+// function nested more than one level deep. The interpreter is right, so this
+// is an ordinary conformance case and the compiled failure records C-2.
+
+function Outer ();
+begin
+    function Middle ();
+    begin
+        function Inner ();
+        begin
+            Exit 3;
+        end
+
+        Exit Inner () + 20;
+    end
+
+    Exit Middle () + 100;
+end
+
+WriteLn (Outer ());

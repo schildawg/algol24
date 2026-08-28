@@ -510,7 +510,19 @@ done badly.
 | 8 Declarations and scope | 16 | Functions and classes hoist, variables do not; `private:` is normatively advisory |
 | 9 Expressions | 17 | `as` binds tightly; a parameter widens like any assignment context; division-by-zero asymmetry kept |
 | 10 Statements | 23 | A declaration may not be an unbraced body; most-derived handler selection kept and made total |
-| 11 onwards | 108 | — |
+| 11 Functions and closures | 12 | `procedure` may not `Exit` a value; parameter types enforced everywhere |
+| 12 onwards | 96 | — |
+
+⚠️ **Chapter 11 had almost nothing to decide, and that is the expected shape
+from here.** [FUN-006] said a top-level parameter's declared type is not
+enforced — but [VAR-017] had already listed a parameter as one of the six
+assignment contexts, so it was a contradiction to propagate rather than a
+judgement to make. Chapters 3–10 decided the rules the later chapters merely
+apply, so the later chapters are mostly bookkeeping with occasional real
+questions.
+
+`./spec/spec.sh --gaps` reports which chapters still have rules with no case,
+and which rules they are.
 
 ⚠️ **Chapter 10 produced the first defect whose fix REMOVES a divergence.** The
 C back end already refuses a declaration as an unbraced branch body (C-12), and
