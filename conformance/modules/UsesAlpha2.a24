@@ -1,0 +1,7 @@
+unit UsesAlpha2;
+
+uses 'Alpha2';
+
+WriteLn ('  UsesAlpha2 body, after its import');
+
+function Reach (); begin Exit AlphaName (); end

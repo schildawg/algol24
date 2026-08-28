@@ -1,0 +1,23 @@
+// spec: INI-001
+//
+// ⚠️ Expected to FAIL compiled: C-11 defers a bare top-level block to the end,
+// and this case exists to say the order is the written one.
+//
+// A program is one file, its top-level statements run in the order written,
+// and there is no distinguished entry point -- no main, and no statement that
+// begins execution.  The first line below runs because it is first.
+
+WriteLn ('1');
+
+var X := 2;
+WriteLn (X);
+
+begin
+    WriteLn ('3, from a block in place');
+end
+
+procedure P (); begin WriteLn ('5, when called'); end
+
+WriteLn ('4');
+P ();
+WriteLn ('6');

@@ -1,0 +1,5 @@
+unit Gamma;
+
+WriteLn ('  Gamma body');
+
+function GammaName (); begin Exit 'gamma'; end

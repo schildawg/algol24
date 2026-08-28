@@ -540,7 +540,22 @@ done badly.
 | 14 Collections | 15 | Member names fold case; membership follows equality; the member matrix is checked live |
 | 15 Modules | 14 | Modules may share exported names, ambiguity refused at the use; cycles between modules **work** |
 | 16 Built-in functions | 17 | `Length` refuses a collection; a String gains `.Length`; `Val` and `Max` made usable together |
-| 17 onwards | 30 | — |
+| 17 Program initialization | 7 | A run that never began must fail; module and statement order pinned |
+| 18 onwards | 23 | — |
+
+⚠️ **Chapter 17 produced a defect that cannot have a case, and saying so was the
+right answer.** `algc no-such-file.a24` prints its error and exits 0. The fault
+is in the driver, and every case in the corpus is run by handing `algc` a file
+that exists — so a case would run, exit 0, and record exactly what a *correct*
+implementation produces. DEF-28's reproduction is a shell command in Annex F,
+and [INI-005] is marked `PARTLY IMPLEMENTED` so the checker still demands the
+defect be named.
+
+⚠️ The first draft of that case did exist and did record `exit: 0`. It is the
+third time this pass a case has been written that would have passed for the
+wrong reason — after the CRLF probe git normalized and the first DEF-16. The
+tell is the same each time: **the recording is what the fixed implementation
+would produce.**
 
 ⚠️ **Chapter 16 corrected an Annex D entry that had invented a detail.** D-15
 said `Length(L)` and `L.Length` "even coincide at small sizes before

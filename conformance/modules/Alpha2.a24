@@ -1,0 +1,5 @@
+unit Alpha2;
+
+WriteLn ('  Alpha body');
+
+function AlphaName (); begin Exit 'alpha'; end

@@ -1,0 +1,12 @@
+// spec: INI-006
+//
+// ⚠️ Expected to FAIL compiled, because of C-8.
+//
+// Every failure the language reports exits with status 70.  This one is an
+// uncaught raise; a scan, parse, resolution or type error reports the same
+// status before any statement runs, which cannot be shown in the same file
+// because such a program produces no output at all.
+
+WriteLn ('this program raises');
+
+raise 'boom';

@@ -2802,14 +2802,23 @@ containing those bytes.
 the order they are written, and there is no distinguished entry point — no
 `main`, and no statement that begins execution.
 
-    interpreter  compiler/Main.a24  Run
-    conformance  TBD
+⚠️ The compiled back end does not preserve this order for a bare top-level
+block (C-11) or for module bodies (C-5), so `conformance/0094` is expected to
+fail its compiled half.
 
-**[INI-002]**  A declaration takes effect when its statement is reached, so a
-name is undefined above its declaration — see [DCL-006].
+    interpreter  compiler/Main.a24  Run
+    conformance  0094-program-order.a24
+
+**[INI-002]**  A **variable or constant** takes effect when its statement is
+reached, so a name is undefined above its declaration [DCL-016]. A **function or
+class** is visible throughout the file wherever it is written [DCL-006].
+
+⚠️ **NOT YET IMPLEMENTED for functions and classes.** The interpreter binds
+every top-level name when its declaration runs, so a call above a function is
+`Undefined variable 'F'.` See DEF-15.
 
     interpreter  compiler/Interpreter.a24  Interpret
-    conformance  TBD
+    defect       DEF-15-declarations-are-not-hoisted.a24
 
 ### 17.2 Module initialization
 
@@ -2826,13 +2835,13 @@ WriteLn ('3 root');          →  3 root
 ```
 
     interpreter  compiler/Interpreter.a24  VisitModuleStmt
-    conformance  TBD
+    conformance  0095-module-init-order.a24
 
 **[INI-004]**  A module is initialized once [MOD-003], and its imports are
 initialized before it, so a module's own body may use anything it imported.
 
     interpreter  compiler/Interpreter.a24  VisitModuleStmt
-    conformance  TBD
+    conformance  0095-module-init-order.a24
 
 ⚠️ **compile-only divergence, and a silent one.** The compiled program runs
 **every** module initializer before **any** root statement, so the example above
@@ -2842,10 +2851,23 @@ produces two different orders. See Annex C, C-5.
 ### 17.3 Termination
 
 **[INI-005]**  A program that reaches the end of its statements exits with
-status **0**.
+status **0**, and **only** such a program does. A run that never began — because
+the file could not be read — is a failure and exits non-zero [INI-006].
+
+⚠️ **PARTLY IMPLEMENTED.** A program that reaches the end does exit 0. A run
+that never began does **not** fail: `algc no-such-file.a24` prints `algc: cannot
+open no-such-file.a24` and exits **0**, so the driver reports a failure and
+reports success at the same time. Naming a directory prints nothing and also
+exits 0. See DEF-28.
+
+⚠️ **DEF-28 has no case in `defects/`, and cannot have one.** The fault is in the
+driver rather than in anything a program can do, and every case in the corpus is
+run by handing `algc` a file that exists. A case that ran and exited 0 would
+record exactly what a *correct* implementation produces, proving nothing — so
+the reproduction is a shell command, given in Annex F.
 
     interpreter  compiler/Main.a24  Main
-    conformance  TBD
+    conformance  0094-program-order.a24
 
 **[INI-006]**  Every failure the language reports exits with status **70** —
 an uncaught `raise` [STM-021], and equally a scan, parse, resolution or type
@@ -2853,11 +2875,13 @@ error, which are reported before any statement runs.
 
     interpreter  compiler/Main.a24  CheckScanned
     compiler     bootstrap/algol.c  alg_error
-    conformance  TBD
+    conformance  0096-exit-status.a24
 
-> ⚠️ 70 does not distinguish *a program that failed* from *a program that was
-> never run*. A caller wanting to tell a compile error from a runtime one must
-> read the diagnostic.
+> ⚠️ **One status for every kind of failure** is deliberate rather than
+> unconsidered. A caller wanting to tell a compile error from a runtime one
+> reads the diagnostic; the alternative — a second status for failures found
+> before execution — buys a little for tooling and costs every existing caller a
+> change. What is *not* deliberate is a failure exiting **0**, which is DEF-28.
 
 ### 17.4 Arguments
 
@@ -2867,7 +2891,7 @@ follow from index 1.
 
     interpreter  compiler/Main.a24    ArgumentsFrom
     compiler     bootstrap/algol.c    alg_set_arguments
-    conformance  TBD
+    conformance  0092-environment-builtins.a24
 
 ---
 
@@ -4299,6 +4323,11 @@ used as a name: `var print := 7;` is refused with `Expect variable name.`
 interpreter and the resolver, and its case from the emitter. ⚠️ The compiler's
 own sources must not use it first.
 
+⚠️ **One of them does.** `compiler/Main.a24`'s `SAMPLE` — the program `algc` runs
+when given no arguments — is written with `print`, so it stops working the
+moment the statement is removed. It must be rewritten to use `WriteLn` as part
+of this fix, not after it.
+
 **DEF-05 — Integer overflow is silent.**
 *(violates [LEX-018], [LEX-033])*
 
@@ -4743,6 +4772,35 @@ around it without leaving both.
 do and answers the matching type; `MaxNative` accepts two numbers and promotes.
 ⚠️ It should land with DEF-10 — once widening works, `Max` promoting is the same
 rule the operators use rather than a special case in one built-in.
+
+**DEF-28 — A file that cannot be read exits 0.**
+*(violates [INI-005])*
+
+```
+$ bootstrap/algc /no/such/file.a24 ; echo $?
+algc: cannot open /no/such/file.a24
+0
+
+$ bootstrap/algc compiler ; echo $?
+0
+```
+
+The driver reports a failure and reports success at the same time, so no caller
+can tell a program that ran from one that was never found. Naming a directory
+does not even print.
+
+⚠️ **No case in `defects/` reproduces this, and none can.** The fault is in the
+driver, and every case in the corpus is run by handing `algc` a file that
+exists. A case that ran and exited 0 would record exactly what a correct
+implementation produces — a defect test that passes for the wrong reason, which
+is the failure this corpus has already been caught by twice (the CRLF probe git
+normalized, and the first draft of DEF-16). The shell commands above are the
+reproduction.
+
+*Scope of the fix.* The three `algc: cannot open` sites in `compiler/Main.a24`
+raise rather than returning, so the failure reaches the same exit path every
+other failure uses [INI-006]. A directory should say so rather than printing
+nothing.
 
 ---
 
