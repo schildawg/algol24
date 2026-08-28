@@ -59,7 +59,9 @@ cp bootstrap/algol.c bootstrap/algol.h DIR/ && cc -std=c11 -O2 -o DIR/prog DIR/*
 
 ## Known issues
 
-**String concatenation has a memory problem that kills performance.** Strings are immutable and `+` copies both operands, and nothing is ever freed (`bootstrap/algol.c`'s arena never reclaims), so accumulating text a piece at a time retains every intermediate — roughly n²/2 bytes, all live. `Buffer` exists precisely to avoid it and is used in the hot paths that were found, but the underlying operator is still the cliff, and it is the first thing to suspect when a run is unexpectedly slow or memory-hungry. Not yet diagnosed or fixed.
+**String concatenation has a memory problem that kills performance.** Strings are immutable and `+` copies both operands, and nothing is ever freed (`bootstrap/algol.c`'s arena never reclaims), so accumulating text a piece at a time retains every intermediate — roughly n²/2 bytes, all live. Measured: **776 MB for 40,000 appends**, against 17 MB for the same loop through a `Buffer`. `Buffer` exists precisely to avoid it and is used in the hot paths that were found, but the underlying operator is still the cliff, and it is the first thing to suspect when a run is unexpectedly slow or memory-hungry.
+
+⚠️ **Diagnosed, and the fix is known** — see `spec/ALGOL-24.md` Annex G.2. It is an allocation-*volume* problem, so a collector would not help. `concat` can append in place when the left operand is the arena's most recent allocation, which makes `S := S + 'x'` linear; that is safe only once a String carries its own length instead of being NUL-terminated, because an alias must keep reading its own shorter view. **DEF-01 already requires that length field**, so the fix rides with it — and DEF-08 (`#0` truncates a String) closes on the same change.
 
 ⚠️ This makes **running algc under algc** (`bootstrap/algc compiler/Main.a24 --test <file>`) unreliable for anything large. It is a tempting way to try a change to the interpreter without reseeding, and it works for small files — `Token.a24`, `Scanner.a24` — but on `Parser.a24` or `Main.a24` it produces no report at all. Reseed and test with the real binary instead.
 

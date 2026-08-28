@@ -4472,12 +4472,21 @@ it is not confined to one place:
 | --- | --- |
 | Scanner | admit Unicode letters in identifiers; decode UTF-8 |
 | Runtime, both | a String gains a character count distinct from its byte length |
+| Runtime, both | …and stops being NUL-terminated, which is what makes `+` fixable — see G.2 |
 | `Length` `Copy` `Pos` subscript | count and index characters |
 | `Ord` `Char` | full code-point range, not 0 … 127 [LEX-025] |
 | Emitter | identifiers mangled per Annex G |
 
 ⚠️ It also decides D-3 on the way past: a String that carries its own length can
 hold `#0`, and the truncation recorded there stops being possible.
+
+⚠️ **And it is what makes `+` affordable.** Building a String a piece at a time
+costs about n²/2 bytes today — 776 MB for 40,000 appends, against 17 MB through
+a `Buffer` — because `concat` copies both operands and the arena never
+reclaims. An in-place append is safe only once a String carries its own length,
+since an alias must keep reading its own shorter view. G.2 has the measurement
+and the mechanism. This defect is therefore the gate on the largest performance
+problem the runtime has, which is not obvious from its title.
 
 **DEF-02 — Identifiers are matched case-sensitively.**
 *(violates [SRC-011])*
@@ -5206,7 +5215,67 @@ keeps the message in `LastError`, and a driver must ask. Two consequences follow
 
 An implementation that raises instead has neither problem and conforms equally.
 
-### G.2 Mangling identifiers into C
+### G.2 The cost of `+` on Strings, and what fixes it
+
+A String is immutable and `concat` copies both operands, so building one a piece
+at a time allocates the sum of the lengths — about n²/2 bytes — and the arena
+never reclaims, so all of it stays live. Measured at this commit:
+
+| | `S := S + 'x'` | `B.Append('x')` |
+| --- | --- | --- |
+| 40,000 appends | **776 MB** | 17.4 MB |
+| 200,000 appends | *(quadratic)* | 80 MB |
+
+⚠️ **This is an allocation-volume problem, not a reclamation one.** A collector
+would not help: the bytes are allocated whether or not they are later freed, and
+the copying is what makes it quadratic. `Buffer` avoids it by appending in
+place, which is why the compiler's own hot paths use one.
+
+**The obvious fix is unsafe today, and safe after one change.**
+
+`concat` could append **in place** when the left operand is the arena's most
+recent allocation — write the right operand's bytes at `arena_next`, bump, and
+return the left operand's own pointer. `S := S + 'x'` in a loop would then
+allocate n bytes rather than n²/2, because each result *is* the most recent
+allocation and the next append extends it. No collector, no refcounting, no
+escape analysis: the bump pointer is the liveness signal.
+
+⚠️ **What makes it unsafe is that a String is a NUL-terminated `char *`.** Any
+other value holding that pointer would see the extension, because its length is
+read from the bytes:
+
+```
+var A := 'ab' + 'cd';     A is the most recent allocation
+var B := A;               B aliases it
+var C := A + 'ef';        extending in place would change B
+```
+
+⚠️ **An explicit length makes it safe**, and for a reason worth stating exactly:
+`B` would hold `{p, 4}` and read only `[0, 4)`, which the append never touches —
+it writes at `p + 4` and yields `{p, 6}`. The alias is correct because it
+carries its own length rather than looking for a terminator.
+
+**So this rides with DEF-01**, which already obliges a String to carry a
+character count distinct from its byte length. Three problems close on one
+representation change:
+
+| | |
+| --- | --- |
+| DEF-01 | counting characters rather than bytes needs the length |
+| DEF-08 | a String that carries its length can hold `#0` — D-3's "better language" |
+| this | in-place append needs the length to keep aliases correct |
+
+⚠️ **Two details an implementer will hit.** `arena_alloc` rounds every request
+up to 8 bytes, so a string does **not** end at `arena_next` — the "is this the
+most recent allocation?" test must compare against the rounded size, or it
+silently never fires. The rounding slack is then free capacity for the first few
+appends.
+
+And the cost is real: every consumer that hands a String's bytes to C as a
+NUL-terminated string must take the length instead. That is the work, and it is
+why this belongs with DEF-01 rather than beside it.
+
+### G.3 Mangling identifiers into C
 
 The C back end must map an Algol-24 identifier — which may hold `_`, any Unicode
 letter, and the marks `?` and `!` [SRC-005] — onto a C identifier, which may

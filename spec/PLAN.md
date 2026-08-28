@@ -147,7 +147,16 @@ one to change.
 **Wave 5 — the large ones.** DEF-01 (text is characters, not bytes) is the
 biggest change the specification asks for and touches the scanner, both
 runtimes, `Length`/`Copy`/`Pos`/subscript, `Ord`/`Char` and the emitter's
-mangling. DEF-08, DEF-06's range and **DEF-32** ride with it — ⚠️ DEF-32
+mangling.
+
+⚠️ **DEF-01 is also the gate on the runtime's largest performance problem**, and
+that is not obvious from its title. Building a String a piece at a time costs
+about n²/2 bytes — **776 MB for 40,000 appends**, against 17 MB through a
+`Buffer` — because `concat` copies both operands and the arena never reclaims.
+The fix is an in-place append when the left operand is the arena's most recent
+allocation, and it is safe **only** once a String carries its own length, since
+an alias must keep reading its own shorter view. Annex G.2 has the measurement
+and the mechanism. Budget for it here rather than discovering it later. DEF-08, DEF-06's range and **DEF-32** ride with it — ⚠️ DEF-32
 especially, because the same line that counts a literal's length decides both
 whether it counts bytes or characters and whether a doubled quote counts as one;
 fixing them separately means touching it twice. DEF-14 (membership follows
