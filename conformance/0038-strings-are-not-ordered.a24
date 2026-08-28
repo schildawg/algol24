@@ -1,8 +1,6 @@
 // spec: VAL-014
 //
-// compiled: no
-//
-// ⚠️ Opted out of the compiled half because of C-8: the compiled runtime omits
+// ⚠️ Expected to FAIL compiled, because of C-8: the compiled runtime omits
 // the 'Uncaught: ' prefix.
 //
 // ⚠️ Ends in a RUNTIME error, so it belongs here rather than in refusals/: the

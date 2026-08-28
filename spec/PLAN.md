@@ -446,6 +446,45 @@ Three changes, all small:
 2. C runtime: append instead of returning early.
 3. Runner: clear the buffer before each test body.
 
+## 7.5 Which suite a case belongs in
+
+⚠️ **One question decides it: is the interpreter right?** The compiler's state
+never enters into the classification.
+
+| The interpreter is | The case goes in |
+| --- | --- |
+| right | `conformance/` or `refusals/`, **even if the compiler is wrong** |
+| wrong | `defects/`, **even if the compiler is right** |
+
+This follows the generation plan rather than tidiness. The goal of the next
+generation is an interpreter that matches the specification; the goal of the one
+after is a compiler that matches the interpreter. Classifying by the compiler's
+state would mix two generations of work into one suite.
+
+**A divergence is an outcome, not a category.** Every conformance case runs under
+both processors. One the interpreter gets right and the compiler does not fails
+its compiled half, and that failure *is* the record of the divergence — so there
+is no divergence suite, and Annex C entries are reproduced by ordinary
+conformance cases.
+
+`conform.sh` therefore reports **two verdicts**:
+
+- **the language** — the interpreted half, which must be green. This is the gate.
+- **the compiler** — gaps, counted and listed. Expected while the compiler
+  trails, and not a failure unless `--strict` is given.
+
+⚠️ A third question is asked elsewhere and is the one that must not break: does
+the compiler still **build and reproduce itself**? That is `./fixedpoint.sh` and
+`./test.sh`. A compiler that cannot compile cannot produce the generation that
+closes these gaps.
+
+⚠️ **An opt-out records nothing and notices nothing.** Twelve conformance cases
+carried a `// compiled: no` marker to keep the suite quiet about a known
+divergence. C-14 — compiled code does not check arity **at all** — was found
+within minutes of removing them, in a case that had been opted out since the day
+it was written. C-9, C-11 and C-13 had no reproduction anywhere while the markers
+stood. The markers are gone and will not come back.
+
 ## 8. Phasing
 
 Realistically 15,000–25,000 words. Delivering it in one drop is how it gets

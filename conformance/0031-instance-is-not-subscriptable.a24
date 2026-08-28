@@ -1,12 +1,7 @@
 // spec: TYP-010
 //
-// compiled: no
-//
-// ⚠️ Opted out of the compiled half because of C-7: both processors refuse
-// this program, with different wording.
-// A class instance may not be subscripted, whatever methods it declares.
-// ⚠️ Pinned deliberately.  H-4 would give a class a subscript operator, and
-// this case is what turns red when it lands.
+// ⚠️ Expected to FAIL compiled, because of C-7: both processors refuse this
+// program, with different wording.
 
 class Box;
 var Items : List;

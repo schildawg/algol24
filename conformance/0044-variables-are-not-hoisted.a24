@@ -1,10 +1,9 @@
 // spec: DCL-016
 //
-// compiled: no
-//
-// ⚠️ Opted out of the compiled half because of C-10, which is exactly what this
-// case pins: the compiled back end hoists variables and prints 'nil' here,
-// substituting a VALUE for a diagnostic.
+// ⚠️ Expected to FAIL compiled, because of C-10 -- which is exactly what this
+// case pins. The compiled back end hoists variables and prints 'nil' here,
+// substituting a VALUE for a diagnostic. This case IS the reproduction of
+// C-10; there is no separate divergence suite.
 //
 // ⚠️ Also C-8 -- the run ends in an uncaught runtime error.
 

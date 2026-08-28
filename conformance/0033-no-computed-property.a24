@@ -1,15 +1,7 @@
 // spec: TYP-012
 //
-// compiled: no
-//
-// ⚠️ Opted out of the compiled half because of C-6: the compiled program
-// CRASHES on the bare 'B.Length' below -- SIGSEGV, no output at all. A harness
-// cannot record a crash as an expectation. The interpreted behaviour recorded
-// here is the language; C-6 is the compiler failing to implement it.
-// A class exposes a field without parentheses and a method with them.  There
-// is no getter, so a computed value cannot be read as a property: the method
-// itself is what comes back.
-// ⚠️ Pinned deliberately.  H-6 would give a class a computed property.
+// ⚠️ Expected to FAIL compiled, because of C-6: the compiled program CRASHES
+// on the bare 'B.Length' below -- SIGSEGV, no output at all.
 
 class Box;
 var Items : List;

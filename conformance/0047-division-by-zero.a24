@@ -1,9 +1,7 @@
 // spec: EXP-006
 //
-// compiled: no
-//
-// ⚠️ Opted out of the compiled half because of C-8: the run ends in an uncaught
-// runtime error and the compiled runtime omits the 'Uncaught: ' prefix.
+// ⚠️ Expected to FAIL compiled, because of C-8: the compiled runtime omits
+// the 'Uncaught: ' prefix.
 //
 // ⚠️ Double division by zero is NOT an error.  These three print and the
 // program continues.

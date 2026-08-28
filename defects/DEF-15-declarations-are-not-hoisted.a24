@@ -1,11 +1,8 @@
 // spec: DCL-006
 //
-// compiled: no
-//
-// ⚠️ Opted out of the compiled half because the compiled back end does NOT
-// have this defect -- it already hoists.  A defect present in only one
-// processor cannot be recorded while the harness compares the two, and the
-// recording here is the interpreted behaviour, which is the one at fault.
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled. The
+// compiled back end does not have this defect -- it already hoists -- and that
+// is beside the point: the interpreter is the one that must be fixed first.
 //
 // DCL-006 makes a top-level function or class visible throughout its file, so
 // this program must print 'called' and then true.  The interpreter binds the

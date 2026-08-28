@@ -1,9 +1,7 @@
 // spec: DCL-001, DCL-002, DCL-008
 //
-// compiled: no
-//
-// ⚠️ Opted out of the compiled half because of C-8: the run ends in an uncaught
-// runtime error, and the compiled runtime omits the 'Uncaught: ' prefix.
+// ⚠️ Expected to FAIL compiled, because of C-8 and C-11: the run ends in an
+// uncaught runtime error, and the bare top-level block below is reordered.
 
 var Outer := 1;
 

@@ -3021,6 +3021,34 @@ a choice the language has made.
 produces a program that runs and behaves differently. The second kind is far
 worse, and the column says which each is.
 
+⚠️ **Nothing here is tracked by a suite of its own.** A divergence is not a third
+kind of case; it is an *outcome*. Every case in `conformance/` runs under both
+processors, and a case the interpreter gets right and the compiler does not
+fails its compiled half — that failure **is** the record of the divergence, and
+`conform.sh` reports it as a gap rather than a failure. The classification of a
+case never depends on the compiler's state:
+
+| The interpreter is | The case goes in |
+| --- | --- |
+| right | `conformance/` or `refusals/`, even if the compiler is wrong |
+| wrong | `defects/`, even if the compiler is right |
+
+This follows the generation plan rather than tidiness. The goal of the next
+generation is an interpreter that matches this specification; the goal of the
+one after is a compiler that matches the interpreter. Compiler gaps are
+therefore **expected** to be red throughout the first of those, and the count is
+a progress measure for the second.
+
+⚠️ The one thing that must not break is the compiler's ability to **build and
+reproduce itself** — `./fixedpoint.sh` and `./test.sh`. A compiler that cannot
+compile cannot produce the generation that fixes these entries.
+
+⚠️ **An opt-out records nothing and notices nothing.** Twelve conformance cases
+once carried a `// compiled: no` marker to keep the suite quiet. C-14 was found
+within minutes of removing them, in a case that had been opted out since it was
+written — and C-9, C-11 and C-13 had no reproduction at all while the markers
+stood.
+
 **C-1 — A file in an import cycle with the root will not compile.** *(loud)*
 
 The root file is never entered in the parser's `Loaded` map, so a module
@@ -3311,6 +3339,29 @@ strictly better than a valid-looking emission that fails downstream.
 
 ⚠️ It also constrains the corpus: `conformance/0054` puts its loops inside a
 procedure to keep the cross-check, as `conformance/0040` does for C-11.
+
+**C-14 — Compiled code does not check arity.** *(silent)*
+*(refers to [EXP-011])*
+
+```
+function One (A); begin Exit A; end
+WriteLn (One (1, 2));
+WriteLn ('kept going');
+```
+
+Interpreted this is `Uncaught: Expected 1 arguments but got 2.` Compiled it
+prints `1` and then `kept going` — the extra argument is discarded and the
+program runs on. Too *few* arguments is accepted as well.
+
+⚠️ **This was invisible while `conformance/0049` opted out of the compiled
+half.** It was found within minutes of removing the opt-outs, which is the
+argument for not having them: an opt-out records nothing and notices nothing,
+and the case it silences is exactly the case that would have found the bug.
+
+⚠️ Silent and unbounded. C-4 accepts a lowercase member name; this accepts any
+call with any number of arguments, so every arity error in a program compiled by
+this back end is undetected, and a function reading a parameter that was never
+passed gets whatever the calling convention left there.
 
 ---
 

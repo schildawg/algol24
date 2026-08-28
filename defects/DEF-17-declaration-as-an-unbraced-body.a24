@@ -1,10 +1,8 @@
 // spec: STM-002
 //
-// compiled: no
-//
-// ⚠️ Opted out of the compiled half because the compiled back end does not have
-// this defect -- it refuses the construct (C-12), which is what STM-002 now
-// requires.  The recording here is the interpreted behaviour, the one at fault.
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled. The
+// compiled back end refuses this construct (C-12), which is what STM-002 now
+// requires -- so fixing this defect makes all three agree.
 //
 // STM-002 refuses a declaration as an unbraced branch body.  It is accepted,
 // and the name ESCAPES into the enclosing scope -- so the WriteLn below finds
