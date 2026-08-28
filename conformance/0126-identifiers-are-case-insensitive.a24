@@ -1,0 +1,41 @@
+// spec: SRC-011
+//
+// A name is a name whether it is a variable, a field, a method, a unit
+// qualifier, an enum member or a built-in member.  Folding is UNIFORM.
+
+// A variable.
+var Total := 0;
+TOTAL := total + 5;
+WriteLn (ToTaL);
+
+// A field and a method, including the implicit 'this' path inside a method.
+class Box;
+var Value : Integer;
+begin
+    constructor Init (V : Integer); begin this.VALUE := V; end
+    function Doubled (); begin Exit value * 2; end
+end
+
+var B := Box (21);
+WriteLn (B.DOUBLED ());
+WriteLn (b.value);
+
+// A function.
+function Greet (Who : String); begin Exit 'hi ' + Who; end
+WriteLn (GREET ('you'));
+
+// An enumeration and its members.  ⚠️ The member still PRINTS as it was
+// declared -- only the lookup folds.
+type Colour = (Red, Green);
+WriteLn (COLOUR.red);
+WriteLn (GREEN);
+
+// ⚠️ A built-in member folds too, and this is the half the interpreter used to
+// get wrong: 'L.add' was 'Undefined property' interpreted and worked compiled,
+// so a program written against the compiler failed everywhere interpreted.
+var L := [1];
+L.add (2);
+WriteLn (L.LENGTH);
+
+var S := 'hi';
+WriteLn (S.Length);

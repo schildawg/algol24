@@ -42,7 +42,7 @@ static Value m_ObjEnum_Get_1_Token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_TheName = args[0];
     (void)v_TheName;
-    if (alg_truthy(alg_equal(alg_str(alg_property(v_TheName, "Lexeme")), alg_string("Ordinal")))) {
+    if (alg_truthy(alg_equal(f_FoldCase(NULL, (Value[]){alg_property(v_TheName, "Lexeme")}, 1), alg_string("ordinal")))) {
         return alg_property(v_this, "Ordinal");
     }
     alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(v_TheName, "Lexeme"))), alg_string("'.")));
@@ -72,7 +72,7 @@ static Value m_ObjEnumType_Add_1_String(Value v_this, Value *args, int32_t count
     Value v_Member = alg_nil();
     (void)v_Member;
     (void)((v_Member = alg_new(k_ObjEnum, (Value[]){alg_property(v_this, "Name"), v_MemberName, alg_property(alg_property(v_this, "Members"), "Length")}, 3)));
-    (void)(alg_invoke(alg_property(v_this, "Members"), "Put", (Value[]){v_MemberName, v_Member}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Members"), "Put", (Value[]){f_FoldCase(NULL, (Value[]){v_MemberName}, 1), v_Member}, 2));
     return v_Member;
     return alg_nil();
 }
@@ -81,10 +81,10 @@ static Value m_ObjEnumType_Get_1_Token(Value v_this, Value *args, int32_t count)
     (void)v_this; (void)args; (void)count;
     Value v_TheName = args[0];
     (void)v_TheName;
-    if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Members"), "Contains", (Value[]){alg_property(v_TheName, "Lexeme")}, 1)))) {
+    if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Members"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_TheName, "Lexeme")}, 1)}, 1)))) {
         alg_raise(alg_add(alg_add(alg_string("Undefined enum member '"), alg_property(v_TheName, "Lexeme")), alg_string("'.")));
     }
-    return alg_invoke(alg_property(v_this, "Members"), "Get", (Value[]){alg_property(v_TheName, "Lexeme")}, 1);
+    return alg_invoke(alg_property(v_this, "Members"), "Get", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_TheName, "Lexeme")}, 1)}, 1);
     return alg_nil();
 }
 

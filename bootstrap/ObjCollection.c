@@ -76,115 +76,115 @@ static Value m_ObjCollection_Get_1_Token(Value v_this, Value *args, int32_t coun
     (void)v_TheName;
     Value v_Member = alg_nil();
     (void)v_Member;
-    (void)((v_Member = alg_property(v_TheName, "Lexeme")));
-    if (alg_truthy(alg_equal(v_Member, alg_string("Length")))) {
+    (void)((v_Member = f_FoldCase(NULL, (Value[]){alg_property(v_TheName, "Lexeme")}, 1)));
+    if (alg_truthy(alg_equal(v_Member, alg_string("length")))) {
         return alg_invoke(v_this, "Count", NULL, 0);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("IsEmpty")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("isempty")))) {
         return alg_equal(alg_invoke(v_this, "Count", NULL, 0), alg_int(0));
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Contains")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("contains")))) {
         return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("List")))) {
         {
-            if (alg_truthy(alg_equal(v_Member, alg_string("Get")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("get")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Add")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("add")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Insert")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("insert")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(2)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("RemoveAt")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("removeat")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("IndexOf")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("indexof")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Sort")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("sort")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Clear")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("clear")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
         }
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Array")))) {
         {
-            if (alg_truthy(alg_equal(v_Member, alg_string("Get")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("get")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Set")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("set")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(2)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Fill")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("fill")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("IndexOf")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("indexof")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Sort")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("sort")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
         }
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Map")))) {
         {
-            if (alg_truthy(alg_equal(v_Member, alg_string("Get")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("get")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Put")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("put")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(2)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Remove")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("remove")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Keys")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("keys")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Values")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("values")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Clear")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("clear")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
         }
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Set")))) {
         {
-            if (alg_truthy(alg_equal(v_Member, alg_string("Add")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("add")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Remove")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("remove")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("ToList")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("tolist")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Clear")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("clear")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
         }
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Stack")))) {
         {
-            if (alg_truthy(alg_equal(v_Member, alg_string("Push")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("push")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Pop")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("pop")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Peek")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("peek")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
-            if (alg_truthy(alg_equal(v_Member, alg_string("Clear")))) {
+            if (alg_truthy(alg_equal(v_Member, alg_string("clear")))) {
                 return alg_new(k_CollectionMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
             }
         }
     }
-    alg_raise(alg_add(alg_add(alg_string("Undefined property '"), v_Member), alg_string("'.")));
+    alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(v_TheName, "Lexeme"))), alg_string("'.")));
     return alg_nil();
 }
 
@@ -215,7 +215,7 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
     (void)v_Name;
     Value v_Arguments = args[1];
     (void)v_Arguments;
-    if (alg_truthy(alg_equal(v_Name, alg_string("Contains")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("contains")))) {
         {
             if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Map")))) {
                 return alg_invoke(alg_property(v_this, "Pairs"), "Contains", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
@@ -223,7 +223,7 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
             return alg_invoke(alg_property(v_this, "Items"), "Contains", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Get")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("get")))) {
         {
             if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Map")))) {
                 return alg_invoke(alg_property(v_this, "Pairs"), "Get", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
@@ -231,7 +231,7 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
             return alg_invoke(alg_property(v_this, "Items"), "Get", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Add")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("add")))) {
         {
             if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Set")))) {
                 {
@@ -245,34 +245,34 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
             return alg_subscript_get(v_Arguments, alg_int(0));
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Set")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("set")))) {
         {
             (void)(alg_subscript_set(alg_property(v_this, "Items"), alg_subscript_get(v_Arguments, alg_int(0)), alg_subscript_get(v_Arguments, alg_int(1))));
             return alg_subscript_get(v_Arguments, alg_int(1));
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Put")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("put")))) {
         {
             (void)(alg_invoke(alg_property(v_this, "Pairs"), "Put", (Value[]){alg_subscript_get(v_Arguments, alg_int(0)), alg_subscript_get(v_Arguments, alg_int(1))}, 2));
             return alg_subscript_get(v_Arguments, alg_int(1));
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Insert")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("insert")))) {
         return alg_invoke(alg_property(v_this, "Items"), "Insert", (Value[]){alg_subscript_get(v_Arguments, alg_int(0)), alg_subscript_get(v_Arguments, alg_int(1))}, 2);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("RemoveAt")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("removeat")))) {
         return alg_invoke(alg_property(v_this, "Items"), "RemoveAt", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("IndexOf")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("indexof")))) {
         return alg_invoke(alg_property(v_this, "Items"), "IndexOf", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Sort")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("sort")))) {
         {
             (void)(alg_invoke(alg_property(v_this, "Items"), "Sort", NULL, 0));
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Fill")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("fill")))) {
         {
             {
                 Value v_I = alg_int(0);
@@ -287,16 +287,16 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Keys")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("keys")))) {
         return alg_invoke(v_this, "AsList", (Value[]){alg_invoke(alg_property(v_this, "Pairs"), "Keys", NULL, 0)}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Values")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("values")))) {
         return alg_invoke(v_this, "AsList", (Value[]){alg_invoke(alg_property(v_this, "Pairs"), "Values", NULL, 0)}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("ToList")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("tolist")))) {
         return alg_invoke(v_this, "AsList", (Value[]){alg_property(v_this, "Items")}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Remove")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("remove")))) {
         {
             if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Map")))) {
                 {
@@ -315,13 +315,13 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
             return alg_bool(true);
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Push")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("push")))) {
         {
             (void)(alg_invoke(alg_property(v_this, "Items"), "Add", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1));
             return alg_subscript_get(v_Arguments, alg_int(0));
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Pop")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("pop")))) {
         {
             if (alg_truthy(alg_equal(alg_property(alg_property(v_this, "Items"), "Length"), alg_int(0)))) {
                 alg_raise(alg_string("Pop from an empty Stack."));
@@ -329,7 +329,7 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
             return alg_invoke(alg_property(v_this, "Items"), "RemoveAt", (Value[]){alg_subtract(alg_property(alg_property(v_this, "Items"), "Length"), alg_int(1))}, 1);
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Peek")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("peek")))) {
         {
             if (alg_truthy(alg_equal(alg_property(alg_property(v_this, "Items"), "Length"), alg_int(0)))) {
                 alg_raise(alg_string("Peek at an empty Stack."));
@@ -337,7 +337,7 @@ static Value m_ObjCollection_Invoke_2_String_List(Value v_this, Value *args, int
             return alg_subscript_get(alg_property(v_this, "Items"), alg_subtract(alg_property(alg_property(v_this, "Items"), "Length"), alg_int(1)));
         }
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Clear")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("clear")))) {
         {
             if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Map")))) {
                 (void)(alg_invoke(alg_property(v_this, "Pairs"), "Clear", NULL, 0));

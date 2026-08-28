@@ -66,19 +66,20 @@ begin
         Member : String;
 
     begin
-        Member := TheName.Lexeme;
+        // Folded, and the literals below written folded to match [SRC-011].
+        Member := FoldCase (TheName.Lexeme);
 
-        if Member = 'Text'    then Exit Handle.Text;
-        if Member = 'Length'  then Exit Handle.Length;
-        if Member = 'IsEmpty' then Exit Handle.IsEmpty;
+        if Member = 'text'    then Exit Handle.Text;
+        if Member = 'length'  then Exit Handle.Length;
+        if Member = 'isempty' then Exit Handle.IsEmpty;
 
-        if Member = 'Append' then Exit BufferMethod (this, Member, 1);
-        if Member = 'PutInt' then Exit BufferMethod (this, Member, 2);
-        if Member = 'GetInt' then Exit BufferMethod (this, Member, 1);
-        if Member = 'Resize' then Exit BufferMethod (this, Member, 1);
-        if Member = 'Free'   then Exit BufferMethod (this, Member, 0);
+        if Member = 'append' then Exit BufferMethod (this, Member, 1);
+        if Member = 'putint' then Exit BufferMethod (this, Member, 2);
+        if Member = 'getint' then Exit BufferMethod (this, Member, 1);
+        if Member = 'resize' then Exit BufferMethod (this, Member, 1);
+        if Member = 'free'   then Exit BufferMethod (this, Member, 0);
 
-        raise 'Undefined property ''' + Member + '''.';
+        raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end
 
     /// Runs a method by name.  Reached only through BufferMethod, and Get is
@@ -86,11 +87,11 @@ begin
     ///
     function Invoke (Name : String, Arguments : List) : Any;
     begin
-        if Name = 'Append' then Exit Handle.Append (Arguments[0]);
-        if Name = 'PutInt' then Exit Handle.PutInt (Arguments[0], Arguments[1]);
-        if Name = 'GetInt' then Exit Handle.GetInt (Arguments[0]);
-        if Name = 'Resize' then Exit Handle.Resize (Arguments[0]);
-        if Name = 'Free'   then Exit Handle.Free ();
+        if Name = 'append' then Exit Handle.Append (Arguments[0]);
+        if Name = 'putint' then Exit Handle.PutInt (Arguments[0], Arguments[1]);
+        if Name = 'getint' then Exit Handle.GetInt (Arguments[0]);
+        if Name = 'resize' then Exit Handle.Resize (Arguments[0]);
+        if Name = 'free'   then Exit Handle.Free ();
 
         raise 'Undefined method ''' + Name + '''.';
     end

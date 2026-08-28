@@ -63,23 +63,24 @@ begin
         Member : String;
 
     begin
-        Member := TheName.Lexeme;
+        // Folded, and the literals below written folded to match [SRC-011].
+        Member := FoldCase (TheName.Lexeme);
 
-        if Member = 'Eof' then Exit Handle.Eof;
+        if Member = 'eof' then Exit Handle.Eof;
 
-        if Member = 'Assign'  then Exit FileMethod (this, Member, 1);
-        if Member = 'Reset'   then Exit FileMethod (this, Member, 0);
-        if Member = 'Rewrite' then Exit FileMethod (this, Member, 0);
-        if Member = 'Append'  then Exit FileMethod (this, Member, 0);
-        if Member = 'ReadLn'  then Exit FileMethod (this, Member, 0);
-        if Member = 'Write'   then Exit FileMethod (this, Member, 1);
-        if Member = 'WriteLn' then Exit FileMethod (this, Member, 1);
-        if Member = 'Flush'   then Exit FileMethod (this, Member, 0);
-        if Member = 'Close'   then Exit FileMethod (this, Member, 0);
-        if Member = 'Erase'   then Exit FileMethod (this, Member, 0);
-        if Member = 'Rename'  then Exit FileMethod (this, Member, 1);
+        if Member = 'assign'  then Exit FileMethod (this, Member, 1);
+        if Member = 'reset'   then Exit FileMethod (this, Member, 0);
+        if Member = 'rewrite' then Exit FileMethod (this, Member, 0);
+        if Member = 'append'  then Exit FileMethod (this, Member, 0);
+        if Member = 'readln'  then Exit FileMethod (this, Member, 0);
+        if Member = 'write'   then Exit FileMethod (this, Member, 1);
+        if Member = 'writeln' then Exit FileMethod (this, Member, 1);
+        if Member = 'flush'   then Exit FileMethod (this, Member, 0);
+        if Member = 'close'   then Exit FileMethod (this, Member, 0);
+        if Member = 'erase'   then Exit FileMethod (this, Member, 0);
+        if Member = 'rename'  then Exit FileMethod (this, Member, 1);
 
-        raise 'Undefined property ''' + Member + '''.';
+        raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end
 
     /// Runs a method by name.  Reached only through FileMethod, and Get is the
@@ -87,17 +88,17 @@ begin
     ///
     function Invoke (Name : String, Arguments : List) : Any;
     begin
-        if Name = 'Assign'  then Exit Handle.Assign (Arguments[0]);
-        if Name = 'Reset'   then Exit Handle.Reset ();
-        if Name = 'Rewrite' then Exit Handle.Rewrite ();
-        if Name = 'Append'  then Exit Handle.Append ();
-        if Name = 'ReadLn'  then Exit Handle.ReadLn ();
-        if Name = 'Write'   then Exit Handle.Write (Arguments[0]);
-        if Name = 'WriteLn' then Exit Handle.WriteLn (Arguments[0]);
-        if Name = 'Flush'   then Exit Handle.Flush ();
-        if Name = 'Close'   then Exit Handle.Close ();
-        if Name = 'Erase'   then Exit Handle.Erase ();
-        if Name = 'Rename'  then Exit Handle.Rename (Arguments[0]);
+        if Name = 'assign'  then Exit Handle.Assign (Arguments[0]);
+        if Name = 'reset'   then Exit Handle.Reset ();
+        if Name = 'rewrite' then Exit Handle.Rewrite ();
+        if Name = 'append'  then Exit Handle.Append ();
+        if Name = 'readln'  then Exit Handle.ReadLn ();
+        if Name = 'write'   then Exit Handle.Write (Arguments[0]);
+        if Name = 'writeln' then Exit Handle.WriteLn (Arguments[0]);
+        if Name = 'flush'   then Exit Handle.Flush ();
+        if Name = 'close'   then Exit Handle.Close ();
+        if Name = 'erase'   then Exit Handle.Erase ();
+        if Name = 'rename'  then Exit Handle.Rename (Arguments[0]);
 
         raise 'Undefined method ''' + Name + '''.';
     end

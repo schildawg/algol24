@@ -13,8 +13,8 @@ Value v_ANSI_YELLOW;
 Value v_ANSI_BLUE;
 Value v_ANSI_CYAN;
 Value v_ANSI_WHITE;
-Value v_INFO;
-Value v_ERROR;
+Value v_INFO_TAG;
+Value v_ERROR_TAG;
 Value k_Console;
 static const char *t_Console_Repeat_2_Char_Integer[] = { "Char", "Integer" };
 static const char *t_Console_Header_1_String[] = { "String" };
@@ -80,7 +80,7 @@ static Value m_Console_Info_1_String(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Text = args[0];
     (void)v_Text;
-    (void)(alg_writeln(alg_add(v_INFO, v_Text)));
+    (void)(alg_writeln(alg_add(v_INFO_TAG, v_Text)));
     return alg_nil();
 }
 
@@ -132,8 +132,8 @@ static Value m_Console_Error_2_Token_String(Value v_this, Value *args, int32_t c
     (void)v_Digits;
     (void)((v_Text = alg_invoke(alg_singleton(k_SourceCode), "Get", (Value[]){alg_property(v_Where, "LineNumber")}, 1)));
     (void)((v_Digits = alg_length(alg_str(alg_property(v_Where, "LineNumber")))));
-    (void)(alg_writeln(alg_add(alg_add(alg_add(v_ERROR, alg_invoke(alg_singleton(k_SourceCode), "Name", NULL, 0)), alg_string(": ")), v_Message)));
-    (void)(alg_writeln(alg_add(alg_add(alg_add(v_ERROR, alg_str(alg_property(v_Where, "LineNumber"))), alg_string(" | ")), v_Text)));
+    (void)(alg_writeln(alg_add(alg_add(alg_add(v_ERROR_TAG, alg_invoke(alg_singleton(k_SourceCode), "Name", NULL, 0)), alg_string(": ")), v_Message)));
+    (void)(alg_writeln(alg_add(alg_add(alg_add(v_ERROR_TAG, alg_str(alg_property(v_Where, "LineNumber"))), alg_string(" | ")), v_Text)));
     (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_RED), alg_string("ERROR")), v_ANSI_RESET), alg_string("] ")), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), v_Digits}, 2)), alg_string(" |")), v_ANSI_RED), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), alg_add(alg_property(v_Where, "Offset"), alg_int(1))}, 2)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(94), alg_length(alg_property(v_Where, "Lexeme"))}, 2)), v_ANSI_RESET)));
     return alg_nil();
 }
@@ -160,6 +160,6 @@ void init_Console(void) {
     v_ANSI_BLUE = alg_add(v_ESC, alg_string("[34m"));
     v_ANSI_CYAN = alg_add(v_ESC, alg_string("[36m"));
     v_ANSI_WHITE = alg_add(v_ESC, alg_string("[37m"));
-    v_INFO = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_BLUE), alg_string("INFO")), v_ANSI_WHITE), alg_string("] ")), v_ANSI_RESET);
-    v_ERROR = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_RED), alg_string("ERROR")), v_ANSI_WHITE), alg_string("] ")), v_ANSI_RESET);
+    v_INFO_TAG = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_BLUE), alg_string("INFO")), v_ANSI_WHITE), alg_string("] ")), v_ANSI_RESET);
+    v_ERROR_TAG = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_RED), alg_string("ERROR")), v_ANSI_WHITE), alg_string("] ")), v_ANSI_RESET);
 }

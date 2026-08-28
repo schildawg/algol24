@@ -73,61 +73,67 @@ begin
        Member : String;
 
     begin
-        Member := TheName.Lexeme;
+        // ⚠️ Folded [SRC-011], and the literals below are written folded to
+        // match.  A built-in member is a name like any other, so 'L.add' and
+        // 'L.Add' are one member -- which is what the C runtime always did with
+        // alg_stricmp, while the interpreter compared exactly.  The two used to
+        // disagree in the dangerous direction: the compiler accepted programs
+        // the interpreter refused (C-4).
+        Member := FoldCase (TheName.Lexeme);
 
-        if Member = 'Length'  then Exit Count();
-        if Member = 'IsEmpty' then Exit Count() = 0;
+        if Member = 'length'  then Exit Count();
+        if Member = 'isempty' then Exit Count() = 0;
 
         // Shared by every kind.
-        if Member = 'Contains' then Exit CollectionMethod (this, Member, 1);
+        if Member = 'contains' then Exit CollectionMethod (this, Member, 1);
 
         if Kind = 'List' then
         begin
-            if Member = 'Get'      then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Add'      then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Insert'   then Exit CollectionMethod (this, Member, 2);
-            if Member = 'RemoveAt' then Exit CollectionMethod (this, Member, 1);
-            if Member = 'IndexOf'  then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Sort'     then Exit CollectionMethod (this, Member, 0);
-            if Member = 'Clear'    then Exit CollectionMethod (this, Member, 0);
+            if Member = 'get'      then Exit CollectionMethod (this, Member, 1);
+            if Member = 'add'      then Exit CollectionMethod (this, Member, 1);
+            if Member = 'insert'   then Exit CollectionMethod (this, Member, 2);
+            if Member = 'removeat' then Exit CollectionMethod (this, Member, 1);
+            if Member = 'indexof'  then Exit CollectionMethod (this, Member, 1);
+            if Member = 'sort'     then Exit CollectionMethod (this, Member, 0);
+            if Member = 'clear'    then Exit CollectionMethod (this, Member, 0);
         end
 
         if Kind = 'Array' then
         begin
-            if Member = 'Get'     then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Set'     then Exit CollectionMethod (this, Member, 2);
-            if Member = 'Fill'    then Exit CollectionMethod (this, Member, 1);
-            if Member = 'IndexOf' then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Sort'    then Exit CollectionMethod (this, Member, 0);
+            if Member = 'get'     then Exit CollectionMethod (this, Member, 1);
+            if Member = 'set'     then Exit CollectionMethod (this, Member, 2);
+            if Member = 'fill'    then Exit CollectionMethod (this, Member, 1);
+            if Member = 'indexof' then Exit CollectionMethod (this, Member, 1);
+            if Member = 'sort'    then Exit CollectionMethod (this, Member, 0);
         end
 
         if Kind = 'Map' then
         begin
-            if Member = 'Get'    then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Put'    then Exit CollectionMethod (this, Member, 2);
-            if Member = 'Remove' then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Keys'   then Exit CollectionMethod (this, Member, 0);
-            if Member = 'Values' then Exit CollectionMethod (this, Member, 0);
-            if Member = 'Clear'  then Exit CollectionMethod (this, Member, 0);
+            if Member = 'get'    then Exit CollectionMethod (this, Member, 1);
+            if Member = 'put'    then Exit CollectionMethod (this, Member, 2);
+            if Member = 'remove' then Exit CollectionMethod (this, Member, 1);
+            if Member = 'keys'   then Exit CollectionMethod (this, Member, 0);
+            if Member = 'values' then Exit CollectionMethod (this, Member, 0);
+            if Member = 'clear'  then Exit CollectionMethod (this, Member, 0);
         end
 
         if Kind = 'Set' then
         begin
-            if Member = 'Add'    then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Remove' then Exit CollectionMethod (this, Member, 1);
-            if Member = 'ToList' then Exit CollectionMethod (this, Member, 0);
-            if Member = 'Clear'  then Exit CollectionMethod (this, Member, 0);
+            if Member = 'add'    then Exit CollectionMethod (this, Member, 1);
+            if Member = 'remove' then Exit CollectionMethod (this, Member, 1);
+            if Member = 'tolist' then Exit CollectionMethod (this, Member, 0);
+            if Member = 'clear'  then Exit CollectionMethod (this, Member, 0);
         end
 
         if Kind = 'Stack' then
         begin
-            if Member = 'Push'  then Exit CollectionMethod (this, Member, 1);
-            if Member = 'Pop'   then Exit CollectionMethod (this, Member, 0);
-            if Member = 'Peek'  then Exit CollectionMethod (this, Member, 0);
-            if Member = 'Clear' then Exit CollectionMethod (this, Member, 0);
+            if Member = 'push'  then Exit CollectionMethod (this, Member, 1);
+            if Member = 'pop'   then Exit CollectionMethod (this, Member, 0);
+            if Member = 'peek'  then Exit CollectionMethod (this, Member, 0);
+            if Member = 'clear' then Exit CollectionMethod (this, Member, 0);
         end
 
-        raise 'Undefined property ''' + Member + '''.';
+        raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end
 
     /// Wraps a host List as an interpreted List, so what a program receives
@@ -158,21 +164,21 @@ begin
     ///
     function Invoke (Name : String, Arguments : List) : Any;
     begin
-        if Name = 'Contains' then
+        if Name = 'contains' then
         begin
             if Kind = 'Map' then Exit Pairs.Contains (Arguments[0]);
 
             Exit Items.Contains (Arguments[0]);
         end
 
-        if Name = 'Get' then
+        if Name = 'get' then
         begin
             if Kind = 'Map' then Exit Pairs.Get (Arguments[0]);
 
             Exit Items.Get (Arguments[0]);
         end
 
-        if Name = 'Add' then
+        if Name = 'add' then
         begin
             // ⚠️ A Set's Add is idempotent, which is the only thing separating
             // it from a List here -- they share the same Items behind them.
@@ -187,13 +193,13 @@ begin
             Exit Arguments[0];
         end
 
-        if Name = 'Set' then
+        if Name = 'set' then
         begin
             Items[Arguments[0]] := Arguments[1];
             Exit Arguments[1];
         end
 
-        if Name = 'Put' then
+        if Name = 'put' then
         begin
             Pairs.Put (Arguments[0], Arguments[1]);
             Exit Arguments[1];
@@ -201,22 +207,22 @@ begin
 
         // Insert accepts Length as its index, which appends -- so a loop can
         // fill a list without a special case for the end.
-        if Name = 'Insert' then Exit Items.Insert (Arguments[0], Arguments[1]);
+        if Name = 'insert' then Exit Items.Insert (Arguments[0], Arguments[1]);
 
-        if Name = 'RemoveAt' then Exit Items.RemoveAt (Arguments[0]);
+        if Name = 'removeat' then Exit Items.RemoveAt (Arguments[0]);
 
         // -1 when there is no match, rather than raising, so a miss can be
         // tested for.
-        if Name = 'IndexOf' then Exit Items.IndexOf (Arguments[0]);
+        if Name = 'indexof' then Exit Items.IndexOf (Arguments[0]);
 
-        if Name = 'Sort' then
+        if Name = 'sort' then
         begin
             Items.Sort();
             Exit Nil;
         end
 
         // Every slot, which is what gives an Array its fixed contents.
-        if Name = 'Fill' then
+        if Name = 'fill' then
         begin
             for var I := 0; I < Items.Length; I := I + 1 do
                 Items[I] := Arguments[0];
@@ -224,9 +230,9 @@ begin
             Exit Nil;
         end
 
-        if Name = 'Keys'   then Exit AsList (Pairs.Keys());
-        if Name = 'Values' then Exit AsList (Pairs.Values());
-        if Name = 'ToList' then Exit AsList (Items);
+        if Name = 'keys'   then Exit AsList (Pairs.Keys());
+        if Name = 'values' then Exit AsList (Pairs.Values());
+        if Name = 'tolist' then Exit AsList (Items);
 
         // A miss is answered rather than raised, so it can be tested for.
         //
@@ -238,7 +244,7 @@ begin
         //
         // Invisible to any suite that never removes from a Map, which is why
         // one that does is worth keeping.
-        if Name = 'Remove' then
+        if Name = 'remove' then
         begin
             if Kind = 'Map' then
             begin
@@ -256,27 +262,27 @@ begin
 
         // Push, Pop and Peek work the top of Items, so a Stack prints
         // bottom-to-top in list shape.
-        if Name = 'Push' then
+        if Name = 'push' then
         begin
             Items.Add (Arguments[0]);
             Exit Arguments[0];
         end
 
-        if Name = 'Pop' then
+        if Name = 'pop' then
         begin
             if Items.Length = 0 then raise 'Pop from an empty Stack.';
 
             Exit Items.RemoveAt (Items.Length - 1);
         end
 
-        if Name = 'Peek' then
+        if Name = 'peek' then
         begin
             if Items.Length = 0 then raise 'Peek at an empty Stack.';
 
             Exit Items[Items.Length - 1];
         end
 
-        if Name = 'Clear' then
+        if Name = 'clear' then
         begin
             if Kind = 'Map' then Pairs.Clear();
             else Items.Clear();

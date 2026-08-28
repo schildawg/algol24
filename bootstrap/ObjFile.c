@@ -65,44 +65,44 @@ static Value m_ObjFile_Get_1_Token(Value v_this, Value *args, int32_t count) {
     (void)v_TheName;
     Value v_Member = alg_nil();
     (void)v_Member;
-    (void)((v_Member = alg_property(v_TheName, "Lexeme")));
-    if (alg_truthy(alg_equal(v_Member, alg_string("Eof")))) {
+    (void)((v_Member = f_FoldCase(NULL, (Value[]){alg_property(v_TheName, "Lexeme")}, 1)));
+    if (alg_truthy(alg_equal(v_Member, alg_string("eof")))) {
         return alg_property(alg_property(v_this, "Handle"), "Eof");
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Assign")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("assign")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Reset")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("reset")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Rewrite")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("rewrite")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Append")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("append")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("ReadLn")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("readln")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Write")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("write")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("WriteLn")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("writeln")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Flush")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("flush")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Close")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("close")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Erase")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("erase")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Rename")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("rename")))) {
         return alg_new(k_FileMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
     }
-    alg_raise(alg_add(alg_add(alg_string("Undefined property '"), v_Member), alg_string("'.")));
+    alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(v_TheName, "Lexeme"))), alg_string("'.")));
     return alg_nil();
 }
 
@@ -112,37 +112,37 @@ static Value m_ObjFile_Invoke_2_String_List(Value v_this, Value *args, int32_t c
     (void)v_Name;
     Value v_Arguments = args[1];
     (void)v_Arguments;
-    if (alg_truthy(alg_equal(v_Name, alg_string("Assign")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("assign")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Assign", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Reset")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("reset")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Reset", NULL, 0);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Rewrite")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("rewrite")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Rewrite", NULL, 0);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Append")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("append")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Append", NULL, 0);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("ReadLn")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("readln")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "ReadLn", NULL, 0);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Write")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("write")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Write", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("WriteLn")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("writeln")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "WriteLn", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Flush")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("flush")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Flush", NULL, 0);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Close")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("close")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Close", NULL, 0);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Erase")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("erase")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Erase", NULL, 0);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Rename")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("rename")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Rename", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
     alg_raise(alg_add(alg_add(alg_string("Undefined method '"), v_Name), alg_string("'.")));

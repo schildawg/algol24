@@ -30,14 +30,17 @@ begin
         // noticed until algc ran under algc, because algc's own NameOfClass
         // asks every value for it.  The second implementation of a rule is
         // where it goes missing.
-        if Str (Name.Lexeme) = 'ClassName' then Exit Klass.Name;
+        if FoldCase (Name.Lexeme) = 'classname' then Exit Klass.Name;
 
-        if Fields.Contains (Name.Lexeme) then
+        // ⚠️ Folded [SRC-011].  A field written 'Total' and read 'total' is one
+        // field; the lexeme itself is untouched, so the diagnostic below still
+        // echoes the spelling the program used.
+        if Fields.Contains (FoldCase (Name.Lexeme)) then
         begin
-           Exit Fields.Get (Name.Lexeme);
+           Exit Fields.Get (FoldCase (Name.Lexeme));
         end
 
-        Method := Klass.FindMethod (Name.Lexeme);
+        Method := Klass.FindMethod (FoldCase (Name.Lexeme));
         if Method <> Nil then Exit Method.Bind(this);
 
         raise 'Undefined property ''' + Name.Lexeme + '''.';
@@ -45,7 +48,7 @@ begin
 
     procedure Set (Name : Token, Value : Any);
     begin
-        Fields.Put (Name.Lexeme, Value);
+        Fields.Put (FoldCase (Name.Lexeme), Value);
     end
 
     /// To String

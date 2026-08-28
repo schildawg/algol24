@@ -35,15 +35,15 @@ static Value m_ObjInstance_Get_1_Token(Value v_this, Value *args, int32_t count)
     (void)v_Name;
     Value v_Method = alg_nil();
     (void)v_Method;
-    if (alg_truthy(alg_equal(alg_str(alg_property(v_Name, "Lexeme")), alg_string("ClassName")))) {
+    if (alg_truthy(alg_equal(f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1), alg_string("classname")))) {
         return alg_property(alg_property(v_this, "Klass"), "Name");
     }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Fields"), "Contains", (Value[]){alg_property(v_Name, "Lexeme")}, 1))) {
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Fields"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1))) {
         {
-            return alg_invoke(alg_property(v_this, "Fields"), "Get", (Value[]){alg_property(v_Name, "Lexeme")}, 1);
+            return alg_invoke(alg_property(v_this, "Fields"), "Get", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1);
         }
     }
-    (void)((v_Method = alg_invoke(alg_property(v_this, "Klass"), "FindMethod", (Value[]){alg_property(v_Name, "Lexeme")}, 1)));
+    (void)((v_Method = alg_invoke(alg_property(v_this, "Klass"), "FindMethod", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1)));
     if (alg_truthy(alg_not_equal(v_Method, alg_nil()))) {
         return alg_invoke(v_Method, "Bind", (Value[]){v_this}, 1);
     }
@@ -57,7 +57,7 @@ static Value m_ObjInstance_Set_2_Token(Value v_this, Value *args, int32_t count)
     (void)v_Name;
     Value v_Value = args[1];
     (void)v_Value;
-    (void)(alg_invoke(alg_property(v_this, "Fields"), "Put", (Value[]){alg_property(v_Name, "Lexeme"), v_Value}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Fields"), "Put", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1), v_Value}, 2));
     return alg_nil();
 }
 

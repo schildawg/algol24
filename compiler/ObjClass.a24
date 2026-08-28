@@ -1,3 +1,4 @@
+uses Token;
 uses ObjFunction;
 uses ObjInstance;
 
@@ -86,7 +87,10 @@ begin
             if Field.Initializer <> Nil then
                 Value := TheInterpreter.Evaluate (Field.Initializer);
 
-            Instance.Fields.Put (Str (Field.Name.Lexeme), Value);
+            // ⚠️ Folded, to match every read [SRC-011].  Seeded unfolded, a
+            // field declared 'Lines' was invisible to the method that reads
+            // 'Lines' -- ObjInstance.Get folds, and the two have to agree.
+            Instance.Fields.Put (FoldCase (Field.Name.Lexeme), Value);
         end
     end
 
@@ -97,7 +101,7 @@ begin
        Initializer : ObjFunction;
 
     begin
-        Initializer := FindMethod('Init');
+        Initializer := FindMethod('init');
         if Initializer = Nil then Exit 0;
 
         Exit Initializer.Arity() as Integer;
@@ -126,8 +130,8 @@ begin
         SeedFields (Instance, TheInterpreter);
 
         // A constructor overloads like any other method.
-        Initializer := FindOverload('Init', Arguments);
-        if Initializer = Nil then Initializer := FindMethod('Init');
+        Initializer := FindOverload('init', Arguments);
+        if Initializer = Nil then Initializer := FindMethod('init');
 
         if Initializer <> Nil then
         begin

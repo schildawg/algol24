@@ -4,6 +4,10 @@
 
 #include "algol.h"
 
+Value f_FoldCase(Value **cells, Value *args, int32_t count);
+extern Value v_FOLD_UPPER;
+extern Value v_FOLD_LOWER;
+extern Value fn_FoldCase;
 extern Value k_Token;
 void init_Token(void);
 

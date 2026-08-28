@@ -61,28 +61,28 @@ end
 ///
 function ExceedsInteger(Text : String) : Boolean;
 var
-   Digits : String;
+   Body : String;
 
 begin
-    Digits := Text;
+    Body := Text;
 
     // Leading zeros carry no meaning [LEX-017], and would otherwise make a
     // short number look long.
-    while Length(Digits) > 1 and Digits[0] = '0' do
-        Digits := Copy(Digits, 1, Length(Digits) - 1);
+    while Length(Body) > 1 and Body[0] = '0' do
+        Body := Copy(Body, 1, Length(Body) - 1);
 
-    if Length(Digits) < 10 then Exit False;
-    if Length(Digits) > 10 then Exit True;
+    if Length(Body) < 10 then Exit False;
+    if Length(Body) > 10 then Exit True;
 
     // ⚠️ Character by character, because STRINGS ARE NOT ORDERED [VAL-014] --
-    // 'Digits > ''2147483647''' raises 'Operands must be numbers.'  Chars are
+    // 'Body > ''2147483647''' raises 'Operands must be numbers.'  Chars are
     // ordered, so the comparison is made one at a time.  This is the same
     // reason CEmitter writes its own TextLess.
     var Limit := '2147483647';
     for var I := 0; I < 10; I := I + 1 do
     begin
-        if Digits[I] > Limit[I] then Exit True;
-        if Digits[I] < Limit[I] then Exit False;
+        if Body[I] > Limit[I] then Exit True;
+        if Body[I] < Limit[I] then Exit False;
     end
 
     Exit False;
@@ -226,8 +226,16 @@ begin
     // Scans an Identifier, or a keyword.
     //
     // Keywords match case-insensitively, so 'begin', 'Begin'
-    // and 'BEGIN' are one token.  Identifiers stay case-sensitive: only the
-    // lookup is lowered, never the lexeme.
+    // and 'BEGIN' are one token.  Identifiers match the same way [SRC-011] --
+    // folding is uniform, as Pascal's is.
+    //
+    // ⚠️ The LEXEME is never folded, here or anywhere.  The token carries the
+    // spelling the program wrote, because every diagnostic quotes it; the fold
+    // happens where a name becomes a lookup KEY, in Token.a24's FoldCase.
+    //
+    // ⚠️ This comment used to read 'Identifiers stay case-sensitive', which was
+    // accurate and misleading at once: it described a known gap as though it
+    // were the design, and a reader would have taken it for the rule.
     //
     procedure ScanIdentifier();
     var 

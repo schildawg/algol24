@@ -57,15 +57,19 @@ begin
     begin
         if Ambiguous = Nil then Ambiguous := Map();
 
-        Ambiguous.Put (Str (Name), Owners);
-        Values.Remove (Str (Name));
+        Ambiguous.Put (FoldCase (Name), Owners);
+        Values.Remove (FoldCase (Name));
     end
 
     /// Raises for a bare name that more than one imported module exports,
     /// naming them all.  Walks Imports a second time deliberately: this is the
     /// error path, and doing it here keeps OwnerOf's loop allocation-free.
     ///
-    procedure RaiseAmbiguousImport (Name : String);
+    /// ⚠️ Takes the SPELLING as well as the key.  Name is folded [SRC-011] and a
+    /// diagnostic must echo what the program wrote, or ''Shared' is ambiguous'
+    /// comes back as ''shared' is ambiguous'.
+    ///
+    procedure RaiseAmbiguousImport (Name : String, Display : String);
     var
         Owners : String;
         Seen   : Set;
@@ -78,7 +82,7 @@ begin
         begin
             var TheModule := Imports[I] as Environment;
 
-            if TheModule.Values.Contains (Name) then
+            if TheModule.Values.Contains (FoldCase (Name)) then
                 if TheModule.IsExported (Name) then
                     if not Seen.Contains (TheModule.UnitName) then
                     begin
@@ -89,7 +93,7 @@ begin
                     end
         end
 
-        raise '''' + Str (Name) + ''' is ambiguous: ' + Owners + '.';
+        raise '''' + Str (Display) + ''' is ambiguous: ' + Owners + '.';
     end
 
     /// Whether an importer may see this name.
@@ -98,7 +102,7 @@ begin
     begin
         if Exports = Nil then Exit True;
 
-        Exit Exports.Contains (Name);
+        Exit Exports.Contains (FoldCase (Name));
     end
 
     /// The imported module that owns this name, or Nil.  Deliberately the
@@ -112,7 +116,7 @@ begin
     /// one of the modules -- advice to edit a module because of what some other
     /// module, possibly written by someone else, happens to export.
     ///
-    function OwnerOf (Name : String) : Any;
+    function OwnerOf (Name : String, Display : String) : Any;
     var
         Found : Environment;
 
@@ -123,14 +127,14 @@ begin
         begin
             var TheModule := Imports[I] as Environment;
 
-            if TheModule.Values.Contains (Name) then
+            if TheModule.Values.Contains (FoldCase (Name)) then
                 if TheModule.IsExported (Name) then
                 begin
                     // ⚠️ Not a clash with itself: importing one module twice
                     // leaves the same environment in Imports twice, and one
                     // module is never ambiguous with itself.
                     if Found <> Nil and TheModule <> Found then
-                        RaiseAmbiguousImport (Name);
+                        RaiseAmbiguousImport (Name, Display);
 
                     Found := TheModule;
                 end
@@ -143,7 +147,7 @@ begin
     ///
     procedure Define (Name : String, Value : Any);
     begin
-        Values.Put (Str(Name), Value);
+        Values.Put (FoldCase (Name), Value);
     end
 
     /// Assigns a value to an existing variable.  Walks up the enclosing Environments until it finds the variable defined.
@@ -154,24 +158,24 @@ begin
     ///
     procedure Assign (Name : Token, Value : Any);
     begin
-        if Values.Contains(Str(Name.Lexeme)) then
+        if Values.Contains(FoldCase (Name.Lexeme)) then
         begin
-            Values.Put (Str(Name.Lexeme), Value);
+            Values.Put (FoldCase (Name.Lexeme), Value);
             Exit;
         end
 
         if Ambiguous <> Nil then
-            if Ambiguous.Contains (Str(Name.Lexeme)) then
+            if Ambiguous.Contains (FoldCase (Name.Lexeme)) then
                 raise '''' + Str (Name.Lexeme) + ''' is ambiguous: '
-                    + Str (Ambiguous.Get (Str(Name.Lexeme))) + '.';
+                    + Str (Ambiguous.Get (FoldCase (Name.Lexeme))) + '.';
 
         // ⚠️ Written where it lives, in the module that declared it.  Defining a
         // copy here would leave two bindings for one name, and a later read
         // would find whichever came first while the other went stale.
-        var Owner := OwnerOf (Str(Name.Lexeme));
+        var Owner := OwnerOf (FoldCase (Name.Lexeme), Str (Name.Lexeme));
         if Owner <> Nil then
         begin
-            (Owner as Environment).Values.Put (Str(Name.Lexeme), Value);
+            (Owner as Environment).Values.Put (FoldCase (Name.Lexeme), Value);
             Exit;
         end
 
@@ -191,18 +195,18 @@ begin
     ///
     function Get (Name : Token) : Any;
     begin
-        if Values.Contains( Str(Name.Lexeme)) then
+        if Values.Contains( FoldCase (Name.Lexeme)) then
         begin
-            Exit Values.Get (Str(Name.Lexeme));
+            Exit Values.Get (FoldCase (Name.Lexeme));
         end
 
         if Ambiguous <> Nil then
-            if Ambiguous.Contains (Str(Name.Lexeme)) then
+            if Ambiguous.Contains (FoldCase (Name.Lexeme)) then
                 raise '''' + Str (Name.Lexeme) + ''' is ambiguous: '
-                    + Str (Ambiguous.Get (Str(Name.Lexeme))) + '.';
+                    + Str (Ambiguous.Get (FoldCase (Name.Lexeme))) + '.';
 
-        var Owner := OwnerOf (Str(Name.Lexeme));
-        if Owner <> Nil then Exit (Owner as Environment).Values.Get (Str(Name.Lexeme));
+        var Owner := OwnerOf (FoldCase (Name.Lexeme), Str (Name.Lexeme));
+        if Owner <> Nil then Exit (Owner as Environment).Values.Get (FoldCase (Name.Lexeme));
 
         if Enclosing <> Nil then Exit Enclosing.Get(Name);
 
@@ -214,7 +218,7 @@ begin
     ///
     function GetAt (Distance : Integer, Name : String) : Any;
     begin
-        Exit Ancestor (Distance).Values.Get(Name);
+        Exit Ancestor (Distance).Values.Get (FoldCase (Name));
     end
 
     /// Assigns a value to an existing variable.  The parameter ''distance'' is how many hops up ancestor environments to reach
@@ -229,7 +233,7 @@ begin
     ///
     procedure AssignAt (Distance : Integer, Name : Token, Value : Any);
     begin
-        Ancestor (Distance).Values.Put(Name.Lexeme, Value);
+        Ancestor (Distance).Values.Put (FoldCase (Name.Lexeme), Value);
     end
 
     // Hops up the ancestor chain by a ''distance''

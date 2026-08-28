@@ -68,7 +68,7 @@ begin
         this.CurrentFunction := FUN_NONE;
         this.CurrentClass := CLASS_NONE;
         this.Units := Set();
-        this.Units.Add ('System');
+        this.Units.Add ('system');
         this.Dottable := Set();
     end
 
@@ -89,13 +89,13 @@ begin
         begin
             var TheStmt := Statements[I];
 
-            if TheStmt is ObjectStmt then Dottable.Add (Str (TheStmt.Name.Lexeme));
-            if TheStmt is EnumStmt   then Dottable.Add (Str (TheStmt.Name.Lexeme));
-            if TheStmt is VarStmt    then Dottable.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is ObjectStmt then Dottable.Add (FoldCase (TheStmt.Name.Lexeme));
+            if TheStmt is EnumStmt   then Dottable.Add (FoldCase (TheStmt.Name.Lexeme));
+            if TheStmt is VarStmt    then Dottable.Add (FoldCase (TheStmt.Name.Lexeme));
 
             if TheStmt is VarGroupStmt then
                 for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
-                    Dottable.Add (Str (TheStmt.Names[J].Lexeme));
+                    Dottable.Add (FoldCase (TheStmt.Names[J].Lexeme));
 
             if TheStmt is ModuleStmt and TheStmt.Statements <> Nil then
                 CollectDottable (TheStmt.Statements);
@@ -121,11 +121,11 @@ begin
 
         var Name := Str (Obj.Name.Lexeme);
 
-        if not Units.Contains (Name)  then Exit False;
-        if Dottable.Contains (Name)   then Exit False;
+        if not Units.Contains (FoldCase (Name))  then Exit False;
+        if Dottable.Contains (FoldCase (Name))   then Exit False;
 
         for var I := Scopes.Length - 1; I >= 0; I := I - 1 do
-            if Scopes[I].Contains (Name) then Exit False;
+            if Scopes[I].Contains (FoldCase (Name)) then Exit False;
 
         Exit True;
     end
@@ -179,7 +179,7 @@ begin
         for var I := 0; I < Stmt.Methods.Length; I := I + 1 do
         begin
             var Declaration := FUN_FUNCTION;
-            if Stmt.Methods[I].Name.Lexeme = 'Init' then
+            if FoldCase (Stmt.Methods[I].Name.Lexeme) = 'init' then
             begin
                 Declaration := FUN_INITIALIZER;
             end
@@ -270,7 +270,7 @@ begin
         // importer gets the same sight of it as the first.
         if Stmt.Statements = Nil then
         begin
-            Units.Add (Str (Stmt.UnitName));
+            Units.Add (FoldCase (Stmt.UnitName));
             Exit;
         end
 
@@ -281,12 +281,12 @@ begin
         // 'Token.X' because Scanner happened to import Token.
         Enclosing := Units;
         Units := Set();
-        Units.Add ('System');
+        Units.Add ('system');
 
         ResolveAll (Stmt.Statements);
 
         Units := Enclosing;
-        Units.Add (Str (Stmt.UnitName));
+        Units.Add (FoldCase (Stmt.UnitName));
     end
 
     /// Nothing to resolve: 'break' names nothing and reads nothing.
@@ -561,7 +561,7 @@ begin
     //
     function VisitVariableExpr (TheExpr : VariableExpr);
     begin
-        if Not Scopes.IsEmpty and Scopes.Peek().Get(TheExpr.Name.Lexeme) = False then
+        if Not Scopes.IsEmpty and Scopes.Peek().Get(FoldCase (TheExpr.Name.Lexeme)) = False then
         begin
            raise 'Can''t read local variable in its own initializer.';
         end
@@ -615,6 +615,11 @@ begin
             begin
                 var TheName := '';
 
+                // ⚠️ The spelling the program wrote, carried beside the folded
+                // key [SRC-011].  Raising with the key reported ''x' is already
+                // defined.' for a program that wrote 'X'.
+                var Written := '';
+
                 // ⚠️ Test blocks included, and they must be.  A test's name
                 // token is the STRING LITERAL, so its lexeme is quoted and can
                 // never collide with an identifier -- but two tests of one name
@@ -622,45 +627,49 @@ begin
                 // second silently replaced the first.  Excluding them left
                 // '--test' refusing a duplicate while '--compile --test' emitted
                 // it and ran both.
-                if TheStmt is FunctionStmt then TheName := Str (TheStmt.Name.Lexeme);
+                if TheStmt is FunctionStmt then TheName := FoldCase (TheStmt.Name.Lexeme);
 
-                if TheStmt is ClassStmt  then TheName := Str (TheStmt.Name.Lexeme);
-                if TheStmt is ObjectStmt then TheName := Str (TheStmt.Name.Lexeme);
-                if TheStmt is VarStmt    then TheName := Str (TheStmt.Name.Lexeme);
+                if TheStmt is ClassStmt  then TheName := FoldCase (TheStmt.Name.Lexeme);
+                if TheStmt is ObjectStmt then TheName := FoldCase (TheStmt.Name.Lexeme);
+                if TheStmt is VarStmt    then TheName := FoldCase (TheStmt.Name.Lexeme);
+
+                if TheName <> '' then Written := Str (TheStmt.Name.Lexeme);
 
                 if TheStmt is EnumStmt then
                 begin
-                    var Owner := Str (TheStmt.Name.Lexeme);
+                    var Owner := FoldCase (TheStmt.Name.Lexeme);
 
                     for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
                     begin
-                        var Member := Str (TheStmt.Members[J].Lexeme);
+                        var Member  := FoldCase (TheStmt.Members[J].Lexeme);
+                        var AsWritten := Str (TheStmt.Members[J].Lexeme);
 
                         if Seen.Contains (Member) then
-                            raise '''' + Member + ''' is already defined.';
+                            raise '''' + AsWritten + ''' is already defined.';
 
                         // Repeated within one enumeration -- a plain duplicate,
                         // with no qualified form that could tell them apart.
                         if MemberOwner.Contains (Member) then
                             if Str (MemberOwner.Get (Member)) = Owner then
-                                raise '''' + Member + ''' is already defined.';
+                                raise '''' + AsWritten + ''' is already defined.';
 
                         MemberOwner.Put (Member, Owner);
                     end
 
-                    TheName := Str (TheStmt.Name.Lexeme);
+                    TheName := FoldCase (TheStmt.Name.Lexeme);
+                    Written := Str (TheStmt.Name.Lexeme);
                 end
 
                 if TheStmt is VarGroupStmt then
                     for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
                     begin
-                        var Each := Str (TheStmt.Names[J].Lexeme);
+                        var Each := FoldCase (TheStmt.Names[J].Lexeme);
 
                         if Seen.Contains (Each) then
-                            raise '''' + Each + ''' is already defined.';
+                            raise '''' + Str (TheStmt.Names[J].Lexeme) + ''' is already defined.';
 
                         if MemberOwner.Contains (Each) then
-                            raise '''' + Each + ''' is already defined.';
+                            raise '''' + Str (TheStmt.Names[J].Lexeme) + ''' is already defined.';
 
                         Seen.Add (Each);
                     end
@@ -668,10 +677,10 @@ begin
                 if TheName <> '' then
                 begin
                     if Seen.Contains (TheName) then
-                        raise '''' + TheName + ''' is already defined.';
+                        raise '''' + Written + ''' is already defined.';
 
                     if MemberOwner.Contains (TheName) then
-                        raise '''' + TheName + ''' is already defined.';
+                        raise '''' + Written + ''' is already defined.';
 
                     Seen.Add (TheName);
                 end
@@ -760,18 +769,18 @@ begin
     begin
         if Scopes.IsEmpty then
         begin
-            GlobalConstants.Put (Str (Name.Lexeme), IsConstant);
+            GlobalConstants.Put (FoldCase (Name.Lexeme), IsConstant);
             Exit;
         end
 
         Scope := Scopes.Peek() as Map;
-        if Scope.Contains (Name.Lexeme) then 
+        if Scope.Contains (FoldCase (Name.Lexeme)) then 
         begin
            raise 'Already a variable with this name in this scope.';
         end
 
-        Scope.Put (Name.Lexeme, False);
-        Constants.Peek().Put (Str (Name.Lexeme), IsConstant);
+        Scope.Put (FoldCase (Name.Lexeme), False);
+        Constants.Peek().Put (FoldCase (Name.Lexeme), IsConstant);
     end
 
     /// Whether this name was declared constant, innermost scope first.
@@ -784,9 +793,9 @@ begin
         Lexeme := Str (Name.Lexeme);
 
         for var I := Constants.Length - 1; I >= 0; I := I - 1 do
-            if Constants[I].Contains (Lexeme) then Exit Constants[I].Get (Lexeme);
+            if Constants[I].Contains (FoldCase (Lexeme)) then Exit Constants[I].Get (FoldCase (Lexeme));
 
-        if GlobalConstants.Contains (Lexeme) then Exit GlobalConstants.Get (Lexeme);
+        if GlobalConstants.Contains (FoldCase (Lexeme)) then Exit GlobalConstants.Get (FoldCase (Lexeme));
 
         Exit False;
     end
@@ -801,14 +810,14 @@ begin
         if Scopes.IsEmpty then Exit;
         
         Scope := Scopes.Peek() as Map;
-        Scope.Put (Name.Lexeme, True);
+        Scope.Put (FoldCase (Name.Lexeme), True);
     end
     
     procedure ResolveLocal (TheExpr : Expr, Name : Token);
     begin
         for var I : Integer := Scopes.Length - 1; I >= 0; I := I - 1 do
         begin
-            if Scopes[I].Contains (Name.Lexeme) then
+            if Scopes[I].Contains (FoldCase (Name.Lexeme)) then
             begin
                 TheInterpreter.Resolve (TheExpr, Scopes.Length - 1 - I);
                 Exit;

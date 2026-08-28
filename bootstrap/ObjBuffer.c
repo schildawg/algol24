@@ -70,32 +70,32 @@ static Value m_ObjBuffer_Get_1_Token(Value v_this, Value *args, int32_t count) {
     (void)v_TheName;
     Value v_Member = alg_nil();
     (void)v_Member;
-    (void)((v_Member = alg_property(v_TheName, "Lexeme")));
-    if (alg_truthy(alg_equal(v_Member, alg_string("Text")))) {
+    (void)((v_Member = f_FoldCase(NULL, (Value[]){alg_property(v_TheName, "Lexeme")}, 1)));
+    if (alg_truthy(alg_equal(v_Member, alg_string("text")))) {
         return alg_property(alg_property(v_this, "Handle"), "Text");
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Length")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("length")))) {
         return alg_property(alg_property(v_this, "Handle"), "Length");
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("IsEmpty")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("isempty")))) {
         return alg_property(alg_property(v_this, "Handle"), "IsEmpty");
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Append")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("append")))) {
         return alg_new(k_BufferMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("PutInt")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("putint")))) {
         return alg_new(k_BufferMethod, (Value[]){v_this, v_Member, alg_int(2)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("GetInt")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("getint")))) {
         return alg_new(k_BufferMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Resize")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("resize")))) {
         return alg_new(k_BufferMethod, (Value[]){v_this, v_Member, alg_int(1)}, 3);
     }
-    if (alg_truthy(alg_equal(v_Member, alg_string("Free")))) {
+    if (alg_truthy(alg_equal(v_Member, alg_string("free")))) {
         return alg_new(k_BufferMethod, (Value[]){v_this, v_Member, alg_int(0)}, 3);
     }
-    alg_raise(alg_add(alg_add(alg_string("Undefined property '"), v_Member), alg_string("'.")));
+    alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(v_TheName, "Lexeme"))), alg_string("'.")));
     return alg_nil();
 }
 
@@ -105,19 +105,19 @@ static Value m_ObjBuffer_Invoke_2_String_List(Value v_this, Value *args, int32_t
     (void)v_Name;
     Value v_Arguments = args[1];
     (void)v_Arguments;
-    if (alg_truthy(alg_equal(v_Name, alg_string("Append")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("append")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Append", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("PutInt")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("putint")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "PutInt", (Value[]){alg_subscript_get(v_Arguments, alg_int(0)), alg_subscript_get(v_Arguments, alg_int(1))}, 2);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("GetInt")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("getint")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "GetInt", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Resize")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("resize")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Resize", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1);
     }
-    if (alg_truthy(alg_equal(v_Name, alg_string("Free")))) {
+    if (alg_truthy(alg_equal(v_Name, alg_string("free")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Free", NULL, 0);
     }
     alg_raise(alg_add(alg_add(alg_string("Undefined method '"), v_Name), alg_string("'.")));

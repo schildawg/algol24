@@ -39,7 +39,7 @@ begin
     /// read it back [ENU-010].
     function Get (TheName : Token) : Any;
     begin
-        if Str (TheName.Lexeme) = 'Ordinal' then Exit Ordinal;
+        if FoldCase (TheName.Lexeme) = 'ordinal' then Exit Ordinal;
 
         raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end
@@ -69,8 +69,11 @@ begin
        Member : ObjEnum;
 
     begin
+        // ⚠️ Keyed FOLDED [SRC-011], while the ObjEnum keeps the spelling the
+        // program wrote -- 'Colour.RED' and 'Colour.Red' are one member, and it
+        // still prints as it was declared.
         Member := ObjEnum (Name, MemberName, Members.Length);
-        Members.Put (MemberName, Member);
+        Members.Put (FoldCase (MemberName), Member);
 
         Exit Member;
     end
@@ -78,10 +81,10 @@ begin
     /// Qualified access: Colour.Red.
     function Get (TheName : Token) : Any;
     begin
-        if not Members.Contains (TheName.Lexeme) then
+        if not Members.Contains (FoldCase (TheName.Lexeme)) then
             raise 'Undefined enum member ''' + TheName.Lexeme + '''.';
 
-        Exit Members.Get (TheName.Lexeme);
+        Exit Members.Get (FoldCase (TheName.Lexeme));
     end
 
     function ToString () : String;

@@ -305,12 +305,20 @@ commitment than admitting Unicode letters.
 ⚠️ Only the *lookup* is folded. A diagnostic quotes the lexeme **as written**, so
 a program declaring `Xyz` and misspelling it `xyZ` is told about `xyZ`.
 
-⚠️ **NOT YET IMPLEMENTED.** The implementation matches identifiers exactly, so
-`Xyz` and `xyz` are two names. See DEF-02.
+⚠️ Folding happens where a name becomes a **key**, never to the lexeme itself,
+through one named function so that every store folds the same way as every
+lookup. `compiler/Token.a24`'s `FoldCase` scans for an uppercase letter before
+building anything, because a name that is already folded must not allocate.
 
-    interpreter  compiler/Scanner.a24  ScanIdentifier
-    unit         Scan Identifier
-    defect       DEF-02-identifiers-are-case-sensitive.a24
+⚠️ **Every diagnostic on the path had to be corrected.** Folding the key made
+messages echo the key: a program writing `Shared` was told about `shared`, a
+unit spelled `Deep` was reported as `deep`. A message names the occurrence the
+program wrote.
+
+    interpreter  compiler/Token.a24        FoldCase
+    interpreter  compiler/Environment.a24  Get
+    conformance  0126-identifiers-are-case-insensitive.a24
+    refusal      0036-case-insensitive-duplicate.a24
 
 ⚠️ **Folding is uniform**, as Pascal's is: a name is a name whether it is a
 keyword, a variable, a field, a method or a type [VAL-006]. A program may not
@@ -2470,17 +2478,18 @@ and `RemoveAt` is making it say which it meant.
 as every name in the language is [SRC-011]. `L.Add(2)` and `L.add(2)` are the
 same member.
 
-⚠️ **NOT YET IMPLEMENTED.** The interpreter matches exactly, so `L.add(2)` is
-`Undefined property 'add'.` See DEF-02.
+⚠️ **This is the one place where the C back end was already right and the
+interpreter was the one that changed** — C-4, now withdrawn. The compiler
+compared these names with `alg_stricmp`, which was recorded as a divergence
+while the interpreter was taken to be the authority; [SRC-011] reversed that.
 
-⚠️ **This is the one place where the C back end is already right and the
-interpreter is the one to change** (C-4). The compiler compares these names with
-`alg_stricmp`, which was recorded as a divergence when the interpreter was taken
-to be the authority; [SRC-011] reverses that. It is also the safer direction to
-move, since it can only make programs start working.
+⚠️ The comparison literals in `ObjCollection`, `ObjFile` and `ObjBuffer` are
+written **folded**, and the incoming member is folded to meet them. The
+diagnostic still quotes the member as the program wrote it: `L.Zap` is
+`Undefined property 'Zap'.`, not `'zap'`.
 
     interpreter  compiler/ObjCollection.a24  Get
-    defect       DEF-02-identifiers-are-case-sensitive.a24
+    conformance  0126-identifiers-are-case-insensitive.a24
 
 ### 14.3 Order
 
@@ -3503,7 +3512,8 @@ information to put in one. The `FAIL` stands alone where the interpreter also
 prints the assertion and a caret. A report comparison drops those lines for that
 reason.
 
-**C-4 — Collection member names are matched case-insensitively.** *(silent)*
+**C-4 — Collection member names are matched case-insensitively.**
+***Withdrawn.***
 *(refers to [COL-006])*
 
 ```
@@ -3524,12 +3534,18 @@ The C runtime compares collection members with `alg_stricmp`, which is
 deliberate — but `bootstrap/algol.h` asserted alongside it that this was "what
 the interpreter does", and it is not. That comment has been corrected.
 
-The interpreter is the authority [1.1], so the fault is the compiler's.
+⚠️ **Withdrawn in the compiler's favour**, which is the opposite of what this
+entry proposed. [SRC-011] folds *every* name, so a built-in member is a name like
+any other and `alg_stricmp` was right all along. The interpreter is what changed:
+`ObjCollection`, `ObjFile` and `ObjBuffer` fold the incoming member and their
+comparison literals are written folded to match.
 
-*Fix:* compare exactly in `alg_property` and `alg_invoke` for collection
-receivers. Note that `Length` and `IsEmpty` are matched case-insensitively by
-the same code, so the change must cover those too, and any program relying on
-the looser spelling will stop compiling — which is the point.
+⚠️ The entry's proposed fix — compare exactly in `alg_property` and `alg_invoke`
+— would have been **wrong**, and it was written before [SRC-011] was enforced
+anywhere. That is the hazard of recording a remedy alongside a divergence: the
+divergence was real and the remedy assumed which side was at fault.
+
+The number is not reused.
 
 **C-5 — Module bodies run at a different time.** *(silent)*
 *(refers to [INI-003], [INI-004])*
@@ -4587,37 +4603,6 @@ reclaims. An in-place append is safe only once a String carries its own length,
 since an alias must keep reading its own shorter view. G.2 has the measurement
 and the mechanism. This defect is therefore the gate on the largest performance
 problem the runtime has, which is not obvious from its title.
-
-**DEF-02 — Identifiers are matched case-sensitively.**
-*(violates [SRC-011])*
-
-`Xyz` and `xyz` are two names where the specification says they are one, and
-declaring both in one scope is accepted where it should be a duplicate
-[VAR-007].
-
-*Reproduce:* `defects/DEF-02-identifiers-are-case-sensitive.a24`
-
-*Scope of the fix.* Every name lookup folds ASCII case — variables, fields,
-methods, unit-qualified names — while the lexeme is preserved for diagnostics.
-
-⚠️ **A comment in `compiler/Scanner.a24` states the defect as a decision.**
-`ScanIdentifier` is introduced with "Identifiers stay case-sensitive: only the
-lookup is lowered, never the lexeme" — accurate today and misleading, because it
-reads as design rather than as a known gap. It must be corrected with the code,
-or the next reader takes it for the rule.
-`Scanner.a24` already folds for keyword lookup and `algol.c` already has
-`alg_stricmp`, so the machinery exists in both.
-
-⚠️ **Prerequisite.** `compiler/Console.a24` declares a module-level `const INFO`
-and an object member `procedure Info`, and likewise `ERROR` and `Error`. Under
-folded lookup the member would shadow the constant inside `Info` itself and the
-compiler would break. Those two constants must be renamed before this defect is
-fixed.
-
-⚠️ This also **reverses C-4**. Collection member names are matched
-case-insensitively by the compiler and exactly by the interpreter; under
-[SRC-011] the compiler is right and the interpreter is the one to change. That
-is the safer direction — it can only make programs start working.
 
 **DEF-04 — `print` is a keyword and a statement.**
 *(violates [LEX-010], [STM-022])*

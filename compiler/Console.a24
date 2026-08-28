@@ -22,6 +22,12 @@ const ANSI_CYAN   := ESC + '[36m';
 const ANSI_WHITE  := ESC + '[37m';
 
 /// The '[INFO] ' tag every report line opens with, colour and trailing space
+///
+/// ⚠️ Named INFO_TAG, not INFO, and ERROR_TAG rather than ERROR, because names
+/// are matched WITHOUT REGARD TO CASE [SRC-011].  The object below has a
+/// 'procedure Info' and a 'procedure Error'; under folded lookup a constant
+/// spelled INFO is the same name as the method Info, which would shadow it
+/// inside the method's own body.
 /// included.
 ///
 /// ⚠️ Here rather than spelled out at each site, because the test runner writes
@@ -30,7 +36,7 @@ const ANSI_WHITE  := ESC + '[37m';
 /// the same bytes a third time.  Two copies of this are unavoidable; three were
 /// not.
 ///
-const INFO := ANSI_WHITE + '[' + ANSI_BLUE + 'INFO' + ANSI_WHITE + '] ' + ANSI_RESET;
+const INFO_TAG := ANSI_WHITE + '[' + ANSI_BLUE + 'INFO' + ANSI_WHITE + '] ' + ANSI_RESET;
 
 /// The '[ERROR] ' tag, on the same terms.
 ///
@@ -38,7 +44,7 @@ const INFO := ANSI_WHITE + '[' + ANSI_BLUE + 'INFO' + ANSI_WHITE + '] ' + ANSI_R
 /// tag out because its ']' sits outside the white run, which is deliberate and
 /// explained where it is written.
 ///
-const ERROR := ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_WHITE + '] ' + ANSI_RESET;
+const ERROR_TAG := ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_WHITE + '] ' + ANSI_RESET;
 
 object Console;
 begin
@@ -75,7 +81,7 @@ begin
 
     procedure Info (Text : String);
     begin
-        WriteLn (INFO + Text);
+        WriteLn (INFO_TAG + Text);
     end
 
     /// [INFO] Program.a24 ................................. SUCCESS
@@ -128,7 +134,7 @@ begin
         Text := SourceCode.Get (Where.LineNumber) as String;
         Digits := Length (Str (Where.LineNumber));
 
-        WriteLn (ERROR + SourceCode.Name() + ': ' + Message);
+        WriteLn (ERROR_TAG + SourceCode.Name() + ': ' + Message);
 
         // ⚠️ '|', not a box-drawing #9553.
         //
@@ -141,7 +147,7 @@ begin
         //
         // Only [ERROR] lines carry it, and every comparison drops those, so
         // this costs a prettier caret and nothing else.
-        WriteLn (ERROR + Str(Where.LineNumber) + ' | ' + Text);
+        WriteLn (ERROR_TAG + Str(Where.LineNumber) + ' | ' + Text);
 
         WriteLn (ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_RESET + '] ' + Repeat(' ', Digits)
                  + ' |' + ANSI_RED + Repeat(' ', Where.Offset + 1)

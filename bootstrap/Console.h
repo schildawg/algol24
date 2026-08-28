@@ -13,8 +13,8 @@ extern Value v_ANSI_YELLOW;
 extern Value v_ANSI_BLUE;
 extern Value v_ANSI_CYAN;
 extern Value v_ANSI_WHITE;
-extern Value v_INFO;
-extern Value v_ERROR;
+extern Value v_INFO_TAG;
+extern Value v_ERROR_TAG;
 extern Value k_Console;
 void init_Console(void);
 

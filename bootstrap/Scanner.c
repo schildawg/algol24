@@ -93,16 +93,16 @@ Value f_ExceedsInteger(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
     Value v_Text = args[0];
     (void)v_Text;
-    Value v_Digits = alg_nil();
-    (void)v_Digits;
-    (void)((v_Digits = v_Text));
-    while (alg_truthy((or_0 = alg_greater(alg_length(v_Digits), alg_int(1)), !alg_truthy(or_0) ? or_0 : alg_equal(alg_subscript_get(v_Digits, alg_int(0)), alg_char_value(48))))) {
-        (void)((v_Digits = alg_copy(v_Digits, alg_int(1), alg_subtract(alg_length(v_Digits), alg_int(1)))));
+    Value v_Body = alg_nil();
+    (void)v_Body;
+    (void)((v_Body = v_Text));
+    while (alg_truthy((or_0 = alg_greater(alg_length(v_Body), alg_int(1)), !alg_truthy(or_0) ? or_0 : alg_equal(alg_subscript_get(v_Body, alg_int(0)), alg_char_value(48))))) {
+        (void)((v_Body = alg_copy(v_Body, alg_int(1), alg_subtract(alg_length(v_Body), alg_int(1)))));
     }
-    if (alg_truthy(alg_less(alg_length(v_Digits), alg_int(10)))) {
+    if (alg_truthy(alg_less(alg_length(v_Body), alg_int(10)))) {
         return alg_bool(false);
     }
-    if (alg_truthy(alg_greater(alg_length(v_Digits), alg_int(10)))) {
+    if (alg_truthy(alg_greater(alg_length(v_Body), alg_int(10)))) {
         return alg_bool(true);
     }
     Value v_Limit = alg_string("2147483647");
@@ -113,10 +113,10 @@ Value f_ExceedsInteger(Value **cells, Value *args, int32_t count) {
         while (alg_truthy(alg_less(v_I, alg_int(10)))) {
             {
                 {
-                    if (alg_truthy(alg_greater(alg_subscript_get(v_Digits, v_I), alg_subscript_get(v_Limit, v_I)))) {
+                    if (alg_truthy(alg_greater(alg_subscript_get(v_Body, v_I), alg_subscript_get(v_Limit, v_I)))) {
                         return alg_bool(true);
                     }
-                    if (alg_truthy(alg_less(alg_subscript_get(v_Digits, v_I), alg_subscript_get(v_Limit, v_I)))) {
+                    if (alg_truthy(alg_less(alg_subscript_get(v_Body, v_I), alg_subscript_get(v_Limit, v_I)))) {
                         return alg_bool(false);
                     }
                 }

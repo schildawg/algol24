@@ -174,7 +174,7 @@ begin
             // Through Add, so duplicates collapse -- which is what makes
             // Set([1, 2, 2]) the way a set literal is spelled.
             for var I := 0; I < From.Items.Length; I := I + 1 do
-                Result.Invoke ('Add', [From.Items[I]]);
+                Result.Invoke ('add', [From.Items[I]]);
         end
 
         Exit Result;
@@ -506,7 +506,7 @@ begin
 
     if Value is ObjInstance then
     begin
-        var Method := Value.Klass.FindMethod ('ToString');
+        var Method := Value.Klass.FindMethod ('tostring');
 
         if Method <> Nil then
             Exit Stringify (TheInterpreter, Method.Bind (Value).Call (TheInterpreter, List()));
@@ -945,7 +945,7 @@ begin
         HoistTests (Statements, Tests, ByName, True, Globals, DeclaredIn,
                     FileName, Files, ByFile, Hoisted, True);
 
-        WriteLn (INFO + 'Running ' + Str(Tests.Length) + ' tests...');
+        WriteLn (INFO_TAG + 'Running ' + Str(Tests.Length) + ' tests...');
 
         Passed := 0;
         Failed := 0;
@@ -967,9 +967,9 @@ begin
             // A file name rather than a test: open its section and move on.
             if not ByName.Contains (Ordered[I]) then
             begin
-                if I > 0 then WriteLn (INFO);
+                if I > 0 then WriteLn (INFO_TAG);
 
-                WriteLn (INFO + '< ' + ANSI_CYAN + Str (Ordered[I]) + ANSI_RESET + ' >');
+                WriteLn (INFO_TAG + '< ' + ANSI_CYAN + Str (Ordered[I]) + ANSI_RESET + ' >');
             end
             else
             begin
@@ -991,7 +991,7 @@ begin
                     begin
                         Failed := Failed + 1;
                         WriteLn (Report (Name, 'FAIL'));
-                        WriteLn (ERROR + FileName + ': ' + e);
+                        WriteLn (ERROR_TAG + FileName + ': ' + e);
                     end
 
                 // A test whose body raises and does not catch is a FAILING
@@ -1002,18 +1002,18 @@ begin
                     begin
                         Failed := Failed + 1;
                         WriteLn (Report (Name, 'FAIL'));
-                        WriteLn (ERROR + FileName + ': ' + Str (e.Value));
+                        WriteLn (ERROR_TAG + FileName + ': ' + Str (e.Value));
                     end
             end
             end
         end
 
-        WriteLn (INFO);
+        WriteLn (INFO_TAG);
 
         if Failed = 0 then
-            WriteLn (INFO + ANSI_GREEN + 'All ' + Str(Passed) + ' tests passed.' + ANSI_RESET);
+            WriteLn (INFO_TAG + ANSI_GREEN + 'All ' + Str(Passed) + ' tests passed.' + ANSI_RESET);
         else
-            WriteLn (INFO + ANSI_RED + Str(Failed) + ' of ' + Str(Passed + Failed)
+            WriteLn (INFO_TAG + ANSI_RED + Str(Failed) + ' of ' + Str(Passed + Failed)
                           + ' tests failed.' + ANSI_RESET);
 
         Exit Failed;
@@ -1040,7 +1040,7 @@ begin
         var Tint := ANSI_GREEN;
         if Status = 'FAIL' then Tint := ANSI_RED;
 
-        Exit INFO + 'Test: ' + Name + ' ' + Leader + ' [ ' + Tint + Status + ANSI_RESET + ' ]';
+        Exit INFO_TAG + 'Test: ' + Name + ' ' + Leader + ' [ ' + Tint + Status + ANSI_RESET + ' ]';
     end
 
     /// Interprets a literal value.
@@ -1330,8 +1330,11 @@ begin
             // Only what the unit EXPORTS: 'uses' would not reach a private name,
             // so naming it would be advice that does not work -- the mistake the
             // 'mark it private' message made one finding over.
-            if ModuleEnv.Exports <> Nil and ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
-                Exit Str (Message) + ' Unit ''' + Str (Units[I])
+            // ⚠️ The unit's OWN name, not the map key.  UnitsByName is keyed
+            // folded [SRC-011], so naming Units[I] here reported unit 'deep'
+            // for a unit the program spells 'Deep'.
+            if ModuleEnv.Exports <> Nil and ModuleEnv.Exports.Contains (FoldCase (Name.Lexeme)) then
+                Exit Str (Message) + ' Unit ''' + Str (ModuleEnv.UnitName)
                    + ''' exports it; this file has no ''uses'' for it.';
         end
 
@@ -1341,7 +1344,7 @@ begin
         // taken: nothing can import the file a program started from.  The fix is
         // to move the declaration into a module, so the message says what is
         // wrong rather than what to type.
-        if Env <> Globals and Globals.Values.Contains (Str (Name.Lexeme)) then
+        if Env <> Globals and Globals.Values.Contains (FoldCase (Name.Lexeme)) then
             Exit Str (Message)
                + ' The file the program started from declares it, and no file can ''uses'' that.';
 
@@ -1422,7 +1425,7 @@ begin
         begin
             if Callee.Owner <> Nil then
             begin
-                var Better := Callee.Owner.FindOverload (Callee.Declaration.Name.Lexeme, Arguments);
+                var Better := Callee.Owner.FindOverload (FoldCase (Callee.Declaration.Name.Lexeme), Arguments);
 
                 // Nothing fitting is a real failure, not a reason to call
                 // whichever overload happened to be declared first.
@@ -1465,18 +1468,18 @@ begin
         ModuleEnv : Environment;
 
     begin
-        if Unit = 'System' then
+        if FoldCase (Unit) = 'system' then
             raise 'Can''t assign to ''' + Str (Name.Lexeme) + ''' in unit ''System''.';
 
-        if not UnitsByName.Contains (Unit) then
+        if not UnitsByName.Contains (FoldCase (Unit)) then
             raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
 
-        ModuleEnv := UnitsByName.Get (Unit) as Environment;
+        ModuleEnv := UnitsByName.Get (FoldCase (Unit)) as Environment;
 
-        if ModuleEnv.Exports = Nil or not ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
+        if ModuleEnv.Exports = Nil or not ModuleEnv.Exports.Contains (FoldCase (Name.Lexeme)) then
             raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
 
-        ModuleEnv.Values.Put (Str (Name.Lexeme), Value);
+        ModuleEnv.Values.Put (FoldCase (Name.Lexeme), Value);
     end
 
     /// A name reached through a unit.
@@ -1490,26 +1493,26 @@ begin
         ModuleEnv : Environment;
 
     begin
-        if Unit = 'System' then
+        if FoldCase (Unit) = 'system' then
         begin
-            if not Builtins.Values.Contains (Str (Name.Lexeme)) then
+            if not Builtins.Values.Contains (FoldCase (Name.Lexeme)) then
                 raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''System''.';
 
-            Exit Builtins.Values.Get (Str (Name.Lexeme));
+            Exit Builtins.Values.Get (FoldCase (Name.Lexeme));
         end
 
         // Nothing can reach here with an unknown unit -- the Resolver only marks
         // a name it found in the unit set -- but a module that failed to load
         // would leave the map without it.
-        if not UnitsByName.Contains (Unit) then
+        if not UnitsByName.Contains (FoldCase (Unit)) then
             raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
 
-        ModuleEnv := UnitsByName.Get (Unit) as Environment;
+        ModuleEnv := UnitsByName.Get (FoldCase (Unit)) as Environment;
 
-        if ModuleEnv.Exports = Nil or not ModuleEnv.Exports.Contains (Str (Name.Lexeme)) then
+        if ModuleEnv.Exports = Nil or not ModuleEnv.Exports.Contains (FoldCase (Name.Lexeme)) then
             raise 'Undefined name ''' + Str (Name.Lexeme) + ''' in unit ''' + Unit + '''.';
 
-        Exit ModuleEnv.Values.Get (Str (Name.Lexeme));
+        Exit ModuleEnv.Values.Get (FoldCase (Name.Lexeme));
     end
 
     function VisitGetExpr (TheExpr : GetExpr) : Any;
@@ -1530,7 +1533,7 @@ begin
         // already answered 3 where this raised [RT-017].
         if Obj is String then
         begin
-            if Str (TheExpr.Name.Lexeme) = 'Length' then Exit Length (Obj);
+            if FoldCase (TheExpr.Name.Lexeme) = 'length' then Exit Length (Obj);
 
             raise 'Undefined property ''' + Str (TheExpr.Name.Lexeme) + '''.';
         end
@@ -1602,7 +1605,7 @@ begin
 
         Superclass := Env.GetAt (Distance, 'super') as ObjClass;
         Obj := Env.GetAt (Distance - 1, 'this') as ObjInstance;
-        Method := Superclass.FindMethod (TheExpr.Method.Lexeme);
+        Method := Superclass.FindMethod (FoldCase (TheExpr.Method.Lexeme));
 
         Exit Method.Bind(Obj);
     end
@@ -1810,15 +1813,22 @@ begin
         begin
             var Method := TheStmt.Methods[I];
 
-            TheFunction := ObjFunction (Method, Env, Method.Name.Lexeme = 'Init');
+            TheFunction := ObjFunction (Method, Env, FoldCase (Method.Name.Lexeme) = 'init');
+
             // A name maps to every overload declared under it, in the order
             // written, so the first that fits wins -- which is what the C
             // runtime's forwards scan does and what the interpreter does with
             // its first-declaration-plus-overloads list.
-            if not Methods.Contains (Method.Name.Lexeme) then
-                Methods.Put (Method.Name.Lexeme, List());
+            //
+            // ⚠️ Keyed FOLDED [SRC-011], and every lookup on this map folds to
+            // match -- ObjInstance.Get, VisitSuperExpr, and the overload
+            // re-selection at the call site.
+            var MethodKey := FoldCase (Method.Name.Lexeme);
 
-            Methods.Get (Method.Name.Lexeme).Add (TheFunction);
+            if not Methods.Contains (MethodKey) then
+                Methods.Put (MethodKey, List());
+
+            Methods.Get (MethodKey).Add (TheFunction);
         end
         // The whole declarations, not just the names: a field's initializer
         // has to survive to SeedFields, which runs once per instance.  Passing
@@ -1867,7 +1877,7 @@ begin
         // field, the program owns it.
         var HasId := False;
         for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
-            if TheStmt.Fields[I].Name.Lexeme = 'Id' then HasId := True;
+            if FoldCase (TheStmt.Fields[I].Name.Lexeme) = 'id' then HasId := True;
 
         if not HasId then
         begin
@@ -1912,15 +1922,15 @@ begin
             // [ENU-011]: the bare form is marked ambiguous and the qualified
             // form goes on working, because it reaches the member through the
             // type rather than through this binding.
-            var Clash := Env.Values.Contains (MemberName);
-            if Clash then Clash := Env.Values.Get (MemberName) is ObjEnum;
+            var Clash := Env.Values.Contains (FoldCase (MemberName));
+            if Clash then Clash := Env.Values.Get (FoldCase (MemberName)) is ObjEnum;
             if Clash then
-                Clash := (Env.Values.Get (MemberName) as ObjEnum).TypeName
+                Clash := (Env.Values.Get (FoldCase (MemberName)) as ObjEnum).TypeName
                     <> TheType.Name;
 
             if Clash then
                 Env.MarkAmbiguous (MemberName,
-                    (Env.Values.Get (MemberName) as ObjEnum).TypeName
+                    (Env.Values.Get (FoldCase (MemberName)) as ObjEnum).TypeName
                         + ' or ' + TheType.Name);
             else Env.Define (MemberName, Member);
         end
@@ -1954,7 +1964,7 @@ begin
         // inside a large file. Its own compiler disagreed with it too --
         // 'redefinition of f_G' from cc -- so the interpreter was at odds with
         // the back end.
-        if Env.Values.Contains (Str (TheStmt.Name.Lexeme)) then
+        if Env.Values.Contains (FoldCase (TheStmt.Name.Lexeme)) then
             raise '''' + Str (TheStmt.Name.Lexeme) + ''' is already defined.';
 
         Env.Define (TheStmt.Name.Lexeme, TheFunction);
@@ -2005,13 +2015,13 @@ begin
     ///
     function Contains (Collection : Any, Value : Any) : Boolean;
     begin
-        if Collection is ObjCollection then Exit Collection.Invoke ('Contains', [Value]);
+        if Collection is ObjCollection then Exit Collection.Invoke ('contains', [Value]);
 
         if Collection is ObjEnumType then Exit Collection.Members.Values().Contains (Value);
 
         if Collection is ObjInstance then
         begin
-            var Method := Collection.Klass.FindMethod ('Contains');
+            var Method := Collection.Klass.FindMethod ('contains');
             if Method <> Nil then
                 Exit IsTruthy (Method.Bind (Collection).Call (this, [Value]));
         end
@@ -2078,7 +2088,7 @@ begin
 
         if Target is ObjInstance then
         begin
-            var Elements := Target.Klass.FindMethod ('Elements');
+            var Elements := Target.Klass.FindMethod ('elements');
             if Elements <> Nil then
                 Exit ElementsOf (Where, Elements.Bind (Target).Call (this, List()));
         end
@@ -2158,7 +2168,7 @@ begin
             if Already.UnitName = '' then Already.UnitName := Str (TheStmt.UnitName);
 
             Importer.Imports.Add (Modules.Get (TheStmt.FileName));
-            UnitsByName.Put (Str (TheStmt.UnitName), Modules.Get (TheStmt.FileName));
+            UnitsByName.Put (FoldCase (TheStmt.UnitName), Modules.Get (TheStmt.FileName));
             Exit;
         end
 
@@ -2175,6 +2185,11 @@ begin
         ExecuteBlock (TheStmt.Statements, ModuleEnv);
 
         Exported := List();
+
+        // The private names, folded once, to be compared against folded keys.
+        var Hidden := Set();
+        for var I := 0; I < TheStmt.PrivateNames.Length; I := I + 1 do
+            Hidden.Add (FoldCase (TheStmt.PrivateNames[I]));
 
         var Names := ModuleEnv.Values.Keys();
         for var I := 0; I < Names.Length; I := I + 1 do
@@ -2199,7 +2214,11 @@ begin
             // That is a compiler gap, not a reason to refuse the program: the
             // interpreter runs it correctly, and the emitter is what has to
             // learn to rename.
-            if not TheStmt.PrivateNames.Contains (TheName) then
+            // ⚠️ TheName comes from Values.Keys(), so it is already FOLDED
+            // [SRC-011], while PrivateNames holds the raw lexemes the parser
+            // recorded.  Comparing the two directly would never match, and every
+            // name marked private would be exported.
+            if not Hidden.Contains (TheName) then
                 Exported.Add (TheName);
         end
 
@@ -2214,7 +2233,7 @@ begin
             ModuleEnv.Exports.Add (Exported[I]);
 
         Importer.Imports.Add (ModuleEnv);
-        UnitsByName.Put (Str (TheStmt.UnitName), ModuleEnv);
+        UnitsByName.Put (FoldCase (TheStmt.UnitName), ModuleEnv);
     end
 
     /// Runs 'raise Expr;'.

@@ -1,5 +1,53 @@
 uses TokenType;
 
+/// Folds a name to the form it is looked up under.
+///
+/// Identifiers are matched WITHOUT REGARD TO CASE [SRC-011], so 'Xyz', 'xyz'
+/// and 'XYZ' are one name.  The lexeme itself is never folded -- a diagnostic
+/// must echo the spelling the program used -- so the fold happens where a name
+/// becomes a KEY and nowhere else.
+///
+/// ⚠️ A named function rather than a bare ToLower at each site, and that is the
+/// whole point: every lookup has to fold the same way as every store, or a name
+/// goes in under one spelling and is searched for under another.  One name for
+/// the rule makes the sites findable and keeps them in step.
+///
+const FOLD_UPPER := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const FOLD_LOWER := 'abcdefghijklmnopqrstuvwxyz';
+
+function FoldCase (Name : Any) : String;
+var
+   Text : String;
+   Out  : Buffer;
+
+begin
+    Text := Str (Name);
+
+    // ⚠️ Scanned for an uppercase letter before anything is built, because
+    // almost every name is already folded or has none, and the common case must
+    // not allocate.  Strings are immutable and '+' copies both operands into an
+    // arena that never reclaims, so a fold that built a new string on every
+    // lookup would retain one per lookup.
+    var Needs := False;
+    for var I := 0; I < Length (Text); I := I + 1 do
+        if Pos (FOLD_UPPER, Str (Text[I])) >= 0 then Needs := True;
+
+    if not Needs then Exit Text;
+
+    // A Buffer, not 'Out := Out + C' -- the latter is quadratic in memory that
+    // is never reclaimed.
+    Out := Buffer ();
+    for var I := 0; I < Length (Text); I := I + 1 do
+    begin
+        var At := Pos (FOLD_UPPER, Str (Text[I]));
+
+        if At >= 0 then Out.Append (Copy (FOLD_LOWER, At, 1));
+        else Out.Append (Str (Text[I]));
+    end
+
+    Exit Out.Text;
+end
+
 /// Token
 ///
 class Token;
