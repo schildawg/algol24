@@ -167,47 +167,61 @@ function activate(context) {
     }
 
     /**
-     * Runs one file and reports what its report said.
+     * Emits, builds and returns a path to a binary, or the output of whichever
+     * step failed.
      *
-     * Interpreted is one call.  Compiled is the four steps the compiler's own
-     * '--help' describes: emit C into a temporary directory, copy the runtime
-     * in beside it, build, run.  ⚠️ The emitted directory is NOT self-contained
-     * despite what '--help' says -- the emitter writes '#include "algol.h"' and
-     * never the runtime itself, so the copy is required.
-     *
-     * ⚠️ The working directory is not incidental.  A suite is interpreted from
-     * the repository root and its COMPILED binary runs from the suite's own
-     * directory, because a suite that touches files can tell the difference.
+     * The four steps the compiler's own '--help' describes: emit C into a
+     * temporary directory, copy the runtime in beside it, build, run.  ⚠️ The
+     * emitted directory is NOT self-contained despite what '--help' says -- the
+     * emitter writes '#include "algol.h"' and never the runtime itself, so the
+     * copy is required.
      *
      * ⚠️ A failing step returns ITS OWN output rather than continuing.  A back
      * end refusal -- 'A call to Copy is not supported by the C back end yet.'
      * -- arrives from the emit step, and is the only thing worth showing.
+     *
+     * The caller owns the returned directory and must remove it.
+     */
+    async function build(root, file, extra, token) {
+        const algc = path.join(root, 'bootstrap', 'algc');
+        const out = fs.mkdtempSync(path.join(os.tmpdir(), 'algol24-vscode-'));
+
+        const emitted = await run(
+            algc, ['--compile', ...extra, '--out=' + out, file], root, token);
+        if (emitted.status !== 0) return { out, failure: emitted };
+
+        for (const name of ['algol.c', 'algol.h'])
+            fs.copyFileSync(path.join(root, 'bootstrap', name), path.join(out, name));
+
+        const binary = path.join(out, 'program');
+        const sources = fs.readdirSync(out)
+            .filter(name => name.endsWith('.c'))
+            .map(name => path.join(out, name));
+
+        const built = await run(
+            process.env.CC || 'cc',
+            ['-std=c11', '-O2', '-o', binary, ...sources], out, token);
+        if (built.status !== 0) return { out, failure: built };
+
+        return { out, binary };
+    }
+
+    /**
+     * Runs one file's TESTS and reports what its report said.
+     *
+     * ⚠️ The working directory is not incidental.  A suite is interpreted from
+     * the repository root and its COMPILED binary runs from the suite's own
+     * directory, because a suite that touches files can tell the difference.
      */
     async function spawnRun(root, file, compiled, token) {
         const algc = path.join(root, 'bootstrap', 'algc');
 
         if (!compiled) return run(algc, ['--test', file], root, token);
 
-        const out = fs.mkdtempSync(path.join(os.tmpdir(), 'algol24-vscode-'));
+        const { out, binary, failure } = await build(root, file, ['--test'], token);
 
         try {
-            const emitted = await run(
-                algc, ['--compile', '--test', '--out=' + out, file], root, token);
-            if (emitted.status !== 0) return emitted;
-
-            for (const name of ['algol.c', 'algol.h'])
-                fs.copyFileSync(path.join(root, 'bootstrap', name), path.join(out, name));
-
-            const binary = path.join(out, 'suite');
-            const sources = fs.readdirSync(out)
-                .filter(name => name.endsWith('.c'))
-                .map(name => path.join(out, name));
-
-            const built = await run(
-                process.env.CC || 'cc',
-                ['-std=c11', '-O2', '-o', binary, ...sources], out, token);
-            if (built.status !== 0) return built;
-
+            if (failure) return failure;
             return run(binary, [], path.dirname(file), token);
         }
         finally {
@@ -338,6 +352,163 @@ function activate(context) {
 
         return undefined;
     }
+
+    // ---------------------------------------------------------- running a program --
+    //
+    // The Test Explorer runs test blocks; this runs the program itself, which
+    // is the other half of what algc does and the thing '--test' deliberately
+    // skips [TST-003].
+    //
+    // ⚠️ A PSEUDOTERMINAL rather than an output channel, for two reasons that
+    // are both about this language specifically.  Its output is COLOURED
+    // unconditionally -- Console.a24 writes the escapes without asking whether
+    // anything is listening, because the language has no way to ask -- and an
+    // output channel renders them as gibberish.  And the EXIT STATUS is
+    // specified behaviour: 0 for a program that reached the end of its
+    // statements [INI-005], 70 for every failure whichever phase reported it
+    // [INI-006].  A terminal can show both; a channel shows neither.
+
+    /** The terminal all runs share, recreated when the user closes it. */
+    let terminal;
+    let writer;
+    let cancel;
+
+    function openTerminal() {
+        if (terminal) return terminal;
+
+        writer = new vscode.EventEmitter();
+        const closed = new vscode.EventEmitter();
+
+        terminal = vscode.window.createTerminal({
+            name: 'Algol-24',
+            pty: {
+                onDidWrite: writer.event,
+                onDidClose: closed.event,
+                open: () => {},
+                // ⚠️ Closing the panel kills whatever is running.  A program
+                // with a loop that does not end would otherwise keep a child
+                // alive with nothing left to show its output.
+                close: () => { if (cancel) cancel(); terminal = undefined; },
+            },
+        });
+
+        return terminal;
+    }
+
+    /** ⚠️ Every write is CRLF: a bare newline leaves the cursor in its column. */
+    function write(text) {
+        writer.fire(text.replace(/\r?\n/g, '\r\n'));
+    }
+
+    /** One child process, streamed to the terminal as it arrives. */
+    function stream(command, args, cwd) {
+        return new Promise(resolve => {
+            const child = cp.spawn(command, args, { cwd });
+
+            cancel = () => child.kill();
+
+            child.stdout.on('data', chunk => write(String(chunk)));
+            child.stderr.on('data', chunk => write(String(chunk)));
+
+            child.on('error', error => {
+                write('\n\x1b[31m' + error.message + '\x1b[0m\n');
+                cancel = undefined;
+                resolve(-1);
+            });
+            child.on('close', status => { cancel = undefined; resolve(status); });
+        });
+    }
+
+    /**
+     * Runs the active file as a program, through one processor or both.
+     *
+     * ⚠️ The working directory is the WORKSPACE ROOT, for both processors and
+     * deliberately.  'uses' resolves beside the importing file first and then
+     * the working directory [MOD-002], which is why this repository's own
+     * instructions say to run from the root -- a file that imports a sibling
+     * works either way, one that imports through the root's directory does not.
+     */
+    async function runProgram(mode) {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || !editor.document.uri.fsPath.endsWith('.a24')) {
+            vscode.window.showErrorMessage('Algol-24: no .a24 file is active.');
+            return;
+        }
+
+        await editor.document.save();
+
+        const file = editor.document.uri.fsPath;
+        const root = rootOf(editor.document.uri);
+        if (!root) {
+            vscode.window.showErrorMessage(
+                'Algol-24: this file is not inside an open workspace folder.');
+            return;
+        }
+
+        const algc = path.join(root, 'bootstrap', 'algc');
+        if (!fs.existsSync(algc)) {
+            vscode.window.showErrorMessage(
+                'Algol-24: no compiler at ' + algc + ' -- run ./bootstrap/build.sh first.');
+            return;
+        }
+
+        openTerminal().show(true);
+
+        const relative = path.relative(root, file) || path.basename(file);
+
+        if (mode !== 'compiled') {
+            write('\x1b[36m$ bootstrap/algc ' + relative + '\x1b[0m\n');
+            const status = await stream(algc, [file], root);
+            write(exitLine(status));
+        }
+
+        if (mode !== 'interpreted') {
+            write('\x1b[36m$ bootstrap/algc --compile ' + relative
+                + '  &&  cc  &&  run\x1b[0m\n');
+
+            const token = { onCancellationRequested: listener => { cancel = listener; } };
+            const { out, binary, failure } = await build(root, file, [], token);
+
+            try {
+                if (failure) {
+                    write(failure.text.endsWith('\n') ? failure.text : failure.text + '\n');
+                    write(exitLine(failure.status));
+                }
+                else {
+                    const status = await stream(binary, [], root);
+                    write(exitLine(status));
+                }
+            }
+            finally {
+                fs.rmSync(out, { recursive: true, force: true });
+            }
+        }
+
+        write('\n');
+    }
+
+    /**
+     * ⚠️ The status is worth printing rather than swallowing.  70 is every
+     * failure the language reports [ERR-009] -- an uncaught raise and a type
+     * error alike -- and 0 means the program reached the end of its statements.
+     * Without it a program that raised on its last line looks like one that
+     * finished.
+     */
+    function exitLine(status) {
+        if (status === 0) return '\x1b[32m[exit 0]\x1b[0m\n';
+        if (status === 70) return '\x1b[31m[exit 70 — the program failed]\x1b[0m\n';
+
+        return '\x1b[31m[exit ' + status + ']\x1b[0m\n';
+    }
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('algol24.run', () => runProgram('interpreted')),
+        vscode.commands.registerCommand('algol24.runCompiled', () => runProgram('compiled')),
+        vscode.commands.registerCommand('algol24.runBoth', () => runProgram('both')));
+
+    context.subscriptions.push(vscode.window.onDidCloseTerminal(closing => {
+        if (closing === terminal) terminal = undefined;
+    }));
 
     controller.createRunProfile(
         'Interpreted', vscode.TestRunProfileKind.Run, handler(false), true);

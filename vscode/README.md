@@ -20,6 +20,39 @@ window has not been reloaded.
 
 To build a `.vsix` instead, `npx @vscode/vsce package` from this directory.
 
+## Running a program
+
+Three commands, on the editor title bar for a `.a24` file, in the command
+palette under **Algol-24**, and on <kbd>Ctrl</kbd>+<kbd>F5</kbd>
+(<kbd>Cmd</kbd>+<kbd>F5</kbd> on macOS):
+
+| | |
+| --- | --- |
+| **Run File** | through the interpreter |
+| **Run File (Compiled)** | emit C, copy the runtime in, `cc`, run |
+| **Run File Through Both Processors** | both, one after the other, in one terminal |
+
+The third is the one worth having in this repository. Both processors must
+agree, a disagreement is the class of bug this project exists to catch, and
+fifteen of them are recorded in the specification's Annex C — so seeing the two
+outputs one above the other is worth a click.
+
+⚠️ **A pseudoterminal, not an output channel**, for two reasons that are both
+about this language. Its output is **coloured unconditionally** — `Console.a24`
+writes the escapes without asking whether anything is listening, because the
+language has no way to ask — and an output channel renders them as gibberish.
+And the **exit status is specified behaviour**: 0 for a program that reached the
+end of its statements, 70 for every failure whichever phase reported it. The
+terminal prints it, because a program that raised on its last line otherwise
+looks like one that finished.
+
+⚠️ **The working directory is the workspace root**, for both processors. `uses`
+resolves beside the importing file first and then the working directory, which
+is why this repository's own instructions say to run from the root.
+
+The file is saved before it runs. Closing the terminal kills whatever is running
+in it.
+
 ## What it colours
 
 Derived from `compiler/Scanner.a24` and `compiler/TokenType.a24` rather than

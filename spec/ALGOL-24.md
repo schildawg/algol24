@@ -3505,9 +3505,20 @@ usual direction and is worth saying out loud.
 | Interpreted | `Uncaught: Index 5 out of range 0..2.` |
 | Compiled | `Index 5 out of range 0..2.` |
 
-The message is identical; only the prefix the driver adds is missing. Every
-conformance case ending in a runtime error meets this, which is why
-`conformance/0029` carries `// compiled: no`.
+The message is identical; only the prefix the driver adds is missing.
+
+⚠️ **Narrower than it was first recorded.** This entry said "every conformance
+case ending in a runtime error meets this". It applies only to an error raised
+by the **runtime** — a division by zero, a subscript out of range, no matching
+signature. Two cases keep the prefix and were wrongly marked as meeting it:
+
+| | |
+| --- | --- |
+| An explicit `raise` | prefix present in **both**; `raise 'boom'` gives `Uncaught: boom` either way |
+| A scan, parse or type error | prefix present in **both**, because the front end is shared [1.1] |
+
+The correction came from running the two processors against four cases whose
+comments claimed a divergence they did not have.
 
 ⚠️ Unlike C-3, this is not a consequence of compiled code lacking line
 information — the prefix needs nothing the compiled program does not have.
@@ -3686,6 +3697,19 @@ A call to 'Config' is not supported by the C back end yet.
 
 Interpreted the program runs until the call, which raises `Can only call
 functions and classes.` [CLS-016].
+
+The same refusal covers a call the emitter has no case for at all:
+
+| Program | Interpreted | Compiled |
+| --- | --- | --- |
+| `Config ()` on an object | `Can only call functions and classes.` | `A call to 'Config' is not supported…` |
+| `AssertTrue (True)` outside a test run | `Undefined variable 'AssertTrue'.` | `A call to 'AssertTrue' is not supported…` |
+
+⚠️ The second is worth noticing because the interpreter is right for a reason
+the emitter does not share: the assertions are registered **only while `--test`
+is running** [RT-002], so outside one the name is simply not there. The emitter
+sees a call to a name it cannot resolve and refuses it as unsupported, which
+describes the emitter rather than the program.
 
 ⚠️ The program is a **valid** one whose defined behaviour is to raise. The
 emitter refuses it rather than emitting something that raises, so a program the

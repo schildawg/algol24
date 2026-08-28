@@ -14,7 +14,8 @@
     ],
     "main": "./extension.js",
     "activationEvents": [
-        "workspaceContains:**/*.a24"
+        "workspaceContains:**/*.a24",
+        "onLanguage:algol24"
     ],
     "keywords": [
         "algol",
@@ -41,6 +42,73 @@
                 "language": "algol24",
                 "scopeName": "source.algol24",
                 "path": "./syntaxes/algol24.tmLanguage.json"
+            }
+        ],
+        "commands": [
+            {
+                "command": "algol24.run",
+                "title": "Run File",
+                "category": "Algol-24",
+                "icon": "$(play)"
+            },
+            {
+                "command": "algol24.runCompiled",
+                "title": "Run File (Compiled)",
+                "category": "Algol-24",
+                "icon": "$(server-process)"
+            },
+            {
+                "command": "algol24.runBoth",
+                "title": "Run File Through Both Processors",
+                "category": "Algol-24"
+            }
+        ],
+        "menus": {
+            "editor/title/run": [
+                {
+                    "command": "algol24.run",
+                    "when": "resourceExtname == .a24",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "algol24.runCompiled",
+                    "when": "resourceExtname == .a24",
+                    "group": "navigation@2"
+                },
+                {
+                    "command": "algol24.runBoth",
+                    "when": "resourceExtname == .a24",
+                    "group": "navigation@3"
+                }
+            ],
+            "editor/context": [
+                {
+                    "command": "algol24.run",
+                    "when": "resourceExtname == .a24",
+                    "group": "z_commands"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "algol24.run",
+                    "when": "resourceExtname == .a24"
+                },
+                {
+                    "command": "algol24.runCompiled",
+                    "when": "resourceExtname == .a24"
+                },
+                {
+                    "command": "algol24.runBoth",
+                    "when": "resourceExtname == .a24"
+                }
+            ]
+        },
+        "keybindings": [
+            {
+                "command": "algol24.run",
+                "key": "ctrl+f5",
+                "mac": "cmd+f5",
+                "when": "editorTextFocus && resourceExtname == .a24"
             }
         ]
     }

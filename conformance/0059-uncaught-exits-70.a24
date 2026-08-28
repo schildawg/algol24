@@ -1,7 +1,5 @@
 // spec: STM-021
 //
-// ⚠️ Expected to FAIL compiled, because of C-8: the compiled runtime omits the
-// 'Uncaught: ' prefix, which is precisely what this case pins.
 
 WriteLn ('before');
 
