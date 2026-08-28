@@ -46,6 +46,21 @@ end of its statements, 70 for every failure whichever phase reported it. The
 terminal prints it, because a program that raised on its last line otherwise
 looks like one that finished.
 
+### Run Code, from the right-click menu
+
+If [Code Runner](https://marketplace.visualstudio.com/items?itemName=formulahendry.code-runner)
+is installed, **right-click → Run Code** works too — but only because
+`.vscode/settings.json` in this repository tells it how. Without those entries
+it answers *"Code language not supported or defined."*, because Code Runner has
+no built-in knowledge of Algol-24.
+
+That path is **interpreted only**, deliberately: the compiled path is four steps
+and does not fit a one-line executor. Use the title-bar commands above for it.
+
+⚠️ The settings also set `code-runner.runInTerminal`, for the same reason this
+extension uses a pseudoterminal — the Output panel renders this language's
+colour escapes as gibberish.
+
 ⚠️ **The working directory is the workspace root**, for both processors. `uses`
 resolves beside the importing file first and then the working directory, which
 is why this repository's own instructions say to run from the root.
