@@ -2154,16 +2154,34 @@ interned object**, so `RED = Colour.RED` is true.
     unit         Both Spellings Of An Enum Member Type As The Enum
     conformance  0071-enumerations.a24
 
-**[ENU-003]**  Because members bind as bare names, two enumerations may not
-share a member name: the second is `'A' is already defined.`
+**[ENU-003]**  Two enumerations **may** share a member name. Declaring
+`type First = (A, B);` and `type Second = (A, C);` in one scope is accepted, and
+neither declaration is affected by the other.
 
-⚠️ The qualified form `Type.Member` [ENU-002] exists and would be unambiguous,
-but it does not rescue the declaration — the collision happens when the members
-are bound, before any use. Adding a member to one enumeration can therefore
-break an unrelated one elsewhere in the program.
+⚠️ **NOT YET IMPLEMENTED.** The second declaration is refused with
+`'A' is already defined.`, so adding a member to one enumeration can break an
+unrelated one elsewhere in the program. See DEF-22.
 
     interpreter  compiler/Interpreter.a24  VisitEnumStmt
-    refusal      0028-enum-members-share-one-scope.a24
+    defect       DEF-22-shared-enum-member-names.a24
+
+**[ENU-011]**  A **bare** member name bound by more than one enumeration in
+scope is ambiguous, and using it is refused with
+`'A' is ambiguous: First or Second.` The qualified form [ENU-002] resolves it:
+`First.A` and `Second.A` are two different members.
+
+A bare name bound by only one enumeration in scope is unambiguous and needs no
+qualifier, which is the ordinary case and the reason members bind bare at all.
+
+⚠️ **The refusal belongs to the use, not to the declaration.** Two enumerations
+that never meet an ambiguous use coexist without complaint, and a program is
+told about a name only where it actually cannot be resolved.
+
+⚠️ **NOT YET IMPLEMENTED.** The declaration is refused first [ENU-003], so no
+program reaches the ambiguous use. See DEF-22.
+
+    interpreter  compiler/Interpreter.a24  VisitEnumStmt
+    defect       DEF-22-shared-enum-member-names.a24
 
 **[ENU-004]**  Naming a member the type does not have is `Undefined enum member
 'X'.`
@@ -4380,6 +4398,29 @@ the C runtime does the same in `alg_property`.
 ⚠️ **This is the smaller half of D-13.** The larger half — whether the first
 member of an enumeration should be falsey at all — is still open, because
 changing it reverses part of [VAL-008], decided in chapter 7.
+
+**DEF-22 — Two enumerations may not share a member name.**
+*(violates [ENU-003], [ENU-011])*
+
+`type First = (A, B);` followed by `type Second = (A, C);` is refused with
+`'A' is already defined.`, so adding a member to one enumeration can break an
+unrelated one elsewhere in the program — and the qualified form `First.A`, which
+would be unambiguous, never gets a chance to help.
+
+*Reproduce:* `defects/DEF-22-shared-enum-member-names.a24`
+
+⚠️ **The refusal is in the wrong place rather than wrong outright.** A shared
+member name is only a problem where a *bare* use cannot be resolved. Two
+enumerations that never meet such a use coexist perfectly well, and a program
+should be told about a name where it actually cannot be resolved — not where it
+was declared.
+
+*Scope of the fix.* Two parts, and the first is a deletion. `VisitEnumStmt`
+stops refusing a member name already bound by another enumeration, and instead
+records that the bare name now denotes more than one member. Resolving a bare
+name that carries more than one binding is then the refusal, with
+`'A' is ambiguous: First or Second.` The qualified path already works and needs
+no change.
 
 ---
 

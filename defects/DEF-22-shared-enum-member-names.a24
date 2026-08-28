@@ -1,0 +1,31 @@
+// spec: ENU-003, ENU-011
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// ENU-003 accepts both declarations below.  ENU-011 then refuses only the
+// AMBIGUOUS USE, and the qualified form resolves it.  So this program should
+// reach the end and print:
+//
+//     A                 (First.A, qualified)
+//     A                 (Second.A, qualified -- a different member)
+//     false             (they are not the same member)
+//     B                 (bare, bound by only First -- unambiguous)
+//     C                 (bare, bound by only Second -- unambiguous)
+//
+// and only then be refused, at the bare 'A', with
+// ''A' is ambiguous: First or Second.'
+//
+// The second DECLARATION is refused instead, with ''A' is already defined.',
+// so none of it runs.
+
+type First  = (A, B);
+type Second = (A, C);
+
+WriteLn (First.A);
+WriteLn (Second.A);
+WriteLn (First.A = Second.A);
+
+WriteLn (B);
+WriteLn (C);
+
+WriteLn (A);

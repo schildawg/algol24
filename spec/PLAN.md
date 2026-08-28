@@ -512,7 +512,7 @@ done badly.
 | 10 Statements | 23 | A declaration may not be an unbraced body; most-derived handler selection kept and made total |
 | 11 Functions and closures | 12 | `procedure` may not `Exit` a value; parameter types enforced everywhere |
 | 12 Classes and objects | 16 | Inheriting from a non-class gets a message about inheritance |
-| 13 Enumerations | 10 | A member answers `Ordinal`; whether the first member is falsey is **open** |
+| 13 Enumerations | 11 | Shared member names accepted, ambiguity refused at the use; a member answers `Ordinal`; whether the first member is falsey is **open** |
 | 14 onwards | 70 | — |
 
 ⚠️ **Chapter 13 left a rule undecided on purpose.** [ENU-009] makes the first
