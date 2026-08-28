@@ -1,22 +1,29 @@
 // spec: VAR-006
 //
-// VAR-006 requires a written type to be enforced wherever a value reaches the
-// variable.  Only the declaration enforces it.
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
 //
-//     var I : Integer := A;    -- refused (refusals/0013)
+// ⚠️ THE 'Any' HALF IS FIXED.  A value declared Any no longer reaches a written
+// type at an assignment any more than at a declaration -- both refuse it, and
+// 'as' is how it earns the crossing.
 //
-// The two lines below are that same assignment, one line apart, and they are
-// accepted.  This must become a refusal.
+// What remains is the UNTYPED half, and it is a genuine fork rather than an
+// oversight.  VAR-006 refuses a value 'whose type could not be determined at
+// all', and the checker cannot type ordinary locals in nested scopes:
+//
+//     var C := Copy (Text, I, 1);     -- untyped, though Copy returns a String
+//     Result := Result + C;           -- refused if '' is refused here
+//
+// That line is in compiler/Scanner.a24 and it is correct code.  Refusing it
+// punishes a program for the CHECKER's blind spot.  So an assignment permits
+// '' and a declaration still refuses it -- which is the shape of the asymmetry
+// this defect is named for, narrower.
+//
+// ⚠️ Resolving it wants better INFERENCE, not a looser rule: four tests of
+// element-type scoping observe the checker only through the declaration's
+// strictness, so removing that removes their ability to test at all.
 
-var A : Any := 1;
+function Untyped (); begin Exit 'x'; end
 
-var I : Integer;
-I := A;
-WriteLn (I);
-
-// And nothing about the value has to be an Integer for it to land in one.
-var S : Any := 'not an integer';
-var J : Integer;
-J := S;
-WriteLn (J);
-WriteLn (J is String);
+var S : String;
+S := Untyped ();
+WriteLn (S);

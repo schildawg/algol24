@@ -5,7 +5,7 @@ case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
 in `defects/`. The conformance pass decided what the language *should* do. This
 plan is the work of making the interpreter do it.
 
-**21 defects stand between the two.** *(33 found; twelve fixed, DEF-10 mostly.)* Each one is a rule the specification
+**21 defects stand between the two.** *(33 found; twelve fixed; DEF-10 and DEF-09 partly.)* Each one is a rule the specification
 states and the interpreter does not implement, with a case in `defects/` that
 passes while the fault persists and turns red the moment it stops.
 
@@ -198,6 +198,24 @@ equality) is independent but needs the hash.
 **Wave 6 — the report.** DEF-30 changes text both processors must reproduce
 byte for byte, so `compiler/Interpreter.a24` and `bootstrap/algol.c` move
 together. DEF-04 (remove `print`) after `SAMPLE` is rewritten.
+
+### The bootstrap trap
+
+⚠️ **A change that makes the compiler refuse its own sources bricks the
+bootstrap.** It happened once, doing DEF-09: the stricter checker was seeded,
+and the seeded compiler then refused `compiler/*.a24` — so it could not emit a
+new compiler, and there was no way forward from inside the tree.
+
+The way out is the seed in git:
+
+```sh
+git checkout -- bootstrap/ && ./bootstrap/build.sh
+```
+
+⚠️ **So check before seeding, not after.** After building stage 2, emit the
+compiler again with it — `algc --compile --out=/tmp/stage3 compiler/Main.a24` —
+and only then trust the change. A stage-1 emit proves nothing about a rule the
+stage-1 binary does not yet enforce.
 
 ## 4. Working rules
 

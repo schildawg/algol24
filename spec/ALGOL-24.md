@@ -879,10 +879,21 @@ only generate a machine representation for a variable whose type it may trust.
 ⚠️ Writing no type remains entirely permissive. `var A := M.Get (1);` is
 ordinary and unremarkable; the rule bites only where a type was written down.
 
-⚠️ **PARTLY IMPLEMENTED.** A declaration enforces this and a later assignment
-does not, so `var I : Integer := A;` is refused while `var I : Integer;` followed
-by `I := A;` is accepted — the same value reaching the same variable one line
-later. See DEF-09.
+⚠️ **PARTLY IMPLEMENTED.** A value declared `Any` is refused at both a
+declaration and an assignment, which is the rule above. A value the **checker
+could not type** is refused at a declaration and accepted at an assignment.
+
+⚠️ **That remaining asymmetry is forced, and the reason matters.** The checker
+cannot type ordinary locals in nested scopes — `var C := Copy (Text, I, 1);`
+reduces to no type although `Copy` returns a String — so refusing an untyped
+value at an assignment refuses correct code, `compiler/Scanner.a24`'s own
+`Result := Result + C` first. Refusing a *program* for the *checker's* blind
+spot is the wrong trade.
+
+⚠️ The declaration keeps the strictness because it is rare enough not to meet
+the blind spot, and because four tests of element-type scoping observe the
+checker only through it. **Resolving this wants better inference, not a looser
+rule.** See DEF-09.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     conformance  0020-any-accepts-every-value.a24
@@ -4654,11 +4665,16 @@ larger fix stays available.
 **DEF-09 — A written type is enforced on a declaration and not on an
 assignment.** *(violates [VAR-006])*
 
-`var I : Integer := A;` is refused where `A` is `Any` or untypeable, and
-`var I : Integer;` followed by `I := A;` is accepted — the same value reaching
-the same variable one line later. The strict check lives on the declaration
-only; the assignment path calls `Assignable`, which permits `Any` in both
-directions.
+⚠️ **The `Any` half is fixed.** A value declared `Any` is refused at an
+assignment as it always was at a declaration, so `as` is the only way it crosses
+into a written type.
+
+What remains is the **untyped** half: a value the checker could not type is
+refused at a declaration and accepted at an assignment. That is forced. The
+checker cannot type ordinary locals in nested scopes — `var C := Copy (Text, I,
+1);` reduces to no type though `Copy` returns a String — so refusing it at an
+assignment refuses correct code, starting with `compiler/Scanner.a24`'s own
+`Result := Result + C`.
 
 *Reproduce:* `defects/DEF-09-assignment-escapes-the-type.a24`
 
@@ -4667,11 +4683,15 @@ as the declaration being too strict, because the declaration is what produces a
 diagnostic. But the assignment is where an untyped value enters a typed variable
 with nothing checking it, which is precisely what [VAR-006] exists to prevent.
 
-*Scope of the fix.* The `AssignExpr` and `SetExpr` cases in
-`compiler/TypeChecker.a24` apply the same rule the declaration does — an actual
-type of `''` or `Any` does not satisfy a written one. ⚠️ The compiler's own
-sources must be made to pass first, and they are the largest body of Algol-24
-that exists; expect casts to be needed at boundaries that currently have none.
+*Scope of the fix.* ⚠️ **It is an inference problem, not a rule problem.** Make
+the checker type what it plainly can — a local initialized from a built-in whose
+return type is known, inside a nested block — and the untyped half of this
+defect stops arising. Tightening the rule without that refuses correct programs;
+that was tried, and `compiler/Scanner.a24` refused to compile.
+
+⚠️ **Tightening it also bricks the bootstrap**, which is worth knowing before
+trying again. A checker that refuses the compiler's own sources cannot emit a
+new compiler, and the only way back is `git checkout -- bootstrap/`.
 
 **DEF-10 — Widening is refused wherever a type is written.**
 *(violates [VAR-004], [VAR-017], [EXP-014])*

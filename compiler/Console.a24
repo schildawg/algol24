@@ -121,7 +121,11 @@ begin
        Digits : Integer;
 
     begin
-        Text := SourceCode.Get (Where.LineNumber);
+        // ⚠️ 'as String', not a bare assignment.  A Map's Get is untyped, and
+        // a written type is a claim that has to be earned [VAR-006] -- the cast
+        // is where an untyped value crosses into a typed one, and it is checked
+        // [VAL-007].
+        Text := SourceCode.Get (Where.LineNumber) as String;
         Digits := Length (Str (Where.LineNumber));
 
         WriteLn (ERROR + SourceCode.Name() + ': ' + Message);

@@ -476,12 +476,23 @@ begin
             begin
                 var Actual := Reduce (TheStmt.Initializer);
 
-                // ⚠️ Deliberately stricter about 'Any' than Assignable is, and
-                // the one place the gradual rule is traded for a diagnostic: a
-                // type was written here and the initializer could not be typed
-                // at all.
-                if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
-                    raise Mismatch (TheStmt.Name, TheStmt.TypeName, Actual);
+                // ⚠️ Stricter about 'Any' than Assignable is: a type was
+                // written here, and 'Any' is a value that declared it does not
+                // know one [VAR-006].  Crossing from there into a written type
+                // is what 'as' is for, and it is checked [VAL-007].
+                //
+                // ⚠️ And stricter about '' -- an expression the checker could
+                // not type at all -- which an ASSIGNMENT is not.  That
+                // asymmetry is deliberate for now and is not a principle: the
+                // compiler's own sources contain 'Result := Result + C' where C
+                // is a local the checker never typed, so refusing '' at an
+                // assignment refuses a correct program.  A declaration is rare
+                // enough not to hit it, and the strictness here is what four
+                // tests of element-type scoping use to observe the checker at
+                // all.  Resolving it wants better inference, not a looser rule.
+                if TheStmt.TypeName <> 'Any' then
+                    if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
+                        raise Mismatch (TheStmt.Name, TheStmt.TypeName, Actual);
             end
             Exit;
         end
@@ -500,8 +511,9 @@ begin
             begin
                 var Actual := Reduce (TheStmt.Initializer);
 
-                if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
-                    raise Mismatch (TheStmt.Names[0], TheStmt.TypeName, Actual);
+                if TheStmt.TypeName <> 'Any' then
+                    if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
+                        raise Mismatch (TheStmt.Names[0], TheStmt.TypeName, Actual);
             end
             Exit;
         end
@@ -767,8 +779,20 @@ begin
             var Declared := Lookup.GetType (TheExpr.Name.Lexeme);
             var Actual   := Reduce (TheExpr.Value);
 
-            if not Assignable (Declared, Actual) then
-                raise Mismatch (TheExpr.Name, Declared, Actual);
+            // ⚠️ The same strictness a DECLARATION applies [VAR-006].  Without
+            // it 'var I : Integer := A' was refused while 'var I : Integer;'
+            // then 'I := A' was accepted -- the same value reaching the same
+            // variable one line later, with nothing checking it.  A written
+            // type is a claim, and 'as' is how a value earns it [VAL-007].
+            // ⚠️ Three guards, and each earns its place.  '' on the LEFT is an
+            // untyped variable, which accepts anything.  'Any' on the left is a
+            // variable that declared it does not know [VAR-006], and accepts
+            // anything too.  '' on the RIGHT is the CHECKER's ignorance rather
+            // than the programmer's -- see the note on Reduce -- and refusing
+            // it would punish a correct program for a blind spot.
+            if Declared <> '' and Declared <> 'Any' and Actual <> '' then
+                if Actual = 'Any' or not Assignable (Declared, Actual) then
+                    raise Mismatch (TheExpr.Name, Declared, Actual);
 
             Exit Declared;
         end
@@ -824,8 +848,11 @@ begin
             if Owner <> '' and Owner <> 'Any' then
             begin
                 var Declared := Lookup.GetType (Owner + '::' + TheExpr.Name.Lexeme);
-                if not Assignable (Declared, Actual) then
-                    raise Mismatch (TheExpr.Name, Declared, Actual);
+
+                // ⚠️ A field is an assignment context like any other [VAR-017].
+                if Declared <> '' and Declared <> 'Any' and Actual <> '' then
+                    if Actual = 'Any' or not Assignable (Declared, Actual) then
+                        raise Mismatch (TheExpr.Name, Declared, Actual);
             end
 
             Exit Actual;
