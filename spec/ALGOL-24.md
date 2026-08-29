@@ -545,14 +545,27 @@ integer 7, not an octal.
 2147483647. An arithmetic operation whose result falls outside that range
 **raises** rather than wrapping.
 
-⚠️ **NOT YET IMPLEMENTED.** Both processors wrap silently, so `2147483647 + 1`
-is `-2147483648` and a program can compute a wrong answer with no sign of it.
-See DEF-05. The *literal* half of that defect is fixed — [LEX-033] — and this
-arithmetic half is what is left of it.
+⚠️ It used to wrap silently, so `2147483647 + 1` was `-2147483648` and a program
+could compute a wrong answer with no sign of it.
+
+⚠️ **One implementation, not two.** The interpreter's `+` *is* the runtime's —
+`Exit Left + Right` in `VisitBinary` compiles to `alg_add` — so the two cannot
+disagree, and this landed in `bootstrap/algol.c` alone.
+
+⚠️ **Signed overflow in C is undefined behaviour, not a wrap**, which is a
+different problem and was already avoided here: the arithmetic was computed
+unsigned for that reason, and goes through `__builtin_*_overflow` now. The
+builtins are used whether or not the check is compiled in, so turning the check
+off leaves a *defined* wrap rather than reintroducing undefined behaviour.
+
+⚠️ **A build made with `-DALG_NO_OVERFLOW_CHECK` does not conform**, and that is
+the point of naming it: the cost is per-operation — about 2–4% — and a program
+proved not to overflow should not have to keep paying it. See Annex G.4.
 
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         alg_add
-    defect       DEF-05-integer-overflow-is-silent.a24
+    refusal      0041-integer-overflow.a24
+    conformance  0136-integer-range.a24
 
 **[LEX-033]**  An integer **literal** outside the range of [LEX-018] is refused
 when the program is read, not when it runs. It is a value the source states
@@ -1660,11 +1673,13 @@ infinity to return for the other.
 **[EXP-007]**  Arithmetic that leaves the bounds of a 32-bit Integer **raises**
 — see [LEX-018].
 
-⚠️ **NOT YET IMPLEMENTED.** It wraps silently in both processors. See DEF-05,
-of which this is now the whole remainder — the literal half is done [LEX-033].
+⚠️ Only **Integer** arithmetic is ranged. A Double follows IEEE 754 and does not
+raise — `1.0 / 0` is `Infinity` [EXP-006] — and a mixed expression is Double
+arithmetic, so `2147483647 + 1.0` is `2.147483648E9` rather than an error.
 
     compiler     bootstrap/algol.c  alg_add
-    defect       DEF-05-integer-overflow-is-silent.a24
+    refusal      0041-integer-overflow.a24
+    conformance  0136-integer-range.a24
 
 ### 9.3 Concatenation
 
@@ -4073,9 +4088,13 @@ result to raise [LEX-018]. The two were separated because they cost
 differently: a literal is checked once during the scan, while an arithmetic
 result must be checked on every operation a program performs.
 
-The literal half is implemented. The arithmetic half still wraps, silently and
-identically in both processors, which is what C does natively; it is what DEF-05
-now tracks.
+**Implemented, both halves.** A literal outside the range is refused where it is
+read and an out-of-range arithmetic result raises.
+
+⚠️ "What C does natively" was the wrong way to put it, and this note said it:
+signed overflow in C is *undefined behaviour*, not a wrap. The runtime had
+always computed unsigned to avoid that, so what it produced was a defined wrap —
+the range check is a separate question, and both are now answered.
 
 **D-2 — `?` alone is a valid identifier.** *(refers to [LEX-008])*
 
@@ -4707,25 +4726,6 @@ behaviour and passes while that behaviour persists. It turns **red when the
 defect stops reproducing**, because a fix is as much a change to be noticed as a
 regression — and a suite that is permanently red is a suite nobody reads.
 
-**DEF-05 — Integer overflow is silent.**
-*(violates [LEX-018], [LEX-033])*
-
-Arithmetic wraps instead of raising, so `2147483647 + 1` is `-2147483648`. Both
-processors agree, because both let C's native wrapping through.
-
-*Reproduce:* `defects/DEF-05-integer-overflow-is-silent.a24`
-
-⚠️ **The literal half is fixed.** `2147483648` and `99999999999999` are now
-refused where they are read — [LEX-033], `refusals/0035`. Because the scanner is
-shared by both back ends, the compiled path refuses them at compile time too, so
-this fix carried to the compiler for free. What is left of DEF-05 is arithmetic
-alone, and the defect case has been narrowed to it.
-
-*Scope of what remains.* Every operator in `VisitBinary`, and `alg_add` and its
-neighbours in the runtime. Unlike the literal half — checked once, during the
-scan — this one costs on every operation a program performs, which is why the
-two were separated in the first place.
-
 **DEF-09 — A written type is enforced on a declaration and not on an
 assignment.** *(violates [VAR-006])*
 
@@ -5079,6 +5079,32 @@ because of the lowercasing. Neither works alone.
 ---
 
 ---
+
+### G.4 Turning off the integer range check
+
+[LEX-018] requires an out-of-range arithmetic result to raise, and the cost is
+**per operation** — unlike the literal check [LEX-033], which happens once
+during the scan. That was the reason the two halves were separated, and it is
+the reason the run-time half has a switch.
+
+```sh
+CFLAGS="-std=c11 -O2 -DALG_NO_OVERFLOW_CHECK" ./bootstrap/build.sh
+```
+
+⚠️ **Such a build does not conform.** It wraps where the language raises, which
+is precisely the behaviour [LEX-018] exists to forbid. It is not a
+configuration of the language; it is a way of not running the language's
+arithmetic.
+
+⚠️ **It does not reintroduce undefined behaviour.** `__builtin_add_overflow` and
+its neighbours are used whether or not the check is compiled in, so the
+arithmetic stays defined either way — the switch only decides whether the
+overflow flag is an error. Signed overflow in C is undefined, not a wrap, and at
+`-O2` the optimiser exploits it: `x + 1 > x` folds to `true` for `INT32_MAX`.
+
+Measured on `./test.sh`, three runs each: 21.3 s checked against 20.9 s
+unchecked, about 2–4%. The branch is perfectly predicted, which is why it costs
+so little — and why the default is on.
 
 ## Annex H — planned for later generations *(non-normative)*
 

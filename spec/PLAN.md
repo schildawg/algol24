@@ -243,7 +243,6 @@ yet" — each is blocked on a piece of machinery this compiler does not have.
 
 | | Blocked on |
 | --- | --- |
-| DEF-05 | arithmetic overflow: a check on **every** operator in `VisitBinary` and in `alg_add`'s neighbours. The literal half is done; this half costs per operation rather than once per scan, which is why it was split off. |
 | DEF-09 | inference. `Lookup.Inferred` records a type and `Reduce` never consults it, so a local's type is unknown to the checker. |
 | DEF-10, DEF-10b | the interpreter does not know a variable's declared type at run time. Widening works at a declaration and a parameter because the declaration is in hand there; assignment and field contexts have nothing to consult. |
 | DEF-15 | two-phase class declaration. Hoisting classes broke `class B (A); … class A;` because a class declaration *evaluates* its superclass. Functions are hoisted; classes need the name bound before the body runs. |

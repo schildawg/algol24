@@ -2512,15 +2512,51 @@ static Value concat(Value a, Value b) {
     return alg_string_n(result, need);
 }
 
+/* ---------------------------------------------------------- integer range --
+ *
+ * An arithmetic result outside the 32-bit range RAISES rather than wrapping
+ * [LEX-018], [EXP-007].  A program that computes a wrong answer silently is the
+ * thing this rule exists to prevent.
+ *
+ * ⚠️ Signed overflow in C is UNDEFINED BEHAVIOUR, not a wrap, and at this
+ * project's own -O2 the optimiser exploits it: 'x + 1 > x' folds to true.  The
+ * arithmetic here has always been done through the builtins or unsigned for
+ * that reason -- the range check is a separate question from the undefined
+ * behaviour, and both are answered.
+ *
+ * ⚠️ The builtins are used WHETHER OR NOT the check is compiled in, so the
+ * arithmetic is defined either way.  Turning the check off does not reintroduce
+ * undefined behaviour; it only stops an overflow being an error, leaving the
+ * two's-complement wrap that was there before.
+ *
+ * ⚠️ Compile with -DALG_NO_OVERFLOW_CHECK to turn it off.  Such a build is
+ * FASTER and does NOT conform: [LEX-018] requires the raise.  The switch exists
+ * because the cost is per-operation and a program that has been proved not to
+ * overflow should not keep paying it.
+ */
+#ifdef ALG_NO_OVERFLOW_CHECK
+#define ALG_RANGE(over, a, op, b) ((void)(over))
+#else
+_Noreturn static void overflowed(int32_t a, const char *op, int32_t b) {
+    char message[80];
+    snprintf(message, sizeof message, "Integer overflow: %d %s %d.", a, op, b);
+
+    alg_error(message);
+}
+#define ALG_RANGE(over, a, op, b) do { if (over) overflowed((a), (op), (b)); } while (0)
+#endif
+
 Value alg_add(Value a, Value b) {
     if (is_text(a) || is_text(b)) return concat(a, b);
 
     if (is_number(a) && is_number(b)) {
         if (is_double_arithmetic(a, b)) return alg_double(as_double(a) + as_double(b));
 
-        /* Integers are 32-bit and wrap, as they do on the JVM.  The arithmetic
-         * is done unsigned because signed overflow is undefined in C. */
-        return alg_int((int32_t)((uint32_t)a.integer + (uint32_t)b.integer));
+        int32_t result;
+        ALG_RANGE(__builtin_add_overflow(a.integer, b.integer, &result),
+                  a.integer, "+", b.integer);
+
+        return alg_int(result);
     }
     alg_error("Operands must be two numbers, or two strings.");
     return alg_nil();
@@ -2530,14 +2566,22 @@ Value alg_subtract(Value a, Value b) {
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_double(as_double(a) - as_double(b));
 
-    return alg_int((int32_t)((uint32_t)a.integer - (uint32_t)b.integer));
+    int32_t result;
+    ALG_RANGE(__builtin_sub_overflow(a.integer, b.integer, &result),
+              a.integer, "-", b.integer);
+
+    return alg_int(result);
 }
 
 Value alg_multiply(Value a, Value b) {
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_double(as_double(a) * as_double(b));
 
-    return alg_int((int32_t)((uint32_t)a.integer * (uint32_t)b.integer));
+    int32_t result;
+    ALG_RANGE(__builtin_mul_overflow(a.integer, b.integer, &result),
+              a.integer, "*", b.integer);
+
+    return alg_int(result);
 }
 
 Value alg_divide(Value a, Value b) {
@@ -2546,14 +2590,27 @@ Value alg_divide(Value a, Value b) {
 
     if (b.integer == 0) alg_error("Division by zero.");
 
-    /* INT_MIN / -1 overflows and traps on some targets; the JVM yields INT_MIN. */
-    if (a.integer == INT32_MIN && b.integer == -1) return alg_int(INT32_MIN);
+    /* ⚠️ INT_MIN / -1 is the one division that leaves the range -- the quotient
+     * is 2147483648.  It used to answer INT_MIN, which is the wrap; it raises
+     * with every other out-of-range result now [LEX-018].  It must still be
+     * caught explicitly, because dividing would TRAP on some targets rather
+     * than yielding a value to test. */
+    if (a.integer == INT32_MIN && b.integer == -1) {
+        ALG_RANGE(1, a.integer, "/", b.integer);
+        return alg_int(INT32_MIN);
+    }
 
     return alg_int(a.integer / b.integer);
 }
 
 Value alg_negate(Value a) {
-    if (a.type == VAL_INT)    return alg_int((int32_t)(0u - (uint32_t)a.integer));
+    if (a.type == VAL_INT) {
+        /* -INT_MIN is 2147483648, which is out of range [LEX-018]. */
+        int32_t result;
+        ALG_RANGE(__builtin_sub_overflow(0, a.integer, &result), 0, "-", a.integer);
+
+        return alg_int(result);
+    }
     if (a.type == VAL_DOUBLE) return alg_double(-a.number);
 
     alg_error("Operand must be a number.");

@@ -39,6 +39,8 @@ Build the compiler from the seed (needs only a C compiler; ~2 s):
 CC=clang CFLAGS=-O0 ./bootstrap/build.sh
 ```
 
+⚠️ `CFLAGS="-std=c11 -O2 -DALG_NO_OVERFLOW_CHECK"` turns off integer range checking. Such a build **wraps** on overflow instead of raising, so it does **not** conform — `LEX-018` requires the raise. The switch exists because the cost is per-operation; measured at about 2–4% on `./test.sh`, which is why it is on by default and off in no build these harnesses make. See `spec/ALGOL-24.md` Annex G.4.
+
 Run, test, and compile (from the repository root, so `uses` resolves):
 
 ```sh
