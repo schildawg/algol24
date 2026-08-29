@@ -3814,7 +3814,8 @@ usual direction and is worth saying out loud.
     gap  0065-construction.a24
     gap  0072-unknown-enum-member.a24
 
-**C-8 — An uncaught runtime error carries no `Uncaught:` prefix.** *(loud)*
+**C-8 — An uncaught runtime error carries no `Uncaught:` prefix.**
+***Withdrawn.***
 
 | | |
 | --- | --- |
@@ -3836,21 +3837,16 @@ signature. Two cases keep the prefix and were wrongly marked as meeting it:
 The correction came from running the two processors against four cases whose
 comments claimed a divergence they did not have.
 
-⚠️ Unlike C-3, this is not a consequence of compiled code lacking line
+⚠️ Unlike C-3, this was not a consequence of compiled code lacking line
 information — the prefix needs nothing the compiled program does not have.
 
-    gap  0029-array-is-fixed.a24
-    gap  0032-instance-is-not-iterable.a24
-    gap  0038-strings-are-not-ordered.a24
-    gap  0047-division-by-zero.a24
-    gap  0051-string-subscript.a24
-    gap  0067-undefined-property.a24
-    gap  0073-enum-members-are-not-ordered.a24
-    gap  0080-sort.a24
-    gap  0084-module-private.a24
-    gap  0098-runtime-errors-follow-output.a24
-    gap  0025-method-parameter-type-is-enforced.a24
-    gap  0041-integer-overflow.a24
+⚠️ **One line, and twelve cases.** `alg_raise` printed the prefix on its uncaught
+path and `alg_error` did not, so an error raised by the *runtime* lost it while
+an explicit `raise` kept it. That asymmetry inside one file is what made the
+entry look larger and vaguer than it was: it was first recorded as "every
+conformance case ending in a runtime error", narrowed once by testing, and is
+in fact a single `fprintf`.
+
 
 **C-10 — The compiled back end hoists variables.** *(silent)*
 *(refers to [DCL-016])*

@@ -2146,7 +2146,11 @@ _Noreturn void alg_error(const char *message) {
         alg_raise(alg_string(kept));
     }
 
-    fprintf(stderr, "%s\n", message);
+    /* ⚠️ 'Uncaught: ', as alg_raise prints and as the interpreter's driver does
+     * for a runtime error [ERR-008].  This printed the bare message, so every
+     * uncaught runtime error read differently compiled -- twelve conformance
+     * cases differed on this line alone, which is what C-8 recorded. */
+    fprintf(stderr, "Uncaught: %s\n", message);
     exit(70);
 }
 
