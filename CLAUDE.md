@@ -143,7 +143,13 @@ One `.c`/`.h` pair per source unit. Names are mangled by kind — `v_` variable,
 
 Tests live inline in the source they cover, as `test 'Name'; begin … end` blocks using `AssertEqual`, `AssertTrue` and `Fail`. `--test` runs them instead of the program; the main block never executes. Failures exit 70 (the language has no `Halt`, so the driver `raise`s).
 
-The compiled test runner reproduces the interpreter's report line for line, minus the `[ERROR]` caret lines — those carry source positions compiled code does not have, and the comparison drops them.
+The compiled test runner reproduces the interpreter's report **line for line, including the `[ERROR]` line naming why each failure failed** — verified over the whole 221-test suite.
+
+⚠️ It used to print only `FAIL` and throw the message away, which is how the two processors came to disagree about `AssertTrue`'s wording without anything noticing. A test failure prints exactly one `[ERROR]` line, not three: `Console.Error` adds a source line and a caret, and a test failure does not go through it.
+
+⚠️ The file named is the **root**, not the file the failing test lives in, because `SourceCode` is one global keyed by line number. The compiled runner copies that deliberately, since the reports are compared.
+
+⚠️ One line still differs: a failing run prints `Uncaught: Tests failed.` interpreted and nothing compiled, because the language has no `Halt` and the interpreted driver `raise`s to set exit 70.
 
 ## Working in `.a24`
 

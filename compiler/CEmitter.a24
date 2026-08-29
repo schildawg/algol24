@@ -1220,7 +1220,11 @@ begin
             Declarations.Append ('Value ' + Str (TestSymbols[I])
                           + '(Value **cells, Value *args, int32_t count);' + #10);
 
-        MainBody.Append ('    alg_test_begin(' + Str (Tests.Length) + ');' + #10);
+        // ⚠️ The file the run was started from goes with the count, because a
+        // failing test names it -- and names THAT file rather than the one the
+        // test lives in, which is what the interpreter does.
+        MainBody.Append ('    alg_test_begin(' + Str (Tests.Length) + ', '
+                  + QuoteC (SourceFile) + ');' + #10);
 
         Files := List();
         for var I := 0; I < TestFiles.Length; I := I + 1 do

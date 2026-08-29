@@ -3000,7 +3000,17 @@ static bool in_tests = false;
 /* '[INFO] ' -- the tag every report line opens with, trailing space included. */
 #define INFO_TAG ANSI_WHITE "[" ANSI_BLUE "INFO" ANSI_WHITE "] " ANSI_RESET
 
-void alg_test_begin(int32_t count) {
+/* '[ERROR] ' -- the same shape, for the line a failing test prints.  Must match
+ * Console.a24's ERROR_TAG byte for byte: the two reports are compared. */
+#define ERROR_TAG ANSI_WHITE "[" ANSI_RED "ERROR" ANSI_WHITE "] " ANSI_RESET
+
+/* The file the run was started from.  ⚠️ Not the file a failing test lives in:
+ * the interpreter reports the ROOT for every failure, because SourceCode is one
+ * global keyed by line number, and the two reports have to agree. */
+static const char *test_root = "";
+
+void alg_test_begin(int32_t count, const char *file) {
+    test_root = file;
     /* The interpreter flips Screen to Buffer mode for the duration of a test
      * run, which prints nothing, so a test body's own Write and WriteLn stay
      * out of the report.  Compiled code has to do the same or the two reports
@@ -3052,6 +3062,17 @@ void alg_test_run(const char *name, AlgFunction body) {
     for (int i = 0; i < leader; i++) putchar('.');
     printf(" [ %s%s" ANSI_RESET " ]\n", ok ? ANSI_GREEN : ANSI_RED,
                                         ok ? "PASS" : "FAIL");
+
+    /* ⚠️ WHY it failed, which this used to throw away.  The frame carries the
+     * raised value and nothing read it, so a compiled suite reported that a
+     * test failed and never what -- and that is why the two processors could
+     * disagree about AssertTrue's wording for as long as they did, since
+     * nothing comparing the two reports ever looked at this line.
+     *
+     * ⚠️ The interpreter prints exactly one line here, not three.  Console.Error
+     * adds a source line and a caret, but a test failure does not go through
+     * it, so there is nothing compiled code cannot reproduce. */
+    if (!ok) printf(ERROR_TAG "%s: %s\n", test_root, as_text(frame.raised));
 }
 
 int alg_test_summary(void) {

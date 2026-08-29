@@ -3975,24 +3975,35 @@ something else.
 
 *Fix:* mangle per Annex G, which specifies an escape for exactly this.
 
-**C-23 — A compiled test run never says why a test failed.** *(loud)*
+**C-23 — A compiled test run never says why a test failed.**
+***Withdrawn.***
 
-`alg_test_run` catches the failure and prints `FAIL`, but never reads the value
-that was raised — so a compiled suite reports *that* a test failed and never
-*what*. Interpreted, the same run prints the assertion message [TST-012] on an
-`[ERROR]` line.
+`alg_test_run` caught the failure and printed `FAIL` but never read the value
+that was raised, so a compiled suite reported *that* a test failed and never
+*what*. It prints the same `[ERROR] <file>: <message>` line the interpreter does
+now, from `AlgFrame`'s `raised`.
 
-⚠️ **This is not the caret lines.** Those carry a source position compiled code
-does not have, and the report comparison drops them for that reason. The message
-line carries no position — only the file name and the message — and it is
-dropped with them.
+⚠️ **There were no caret lines to worry about.** This entry assumed a test
+failure printed three lines, of which compiled code could reproduce one. It
+prints exactly **one**: `Console.Error` adds a source line and a caret, and a
+test failure does not go through it. So no filtering was needed on either side —
+the reports simply match.
+
+⚠️ **The file named is the ROOT**, not the file the failing test lives in, and
+the compiled runner had to copy that to agree. `SourceCode` is one global keyed
+by line number, so the interpreter names the file the run started from whatever
+module the test came from. Reproducing a fault is what agreement costs here.
 
 ⚠️ It is why the two processors could disagree about `AssertTrue`'s wording for
-as long as they did: nothing that compares the two reports ever looked at it.
+as long as they did: nothing that compares the two reports ever looked at this
+line. Verified after the fix — the whole 221-test suite is now identical line for
+line through both processors.
 
-*Fix:* `AlgFrame` already carries `raised`, so `alg_test_run` can print
-`ERROR_TAG "%s: %s"` from it. The report comparison must then drop two
-interpreted lines rather than three.
+⚠️ **One line still differs, and it is not this entry's.** A failing run prints
+`Uncaught: Tests failed.` interpreted and nothing compiled: the language has no
+`Halt`, so the interpreted driver `raise`s to set exit 70 while generated `main`
+returns it. That is a driver artefact rather than part of the report, and which
+side should change is an open question — see C-8 for the same family.
 
 ## Annex D — advisory notes *(non-normative)*
 

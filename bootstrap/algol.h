@@ -358,7 +358,10 @@ Value alg_param_str(Value index);
  * has no line information, so those are not reproduced and the comparison drops
  * them -- what is checked is which tests pass and the exit code.
  */
-void alg_test_begin(int32_t count);
+/* ⚠️ Takes the file the run was started from, because a failure names it -- and
+ * names THAT file, not the one the failing test lives in, which is what the
+ * interpreter does. */
+void alg_test_begin(int32_t count, const char *file);
 void alg_test_file(const char *file);
 void alg_test_end_file(void);
 void alg_test_run(const char *name, AlgFunction body);

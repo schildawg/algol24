@@ -1351,7 +1351,7 @@ static Value m_CEmitter_EmitTestRunner_0(Value v_this, Value *args, int32_t coun
             }
         }
     }
-    (void)(alg_invoke(alg_property(v_this, "MainBody"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_string("    alg_test_begin("), alg_str(alg_property(alg_property(v_this, "Tests"), "Length"))), alg_string(");")), alg_char_value(10))}, 1));
+    (void)(alg_invoke(alg_property(v_this, "MainBody"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    alg_test_begin("), alg_str(alg_property(alg_property(v_this, "Tests"), "Length"))), alg_string(", ")), f_QuoteC(NULL, (Value[]){alg_property(v_this, "SourceFile")}, 1)), alg_string(");")), alg_char_value(10))}, 1));
     (void)((v_Files = alg_list()));
     {
         Value v_I = alg_int(0);
