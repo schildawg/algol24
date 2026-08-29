@@ -2,6 +2,7 @@ uses Expr;
 uses ObjFunction;
 uses Stmt;
 uses TokenType;
+uses Token;
 
 /// ⚠️ Beyond this many elements a collection literal is HOISTED into a helper
 /// function instead of being emitted as nested calls.  Each keep-call is a
@@ -316,6 +317,19 @@ var
     /// Replaced per unit.
     ShadowNames  : Set;
 
+    /// Folded name to the spelling the declaration used [SRC-011].
+    ///
+    /// ⚠️ Names are matched WITHOUT REGARD TO CASE, and every set this emitter
+    /// consults -- Declared, Classes, Objects, Globals, ShadowNames -- is keyed
+    /// by the spelling each was declared with.  So 'GREET ()' calling
+    /// 'function Greet' matched nothing and was refused, though Annex G.3
+    /// lowercases both to 'f_greet' and the symbol would have been right.
+    ///
+    /// ⚠️ Canonicalising the name ONCE, rather than folding at every lookup, is
+    /// what keeps this small: the sets stay as they are, and the mangling,
+    /// diagnostics and rename map all go on seeing the written form.
+    Canonical    : Map;
+
     /// True while emitting a nested function, so a further level can be refused
     /// rather than silently losing a capture.
     InsideNested : Boolean := False;
@@ -383,6 +397,7 @@ begin
         this.UnitExports := Map();
         this.UnitAll := Map();
         this.ShadowNames := Set();
+        this.Canonical := Map();
         this.Tests := List();
         this.TestFiles := List();
         this.TestSymbols := List();
@@ -733,17 +748,31 @@ begin
 
             if TheStmt is FunctionStmt then
             begin
-                if not IsTest (TheStmt) then Declared.Add (Str (TheStmt.Name.Lexeme));
+                if not IsTest (TheStmt) then
+                begin
+                    Declared.Add (Str (TheStmt.Name.Lexeme));
+                    Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
+                end
 
                 CollectFunctions (TheStmt.Body);
             end
 
-            if TheStmt is ClassStmt then Classes.Put (Str (TheStmt.Name.Lexeme), TheStmt);
-            if TheStmt is ObjectStmt then Objects.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is ClassStmt then
+            begin
+                Classes.Put (Str (TheStmt.Name.Lexeme), TheStmt);
+                Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
+            end
+
+            if TheStmt is ObjectStmt then
+            begin
+                Objects.Add (Str (TheStmt.Name.Lexeme));
+                Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
+            end
 
             if TheStmt is EnumStmt then
             begin
                 EnumTypes.Add (Str (TheStmt.Name.Lexeme));
+                Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
 
                 for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
                 begin
@@ -762,6 +791,7 @@ begin
                             Unsupported ('Two enumerations binding ''' + Member + '''');
 
                     EnumMembers.Put (Member, Str (TheStmt.Name.Lexeme));
+                    Canonical.Put (FoldCase (Member), Member);
                 end
             end
 
@@ -779,11 +809,19 @@ begin
         begin
             var TheStmt := Statements[I];
 
-            if TheStmt is VarStmt then Globals.Add (Str (TheStmt.Name.Lexeme));
+            if TheStmt is VarStmt then
+            begin
+                Globals.Add (Str (TheStmt.Name.Lexeme));
+                Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
+            end
 
             if TheStmt is VarGroupStmt then
                 for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                begin
                     Globals.Add (Str (TheStmt.Names[J].Lexeme));
+                    Canonical.Put (FoldCase (TheStmt.Names[J].Lexeme),
+                                   Str (TheStmt.Names[J].Lexeme));
+                end
 
             if TheStmt is FunctionStmt and not IsTest (TheStmt) then
             begin
@@ -1815,6 +1853,14 @@ begin
     /// every ancestor's.  Ancestors are classes, since only a class can be
     /// inherited from.
     ///
+    /// ⚠️ FOLDED, because names are matched without regard to case [SRC-011]
+    /// and these sets decide what a bare name inside a method IS -- a field, a
+    /// method on 'this', or something else.  Keyed by the declared spelling,
+    /// a bare 'value' for a field written 'Value' matched nothing and emitted a
+    /// variable reference to a name that does not exist.
+    ///
+    /// The name is still EMITTED as written: the runtime folds its own field
+    /// and method lookup, and a diagnostic must quote what the program wrote.
     function NamesVisible (SuperName : String, Own : List, Fields : Boolean) : Set;
     var
         Names : Set;
@@ -1824,7 +1870,7 @@ begin
         Names := Set();
 
         for var I := 0; I < Own.Length; I := I + 1 do
-            Names.Add (Str (Own[I].Name.Lexeme));
+            Names.Add (FoldCase (Own[I].Name.Lexeme));
 
         At := SuperName;
         while At <> '' do
@@ -1837,7 +1883,7 @@ begin
             if Fields then Inherited := Ancestor.Fields;
 
             for var I := 0; I < Inherited.Length; I := I + 1 do
-                Names.Add (Str (Inherited[I].Name.Lexeme));
+                Names.Add (FoldCase (Inherited[I].Name.Lexeme));
 
             At := '';
             if Ancestor.Superclass <> Nil then At := Str (Ancestor.Superclass.Name.Lexeme);
@@ -1971,7 +2017,7 @@ begin
             if Str (Fields[I].Name.Lexeme) = 'Id' then DeclaresId := True;
 
         var AddId := IsObject and not DeclaresId;
-        if AddId then VisibleFields.Add ('Id');
+        if AddId then VisibleFields.Add (FoldCase ('Id'));
 
         Applied := '';
         for var I := 0; I < Fields.Length; I := I + 1 do
@@ -2416,7 +2462,7 @@ begin
         Name : String;
 
     begin
-        Name := Str (TheExpr.Name.Lexeme);
+        Name := Spelled (Str (TheExpr.Name.Lexeme));
 
         if Captured.Contains (Name) or Boxed.Contains (Name) then Exit Read (Name);
 
@@ -2424,7 +2470,7 @@ begin
         // interpreter reaches the same place through its implicit 'this.field'
         // fallback; here it has to be decided when the C is written.
         if CurrentClass <> '' and not Locals.Contains (Name)
-                              and VisibleFields.Contains (Name) then
+                              and VisibleFields.Contains (FoldCase (Name)) then
             Exit 'alg_property(v_this, ' + QuoteC (Name) + ')';
 
         if not Locals.Contains (Name) then
@@ -2498,6 +2544,19 @@ begin
     /// output rather than about the program.  Refuse it here instead, the way
     /// every other construct the back end cannot manage is refused.
     ///
+    /// The spelling this name was DECLARED with, or the name unchanged.
+    ///
+    /// ⚠️ Applied where a bare name is resolved, and nowhere else.  A local
+    /// still shadows: Locals holds the spelling of its own declaration, and a
+    /// canonical form is only reached for a name no local claims.
+    function Spelled (Name : String) : String;
+    begin
+        if Locals.Contains (Name) then Exit Str (Name);
+        if Canonical.Contains (FoldCase (Name)) then Exit Str (Canonical.Get (FoldCase (Name)));
+
+        Exit Str (Name);
+    end
+
     procedure Unreachable (Name : String);
     begin
         if not InsideNested then Exit;
@@ -2522,7 +2581,7 @@ begin
         // did not, so 'Count := Count + 1' assigned a local that nothing else
         // ever looked at.
         if CurrentClass <> '' and not Locals.Contains (Name)
-                              and VisibleFields.Contains (Name) then
+                              and VisibleFields.Contains (FoldCase (Name)) then
             Exit 'alg_set_property(v_this, ' + QuoteC (Name) + ', '
                + Evaluate (TheExpr.Value) + ')';
 
@@ -2852,7 +2911,7 @@ begin
             Joined := Joined + Str (Arguments[I]);
         end
 
-        var Name := Str (TheExpr.Callee.Name.Lexeme);
+        var Name := Spelled (Str (TheExpr.Callee.Name.Lexeme));
 
         // ⚠️ A name bound in this scope shadows every builtin, so 'var Set :=
         // ...' followed by 'Set(42)' calls the variable rather than
@@ -2897,7 +2956,7 @@ begin
         // DYNAMICALLY -- Describe() calling Speak() has to reach a subclass's
         // override, which a direct call to this class's symbol would not.
         if CurrentClass <> '' and not Declared.Contains (Name)
-                              and VisibleMethods.Contains (Name) then
+                              and VisibleMethods.Contains (FoldCase (Name)) then
             Exit 'alg_invoke(v_this, ' + QuoteC (Name) + ', '
                + ArgumentArray (Arguments) + ')';
 

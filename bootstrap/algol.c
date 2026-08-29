@@ -546,6 +546,25 @@ static int alg_stricmp(const char *a, const char *b) {
     }
 }
 
+/* FNV-1a over the name FOLDED, so two spellings of one name hash alike.
+ *
+ * ⚠️ Names are matched without regard to case [SRC-011], and a method table
+ * keyed by the exact spelling could not answer 'B.DOUBLED ()' for a method
+ * declared 'Doubled'.  The fold is inline rather than through a copy: this runs
+ * on every method lookup, which is the hottest path in the runtime. */
+static uint32_t hash_folded(const char *name) {
+    uint32_t hash = 2166136261u;
+
+    for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+        unsigned char c = *p;
+        if (c >= 'A' && c <= 'Z') c += 32;
+
+        hash ^= c;
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
 static uint32_t hash_bytes(uint32_t hash, const void *data, size_t length) {
     const unsigned char *bytes = data;
 
@@ -1220,7 +1239,7 @@ void alg_class_method(Value value, const char *name, AlgMethod fn, int32_t arity
     klass->methods[klass->method_count].fn    = fn;
     klass->methods[klass->method_count].arity = arity;
     klass->methods[klass->method_count].types = types;
-    klass->methods[klass->method_count].hash  = hash_bytes(2166136261u, name, strlen(name));
+    klass->methods[klass->method_count].hash  = hash_folded(name);
     klass->method_count++;
 }
 
@@ -1241,12 +1260,12 @@ static int32_t field_slot(ObjClass *klass, const char *name) {
         int32_t base = at->super == NULL ? 0 : at->super->total_fields;
 
         for (int32_t i = 0; i < at->field_count; i++) {
-            /* ⚠️ The first byte inline, so most entries never reach the call.
-             * A hash was measured here too and is SLOWER: field lists average
-             * 1.8 entries, so hashing the name costs more than the strcmps it
-             * skips.  One byte is what fits the size of the thing. */
-            if (at->fields[i][0] != name[0]) continue;
-            if (strcmp(at->fields[i] + 1, name + 1) == 0) return base + i;
+            /* ⚠️ Compared WITHOUT REGARD TO CASE [SRC-011].  The first-byte
+             * skip that used to open this could not survive the fold -- 'V' and
+             * 'v' differ as bytes and name one field -- so the whole comparison
+             * goes through alg_stricmp, which stops at the first difference
+             * anyway.  Field lists average 1.8 entries. */
+            if (alg_stricmp(at->fields[i], name) == 0) return base + i;
         }
     }
     return -1;
@@ -1325,12 +1344,12 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
     MethodEntry *named    = NULL;
     MethodEntry *by_arity = NULL;
 
-    uint32_t want = hash_bytes(2166136261u, name, strlen(name));
+    uint32_t want = hash_folded(name);
 
     for (ObjClass *at = klass; at != NULL; at = at->super) {
         for (int32_t i = 0; i < at->method_count; i++) {
             if (at->methods[i].hash != want) continue;
-            if (strcmp(at->methods[i].name, name) != 0) continue;
+            if (alg_stricmp(at->methods[i].name, name) != 0) continue;
 
             if (at->methods[i].arity == arity) {
                 if (signature_matches(&at->methods[i], args, arity)) return &at->methods[i];
@@ -1876,7 +1895,9 @@ Value alg_property(Value receiver, const char *name) {
         ObjEnumType *type = (ObjEnumType *)receiver.obj;
 
         for (int32_t i = 0; i < type->count; i++) {
-            if (strcmp(((ObjEnum *)type->members[i].obj)->name, name) == 0) return type->members[i];
+            /* Folded [SRC-011], as every other member lookup here is. */
+            if (alg_stricmp(((ObjEnum *)type->members[i].obj)->name, name) == 0)
+                return type->members[i];
         }
         undefined("enum member", name);
     }

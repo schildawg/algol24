@@ -4342,18 +4342,39 @@ not make it right.
 
     gap  0122-functions-are-hoisted.a24
 
-**C-32 — A call is not matched without regard to case compiled.** *(loud)*
+**C-32 — Names are not matched without regard to case compiled.**
+***Withdrawn.***
 *(refers to [SRC-011])*
 
 `GREET ('you')` calling `function Greet` is
 `A call to 'GREET' is not supported by the C back end yet.`
 
-⚠️ **Annex G.3's mangling already solves this and the emitter does not use it
-here.** Both spellings lower to `f_greet`; the refusal comes from a lookup keyed
-by the name *as written*, before mangling. This is the last of C-4's family —
-the interpreter folds everywhere now, and one emitter lookup does not.
+⚠️ **The call was only the first layer.** Annex G.3's mangling already lowers
+both spellings to `f_greet`, so the *symbol* was never the problem — the lookup
+that decides which branch to take was keyed by the name as written. Fixing it
+uncovered three more of exactly the same kind, each found by running the case
+again:
 
-    gap  0126-identifiers-are-case-insensitive.a24
+| | |
+| --- | --- |
+| a **field** — `this.VALUE` against `Value` | `field_slot` compared with `strcmp` |
+| a **method** — `B.DOUBLED ()` against `Doubled` | `find_method` hashed and compared the exact spelling |
+| an **enum member** — `COLOUR.red` against `Colour.Red` | the member scan compared with `strcmp` |
+
+⚠️ **The emitter canonicalises, the runtime folds**, and the split is deliberate.
+The emitter maps a name to the spelling it was declared with, once, so the sets
+it consults stay as they are; the runtime folds its own field, method and enum
+lookups because it has no declaration to consult. A name is still *emitted* as
+written, so a diagnostic quotes what the program wrote.
+
+⚠️ A comment in `alg_property` claimed the interpreter's fields were
+case-sensitive too. That stopped being true when DEF-02 landed, and nothing
+noticed until this entry was worked.
+
+⚠️ The folded hash costs nothing measurable — three runs of `./test.sh` before
+and after are the same to within noise, which matters because `find_method` is
+the hottest path in the runtime.
+
 
 **C-33 — An assertion outside a test run is refused compiled.** *(loud)*
 *(refers to [RT-002])*
