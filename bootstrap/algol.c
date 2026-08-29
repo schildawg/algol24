@@ -54,6 +54,12 @@ static ArenaChunk *arena_chunks = NULL;
 static char       *arena_next   = NULL;
 static size_t      arena_left   = 0;
 
+/* The String most recently produced by concat, with the length it reached and
+ * the room reserved for it.  See the ⚠️ in concat. */
+static const char *arena_tail_text = NULL;
+static int32_t     arena_tail_len  = 0;
+static int32_t     arena_tail_cap  = 0;
+
 /* Defined with the files, further down; a file still open at exit is a leaked
  * handle for the same reason a chunk is leaked memory. */
 static void close_open_files(void);
@@ -1025,7 +1031,7 @@ Value alg_in(Value needle, Value haystack) {
 
     if (is_text(haystack)) {
         if (!is_text(needle)) alg_error("Can only test a String against a String.");
-        return alg_bool(strstr(haystack.string, needle.string) != NULL);
+        return alg_bool(strstr(as_text(haystack), as_text(needle)) != NULL);
     }
 
     if (has_method(haystack, "Contains", 1)) {
@@ -2444,12 +2450,66 @@ static Value concat(Value a, Value b) {
     const char *left  = as_text_len(a, &left_len);
     const char *right = as_text_len(b, &right_len);
 
-    char *result = arena_alloc((size_t)left_len + (size_t)right_len + 1);
+    int32_t need = left_len + right_len;
+
+    /* ⚠️ APPENDED IN PLACE into room RESERVED IN ADVANCE, which is what makes
+     * 'S := S + ''x''' in a loop linear instead of quadratic.  Copying both
+     * operands every time retains every intermediate and nothing here is ever
+     * freed: 807 MB for 40,000 appends compiled, against 17 MB through a
+     * Buffer.  It is an allocation-VOLUME problem, so a collector would not
+     * have helped.
+     *
+     * ⚠️ The reservation is the point, and the first version went without it.
+     * Asking only whether the left operand was the arena's most recent
+     * allocation never fired: 'S + ''x''' allocates the Char first, so
+     * something always sat between the string and the free space.  Doubling
+     * the allocation puts the slack INSIDE this string's own block, where no
+     * later allocation can take it.
+     *
+     * ⚠️ Safe only because a String carries its own length.  The append
+     * overwrites the terminator an alias of the shorter view was relying on,
+     * and that alias reads its own length everywhere that measures, compares or
+     * prints -- as_text hands the rest a terminated copy.  That is why these
+     * two changes had to land in this order.
+     *
+     * ⚠️ IDENTITY, not merely a fitting capacity.  The left operand must BE the
+     * string this tail describes, pointer and length together.  Without the
+     * length, two appends from one base both fit and the second overwrote the
+     * first:
+     *
+     *     var A := 'x';   var B := A + 'y';   var C := A + 'z';
+     *
+     * left B reading 'xz'.  It was the test suite's own coloured output that
+     * showed it, as corrupted ANSI escapes -- Console builds its tags by
+     * concatenating shared constants, so a shared operand was appended twice. */
+    if (is_text(a) && left_len > 0
+        && a.string == arena_tail_text
+        && a.length == arena_tail_len
+        && need + 1 <= arena_tail_cap) {
+
+        char *end = (char *)a.string + left_len;
+
+        memcpy(end, right, (size_t)right_len);
+        end[right_len] = '\0';
+
+        arena_tail_len = need;
+        return alg_string_n(a.string, need);
+    }
+
+    /* Doubling, with a floor, so a string built a piece at a time reaches its
+     * size in a logarithmic number of copies rather than one per piece. */
+    int32_t capacity = need + 1 < 64 ? 64 : (need + 1) * 2;
+
+    char *result = arena_alloc((size_t)capacity);
     memcpy(result, left, (size_t)left_len);
     memcpy(result + left_len, right, (size_t)right_len);
-    result[left_len + right_len] = '\0';
+    result[need] = '\0';
 
-    return alg_string_n(result, left_len + right_len);
+    arena_tail_text = result;
+    arena_tail_len  = need;
+    arena_tail_cap  = capacity;
+
+    return alg_string_n(result, need);
 }
 
 Value alg_add(Value a, Value b) {
@@ -2828,8 +2888,29 @@ static const char *as_text(Value v) {
     switch (v.type) {
         case VAL_NIL:    return "nil";
         case VAL_BOOL:   return v.boolean ? "true" : "false";
+
+        /* ⚠️ NUL-TERMINATED for the caller, which is what the twenty-odd
+         * strlen-based consumers of this function need -- every one of them
+         * builds a diagnostic.
+         *
+         * Almost always it already is, and the check is one byte.  An in-place
+         * append in concat is the only thing that can leave a String without
+         * one: the appended text overwrites the terminator that an ALIAS of the
+         * shorter view was relying on.  That alias reads its own length
+         * everywhere that matters, and gets a terminated copy here.
+         *
+         * ⚠️ Reading v.string[v.length] is always in bounds.  Either the byte is
+         * this String's own terminator, or an append has written text there. */
         case VAL_STRING:
-        case VAL_CHAR:   return v.string;
+        case VAL_CHAR: {
+            if (v.string[v.length] == '\0') return v.string;
+
+            char *terminated = arena_alloc((size_t)v.length + 1);
+            memcpy(terminated, v.string, (size_t)v.length);
+            terminated[v.length] = '\0';
+
+            return terminated;
+        }
         case VAL_OBJ:
             if (v.obj->type == OBJ_CLOSURE) {
                 Builder b = { NULL, 0, 0 };
@@ -3028,7 +3109,10 @@ void alg_assert_fail(Value message) {
  */
 static const char *as_string(Value v, const char *what) {
     if (!is_text(v)) alg_error(what);
-    return v.string;
+
+    /* Through as_text, so an alias left un-terminated by an in-place append is
+     * terminated here too -- Pos searches with strstr. */
+    return as_text(v);
 }
 
 static int32_t as_integer(Value v, const char *what) {

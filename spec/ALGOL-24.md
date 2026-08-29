@@ -4925,28 +4925,41 @@ An implementation that raises instead has neither problem and conforms equally.
 
 ### G.2 The cost of `+` on Strings, and what fixes it
 
-A String is immutable and `concat` copies both operands, so building one a piece
-at a time allocates the sum of the lengths — about n²/2 bytes — and the arena
-never reclaims, so all of it stays live. Measured at this commit:
+**Fixed.** This section is kept because the reasoning is worth having, and
+because the fix it proposed was *not* the one that worked.
 
-| | `S := S + 'x'` | `B.Append('x')` |
+A String is immutable and `concat` copied both operands, so building one a piece
+at a time allocated the sum of the lengths — about n²/2 bytes — and the arena
+never reclaims, so all of it stayed live:
+
+| 40,000 appends of `S := S + 'x'` | before | after |
 | --- | --- | --- |
-| 40,000 appends | **776 MB** | 17.4 MB |
-| 200,000 appends | *(quadratic)* | 80 MB |
+| compiled | 807 MB | **1.7 MB** |
+| interpreted | 882 MB | **77 MB** |
+
+The interpreted figure still carries the tree-walker's own per-iteration
+allocation, which is unrelated; it is linear in n now, where it was quadratic.
 
 ⚠️ **This is an allocation-volume problem, not a reclamation one.** A collector
 would not help: the bytes are allocated whether or not they are later freed, and
 the copying is what makes it quadratic. `Buffer` avoids it by appending in
 place, which is why the compiler's own hot paths use one.
 
-**The obvious fix is unsafe today, and safe after one change.**
+⚠️ **The fix this section proposed does not work, and it is instructive.** It
+said: append in place when the left operand is *the arena's most recent
+allocation* — write at `arena_next`, bump, return the left operand's pointer.
 
-`concat` could append **in place** when the left operand is the arena's most
-recent allocation — write the right operand's bytes at `arena_next`, bump, and
-return the left operand's own pointer. `S := S + 'x'` in a loop would then
-allocate n bytes rather than n²/2, because each result *is* the most recent
-allocation and the next append extends it. No collector, no refcounting, no
-escape analysis: the bump pointer is the liveness signal.
+That test **never fires**. `S := S + 'x'` evaluates `'x'` first, and a Char is an
+arena allocation, so something always sits between the string and the free
+space. The prediction assumed the concatenation was the only allocator in the
+statement, and it never is.
+
+**What works is reserving the room in advance.** `concat` allocates double what
+it needs and remembers the capacity, so the slack lies *inside* the string's own
+block where no later allocation can take it. A subsequent append writes into
+that slack; when it runs out, the next copy doubles again. A string built a
+piece at a time is then copied a logarithmic number of times rather than once
+per piece. No collector, no refcounting, no escape analysis.
 
 ⚠️ **What makes it unsafe is that a String is a NUL-terminated `char *`.** Any
 other value holding that pointer would see the extension, because its length is
@@ -4959,29 +4972,31 @@ var C := A + 'ef';        extending in place would change B
 ```
 
 ⚠️ **An explicit length makes it safe**, and for a reason worth stating exactly:
-`B` would hold `{p, 4}` and read only `[0, 4)`, which the append never touches —
-it writes at `p + 4` and yields `{p, 6}`. The alias is correct because it
-carries its own length rather than looking for a terminator.
+`B` holds `{p, 4}` and reads only `[0, 4)`, which the append never touches — it
+writes at `p + 4` and yields `{p, 6}`. The alias is correct because it carries
+its own length rather than looking for a terminator. This is why the two changes
+had to land in that order, and they did.
 
-**So this rides with DEF-01**, which already obliges a String to carry a
-character count distinct from its byte length. Three problems close on one
-representation change:
+⚠️ **Capacity is not enough on its own: the test must be IDENTITY.** The left
+operand has to *be* the string the reserved block currently holds — pointer
+**and** length together. Checking only that the capacity fits lets two appends
+from one base both succeed, and the second overwrites the first:
 
-| | |
-| --- | --- |
-| DEF-01 | counting characters rather than bytes needs the length |
-| DEF-08 | a String that carries its length can hold `#0` — D-3's "better language" |
-| this | in-place append needs the length to keep aliases correct |
+```
+var A := 'x';   var B := A + 'y';   var C := A + 'z';
+```
 
-⚠️ **Two details an implementer will hit.** `arena_alloc` rounds every request
-up to 8 bytes, so a string does **not** end at `arena_next` — the "is this the
-most recent allocation?" test must compare against the rounded size, or it
-silently never fires. The rounding slack is then free capacity for the first few
-appends.
+leaves `B` reading `xz`. This was found by the compiler's own test suite
+printing corrupted ANSI escapes, because `Console` builds its tags by
+concatenating shared constants — so a shared operand was appended to twice.
 
-And the cost is real: every consumer that hands a String's bytes to C as a
-NUL-terminated string must take the length instead. That is the work, and it is
-why this belongs with DEF-01 rather than beside it.
+⚠️ **The consumers cost less than this section feared.** It expected every
+consumer handing a String's bytes to C to need the length. In practice only the
+value-semantic operations do — concat, output, equality, hashing, `Copy`, `Pos`,
+`Length`, subscript. The twenty-odd places that build a *diagnostic* still want a
+plain C string, and get one: `as_text` checks the byte at the length and copies
+only when an append has overwritten a terminator, which is one comparison on a
+path that almost never takes it.
 
 ### G.3 Mangling identifiers into C
 
