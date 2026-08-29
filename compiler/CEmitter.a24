@@ -2445,7 +2445,49 @@ begin
         end
 
         Unreachable (Name);
+
+        // ⚠️ A name NOTHING declares emitted 'v_<name>' anyway, and cc answered
+        // 'use of undeclared identifier' -- naming a generated symbol for what
+        // is a plain program error.  Two shapes reached it: a name an
+        // importer's own imports do not export [MOD-009], and a block-local
+        // read after its 'end' [DCL-008].
+        //
+        // ⚠️ Emitted as a RUNTIME error rather than refused at compile time,
+        // which is what the interpreter does -- a name is looked up when it is
+        // USED, so a reference on a path never taken is not an error at all.
+        // Refusing here would reject programs the language accepts.  UnitValue
+        // has done this for a qualified name all along; this is the bare form.
+        if not Locals.Contains (Name) and not Globals.Contains (Name)
+                                      and not Classes.Contains (Name)
+                                      and not Objects.Contains (Name) then
+            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+
         Exit VariableName (Name);
+    end
+
+    /// What the interpreter says for a name it cannot find, suggestion and all.
+    ///
+    /// ⚠️ The suggestion is part of the message, not decoration: 'Undefined
+    /// variable ''X''.' alone is indistinguishable from a typo for a name the
+    /// reader can see in another file.  Reproducing it is what lets the two
+    /// processors agree on the text.
+    ///
+    /// ⚠️ Only what a unit EXPORTS, and units are walked in name order here
+    /// where the interpreter walks them in load order.  With one unit exporting
+    /// the name the two agree; with two, they may name different ones.
+    function MissingName (Name : String) : String;
+    var
+        Units : List;
+
+    begin
+        Units := UnitExports.Keys();
+
+        for var I := 0; I < Units.Length; I := I + 1 do
+            if (UnitExports.Get (Units[I]) as Set).Contains (Name) then
+                Exit 'Undefined variable ''' + Name + '''. Unit ''' + Str (Units[I])
+                   + ''' exports it; this file has no ''uses'' for it.';
+
+        Exit 'Undefined variable ''' + Name + '''.';
     end
 
     /// ⚠️ The last resort of a bare name is 'v_Name', which is right only for a
@@ -2858,6 +2900,20 @@ begin
                               and VisibleMethods.Contains (Name) then
             Exit 'alg_invoke(v_this, ' + QuoteC (Name) + ', '
                + ArgumentArray (Arguments) + ')';
+
+        // ⚠️ DECLARED IS NOT THE SAME AS REACHABLE.  Declared spans the whole
+        // flattened program, so a function in a unit this file never imported
+        // still counted as declared -- and the call emitted 'f_deepname'
+        // against a header that was never included, so cc answered 'call to
+        // undeclared function'.  'uses' is not transitive [MOD-009], and
+        // ShadowNames is what this unit can actually see: its own names, and
+        // its imports' exports.
+        //
+        // ⚠️ A RUNTIME error, not a refusal, because that is what the
+        // interpreter gives -- a name is looked up when it is used, so a call
+        // on a path never taken is not an error at all.
+        if Declared.Contains (Name) and not ShadowNames.Contains (Name) then
+            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
 
         if Declared.Contains (Name) then
             Exit FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';

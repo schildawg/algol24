@@ -4369,7 +4369,7 @@ compiled text names the back end for something that is a rule about the
     gap  0030-assert-outside-a-test-run.a24
 
 **C-34 — A name that does not resolve emits invalid C.**
-*(loud, in the wrong place)*
+***Withdrawn.***
 *(refers to [MOD-009], [DCL-008])*
 
 A name the program cannot reach is a runtime error interpreted and a `cc`
@@ -4383,14 +4383,30 @@ declared. Two shapes reach it:
 
 ⚠️ The second shape only became reachable when C-11 was fixed. Before that a
 top-level block's variable was emitted at file scope, so it wrongly *did* exist
-after the block and the program ran with no complaint at all — a silent wrong
-answer traded for a loud one, which is the right direction.
+after the block and the program ran with no complaint at all.
+
+⚠️ **Emitted as a RUNTIME error, not refused at compile time**, which is what the
+interpreter does: a name is looked up when it is *used*, so a reference on a path
+never taken is not an error at all. Refusing at emit time would reject programs
+the language accepts. `UnitValue` had done exactly this for a *qualified* name all
+along — `(alg_error("…"), alg_nil())` — and the bare forms now do the same.
+
+⚠️ **`Declared` is not the same as reachable**, which is what the first shape
+turned on. `Declared` spans the whole flattened program, so a function in a unit
+this file never imported still counted as declared and the call emitted
+`f_deepname` against a header that was never included. `uses` is not transitive
+[MOD-009]; `ShadowNames` is what a unit can actually see.
+
+⚠️ **The suggestion is part of the message and is reproduced.** `Undefined
+variable 'X'.` alone is indistinguishable from a typo for a name the reader can
+see in another file, so the compiled text names the unit too — the two outputs
+are byte-identical. ⚠️ Units are walked in *name* order here where the
+interpreter walks them in *load* order; with two units exporting one name the
+two could still name different ones.
 
 ⚠️ The emitter breaks its own contract, as in C-13 and C-16: it should refuse by
 name what it cannot emit rather than emit C that does not build.
 
-    gap  0085-uses-is-not-transitive.a24
-    gap  0039-blocks-and-scope.a24
 
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
 > blocked on "a registry of declared type names that does not exist —
