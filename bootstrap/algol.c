@@ -542,21 +542,41 @@ static uint32_t hash_bytes(uint32_t hash, const void *data, size_t length) {
 }
 
 static uint32_t hash_value(Value v) {
-    uint32_t hash = hash_bytes(2166136261u, &v.type, sizeof v.type);
+    /* ⚠️ ONE tag for every number, because strict_equals promotes [VAL-013] and
+     * a hash must agree with it: an Integer and a Double of the same value have
+     * to reach the same slot or Contains answers false for a key the Map holds.
+     * Mixing the real type in is what used to keep them apart, and that was
+     * right only while membership was strict. */
+    ValueType tag = v.type;
+    if (tag == VAL_INT) tag = VAL_DOUBLE;
+
+    uint32_t hash = hash_bytes(2166136261u, &tag, sizeof tag);
 
     switch (v.type) {
         case VAL_NIL:    return hash;
         case VAL_BOOL:   return hash_bytes(hash, &v.boolean, sizeof v.boolean);
-        case VAL_INT:    return hash_bytes(hash, &v.integer, sizeof v.integer);
+
+        /* Every int32 converts to a double exactly, so hashing both AS a double
+         * makes them agree with no range test to get wrong. */
+        case VAL_INT: {
+            double widened = (double)v.integer;
+            return hash_bytes(hash, &widened, sizeof widened);
+        }
 
         case VAL_DOUBLE: {
             /* ⚠️ All NaNs are one key in strict_equals, so all NaNs must be one
-             * hash -- whatever payload the bits carry.  Note that -0.0 and 0.0
-             * are DIFFERENT keys and so may hash differently; that is correct
-             * and needs no normalising. */
+             * hash -- whatever payload the bits carry. */
             if (isnan(v.number)) return hash_bytes(hash, "NaN", 3);
 
-            return hash_bytes(hash, &v.number, sizeof v.number);
+            /* ⚠️ -0.0 and 0.0 ARE one key now, since strict_equals promotes and
+             * '-0.0 == 0.0' in C.  The comment here used to say they were
+             * different keys needing no normalising; that was true only while
+             * the comparison was a memcmp.  Without this the Map holds both and
+             * finds neither reliably. */
+            double bits = v.number;
+            if (bits == 0.0) bits = 0.0;
+
+            return hash_bytes(hash, &bits, sizeof bits);
         }
         case VAL_STRING:
         case VAL_CHAR:   return hash_bytes(hash, v.string, strlen(v.string));
@@ -2364,20 +2384,37 @@ static bool equals(Value a, Value b) {
  * ⚠️ The '=' OPERATOR is unaffected: it goes through equals(), where NaN = NaN
  * stays false and -0.0 = 0.0 stays true, as IEEE says.  Only membership and key
  * identity changed, which is the trade every hashed language makes. */
+/* The relation behind 'in', Contains and Map key lookup.
+ *
+ * ⚠️ It PROMOTES, because membership and equality are one relation [VAL-013]:
+ * if X = Y then a collection holding Y contains X, so a Map keyed 1 is found by
+ * 1.0.  This used to compare strictly, which meant a program could hold two
+ * values it called equal and find only one of them.  Both halves were
+ * defensible alone -- '=' promotes because arithmetic does, and membership was
+ * strict because a hash table cannot be built over a relation that promotes.
+ * The second is a statement about the implementation, and it is the one that
+ * gave way: hash_value now brings an Integer and a Double of one value to the
+ * same slot.
+ *
+ * ⚠️ NaN is the single departure from 'equals', and [VAL-013] permits it: the
+ * rule is an IMPLICATION, so a pair that is not equal is unconstrained by it.
+ * All NaNs are one KEY -- what doubleToLongBits does -- because a Map that
+ * cannot find a key it holds is broken in a way no rule asks for. */
 static bool strict_equals(Value a, Value b) {
+    if (is_number(a) && is_number(b)) {
+        if (a.type == VAL_DOUBLE && b.type == VAL_DOUBLE
+            && isnan(a.number) && isnan(b.number)) return true;
+
+        return equals(a, b);
+    }
+
     if (a.type != b.type) return false;
 
     switch (a.type) {
         case VAL_NIL:    return true;
         case VAL_BOOL:   return a.boolean == b.boolean;
-        case VAL_INT:    return a.integer == b.integer;
-
-        /* ⚠️ All NaNs are one key, whatever their payload -- which is what
-         * doubleToLongBits does, and memcmp alone would not.  Nothing in the
-         * language can produce a non-canonical NaN today, so this is a rule
-         * being written down rather than a case being handled. */
-        case VAL_DOUBLE: return (isnan(a.number) && isnan(b.number))
-                              || memcmp(&a.number, &b.number, sizeof a.number) == 0;
+        case VAL_INT:
+        case VAL_DOUBLE: return false;   /* handled above; both are numbers */
         case VAL_STRING:
         case VAL_CHAR:   return strcmp(a.string, b.string) == 0;
         case VAL_OBJ:    return a.obj == b.obj;

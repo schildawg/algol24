@@ -1327,15 +1327,26 @@ H-8.
 collection holding `Y` contains `X`. `1 in [1.0]` is **true**, and a Map holding
 the key `1` contains the key `1.0`.
 
-⚠️ **NOT YET IMPLEMENTED.** All three compare strictly, with no numeric
-promotion, so `1 in [1.0]` and `1.0 in [1]` are both false and
-`Keys.Contains(1.0)` is false for a Map holding `1` — while `1 = 1.0` is true.
-A program can hold two values it calls equal and find only one of them. See
-DEF-14.
+⚠️ **The hash is what pays for it**, not the comparison. A Map and a Set bucket
+by a hash, so an Integer and a Double of one value must reach the same slot or
+`Contains` answers false for a key the Map holds. Every `int32` converts to a
+`double` exactly, so both hash *as* a double and no range test can get it wrong.
+
+⚠️ **`-0.0`, `0.0` and `0` are one key.** They were three while the comparison
+was a `memcmp`, and the runtime said so in a comment this rule made stale.
+
+⚠️ **NaN is the one departure, and this rule permits it.** The rule is an
+*implication*: a pair that is not equal is unconstrained by it, and `NaN = NaN`
+is false. All NaNs are one **key**, because a Map that cannot find a key it
+holds is broken in a way no rule asks for.
+
+⚠️ One implementation, not two: `ObjCollection` delegates to the host's own
+`Contains`, so the interpreter's membership *is* the runtime's and the two
+cannot disagree.
 
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           strict_equals
-    defect       DEF-14-membership-does-not-follow-equality.a24
+    conformance  0127-membership-follows-equality.a24
 
 > Each half was defensible alone, which is how they came to disagree: `=`
 > promotes because arithmetic does, and membership is strict because a hash
@@ -2539,12 +2550,13 @@ two cannot be used interchangeably, and nothing in the call says which is coming
 equality of [VAL-009], so a collection holding `1.0` contains `1`. See
 [VAL-013].
 
-⚠️ **NOT YET IMPLEMENTED.** All three compare strictly, without numeric
-promotion. See DEF-14.
+⚠️ A collection still compares by **identity**, and that is unchanged: two Lists
+of the same contents are not equal, so `[1] in [[1]]` is false. Promotion is
+between the numeric types, not a structural comparison.
 
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           strict_equals
-    defect       DEF-14-membership-does-not-follow-equality.a24
+    conformance  0127-membership-follows-equality.a24
 
 **[COL-013]**  `Sort` orders in place and is **stable**. It orders numbers
 against numbers and text against text; mixing them is `Can only sort numbers
@@ -4028,7 +4040,10 @@ change and would surprise every program doing ordinary arithmetic.
 ⚠️ The reason the two diverged is worth keeping: `=` promotes because arithmetic
 does, and membership was strict because a hash table cannot be built over a
 promoting relation. The second is a statement about the implementation and the
-first about the language, which is what decided it. Tracked by DEF-14.
+first about the language, which is what decided it.
+
+**Implemented.** `strict_equals` promotes and `hash_value` brings both numeric
+types to one slot.
 
 **D-7 — `as` is an unchecked assertion.** *(refers to [VAL-007])*
 
@@ -4774,23 +4789,6 @@ selection is already comparing type names.
 it checks the type name against the declared types and records an error when it
 denotes nothing. ⚠️ `Any` must stay legal there even though `X is Any` is always
 false [VAL-005] — it names something, it just never matches.
-
-**DEF-14 — Membership does not follow equality.**
-*(violates [VAL-013])*
-
-`in`, `Contains` and Map key lookup compare strictly where `=` promotes, so
-`1 in [1.0]` and `1.0 in [1]` are both false and a Map holding the key `1` does
-not contain `1.0` — while `1 = 1.0` is true. A program can hold two values it
-calls equal and find only one of them in a collection.
-
-*Reproduce:* `defects/DEF-14-membership-does-not-follow-equality.a24`
-
-*Scope of the fix.* `strict_equals` in the C runtime and the corresponding path
-in `ObjCollection.a24` use the promoting comparison. ⚠️ **The hash is the real
-work**, not the comparison: a Map and a Set bucket by a hash, and an Integer and
-a Double of the same numeric value must land in the same bucket or the lookup
-will not find what the comparison would have matched. Changing the comparison
-alone would leave `Contains` answering false for a key the Map holds.
 
 **DEF-15 — Functions and classes are not hoisted.**
 *(violates [DCL-006])*
