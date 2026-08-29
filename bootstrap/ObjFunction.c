@@ -119,10 +119,10 @@ static Value i_objoverloads(Value v_this, Value *args, int32_t count) {
 
 static Value m_objoverloads_init_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Candidates", alg_list()));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
+    (void)(alg_set_property(v_this, "Candidates", alg_widen(alg_list(), "List")));
     return alg_nil();
 }
 
@@ -142,7 +142,7 @@ static Value m_objoverloads_arity_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_objoverloads_select_1_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_arguments = args[0];
+    Value v_arguments = alg_widen(args[0], "List");
     (void)v_arguments;
     {
         Value v_i = alg_int(0);
@@ -221,9 +221,9 @@ Value f_samesignature(Value **cells, Value *args, int32_t count) {
 
 Value f_widens(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
-    Value v_actual = args[0];
+    Value v_actual = alg_param(args[0], "String");
     (void)v_actual;
-    Value v_declared = args[1];
+    Value v_declared = alg_param(args[1], "String");
     (void)v_declared;
     if (alg_truthy((or_0 = alg_equal(v_declared, alg_string("Double")), !alg_truthy(or_0) ? or_0 : alg_equal(v_actual, alg_string("Integer"))))) {
         return alg_bool(true);
@@ -239,20 +239,20 @@ Value f_inheritsfrom(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
     Value v_value = args[0];
     (void)v_value;
-    Value v_thename = args[1];
+    Value v_thename = alg_param(args[1], "String");
     (void)v_thename;
     Value v_klass = alg_nil();
     (void)v_klass;
     if (alg_truthy(alg_not((alg_is(v_value, "ObjInstance"))))) {
         return alg_bool(false);
     }
-    (void)((v_klass = alg_property(v_value, "Klass")));
+    (void)((v_klass = alg_widen(alg_property(v_value, "Klass"), "ObjClass")));
     while (alg_truthy(alg_not_equal(v_klass, alg_nil()))) {
         {
             if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(v_klass, "Name")}, 1), f_foldcase(NULL, (Value[]){v_thename}, 1)))) {
                 return alg_bool(true);
             }
-            (void)((v_klass = alg_property(v_klass, "Superclass")));
+            (void)((v_klass = alg_widen(alg_property(v_klass, "Superclass"), "ObjClass")));
         }
     }
     return alg_bool(false);
@@ -264,47 +264,47 @@ static Value i_objfunction(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Declaration", alg_nil());
     alg_set_property(v_this, "Closure", alg_nil());
     alg_set_property(v_this, "IsInitializer", alg_nil());
-    alg_set_property(v_this, "Owner", alg_nil());
-    alg_set_property(v_this, "Bound", alg_nil());
+    alg_set_property(v_this, "Owner", alg_widen(alg_nil(), "ObjClass"));
+    alg_set_property(v_this, "Bound", alg_widen(alg_nil(), "ObjInstance"));
     return alg_nil();
 }
 
 static Value m_objfunction_init_3_functionstmt_environment_boolean(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_declaration = args[0];
+    Value v_declaration = alg_widen(args[0], "FunctionStmt");
     (void)v_declaration;
-    Value v_closure = args[1];
+    Value v_closure = alg_widen(args[1], "Environment");
     (void)v_closure;
-    Value v_isinitializer = args[2];
+    Value v_isinitializer = alg_widen(args[2], "Boolean");
     (void)v_isinitializer;
-    (void)(alg_set_property(v_this, "Closure", v_closure));
-    (void)(alg_set_property(v_this, "Declaration", v_declaration));
-    (void)(alg_set_property(v_this, "IsInitializer", v_isinitializer));
+    (void)(alg_set_property(v_this, "Closure", alg_widen(v_closure, "Environment")));
+    (void)(alg_set_property(v_this, "Declaration", alg_widen(v_declaration, "FunctionStmt")));
+    (void)(alg_set_property(v_this, "IsInitializer", alg_widen(v_isinitializer, "Boolean")));
     return alg_nil();
 }
 
 static Value m_objfunction_bind_1_objinstance(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_instance = args[0];
+    Value v_instance = alg_widen(args[0], "ObjInstance");
     (void)v_instance;
     Value v_env = alg_nil();
     (void)v_env;
-    (void)((v_env = alg_new(k_environment, NULL, 0)));
-    (void)(alg_set_property(v_env, "Enclosing", alg_property(v_this, "Closure")));
+    (void)((v_env = alg_widen(alg_new(k_environment, NULL, 0), "Environment")));
+    (void)(alg_set_property(v_env, "Enclosing", alg_widen(alg_property(v_this, "Closure"), "Environment")));
     (void)(alg_invoke(v_env, "Define", (Value[]){alg_string("this"), v_instance}, 2));
     Value v_result = alg_new(k_objfunction, (Value[]){alg_property(v_this, "Declaration"), v_env, alg_property(v_this, "IsInitializer")}, 3);
     (void)v_result;
-    (void)(alg_set_property(v_result, "Owner", alg_property(v_this, "Owner")));
-    (void)(alg_set_property(v_result, "Bound", v_instance));
+    (void)(alg_set_property(v_result, "Owner", alg_widen(alg_property(v_this, "Owner"), "ObjClass")));
+    (void)(alg_set_property(v_result, "Bound", alg_widen(v_instance, "ObjInstance")));
     return v_result;
     return alg_nil();
 }
 
 static Value m_objfunction_fits_2_list_boolean(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_arguments = args[0];
+    Value v_arguments = alg_widen(args[0], "List");
     (void)v_arguments;
-    Value v_widening = args[1];
+    Value v_widening = alg_widen(args[1], "Boolean");
     (void)v_widening;
     if (alg_truthy(alg_not_equal(alg_invoke(v_this, "Arity", NULL, 0), alg_property(v_arguments, "Length")))) {
         return alg_bool(false);
@@ -369,8 +369,8 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_env;
     volatile Value v_count = alg_nil();
     (void)v_count;
-    (void)((v_env = alg_new(k_environment, NULL, 0)));
-    (void)(alg_set_property(v_env, "Enclosing", alg_property(v_this, "Closure")));
+    (void)((v_env = alg_widen(alg_new(k_environment, NULL, 0), "Environment")));
+    (void)(alg_set_property(v_env, "Enclosing", alg_widen(alg_property(v_this, "Closure"), "Environment")));
     {
         volatile Value v_i = alg_int(0);
         (void)v_i;

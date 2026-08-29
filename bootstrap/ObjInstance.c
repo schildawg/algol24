@@ -22,16 +22,16 @@ static Value i_objinstance(Value v_this, Value *args, int32_t count) {
 
 static Value m_objinstance_init_1_objclass(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_klass = args[0];
+    Value v_klass = alg_widen(args[0], "ObjClass");
     (void)v_klass;
-    (void)(alg_set_property(v_this, "Klass", v_klass));
-    (void)(alg_set_property(v_this, "Fields", alg_map()));
+    (void)(alg_set_property(v_this, "Klass", alg_widen(v_klass, "ObjClass")));
+    (void)(alg_set_property(v_this, "Fields", alg_widen(alg_map(), "Map")));
     return alg_nil();
 }
 
 static Value m_objinstance_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
     Value v_method = alg_nil();
     (void)v_method;
@@ -43,7 +43,7 @@ static Value m_objinstance_get_1_token(Value v_this, Value *args, int32_t count)
             return alg_invoke(alg_property(v_this, "Fields"), "Get", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1);
         }
     }
-    (void)((v_method = alg_invoke(alg_property(v_this, "Klass"), "FindMethod", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1)));
+    (void)((v_method = alg_widen(alg_invoke(alg_property(v_this, "Klass"), "FindMethod", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1), "ObjFunction")));
     if (alg_truthy(alg_not_equal(v_method, alg_nil()))) {
         return alg_invoke(v_method, "Bind", (Value[]){v_this}, 1);
     }
@@ -53,7 +53,7 @@ static Value m_objinstance_get_1_token(Value v_this, Value *args, int32_t count)
 
 static Value m_objinstance_set_2_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
     Value v_value = args[1];
     (void)v_value;
@@ -70,13 +70,13 @@ static Value m_objinstance_tostring_0(Value v_this, Value *args, int32_t count) 
 static Value i_objsingleton(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "TheInterpreter", alg_nil());
-    alg_set_property(v_this, "TheInstance", alg_nil());
+    alg_set_property(v_this, "TheInstance", alg_widen(alg_nil(), "ObjInstance"));
     return alg_nil();
 }
 
 static Value m_objsingleton_init_2_objclass(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_klass = args[0];
+    Value v_klass = alg_widen(args[0], "ObjClass");
     (void)v_klass;
     Value v_theinterpreter = args[1];
     (void)v_theinterpreter;
@@ -89,7 +89,7 @@ static Value m_objsingleton_init_2_objclass(Value v_this, Value *args, int32_t c
 static Value m_objsingleton_instance_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     if (alg_truthy(alg_equal(alg_property(v_this, "TheInstance"), alg_nil()))) {
-        (void)(alg_set_property(v_this, "TheInstance", alg_invoke(alg_property(v_this, "Klass"), "Call", (Value[]){alg_property(v_this, "TheInterpreter"), alg_list()}, 2)));
+        (void)(alg_set_property(v_this, "TheInstance", alg_widen(alg_invoke(alg_property(v_this, "Klass"), "Call", (Value[]){alg_property(v_this, "TheInterpreter"), alg_list()}, 2), "ObjInstance")));
     }
     return alg_property(v_this, "TheInstance");
     return alg_nil();
@@ -97,7 +97,7 @@ static Value m_objsingleton_instance_0(Value v_this, Value *args, int32_t count)
 
 static Value m_objsingleton_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
     return alg_invoke(alg_invoke(v_this, "Instance", NULL, 0), "Get", (Value[]){v_name}, 1);
     return alg_nil();
@@ -105,7 +105,7 @@ static Value m_objsingleton_get_1_token(Value v_this, Value *args, int32_t count
 
 static Value m_objsingleton_set_2_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
     Value v_value = args[1];
     (void)v_value;

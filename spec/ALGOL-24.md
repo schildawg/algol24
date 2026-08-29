@@ -4215,7 +4215,8 @@ report did not ask for, and a failing suite is now identical through both
 processors.
 
 **C-24 — A compiled top-level subprogram is matched on arity, not signature.**
-*(silent)* *(refers to [FUN-006])*
+***Withdrawn.***
+*(refers to [FUN-006])*
 
 `function G (N : Integer)` called with a String is `No matching signature for
 function.` interpreted and runs compiled, returning the String. The emitted call
@@ -4226,14 +4227,18 @@ language refuses, so one developed against the compiler fails the moment it is
 run interpreted. It is the same shape C-4 had, and the same remedy applies —
 bring the compiler up, not the interpreter down.
 
-*Fix:* the emitted call site compares declared parameter types as `Fits` does.
-⚠️ The type is known at emit time only where the argument's type is known, which
-is the gradual-typing case — so the check has to be a run-time one against
-`type_name`, as the interpreter's is.
+⚠️ **Checked in the CALLEE, not at the call site.** The entry proposed the call
+site; the callee is one place instead of many, and it is where the declared type
+already is. `alg_param` raises what does not fit and widens what does.
 
-    gap  0042-top-level-parameter-type.a24
+⚠️ **Only a top-level subprogram goes through it.** A method's parameters are
+checked when the overload is *selected*, and a constructor's are deliberately not
+checked at all — see `find_method`'s `strict`. A top-level subprogram has no
+selection step, which is exactly why the check had nowhere else to live.
 
-**C-25 — A compiled argument does not widen into its parameter.** *(silent)*
+
+**C-25 — A compiled value does not widen into a written type.**
+***Withdrawn.***
 *(refers to [VAR-017], [EXP-014])*
 
 `function D (X : Double)` called as `D (1)` yields `1` compiled and `1.0`
@@ -4241,14 +4246,26 @@ interpreted. A parameter is an assignment context, so the argument should widen
 on the way in and the parameter should hold the wider type.
 
 ⚠️ Distinct from C-24, which is about *refusing* a mismatch: this one is about
-*converting* a match. A compiled program silently holds an Integer where its own
-declaration says Double.
+*converting* a match. A compiled program silently held an Integer where its own
+declaration said Double.
 
-*Fix:* `alg_call` converts an argument whose parameter is declared `Double` or
-`String`, as `ObjFunction.Call` does through `Widen`.
+⚠️ **Wider than a parameter.** The entry named only arguments; a declaration, a
+`const`, a plain assignment, a field and a field's initializer were all
+unconverted too. `alg_widen` is called at each, and the declared type reaches the
+assignment and field cases **on the node**, written there by the TypeChecker —
+the same arrangement the interpreter needed.
 
-    gap  0140-widening-at-every-context.a24
-    gap  0137-parameters-match-on-signature.a24
+⚠️ **Selection had to learn to widen at the same moment**, or `Only ('a')` against
+a `String` parameter found no method. `find_method` makes two passes, exact
+before widening, over the whole chain — the mirror of the interpreter's, and for
+the same reason: one pass would let declaration order decide.
+
+⚠️ **Widening and checking are separate jobs, and conflating them broke the
+bootstrap.** One helper that both converted and refused turned a String reaching
+a field declared `Expr` into an error — a shape real programs use, since a
+constructor's signature is unchecked by design. `alg_widen` converts and refuses
+nothing; `alg_param` does both and is used only where a check belongs.
+
 
 **C-26 — Two top-level subprograms of one name will not compile.** *(loud)*
 

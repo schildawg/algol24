@@ -68,9 +68,9 @@ static Value i_blockstmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_blockstmt_init_1_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_statements = args[0];
+    Value v_statements = alg_widen(args[0], "List");
     (void)v_statements;
-    (void)(alg_set_property(v_this, "Statements", v_statements));
+    (void)(alg_set_property(v_this, "Statements", alg_widen(v_statements, "List")));
     return alg_nil();
 }
 
@@ -90,9 +90,9 @@ static Value i_expressionstmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_expressionstmt_init_1_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_expression = args[0];
+    Value v_expression = alg_widen(args[0], "Expr");
     (void)v_expression;
-    (void)(alg_set_property(v_this, "Expression", v_expression));
+    (void)(alg_set_property(v_this, "Expression", alg_widen(v_expression, "Expr")));
     return alg_nil();
 }
 
@@ -108,20 +108,20 @@ static Value i_varstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Initializer", alg_nil());
-    alg_set_property(v_this, "TypeName", alg_string(""));
-    alg_set_property(v_this, "IsConstant", alg_bool(false));
-    alg_set_property(v_this, "Generic", alg_string(""));
+    alg_set_property(v_this, "TypeName", alg_widen(alg_string(""), "String"));
+    alg_set_property(v_this, "IsConstant", alg_widen(alg_bool(false), "Boolean"));
+    alg_set_property(v_this, "Generic", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
 
 static Value m_varstmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
-    Value v_initializer = args[1];
+    Value v_initializer = alg_widen(args[1], "Expr");
     (void)v_initializer;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Initializer", v_initializer));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Initializer", alg_widen(v_initializer, "Expr")));
     return alg_nil();
 }
 
@@ -137,20 +137,20 @@ static Value i_vargroupstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Names", alg_nil());
     alg_set_property(v_this, "Initializer", alg_nil());
-    alg_set_property(v_this, "TypeName", alg_string(""));
-    alg_set_property(v_this, "Generic", alg_string(""));
-    alg_set_property(v_this, "IsConstant", alg_bool(false));
+    alg_set_property(v_this, "TypeName", alg_widen(alg_string(""), "String"));
+    alg_set_property(v_this, "Generic", alg_widen(alg_string(""), "String"));
+    alg_set_property(v_this, "IsConstant", alg_widen(alg_bool(false), "Boolean"));
     return alg_nil();
 }
 
 static Value m_vargroupstmt_init_2_list_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_names = args[0];
+    Value v_names = alg_widen(args[0], "List");
     (void)v_names;
-    Value v_initializer = args[1];
+    Value v_initializer = alg_widen(args[1], "Expr");
     (void)v_initializer;
-    (void)(alg_set_property(v_this, "Names", v_names));
-    (void)(alg_set_property(v_this, "Initializer", v_initializer));
+    (void)(alg_set_property(v_this, "Names", alg_widen(v_names, "List")));
+    (void)(alg_set_property(v_this, "Initializer", alg_widen(v_initializer, "Expr")));
     return alg_nil();
 }
 
@@ -172,15 +172,15 @@ static Value i_ifstmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_ifstmt_init_3_expr_stmt_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_condition = args[0];
+    Value v_condition = alg_widen(args[0], "Expr");
     (void)v_condition;
-    Value v_thenbranch = args[1];
+    Value v_thenbranch = alg_widen(args[1], "Stmt");
     (void)v_thenbranch;
-    Value v_elsebranch = args[2];
+    Value v_elsebranch = alg_widen(args[2], "Stmt");
     (void)v_elsebranch;
-    (void)(alg_set_property(v_this, "Condition", v_condition));
-    (void)(alg_set_property(v_this, "ThenBranch", v_thenbranch));
-    (void)(alg_set_property(v_this, "ElseBranch", v_elsebranch));
+    (void)(alg_set_property(v_this, "Condition", alg_widen(v_condition, "Expr")));
+    (void)(alg_set_property(v_this, "ThenBranch", alg_widen(v_thenbranch, "Stmt")));
+    (void)(alg_set_property(v_this, "ElseBranch", alg_widen(v_elsebranch, "Stmt")));
     return alg_nil();
 }
 
@@ -201,12 +201,12 @@ static Value i_excepthandler(Value v_this, Value *args, int32_t count) {
 
 static Value m_excepthandler_init_2_string_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    Value v_body = args[1];
+    Value v_body = alg_widen(args[1], "Stmt");
     (void)v_body;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Body", v_body));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
+    (void)(alg_set_property(v_this, "Body", alg_widen(v_body, "Stmt")));
     return alg_nil();
 }
 
@@ -216,24 +216,24 @@ static Value i_objectstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Superclass", alg_nil());
     alg_set_property(v_this, "Methods", alg_nil());
     alg_set_property(v_this, "Fields", alg_nil());
-    alg_set_property(v_this, "PrivateMembers", alg_list());
+    alg_set_property(v_this, "PrivateMembers", alg_widen(alg_list(), "List"));
     return alg_nil();
 }
 
 static Value m_objectstmt_init_4_token_variableexpr_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
-    Value v_superclass = args[1];
+    Value v_superclass = alg_widen(args[1], "VariableExpr");
     (void)v_superclass;
-    Value v_methods = args[2];
+    Value v_methods = alg_widen(args[2], "List");
     (void)v_methods;
-    Value v_fields = args[3];
+    Value v_fields = alg_widen(args[3], "List");
     (void)v_fields;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Superclass", v_superclass));
-    (void)(alg_set_property(v_this, "Methods", v_methods));
-    (void)(alg_set_property(v_this, "Fields", v_fields));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Superclass", alg_widen(v_superclass, "VariableExpr")));
+    (void)(alg_set_property(v_this, "Methods", alg_widen(v_methods, "List")));
+    (void)(alg_set_property(v_this, "Fields", alg_widen(v_fields, "List")));
     return alg_nil();
 }
 
@@ -250,22 +250,22 @@ static Value i_modulestmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Statements", alg_nil());
     alg_set_property(v_this, "PrivateNames", alg_nil());
-    alg_set_property(v_this, "FileName", alg_string(""));
-    alg_set_property(v_this, "UnitName", alg_string(""));
+    alg_set_property(v_this, "FileName", alg_widen(alg_string(""), "String"));
+    alg_set_property(v_this, "UnitName", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
 
 static Value m_modulestmt_init_3_token_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
-    Value v_statements = args[1];
+    Value v_statements = alg_widen(args[1], "List");
     (void)v_statements;
-    Value v_privatenames = args[2];
+    Value v_privatenames = alg_widen(args[2], "List");
     (void)v_privatenames;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Statements", v_statements));
-    (void)(alg_set_property(v_this, "PrivateNames", v_privatenames));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Statements", alg_widen(v_statements, "List")));
+    (void)(alg_set_property(v_this, "PrivateNames", alg_widen(v_privatenames, "List")));
     return alg_nil();
 }
 
@@ -285,9 +285,9 @@ static Value i_breakstmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_breakstmt_init_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_keyword = args[0];
+    Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
-    (void)(alg_set_property(v_this, "Keyword", v_keyword));
+    (void)(alg_set_property(v_this, "Keyword", alg_widen(v_keyword, "Token")));
     return alg_nil();
 }
 
@@ -308,12 +308,12 @@ static Value i_trystmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_trystmt_init_2_stmt_map(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_tryblock = args[0];
+    Value v_tryblock = alg_widen(args[0], "Stmt");
     (void)v_tryblock;
-    Value v_handlers = args[1];
+    Value v_handlers = alg_widen(args[1], "Map");
     (void)v_handlers;
-    (void)(alg_set_property(v_this, "TryBlock", v_tryblock));
-    (void)(alg_set_property(v_this, "Handlers", v_handlers));
+    (void)(alg_set_property(v_this, "TryBlock", alg_widen(v_tryblock, "Stmt")));
+    (void)(alg_set_property(v_this, "Handlers", alg_widen(v_handlers, "Map")));
     return alg_nil();
 }
 
@@ -334,12 +334,12 @@ static Value i_raisestmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_raisestmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_keyword = args[0];
+    Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
-    Value v_value = args[1];
+    Value v_value = alg_widen(args[1], "Expr");
     (void)v_value;
-    (void)(alg_set_property(v_this, "Keyword", v_keyword));
-    (void)(alg_set_property(v_this, "Value", v_value));
+    (void)(alg_set_property(v_this, "Keyword", alg_widen(v_keyword, "Token")));
+    (void)(alg_set_property(v_this, "Value", alg_widen(v_value, "Expr")));
     return alg_nil();
 }
 
@@ -361,15 +361,15 @@ static Value i_forinstmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_forinstmt_init_3_token_expr_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
-    Value v_iterable = args[1];
+    Value v_iterable = alg_widen(args[1], "Expr");
     (void)v_iterable;
-    Value v_body = args[2];
+    Value v_body = alg_widen(args[2], "Stmt");
     (void)v_body;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Iterable", v_iterable));
-    (void)(alg_set_property(v_this, "Body", v_body));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Iterable", alg_widen(v_iterable, "Expr")));
+    (void)(alg_set_property(v_this, "Body", alg_widen(v_body, "Stmt")));
     return alg_nil();
 }
 
@@ -390,12 +390,12 @@ static Value i_whilestmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_whilestmt_init_2_expr_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_condition = args[0];
+    Value v_condition = alg_widen(args[0], "Expr");
     (void)v_condition;
-    Value v_body = args[1];
+    Value v_body = alg_widen(args[1], "Stmt");
     (void)v_body;
-    (void)(alg_set_property(v_this, "Condition", v_condition));
-    (void)(alg_set_property(v_this, "Body", v_body));
+    (void)(alg_set_property(v_this, "Condition", alg_widen(v_condition, "Expr")));
+    (void)(alg_set_property(v_this, "Body", alg_widen(v_body, "Stmt")));
     return alg_nil();
 }
 
@@ -412,22 +412,22 @@ static Value i_functionstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Params", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
-    alg_set_property(v_this, "ReturnType", alg_string(""));
-    alg_set_property(v_this, "ParamTypes", alg_list());
+    alg_set_property(v_this, "ReturnType", alg_widen(alg_string(""), "String"));
+    alg_set_property(v_this, "ParamTypes", alg_widen(alg_list(), "List"));
     return alg_nil();
 }
 
 static Value m_functionstmt_init_3_token_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
-    Value v_params = args[1];
+    Value v_params = alg_widen(args[1], "List");
     (void)v_params;
-    Value v_body = args[2];
+    Value v_body = alg_widen(args[2], "List");
     (void)v_body;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Params", v_params));
-    (void)(alg_set_property(v_this, "Body", v_body));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Params", alg_widen(v_params, "List")));
+    (void)(alg_set_property(v_this, "Body", alg_widen(v_body, "List")));
     return alg_nil();
 }
 
@@ -448,12 +448,12 @@ static Value i_returnstmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_returnstmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_keyword = args[0];
+    Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
-    Value v_value = args[1];
+    Value v_value = alg_widen(args[1], "Expr");
     (void)v_value;
-    (void)(alg_set_property(v_this, "Keyword", v_keyword));
-    (void)(alg_set_property(v_this, "Value", v_value));
+    (void)(alg_set_property(v_this, "Keyword", alg_widen(v_keyword, "Token")));
+    (void)(alg_set_property(v_this, "Value", alg_widen(v_value, "Expr")));
     return alg_nil();
 }
 
@@ -474,12 +474,12 @@ static Value i_enumstmt(Value v_this, Value *args, int32_t count) {
 
 static Value m_enumstmt_init_2_token_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
-    Value v_members = args[1];
+    Value v_members = alg_widen(args[1], "List");
     (void)v_members;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Members", v_members));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Members", alg_widen(v_members, "List")));
     return alg_nil();
 }
 
@@ -497,24 +497,24 @@ static Value i_classstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Superclass", alg_nil());
     alg_set_property(v_this, "Methods", alg_nil());
     alg_set_property(v_this, "Fields", alg_nil());
-    alg_set_property(v_this, "PrivateMembers", alg_list());
+    alg_set_property(v_this, "PrivateMembers", alg_widen(alg_list(), "List"));
     return alg_nil();
 }
 
 static Value m_classstmt_init_4_token_variableexpr_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
-    Value v_superclass = args[1];
+    Value v_superclass = alg_widen(args[1], "VariableExpr");
     (void)v_superclass;
-    Value v_methods = args[2];
+    Value v_methods = alg_widen(args[2], "List");
     (void)v_methods;
-    Value v_fields = args[3];
+    Value v_fields = alg_widen(args[3], "List");
     (void)v_fields;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Superclass", v_superclass));
-    (void)(alg_set_property(v_this, "Methods", v_methods));
-    (void)(alg_set_property(v_this, "Fields", v_fields));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Superclass", alg_widen(v_superclass, "VariableExpr")));
+    (void)(alg_set_property(v_this, "Methods", alg_widen(v_methods, "List")));
+    (void)(alg_set_property(v_this, "Fields", alg_widen(v_fields, "List")));
     return alg_nil();
 }
 

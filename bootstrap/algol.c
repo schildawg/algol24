@@ -1311,7 +1311,76 @@ static bool is_a(Value v, const char *name) {
  * the runtime has no collector -- anything allocated here would accumulate for
  * the life of the process.  type_name hands back a static string or a class's
  * own name, and the scan is over the method table that already exists. */
-static bool signature_matches(MethodEntry *entry, Value *args, int32_t count) {
+/* Whether an argument of this type may be passed where 'declared' is written,
+ * by WIDENING [VAR-004] -- an Integer where a Double is asked for, a Char where
+ * a String is.  A parameter is an assignment context [VAR-017]. */
+static bool widens_to(const char *actual, const char *declared) {
+    if (alg_stricmp(declared, "Double") == 0 && alg_stricmp(actual, "Integer") == 0) return true;
+    if (alg_stricmp(declared, "String") == 0 && alg_stricmp(actual, "Char") == 0)    return true;
+
+    return false;
+}
+
+/* Binds one argument to a declared parameter type: raises where it does not fit,
+ * and CONVERTS where it fits by widening.
+ *
+ * ⚠️ In the callee, not at the call site, which is what lets one place answer
+ * both faults.  A compiled call to a top-level subprogram checked the argument
+ * COUNT and nothing else (C-24), and an argument that fitted by widening was
+ * passed unconverted, so a parameter declared Double held an Integer (C-25).
+ *
+ * ⚠️ An untyped parameter, 'Any', and a nil argument all pass untouched, which
+ * is the gradual half of the language [VAR-005], [VAR-006]. */
+/* CONVERTS and nothing else: a value that does not fit is handed back
+ * untouched.
+ *
+ * ⚠️ The two jobs are separate, and conflating them broke the bootstrap.  The
+ * interpreter's Widen only converts; the CHECK lives at overload selection and
+ * in the TypeChecker.  A constructor's signature is deliberately unchecked
+ * [see find_method's 'strict'], so a String reaching a field declared 'Expr' is
+ * a shape real programs use -- refusing it here made the compiler unable to
+ * build itself. */
+Value alg_widen(Value argument, const char *declared) {
+    if (declared == NULL || *declared == '\0') return argument;
+
+    const char *actual = type_name(argument);
+    if (!widens_to(actual, declared)) return argument;
+
+    if (alg_stricmp(declared, "Double") == 0) return alg_double((double)argument.integer);
+
+    /* A Char already holds its text; widening is the tag. */
+    Value widened = argument;
+    widened.type  = VAL_STRING;
+    return widened;
+}
+
+/* Widens, and REFUSES what does not fit.
+ *
+ * ⚠️ Only a top-level subprogram's parameters go through this.  A method's are
+ * checked when the overload is selected, and a constructor's are deliberately
+ * not checked at all; a top-level subprogram has no selection step, so the
+ * check has nowhere else to live [FUN-006]. */
+Value alg_param(Value argument, const char *declared) {
+    if (declared == NULL || *declared == '\0') return argument;
+    if (alg_stricmp(declared, "Any") == 0)      return argument;
+
+    const char *actual = type_name(argument);
+    if (alg_stricmp(actual, "nil") == 0) return argument;
+    if (alg_stricmp(actual, "Any") == 0) return argument;
+    if (alg_stricmp(actual, declared) == 0) return argument;
+
+    if (widens_to(actual, declared)) return alg_widen(argument, declared);
+    if (is_a(argument, declared)) return argument;
+
+    alg_error("No matching signature for function.");
+}
+
+/* ⚠️ 'widening' is what separates the two passes of overload selection.  An
+ * exact match is PREFERRED [EXP-014], so a Char argument takes a Char overload
+ * rather than a String one however they are declared; admitting the widening in
+ * a single pass would let declaration order decide.  The interpreter's Fits
+ * takes the same flag for the same reason. */
+static bool signature_matches(MethodEntry *entry, Value *args, int32_t count, bool widening) {
     if (args == NULL || entry->types == NULL) return true;
 
     for (int32_t i = 0; i < count; i++) {
@@ -1323,7 +1392,10 @@ static bool signature_matches(MethodEntry *entry, Value *args, int32_t count) {
         if (alg_stricmp(actual, "nil") == 0) continue;
         if (alg_stricmp(declared, actual) == 0) continue;
 
-        if (!is_a(args[i], declared)) return false;
+        if (is_a(args[i], declared)) continue;
+        if (widening && widens_to(actual, declared)) continue;
+
+        return false;
     }
     return true;
 }
@@ -1346,17 +1418,25 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
 
     uint32_t want = hash_folded(name);
 
-    for (ObjClass *at = klass; at != NULL; at = at->super) {
-        for (int32_t i = 0; i < at->method_count; i++) {
-            if (at->methods[i].hash != want) continue;
-            if (alg_stricmp(at->methods[i].name, name) != 0) continue;
+    /* ⚠️ TWO PASSES over the WHOLE chain, exact before widening [EXP-014].  An
+     * exact match on a parent must beat a widened match on a child, or adding
+     * an overload to a subclass would silently capture calls the parent was
+     * answering exactly.  One pass admitting widening would also let
+     * declaration order decide which overload a Char reaches. */
+    for (int pass = 0; pass < 2; pass++) {
+        for (ObjClass *at = klass; at != NULL; at = at->super) {
+            for (int32_t i = 0; i < at->method_count; i++) {
+                if (at->methods[i].hash != want) continue;
+                if (alg_stricmp(at->methods[i].name, name) != 0) continue;
 
-            if (at->methods[i].arity == arity) {
-                if (signature_matches(&at->methods[i], args, arity)) return &at->methods[i];
-
-                if (by_arity == NULL) by_arity = &at->methods[i];
+                if (at->methods[i].arity == arity) {
+                    if (signature_matches(&at->methods[i], args, arity, pass == 1)) {
+                        return &at->methods[i];
+                    }
+                    if (by_arity == NULL) by_arity = &at->methods[i];
+                }
+                if (named == NULL) named = &at->methods[i];
             }
-            if (named == NULL) named = &at->methods[i];
         }
     }
     /* ⚠️ Arity matched and no signature did.  Handing back the arity match runs

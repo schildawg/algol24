@@ -1941,7 +1941,29 @@ begin
             var Name := Str (TheMethod.Params[I].Lexeme);
             Locals.Add (Name);
 
-            Line (Local () + VariableName (Name) + ' = args[' + Str (I) + '];');
+            // ⚠️ A CONSTRUCTOR's arguments are not bound, and that asymmetry
+            // belongs to the language rather than to this emitter: find_method
+            // is called with 'strict' FALSE for one, so a constructor's
+            // signature is not checked where a method's is.  Programs depend on
+            // it -- a 'LiteralExpr' declaring 'Init (Value : Expr)' and
+            // constructed with a String at every literal is the shape that
+            // breaks.  Binding here checked what selection deliberately does
+            // not, and the compiler stopped compiling itself.
+            // ⚠️ WIDENS ONLY.  A method's signature is checked when the
+            // overload is selected, and a constructor's is deliberately not
+            // checked at all -- refusing here checked what selection does not,
+            // and the compiler stopped compiling itself.
+            var Slot := 'args[' + Str (I) + ']';
+
+            if I < TheMethod.ParamTypes.Length then
+            begin
+                var Declared := Str (TheMethod.ParamTypes[I]);
+
+                if Declared <> '' and Declared <> 'Any' then
+                    Slot := 'alg_widen(' + Slot + ', ' + QuoteC (Declared) + ')';
+            end
+
+            Line (Local () + VariableName (Name) + ' = ' + Slot + ';');
             Line ('(void)' + VariableName (Name) + ';');
         end
 
@@ -2023,7 +2045,14 @@ begin
         for var I := 0; I < Fields.Length; I := I + 1 do
         begin
             var Value := 'alg_nil()';
-            if Fields[I].Initializer <> Nil then Value := Evaluate (Fields[I].Initializer);
+            if Fields[I].Initializer <> Nil then
+            begin
+                Value := Evaluate (Fields[I].Initializer);
+
+                // A field's initializer is an assignment context too
+                // [VAR-017], and the declaration is right here.
+                Value := BoundValue (Fields[I].TypeName, Value);
+            end
 
             Applied := Applied + '    alg_set_property(v_this, '
                      + QuoteC (Str (Fields[I].Name.Lexeme)) + ', ' + Value + ');' + #10;
@@ -2135,7 +2164,18 @@ begin
 
     begin
         Value := 'alg_nil()';
-        if TheStmt.Initializer <> Nil then Value := Evaluate (TheStmt.Initializer);
+        if TheStmt.Initializer <> Nil then
+        begin
+            Value := Evaluate (TheStmt.Initializer);
+
+            // ⚠️ A DECLARATION is an assignment context too [VAR-017], so the
+            // value widens into the type written -- 'var A : Double := 1;'
+            // holds 1.0.  Compiled it held an Integer, so the declaration
+            // described something the variable did not contain.  alg_param does
+            // the same work for a parameter; it is one rule, and one helper.
+            if Str (TheStmt.TypeName) <> '' and Str (TheStmt.TypeName) <> 'Any' then
+                Value := 'alg_widen(' + Value + ', ' + QuoteC (Str (TheStmt.TypeName)) + ')';
+        end
 
         // ⚠️ A top-level var is declared at file scope so functions can see it,
         // but ASSIGNED in main: a C global's initializer has to be a constant
@@ -2367,14 +2407,16 @@ begin
                 var Qualifier := 'Value *';
                 if Volatiles then Qualifier := 'Value *volatile ';
 
-                Line (Qualifier + Cell (ParamName) + ' = alg_cell(args[' + Str (I) + ']);');
+                Line (Qualifier + Cell (ParamName) + ' = alg_cell('
+                    + BoundArgument (TheStmt.Params, TheStmt.ParamTypes, I) + ');');
                 Line ('(void)' + Cell (ParamName) + ';');
 
                 Cells.Add (ParamName);
             end
             else
             begin
-                Line (Local () + VariableName (ParamName) + ' = args[' + Str (I) + '];');
+                Line (Local () + VariableName (ParamName) + ' = '
+                    + BoundArgument (TheStmt.Params, TheStmt.ParamTypes, I) + ';');
                 Line ('(void)' + VariableName (ParamName) + ';');
             end
         end
@@ -2566,6 +2608,18 @@ begin
         Unsupported ('Reading ''' + Name + ''' from a nested function');
     end
 
+    /// A value on its way into something with a written type, widened.
+    ///
+    /// ⚠️ The type comes from the NODE, written there by the TypeChecker, which
+    /// had already computed it to check the assignment.  The emitter has no
+    /// other way to know it -- the same reason the interpreter needed it.
+    function BoundValue (Declared : Any, Value : String) : String;
+    begin
+        if Str (Declared) = '' or Str (Declared) = 'Any' then Exit Str (Value);
+
+        Exit 'alg_widen(' + Str (Value) + ', ' + QuoteC (Str (Declared)) + ')';
+    end
+
     function VisitAssignExpr (TheExpr : AssignExpr) : String;
     var
         Name : String;
@@ -2573,8 +2627,10 @@ begin
     begin
         Name := Str (TheExpr.Name.Lexeme);
 
+        var Written := BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value));
+
         if Captured.Contains (Name) or Boxed.Contains (Name) then
-            Exit '(' + Read (Name) + ' = ' + Evaluate (TheExpr.Value) + ')';
+            Exit '(' + Read (Name) + ' = ' + Written + ')';
 
         // ⚠️ The same field fallback reading a bare name gets.  Without it the
         // READ of 'Count' inside a method resolved to the field and the WRITE
@@ -2582,11 +2638,10 @@ begin
         // ever looked at.
         if CurrentClass <> '' and not Locals.Contains (Name)
                               and VisibleFields.Contains (FoldCase (Name)) then
-            Exit 'alg_set_property(v_this, ' + QuoteC (Name) + ', '
-               + Evaluate (TheExpr.Value) + ')';
+            Exit 'alg_set_property(v_this, ' + QuoteC (Name) + ', ' + Written + ')';
 
         Unreachable (Name);
-        Exit '(' + VariableName (Name) + ' = ' + Evaluate (TheExpr.Value) + ')';
+        Exit '(' + VariableName (Name) + ' = ' + Written + ')';
     end
 
     function VisitGrouping (TheExpr : GroupingExpr) : String;
@@ -3028,6 +3083,27 @@ begin
     /// keep-functions return the collection, so the whole thing stays an
     /// expression and a literal is usable anywhere one is.
     ///
+    /// One argument, bound to the type its parameter declares.
+    ///
+    /// ⚠️ Checked and widened in the CALLEE, not at the call site, so one place
+    /// answers both faults: a compiled call checked the argument COUNT and
+    /// nothing else, and an argument that fitted by widening arrived
+    /// unconverted.  A parameter is an assignment context [VAR-017].
+    ///
+    /// An untyped parameter is passed straight through, which keeps the emitted
+    /// C unchanged wherever no type was written.
+    function BoundArgument (Params : Any, Types : Any, I : Integer) : String;
+    begin
+        var Slot := 'args[' + Str (I) + ']';
+
+        if I >= Types.Length then Exit Slot;
+
+        var Declared := Str (Types[I]);
+        if Declared = '' or Declared = 'Any' then Exit Slot;
+
+        Exit 'alg_param(' + Slot + ', ' + QuoteC (Declared) + ')';
+    end
+
     /// Whether every part of this literal is itself a literal, and so may be
     /// built by a function that sees no locals.
     ///
@@ -3206,8 +3282,11 @@ begin
             Unsupported ('An assignment to ''' + Unit + '.' + Name + '''');
         end
 
+        // A field is an assignment context [VAR-017], and its declared type
+        // reaches here on the node exactly as an ordinary assignment's does.
         Exit 'alg_set_property(' + Evaluate (TheExpr.Obj) + ', '
-           + QuoteC (Str (TheExpr.Name.Lexeme)) + ', ' + Evaluate (TheExpr.Value) + ')';
+           + QuoteC (Str (TheExpr.Name.Lexeme)) + ', '
+           + BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value)) + ')';
     end
 
     /// ⚠️ Only reached when 'super.M' is used as a VALUE rather than called.

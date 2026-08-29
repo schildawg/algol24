@@ -17,7 +17,7 @@ Value f_foldcase(Value **cells, Value *args, int32_t count) {
     (void)v_text;
     Value v_out = alg_nil();
     (void)v_out;
-    (void)((v_text = alg_str(v_name)));
+    (void)((v_text = alg_widen(alg_str(v_name), "String")));
     Value v_needs = alg_bool(false);
     (void)v_needs;
     {
@@ -35,7 +35,7 @@ Value f_foldcase(Value **cells, Value *args, int32_t count) {
     if (alg_truthy(alg_not(v_needs))) {
         return v_text;
     }
-    (void)((v_out = alg_buffer(alg_int(0))));
+    (void)((v_out = alg_widen(alg_buffer(alg_int(0)), "Buffer")));
     {
         Value v_i = alg_int(0);
         (void)v_i;
@@ -64,24 +64,24 @@ static Value i_token(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Lexeme", alg_nil());
     alg_set_property(v_this, "Literal", alg_nil());
     alg_set_property(v_this, "LineNumber", alg_nil());
-    alg_set_property(v_this, "Offset", alg_int(0));
+    alg_set_property(v_this, "Offset", alg_widen(alg_int(0), "Integer"));
     return alg_nil();
 }
 
 static Value m_token_init_4_tokentype_string_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_typeoftoken = args[0];
+    Value v_typeoftoken = alg_widen(args[0], "TokenType");
     (void)v_typeoftoken;
-    Value v_lexeme = args[1];
+    Value v_lexeme = alg_widen(args[1], "String");
     (void)v_lexeme;
     Value v_literal = args[2];
     (void)v_literal;
-    Value v_linenumber = args[3];
+    Value v_linenumber = alg_widen(args[3], "Integer");
     (void)v_linenumber;
-    (void)(alg_set_property(v_this, "TypeOfToken", v_typeoftoken));
-    (void)(alg_set_property(v_this, "Lexeme", v_lexeme));
+    (void)(alg_set_property(v_this, "TypeOfToken", alg_widen(v_typeoftoken, "TokenType")));
+    (void)(alg_set_property(v_this, "Lexeme", alg_widen(v_lexeme, "String")));
     (void)(alg_set_property(v_this, "Literal", v_literal));
-    (void)(alg_set_property(v_this, "LineNumber", v_linenumber));
+    (void)(alg_set_property(v_this, "LineNumber", alg_widen(v_linenumber, "Integer")));
     return alg_nil();
 }
 

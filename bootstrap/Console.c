@@ -33,18 +33,18 @@ static Value i_console(Value v_this, Value *args, int32_t count) {
 
 static Value m_console_repeat_2_char_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_what = args[0];
+    Value v_what = alg_widen(args[0], "Char");
     (void)v_what;
-    Value v_times = args[1];
+    Value v_times = alg_widen(args[1], "Integer");
     (void)v_times;
-    Value v_result = alg_string("");
+    Value v_result = alg_widen(alg_string(""), "String");
     (void)v_result;
     {
         Value v_i = alg_int(0);
         (void)v_i;
         while (alg_truthy(alg_less(v_i, v_times))) {
             {
-                (void)((v_result = alg_add(v_result, v_what)));
+                (void)((v_result = alg_widen(alg_add(v_result, v_what), "String")));
                 (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
@@ -55,14 +55,14 @@ static Value m_console_repeat_2_char_integer(Value v_this, Value *args, int32_t 
 
 static Value m_console_header_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     Value v_width = alg_nil();
     (void)v_width;
-    (void)((v_width = alg_subtract(alg_subtract(alg_length(v_bar), alg_int(4)), alg_length(v_name))));
-    (void)((v_width = alg_divide(v_width, alg_int(2))));
+    (void)((v_width = alg_widen(alg_subtract(alg_subtract(alg_length(v_bar), alg_int(4)), alg_length(v_name)), "Integer")));
+    (void)((v_width = alg_widen(alg_divide(v_width, alg_int(2)), "Integer")));
     if (alg_truthy(alg_less(v_width, alg_int(0)))) {
-        (void)((v_width = alg_int(0)));
+        (void)((v_width = alg_widen(alg_int(0), "Integer")));
     }
     (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_width}, 2), alg_string("[ ")), v_ansiVcyan), v_name), v_ansiVreset), alg_string(" ]")), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_width}, 2))}, 1));
     return alg_nil();
@@ -70,7 +70,7 @@ static Value m_console_header_1_string(Value v_this, Value *args, int32_t count)
 
 static Value m_console_subheader_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("< "), v_ansiVcyan), v_name), v_ansiVreset), alg_string(" >"))}, 1));
     return alg_nil();
@@ -78,7 +78,7 @@ static Value m_console_subheader_1_string(Value v_this, Value *args, int32_t cou
 
 static Value m_console_info_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_text = args[0];
+    Value v_text = alg_widen(args[0], "String");
     (void)v_text;
     (void)(alg_writeln(alg_add(v_infoVtag, v_text)));
     return alg_nil();
@@ -86,13 +86,13 @@ static Value m_console_info_1_string(Value v_this, Value *args, int32_t count) {
 
 static Value m_console_success_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     Value v_width = alg_nil();
     (void)v_width;
-    (void)((v_width = alg_subtract(alg_subtract(alg_length(v_bar), alg_int(10)), alg_length(v_name))));
+    (void)((v_width = alg_widen(alg_subtract(alg_subtract(alg_length(v_bar), alg_int(10)), alg_length(v_name)), "Integer")));
     if (alg_truthy(alg_less(v_width, alg_int(0)))) {
-        (void)((v_width = alg_int(0)));
+        (void)((v_width = alg_widen(alg_int(0), "Integer")));
     }
     (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(v_name, alg_char_value(32)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_width}, 2)), v_ansiVgreen), alg_string(" SUCCESS")), v_ansiVreset)}, 1));
     return alg_nil();
@@ -100,13 +100,13 @@ static Value m_console_success_1_string(Value v_this, Value *args, int32_t count
 
 static Value m_console_fail_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     Value v_width = alg_nil();
     (void)v_width;
-    (void)((v_width = alg_subtract(alg_subtract(alg_length(v_bar), alg_int(10)), alg_length(v_name))));
+    (void)((v_width = alg_widen(alg_subtract(alg_subtract(alg_length(v_bar), alg_int(10)), alg_length(v_name)), "Integer")));
     if (alg_truthy(alg_less(v_width, alg_int(0)))) {
-        (void)((v_width = alg_int(0)));
+        (void)((v_width = alg_widen(alg_int(0), "Integer")));
     }
     (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(v_name, alg_char_value(32)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_width}, 2)), v_ansiVred), alg_string(" FAILED")), v_ansiVreset)}, 1));
     return alg_nil();
@@ -114,7 +114,7 @@ static Value m_console_fail_1_string(Value v_this, Value *args, int32_t count) {
 
 static Value m_console_debug_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_text = args[0];
+    Value v_text = alg_widen(args[0], "String");
     (void)v_text;
     (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ansiVwhite, alg_char_value(91)), v_ansiVyellow), alg_string("DEBUG")), v_ansiVwhite), alg_string("] ")), v_ansiVreset), v_text)));
     return alg_nil();
@@ -122,16 +122,16 @@ static Value m_console_debug_1_string(Value v_this, Value *args, int32_t count) 
 
 static Value m_console_error_2_token_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_where = args[0];
+    Value v_where = alg_widen(args[0], "Token");
     (void)v_where;
-    Value v_message = args[1];
+    Value v_message = alg_widen(args[1], "String");
     (void)v_message;
     Value v_text = alg_nil();
     (void)v_text;
     Value v_digits = alg_nil();
     (void)v_digits;
-    (void)((v_text = alg_invoke(alg_singleton(k_sourcecode), "Get", (Value[]){alg_property(v_where, "LineNumber")}, 1)));
-    (void)((v_digits = alg_length(alg_str(alg_property(v_where, "LineNumber")))));
+    (void)((v_text = alg_widen(alg_invoke(alg_singleton(k_sourcecode), "Get", (Value[]){alg_property(v_where, "LineNumber")}, 1), "String")));
+    (void)((v_digits = alg_widen(alg_length(alg_str(alg_property(v_where, "LineNumber"))), "Integer")));
     (void)(alg_writeln(alg_add(alg_add(alg_add(v_errorVtag, alg_invoke(alg_singleton(k_sourcecode), "Name", NULL, 0)), alg_string(": ")), v_message)));
     (void)(alg_writeln(alg_add(alg_add(alg_add(v_errorVtag, alg_str(alg_property(v_where, "LineNumber"))), alg_string(" | ")), v_text)));
     (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ansiVwhite, alg_char_value(91)), v_ansiVred), alg_string("ERROR")), v_ansiVreset), alg_string("] ")), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), v_digits}, 2)), alg_string(" |")), v_ansiVred), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), alg_add(alg_property(v_where, "Offset"), alg_int(1))}, 2)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(94), alg_length(alg_property(v_where, "Lexeme"))}, 2)), v_ansiVreset)));

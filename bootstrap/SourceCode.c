@@ -8,26 +8,26 @@ static const char *t_sourcecode_get_1_integer[] = { "Integer" };
 
 static Value i_sourcecode(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    alg_set_property(v_this, "Lines", alg_list());
-    alg_set_property(v_this, "FileName", alg_string(""));
+    alg_set_property(v_this, "Lines", alg_widen(alg_list(), "List"));
+    alg_set_property(v_this, "FileName", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Id", alg_string("SourceCode"));
     return alg_nil();
 }
 
 static Value m_sourcecode_begins_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    (void)(alg_set_property(v_this, "Lines", alg_list()));
-    (void)(alg_set_property(v_this, "FileName", v_name));
+    (void)(alg_set_property(v_this, "Lines", alg_widen(alg_list(), "List")));
+    (void)(alg_set_property(v_this, "FileName", alg_widen(v_name, "String")));
     return alg_nil();
 }
 
 static Value m_sourcecode_add_2_integer_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_linenumber = args[0];
+    Value v_linenumber = alg_widen(args[0], "Integer");
     (void)v_linenumber;
-    Value v_text = args[1];
+    Value v_text = alg_widen(args[1], "String");
     (void)v_text;
     if (alg_truthy(alg_less(v_linenumber, alg_int(1)))) {
         return alg_nil();
@@ -45,7 +45,7 @@ static Value m_sourcecode_add_2_integer_string(Value v_this, Value *args, int32_
 
 static Value m_sourcecode_get_1_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_linenumber = args[0];
+    Value v_linenumber = alg_widen(args[0], "Integer");
     (void)v_linenumber;
     if (alg_truthy(alg_less(v_linenumber, alg_int(1)))) {
         return alg_string("");

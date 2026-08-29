@@ -381,6 +381,14 @@ void  alg_write(Value v);
  * own exit code: without it a driver has to 'raise' to exit non-zero, which
  * prints an 'Uncaught:' line the report never asked for. */
 void  alg_halt(Value status);
+
+/* Binds an argument to a declared parameter type: raises where it does not fit,
+ * widens where it does.  Emitted around every typed parameter's unpack. */
+Value alg_param(Value argument, const char *declared);
+
+/* Widens a value into a written type and refuses nothing -- a declaration, an
+ * assignment, a field, a method's parameter.  The check lives elsewhere. */
+Value alg_widen(Value argument, const char *declared);
 void  alg_writeln(Value v);
 Value alg_str(Value v);
 

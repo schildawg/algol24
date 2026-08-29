@@ -20,15 +20,15 @@ static Value i_objenum(Value v_this, Value *args, int32_t count) {
 
 static Value m_objenum_init_3_string_string_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_typename = args[0];
+    Value v_typename = alg_widen(args[0], "String");
     (void)v_typename;
-    Value v_name = args[1];
+    Value v_name = alg_widen(args[1], "String");
     (void)v_name;
-    Value v_ordinal = args[2];
+    Value v_ordinal = alg_widen(args[2], "Integer");
     (void)v_ordinal;
-    (void)(alg_set_property(v_this, "TypeName", v_typename));
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Ordinal", v_ordinal));
+    (void)(alg_set_property(v_this, "TypeName", alg_widen(v_typename, "String")));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
+    (void)(alg_set_property(v_this, "Ordinal", alg_widen(v_ordinal, "Integer")));
     return alg_nil();
 }
 
@@ -40,7 +40,7 @@ static Value m_objenum_tostring_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_objenum_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_thename = args[0];
+    Value v_thename = alg_widen(args[0], "Token");
     (void)v_thename;
     if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(v_thename, "Lexeme")}, 1), alg_string("ordinal")))) {
         return alg_property(v_this, "Ordinal");
@@ -58,20 +58,20 @@ static Value i_objenumtype(Value v_this, Value *args, int32_t count) {
 
 static Value m_objenumtype_init_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Members", alg_map()));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
+    (void)(alg_set_property(v_this, "Members", alg_widen(alg_map(), "Map")));
     return alg_nil();
 }
 
 static Value m_objenumtype_add_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_membername = args[0];
+    Value v_membername = alg_widen(args[0], "String");
     (void)v_membername;
     Value v_member = alg_nil();
     (void)v_member;
-    (void)((v_member = alg_new(k_objenum, (Value[]){alg_property(v_this, "Name"), v_membername, alg_property(alg_property(v_this, "Members"), "Length")}, 3)));
+    (void)((v_member = alg_widen(alg_new(k_objenum, (Value[]){alg_property(v_this, "Name"), v_membername, alg_property(alg_property(v_this, "Members"), "Length")}, 3), "ObjEnum")));
     (void)(alg_invoke(alg_property(v_this, "Members"), "Put", (Value[]){f_foldcase(NULL, (Value[]){v_membername}, 1), v_member}, 2));
     return v_member;
     return alg_nil();
@@ -79,7 +79,7 @@ static Value m_objenumtype_add_1_string(Value v_this, Value *args, int32_t count
 
 static Value m_objenumtype_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_thename = args[0];
+    Value v_thename = alg_widen(args[0], "Token");
     (void)v_thename;
     if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Members"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_thename, "Lexeme")}, 1)}, 1)))) {
         alg_raise(alg_add(alg_add(alg_string("Undefined enum member '"), alg_property(v_thename, "Lexeme")), alg_string("'.")));

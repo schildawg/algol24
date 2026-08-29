@@ -29,23 +29,23 @@ static Value i_environment(Value v_this, Value *args, int32_t count) {
 
 static Value m_environment_init_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    (void)(alg_set_property(v_this, "Values", alg_map()));
-    (void)(alg_set_property(v_this, "Enclosing", alg_nil()));
-    (void)(alg_set_property(v_this, "Imports", alg_list()));
-    (void)(alg_set_property(v_this, "Exports", alg_nil()));
-    (void)(alg_set_property(v_this, "UnitName", alg_string("")));
-    (void)(alg_set_property(v_this, "Ambiguous", alg_nil()));
+    (void)(alg_set_property(v_this, "Values", alg_widen(alg_map(), "Map")));
+    (void)(alg_set_property(v_this, "Enclosing", alg_widen(alg_nil(), "Environment")));
+    (void)(alg_set_property(v_this, "Imports", alg_widen(alg_list(), "List")));
+    (void)(alg_set_property(v_this, "Exports", alg_widen(alg_nil(), "Set")));
+    (void)(alg_set_property(v_this, "UnitName", alg_widen(alg_string(""), "String")));
+    (void)(alg_set_property(v_this, "Ambiguous", alg_widen(alg_nil(), "Map")));
     return alg_nil();
 }
 
 static Value m_environment_markambiguous_2_string_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    Value v_owners = args[1];
+    Value v_owners = alg_widen(args[1], "String");
     (void)v_owners;
     if (alg_truthy(alg_equal(alg_property(v_this, "Ambiguous"), alg_nil()))) {
-        (void)(alg_set_property(v_this, "Ambiguous", alg_map()));
+        (void)(alg_set_property(v_this, "Ambiguous", alg_widen(alg_map(), "Map")));
     }
     (void)(alg_invoke(alg_property(v_this, "Ambiguous"), "Put", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1), v_owners}, 2));
     (void)(alg_invoke(alg_property(v_this, "Values"), "Remove", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1));
@@ -54,16 +54,16 @@ static Value m_environment_markambiguous_2_string_string(Value v_this, Value *ar
 
 static Value m_environment_raiseambiguousimport_2_string_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    Value v_display = args[1];
+    Value v_display = alg_widen(args[1], "String");
     (void)v_display;
     Value v_owners = alg_nil();
     (void)v_owners;
     Value v_seen = alg_nil();
     (void)v_seen;
-    (void)((v_owners = alg_string("")));
-    (void)((v_seen = alg_set()));
+    (void)((v_owners = alg_widen(alg_string(""), "String")));
+    (void)((v_seen = alg_widen(alg_set(), "Set")));
     {
         Value v_i = alg_int(0);
         (void)v_i;
@@ -78,9 +78,9 @@ static Value m_environment_raiseambiguousimport_2_string_string(Value v_this, Va
                                 {
                                     (void)(alg_invoke(v_seen, "Add", (Value[]){alg_property(v_themodule, "UnitName")}, 1));
                                     if (alg_truthy(alg_equal(v_owners, alg_string("")))) {
-                                        (void)((v_owners = alg_property(v_themodule, "UnitName")));
+                                        (void)((v_owners = alg_widen(alg_property(v_themodule, "UnitName"), "String")));
                                     } else {
-                                        (void)((v_owners = alg_add(alg_add(v_owners, alg_string(" or ")), alg_property(v_themodule, "UnitName"))));
+                                        (void)((v_owners = alg_widen(alg_add(alg_add(v_owners, alg_string(" or ")), alg_property(v_themodule, "UnitName")), "String")));
                                     }
                                 }
                             }
@@ -97,7 +97,7 @@ static Value m_environment_raiseambiguousimport_2_string_string(Value v_this, Va
 
 static Value m_environment_isexported_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     if (alg_truthy(alg_equal(alg_property(v_this, "Exports"), alg_nil()))) {
         return alg_bool(true);
@@ -108,13 +108,13 @@ static Value m_environment_isexported_1_string(Value v_this, Value *args, int32_
 
 static Value m_environment_ownerof_2_string_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    Value v_display = args[1];
+    Value v_display = alg_widen(args[1], "String");
     (void)v_display;
     Value v_found = alg_nil();
     (void)v_found;
-    (void)((v_found = alg_nil()));
+    (void)((v_found = alg_widen(alg_nil(), "Environment")));
     {
         Value v_i = alg_int(0);
         (void)v_i;
@@ -129,7 +129,7 @@ static Value m_environment_ownerof_2_string_string(Value v_this, Value *args, in
                                 if (alg_truthy((or_0 = alg_not_equal(v_found, alg_nil()), !alg_truthy(or_0) ? or_0 : alg_not_equal(v_themodule, v_found)))) {
                                     (void)(alg_invoke(v_this, "RaiseAmbiguousImport", (Value[]){v_name, v_display}, 2));
                                 }
-                                (void)((v_found = v_themodule));
+                                (void)((v_found = alg_widen(v_themodule, "Environment")));
                             }
                         }
                     }
@@ -144,7 +144,7 @@ static Value m_environment_ownerof_2_string_string(Value v_this, Value *args, in
 
 static Value m_environment_define_2_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     Value v_value = args[1];
     (void)v_value;
@@ -154,7 +154,7 @@ static Value m_environment_define_2_string(Value v_this, Value *args, int32_t co
 
 static Value m_environment_assign_2_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
     Value v_value = args[1];
     (void)v_value;
@@ -189,7 +189,7 @@ static Value m_environment_assign_2_token(Value v_this, Value *args, int32_t cou
 
 static Value m_environment_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_name = args[0];
+    Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
     if (alg_truthy(alg_invoke(alg_property(v_this, "Values"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))) {
         {
@@ -215,9 +215,9 @@ static Value m_environment_get_1_token(Value v_this, Value *args, int32_t count)
 
 static Value m_environment_getat_2_integer_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_distance = args[0];
+    Value v_distance = alg_widen(args[0], "Integer");
     (void)v_distance;
-    Value v_name = args[1];
+    Value v_name = alg_widen(args[1], "String");
     (void)v_name;
     return alg_invoke(alg_property(alg_invoke(v_this, "Ancestor", (Value[]){v_distance}, 1), "Values"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1);
     return alg_nil();
@@ -225,9 +225,9 @@ static Value m_environment_getat_2_integer_string(Value v_this, Value *args, int
 
 static Value m_environment_assignat_3_integer_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_distance = args[0];
+    Value v_distance = alg_widen(args[0], "Integer");
     (void)v_distance;
-    Value v_name = args[1];
+    Value v_name = alg_widen(args[1], "Token");
     (void)v_name;
     Value v_value = args[2];
     (void)v_value;
@@ -237,18 +237,18 @@ static Value m_environment_assignat_3_integer_token(Value v_this, Value *args, i
 
 static Value m_environment_ancestor_1_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_distance = args[0];
+    Value v_distance = alg_widen(args[0], "Integer");
     (void)v_distance;
     Value v_env = alg_nil();
     (void)v_env;
-    (void)((v_env = v_this));
+    (void)((v_env = alg_widen(v_this, "Environment")));
     {
         Value v_i = alg_int(0);
         (void)v_i;
         while (alg_truthy(alg_less(v_i, v_distance))) {
             {
                 {
-                    (void)((v_env = alg_property(v_env, "Enclosing")));
+                    (void)((v_env = alg_widen(alg_property(v_env, "Enclosing"), "Environment")));
                 }
                 (void)((v_i = alg_add(v_i, alg_int(1))));
             }
