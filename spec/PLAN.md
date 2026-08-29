@@ -180,34 +180,85 @@ declaration stands.
 **DEF-05 remains**: the literal half is small and local, the arithmetic half
 touches every operator.
 
-**Wave 4 — names and modules.** DEF-22 and DEF-23 are the same shape — accept
-the declaration, refuse the ambiguous bare use — and should be done together.
-DEF-24 (root cycle) ⚠️ also removes C-1, the only known case of a valid program
-having no compiled form. DEF-02 (case-insensitive names) after `Console.a24` is
-renamed; ⚠️ it reverses C-4, making the compiler right and the interpreter the
-one to change.
+**Wave 4 — done.** DEF-22 and DEF-23 were the same defect twice: a name two
+things could bind was refused where it was *declared* rather than where it could
+not be resolved. DEF-24 gave the root a module identity, which withdrew **C-1**
+— the only known case of a valid program having no compiled form. DEF-02 folded
+every name.
 
-**Wave 5 — the large ones.** DEF-01 (text is characters, not bytes) is the
-biggest change the specification asks for and touches the scanner, both
-runtimes, `Length`/`Copy`/`Pos`/subscript, `Ord`/`Char` and the emitter's
-mangling.
+⚠️ **DEF-02 reversed C-4 in the COMPILER's favour**, the opposite of what that
+entry proposed. Its recorded remedy — "compare exactly in `alg_property`" —
+would have been wrong; `alg_stricmp` was right all along. A remedy written
+beside a divergence assumes which side is at fault, and that assumption ages
+badly.
 
-⚠️ **DEF-01 is also the gate on the runtime's largest performance problem**, and
-that is not obvious from its title. Building a String a piece at a time costs
-about n²/2 bytes — **776 MB for 40,000 appends**, against 17 MB through a
-`Buffer` — because `concat` copies both operands and the arena never reclaims.
-The fix is an in-place append when the left operand is the arena's most recent
-allocation, and it is safe **only** once a String carries its own length, since
-an alias must keep reading its own shorter view. Annex G.2 has the measurement
-and the mechanism. Budget for it here rather than discovering it later. DEF-08, DEF-06's range and **DEF-32** ride with it — ⚠️ DEF-32
-especially, because the same line that counts a literal's length decides both
-whether it counts bytes or characters and whether a doubled quote counts as one;
-fixing them separately means touching it twice. DEF-14 (membership follows
-equality) is independent but needs the hash.
+⚠️ **Every diagnostic on the folded path was wrong at first**, and the
+conformance corpus found each one: `'shared'` for `Shared`, unit `'deep'` for
+`Deep`, `'x'` for `X`. Folding the key made the messages echo the key. When a
+fix touches how names are looked up, expect to fix what the messages say too.
 
-**Wave 6 — the report.** DEF-30 changes text both processors must reproduce
-byte for byte, so `compiler/Interpreter.a24` and `bootstrap/algol.c` move
-together. DEF-04 (remove `print`) after `SAMPLE` is rewritten.
+**Wave 5 — done.** DEF-01, DEF-06's range, DEF-32, DEF-08 and DEF-14. Text is
+characters, a Char is a full code point, `''''` is a Char, a String carries its
+own length, and membership follows equality.
+
+⚠️ **Counting characters came out FASTER than counting bytes**, which is not the
+direction it looks. Subscripting text called `strlen` on the whole string for
+every character, so the scanner walked its entire source once per character
+read — quadratic, and nothing had noticed.
+
+⚠️ **The performance fix Annex G.2 predicted does not work**, and the section now
+says so. "Append in place when the left operand is the arena's most recent
+allocation" **never fires**: `S + 'x'` evaluates the Char first, and a Char is an
+arena allocation, so something always sits between the string and the free
+space. Reserving double the room instead puts the slack inside the string's own
+block. Compiled, 40,000 appends went from **807 MB to 1.7 MB**.
+
+⚠️ **The test suite caught a memory-corruption bug in that fix**, as corrupted
+ANSI escapes. The check must be *identity* — pointer **and** length — not merely
+a fitting capacity, or two appends from one base both succeed and the second
+overwrites the first.
+
+⚠️ **`#0` is refused only as a LITERAL.** `Char(0)` had to stay legal: the
+scanner's own end-of-input sentinel is `Char(0)`, and refusing it left the
+compiler unable to scan anything, including itself. That cost a bootstrap cycle
+to find.
+
+**Wave 6 — done.** DEF-30 (assertion messages) and DEF-04 (remove `print`).
+
+⚠️ **DEF-30 revealed the two processors already disagreed** and nothing had
+caught it: the runtime said `Assertion failed.` for `AssertTrue` where the
+interpreter said `Assertion 'left = right' failed.` **C-23** records why it was
+invisible — a compiled test run never prints the message at all, so the one
+diagnostic a programmer reads most often sits outside everything that compares
+the two reports.
+
+⚠️ **DEF-04 could not be a deletion.** The compiler's own sources used `print`
+fifty-odd times, `SAMPLE` included. The test sources were rewritten to bare
+expression statements rather than to `WriteLn`, because that preserves the AST
+shape the tests assert on.
+
+### What is left, and why
+
+All six waves are through. Nine defects remain, and none is simply "not done
+yet" — each is blocked on a piece of machinery this compiler does not have.
+
+| | Blocked on |
+| --- | --- |
+| DEF-05 | arithmetic overflow: a check on **every** operator in `VisitBinary` and in `alg_add`'s neighbours. The literal half is done; this half costs per operation rather than once per scan, which is why it was split off. |
+| DEF-09 | inference. `Lookup.Inferred` records a type and `Reduce` never consults it, so a local's type is unknown to the checker. |
+| DEF-10, DEF-10b | the interpreter does not know a variable's declared type at run time. Widening works at a declaration and a parameter because the declaration is in hand there; assignment and field contexts have nothing to consult. |
+| DEF-13 | a registry of declared type names. `Lookup.Parents` holds only classes that *have* a superclass, and enumerations are not tracked at all. |
+| DEF-15 | two-phase class declaration. Hoisting classes broke `class B (A); … class A;` because a class declaration *evaluates* its superclass. Functions are hoisted; classes need the name bound before the body runs. |
+| DEF-19 | the same gap as DEF-10: a top-level subprogram's parameter types are not enforced because nothing checks them at the call. |
+| DEF-33 | an overload set in the environment. A name binds to one value, so a second declaration replaces the first rather than joining it. |
+| DEF-34 | Unicode character tables. `IsAlpha` admits every code point above 127 where the rule admits letters. Introduced deliberately: over-acceptance keeps correct programs working where refusing every non-ASCII byte refused them. |
+
+⚠️ **DEF-13 and DEF-33 want doing together**, as wave 1 already noted: overload
+selection compares type names, so the registry one needs is the registry the
+other is already half building.
+
+⚠️ **DEF-10's remaining half and DEF-19 are one question** — what a name's
+declared type is at run time — and answering it once answers both.
 
 ### The bootstrap trap
 
