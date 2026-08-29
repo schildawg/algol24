@@ -23,7 +23,14 @@ var
     Parents  : Map  := [:];
 
     /// Deduced types, for a name declared without one.
-    Inferred : Map  := [:];
+    ///
+    /// ⚠️ SCOPED, for the same reason Generics is, and it was a flat Map until
+    /// Reduce started consulting it.  While only one helper read it, a stale
+    /// entry could only lose checking; the moment an ordinary variable's type
+    /// comes from here, a leftover 'String' from another function's C makes a
+    /// correct program fail to check -- the one kind of wrong answer that is
+    /// not harmless.
+    Inferred : TypeLookup := Nil;
 
     /// Every name that denotes a type, FOLDED [SRC-011].  A type name must
     /// denote a declared type [TYP-013], and this is what 'is' checks its
@@ -43,7 +50,7 @@ var
     /// Declared element types -- 'List of Token' -- keyed by variable name.
     ///
     /// ⚠️ A TypeLookup of its own rather than a flat Map beside Parents and
-    /// Inferred, because this one has to be SCOPED.  A stale element type is
+    /// Inferred, because both have to be SCOPED.  A stale element type is
     /// the one kind of wrong answer that is not harmless: '' and 'Any' mean
     /// "not known" and can only lose checking, while a leftover 'Token' from
     /// another function's L makes a correct program fail to check.
@@ -76,6 +83,7 @@ begin
         Scopes.Add ([:]);
 
         if Generics <> Nil then Generics.BeginScope ();
+        if Inferred <> Nil then Inferred.BeginScope ();
     end
 
     procedure EndScope ();
@@ -83,6 +91,7 @@ begin
         Scopes.RemoveAt (Scopes.Length - 1);
 
         if Generics <> Nil then Generics.EndScope ();
+        if Inferred <> Nil then Inferred.EndScope ();
     end
 end
 
@@ -130,6 +139,7 @@ begin
     begin
         this.Lookup := TypeLookup();
         this.Lookup.Generics := TypeLookup();
+        this.Lookup.Inferred := TypeLookup();
 
         // ⚠️ The built-in collections' members, whose types nothing else can
         // see: ObjCollection dispatches by hand rather than through a method
@@ -299,8 +309,8 @@ begin
 
         if (TheType = '' or TheType = 'Any') and Obj is VariableExpr then
         begin
-            var Deduced := Str (Lookup.Inferred.Get (Str (Obj.Name.Lexeme)));
-            if Deduced <> 'nil' and Deduced <> '' then Exit Deduced;
+            var Deduced := Lookup.Inferred.GetType (Str (Obj.Name.Lexeme));
+            if Deduced <> '' then Exit Deduced;
         end
 
         Exit TheType;
@@ -517,7 +527,7 @@ begin
             // and every private member of the language's most common receiver
             // is out of reach of the visibility rule.
             if TheStmt.Initializer <> Nil and TheStmt.TypeName = '' then
-                Lookup.Inferred.Put (Str (TheStmt.Name.Lexeme), Reduce (TheStmt.Initializer));
+                Lookup.Inferred.SetType (Str (TheStmt.Name.Lexeme), Reduce (TheStmt.Initializer));
 
             if TheStmt.Initializer <> Nil and TheStmt.TypeName <> '' then
             begin
@@ -736,7 +746,9 @@ begin
 
     begin
         Enclosing := CurrentReturn;
-        CurrentReturn := TheFunction.ReturnType;
+        // 'as', because TheFunction is untyped here and a member of it reduces
+        // to nothing -- the same rule this file now enforces [VAR-006].
+        CurrentReturn := TheFunction.ReturnType as String;
 
         Lookup.BeginScope();
 
@@ -790,7 +802,44 @@ begin
 
         if Kind = 'LiteralExpr' then Exit TypeOfValue (TheExpr.Value);
         if Kind = 'GroupingExpr' then Exit Reduce (TheExpr.Expression);
-        if Kind = 'VariableExpr' then Exit Lookup.GetType (TheExpr.Name.Lexeme);
+        if Kind = 'VariableExpr' then
+        begin
+            var Written := Lookup.GetType (TheExpr.Name.Lexeme);
+            if Written <> '' then Exit Written;
+
+            // ⚠️ A bare name inside a method may be a FIELD -- an implicit
+            // 'this.Field' -- and a field's type is registered under
+            // 'Class::Field', so looking for it bare found nothing.  That was
+            // the checker's largest blind spot: Scanner's own
+            // 'ReturnValue := Source[Current]' reduced to nothing, because
+            // 'Source' did, though it is declared String on the class.
+            //
+            // ⚠️ Up the inheritance chain, because a field declared on a parent
+            // is reached bare from a subclass's methods exactly as its own is.
+            //
+            // ⚠️ AFTER the scoped lookup above, so a local of the same name
+            // still shadows the field, as it does at run time.
+            if Lookup.CurrentClassName <> '' then
+            begin
+                var Owner := Str (Lookup.CurrentClassName);
+
+                while Owner <> '' do
+                begin
+                    var AsField := Lookup.GetType (Owner + '::' + Str (TheExpr.Name.Lexeme));
+                    if AsField <> '' then Exit AsField;
+
+                    if not Lookup.Parents.Contains (Owner) then Owner := '';
+                    else Owner := Str (Lookup.Parents.Get (Owner));
+                end
+            end
+
+            // ⚠️ A variable declared WITHOUT a type still has one, and this is
+            // where it enters an expression.  'var C := Copy (T, I, 1);'
+            // recorded String for C and 'Result + C' still reduced to nothing,
+            // which is what forced an assignment to accept an untyped value
+            // [VAR-006] -- refusing it would have refused correct code.
+            Exit Lookup.Inferred.GetType (Str (TheExpr.Name.Lexeme));
+        end
 
         if Kind = 'UnaryExpr' then
         begin
@@ -848,8 +897,8 @@ begin
             // anything too.  '' on the RIGHT is the CHECKER's ignorance rather
             // than the programmer's -- see the note on Reduce -- and refusing
             // it would punish a correct program for a blind spot.
-            if Declared <> '' and Declared <> 'Any' and Actual <> '' then
-                if Actual = 'Any' or not Assignable (Declared, Actual) then
+            if Declared <> '' and Declared <> 'Any' then
+                if Actual = '' or Actual = 'Any' or not Assignable (Declared, Actual) then
                     raise Mismatch (TheExpr.Name, Declared, Actual);
 
             // ⚠️ Handed to the interpreter on the node, which is the only way it

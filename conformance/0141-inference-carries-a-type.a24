@@ -1,0 +1,64 @@
+// spec: VAR-006
+//
+// A written type is enforced at an assignment, and these all pass -- which is
+// the harder half of the rule.  Refusing an untyped value is only correct if
+// the checker can type what a program ordinarily writes.
+
+// A variable declared WITHOUT a type carries its deduced type into later
+// expressions.  This is what used to reduce to nothing.
+var Text := 'abcdef';
+var C := Copy (Text, 1, 1);
+var Result : String := '';
+Result := Result + C;
+WriteLn (Result);
+
+// ⚠️ A bare name inside a method may be a FIELD -- an implicit 'this.Field' --
+// and a field's type is registered under 'Class::Field'.  Looking for it bare
+// found nothing, which was the checker's largest blind spot.
+class Reader;
+var Source : String;
+var At : Integer;
+begin
+    constructor Init (S : String); begin this.Source := S; this.At := 0; end
+
+    function Next () : Char;
+    var
+        Ch : Char;
+    begin
+        Ch := Source[At];
+        At := At + 1;
+        Exit Ch;
+    end
+end
+
+var R := Reader ('hi');
+WriteLn (R.Next ());
+WriteLn (R.Next ());
+
+// A field declared on a PARENT is reached bare from a subclass's methods.
+class Base;
+var Tag : String := 'from the parent';
+begin
+    constructor Init (); begin end
+end
+
+class Derived (Base);
+begin
+    constructor Init (); begin end
+    function Read () : String;
+    var
+        T : String;
+    begin
+        T := Tag;
+        Exit T;
+    end
+end
+
+WriteLn (Derived ().Read ());
+
+// Writing no type stays permissive: an untyped variable accepts anything.
+var Anything := Untyped ();
+Anything := 5;
+WriteLn (Anything);
+
+function Untyped (); begin Exit 'x'; end

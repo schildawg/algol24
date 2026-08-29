@@ -187,7 +187,9 @@ var
 begin
     if not (Value is ObjInstance) then Exit False;
 
-    Klass := Value.Klass;
+    // 'as', because Value is declared Any and a member of it reduces to
+    // nothing -- a written type has to be earned [VAR-006].
+    Klass := Value.Klass as ObjClass;
     while Klass <> Nil do
     begin
         // ⚠️ Folded [SRC-011].  SatisfiesType folds its DIRECT match and this

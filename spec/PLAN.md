@@ -1,13 +1,29 @@
 # Plan: Generation 1 — an interpreter that matches the specification
 
-`spec/ALGOL-24.md` is written and every one of its 260 rules is claimed by a
-case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
-in `defects/`. The conformance pass decided what the language *should* do. This
-plan is the work of making the interpreter do it.
+`spec/ALGOL-24.md` is written and every one of its rules is claimed by a case: a
+program in `conformance/`, a refusal in `refusals/`, or a reproduction in
+`defects/`. The conformance pass decided what the language *should* do. This
+plan was the work of making the interpreter do it.
 
-**17 defects stand between the two.** *(33 found; sixteen fixed; DEF-09, DEF-10 and DEF-15 partly.)* Each one is a rule the specification
-states and the interpreter does not implement, with a case in `defects/` that
-passes while the fault persists and turns red the moment it stops.
+## ✅ Generation 1 is complete
+
+**`defects/` is empty.** Thirty-five defects were found and all thirty-five are
+fixed. The interpreter implements every rule the specification states.
+
+The work also changed the specification in three places where the *rule* turned
+out to be wrong rather than the code — [SRC-005] admitting all of Unicode rather
+than letters, [LEX-025] on `Char(0)`, and DEF-13's recorded blocker naming the
+wrong data structure. A rule is authoritative but not infallible; a
+contradiction between a rule and the code is a question, not a verdict.
+
+⚠️ **Three things were added to the language on the way**, each because a rule
+could not be met without them: `Halt` [RT-018], so a driver can choose an exit
+status without raising; Annex G.3's mangling, so any Unicode identifier can be
+spelled in C; and an integer range check with a build switch, since [LEX-018]
+costs per operation.
+
+**Next is Generation 2**: Annex C's divergences become defects and are worked
+through the same way, until conformance passes under *both* processors.
 
 ## 0. The road to v1
 

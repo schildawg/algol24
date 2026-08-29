@@ -502,7 +502,11 @@ begin
         At : Integer;
 
     begin
-        At := Arguments[0];
+        // ⚠️ 'as', because Arguments is an untyped parameter and a subscript
+        // of one reduces to nothing.  A written type is a claim and this is how
+        // a value earns it [VAR-006], [VAL-007] -- the check that requires it
+        // is the same one that refuses an 'Any'.
+        At := Arguments[0] as Integer;
 
         // Out of range is '', not an error -- which is what lets a program ask
         // for an argument it may not have been given.
@@ -2447,7 +2451,8 @@ begin
     begin
         if Value is ObjInstance then
         begin
-            Klass := Value.Klass;
+            // 'as', for the same reason: Value is untyped, so a member of it is.
+            Klass := Value.Klass as ObjClass;
             while Klass <> Nil do
             begin
                 var TheName := Str (Klass.Name);

@@ -1,0 +1,18 @@
+// spec: VAR-006
+//
+// A value whose type could not be determined does not satisfy a written type,
+// at an ASSIGNMENT exactly as at a declaration.
+//
+// ⚠️ The assignment used to permit it while the declaration refused it -- the
+// same value reaching the same variable one line later, with nothing checking
+// it.  That asymmetry was forced by weak inference: refusing an untyped value
+// at an assignment refused correct code, starting with the compiler's own
+// sources.  Resolving it wanted better inference, not a looser rule.
+//
+// ⚠️ Writing no type stays entirely permissive.  The rule bites only where a
+// type was written down, and 'as' is how a value earns the crossing.
+
+function Untyped (); begin Exit 'xy'; end
+
+var S : String;
+S := Untyped ();

@@ -145,13 +145,13 @@ var
 
     /// File-scope declarations: prototypes, and the globals a top-level 'var'
     /// becomes.
-    Declarations : Any := Buffer();
+    Declarations : Buffer := Buffer();
 
     /// Whole function bodies.
-    Functions    : Any := Buffer();
+    Functions    : Buffer := Buffer();
 
     /// The body of main.
-    MainBody     : Any := Buffer();
+    MainBody     : Buffer := Buffer();
 
     /// Closure handles and class registrations, assigned at the TOP of main.
     ///
@@ -159,7 +159,7 @@ var
     /// value and a class is BUILT before any statement can pass one around or
     /// construct one -- which is what lets a class be declared after the code
     /// that uses it.
-    Setup        : Any := Buffer();
+    Setup        : Buffer := Buffer();
 
     /// The body of the function being emitted, if any.
     ///
@@ -168,7 +168,7 @@ var
     /// written, so the enclosing header and body can only be appended once the
     /// body is complete.  Writing the header straight to Functions puts the
     /// outer function first and the closure line in main.
-    Body         : Any := Buffer();
+    Body         : Buffer := Buffer();
 
     /// The C symbol of each test body, parallel to Tests -- the runner in the
     /// main file calls them across file boundaries.
@@ -972,7 +972,7 @@ begin
             var IsMain := U = Units.Length - 1;
 
             UnitName := Str (Unit.Name);
-            PrivateNames := Unit.PrivateNames;
+            PrivateNames := Unit.PrivateNames as List;
             RootUnit := IsMain;
             CurrentFile := Str (Unit.FileName);
 

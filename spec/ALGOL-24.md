@@ -928,30 +928,35 @@ only generate a machine representation for a variable whose type it may trust.
 ⚠️ Writing no type remains entirely permissive. `var A := M.Get (1);` is
 ordinary and unremarkable; the rule bites only where a type was written down.
 
-⚠️ **PARTLY IMPLEMENTED.** A value declared `Any` is refused at both a
-declaration and an assignment, which is the rule above. A value the **checker
-could not type** is refused at a declaration and accepted at an assignment.
+⚠️ **An assignment is now as strict as a declaration**, and getting there was an
+inference problem rather than a rule problem. The asymmetry existed because
+refusing an untyped value at an assignment refused *correct code*, and the wrong
+trade would have been to punish a program for the checker's blind spot.
 
-⚠️ **That remaining asymmetry is forced by weak inference, and the diagnosis
-narrowed twice.** It is not that locals in nested scopes cannot be typed — it is
-that a variable declared **without** a type does not carry its inferred type
-into an expression. `var C := Copy (Text, I, 1);` records `String` for `C` and
-`Result := Result + C` still reduces to nothing, so refusing an untyped value at
-an assignment refuses correct code — `compiler/Scanner.a24`'s own `ToLower`
-first. Refusing a *program* for the *checker's* blind spot is the wrong trade.
+Three blind spots had to close first, and each was found by tightening the check
+and seeing what the compiler's own sources tripped on:
 
-⚠️ The declaration keeps the strictness because it is rare enough not to meet
-the blind spot, and because four tests of element-type scoping observe the
-checker only through it. **Resolving this wants better inference, not a looser
-rule.** See DEF-09.
+| Blind spot | Fix |
+| --- | --- |
+| a variable declared without a type did not carry its deduced type into an expression | `Reduce` consults `Inferred`, which became **scoped** for the purpose |
+| a bare name inside a method that is a **field** — an implicit `this.Field` — had no type, since a field is registered under `Class::Field` | look it up as a field, walking the inheritance chain, after the scoped lookup so a local still shadows |
+| a `Buffer` held in a variable declared `Any` gave `.Text` no type | declare the variable `Buffer`; the emitter's own four buffers were `Any` |
+
+⚠️ **Five sites in the compiler genuinely could not be typed**, and each was
+given the `as` this rule prescribes — a member of an untyped parameter, a
+subscript of one. That is the rule working as intended rather than a concession
+to it: the conversion is written where the checker cannot see the type.
+
+⚠️ **Scoping `Inferred` was not optional.** While one helper read it a stale
+entry could only lose checking; once an ordinary variable's type comes from it, a
+leftover `String` from another function's `C` makes a correct program fail to
+check — the one kind of wrong answer that is not harmless. `Generics` was made
+scoped for exactly this reason and the pattern was copied.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     conformance  0020-any-accepts-every-value.a24
-    defect       DEF-09-assignment-escapes-the-type.a24
-
-> `Assignable` itself permits `Any` in both directions; the strictness lives in
-> an extra check on the declaration (`compiler/TypeChecker.a24`, `MapType`).
-> Bringing the two paths together is what DEF-09 asks for.
+    conformance  0141-inference-carries-a-type.a24
+    refusal      0048-assignment-escapes-the-type.a24
 
 **[VAR-007]**  A name may not be declared twice in one scope. The second is
 refused with `'X' is already defined.`
@@ -3827,9 +3832,8 @@ for a diagnostic, so the program runs to completion with `nil` where a number
 was meant, and nothing anywhere says so.
 
 ⚠️ **The compiler is only half wrong.** Hoisting a *function or class* is what
-[DCL-006] now requires and the interpreter is the defect there (DEF-15).
-Hoisting a *variable* is what [DCL-016] forbids and the compiler is the defect
-here. One mechanism, correct for one kind of declaration and not the other,
+[DCL-006] requires, and the interpreter does it. Hoisting a *variable* is what
+[DCL-016] forbids and the compiler is the defect here. One mechanism, correct for one kind of declaration and not the other,
 which is why it took a rule split to describe.
 
 **C-11 — A top-level block is reordered.** *(silent)*
@@ -4858,43 +4862,6 @@ program in `defects/` that reproduces it.
 behaviour and passes while that behaviour persists. It turns **red when the
 defect stops reproducing**, because a fix is as much a change to be noticed as a
 regression — and a suite that is permanently red is a suite nobody reads.
-
-**DEF-09 — A written type is enforced on a declaration and not on an
-assignment.** *(violates [VAR-006])*
-
-⚠️ **The `Any` half is fixed.** A value declared `Any` is refused at an
-assignment as it always was at a declaration, so `as` is the only way it crosses
-into a written type.
-
-What remains is the **untyped** half: a value the checker could not type is
-refused at a declaration and accepted at an assignment. That is forced. The
-checker cannot type ordinary locals in nested scopes — `var C := Copy (Text, I,
-1);` reduces to no type though `Copy` returns a String — so refusing it at an
-assignment refuses correct code, starting with `compiler/Scanner.a24`'s own
-`Result := Result + C`.
-
-*Reproduce:* `defects/DEF-09-assignment-escapes-the-type.a24`
-
-⚠️ **The permissive path is the wrong one to keep.** It is tempting to read this
-as the declaration being too strict, because the declaration is what produces a
-diagnostic. But the assignment is where an untyped value enters a typed variable
-with nothing checking it, which is precisely what [VAR-006] exists to prevent.
-
-*Scope of the fix.* ⚠️ **It is an inference problem, not a rule problem**, and
-one step of it is done: `Copy`, `Str`, `Length`, `Pos`, `Ord`, `ParamStr`,
-`ParamCount` and `FileExists` had **no registered return type at all**, so
-`Copy (T, 0, 1)` reduced to nothing and `var S : String := Copy (T, 0, 1);` was
-refused. They are registered now.
-
-What remains is the larger step: `Lookup.Inferred` records a type for a
-variable declared without one, and `Reduce` does not consult it — so `var C :=
-Copy (...)` knows `C` is a String and `Result + C` still reduces to nothing.
-Tightening the rule without that refuses correct programs; that was tried, and
-`compiler/Scanner.a24` refused to compile.
-
-⚠️ **Tightening it also bricks the bootstrap**, which is worth knowing before
-trying again. A checker that refuses the compiler's own sources cannot emit a
-new compiler, and the only way back is `git checkout -- bootstrap/`.
 
 ## Annex G — implementation notes *(non-normative)*
 

@@ -1,0 +1,5 @@
+Uncaught: Expected String, found an untyped expression.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0048-assignment-escapes-the-type.a24: Expected String, found an untyped expression.
+[WHITE][[RED]ERROR[WHITE]] [RESET]18 | S := Untyped ();
+[WHITE][[RED]ERROR[RESET]]    |[RED] ^[RESET]
+exit: 70
