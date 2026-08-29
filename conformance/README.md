@@ -139,6 +139,53 @@ numbers; normalized to LF it would still pass, for entirely the wrong reason.
 Every `.out`, `.expected` and `.current` is a byte-for-byte record of what an
 implementation printed, and a rewritten byte is a false record.
 
+
+## Divergences — Annex C, and why they need no corpus
+
+A **defect** was a fault in the interpreter, and it needed a case of its own:
+nothing else recorded the wrong behaviour, so `defects/X.current` held it, the
+case passed while the fault persisted, and it turned red when the fault stopped.
+`defects/` is empty as of Gen 1.
+
+A **divergence** is a fault in the *compiler*, and it needs no case at all. The
+reproduction already exists: a conformance case whose interpreted run is the
+correct answer and whose compiled run is not. `conform.sh` computes that
+difference on every run and calls it a **gap**.
+
+| | Defect | Divergence |
+| --- | --- | --- |
+| Wrong implementation | the interpreter | the compiler |
+| Truth is | the specification | the case's own `.out` |
+| Faulty behaviour recorded in | `.current` | nothing — recomputed each run |
+| Passes while | the fault persists | the fault persists |
+| Turns red when | it is fixed | it is fixed |
+
+⚠️ **So do not write a `divergences/` directory.** A second copy of a case that
+already exists would have to be kept in step with the first, and the first is
+the one the language is defined by.
+
+**An Annex C entry cites the gap that demonstrates it**, in the same block shape
+a rule uses:
+
+```
+**C-16 — Inheriting from a non-class emits invalid C.**
+
+    gap  0046-inherit-from-a-non-class.a24
+```
+
+Two harnesses check it, and the split matters:
+
+- `spec/spec.sh` — the cited case **exists**, and counts how many live entries
+  carry a citation. Static, so it is cheap and runs anywhere.
+- `conform.sh` — the cited case **still diverges**. Only this script can know
+  that, having just compiled every case. A citation naming a case that no longer
+  differs is a **failure**: the divergence has been fixed and the entry now reads
+  as open, which is how C-1, C-3, C-4 and C-22 came to be wrong.
+
+⚠️ A gap that **no** entry cites is the backlog, not an error — the mapping is
+Generation 2's work. Under `--strict` it is an error, and `--strict` passing with
+no gaps at all is what ends Generation 2.
+
 ## Colour is transliterated, not stripped
 
 `\033[31m` becomes `[RED]`. Stripping is not injective — a wrong colour and a

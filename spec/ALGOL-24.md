@@ -3989,6 +3989,9 @@ right way round for a gap — loud, named, and impossible to miss — but it is
 still a program the two processors do not agree on.
 
 **C-16 — Inheriting from a non-class emits invalid C.** *(loud, in the wrong place)*
+
+    gap  0046-inherit-from-a-non-class.a24
+
 *(refers to [CLS-014])*
 
 ```

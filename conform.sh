@@ -49,6 +49,7 @@ set -eu
 cd "$(dirname "$0")"
 
 ALGC="bootstrap/algc"
+SPEC="spec/ALGOL-24.md"
 RECORD=0
 COMPILED=1
 STRICT=0
@@ -208,6 +209,12 @@ check() {
             diff "$WORK/interpreted" "$WORK/compiled" \
               | sed 's/^/      /' | head -8
         } >> "$WORK/gaplist"
+
+        # ⚠️ The names alone, for the Annex C cross-check below.  A gap IS the
+        # divergence's reproduction: the interpreted expectation is the correct
+        # answer and the compiled run is the fault, so unlike a defect it needs
+        # no recorded file of its own.
+        echo "$_name.a24" >> "$WORK/gapnames"
     fi
 }
 
@@ -238,6 +245,44 @@ if [ "$COMPILED" -eq 1 ]; then
         echo "specification; each is a case for the generation after this one."
         cat "$WORK/gaplist"
     fi
+fi
+
+# ---------------------------------------------------------------- Annex C --
+#
+# ⚠️ Every divergence Annex C records must still HAPPEN, and every divergence
+# that happens must be recorded.  Both directions, for the reason the Annex F
+# check in spec.sh exists: an entry describing a fault that has been fixed goes
+# on reading as open, and C-1, C-3, C-4 and C-22 all reached that state.
+#
+# ⚠️ Checked HERE rather than in spec.sh because only this script knows which
+# cases actually differ -- it has just compiled every one of them.  spec.sh
+# checks that a cited case EXISTS; this checks that it still diverges.
+touch "$WORK/gapnames"
+sort -u "$WORK/gapnames" > "$WORK/gaps_live"
+
+grep -E '^    gap  ' "$SPEC" 2>/dev/null | awk '{print $2}' | sort -u > "$WORK/gaps_cited"
+
+STALE=$(comm -23 "$WORK/gaps_cited" "$WORK/gaps_live" | tr '\n' ' ')
+UNCITED=$(comm -13 "$WORK/gaps_cited" "$WORK/gaps_live" | tr '\n' ' ')
+
+CITED_N=$(wc -l < "$WORK/gaps_cited" | tr -d ' ')
+
+echo
+echo "Annex C:       $CITED_N of $GAPS gap(s) are cited by a divergence entry."
+
+if [ -n "$STALE" ]; then
+    echo "FAIL: Annex C cites case(s) that no longer diverge, so a fixed"
+    echo "      divergence still reads as open: $STALE"
+    echo "      Withdraw the entry, as C-1, C-3, C-4 and C-22 were."
+    exit 1
+fi
+
+# ⚠️ An UNCITED gap is the backlog, not an error -- the mapping from Annex C to
+# the cases that demonstrate it has still to be written.  Under --strict it is
+# an error, and --strict passing with no gaps at all is what ends Generation 2.
+if [ -n "$UNCITED" ] && [ "$STRICT" -eq 1 ]; then
+    echo "FAIL: --strict, and $(echo "$UNCITED" | wc -w | tr -d ' ') gap(s) no entry cites."
+    exit 1
 fi
 
 echo

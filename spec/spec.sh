@@ -366,6 +366,36 @@ grep -oE '^\*\*DEF-[0-9]+[a-z]*' "$SPEC" | sed 's/^\*\*//' | sort -u > "$WORK/an
 find defects -maxdepth 1 -name 'DEF-*.a24' 2>/dev/null \
   | sed 's|.*/||; s/^\(DEF-[0-9]*[a-z]*\)-.*/\1/' | sort -u > "$WORK/defect_cases"
 
+# ⚠️ Annex C's divergences are checked in TWO places, and the split is the point.
+# Here: a 'gap' citation names a case that exists, and every live entry has one.
+# In conform.sh: that case still actually diverges -- which only a script that
+# has just compiled every case can know.  A divergence needs no recorded file of
+# its own, unlike a defect: the conformance expectation IS the correct answer
+# and the compiled run is the fault.
+
+grep -E '^    gap  ' "$SPEC" | awk '{print $2}' | sort -u > "$WORK/gap_cited"
+
+MISSING_GAP=""
+while read -r _case; do
+    [ -n "$_case" ] || continue
+    [ -f "conformance/$_case" ] || [ -f "refusals/$_case" ] \
+        || MISSING_GAP="$MISSING_GAP $_case"
+done < "$WORK/gap_cited"
+
+if [ -n "$MISSING_GAP" ]; then
+    problem "Annex C cites case(s) that do not exist:$MISSING_GAP"
+fi
+
+# Live entries -- those not marked Withdrawn -- and how many carry a citation.
+# ⚠️ Reported rather than failed: the mapping from Annex C to the cases that
+# demonstrate it is the work of Generation 2, and this counts it down.
+ENTRIES=$(grep -cE '^\*\*C-[0-9]+ —' "$SPEC")
+WITHDRAWN=$(grep -cE '^\*\*\*Withdrawn\.\*\*\*' "$SPEC")
+LIVE=$((ENTRIES - WITHDRAWN))
+CITEDC=$(wc -l < "$WORK/gap_cited" | tr -d ' ')
+
+echo "  Annex C: $CITEDC gap citation(s) across $LIVE live divergence(s)"
+
 STALE=$(comm -23 "$WORK/annex_defects" "$WORK/defect_cases" | tr '\n' ' ')
 if [ -n "$STALE" ]; then
     problem "Annex F entr(ies) with no reproduction, so a fixed defect still reads as open: $STALE"
