@@ -2913,8 +2913,22 @@ static void builder_append(Builder *b, const char *text) {
  * a host map happens to print: the interpreter used to hand one back that
  * spells it '{a=1}' using braces and '=', neither of which is Algol-24
  * syntax. */
+/* ⚠️ NOT A CATCH-ALL, though as_text used it as one.  Anything that is not a
+ * Map was cast to ObjSeq* and its count read, so a heap object of any other
+ * kind reaching here crashed rather than saying anything -- which is how a
+ * missing OBJ_BOUND case in as_text became a SIGSEGV.  A kind this does not
+ * know is an error naming itself now, not a wild read. */
 static const char *collection_text(Value v) {
     Builder b = { NULL, 0, 0 };
+
+    if (!is_sequence(v) && v.obj->type != OBJ_MAP) {
+        char message[64];
+        snprintf(message, sizeof message,
+                 "A value of object kind %d has no text form.", (int)v.obj->type);
+
+        alg_error(message);
+    }
+
     builder_append(&b, "[");
 
     if (v.obj->type != OBJ_MAP) {
@@ -2978,6 +2992,21 @@ static const char *as_text(Value v) {
             }
             if (v.obj->type == OBJ_ENUM)      return ((ObjEnum *)v.obj)->name;
             if (v.obj->type == OBJ_ENUM_TYPE) return ((ObjEnumType *)v.obj)->name;
+
+            /* ⚠️ A METHOD READ WITHOUT CALLING IT, which had no case here and
+             * fell through to collection_text -- which casts anything that is
+             * not a Map to ObjSeq* and reads a count out of it.  'WriteLn
+             * (B.Length)' on a class with a Length method died of SIGSEGV with
+             * no output at all, the earlier lines lost with the buffer.
+             *
+             * Prints as the interpreter's does: '<fn Name>' [TYP-012]. */
+            if (v.obj->type == OBJ_BOUND) {
+                Builder b = { NULL, 0, 0 };
+                builder_append(&b, "<fn ");
+                builder_append(&b, ((ObjBound *)v.obj)->method->name);
+                builder_append(&b, ">");
+                return b.text;
+            }
 
             if (v.obj->type == OBJ_INSTANCE) {
                 ObjClass *klass = ((ObjInstance *)v.obj)->klass;

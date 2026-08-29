@@ -1,7 +1,9 @@
 // spec: TYP-012
 //
-// ⚠️ Expected to FAIL compiled, because of C-6: the compiled program CRASHES
-// on the bare 'B.Length' below -- SIGSEGV, no output at all.
+// ⚠️ The compiled program used to CRASH on the bare 'B.Length' below -- SIGSEGV,
+// no output at all, the earlier lines lost with the buffer.  as_text had no case
+// for a method read without calling it and fell through to collection_text,
+// which casts anything that is not a Map to a sequence (C-6).
 
 class Box;
 var Items : List;

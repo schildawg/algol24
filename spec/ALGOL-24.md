@@ -3750,7 +3750,7 @@ defect in one or the other.
     gap  0095-module-init-order.a24
 
 **C-6 — Reading a method as a property crashes the compiled program.**
-*(silent, and the worst kind)*
+***Withdrawn.***
 *(refers to [TYP-012])*
 
 ```
@@ -3774,12 +3774,20 @@ processors accept and crashes it, without a diagnostic, in the processor that is
 supposed to be the fast one. `alg_property` has no case for a method reached
 without a call.
 
-⚠️ **This entry may close by removal rather than by repair.** H-6 would make
-bare `B.Length` on a method an error — the spelling being wanted for properties
-— so the construct that crashes would stop being writable. Reading a method as
-a value appears nowhere in `compiler/*.a24`, so nothing depends on it.
+⚠️ **The fault was in `as_text`, not in `alg_property`.** This entry blamed the
+property lookup, which had handled a bare method for some time. `as_text` had no
+case for a bound method and fell through to `collection_text`, which casts
+anything that is not a Map to `ObjSeq *` and reads a count out of it. Both
+processors print `<fn Length>` now.
 
-    gap  0033-no-computed-property.a24
+⚠️ **`collection_text` was a catch-all and is not one any more**, which is the
+half that mattered beyond this entry. Any heap object of an unhandled kind
+reaching it crashed rather than saying anything; it names the kind and raises
+now. A missing case should be a diagnostic, not a wild read.
+
+⚠️ It closed by repair rather than by removal. H-6 would have made bare
+`B.Length` an error and retired the construct instead — that option remains, and
+this fix does not prejudge it.
 
 **C-7 — Four runtime diagnostics are worded differently.** *(loud)*
 *(refers to [TYP-009], [TYP-010])*

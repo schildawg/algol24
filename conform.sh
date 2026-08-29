@@ -268,7 +268,7 @@ UNCITED=$(comm -13 "$WORK/gaps_cited" "$WORK/gaps_live" | tr '\n' ' ')
 CITED_N=$(wc -l < "$WORK/gaps_cited" | tr -d ' ')
 
 echo
-echo "Annex C:       $CITED_N of $GAPS gap(s) are cited by a divergence entry."
+echo "Annex C:       $GAPS gap(s), $CITED_N cited by a divergence entry."
 
 if [ -n "$STALE" ]; then
     echo "FAIL: Annex C cites case(s) that no longer diverge, so a fixed"
