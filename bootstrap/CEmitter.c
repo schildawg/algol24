@@ -7,6 +7,7 @@
 
 Value f_Indentation(Value **cells, Value *args, int32_t count);
 Value f_QuoteC(Value **cells, Value *args, int32_t count);
+Value v_HOIST_ABOVE;
 Value fn_Indentation;
 Value fn_QuoteC;
 Value k_EmitUnit;
@@ -146,7 +147,9 @@ static const char *t_CEmitter_ConstructorFor_3_String_List_String[] = { "String"
 static const char *t_CEmitter_UnitCall_4_String_String_List_String[] = { "String", "String", "List", "String" };
 static const char *t_CEmitter_VisitCall_1_CallExpr[] = { "CallExpr" };
 static const char *t_CEmitter_VisitLogical_1_LogicalExpr[] = { "LogicalExpr" };
+static const char *t_CEmitter_AllLiterals_1_CollectionExpr[] = { "CollectionExpr" };
 static const char *t_CEmitter_VisitCollectionExpr_1_CollectionExpr[] = { "CollectionExpr" };
+static const char *t_CEmitter_HoistedCollection_1_CollectionExpr[] = { "CollectionExpr" };
 static const char *t_CEmitter_VisitSubscriptExpr_1_SubscriptExpr[] = { "SubscriptExpr" };
 static const char *t_CEmitter_VisitSetSubscriptExpr_1_SetSubscriptExpr[] = { "SetSubscriptExpr" };
 static const char *t_CEmitter_UnitValue_2_String_String[] = { "String", "String" };
@@ -3283,12 +3286,54 @@ static Value m_CEmitter_VisitLogical_1_LogicalExpr(Value v_this, Value *args, in
     return alg_nil();
 }
 
+static Value m_CEmitter_AllLiterals_1_CollectionExpr(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_TheExpr = args[0];
+    (void)v_TheExpr;
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheExpr, "Values"), "Length")))) {
+            {
+                if (alg_truthy(alg_not((alg_is(alg_subscript_get(alg_property(v_TheExpr, "Values"), v_I), "LiteralExpr"))))) {
+                    return alg_bool(false);
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    if (alg_truthy(alg_property(v_TheExpr, "IsMap"))) {
+        {
+            Value v_I = alg_int(0);
+            (void)v_I;
+            while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheExpr, "Keys"), "Length")))) {
+                {
+                    if (alg_truthy(alg_not((alg_is(alg_subscript_get(alg_property(v_TheExpr, "Keys"), v_I), "LiteralExpr"))))) {
+                        return alg_bool(false);
+                    }
+                    (void)((v_I = alg_add(v_I, alg_int(1))));
+                }
+            }
+        }
+    }
+    return alg_bool(true);
+    return alg_nil();
+}
+
 static Value m_CEmitter_VisitCollectionExpr_1_CollectionExpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_TheExpr = args[0];
     (void)v_TheExpr;
     Value v_Built = alg_nil();
     (void)v_Built;
+    if (alg_truthy(alg_greater(alg_property(alg_property(v_TheExpr, "Values"), "Length"), v_HOIST_ABOVE))) {
+        {
+            if (alg_truthy(alg_not(alg_invoke(v_this, "AllLiterals", (Value[]){v_TheExpr}, 1)))) {
+                (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("A literal of "), alg_str(alg_property(alg_property(v_TheExpr, "Values"), "Length"))), alg_string(" computed elements"))}, 1));
+            }
+            return alg_invoke(v_this, "HoistedCollection", (Value[]){v_TheExpr}, 1);
+        }
+    }
     if (alg_truthy(alg_property(v_TheExpr, "IsMap"))) {
         {
             (void)((v_Built = alg_string("alg_map()")));
@@ -3317,6 +3362,50 @@ static Value m_CEmitter_VisitCollectionExpr_1_CollectionExpr(Value v_this, Value
         }
     }
     return v_Built;
+    return alg_nil();
+}
+
+static Value m_CEmitter_HoistedCollection_1_CollectionExpr(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_TheExpr = args[0];
+    (void)v_TheExpr;
+    Value v_Symbol = alg_nil();
+    (void)v_Symbol;
+    (void)((v_Symbol = alg_add(alg_string("lit_"), alg_str(alg_property(v_this, "Loops")))));
+    (void)(alg_set_property(v_this, "Loops", alg_add(alg_property(v_this, "Loops"), alg_int(1))));
+    (void)(alg_invoke(alg_property(v_this, "Declarations"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_string("static Value "), v_Symbol), alg_string("(void);")), alg_char_value(10))}, 1));
+    (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_string("static Value "), v_Symbol), alg_string("(void) {")), alg_char_value(10))}, 1));
+    if (alg_truthy(alg_property(v_TheExpr, "IsMap"))) {
+        {
+            (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_string("    Value it = alg_map();"), alg_char_value(10))}, 1));
+            {
+                Value v_I = alg_int(0);
+                (void)v_I;
+                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheExpr, "Keys"), "Length")))) {
+                    {
+                        (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    it = alg_map_keep(it, "), alg_invoke(v_this, "Evaluate", (Value[]){alg_subscript_get(alg_property(v_TheExpr, "Keys"), v_I)}, 1)), alg_string(", ")), alg_invoke(v_this, "Evaluate", (Value[]){alg_subscript_get(alg_property(v_TheExpr, "Values"), v_I)}, 1)), alg_string(");")), alg_char_value(10))}, 1));
+                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                    }
+                }
+            }
+        }
+    } else {
+        {
+            (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_string("    Value it = alg_list();"), alg_char_value(10))}, 1));
+            {
+                Value v_I = alg_int(0);
+                (void)v_I;
+                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheExpr, "Values"), "Length")))) {
+                    {
+                        (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_string("    it = alg_list_keep(it, "), alg_invoke(v_this, "Evaluate", (Value[]){alg_subscript_get(alg_property(v_TheExpr, "Values"), v_I)}, 1)), alg_string(");")), alg_char_value(10))}, 1));
+                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                    }
+                }
+            }
+        }
+    }
+    (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("    return it;"), alg_char_value(10)), alg_char_value(125)), alg_char_value(10)), alg_char_value(10))}, 1));
+    return alg_add(v_Symbol, alg_string("()"));
     return alg_nil();
 }
 
@@ -3877,7 +3966,9 @@ void init_CEmitter(void) {
     alg_class_method(k_CEmitter, "UnitCall", m_CEmitter_UnitCall_4_String_String_List_String, 4, t_CEmitter_UnitCall_4_String_String_List_String);
     alg_class_method(k_CEmitter, "VisitCall", m_CEmitter_VisitCall_1_CallExpr, 1, t_CEmitter_VisitCall_1_CallExpr);
     alg_class_method(k_CEmitter, "VisitLogical", m_CEmitter_VisitLogical_1_LogicalExpr, 1, t_CEmitter_VisitLogical_1_LogicalExpr);
+    alg_class_method(k_CEmitter, "AllLiterals", m_CEmitter_AllLiterals_1_CollectionExpr, 1, t_CEmitter_AllLiterals_1_CollectionExpr);
     alg_class_method(k_CEmitter, "VisitCollectionExpr", m_CEmitter_VisitCollectionExpr_1_CollectionExpr, 1, t_CEmitter_VisitCollectionExpr_1_CollectionExpr);
+    alg_class_method(k_CEmitter, "HoistedCollection", m_CEmitter_HoistedCollection_1_CollectionExpr, 1, t_CEmitter_HoistedCollection_1_CollectionExpr);
     alg_class_method(k_CEmitter, "VisitSubscriptExpr", m_CEmitter_VisitSubscriptExpr_1_SubscriptExpr, 1, t_CEmitter_VisitSubscriptExpr_1_SubscriptExpr);
     alg_class_method(k_CEmitter, "VisitSetSubscriptExpr", m_CEmitter_VisitSetSubscriptExpr_1_SetSubscriptExpr, 1, t_CEmitter_VisitSetSubscriptExpr_1_SetSubscriptExpr);
     alg_class_method(k_CEmitter, "UnitValue", m_CEmitter_UnitValue_2_String_String, 2, t_CEmitter_UnitValue_2_String_String);
@@ -3894,4 +3985,5 @@ void init_CEmitter(void) {
     alg_class_method(k_CEmitter, "VisitBreakStmt", m_CEmitter_VisitBreakStmt_1_BreakStmt, 1, t_CEmitter_VisitBreakStmt_1_BreakStmt);
     alg_class_method(k_CEmitter, "VisitVarGroupStmt", m_CEmitter_VisitVarGroupStmt_1_VarGroupStmt, 1, t_CEmitter_VisitVarGroupStmt_1_VarGroupStmt);
     alg_class_method(k_CEmitter, "VisitModuleStmt", m_CEmitter_VisitModuleStmt_1_ModuleStmt, 1, t_CEmitter_VisitModuleStmt_1_ModuleStmt);
+    v_HOIST_ABOVE = alg_int(100);
 }

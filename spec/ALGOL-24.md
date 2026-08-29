@@ -4099,6 +4099,28 @@ and the **call site** dispatches at run time, because it does not know which
 candidate it wants until it has its arguments — exactly as a method call does
 not. `alg_invoke` already does that for methods.
 
+**C-27 — A large literal of computed elements will not compile.** *(loud)*
+
+A collection literal is emitted as nested `alg_list_keep` calls, one bracket
+level per element, and `cc` gives up at 256 — clang says `bracket nesting level
+exceeded maximum of 256`. Above a hundred elements the emitter builds the
+literal in a helper function instead, one assignment per element, so depth stays
+at one however many there are.
+
+⚠️ That is only possible when every element is **itself a literal**. `[X, Y]`
+reads two variables and a helper lifted to file scope cannot see them, so a large
+literal with computed elements is refused by name rather than emitted as
+something `cc` rejects: `A literal of 200 computed elements is not supported by
+the C back end yet.`
+
+⚠️ **It used to emit and die at `cc`**, which is the failure this back end exists
+to avoid — found by a generated table of 659 ranges producing a 40 KB expression
+nested 659 deep.
+
+*Fix:* pass the computed elements into the helper, or emit the literal into the
+enclosing statement rather than the expression. Neither is hard; nothing has
+needed it.
+
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
 > blocked on "a registry of declared type names that does not exist —
 > `Lookup.Parents` holds only classes that *have* a superclass, and enumerations

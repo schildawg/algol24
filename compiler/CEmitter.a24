@@ -3,6 +3,17 @@ uses ObjFunction;
 uses Stmt;
 uses TokenType;
 
+/// ⚠️ Beyond this many elements a collection literal is HOISTED into a helper
+/// function instead of being emitted as nested calls.  Each keep-call is a
+/// bracket level and cc gives up at 256 -- clang says 'bracket nesting level
+/// exceeded maximum of 256' and stops.  A generated table of 659 ranges found
+/// it: the emitter produced a 40 KB expression nested 659 deep, which is a
+/// program this compiler could emit and could not build.
+///
+/// Well under the limit, so an ordinary literal is emitted exactly as before
+/// and the seed does not churn.
+const HOIST_ABOVE := 100;
+
 /// Emits C11 for an Algol-24 program.
 ///
 /// ⚠️ What it cannot emit it REFUSES BY NAME, rather than emitting nothing.  A
@@ -2838,11 +2849,39 @@ begin
     /// keep-functions return the collection, so the whole thing stays an
     /// expression and a literal is usable anywhere one is.
     ///
+    /// Whether every part of this literal is itself a literal, and so may be
+    /// built by a function that sees no locals.
+    ///
+    /// ⚠️ This is what makes hoisting safe.  '[X, Y]' reads two variables, and a
+    /// helper lifted to file scope cannot see them; a table of numbers reads
+    /// nothing.  The check is the difference between the two.
+    ///
+    function AllLiterals (TheExpr : CollectionExpr) : Boolean;
+    begin
+        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+            if not (TheExpr.Values[I] is LiteralExpr) then Exit False;
+
+        if TheExpr.IsMap then
+            for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
+                if not (TheExpr.Keys[I] is LiteralExpr) then Exit False;
+
+        Exit True;
+    end
+
     function VisitCollectionExpr (TheExpr : CollectionExpr) : String;
     var
         Built : String;
 
     begin
+        if TheExpr.Values.Length > HOIST_ABOVE then
+        begin
+            if not AllLiterals (TheExpr) then
+                Unsupported ('A literal of ' + Str (TheExpr.Values.Length)
+                           + ' computed elements');
+
+            Exit HoistedCollection (TheExpr);
+        end
+
         if TheExpr.IsMap then
         begin
             Built := 'alg_map()';
@@ -2860,6 +2899,45 @@ begin
             Built := 'alg_list_keep(' + Built + ', ' + Evaluate (TheExpr.Values[I]) + ')';
 
         Exit Built;
+    end
+
+    /// A large constant literal, built by a function instead of an expression.
+    ///
+    /// ⚠️ One assignment per element rather than one nested call, so the
+    /// bracket depth is 1 however many elements there are.
+    ///
+    function HoistedCollection (TheExpr : CollectionExpr) : String;
+    var
+        Symbol : String;
+
+    begin
+        Symbol := 'lit_' + Str (Loops);
+        Loops := Loops + 1;
+
+        Declarations.Append ('static Value ' + Symbol + '(void);' + #10);
+
+        Functions.Append ('static Value ' + Symbol + '(void) {' + #10);
+
+        if TheExpr.IsMap then
+        begin
+            Functions.Append ('    Value it = alg_map();' + #10);
+
+            for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
+                Functions.Append ('    it = alg_map_keep(it, ' + Evaluate (TheExpr.Keys[I])
+                          + ', ' + Evaluate (TheExpr.Values[I]) + ');' + #10);
+        end
+        else
+        begin
+            Functions.Append ('    Value it = alg_list();' + #10);
+
+            for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+                Functions.Append ('    it = alg_list_keep(it, '
+                          + Evaluate (TheExpr.Values[I]) + ');' + #10);
+        end
+
+        Functions.Append ('    return it;' + #10 + '}' + #10 + #10);
+
+        Exit Symbol + '()';
     end
 
     function VisitSubscriptExpr (TheExpr : SubscriptExpr) : String;
