@@ -4,8 +4,8 @@
 
 #include "algol.h"
 
-extern Value k_ObjEnum;
-extern Value k_ObjEnumType;
+extern Value k_objenum;
+extern Value k_objenumtype;
 void init_ObjEnum(void);
 
 #endif

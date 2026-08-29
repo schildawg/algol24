@@ -137,7 +137,13 @@ Scanner → Parser → Resolver → TypeChecker → ┬→ Interpreter  (tree-wa
 
 ### Emitted C
 
-One `.c`/`.h` pair per source unit. Names are mangled by kind — `v_` variable, `f_` function, `fn_` its closure value, `k_` class handle, `e_` enum, `c_` const — always through `Mangle`/`SymbolOf`, never by hand-concatenating a prefix. A private name colliding across units is renamed `Name__Unit`. Each unit gets an `init_<Unit>()`, and generated `main` calls them in dependency order before `init_Main()`, which runs the top-level statements.
+One `.c`/`.h` pair per source unit. Names are mangled by kind — `v_` variable, `f_` function, `fn_` its closure value, `k_` class handle, `e_` enum, `c_` const, `m_` method — always through `Mangle`/`SymbolOf`, never by hand-concatenating a prefix. A private name colliding across units is renamed `Name__Unit`. Each unit gets an `init_<Unit>()`, and generated `main` calls them in dependency order before `init_Main()`, which runs the top-level statements.
+
+Names are mangled per `spec/ALGOL-24.md` Annex G.3: every letter and digit **lowercases**, `?` becomes `Q`, `!` becomes `E`, `_` becomes `V`, and any other character becomes `U` plus six hexadecimal digits — so `🙂` emits as `U01F642` and any Unicode identifier compiles.
+
+⚠️ **The lowercasing is what makes the escapes possible.** Identifiers are case-insensitive (`SRC-011`), so case carries no information and lowering is lossless, which frees the whole uppercase range to mean "escape". Neither half works alone, and adopting one without the other is not injective.
+
+⚠️ **`_` is escaped, not passed through**, which is exactly what leaves it free as a separator. Join composite symbols by escaping each part and putting a raw `_` between them — never escape a string that already contains a separator.
 
 `algol.h` is the contract between emitter and runtime and is heavily commented — read it before touching either side. Values are tagged (`Value` with a C11 anonymous union) because the checker is gradual and most expressions have no known C type at emit time. Method and property access dispatch at run time through `alg_invoke` / `alg_property`; overloads select on the whole signature, not arity. Exceptions are `setjmp`/`longjmp` over a frame stack, using the mask-free variants where the platform's are not already mask-free.
 

@@ -4,15 +4,15 @@
 #include "ObjFunction.h"
 #include "ObjInstance.h"
 
-Value k_ObjClass;
-static const char *t_ObjClass_Init_4_String_ObjClass_Map_List[] = { "String", "ObjClass", "Map", "List" };
-static const char *t_ObjClass_FindMethod_1_String[] = { "String" };
-static const char *t_ObjClass_FindOverload_2_String_List[] = { "String", "List" };
-static const char *t_ObjClass_Fitting_3_String_List_Boolean[] = { "String", "List", "Boolean" };
-static const char *t_ObjClass_SeedFields_2_ObjInstance[] = { "ObjInstance", "Any" };
-static const char *t_ObjClass_Call_2[] = { "Any", "Any" };
+Value k_objclass;
+static const char *t_objclass_init_4_string_objclass_map_list[] = { "String", "ObjClass", "Map", "List" };
+static const char *t_objclass_findmethod_1_string[] = { "String" };
+static const char *t_objclass_findoverload_2_string_list[] = { "String", "List" };
+static const char *t_objclass_fitting_3_string_list_boolean[] = { "String", "List", "Boolean" };
+static const char *t_objclass_seedfields_2_objinstance[] = { "ObjInstance", "Any" };
+static const char *t_objclass_call_2[] = { "Any", "Any" };
 
-static Value i_ObjClass(Value v_this, Value *args, int32_t count) {
+static Value i_objclass(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Methods", alg_nil());
@@ -21,176 +21,176 @@ static Value i_ObjClass(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_ObjClass_Init_4_String_ObjClass_Map_List(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_init_4_string_objclass_map_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Superclass = args[1];
-    (void)v_Superclass;
-    Value v_Methods = args[2];
-    (void)v_Methods;
-    Value v_Fields = args[3];
-    (void)v_Fields;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Methods", v_Methods));
-    (void)(alg_set_property(v_this, "Superclass", v_Superclass));
-    (void)(alg_set_property(v_this, "Fields", v_Fields));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_superclass = args[1];
+    (void)v_superclass;
+    Value v_methods = args[2];
+    (void)v_methods;
+    Value v_fields = args[3];
+    (void)v_fields;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Methods", v_methods));
+    (void)(alg_set_property(v_this, "Superclass", v_superclass));
+    (void)(alg_set_property(v_this, "Fields", v_fields));
     return alg_nil();
 }
 
-static Value m_ObjClass_FindMethod_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_findmethod_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_Name}, 1))) {
+    Value v_name = args[0];
+    (void)v_name;
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_name}, 1))) {
         {
-            Value v_Found = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_Name}, 1);
-            (void)v_Found;
-            if (alg_truthy(alg_greater(alg_property(v_Found, "Length"), alg_int(0)))) {
-                return alg_subscript_get(v_Found, alg_int(0));
+            Value v_found = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1);
+            (void)v_found;
+            if (alg_truthy(alg_greater(alg_property(v_found, "Length"), alg_int(0)))) {
+                return alg_subscript_get(v_found, alg_int(0));
             }
         }
     }
     if (alg_truthy(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil()))) {
         {
-            return alg_invoke(alg_property(v_this, "Superclass"), "FindMethod", (Value[]){v_Name}, 1);
+            return alg_invoke(alg_property(v_this, "Superclass"), "FindMethod", (Value[]){v_name}, 1);
         }
     }
     return alg_nil();
 }
 
-static Value m_ObjClass_FindOverload_2_String_List(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_findoverload_2_string_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Arguments = args[1];
-    (void)v_Arguments;
-    if (alg_truthy(alg_not_equal(alg_invoke(v_this, "Fitting", (Value[]){v_Name, v_Arguments, alg_bool(false)}, 3), alg_nil()))) {
-        return alg_invoke(v_this, "Fitting", (Value[]){v_Name, v_Arguments, alg_bool(false)}, 3);
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_arguments = args[1];
+    (void)v_arguments;
+    if (alg_truthy(alg_not_equal(alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, alg_bool(false)}, 3), alg_nil()))) {
+        return alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, alg_bool(false)}, 3);
     }
-    return alg_invoke(v_this, "Fitting", (Value[]){v_Name, v_Arguments, alg_bool(true)}, 3);
+    return alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, alg_bool(true)}, 3);
     return alg_nil();
 }
 
-static Value m_ObjClass_Fitting_3_String_List_Boolean(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_fitting_3_string_list_boolean(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Arguments = args[1];
-    (void)v_Arguments;
-    Value v_Widening = args[2];
-    (void)v_Widening;
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_Name}, 1))) {
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_arguments = args[1];
+    (void)v_arguments;
+    Value v_widening = args[2];
+    (void)v_widening;
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_name}, 1))) {
         {
-            Value v_Candidates = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_Name}, 1);
-            (void)v_Candidates;
+            Value v_candidates = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1);
+            (void)v_candidates;
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(v_Candidates, "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(v_candidates, "Length")))) {
                     {
-                        if (alg_truthy(alg_invoke(alg_subscript_get(v_Candidates, v_I), "Fits", (Value[]){v_Arguments, v_Widening}, 2))) {
-                            return alg_subscript_get(v_Candidates, v_I);
+                        if (alg_truthy(alg_invoke(alg_subscript_get(v_candidates, v_i), "Fits", (Value[]){v_arguments, v_widening}, 2))) {
+                            return alg_subscript_get(v_candidates, v_i);
                         }
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
         }
     }
     if (alg_truthy(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil()))) {
-        return alg_invoke(alg_property(v_this, "Superclass"), "Fitting", (Value[]){v_Name, v_Arguments, v_Widening}, 3);
+        return alg_invoke(alg_property(v_this, "Superclass"), "Fitting", (Value[]){v_name, v_arguments, v_widening}, 3);
     }
     return alg_nil();
 }
 
-static Value m_ObjClass_SeedFields_2_ObjInstance(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Instance = args[0];
-    (void)v_Instance;
-    Value v_TheInterpreter = args[1];
-    (void)v_TheInterpreter;
+    Value v_instance = args[0];
+    (void)v_instance;
+    Value v_theinterpreter = args[1];
+    (void)v_theinterpreter;
     if (alg_truthy(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil()))) {
-        (void)(alg_invoke(alg_property(v_this, "Superclass"), "SeedFields", (Value[]){v_Instance, v_TheInterpreter}, 2));
+        (void)(alg_invoke(alg_property(v_this, "Superclass"), "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2));
     }
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_this, "Fields"), "Length")))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Fields"), "Length")))) {
             {
                 {
-                    Value v_Field = alg_subscript_get(alg_property(v_this, "Fields"), v_I);
-                    (void)v_Field;
-                    Value v_Value = alg_nil();
-                    (void)v_Value;
-                    if (alg_truthy(alg_not_equal(alg_property(v_Field, "Initializer"), alg_nil()))) {
-                        (void)((v_Value = alg_invoke(v_TheInterpreter, "Evaluate", (Value[]){alg_property(v_Field, "Initializer")}, 1)));
+                    Value v_field = alg_subscript_get(alg_property(v_this, "Fields"), v_i);
+                    (void)v_field;
+                    Value v_value = alg_nil();
+                    (void)v_value;
+                    if (alg_truthy(alg_not_equal(alg_property(v_field, "Initializer"), alg_nil()))) {
+                        (void)((v_value = alg_invoke(v_theinterpreter, "Evaluate", (Value[]){alg_property(v_field, "Initializer")}, 1)));
                     }
-                    (void)(alg_invoke(alg_property(v_Instance, "Fields"), "Put", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_Field, "Name"), "Lexeme")}, 1), v_Value}, 2));
+                    (void)(alg_invoke(alg_property(v_instance, "Fields"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_field, "Name"), "Lexeme")}, 1), v_value}, 2));
                 }
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
     return alg_nil();
 }
 
-static Value m_ObjClass_Arity_0(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_arity_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Initializer = alg_nil();
-    (void)v_Initializer;
-    (void)((v_Initializer = alg_invoke(v_this, "FindMethod", (Value[]){alg_string("init")}, 1)));
-    if (alg_truthy(alg_equal(v_Initializer, alg_nil()))) {
+    Value v_initializer = alg_nil();
+    (void)v_initializer;
+    (void)((v_initializer = alg_invoke(v_this, "FindMethod", (Value[]){alg_string("init")}, 1)));
+    if (alg_truthy(alg_equal(v_initializer, alg_nil()))) {
         return alg_int(0);
     }
-    return alg_invoke(v_Initializer, "Arity", NULL, 0);
+    return alg_invoke(v_initializer, "Arity", NULL, 0);
     return alg_nil();
 }
 
-static Value m_ObjClass_ToString_0(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_tostring_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_property(v_this, "Name");
     return alg_nil();
 }
 
-static Value m_ObjClass_Call_2(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TheInterpreter = args[0];
-    (void)v_TheInterpreter;
-    Value v_Arguments = args[1];
-    (void)v_Arguments;
-    Value v_Instance = alg_nil();
-    (void)v_Instance;
-    Value v_Initializer = alg_nil();
-    (void)v_Initializer;
-    (void)((v_Instance = alg_new(k_ObjInstance, (Value[]){v_this}, 1)));
-    (void)(alg_invoke(v_this, "SeedFields", (Value[]){v_Instance, v_TheInterpreter}, 2));
-    (void)((v_Initializer = alg_invoke(v_this, "FindOverload", (Value[]){alg_string("init"), v_Arguments}, 2)));
-    if (alg_truthy(alg_equal(v_Initializer, alg_nil()))) {
-        (void)((v_Initializer = alg_invoke(v_this, "FindMethod", (Value[]){alg_string("init")}, 1)));
+    Value v_theinterpreter = args[0];
+    (void)v_theinterpreter;
+    Value v_arguments = args[1];
+    (void)v_arguments;
+    Value v_instance = alg_nil();
+    (void)v_instance;
+    Value v_initializer = alg_nil();
+    (void)v_initializer;
+    (void)((v_instance = alg_new(k_objinstance, (Value[]){v_this}, 1)));
+    (void)(alg_invoke(v_this, "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2));
+    (void)((v_initializer = alg_invoke(v_this, "FindOverload", (Value[]){alg_string("init"), v_arguments}, 2)));
+    if (alg_truthy(alg_equal(v_initializer, alg_nil()))) {
+        (void)((v_initializer = alg_invoke(v_this, "FindMethod", (Value[]){alg_string("init")}, 1)));
     }
-    if (alg_truthy(alg_not_equal(v_Initializer, alg_nil()))) {
+    if (alg_truthy(alg_not_equal(v_initializer, alg_nil()))) {
         {
-            (void)(alg_invoke(alg_invoke(v_Initializer, "Bind", (Value[]){v_Instance}, 1), "Call", (Value[]){v_TheInterpreter, v_Arguments}, 2));
+            (void)(alg_invoke(alg_invoke(v_initializer, "Bind", (Value[]){v_instance}, 1), "Call", (Value[]){v_theinterpreter, v_arguments}, 2));
         }
     }
-    return v_Instance;
+    return v_instance;
     return alg_nil();
 }
 
 void init_ObjClass(void) {
-    k_ObjClass = alg_class("ObjClass", alg_nil());
-    alg_class_field(k_ObjClass, "Name");
-    alg_class_field(k_ObjClass, "Methods");
-    alg_class_field(k_ObjClass, "Superclass");
-    alg_class_field(k_ObjClass, "Fields");
-    alg_class_initializer(k_ObjClass, i_ObjClass);
-    alg_class_method(k_ObjClass, "Init", m_ObjClass_Init_4_String_ObjClass_Map_List, 4, t_ObjClass_Init_4_String_ObjClass_Map_List);
-    alg_class_method(k_ObjClass, "FindMethod", m_ObjClass_FindMethod_1_String, 1, t_ObjClass_FindMethod_1_String);
-    alg_class_method(k_ObjClass, "FindOverload", m_ObjClass_FindOverload_2_String_List, 2, t_ObjClass_FindOverload_2_String_List);
-    alg_class_method(k_ObjClass, "Fitting", m_ObjClass_Fitting_3_String_List_Boolean, 3, t_ObjClass_Fitting_3_String_List_Boolean);
-    alg_class_method(k_ObjClass, "SeedFields", m_ObjClass_SeedFields_2_ObjInstance, 2, t_ObjClass_SeedFields_2_ObjInstance);
-    alg_class_method(k_ObjClass, "Arity", m_ObjClass_Arity_0, 0, NULL);
-    alg_class_method(k_ObjClass, "ToString", m_ObjClass_ToString_0, 0, NULL);
-    alg_class_method(k_ObjClass, "Call", m_ObjClass_Call_2, 2, t_ObjClass_Call_2);
+    k_objclass = alg_class("ObjClass", alg_nil());
+    alg_class_field(k_objclass, "Name");
+    alg_class_field(k_objclass, "Methods");
+    alg_class_field(k_objclass, "Superclass");
+    alg_class_field(k_objclass, "Fields");
+    alg_class_initializer(k_objclass, i_objclass);
+    alg_class_method(k_objclass, "Init", m_objclass_init_4_string_objclass_map_list, 4, t_objclass_init_4_string_objclass_map_list);
+    alg_class_method(k_objclass, "FindMethod", m_objclass_findmethod_1_string, 1, t_objclass_findmethod_1_string);
+    alg_class_method(k_objclass, "FindOverload", m_objclass_findoverload_2_string_list, 2, t_objclass_findoverload_2_string_list);
+    alg_class_method(k_objclass, "Fitting", m_objclass_fitting_3_string_list_boolean, 3, t_objclass_fitting_3_string_list_boolean);
+    alg_class_method(k_objclass, "SeedFields", m_objclass_seedfields_2_objinstance, 2, t_objclass_seedfields_2_objinstance);
+    alg_class_method(k_objclass, "Arity", m_objclass_arity_0, 0, NULL);
+    alg_class_method(k_objclass, "ToString", m_objclass_tostring_0, 0, NULL);
+    alg_class_method(k_objclass, "Call", m_objclass_call_2, 2, t_objclass_call_2);
 }

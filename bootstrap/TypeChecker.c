@@ -7,11 +7,11 @@
 #include "Token.h"
 #include "TokenType.h"
 
-Value f_Rejects(Value **cells, Value *args, int32_t count);
-Value k_TypeLookup;
-static const char *t_TypeLookup_SetType_2_String_String[] = { "String", "String" };
-static const char *t_TypeLookup_GetType_1_String[] = { "String" };
-Value k_TypeChecker;
+Value f_rejects(Value **cells, Value *args, int32_t count);
+Value k_typelookup;
+static const char *t_typelookup_settype_2_string_string[] = { "String", "String" };
+static const char *t_typelookup_gettype_1_string[] = { "String" };
+Value k_typechecker;
 static Value or_0;
 static Value or_1;
 static Value or_2;
@@ -54,24 +54,24 @@ static Value or_38;
 static Value or_39;
 static Value or_40;
 static Value or_41;
-static const char *t_TypeChecker_HiddenBy_2_String_String[] = { "String", "String" };
-static const char *t_TypeChecker_TypeOfReceiver_1[] = { "Any" };
-static const char *t_TypeChecker_CheckVisibility_2_Token[] = { "Any", "Token" };
-static const char *t_TypeChecker_Assignable_2_String_String[] = { "String", "String" };
-static const char *t_TypeChecker_Mismatch_3_Token_String_String[] = { "Token", "String", "String" };
-static const char *t_TypeChecker_Resolve_1_List[] = { "List" };
-static const char *t_TypeChecker_MapType_1[] = { "Any" };
-static const char *t_TypeChecker_Check_1[] = { "Any" };
-static const char *t_TypeChecker_CheckFunction_1[] = { "Any" };
-static const char *t_TypeChecker_Reduce_1[] = { "Any" };
-static const char *t_TypeChecker_ReduceBinary_1[] = { "Any" };
-static const char *t_TypeChecker_IsTextType_1_String[] = { "String" };
-static const char *t_TypeChecker_TypeOfValue_1[] = { "Any" };
-static const char *t_TypeChecker_ClassNameOf_1[] = { "Any" };
-Value fn_Rejects;
-Value v_HIDER;
+static const char *t_typechecker_hiddenby_2_string_string[] = { "String", "String" };
+static const char *t_typechecker_typeofreceiver_1[] = { "Any" };
+static const char *t_typechecker_checkvisibility_2_token[] = { "Any", "Token" };
+static const char *t_typechecker_assignable_2_string_string[] = { "String", "String" };
+static const char *t_typechecker_mismatch_3_token_string_string[] = { "Token", "String", "String" };
+static const char *t_typechecker_resolve_1_list[] = { "List" };
+static const char *t_typechecker_maptype_1[] = { "Any" };
+static const char *t_typechecker_check_1[] = { "Any" };
+static const char *t_typechecker_checkfunction_1[] = { "Any" };
+static const char *t_typechecker_reduce_1[] = { "Any" };
+static const char *t_typechecker_reducebinary_1[] = { "Any" };
+static const char *t_typechecker_istexttype_1_string[] = { "String" };
+static const char *t_typechecker_typeofvalue_1[] = { "Any" };
+static const char *t_typechecker_classnameof_1[] = { "Any" };
+Value fn_rejects;
+Value v_hider;
 
-static Value i_TypeLookup(Value v_this, Value *args, int32_t count) {
+static Value i_typelookup(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Scopes", alg_list());
     alg_set_property(v_this, "Types", alg_map());
@@ -83,44 +83,44 @@ static Value i_TypeLookup(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_TypeLookup_SetType_2_String_String(Value v_this, Value *args, int32_t count) {
+static Value m_typelookup_settype_2_string_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Symbol = args[0];
-    (void)v_Symbol;
-    Value v_TheType = args[1];
-    (void)v_TheType;
+    Value v_symbol = args[0];
+    (void)v_symbol;
+    Value v_thetype = args[1];
+    (void)v_thetype;
     if (alg_truthy(alg_property(alg_property(v_this, "Scopes"), "IsEmpty"))) {
-        (void)(alg_invoke(alg_property(v_this, "Types"), "Put", (Value[]){v_Symbol, v_TheType}, 2));
+        (void)(alg_invoke(alg_property(v_this, "Types"), "Put", (Value[]){v_symbol, v_thetype}, 2));
     } else {
-        (void)(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1))), "Put", (Value[]){v_Symbol, v_TheType}, 2));
+        (void)(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1))), "Put", (Value[]){v_symbol, v_thetype}, 2));
     }
     return alg_nil();
 }
 
-static Value m_TypeLookup_GetType_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_typelookup_gettype_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Symbol = args[0];
-    (void)v_Symbol;
+    Value v_symbol = args[0];
+    (void)v_symbol;
     {
-        Value v_I = alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1));
-        (void)v_I;
-        while (alg_truthy(alg_greater_equal(v_I, alg_int(0)))) {
+        Value v_i = alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1));
+        (void)v_i;
+        while (alg_truthy(alg_greater_equal(v_i, alg_int(0)))) {
             {
-                if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_I), "Contains", (Value[]){v_Symbol}, 1))) {
-                    return alg_str(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_I), "Get", (Value[]){v_Symbol}, 1));
+                if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){v_symbol}, 1))) {
+                    return alg_str(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Get", (Value[]){v_symbol}, 1));
                 }
-                (void)((v_I = alg_subtract(v_I, alg_int(1))));
+                (void)((v_i = alg_subtract(v_i, alg_int(1))));
             }
         }
     }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Types"), "Contains", (Value[]){v_Symbol}, 1))) {
-        return alg_str(alg_invoke(alg_property(v_this, "Types"), "Get", (Value[]){v_Symbol}, 1));
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Types"), "Contains", (Value[]){v_symbol}, 1))) {
+        return alg_str(alg_invoke(alg_property(v_this, "Types"), "Get", (Value[]){v_symbol}, 1));
     }
     return alg_string("");
     return alg_nil();
 }
 
-static Value m_TypeLookup_BeginScope_0(Value v_this, Value *args, int32_t count) {
+static Value m_typelookup_beginscope_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     (void)(alg_invoke(alg_property(v_this, "Scopes"), "Add", (Value[]){alg_map()}, 1));
     if (alg_truthy(alg_not_equal(alg_property(v_this, "Generics"), alg_nil()))) {
@@ -129,7 +129,7 @@ static Value m_TypeLookup_BeginScope_0(Value v_this, Value *args, int32_t count)
     return alg_nil();
 }
 
-static Value m_TypeLookup_EndScope_0(Value v_this, Value *args, int32_t count) {
+static Value m_typelookup_endscope_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     (void)(alg_invoke(alg_property(v_this, "Scopes"), "RemoveAt", (Value[]){alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1))}, 1));
     if (alg_truthy(alg_not_equal(alg_property(v_this, "Generics"), alg_nil()))) {
@@ -138,7 +138,7 @@ static Value m_TypeLookup_EndScope_0(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value i_TypeChecker(Value v_this, Value *args, int32_t count) {
+static Value i_typechecker(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Lookup", alg_nil());
     alg_set_property(v_this, "CurrentReturn", alg_string(""));
@@ -147,19 +147,19 @@ static Value i_TypeChecker(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_TypeChecker_Init_0(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    (void)(alg_set_property(v_this, "Lookup", alg_new(k_TypeLookup, NULL, 0)));
-    (void)(alg_set_property(alg_property(v_this, "Lookup"), "Generics", alg_new(k_TypeLookup, NULL, 0)));
+    (void)(alg_set_property(v_this, "Lookup", alg_new(k_typelookup, NULL, 0)));
+    (void)(alg_set_property(alg_property(v_this, "Lookup"), "Generics", alg_new(k_typelookup, NULL, 0)));
     {
         Value loop_0 = alg_iterable(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("List")), alg_string("Map")), alg_string("Set")), alg_string("Stack")), alg_string("Array")));
         for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {
-            Value v_Kind = alg_iterable_at(loop_0, at_0);
-            (void)v_Kind;
+            Value v_kind = alg_iterable_at(loop_0, at_0);
+            (void)v_kind;
             {
-                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(v_Kind, alg_string("::Length")), alg_string("Integer")}, 2));
-                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(v_Kind, alg_string("::IsEmpty")), alg_string("Boolean")}, 2));
-                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(v_Kind, alg_string("::Contains")), alg_string("Boolean")}, 2));
+                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(v_kind, alg_string("::Length")), alg_string("Integer")}, 2));
+                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(v_kind, alg_string("::IsEmpty")), alg_string("Boolean")}, 2));
+                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(v_kind, alg_string("::Contains")), alg_string("Boolean")}, 2));
             }
         }
     }
@@ -205,45 +205,45 @@ static Value m_TypeChecker_Init_0(Value v_this, Value *args, int32_t count) {
     {
         Value loop_1 = alg_iterable(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("Length")), alg_string("Pos")), alg_string("Copy")), alg_string("Str")), alg_string("Array")), alg_string("List")), alg_string("Map")), alg_string("Set")), alg_string("Stack")), alg_string("Buffer")), alg_string("TextFile")), alg_string("FileExists")), alg_string("ParamCount")), alg_string("ParamStr")), alg_string("Write")), alg_string("WriteLn")), alg_string("Ord")), alg_string("Val")), alg_string("Char")), alg_string("Max")), alg_string("Mod")), alg_string("clock")));
         for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
-            Value v_Name = alg_iterable_at(loop_1, at_1);
-            (void)v_Name;
-            (void)(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Put", (Value[]){v_Name, alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){v_Name}, 1)}, 2));
+            Value v_name = alg_iterable_at(loop_1, at_1);
+            (void)v_name;
+            (void)(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Put", (Value[]){v_name, alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){v_name}, 1)}, 2));
         }
     }
     {
         Value loop_2 = alg_iterable(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("Any")), alg_string("Boolean")), alg_string("Integer")), alg_string("Double")), alg_string("String")), alg_string("Char")), alg_string("List")), alg_string("Set")), alg_string("Stack")), alg_string("Array")), alg_string("Map")), alg_string("TextFile")), alg_string("Buffer")));
         for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
-            Value v_Name = alg_iterable_at(loop_2, at_2);
-            (void)v_Name;
-            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){v_Name}, 1)}, 1));
+            Value v_name = alg_iterable_at(loop_2, at_2);
+            (void)v_name;
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1));
         }
     }
     return alg_nil();
 }
 
-static Value m_TypeChecker_HiddenBy_2_String_String(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_hiddenby_2_string_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TheType = args[0];
-    (void)v_TheType;
-    Value v_Member = args[1];
-    (void)v_Member;
-    Value v_At = alg_nil();
-    (void)v_At;
-    Value v_Seen = alg_nil();
-    (void)v_Seen;
-    (void)((v_At = v_TheType));
-    (void)((v_Seen = alg_list()));
-    while (alg_truthy((or_1 = (or_0 = alg_not_equal(v_At, alg_string("")), !alg_truthy(or_0) ? or_0 : alg_not_equal(v_At, alg_string("Any"))), !alg_truthy(or_1) ? or_1 : alg_not(alg_invoke(v_Seen, "Contains", (Value[]){v_At}, 1))))) {
+    Value v_thetype = args[0];
+    (void)v_thetype;
+    Value v_member = args[1];
+    (void)v_member;
+    Value v_at = alg_nil();
+    (void)v_at;
+    Value v_seen = alg_nil();
+    (void)v_seen;
+    (void)((v_at = v_thetype));
+    (void)((v_seen = alg_list()));
+    while (alg_truthy((or_1 = (or_0 = alg_not_equal(v_at, alg_string("")), !alg_truthy(or_0) ? or_0 : alg_not_equal(v_at, alg_string("Any"))), !alg_truthy(or_1) ? or_1 : alg_not(alg_invoke(v_seen, "Contains", (Value[]){v_at}, 1))))) {
         {
-            (void)(alg_invoke(v_Seen, "Add", (Value[]){v_At}, 1));
-            if (alg_truthy(alg_invoke(alg_property(v_this, "PrivateMembers"), "Contains", (Value[]){v_At}, 1))) {
-                if (alg_truthy(alg_invoke(alg_invoke(alg_property(v_this, "PrivateMembers"), "Get", (Value[]){v_At}, 1), "Contains", (Value[]){v_Member}, 1))) {
-                    return v_At;
+            (void)(alg_invoke(v_seen, "Add", (Value[]){v_at}, 1));
+            if (alg_truthy(alg_invoke(alg_property(v_this, "PrivateMembers"), "Contains", (Value[]){v_at}, 1))) {
+                if (alg_truthy(alg_invoke(alg_invoke(alg_property(v_this, "PrivateMembers"), "Get", (Value[]){v_at}, 1), "Contains", (Value[]){v_member}, 1))) {
+                    return v_at;
                 }
             }
-            (void)((v_At = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_At}, 1))));
-            if (alg_truthy(alg_equal(v_At, alg_string("nil")))) {
-                (void)((v_At = alg_string("")));
+            (void)((v_at = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_at}, 1))));
+            if (alg_truthy(alg_equal(v_at, alg_string("nil")))) {
+                (void)((v_at = alg_string("")));
             }
         }
     }
@@ -251,257 +251,257 @@ static Value m_TypeChecker_HiddenBy_2_String_String(Value v_this, Value *args, i
     return alg_nil();
 }
 
-static Value m_TypeChecker_TypeOfReceiver_1(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_typeofreceiver_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Obj = args[0];
-    (void)v_Obj;
-    Value v_TheType = alg_nil();
-    (void)v_TheType;
-    (void)((v_TheType = alg_invoke(v_this, "Reduce", (Value[]){v_Obj}, 1)));
-    if (alg_truthy((or_3 = ((or_2 = alg_equal(v_TheType, alg_string("")), alg_truthy(or_2) ? or_2 : alg_equal(v_TheType, alg_string("Any")))), !alg_truthy(or_3) ? or_3 : alg_is(v_Obj, "VariableExpr")))) {
+    Value v_obj = args[0];
+    (void)v_obj;
+    Value v_thetype = alg_nil();
+    (void)v_thetype;
+    (void)((v_thetype = alg_invoke(v_this, "Reduce", (Value[]){v_obj}, 1)));
+    if (alg_truthy((or_3 = ((or_2 = alg_equal(v_thetype, alg_string("")), alg_truthy(or_2) ? or_2 : alg_equal(v_thetype, alg_string("Any")))), !alg_truthy(or_3) ? or_3 : alg_is(v_obj, "VariableExpr")))) {
         {
-            Value v_Deduced = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Inferred"), "Get", (Value[]){alg_str(alg_property(alg_property(v_Obj, "Name"), "Lexeme"))}, 1));
-            (void)v_Deduced;
-            if (alg_truthy((or_4 = alg_not_equal(v_Deduced, alg_string("nil")), !alg_truthy(or_4) ? or_4 : alg_not_equal(v_Deduced, alg_string(""))))) {
-                return v_Deduced;
+            Value v_deduced = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Inferred"), "Get", (Value[]){alg_str(alg_property(alg_property(v_obj, "Name"), "Lexeme"))}, 1));
+            (void)v_deduced;
+            if (alg_truthy((or_4 = alg_not_equal(v_deduced, alg_string("nil")), !alg_truthy(or_4) ? or_4 : alg_not_equal(v_deduced, alg_string(""))))) {
+                return v_deduced;
             }
         }
     }
-    return v_TheType;
+    return v_thetype;
     return alg_nil();
 }
 
-static Value m_TypeChecker_CheckVisibility_2_Token(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_checkvisibility_2_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Obj = args[0];
-    (void)v_Obj;
-    Value v_Member = args[1];
-    (void)v_Member;
-    Value v_TheType = alg_nil();
-    (void)v_TheType;
-    (void)((v_TheType = alg_invoke(v_this, "TypeOfReceiver", (Value[]){v_Obj}, 1)));
-    Value v_Owner = alg_invoke(v_this, "HiddenBy", (Value[]){v_TheType, alg_str(alg_property(v_Member, "Lexeme"))}, 2);
-    (void)v_Owner;
-    if (alg_truthy((or_5 = alg_equal(v_Owner, alg_string("")), alg_truthy(or_5) ? or_5 : alg_equal(v_Owner, alg_property(alg_property(v_this, "Lookup"), "CurrentClassName"))))) {
+    Value v_obj = args[0];
+    (void)v_obj;
+    Value v_member = args[1];
+    (void)v_member;
+    Value v_thetype = alg_nil();
+    (void)v_thetype;
+    (void)((v_thetype = alg_invoke(v_this, "TypeOfReceiver", (Value[]){v_obj}, 1)));
+    Value v_owner = alg_invoke(v_this, "HiddenBy", (Value[]){v_thetype, alg_str(alg_property(v_member, "Lexeme"))}, 2);
+    (void)v_owner;
+    if (alg_truthy((or_5 = alg_equal(v_owner, alg_string("")), alg_truthy(or_5) ? or_5 : alg_equal(v_owner, alg_property(alg_property(v_this, "Lookup"), "CurrentClassName"))))) {
         return alg_nil();
     }
-    alg_raise(alg_add(alg_add(alg_add(alg_add(alg_char_value(39), alg_property(v_Member, "Lexeme")), alg_string("' is private to ")), v_Owner), alg_char_value(46)));
+    alg_raise(alg_add(alg_add(alg_add(alg_add(alg_char_value(39), alg_property(v_member, "Lexeme")), alg_string("' is private to ")), v_owner), alg_char_value(46)));
     return alg_nil();
 }
 
-static Value m_TypeChecker_Assignable_2_String_String(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_assignable_2_string_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Expected = args[0];
-    (void)v_Expected;
-    Value v_Actual = args[1];
-    (void)v_Actual;
-    Value v_Parent = alg_nil();
-    (void)v_Parent;
-    if (alg_truthy((or_6 = alg_equal(v_Expected, alg_string("")), alg_truthy(or_6) ? or_6 : alg_equal(v_Actual, alg_string(""))))) {
+    Value v_expected = args[0];
+    (void)v_expected;
+    Value v_actual = args[1];
+    (void)v_actual;
+    Value v_parent = alg_nil();
+    (void)v_parent;
+    if (alg_truthy((or_6 = alg_equal(v_expected, alg_string("")), alg_truthy(or_6) ? or_6 : alg_equal(v_actual, alg_string(""))))) {
         return alg_bool(true);
     }
-    if (alg_truthy((or_7 = alg_equal(v_Expected, alg_string("Any")), alg_truthy(or_7) ? or_7 : alg_equal(v_Actual, alg_string("Any"))))) {
+    if (alg_truthy((or_7 = alg_equal(v_expected, alg_string("Any")), alg_truthy(or_7) ? or_7 : alg_equal(v_actual, alg_string("Any"))))) {
         return alg_bool(true);
     }
-    if (alg_truthy(alg_equal(v_Actual, alg_string("Nil")))) {
+    if (alg_truthy(alg_equal(v_actual, alg_string("Nil")))) {
         return alg_bool(true);
     }
-    if (alg_truthy(alg_equal(v_Expected, v_Actual))) {
+    if (alg_truthy(alg_equal(v_expected, v_actual))) {
         return alg_bool(true);
     }
-    if (alg_truthy((or_8 = alg_equal(v_Expected, alg_string("Double")), !alg_truthy(or_8) ? or_8 : alg_equal(v_Actual, alg_string("Integer"))))) {
+    if (alg_truthy((or_8 = alg_equal(v_expected, alg_string("Double")), !alg_truthy(or_8) ? or_8 : alg_equal(v_actual, alg_string("Integer"))))) {
         return alg_bool(true);
     }
-    if (alg_truthy((or_9 = alg_equal(v_Expected, alg_string("String")), !alg_truthy(or_9) ? or_9 : alg_equal(v_Actual, alg_string("Char"))))) {
+    if (alg_truthy((or_9 = alg_equal(v_expected, alg_string("String")), !alg_truthy(or_9) ? or_9 : alg_equal(v_actual, alg_string("Char"))))) {
         return alg_bool(true);
     }
-    (void)((v_Parent = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_Actual}, 1))));
-    while (alg_truthy((or_10 = alg_not_equal(v_Parent, alg_string("")), !alg_truthy(or_10) ? or_10 : alg_not_equal(v_Parent, alg_string("nil"))))) {
+    (void)((v_parent = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_actual}, 1))));
+    while (alg_truthy((or_10 = alg_not_equal(v_parent, alg_string("")), !alg_truthy(or_10) ? or_10 : alg_not_equal(v_parent, alg_string("nil"))))) {
         {
-            if (alg_truthy(alg_equal(v_Expected, v_Parent))) {
+            if (alg_truthy(alg_equal(v_expected, v_parent))) {
                 return alg_bool(true);
             }
-            (void)((v_Parent = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_Parent}, 1))));
+            (void)((v_parent = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_parent}, 1))));
         }
     }
     return alg_bool(false);
     return alg_nil();
 }
 
-static Value m_TypeChecker_Mismatch_3_Token_String_String(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_mismatch_3_token_string_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Where = args[0];
-    (void)v_Where;
-    Value v_Expected = args[1];
-    (void)v_Expected;
-    Value v_Actual = args[2];
-    (void)v_Actual;
-    Value v_Found = alg_nil();
-    (void)v_Found;
-    Value v_Message = alg_nil();
-    (void)v_Message;
-    (void)((v_Found = v_Actual));
-    if (alg_truthy(alg_equal(v_Actual, alg_string("")))) {
-        (void)((v_Found = alg_string("an untyped expression")));
+    Value v_where = args[0];
+    (void)v_where;
+    Value v_expected = args[1];
+    (void)v_expected;
+    Value v_actual = args[2];
+    (void)v_actual;
+    Value v_found = alg_nil();
+    (void)v_found;
+    Value v_message = alg_nil();
+    (void)v_message;
+    (void)((v_found = v_actual));
+    if (alg_truthy(alg_equal(v_actual, alg_string("")))) {
+        (void)((v_found = alg_string("an untyped expression")));
     }
-    (void)((v_Message = alg_add(alg_add(alg_add(alg_add(alg_string("Expected "), v_Expected), alg_string(", found ")), v_Found), alg_char_value(46))));
-    (void)(alg_invoke(alg_singleton(k_Console), "Error", (Value[]){v_Where, v_Message}, 2));
-    return v_Message;
+    (void)((v_message = alg_add(alg_add(alg_add(alg_add(alg_string("Expected "), v_expected), alg_string(", found ")), v_found), alg_char_value(46))));
+    (void)(alg_invoke(alg_singleton(k_console), "Error", (Value[]){v_where, v_message}, 2));
+    return v_message;
     return alg_nil();
 }
 
-static Value m_TypeChecker_Resolve_1_List(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_resolve_1_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Statements = args[0];
-    (void)v_Statements;
+    Value v_statements = args[0];
+    (void)v_statements;
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(v_statements, "Length")))) {
             {
-                (void)(alg_invoke(v_this, "MapType", (Value[]){alg_subscript_get(v_Statements, v_I)}, 1));
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)(alg_invoke(v_this, "MapType", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(v_statements, "Length")))) {
             {
-                (void)(alg_invoke(v_this, "Check", (Value[]){alg_subscript_get(v_Statements, v_I)}, 1));
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)(alg_invoke(v_this, "Check", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
     return alg_nil();
 }
 
-static Value m_TypeChecker_MapType_1(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TheStmt = args[0];
-    (void)v_TheStmt;
-    Value v_Kind = alg_nil();
-    (void)v_Kind;
-    (void)((v_Kind = alg_invoke(v_this, "ClassNameOf", (Value[]){v_TheStmt}, 1)));
-    if (alg_truthy(alg_equal(v_Kind, alg_string("ClassStmt")))) {
+    Value v_thestmt = args[0];
+    (void)v_thestmt;
+    Value v_kind = alg_nil();
+    (void)v_kind;
+    (void)((v_kind = alg_invoke(v_this, "ClassNameOf", (Value[]){v_thestmt}, 1)));
+    if (alg_truthy(alg_equal(v_kind, alg_string("ClassStmt")))) {
         {
-            (void)(alg_invoke(alg_property(v_this, "PrivateMembers"), "Put", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")), alg_property(v_TheStmt, "PrivateMembers")}, 2));
-            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 2));
-            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)}, 1));
-            if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Superclass"), alg_nil()))) {
-                (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Put", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_TheStmt, "Superclass"), "Name"), "Lexeme")}, 2));
+            (void)(alg_invoke(alg_property(v_this, "PrivateMembers"), "Put", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme")), alg_property(v_thestmt, "PrivateMembers")}, 2));
+            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
+            if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Superclass"), alg_nil()))) {
+                (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Put", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_thestmt, "Superclass"), "Name"), "Lexeme")}, 2));
             }
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Fields"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Fields"), "Length")))) {
                     {
                         {
-                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I), "TypeName")}, 2));
-                            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I), "Generic")}, 2));
+                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_property(alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i), "TypeName")}, 2));
+                            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i), "Generic")}, 2));
                         }
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Methods"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Methods"), "Length")))) {
                     {
-                        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Methods"), v_I), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_TheStmt, "Methods"), v_I), "ReturnType")}, 2));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_property(alg_subscript_get(alg_property(v_thestmt, "Methods"), v_i), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_thestmt, "Methods"), v_i), "ReturnType")}, 2));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("ObjectStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("ObjectStmt")))) {
         {
-            (void)(alg_invoke(alg_property(v_this, "PrivateMembers"), "Put", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")), alg_property(v_TheStmt, "PrivateMembers")}, 2));
-            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 2));
-            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)}, 1));
-            if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Superclass"), alg_nil()))) {
-                (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Put", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_TheStmt, "Superclass"), "Name"), "Lexeme")}, 2));
+            (void)(alg_invoke(alg_property(v_this, "PrivateMembers"), "Put", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme")), alg_property(v_thestmt, "PrivateMembers")}, 2));
+            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
+            if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Superclass"), alg_nil()))) {
+                (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Put", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_thestmt, "Superclass"), "Name"), "Lexeme")}, 2));
             }
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Fields"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Fields"), "Length")))) {
                     {
                         {
-                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I), "TypeName")}, 2));
-                            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I), "Generic")}, 2));
+                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_property(alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i), "TypeName")}, 2));
+                            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i), "Generic")}, 2));
                         }
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Methods"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Methods"), "Length")))) {
                     {
-                        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Methods"), v_I), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_TheStmt, "Methods"), v_I), "ReturnType")}, 2));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_property(alg_subscript_get(alg_property(v_thestmt, "Methods"), v_i), "Name"), "Lexeme")), alg_property(alg_subscript_get(alg_property(v_thestmt, "Methods"), v_i), "ReturnType")}, 2));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("FunctionStmt")))) {
-        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(v_TheStmt, "ReturnType")}, 2));
+    if (alg_truthy(alg_equal(v_kind, alg_string("FunctionStmt")))) {
+        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(v_thestmt, "ReturnType")}, 2));
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("EnumStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("EnumStmt")))) {
         {
-            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 2));
-            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)}, 1));
+            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Members"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Members"), "Length")))) {
                     {
                         {
-                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme"), alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 2));
-                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_subscript_get(alg_property(v_TheStmt, "Members"), v_I), "Lexeme")), alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 2));
+                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Members"), v_i), "Lexeme"), alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 2));
+                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_add(alg_add(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_string("::")), alg_property(alg_subscript_get(alg_property(v_thestmt, "Members"), v_i), "Lexeme")), alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 2));
                         }
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("VarStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("VarStmt")))) {
         {
-            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(v_TheStmt, "TypeName")}, 2));
-            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")), alg_property(v_TheStmt, "Generic")}, 2));
+            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(v_thestmt, "TypeName")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme")), alg_property(v_thestmt, "Generic")}, 2));
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("VarGroupStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("VarGroupStmt")))) {
         {
-            Value v_I = alg_int(0);
-            (void)v_I;
-            while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Names"), "Length")))) {
+            Value v_i = alg_int(0);
+            (void)v_i;
+            while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Names"), "Length")))) {
                 {
                     {
-                        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_TheStmt, "Names"), v_I), "Lexeme"), alg_property(v_TheStmt, "TypeName")}, 2));
-                        (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Names"), v_I), "Lexeme")), alg_property(v_TheStmt, "Generic")}, 2));
+                        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_i), "Lexeme"), alg_property(v_thestmt, "TypeName")}, 2));
+                        (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_i), "Lexeme")), alg_property(v_thestmt, "Generic")}, 2));
                     }
-                    (void)((v_I = alg_add(v_I, alg_int(1))));
+                    (void)((v_i = alg_add(v_i, alg_int(1))));
                 }
             }
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("ModuleStmt")))) {
-        if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Statements"), alg_nil()))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("ModuleStmt")))) {
+        if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil()))) {
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Statements"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Statements"), "Length")))) {
                     {
-                        (void)(alg_invoke(v_this, "MapType", (Value[]){alg_subscript_get(alg_property(v_TheStmt, "Statements"), v_I)}, 1));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(v_this, "MapType", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Statements"), v_i)}, 1));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
@@ -510,27 +510,27 @@ static Value m_TypeChecker_MapType_1(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TheStmt = args[0];
-    (void)v_TheStmt;
-    Value v_Kind = alg_nil();
-    (void)v_Kind;
-    (void)((v_Kind = alg_invoke(v_this, "ClassNameOf", (Value[]){v_TheStmt}, 1)));
-    if (alg_truthy(alg_equal(v_Kind, alg_string("VarStmt")))) {
+    Value v_thestmt = args[0];
+    (void)v_thestmt;
+    Value v_kind = alg_nil();
+    (void)v_kind;
+    (void)((v_kind = alg_invoke(v_this, "ClassNameOf", (Value[]){v_thestmt}, 1)));
+    if (alg_truthy(alg_equal(v_kind, alg_string("VarStmt")))) {
         {
-            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(v_TheStmt, "TypeName")}, 2));
-            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")), alg_property(v_TheStmt, "Generic")}, 2));
-            if (alg_truthy((or_11 = alg_not_equal(alg_property(v_TheStmt, "Initializer"), alg_nil()), !alg_truthy(or_11) ? or_11 : alg_equal(alg_property(v_TheStmt, "TypeName"), alg_string(""))))) {
-                (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Inferred"), "Put", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")), alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Initializer")}, 1)}, 2));
+            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(v_thestmt, "TypeName")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme")), alg_property(v_thestmt, "Generic")}, 2));
+            if (alg_truthy((or_11 = alg_not_equal(alg_property(v_thestmt, "Initializer"), alg_nil()), !alg_truthy(or_11) ? or_11 : alg_equal(alg_property(v_thestmt, "TypeName"), alg_string(""))))) {
+                (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Inferred"), "Put", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme")), alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Initializer")}, 1)}, 2));
             }
-            if (alg_truthy((or_12 = alg_not_equal(alg_property(v_TheStmt, "Initializer"), alg_nil()), !alg_truthy(or_12) ? or_12 : alg_not_equal(alg_property(v_TheStmt, "TypeName"), alg_string(""))))) {
+            if (alg_truthy((or_12 = alg_not_equal(alg_property(v_thestmt, "Initializer"), alg_nil()), !alg_truthy(or_12) ? or_12 : alg_not_equal(alg_property(v_thestmt, "TypeName"), alg_string(""))))) {
                 {
-                    Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Initializer")}, 1);
-                    (void)v_Actual;
-                    if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "TypeName"), alg_string("Any")))) {
-                        if (alg_truthy((or_14 = (or_13 = alg_equal(v_Actual, alg_string("")), alg_truthy(or_13) ? or_13 : alg_equal(v_Actual, alg_string("Any"))), alg_truthy(or_14) ? or_14 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_TheStmt, "TypeName"), v_Actual}, 2))))) {
-                            alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_TheStmt, "Name"), alg_property(v_TheStmt, "TypeName"), v_Actual}, 3));
+                    Value v_actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Initializer")}, 1);
+                    (void)v_actual;
+                    if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "TypeName"), alg_string("Any")))) {
+                        if (alg_truthy((or_14 = (or_13 = alg_equal(v_actual, alg_string("")), alg_truthy(or_13) ? or_13 : alg_equal(v_actual, alg_string("Any"))), alg_truthy(or_14) ? or_14 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_thestmt, "TypeName"), v_actual}, 2))))) {
+                            alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_thestmt, "Name"), alg_property(v_thestmt, "TypeName"), v_actual}, 3));
                         }
                     }
                 }
@@ -538,28 +538,28 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("VarGroupStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("VarGroupStmt")))) {
         {
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Names"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Names"), "Length")))) {
                     {
                         {
-                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_TheStmt, "Names"), v_I), "Lexeme"), alg_property(v_TheStmt, "TypeName")}, 2));
-                            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Names"), v_I), "Lexeme")), alg_property(v_TheStmt, "Generic")}, 2));
+                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_i), "Lexeme"), alg_property(v_thestmt, "TypeName")}, 2));
+                            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_i), "Lexeme")), alg_property(v_thestmt, "Generic")}, 2));
                         }
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
-            if (alg_truthy((or_15 = alg_not_equal(alg_property(v_TheStmt, "Initializer"), alg_nil()), !alg_truthy(or_15) ? or_15 : alg_not_equal(alg_property(v_TheStmt, "TypeName"), alg_string(""))))) {
+            if (alg_truthy((or_15 = alg_not_equal(alg_property(v_thestmt, "Initializer"), alg_nil()), !alg_truthy(or_15) ? or_15 : alg_not_equal(alg_property(v_thestmt, "TypeName"), alg_string(""))))) {
                 {
-                    Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Initializer")}, 1);
-                    (void)v_Actual;
-                    if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "TypeName"), alg_string("Any")))) {
-                        if (alg_truthy((or_17 = (or_16 = alg_equal(v_Actual, alg_string("")), alg_truthy(or_16) ? or_16 : alg_equal(v_Actual, alg_string("Any"))), alg_truthy(or_17) ? or_17 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_TheStmt, "TypeName"), v_Actual}, 2))))) {
-                            alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_subscript_get(alg_property(v_TheStmt, "Names"), alg_int(0)), alg_property(v_TheStmt, "TypeName"), v_Actual}, 3));
+                    Value v_actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Initializer")}, 1);
+                    (void)v_actual;
+                    if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "TypeName"), alg_string("Any")))) {
+                        if (alg_truthy((or_17 = (or_16 = alg_equal(v_actual, alg_string("")), alg_truthy(or_16) ? or_16 : alg_equal(v_actual, alg_string("Any"))), alg_truthy(or_17) ? or_17 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_thestmt, "TypeName"), v_actual}, 2))))) {
+                            alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Names"), alg_int(0)), alg_property(v_thestmt, "TypeName"), v_actual}, 3));
                         }
                     }
                 }
@@ -567,22 +567,22 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("ExpressionStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("ExpressionStmt")))) {
         {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Expression")}, 1));
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Expression")}, 1));
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("BlockStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("BlockStmt")))) {
         {
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Statements"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Statements"), "Length")))) {
                     {
-                        (void)(alg_invoke(v_this, "Check", (Value[]){alg_subscript_get(alg_property(v_TheStmt, "Statements"), v_I)}, 1));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(v_this, "Check", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Statements"), v_i)}, 1));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
@@ -590,104 +590,104 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("IfStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("IfStmt")))) {
         {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Condition")}, 1));
-            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_TheStmt, "ThenBranch")}, 1));
-            if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "ElseBranch"), alg_nil()))) {
-                (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_TheStmt, "ElseBranch")}, 1));
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Condition")}, 1));
+            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_thestmt, "ThenBranch")}, 1));
+            if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "ElseBranch"), alg_nil()))) {
+                (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_thestmt, "ElseBranch")}, 1));
             }
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("ForInStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("ForInStmt")))) {
         {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Iterable")}, 1));
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Iterable")}, 1));
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
-            Value v_Element = alg_string("");
-            (void)v_Element;
-            if (alg_truthy(alg_is(alg_property(v_TheStmt, "Iterable"), "VariableExpr"))) {
-                (void)((v_Element = alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "GetType", (Value[]){alg_str(alg_property(alg_property(alg_property(v_TheStmt, "Iterable"), "Name"), "Lexeme"))}, 1)));
+            Value v_element = alg_string("");
+            (void)v_element;
+            if (alg_truthy(alg_is(alg_property(v_thestmt, "Iterable"), "VariableExpr"))) {
+                (void)((v_element = alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "GetType", (Value[]){alg_str(alg_property(alg_property(alg_property(v_thestmt, "Iterable"), "Name"), "Lexeme"))}, 1)));
             }
-            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_Element}, 2));
-            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_TheStmt, "Body")}, 1));
+            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), v_element}, 2));
+            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_thestmt, "Body")}, 1));
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "EndScope", NULL, 0));
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("WhileStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("WhileStmt")))) {
         {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Condition")}, 1));
-            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_TheStmt, "Body")}, 1));
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Condition")}, 1));
+            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_thestmt, "Body")}, 1));
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("ReturnStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("ReturnStmt")))) {
         {
-            if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Value"), alg_nil()))) {
+            if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Value"), alg_nil()))) {
                 {
-                    Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Value")}, 1);
-                    (void)v_Actual;
-                    if (alg_truthy(alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_this, "CurrentReturn"), v_Actual}, 2)))) {
-                        alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_TheStmt, "Keyword"), alg_property(v_this, "CurrentReturn"), v_Actual}, 3));
+                    Value v_actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Value")}, 1);
+                    (void)v_actual;
+                    if (alg_truthy(alg_not(alg_invoke(v_this, "Assignable", (Value[]){alg_property(v_this, "CurrentReturn"), v_actual}, 2)))) {
+                        alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_thestmt, "Keyword"), alg_property(v_this, "CurrentReturn"), v_actual}, 3));
                     }
                 }
             }
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("TryStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("TryStmt")))) {
         {
-            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_TheStmt, "TryBlock")}, 1));
-            Value v_Keys = alg_invoke(alg_property(v_TheStmt, "Handlers"), "Keys", NULL, 0);
-            (void)v_Keys;
+            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_thestmt, "TryBlock")}, 1));
+            Value v_keys = alg_invoke(alg_property(v_thestmt, "Handlers"), "Keys", NULL, 0);
+            (void)v_keys;
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(v_Keys, "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(v_keys, "Length")))) {
                     {
-                        (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(alg_invoke(alg_property(v_TheStmt, "Handlers"), "Get", (Value[]){alg_subscript_get(v_Keys, v_I)}, 1), "Body")}, 1));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(alg_invoke(alg_property(v_thestmt, "Handlers"), "Get", (Value[]){alg_subscript_get(v_keys, v_i)}, 1), "Body")}, 1));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("BreakStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("BreakStmt")))) {
         return alg_nil();
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("ModuleStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("ModuleStmt")))) {
         {
-            if (alg_truthy(alg_equal(alg_property(v_TheStmt, "Statements"), alg_nil()))) {
+            if (alg_truthy(alg_equal(alg_property(v_thestmt, "Statements"), alg_nil()))) {
                 return alg_nil();
             }
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
             {
                 Value loop_3 = alg_iterable(alg_property(v_this, "BuiltinTypes"));
                 for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
-                    Value v_Name = alg_iterable_at(loop_3, at_3);
-                    (void)v_Name;
-                    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){v_Name, alg_str(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Get", (Value[]){v_Name}, 1))}, 2));
+                    Value v_name = alg_iterable_at(loop_3, at_3);
+                    (void)v_name;
+                    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){v_name, alg_str(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Get", (Value[]){v_name}, 1))}, 2));
                 }
             }
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Statements"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Statements"), "Length")))) {
                     {
-                        (void)(alg_invoke(v_this, "MapType", (Value[]){alg_subscript_get(alg_property(v_TheStmt, "Statements"), v_I)}, 1));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(v_this, "MapType", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Statements"), v_i)}, 1));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Statements"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Statements"), "Length")))) {
                     {
-                        (void)(alg_invoke(v_this, "Check", (Value[]){alg_subscript_get(alg_property(v_TheStmt, "Statements"), v_I)}, 1));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(v_this, "Check", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Statements"), v_i)}, 1));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
@@ -695,371 +695,371 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("RaiseStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("RaiseStmt")))) {
         {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Value")}, 1));
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Value")}, 1));
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("FunctionStmt")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("FunctionStmt")))) {
         {
-            (void)(alg_invoke(v_this, "CheckFunction", (Value[]){v_TheStmt}, 1));
+            (void)(alg_invoke(v_this, "CheckFunction", (Value[]){v_thestmt}, 1));
             return alg_nil();
         }
     }
-    if (alg_truthy((or_18 = alg_equal(v_Kind, alg_string("ObjectStmt")), alg_truthy(or_18) ? or_18 : alg_equal(v_Kind, alg_string("ClassStmt"))))) {
+    if (alg_truthy((or_18 = alg_equal(v_kind, alg_string("ObjectStmt")), alg_truthy(or_18) ? or_18 : alg_equal(v_kind, alg_string("ClassStmt"))))) {
         {
-            Value v_Enclosing = alg_property(alg_property(v_this, "Lookup"), "CurrentClassName");
-            (void)v_Enclosing;
-            (void)(alg_set_property(alg_property(v_this, "Lookup"), "CurrentClassName", alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")));
+            Value v_enclosing = alg_property(alg_property(v_this, "Lookup"), "CurrentClassName");
+            (void)v_enclosing;
+            (void)(alg_set_property(alg_property(v_this, "Lookup"), "CurrentClassName", alg_property(alg_property(v_thestmt, "Name"), "Lexeme")));
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Fields"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Fields"), "Length")))) {
                     {
                         {
-                            Value v_Field = alg_subscript_get(alg_property(v_TheStmt, "Fields"), v_I);
-                            (void)v_Field;
-                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_Field, "Name"), "Lexeme"), alg_property(v_Field, "TypeName")}, 2));
-                            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(v_Field, "Name"), "Lexeme")), alg_property(v_Field, "Generic")}, 2));
+                            Value v_field = alg_subscript_get(alg_property(v_thestmt, "Fields"), v_i);
+                            (void)v_field;
+                            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_field, "Name"), "Lexeme"), alg_property(v_field, "TypeName")}, 2));
+                            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(v_field, "Name"), "Lexeme")), alg_property(v_field, "Generic")}, 2));
                         }
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Methods"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Methods"), "Length")))) {
                     {
-                        (void)(alg_invoke(v_this, "CheckFunction", (Value[]){alg_subscript_get(alg_property(v_TheStmt, "Methods"), v_I)}, 1));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(v_this, "CheckFunction", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Methods"), v_i)}, 1));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "EndScope", NULL, 0));
-            (void)(alg_set_property(alg_property(v_this, "Lookup"), "CurrentClassName", v_Enclosing));
+            (void)(alg_set_property(alg_property(v_this, "Lookup"), "CurrentClassName", v_enclosing));
             return alg_nil();
         }
     }
     return alg_nil();
 }
 
-static Value m_TypeChecker_CheckFunction_1(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_checkfunction_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TheFunction = args[0];
-    (void)v_TheFunction;
-    Value v_Enclosing = alg_nil();
-    (void)v_Enclosing;
-    (void)((v_Enclosing = alg_property(v_this, "CurrentReturn")));
-    (void)(alg_set_property(v_this, "CurrentReturn", alg_property(v_TheFunction, "ReturnType")));
+    Value v_thefunction = args[0];
+    (void)v_thefunction;
+    Value v_enclosing = alg_nil();
+    (void)v_enclosing;
+    (void)((v_enclosing = alg_property(v_this, "CurrentReturn")));
+    (void)(alg_set_property(v_this, "CurrentReturn", alg_property(v_thefunction, "ReturnType")));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheFunction, "Params"), "Length")))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "Params"), "Length")))) {
             {
-                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_TheFunction, "Params"), v_I), "Lexeme"), alg_str(alg_subscript_get(alg_property(v_TheFunction, "ParamTypes"), v_I))}, 2));
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_thefunction, "Params"), v_i), "Lexeme"), alg_str(alg_subscript_get(alg_property(v_thefunction, "ParamTypes"), v_i))}, 2));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheFunction, "Body"), "Length")))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "Body"), "Length")))) {
             {
-                if (alg_truthy(alg_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_subscript_get(alg_property(v_TheFunction, "Body"), v_I)}, 1), alg_string("FunctionStmt")))) {
-                    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(alg_subscript_get(alg_property(v_TheFunction, "Body"), v_I), "Name"), "Lexeme"), alg_property(alg_subscript_get(alg_property(v_TheFunction, "Body"), v_I), "ReturnType")}, 2));
+                if (alg_truthy(alg_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_subscript_get(alg_property(v_thefunction, "Body"), v_i)}, 1), alg_string("FunctionStmt")))) {
+                    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(alg_subscript_get(alg_property(v_thefunction, "Body"), v_i), "Name"), "Lexeme"), alg_property(alg_subscript_get(alg_property(v_thefunction, "Body"), v_i), "ReturnType")}, 2));
                 }
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheFunction, "Body"), "Length")))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "Body"), "Length")))) {
             {
-                (void)(alg_invoke(v_this, "Check", (Value[]){alg_subscript_get(alg_property(v_TheFunction, "Body"), v_I)}, 1));
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)(alg_invoke(v_this, "Check", (Value[]){alg_subscript_get(alg_property(v_thefunction, "Body"), v_i)}, 1));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "EndScope", NULL, 0));
-    (void)(alg_set_property(v_this, "CurrentReturn", v_Enclosing));
+    (void)(alg_set_property(v_this, "CurrentReturn", v_enclosing));
     return alg_nil();
 }
 
-static Value m_TypeChecker_Reduce_1(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TheExpr = args[0];
-    (void)v_TheExpr;
-    Value v_Kind = alg_nil();
-    (void)v_Kind;
-    if (alg_truthy(alg_equal(v_TheExpr, alg_nil()))) {
+    Value v_theexpr = args[0];
+    (void)v_theexpr;
+    Value v_kind = alg_nil();
+    (void)v_kind;
+    if (alg_truthy(alg_equal(v_theexpr, alg_nil()))) {
         return alg_string("");
     }
-    if (alg_truthy(alg_not_equal(alg_property(v_TheExpr, "Cast"), alg_string("")))) {
-        return alg_property(v_TheExpr, "Cast");
+    if (alg_truthy(alg_not_equal(alg_property(v_theexpr, "Cast"), alg_string("")))) {
+        return alg_property(v_theexpr, "Cast");
     }
-    (void)((v_Kind = alg_invoke(v_this, "ClassNameOf", (Value[]){v_TheExpr}, 1)));
-    if (alg_truthy(alg_equal(v_Kind, alg_string("LiteralExpr")))) {
-        return alg_invoke(v_this, "TypeOfValue", (Value[]){alg_property(v_TheExpr, "Value")}, 1);
+    (void)((v_kind = alg_invoke(v_this, "ClassNameOf", (Value[]){v_theexpr}, 1)));
+    if (alg_truthy(alg_equal(v_kind, alg_string("LiteralExpr")))) {
+        return alg_invoke(v_this, "TypeOfValue", (Value[]){alg_property(v_theexpr, "Value")}, 1);
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("GroupingExpr")))) {
-        return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Expression")}, 1);
+    if (alg_truthy(alg_equal(v_kind, alg_string("GroupingExpr")))) {
+        return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Expression")}, 1);
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("VariableExpr")))) {
-        return alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_property(alg_property(v_TheExpr, "Name"), "Lexeme")}, 1);
+    if (alg_truthy(alg_equal(v_kind, alg_string("VariableExpr")))) {
+        return alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_property(alg_property(v_theexpr, "Name"), "Lexeme")}, 1);
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("UnaryExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("UnaryExpr")))) {
         {
-            if (alg_truthy(alg_equal(alg_property(alg_property(v_TheExpr, "Op"), "TypeOfToken"), e_TokenType_TOKEN_NOT))) {
+            if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVnot))) {
                 return alg_string("Boolean");
             }
-            return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Right")}, 1);
+            return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1);
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("IsExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("IsExpr")))) {
         {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Obj")}, 1));
-            if (alg_truthy(alg_not(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheExpr, "TypeName"), "Lexeme")}, 1)}, 1)))) {
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Obj")}, 1));
+            if (alg_truthy(alg_not(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_theexpr, "TypeName"), "Lexeme")}, 1)}, 1)))) {
                 {
-                    Value v_Message = alg_add(alg_add(alg_string("Unknown type '"), alg_str(alg_property(alg_property(v_TheExpr, "TypeName"), "Lexeme"))), alg_string("'."));
-                    (void)v_Message;
-                    (void)(alg_invoke(alg_singleton(k_Console), "Error", (Value[]){alg_property(v_TheExpr, "TypeName"), v_Message}, 2));
-                    alg_raise(v_Message);
+                    Value v_message = alg_add(alg_add(alg_string("Unknown type '"), alg_str(alg_property(alg_property(v_theexpr, "TypeName"), "Lexeme"))), alg_string("'."));
+                    (void)v_message;
+                    (void)(alg_invoke(alg_singleton(k_console), "Error", (Value[]){alg_property(v_theexpr, "TypeName"), v_message}, 2));
+                    alg_raise(v_message);
                 }
             }
             return alg_string("Boolean");
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("BinaryExpr")))) {
-        return alg_invoke(v_this, "ReduceBinary", (Value[]){v_TheExpr}, 1);
+    if (alg_truthy(alg_equal(v_kind, alg_string("BinaryExpr")))) {
+        return alg_invoke(v_this, "ReduceBinary", (Value[]){v_theexpr}, 1);
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("LogicalExpr")))) {
-        return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Left")}, 1);
+    if (alg_truthy(alg_equal(v_kind, alg_string("LogicalExpr")))) {
+        return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1);
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("AssignExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("AssignExpr")))) {
         {
-            Value v_Declared = alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_property(alg_property(v_TheExpr, "Name"), "Lexeme")}, 1);
-            (void)v_Declared;
-            Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Value")}, 1);
-            (void)v_Actual;
-            if (alg_truthy((or_20 = (or_19 = alg_not_equal(v_Declared, alg_string("")), !alg_truthy(or_19) ? or_19 : alg_not_equal(v_Declared, alg_string("Any"))), !alg_truthy(or_20) ? or_20 : alg_not_equal(v_Actual, alg_string(""))))) {
-                if (alg_truthy((or_21 = alg_equal(v_Actual, alg_string("Any")), alg_truthy(or_21) ? or_21 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_Declared, v_Actual}, 2))))) {
-                    alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_TheExpr, "Name"), v_Declared, v_Actual}, 3));
+            Value v_declared = alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_property(alg_property(v_theexpr, "Name"), "Lexeme")}, 1);
+            (void)v_declared;
+            Value v_actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Value")}, 1);
+            (void)v_actual;
+            if (alg_truthy((or_20 = (or_19 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_19) ? or_19 : alg_not_equal(v_declared, alg_string("Any"))), !alg_truthy(or_20) ? or_20 : alg_not_equal(v_actual, alg_string(""))))) {
+                if (alg_truthy((or_21 = alg_equal(v_actual, alg_string("Any")), alg_truthy(or_21) ? or_21 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_declared, v_actual}, 2))))) {
+                    alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_theexpr, "Name"), v_declared, v_actual}, 3));
                 }
             }
-            return v_Declared;
+            return v_declared;
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("CallExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("CallExpr")))) {
         {
-            Value v_ArgTypes = alg_list();
-            (void)v_ArgTypes;
+            Value v_argtypes = alg_list();
+            (void)v_argtypes;
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheExpr, "Arguments"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Arguments"), "Length")))) {
                     {
-                        (void)(alg_invoke(v_ArgTypes, "Add", (Value[]){alg_invoke(v_this, "Reduce", (Value[]){alg_subscript_get(alg_property(v_TheExpr, "Arguments"), v_I)}, 1)}, 1));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(v_argtypes, "Add", (Value[]){alg_invoke(v_this, "Reduce", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Arguments"), v_i)}, 1)}, 1));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
-            if (alg_truthy(alg_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_property(v_TheExpr, "Callee")}, 1), alg_string("VariableExpr")))) {
-                if (alg_truthy((or_22 = alg_equal(alg_str(alg_property(alg_property(alg_property(v_TheExpr, "Callee"), "Name"), "Lexeme")), alg_string("Max")), !alg_truthy(or_22) ? or_22 : alg_equal(alg_property(v_ArgTypes, "Length"), alg_int(2))))) {
+            if (alg_truthy(alg_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_property(v_theexpr, "Callee")}, 1), alg_string("VariableExpr")))) {
+                if (alg_truthy((or_22 = alg_equal(alg_str(alg_property(alg_property(alg_property(v_theexpr, "Callee"), "Name"), "Lexeme")), alg_string("Max")), !alg_truthy(or_22) ? or_22 : alg_equal(alg_property(v_argtypes, "Length"), alg_int(2))))) {
                     {
-                        if (alg_truthy((or_23 = alg_equal(alg_str(alg_subscript_get(v_ArgTypes, alg_int(0))), alg_string("Double")), alg_truthy(or_23) ? or_23 : alg_equal(alg_str(alg_subscript_get(v_ArgTypes, alg_int(1))), alg_string("Double"))))) {
+                        if (alg_truthy((or_23 = alg_equal(alg_str(alg_subscript_get(v_argtypes, alg_int(0))), alg_string("Double")), alg_truthy(or_23) ? or_23 : alg_equal(alg_str(alg_subscript_get(v_argtypes, alg_int(1))), alg_string("Double"))))) {
                             return alg_string("Double");
                         }
-                        if (alg_truthy((or_24 = alg_equal(alg_str(alg_subscript_get(v_ArgTypes, alg_int(0))), alg_string("Integer")), !alg_truthy(or_24) ? or_24 : alg_equal(alg_str(alg_subscript_get(v_ArgTypes, alg_int(1))), alg_string("Integer"))))) {
+                        if (alg_truthy((or_24 = alg_equal(alg_str(alg_subscript_get(v_argtypes, alg_int(0))), alg_string("Integer")), !alg_truthy(or_24) ? or_24 : alg_equal(alg_str(alg_subscript_get(v_argtypes, alg_int(1))), alg_string("Integer"))))) {
                             return alg_string("Integer");
                         }
                         return alg_string("");
                     }
                 }
             }
-            return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Callee")}, 1);
+            return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Callee")}, 1);
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("GetExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("GetExpr")))) {
         {
-            if (alg_truthy(alg_equal(alg_property(v_TheExpr, "Unit"), alg_string("System")))) {
+            if (alg_truthy(alg_equal(alg_property(v_theexpr, "Unit"), alg_string("System")))) {
                 {
-                    if (alg_truthy(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Contains", (Value[]){alg_str(alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))}, 1))) {
-                        return alg_str(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Get", (Value[]){alg_str(alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))}, 1));
+                    if (alg_truthy(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Contains", (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1))) {
+                        return alg_str(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Get", (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1));
                     }
                     return alg_string("");
                 }
             }
-            if (alg_truthy(alg_not_equal(alg_property(v_TheExpr, "Unit"), alg_string("")))) {
-                return alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_str(alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))}, 1);
+            if (alg_truthy(alg_not_equal(alg_property(v_theexpr, "Unit"), alg_string("")))) {
+                return alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1);
             }
-            (void)(alg_invoke(v_this, "CheckVisibility", (Value[]){alg_property(v_TheExpr, "Obj"), alg_property(v_TheExpr, "Name")}, 2));
-            Value v_Owner = alg_invoke(v_this, "TypeOfReceiver", (Value[]){alg_property(v_TheExpr, "Obj")}, 1);
-            (void)v_Owner;
-            if (alg_truthy((or_25 = alg_equal(v_Owner, alg_string("")), alg_truthy(or_25) ? or_25 : alg_equal(v_Owner, alg_string("Any"))))) {
+            (void)(alg_invoke(v_this, "CheckVisibility", (Value[]){alg_property(v_theexpr, "Obj"), alg_property(v_theexpr, "Name")}, 2));
+            Value v_owner = alg_invoke(v_this, "TypeOfReceiver", (Value[]){alg_property(v_theexpr, "Obj")}, 1);
+            (void)v_owner;
+            if (alg_truthy((or_25 = alg_equal(v_owner, alg_string("")), alg_truthy(or_25) ? or_25 : alg_equal(v_owner, alg_string("Any"))))) {
                 return alg_string("");
             }
-            return alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_Owner, alg_string("::")), alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))}, 1);
+            return alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_owner, alg_string("::")), alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1);
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("SetExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("SetExpr")))) {
         {
-            if (alg_truthy(alg_not_equal(alg_property(v_TheExpr, "Unit"), alg_string("")))) {
-                return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Value")}, 1);
+            if (alg_truthy(alg_not_equal(alg_property(v_theexpr, "Unit"), alg_string("")))) {
+                return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Value")}, 1);
             }
-            (void)(alg_invoke(v_this, "CheckVisibility", (Value[]){alg_property(v_TheExpr, "Obj"), alg_property(v_TheExpr, "Name")}, 2));
-            Value v_Owner = alg_invoke(v_this, "TypeOfReceiver", (Value[]){alg_property(v_TheExpr, "Obj")}, 1);
-            (void)v_Owner;
-            Value v_Actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Value")}, 1);
-            (void)v_Actual;
-            if (alg_truthy((or_26 = alg_not_equal(v_Owner, alg_string("")), !alg_truthy(or_26) ? or_26 : alg_not_equal(v_Owner, alg_string("Any"))))) {
+            (void)(alg_invoke(v_this, "CheckVisibility", (Value[]){alg_property(v_theexpr, "Obj"), alg_property(v_theexpr, "Name")}, 2));
+            Value v_owner = alg_invoke(v_this, "TypeOfReceiver", (Value[]){alg_property(v_theexpr, "Obj")}, 1);
+            (void)v_owner;
+            Value v_actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Value")}, 1);
+            (void)v_actual;
+            if (alg_truthy((or_26 = alg_not_equal(v_owner, alg_string("")), !alg_truthy(or_26) ? or_26 : alg_not_equal(v_owner, alg_string("Any"))))) {
                 {
-                    Value v_Declared = alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_Owner, alg_string("::")), alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))}, 1);
-                    (void)v_Declared;
-                    if (alg_truthy((or_28 = (or_27 = alg_not_equal(v_Declared, alg_string("")), !alg_truthy(or_27) ? or_27 : alg_not_equal(v_Declared, alg_string("Any"))), !alg_truthy(or_28) ? or_28 : alg_not_equal(v_Actual, alg_string(""))))) {
-                        if (alg_truthy((or_29 = alg_equal(v_Actual, alg_string("Any")), alg_truthy(or_29) ? or_29 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_Declared, v_Actual}, 2))))) {
-                            alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_TheExpr, "Name"), v_Declared, v_Actual}, 3));
+                    Value v_declared = alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_owner, alg_string("::")), alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1);
+                    (void)v_declared;
+                    if (alg_truthy((or_28 = (or_27 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_27) ? or_27 : alg_not_equal(v_declared, alg_string("Any"))), !alg_truthy(or_28) ? or_28 : alg_not_equal(v_actual, alg_string(""))))) {
+                        if (alg_truthy((or_29 = alg_equal(v_actual, alg_string("Any")), alg_truthy(or_29) ? or_29 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_declared, v_actual}, 2))))) {
+                            alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_theexpr, "Name"), v_declared, v_actual}, 3));
                         }
                     }
                 }
             }
-            return v_Actual;
+            return v_actual;
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("ThisExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("ThisExpr")))) {
         return alg_string("");
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("CollectionExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("CollectionExpr")))) {
         {
             {
-                Value v_I = alg_int(0);
-                (void)v_I;
-                while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheExpr, "Values"), "Length")))) {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Values"), "Length")))) {
                     {
-                        (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_subscript_get(alg_property(v_TheExpr, "Values"), v_I)}, 1));
-                        (void)((v_I = alg_add(v_I, alg_int(1))));
+                        (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Values"), v_i)}, 1));
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }
-            if (alg_truthy(alg_property(v_TheExpr, "IsMap"))) {
+            if (alg_truthy(alg_property(v_theexpr, "IsMap"))) {
                 return alg_string("Map");
             }
             return alg_string("List");
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("SubscriptExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("SubscriptExpr")))) {
         {
-            Value v_Owner = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Obj")}, 1);
-            (void)v_Owner;
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Index")}, 1));
-            if (alg_truthy(alg_invoke(v_this, "IsTextType", (Value[]){v_Owner}, 1))) {
+            Value v_owner = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Obj")}, 1);
+            (void)v_owner;
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Index")}, 1));
+            if (alg_truthy(alg_invoke(v_this, "IsTextType", (Value[]){v_owner}, 1))) {
                 return alg_string("Char");
             }
-            if (alg_truthy(alg_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_property(v_TheExpr, "Obj")}, 1), alg_string("VariableExpr")))) {
-                return alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "GetType", (Value[]){alg_str(alg_property(alg_property(alg_property(v_TheExpr, "Obj"), "Name"), "Lexeme"))}, 1);
+            if (alg_truthy(alg_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_property(v_theexpr, "Obj")}, 1), alg_string("VariableExpr")))) {
+                return alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "GetType", (Value[]){alg_str(alg_property(alg_property(alg_property(v_theexpr, "Obj"), "Name"), "Lexeme"))}, 1);
             }
             return alg_string("");
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("SetSubscriptExpr")))) {
+    if (alg_truthy(alg_equal(v_kind, alg_string("SetSubscriptExpr")))) {
         {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Obj")}, 1));
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Index")}, 1));
-            return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Value")}, 1);
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Obj")}, 1));
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Index")}, 1));
+            return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Value")}, 1);
         }
     }
     return alg_string("");
     return alg_nil();
 }
 
-static Value m_TypeChecker_ReduceBinary_1(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_reducebinary_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TheExpr = args[0];
-    (void)v_TheExpr;
-    Value v_Left = alg_nil();
-    (void)v_Left;
-    Value v_Right = alg_nil();
-    (void)v_Right;
-    Value v_Op = alg_property(alg_property(v_TheExpr, "Op"), "TypeOfToken");
-    (void)v_Op;
-    if (alg_truthy((or_34 = (or_33 = (or_32 = (or_31 = (or_30 = alg_equal(v_Op, e_TokenType_TOKEN_GREATER), alg_truthy(or_30) ? or_30 : alg_equal(v_Op, e_TokenType_TOKEN_GREATER_EQUAL)), alg_truthy(or_31) ? or_31 : alg_equal(v_Op, e_TokenType_TOKEN_LESS)), alg_truthy(or_32) ? or_32 : alg_equal(v_Op, e_TokenType_TOKEN_LESS_EQUAL)), alg_truthy(or_33) ? or_33 : alg_equal(v_Op, e_TokenType_TOKEN_EQUAL)), alg_truthy(or_34) ? or_34 : alg_equal(v_Op, e_TokenType_TOKEN_NOT_EQUAL)))) {
+    Value v_theexpr = args[0];
+    (void)v_theexpr;
+    Value v_left = alg_nil();
+    (void)v_left;
+    Value v_right = alg_nil();
+    (void)v_right;
+    Value v_op = alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken");
+    (void)v_op;
+    if (alg_truthy((or_34 = (or_33 = (or_32 = (or_31 = (or_30 = alg_equal(v_op, e_tokentype_tokenVgreater), alg_truthy(or_30) ? or_30 : alg_equal(v_op, e_tokentype_tokenVgreaterVequal)), alg_truthy(or_31) ? or_31 : alg_equal(v_op, e_tokentype_tokenVless)), alg_truthy(or_32) ? or_32 : alg_equal(v_op, e_tokentype_tokenVlessVequal)), alg_truthy(or_33) ? or_33 : alg_equal(v_op, e_tokentype_tokenVequal)), alg_truthy(or_34) ? or_34 : alg_equal(v_op, e_tokentype_tokenVnotVequal)))) {
         {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Left")}, 1));
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Right")}, 1));
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1));
+            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1));
             return alg_string("Boolean");
         }
     }
-    (void)((v_Left = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Left")}, 1)));
-    (void)((v_Right = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Right")}, 1)));
-    if (alg_truthy((or_37 = (or_36 = (or_35 = alg_equal(v_Left, alg_string("")), alg_truthy(or_35) ? or_35 : alg_equal(v_Right, alg_string(""))), alg_truthy(or_36) ? or_36 : alg_equal(v_Left, alg_string("Any"))), alg_truthy(or_37) ? or_37 : alg_equal(v_Right, alg_string("Any"))))) {
+    (void)((v_left = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1)));
+    (void)((v_right = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1)));
+    if (alg_truthy((or_37 = (or_36 = (or_35 = alg_equal(v_left, alg_string("")), alg_truthy(or_35) ? or_35 : alg_equal(v_right, alg_string(""))), alg_truthy(or_36) ? or_36 : alg_equal(v_left, alg_string("Any"))), alg_truthy(or_37) ? or_37 : alg_equal(v_right, alg_string("Any"))))) {
         return alg_string("");
     }
-    if (alg_truthy(alg_equal(v_Op, e_TokenType_TOKEN_IN))) {
+    if (alg_truthy(alg_equal(v_op, e_tokentype_tokenVin))) {
         return alg_string("Boolean");
     }
-    if (alg_truthy((or_39 = alg_equal(v_Op, e_TokenType_TOKEN_PLUS), !alg_truthy(or_39) ? or_39 : ((or_38 = alg_invoke(v_this, "IsTextType", (Value[]){v_Left}, 1), alg_truthy(or_38) ? or_38 : alg_invoke(v_this, "IsTextType", (Value[]){v_Right}, 1)))))) {
+    if (alg_truthy((or_39 = alg_equal(v_op, e_tokentype_tokenVplus), !alg_truthy(or_39) ? or_39 : ((or_38 = alg_invoke(v_this, "IsTextType", (Value[]){v_left}, 1), alg_truthy(or_38) ? or_38 : alg_invoke(v_this, "IsTextType", (Value[]){v_right}, 1)))))) {
         return alg_string("String");
     }
-    if (alg_truthy((or_40 = alg_equal(v_Left, alg_string("Double")), alg_truthy(or_40) ? or_40 : alg_equal(v_Right, alg_string("Double"))))) {
+    if (alg_truthy((or_40 = alg_equal(v_left, alg_string("Double")), alg_truthy(or_40) ? or_40 : alg_equal(v_right, alg_string("Double"))))) {
         return alg_string("Double");
     }
-    if (alg_truthy(alg_equal(v_Left, v_Right))) {
-        return v_Left;
+    if (alg_truthy(alg_equal(v_left, v_right))) {
+        return v_left;
     }
     return alg_string("");
     return alg_nil();
 }
 
-static Value m_TypeChecker_IsTextType_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_istexttype_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TheType = args[0];
-    (void)v_TheType;
-    return (or_41 = alg_equal(v_TheType, alg_string("String")), alg_truthy(or_41) ? or_41 : alg_equal(v_TheType, alg_string("Char")));
+    Value v_thetype = args[0];
+    (void)v_thetype;
+    return (or_41 = alg_equal(v_thetype, alg_string("String")), alg_truthy(or_41) ? or_41 : alg_equal(v_thetype, alg_string("Char")));
     return alg_nil();
 }
 
-static Value m_TypeChecker_TypeOfValue_1(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_typeofvalue_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Value = args[0];
-    (void)v_Value;
-    if (alg_truthy(alg_equal(v_Value, alg_nil()))) {
+    Value v_value = args[0];
+    (void)v_value;
+    if (alg_truthy(alg_equal(v_value, alg_nil()))) {
         return alg_string("Nil");
     }
-    if (alg_truthy(alg_is(v_Value, "Boolean"))) {
+    if (alg_truthy(alg_is(v_value, "Boolean"))) {
         return alg_string("Boolean");
     }
-    if (alg_truthy(alg_is(v_Value, "Integer"))) {
+    if (alg_truthy(alg_is(v_value, "Integer"))) {
         return alg_string("Integer");
     }
-    if (alg_truthy(alg_is(v_Value, "Double"))) {
+    if (alg_truthy(alg_is(v_value, "Double"))) {
         return alg_string("Double");
     }
-    if (alg_truthy(alg_is(v_Value, "Char"))) {
+    if (alg_truthy(alg_is(v_value, "Char"))) {
         return alg_string("Char");
     }
-    if (alg_truthy(alg_is(v_Value, "String"))) {
+    if (alg_truthy(alg_is(v_value, "String"))) {
         return alg_string("String");
     }
-    return alg_invoke(v_this, "ClassNameOf", (Value[]){v_Value}, 1);
+    return alg_invoke(v_this, "ClassNameOf", (Value[]){v_value}, 1);
     return alg_nil();
 }
 
-static Value m_TypeChecker_ClassNameOf_1(Value v_this, Value *args, int32_t count) {
+static Value m_typechecker_classnameof_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    volatile Value v_Obj = args[0];
-    (void)v_Obj;
+    volatile Value v_obj = args[0];
+    (void)v_obj;
     {
         AlgFrame frame_4;
         alg_push_frame(&frame_4);
         if (ALG_SETJMP(frame_4.jump) == 0) {
             {
-                volatile Value ret_5 = alg_property(v_Obj, "ClassName");
+                volatile Value ret_5 = alg_property(v_obj, "ClassName");
                 alg_pop_frame();
                 return ret_5;
             }
@@ -1083,20 +1083,20 @@ static Value m_TypeChecker_ClassNameOf_1(Value v_this, Value *args, int32_t coun
     return alg_nil();
 }
 
-Value f_Rejects(Value **cells, Value *args, int32_t count) {
+Value f_rejects(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
-    volatile Value v_Source = args[0];
-    (void)v_Source;
-    volatile Value v_TheScanner = alg_new(k_Scanner, (Value[]){v_Source}, 1);
-    (void)v_TheScanner;
-    volatile Value v_TheParser = alg_new(k_Parser, (Value[]){alg_invoke(v_TheScanner, "ScanTokens", NULL, 0)}, 1);
-    (void)v_TheParser;
+    volatile Value v_source = args[0];
+    (void)v_source;
+    volatile Value v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1);
+    (void)v_thescanner;
+    volatile Value v_theparser = alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1);
+    (void)v_theparser;
     {
         AlgFrame frame_6;
         alg_push_frame(&frame_6);
         if (ALG_SETJMP(frame_6.jump) == 0) {
             {
-                (void)(alg_invoke(alg_new(k_TypeChecker, NULL, 0), "Resolve", (Value[]){alg_invoke(v_TheParser, "Parse", NULL, 0)}, 1));
+                (void)(alg_invoke(alg_new(k_typechecker, NULL, 0), "Resolve", (Value[]){alg_invoke(v_theparser, "Parse", NULL, 0)}, 1));
             }
             alg_pop_frame();
         }
@@ -1120,40 +1120,40 @@ Value f_Rejects(Value **cells, Value *args, int32_t count) {
 }
 
 void init_TypeChecker(void) {
-    k_TypeLookup = alg_class("TypeLookup", alg_nil());
-    alg_class_field(k_TypeLookup, "Scopes");
-    alg_class_field(k_TypeLookup, "Types");
-    alg_class_field(k_TypeLookup, "Parents");
-    alg_class_field(k_TypeLookup, "Inferred");
-    alg_class_field(k_TypeLookup, "DeclaredTypes");
-    alg_class_field(k_TypeLookup, "Generics");
-    alg_class_field(k_TypeLookup, "CurrentClassName");
-    alg_class_initializer(k_TypeLookup, i_TypeLookup);
-    alg_class_method(k_TypeLookup, "SetType", m_TypeLookup_SetType_2_String_String, 2, t_TypeLookup_SetType_2_String_String);
-    alg_class_method(k_TypeLookup, "GetType", m_TypeLookup_GetType_1_String, 1, t_TypeLookup_GetType_1_String);
-    alg_class_method(k_TypeLookup, "BeginScope", m_TypeLookup_BeginScope_0, 0, NULL);
-    alg_class_method(k_TypeLookup, "EndScope", m_TypeLookup_EndScope_0, 0, NULL);
-    k_TypeChecker = alg_class("TypeChecker", alg_nil());
-    alg_class_field(k_TypeChecker, "Lookup");
-    alg_class_field(k_TypeChecker, "CurrentReturn");
-    alg_class_field(k_TypeChecker, "PrivateMembers");
-    alg_class_field(k_TypeChecker, "BuiltinTypes");
-    alg_class_initializer(k_TypeChecker, i_TypeChecker);
-    alg_class_method(k_TypeChecker, "Init", m_TypeChecker_Init_0, 0, NULL);
-    alg_class_method(k_TypeChecker, "HiddenBy", m_TypeChecker_HiddenBy_2_String_String, 2, t_TypeChecker_HiddenBy_2_String_String);
-    alg_class_method(k_TypeChecker, "TypeOfReceiver", m_TypeChecker_TypeOfReceiver_1, 1, t_TypeChecker_TypeOfReceiver_1);
-    alg_class_method(k_TypeChecker, "CheckVisibility", m_TypeChecker_CheckVisibility_2_Token, 2, t_TypeChecker_CheckVisibility_2_Token);
-    alg_class_method(k_TypeChecker, "Assignable", m_TypeChecker_Assignable_2_String_String, 2, t_TypeChecker_Assignable_2_String_String);
-    alg_class_method(k_TypeChecker, "Mismatch", m_TypeChecker_Mismatch_3_Token_String_String, 3, t_TypeChecker_Mismatch_3_Token_String_String);
-    alg_class_method(k_TypeChecker, "Resolve", m_TypeChecker_Resolve_1_List, 1, t_TypeChecker_Resolve_1_List);
-    alg_class_method(k_TypeChecker, "MapType", m_TypeChecker_MapType_1, 1, t_TypeChecker_MapType_1);
-    alg_class_method(k_TypeChecker, "Check", m_TypeChecker_Check_1, 1, t_TypeChecker_Check_1);
-    alg_class_method(k_TypeChecker, "CheckFunction", m_TypeChecker_CheckFunction_1, 1, t_TypeChecker_CheckFunction_1);
-    alg_class_method(k_TypeChecker, "Reduce", m_TypeChecker_Reduce_1, 1, t_TypeChecker_Reduce_1);
-    alg_class_method(k_TypeChecker, "ReduceBinary", m_TypeChecker_ReduceBinary_1, 1, t_TypeChecker_ReduceBinary_1);
-    alg_class_method(k_TypeChecker, "IsTextType", m_TypeChecker_IsTextType_1_String, 1, t_TypeChecker_IsTextType_1_String);
-    alg_class_method(k_TypeChecker, "TypeOfValue", m_TypeChecker_TypeOfValue_1, 1, t_TypeChecker_TypeOfValue_1);
-    alg_class_method(k_TypeChecker, "ClassNameOf", m_TypeChecker_ClassNameOf_1, 1, t_TypeChecker_ClassNameOf_1);
-    fn_Rejects = alg_closure("Rejects", f_Rejects, NULL, 0, 1);
-    v_HIDER = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Counter;"), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    var Count : Integer := 0;")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Bump();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        Count := Count + 1;")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    procedure Advance();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10));
+    k_typelookup = alg_class("TypeLookup", alg_nil());
+    alg_class_field(k_typelookup, "Scopes");
+    alg_class_field(k_typelookup, "Types");
+    alg_class_field(k_typelookup, "Parents");
+    alg_class_field(k_typelookup, "Inferred");
+    alg_class_field(k_typelookup, "DeclaredTypes");
+    alg_class_field(k_typelookup, "Generics");
+    alg_class_field(k_typelookup, "CurrentClassName");
+    alg_class_initializer(k_typelookup, i_typelookup);
+    alg_class_method(k_typelookup, "SetType", m_typelookup_settype_2_string_string, 2, t_typelookup_settype_2_string_string);
+    alg_class_method(k_typelookup, "GetType", m_typelookup_gettype_1_string, 1, t_typelookup_gettype_1_string);
+    alg_class_method(k_typelookup, "BeginScope", m_typelookup_beginscope_0, 0, NULL);
+    alg_class_method(k_typelookup, "EndScope", m_typelookup_endscope_0, 0, NULL);
+    k_typechecker = alg_class("TypeChecker", alg_nil());
+    alg_class_field(k_typechecker, "Lookup");
+    alg_class_field(k_typechecker, "CurrentReturn");
+    alg_class_field(k_typechecker, "PrivateMembers");
+    alg_class_field(k_typechecker, "BuiltinTypes");
+    alg_class_initializer(k_typechecker, i_typechecker);
+    alg_class_method(k_typechecker, "Init", m_typechecker_init_0, 0, NULL);
+    alg_class_method(k_typechecker, "HiddenBy", m_typechecker_hiddenby_2_string_string, 2, t_typechecker_hiddenby_2_string_string);
+    alg_class_method(k_typechecker, "TypeOfReceiver", m_typechecker_typeofreceiver_1, 1, t_typechecker_typeofreceiver_1);
+    alg_class_method(k_typechecker, "CheckVisibility", m_typechecker_checkvisibility_2_token, 2, t_typechecker_checkvisibility_2_token);
+    alg_class_method(k_typechecker, "Assignable", m_typechecker_assignable_2_string_string, 2, t_typechecker_assignable_2_string_string);
+    alg_class_method(k_typechecker, "Mismatch", m_typechecker_mismatch_3_token_string_string, 3, t_typechecker_mismatch_3_token_string_string);
+    alg_class_method(k_typechecker, "Resolve", m_typechecker_resolve_1_list, 1, t_typechecker_resolve_1_list);
+    alg_class_method(k_typechecker, "MapType", m_typechecker_maptype_1, 1, t_typechecker_maptype_1);
+    alg_class_method(k_typechecker, "Check", m_typechecker_check_1, 1, t_typechecker_check_1);
+    alg_class_method(k_typechecker, "CheckFunction", m_typechecker_checkfunction_1, 1, t_typechecker_checkfunction_1);
+    alg_class_method(k_typechecker, "Reduce", m_typechecker_reduce_1, 1, t_typechecker_reduce_1);
+    alg_class_method(k_typechecker, "ReduceBinary", m_typechecker_reducebinary_1, 1, t_typechecker_reducebinary_1);
+    alg_class_method(k_typechecker, "IsTextType", m_typechecker_istexttype_1_string, 1, t_typechecker_istexttype_1_string);
+    alg_class_method(k_typechecker, "TypeOfValue", m_typechecker_typeofvalue_1, 1, t_typechecker_typeofvalue_1);
+    alg_class_method(k_typechecker, "ClassNameOf", m_typechecker_classnameof_1, 1, t_typechecker_classnameof_1);
+    fn_rejects = alg_closure("Rejects", f_rejects, NULL, 0, 1);
+    v_hider = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Counter;"), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    var Count : Integer := 0;")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Bump();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        Count := Count + 1;")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    procedure Advance();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10));
 }

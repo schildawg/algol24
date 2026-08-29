@@ -3,108 +3,108 @@
 #include "Expr.h"
 #include "Token.h"
 
-Value k_Stmt;
-Value k_BlockStmt;
-static const char *t_BlockStmt_Init_1_List[] = { "List" };
-static const char *t_BlockStmt_Accept_1[] = { "Any" };
-Value k_ExpressionStmt;
-static const char *t_ExpressionStmt_Init_1_Expr[] = { "Expr" };
-static const char *t_ExpressionStmt_Accept_1[] = { "Any" };
-Value k_VarStmt;
-static const char *t_VarStmt_Init_2_Token_Expr[] = { "Token", "Expr" };
-static const char *t_VarStmt_Accept_1[] = { "Any" };
-Value k_VarGroupStmt;
-static const char *t_VarGroupStmt_Init_2_List_Expr[] = { "List", "Expr" };
-static const char *t_VarGroupStmt_Accept_1[] = { "Any" };
-Value k_IfStmt;
-static const char *t_IfStmt_Init_3_Expr_Stmt_Stmt[] = { "Expr", "Stmt", "Stmt" };
-static const char *t_IfStmt_Accept_1[] = { "Any" };
-Value k_ExceptHandler;
-static const char *t_ExceptHandler_Init_2_String_Stmt[] = { "String", "Stmt" };
-Value k_ObjectStmt;
-static const char *t_ObjectStmt_Init_4_Token_VariableExpr_List_List[] = { "Token", "VariableExpr", "List", "List" };
-static const char *t_ObjectStmt_Accept_1[] = { "Any" };
-Value k_ModuleStmt;
-static const char *t_ModuleStmt_Init_3_Token_List_List[] = { "Token", "List", "List" };
-static const char *t_ModuleStmt_Accept_1[] = { "Any" };
-Value k_BreakStmt;
-static const char *t_BreakStmt_Init_1_Token[] = { "Token" };
-static const char *t_BreakStmt_Accept_1[] = { "Any" };
-Value k_TryStmt;
-static const char *t_TryStmt_Init_2_Stmt_Map[] = { "Stmt", "Map" };
-static const char *t_TryStmt_Accept_1[] = { "Any" };
-Value k_RaiseStmt;
-static const char *t_RaiseStmt_Init_2_Token_Expr[] = { "Token", "Expr" };
-static const char *t_RaiseStmt_Accept_1[] = { "Any" };
-Value k_ForInStmt;
-static const char *t_ForInStmt_Init_3_Token_Expr_Stmt[] = { "Token", "Expr", "Stmt" };
-static const char *t_ForInStmt_Accept_1[] = { "Any" };
-Value k_WhileStmt;
-static const char *t_WhileStmt_Init_2_Expr_Stmt[] = { "Expr", "Stmt" };
-static const char *t_WhileStmt_Accept_1[] = { "Any" };
-Value k_FunctionStmt;
-static const char *t_FunctionStmt_Init_3_Token_List_List[] = { "Token", "List", "List" };
-static const char *t_FunctionStmt_Accept_1[] = { "Any" };
-Value k_ReturnStmt;
-static const char *t_ReturnStmt_Init_2_Token_Expr[] = { "Token", "Expr" };
-static const char *t_ReturnStmt_Accept_1[] = { "Any" };
-Value k_EnumStmt;
-static const char *t_EnumStmt_Init_2_Token_List[] = { "Token", "List" };
-static const char *t_EnumStmt_Accept_1[] = { "Any" };
-Value k_ClassStmt;
-static const char *t_ClassStmt_Init_4_Token_VariableExpr_List_List[] = { "Token", "VariableExpr", "List", "List" };
-static const char *t_ClassStmt_Accept_1[] = { "Any" };
+Value k_stmt;
+Value k_blockstmt;
+static const char *t_blockstmt_init_1_list[] = { "List" };
+static const char *t_blockstmt_accept_1[] = { "Any" };
+Value k_expressionstmt;
+static const char *t_expressionstmt_init_1_expr[] = { "Expr" };
+static const char *t_expressionstmt_accept_1[] = { "Any" };
+Value k_varstmt;
+static const char *t_varstmt_init_2_token_expr[] = { "Token", "Expr" };
+static const char *t_varstmt_accept_1[] = { "Any" };
+Value k_vargroupstmt;
+static const char *t_vargroupstmt_init_2_list_expr[] = { "List", "Expr" };
+static const char *t_vargroupstmt_accept_1[] = { "Any" };
+Value k_ifstmt;
+static const char *t_ifstmt_init_3_expr_stmt_stmt[] = { "Expr", "Stmt", "Stmt" };
+static const char *t_ifstmt_accept_1[] = { "Any" };
+Value k_excepthandler;
+static const char *t_excepthandler_init_2_string_stmt[] = { "String", "Stmt" };
+Value k_objectstmt;
+static const char *t_objectstmt_init_4_token_variableexpr_list_list[] = { "Token", "VariableExpr", "List", "List" };
+static const char *t_objectstmt_accept_1[] = { "Any" };
+Value k_modulestmt;
+static const char *t_modulestmt_init_3_token_list_list[] = { "Token", "List", "List" };
+static const char *t_modulestmt_accept_1[] = { "Any" };
+Value k_breakstmt;
+static const char *t_breakstmt_init_1_token[] = { "Token" };
+static const char *t_breakstmt_accept_1[] = { "Any" };
+Value k_trystmt;
+static const char *t_trystmt_init_2_stmt_map[] = { "Stmt", "Map" };
+static const char *t_trystmt_accept_1[] = { "Any" };
+Value k_raisestmt;
+static const char *t_raisestmt_init_2_token_expr[] = { "Token", "Expr" };
+static const char *t_raisestmt_accept_1[] = { "Any" };
+Value k_forinstmt;
+static const char *t_forinstmt_init_3_token_expr_stmt[] = { "Token", "Expr", "Stmt" };
+static const char *t_forinstmt_accept_1[] = { "Any" };
+Value k_whilestmt;
+static const char *t_whilestmt_init_2_expr_stmt[] = { "Expr", "Stmt" };
+static const char *t_whilestmt_accept_1[] = { "Any" };
+Value k_functionstmt;
+static const char *t_functionstmt_init_3_token_list_list[] = { "Token", "List", "List" };
+static const char *t_functionstmt_accept_1[] = { "Any" };
+Value k_returnstmt;
+static const char *t_returnstmt_init_2_token_expr[] = { "Token", "Expr" };
+static const char *t_returnstmt_accept_1[] = { "Any" };
+Value k_enumstmt;
+static const char *t_enumstmt_init_2_token_list[] = { "Token", "List" };
+static const char *t_enumstmt_accept_1[] = { "Any" };
+Value k_classstmt;
+static const char *t_classstmt_init_4_token_variableexpr_list_list[] = { "Token", "VariableExpr", "List", "List" };
+static const char *t_classstmt_accept_1[] = { "Any" };
 
-static Value i_Stmt(Value v_this, Value *args, int32_t count) {
+static Value i_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_nil();
 }
 
-static Value i_BlockStmt(Value v_this, Value *args, int32_t count) {
+static Value i_blockstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Statements", alg_nil());
     return alg_nil();
 }
 
-static Value m_BlockStmt_Init_1_List(Value v_this, Value *args, int32_t count) {
+static Value m_blockstmt_init_1_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Statements = args[0];
-    (void)v_Statements;
-    (void)(alg_set_property(v_this, "Statements", v_Statements));
+    Value v_statements = args[0];
+    (void)v_statements;
+    (void)(alg_set_property(v_this, "Statements", v_statements));
     return alg_nil();
 }
 
-static Value m_BlockStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_blockstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitBlockStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitBlockStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_ExpressionStmt(Value v_this, Value *args, int32_t count) {
+static Value i_expressionstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Expression", alg_nil());
     return alg_nil();
 }
 
-static Value m_ExpressionStmt_Init_1_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_expressionstmt_init_1_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Expression = args[0];
-    (void)v_Expression;
-    (void)(alg_set_property(v_this, "Expression", v_Expression));
+    Value v_expression = args[0];
+    (void)v_expression;
+    (void)(alg_set_property(v_this, "Expression", v_expression));
     return alg_nil();
 }
 
-static Value m_ExpressionStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_expressionstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitExpressionStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitExpressionStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_VarStmt(Value v_this, Value *args, int32_t count) {
+static Value i_varstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Initializer", alg_nil());
@@ -114,26 +114,26 @@ static Value i_VarStmt(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_VarStmt_Init_2_Token_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_varstmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Initializer = args[1];
-    (void)v_Initializer;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Initializer", v_Initializer));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_initializer = args[1];
+    (void)v_initializer;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Initializer", v_initializer));
     return alg_nil();
 }
 
-static Value m_VarStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_varstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitVarStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitVarStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_VarGroupStmt(Value v_this, Value *args, int32_t count) {
+static Value i_vargroupstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Names", alg_nil());
     alg_set_property(v_this, "Initializer", alg_nil());
@@ -143,26 +143,26 @@ static Value i_VarGroupStmt(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_VarGroupStmt_Init_2_List_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_vargroupstmt_init_2_list_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Names = args[0];
-    (void)v_Names;
-    Value v_Initializer = args[1];
-    (void)v_Initializer;
-    (void)(alg_set_property(v_this, "Names", v_Names));
-    (void)(alg_set_property(v_this, "Initializer", v_Initializer));
+    Value v_names = args[0];
+    (void)v_names;
+    Value v_initializer = args[1];
+    (void)v_initializer;
+    (void)(alg_set_property(v_this, "Names", v_names));
+    (void)(alg_set_property(v_this, "Initializer", v_initializer));
     return alg_nil();
 }
 
-static Value m_VarGroupStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_vargroupstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitVarGroupStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitVarGroupStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_IfStmt(Value v_this, Value *args, int32_t count) {
+static Value i_ifstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Condition", alg_nil());
     alg_set_property(v_this, "ThenBranch", alg_nil());
@@ -170,47 +170,47 @@ static Value i_IfStmt(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_IfStmt_Init_3_Expr_Stmt_Stmt(Value v_this, Value *args, int32_t count) {
+static Value m_ifstmt_init_3_expr_stmt_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Condition = args[0];
-    (void)v_Condition;
-    Value v_ThenBranch = args[1];
-    (void)v_ThenBranch;
-    Value v_ElseBranch = args[2];
-    (void)v_ElseBranch;
-    (void)(alg_set_property(v_this, "Condition", v_Condition));
-    (void)(alg_set_property(v_this, "ThenBranch", v_ThenBranch));
-    (void)(alg_set_property(v_this, "ElseBranch", v_ElseBranch));
+    Value v_condition = args[0];
+    (void)v_condition;
+    Value v_thenbranch = args[1];
+    (void)v_thenbranch;
+    Value v_elsebranch = args[2];
+    (void)v_elsebranch;
+    (void)(alg_set_property(v_this, "Condition", v_condition));
+    (void)(alg_set_property(v_this, "ThenBranch", v_thenbranch));
+    (void)(alg_set_property(v_this, "ElseBranch", v_elsebranch));
     return alg_nil();
 }
 
-static Value m_IfStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_ifstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitIfStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitIfStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_ExceptHandler(Value v_this, Value *args, int32_t count) {
+static Value i_excepthandler(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
     return alg_nil();
 }
 
-static Value m_ExceptHandler_Init_2_String_Stmt(Value v_this, Value *args, int32_t count) {
+static Value m_excepthandler_init_2_string_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Body = args[1];
-    (void)v_Body;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Body", v_Body));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_body = args[1];
+    (void)v_body;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Body", v_body));
     return alg_nil();
 }
 
-static Value i_ObjectStmt(Value v_this, Value *args, int32_t count) {
+static Value i_objectstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Superclass", alg_nil());
@@ -220,32 +220,32 @@ static Value i_ObjectStmt(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_ObjectStmt_Init_4_Token_VariableExpr_List_List(Value v_this, Value *args, int32_t count) {
+static Value m_objectstmt_init_4_token_variableexpr_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Superclass = args[1];
-    (void)v_Superclass;
-    Value v_Methods = args[2];
-    (void)v_Methods;
-    Value v_Fields = args[3];
-    (void)v_Fields;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Superclass", v_Superclass));
-    (void)(alg_set_property(v_this, "Methods", v_Methods));
-    (void)(alg_set_property(v_this, "Fields", v_Fields));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_superclass = args[1];
+    (void)v_superclass;
+    Value v_methods = args[2];
+    (void)v_methods;
+    Value v_fields = args[3];
+    (void)v_fields;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Superclass", v_superclass));
+    (void)(alg_set_property(v_this, "Methods", v_methods));
+    (void)(alg_set_property(v_this, "Fields", v_fields));
     return alg_nil();
 }
 
-static Value m_ObjectStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_objectstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitObjectStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitObjectStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_ModuleStmt(Value v_this, Value *args, int32_t count) {
+static Value i_modulestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Statements", alg_nil());
@@ -255,103 +255,103 @@ static Value i_ModuleStmt(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_ModuleStmt_Init_3_Token_List_List(Value v_this, Value *args, int32_t count) {
+static Value m_modulestmt_init_3_token_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Statements = args[1];
-    (void)v_Statements;
-    Value v_PrivateNames = args[2];
-    (void)v_PrivateNames;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Statements", v_Statements));
-    (void)(alg_set_property(v_this, "PrivateNames", v_PrivateNames));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_statements = args[1];
+    (void)v_statements;
+    Value v_privatenames = args[2];
+    (void)v_privatenames;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Statements", v_statements));
+    (void)(alg_set_property(v_this, "PrivateNames", v_privatenames));
     return alg_nil();
 }
 
-static Value m_ModuleStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_modulestmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitModuleStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitModuleStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_BreakStmt(Value v_this, Value *args, int32_t count) {
+static Value i_breakstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Keyword", alg_nil());
     return alg_nil();
 }
 
-static Value m_BreakStmt_Init_1_Token(Value v_this, Value *args, int32_t count) {
+static Value m_breakstmt_init_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Keyword = args[0];
-    (void)v_Keyword;
-    (void)(alg_set_property(v_this, "Keyword", v_Keyword));
+    Value v_keyword = args[0];
+    (void)v_keyword;
+    (void)(alg_set_property(v_this, "Keyword", v_keyword));
     return alg_nil();
 }
 
-static Value m_BreakStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_breakstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitBreakStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitBreakStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_TryStmt(Value v_this, Value *args, int32_t count) {
+static Value i_trystmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "TryBlock", alg_nil());
     alg_set_property(v_this, "Handlers", alg_nil());
     return alg_nil();
 }
 
-static Value m_TryStmt_Init_2_Stmt_Map(Value v_this, Value *args, int32_t count) {
+static Value m_trystmt_init_2_stmt_map(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TryBlock = args[0];
-    (void)v_TryBlock;
-    Value v_Handlers = args[1];
-    (void)v_Handlers;
-    (void)(alg_set_property(v_this, "TryBlock", v_TryBlock));
-    (void)(alg_set_property(v_this, "Handlers", v_Handlers));
+    Value v_tryblock = args[0];
+    (void)v_tryblock;
+    Value v_handlers = args[1];
+    (void)v_handlers;
+    (void)(alg_set_property(v_this, "TryBlock", v_tryblock));
+    (void)(alg_set_property(v_this, "Handlers", v_handlers));
     return alg_nil();
 }
 
-static Value m_TryStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_trystmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitTryStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitTryStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_RaiseStmt(Value v_this, Value *args, int32_t count) {
+static Value i_raisestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
     return alg_nil();
 }
 
-static Value m_RaiseStmt_Init_2_Token_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_raisestmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Keyword = args[0];
-    (void)v_Keyword;
-    Value v_Value = args[1];
-    (void)v_Value;
-    (void)(alg_set_property(v_this, "Keyword", v_Keyword));
-    (void)(alg_set_property(v_this, "Value", v_Value));
+    Value v_keyword = args[0];
+    (void)v_keyword;
+    Value v_value = args[1];
+    (void)v_value;
+    (void)(alg_set_property(v_this, "Keyword", v_keyword));
+    (void)(alg_set_property(v_this, "Value", v_value));
     return alg_nil();
 }
 
-static Value m_RaiseStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_raisestmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitRaiseStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitRaiseStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_ForInStmt(Value v_this, Value *args, int32_t count) {
+static Value i_forinstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Iterable", alg_nil());
@@ -359,55 +359,55 @@ static Value i_ForInStmt(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_ForInStmt_Init_3_Token_Expr_Stmt(Value v_this, Value *args, int32_t count) {
+static Value m_forinstmt_init_3_token_expr_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Iterable = args[1];
-    (void)v_Iterable;
-    Value v_Body = args[2];
-    (void)v_Body;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Iterable", v_Iterable));
-    (void)(alg_set_property(v_this, "Body", v_Body));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_iterable = args[1];
+    (void)v_iterable;
+    Value v_body = args[2];
+    (void)v_body;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Iterable", v_iterable));
+    (void)(alg_set_property(v_this, "Body", v_body));
     return alg_nil();
 }
 
-static Value m_ForInStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_forinstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitForInStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitForInStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_WhileStmt(Value v_this, Value *args, int32_t count) {
+static Value i_whilestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Condition", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
     return alg_nil();
 }
 
-static Value m_WhileStmt_Init_2_Expr_Stmt(Value v_this, Value *args, int32_t count) {
+static Value m_whilestmt_init_2_expr_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Condition = args[0];
-    (void)v_Condition;
-    Value v_Body = args[1];
-    (void)v_Body;
-    (void)(alg_set_property(v_this, "Condition", v_Condition));
-    (void)(alg_set_property(v_this, "Body", v_Body));
+    Value v_condition = args[0];
+    (void)v_condition;
+    Value v_body = args[1];
+    (void)v_body;
+    (void)(alg_set_property(v_this, "Condition", v_condition));
+    (void)(alg_set_property(v_this, "Body", v_body));
     return alg_nil();
 }
 
-static Value m_WhileStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_whilestmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitWhileStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitWhileStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_FunctionStmt(Value v_this, Value *args, int32_t count) {
+static Value i_functionstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Params", alg_nil());
@@ -417,81 +417,81 @@ static Value i_FunctionStmt(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_FunctionStmt_Init_3_Token_List_List(Value v_this, Value *args, int32_t count) {
+static Value m_functionstmt_init_3_token_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Params = args[1];
-    (void)v_Params;
-    Value v_Body = args[2];
-    (void)v_Body;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Params", v_Params));
-    (void)(alg_set_property(v_this, "Body", v_Body));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_params = args[1];
+    (void)v_params;
+    Value v_body = args[2];
+    (void)v_body;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Params", v_params));
+    (void)(alg_set_property(v_this, "Body", v_body));
     return alg_nil();
 }
 
-static Value m_FunctionStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_functionstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitFunctionStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitFunctionStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_ReturnStmt(Value v_this, Value *args, int32_t count) {
+static Value i_returnstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
     return alg_nil();
 }
 
-static Value m_ReturnStmt_Init_2_Token_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_returnstmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Keyword = args[0];
-    (void)v_Keyword;
-    Value v_Value = args[1];
-    (void)v_Value;
-    (void)(alg_set_property(v_this, "Keyword", v_Keyword));
-    (void)(alg_set_property(v_this, "Value", v_Value));
+    Value v_keyword = args[0];
+    (void)v_keyword;
+    Value v_value = args[1];
+    (void)v_value;
+    (void)(alg_set_property(v_this, "Keyword", v_keyword));
+    (void)(alg_set_property(v_this, "Value", v_value));
     return alg_nil();
 }
 
-static Value m_ReturnStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_returnstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitReturnStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitReturnStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_EnumStmt(Value v_this, Value *args, int32_t count) {
+static Value i_enumstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Members", alg_nil());
     return alg_nil();
 }
 
-static Value m_EnumStmt_Init_2_Token_List(Value v_this, Value *args, int32_t count) {
+static Value m_enumstmt_init_2_token_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Members = args[1];
-    (void)v_Members;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Members", v_Members));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_members = args[1];
+    (void)v_members;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Members", v_members));
     return alg_nil();
 }
 
-static Value m_EnumStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_enumstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitEnumStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitEnumStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_ClassStmt(Value v_this, Value *args, int32_t count) {
+static Value i_classstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Superclass", alg_nil());
@@ -501,150 +501,150 @@ static Value i_ClassStmt(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_ClassStmt_Init_4_Token_VariableExpr_List_List(Value v_this, Value *args, int32_t count) {
+static Value m_classstmt_init_4_token_variableexpr_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Superclass = args[1];
-    (void)v_Superclass;
-    Value v_Methods = args[2];
-    (void)v_Methods;
-    Value v_Fields = args[3];
-    (void)v_Fields;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Superclass", v_Superclass));
-    (void)(alg_set_property(v_this, "Methods", v_Methods));
-    (void)(alg_set_property(v_this, "Fields", v_Fields));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_superclass = args[1];
+    (void)v_superclass;
+    Value v_methods = args[2];
+    (void)v_methods;
+    Value v_fields = args[3];
+    (void)v_fields;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Superclass", v_superclass));
+    (void)(alg_set_property(v_this, "Methods", v_methods));
+    (void)(alg_set_property(v_this, "Fields", v_fields));
     return alg_nil();
 }
 
-static Value m_ClassStmt_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_classstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitClassStmt", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitClassStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
 void init_Stmt(void) {
-    k_Stmt = alg_class("Stmt", alg_nil());
-    alg_class_initializer(k_Stmt, i_Stmt);
-    k_BlockStmt = alg_class("BlockStmt", k_Stmt);
-    alg_class_field(k_BlockStmt, "Statements");
-    alg_class_initializer(k_BlockStmt, i_BlockStmt);
-    alg_class_method(k_BlockStmt, "Init", m_BlockStmt_Init_1_List, 1, t_BlockStmt_Init_1_List);
-    alg_class_method(k_BlockStmt, "Accept", m_BlockStmt_Accept_1, 1, t_BlockStmt_Accept_1);
-    k_ExpressionStmt = alg_class("ExpressionStmt", k_Stmt);
-    alg_class_field(k_ExpressionStmt, "Expression");
-    alg_class_initializer(k_ExpressionStmt, i_ExpressionStmt);
-    alg_class_method(k_ExpressionStmt, "Init", m_ExpressionStmt_Init_1_Expr, 1, t_ExpressionStmt_Init_1_Expr);
-    alg_class_method(k_ExpressionStmt, "Accept", m_ExpressionStmt_Accept_1, 1, t_ExpressionStmt_Accept_1);
-    k_VarStmt = alg_class("VarStmt", k_Stmt);
-    alg_class_field(k_VarStmt, "Name");
-    alg_class_field(k_VarStmt, "Initializer");
-    alg_class_field(k_VarStmt, "TypeName");
-    alg_class_field(k_VarStmt, "IsConstant");
-    alg_class_field(k_VarStmt, "Generic");
-    alg_class_initializer(k_VarStmt, i_VarStmt);
-    alg_class_method(k_VarStmt, "Init", m_VarStmt_Init_2_Token_Expr, 2, t_VarStmt_Init_2_Token_Expr);
-    alg_class_method(k_VarStmt, "Accept", m_VarStmt_Accept_1, 1, t_VarStmt_Accept_1);
-    k_VarGroupStmt = alg_class("VarGroupStmt", k_Stmt);
-    alg_class_field(k_VarGroupStmt, "Names");
-    alg_class_field(k_VarGroupStmt, "Initializer");
-    alg_class_field(k_VarGroupStmt, "TypeName");
-    alg_class_field(k_VarGroupStmt, "Generic");
-    alg_class_field(k_VarGroupStmt, "IsConstant");
-    alg_class_initializer(k_VarGroupStmt, i_VarGroupStmt);
-    alg_class_method(k_VarGroupStmt, "Init", m_VarGroupStmt_Init_2_List_Expr, 2, t_VarGroupStmt_Init_2_List_Expr);
-    alg_class_method(k_VarGroupStmt, "Accept", m_VarGroupStmt_Accept_1, 1, t_VarGroupStmt_Accept_1);
-    k_IfStmt = alg_class("IfStmt", k_Stmt);
-    alg_class_field(k_IfStmt, "Condition");
-    alg_class_field(k_IfStmt, "ThenBranch");
-    alg_class_field(k_IfStmt, "ElseBranch");
-    alg_class_initializer(k_IfStmt, i_IfStmt);
-    alg_class_method(k_IfStmt, "Init", m_IfStmt_Init_3_Expr_Stmt_Stmt, 3, t_IfStmt_Init_3_Expr_Stmt_Stmt);
-    alg_class_method(k_IfStmt, "Accept", m_IfStmt_Accept_1, 1, t_IfStmt_Accept_1);
-    k_ExceptHandler = alg_class("ExceptHandler", alg_nil());
-    alg_class_field(k_ExceptHandler, "Name");
-    alg_class_field(k_ExceptHandler, "Body");
-    alg_class_initializer(k_ExceptHandler, i_ExceptHandler);
-    alg_class_method(k_ExceptHandler, "Init", m_ExceptHandler_Init_2_String_Stmt, 2, t_ExceptHandler_Init_2_String_Stmt);
-    k_ObjectStmt = alg_class("ObjectStmt", k_Stmt);
-    alg_class_field(k_ObjectStmt, "Name");
-    alg_class_field(k_ObjectStmt, "Superclass");
-    alg_class_field(k_ObjectStmt, "Methods");
-    alg_class_field(k_ObjectStmt, "Fields");
-    alg_class_field(k_ObjectStmt, "PrivateMembers");
-    alg_class_initializer(k_ObjectStmt, i_ObjectStmt);
-    alg_class_method(k_ObjectStmt, "Init", m_ObjectStmt_Init_4_Token_VariableExpr_List_List, 4, t_ObjectStmt_Init_4_Token_VariableExpr_List_List);
-    alg_class_method(k_ObjectStmt, "Accept", m_ObjectStmt_Accept_1, 1, t_ObjectStmt_Accept_1);
-    k_ModuleStmt = alg_class("ModuleStmt", k_Stmt);
-    alg_class_field(k_ModuleStmt, "Name");
-    alg_class_field(k_ModuleStmt, "Statements");
-    alg_class_field(k_ModuleStmt, "PrivateNames");
-    alg_class_field(k_ModuleStmt, "FileName");
-    alg_class_field(k_ModuleStmt, "UnitName");
-    alg_class_initializer(k_ModuleStmt, i_ModuleStmt);
-    alg_class_method(k_ModuleStmt, "Init", m_ModuleStmt_Init_3_Token_List_List, 3, t_ModuleStmt_Init_3_Token_List_List);
-    alg_class_method(k_ModuleStmt, "Accept", m_ModuleStmt_Accept_1, 1, t_ModuleStmt_Accept_1);
-    k_BreakStmt = alg_class("BreakStmt", k_Stmt);
-    alg_class_field(k_BreakStmt, "Keyword");
-    alg_class_initializer(k_BreakStmt, i_BreakStmt);
-    alg_class_method(k_BreakStmt, "Init", m_BreakStmt_Init_1_Token, 1, t_BreakStmt_Init_1_Token);
-    alg_class_method(k_BreakStmt, "Accept", m_BreakStmt_Accept_1, 1, t_BreakStmt_Accept_1);
-    k_TryStmt = alg_class("TryStmt", k_Stmt);
-    alg_class_field(k_TryStmt, "TryBlock");
-    alg_class_field(k_TryStmt, "Handlers");
-    alg_class_initializer(k_TryStmt, i_TryStmt);
-    alg_class_method(k_TryStmt, "Init", m_TryStmt_Init_2_Stmt_Map, 2, t_TryStmt_Init_2_Stmt_Map);
-    alg_class_method(k_TryStmt, "Accept", m_TryStmt_Accept_1, 1, t_TryStmt_Accept_1);
-    k_RaiseStmt = alg_class("RaiseStmt", k_Stmt);
-    alg_class_field(k_RaiseStmt, "Keyword");
-    alg_class_field(k_RaiseStmt, "Value");
-    alg_class_initializer(k_RaiseStmt, i_RaiseStmt);
-    alg_class_method(k_RaiseStmt, "Init", m_RaiseStmt_Init_2_Token_Expr, 2, t_RaiseStmt_Init_2_Token_Expr);
-    alg_class_method(k_RaiseStmt, "Accept", m_RaiseStmt_Accept_1, 1, t_RaiseStmt_Accept_1);
-    k_ForInStmt = alg_class("ForInStmt", k_Stmt);
-    alg_class_field(k_ForInStmt, "Name");
-    alg_class_field(k_ForInStmt, "Iterable");
-    alg_class_field(k_ForInStmt, "Body");
-    alg_class_initializer(k_ForInStmt, i_ForInStmt);
-    alg_class_method(k_ForInStmt, "Init", m_ForInStmt_Init_3_Token_Expr_Stmt, 3, t_ForInStmt_Init_3_Token_Expr_Stmt);
-    alg_class_method(k_ForInStmt, "Accept", m_ForInStmt_Accept_1, 1, t_ForInStmt_Accept_1);
-    k_WhileStmt = alg_class("WhileStmt", k_Stmt);
-    alg_class_field(k_WhileStmt, "Condition");
-    alg_class_field(k_WhileStmt, "Body");
-    alg_class_initializer(k_WhileStmt, i_WhileStmt);
-    alg_class_method(k_WhileStmt, "Init", m_WhileStmt_Init_2_Expr_Stmt, 2, t_WhileStmt_Init_2_Expr_Stmt);
-    alg_class_method(k_WhileStmt, "Accept", m_WhileStmt_Accept_1, 1, t_WhileStmt_Accept_1);
-    k_FunctionStmt = alg_class("FunctionStmt", k_Stmt);
-    alg_class_field(k_FunctionStmt, "Name");
-    alg_class_field(k_FunctionStmt, "Params");
-    alg_class_field(k_FunctionStmt, "Body");
-    alg_class_field(k_FunctionStmt, "ReturnType");
-    alg_class_field(k_FunctionStmt, "ParamTypes");
-    alg_class_initializer(k_FunctionStmt, i_FunctionStmt);
-    alg_class_method(k_FunctionStmt, "Init", m_FunctionStmt_Init_3_Token_List_List, 3, t_FunctionStmt_Init_3_Token_List_List);
-    alg_class_method(k_FunctionStmt, "Accept", m_FunctionStmt_Accept_1, 1, t_FunctionStmt_Accept_1);
-    k_ReturnStmt = alg_class("ReturnStmt", k_Stmt);
-    alg_class_field(k_ReturnStmt, "Keyword");
-    alg_class_field(k_ReturnStmt, "Value");
-    alg_class_initializer(k_ReturnStmt, i_ReturnStmt);
-    alg_class_method(k_ReturnStmt, "Init", m_ReturnStmt_Init_2_Token_Expr, 2, t_ReturnStmt_Init_2_Token_Expr);
-    alg_class_method(k_ReturnStmt, "Accept", m_ReturnStmt_Accept_1, 1, t_ReturnStmt_Accept_1);
-    k_EnumStmt = alg_class("EnumStmt", k_Stmt);
-    alg_class_field(k_EnumStmt, "Name");
-    alg_class_field(k_EnumStmt, "Members");
-    alg_class_initializer(k_EnumStmt, i_EnumStmt);
-    alg_class_method(k_EnumStmt, "Init", m_EnumStmt_Init_2_Token_List, 2, t_EnumStmt_Init_2_Token_List);
-    alg_class_method(k_EnumStmt, "Accept", m_EnumStmt_Accept_1, 1, t_EnumStmt_Accept_1);
-    k_ClassStmt = alg_class("ClassStmt", k_Stmt);
-    alg_class_field(k_ClassStmt, "Name");
-    alg_class_field(k_ClassStmt, "Superclass");
-    alg_class_field(k_ClassStmt, "Methods");
-    alg_class_field(k_ClassStmt, "Fields");
-    alg_class_field(k_ClassStmt, "PrivateMembers");
-    alg_class_initializer(k_ClassStmt, i_ClassStmt);
-    alg_class_method(k_ClassStmt, "Init", m_ClassStmt_Init_4_Token_VariableExpr_List_List, 4, t_ClassStmt_Init_4_Token_VariableExpr_List_List);
-    alg_class_method(k_ClassStmt, "Accept", m_ClassStmt_Accept_1, 1, t_ClassStmt_Accept_1);
+    k_stmt = alg_class("Stmt", alg_nil());
+    alg_class_initializer(k_stmt, i_stmt);
+    k_blockstmt = alg_class("BlockStmt", k_stmt);
+    alg_class_field(k_blockstmt, "Statements");
+    alg_class_initializer(k_blockstmt, i_blockstmt);
+    alg_class_method(k_blockstmt, "Init", m_blockstmt_init_1_list, 1, t_blockstmt_init_1_list);
+    alg_class_method(k_blockstmt, "Accept", m_blockstmt_accept_1, 1, t_blockstmt_accept_1);
+    k_expressionstmt = alg_class("ExpressionStmt", k_stmt);
+    alg_class_field(k_expressionstmt, "Expression");
+    alg_class_initializer(k_expressionstmt, i_expressionstmt);
+    alg_class_method(k_expressionstmt, "Init", m_expressionstmt_init_1_expr, 1, t_expressionstmt_init_1_expr);
+    alg_class_method(k_expressionstmt, "Accept", m_expressionstmt_accept_1, 1, t_expressionstmt_accept_1);
+    k_varstmt = alg_class("VarStmt", k_stmt);
+    alg_class_field(k_varstmt, "Name");
+    alg_class_field(k_varstmt, "Initializer");
+    alg_class_field(k_varstmt, "TypeName");
+    alg_class_field(k_varstmt, "IsConstant");
+    alg_class_field(k_varstmt, "Generic");
+    alg_class_initializer(k_varstmt, i_varstmt);
+    alg_class_method(k_varstmt, "Init", m_varstmt_init_2_token_expr, 2, t_varstmt_init_2_token_expr);
+    alg_class_method(k_varstmt, "Accept", m_varstmt_accept_1, 1, t_varstmt_accept_1);
+    k_vargroupstmt = alg_class("VarGroupStmt", k_stmt);
+    alg_class_field(k_vargroupstmt, "Names");
+    alg_class_field(k_vargroupstmt, "Initializer");
+    alg_class_field(k_vargroupstmt, "TypeName");
+    alg_class_field(k_vargroupstmt, "Generic");
+    alg_class_field(k_vargroupstmt, "IsConstant");
+    alg_class_initializer(k_vargroupstmt, i_vargroupstmt);
+    alg_class_method(k_vargroupstmt, "Init", m_vargroupstmt_init_2_list_expr, 2, t_vargroupstmt_init_2_list_expr);
+    alg_class_method(k_vargroupstmt, "Accept", m_vargroupstmt_accept_1, 1, t_vargroupstmt_accept_1);
+    k_ifstmt = alg_class("IfStmt", k_stmt);
+    alg_class_field(k_ifstmt, "Condition");
+    alg_class_field(k_ifstmt, "ThenBranch");
+    alg_class_field(k_ifstmt, "ElseBranch");
+    alg_class_initializer(k_ifstmt, i_ifstmt);
+    alg_class_method(k_ifstmt, "Init", m_ifstmt_init_3_expr_stmt_stmt, 3, t_ifstmt_init_3_expr_stmt_stmt);
+    alg_class_method(k_ifstmt, "Accept", m_ifstmt_accept_1, 1, t_ifstmt_accept_1);
+    k_excepthandler = alg_class("ExceptHandler", alg_nil());
+    alg_class_field(k_excepthandler, "Name");
+    alg_class_field(k_excepthandler, "Body");
+    alg_class_initializer(k_excepthandler, i_excepthandler);
+    alg_class_method(k_excepthandler, "Init", m_excepthandler_init_2_string_stmt, 2, t_excepthandler_init_2_string_stmt);
+    k_objectstmt = alg_class("ObjectStmt", k_stmt);
+    alg_class_field(k_objectstmt, "Name");
+    alg_class_field(k_objectstmt, "Superclass");
+    alg_class_field(k_objectstmt, "Methods");
+    alg_class_field(k_objectstmt, "Fields");
+    alg_class_field(k_objectstmt, "PrivateMembers");
+    alg_class_initializer(k_objectstmt, i_objectstmt);
+    alg_class_method(k_objectstmt, "Init", m_objectstmt_init_4_token_variableexpr_list_list, 4, t_objectstmt_init_4_token_variableexpr_list_list);
+    alg_class_method(k_objectstmt, "Accept", m_objectstmt_accept_1, 1, t_objectstmt_accept_1);
+    k_modulestmt = alg_class("ModuleStmt", k_stmt);
+    alg_class_field(k_modulestmt, "Name");
+    alg_class_field(k_modulestmt, "Statements");
+    alg_class_field(k_modulestmt, "PrivateNames");
+    alg_class_field(k_modulestmt, "FileName");
+    alg_class_field(k_modulestmt, "UnitName");
+    alg_class_initializer(k_modulestmt, i_modulestmt);
+    alg_class_method(k_modulestmt, "Init", m_modulestmt_init_3_token_list_list, 3, t_modulestmt_init_3_token_list_list);
+    alg_class_method(k_modulestmt, "Accept", m_modulestmt_accept_1, 1, t_modulestmt_accept_1);
+    k_breakstmt = alg_class("BreakStmt", k_stmt);
+    alg_class_field(k_breakstmt, "Keyword");
+    alg_class_initializer(k_breakstmt, i_breakstmt);
+    alg_class_method(k_breakstmt, "Init", m_breakstmt_init_1_token, 1, t_breakstmt_init_1_token);
+    alg_class_method(k_breakstmt, "Accept", m_breakstmt_accept_1, 1, t_breakstmt_accept_1);
+    k_trystmt = alg_class("TryStmt", k_stmt);
+    alg_class_field(k_trystmt, "TryBlock");
+    alg_class_field(k_trystmt, "Handlers");
+    alg_class_initializer(k_trystmt, i_trystmt);
+    alg_class_method(k_trystmt, "Init", m_trystmt_init_2_stmt_map, 2, t_trystmt_init_2_stmt_map);
+    alg_class_method(k_trystmt, "Accept", m_trystmt_accept_1, 1, t_trystmt_accept_1);
+    k_raisestmt = alg_class("RaiseStmt", k_stmt);
+    alg_class_field(k_raisestmt, "Keyword");
+    alg_class_field(k_raisestmt, "Value");
+    alg_class_initializer(k_raisestmt, i_raisestmt);
+    alg_class_method(k_raisestmt, "Init", m_raisestmt_init_2_token_expr, 2, t_raisestmt_init_2_token_expr);
+    alg_class_method(k_raisestmt, "Accept", m_raisestmt_accept_1, 1, t_raisestmt_accept_1);
+    k_forinstmt = alg_class("ForInStmt", k_stmt);
+    alg_class_field(k_forinstmt, "Name");
+    alg_class_field(k_forinstmt, "Iterable");
+    alg_class_field(k_forinstmt, "Body");
+    alg_class_initializer(k_forinstmt, i_forinstmt);
+    alg_class_method(k_forinstmt, "Init", m_forinstmt_init_3_token_expr_stmt, 3, t_forinstmt_init_3_token_expr_stmt);
+    alg_class_method(k_forinstmt, "Accept", m_forinstmt_accept_1, 1, t_forinstmt_accept_1);
+    k_whilestmt = alg_class("WhileStmt", k_stmt);
+    alg_class_field(k_whilestmt, "Condition");
+    alg_class_field(k_whilestmt, "Body");
+    alg_class_initializer(k_whilestmt, i_whilestmt);
+    alg_class_method(k_whilestmt, "Init", m_whilestmt_init_2_expr_stmt, 2, t_whilestmt_init_2_expr_stmt);
+    alg_class_method(k_whilestmt, "Accept", m_whilestmt_accept_1, 1, t_whilestmt_accept_1);
+    k_functionstmt = alg_class("FunctionStmt", k_stmt);
+    alg_class_field(k_functionstmt, "Name");
+    alg_class_field(k_functionstmt, "Params");
+    alg_class_field(k_functionstmt, "Body");
+    alg_class_field(k_functionstmt, "ReturnType");
+    alg_class_field(k_functionstmt, "ParamTypes");
+    alg_class_initializer(k_functionstmt, i_functionstmt);
+    alg_class_method(k_functionstmt, "Init", m_functionstmt_init_3_token_list_list, 3, t_functionstmt_init_3_token_list_list);
+    alg_class_method(k_functionstmt, "Accept", m_functionstmt_accept_1, 1, t_functionstmt_accept_1);
+    k_returnstmt = alg_class("ReturnStmt", k_stmt);
+    alg_class_field(k_returnstmt, "Keyword");
+    alg_class_field(k_returnstmt, "Value");
+    alg_class_initializer(k_returnstmt, i_returnstmt);
+    alg_class_method(k_returnstmt, "Init", m_returnstmt_init_2_token_expr, 2, t_returnstmt_init_2_token_expr);
+    alg_class_method(k_returnstmt, "Accept", m_returnstmt_accept_1, 1, t_returnstmt_accept_1);
+    k_enumstmt = alg_class("EnumStmt", k_stmt);
+    alg_class_field(k_enumstmt, "Name");
+    alg_class_field(k_enumstmt, "Members");
+    alg_class_initializer(k_enumstmt, i_enumstmt);
+    alg_class_method(k_enumstmt, "Init", m_enumstmt_init_2_token_list, 2, t_enumstmt_init_2_token_list);
+    alg_class_method(k_enumstmt, "Accept", m_enumstmt_accept_1, 1, t_enumstmt_accept_1);
+    k_classstmt = alg_class("ClassStmt", k_stmt);
+    alg_class_field(k_classstmt, "Name");
+    alg_class_field(k_classstmt, "Superclass");
+    alg_class_field(k_classstmt, "Methods");
+    alg_class_field(k_classstmt, "Fields");
+    alg_class_field(k_classstmt, "PrivateMembers");
+    alg_class_initializer(k_classstmt, i_classstmt);
+    alg_class_method(k_classstmt, "Init", m_classstmt_init_4_token_variableexpr_list_list, 4, t_classstmt_init_4_token_variableexpr_list_list);
+    alg_class_method(k_classstmt, "Accept", m_classstmt_accept_1, 1, t_classstmt_accept_1);
 }

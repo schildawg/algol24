@@ -4,8 +4,8 @@
 
 #include "algol.h"
 
-extern Value k_BufferMethod;
-extern Value k_ObjBuffer;
+extern Value k_buffermethod;
+extern Value k_objbuffer;
 void init_ObjBuffer(void);
 
 #endif

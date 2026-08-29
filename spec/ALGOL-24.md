@@ -237,9 +237,11 @@ literal, but it may appear in a name.
 may not **lead** [LEX-007]. A character above U+007F may.
 
     interpreter  compiler/Scanner.a24  IsAlpha
+    compiler     compiler/CEmitter.a24  Escaped
     unit         Scan Identifier With A Question Mark
     conformance  0002-letters-and-digits.a24
     conformance  0128-text-is-characters.a24
+    conformance  0139-unicode-identifiers.a24
 
 ⚠️ **An identifier mark is not a letter.** `?` and `!` may appear *within* an
 identifier but may not begin one [LEX-007], so `Gate?` and `Gate!` are each a
@@ -4072,17 +4074,23 @@ the emitter learns to rename.
 *Fix:* rename the colliding symbol per unit, as a private name colliding across
 units already is.
 
-**C-22 — A Unicode identifier will not compile.** *(loud)*
+**C-22 — A Unicode identifier will not compile.**
+***Withdrawn.***
 
-A Unicode letter may appear in an identifier [SRC-005] and the interpreter runs
-the program. The emitter refuses it with `An identifier containing 'é' is not
-supported by the C back end yet.`
+Any Unicode character may appear in an identifier [SRC-005] and the emitter
+refused it with `An identifier containing 'é' is not supported by the C back end
+yet.` Annex G.3's scheme is implemented, so `🙂` emits as `U01F642` and
+`conformance/0139` compiles to output identical to the interpreted run.
 
-⚠️ The refusal predates the rule and was right for a different reason — C cannot
-spell the name. It is the honest shape: refused by name rather than emitted as
-something else.
+⚠️ **Adopting G.3 in part would not have worked**, which is why this waited. The
+escape only becomes free once every letter is lowercased; adding `U` escapes to
+the old pass-through scheme would have collided with an identifier spelled like
+one. The two halves of G.3 are a single decision.
 
-*Fix:* mangle per Annex G, which specifies an escape for exactly this.
+⚠️ **Three bootstrap generations**, not two. The old binary emits the new
+scheme's *source* under the old rules, so generation 1 still carries old
+symbols; generation 2 emits new ones; generation 3 is where the output stops
+changing. `fixedpoint.sh` iterates for exactly this.
 
 **C-23 — A compiled test run never says why a test failed.**
 **C-24 — A compiled top-level subprogram is matched on arity, not signature.**
@@ -5050,14 +5058,27 @@ The existing per-kind prefixes — `v_` a variable, `f_` a function, `fn_` its
 closure, `k_` a class, `e_` an enum, `c_` a constant, `m_` a method — continue to
 keep the emitter's names clear of C's.
 
-⚠️ **This scheme is injective, and the one it replaces is not.** Today `?`
-becomes `_q`, so `Ready?` and `Ready_q` emit one symbol between them and `cc`
-refuses the result — a collision `CEmitter.a24` documents against itself. Under
-the scheme above they become `readyQ` and `readyVq`, which differ.
+⚠️ **This scheme is injective, and the one it replaced was not.** That one wrote
+`?` as `_q` and passed letters through untouched, so `Ready?` and `Ready_q`
+emitted one symbol between them and `cc` refused the result. Here they are
+`readyQ` and `readyVq`.
+
+⚠️ **The same argument answers the escape's own collision.** An identifier
+spelled `U01F642` and the character `🙂` would both want that symbol; lowercasing
+separates them into `u01f642` and `U01F642`.
 
 ⚠️ The two decisions depend on each other. Lowercasing is only lossless because
 identifiers are case-insensitive, and the uppercase escape space only exists
 because of the lowercasing. Neither works alone.
+
+⚠️ **`_` is escaped to `V` rather than passed through**, which is what leaves it
+free as a separator. A caller joining parts — a method's owner and name, an
+enum's type and member, a private name and its unit — escapes each part and puts
+a raw `_` between them. Escaping the *joined* string instead would put the
+separator back into the alphabet the escape uses: `Name__Unit` would give
+`nameVVunit`, which an identifier spelled `NameVVUnit` also gives.
+
+
 
 ---
 

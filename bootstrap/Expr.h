@@ -4,23 +4,23 @@
 
 #include "algol.h"
 
-extern Value k_Expr;
-extern Value k_BinaryExpr;
-extern Value k_LogicalExpr;
-extern Value k_GroupingExpr;
-extern Value k_CollectionExpr;
-extern Value k_SubscriptExpr;
-extern Value k_SetSubscriptExpr;
-extern Value k_LiteralExpr;
-extern Value k_VariableExpr;
-extern Value k_AssignExpr;
-extern Value k_UnaryExpr;
-extern Value k_CallExpr;
-extern Value k_GetExpr;
-extern Value k_SetExpr;
-extern Value k_ThisExpr;
-extern Value k_SuperExpr;
-extern Value k_IsExpr;
+extern Value k_expr;
+extern Value k_binaryexpr;
+extern Value k_logicalexpr;
+extern Value k_groupingexpr;
+extern Value k_collectionexpr;
+extern Value k_subscriptexpr;
+extern Value k_setsubscriptexpr;
+extern Value k_literalexpr;
+extern Value k_variableexpr;
+extern Value k_assignexpr;
+extern Value k_unaryexpr;
+extern Value k_callexpr;
+extern Value k_getexpr;
+extern Value k_setexpr;
+extern Value k_thisexpr;
+extern Value k_superexpr;
+extern Value k_isexpr;
 void init_Expr(void);
 
 #endif

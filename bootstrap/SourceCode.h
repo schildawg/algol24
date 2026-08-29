@@ -4,7 +4,7 @@
 
 #include "algol.h"
 
-extern Value k_SourceCode;
+extern Value k_sourcecode;
 void init_SourceCode(void);
 
 #endif

@@ -4,8 +4,8 @@
 
 #include "algol.h"
 
-extern Value k_CollectionMethod;
-extern Value k_ObjCollection;
+extern Value k_collectionmethod;
+extern Value k_objcollection;
 void init_ObjCollection(void);
 
 #endif

@@ -4,18 +4,18 @@
 
 #include "algol.h"
 
-extern Value v_BAR;
-extern Value v_ESC;
-extern Value v_ANSI_RESET;
-extern Value v_ANSI_RED;
-extern Value v_ANSI_GREEN;
-extern Value v_ANSI_YELLOW;
-extern Value v_ANSI_BLUE;
-extern Value v_ANSI_CYAN;
-extern Value v_ANSI_WHITE;
-extern Value v_INFO_TAG;
-extern Value v_ERROR_TAG;
-extern Value k_Console;
+extern Value v_bar;
+extern Value v_esc;
+extern Value v_ansiVreset;
+extern Value v_ansiVred;
+extern Value v_ansiVgreen;
+extern Value v_ansiVyellow;
+extern Value v_ansiVblue;
+extern Value v_ansiVcyan;
+extern Value v_ansiVwhite;
+extern Value v_infoVtag;
+extern Value v_errorVtag;
+extern Value k_console;
 void init_Console(void);
 
 #endif

@@ -4,11 +4,11 @@
 
 #include "algol.h"
 
-Value f_Rejects(Value **cells, Value *args, int32_t count);
-extern Value k_TypeLookup;
-extern Value k_TypeChecker;
-extern Value fn_Rejects;
-extern Value v_HIDER;
+Value f_rejects(Value **cells, Value *args, int32_t count);
+extern Value k_typelookup;
+extern Value k_typechecker;
+extern Value fn_rejects;
+extern Value v_hider;
 void init_TypeChecker(void);
 
 #endif

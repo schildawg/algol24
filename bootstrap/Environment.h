@@ -4,7 +4,7 @@
 
 #include "algol.h"
 
-extern Value k_Environment;
+extern Value k_environment;
 void init_Environment(void);
 
 #endif

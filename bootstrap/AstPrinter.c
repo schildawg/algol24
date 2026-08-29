@@ -4,105 +4,105 @@
 #include "Token.h"
 #include "TokenType.h"
 
-Value k_AstPrinter;
-static const char *t_AstPrinter_DoPrint_1[] = { "Any" };
-static const char *t_AstPrinter_VisitBinary_1[] = { "Any" };
-static const char *t_AstPrinter_VisitGrouping_1[] = { "Any" };
-static const char *t_AstPrinter_VisitLiteral_1[] = { "Any" };
-static const char *t_AstPrinter_VisitUnary_1[] = { "Any" };
-static const char *t_AstPrinter_Parenthesize_2[] = { "Any", "Any" };
+Value k_astprinter;
+static const char *t_astprinter_doprint_1[] = { "Any" };
+static const char *t_astprinter_visitbinary_1[] = { "Any" };
+static const char *t_astprinter_visitgrouping_1[] = { "Any" };
+static const char *t_astprinter_visitliteral_1[] = { "Any" };
+static const char *t_astprinter_visitunary_1[] = { "Any" };
+static const char *t_astprinter_parenthesize_2[] = { "Any", "Any" };
 
-static Value i_AstPrinter(Value v_this, Value *args, int32_t count) {
+static Value i_astprinter(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_nil();
 }
 
-static Value m_AstPrinter_DoPrint_1(Value v_this, Value *args, int32_t count) {
+static Value m_astprinter_doprint_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Expr = args[0];
-    (void)v_Expr;
-    return alg_invoke(v_Expr, "Accept", (Value[]){v_this}, 1);
+    Value v_expr = args[0];
+    (void)v_expr;
+    return alg_invoke(v_expr, "Accept", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value m_AstPrinter_VisitBinary_1(Value v_this, Value *args, int32_t count) {
+static Value m_astprinter_visitbinary_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Expr = args[0];
-    (void)v_Expr;
-    Value v_Exprs = alg_list();
-    (void)v_Exprs;
-    (void)(alg_invoke(v_Exprs, "Add", (Value[]){alg_property(v_Expr, "Left")}, 1));
-    (void)(alg_invoke(v_Exprs, "Add", (Value[]){alg_property(v_Expr, "Right")}, 1));
-    return alg_invoke(v_this, "Parenthesize", (Value[]){alg_property(alg_property(v_Expr, "Op"), "Lexeme"), v_Exprs}, 2);
+    Value v_expr = args[0];
+    (void)v_expr;
+    Value v_exprs = alg_list();
+    (void)v_exprs;
+    (void)(alg_invoke(v_exprs, "Add", (Value[]){alg_property(v_expr, "Left")}, 1));
+    (void)(alg_invoke(v_exprs, "Add", (Value[]){alg_property(v_expr, "Right")}, 1));
+    return alg_invoke(v_this, "Parenthesize", (Value[]){alg_property(alg_property(v_expr, "Op"), "Lexeme"), v_exprs}, 2);
     return alg_nil();
 }
 
-static Value m_AstPrinter_VisitGrouping_1(Value v_this, Value *args, int32_t count) {
+static Value m_astprinter_visitgrouping_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Expr = args[0];
-    (void)v_Expr;
-    Value v_Exprs = alg_list();
-    (void)v_Exprs;
-    (void)(alg_invoke(v_Exprs, "Add", (Value[]){alg_property(v_Expr, "Expression")}, 1));
-    return alg_invoke(v_this, "Parenthesize", (Value[]){alg_string("group"), v_Exprs}, 2);
+    Value v_expr = args[0];
+    (void)v_expr;
+    Value v_exprs = alg_list();
+    (void)v_exprs;
+    (void)(alg_invoke(v_exprs, "Add", (Value[]){alg_property(v_expr, "Expression")}, 1));
+    return alg_invoke(v_this, "Parenthesize", (Value[]){alg_string("group"), v_exprs}, 2);
     return alg_nil();
 }
 
-static Value m_AstPrinter_VisitLiteral_1(Value v_this, Value *args, int32_t count) {
+static Value m_astprinter_visitliteral_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Expr = args[0];
-    (void)v_Expr;
-    if (alg_truthy(alg_equal(alg_property(v_Expr, "Value"), alg_nil()))) {
+    Value v_expr = args[0];
+    (void)v_expr;
+    if (alg_truthy(alg_equal(alg_property(v_expr, "Value"), alg_nil()))) {
         return alg_nil();
     }
-    return alg_str(alg_property(v_Expr, "Value"));
+    return alg_str(alg_property(v_expr, "Value"));
     return alg_nil();
 }
 
-static Value m_AstPrinter_VisitUnary_1(Value v_this, Value *args, int32_t count) {
+static Value m_astprinter_visitunary_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Expr = args[0];
-    (void)v_Expr;
-    Value v_Exprs = alg_list();
-    (void)v_Exprs;
-    (void)(alg_invoke(v_Exprs, "Add", (Value[]){alg_property(v_Expr, "Right")}, 1));
-    return alg_invoke(v_this, "Parenthesize", (Value[]){alg_property(alg_property(v_Expr, "Op"), "Lexeme"), v_Exprs}, 2);
+    Value v_expr = args[0];
+    (void)v_expr;
+    Value v_exprs = alg_list();
+    (void)v_exprs;
+    (void)(alg_invoke(v_exprs, "Add", (Value[]){alg_property(v_expr, "Right")}, 1));
+    return alg_invoke(v_this, "Parenthesize", (Value[]){alg_property(alg_property(v_expr, "Op"), "Lexeme"), v_exprs}, 2);
     return alg_nil();
 }
 
-static Value m_AstPrinter_Parenthesize_2(Value v_this, Value *args, int32_t count) {
+static Value m_astprinter_parenthesize_2(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Exprs = args[1];
-    (void)v_Exprs;
-    Value v_Builder = alg_add(alg_str(alg_char_value(40)), v_Name);
-    (void)v_Builder;
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_exprs = args[1];
+    (void)v_exprs;
+    Value v_builder = alg_add(alg_str(alg_char_value(40)), v_name);
+    (void)v_builder;
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_property(v_Exprs, "Length")))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(v_exprs, "Length")))) {
             {
                 {
-                    (void)((v_Builder = alg_add(v_Builder, alg_char_value(32))));
-                    (void)((v_Builder = alg_add(v_Builder, alg_invoke(alg_subscript_get(v_Exprs, v_I), "Accept", (Value[]){v_this}, 1))));
+                    (void)((v_builder = alg_add(v_builder, alg_char_value(32))));
+                    (void)((v_builder = alg_add(v_builder, alg_invoke(alg_subscript_get(v_exprs, v_i), "Accept", (Value[]){v_this}, 1))));
                 }
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
-    (void)((v_Builder = alg_add(v_Builder, alg_char_value(41))));
-    return v_Builder;
+    (void)((v_builder = alg_add(v_builder, alg_char_value(41))));
+    return v_builder;
     return alg_nil();
 }
 
 void init_AstPrinter(void) {
-    k_AstPrinter = alg_class("AstPrinter", alg_nil());
-    alg_class_initializer(k_AstPrinter, i_AstPrinter);
-    alg_class_method(k_AstPrinter, "DoPrint", m_AstPrinter_DoPrint_1, 1, t_AstPrinter_DoPrint_1);
-    alg_class_method(k_AstPrinter, "VisitBinary", m_AstPrinter_VisitBinary_1, 1, t_AstPrinter_VisitBinary_1);
-    alg_class_method(k_AstPrinter, "VisitGrouping", m_AstPrinter_VisitGrouping_1, 1, t_AstPrinter_VisitGrouping_1);
-    alg_class_method(k_AstPrinter, "VisitLiteral", m_AstPrinter_VisitLiteral_1, 1, t_AstPrinter_VisitLiteral_1);
-    alg_class_method(k_AstPrinter, "VisitUnary", m_AstPrinter_VisitUnary_1, 1, t_AstPrinter_VisitUnary_1);
-    alg_class_method(k_AstPrinter, "Parenthesize", m_AstPrinter_Parenthesize_2, 2, t_AstPrinter_Parenthesize_2);
+    k_astprinter = alg_class("AstPrinter", alg_nil());
+    alg_class_initializer(k_astprinter, i_astprinter);
+    alg_class_method(k_astprinter, "DoPrint", m_astprinter_doprint_1, 1, t_astprinter_doprint_1);
+    alg_class_method(k_astprinter, "VisitBinary", m_astprinter_visitbinary_1, 1, t_astprinter_visitbinary_1);
+    alg_class_method(k_astprinter, "VisitGrouping", m_astprinter_visitgrouping_1, 1, t_astprinter_visitgrouping_1);
+    alg_class_method(k_astprinter, "VisitLiteral", m_astprinter_visitliteral_1, 1, t_astprinter_visitliteral_1);
+    alg_class_method(k_astprinter, "VisitUnary", m_astprinter_visitunary_1, 1, t_astprinter_visitunary_1);
+    alg_class_method(k_astprinter, "Parenthesize", m_astprinter_parenthesize_2, 2, t_astprinter_parenthesize_2);
 }

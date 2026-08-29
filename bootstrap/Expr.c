@@ -2,63 +2,63 @@
 #include "Expr.h"
 #include "Token.h"
 
-Value k_Expr;
-Value k_BinaryExpr;
-static const char *t_BinaryExpr_Init_3[] = { "Any", "Any", "Any" };
-static const char *t_BinaryExpr_Accept_1[] = { "Any" };
-Value k_LogicalExpr;
-static const char *t_LogicalExpr_Init_3[] = { "Any", "Any", "Any" };
-static const char *t_LogicalExpr_Accept_1[] = { "Any" };
-Value k_GroupingExpr;
-static const char *t_GroupingExpr_Init_1_Expr[] = { "Expr" };
-static const char *t_GroupingExpr_Accept_1[] = { "Any" };
-Value k_CollectionExpr;
-static const char *t_CollectionExpr_Init_3_Boolean_List_List[] = { "Boolean", "List", "List" };
-static const char *t_CollectionExpr_Accept_1[] = { "Any" };
-Value k_SubscriptExpr;
-static const char *t_SubscriptExpr_Init_3_Expr_Expr_Token[] = { "Expr", "Expr", "Token" };
-static const char *t_SubscriptExpr_Accept_1[] = { "Any" };
-Value k_SetSubscriptExpr;
-static const char *t_SetSubscriptExpr_Init_4_Expr_Expr_Expr_Token[] = { "Expr", "Expr", "Expr", "Token" };
-static const char *t_SetSubscriptExpr_Accept_1[] = { "Any" };
-Value k_LiteralExpr;
-static const char *t_LiteralExpr_Init_1_Expr[] = { "Expr" };
-static const char *t_LiteralExpr_Accept_1[] = { "Any" };
-Value k_VariableExpr;
-static const char *t_VariableExpr_Init_1_Token[] = { "Token" };
-static const char *t_VariableExpr_Accept_1[] = { "Any" };
-Value k_AssignExpr;
-static const char *t_AssignExpr_Init_2_Token_Expr[] = { "Token", "Expr" };
-static const char *t_AssignExpr_Accept_1[] = { "Any" };
-Value k_UnaryExpr;
-static const char *t_UnaryExpr_Init_2_Token_Expr[] = { "Token", "Expr" };
-static const char *t_UnaryExpr_Accept_1[] = { "Any" };
-Value k_CallExpr;
-static const char *t_CallExpr_Init_3_Expr_Token_List[] = { "Expr", "Token", "List" };
-static const char *t_CallExpr_Accept_1[] = { "Any" };
-Value k_GetExpr;
-static const char *t_GetExpr_Init_2_Expr_Token[] = { "Expr", "Token" };
-static const char *t_GetExpr_Accept_1[] = { "Any" };
-Value k_SetExpr;
-static const char *t_SetExpr_Init_3_Expr_Token_Expr[] = { "Expr", "Token", "Expr" };
-static const char *t_SetExpr_Accept_1[] = { "Any" };
-Value k_ThisExpr;
-static const char *t_ThisExpr_Init_1_Token[] = { "Token" };
-static const char *t_ThisExpr_Accept_1[] = { "Any" };
-Value k_SuperExpr;
-static const char *t_SuperExpr_Init_2_Token_Token[] = { "Token", "Token" };
-static const char *t_SuperExpr_Accept_1[] = { "Any" };
-Value k_IsExpr;
-static const char *t_IsExpr_Init_2_Expr_Token[] = { "Expr", "Token" };
-static const char *t_IsExpr_Accept_1[] = { "Any" };
+Value k_expr;
+Value k_binaryexpr;
+static const char *t_binaryexpr_init_3[] = { "Any", "Any", "Any" };
+static const char *t_binaryexpr_accept_1[] = { "Any" };
+Value k_logicalexpr;
+static const char *t_logicalexpr_init_3[] = { "Any", "Any", "Any" };
+static const char *t_logicalexpr_accept_1[] = { "Any" };
+Value k_groupingexpr;
+static const char *t_groupingexpr_init_1_expr[] = { "Expr" };
+static const char *t_groupingexpr_accept_1[] = { "Any" };
+Value k_collectionexpr;
+static const char *t_collectionexpr_init_3_boolean_list_list[] = { "Boolean", "List", "List" };
+static const char *t_collectionexpr_accept_1[] = { "Any" };
+Value k_subscriptexpr;
+static const char *t_subscriptexpr_init_3_expr_expr_token[] = { "Expr", "Expr", "Token" };
+static const char *t_subscriptexpr_accept_1[] = { "Any" };
+Value k_setsubscriptexpr;
+static const char *t_setsubscriptexpr_init_4_expr_expr_expr_token[] = { "Expr", "Expr", "Expr", "Token" };
+static const char *t_setsubscriptexpr_accept_1[] = { "Any" };
+Value k_literalexpr;
+static const char *t_literalexpr_init_1_expr[] = { "Expr" };
+static const char *t_literalexpr_accept_1[] = { "Any" };
+Value k_variableexpr;
+static const char *t_variableexpr_init_1_token[] = { "Token" };
+static const char *t_variableexpr_accept_1[] = { "Any" };
+Value k_assignexpr;
+static const char *t_assignexpr_init_2_token_expr[] = { "Token", "Expr" };
+static const char *t_assignexpr_accept_1[] = { "Any" };
+Value k_unaryexpr;
+static const char *t_unaryexpr_init_2_token_expr[] = { "Token", "Expr" };
+static const char *t_unaryexpr_accept_1[] = { "Any" };
+Value k_callexpr;
+static const char *t_callexpr_init_3_expr_token_list[] = { "Expr", "Token", "List" };
+static const char *t_callexpr_accept_1[] = { "Any" };
+Value k_getexpr;
+static const char *t_getexpr_init_2_expr_token[] = { "Expr", "Token" };
+static const char *t_getexpr_accept_1[] = { "Any" };
+Value k_setexpr;
+static const char *t_setexpr_init_3_expr_token_expr[] = { "Expr", "Token", "Expr" };
+static const char *t_setexpr_accept_1[] = { "Any" };
+Value k_thisexpr;
+static const char *t_thisexpr_init_1_token[] = { "Token" };
+static const char *t_thisexpr_accept_1[] = { "Any" };
+Value k_superexpr;
+static const char *t_superexpr_init_2_token_token[] = { "Token", "Token" };
+static const char *t_superexpr_accept_1[] = { "Any" };
+Value k_isexpr;
+static const char *t_isexpr_init_2_expr_token[] = { "Expr", "Token" };
+static const char *t_isexpr_accept_1[] = { "Any" };
 
-static Value i_Expr(Value v_this, Value *args, int32_t count) {
+static Value i_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Cast", alg_string(""));
     return alg_nil();
 }
 
-static Value i_BinaryExpr(Value v_this, Value *args, int32_t count) {
+static Value i_binaryexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Left", alg_nil());
     alg_set_property(v_this, "Op", alg_nil());
@@ -66,29 +66,29 @@ static Value i_BinaryExpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_BinaryExpr_Init_3(Value v_this, Value *args, int32_t count) {
+static Value m_binaryexpr_init_3(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Left = args[0];
-    (void)v_Left;
-    Value v_Op = args[1];
-    (void)v_Op;
-    Value v_Right = args[2];
-    (void)v_Right;
-    (void)(alg_set_property(v_this, "Left", v_Left));
-    (void)(alg_set_property(v_this, "Op", v_Op));
-    (void)(alg_set_property(v_this, "Right", v_Right));
+    Value v_left = args[0];
+    (void)v_left;
+    Value v_op = args[1];
+    (void)v_op;
+    Value v_right = args[2];
+    (void)v_right;
+    (void)(alg_set_property(v_this, "Left", v_left));
+    (void)(alg_set_property(v_this, "Op", v_op));
+    (void)(alg_set_property(v_this, "Right", v_right));
     return alg_nil();
 }
 
-static Value m_BinaryExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_binaryexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitBinary", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitBinary", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_LogicalExpr(Value v_this, Value *args, int32_t count) {
+static Value i_logicalexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Left", alg_nil());
     alg_set_property(v_this, "Op", alg_nil());
@@ -96,51 +96,51 @@ static Value i_LogicalExpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_LogicalExpr_Init_3(Value v_this, Value *args, int32_t count) {
+static Value m_logicalexpr_init_3(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Left = args[0];
-    (void)v_Left;
-    Value v_Op = args[1];
-    (void)v_Op;
-    Value v_Right = args[2];
-    (void)v_Right;
-    (void)(alg_set_property(v_this, "Left", v_Left));
-    (void)(alg_set_property(v_this, "Op", v_Op));
-    (void)(alg_set_property(v_this, "Right", v_Right));
+    Value v_left = args[0];
+    (void)v_left;
+    Value v_op = args[1];
+    (void)v_op;
+    Value v_right = args[2];
+    (void)v_right;
+    (void)(alg_set_property(v_this, "Left", v_left));
+    (void)(alg_set_property(v_this, "Op", v_op));
+    (void)(alg_set_property(v_this, "Right", v_right));
     return alg_nil();
 }
 
-static Value m_LogicalExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_logicalexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitLogical", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitLogical", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_GroupingExpr(Value v_this, Value *args, int32_t count) {
+static Value i_groupingexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Expression", alg_nil());
     return alg_nil();
 }
 
-static Value m_GroupingExpr_Init_1_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_groupingexpr_init_1_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Expression = args[0];
-    (void)v_Expression;
-    (void)(alg_set_property(v_this, "Expression", v_Expression));
+    Value v_expression = args[0];
+    (void)v_expression;
+    (void)(alg_set_property(v_this, "Expression", v_expression));
     return alg_nil();
 }
 
-static Value m_GroupingExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_groupingexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitGrouping", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitGrouping", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_CollectionExpr(Value v_this, Value *args, int32_t count) {
+static Value i_collectionexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "IsMap", alg_nil());
     alg_set_property(v_this, "Keys", alg_nil());
@@ -148,29 +148,29 @@ static Value i_CollectionExpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_CollectionExpr_Init_3_Boolean_List_List(Value v_this, Value *args, int32_t count) {
+static Value m_collectionexpr_init_3_boolean_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_IsMap = args[0];
-    (void)v_IsMap;
-    Value v_Keys = args[1];
-    (void)v_Keys;
-    Value v_Values = args[2];
-    (void)v_Values;
-    (void)(alg_set_property(v_this, "IsMap", v_IsMap));
-    (void)(alg_set_property(v_this, "Keys", v_Keys));
-    (void)(alg_set_property(v_this, "Values", v_Values));
+    Value v_ismap = args[0];
+    (void)v_ismap;
+    Value v_keys = args[1];
+    (void)v_keys;
+    Value v_values = args[2];
+    (void)v_values;
+    (void)(alg_set_property(v_this, "IsMap", v_ismap));
+    (void)(alg_set_property(v_this, "Keys", v_keys));
+    (void)(alg_set_property(v_this, "Values", v_values));
     return alg_nil();
 }
 
-static Value m_CollectionExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_collectionexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitCollectionExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitCollectionExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_SubscriptExpr(Value v_this, Value *args, int32_t count) {
+static Value i_subscriptexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Index", alg_nil());
@@ -178,29 +178,29 @@ static Value i_SubscriptExpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_SubscriptExpr_Init_3_Expr_Expr_Token(Value v_this, Value *args, int32_t count) {
+static Value m_subscriptexpr_init_3_expr_expr_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Obj = args[0];
-    (void)v_Obj;
-    Value v_Index = args[1];
-    (void)v_Index;
-    Value v_Bracket = args[2];
-    (void)v_Bracket;
-    (void)(alg_set_property(v_this, "Obj", v_Obj));
-    (void)(alg_set_property(v_this, "Index", v_Index));
-    (void)(alg_set_property(v_this, "Bracket", v_Bracket));
+    Value v_obj = args[0];
+    (void)v_obj;
+    Value v_index = args[1];
+    (void)v_index;
+    Value v_bracket = args[2];
+    (void)v_bracket;
+    (void)(alg_set_property(v_this, "Obj", v_obj));
+    (void)(alg_set_property(v_this, "Index", v_index));
+    (void)(alg_set_property(v_this, "Bracket", v_bracket));
     return alg_nil();
 }
 
-static Value m_SubscriptExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_subscriptexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitSubscriptExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitSubscriptExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_SetSubscriptExpr(Value v_this, Value *args, int32_t count) {
+static Value i_setsubscriptexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Index", alg_nil());
@@ -209,128 +209,128 @@ static Value i_SetSubscriptExpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_SetSubscriptExpr_Init_4_Expr_Expr_Expr_Token(Value v_this, Value *args, int32_t count) {
+static Value m_setsubscriptexpr_init_4_expr_expr_expr_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Obj = args[0];
-    (void)v_Obj;
-    Value v_Index = args[1];
-    (void)v_Index;
-    Value v_Value = args[2];
-    (void)v_Value;
-    Value v_Bracket = args[3];
-    (void)v_Bracket;
-    (void)(alg_set_property(v_this, "Obj", v_Obj));
-    (void)(alg_set_property(v_this, "Index", v_Index));
-    (void)(alg_set_property(v_this, "Value", v_Value));
-    (void)(alg_set_property(v_this, "Bracket", v_Bracket));
+    Value v_obj = args[0];
+    (void)v_obj;
+    Value v_index = args[1];
+    (void)v_index;
+    Value v_value = args[2];
+    (void)v_value;
+    Value v_bracket = args[3];
+    (void)v_bracket;
+    (void)(alg_set_property(v_this, "Obj", v_obj));
+    (void)(alg_set_property(v_this, "Index", v_index));
+    (void)(alg_set_property(v_this, "Value", v_value));
+    (void)(alg_set_property(v_this, "Bracket", v_bracket));
     return alg_nil();
 }
 
-static Value m_SetSubscriptExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_setsubscriptexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitSetSubscriptExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitSetSubscriptExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_LiteralExpr(Value v_this, Value *args, int32_t count) {
+static Value i_literalexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Value", alg_nil());
     return alg_nil();
 }
 
-static Value m_LiteralExpr_Init_1_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_literalexpr_init_1_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Value = args[0];
-    (void)v_Value;
-    (void)(alg_set_property(v_this, "Value", v_Value));
+    Value v_value = args[0];
+    (void)v_value;
+    (void)(alg_set_property(v_this, "Value", v_value));
     return alg_nil();
 }
 
-static Value m_LiteralExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_literalexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitLiteral", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitLiteral", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_VariableExpr(Value v_this, Value *args, int32_t count) {
+static Value i_variableexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     return alg_nil();
 }
 
-static Value m_VariableExpr_Init_1_Token(Value v_this, Value *args, int32_t count) {
+static Value m_variableexpr_init_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    (void)(alg_set_property(v_this, "Name", v_Name));
+    Value v_name = args[0];
+    (void)v_name;
+    (void)(alg_set_property(v_this, "Name", v_name));
     return alg_nil();
 }
 
-static Value m_VariableExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_variableexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitVariableExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitVariableExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_AssignExpr(Value v_this, Value *args, int32_t count) {
+static Value i_assignexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
     return alg_nil();
 }
 
-static Value m_AssignExpr_Init_2_Token_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_assignexpr_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Value = args[1];
-    (void)v_Value;
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Value", v_Value));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_value = args[1];
+    (void)v_value;
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Value", v_value));
     return alg_nil();
 }
 
-static Value m_AssignExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_assignexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitAssignExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitAssignExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_UnaryExpr(Value v_this, Value *args, int32_t count) {
+static Value i_unaryexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Op", alg_nil());
     alg_set_property(v_this, "Right", alg_nil());
     return alg_nil();
 }
 
-static Value m_UnaryExpr_Init_2_Token_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_unaryexpr_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Op = args[0];
-    (void)v_Op;
-    Value v_Right = args[1];
-    (void)v_Right;
-    (void)(alg_set_property(v_this, "Op", v_Op));
-    (void)(alg_set_property(v_this, "Right", v_Right));
+    Value v_op = args[0];
+    (void)v_op;
+    Value v_right = args[1];
+    (void)v_right;
+    (void)(alg_set_property(v_this, "Op", v_op));
+    (void)(alg_set_property(v_this, "Right", v_right));
     return alg_nil();
 }
 
-static Value m_UnaryExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_unaryexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitUnary", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitUnary", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_CallExpr(Value v_this, Value *args, int32_t count) {
+static Value i_callexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Callee", alg_nil());
     alg_set_property(v_this, "Paren", alg_nil());
@@ -338,29 +338,29 @@ static Value i_CallExpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_CallExpr_Init_3_Expr_Token_List(Value v_this, Value *args, int32_t count) {
+static Value m_callexpr_init_3_expr_token_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Callee = args[0];
-    (void)v_Callee;
-    Value v_Paren = args[1];
-    (void)v_Paren;
-    Value v_Arguments = args[2];
-    (void)v_Arguments;
-    (void)(alg_set_property(v_this, "Callee", v_Callee));
-    (void)(alg_set_property(v_this, "Paren", v_Paren));
-    (void)(alg_set_property(v_this, "Arguments", v_Arguments));
+    Value v_callee = args[0];
+    (void)v_callee;
+    Value v_paren = args[1];
+    (void)v_paren;
+    Value v_arguments = args[2];
+    (void)v_arguments;
+    (void)(alg_set_property(v_this, "Callee", v_callee));
+    (void)(alg_set_property(v_this, "Paren", v_paren));
+    (void)(alg_set_property(v_this, "Arguments", v_arguments));
     return alg_nil();
 }
 
-static Value m_CallExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_callexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitCall", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitCall", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_GetExpr(Value v_this, Value *args, int32_t count) {
+static Value i_getexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Name", alg_nil());
@@ -368,26 +368,26 @@ static Value i_GetExpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_GetExpr_Init_2_Expr_Token(Value v_this, Value *args, int32_t count) {
+static Value m_getexpr_init_2_expr_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Obj = args[0];
-    (void)v_Obj;
-    Value v_Name = args[1];
-    (void)v_Name;
-    (void)(alg_set_property(v_this, "Obj", v_Obj));
-    (void)(alg_set_property(v_this, "Name", v_Name));
+    Value v_obj = args[0];
+    (void)v_obj;
+    Value v_name = args[1];
+    (void)v_name;
+    (void)(alg_set_property(v_this, "Obj", v_obj));
+    (void)(alg_set_property(v_this, "Name", v_name));
     return alg_nil();
 }
 
-static Value m_GetExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_getexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitGetExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitGetExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_SetExpr(Value v_this, Value *args, int32_t count) {
+static Value i_setexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Name", alg_nil());
@@ -396,206 +396,206 @@ static Value i_SetExpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_SetExpr_Init_3_Expr_Token_Expr(Value v_this, Value *args, int32_t count) {
+static Value m_setexpr_init_3_expr_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Obj = args[0];
-    (void)v_Obj;
-    Value v_Name = args[1];
-    (void)v_Name;
-    Value v_Value = args[2];
-    (void)v_Value;
-    (void)(alg_set_property(v_this, "Obj", v_Obj));
-    (void)(alg_set_property(v_this, "Name", v_Name));
-    (void)(alg_set_property(v_this, "Value", v_Value));
+    Value v_obj = args[0];
+    (void)v_obj;
+    Value v_name = args[1];
+    (void)v_name;
+    Value v_value = args[2];
+    (void)v_value;
+    (void)(alg_set_property(v_this, "Obj", v_obj));
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Value", v_value));
     return alg_nil();
 }
 
-static Value m_SetExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_setexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitSetExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitSetExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_ThisExpr(Value v_this, Value *args, int32_t count) {
+static Value i_thisexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Keyword", alg_nil());
     return alg_nil();
 }
 
-static Value m_ThisExpr_Init_1_Token(Value v_this, Value *args, int32_t count) {
+static Value m_thisexpr_init_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Keyword = args[0];
-    (void)v_Keyword;
-    (void)(alg_set_property(v_this, "Keyword", v_Keyword));
+    Value v_keyword = args[0];
+    (void)v_keyword;
+    (void)(alg_set_property(v_this, "Keyword", v_keyword));
     return alg_nil();
 }
 
-static Value m_ThisExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_thisexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitThisExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitThisExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_SuperExpr(Value v_this, Value *args, int32_t count) {
+static Value i_superexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Method", alg_nil());
     return alg_nil();
 }
 
-static Value m_SuperExpr_Init_2_Token_Token(Value v_this, Value *args, int32_t count) {
+static Value m_superexpr_init_2_token_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Keyword = args[0];
-    (void)v_Keyword;
-    Value v_Method = args[1];
-    (void)v_Method;
-    (void)(alg_set_property(v_this, "Keyword", v_Keyword));
-    (void)(alg_set_property(v_this, "Method", v_Method));
+    Value v_keyword = args[0];
+    (void)v_keyword;
+    Value v_method = args[1];
+    (void)v_method;
+    (void)(alg_set_property(v_this, "Keyword", v_keyword));
+    (void)(alg_set_property(v_this, "Method", v_method));
     return alg_nil();
 }
 
-static Value m_SuperExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_superexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitSuperExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitSuperExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
-static Value i_IsExpr(Value v_this, Value *args, int32_t count) {
+static Value i_isexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "TypeName", alg_nil());
     return alg_nil();
 }
 
-static Value m_IsExpr_Init_2_Expr_Token(Value v_this, Value *args, int32_t count) {
+static Value m_isexpr_init_2_expr_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Obj = args[0];
-    (void)v_Obj;
-    Value v_TypeName = args[1];
-    (void)v_TypeName;
-    (void)(alg_set_property(v_this, "Obj", v_Obj));
-    (void)(alg_set_property(v_this, "TypeName", v_TypeName));
+    Value v_obj = args[0];
+    (void)v_obj;
+    Value v_typename = args[1];
+    (void)v_typename;
+    (void)(alg_set_property(v_this, "Obj", v_obj));
+    (void)(alg_set_property(v_this, "TypeName", v_typename));
     return alg_nil();
 }
 
-static Value m_IsExpr_Accept_1(Value v_this, Value *args, int32_t count) {
+static Value m_isexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitIsExpr", (Value[]){v_this}, 1);
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitIsExpr", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
 void init_Expr(void) {
-    k_Expr = alg_class("Expr", alg_nil());
-    alg_class_field(k_Expr, "Cast");
-    alg_class_initializer(k_Expr, i_Expr);
-    k_BinaryExpr = alg_class("BinaryExpr", k_Expr);
-    alg_class_field(k_BinaryExpr, "Left");
-    alg_class_field(k_BinaryExpr, "Op");
-    alg_class_field(k_BinaryExpr, "Right");
-    alg_class_initializer(k_BinaryExpr, i_BinaryExpr);
-    alg_class_method(k_BinaryExpr, "Init", m_BinaryExpr_Init_3, 3, t_BinaryExpr_Init_3);
-    alg_class_method(k_BinaryExpr, "Accept", m_BinaryExpr_Accept_1, 1, t_BinaryExpr_Accept_1);
-    k_LogicalExpr = alg_class("LogicalExpr", k_Expr);
-    alg_class_field(k_LogicalExpr, "Left");
-    alg_class_field(k_LogicalExpr, "Op");
-    alg_class_field(k_LogicalExpr, "Right");
-    alg_class_initializer(k_LogicalExpr, i_LogicalExpr);
-    alg_class_method(k_LogicalExpr, "Init", m_LogicalExpr_Init_3, 3, t_LogicalExpr_Init_3);
-    alg_class_method(k_LogicalExpr, "Accept", m_LogicalExpr_Accept_1, 1, t_LogicalExpr_Accept_1);
-    k_GroupingExpr = alg_class("GroupingExpr", k_Expr);
-    alg_class_field(k_GroupingExpr, "Expression");
-    alg_class_initializer(k_GroupingExpr, i_GroupingExpr);
-    alg_class_method(k_GroupingExpr, "Init", m_GroupingExpr_Init_1_Expr, 1, t_GroupingExpr_Init_1_Expr);
-    alg_class_method(k_GroupingExpr, "Accept", m_GroupingExpr_Accept_1, 1, t_GroupingExpr_Accept_1);
-    k_CollectionExpr = alg_class("CollectionExpr", k_Expr);
-    alg_class_field(k_CollectionExpr, "IsMap");
-    alg_class_field(k_CollectionExpr, "Keys");
-    alg_class_field(k_CollectionExpr, "Values");
-    alg_class_initializer(k_CollectionExpr, i_CollectionExpr);
-    alg_class_method(k_CollectionExpr, "Init", m_CollectionExpr_Init_3_Boolean_List_List, 3, t_CollectionExpr_Init_3_Boolean_List_List);
-    alg_class_method(k_CollectionExpr, "Accept", m_CollectionExpr_Accept_1, 1, t_CollectionExpr_Accept_1);
-    k_SubscriptExpr = alg_class("SubscriptExpr", k_Expr);
-    alg_class_field(k_SubscriptExpr, "Obj");
-    alg_class_field(k_SubscriptExpr, "Index");
-    alg_class_field(k_SubscriptExpr, "Bracket");
-    alg_class_initializer(k_SubscriptExpr, i_SubscriptExpr);
-    alg_class_method(k_SubscriptExpr, "Init", m_SubscriptExpr_Init_3_Expr_Expr_Token, 3, t_SubscriptExpr_Init_3_Expr_Expr_Token);
-    alg_class_method(k_SubscriptExpr, "Accept", m_SubscriptExpr_Accept_1, 1, t_SubscriptExpr_Accept_1);
-    k_SetSubscriptExpr = alg_class("SetSubscriptExpr", k_Expr);
-    alg_class_field(k_SetSubscriptExpr, "Obj");
-    alg_class_field(k_SetSubscriptExpr, "Index");
-    alg_class_field(k_SetSubscriptExpr, "Value");
-    alg_class_field(k_SetSubscriptExpr, "Bracket");
-    alg_class_initializer(k_SetSubscriptExpr, i_SetSubscriptExpr);
-    alg_class_method(k_SetSubscriptExpr, "Init", m_SetSubscriptExpr_Init_4_Expr_Expr_Expr_Token, 4, t_SetSubscriptExpr_Init_4_Expr_Expr_Expr_Token);
-    alg_class_method(k_SetSubscriptExpr, "Accept", m_SetSubscriptExpr_Accept_1, 1, t_SetSubscriptExpr_Accept_1);
-    k_LiteralExpr = alg_class("LiteralExpr", k_Expr);
-    alg_class_field(k_LiteralExpr, "Value");
-    alg_class_initializer(k_LiteralExpr, i_LiteralExpr);
-    alg_class_method(k_LiteralExpr, "Init", m_LiteralExpr_Init_1_Expr, 1, t_LiteralExpr_Init_1_Expr);
-    alg_class_method(k_LiteralExpr, "Accept", m_LiteralExpr_Accept_1, 1, t_LiteralExpr_Accept_1);
-    k_VariableExpr = alg_class("VariableExpr", k_Expr);
-    alg_class_field(k_VariableExpr, "Name");
-    alg_class_initializer(k_VariableExpr, i_VariableExpr);
-    alg_class_method(k_VariableExpr, "Init", m_VariableExpr_Init_1_Token, 1, t_VariableExpr_Init_1_Token);
-    alg_class_method(k_VariableExpr, "Accept", m_VariableExpr_Accept_1, 1, t_VariableExpr_Accept_1);
-    k_AssignExpr = alg_class("AssignExpr", k_Expr);
-    alg_class_field(k_AssignExpr, "Name");
-    alg_class_field(k_AssignExpr, "Value");
-    alg_class_initializer(k_AssignExpr, i_AssignExpr);
-    alg_class_method(k_AssignExpr, "Init", m_AssignExpr_Init_2_Token_Expr, 2, t_AssignExpr_Init_2_Token_Expr);
-    alg_class_method(k_AssignExpr, "Accept", m_AssignExpr_Accept_1, 1, t_AssignExpr_Accept_1);
-    k_UnaryExpr = alg_class("UnaryExpr", k_Expr);
-    alg_class_field(k_UnaryExpr, "Op");
-    alg_class_field(k_UnaryExpr, "Right");
-    alg_class_initializer(k_UnaryExpr, i_UnaryExpr);
-    alg_class_method(k_UnaryExpr, "Init", m_UnaryExpr_Init_2_Token_Expr, 2, t_UnaryExpr_Init_2_Token_Expr);
-    alg_class_method(k_UnaryExpr, "Accept", m_UnaryExpr_Accept_1, 1, t_UnaryExpr_Accept_1);
-    k_CallExpr = alg_class("CallExpr", k_Expr);
-    alg_class_field(k_CallExpr, "Callee");
-    alg_class_field(k_CallExpr, "Paren");
-    alg_class_field(k_CallExpr, "Arguments");
-    alg_class_initializer(k_CallExpr, i_CallExpr);
-    alg_class_method(k_CallExpr, "Init", m_CallExpr_Init_3_Expr_Token_List, 3, t_CallExpr_Init_3_Expr_Token_List);
-    alg_class_method(k_CallExpr, "Accept", m_CallExpr_Accept_1, 1, t_CallExpr_Accept_1);
-    k_GetExpr = alg_class("GetExpr", k_Expr);
-    alg_class_field(k_GetExpr, "Obj");
-    alg_class_field(k_GetExpr, "Name");
-    alg_class_field(k_GetExpr, "Unit");
-    alg_class_initializer(k_GetExpr, i_GetExpr);
-    alg_class_method(k_GetExpr, "Init", m_GetExpr_Init_2_Expr_Token, 2, t_GetExpr_Init_2_Expr_Token);
-    alg_class_method(k_GetExpr, "Accept", m_GetExpr_Accept_1, 1, t_GetExpr_Accept_1);
-    k_SetExpr = alg_class("SetExpr", k_Expr);
-    alg_class_field(k_SetExpr, "Obj");
-    alg_class_field(k_SetExpr, "Name");
-    alg_class_field(k_SetExpr, "Value");
-    alg_class_field(k_SetExpr, "Unit");
-    alg_class_initializer(k_SetExpr, i_SetExpr);
-    alg_class_method(k_SetExpr, "Init", m_SetExpr_Init_3_Expr_Token_Expr, 3, t_SetExpr_Init_3_Expr_Token_Expr);
-    alg_class_method(k_SetExpr, "Accept", m_SetExpr_Accept_1, 1, t_SetExpr_Accept_1);
-    k_ThisExpr = alg_class("ThisExpr", k_Expr);
-    alg_class_field(k_ThisExpr, "Keyword");
-    alg_class_initializer(k_ThisExpr, i_ThisExpr);
-    alg_class_method(k_ThisExpr, "Init", m_ThisExpr_Init_1_Token, 1, t_ThisExpr_Init_1_Token);
-    alg_class_method(k_ThisExpr, "Accept", m_ThisExpr_Accept_1, 1, t_ThisExpr_Accept_1);
-    k_SuperExpr = alg_class("SuperExpr", k_Expr);
-    alg_class_field(k_SuperExpr, "Keyword");
-    alg_class_field(k_SuperExpr, "Method");
-    alg_class_initializer(k_SuperExpr, i_SuperExpr);
-    alg_class_method(k_SuperExpr, "Init", m_SuperExpr_Init_2_Token_Token, 2, t_SuperExpr_Init_2_Token_Token);
-    alg_class_method(k_SuperExpr, "Accept", m_SuperExpr_Accept_1, 1, t_SuperExpr_Accept_1);
-    k_IsExpr = alg_class("IsExpr", k_Expr);
-    alg_class_field(k_IsExpr, "Obj");
-    alg_class_field(k_IsExpr, "TypeName");
-    alg_class_initializer(k_IsExpr, i_IsExpr);
-    alg_class_method(k_IsExpr, "Init", m_IsExpr_Init_2_Expr_Token, 2, t_IsExpr_Init_2_Expr_Token);
-    alg_class_method(k_IsExpr, "Accept", m_IsExpr_Accept_1, 1, t_IsExpr_Accept_1);
+    k_expr = alg_class("Expr", alg_nil());
+    alg_class_field(k_expr, "Cast");
+    alg_class_initializer(k_expr, i_expr);
+    k_binaryexpr = alg_class("BinaryExpr", k_expr);
+    alg_class_field(k_binaryexpr, "Left");
+    alg_class_field(k_binaryexpr, "Op");
+    alg_class_field(k_binaryexpr, "Right");
+    alg_class_initializer(k_binaryexpr, i_binaryexpr);
+    alg_class_method(k_binaryexpr, "Init", m_binaryexpr_init_3, 3, t_binaryexpr_init_3);
+    alg_class_method(k_binaryexpr, "Accept", m_binaryexpr_accept_1, 1, t_binaryexpr_accept_1);
+    k_logicalexpr = alg_class("LogicalExpr", k_expr);
+    alg_class_field(k_logicalexpr, "Left");
+    alg_class_field(k_logicalexpr, "Op");
+    alg_class_field(k_logicalexpr, "Right");
+    alg_class_initializer(k_logicalexpr, i_logicalexpr);
+    alg_class_method(k_logicalexpr, "Init", m_logicalexpr_init_3, 3, t_logicalexpr_init_3);
+    alg_class_method(k_logicalexpr, "Accept", m_logicalexpr_accept_1, 1, t_logicalexpr_accept_1);
+    k_groupingexpr = alg_class("GroupingExpr", k_expr);
+    alg_class_field(k_groupingexpr, "Expression");
+    alg_class_initializer(k_groupingexpr, i_groupingexpr);
+    alg_class_method(k_groupingexpr, "Init", m_groupingexpr_init_1_expr, 1, t_groupingexpr_init_1_expr);
+    alg_class_method(k_groupingexpr, "Accept", m_groupingexpr_accept_1, 1, t_groupingexpr_accept_1);
+    k_collectionexpr = alg_class("CollectionExpr", k_expr);
+    alg_class_field(k_collectionexpr, "IsMap");
+    alg_class_field(k_collectionexpr, "Keys");
+    alg_class_field(k_collectionexpr, "Values");
+    alg_class_initializer(k_collectionexpr, i_collectionexpr);
+    alg_class_method(k_collectionexpr, "Init", m_collectionexpr_init_3_boolean_list_list, 3, t_collectionexpr_init_3_boolean_list_list);
+    alg_class_method(k_collectionexpr, "Accept", m_collectionexpr_accept_1, 1, t_collectionexpr_accept_1);
+    k_subscriptexpr = alg_class("SubscriptExpr", k_expr);
+    alg_class_field(k_subscriptexpr, "Obj");
+    alg_class_field(k_subscriptexpr, "Index");
+    alg_class_field(k_subscriptexpr, "Bracket");
+    alg_class_initializer(k_subscriptexpr, i_subscriptexpr);
+    alg_class_method(k_subscriptexpr, "Init", m_subscriptexpr_init_3_expr_expr_token, 3, t_subscriptexpr_init_3_expr_expr_token);
+    alg_class_method(k_subscriptexpr, "Accept", m_subscriptexpr_accept_1, 1, t_subscriptexpr_accept_1);
+    k_setsubscriptexpr = alg_class("SetSubscriptExpr", k_expr);
+    alg_class_field(k_setsubscriptexpr, "Obj");
+    alg_class_field(k_setsubscriptexpr, "Index");
+    alg_class_field(k_setsubscriptexpr, "Value");
+    alg_class_field(k_setsubscriptexpr, "Bracket");
+    alg_class_initializer(k_setsubscriptexpr, i_setsubscriptexpr);
+    alg_class_method(k_setsubscriptexpr, "Init", m_setsubscriptexpr_init_4_expr_expr_expr_token, 4, t_setsubscriptexpr_init_4_expr_expr_expr_token);
+    alg_class_method(k_setsubscriptexpr, "Accept", m_setsubscriptexpr_accept_1, 1, t_setsubscriptexpr_accept_1);
+    k_literalexpr = alg_class("LiteralExpr", k_expr);
+    alg_class_field(k_literalexpr, "Value");
+    alg_class_initializer(k_literalexpr, i_literalexpr);
+    alg_class_method(k_literalexpr, "Init", m_literalexpr_init_1_expr, 1, t_literalexpr_init_1_expr);
+    alg_class_method(k_literalexpr, "Accept", m_literalexpr_accept_1, 1, t_literalexpr_accept_1);
+    k_variableexpr = alg_class("VariableExpr", k_expr);
+    alg_class_field(k_variableexpr, "Name");
+    alg_class_initializer(k_variableexpr, i_variableexpr);
+    alg_class_method(k_variableexpr, "Init", m_variableexpr_init_1_token, 1, t_variableexpr_init_1_token);
+    alg_class_method(k_variableexpr, "Accept", m_variableexpr_accept_1, 1, t_variableexpr_accept_1);
+    k_assignexpr = alg_class("AssignExpr", k_expr);
+    alg_class_field(k_assignexpr, "Name");
+    alg_class_field(k_assignexpr, "Value");
+    alg_class_initializer(k_assignexpr, i_assignexpr);
+    alg_class_method(k_assignexpr, "Init", m_assignexpr_init_2_token_expr, 2, t_assignexpr_init_2_token_expr);
+    alg_class_method(k_assignexpr, "Accept", m_assignexpr_accept_1, 1, t_assignexpr_accept_1);
+    k_unaryexpr = alg_class("UnaryExpr", k_expr);
+    alg_class_field(k_unaryexpr, "Op");
+    alg_class_field(k_unaryexpr, "Right");
+    alg_class_initializer(k_unaryexpr, i_unaryexpr);
+    alg_class_method(k_unaryexpr, "Init", m_unaryexpr_init_2_token_expr, 2, t_unaryexpr_init_2_token_expr);
+    alg_class_method(k_unaryexpr, "Accept", m_unaryexpr_accept_1, 1, t_unaryexpr_accept_1);
+    k_callexpr = alg_class("CallExpr", k_expr);
+    alg_class_field(k_callexpr, "Callee");
+    alg_class_field(k_callexpr, "Paren");
+    alg_class_field(k_callexpr, "Arguments");
+    alg_class_initializer(k_callexpr, i_callexpr);
+    alg_class_method(k_callexpr, "Init", m_callexpr_init_3_expr_token_list, 3, t_callexpr_init_3_expr_token_list);
+    alg_class_method(k_callexpr, "Accept", m_callexpr_accept_1, 1, t_callexpr_accept_1);
+    k_getexpr = alg_class("GetExpr", k_expr);
+    alg_class_field(k_getexpr, "Obj");
+    alg_class_field(k_getexpr, "Name");
+    alg_class_field(k_getexpr, "Unit");
+    alg_class_initializer(k_getexpr, i_getexpr);
+    alg_class_method(k_getexpr, "Init", m_getexpr_init_2_expr_token, 2, t_getexpr_init_2_expr_token);
+    alg_class_method(k_getexpr, "Accept", m_getexpr_accept_1, 1, t_getexpr_accept_1);
+    k_setexpr = alg_class("SetExpr", k_expr);
+    alg_class_field(k_setexpr, "Obj");
+    alg_class_field(k_setexpr, "Name");
+    alg_class_field(k_setexpr, "Value");
+    alg_class_field(k_setexpr, "Unit");
+    alg_class_initializer(k_setexpr, i_setexpr);
+    alg_class_method(k_setexpr, "Init", m_setexpr_init_3_expr_token_expr, 3, t_setexpr_init_3_expr_token_expr);
+    alg_class_method(k_setexpr, "Accept", m_setexpr_accept_1, 1, t_setexpr_accept_1);
+    k_thisexpr = alg_class("ThisExpr", k_expr);
+    alg_class_field(k_thisexpr, "Keyword");
+    alg_class_initializer(k_thisexpr, i_thisexpr);
+    alg_class_method(k_thisexpr, "Init", m_thisexpr_init_1_token, 1, t_thisexpr_init_1_token);
+    alg_class_method(k_thisexpr, "Accept", m_thisexpr_accept_1, 1, t_thisexpr_accept_1);
+    k_superexpr = alg_class("SuperExpr", k_expr);
+    alg_class_field(k_superexpr, "Keyword");
+    alg_class_field(k_superexpr, "Method");
+    alg_class_initializer(k_superexpr, i_superexpr);
+    alg_class_method(k_superexpr, "Init", m_superexpr_init_2_token_token, 2, t_superexpr_init_2_token_token);
+    alg_class_method(k_superexpr, "Accept", m_superexpr_accept_1, 1, t_superexpr_accept_1);
+    k_isexpr = alg_class("IsExpr", k_expr);
+    alg_class_field(k_isexpr, "Obj");
+    alg_class_field(k_isexpr, "TypeName");
+    alg_class_initializer(k_isexpr, i_isexpr);
+    alg_class_method(k_isexpr, "Init", m_isexpr_init_2_expr_token, 2, t_isexpr_init_2_expr_token);
+    alg_class_method(k_isexpr, "Accept", m_isexpr_accept_1, 1, t_isexpr_accept_1);
 }

@@ -4,7 +4,7 @@
 
 #include "algol.h"
 
-extern Value k_AstPrinter;
+extern Value k_astprinter;
 void init_AstPrinter(void);
 
 #endif

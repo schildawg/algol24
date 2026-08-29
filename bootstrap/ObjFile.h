@@ -4,8 +4,8 @@
 
 #include "algol.h"
 
-extern Value k_FileMethod;
-extern Value k_ObjFile;
+extern Value k_filemethod;
+extern Value k_objfile;
 void init_ObjFile(void);
 
 #endif

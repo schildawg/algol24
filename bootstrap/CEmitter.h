@@ -4,13 +4,13 @@
 
 #include "algol.h"
 
-Value f_Indentation(Value **cells, Value *args, int32_t count);
-Value f_QuoteC(Value **cells, Value *args, int32_t count);
-extern Value v_HOIST_ABOVE;
-extern Value fn_Indentation;
-extern Value fn_QuoteC;
-extern Value k_EmitUnit;
-extern Value k_CEmitter;
+Value f_indentation(Value **cells, Value *args, int32_t count);
+Value f_quotec(Value **cells, Value *args, int32_t count);
+extern Value v_hoistVabove;
+extern Value fn_indentation;
+extern Value fn_quotec;
+extern Value k_emitunit;
+extern Value k_cemitter;
 void init_CEmitter(void);
 
 #endif

@@ -1,0 +1,48 @@
+// spec: SRC-005, SRC-011
+//
+// An identifier may hold ANY Unicode character, and the same program means the
+// same thing through both processors.  Annex G.3's mangling is what makes that
+// possible in C: a letter or digit lowercases, '?' becomes 'Q', '!' becomes
+// 'E', '_' becomes 'V', and anything else becomes 'U' and six hexadecimal
+// digits -- so '🙂' emits as 'U01F642' and nothing has to be excluded.
+
+var café  := 1;
+var Straße := 2;
+var 日本   := 4;
+var Ωμέγα := 8;
+WriteLn (café + Straße + 日本 + Ωμέγα);
+
+// ⚠️ An emoji may LEAD a name; only a digit and the marks may not [LEX-007].
+var 🙂 := 'happy';
+var 💩 := 'oops';
+WriteLn (🙂 + ' ' + 💩);
+
+// ⚠️ A Unicode DIGIT is an ordinary identifier character.  Only ASCII 0-9 are
+// digits to the number scanner, so this can never start a numeric literal.
+var ٠x := 16;
+WriteLn (٠x);
+
+// The marks, which are ASCII and trail only.
+var Gate?  := 32;
+var Gate!  := 64;
+var Ready_Set := 128;
+WriteLn (Gate? + Gate! + Ready_Set);
+
+// ⚠️ THE COLLISIONS THE OLD SCHEME GOT WRONG, which is what makes this case
+// worth having.  It wrote '?' as '_q' and passed letters through untouched, so
+// these two emitted ONE symbol between them and cc refused the result.  They
+// are 'readyQ' and 'readyVq' now.
+var Ready?  := 'from the mark';
+var Ready_q := 'from the letters';
+WriteLn (Ready? + ' / ' + Ready_q);
+
+// ⚠️ And the collision the NEW scheme has to avoid in turn: an identifier
+// spelled like an escape.  Lowercasing is what separates them -- 'u01f642'
+// against 'U01F642' -- which is why case-insensitivity [SRC-011] and the escape
+// space depend on each other.
+var U01F642 := 'spelled out';
+WriteLn (U01F642 + ' / ' + 🙂);
+
+// Folding is ASCII-only [SRC-011], so these stay two names.
+var STRASSE := 256;
+WriteLn (Straße + STRASSE);

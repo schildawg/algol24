@@ -2,63 +2,63 @@
 #include "Token.h"
 #include "TokenType.h"
 
-Value f_FoldCase(Value **cells, Value *args, int32_t count);
-Value v_FOLD_UPPER;
-Value v_FOLD_LOWER;
-Value fn_FoldCase;
-Value k_Token;
-static const char *t_Token_Init_4_TokenType_String_Integer[] = { "TokenType", "String", "Any", "Integer" };
+Value f_foldcase(Value **cells, Value *args, int32_t count);
+Value v_foldVupper;
+Value v_foldVlower;
+Value fn_foldcase;
+Value k_token;
+static const char *t_token_init_4_tokentype_string_integer[] = { "TokenType", "String", "Any", "Integer" };
 
-Value f_FoldCase(Value **cells, Value *args, int32_t count) {
+Value f_foldcase(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Text = alg_nil();
-    (void)v_Text;
-    Value v_Out = alg_nil();
-    (void)v_Out;
-    (void)((v_Text = alg_str(v_Name)));
-    Value v_Needs = alg_bool(false);
-    (void)v_Needs;
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_text = alg_nil();
+    (void)v_text;
+    Value v_out = alg_nil();
+    (void)v_out;
+    (void)((v_text = alg_str(v_name)));
+    Value v_needs = alg_bool(false);
+    (void)v_needs;
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_length(v_Text)))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
             {
-                if (alg_truthy(alg_greater_equal(alg_pos(v_FOLD_UPPER, alg_str(alg_subscript_get(v_Text, v_I))), alg_int(0)))) {
-                    (void)((v_Needs = alg_bool(true)));
+                if (alg_truthy(alg_greater_equal(alg_pos(v_foldVupper, alg_str(alg_subscript_get(v_text, v_i))), alg_int(0)))) {
+                    (void)((v_needs = alg_bool(true)));
                 }
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
-    if (alg_truthy(alg_not(v_Needs))) {
-        return v_Text;
+    if (alg_truthy(alg_not(v_needs))) {
+        return v_text;
     }
-    (void)((v_Out = alg_buffer(alg_int(0))));
+    (void)((v_out = alg_buffer(alg_int(0))));
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, alg_length(v_Text)))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
             {
                 {
-                    Value v_At = alg_pos(v_FOLD_UPPER, alg_str(alg_subscript_get(v_Text, v_I)));
-                    (void)v_At;
-                    if (alg_truthy(alg_greater_equal(v_At, alg_int(0)))) {
-                        (void)(alg_invoke(v_Out, "Append", (Value[]){alg_copy(v_FOLD_LOWER, v_At, alg_int(1))}, 1));
+                    Value v_at = alg_pos(v_foldVupper, alg_str(alg_subscript_get(v_text, v_i)));
+                    (void)v_at;
+                    if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
+                        (void)(alg_invoke(v_out, "Append", (Value[]){alg_copy(v_foldVlower, v_at, alg_int(1))}, 1));
                     } else {
-                        (void)(alg_invoke(v_Out, "Append", (Value[]){alg_str(alg_subscript_get(v_Text, v_I))}, 1));
+                        (void)(alg_invoke(v_out, "Append", (Value[]){alg_str(alg_subscript_get(v_text, v_i))}, 1));
                     }
                 }
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
-    return alg_property(v_Out, "Text");
+    return alg_property(v_out, "Text");
     return alg_nil();
 }
 
-static Value i_Token(Value v_this, Value *args, int32_t count) {
+static Value i_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "TypeOfToken", alg_nil());
     alg_set_property(v_this, "Lexeme", alg_nil());
@@ -68,40 +68,40 @@ static Value i_Token(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_Token_Init_4_TokenType_String_Integer(Value v_this, Value *args, int32_t count) {
+static Value m_token_init_4_tokentype_string_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_TypeOfToken = args[0];
-    (void)v_TypeOfToken;
-    Value v_Lexeme = args[1];
-    (void)v_Lexeme;
-    Value v_Literal = args[2];
-    (void)v_Literal;
-    Value v_LineNumber = args[3];
-    (void)v_LineNumber;
-    (void)(alg_set_property(v_this, "TypeOfToken", v_TypeOfToken));
-    (void)(alg_set_property(v_this, "Lexeme", v_Lexeme));
-    (void)(alg_set_property(v_this, "Literal", v_Literal));
-    (void)(alg_set_property(v_this, "LineNumber", v_LineNumber));
+    Value v_typeoftoken = args[0];
+    (void)v_typeoftoken;
+    Value v_lexeme = args[1];
+    (void)v_lexeme;
+    Value v_literal = args[2];
+    (void)v_literal;
+    Value v_linenumber = args[3];
+    (void)v_linenumber;
+    (void)(alg_set_property(v_this, "TypeOfToken", v_typeoftoken));
+    (void)(alg_set_property(v_this, "Lexeme", v_lexeme));
+    (void)(alg_set_property(v_this, "Literal", v_literal));
+    (void)(alg_set_property(v_this, "LineNumber", v_linenumber));
     return alg_nil();
 }
 
-static Value m_Token_ToString_0(Value v_this, Value *args, int32_t count) {
+static Value m_token_tostring_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_add(alg_add(alg_add(alg_add(alg_str(alg_property(v_this, "TypeOfToken")), alg_char_value(32)), alg_property(v_this, "Lexeme")), alg_char_value(32)), alg_property(v_this, "Literal"));
     return alg_nil();
 }
 
 void init_Token(void) {
-    fn_FoldCase = alg_closure("FoldCase", f_FoldCase, NULL, 0, 1);
-    k_Token = alg_class("Token", alg_nil());
-    alg_class_field(k_Token, "TypeOfToken");
-    alg_class_field(k_Token, "Lexeme");
-    alg_class_field(k_Token, "Literal");
-    alg_class_field(k_Token, "LineNumber");
-    alg_class_field(k_Token, "Offset");
-    alg_class_initializer(k_Token, i_Token);
-    alg_class_method(k_Token, "Init", m_Token_Init_4_TokenType_String_Integer, 4, t_Token_Init_4_TokenType_String_Integer);
-    alg_class_method(k_Token, "ToString", m_Token_ToString_0, 0, NULL);
-    v_FOLD_UPPER = alg_string("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-    v_FOLD_LOWER = alg_string("abcdefghijklmnopqrstuvwxyz");
+    fn_foldcase = alg_closure("FoldCase", f_foldcase, NULL, 0, 1);
+    k_token = alg_class("Token", alg_nil());
+    alg_class_field(k_token, "TypeOfToken");
+    alg_class_field(k_token, "Lexeme");
+    alg_class_field(k_token, "Literal");
+    alg_class_field(k_token, "LineNumber");
+    alg_class_field(k_token, "Offset");
+    alg_class_initializer(k_token, i_token);
+    alg_class_method(k_token, "Init", m_token_init_4_tokentype_string_integer, 4, t_token_init_4_tokentype_string_integer);
+    alg_class_method(k_token, "ToString", m_token_tostring_0, 0, NULL);
+    v_foldVupper = alg_string("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    v_foldVlower = alg_string("abcdefghijklmnopqrstuvwxyz");
 }

@@ -4,19 +4,19 @@
 
 #include "algol.h"
 
-Value f_ToLower(Value **cells, Value *args, int32_t count);
-Value f_ToInteger(Value **cells, Value *args, int32_t count);
-Value f_ExceedsInteger(Value **cells, Value *args, int32_t count);
-extern Value v_DIGITS;
-extern Value v_UPPERCASE;
-extern Value v_LOWERCASE;
-extern Value fn_ToLower;
-extern Value fn_ToInteger;
-extern Value fn_ExceedsInteger;
-extern Value v_Keywords;
-extern Value v_HadError;
-extern Value v_LastError;
-extern Value k_Scanner;
+Value f_tolower(Value **cells, Value *args, int32_t count);
+Value f_tointeger(Value **cells, Value *args, int32_t count);
+Value f_exceedsinteger(Value **cells, Value *args, int32_t count);
+extern Value v_digits;
+extern Value v_uppercase;
+extern Value v_lowercase;
+extern Value fn_tolower;
+extern Value fn_tointeger;
+extern Value fn_exceedsinteger;
+extern Value v_keywords;
+extern Value v_haderror;
+extern Value v_lasterror;
+extern Value k_scanner;
 void init_Scanner(void);
 
 #endif

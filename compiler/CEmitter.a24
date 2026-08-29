@@ -418,15 +418,19 @@ begin
     /// could otherwise collide with a C keyword or a runtime symbol.  Prefixing
     /// solves both at once.  A module's private names are renamed here too.
     ///
+    /// ⚠️ The unit suffix is joined with a RAW '__' after each half is escaped,
+    /// never by escaping 'Name__Unit' as one string.  '_' escapes to 'V', so
+    /// escaping the joined form would give 'nameVVunit' -- which an identifier
+    /// actually spelled 'NameVVUnit' also gives.  Escaping the halves keeps the
+    /// separator outside the alphabet the escape uses, which is what Annex G.3
+    /// reserves it for.
     function Mangle (Prefix : String, Name : String) : String;
-    var
-        Renamed : String;
-
     begin
-        Renamed := Str (Name);
-        if Renames.Contains (Renamed) then Renamed := Str (Renames.Get (Renamed));
+        if Renames.Contains (Str (Name)) then
+            Exit Prefix + Escaped (Str (Name)) + '__'
+               + Escaped (Str (Renames.Get (Str (Name))));
 
-        Exit SymbolOf (Prefix, Renamed);
+        Exit SymbolOf (Prefix, Str (Name));
     end
 
     /// ⚠️ EVERY C symbol built from a user-written name goes through here.
@@ -440,7 +444,7 @@ begin
     ///
     function SymbolOf (Prefix : String, Name : String) : String;
     begin
-        Exit Prefix + QuestionsOut (Name);
+        Exit Prefix + Escaped (Name);
     end
 
     /// ⚠️ ClassHandle and EnumTypeName go through Mangle, and InitName does
@@ -474,52 +478,80 @@ begin
     ///
     function EnumMemberName (TypeName : String, Member : String) : String;
     begin
-        var Renamed := Str (TypeName);
-        if Renames.Contains (Renamed) then Renamed := Str (Renames.Get (Renamed));
-
-        Exit SymbolOf ('e_', Renamed + '_' + Member);
+        Exit Mangle ('e_', TypeName) + '_' + Escaped (Member);
     end
 
-    /// '?' is an identifier character in Algol-24 and not in C, so 'Ready?'
-    /// becomes 'Ready_q'.
+    /// Six uppercase hexadecimal digits, for an escaped code point.
     ///
-    /// ⚠️ Not injective: a program declaring both 'Ready?' and 'Ready_q' in one
-    /// scope emits the same symbol twice.  That is a duplicate declaration, so
-    /// cc refuses it -- confusing, but never wrong code.  Making it injective
-    /// means escaping the escape ('_' -> '__'), which would rename every symbol
-    /// in every emitted file, since names like TOKEN_ and ANSI_ are everywhere.
-    ///
-    /// ⚠️ Anything else illegal in a C identifier is REFUSED rather than
-    /// emitted.  Nothing can reach it today -- the scanner admits only letters,
-    /// digits, '_' and '?' -- but this is the one place that would have to
-    /// learn about a new identifier character, and failing here beats a message
-    /// from cc about the emitter's own output.
-    ///
-    function QuestionsOut (Name : String) : String;
+    /// ⚠️ Fixed width, so an escape cannot run into whatever follows it.
+    function HexOf (Code : Integer) : String;
     var
         Result : String := '';
+        Left   : Integer;
 
     begin
-        for var I := 0; I < Length (Name); I := I + 1 do
-        begin
-            var C := Str (Name)[I];
+        Left := Code;
 
-            if C = '?' then Result := Result + '_q';
-            else if C = '_' or IsLetterOrDigit (C) then Result := Result + Str (C);
-            else Unsupported ('An identifier containing ''' + Str (C) + '''');
+        for var I := 0; I < 6; I := I + 1 do
+        begin
+            Result := Copy ('0123456789ABCDEF', Mod (Left, 16), 1) + Result;
+            Left := Left / 16;
         end
 
         Exit Result;
     end
 
-    /// The characters a C identifier may carry, apart from the underscore.
+    /// One Algol-24 name, escaped into C's character set -- Annex G.3.
     ///
-    function IsLetterOrDigit (C : Char) : Boolean;
+    /// | Source              | Emitted                        |
+    /// | any letter or digit | lowercased                     |
+    /// | '?'                 | 'Q'                            |
+    /// | '!'                 | 'E'                            |
+    /// | '_'                 | 'V'                            |
+    /// | anything else       | 'U' and six hexadecimal digits |
+    ///
+    /// ⚠️ THE LOWERCASING IS WHAT MAKES THE REST POSSIBLE, and the two decisions
+    /// depend on each other.  Identifiers are case-insensitive [SRC-011], so
+    /// case carries no information and lowering is lossless -- which frees the
+    /// whole uppercase range to mean 'escape'.  Neither half works alone.
+    ///
+    /// ⚠️ INJECTIVE, and the scheme it replaced was not.  That one passed
+    /// letters through untouched and wrote '?' as '_q', so 'Ready?' and
+    /// 'Ready_q' emitted one symbol between them and cc refused the result.
+    /// Here they are 'readyQ' and 'readyVq'.  The same argument is why an
+    /// identifier spelled 'U01F642' does not collide with the escape for '🙂':
+    /// the first lowers to 'u01f642', the second is 'U01F642'.
+    ///
+    /// ⚠️ '_' IS NOT PASSED THROUGH -- it becomes 'V' -- which is the whole
+    /// reason it is available as a separator between two escaped names.  A
+    /// caller joining parts must escape each part and put a raw '_' between
+    /// them, never escape a string that already contains a separator.
+    ///
+    function Escaped (Name : String) : String;
+    var
+        Result : Buffer;
+
     begin
-        Exit (C >= 'a' and C <= 'z') or (C >= 'A' and C <= 'Z')
-          or (C >= '0' and C <= '9');
+        Result := Buffer ();
+
+        for var I := 0; I < Length (Name); I := I + 1 do
+        begin
+            var C := Str (Name)[I];
+
+            if C >= 'a' and C <= 'z' then Result.Append (Str (C));
+            else if C >= '0' and C <= '9' then Result.Append (Str (C));
+            else if C >= 'A' and C <= 'Z' then Result.Append (Char (Ord (C) + 32));
+            else if C = '?' then Result.Append ('Q');
+            else if C = '!' then Result.Append ('E');
+            else if C = '_' then Result.Append ('V');
+            else Result.Append ('U' + HexOf (Ord (C)));
+        end
+
+        Exit Result.Text;
     end
 
+    /// The characters a C identifier may carry, apart from the underscore.
+    ///
     /// Every non-alphanumeric character becomes an underscore, so a quoted
     /// module name -- which may carry quotes and path separators -- can be used
     /// as part of a C identifier.
@@ -1760,14 +1792,14 @@ begin
         // 'm_Gate_Shut?_0', which cc rejects.  Found by the first program to
         // give a METHOD a name carrying one -- every earlier '?' was on a
         // function or a variable.
-        Symbol := SymbolOf ('m_', Owner + '_' + Str (TheMethod.Name.Lexeme))
+        Symbol := 'm_' + Escaped (Owner) + '_' + Escaped (Str (TheMethod.Name.Lexeme))
                 + '_' + Str (TheMethod.Params.Length);
 
         // ⚠️ The declared types too: a parameter may be declared 'Ready?'.
         var Types := DeclaredTypes (TheMethod);
         for var I := 0; I < Types.Length; I := I + 1 do
             if Types[I] <> 'Any' then
-                Symbol := Symbol + '_' + QuestionsOut (Str (Types[I]));
+                Symbol := Symbol + '_' + Escaped (Str (Types[I]));
 
         Exit Symbol;
     end

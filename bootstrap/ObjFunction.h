@@ -4,18 +4,18 @@
 
 #include "algol.h"
 
-Value f_TypeNameOf(Value **cells, Value *args, int32_t count);
-Value f_NameOfClass(Value **cells, Value *args, int32_t count);
-Value f_SameSignature(Value **cells, Value *args, int32_t count);
-Value f_Widens(Value **cells, Value *args, int32_t count);
-Value f_InheritsFrom(Value **cells, Value *args, int32_t count);
-extern Value fn_TypeNameOf;
-extern Value fn_NameOfClass;
-extern Value k_ObjOverloads;
-extern Value fn_SameSignature;
-extern Value fn_Widens;
-extern Value fn_InheritsFrom;
-extern Value k_ObjFunction;
+Value f_typenameof(Value **cells, Value *args, int32_t count);
+Value f_nameofclass(Value **cells, Value *args, int32_t count);
+Value f_samesignature(Value **cells, Value *args, int32_t count);
+Value f_widens(Value **cells, Value *args, int32_t count);
+Value f_inheritsfrom(Value **cells, Value *args, int32_t count);
+extern Value fn_typenameof;
+extern Value fn_nameofclass;
+extern Value k_objoverloads;
+extern Value fn_samesignature;
+extern Value fn_widens;
+extern Value fn_inheritsfrom;
+extern Value k_objfunction;
 void init_ObjFunction(void);
 
 #endif

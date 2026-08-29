@@ -4,9 +4,9 @@
 
 #include "algol.h"
 
-Value f_ReadWholeFile(Value **cells, Value *args, int32_t count);
-extern Value fn_ReadWholeFile;
-extern Value k_Parser;
+Value f_readwholefile(Value **cells, Value *args, int32_t count);
+extern Value fn_readwholefile;
+extern Value k_parser;
 void init_Parser(void);
 
 #endif

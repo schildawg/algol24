@@ -4,162 +4,162 @@
 #include "SourceCode.h"
 #include "Token.h"
 
-Value v_BAR;
-Value v_ESC;
-Value v_ANSI_RESET;
-Value v_ANSI_RED;
-Value v_ANSI_GREEN;
-Value v_ANSI_YELLOW;
-Value v_ANSI_BLUE;
-Value v_ANSI_CYAN;
-Value v_ANSI_WHITE;
-Value v_INFO_TAG;
-Value v_ERROR_TAG;
-Value k_Console;
-static const char *t_Console_Repeat_2_Char_Integer[] = { "Char", "Integer" };
-static const char *t_Console_Header_1_String[] = { "String" };
-static const char *t_Console_Subheader_1_String[] = { "String" };
-static const char *t_Console_Info_1_String[] = { "String" };
-static const char *t_Console_Success_1_String[] = { "String" };
-static const char *t_Console_Fail_1_String[] = { "String" };
-static const char *t_Console_Debug_1_String[] = { "String" };
-static const char *t_Console_Error_2_Token_String[] = { "Token", "String" };
+Value v_bar;
+Value v_esc;
+Value v_ansiVreset;
+Value v_ansiVred;
+Value v_ansiVgreen;
+Value v_ansiVyellow;
+Value v_ansiVblue;
+Value v_ansiVcyan;
+Value v_ansiVwhite;
+Value v_infoVtag;
+Value v_errorVtag;
+Value k_console;
+static const char *t_console_repeat_2_char_integer[] = { "Char", "Integer" };
+static const char *t_console_header_1_string[] = { "String" };
+static const char *t_console_subheader_1_string[] = { "String" };
+static const char *t_console_info_1_string[] = { "String" };
+static const char *t_console_success_1_string[] = { "String" };
+static const char *t_console_fail_1_string[] = { "String" };
+static const char *t_console_debug_1_string[] = { "String" };
+static const char *t_console_error_2_token_string[] = { "Token", "String" };
 
-static Value i_Console(Value v_this, Value *args, int32_t count) {
+static Value i_console(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Id", alg_string("Console"));
     return alg_nil();
 }
 
-static Value m_Console_Repeat_2_Char_Integer(Value v_this, Value *args, int32_t count) {
+static Value m_console_repeat_2_char_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_What = args[0];
-    (void)v_What;
-    Value v_Times = args[1];
-    (void)v_Times;
-    Value v_Result = alg_string("");
-    (void)v_Result;
+    Value v_what = args[0];
+    (void)v_what;
+    Value v_times = args[1];
+    (void)v_times;
+    Value v_result = alg_string("");
+    (void)v_result;
     {
-        Value v_I = alg_int(0);
-        (void)v_I;
-        while (alg_truthy(alg_less(v_I, v_Times))) {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, v_times))) {
             {
-                (void)((v_Result = alg_add(v_Result, v_What)));
-                (void)((v_I = alg_add(v_I, alg_int(1))));
+                (void)((v_result = alg_add(v_result, v_what)));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
-    return v_Result;
+    return v_result;
     return alg_nil();
 }
 
-static Value m_Console_Header_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_console_header_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Width = alg_nil();
-    (void)v_Width;
-    (void)((v_Width = alg_subtract(alg_subtract(alg_length(v_BAR), alg_int(4)), alg_length(v_Name))));
-    (void)((v_Width = alg_divide(v_Width, alg_int(2))));
-    if (alg_truthy(alg_less(v_Width, alg_int(0)))) {
-        (void)((v_Width = alg_int(0)));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_width = alg_nil();
+    (void)v_width;
+    (void)((v_width = alg_subtract(alg_subtract(alg_length(v_bar), alg_int(4)), alg_length(v_name))));
+    (void)((v_width = alg_divide(v_width, alg_int(2))));
+    if (alg_truthy(alg_less(v_width, alg_int(0)))) {
+        (void)((v_width = alg_int(0)));
     }
-    (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_Width}, 2), alg_string("[ ")), v_ANSI_CYAN), v_Name), v_ANSI_RESET), alg_string(" ]")), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_Width}, 2))}, 1));
+    (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_width}, 2), alg_string("[ ")), v_ansiVcyan), v_name), v_ansiVreset), alg_string(" ]")), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(45), v_width}, 2))}, 1));
     return alg_nil();
 }
 
-static Value m_Console_Subheader_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_console_subheader_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("< "), v_ANSI_CYAN), v_Name), v_ANSI_RESET), alg_string(" >"))}, 1));
+    Value v_name = args[0];
+    (void)v_name;
+    (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("< "), v_ansiVcyan), v_name), v_ansiVreset), alg_string(" >"))}, 1));
     return alg_nil();
 }
 
-static Value m_Console_Info_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_console_info_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Text = args[0];
-    (void)v_Text;
-    (void)(alg_writeln(alg_add(v_INFO_TAG, v_Text)));
+    Value v_text = args[0];
+    (void)v_text;
+    (void)(alg_writeln(alg_add(v_infoVtag, v_text)));
     return alg_nil();
 }
 
-static Value m_Console_Success_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_console_success_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Width = alg_nil();
-    (void)v_Width;
-    (void)((v_Width = alg_subtract(alg_subtract(alg_length(v_BAR), alg_int(10)), alg_length(v_Name))));
-    if (alg_truthy(alg_less(v_Width, alg_int(0)))) {
-        (void)((v_Width = alg_int(0)));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_width = alg_nil();
+    (void)v_width;
+    (void)((v_width = alg_subtract(alg_subtract(alg_length(v_bar), alg_int(10)), alg_length(v_name))));
+    if (alg_truthy(alg_less(v_width, alg_int(0)))) {
+        (void)((v_width = alg_int(0)));
     }
-    (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(v_Name, alg_char_value(32)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_Width}, 2)), v_ANSI_GREEN), alg_string(" SUCCESS")), v_ANSI_RESET)}, 1));
+    (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(v_name, alg_char_value(32)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_width}, 2)), v_ansiVgreen), alg_string(" SUCCESS")), v_ansiVreset)}, 1));
     return alg_nil();
 }
 
-static Value m_Console_Fail_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_console_fail_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Name = args[0];
-    (void)v_Name;
-    Value v_Width = alg_nil();
-    (void)v_Width;
-    (void)((v_Width = alg_subtract(alg_subtract(alg_length(v_BAR), alg_int(10)), alg_length(v_Name))));
-    if (alg_truthy(alg_less(v_Width, alg_int(0)))) {
-        (void)((v_Width = alg_int(0)));
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_width = alg_nil();
+    (void)v_width;
+    (void)((v_width = alg_subtract(alg_subtract(alg_length(v_bar), alg_int(10)), alg_length(v_name))));
+    if (alg_truthy(alg_less(v_width, alg_int(0)))) {
+        (void)((v_width = alg_int(0)));
     }
-    (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(v_Name, alg_char_value(32)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_Width}, 2)), v_ANSI_RED), alg_string(" FAILED")), v_ANSI_RESET)}, 1));
+    (void)(alg_invoke(v_this, "Info", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(v_name, alg_char_value(32)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(46), v_width}, 2)), v_ansiVred), alg_string(" FAILED")), v_ansiVreset)}, 1));
     return alg_nil();
 }
 
-static Value m_Console_Debug_1_String(Value v_this, Value *args, int32_t count) {
+static Value m_console_debug_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Text = args[0];
-    (void)v_Text;
-    (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_YELLOW), alg_string("DEBUG")), v_ANSI_WHITE), alg_string("] ")), v_ANSI_RESET), v_Text)));
+    Value v_text = args[0];
+    (void)v_text;
+    (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ansiVwhite, alg_char_value(91)), v_ansiVyellow), alg_string("DEBUG")), v_ansiVwhite), alg_string("] ")), v_ansiVreset), v_text)));
     return alg_nil();
 }
 
-static Value m_Console_Error_2_Token_String(Value v_this, Value *args, int32_t count) {
+static Value m_console_error_2_token_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    Value v_Where = args[0];
-    (void)v_Where;
-    Value v_Message = args[1];
-    (void)v_Message;
-    Value v_Text = alg_nil();
-    (void)v_Text;
-    Value v_Digits = alg_nil();
-    (void)v_Digits;
-    (void)((v_Text = alg_invoke(alg_singleton(k_SourceCode), "Get", (Value[]){alg_property(v_Where, "LineNumber")}, 1)));
-    (void)((v_Digits = alg_length(alg_str(alg_property(v_Where, "LineNumber")))));
-    (void)(alg_writeln(alg_add(alg_add(alg_add(v_ERROR_TAG, alg_invoke(alg_singleton(k_SourceCode), "Name", NULL, 0)), alg_string(": ")), v_Message)));
-    (void)(alg_writeln(alg_add(alg_add(alg_add(v_ERROR_TAG, alg_str(alg_property(v_Where, "LineNumber"))), alg_string(" | ")), v_Text)));
-    (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_RED), alg_string("ERROR")), v_ANSI_RESET), alg_string("] ")), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), v_Digits}, 2)), alg_string(" |")), v_ANSI_RED), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), alg_add(alg_property(v_Where, "Offset"), alg_int(1))}, 2)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(94), alg_length(alg_property(v_Where, "Lexeme"))}, 2)), v_ANSI_RESET)));
+    Value v_where = args[0];
+    (void)v_where;
+    Value v_message = args[1];
+    (void)v_message;
+    Value v_text = alg_nil();
+    (void)v_text;
+    Value v_digits = alg_nil();
+    (void)v_digits;
+    (void)((v_text = alg_invoke(alg_singleton(k_sourcecode), "Get", (Value[]){alg_property(v_where, "LineNumber")}, 1)));
+    (void)((v_digits = alg_length(alg_str(alg_property(v_where, "LineNumber")))));
+    (void)(alg_writeln(alg_add(alg_add(alg_add(v_errorVtag, alg_invoke(alg_singleton(k_sourcecode), "Name", NULL, 0)), alg_string(": ")), v_message)));
+    (void)(alg_writeln(alg_add(alg_add(alg_add(v_errorVtag, alg_str(alg_property(v_where, "LineNumber"))), alg_string(" | ")), v_text)));
+    (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ansiVwhite, alg_char_value(91)), v_ansiVred), alg_string("ERROR")), v_ansiVreset), alg_string("] ")), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), v_digits}, 2)), alg_string(" |")), v_ansiVred), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), alg_add(alg_property(v_where, "Offset"), alg_int(1))}, 2)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(94), alg_length(alg_property(v_where, "Lexeme"))}, 2)), v_ansiVreset)));
     return alg_nil();
 }
 
 void init_Console(void) {
-    k_Console = alg_class("Console", alg_nil());
-    alg_class_field(k_Console, "Id");
-    alg_class_initializer(k_Console, i_Console);
-    alg_class_method(k_Console, "Repeat", m_Console_Repeat_2_Char_Integer, 2, t_Console_Repeat_2_Char_Integer);
-    alg_class_method(k_Console, "Header", m_Console_Header_1_String, 1, t_Console_Header_1_String);
-    alg_class_method(k_Console, "Subheader", m_Console_Subheader_1_String, 1, t_Console_Subheader_1_String);
-    alg_class_method(k_Console, "Info", m_Console_Info_1_String, 1, t_Console_Info_1_String);
-    alg_class_method(k_Console, "Success", m_Console_Success_1_String, 1, t_Console_Success_1_String);
-    alg_class_method(k_Console, "Fail", m_Console_Fail_1_String, 1, t_Console_Fail_1_String);
-    alg_class_method(k_Console, "Debug", m_Console_Debug_1_String, 1, t_Console_Debug_1_String);
-    alg_class_method(k_Console, "Error", m_Console_Error_2_Token_String, 2, t_Console_Error_2_Token_String);
-    alg_class_is_object(k_Console);
-    v_BAR = alg_string("------------------------------------------------------------------------");
-    v_ESC = alg_char_value(27);
-    v_ANSI_RESET = alg_add(v_ESC, alg_string("[0m"));
-    v_ANSI_RED = alg_add(v_ESC, alg_string("[31m"));
-    v_ANSI_GREEN = alg_add(v_ESC, alg_string("[32m"));
-    v_ANSI_YELLOW = alg_add(v_ESC, alg_string("[33m"));
-    v_ANSI_BLUE = alg_add(v_ESC, alg_string("[34m"));
-    v_ANSI_CYAN = alg_add(v_ESC, alg_string("[36m"));
-    v_ANSI_WHITE = alg_add(v_ESC, alg_string("[37m"));
-    v_INFO_TAG = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_BLUE), alg_string("INFO")), v_ANSI_WHITE), alg_string("] ")), v_ANSI_RESET);
-    v_ERROR_TAG = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ANSI_WHITE, alg_char_value(91)), v_ANSI_RED), alg_string("ERROR")), v_ANSI_WHITE), alg_string("] ")), v_ANSI_RESET);
+    k_console = alg_class("Console", alg_nil());
+    alg_class_field(k_console, "Id");
+    alg_class_initializer(k_console, i_console);
+    alg_class_method(k_console, "Repeat", m_console_repeat_2_char_integer, 2, t_console_repeat_2_char_integer);
+    alg_class_method(k_console, "Header", m_console_header_1_string, 1, t_console_header_1_string);
+    alg_class_method(k_console, "Subheader", m_console_subheader_1_string, 1, t_console_subheader_1_string);
+    alg_class_method(k_console, "Info", m_console_info_1_string, 1, t_console_info_1_string);
+    alg_class_method(k_console, "Success", m_console_success_1_string, 1, t_console_success_1_string);
+    alg_class_method(k_console, "Fail", m_console_fail_1_string, 1, t_console_fail_1_string);
+    alg_class_method(k_console, "Debug", m_console_debug_1_string, 1, t_console_debug_1_string);
+    alg_class_method(k_console, "Error", m_console_error_2_token_string, 2, t_console_error_2_token_string);
+    alg_class_is_object(k_console);
+    v_bar = alg_string("------------------------------------------------------------------------");
+    v_esc = alg_char_value(27);
+    v_ansiVreset = alg_add(v_esc, alg_string("[0m"));
+    v_ansiVred = alg_add(v_esc, alg_string("[31m"));
+    v_ansiVgreen = alg_add(v_esc, alg_string("[32m"));
+    v_ansiVyellow = alg_add(v_esc, alg_string("[33m"));
+    v_ansiVblue = alg_add(v_esc, alg_string("[34m"));
+    v_ansiVcyan = alg_add(v_esc, alg_string("[36m"));
+    v_ansiVwhite = alg_add(v_esc, alg_string("[37m"));
+    v_infoVtag = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ansiVwhite, alg_char_value(91)), v_ansiVblue), alg_string("INFO")), v_ansiVwhite), alg_string("] ")), v_ansiVreset);
+    v_errorVtag = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_ansiVwhite, alg_char_value(91)), v_ansiVred), alg_string("ERROR")), v_ansiVwhite), alg_string("] ")), v_ansiVreset);
 }

@@ -4,8 +4,8 @@
 
 #include "algol.h"
 
-extern Value k_ObjInstance;
-extern Value k_ObjSingleton;
+extern Value k_objinstance;
+extern Value k_objsingleton;
 void init_ObjInstance(void);
 
 #endif

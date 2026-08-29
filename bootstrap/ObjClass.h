@@ -4,7 +4,7 @@
 
 #include "algol.h"
 
-extern Value k_ObjClass;
+extern Value k_objclass;
 void init_ObjClass(void);
 
 #endif
