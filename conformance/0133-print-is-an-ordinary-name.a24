@@ -1,0 +1,34 @@
+// spec: LEX-010, STM-022
+//
+// 'print' is not a keyword and there is no print statement.  The word is an
+// ordinary identifier, usable wherever any other name is.
+//
+// ⚠️ It used to be a thirty-eighth keyword with a statement of its own, neither
+// of which is part of this language, and 'var print := 7;' was refused with
+// 'Expect variable name.'
+//
+// ⚠️ It also bypassed the test runner's output suppression, which Write and
+// WriteLn respect -- so a compiled suite printed the sample program before its
+// first test while interpreted it printed nothing.  That went with it.
+
+var print := 7;
+WriteLn (print);
+
+print := print + 1;
+WriteLn (print);
+
+class Printer;
+var print : Integer;
+begin
+end
+
+var P := Printer ();
+P.print := 3;
+WriteLn (P.print);
+
+function Emit (print : String);
+begin
+    Exit 'got ' + print;
+end
+
+WriteLn (Emit ('it'));

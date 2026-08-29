@@ -2096,11 +2096,6 @@ begin
         CloseScope (Mark);
     end
 
-    procedure VisitPrintStmt (TheStmt : PrintStmt);
-    begin
-        Line ('alg_writeln(' + Evaluate (TheStmt.Expression) + ');');
-    end
-
     procedure VisitReturnStmt (TheStmt : ReturnStmt);
     var
         Value : String;

@@ -161,7 +161,6 @@ static const char *t_Interpreter_VisitRaiseStmt_1_RaiseStmt[] = { "RaiseStmt" };
 static const char *t_Interpreter_FindHandler_2_Map[] = { "Map", "Any" };
 static const char *t_Interpreter_Handle_3_TryStmt[] = { "TryStmt", "Any", "Any" };
 static const char *t_Interpreter_VisitTryStmt_1_TryStmt[] = { "TryStmt" };
-static const char *t_Interpreter_VisitPrintStmt_1_PrintStmt[] = { "PrintStmt" };
 static const char *t_Interpreter_VisitReturnStmt_1_ReturnStmt[] = { "ReturnStmt" };
 static const char *t_Interpreter_VisitVarStmt_1_VarStmt[] = { "VarStmt" };
 static const char *t_Interpreter_VisitVarGroupStmt_1_VarGroupStmt[] = { "VarGroupStmt" };
@@ -2657,17 +2656,6 @@ static Value m_Interpreter_VisitTryStmt_1_TryStmt(Value v_this, Value *args, int
     return alg_nil();
 }
 
-static Value m_Interpreter_VisitPrintStmt_1_PrintStmt(Value v_this, Value *args, int32_t count) {
-    (void)v_this; (void)args; (void)count;
-    Value v_Stmt = args[0];
-    (void)v_Stmt;
-    Value v_Value = alg_nil();
-    (void)v_Value;
-    (void)((v_Value = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_Stmt, "Expression")}, 1)));
-    (void)(alg_writeln(f_Stringify(NULL, (Value[]){v_this, v_Value}, 2)));
-    return alg_nil();
-}
-
 static Value m_Interpreter_VisitReturnStmt_1_ReturnStmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Stmt = args[0];
@@ -2989,7 +2977,6 @@ void init_Interpreter(void) {
     alg_class_method(k_Interpreter, "FindHandler", m_Interpreter_FindHandler_2_Map, 2, t_Interpreter_FindHandler_2_Map);
     alg_class_method(k_Interpreter, "Handle", m_Interpreter_Handle_3_TryStmt, 3, t_Interpreter_Handle_3_TryStmt);
     alg_class_method(k_Interpreter, "VisitTryStmt", m_Interpreter_VisitTryStmt_1_TryStmt, 1, t_Interpreter_VisitTryStmt_1_TryStmt);
-    alg_class_method(k_Interpreter, "VisitPrintStmt", m_Interpreter_VisitPrintStmt_1_PrintStmt, 1, t_Interpreter_VisitPrintStmt_1_PrintStmt);
     alg_class_method(k_Interpreter, "VisitReturnStmt", m_Interpreter_VisitReturnStmt_1_ReturnStmt, 1, t_Interpreter_VisitReturnStmt_1_ReturnStmt);
     alg_class_method(k_Interpreter, "VisitVarStmt", m_Interpreter_VisitVarStmt_1_VarStmt, 1, t_Interpreter_VisitVarStmt_1_VarStmt);
     alg_class_method(k_Interpreter, "VisitVarGroupStmt", m_Interpreter_VisitVarGroupStmt_1_VarGroupStmt, 1, t_Interpreter_VisitVarGroupStmt_1_VarGroupStmt);

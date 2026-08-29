@@ -5,24 +5,6 @@ class Stmt;
 begin
 end
 
-/// Print Statement!
-///
-class PrintStmt (Stmt);
-var
-    Expression : Expr;
-
-begin
-    constructor Init (Expression : Expr);
-    begin
-        this.Expression := Expression;
-    end
-
-    function Accept (Visitor);
-    begin
-       Exit Visitor.VisitPrintStmt(this);
-    end   
-end
-
 ///  Block Statement!
 ///
 class BlockStmt (Stmt);

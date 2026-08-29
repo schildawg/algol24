@@ -545,12 +545,6 @@ begin
             Exit;
         end
 
-        if Kind = 'PrintStmt' then
-        begin
-            Reduce (TheStmt.Expression);
-            Exit;
-        end
-
         if Kind = 'BlockStmt' then
         begin
             Lookup.BeginScope();
@@ -1206,7 +1200,7 @@ const HIDER :=
 
 test 'A Private Field Is Not Readable From Outside';
 begin
-    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); print C.Count; end'));
+    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); WriteLn (C.Count); end'));
 end
 
 test 'A Private Field Is Not Writable From Outside';
@@ -1230,18 +1224,18 @@ end
 /// the language's most common receiver out of reach of the rule.
 test 'A Private Member Is Caught Through A Declared Receiver';
 begin
-    AssertTrue (Rejects (HIDER + 'begin var C : Counter := Counter(); print C.Count; end'));
+    AssertTrue (Rejects (HIDER + 'begin var C : Counter := Counter(); WriteLn (C.Count); end'));
 end
 
 /// ⚠️ It is caught in EVERY statement kind, not only the ones that happen to
-/// resolve their expressions.  A 'print' that does nothing and a 'var' that
+/// resolve their expressions.  A 'WriteLn' that does nothing and a 'var' that
 /// reduces without resolving let a read slip past through either, while the
 /// same read one line later in a WriteLn was caught.
 test 'A Private Member Is Caught In Every Statement Kind';
 begin
     AssertTrue (Rejects (HIDER + 'begin var C := Counter(); var X := C.Count; end'));
     AssertTrue (Rejects (HIDER + 'begin var C := Counter(); WriteLn(C.Count); end'));
-    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); print C.Count + 1; end'));
+    AssertTrue (Rejects (HIDER + 'begin var C := Counter(); WriteLn (C.Count + 1); end'));
 end
 
 /// A private member belongs to the class that DECLARED it, not to one object
@@ -1301,7 +1295,7 @@ begin
         '        Exit Hidden;'                           + #10 +
         '    end'                                        + #10 +
         'end'                                            + #10 +
-        'begin print Blocks().Visible(); end'));
+        'begin WriteLn (Blocks().Visible()); end'));
 end
 
 /// A marker may stand between two fields of one var section.
@@ -1315,7 +1309,7 @@ begin
         '    Shut : String := ''s'';'                    + #10 +
         'begin'                                          + #10 +
         'end'                                            + #10 +
-        'begin var M := Mixed(); print M.Shut; end'));
+        'begin var M := Mixed(); WriteLn (M.Shut); end'));
 
     AssertTrue (not Rejects (
         'class Mixed;'                                   + #10 +
@@ -1325,7 +1319,7 @@ begin
         '    Shut : String := ''s'';'                    + #10 +
         'begin'                                          + #10 +
         'end'                                            + #10 +
-        'begin var M := Mixed(); print M.Open; end'));
+        'begin var M := Mixed(); WriteLn (M.Open); end'));
 end
 
 /// An object takes sections on the same terms as a class.
@@ -1337,14 +1331,14 @@ begin
         '    var Items : List := [];'                    + #10 +
         'begin'                                          + #10 +
         'end'                                            + #10 +
-        'begin print Registry.Items; end'));
+        'begin WriteLn (Registry.Items); end'));
 end
 
 /// ⚠️ The COLON is what separates this from the module-level 'private', which
 /// prefixes a single top-level declaration and has nothing to do with classes.
 test 'Module Private Is Not A Section Marker';
 begin
-    AssertTrue (not Rejects ('private var Hidden := 1;' + #10 + 'begin print Hidden; end'));
+    AssertTrue (not Rejects ('private var Hidden := 1;' + #10 + 'begin WriteLn (Hidden); end'));
 end
 
 // -------------------------------------------------------------- enum types

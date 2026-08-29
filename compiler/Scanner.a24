@@ -100,7 +100,6 @@ var  Keywords := [
     'function':TOKEN_FUNCTION, 'if':TOKEN_IF, 'in':TOKEN_IN, 'is':TOKEN_IS,
     'nil':TOKEN_NIL,
     'not':TOKEN_NOT, 'object':TOKEN_OBJECT, 'of':TOKEN_OF, 'or':TOKEN_OR,
-    'print':TOKEN_PRINT,
     'private':TOKEN_PRIVATE, 'procedure':TOKEN_PROCEDURE,
     'public':TOKEN_PUBLIC,
     'raise':TOKEN_RAISE, 'super':TOKEN_SUPER, 'uses':TOKEN_USES,
@@ -920,7 +919,7 @@ end
 test 'Scan Keywords';
 begin
     var Uut := Scanner('and begin class constructor do else end exit false for '
-                     + 'function if nil not or print procedure super then this '
+                     + 'function if nil not or procedure super then this '
                      + 'true var while');
 
     Uut.ScanTokens();
@@ -940,15 +939,14 @@ begin
     AssertEqual(TOKEN_NIL,         Uut.Tokens[12].TypeOfToken);
     AssertEqual(TOKEN_NOT,         Uut.Tokens[13].TypeOfToken);
     AssertEqual(TOKEN_OR,          Uut.Tokens[14].TypeOfToken);
-    AssertEqual(TOKEN_PRINT,       Uut.Tokens[15].TypeOfToken);
-    AssertEqual(TOKEN_PROCEDURE,   Uut.Tokens[16].TypeOfToken);
-    AssertEqual(TOKEN_SUPER,       Uut.Tokens[17].TypeOfToken);
-    AssertEqual(TOKEN_THEN,        Uut.Tokens[18].TypeOfToken);
-    AssertEqual(TOKEN_THIS,        Uut.Tokens[19].TypeOfToken);
-    AssertEqual(TOKEN_TRUE,        Uut.Tokens[20].TypeOfToken);
-    AssertEqual(TOKEN_VAR,         Uut.Tokens[21].TypeOfToken);
-    AssertEqual(TOKEN_WHILE,       Uut.Tokens[22].TypeOfToken);
-    AssertEqual(EOF,               Uut.Tokens[23].TypeOfToken);
+    AssertEqual(TOKEN_PROCEDURE,   Uut.Tokens[15].TypeOfToken);
+    AssertEqual(TOKEN_SUPER,       Uut.Tokens[16].TypeOfToken);
+    AssertEqual(TOKEN_THEN,        Uut.Tokens[17].TypeOfToken);
+    AssertEqual(TOKEN_THIS,        Uut.Tokens[18].TypeOfToken);
+    AssertEqual(TOKEN_TRUE,        Uut.Tokens[19].TypeOfToken);
+    AssertEqual(TOKEN_VAR,         Uut.Tokens[20].TypeOfToken);
+    AssertEqual(TOKEN_WHILE,       Uut.Tokens[21].TypeOfToken);
+    AssertEqual(EOF,               Uut.Tokens[22].TypeOfToken);
 end
 
 // Should report an error to Lox if an unexpected character is scanned.
@@ -985,11 +983,11 @@ begin
         'begin'                                     + #10 +
         '  function Greet(Name);'                   + #10 +
         '  begin'                                   + #10 +
-        '    print ''hi, '' + Name; // trailing'    + #10 +
+        '    WriteLn (''hi, '' + Name); // trailing' + #10 +
         '  end'                                     + #10 +
         'end'                                       + #13 + #10 +
         'var N := 3.5;'                             + #10 +
-        'if N >= 1 and N <> 2 then print not true;' + #10;
+        'if N >= 1 and N <> 2 then WriteLn (not true);' + #10;
 
     var Uut := Scanner(Source);
     Uut.ScanTokens();
@@ -1013,10 +1011,12 @@ begin
         '4:TOKEN_RIGHT_PAREN:)'      + #10 +
         '4:TOKEN_SEMICOLON:;'        + #10 +
         '5:TOKEN_BEGIN:begin'        + #10 +
-        '6:TOKEN_PRINT:print'        + #10 +
+        '6:TOKEN_IDENTIFIER:WriteLn' + #10 +
+        '6:TOKEN_LEFT_PAREN:('       + #10 +
         '6:TOKEN_STRING:''hi, '''    + #10 +
         '6:TOKEN_PLUS:+'             + #10 +
         '6:TOKEN_IDENTIFIER:Name'    + #10 +
+        '6:TOKEN_RIGHT_PAREN:)'      + #10 +
         '6:TOKEN_SEMICOLON:;'        + #10 +
         '7:TOKEN_END:end'            + #10 +
         '8:TOKEN_END:end'            + #10 +
@@ -1034,12 +1034,14 @@ begin
         '10:TOKEN_NOT_EQUAL:<>'      + #10 +
         '10:TOKEN_INTEGER:2'          + #10 +
         '10:TOKEN_THEN:then'         + #10 +
-        '10:TOKEN_PRINT:print'       + #10 +
+        '10:TOKEN_IDENTIFIER:WriteLn' + #10 +
+        '10:TOKEN_LEFT_PAREN:('      + #10 +
         '10:TOKEN_NOT:not'           + #10 +
         '10:TOKEN_TRUE:true'         + #10 +
+        '10:TOKEN_RIGHT_PAREN:)'     + #10 +
         '10:TOKEN_SEMICOLON:;'       + #10 +
         '11:EOF:'                    + #10;
 
-    AssertEqual(37, Uut.Tokens.Length);
+    AssertEqual(41, Uut.Tokens.Length);
     AssertEqual(Expected, Actual);
 end

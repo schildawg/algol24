@@ -4,9 +4,6 @@
 #include "Token.h"
 
 Value k_Stmt;
-Value k_PrintStmt;
-static const char *t_PrintStmt_Init_1_Expr[] = { "Expr" };
-static const char *t_PrintStmt_Accept_1[] = { "Any" };
 Value k_BlockStmt;
 static const char *t_BlockStmt_Init_1_List[] = { "List" };
 static const char *t_BlockStmt_Accept_1[] = { "Any" };
@@ -60,28 +57,6 @@ static const char *t_ClassStmt_Accept_1[] = { "Any" };
 
 static Value i_Stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    return alg_nil();
-}
-
-static Value i_PrintStmt(Value v_this, Value *args, int32_t count) {
-    (void)v_this; (void)args; (void)count;
-    alg_set_property(v_this, "Expression", alg_nil());
-    return alg_nil();
-}
-
-static Value m_PrintStmt_Init_1_Expr(Value v_this, Value *args, int32_t count) {
-    (void)v_this; (void)args; (void)count;
-    Value v_Expression = args[0];
-    (void)v_Expression;
-    (void)(alg_set_property(v_this, "Expression", v_Expression));
-    return alg_nil();
-}
-
-static Value m_PrintStmt_Accept_1(Value v_this, Value *args, int32_t count) {
-    (void)v_this; (void)args; (void)count;
-    Value v_Visitor = args[0];
-    (void)v_Visitor;
-    return alg_invoke(v_Visitor, "VisitPrintStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
@@ -554,11 +529,6 @@ static Value m_ClassStmt_Accept_1(Value v_this, Value *args, int32_t count) {
 void init_Stmt(void) {
     k_Stmt = alg_class("Stmt", alg_nil());
     alg_class_initializer(k_Stmt, i_Stmt);
-    k_PrintStmt = alg_class("PrintStmt", k_Stmt);
-    alg_class_field(k_PrintStmt, "Expression");
-    alg_class_initializer(k_PrintStmt, i_PrintStmt);
-    alg_class_method(k_PrintStmt, "Init", m_PrintStmt_Init_1_Expr, 1, t_PrintStmt_Init_1_Expr);
-    alg_class_method(k_PrintStmt, "Accept", m_PrintStmt_Accept_1, 1, t_PrintStmt_Accept_1);
     k_BlockStmt = alg_class("BlockStmt", k_Stmt);
     alg_class_field(k_BlockStmt, "Statements");
     alg_class_initializer(k_BlockStmt, i_BlockStmt);

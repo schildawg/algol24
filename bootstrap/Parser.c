@@ -264,9 +264,6 @@ static Value m_Parser_Statement_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_RAISE}, 1))) {
         return alg_invoke(v_this, "RaiseStatement", NULL, 0);
     }
-    if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_PRINT}, 1))) {
-        return alg_invoke(v_this, "PrintStatment", NULL, 0);
-    }
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_TokenType_TOKEN_BEGIN}, 1))) {
         return alg_new(k_BlockStmt, (Value[]){alg_invoke(v_this, "Block", NULL, 0)}, 1);
     }
@@ -452,16 +449,6 @@ static Value m_Parser_WhileStatement_0(Value v_this, Value *args, int32_t count)
     (void)((v_Body = alg_invoke(v_this, "BodyStatement", NULL, 0)));
     (void)(alg_set_property(v_this, "LoopDepth", alg_subtract(alg_property(v_this, "LoopDepth"), alg_int(1))));
     return alg_new(k_WhileStmt, (Value[]){v_Condition, v_Body}, 2);
-    return alg_nil();
-}
-
-static Value m_Parser_PrintStatment_0(Value v_this, Value *args, int32_t count) {
-    (void)v_this; (void)args; (void)count;
-    Value v_Value = alg_nil();
-    (void)v_Value;
-    (void)((v_Value = alg_invoke(v_this, "Expression", NULL, 0)));
-    (void)(alg_invoke(v_this, "Consume", (Value[]){e_TokenType_TOKEN_SEMICOLON, alg_string("Expect ';' after value.")}, 2));
-    return alg_new(k_PrintStmt, (Value[]){v_Value}, 1);
     return alg_nil();
 }
 
@@ -1765,7 +1752,6 @@ void init_Parser(void) {
     alg_class_method(k_Parser, "IfStatement", m_Parser_IfStatement_0, 0, NULL);
     alg_class_method(k_Parser, "ForStatement", m_Parser_ForStatement_0, 0, NULL);
     alg_class_method(k_Parser, "WhileStatement", m_Parser_WhileStatement_0, 0, NULL);
-    alg_class_method(k_Parser, "PrintStatment", m_Parser_PrintStatment_0, 0, NULL);
     alg_class_method(k_Parser, "ReturnStatement", m_Parser_ReturnStatement_0, 0, NULL);
     alg_class_method(k_Parser, "RecordPrivate", m_Parser_RecordPrivate_1, 1, t_Parser_RecordPrivate_1);
     alg_class_method(k_Parser, "DirectoryOf", m_Parser_DirectoryOf_1_String, 1, t_Parser_DirectoryOf_1_String);

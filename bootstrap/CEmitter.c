@@ -129,7 +129,6 @@ static const char *t_CEmitter_VisitExpressionStmt_1_ExpressionStmt[] = { "Expres
 static const char *t_CEmitter_VisitBlockStmt_1_BlockStmt[] = { "BlockStmt" };
 static const char *t_CEmitter_VisitIfStmt_1_IfStmt[] = { "IfStmt" };
 static const char *t_CEmitter_VisitWhileStmt_1_WhileStmt[] = { "WhileStmt" };
-static const char *t_CEmitter_VisitPrintStmt_1_PrintStmt[] = { "PrintStmt" };
 static const char *t_CEmitter_VisitReturnStmt_1_ReturnStmt[] = { "ReturnStmt" };
 static const char *t_CEmitter_VisitFunctionStmt_1_FunctionStmt[] = { "FunctionStmt" };
 static const char *t_CEmitter_VisitLiteral_1_LiteralExpr[] = { "LiteralExpr" };
@@ -2442,14 +2441,6 @@ static Value m_CEmitter_VisitWhileStmt_1_WhileStmt(Value v_this, Value *args, in
     return alg_nil();
 }
 
-static Value m_CEmitter_VisitPrintStmt_1_PrintStmt(Value v_this, Value *args, int32_t count) {
-    (void)v_this; (void)args; (void)count;
-    Value v_TheStmt = args[0];
-    (void)v_TheStmt;
-    (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_string("alg_writeln("), alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheStmt, "Expression")}, 1)), alg_string(");"))}, 1));
-    return alg_nil();
-}
-
 static Value m_CEmitter_VisitReturnStmt_1_ReturnStmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_TheStmt = args[0];
@@ -3861,7 +3852,6 @@ void init_CEmitter(void) {
     alg_class_method(k_CEmitter, "VisitBlockStmt", m_CEmitter_VisitBlockStmt_1_BlockStmt, 1, t_CEmitter_VisitBlockStmt_1_BlockStmt);
     alg_class_method(k_CEmitter, "VisitIfStmt", m_CEmitter_VisitIfStmt_1_IfStmt, 1, t_CEmitter_VisitIfStmt_1_IfStmt);
     alg_class_method(k_CEmitter, "VisitWhileStmt", m_CEmitter_VisitWhileStmt_1_WhileStmt, 1, t_CEmitter_VisitWhileStmt_1_WhileStmt);
-    alg_class_method(k_CEmitter, "VisitPrintStmt", m_CEmitter_VisitPrintStmt_1_PrintStmt, 1, t_CEmitter_VisitPrintStmt_1_PrintStmt);
     alg_class_method(k_CEmitter, "VisitReturnStmt", m_CEmitter_VisitReturnStmt_1_ReturnStmt, 1, t_CEmitter_VisitReturnStmt_1_ReturnStmt);
     alg_class_method(k_CEmitter, "VisitFunctionStmt", m_CEmitter_VisitFunctionStmt_1_FunctionStmt, 1, t_CEmitter_VisitFunctionStmt_1_FunctionStmt);
     alg_class_method(k_CEmitter, "VisitLiteral", m_CEmitter_VisitLiteral_1_LiteralExpr, 1, t_CEmitter_VisitLiteral_1_LiteralExpr);

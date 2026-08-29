@@ -48,7 +48,6 @@ extern Value e_TokenType_TOKEN_IS;
 extern Value e_TokenType_TOKEN_NIL;
 extern Value e_TokenType_TOKEN_NOT;
 extern Value e_TokenType_TOKEN_OR;
-extern Value e_TokenType_TOKEN_PRINT;
 extern Value e_TokenType_TOKEN_SUPER;
 extern Value e_TokenType_TOKEN_THEN;
 extern Value e_TokenType_TOKEN_THIS;

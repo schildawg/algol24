@@ -5,7 +5,6 @@
 #include "algol.h"
 
 extern Value k_Stmt;
-extern Value k_PrintStmt;
 extern Value k_BlockStmt;
 extern Value k_ExpressionStmt;
 extern Value k_VarStmt;

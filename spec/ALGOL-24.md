@@ -452,19 +452,13 @@ this    true     try     type    uses    var       while
 No other word is a keyword. Every word not in this list is an identifier and
 may be declared as a name.
 
-⚠️ **NOT YET IMPLEMENTED.** The implementation registers one further word:
-
-```
-print
-```
-
-`print` is a keyword there, and it introduces a statement [STM-022]. Neither is
-part of the language; `var print := 7;` must be a declaration and is refused.
-See DEF-04.
+⚠️ `print` used to be registered as a thirty-eighth, introducing a statement
+[STM-022]. Neither was part of the language, and `var print := 7;` was refused
+with `Expect variable name.`
 
     interpreter  compiler/Scanner.a24  Keywords
     unit         Scan Keywords
-    defect       DEF-04-print-is-a-keyword.a24
+    conformance  0133-print-is-an-ordinary-name.a24
 
 **[LEX-011]**  `unit`, `test` and `on` are **not** keywords. They are ordinary
 identifiers that the grammar recognises by position — `unit` opening a file,
@@ -1968,13 +1962,18 @@ is caught by `on e : String` with `e` equal to `Division by zero.`
 **[STM-022]**  There is no print statement. `WriteLn` [RT-015] writes a value
 and a newline, and it is an ordinary built-in rather than syntax.
 
-⚠️ **NOT YET IMPLEMENTED.** The implementation has a `print E` statement, and
-`print` is a keyword there [LEX-010], so the word cannot be used as a name.
-See DEF-04.
+⚠️ The statement existed, and `print` was a keyword for it [LEX-010], so the
+word could not be used as a name.
 
-    interpreter  compiler/Interpreter.a24  VisitPrintStmt
-    unit         Execute Print Statement
-    defect       DEF-04-print-is-a-keyword.a24
+⚠️ **It also bypassed the test runner's output suppression**, which `Write` and
+`WriteLn` respect — so a compiled suite printed the sample program before its
+first test while interpreted it printed nothing. That behaviour went with the
+statement, and nothing replaces it: output during a test run is suppressed for
+every built-in alike.
+
+    interpreter  compiler/Parser.a24  Statement
+    conformance  0133-print-is-an-ordinary-name.a24
+    refusal      0039-print-is-not-a-statement.a24
 
 > This rule is stated in chapter 10 rather than being deleted, because a rule
 > ID is permanent: [STM-022] has been cited, and a reader who follows the
@@ -4643,25 +4642,6 @@ program in `defects/` that reproduces it.
 behaviour and passes while that behaviour persists. It turns **red when the
 defect stops reproducing**, because a fix is as much a change to be noticed as a
 regression — and a suite that is permanently red is a suite nobody reads.
-
-**DEF-04 — `print` is a keyword and a statement.**
-*(violates [LEX-010], [STM-022])*
-
-The scanner registers `print` as a thirty-eighth keyword and the parser has a
-`print E` statement. Neither is part of the language, and the word cannot be
-used as a name: `var print := 7;` is refused with `Expect variable name.`
-
-*Reproduce:* `defects/DEF-04-print-is-a-keyword.a24`
-
-*Scope of the fix.* Remove the entry from `Keywords`, `TOKEN_PRINT` from
-`TokenType.a24`, the statement from the parser, `VisitPrintStmt` from the
-interpreter and the resolver, and its case from the emitter. ⚠️ The compiler's
-own sources must not use it first.
-
-⚠️ **One of them does.** `compiler/Main.a24`'s `SAMPLE` — the program `algc` runs
-when given no arguments — is written with `print`, so it stops working the
-moment the statement is removed. It must be rewritten to use `WriteLn` as part
-of this fix, not after it.
 
 **DEF-05 — Integer overflow is silent.**
 *(violates [LEX-018], [LEX-033])*

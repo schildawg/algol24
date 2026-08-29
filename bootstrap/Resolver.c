@@ -34,7 +34,6 @@ static const char *t_Resolver_VisitModuleStmt_1_ModuleStmt[] = { "ModuleStmt" };
 static const char *t_Resolver_VisitForInStmt_1_ForInStmt[] = { "ForInStmt" };
 static const char *t_Resolver_VisitBreakStmt_1_BreakStmt[] = { "BreakStmt" };
 static const char *t_Resolver_VisitRaiseStmt_1_RaiseStmt[] = { "RaiseStmt" };
-static const char *t_Resolver_VisitPrintStmt_1_PrintStmt[] = { "PrintStmt" };
 static const char *t_Resolver_VisitReturnStmt_1_ReturnStmt[] = { "ReturnStmt" };
 static const char *t_Resolver_VisitWhileStmt_1_WhileStmt[] = { "WhileStmt" };
 static const char *t_Resolver_VisitFunctionStmt_1_FunctionStmt[] = { "FunctionStmt" };
@@ -354,14 +353,6 @@ static Value m_Resolver_VisitRaiseStmt_1_RaiseStmt(Value v_this, Value *args, in
     Value v_Stmt = args[0];
     (void)v_Stmt;
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_Stmt, "Value")}, 1));
-    return alg_nil();
-}
-
-static Value m_Resolver_VisitPrintStmt_1_PrintStmt(Value v_this, Value *args, int32_t count) {
-    (void)v_this; (void)args; (void)count;
-    Value v_Stmt = args[0];
-    (void)v_Stmt;
-    (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_Stmt, "Expression")}, 1));
     return alg_nil();
 }
 
@@ -982,7 +973,6 @@ void init_Resolver(void) {
     alg_class_method(k_Resolver, "VisitForInStmt", m_Resolver_VisitForInStmt_1_ForInStmt, 1, t_Resolver_VisitForInStmt_1_ForInStmt);
     alg_class_method(k_Resolver, "VisitBreakStmt", m_Resolver_VisitBreakStmt_1_BreakStmt, 1, t_Resolver_VisitBreakStmt_1_BreakStmt);
     alg_class_method(k_Resolver, "VisitRaiseStmt", m_Resolver_VisitRaiseStmt_1_RaiseStmt, 1, t_Resolver_VisitRaiseStmt_1_RaiseStmt);
-    alg_class_method(k_Resolver, "VisitPrintStmt", m_Resolver_VisitPrintStmt_1_PrintStmt, 1, t_Resolver_VisitPrintStmt_1_PrintStmt);
     alg_class_method(k_Resolver, "VisitReturnStmt", m_Resolver_VisitReturnStmt_1_ReturnStmt, 1, t_Resolver_VisitReturnStmt_1_ReturnStmt);
     alg_class_method(k_Resolver, "VisitWhileStmt", m_Resolver_VisitWhileStmt_1_WhileStmt, 1, t_Resolver_VisitWhileStmt_1_WhileStmt);
     alg_class_method(k_Resolver, "VisitFunctionStmt", m_Resolver_VisitFunctionStmt_1_FunctionStmt, 1, t_Resolver_VisitFunctionStmt_1_FunctionStmt);

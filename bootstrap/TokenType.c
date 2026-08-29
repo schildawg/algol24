@@ -45,7 +45,6 @@ Value e_TokenType_TOKEN_IS;
 Value e_TokenType_TOKEN_NIL;
 Value e_TokenType_TOKEN_NOT;
 Value e_TokenType_TOKEN_OR;
-Value e_TokenType_TOKEN_PRINT;
 Value e_TokenType_TOKEN_SUPER;
 Value e_TokenType_TOKEN_THEN;
 Value e_TokenType_TOKEN_THIS;
@@ -111,7 +110,6 @@ void init_TokenType(void) {
     e_TokenType_TOKEN_NIL = alg_enum_member(e_TokenType, "TOKEN_NIL");
     e_TokenType_TOKEN_NOT = alg_enum_member(e_TokenType, "TOKEN_NOT");
     e_TokenType_TOKEN_OR = alg_enum_member(e_TokenType, "TOKEN_OR");
-    e_TokenType_TOKEN_PRINT = alg_enum_member(e_TokenType, "TOKEN_PRINT");
     e_TokenType_TOKEN_SUPER = alg_enum_member(e_TokenType, "TOKEN_SUPER");
     e_TokenType_TOKEN_THEN = alg_enum_member(e_TokenType, "TOKEN_THEN");
     e_TokenType_TOKEN_THIS = alg_enum_member(e_TokenType, "TOKEN_THIS");

@@ -315,11 +315,6 @@ begin
         Resolve (Stmt.Value);
     end
 
-    procedure VisitPrintStmt (Stmt : PrintStmt);
-    begin
-        Resolve (Stmt.Expression);
-    end
-
     /// Runs a return statement
     ///
     /// # Errors
@@ -830,7 +825,7 @@ end
 //
 test 'Resolve Same Level';
 begin
-    var TheScanner := Scanner ('var test := true; print test;');
+    var TheScanner := Scanner ('var test := true; test;');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
     var TheResolver := Resolver(TheInterpreter);
@@ -848,7 +843,7 @@ end
 //
 test 'Resolve Same Level Two Deep';
 begin
-    var TheScanner := Scanner (' begin var test := true; print test; end');
+    var TheScanner := Scanner (' begin var test := true; test; end');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
     var TheResolver := Resolver(TheInterpreter);
@@ -868,7 +863,7 @@ end
 //
 test 'Resolve One Hop';
 begin
-    var TheScanner := Scanner (' begin var test := true; begin print test; end end');
+    var TheScanner := Scanner (' begin var test := true; begin test; end end');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
     var TheResolver := Resolver(TheInterpreter);
@@ -885,7 +880,7 @@ end
 //
 test 'Resolve Two Hops';
 begin
-    var TheScanner := Scanner (' begin var test := true; begin begin print test; end end end');
+    var TheScanner := Scanner (' begin var test := true; begin begin test; end end end');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
     var TheResolver := Resolver(TheInterpreter);

@@ -37,7 +37,7 @@ const SAMPLE :=
     'begin'                                                             + #10 +
     '    procedure Cook();'                                             + #10 +
     '    begin'                                                         + #10 +
-    '        print ''Fry until golden!'';'                              + #10 +
+    '        WriteLn (''Fry until golden!'');'                         + #10 +
     '    end'                                                           + #10 +
     'end'                                                               + #10 +
     ''                                                                  + #10 +
@@ -46,7 +46,7 @@ const SAMPLE :=
     '    procedure Cook();'                                             + #10 +
     '    begin'                                                         + #10 +
     '        super.Cook();'                                             + #10 +
-    '        print ''Pipe full of custard and coat with chocolate!'';'  + #10 +
+    '        WriteLn (''Pipe full of custard and coat with chocolate!'');' + #10 +
     '    end'                                                           + #10 +
     'end'                                                               + #10 +
     ''                                                                  + #10 +

@@ -234,7 +234,6 @@ begin
         if Match (TOKEN_TRY) then Exit TryStatement();
         if Match (TOKEN_BREAK) then Exit BreakStatement();
         if Match (TOKEN_RAISE) then Exit RaiseStatement();
-        if Match (TOKEN_PRINT) then Exit PrintStatment();
         if Match (TOKEN_BEGIN) then Exit BlockStmt (Block());
 
         Exit ExpressionStatement ();
@@ -250,10 +249,10 @@ begin
     // Parses a case statement, desugaring it into an if/else-if chain.
     //
     //     case X of
-    //         1:    print 'one';
-    //         2, 3: print 'two or three';
+    //         1:    'one';
+    //         2, 3: 'two or three';
     //     else
-    //         print 'other';
+    //         'other';
     //     end
     //
     // becomes 'if X = 1 then ... else if X = 2 or X = 3 then ... else ...', so
@@ -491,23 +490,12 @@ begin
         Exit WhileStmt (Condition, Body);
     end
 
-    /// Parses a print statement
+    /// Parses a statement
     /// 
     /// # Errors
     ///
     /// Raises an error if no semicolon after value.
-    ///
-    function PrintStatment () : Stmt;
-    var
-        Value : Expr;
-    
-    begin
-        Value := Expression();
-        Consume (TOKEN_SEMICOLON, 'Expect '';'' after value.');
-        
-        Exit PrintStmt (Value);
-    end
- 
+    /// 
     /// Parses a return statement.
     ///
     ///
@@ -2261,35 +2249,33 @@ begin
     AssertEqual(TOKEN_LESS_EQUAL, Result.Op.TypeOfToken);
 end
 
-// Tests parsing a print statement.
+// ⚠️ 'print' is an ORDINARY NAME, and these two tests replace a pair that
+// asserted it was a statement.  It was a thirty-eighth keyword with a statement
+// of its own, and neither is part of this language: 'var print := 7;' was
+// refused with 'Expect variable name.' [LEX-010, STM-022].
 //
-test 'Parse Print Statement';
+test 'Parse Print Is An Ordinary Name';
 begin
-    var TheScanner := Scanner ('print 123;');
+    var TheScanner := Scanner ('var print := 7;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     var Result := TheParser.Statement();
 
-    AssertEqual('PrintStmt', Result.ClassName);
+    AssertEqual('VarStmt', Result.ClassName);
+    AssertEqual('print', Result.Name.Lexeme);
 end
 
-// Print statement should end with a semicolon.
+// And usable as one, not merely declarable.
 //
-test 'Parse Print Expect Semicolon';
+test 'Parse Print Is Callable As A Name';
 begin
-    var TheScanner := Scanner ('print 123');
+    var TheScanner := Scanner ('print (123);');
     var TheParser := Parser (TheScanner.ScanTokens());
 
-    try
-        TheParser.Statement();
-    except
-        on e : String do
-            begin
-                AssertEqual('Expect '';'' after value.', e);
-                Exit;
-            end
-    end
-    Fail('No exception raised.');
+    var Result := TheParser.Statement();
+
+    AssertEqual('ExpressionStmt', Result.ClassName);
+    AssertEqual('CallExpr', Result.Expression.ClassName);
 end
 
 // Test parsing an expression statement.
@@ -2455,7 +2441,7 @@ end
 //
 test 'Parse If Statement';
 begin
-    var TheScanner := Scanner ('if true then print true; else print false;');
+    var TheScanner := Scanner ('if true then true; else false;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     var Result := TheParser.Statement();
@@ -2467,7 +2453,7 @@ end
 // 
 test 'Parse If Expect Then';
 begin
-    var TheScanner := Scanner ('if true print true;');
+    var TheScanner := Scanner ('if true true;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     try
@@ -2489,7 +2475,7 @@ end
 //
 test 'Parse While Statement';
 begin
-    var TheScanner := Scanner ('while true do print true;');
+    var TheScanner := Scanner ('while true do true;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     var Result := TheParser.Statement();
@@ -2501,7 +2487,7 @@ end
 //
 test 'Parse While Expect Do';
 begin
-    var TheScanner := Scanner ('while true print true;');
+    var TheScanner := Scanner ('while true true;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     try
@@ -2523,7 +2509,7 @@ end
 //
 test 'Parse For Statement';
 begin
-    var TheScanner := Scanner ('for var i := 0; i < 10; i := i + 1 do print true;');
+    var TheScanner := Scanner ('for var i := 0; i < 10; i := i + 1 do true;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     var Result := TheParser.Statement();
@@ -2535,7 +2521,7 @@ end
 //
 test 'Parse For Expect Do';
 begin
-    var TheScanner := Scanner ('for var i := 0; i < 10; i := i + 1 print true;');
+    var TheScanner := Scanner ('for var i := 0; i < 10; i := i + 1 true;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     try
@@ -2557,7 +2543,7 @@ end
 //
 test 'Parse For Expect Semicolon';
 begin
-    var TheScanner := Scanner ('for var i := 0 do print true;');
+    var TheScanner := Scanner ('for var i := 0 do true;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     try
@@ -2781,11 +2767,11 @@ begin
     var TheScanner := Scanner ('
  class Breakfast; begin
  function cook(); begin
- print ''Egg a-fryingnot '';
+ ''Egg a-fryingnot '';
  end
 
  function serve(who); begin
- print ''Enjoy your breakfast, '' + who + ''.'';
+ ''Enjoy your breakfast, '' + who + ''.'';
  end
  end
 ');
@@ -2877,7 +2863,7 @@ begin
     var TheScanner := Scanner ('
  class Breakfast(123); begin
  function cook(); begin
- print ''Egg a-fryingnot '';
+ ''Egg a-fryingnot '';
  end
 ');
     var TheParser := Parser (TheScanner.ScanTokens());
@@ -2898,7 +2884,7 @@ end
 //
 test 'Parse Getter Valid Property Name';
 begin
-    var TheScanner := Scanner ('print bagel.123;');
+    var TheScanner := Scanner ('bagel.123;');
 
     var TheParser := Parser (TheScanner.ScanTokens());
 
@@ -2919,7 +2905,7 @@ end
 //
 test 'Parse Getter';
 begin
-    var TheScanner := Scanner ('print egg.scramble(3).with(cheddar);');
+    var TheScanner := Scanner ('egg.scramble(3).with(cheddar);');
 
     var TheParser := Parser (TheScanner.ScanTokens());
     TheParser.Statement();
@@ -2929,7 +2915,7 @@ end
 //
 test 'Parse Setter';
 begin
-    var TheScanner := Scanner ('print eggs.count := 42;');
+    var TheScanner := Scanner ('eggs.count := 42;');
 
     var TheParser := Parser (TheScanner.ScanTokens());
     TheParser.Statement();
@@ -2944,7 +2930,7 @@ test 'Parse Try With A Typed Handler';
 begin
     // ⚠️ 'Er' rather than 'E': a one-character literal is a Char, Name is a
     // String, and the two are never equal however identically they print.
-    var TheScanner := Scanner ('try print 1; except on Er : String do print 2; end');
+    var TheScanner := Scanner ('try 1; except on Er : String do 2; end');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     var Result := TheParser.Statement();
@@ -2960,7 +2946,7 @@ end
 //
 test 'Parse Untyped Handler Is The Catch All';
 begin
-    var TheScanner := Scanner ('try print 1; except on E do print 2; end');
+    var TheScanner := Scanner ('try 1; except on E do 2; end');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     var Result := TheParser.Statement();
@@ -2974,7 +2960,7 @@ end
 //
 test 'Parse Trailing Statements Are The Catch All';
 begin
-    var TheScanner := Scanner ('try print 1; except on E : String do print 2; print 3; end');
+    var TheScanner := Scanner ('try 1; except on E : String do 2; 3; end');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     var Result := TheParser.Statement();
@@ -2989,7 +2975,7 @@ end
 //
 test 'Parse Empty Except Is The Catch All';
 begin
-    var TheScanner := Scanner ('try print 1; except end');
+    var TheScanner := Scanner ('try 1; except end');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     var Result := TheParser.Statement();
@@ -3003,7 +2989,7 @@ end
 //
 test 'Parse Duplicate Typed Handler';
 begin
-    var TheScanner := Scanner ('try print 1; except on E : String do print 2; on E : String do print 3; end');
+    var TheScanner := Scanner ('try 1; except on E : String do 2; on E : String do 3; end');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     try
@@ -3020,7 +3006,7 @@ end
 
 test 'Parse Duplicate Untyped Handler';
 begin
-    var TheScanner := Scanner ('try print 1; except on E do print 2; on F do print 3; end');
+    var TheScanner := Scanner ('try 1; except on E do 2; on F do 3; end');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     try
@@ -3040,7 +3026,7 @@ end
 //
 test 'Parse Untyped Handler Beside A Trailing Block';
 begin
-    var TheScanner := Scanner ('try print 1; except on E do print 2; print 3; end');
+    var TheScanner := Scanner ('try 1; except on E do 2; 3; end');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     try
@@ -3057,12 +3043,12 @@ end
 
 // ⚠️ Reached only at end of input.  With anything else sitting where 'except'
 // should be, the try-block loop tries to parse THAT as a statement and fails
-// there instead -- 'try print 1; end' reports 'Expect expression!' against the
+// there instead -- 'try 1; end' reports 'Expect expression!' against the
 // 'end'.
 //
 test 'Parse Try Expects Except';
 begin
-    var TheScanner := Scanner ('try print 1;');
+    var TheScanner := Scanner ('try 1;');
     var TheParser := Parser (TheScanner.ScanTokens());
 
     try

@@ -490,7 +490,7 @@ end
 /// Renders a value as text.
 ///
 /// ⚠️ A class with a ToString() method decides how it prints, and algc did not
-/// honour that at all -- 'print Money()' gave 'Money instance' rather than
+/// honour that at all -- 'Money()' gave 'Money instance' rather than
 /// '$5'.  Delegating straight to the host worked only because at one
 /// level of interpretation every value algc holds is a HOST value, whose own
 /// toString does the right thing.  The moment algc interprets algc, the
@@ -611,7 +611,7 @@ begin
 
             // Types named only when the printed forms match, which is the case
             // that otherwise reads as nonsense -- a Char and a String both
-            // print as 3, and the two are never equal.
+            // as 3, and the two are never equal.
             if Left = Right then
                 raise 'Assertion failed.  Expected '
                     + TypeNameOf (Arguments[0]) + ' ''' + Left + ''' but got '
@@ -1845,7 +1845,7 @@ begin
         // names alone is what dropped every initializer on the floor.
 
         // The LEXEME, not the token.  ObjClass.Name is declared String and was
-        // being handed a Token, so 'print Dog()' rendered the token's own
+        // being handed a Token, so 'Dog()' rendered the token's own
         // ToString -- 'TOKEN_IDENTIFIER Dog nil instance' rather than
         // 'Dog instance'.
         Klass := ObjClass (TheStmt.Name.Lexeme, Superclass, Methods, TheStmt.Fields) as ObjClass;
@@ -2341,17 +2341,6 @@ begin
             on e : Raised do Handle (TheStmt, e.Value, e);
             on e : String do Handle (TheStmt, e, e);
         end
-    end
-
-    /// Runs a print statement
-    ///
-    procedure VisitPrintStmt (Stmt : PrintStmt);
-    var
-        Value : Any;
-
-    begin
-        Value := Evaluate (Stmt.Expression);
-        WriteLn (Stringify (this, Value));
     end
 
     /// Runs a return statement
@@ -3248,7 +3237,7 @@ end
 //
 test 'Execute Print Statement';
 begin
-    var TheScanner := Scanner ('print 123;');
+    var TheScanner := Scanner ('123;');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
 
@@ -3433,7 +3422,7 @@ begin
  var temp;
 
  for var b := 1; a < 5; b := temp + b do begin
- print a;
+ a;
  temp := a;
  a := b;
  end
@@ -3588,7 +3577,7 @@ begin
  var i := 0;
  function count(); begin
  i := i + 1;
- print i;
+ i;
  end
  Exit count;
  end
@@ -3615,7 +3604,7 @@ begin
     var TheScanner := Scanner ('
  var test := false;
 
- print test.len;
+ test.len;
 ');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
@@ -3642,7 +3631,7 @@ begin
  class Bagel; begin end
  var bagel := Bagel();
 
- print bagel.flavor;
+ bagel.flavor;
 ');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
@@ -3670,7 +3659,7 @@ begin
  var bagel := Bagel();
  bagel.flavor := ''Yummy'';
 
- print bagel.flavor;
+ bagel.flavor;
 ');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();

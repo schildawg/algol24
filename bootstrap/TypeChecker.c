@@ -561,12 +561,6 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
             return alg_nil();
         }
     }
-    if (alg_truthy(alg_equal(v_Kind, alg_string("PrintStmt")))) {
-        {
-            (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheStmt, "Expression")}, 1));
-            return alg_nil();
-        }
-    }
     if (alg_truthy(alg_equal(v_Kind, alg_string("BlockStmt")))) {
         {
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
