@@ -996,7 +996,10 @@ Value alg_subscript_get(Value target, Value index) {
                                           + utf8_offset(target.string, target.length, at)));
     }
 
-    alg_error("Only a collection or a String can be subscripted.");
+    /* ⚠️ [TYP-010] pins this wording, and it is the interpreter's.  The text
+     * here was 'Only a collection or a String can be subscripted.', which reads
+     * better -- Annex D is where that argument belongs, not the runtime. */
+    alg_error("Subscript target should be an ordinal.");
     return alg_nil();
 }
 
@@ -1399,7 +1402,13 @@ Value alg_new(Value value, Value *args, int32_t count) {
         init->fn(self, args, count);
     }
     else if (count != 0) {
-        alg_error("This class takes no constructor arguments.");
+        /* ⚠️ [EXP-011]'s shape -- 'Expected N arguments but got M.' -- which the
+         * rule pins and the interpreter produces.  A class with no constructor
+         * takes none, so the expected count is zero. */
+        char message[64];
+        snprintf(message, sizeof message, "Expected 0 arguments but got %d.", (int)count);
+
+        alg_error(message);
     }
     return self;
 }
@@ -1869,12 +1878,19 @@ Value alg_property(Value receiver, const char *name) {
         for (int32_t i = 0; i < type->count; i++) {
             if (strcmp(((ObjEnum *)type->members[i].obj)->name, name) == 0) return type->members[i];
         }
-        alg_error("That enum has no such member.");
+        undefined("enum member", name);
     }
 
     /* Collections answer to Length and IsEmpty, case-insensitively. */
     if (alg_stricmp(name, "Length") == 0)  return alg_length(receiver);
     if (alg_stricmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
+
+    /* ⚠️ A COLLECTION names the property it does not have [TYP-009], as the
+     * interpreter does -- 'List ().ClassName' is 'Undefined property
+     * ''ClassName''.'  This said 'Only instances have properties.', which is
+     * true of an instance and unhelpful about a List, and is the message a
+     * non-object receiver still gets below. */
+    if (is_sequence(receiver) || is_obj(receiver, OBJ_MAP)) undefined("property", name);
 
     alg_error("Only instances have properties.");
     return alg_nil();

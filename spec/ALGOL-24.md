@@ -3789,7 +3789,8 @@ now. A missing case should be a diagnostic, not a wild read.
 `B.Length` an error and retired the construct instead — that option remains, and
 this fix does not prejudge it.
 
-**C-7 — Four runtime diagnostics are worded differently.** *(loud)*
+**C-7 — Four runtime diagnostics are worded differently.**
+***Withdrawn.***
 *(refers to [TYP-009], [TYP-010])*
 
 | Program | Interpreted | Compiled |
@@ -3803,16 +3804,17 @@ Both processors refuse every one of them, so nothing runs that should not — bu
 the text differs, and [ERR-002] requires a diagnostic to be the same wherever it is
 produced.
 
-⚠️ The compiled wording is the better of the two in both cases. `Subscript
-target should be an ordinal.` describes the *subscript* when the fault is the
-*target*, and it is the message a reader of [TYP-010] meets first. Fixing this
-should move the interpreter toward the compiler, which is the opposite of the
-usual direction and is worth saying out loud.
+⚠️ **This entry recommended the wrong direction**, and the rules settle it. It
+argued that the compiled wording was better and that the interpreter should move
+toward the compiler. But all four texts are *pinned by rules* — [TYP-009],
+[TYP-010], [EXP-011] and [ENU-004] each quote the interpreted wording — so the
+compiler was simply wrong, and it moved.
 
-    gap  0030-collections-have-no-classname.a24
-    gap  0031-instance-is-not-subscriptable.a24
-    gap  0065-construction.a24
-    gap  0072-unknown-enum-member.a24
+⚠️ The aesthetic argument survives the fix and is worth keeping: `Subscript
+target should be an ordinal.` does describe the *subscript* when the fault is the
+*target*. That is a case for changing [TYP-010], which belongs in Annex D as a
+proposal, not in the runtime as a divergence. Nothing here forecloses it.
+
 
 **C-8 — An uncaught runtime error carries no `Uncaught:` prefix.**
 ***Withdrawn.***
