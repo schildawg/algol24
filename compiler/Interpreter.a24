@@ -578,8 +578,18 @@ begin
 
     function Call (TheInterpreter, Arguments) : Any;
     begin
+        // ⚠️ Names the VALUE that was false [TST-012].  This used to raise
+        // 'Assertion ''left = right'' failed.' -- a stem describing an equality
+        // test that never happened, on a call with no left and no right, saying
+        // nothing at all about what was false.
+        //
+        // ⚠️ The C runtime said 'Assertion failed.' here with no value, so the
+        // two processors disagreed on the one message a programmer reads most
+        // often.  Nothing caught it: a report comparison drops the [ERROR]
+        // lines an assertion failure prints.
         if not TheInterpreter.IsTruthy (Arguments[0]) then
-            raise 'Assertion ''left = right'' failed.';
+            raise 'Assertion failed.  Expected true but got '''
+                + Str (Arguments[0]) + '''.';
 
         Exit Nil;
     end
@@ -603,11 +613,11 @@ begin
             // that otherwise reads as nonsense -- a Char and a String both
             // print as 3, and the two are never equal.
             if Left = Right then
-                raise 'Assertion ''left = right'' failed.  Expected '
+                raise 'Assertion failed.  Expected '
                     + TypeNameOf (Arguments[0]) + ' ''' + Left + ''' but got '
                     + TypeNameOf (Arguments[1]) + ' ''' + Right + '''.';
 
-            raise 'Assertion ''left = right'' failed.  Expected ''' + Left
+            raise 'Assertion failed.  Expected ''' + Left
                 + ''' but got ''' + Right + '''.';
         end
 

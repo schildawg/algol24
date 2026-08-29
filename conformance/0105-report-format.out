@@ -5,7 +5,7 @@ Uncaught: Tests failed.
 [WHITE][[RED]ERROR[WHITE]] [RESET]conformance/0105-report-format.a24: thrown
 [WHITE][[BLUE]INFO[WHITE]] [RESET]Test: B still runs after the failure above ................... [ [GREEN]PASS[RESET] ]
 [WHITE][[BLUE]INFO[WHITE]] [RESET]Test: C fails on an assertion ................................ [ [RED]FAIL[RESET] ]
-[WHITE][[RED]ERROR[WHITE]] [RESET]conformance/0105-report-format.a24: Assertion 'left = right' failed.  Expected '5' but got '4'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]conformance/0105-report-format.a24: Assertion failed.  Expected '5' but got '4'.
 [WHITE][[BLUE]INFO[WHITE]] [RESET]Test: D still runs after that one too ........................ [ [GREEN]PASS[RESET] ]
 [WHITE][[BLUE]INFO[WHITE]] [RESET]
 [WHITE][[BLUE]INFO[WHITE]] [RESET][RED]2 of 4 tests failed.[RESET]

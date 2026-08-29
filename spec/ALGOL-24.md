@@ -3320,15 +3320,21 @@ is the reason the second is not enough: a `Char` and a `String` both render as
 would read `Expected '3' but got '3'.` Naming the types is what makes that
 legible. Both processors already do this, and it was missing from this table.
 
-⚠️ **NOT YET IMPLEMENTED.** Every form begins `Assertion 'left = right' failed.`
-— including `AssertTrue`, which made no comparison and has no left or right. The
-stem reads like a template nobody filled in, and for `AssertTrue` it describes
-an equality test that did not happen while saying nothing about the value that
-was false. See DEF-30.
+⚠️ Every form used to begin `Assertion 'left = right' failed.` — including
+`AssertTrue`, which makes no comparison and has no left or right. The stem read
+like a template nobody filled in.
+
+⚠️ **The two processors disagreed here**, and nothing caught it: the C runtime
+said only `Assertion failed.` for `AssertTrue`, with no value at all. A report
+comparison drops the `[ERROR]` lines an assertion failure prints, so the one
+message a programmer reads most often was outside everything that checks the two
+against each other.
+
+⚠️ **Compiled, none of these messages is printed** — C-23.
 
     interpreter  compiler/Interpreter.a24  AssertTrueNative
     compiler     bootstrap/algol.c         alg_assert_equal
-    defect       DEF-30-assertion-messages.a24
+    conformance  0132-assertion-messages.a24
 
 **[TST-013]**  `AssertEqual` compares with `=` [VAL-009], so it promotes
 numerically and holds a `Char` unequal to a `String` [LEX-026].
@@ -3969,6 +3975,25 @@ spell the name. It is the honest shape: refused by name rather than emitted as
 something else.
 
 *Fix:* mangle per Annex G, which specifies an escape for exactly this.
+
+**C-23 — A compiled test run never says why a test failed.** *(loud)*
+
+`alg_test_run` catches the failure and prints `FAIL`, but never reads the value
+that was raised — so a compiled suite reports *that* a test failed and never
+*what*. Interpreted, the same run prints the assertion message [TST-012] on an
+`[ERROR]` line.
+
+⚠️ **This is not the caret lines.** Those carry a source position compiled code
+does not have, and the report comparison drops them for that reason. The message
+line carries no position — only the file name and the message — and it is
+dropped with them.
+
+⚠️ It is why the two processors could disagree about `AssertTrue`'s wording for
+as long as they did: nothing that compares the two reports ever looked at it.
+
+*Fix:* `AlgFrame` already carries `raised`, so `alg_test_run` can print
+`ERROR_TAG "%s: %s"` from it. The report comparison must then drop two
+interpreted lines rather than three.
 
 ## Annex D — advisory notes *(non-normative)*
 

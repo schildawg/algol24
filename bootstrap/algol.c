@@ -3066,7 +3066,18 @@ int alg_test_summary(void) {
 }
 
 void alg_assert_true(Value value) {
-    if (!alg_truthy(value)) alg_error("Assertion failed.");
+    if (alg_truthy(value)) return;
+
+    /* ⚠️ Names the value that was false [TST-012].  This said 'Assertion
+     * failed.' and nothing else, where the interpreter said 'Assertion
+     * ''left = right'' failed.' -- so the two processors disagreed on the
+     * message a programmer reads most often, and nothing caught it, because a
+     * report comparison drops the [ERROR] lines an assertion failure prints. */
+    char message[512];
+    snprintf(message, sizeof message,
+             "Assertion failed.  Expected true but got '%s'.", as_text(alg_str(value)));
+
+    alg_error(message);
 }
 
 void alg_assert_equal(Value expected, Value actual) {
@@ -3085,12 +3096,12 @@ void alg_assert_equal(Value expected, Value actual) {
      * otherwise reads as nonsense: a Char and a String both print as 3. */
     if (strcmp(left, right) == 0) {
         snprintf(message, sizeof message,
-                 "Assertion 'left = right' failed.  Expected %s '%s' but got %s '%s'.",
+                 "Assertion failed.  Expected %s '%s' but got %s '%s'.",
                  type_name(expected), left, type_name(actual), right);
     }
     else {
         snprintf(message, sizeof message,
-                 "Assertion 'left = right' failed.  Expected '%s' but got '%s'.", left, right);
+                 "Assertion failed.  Expected '%s' but got '%s'.", left, right);
     }
     alg_error(message);
 }

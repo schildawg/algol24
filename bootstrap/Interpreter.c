@@ -844,7 +844,7 @@ static Value m_AssertTrueNative_Call_2(Value v_this, Value *args, int32_t count)
     Value v_Arguments = args[1];
     (void)v_Arguments;
     if (alg_truthy(alg_not(alg_invoke(v_TheInterpreter, "IsTruthy", (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1)))) {
-        alg_raise(alg_string("Assertion 'left = right' failed."));
+        alg_raise(alg_add(alg_add(alg_string("Assertion failed.  Expected true but got '"), alg_str(alg_subscript_get(v_Arguments, alg_int(0)))), alg_string("'.")));
     }
     return alg_nil();
     return alg_nil();
@@ -874,9 +874,9 @@ static Value m_AssertEqualNative_Call_2(Value v_this, Value *args, int32_t count
             Value v_Right = alg_str(alg_subscript_get(v_Arguments, alg_int(1)));
             (void)v_Right;
             if (alg_truthy(alg_equal(v_Left, v_Right))) {
-                alg_raise(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("Assertion 'left = right' failed.  Expected "), f_TypeNameOf(NULL, (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1)), alg_string(" '")), v_Left), alg_string("' but got ")), f_TypeNameOf(NULL, (Value[]){alg_subscript_get(v_Arguments, alg_int(1))}, 1)), alg_string(" '")), v_Right), alg_string("'.")));
+                alg_raise(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("Assertion failed.  Expected "), f_TypeNameOf(NULL, (Value[]){alg_subscript_get(v_Arguments, alg_int(0))}, 1)), alg_string(" '")), v_Left), alg_string("' but got ")), f_TypeNameOf(NULL, (Value[]){alg_subscript_get(v_Arguments, alg_int(1))}, 1)), alg_string(" '")), v_Right), alg_string("'.")));
             }
-            alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Assertion 'left = right' failed.  Expected '"), v_Left), alg_string("' but got '")), v_Right), alg_string("'.")));
+            alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Assertion failed.  Expected '"), v_Left), alg_string("' but got '")), v_Right), alg_string("'.")));
         }
     }
     return alg_nil();
