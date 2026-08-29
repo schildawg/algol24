@@ -744,6 +744,44 @@ begin
         Exit Text;
     end
 
+    /// Refuses an inheritance CYCLE among top-level classes.
+    ///
+    /// ⚠️ 'class A (A);' was already refused, one class at a time, but
+    /// 'class A (B); class B (A);' was not -- it ran silently and left a
+    /// superclass chain with no end, which FindMethod walks.  Nothing noticed
+    /// because a class could not be declared above its parent at all; hoisting
+    /// [DCL-006] made the pair reachable, so the check has to cover the cycle
+    /// rather than the self-reference alone.
+    ///
+    procedure CheckInheritance (Statements : List);
+    var
+        Parent : Map;
+
+    begin
+        Parent := Map();
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+            if Statements[I] is ClassStmt then
+                if Statements[I].Superclass <> Nil then
+                    Parent.Put (FoldCase (Statements[I].Name.Lexeme),
+                                FoldCase (Statements[I].Superclass.Name.Lexeme));
+
+        for var Name in Parent.Keys() do
+        begin
+            var Seen := Set();
+            var At := Str (Name);
+
+            while Parent.Contains (At) do
+            begin
+                if Seen.Contains (At) then
+                    raise 'A class can''t inherit from itself.';
+
+                Seen.Add (At);
+                At := Str (Parent.Get (At));
+            end
+        end
+    end
+
     procedure ResolveAll (Statements : List);
     begin
         if not Collected then
@@ -751,6 +789,7 @@ begin
             Collected := True;
             CollectDottable (Statements);
             CheckDuplicates (Statements);
+            CheckInheritance (Statements);
         end
 
         for var I := 0; I < Statements.Length; I := I + 1 do

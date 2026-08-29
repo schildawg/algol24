@@ -111,6 +111,7 @@ static Value or_29;
 static Value or_30;
 static Value or_31;
 static const char *t_Interpreter_Hoist_1_List[] = { "List" };
+static const char *t_Interpreter_HoistedClass_1_String[] = { "String" };
 static const char *t_Interpreter_Interpret_1_List[] = { "List" };
 static const char *t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean[] = { "List", "List", "Map", "Boolean", "Environment", "Map", "String", "List", "Map", "Set", "Boolean" };
 static const char *t_Interpreter_RunTests_2_List_String[] = { "List", "String" };
@@ -935,6 +936,7 @@ static Value i_Interpreter(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Globals", alg_nil());
     alg_set_property(v_this, "Locals", alg_nil());
     alg_set_property(v_this, "Modules", alg_nil());
+    alg_set_property(v_this, "HoistedClasses", alg_nil());
     alg_set_property(v_this, "RootFile", alg_nil());
     alg_set_property(v_this, "UnitsByName", alg_nil());
     return alg_nil();
@@ -948,6 +950,7 @@ static Value m_Interpreter_Init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_set_property(v_this, "Locals", alg_map()));
     (void)(alg_set_property(v_this, "Modules", alg_map()));
     (void)(alg_set_property(v_this, "RootFile", alg_string("")));
+    (void)(alg_set_property(v_this, "HoistedClasses", alg_set()));
     (void)(alg_set_property(v_this, "UnitsByName", alg_map()));
     (void)(alg_set_property(v_this, "Env", alg_property(v_this, "Globals")));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("clock"), alg_new(k_ClockNative, NULL, 0)}, 2));
@@ -980,6 +983,58 @@ static Value m_Interpreter_Hoist_1_List(Value v_this, Value *args, int32_t count
     (void)v_this; (void)args; (void)count;
     Value v_Statements = args[0];
     (void)v_Statements;
+    Value v_Names = alg_set();
+    (void)v_Names;
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+            {
+                if (alg_truthy(alg_is(alg_subscript_get(v_Statements, v_I), "ClassStmt"))) {
+                    (void)(alg_invoke(v_Names, "Add", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_Statements, v_I), "Name"), "Lexeme")}, 1)}, 1));
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+            {
+                if (alg_truthy(alg_is(alg_subscript_get(v_Statements, v_I), "ClassStmt"))) {
+                    (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(alg_subscript_get(v_Statements, v_I), "Name"), "Lexeme"), alg_new(k_ObjClass, (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(v_Statements, v_I), "Name"), "Lexeme")), alg_nil(), alg_map(), alg_list()}, 4)}, 2));
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+            {
+                if (alg_truthy(alg_is(alg_subscript_get(v_Statements, v_I), "ClassStmt"))) {
+                    {
+                        Value v_Parent = alg_property(alg_subscript_get(v_Statements, v_I), "Superclass");
+                        (void)v_Parent;
+                        Value v_Ready = alg_equal(v_Parent, alg_nil());
+                        (void)v_Ready;
+                        if (alg_truthy(alg_not(v_Ready))) {
+                            (void)((v_Ready = alg_invoke(v_Names, "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_Parent, "Name"), "Lexeme")}, 1)}, 1)));
+                        }
+                        if (alg_truthy(v_Ready)) {
+                            {
+                                (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(v_Statements, v_I)}, 1));
+                                (void)(alg_invoke(alg_property(v_this, "HoistedClasses"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_Statements, v_I), "Name"), "Lexeme")}, 1)}, 1));
+                            }
+                        }
+                    }
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
     {
         Value v_I = alg_int(0);
         (void)v_I;
@@ -992,6 +1047,22 @@ static Value m_Interpreter_Hoist_1_List(Value v_this, Value *args, int32_t count
             }
         }
     }
+    return alg_nil();
+}
+
+static Value m_Interpreter_HoistedClass_1_String(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Name = args[0];
+    (void)v_Name;
+    if (alg_truthy(alg_not(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){v_Name}, 1)}, 1)))) {
+        return alg_nil();
+    }
+    Value v_Bound = alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){f_FoldCase(NULL, (Value[]){v_Name}, 1)}, 1);
+    (void)v_Bound;
+    if (alg_truthy(alg_not((alg_is(v_Bound, "ObjClass"))))) {
+        return alg_nil();
+    }
+    return v_Bound;
     return alg_nil();
 }
 
@@ -1021,7 +1092,12 @@ static Value m_Interpreter_Interpret_1_List(Value v_this, Value *args, int32_t c
                     while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
                         {
                             {
-                                if (alg_truthy(alg_not((alg_is(alg_subscript_get(v_Statements, v_I), "FunctionStmt"))))) {
+                                volatile Value v_Done = alg_is(alg_subscript_get(v_Statements, v_I), "FunctionStmt");
+                                (void)v_Done;
+                                if (alg_truthy(alg_is(alg_subscript_get(v_Statements, v_I), "ClassStmt"))) {
+                                    (void)((v_Done = alg_invoke(alg_property(v_this, "HoistedClasses"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_Statements, v_I), "Name"), "Lexeme")}, 1)}, 1)));
+                                }
+                                if (alg_truthy(alg_not(v_Done))) {
                                     (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(v_Statements, v_I)}, 1));
                                 }
                             }
@@ -2119,7 +2195,11 @@ static Value m_Interpreter_VisitClassStmt_1_ClassStmt(Value v_this, Value *args,
             }
         }
     }
-    (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_nil()}, 2));
+    Value v_Shell = alg_invoke(v_this, "HoistedClass", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 1);
+    (void)v_Shell;
+    if (alg_truthy(alg_equal(v_Shell, alg_nil()))) {
+        (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_nil()}, 2));
+    }
     if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Superclass"), alg_nil()))) {
         {
             Value v_Previous = alg_property(v_this, "Env");
@@ -2150,7 +2230,16 @@ static Value m_Interpreter_VisitClassStmt_1_ClassStmt(Value v_this, Value *args,
             }
         }
     }
-    (void)((v_Klass = alg_new(k_ObjClass, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_Superclass, v_Methods, alg_property(v_TheStmt, "Fields")}, 4)));
+    if (alg_truthy(alg_not_equal(v_Shell, alg_nil()))) {
+        {
+            (void)((v_Klass = v_Shell));
+            (void)(alg_set_property(v_Klass, "Superclass", v_Superclass));
+            (void)(alg_set_property(v_Klass, "Methods", v_Methods));
+            (void)(alg_set_property(v_Klass, "Fields", alg_property(v_TheStmt, "Fields")));
+        }
+    } else {
+        (void)((v_Klass = alg_new(k_ObjClass, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_Superclass, v_Methods, alg_property(v_TheStmt, "Fields")}, 4)));
+    }
     {
         Value loop_14 = alg_iterable(alg_invoke(v_Methods, "Keys", NULL, 0));
         for (int32_t at_14 = 0; at_14 < alg_iterable_count(loop_14); at_14++) {
@@ -2988,11 +3077,13 @@ void init_Interpreter(void) {
     alg_class_field(k_Interpreter, "Globals");
     alg_class_field(k_Interpreter, "Locals");
     alg_class_field(k_Interpreter, "Modules");
+    alg_class_field(k_Interpreter, "HoistedClasses");
     alg_class_field(k_Interpreter, "RootFile");
     alg_class_field(k_Interpreter, "UnitsByName");
     alg_class_initializer(k_Interpreter, i_Interpreter);
     alg_class_method(k_Interpreter, "Init", m_Interpreter_Init_0, 0, NULL);
     alg_class_method(k_Interpreter, "Hoist", m_Interpreter_Hoist_1_List, 1, t_Interpreter_Hoist_1_List);
+    alg_class_method(k_Interpreter, "HoistedClass", m_Interpreter_HoistedClass_1_String, 1, t_Interpreter_HoistedClass_1_String);
     alg_class_method(k_Interpreter, "RegisterRoot", m_Interpreter_RegisterRoot_0, 0, NULL);
     alg_class_method(k_Interpreter, "Interpret", m_Interpreter_Interpret_1_List, 1, t_Interpreter_Interpret_1_List);
     alg_class_method(k_Interpreter, "HoistTests", m_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean, 11, t_Interpreter_HoistTests_11_List_List_Map_Boolean_Environment_Map_String_List_Map_Set_Boolean);

@@ -686,6 +686,10 @@ var
     /// environment, which is what keeps a mutable export a single binding.
     Modules : Map;
 
+    /// Top-level classes already built by Hoist, by folded name, so the main
+    /// loop does not build them a second time.
+    HoistedClasses : Set;
+
     /// The file the program was started from, or '' where there is none.  Set
     /// by the driver so the root can be registered as a module in its own
     /// right -- see RegisterRoot.
@@ -712,6 +716,7 @@ begin
         this.Locals := Map();
         this.Modules := Map();
         this.RootFile := '';
+        this.HoistedClasses := Set();
         this.UnitsByName := Map();
 
         this.Env := Globals;
@@ -774,8 +779,74 @@ begin
     /// declaration stands -- which is more than this fix.  See DEF-15.
     procedure Hoist (Statements : List);
     begin
+        // ⚠️ A CLASS is bound before anything runs, but not built -- an empty
+        // shell under its own name, filled in when its declaration is reached.
+        // This is what C gets from a header: the declaration and the definition
+        // are separate things, and only the first has to come early.
+        //
+        // ⚠️ Executing the declaration here instead would hoist the SUPERCLASS
+        // EVALUATION with it, and that was tried.  It broke two working things:
+        // 'class B (A); … class A;' became 'Undefined variable ''A''.', and
+        // 'var X := 1; class C (X);' lost [CLS-014]'s ''X' is not a class.' --
+        // a diagnostic written for exactly that mistake, made unreachable for
+        // any name declared in the same file.
+        //
+        // ⚠️ The shell's IDENTITY is the whole mechanism.  VisitClassStmt fills
+        // in this same object rather than making another, so a subclass that
+        // captured it before its parent was declared holds the finished class.
+        var Names := Set();
+        for var I : Integer := 0; I < Statements.Length; I := I + 1 do
+            if Statements[I] is ClassStmt then
+                Names.Add (FoldCase (Statements[I].Name.Lexeme));
+
+        for var I : Integer := 0; I < Statements.Length; I := I + 1 do
+            if Statements[I] is ClassStmt then
+                Env.Define (Statements[I].Name.Lexeme,
+                            ObjClass (Str (Statements[I].Name.Lexeme), Nil, Map(), List()));
+
+        // ⚠️ BUILT here, not merely bound.  Binding the name alone was not
+        // enough and looked as though it were: 'var D := Dog ();' above the
+        // declaration then constructed from an EMPTY shell, giving an object
+        // that answered 'D is Dog' and had none of Dog's methods.  A silent
+        // wrong answer, and worse than the 'Undefined variable' it replaced.
+        //
+        // ⚠️ A class is built here only when its superclass is absent or is
+        // ANOTHER TOP-LEVEL CLASS.  One inheriting from anything else is left
+        // where it stands, which is what keeps [CLS-014]'s ''X' is not a class.'
+        // reachable: at hoist time a var has no value yet, and evaluating it
+        // would say 'Undefined variable' instead.
+        for var I : Integer := 0; I < Statements.Length; I := I + 1 do
+            if Statements[I] is ClassStmt then
+            begin
+                var Parent := Statements[I].Superclass;
+                var Ready := Parent = Nil;
+
+                if not Ready then Ready := Names.Contains (FoldCase (Parent.Name.Lexeme));
+
+                if Ready then
+                begin
+                    Execute (Statements[I]);
+                    HoistedClasses.Add (FoldCase (Statements[I].Name.Lexeme));
+                end
+            end
+
         for var I : Integer := 0; I < Statements.Length; I := I + 1 do
             if Statements[I] is FunctionStmt then Execute (Statements[I]);
+    end
+
+    /// The empty class bound for this name at hoist time, or Nil.
+    ///
+    /// ⚠️ Nil for a class declared anywhere but a file's top level, which is
+    /// what [DCL-006] hoists -- one inside a block or a function is built where
+    /// it stands, as it always was.
+    function HoistedClass (Name : String) : Any;
+    begin
+        if not Env.Values.Contains (FoldCase (Name)) then Exit Nil;
+
+        var Bound := Env.Values.Get (FoldCase (Name));
+        if not (Bound is ObjClass) then Exit Nil;
+
+        Exit Bound;
     end
 
     /// Registers the entry-point file as a module, so a 'uses' pointing back at
@@ -810,8 +881,12 @@ begin
                // ⚠️ Skipped, because Hoist already ran them.  Executing a
                // declaration twice defines the name twice, and the second is
                // ''X'' is already defined.'
-               if not (Statements[I] is FunctionStmt) then
-                   Execute (Statements[I]);     
+               var Done := Statements[I] is FunctionStmt;
+
+               if Statements[I] is ClassStmt then
+                   Done := HoistedClasses.Contains (FoldCase (Statements[I].Name.Lexeme));
+
+               if not Done then Execute (Statements[I]);     
             end 
         except
             // ⚠️ An uncaught 'raise' from the program, unwrapped on the way
@@ -1856,7 +1931,14 @@ begin
             end
         end
 
-        Env.Define (TheStmt.Name.Lexeme, Nil);
+        // The shell hoisted for this name, if this is a top-level class.
+        //
+        // ⚠️ Only when it is ABSENT is the name cleared: defining Nil over a
+        // hoisted shell would throw away the very object a class written above
+        // this one is already holding as its superclass.
+        var Shell := HoistedClass (Str (TheStmt.Name.Lexeme));
+
+        if Shell = Nil then Env.Define (TheStmt.Name.Lexeme, Nil);
 
         if TheStmt.Superclass <> Nil then
         begin
@@ -1896,7 +1978,21 @@ begin
         // being handed a Token, so 'Dog()' rendered the token's own
         // ToString -- 'TOKEN_IDENTIFIER Dog nil instance' rather than
         // 'Dog instance'.
-        Klass := ObjClass (TheStmt.Name.Lexeme, Superclass, Methods, TheStmt.Fields) as ObjClass;
+        // ⚠️ The hoisted shell is FILLED IN, not replaced.  Anything already
+        // holding it -- a subclass declared above its parent -- must end up
+        // holding the finished class, and it does because it is the same object.
+        if Shell <> Nil then
+        begin
+            Klass := Shell as ObjClass;
+
+            // ⚠️ 'as', because Superclass is Any here and the field is declared
+            // ObjClass -- and it is SAFE when Nil, since a cast passes a nil
+            // through untouched.  A class with no parent takes this path too.
+            Klass.Superclass := Superclass as ObjClass;
+            Klass.Methods    := Methods;
+            Klass.Fields     := TheStmt.Fields;
+        end
+        else Klass := ObjClass (TheStmt.Name.Lexeme, Superclass, Methods, TheStmt.Fields) as ObjClass;
 
         // Owner is set here rather than in the loop above, because the class
         // does not exist until this line.  A method needs it so a call site can

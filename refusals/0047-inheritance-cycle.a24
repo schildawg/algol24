@@ -1,0 +1,17 @@
+// spec: CLS-014
+//
+// A class may not inherit from itself, directly or through a chain.
+//
+// ⚠️ The direct case was always refused; a CYCLE was not, and ran silently,
+// leaving a superclass chain with no end for FindMethod to walk.  Nothing
+// noticed because a class could not be declared above its parent at all --
+// hoisting [DCL-006] made the pair reachable, so the check had to grow from a
+// self-reference to a cycle.
+
+class A (B);
+begin
+end
+
+class B (A);
+begin
+end

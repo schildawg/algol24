@@ -1474,17 +1474,30 @@ initializer.`, even where an outer `X` exists.
 visible throughout that file, wherever it is written. A call may precede the
 declaration, so a program may be organized from the top down.
 
-⚠️ **PARTLY IMPLEMENTED.** A **function** is hoisted. A **class** is not, and
-the reason is worth stating: a class declaration *evaluates* its superclass, so
-hoisting the declaration hoists the evaluation — which breaks
-`class B (A); … class A;` and makes [CLS-014]'s `'X' is not a class.`
-unreachable for any name declared in the same file. Doing it properly needs a
-two-phase class declaration: bind the name at hoist time, resolve the superclass
-where the declaration stands. See DEF-15.
+⚠️ **A class is declared in two phases**, which is what C gets from a header:
+every top-level class name is bound to an empty class before anything runs, and
+each is *filled in* — the same object, never replaced — when its declaration is
+reached. A subclass written above its parent therefore ends up holding the
+finished parent.
+
+⚠️ **Binding the name is not enough**, and it looks as though it were. With only
+the name bound, `var D := Dog ();` above the declaration built from an *empty*
+class: an object that answered `D is Dog` and had none of Dog's methods. A
+silent wrong answer, and worse than the `Undefined variable` it replaced. The
+class is built during the hoist, not merely named.
+
+⚠️ **A class inheriting from something that is not a top-level class is left
+where it stands**, and that is what keeps [CLS-014] reachable: at hoist time a
+`var` has no value yet, so evaluating it would say `Undefined variable` in place
+of `'X' is not a class.`
+
+⚠️ Hoisting made an inheritance **cycle** reachable for the first time — a class
+could not previously be declared above its parent at all — so [CLS-013]'s check
+grew from a self-reference to a cycle.
 
     interpreter  compiler/Interpreter.a24  Hoist
     conformance  0122-functions-are-hoisted.a24
-    defect       DEF-15-classes-are-not-hoisted.a24
+    refusal      0046-inherit-from-a-non-class.a24
 
 **[DCL-016]**  A **variable or constant** is not visible before its declaration
 has run. Its initializer is an expression evaluated in order [VAR-014], and a
@@ -2326,9 +2339,16 @@ which raised `Only instances have properties.` before the comparison meant to
 reject it could run — a sentence naming neither the class, nor the superclass,
 nor inheritance.
 
+⚠️ **A cycle counts as inheriting from itself.** `class A (B); class B (A);` ran
+silently until classes were hoisted [DCL-006], leaving a superclass chain with
+no end for method lookup to walk. It is refused with the same sentence the
+direct case gives, because it is the same fault reached the long way round.
+
     interpreter  compiler/Interpreter.a24  VisitClassStmt
+    interpreter  compiler/Resolver.a24     CheckInheritance
     unit         Inherit Not A Class
     conformance  0112-inherit-from-a-non-class.a24
+    refusal      0047-inheritance-cycle.a24
 
 ### 12.5 Objects
 
@@ -3078,12 +3098,11 @@ fail its compiled half.
 reached, so a name is undefined above its declaration [DCL-016]. A **function or
 class** is visible throughout the file wherever it is written [DCL-006].
 
-⚠️ **NOT YET IMPLEMENTED for functions and classes.** The interpreter binds
-every top-level name when its declaration runs, so a call above a function is
-`Undefined variable 'F'.` See DEF-15.
+⚠️ A **variable** is still bound when its statement runs, and only a function or
+a class is hoisted — `refusals/0033` pins the difference.
 
     interpreter  compiler/Interpreter.a24  Interpret
-    defect       DEF-15-classes-are-not-hoisted.a24
+    conformance  0122-functions-are-hoisted.a24
 
 ### 17.2 Module initialization
 
@@ -4902,33 +4921,6 @@ so the variable holds the wider type rather than one the declaration
 misdescribes. The conversions themselves already exist in both runtimes, since
 the operators perform them; this is a matter of calling them from one more
 place.
-
-**DEF-15 — Functions and classes are not hoisted.**
-*(violates [DCL-006])*
-
-⚠️ **Functions are hoisted; classes are not.** A call above a function works;
-constructing a class written below is still `Undefined variable 'Dog'.`
-
-*Reproduce:* `defects/DEF-15-classes-are-not-hoisted.a24`
-
-⚠️ **The class half is harder than it looks, and was tried.** A class
-declaration *evaluates* its superclass, so hoisting the declaration hoists the
-evaluation. Two things broke that had been working:
-
-```
-class B (A); … class A;      Undefined variable 'A'.
-var X := 1;  class C (X);    the same, in place of CLS-014's 'X' is not a class.
-```
-
-The second is the worse loss: it makes a diagnostic written for exactly that
-mistake unreachable for any name declared in the same file, `const` or `var`
-alike.
-
-*Scope of the fix.* A **two-phase** class declaration: bind the name at hoist
-time so a construction above it resolves, and evaluate the superclass where the
-declaration stands so its dependencies have run. ⚠️ Still only functions and
-classes — a `var` keeps its initializer where it is written, and the compiled
-back end hoists every top-level name and is wrong about exactly that (C-10).
 
 ## Annex G — implementation notes *(non-normative)*
 

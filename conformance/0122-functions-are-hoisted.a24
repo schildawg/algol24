@@ -1,13 +1,42 @@
 // spec: DCL-006, INI-002
 //
-// A top-level FUNCTION is visible throughout its file, so a call may precede
-// the declaration and a file may be organized from the top down.
+// A top-level FUNCTION OR CLASS is visible throughout its file, so a use may
+// precede the declaration and a file may be organized from the top down.
 
 WriteLn (Greet ());
 WriteLn (Total (2, 3));
 
 function Greet ();          begin Exit 'called from above'; end
 function Total (A, B);      begin Exit A + B; end
+
+// A class written below is usable above it.
+var D := Dog ();
+WriteLn (D is Dog);
+WriteLn (D.Speak ());
+
+class Dog;
+begin
+    constructor Init (); begin end
+    function Speak (); begin Exit 'woof'; end
+end
+
+// ⚠️ A class may INHERIT from one written below it, which is the case that
+// makes hoisting more than binding a name: the parent is bound as an empty
+// shell and FILLED IN where its declaration stands, so the child holds the
+// finished class because it is the same object.
+class Puppy (Hound);
+begin
+    constructor Init (); begin end
+end
+
+class Hound;
+begin
+    constructor Init (); begin end
+    function Speak (); begin Exit 'bay'; end
+end
+
+WriteLn (Puppy () is Hound);
+WriteLn (Puppy ().Speak ());
 
 // ⚠️ A VARIABLE is not hoisted: its initializer runs in order, and a name read
 // before that has no value to give -- see refusals/0033.

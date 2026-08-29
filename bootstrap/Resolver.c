@@ -58,6 +58,7 @@ static const char *t_Resolver_VisitLiteral_1_LiteralExpr[] = { "LiteralExpr" };
 static const char *t_Resolver_VisitVariableExpr_1_VariableExpr[] = { "VariableExpr" };
 static const char *t_Resolver_CheckDuplicates_1_List[] = { "List" };
 static const char *t_Resolver_SignatureOf_1[] = { "Any" };
+static const char *t_Resolver_CheckInheritance_1_List[] = { "List" };
 static const char *t_Resolver_ResolveAll_1_List[] = { "List" };
 static const char *t_Resolver_Resolve_1[] = { "Any" };
 static const char *t_Resolver_ResolveFunction_2_FunctionStmt_FunctionType[] = { "FunctionStmt", "FunctionType" };
@@ -824,6 +825,52 @@ static Value m_Resolver_SignatureOf_1(Value v_this, Value *args, int32_t count) 
     return alg_nil();
 }
 
+static Value m_Resolver_CheckInheritance_1_List(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Statements = args[0];
+    (void)v_Statements;
+    Value v_Parent = alg_nil();
+    (void)v_Parent;
+    (void)((v_Parent = alg_map()));
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(v_Statements, "Length")))) {
+            {
+                if (alg_truthy(alg_is(alg_subscript_get(v_Statements, v_I), "ClassStmt"))) {
+                    if (alg_truthy(alg_not_equal(alg_property(alg_subscript_get(v_Statements, v_I), "Superclass"), alg_nil()))) {
+                        (void)(alg_invoke(v_Parent, "Put", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_Statements, v_I), "Name"), "Lexeme")}, 1), f_FoldCase(NULL, (Value[]){alg_property(alg_property(alg_property(alg_subscript_get(v_Statements, v_I), "Superclass"), "Name"), "Lexeme")}, 1)}, 2));
+                    }
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    {
+        Value loop_0 = alg_iterable(alg_invoke(v_Parent, "Keys", NULL, 0));
+        for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {
+            Value v_Name = alg_iterable_at(loop_0, at_0);
+            (void)v_Name;
+            {
+                Value v_Seen = alg_set();
+                (void)v_Seen;
+                Value v_At = alg_str(v_Name);
+                (void)v_At;
+                while (alg_truthy(alg_invoke(v_Parent, "Contains", (Value[]){v_At}, 1))) {
+                    {
+                        if (alg_truthy(alg_invoke(v_Seen, "Contains", (Value[]){v_At}, 1))) {
+                            alg_raise(alg_string("A class can't inherit from itself."));
+                        }
+                        (void)(alg_invoke(v_Seen, "Add", (Value[]){v_At}, 1));
+                        (void)((v_At = alg_str(alg_invoke(v_Parent, "Get", (Value[]){v_At}, 1))));
+                    }
+                }
+            }
+        }
+    }
+    return alg_nil();
+}
+
 static Value m_Resolver_ResolveAll_1_List(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Statements = args[0];
@@ -833,6 +880,7 @@ static Value m_Resolver_ResolveAll_1_List(Value v_this, Value *args, int32_t cou
             (void)(alg_set_property(v_this, "Collected", alg_bool(true)));
             (void)(alg_invoke(v_this, "CollectDottable", (Value[]){v_Statements}, 1));
             (void)(alg_invoke(v_this, "CheckDuplicates", (Value[]){v_Statements}, 1));
+            (void)(alg_invoke(v_this, "CheckInheritance", (Value[]){v_Statements}, 1));
         }
     }
     {
@@ -1061,6 +1109,7 @@ void init_Resolver(void) {
     alg_class_method(k_Resolver, "VisitVariableExpr", m_Resolver_VisitVariableExpr_1_VariableExpr, 1, t_Resolver_VisitVariableExpr_1_VariableExpr);
     alg_class_method(k_Resolver, "CheckDuplicates", m_Resolver_CheckDuplicates_1_List, 1, t_Resolver_CheckDuplicates_1_List);
     alg_class_method(k_Resolver, "SignatureOf", m_Resolver_SignatureOf_1, 1, t_Resolver_SignatureOf_1);
+    alg_class_method(k_Resolver, "CheckInheritance", m_Resolver_CheckInheritance_1_List, 1, t_Resolver_CheckInheritance_1_List);
     alg_class_method(k_Resolver, "ResolveAll", m_Resolver_ResolveAll_1_List, 1, t_Resolver_ResolveAll_1_List);
     alg_class_method(k_Resolver, "Resolve", m_Resolver_Resolve_1, 1, t_Resolver_Resolve_1);
     alg_class_method(k_Resolver, "ResolveFunction", m_Resolver_ResolveFunction_2_FunctionStmt_FunctionType, 2, t_Resolver_ResolveFunction_2_FunctionStmt_FunctionType);
