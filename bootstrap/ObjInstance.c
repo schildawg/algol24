@@ -89,7 +89,7 @@ static Value m_objsingleton_init_2_objclass(Value v_this, Value *args, int32_t c
 static Value m_objsingleton_instance_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     if (alg_truthy(alg_equal(alg_property(v_this, "TheInstance"), alg_nil()))) {
-        (void)(alg_set_property(v_this, "TheInstance", alg_widen(alg_invoke(alg_property(v_this, "Klass"), "Call", (Value[]){alg_property(v_this, "TheInterpreter"), alg_list()}, 2), "ObjInstance")));
+        (void)(alg_set_property(v_this, "TheInstance", alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Klass"), "Call", (Value[]){alg_property(v_this, "TheInterpreter"), alg_list()}, 2), "ObjInstance"), "ObjInstance")));
     }
     return alg_property(v_this, "TheInstance");
     return alg_nil();

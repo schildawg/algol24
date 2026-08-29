@@ -218,6 +218,11 @@ Value alg_to_list(Value receiver);
 Value alg_length(Value v);
 Value alg_is_empty(Value v);
 
+/* Length(X), the FUNCTION, which measures TEXT and refuses a collection
+ * [RT-003].  Deliberately not alg_length: the two are spelled alike and are not
+ * the same operation.  See the comment on its definition. */
+Value alg_text_length(Value v);
+
 Value alg_subscript_get(Value target, Value index);
 Value alg_subscript_set(Value target, Value index, Value value);
 Value alg_in(Value needle, Value haystack);
@@ -343,6 +348,11 @@ Value alg_file_exists(Value name);
  * never anything.  The type name is known when the C is written; the value's
  * type is not, which is why this is a call rather than a comparison. */
 Value alg_is(Value v, const char *name);
+
+/* 'X as T' -- the same test, made a requirement: the value back when it holds,
+ * an error naming both types when it does not.  nil passes every cast [VAR-005],
+ * which is the one place this and alg_is disagree. */
+Value alg_cast(Value v, const char *name);
 
 /* argv, behind Turbo Pascal's names.  Index 0 is the program; ParamCount does
  * not count it.  Emitted main passes these through on the way in. */

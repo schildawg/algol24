@@ -2594,8 +2594,15 @@ and `RemoveAt` is making it say which it meant.
 
 **[COL-005]**  A member a kind does not have is `Undefined property 'X'.`
 
+⚠️ A member the kind *does* have is a value before it is a call, as a method of
+an instance is [CLS-011]: `L.Sort` reads as something callable. That is also the
+only way to ask whether a kind has a member without arranging arguments for it,
+which is how `spec/members.a24` — the source [COL-003]'s matrix is checked
+against — probes for one.
+
     interpreter  compiler/ObjCollection.a24  Get
     conformance  0077-undefined-collection-member.a24
+    conformance  0144-a-collection-member-without-the-call.a24
 
 **[COL-006]**  A collection member's name is matched **case-insensitively**,
 as every name in the language is [SRC-011]. `L.Add(2)` and `L.add(2)` are the
@@ -4095,19 +4102,26 @@ and the C runtime has not. `alg_property` needs the case `ObjEnum` now has.
 
     gap  0113-enum-ordinal.a24
 
-**C-18 — `Length` of a collection is not refused compiled.** *(silent)*
+**C-18 — `Length` of a collection is not refused compiled.**
+***Withdrawn.***
 *(refers to [RT-003])*
 
 `Length([10, 20, 30])` is refused interpreted — `Length expects text; use
-.Length for a collection.` — and compiled it returns the length of the
+.Length for a collection.` — and compiled it returned the length of the
 rendering, as the interpreter used to.
 
-⚠️ **Silent, and the same trap the interpreter just lost**: a plausible number
-rather than an error. `alg_length` needs the refusal `LengthNative` gained.
+⚠️ **Silent, and the same trap the interpreter had just lost**: a plausible
+number rather than an error.
 
-    gap  0115-length-refuses-a-collection.a24
+⚠️ **The cause was one C function doing two jobs.** `Length(X)` and `X.Length`
+are spelled alike and are not the same operation — one measures text, the other
+answers a count — and the emitter mapped both onto `alg_length`, keyed by arity
+so that it could. `alg_text_length` is the function; `alg_length` stays the
+property. The comment on the emitter's builtin table asserted the two "mean the
+same thing", which is what made the conflation look deliberate.
 
-**C-19 — A cast is not checked compiled.** *(silent)*
+**C-19 — A cast is not checked compiled.**
+***Withdrawn.***
 *(refers to [VAL-007])*
 
 ```
@@ -4115,22 +4129,29 @@ var Bad : Any := 'text';
 WriteLn (Bad as Integer);
 ```
 
-Interpreted this is `Cannot cast String to Integer.` Compiled it prints `text`,
+Interpreted this is `Cannot cast String to Integer.` Compiled it printed `text`,
 which is what the interpreter did before DEF-12.
 
-⚠️ **New in generation 1, and the most consequential of the three so far.**
-[VAR-006] routes every untyped-to-typed crossing through `as`, so a compiled
-program has no verified boundary at all: a value of the wrong type passes into a
-declared type and nothing anywhere says so. The emitter records the cast — the
-parser stores it on the expression — and `alg_*` never tests it.
+⚠️ **The most consequential divergence recorded.** [VAR-006] routes every
+untyped-to-typed crossing through `as`, so a compiled program had no verified
+boundary anywhere: a value of the wrong type passed into a declared type and
+nothing said so. The parser stored the cast on the expression and the emitter
+read the field nowhere.
 
-⚠️ The *precedence* half of the same work needs nothing: [EXP-003] is a parsing
-rule and the front end is shared, so both processors already agree that
+⚠️ **Fixed in the one place the interpreter fixes it.** `as` sets a *field* on
+an expression rather than wrapping it, so both processors check it in their own
+`Evaluate` — the single point every expression passes through, whatever its
+shape. `alg_cast` is `alg_is` made a requirement, and parts company with it on
+exactly one value: `nil` satisfies every type [VAR-005] and so passes every
+cast, where it `is` nothing.
+
+⚠️ The *precedence* half of the same work needed nothing: [EXP-003] is a parsing
+rule and the front end is shared, so both processors already agreed that
 `False and 5 as Integer` is `False`.
 
----
-
-    gap  0117-as-is-checked.a24
+The compiled compiler runs its own 221 tests with every cast in its sources now
+checked, and reports identically to the interpreted run — which is the evidence
+that the check is the interpreter's and not a stricter one.
 
 **C-20 — Two enumerations binding one member is refused compiled.** *(loud)*
 
@@ -4309,26 +4330,36 @@ needed it.
 
     gap  0143-a-large-computed-literal.a24
 
-**C-28 — An undefined collection member is not refused compiled.** *(silent)*
-*(refers to [COL-003])*
+**C-28 — An undefined collection member is not refused compiled.**
+***Withdrawn.***
+*(refers to [COL-005])*
 
-`L.Get (0)` on a `List` is `Undefined property 'Get'.` interpreted — `Get`
-belongs to a Map — and compiled it runs and answers. The runtime's member
-dispatch falls through to something that succeeds instead of refusing.
+`K.Get (0)` on a `Stack` is `Undefined property 'Get'.` interpreted — `Get`
+belongs to a List, an Array and a Map — and compiled it ran and answered.
 
-⚠️ Silent, and in the direction that matters: the compiler accepts a program the
-language refuses.
+⚠️ Silent, and in the direction that matters: the compiler accepted a program
+the language refuses.
 
-    gap  0077-undefined-collection-member.a24
+⚠️ **The member table is per KIND, and the runtime's was flat.** Every name was
+answered for every collection, so the kinds were distinguishable only by what
+happened to work. `kind_has` mirrors `ObjCollection.Get`'s chain of kind tests;
+the two are one table written twice and have to be read together.
 
-**C-29 — An invalid subscript target is not refused compiled.** *(silent)*
+**C-29 — An invalid subscript target is not refused compiled.**
+***Withdrawn.***
 *(refers to [TYP-010])*
 
-Subscripting something that is neither a collection nor a String is
-`Subscript target should be an ordinal.` interpreted, and compiled it answers a
-value. Same shape as C-28, on the subscript path rather than the member path.
+Subscripting a Set is `Subscript target should be an ordinal.` interpreted, and
+compiled it answered a value. Same cause as C-28: a Set is a sequence in the
+runtime's representation, so the position path took it.
 
-    gap  0081-subscripting-by-kind.a24
+⚠️ **A Set reports as though it were not a collection at all**, which is what
+`ObjCollection.At` does deliberately: there is no subscript path for a Set, so
+it falls through to the complaint anything else without one gets.
+
+Assignment was wrong in a second way the entry did not name — `'abc'[0] := 'x'`
+answered `Only a collection can be subscripted.`, which is false of the receiver
+in front of it. It is `Strings are immutable.` on both sides now.
 
 **C-30 — `Max` and `Val` answer differently compiled.** *(silent)*
 *(refers to [RT-010], [RT-011])*
@@ -4444,6 +4475,32 @@ two could still name different ones.
 
 ⚠️ The emitter breaks its own contract, as in C-13 and C-16: it should refuse by
 name what it cannot emit rather than emit C that does not build.
+
+**C-35 — A collection member read without calling it is refused compiled.**
+*(silent)*
+*(refers to [COL-005])*
+
+`var Sort := L.Sort;` binds a callable interpreted and is `Undefined property
+'Sort'.` compiled. Only `Length` and `IsEmpty` are answered on this path, so of
+the 41 kind/member pairs [COL-003] records, a compiled program can read 10.
+
+⚠️ **This is the instance case again, one receiver kind later.** `alg_property`
+already gained the note that a method reached without calling it binds to its
+receiver — written because `algc`'s own `IsCallable` asks every value for its
+`Arity`, so a compiled `algc` could not call anything at all. Collections were
+not given the same treatment, and nothing noticed because nothing reads a
+collection member without calling it.
+
+⚠️ **Found by adding a conformance case for a probe.** `spec/members.a24` has
+exercised exactly this since [COL-003]'s matrix was first checked — but it is a
+*source* for `spec/spec.sh`, not a conformance case, so `conform.sh` never
+compiled it and the divergence stayed invisible. A program only the interpreter
+runs is not evidence about the language.
+
+*Fix:* `alg_bound` is the shape, with a builtin member in place of a
+`MethodEntry` — `kind_has` already decides which names a kind answers for.
+
+    gap  0144-a-collection-member-without-the-call.a24
 
 
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was

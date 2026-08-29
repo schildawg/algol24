@@ -760,7 +760,7 @@ static Value m_typechecker_checkfunction_1(Value v_this, Value *args, int32_t co
     Value v_enclosing = alg_nil();
     (void)v_enclosing;
     (void)((v_enclosing = alg_widen(alg_property(v_this, "CurrentReturn"), "String")));
-    (void)(alg_set_property(v_this, "CurrentReturn", alg_widen(alg_property(v_thefunction, "ReturnType"), "String")));
+    (void)(alg_set_property(v_this, "CurrentReturn", alg_widen(alg_cast(alg_property(v_thefunction, "ReturnType"), "String"), "String")));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
     {
         Value v_i = alg_int(0);

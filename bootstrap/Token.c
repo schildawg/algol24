@@ -23,7 +23,7 @@ Value f_foldcase(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
             {
                 if (alg_truthy(alg_greater_equal(alg_pos(v_foldVupper, alg_str(alg_subscript_get(v_text, v_i))), alg_int(0)))) {
                     (void)((v_needs = alg_bool(true)));
@@ -39,7 +39,7 @@ Value f_foldcase(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
             {
                 {
                     Value v_at = alg_pos(v_foldVupper, alg_str(alg_subscript_get(v_text, v_i)));

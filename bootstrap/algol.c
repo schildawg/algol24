@@ -988,6 +988,27 @@ static int32_t count_of(Value v) {
 Value alg_length(Value v)   { return alg_int(count_of(v)); }
 Value alg_is_empty(Value v) { return alg_bool(count_of(v) == 0); }
 
+/* Length(X), the FUNCTION -- not the '.Length' property above, which is what
+ * alg_length is.
+ *
+ * ⚠️ The two are spelled alike and are not the same operation, so they cannot
+ * be one C function [RT-003].  Length measures TEXT and a collection has a
+ * count, so 'Length ([10, 20, 30])' answered 12 here -- the length of the
+ * rendering -- where '[10, 20, 30].Length' is 3.  A plausible NUMBER rather
+ * than an error, and the two are never equal: a List of n one-digit numbers
+ * renders as 3n characters.  LengthNative refuses it and this did not.
+ *
+ * Anything else is stringified, as LengthNative's 'Length (Str (...))' does, so
+ * 'Length (42)' is 2. */
+Value alg_text_length(Value v) {
+    if (is_sequence(v) || is_obj(v, OBJ_MAP))
+        alg_error("Length expects text; use .Length for a collection.");
+
+    Value text = is_text(v) ? v : alg_str(v);
+
+    return alg_int(utf8_count(text.string, text.length));
+}
+
 /* ------------------------------------------------------------- subscript -- */
 
 Value alg_subscript_get(Value target, Value index) {
@@ -1000,6 +1021,12 @@ Value alg_subscript_get(Value target, Value index) {
         ObjBuffer *buffer = as_buffer(target, "[]");
         return alg_int((unsigned char)buffer->bytes[buffer_offset(buffer, index, 1)]);
     }
+
+    /* ⚠️ A Set has no positions, so it reports as though it were not a
+     * collection at all -- it falls through to the same complaint anything
+     * else without a subscript path gets, which is what ObjCollection.At does.
+     * is_sequence covers it, so 'Set ([1, 2])[0]' answered 1 here. */
+    if (is_obj(target, OBJ_SET)) alg_error("Subscript target should be an ordinal.");
 
     if (is_sequence(target)) {
         ObjSeq *seq = (ObjSeq *)target.obj;
@@ -1037,6 +1064,9 @@ Value alg_subscript_set(Value target, Value index, Value value) {
         buffer->bytes[at] = (char)byte;
         return value;
     }
+    /* A Set has no positions on this side either -- see alg_subscript_get. */
+    if (is_obj(target, OBJ_SET)) alg_error("Subscript target should be an ordinal.");
+
     if (is_sequence(target)) {
         ObjSeq *seq = (ObjSeq *)target.obj;
 
@@ -1044,7 +1074,13 @@ Value alg_subscript_set(Value target, Value index, Value value) {
         return value;
     }
 
-    alg_error("Only a collection can be subscripted.");
+    /* ⚠️ A String is subscriptable and not assignable, and says so.  This
+     * answered 'Only a collection can be subscripted.', which is false of the
+     * receiver in front of it; VisitSetSubscriptExpr separates the two cases
+     * for the same reason. */
+    if (is_text(target)) alg_error("Strings are immutable.");
+
+    alg_error("Subscript target should be an ordinal.");
     return alg_nil();
 }
 
@@ -1871,6 +1907,30 @@ Value alg_is(Value v, const char *name) {
     return alg_bool(is_a(v, name));
 }
 
+/* 'X as T' -- a CHECKED conversion [VAL-007], and the same question 'is' asks.
+ *
+ * ⚠️ It is the only way a value crosses from untyped into typed [VAR-006], so
+ * the strictness there is reasonable only if the crossing is verified.  This
+ * was not checked at all: the emitter recorded the cast and nothing tested it,
+ * which left a compiled program with no verified boundary anywhere -- a value
+ * of the wrong type passed into a declared type and nothing said so.
+ *
+ * ⚠️ nil satisfies every type [VAR-005] and therefore passes every cast, which
+ * is where this parts company with alg_is: nil 'is' nothing and casts to
+ * anything. */
+Value alg_cast(Value v, const char *name) {
+    if (v.type == VAL_NIL) return v;
+
+    if (alg_stricmp(type_name(v), name) == 0) return v;
+    if (is_a(v, name)) return v;
+
+    char message[256];
+    snprintf(message, sizeof message, "Cannot cast %s to %s.", type_name(v), name);
+
+    alg_error(message);
+    return alg_nil();
+}
+
 Value alg_file_exists(Value name) {
     const char *path = file_name_argument(name);
 
@@ -2075,8 +2135,55 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
 /* Collection methods, reached by name.  Kept here rather than in the emitter
  * because a class may declare a method called Add, and only the receiver says
  * which is meant. */
+/* Whether a name is one of a list of members, folded [SRC-011].  The list ends
+ * with NULL. */
+static bool one_of(const char *name, const char *const *members) {
+    for (int32_t i = 0; members[i] != NULL; i++)
+        if (alg_stricmp(name, members[i]) == 0) return true;
+
+    return false;
+}
+
+/* Whether this KIND of collection has this member.
+ *
+ * ⚠️ The member table is PER KIND, which is why this asks the receiver's type
+ * before the name.  A flat table answers every name for every kind, so
+ * 'Stack ().Get (0)' ran and handed back an element [COL-005], where the
+ * interpreter refuses it -- the compiler accepting a program the language
+ * refuses, which is the direction that matters.  ObjCollection.Get is the
+ * table this mirrors; the two have to be read together. */
+static bool kind_has(Value receiver, const char *name) {
+    /* Shared by every kind. */
+    if (alg_stricmp(name, "Contains") == 0) return true;
+
+    static const char *const list[]  = { "Get", "Add", "Insert", "RemoveAt",
+                                         "IndexOf", "Sort", "Clear", NULL };
+    static const char *const array[] = { "Get", "Set", "Fill", "IndexOf", "Sort", NULL };
+    static const char *const map[]   = { "Get", "Put", "Remove", "Keys",
+                                         "Values", "Clear", NULL };
+    static const char *const set[]   = { "Add", "Remove", "ToList", "Clear", NULL };
+    static const char *const stack[] = { "Push", "Pop", "Peek", "Clear", NULL };
+
+    switch (receiver.obj->type) {
+        case OBJ_LIST:  return one_of(name, list);
+        case OBJ_ARRAY: return one_of(name, array);
+        case OBJ_MAP:   return one_of(name, map);
+        case OBJ_SET:   return one_of(name, set);
+        case OBJ_STACK: return one_of(name, stack);
+
+        default: return false;
+    }
+}
+
 static bool collection_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
     (void)count;
+
+    if (!is_sequence(receiver) && !is_obj(receiver, OBJ_MAP)) return false;
+
+    /* Named by the receiver's kind, so what runs below is a member that kind
+     * actually has.  'Undefined property' is the interpreter's wording, and a
+     * collection names the member it does not have [TYP-009]. */
+    if (!kind_has(receiver, name)) undefined("property", name);
 
     if (alg_stricmp(name, "Add") == 0)       { *result = alg_add_item(receiver, args[0]); return true; }
     if (alg_stricmp(name, "Put") == 0)       { *result = alg_put(receiver, args[0], args[1]); return true; }

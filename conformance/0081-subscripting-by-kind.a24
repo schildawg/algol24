@@ -1,6 +1,4 @@
 // spec: COL-014
-//
-// ⚠️ Expected to FAIL compiled, because of C-8.
 
 // By POSITION for a List and an Array.
 var L := [10, 20, 30];
@@ -13,6 +11,15 @@ WriteLn (A[0]);
 // By KEY for a Map -- the subscript is the key, not a position.
 var M := [7 : 'seven'];
 WriteLn (M[7]);
+
+// A String is subscriptable and not assignable, and says so -- a different
+// complaint from the one a target without a subscript path gets.
+try
+    var T := 'abc';
+    T[0] := 'x';
+except
+    on e : String do WriteLn (e);
+end
 
 // A Set has no positions.
 var S := Set ([1, 2]);

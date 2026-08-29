@@ -265,7 +265,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
                             } else {
                                 {
                                     if (alg_truthy(alg_equal(alg_copy(v_arg, alg_int(0), alg_int(6)), alg_string("--out=")))) {
-                                        (void)((v_outdir = alg_copy(v_arg, alg_int(6), alg_subtract(alg_length(v_arg), alg_int(6)))));
+                                        (void)((v_outdir = alg_copy(v_arg, alg_int(6), alg_subtract(alg_text_length(v_arg), alg_int(6)))));
                                     } else {
                                         (void)((v_name = alg_widen(v_arg, "String")));
                                     }

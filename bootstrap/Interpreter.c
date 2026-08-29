@@ -216,7 +216,7 @@ static Value m_lengthnative_call_2(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_is(alg_subscript_get(v_arguments, alg_int(0)), "ObjCollection"))) {
         alg_raise(alg_string("Length expects text; use .Length for a collection."));
     }
-    return alg_length(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
+    return alg_text_length(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
     return alg_nil();
 }
 
@@ -545,20 +545,20 @@ static Value m_valnative_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_asdouble;
     (void)((v_sign = alg_widen(alg_int(1), "Integer")));
     (void)((v_digits = alg_widen(v_text, "String")));
-    if (alg_truthy((or_1 = alg_greater(alg_length(v_digits), alg_int(0)), !alg_truthy(or_1) ? or_1 : alg_equal(alg_subscript_get(v_digits, alg_int(0)), alg_char_value(45))))) {
+    if (alg_truthy((or_1 = alg_greater(alg_text_length(v_digits), alg_int(0)), !alg_truthy(or_1) ? or_1 : alg_equal(alg_subscript_get(v_digits, alg_int(0)), alg_char_value(45))))) {
         {
             (void)((v_sign = alg_widen(alg_negate(alg_int(1)), "Integer")));
-            (void)((v_digits = alg_widen(alg_copy(v_digits, alg_int(1), alg_subtract(alg_length(v_digits), alg_int(1))), "String")));
+            (void)((v_digits = alg_widen(alg_copy(v_digits, alg_int(1), alg_subtract(alg_text_length(v_digits), alg_int(1))), "String")));
         }
     }
-    if (alg_truthy(alg_equal(alg_length(v_digits), alg_int(0)))) {
+    if (alg_truthy(alg_equal(alg_text_length(v_digits), alg_int(0)))) {
         return v_asdouble;
     }
     (void)((v_result = alg_widen(alg_int(0), "Integer")));
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_digits)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_digits)))) {
             {
                 {
                     Value v_c = alg_subscript_get(v_digits, v_i);
@@ -760,7 +760,7 @@ static Value m_paramstrnative_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_arguments;
     Value v_at = alg_nil();
     (void)v_at;
-    (void)((v_at = alg_widen(alg_subscript_get(v_arguments, alg_int(0)), "Integer")));
+    (void)((v_at = alg_widen(alg_cast(alg_subscript_get(v_arguments, alg_int(0)), "Integer"), "Integer")));
     if (alg_truthy((or_6 = alg_less(v_at, alg_int(0)), alg_truthy(or_6) ? or_6 : alg_greater_equal(v_at, alg_property(v_programarguments, "Length"))))) {
         return alg_string("");
     }
@@ -1170,7 +1170,7 @@ static Value m_interpreter_hoisttests_11_list_list_map_boolean_environment_map_s
                                     if (alg_truthy(v_mine)) {
                                         (void)(alg_invoke(v_hoisted, "Add", (Value[]){alg_str(alg_property(v_thestmt, "FileName"))}, 1));
                                     }
-                                    (void)(alg_invoke(v_this, "HoistTests", (Value[]){alg_property(v_thestmt, "Statements"), v_tests, v_byname, alg_bool(false), alg_invoke(alg_property(v_this, "Modules"), "Get", (Value[]){alg_property(v_thestmt, "FileName")}, 1), v_declaredin, alg_str(alg_property(v_thestmt, "FileName")), v_files, v_byfile, v_hoisted, v_mine}, 11));
+                                    (void)(alg_invoke(v_this, "HoistTests", (Value[]){alg_property(v_thestmt, "Statements"), v_tests, v_byname, alg_bool(false), alg_cast(alg_invoke(alg_property(v_this, "Modules"), "Get", (Value[]){alg_property(v_thestmt, "FileName")}, 1), "Environment"), v_declaredin, alg_str(alg_property(v_thestmt, "FileName")), v_files, v_byfile, v_hoisted, v_mine}, 11));
                                 }
                             }
                         }
@@ -1191,7 +1191,7 @@ static Value m_interpreter_hoisttests_11_list_list_map_boolean_environment_map_s
                                                 (void)(alg_invoke(v_byfile, "Put", (Value[]){v_file, alg_list()}, 2));
                                             }
                                         }
-                                        (void)(alg_invoke((alg_invoke(v_byfile, "Get", (Value[]){v_file}, 1)), "Add", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1));
+                                        (void)(alg_invoke((alg_cast(alg_invoke(v_byfile, "Get", (Value[]){v_file}, 1), "List")), "Add", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1));
                                     }
                                 }
                             }
@@ -1251,7 +1251,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
         while (alg_truthy(alg_less(v_f, alg_property(v_files, "Length")))) {
             {
                 {
-                    volatile Value v_group = alg_invoke(v_byfile, "Get", (Value[]){alg_subscript_get(v_files, v_f)}, 1);
+                    volatile Value v_group = alg_cast(alg_invoke(v_byfile, "Get", (Value[]){alg_subscript_get(v_files, v_f)}, 1), "List");
                     (void)v_group;
                     (void)(alg_invoke(v_group, "Sort", NULL, 0));
                     (void)(alg_invoke(v_ordered, "Add", (Value[]){alg_subscript_get(v_files, v_f)}, 1));
@@ -1297,7 +1297,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
                                         volatile Value v_scope = alg_property(v_this, "Globals");
                                         (void)v_scope;
                                         if (alg_truthy(alg_invoke(v_declaredin, "Contains", (Value[]){alg_subscript_get(v_ordered, v_i)}, 1))) {
-                                            (void)((v_scope = alg_invoke(v_declaredin, "Get", (Value[]){alg_subscript_get(v_ordered, v_i)}, 1)));
+                                            (void)((v_scope = alg_cast(alg_invoke(v_declaredin, "Get", (Value[]){alg_subscript_get(v_ordered, v_i)}, 1), "Environment")));
                                         }
                                         volatile Value v_body = alg_invoke(v_scope, "Get", (Value[]){alg_property(v_thetest, "Name")}, 1);
                                         (void)v_body;
@@ -1362,7 +1362,7 @@ static Value m_interpreter_report_2_string_string(Value v_this, Value *args, int
     (void)v_status;
     Value v_dots = alg_nil();
     (void)v_dots;
-    (void)((v_dots = alg_widen(alg_subtract(alg_int(55), alg_length(v_name)), "Integer")));
+    (void)((v_dots = alg_widen(alg_subtract(alg_int(55), alg_text_length(v_name)), "Integer")));
     if (alg_truthy(alg_less(v_dots, alg_int(1)))) {
         (void)((v_dots = alg_widen(alg_int(1), "Integer")));
     }
@@ -1680,7 +1680,7 @@ static Value m_interpreter_lookupvariable_2_token_expr(Value v_this, Value *args
     (void)v_theexpr;
     volatile Value v_distance = alg_nil();
     (void)v_distance;
-    (void)((v_distance = alg_widen(alg_invoke(alg_property(v_this, "Locals"), "Get", (Value[]){v_theexpr}, 1), "Integer")));
+    (void)((v_distance = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Locals"), "Get", (Value[]){v_theexpr}, 1), "Integer"), "Integer")));
     if (alg_truthy(alg_not_equal(v_distance, alg_nil()))) {
         return alg_invoke(alg_property(v_this, "Env"), "GetAt", (Value[]){v_distance, alg_property(v_name, "Lexeme")}, 2);
     }
@@ -1730,7 +1730,7 @@ static Value m_interpreter_suggestunit_2_token_string(Value v_this, Value *args,
         while (alg_truthy(alg_less(v_i, alg_property(v_units, "Length")))) {
             {
                 {
-                    Value v_moduleenv = alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){alg_subscript_get(v_units, v_i)}, 1);
+                    Value v_moduleenv = alg_cast(alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){alg_subscript_get(v_units, v_i)}, 1), "Environment");
                     (void)v_moduleenv;
                     if (alg_truthy((or_14 = alg_not_equal(alg_property(v_moduleenv, "Exports"), alg_nil()), !alg_truthy(or_14) ? or_14 : alg_invoke(alg_property(v_moduleenv, "Exports"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1)))) {
                         return alg_add(alg_add(alg_add(alg_str(v_message), alg_string(" Unit '")), alg_str(alg_property(v_moduleenv, "UnitName"))), alg_string("' exports it; this file has no 'uses' for it."));
@@ -1878,7 +1878,7 @@ static Value m_interpreter_assignqualified_3_string_token(Value v_this, Value *a
     if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "UnitsByName"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_unit}, 1)}, 1)))) {
         alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), alg_str(alg_property(v_name, "Lexeme"))), alg_string("' in unit '")), v_unit), alg_string("'.")));
     }
-    (void)((v_moduleenv = alg_widen(alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_unit}, 1)}, 1), "Environment")));
+    (void)((v_moduleenv = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_unit}, 1)}, 1), "Environment"), "Environment")));
     if (alg_truthy((or_17 = alg_equal(alg_property(v_moduleenv, "Exports"), alg_nil()), alg_truthy(or_17) ? or_17 : alg_not(alg_invoke(alg_property(v_moduleenv, "Exports"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))))) {
         alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), alg_str(alg_property(v_name, "Lexeme"))), alg_string("' in unit '")), v_unit), alg_string("'.")));
     }
@@ -1905,7 +1905,7 @@ static Value m_interpreter_qualified_2_string_token(Value v_this, Value *args, i
     if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "UnitsByName"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_unit}, 1)}, 1)))) {
         alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), alg_str(alg_property(v_name, "Lexeme"))), alg_string("' in unit '")), v_unit), alg_string("'.")));
     }
-    (void)((v_moduleenv = alg_widen(alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_unit}, 1)}, 1), "Environment")));
+    (void)((v_moduleenv = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "UnitsByName"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_unit}, 1)}, 1), "Environment"), "Environment")));
     if (alg_truthy((or_18 = alg_equal(alg_property(v_moduleenv, "Exports"), alg_nil()), alg_truthy(or_18) ? or_18 : alg_not(alg_invoke(alg_property(v_moduleenv, "Exports"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))))) {
         alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), alg_str(alg_property(v_name, "Lexeme"))), alg_string("' in unit '")), v_unit), alg_string("'.")));
     }
@@ -1926,7 +1926,7 @@ static Value m_interpreter_visitgetexpr_1_getexpr(Value v_this, Value *args, int
     if (alg_truthy(alg_is(v_obj, "String"))) {
         {
             if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(alg_property(v_theexpr, "Name"), "Lexeme")}, 1), alg_string("length")))) {
-                return alg_length(v_obj);
+                return alg_text_length(v_obj);
             }
             alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))), alg_string("'.")));
         }
@@ -1979,9 +1979,9 @@ static Value m_interpreter_visitsuperexpr_1_superexpr(Value v_this, Value *args,
     (void)v_obj;
     Value v_method = alg_nil();
     (void)v_method;
-    (void)((v_distance = alg_widen(alg_invoke(alg_property(v_this, "Locals"), "Get", (Value[]){v_theexpr}, 1), "Integer")));
-    (void)((v_superclass = alg_widen(alg_invoke(alg_property(v_this, "Env"), "GetAt", (Value[]){v_distance, alg_string("super")}, 2), "ObjClass")));
-    (void)((v_obj = alg_widen(alg_invoke(alg_property(v_this, "Env"), "GetAt", (Value[]){alg_subtract(v_distance, alg_int(1)), alg_string("this")}, 2), "ObjInstance")));
+    (void)((v_distance = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Locals"), "Get", (Value[]){v_theexpr}, 1), "Integer"), "Integer")));
+    (void)((v_superclass = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Env"), "GetAt", (Value[]){v_distance, alg_string("super")}, 2), "ObjClass"), "ObjClass")));
+    (void)((v_obj = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Env"), "GetAt", (Value[]){alg_subtract(v_distance, alg_int(1)), alg_string("this")}, 2), "ObjInstance"), "ObjInstance")));
     (void)((v_method = alg_widen(alg_invoke(v_superclass, "FindMethod", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_theexpr, "Method"), "Lexeme")}, 1)}, 1), "ObjFunction")));
     return alg_invoke(v_method, "Bind", (Value[]){v_obj}, 1);
     return alg_nil();
@@ -2124,7 +2124,7 @@ static Value m_interpreter_executeblock_2_list_environment(Value v_this, Value *
     (void)v_newenv;
     volatile Value v_previousenv = alg_nil();
     (void)v_previousenv;
-    (void)((v_previousenv = alg_widen(alg_property(v_this, "Env"), "Environment")));
+    (void)((v_previousenv = alg_widen(alg_cast(alg_property(v_this, "Env"), "Environment"), "Environment")));
     {
         AlgFrame frame_13;
         alg_push_frame(&frame_13);
@@ -2232,13 +2232,13 @@ static Value m_interpreter_visitclassstmt_1_classstmt(Value v_this, Value *args,
     }
     if (alg_truthy(alg_not_equal(v_shell, alg_nil()))) {
         {
-            (void)((v_klass = alg_widen(v_shell, "ObjClass")));
-            (void)(alg_set_property(v_klass, "Superclass", alg_widen(v_superclass, "ObjClass")));
+            (void)((v_klass = alg_widen(alg_cast(v_shell, "ObjClass"), "ObjClass")));
+            (void)(alg_set_property(v_klass, "Superclass", alg_widen(alg_cast(v_superclass, "ObjClass"), "ObjClass")));
             (void)(alg_set_property(v_klass, "Methods", alg_widen(v_methods, "Map")));
             (void)(alg_set_property(v_klass, "Fields", alg_widen(alg_property(v_thestmt, "Fields"), "List")));
         }
     } else {
-        (void)((v_klass = alg_widen(alg_new(k_objclass, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), v_superclass, v_methods, alg_property(v_thestmt, "Fields")}, 4), "ObjClass")));
+        (void)((v_klass = alg_widen(alg_cast(alg_new(k_objclass, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), v_superclass, v_methods, alg_property(v_thestmt, "Fields")}, 4), "ObjClass"), "ObjClass")));
     }
     {
         Value loop_14 = alg_iterable(alg_invoke(v_methods, "Keys", NULL, 0));
@@ -2259,7 +2259,7 @@ static Value m_interpreter_visitclassstmt_1_classstmt(Value v_this, Value *args,
     }
     if (alg_truthy(alg_not_equal(v_superclass, alg_nil()))) {
         {
-            (void)(alg_set_property(v_this, "Env", alg_widen(alg_property(alg_property(v_this, "Env"), "Enclosing"), "Environment")));
+            (void)(alg_set_property(v_this, "Env", alg_widen(alg_cast(alg_property(alg_property(v_this, "Env"), "Enclosing"), "Environment"), "Environment")));
         }
     }
     (void)(alg_invoke(alg_property(v_this, "Env"), "Assign", (Value[]){alg_property(v_thestmt, "Name"), v_klass}, 2));
@@ -2294,7 +2294,7 @@ static Value m_interpreter_visitobjectstmt_1_objectstmt(Value v_this, Value *arg
         }
     }
     (void)(alg_invoke(v_this, "VisitClassStmt", (Value[]){alg_new(k_classstmt, (Value[]){alg_property(v_thestmt, "Name"), alg_property(v_thestmt, "Superclass"), alg_property(v_thestmt, "Methods"), alg_property(v_thestmt, "Fields")}, 4)}, 1));
-    (void)((v_klass = alg_widen(alg_invoke(alg_property(v_this, "Env"), "Get", (Value[]){alg_property(v_thestmt, "Name")}, 1), "ObjClass")));
+    (void)((v_klass = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Env"), "Get", (Value[]){alg_property(v_thestmt, "Name")}, 1), "ObjClass"), "ObjClass")));
     (void)(alg_invoke(alg_property(v_this, "Env"), "Assign", (Value[]){alg_property(v_thestmt, "Name"), alg_new(k_objsingleton, (Value[]){v_klass, v_this}, 2)}, 2));
     return alg_nil();
 }
@@ -2322,10 +2322,10 @@ static Value m_interpreter_visitenumstmt_1_enumstmt(Value v_this, Value *args, i
                         (void)((v_clash = alg_is(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_membername}, 1)}, 1), "ObjEnum")));
                     }
                     if (alg_truthy(v_clash)) {
-                        (void)((v_clash = alg_not_equal(alg_property((alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_membername}, 1)}, 1)), "TypeName"), alg_property(v_thetype, "Name"))));
+                        (void)((v_clash = alg_not_equal(alg_property((alg_cast(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_membername}, 1)}, 1), "ObjEnum")), "TypeName"), alg_property(v_thetype, "Name"))));
                     }
                     if (alg_truthy(v_clash)) {
-                        (void)(alg_invoke(alg_property(v_this, "Env"), "MarkAmbiguous", (Value[]){v_membername, alg_add(alg_add(alg_property((alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_membername}, 1)}, 1)), "TypeName"), alg_string(" or ")), alg_property(v_thetype, "Name"))}, 2));
+                        (void)(alg_invoke(alg_property(v_this, "Env"), "MarkAmbiguous", (Value[]){v_membername, alg_add(alg_add(alg_property((alg_cast(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_membername}, 1)}, 1), "ObjEnum")), "TypeName"), alg_string(" or ")), alg_property(v_thetype, "Name"))}, 2));
                     } else {
                         (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){v_membername, v_member}, 2));
                     }
@@ -2557,7 +2557,7 @@ static Value m_interpreter_elementsof_2_token(Value v_this, Value *args, int32_t
             {
                 Value v_i = alg_int(0);
                 (void)v_i;
-                while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
+                while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
                     {
                         (void)(alg_invoke(v_result, "Add", (Value[]){alg_subscript_get(v_text, v_i)}, 1));
                         (void)((v_i = alg_add(v_i, alg_int(1))));
@@ -2641,7 +2641,7 @@ static Value m_interpreter_visitmodulestmt_1_modulestmt(Value v_this, Value *arg
     (void)((v_importer = alg_widen(alg_property(v_this, "Env"), "Environment")));
     if (alg_truthy(alg_invoke(alg_property(v_this, "Modules"), "Contains", (Value[]){alg_property(v_thestmt, "FileName")}, 1))) {
         {
-            Value v_already = alg_invoke(alg_property(v_this, "Modules"), "Get", (Value[]){alg_property(v_thestmt, "FileName")}, 1);
+            Value v_already = alg_cast(alg_invoke(alg_property(v_this, "Modules"), "Get", (Value[]){alg_property(v_thestmt, "FileName")}, 1), "Environment");
             (void)v_already;
             if (alg_truthy(alg_equal(alg_property(v_already, "UnitName"), alg_string("")))) {
                 (void)(alg_set_property(v_already, "UnitName", alg_widen(alg_str(alg_property(v_thestmt, "UnitName")), "String")));
@@ -2721,13 +2721,13 @@ static Value m_interpreter_findhandler_2_map(Value v_this, Value *args, int32_t 
     (void)v_klass;
     if (alg_truthy(alg_is(v_value, "ObjInstance"))) {
         {
-            (void)((v_klass = alg_widen(alg_property(v_value, "Klass"), "ObjClass")));
+            (void)((v_klass = alg_widen(alg_cast(alg_property(v_value, "Klass"), "ObjClass"), "ObjClass")));
             while (alg_truthy(alg_not_equal(v_klass, alg_nil()))) {
                 {
                     Value v_thename = alg_str(alg_property(v_klass, "Name"));
                     (void)v_thename;
                     if (alg_truthy(alg_invoke(v_handlers, "Contains", (Value[]){v_thename}, 1))) {
-                        return alg_invoke(v_handlers, "Get", (Value[]){v_thename}, 1);
+                        return alg_cast(alg_invoke(v_handlers, "Get", (Value[]){v_thename}, 1), "ExceptHandler");
                     }
                     (void)((v_klass = alg_widen(alg_property(v_klass, "Superclass"), "ObjClass")));
                 }
@@ -2738,7 +2738,7 @@ static Value m_interpreter_findhandler_2_map(Value v_this, Value *args, int32_t 
     Value v_typename = f_typenameof(NULL, (Value[]){v_value}, 1);
     (void)v_typename;
     if (alg_truthy(alg_invoke(v_handlers, "Contains", (Value[]){v_typename}, 1))) {
-        return alg_invoke(v_handlers, "Get", (Value[]){v_typename}, 1);
+        return alg_cast(alg_invoke(v_handlers, "Get", (Value[]){v_typename}, 1), "ExceptHandler");
     }
     return alg_nil();
     return alg_nil();
@@ -2756,7 +2756,7 @@ static Value m_interpreter_handle_3_trystmt(Value v_this, Value *args, int32_t c
     (void)v_handler;
     (void)((v_handler = alg_widen(alg_invoke(v_this, "FindHandler", (Value[]){alg_property(v_thestmt, "Handlers"), v_value}, 2), "ExceptHandler")));
     if (alg_truthy((or_31 = alg_equal(v_handler, alg_nil()), !alg_truthy(or_31) ? or_31 : alg_invoke(alg_property(v_thestmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
-        (void)((v_handler = alg_widen(alg_invoke(alg_property(v_thestmt, "Handlers"), "Get", (Value[]){alg_string("default")}, 1), "ExceptHandler")));
+        (void)((v_handler = alg_widen(alg_cast(alg_invoke(alg_property(v_thestmt, "Handlers"), "Get", (Value[]){alg_string("default")}, 1), "ExceptHandler"), "ExceptHandler")));
     }
     if (alg_truthy(alg_equal(v_handler, alg_nil()))) {
         alg_raise(v_original);
@@ -2870,7 +2870,7 @@ static Value m_interpreter_visitassignexpr_1_assignexpr(Value v_this, Value *arg
     volatile Value v_distance = alg_nil();
     (void)v_distance;
     (void)((v_value = alg_invoke(v_this, "Widen", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_expr, "Value")}, 1), alg_str(alg_property(v_expr, "Declared"))}, 2)));
-    (void)((v_distance = alg_widen(alg_invoke(alg_property(v_this, "Locals"), "Get", (Value[]){v_expr}, 1), "Integer")));
+    (void)((v_distance = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Locals"), "Get", (Value[]){v_expr}, 1), "Integer"), "Integer")));
     if (alg_truthy(alg_not_equal(v_distance, alg_nil()))) {
         {
             {

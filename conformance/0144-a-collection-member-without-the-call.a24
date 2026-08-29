@@ -1,0 +1,27 @@
+// spec: COL-005
+//
+// A member of a collection READ rather than called.  Every member a kind has
+// is a value before it is a call, as a method of an instance is [CLS-011] --
+// 'L.Sort' hands back something callable and calling it sorts.
+//
+// ⚠️ Reading is also the only way to ask whether a kind HAS a member without
+// arranging arguments for it: a call that fails for want of an argument cannot
+// be told apart from the member being absent, which is why spec/members.a24 --
+// the source the [COL-003] matrix is checked against -- probes this way.
+
+var L := [3, 1, 2];
+
+var Sort := L.Sort;
+Sort ();
+WriteLn (L[0]);
+
+var Add := L.Add;
+Add (9);
+WriteLn (L.Length);
+
+// A member the kind does not have is refused on this path too [COL-005].
+try
+    var Nope := L.Push;
+except
+    on e : String do WriteLn (e);
+end

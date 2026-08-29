@@ -48,7 +48,7 @@ Value f_tolower(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
             {
                 {
                     Value v_c = alg_copy(v_text, v_i, alg_int(1));
@@ -78,7 +78,7 @@ Value f_tointeger(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
             {
                 (void)((v_result = alg_widen(alg_add(alg_multiply(v_result, alg_int(10)), alg_pos(v_digits, alg_copy(v_text, v_i, alg_int(1)))), "Integer")));
                 (void)((v_i = alg_add(v_i, alg_int(1))));
@@ -96,13 +96,13 @@ Value f_exceedsinteger(Value **cells, Value *args, int32_t count) {
     Value v_body = alg_nil();
     (void)v_body;
     (void)((v_body = alg_widen(v_text, "String")));
-    while (alg_truthy((or_0 = alg_greater(alg_length(v_body), alg_int(1)), !alg_truthy(or_0) ? or_0 : alg_equal(alg_subscript_get(v_body, alg_int(0)), alg_char_value(48))))) {
-        (void)((v_body = alg_widen(alg_copy(v_body, alg_int(1), alg_subtract(alg_length(v_body), alg_int(1))), "String")));
+    while (alg_truthy((or_0 = alg_greater(alg_text_length(v_body), alg_int(1)), !alg_truthy(or_0) ? or_0 : alg_equal(alg_subscript_get(v_body, alg_int(0)), alg_char_value(48))))) {
+        (void)((v_body = alg_widen(alg_copy(v_body, alg_int(1), alg_subtract(alg_text_length(v_body), alg_int(1))), "String")));
     }
-    if (alg_truthy(alg_less(alg_length(v_body), alg_int(10)))) {
+    if (alg_truthy(alg_less(alg_text_length(v_body), alg_int(10)))) {
         return alg_bool(false);
     }
-    if (alg_truthy(alg_greater(alg_length(v_body), alg_int(10)))) {
+    if (alg_truthy(alg_greater(alg_text_length(v_body), alg_int(10)))) {
         return alg_bool(true);
     }
     Value v_limit = alg_string("2147483647");
@@ -160,7 +160,7 @@ static Value m_scanner_scantokens_0(Value v_this, Value *args, int32_t count) {
             (void)(alg_invoke(v_this, "ScanToken", NULL, 0));
         }
     }
-    (void)(alg_invoke(alg_singleton(k_sourcecode), "Add", (Value[]){alg_property(v_this, "Line"), alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "LineStart"), alg_subtract(alg_length(alg_property(v_this, "Source")), alg_property(v_this, "LineStart")))}, 2));
+    (void)(alg_invoke(alg_singleton(k_sourcecode), "Add", (Value[]){alg_property(v_this, "Line"), alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "LineStart"), alg_subtract(alg_text_length(alg_property(v_this, "Source")), alg_property(v_this, "LineStart")))}, 2));
     (void)(alg_invoke(alg_property(v_this, "Tokens"), "Add", (Value[]){alg_new(k_token, (Value[]){e_tokentype_eof, alg_string(""), alg_nil(), alg_property(v_this, "Line")}, 4)}, 1));
     return alg_property(v_this, "Tokens");
     return alg_nil();
@@ -304,7 +304,7 @@ static Value m_scanner_scanidentifier_0(Value v_this, Value *args, int32_t count
     (void)v_lowered;
     if (alg_truthy(alg_invoke(v_keywords, "Contains", (Value[]){v_lowered}, 1))) {
         {
-            (void)((v_typeoftoken = alg_widen(alg_invoke(v_keywords, "Get", (Value[]){v_lowered}, 1), "TokenType")));
+            (void)((v_typeoftoken = alg_widen(alg_cast(alg_invoke(v_keywords, "Get", (Value[]){v_lowered}, 1), "TokenType"), "TokenType")));
         }
     }
     (void)(alg_invoke(v_this, "AddToken", (Value[]){v_typeoftoken}, 1));
@@ -379,7 +379,7 @@ static Value m_scanner_scanstring_0(Value v_this, Value *args, int32_t count) {
         }
     }
     (void)(alg_invoke(v_this, "Advance", NULL, 0));
-    if (alg_truthy(alg_equal(alg_length(v_value), alg_int(1)))) {
+    if (alg_truthy(alg_equal(alg_text_length(v_value), alg_int(1)))) {
         (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVchar, alg_subscript_get(v_value, alg_int(0))}, 2));
     } else {
         (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVstring, v_value}, 2));
@@ -445,7 +445,7 @@ static Value m_scanner_peek_0(Value v_this, Value *args, int32_t count) {
 
 static Value m_scanner_peeknext_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    if (alg_truthy(alg_greater_equal(alg_add(alg_property(v_this, "Current"), alg_int(1)), alg_length(alg_property(v_this, "Source"))))) {
+    if (alg_truthy(alg_greater_equal(alg_add(alg_property(v_this, "Current"), alg_int(1)), alg_text_length(alg_property(v_this, "Source"))))) {
         return alg_char(alg_int(0));
     }
     return alg_subscript_get(alg_property(v_this, "Source"), alg_add(alg_property(v_this, "Current"), alg_int(1)));
@@ -479,7 +479,7 @@ static Value m_scanner_addtoken_2_tokentype(Value v_this, Value *args, int32_t c
 
 static Value m_scanner_isatend_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    return alg_greater_equal(alg_property(v_this, "Current"), alg_length(alg_property(v_this, "Source")));
+    return alg_greater_equal(alg_property(v_this, "Current"), alg_text_length(alg_property(v_this, "Source")));
     return alg_nil();
 }
 

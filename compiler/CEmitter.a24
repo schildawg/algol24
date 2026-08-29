@@ -1371,9 +1371,33 @@ begin
         TheStmt.Accept (this);
     end
 
+    /// Emits an expression, and the cast written on it.
+    ///
+    /// ⚠️ 'as' sets a FIELD on the expression rather than wrapping it, so this
+    /// is where every cast in the language passes, whatever the shape of the
+    /// expression carrying it -- which is exactly why Interpreter.Evaluate
+    /// checks it here too.  The emitter read the field nowhere, so a compiled
+    /// program had no verified boundary at all: [VAR-006] routes every
+    /// untyped-to-typed crossing through 'as', and a cast that cannot fail
+    /// makes every declared type beyond it a claim nothing had checked.
+    ///
+    /// ⚠️ nil is not tested for here, as it is interpreted, because alg_cast
+    /// lets nil through itself [VAR-005].  The check has to be a call: the type
+    /// name is known when the C is written and the value's type is not.
+    ///
     function Evaluate (TheExpr : Any) : String;
+    var
+        Text : String;
+
     begin
-        Exit TheExpr.Accept (this);
+        // 'as', because TheExpr is declared Any and a member of it reduces to
+        // nothing -- a written type has to be earned [VAR-006].
+        Text := TheExpr.Accept (this) as String;
+
+        if TheExpr.Cast <> '' then
+            Exit 'alg_cast(' + Text + ', ' + QuoteC (Str (TheExpr.Cast)) + ')';
+
+        Exit Text;
     end
 
     /// A test block: an ordinary body under a generated symbol.
@@ -2703,7 +2727,13 @@ begin
     /// The builtins this emitter covers, mapped straight onto the runtime.
     ///
     /// Keyed by name AND arity, because 'Length' is both a function here and a
-    /// property on a collection and they mean the same thing.
+    /// property on a collection.
+    ///
+    /// ⚠️ And they do NOT mean the same thing, which is what this comment used
+    /// to say.  Length measures TEXT and refuses a collection [RT-003]; the
+    /// property answers its count.  Both mapped onto alg_length, so
+    /// 'Length ([10, 20, 30])' answered 12 compiled -- the length of the
+    /// rendering -- where the interpreter refuses it and '.Length' is 3.
     ///
     function Builtin (Name : String, Count : Integer) : String;
     var
@@ -2715,7 +2745,7 @@ begin
         if Key = 'WriteLn/1' then Exit 'alg_writeln';
         if Key = 'Write/1'   then Exit 'alg_write';
         if Key = 'Str/1'     then Exit 'alg_str';
-        if Key = 'Length/1'  then Exit 'alg_length';
+        if Key = 'Length/1'  then Exit 'alg_text_length';
         if Key = 'Copy/3'    then Exit 'alg_copy';
         if Key = 'Pos/2'     then Exit 'alg_pos';
         if Key = 'Char/1'    then Exit 'alg_char';

@@ -47,7 +47,7 @@ static Value m_objclass_findmethod_1_string(Value v_this, Value *args, int32_t c
             Value v_found = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1);
             (void)v_found;
             if (alg_truthy(alg_greater(alg_property(v_found, "Length"), alg_int(0)))) {
-                return alg_subscript_get(v_found, alg_int(0));
+                return alg_cast(alg_subscript_get(v_found, alg_int(0)), "ObjFunction");
             }
         }
     }
@@ -90,7 +90,7 @@ static Value m_objclass_fitting_3_string_list_boolean(Value v_this, Value *args,
                 while (alg_truthy(alg_less(v_i, alg_property(v_candidates, "Length")))) {
                     {
                         if (alg_truthy(alg_invoke(alg_subscript_get(v_candidates, v_i), "Fits", (Value[]){v_arguments, v_widening}, 2))) {
-                            return alg_subscript_get(v_candidates, v_i);
+                            return alg_cast(alg_subscript_get(v_candidates, v_i), "ObjFunction");
                         }
                         (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
@@ -143,7 +143,7 @@ static Value m_objclass_arity_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_initializer, alg_nil()))) {
         return alg_int(0);
     }
-    return alg_invoke(v_initializer, "Arity", NULL, 0);
+    return alg_cast(alg_invoke(v_initializer, "Arity", NULL, 0), "Integer");
     return alg_nil();
 }
 
@@ -163,7 +163,7 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_instance;
     Value v_initializer = alg_nil();
     (void)v_initializer;
-    (void)((v_instance = alg_widen(alg_new(k_objinstance, (Value[]){v_this}, 1), "ObjInstance")));
+    (void)((v_instance = alg_widen(alg_cast(alg_new(k_objinstance, (Value[]){v_this}, 1), "ObjInstance"), "ObjInstance")));
     (void)(alg_invoke(v_this, "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2));
     (void)((v_initializer = alg_widen(alg_invoke(v_this, "FindOverload", (Value[]){alg_string("init"), v_arguments}, 2), "ObjFunction")));
     if (alg_truthy(alg_equal(v_initializer, alg_nil()))) {

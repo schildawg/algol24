@@ -208,7 +208,7 @@ Value f_quotec(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
             {
                 {
                     Value v_c = alg_subscript_get(alg_str(v_text), v_i);
@@ -462,7 +462,7 @@ static Value m_cemitter_escaped_1_string(Value v_this, Value *args, int32_t coun
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_name)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_name)))) {
             {
                 {
                     Value v_c = alg_subscript_get(alg_str(v_name), v_i);
@@ -510,7 +510,7 @@ static Value m_cemitter_sanitize_1_string(Value v_this, Value *args, int32_t cou
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
             {
                 {
                     Value v_c = alg_subscript_get(alg_str(v_text), v_i);
@@ -588,7 +588,7 @@ static Value m_cemitter_unitnameof_1_string(Value v_this, Value *args, int32_t c
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_key)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_key)))) {
             {
                 if (alg_truthy(alg_equal(alg_subscript_get(v_key, v_i), alg_char_value(47)))) {
                     (void)((v_start = alg_widen(alg_add(v_i, alg_int(1)), "Integer")));
@@ -597,10 +597,10 @@ static Value m_cemitter_unitnameof_1_string(Value v_this, Value *args, int32_t c
             }
         }
     }
-    (void)((v_stem = alg_widen(alg_copy(v_key, v_start, alg_subtract(alg_length(v_key), v_start)), "String")));
-    if (alg_truthy(alg_greater(alg_length(v_stem), alg_int(4)))) {
-        if (alg_truthy(alg_equal(alg_copy(v_stem, alg_subtract(alg_length(v_stem), alg_int(4)), alg_int(4)), alg_string(".a24")))) {
-            (void)((v_stem = alg_widen(alg_copy(v_stem, alg_int(0), alg_subtract(alg_length(v_stem), alg_int(4))), "String")));
+    (void)((v_stem = alg_widen(alg_copy(v_key, v_start, alg_subtract(alg_text_length(v_key), v_start)), "String")));
+    if (alg_truthy(alg_greater(alg_text_length(v_stem), alg_int(4)))) {
+        if (alg_truthy(alg_equal(alg_copy(v_stem, alg_subtract(alg_text_length(v_stem), alg_int(4)), alg_int(4)), alg_string(".a24")))) {
+            (void)((v_stem = alg_widen(alg_copy(v_stem, alg_int(0), alg_subtract(alg_text_length(v_stem), alg_int(4))), "String")));
         }
     }
     return alg_invoke(v_this, "Sanitize", (Value[]){v_stem}, 1);
@@ -978,7 +978,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
         while (alg_truthy(alg_less(v_u, alg_subtract(alg_property(v_units, "Length"), alg_int(1))))) {
             {
                 {
-                    Value v_visible = alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_str(alg_property(alg_subscript_get(v_units, v_u), "Name"))}, 1);
+                    Value v_visible = alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_str(alg_property(alg_subscript_get(v_units, v_u), "Name"))}, 1), "Set");
                     (void)v_visible;
                     Value v_names = alg_invoke(v_this, "ExportedNames", (Value[]){alg_subscript_get(v_units, v_u)}, 1);
                     (void)v_names;
@@ -1033,7 +1033,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                     Value v_ismain = alg_equal(v_u, alg_subtract(alg_property(v_units, "Length"), alg_int(1)));
                     (void)v_ismain;
                     (void)(alg_set_property(v_this, "UnitName", alg_widen(alg_str(alg_property(v_unit, "Name")), "String")));
-                    (void)(alg_set_property(v_this, "PrivateNames", alg_widen(alg_property(v_unit, "PrivateNames"), "List")));
+                    (void)(alg_set_property(v_this, "PrivateNames", alg_widen(alg_cast(alg_property(v_unit, "PrivateNames"), "List"), "List")));
                     (void)(alg_set_property(v_this, "RootUnit", alg_widen(v_ismain, "Boolean")));
                     (void)(alg_set_property(v_this, "CurrentFile", alg_widen(alg_str(alg_property(v_unit, "FileName")), "String")));
                     (void)(alg_set_property(v_this, "Renames", alg_widen(alg_map(), "Map")));
@@ -1046,7 +1046,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                             {
                                 if (alg_truthy(alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i))}, 1))) {
                                     {
-                                        Value v_seen = alg_invoke((alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i))}, 1)), "ToList", NULL, 0);
+                                        Value v_seen = alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i))}, 1), "Set")), "ToList", NULL, 0);
                                         (void)v_seen;
                                         {
                                             Value v_j = alg_int(0);
@@ -1087,7 +1087,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                     (void)(alg_set_property(v_this, "ShadowNames", alg_widen(alg_set(), "Set")));
                     if (alg_truthy(alg_invoke(alg_property(v_this, "UnitAll"), "Contains", (Value[]){alg_str(alg_property(v_unit, "Name"))}, 1))) {
                         {
-                            Value v_own = alg_invoke((alg_invoke(alg_property(v_this, "UnitAll"), "Get", (Value[]){alg_str(alg_property(v_unit, "Name"))}, 1)), "ToList", NULL, 0);
+                            Value v_own = alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitAll"), "Get", (Value[]){alg_str(alg_property(v_unit, "Name"))}, 1), "Set")), "ToList", NULL, 0);
                             (void)v_own;
                             {
                                 Value v_i = alg_int(0);
@@ -1108,7 +1108,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                             {
                                 if (alg_truthy(alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i))}, 1))) {
                                     {
-                                        Value v_seen = alg_invoke((alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i))}, 1)), "ToList", NULL, 0);
+                                        Value v_seen = alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i))}, 1), "Set")), "ToList", NULL, 0);
                                         (void)v_seen;
                                         {
                                             Value v_j = alg_int(0);
@@ -1319,7 +1319,7 @@ static Value m_cemitter_upper_1_string(Value v_this, Value *args, int32_t count)
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_text)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
             {
                 {
                     Value v_c = alg_subscript_get(v_text, v_i);
@@ -1347,9 +1347,9 @@ static Value m_cemitter_textless_2_string_string(Value v_this, Value *args, int3
     (void)v_b;
     Value v_shorter = alg_nil();
     (void)v_shorter;
-    (void)((v_shorter = alg_widen(alg_length(v_a), "Integer")));
-    if (alg_truthy(alg_less(alg_length(v_b), v_shorter))) {
-        (void)((v_shorter = alg_widen(alg_length(v_b), "Integer")));
+    (void)((v_shorter = alg_widen(alg_text_length(v_a), "Integer")));
+    if (alg_truthy(alg_less(alg_text_length(v_b), v_shorter))) {
+        (void)((v_shorter = alg_widen(alg_text_length(v_b), "Integer")));
     }
     {
         Value v_i = alg_int(0);
@@ -1372,7 +1372,7 @@ static Value m_cemitter_textless_2_string_string(Value v_this, Value *args, int3
             }
         }
     }
-    return alg_less(alg_length(v_a), alg_length(v_b));
+    return alg_less(alg_text_length(v_a), alg_text_length(v_b));
     return alg_nil();
 }
 
@@ -1483,7 +1483,13 @@ static Value m_cemitter_evaluate_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_theexpr = args[0];
     (void)v_theexpr;
-    return alg_invoke(v_theexpr, "Accept", (Value[]){v_this}, 1);
+    Value v_text = alg_nil();
+    (void)v_text;
+    (void)((v_text = alg_widen(alg_cast(alg_invoke(v_theexpr, "Accept", (Value[]){v_this}, 1), "String"), "String")));
+    if (alg_truthy(alg_not_equal(alg_property(v_theexpr, "Cast"), alg_string("")))) {
+        return alg_add(alg_add(alg_add(alg_add(alg_string("alg_cast("), v_text), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_property(v_theexpr, "Cast"))}, 1)), alg_char_value(41));
+    }
+    return v_text;
     return alg_nil();
 }
 
@@ -2352,7 +2358,7 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
                     }
                     if (alg_truthy(alg_greater(alg_property(v_types, "Length"), alg_int(0)))) {
                         {
-                            (void)((v_table = alg_add(alg_string("t_"), alg_copy(alg_invoke(v_this, "MethodSymbol", (Value[]){v_name, v_themethod}, 2), alg_int(2), alg_subtract(alg_length(alg_invoke(v_this, "MethodSymbol", (Value[]){v_name, v_themethod}, 2)), alg_int(2))))));
+                            (void)((v_table = alg_add(alg_string("t_"), alg_copy(alg_invoke(v_this, "MethodSymbol", (Value[]){v_name, v_themethod}, 2), alg_int(2), alg_subtract(alg_text_length(alg_invoke(v_this, "MethodSymbol", (Value[]){v_name, v_themethod}, 2)), alg_int(2))))));
                             Value v_quoted = alg_string("");
                             (void)v_quoted;
                             {
@@ -2782,7 +2788,7 @@ static Value m_cemitter_missingname_1_string(Value v_this, Value *args, int32_t 
         (void)v_i;
         while (alg_truthy(alg_less(v_i, alg_property(v_units, "Length")))) {
             {
-                if (alg_truthy(alg_invoke((alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_subscript_get(v_units, v_i)}, 1)), "Contains", (Value[]){v_name}, 1))) {
+                if (alg_truthy(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_subscript_get(v_units, v_i)}, 1), "Set")), "Contains", (Value[]){v_name}, 1))) {
                     return alg_add(alg_add(alg_add(alg_add(alg_string("Undefined variable '"), v_name), alg_string("'. Unit '")), alg_str(alg_subscript_get(v_units, v_i))), alg_string("' exports it; this file has no 'uses' for it."));
                 }
                 (void)((v_i = alg_add(v_i, alg_int(1))));
@@ -2973,7 +2979,7 @@ static Value m_cemitter_builtin_2_string_integer(Value v_this, Value *args, int3
         return alg_string("alg_str");
     }
     if (alg_truthy(alg_equal(v_key, alg_string("Length/1")))) {
-        return alg_string("alg_length");
+        return alg_string("alg_text_length");
     }
     if (alg_truthy(alg_equal(v_key, alg_string("Copy/3")))) {
         return alg_string("alg_copy");
@@ -3168,7 +3174,7 @@ static Value m_cemitter_unitcall_4_string_string_list_string(Value v_this, Value
     (void)v_arguments;
     Value v_joined = alg_widen(args[3], "String");
     (void)v_joined;
-    if (alg_truthy((or_55 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_55) ? or_55 : alg_not(alg_invoke((alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1)), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_55 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_55) ? or_55 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), v_name), alg_string("' in unit '")), v_unit), alg_string("'."))}, 1)), alg_string("), alg_nil())"));
     }
     if (alg_truthy(alg_equal(v_unit, alg_string("System")))) {
@@ -3570,7 +3576,7 @@ static Value m_cemitter_unitvalue_2_string_string(Value v_this, Value *args, int
     (void)v_unit;
     Value v_name = alg_widen(args[1], "String");
     (void)v_name;
-    if (alg_truthy((or_63 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_63) ? or_63 : alg_not(alg_invoke((alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1)), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_63 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_63) ? or_63 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), v_name), alg_string("' in unit '")), v_unit), alg_string("'."))}, 1)), alg_string("), alg_nil())"));
     }
     if (alg_truthy(alg_equal(v_unit, alg_string("System")))) {
@@ -3636,7 +3642,7 @@ static Value m_cemitter_visitsetexpr_1_setexpr(Value v_this, Value *args, int32_
             (void)v_unit;
             Value v_name = alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"));
             (void)v_name;
-            if (alg_truthy((or_64 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_64) ? or_64 : alg_not(alg_invoke((alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1)), "Contains", (Value[]){v_name}, 1))))) {
+            if (alg_truthy((or_64 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_64) ? or_64 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
                 return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), v_name), alg_string("' in unit '")), v_unit), alg_string("'."))}, 1)), alg_string("), alg_nil())"));
             }
             if (alg_truthy((or_65 = alg_not_equal(v_unit, alg_string("System")), !alg_truthy(or_65) ? or_65 : alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1)))) {

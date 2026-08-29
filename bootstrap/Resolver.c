@@ -915,7 +915,7 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
     Value v_enclosingfunction = alg_nil();
     (void)v_enclosingfunction;
     (void)((v_enclosingfunction = alg_widen(alg_property(v_this, "CurrentFunction"), "FunctionType")));
-    (void)(alg_set_property(v_this, "CurrentFunction", alg_widen(v_typeoffunction, "FunctionType")));
+    (void)(alg_set_property(v_this, "CurrentFunction", alg_widen(alg_cast(v_typeoffunction, "FunctionType"), "FunctionType")));
     (void)(alg_invoke(v_this, "BeginScope", NULL, 0));
     {
         Value v_i = alg_int(0);
@@ -974,7 +974,7 @@ static Value m_resolver_declarebinding_2_token_boolean(Value v_this, Value *args
             return alg_nil();
         }
     }
-    (void)((v_scope = alg_widen(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Map")));
+    (void)((v_scope = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Map"), "Map")));
     if (alg_truthy(alg_invoke(v_scope, "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))) {
         {
             alg_raise(alg_string("Already a variable with this name in this scope."));
@@ -1020,7 +1020,7 @@ static Value m_resolver_define_1_token(Value v_this, Value *args, int32_t count)
     if (alg_truthy(alg_property(alg_property(v_this, "Scopes"), "IsEmpty"))) {
         return alg_nil();
     }
-    (void)((v_scope = alg_widen(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Map")));
+    (void)((v_scope = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Map"), "Map")));
     (void)(alg_invoke(v_scope, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1), alg_bool(true)}, 2));
     return alg_nil();
 }

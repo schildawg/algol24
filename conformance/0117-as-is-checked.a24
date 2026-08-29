@@ -1,7 +1,5 @@
 // spec: VAL-007
 //
-// ⚠️ Expected to FAIL compiled, because of C-8.
-//
 // 'as' is a checked conversion.  It is the only way a value crosses from
 // untyped into typed [VAR-006], so the strictness there is reasonable only if
 // the crossing is verified -- a cast that could not fail would make the

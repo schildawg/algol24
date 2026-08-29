@@ -246,7 +246,7 @@ Value f_inheritsfrom(Value **cells, Value *args, int32_t count) {
     if (alg_truthy(alg_not((alg_is(v_value, "ObjInstance"))))) {
         return alg_bool(false);
     }
-    (void)((v_klass = alg_widen(alg_property(v_value, "Klass"), "ObjClass")));
+    (void)((v_klass = alg_widen(alg_cast(alg_property(v_value, "Klass"), "ObjClass"), "ObjClass")));
     while (alg_truthy(alg_not_equal(v_klass, alg_nil()))) {
         {
             if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(v_klass, "Name")}, 1), f_foldcase(NULL, (Value[]){v_thename}, 1)))) {

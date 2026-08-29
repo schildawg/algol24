@@ -159,13 +159,13 @@ static Value m_parser_unitstem_1_string(Value v_this, Value *args, int32_t count
     (void)v_stem;
     (void)((v_stem = alg_widen(v_key, "String")));
     {
-        Value v_i = alg_subtract(alg_length(v_key), alg_int(1));
+        Value v_i = alg_subtract(alg_text_length(v_key), alg_int(1));
         (void)v_i;
         while (alg_truthy(alg_greater_equal(v_i, alg_int(0)))) {
             {
                 if (alg_truthy((or_1 = alg_equal(alg_subscript_get(v_key, v_i), alg_char_value(47)), alg_truthy(or_1) ? or_1 : alg_equal(alg_subscript_get(v_key, v_i), alg_char_value(92))))) {
                     {
-                        (void)((v_stem = alg_widen(alg_copy(v_key, alg_add(v_i, alg_int(1)), alg_subtract(alg_subtract(alg_length(v_key), v_i), alg_int(1))), "String")));
+                        (void)((v_stem = alg_widen(alg_copy(v_key, alg_add(v_i, alg_int(1)), alg_subtract(alg_subtract(alg_text_length(v_key), v_i), alg_int(1))), "String")));
                         (void)((v_i = alg_negate(alg_int(1))));
                     }
                 }
@@ -173,8 +173,8 @@ static Value m_parser_unitstem_1_string(Value v_this, Value *args, int32_t count
             }
         }
     }
-    if (alg_truthy((or_2 = alg_greater(alg_length(v_stem), alg_int(4)), !alg_truthy(or_2) ? or_2 : alg_equal(alg_copy(v_stem, alg_subtract(alg_length(v_stem), alg_int(4)), alg_int(4)), alg_string(".a24"))))) {
-        return alg_copy(v_stem, alg_int(0), alg_subtract(alg_length(v_stem), alg_int(4)));
+    if (alg_truthy((or_2 = alg_greater(alg_text_length(v_stem), alg_int(4)), !alg_truthy(or_2) ? or_2 : alg_equal(alg_copy(v_stem, alg_subtract(alg_text_length(v_stem), alg_int(4)), alg_int(4)), alg_string(".a24"))))) {
+        return alg_copy(v_stem, alg_int(0), alg_subtract(alg_text_length(v_stem), alg_int(4)));
     }
     return v_stem;
     return alg_nil();
@@ -285,8 +285,8 @@ static Value m_parser_casestatement_0(Value v_this, Value *args, int32_t count) 
     (void)v_branch;
     (void)((v_left = alg_widen(alg_invoke(v_this, "Expression", NULL, 0), "Expr")));
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVof, alg_string("Expect 'of' after case condition.")}, 2));
-    (void)((v_top = alg_widen(alg_nil(), "IfStmt")));
-    (void)((v_current = alg_widen(alg_nil(), "IfStmt")));
+    (void)((v_top = alg_widen(alg_cast(alg_nil(), "IfStmt"), "IfStmt")));
+    (void)((v_current = alg_widen(alg_cast(alg_nil(), "IfStmt"), "IfStmt")));
     while (alg_truthy(alg_bool(true))) {
         {
             (void)((v_condition = alg_widen(alg_new(k_binaryexpr, (Value[]){v_left, alg_invoke(v_this, "Equals", NULL, 0), alg_invoke(v_this, "Expression", NULL, 0)}, 3), "Expr")));
@@ -526,7 +526,7 @@ static Value m_parser_directoryof_1_string(Value v_this, Value *args, int32_t co
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_length(v_path)))) {
+        while (alg_truthy(alg_less(v_i, alg_text_length(v_path)))) {
             {
                 if (alg_truthy(alg_equal(alg_subscript_get(v_path, v_i), alg_char_value(47)))) {
                     (void)((v_cut = alg_widen(v_i, "Integer")));
@@ -737,7 +737,7 @@ static Value m_parser_declarationsection_1_boolean(Value v_this, Value *args, in
                     }
                 }
             }
-            Value v_initializer = alg_nil();
+            Value v_initializer = alg_cast(alg_nil(), "Expr");
             (void)v_initializer;
             if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVassign}, 1))) {
                 (void)((v_initializer = alg_invoke(v_this, "Expression", NULL, 0)));
@@ -1250,7 +1250,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
     Value v_superclass = alg_nil();
     (void)v_superclass;
     (void)((v_name = alg_widen(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_add(alg_add(alg_string("Expect "), v_kind), alg_string(" name."))}, 2), "Token")));
-    (void)((v_superclass = alg_widen(alg_nil(), "VariableExpr")));
+    (void)((v_superclass = alg_widen(alg_cast(alg_nil(), "VariableExpr"), "VariableExpr")));
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVleftVparen}, 1))) {
         {
             (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect superclass name.")}, 2));
