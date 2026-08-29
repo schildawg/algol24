@@ -245,7 +245,6 @@ yet" — each is blocked on a piece of machinery this compiler does not have.
 | --- | --- |
 | DEF-09 | inference. `Lookup.Inferred` records a type and `Reduce` never consults it, so a local's type is unknown to the checker. |
 | DEF-15 | two-phase class declaration. Hoisting classes broke `class B (A); … class A;` because a class declaration *evaluates* its superclass. Functions are hoisted; classes need the name bound before the body runs. |
-| DEF-33 | an overload set in the environment. A name binds to one value, so a second declaration replaces the first rather than joining it. |
 | DEF-34 | Unicode character tables. `IsAlpha` admits every code point above 127 where the rule admits letters. Introduced deliberately: over-acceptance keeps correct programs working where refusing every non-ASCII byte refused them. |
 
 ⚠️ **DEF-13 is done, and was never blocked.** It was recorded as needing "a

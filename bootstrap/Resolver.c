@@ -20,6 +20,7 @@ Value k_Resolver;
 static Value or_0;
 static Value or_1;
 static Value or_2;
+static Value or_3;
 static const char *t_Resolver_Init_1_Interpreter[] = { "Interpreter" };
 static const char *t_Resolver_CollectDottable_1_List[] = { "List" };
 static const char *t_Resolver_IsUnitQualifier_1[] = { "Any" };
@@ -56,6 +57,7 @@ static const char *t_Resolver_VisitCollectionExpr_1_CollectionExpr[] = { "Collec
 static const char *t_Resolver_VisitLiteral_1_LiteralExpr[] = { "LiteralExpr" };
 static const char *t_Resolver_VisitVariableExpr_1_VariableExpr[] = { "VariableExpr" };
 static const char *t_Resolver_CheckDuplicates_1_List[] = { "List" };
+static const char *t_Resolver_SignatureOf_1[] = { "Any" };
 static const char *t_Resolver_ResolveAll_1_List[] = { "List" };
 static const char *t_Resolver_Resolve_1[] = { "Any" };
 static const char *t_Resolver_ResolveFunction_2_FunctionStmt_FunctionType[] = { "FunctionStmt", "FunctionType" };
@@ -647,8 +649,11 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
     (void)v_Seen;
     Value v_MemberOwner = alg_nil();
     (void)v_MemberOwner;
+    Value v_Signatures = alg_nil();
+    (void)v_Signatures;
     (void)((v_Seen = alg_set()));
     (void)((v_MemberOwner = alg_map()));
+    (void)((v_Signatures = alg_map()));
     {
         Value v_I = alg_int(0);
         (void)v_I;
@@ -670,7 +675,33 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
                             Value v_Written = alg_string("");
                             (void)v_Written;
                             if (alg_truthy(alg_is(v_TheStmt, "FunctionStmt"))) {
-                                (void)((v_TheName = f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)));
+                                {
+                                    Value v_FnName = f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1);
+                                    (void)v_FnName;
+                                    Value v_Signature = alg_invoke(v_this, "SignatureOf", (Value[]){v_TheStmt}, 1);
+                                    (void)v_Signature;
+                                    if (alg_truthy((or_3 = alg_invoke(v_Seen, "Contains", (Value[]){v_FnName}, 1), alg_truthy(or_3) ? or_3 : alg_invoke(v_MemberOwner, "Contains", (Value[]){v_FnName}, 1)))) {
+                                        alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
+                                    }
+                                    if (alg_truthy(alg_not(alg_invoke(v_Signatures, "Contains", (Value[]){v_FnName}, 1)))) {
+                                        (void)(alg_invoke(v_Signatures, "Put", (Value[]){v_FnName, alg_list()}, 2));
+                                    }
+                                    Value v_Taken = alg_invoke(v_Signatures, "Get", (Value[]){v_FnName}, 1);
+                                    (void)v_Taken;
+                                    {
+                                        Value v_J = alg_int(0);
+                                        (void)v_J;
+                                        while (alg_truthy(alg_less(v_J, alg_property(v_Taken, "Length")))) {
+                                            {
+                                                if (alg_truthy(alg_equal(alg_str(alg_subscript_get(v_Taken, v_J)), v_Signature))) {
+                                                    alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
+                                                }
+                                                (void)((v_J = alg_add(v_J, alg_int(1))));
+                                            }
+                                        }
+                                    }
+                                    (void)(alg_invoke(v_Taken, "Add", (Value[]){v_Signature}, 1));
+                                }
                             }
                             if (alg_truthy(alg_is(v_TheStmt, "ClassStmt"))) {
                                 (void)((v_TheName = f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)));
@@ -731,6 +762,9 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
                                                 if (alg_truthy(alg_invoke(v_MemberOwner, "Contains", (Value[]){v_Each}, 1))) {
                                                     alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Names"), v_J), "Lexeme"))), alg_string("' is already defined.")));
                                                 }
+                                                if (alg_truthy(alg_invoke(v_Signatures, "Contains", (Value[]){v_Each}, 1))) {
+                                                    alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_TheStmt, "Names"), v_J), "Lexeme"))), alg_string("' is already defined.")));
+                                                }
                                                 (void)(alg_invoke(v_Seen, "Add", (Value[]){v_Each}, 1));
                                             }
                                             (void)((v_J = alg_add(v_J, alg_int(1))));
@@ -746,6 +780,9 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
                                     if (alg_truthy(alg_invoke(v_MemberOwner, "Contains", (Value[]){v_TheName}, 1))) {
                                         alg_raise(alg_add(alg_add(alg_char_value(39), v_Written), alg_string("' is already defined.")));
                                     }
+                                    if (alg_truthy(alg_invoke(v_Signatures, "Contains", (Value[]){v_TheName}, 1))) {
+                                        alg_raise(alg_add(alg_add(alg_char_value(39), v_Written), alg_string("' is already defined.")));
+                                    }
                                     (void)(alg_invoke(v_Seen, "Add", (Value[]){v_TheName}, 1));
                                 }
                             }
@@ -756,6 +793,34 @@ static Value m_Resolver_CheckDuplicates_1_List(Value v_this, Value *args, int32_
             }
         }
     }
+    return alg_nil();
+}
+
+static Value m_Resolver_SignatureOf_1(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_TheStmt = args[0];
+    (void)v_TheStmt;
+    Value v_Text = alg_nil();
+    (void)v_Text;
+    (void)((v_Text = alg_str(alg_property(alg_property(v_TheStmt, "Params"), "Length"))));
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_TheStmt, "Params"), "Length")))) {
+            {
+                {
+                    Value v_Declared = alg_str(alg_subscript_get(alg_property(v_TheStmt, "ParamTypes"), v_I));
+                    (void)v_Declared;
+                    if (alg_truthy(alg_equal(v_Declared, alg_string("")))) {
+                        (void)((v_Declared = alg_string("Any")));
+                    }
+                    (void)((v_Text = alg_add(alg_add(v_Text, alg_char_value(47)), f_FoldCase(NULL, (Value[]){v_Declared}, 1))));
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    return v_Text;
     return alg_nil();
 }
 
@@ -995,6 +1060,7 @@ void init_Resolver(void) {
     alg_class_method(k_Resolver, "VisitLiteral", m_Resolver_VisitLiteral_1_LiteralExpr, 1, t_Resolver_VisitLiteral_1_LiteralExpr);
     alg_class_method(k_Resolver, "VisitVariableExpr", m_Resolver_VisitVariableExpr_1_VariableExpr, 1, t_Resolver_VisitVariableExpr_1_VariableExpr);
     alg_class_method(k_Resolver, "CheckDuplicates", m_Resolver_CheckDuplicates_1_List, 1, t_Resolver_CheckDuplicates_1_List);
+    alg_class_method(k_Resolver, "SignatureOf", m_Resolver_SignatureOf_1, 1, t_Resolver_SignatureOf_1);
     alg_class_method(k_Resolver, "ResolveAll", m_Resolver_ResolveAll_1_List, 1, t_Resolver_ResolveAll_1_List);
     alg_class_method(k_Resolver, "Resolve", m_Resolver_Resolve_1, 1, t_Resolver_Resolve_1);
     alg_class_method(k_Resolver, "ResolveFunction", m_Resolver_ResolveFunction_2_FunctionStmt_FunctionType, 2, t_Resolver_ResolveFunction_2_FunctionStmt_FunctionType);

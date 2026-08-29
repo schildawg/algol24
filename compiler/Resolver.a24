@@ -593,10 +593,12 @@ begin
     var
         Seen        : Set;
         MemberOwner : Map;
+        Signatures  : Map;
 
     begin
         Seen := Set();
         MemberOwner := Map();
+        Signatures := Map();
 
         for var I := 0; I < Statements.Length; I := I + 1 do
         begin
@@ -622,7 +624,31 @@ begin
                 // second silently replaced the first.  Excluding them left
                 // '--test' refusing a duplicate while '--compile --test' emitted
                 // it and ran both.
-                if TheStmt is FunctionStmt then TheName := FoldCase (TheStmt.Name.Lexeme);
+                // ⚠️ A subprogram is tracked by NAME AND SIGNATURE, because
+                // top-level subprograms overload [FUN-013] exactly as methods
+                // do.  Two of one name are a duplicate only when they claim the
+                // same parameters -- and two TEST blocks always do, since a
+                // test takes none, so the case the comment above describes is
+                // still caught.
+                if TheStmt is FunctionStmt then
+                begin
+                    var FnName := FoldCase (TheStmt.Name.Lexeme);
+                    var Signature := SignatureOf (TheStmt);
+
+                    if Seen.Contains (FnName) or MemberOwner.Contains (FnName) then
+                        raise '''' + Str (TheStmt.Name.Lexeme) + ''' is already defined.';
+
+                    if not Signatures.Contains (FnName) then
+                        Signatures.Put (FnName, List());
+
+                    var Taken := Signatures.Get (FnName);
+                    for var J := 0; J < Taken.Length; J := J + 1 do
+                        if Str (Taken[J]) = Signature then
+                            raise '''' + Str (TheStmt.Name.Lexeme)
+                                + ''' is already defined.';
+
+                    Taken.Add (Signature);
+                end
 
                 if TheStmt is ClassStmt  then TheName := FoldCase (TheStmt.Name.Lexeme);
                 if TheStmt is ObjectStmt then TheName := FoldCase (TheStmt.Name.Lexeme);
@@ -666,6 +692,9 @@ begin
                         if MemberOwner.Contains (Each) then
                             raise '''' + Str (TheStmt.Names[J].Lexeme) + ''' is already defined.';
 
+                        if Signatures.Contains (Each) then
+                            raise '''' + Str (TheStmt.Names[J].Lexeme) + ''' is already defined.';
+
                         Seen.Add (Each);
                     end
 
@@ -677,10 +706,42 @@ begin
                     if MemberOwner.Contains (TheName) then
                         raise '''' + Written + ''' is already defined.';
 
+                    // A var, class, object or enum meeting a subprogram of that
+                    // name is a duplicate: only subprograms overload.
+                    if Signatures.Contains (TheName) then
+                        raise '''' + Written + ''' is already defined.';
+
                     Seen.Add (TheName);
                 end
             end
         end
+    end
+
+    /// A subprogram's parameter list, as text, so two can be compared.
+    ///
+    /// ⚠️ The PARAMETER types alone.  A return type does not distinguish an
+    /// overload -- selection happens from the arguments, so two subprograms
+    /// differing only in what they return could never be told apart at a call.
+    ///
+    /// An undeclared parameter counts as 'Any', which is what it means: two
+    /// subprograms of one name and one arity, both untyped, are a duplicate.
+    ///
+    function SignatureOf (TheStmt : Any) : String;
+    var
+        Text : String;
+
+    begin
+        Text := Str (TheStmt.Params.Length);
+
+        for var I := 0; I < TheStmt.Params.Length; I := I + 1 do
+        begin
+            var Declared := Str (TheStmt.ParamTypes[I]);
+            if Declared = '' then Declared := 'Any';
+
+            Text := Text + '/' + FoldCase (Declared);
+        end
+
+        Exit Text;
     end
 
     procedure ResolveAll (Statements : List);

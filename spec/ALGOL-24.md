@@ -2151,9 +2151,18 @@ function Area (S : String);               begin Exit 'string';       end
 function Area (A : Integer, B : Integer); begin Exit 'two integers'; end
 ```
 
-⚠️ **NOT YET IMPLEMENTED.** The second declaration is refused with `'Area' is
-already defined.`, so a name belongs to one subprogram whatever its signature.
-See DEF-33.
+⚠️ **Two declarations claiming the SAME signature are still a duplicate**, and
+the *parameter* types alone decide it. A return type does not distinguish an
+overload — selection happens from the arguments, so two subprograms differing
+only in what they return could never be told apart at a call. Neither do the
+parameter names.
+
+⚠️ The environment binds one name to one value, which is what made the
+restriction look structural. The value can be a **set** of subprograms, and the
+call selects from it exactly as a method call selects from a class's methods —
+the mechanism was already here.
+
+⚠️ **Compiled, two subprograms of one name are refused** — C-26.
 
 ⚠️ Nothing in this specification ever restricted overloading to methods.
 [EXP-013] and [EXP-014] describe selection without qualification; the
@@ -2165,9 +2174,10 @@ selection has its declared parameter types compared as part of being selected �
 which is exactly why a *method's* types are enforced and a top-level
 subprogram's are not [FUN-006]. Fixing this fixes that.
 
-    interpreter  compiler/Resolver.a24  CheckDuplicates
-    compiler     compiler/CEmitter.a24  MethodSymbol
-    defect       DEF-33-a-top-level-subprogram-does-not-overload.a24
+    interpreter  compiler/ObjFunction.a24  ObjOverloads
+    interpreter  compiler/Resolver.a24     SignatureOf
+    conformance  0138-top-level-overloading.a24
+    refusal      0043-same-signature-twice.a24
 
 **[FUN-012]**  Subprograms may be declared inside subprograms, to any depth.
 
@@ -4073,6 +4083,22 @@ declaration says Double.
 *Fix:* `alg_call` converts an argument whose parameter is declared `Double` or
 `String`, as `ObjFunction.Call` does through `Widen`.
 
+**C-26 — Two top-level subprograms of one name will not compile.** *(loud)*
+
+A top-level subprogram overloads [FUN-013] and the interpreter selects between
+them. The emitter refuses with `Two subprograms named 'Take' is not supported by
+the C back end yet.`
+
+⚠️ **It used to emit and die at `cc`** — `redefinition of f_Take` — which is a
+compiler producing a program it cannot build, and past anything the emitter's
+own checks observe. The refusal was added with the rule.
+
+*Fix:* two halves, and the second is the real one. `FunctionName` mangles by
+signature as `MethodSymbol` already does, so both definitions can be spelled;
+and the **call site** dispatches at run time, because it does not know which
+candidate it wants until it has its arguments — exactly as a method call does
+not. `alg_invoke` already does that for methods.
+
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
 > blocked on "a registry of declared type names that does not exist —
 > `Lookup.Parents` holds only classes that *have* a superclass, and enumerations
@@ -4865,100 +4891,6 @@ time so a construction above it resolves, and evaluate the superclass where the
 declaration stands so its dependencies have run. ⚠️ Still only functions and
 classes — a `var` keeps its initializer where it is written, and the compiled
 back end hoists every top-level name and is wrong about exactly that (C-10).
-
-**DEF-19 — A top-level subprogram's parameter types are not enforced.**
-*(violates [FUN-006], [VAR-017])*
-
-`function G (N : Integer)` accepts a String, a Double or a Boolean. Only the
-arity is checked, because a top-level subprogram does not go through overload
-selection and nothing ever compares its parameters — while the same signature as
-a **method** refuses all three.
-
-*Reproduce:* `defects/DEF-19-top-level-parameter-types-unenforced.a24`, with
-`refusals/0025-method-parameter-type-is-enforced.a24` for the contrast.
-
-⚠️ Not an open question by the time it was reached: [VAR-017] already listed a
-parameter as one of the six assignment contexts, so this was a contradiction to
-propagate rather than a decision to make.
-
-*Scope of the fix.* ⚠️ **Attempt this through DEF-33, not beside it.** Making a
-top-level subprogram overload sends it through `FindOverload`, which compares
-whole signatures — so its parameters are checked as a consequence and this
-defect closes with that one. Fixing it separately means writing a second
-comparison path that DEF-33 then makes redundant.
-
-The comparison itself exists in `Fits`. ⚠️ It should land with DEF-10, since a
-parameter must **widen** as well as match — a Char argument reaching a String
-parameter is correct and must not start failing.
-
-**DEF-30 — Every assertion message begins with a comparison that was not made.**
-*(violates [TST-012])*
-
-All three assertions produce a message beginning `Assertion 'left = right'
-failed.` — a stem naming operands that no message ever fills in, reading like a
-template nobody finished.
-
-For `AssertTrue` it is worse than untidy: it describes an equality test that did
-not happen and says nothing at all about the value that was false.
-
-```
-AssertTrue (False)   →  Assertion 'left = right' failed.
-```
-
-*Reproduce:* `defects/DEF-30-assertion-messages.a24`
-
-⚠️ **These three messages are read more often than any other output this
-language produces**, because a failing test is the one moment a programmer is
-looking at output rather than writing code.
-
-⚠️ The type-naming form is **correct and must be kept**: a `Char` and a `String`
-both render as `a`, so a message quoting only the rendered values would read
-`Expected 'a' but got 'a'.` Both processors already produce it, and [TST-012]
-had omitted it from its table entirely.
-
-*Scope of the fix.* Three sites in `compiler/Interpreter.a24` and two in
-`bootstrap/algol.c`. ⚠️ It changes the **report**, which [TST-008] specifies and
-which both processors must reproduce byte for byte — so the interpreter and the
-C runtime must change together, and `conformance/0105` records the current text.
-No test in `compiler/*.a24` asserts on these strings, so the suite itself is
-unaffected.
-
-**DEF-33 — A top-level subprogram does not overload.**
-*(violates [FUN-013], [VAR-007])*
-
-Two top-level subprograms sharing a name are refused with `'Area' is already
-defined.` however their signatures differ, so a name belongs to one subprogram.
-The same signatures **as methods** work today —
-`conformance/0050-overload-selection.a24` declares four overloads of `Take` on a
-class and selects between them.
-
-*Reproduce:* `defects/DEF-33-a-top-level-subprogram-does-not-overload.a24`
-
-⚠️ **Nothing ever specified the restriction.** [EXP-013] and [EXP-014] describe
-selection without qualifying it to methods. The claim lived in two notes in this
-document and in a comment in `compiler/Resolver.a24`, and CLAUDE.md had already
-flagged it as one of the assertions that lost its source when the language's
-previous specification was cut.
-
-⚠️ **DEF-19 closes with this one.** A subprogram that goes through overload
-selection has its parameters compared as part of being selected. Attempting
-DEF-19 separately means writing a comparison path this defect then makes
-redundant.
-
-*Scope of the fix.* Three places, and the machinery exists in all three:
-
-| Where | What changes |
-| --- | --- |
-| `Resolver.a24` `CheckDuplicates` | a name repeated with a *different* signature is not a duplicate |
-| the call path | a top-level call resolves through `FindOverload`, as a method call does |
-| `CEmitter.a24` | a top-level function is mangled by signature, as `MethodSymbol` already does for methods — `f_Name` alone cannot hold two |
-
-⚠️ The comment at `compiler/Resolver.a24`'s `CheckDuplicates` states the
-restriction as a decision — "Top-level functions do not overload, so there is no
-kind of duplicate this should permit." It must be corrected with the code, as
-DEF-02's comment must.
-
----
 
 **DEF-34 — Any character above 127 counts as a letter.**
 *(violates [SRC-002], [SRC-005])*

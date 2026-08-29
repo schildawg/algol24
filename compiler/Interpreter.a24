@@ -2012,18 +2012,45 @@ begin
     begin
         TheFunction := ObjFunction (TheStmt, Env, False);
 
-        // ⚠️ Before the Define below, which would otherwise let two functions of
-        // one name share it -- Define exempts a function replacing a function,
-        // so the check has to be here rather than there.
+        // ⚠️ A top-level subprogram OVERLOADS [FUN-013], as a method always
+        // has.  Two of one name used to be refused however their signatures
+        // differed, so a name belonged to one subprogram -- and nothing ever
+        // specified that restriction.
         //
-        // Top-level functions do NOT overload in this language. algc did not
-        // refuse it: it ran the program and
-        // the LAST declaration won, which is the shape a duplicate hides in
-        // inside a large file. Its own compiler disagreed with it too --
-        // 'redefinition of f_G' from cc -- so the interpreter was at odds with
-        // the back end.
-        if Env.Values.Contains (FoldCase (TheStmt.Name.Lexeme)) then
-            raise '''' + Str (TheStmt.Name.Lexeme) + ''' is already defined.';
+        // ⚠️ The environment binds one name to one value, which is what made
+        // this look structural.  The value can be an ObjOverloads holding
+        // several, and the call selects from it exactly as a method call
+        // selects from a class's methods.  The mechanism was already here.
+        //
+        // ⚠️ Two declarations claiming the SAME signature are still a
+        // duplicate.  The last one used to win silently, which is the shape a
+        // duplicate hides in inside a large file.
+        var Key := FoldCase (TheStmt.Name.Lexeme);
+
+        if Env.Values.Contains (Key) then
+        begin
+            var Existing := Env.Values.Get (Key);
+
+            if not (Existing is ObjFunction) and not (Existing is ObjOverloads) then
+                raise '''' + Str (TheStmt.Name.Lexeme) + ''' is already defined.';
+
+            var Overloads := Existing;
+
+            if Existing is ObjFunction then
+            begin
+                Overloads := ObjOverloads (Str (TheStmt.Name.Lexeme));
+                Overloads.Add (Existing);
+            end
+
+            for var I := 0; I < Overloads.Candidates.Length; I := I + 1 do
+                if SameSignature (Overloads.Candidates[I].Declaration, TheStmt) then
+                    raise '''' + Str (TheStmt.Name.Lexeme) + ''' is already defined.';
+
+            Overloads.Add (TheFunction);
+            Env.Define (TheStmt.Name.Lexeme, Overloads);
+
+            Exit;
+        end
 
         Env.Define (TheStmt.Name.Lexeme, TheFunction);
     end

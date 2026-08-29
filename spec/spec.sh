@@ -354,6 +354,25 @@ find conformance refusals defects -maxdepth 1 -name '*.a24' 2>/dev/null \
 awk -F'\t' '$2=="conformance"||$2=="refusal"||$2=="defect" {print $3}' "$WORK/cites" \
   | grep -v '^TBD$' | sort -u > "$WORK/cases_cited"
 
+# ⚠️ Every Annex F ENTRY must have a reproduction, which is a third direction and
+# was missing.  The two checks above ask whether a cited file exists and whether
+# an existing file is cited -- neither notices an entry in Annex F whose case has
+# been deleted, because a fixed defect's entry stops citing anything at all.  Two
+# entries were in that state when this check was added: DEF-19 and DEF-30, both
+# describing faults that had been fixed, both reading as open.
+
+grep -oE '^\*\*DEF-[0-9]+[a-z]*' "$SPEC" | sed 's/^\*\*//' | sort -u > "$WORK/annex_defects"
+
+find defects -maxdepth 1 -name 'DEF-*.a24' 2>/dev/null \
+  | sed 's|.*/||; s/^\(DEF-[0-9]*[a-z]*\)-.*/\1/' | sort -u > "$WORK/defect_cases"
+
+STALE=$(comm -23 "$WORK/annex_defects" "$WORK/defect_cases" | tr '\n' ' ')
+if [ -n "$STALE" ]; then
+    problem "Annex F entr(ies) with no reproduction, so a fixed defect still reads as open: $STALE"
+else
+    echo "  every Annex F entry has a reproduction ($(wc -l < "$WORK/annex_defects" | tr -d ' ') defects)"
+fi
+
 UNCITED=$(comm -23 "$WORK/cases_on_disk" "$WORK/cases_cited" | tr '\n' ' ')
 if [ -n "$UNCITED" ]; then
     problem "case file(s) no rule cites: $UNCITED"

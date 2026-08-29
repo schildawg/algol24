@@ -76,6 +76,89 @@ end
 /// type test go away: the name here arrives as a String at run time, while
 /// 'is' needs one written in the source.  This is the dynamic half.
 ///
+/// Several top-level subprograms sharing one name [FUN-013].
+///
+/// ⚠️ The environment binds one name to one value, which is why two
+/// subprograms of a name used to be refused outright.  This is the value that
+/// holds both: the name binds to the SET, and the call selects from it exactly
+/// as a method call selects from a class's methods.
+///
+/// ⚠️ Selection is at RUN TIME, from the values actually passed -- the same
+/// rule methods have always followed [EXP-013].  A declared type may be Any,
+/// and no static rule could reach the right overload from that.
+///
+class ObjOverloads;
+var
+    Name       : String;
+    Candidates : List;
+
+begin
+    constructor Init (Name : String);
+    begin
+        this.Name := Name;
+        this.Candidates := List();
+    end
+
+    procedure Add (TheFunction : Any);
+    begin
+        Candidates.Add (TheFunction);
+    end
+
+    /// ⚠️ -1, which means "checks its own" -- the caller's arity check is
+    /// skipped and selection decides, because the candidates differ in arity.
+    function Arity () : Integer;
+    begin
+        Exit -1;
+    end
+
+    /// ⚠️ TWO PASSES, exact before widening, as ObjClass.FindOverload does and
+    /// for the same reason [EXP-014]: one pass admitting widening would let
+    /// declaration order decide which overload a Char reaches.
+    function Select (Arguments : List) : Any;
+    begin
+        for var I := 0; I < Candidates.Length; I := I + 1 do
+            if Candidates[I].Fits (Arguments, False) then Exit Candidates[I];
+
+        for var I := 0; I < Candidates.Length; I := I + 1 do
+            if Candidates[I].Fits (Arguments, True) then Exit Candidates[I];
+
+        Exit Nil;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    var
+        Chosen : Any;
+
+    begin
+        Chosen := Select (Arguments);
+        if Chosen = Nil then raise 'No matching signature for function.';
+
+        Exit Chosen.Call (TheInterpreter, Arguments);
+    end
+
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Name + '>';
+    end
+end
+
+/// Whether two declarations claim the same signature, and are therefore a
+/// duplicate rather than an overload.
+///
+/// ⚠️ The PARAMETER types alone.  A return type does not distinguish an
+/// overload -- selection happens from the arguments, and two subprograms
+/// differing only in what they return could never be told apart at a call.
+///
+function SameSignature (Left : Any, Right : Any) : Boolean;
+begin
+    if Left.Params.Length <> Right.Params.Length then Exit False;
+
+    for var I := 0; I < Left.Params.Length; I := I + 1 do
+        if Str (Left.ParamTypes[I]) <> Str (Right.ParamTypes[I]) then Exit False;
+
+    Exit True;
+end
+
 /// Whether a value of type Actual may be passed where Declared is written.
 ///
 /// ⚠️ A parameter is an ASSIGNMENT CONTEXT [VAR-017], so the same two widenings

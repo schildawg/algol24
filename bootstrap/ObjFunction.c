@@ -11,10 +11,17 @@
 
 Value f_TypeNameOf(Value **cells, Value *args, int32_t count);
 Value f_NameOfClass(Value **cells, Value *args, int32_t count);
+Value f_SameSignature(Value **cells, Value *args, int32_t count);
 Value f_Widens(Value **cells, Value *args, int32_t count);
 Value f_InheritsFrom(Value **cells, Value *args, int32_t count);
 Value fn_TypeNameOf;
 Value fn_NameOfClass;
+Value k_ObjOverloads;
+static const char *t_ObjOverloads_Init_1_String[] = { "String" };
+static const char *t_ObjOverloads_Add_1[] = { "Any" };
+static const char *t_ObjOverloads_Select_1_List[] = { "List" };
+static const char *t_ObjOverloads_Call_2[] = { "Any", "Any" };
+Value fn_SameSignature;
 static Value or_0;
 static Value or_1;
 Value fn_Widens;
@@ -100,6 +107,115 @@ Value f_NameOfClass(Value **cells, Value *args, int32_t count) {
             }
         }
     }
+    return alg_nil();
+}
+
+static Value i_ObjOverloads(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Name", alg_nil());
+    alg_set_property(v_this, "Candidates", alg_nil());
+    return alg_nil();
+}
+
+static Value m_ObjOverloads_Init_1_String(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Name = args[0];
+    (void)v_Name;
+    (void)(alg_set_property(v_this, "Name", v_Name));
+    (void)(alg_set_property(v_this, "Candidates", alg_list()));
+    return alg_nil();
+}
+
+static Value m_ObjOverloads_Add_1(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_TheFunction = args[0];
+    (void)v_TheFunction;
+    (void)(alg_invoke(alg_property(v_this, "Candidates"), "Add", (Value[]){v_TheFunction}, 1));
+    return alg_nil();
+}
+
+static Value m_ObjOverloads_Arity_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_negate(alg_int(1));
+    return alg_nil();
+}
+
+static Value m_ObjOverloads_Select_1_List(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_Arguments = args[0];
+    (void)v_Arguments;
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_this, "Candidates"), "Length")))) {
+            {
+                if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Candidates"), v_I), "Fits", (Value[]){v_Arguments, alg_bool(false)}, 2))) {
+                    return alg_subscript_get(alg_property(v_this, "Candidates"), v_I);
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_this, "Candidates"), "Length")))) {
+            {
+                if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Candidates"), v_I), "Fits", (Value[]){v_Arguments, alg_bool(true)}, 2))) {
+                    return alg_subscript_get(alg_property(v_this, "Candidates"), v_I);
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    return alg_nil();
+    return alg_nil();
+}
+
+static Value m_ObjOverloads_Call_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_TheInterpreter = args[0];
+    (void)v_TheInterpreter;
+    Value v_Arguments = args[1];
+    (void)v_Arguments;
+    Value v_Chosen = alg_nil();
+    (void)v_Chosen;
+    (void)((v_Chosen = alg_invoke(v_this, "Select", (Value[]){v_Arguments}, 1)));
+    if (alg_truthy(alg_equal(v_Chosen, alg_nil()))) {
+        alg_raise(alg_string("No matching signature for function."));
+    }
+    return alg_invoke(v_Chosen, "Call", (Value[]){v_TheInterpreter, v_Arguments}, 2);
+    return alg_nil();
+}
+
+static Value m_ObjOverloads_ToString_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_add(alg_add(alg_string("<fn "), alg_property(v_this, "Name")), alg_char_value(62));
+    return alg_nil();
+}
+
+Value f_SameSignature(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    Value v_Left = args[0];
+    (void)v_Left;
+    Value v_Right = args[1];
+    (void)v_Right;
+    if (alg_truthy(alg_not_equal(alg_property(alg_property(v_Left, "Params"), "Length"), alg_property(alg_property(v_Right, "Params"), "Length")))) {
+        return alg_bool(false);
+    }
+    {
+        Value v_I = alg_int(0);
+        (void)v_I;
+        while (alg_truthy(alg_less(v_I, alg_property(alg_property(v_Left, "Params"), "Length")))) {
+            {
+                if (alg_truthy(alg_not_equal(alg_str(alg_subscript_get(alg_property(v_Left, "ParamTypes"), v_I)), alg_str(alg_subscript_get(alg_property(v_Right, "ParamTypes"), v_I))))) {
+                    return alg_bool(false);
+                }
+                (void)((v_I = alg_add(v_I, alg_int(1))));
+            }
+        }
+    }
+    return alg_bool(true);
     return alg_nil();
 }
 
@@ -310,6 +426,17 @@ static Value m_ObjFunction_Call_2(Value v_this, Value *args, int32_t count) {
 void init_ObjFunction(void) {
     fn_TypeNameOf = alg_closure("TypeNameOf", f_TypeNameOf, NULL, 0, 1);
     fn_NameOfClass = alg_closure("NameOfClass", f_NameOfClass, NULL, 0, 1);
+    k_ObjOverloads = alg_class("ObjOverloads", alg_nil());
+    alg_class_field(k_ObjOverloads, "Name");
+    alg_class_field(k_ObjOverloads, "Candidates");
+    alg_class_initializer(k_ObjOverloads, i_ObjOverloads);
+    alg_class_method(k_ObjOverloads, "Init", m_ObjOverloads_Init_1_String, 1, t_ObjOverloads_Init_1_String);
+    alg_class_method(k_ObjOverloads, "Add", m_ObjOverloads_Add_1, 1, t_ObjOverloads_Add_1);
+    alg_class_method(k_ObjOverloads, "Arity", m_ObjOverloads_Arity_0, 0, NULL);
+    alg_class_method(k_ObjOverloads, "Select", m_ObjOverloads_Select_1_List, 1, t_ObjOverloads_Select_1_List);
+    alg_class_method(k_ObjOverloads, "Call", m_ObjOverloads_Call_2, 2, t_ObjOverloads_Call_2);
+    alg_class_method(k_ObjOverloads, "ToString", m_ObjOverloads_ToString_0, 0, NULL);
+    fn_SameSignature = alg_closure("SameSignature", f_SameSignature, NULL, 0, 2);
     fn_Widens = alg_closure("Widens", f_Widens, NULL, 0, 2);
     fn_InheritsFrom = alg_closure("InheritsFrom", f_InheritsFrom, NULL, 0, 2);
     k_ObjFunction = alg_class("ObjFunction", alg_nil());

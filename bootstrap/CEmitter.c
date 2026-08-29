@@ -735,7 +735,12 @@ static Value m_CEmitter_CollectGlobals_1_List(Value v_this, Value *args, int32_t
                         }
                     }
                     if (alg_truthy((or_16 = alg_is(v_TheStmt, "FunctionStmt"), !alg_truthy(or_16) ? or_16 : alg_not(alg_invoke(v_this, "IsTest", (Value[]){v_TheStmt}, 1))))) {
-                        (void)(alg_invoke(alg_property(v_this, "TopLevel"), "Add", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 1));
+                        {
+                            if (alg_truthy(alg_invoke(alg_property(v_this, "TopLevel"), "Contains", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 1))) {
+                                (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two subprograms named '"), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))), alg_char_value(39))}, 1));
+                            }
+                            (void)(alg_invoke(alg_property(v_this, "TopLevel"), "Add", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 1));
+                        }
                     }
                 }
                 (void)((v_I = alg_add(v_I, alg_int(1))));

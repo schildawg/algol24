@@ -743,7 +743,25 @@ begin
                     Globals.Add (Str (TheStmt.Names[J].Lexeme));
 
             if TheStmt is FunctionStmt and not IsTest (TheStmt) then
+            begin
+                // ⚠️ A top-level subprogram OVERLOADS [FUN-013], and this back
+                // end cannot spell two of one name: FunctionName mangles to
+                // 'f_Name' alone, so the second definition made cc say
+                // 'redefinition of f_Take' -- a compiler emitting a program it
+                // cannot build, which is the one thing refusing by name exists
+                // to prevent.
+                //
+                // ⚠️ Selecting the overload is a RUN-TIME question, so this is
+                // not a mangling fix alone: the call site does not know which
+                // candidate it wants until it has its arguments, exactly as a
+                // method call does not.  MethodSymbol already mangles by
+                // signature and alg_invoke already dispatches on one; a
+                // top-level subprogram needs both.
+                if TopLevel.Contains (Str (TheStmt.Name.Lexeme)) then
+                    Unsupported ('Two subprograms named ''' + Str (TheStmt.Name.Lexeme) + '''');
+
                 TopLevel.Add (Str (TheStmt.Name.Lexeme));
+            end
         end
     end
 
