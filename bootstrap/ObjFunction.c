@@ -7,6 +7,7 @@
 #include "ObjFile.h"
 #include "ObjInstance.h"
 #include "Stmt.h"
+#include "Token.h"
 
 Value f_TypeNameOf(Value **cells, Value *args, int32_t count);
 Value f_NameOfClass(Value **cells, Value *args, int32_t count);
@@ -111,7 +112,7 @@ Value f_InheritsFrom(Value **cells, Value *args, int32_t count) {
     (void)((v_Klass = alg_property(v_Value, "Klass")));
     while (alg_truthy(alg_not_equal(v_Klass, alg_nil()))) {
         {
-            if (alg_truthy(alg_equal(alg_str(alg_property(v_Klass, "Name")), v_TheName))) {
+            if (alg_truthy(alg_equal(f_FoldCase(NULL, (Value[]){alg_property(v_Klass, "Name")}, 1), f_FoldCase(NULL, (Value[]){v_TheName}, 1)))) {
                 return alg_bool(true);
             }
             (void)((v_Klass = alg_property(v_Klass, "Superclass")));

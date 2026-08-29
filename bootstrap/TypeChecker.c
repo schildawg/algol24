@@ -77,6 +77,7 @@ static Value i_TypeLookup(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Types", alg_map());
     alg_set_property(v_this, "Parents", alg_map());
     alg_set_property(v_this, "Inferred", alg_map());
+    alg_set_property(v_this, "DeclaredTypes", alg_set());
     alg_set_property(v_this, "Generics", alg_nil());
     alg_set_property(v_this, "CurrentClassName", alg_string(""));
     return alg_nil();
@@ -207,6 +208,14 @@ static Value m_TypeChecker_Init_0(Value v_this, Value *args, int32_t count) {
             Value v_Name = alg_iterable_at(loop_1, at_1);
             (void)v_Name;
             (void)(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Put", (Value[]){v_Name, alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){v_Name}, 1)}, 2));
+        }
+    }
+    {
+        Value loop_2 = alg_iterable(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("Any")), alg_string("Boolean")), alg_string("Integer")), alg_string("Double")), alg_string("String")), alg_string("Char")), alg_string("List")), alg_string("Set")), alg_string("Stack")), alg_string("Array")), alg_string("Map")), alg_string("TextFile")), alg_string("Buffer")));
+        for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
+            Value v_Name = alg_iterable_at(loop_2, at_2);
+            (void)v_Name;
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){v_Name}, 1)}, 1));
         }
     }
     return alg_nil();
@@ -379,6 +388,7 @@ static Value m_TypeChecker_MapType_1(Value v_this, Value *args, int32_t count) {
         {
             (void)(alg_invoke(alg_property(v_this, "PrivateMembers"), "Put", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")), alg_property(v_TheStmt, "PrivateMembers")}, 2));
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)}, 1));
             if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Superclass"), alg_nil()))) {
                 (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Put", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_TheStmt, "Superclass"), "Name"), "Lexeme")}, 2));
             }
@@ -411,6 +421,7 @@ static Value m_TypeChecker_MapType_1(Value v_this, Value *args, int32_t count) {
         {
             (void)(alg_invoke(alg_property(v_this, "PrivateMembers"), "Put", (Value[]){alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")), alg_property(v_TheStmt, "PrivateMembers")}, 2));
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)}, 1));
             if (alg_truthy(alg_not_equal(alg_property(v_TheStmt, "Superclass"), alg_nil()))) {
                 (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Put", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(alg_property(v_TheStmt, "Superclass"), "Name"), "Lexeme")}, 2));
             }
@@ -445,6 +456,7 @@ static Value m_TypeChecker_MapType_1(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_Kind, alg_string("EnumStmt")))) {
         {
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)}, 1));
             {
                 Value v_I = alg_int(0);
                 (void)v_I;
@@ -652,9 +664,9 @@ static Value m_TypeChecker_Check_1(Value v_this, Value *args, int32_t count) {
             }
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
             {
-                Value loop_2 = alg_iterable(alg_property(v_this, "BuiltinTypes"));
-                for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
-                    Value v_Name = alg_iterable_at(loop_2, at_2);
+                Value loop_3 = alg_iterable(alg_property(v_this, "BuiltinTypes"));
+                for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
+                    Value v_Name = alg_iterable_at(loop_3, at_3);
                     (void)v_Name;
                     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){v_Name, alg_str(alg_invoke(alg_property(v_this, "BuiltinTypes"), "Get", (Value[]){v_Name}, 1))}, 2));
                 }
@@ -813,6 +825,14 @@ static Value m_TypeChecker_Reduce_1(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_Kind, alg_string("IsExpr")))) {
         {
             (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_TheExpr, "Obj")}, 1));
+            if (alg_truthy(alg_not(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheExpr, "TypeName"), "Lexeme")}, 1)}, 1)))) {
+                {
+                    Value v_Message = alg_add(alg_add(alg_string("Unknown type '"), alg_str(alg_property(alg_property(v_TheExpr, "TypeName"), "Lexeme"))), alg_string("'."));
+                    (void)v_Message;
+                    (void)(alg_invoke(alg_singleton(k_Console), "Error", (Value[]){alg_property(v_TheExpr, "TypeName"), v_Message}, 2));
+                    alg_raise(v_Message);
+                }
+            }
             return alg_string("Boolean");
         }
     }
@@ -1035,28 +1055,28 @@ static Value m_TypeChecker_ClassNameOf_1(Value v_this, Value *args, int32_t coun
     volatile Value v_Obj = args[0];
     (void)v_Obj;
     {
-        AlgFrame frame_3;
-        alg_push_frame(&frame_3);
-        if (ALG_SETJMP(frame_3.jump) == 0) {
+        AlgFrame frame_4;
+        alg_push_frame(&frame_4);
+        if (ALG_SETJMP(frame_4.jump) == 0) {
             {
-                volatile Value ret_4 = alg_property(v_Obj, "ClassName");
+                volatile Value ret_5 = alg_property(v_Obj, "ClassName");
                 alg_pop_frame();
-                return ret_4;
+                return ret_5;
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_3[] = {"String"};
-            int32_t which_3 = alg_handler(frame_3.raised, names_3, 1);
-            if (which_3 == 0) {
+            static const char *names_4[] = {"String"};
+            int32_t which_4 = alg_handler(frame_4.raised, names_4, 1);
+            if (which_4 == 0) {
                 {
-                    volatile Value v_e = frame_3.raised;
+                    volatile Value v_e = frame_4.raised;
                     (void)v_e;
                     return alg_string("");
                 }
             }
             else {
-                alg_raise(frame_3.raised);
+                alg_raise(frame_4.raised);
             }
         }
     }
@@ -1072,26 +1092,26 @@ Value f_Rejects(Value **cells, Value *args, int32_t count) {
     volatile Value v_TheParser = alg_new(k_Parser, (Value[]){alg_invoke(v_TheScanner, "ScanTokens", NULL, 0)}, 1);
     (void)v_TheParser;
     {
-        AlgFrame frame_5;
-        alg_push_frame(&frame_5);
-        if (ALG_SETJMP(frame_5.jump) == 0) {
+        AlgFrame frame_6;
+        alg_push_frame(&frame_6);
+        if (ALG_SETJMP(frame_6.jump) == 0) {
             {
                 (void)(alg_invoke(alg_new(k_TypeChecker, NULL, 0), "Resolve", (Value[]){alg_invoke(v_TheParser, "Parse", NULL, 0)}, 1));
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_5[] = {"String"};
-            int32_t which_5 = alg_handler(frame_5.raised, names_5, 1);
-            if (which_5 == 0) {
+            static const char *names_6[] = {"String"};
+            int32_t which_6 = alg_handler(frame_6.raised, names_6, 1);
+            if (which_6 == 0) {
                 {
-                    volatile Value v_e = frame_5.raised;
+                    volatile Value v_e = frame_6.raised;
                     (void)v_e;
                     return alg_bool(true);
                 }
             }
             else {
-                alg_raise(frame_5.raised);
+                alg_raise(frame_6.raised);
             }
         }
     }
@@ -1105,6 +1125,7 @@ void init_TypeChecker(void) {
     alg_class_field(k_TypeLookup, "Types");
     alg_class_field(k_TypeLookup, "Parents");
     alg_class_field(k_TypeLookup, "Inferred");
+    alg_class_field(k_TypeLookup, "DeclaredTypes");
     alg_class_field(k_TypeLookup, "Generics");
     alg_class_field(k_TypeLookup, "CurrentClassName");
     alg_class_initializer(k_TypeLookup, i_TypeLookup);

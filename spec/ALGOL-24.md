@@ -1111,14 +1111,27 @@ and is accepted everywhere.
 nothing is refused when the program is read, rather than being read as a type no
 value has.
 
-⚠️ **NOT YET IMPLEMENTED.** The name is never resolved: `1 is Nonexistent` is
-`false`, silently. A misspelled type answers false and the branch it guards
-never runs — while an undefined *variable* in the same position is
-`Undefined variable 'X'`, so `is` is uniquely permissive about its right-hand
-side. See DEF-13.
+⚠️ The name used never to be resolved: `1 is Nonexistent` was `false`, silently,
+so a misspelled type answered false and the branch it guarded never ran — while
+an undefined *variable* in the same position has always been
+`Undefined variable 'X'`.
 
-    interpreter  compiler/Interpreter.a24  VisitIsExpr
-    defect       DEF-13-unknown-type-name-is-silent.a24
+⚠️ **`Any` stays legal**, though `X is Any` is always false [VAL-005]. It names
+something; it just never matches.
+
+⚠️ Checked **folded**, because `is` folds at run time — `SatisfiesType` lowers
+both sides, so `1 is dog` finds `class Dog` and refusing it here would refuse a
+program that runs.
+
+⚠️ Writing that case down found a second fault: `InheritsFrom` compared class
+names **exactly** while `SatisfiesType` folded its direct match, so
+`Puppy() is Dog` was true and `Puppy() is dog` was false — one operator
+disagreeing with itself about case, and the C runtime folding both. Fixed with
+this rule.
+
+    interpreter  compiler/TypeChecker.a24  DeclaredTypes
+    refusal      0040-unknown-type-name.a24
+    conformance  0135-type-names-that-denote.a24
 
 > This is not a gradual-typing case. Gradual typing concerns a *value* whose
 > type is not known, which is ordinary; a type *name* is written by the
@@ -4000,6 +4013,21 @@ something else.
 *Fix:* mangle per Annex G, which specifies an escape for exactly this.
 
 **C-23 — A compiled test run never says why a test failed.**
+> **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
+> blocked on "a registry of declared type names that does not exist —
+> `Lookup.Parents` holds only classes that *have* a superclass, and enumerations
+> are not tracked at all." `Parents` is the **inheritance** map and was never the
+> registry. `Types` is, and all three declaring forms populate it: `ClassStmt`,
+> `ObjectStmt` and `EnumStmt` each register their own name. The checker already
+> refused `var E : Nonexistent := 1;` on that basis. The defect sat deferred
+> through five waves on a misreading of which map to look at, and the fix came to
+> three lines of registration and one check.
+>
+> ⚠️ The lesson is about *where* a blocker is recorded. "Blocked on machinery
+> that does not exist" is a claim about the code, and it goes stale — or is wrong
+> from the start — exactly like any other comment. It deserves the same
+> re-checking as a `⚠️` before it is trusted a second time.
+
 ***Withdrawn.***
 
 `alg_test_run` caught the failure and printed `FAIL` but never read the value
@@ -4772,31 +4800,6 @@ so the variable holds the wider type rather than one the declaration
 misdescribes. The conversions themselves already exist in both runtimes, since
 the operators perform them; this is a matter of calling them from one more
 place.
-
-**DEF-13 — An unknown type name in `is` is silently false.**
-*(violates [TYP-013])*
-
-`1 is Nonexistent` is `false` rather than being refused. The name is never
-resolved, so a misspelled type answers false and the branch it guards never
-runs — `if X is Integr then` takes the `else` arm for every `X`, and the program
-reports success.
-
-*Reproduce:* `defects/DEF-13-unknown-type-name-is-silent.a24`
-
-⚠️ The same undefined name used as a **value** is `Undefined variable`, so this
-is an inconsistency in one operator rather than a general looseness about names.
-
-⚠️ **Deferred out of wave 1.** Every other local fix in that wave was a few
-lines; this one needs a registry of declared type names that does not exist —
-`Lookup.Parents` holds only classes that *have* a superclass, and enumerations
-are not tracked at all. Building one risks refusing a legitimate name, the
-compiler's own sources first. It wants doing beside DEF-33, where overload
-selection is already comparing type names.
-
-*Scope of the fix.* The resolver already walks every `IsExpr` for the receiver;
-it checks the type name against the declared types and records an error when it
-denotes nothing. ⚠️ `Any` must stay legal there even though `X is Any` is always
-false [VAL-005] — it names something, it just never matches.
 
 **DEF-15 — Functions and classes are not hoisted.**
 *(violates [DCL-006])*

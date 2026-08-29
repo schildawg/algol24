@@ -1,0 +1,36 @@
+// spec: TYP-013, VAL-005
+//
+// Every name that denotes a type is accepted on the right of 'is': the
+// built-in types, the five collection kinds, TextFile and Buffer, a declared
+// class, object or enumeration, and 'Any'.
+//
+// ⚠️ 'Any' names something even though 'X is Any' is always FALSE [VAL-005].
+// Refusing it as undeclared would be the obvious mistake here.
+
+class Dog; begin end
+class Puppy (Dog); begin end
+type Colour = (Red, Green);
+object Reg; begin end
+
+WriteLn (Puppy () is Dog);
+WriteLn (1 is Integer);
+WriteLn (1.5 is Double);
+WriteLn ('ab' is String);
+WriteLn ('a' is Char);
+WriteLn (True is Boolean);
+WriteLn (1 is Any);
+
+WriteLn ([1] is List);
+WriteLn (Set () is Set);
+WriteLn (Stack () is Stack);
+WriteLn (Array (1) is Array);
+WriteLn ([1 : 2] is Map);
+WriteLn (Buffer () is Buffer);
+WriteLn (TextFile () is TextFile);
+
+WriteLn (Red is Colour);
+WriteLn (Reg is Reg);
+
+// ⚠️ Matched WITHOUT REGARD TO CASE, because 'is' folds at run time [SRC-011].
+// The check has to fold too, or it would refuse a program that runs.
+WriteLn (Puppy () is dog);

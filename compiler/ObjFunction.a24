@@ -5,6 +5,7 @@ uses ObjClass;
 uses ObjFile;
 uses ObjInstance;
 uses Stmt;
+uses Token;
 
 /// A function value: a declaration plus the environment it closed over.
 ///
@@ -85,7 +86,12 @@ begin
     Klass := Value.Klass;
     while Klass <> Nil do
     begin
-        if Str (Klass.Name) = TheName then Exit True;
+        // ⚠️ Folded [SRC-011].  SatisfiesType folds its DIRECT match and this
+        // compared exactly, so 'Puppy() is Dog' was true and 'Puppy() is dog'
+        // was false -- one operator disagreeing with itself about case, and the
+        // C runtime folded both.  Found by conformance/0135, which exercises the
+        // folded spelling for exactly this reason.
+        if FoldCase (Klass.Name) = FoldCase (TheName) then Exit True;
 
         Klass := Klass.Superclass;
     end

@@ -110,20 +110,19 @@ declaration and not the other.
 
 ## 3. Suggested sequence
 
-**Wave 1 — done, except DEF-13.** DEF-29 (a type error says what and where),
+**Wave 1 — done.** DEF-29 (a type error says what and where),
 DEF-07 (the opening line), DEF-18 (a procedure may not `Exit` a value), DEF-20
 (name the class), DEF-21 (publish `Ordinal`), DEF-25 (`Length` refuses a
 collection), DEF-26 (a String answers `.Length`), DEF-28 (a file that cannot be
 read exits non-zero), DEF-31 (a one-character test name), and DEF-06's
 diagnostic half.
 
-⚠️ **DEF-13 is deferred and did not belong in wave 1.** Refusing an unknown type
-name in `is` needs a registry of declared type names, and there is none:
-`Lookup.Parents` holds only classes that *have* a superclass, and enumerations
-are not tracked at all. Building one risks refusing a legitimate name — the
-compiler's own sources first — which is a different size of change from the rest
-of this wave. It wants doing beside DEF-33, where overload selection is already
-comparing type names.
+⚠️ **DEF-13 was deferred out of wave 1 for a reason that was not true.** It was
+said to need "a registry of declared type names, and there is none:
+`Lookup.Parents` holds only classes that *have* a superclass". `Parents` is the
+inheritance map; `Types` is the registry, and `ClassStmt`, `ObjectStmt` and
+`EnumStmt` all populate it. It belonged in wave 1 after all, and the fear that it
+would refuse the compiler's own sources did not materialise.
 
 ⚠️ **Wave 1 opened three compiler gaps and closed one.** C-16, C-17 and C-18 are
 new because the interpreter moved and the C runtime has not; C-9 closed, because
@@ -247,15 +246,16 @@ yet" — each is blocked on a piece of machinery this compiler does not have.
 | DEF-05 | arithmetic overflow: a check on **every** operator in `VisitBinary` and in `alg_add`'s neighbours. The literal half is done; this half costs per operation rather than once per scan, which is why it was split off. |
 | DEF-09 | inference. `Lookup.Inferred` records a type and `Reduce` never consults it, so a local's type is unknown to the checker. |
 | DEF-10, DEF-10b | the interpreter does not know a variable's declared type at run time. Widening works at a declaration and a parameter because the declaration is in hand there; assignment and field contexts have nothing to consult. |
-| DEF-13 | a registry of declared type names. `Lookup.Parents` holds only classes that *have* a superclass, and enumerations are not tracked at all. |
 | DEF-15 | two-phase class declaration. Hoisting classes broke `class B (A); … class A;` because a class declaration *evaluates* its superclass. Functions are hoisted; classes need the name bound before the body runs. |
 | DEF-19 | the same gap as DEF-10: a top-level subprogram's parameter types are not enforced because nothing checks them at the call. |
 | DEF-33 | an overload set in the environment. A name binds to one value, so a second declaration replaces the first rather than joining it. |
 | DEF-34 | Unicode character tables. `IsAlpha` admits every code point above 127 where the rule admits letters. Introduced deliberately: over-acceptance keeps correct programs working where refusing every non-ASCII byte refused them. |
 
-⚠️ **DEF-13 and DEF-33 want doing together**, as wave 1 already noted: overload
-selection compares type names, so the registry one needs is the registry the
-other is already half building.
+⚠️ **DEF-13 is done, and was never blocked.** It was recorded as needing "a
+registry of declared type names that does not exist", naming `Lookup.Parents` —
+the *inheritance* map. The registry is `Types`, which every declaring form
+already populates. Deferred through five waves on a misreading; the fix was
+three lines of registration and one check.
 
 ⚠️ **DEF-10's remaining half and DEF-19 are one question** — what a name's
 declared type is at run time — and answering it once answers both.

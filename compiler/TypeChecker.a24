@@ -25,6 +25,21 @@ var
     /// Deduced types, for a name declared without one.
     Inferred : Map  := [:];
 
+    /// Every name that denotes a type, FOLDED [SRC-011].  A type name must
+    /// denote a declared type [TYP-013], and this is what 'is' checks its
+    /// right-hand side against.
+    ///
+    /// ⚠️ A set of its own rather than a test on Types.  Types maps a name to
+    /// its type and a class registers itself under its own name, so
+    /// 'GetType(N) = N' nearly works -- and answers true for 'var Dog : Dog;'
+    /// too, which is a variable rather than a type.  Three lines of
+    /// registration cost less than reasoning about that.
+    ///
+    /// ⚠️ NOT program-wide by accident: MapType walks into every ModuleStmt, so
+    /// a type declared in any loaded file is registered before any expression
+    /// is reduced, and declaration order across files does not matter.
+    DeclaredTypes : Set := Set();
+
     /// Declared element types -- 'List of Token' -- keyed by variable name.
     ///
     /// ⚠️ A TypeLookup of its own rather than a flat Map beside Parents and
@@ -215,6 +230,14 @@ begin
                          'ParamCount', 'ParamStr', 'Write', 'WriteLn', 'Ord',
                          'Val', 'Char', 'Max', 'Mod', 'clock'] do
             BuiltinTypes.Put (Name, Lookup.GetType (Name));
+
+        // ⚠️ The names 'is' answers for without anything declaring them --
+        // TypeNameOf's answers, the five collection kinds, and 'Any', which
+        // names something even though 'X is Any' is always false [VAL-005].
+        for var Name in ['Any', 'Boolean', 'Integer', 'Double', 'String', 'Char',
+                         'List', 'Set', 'Stack', 'Array', 'Map',
+                         'TextFile', 'Buffer'] do
+            Lookup.DeclaredTypes.Add (FoldCase (Name));
     end
 
     /// The class that hid this member, walking UP from the given type, or ''
@@ -386,6 +409,7 @@ begin
         begin
             PrivateMembers.Put (Str (TheStmt.Name.Lexeme), TheStmt.PrivateMembers);
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
+            Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
 
             if TheStmt.Superclass <> Nil then
                 Lookup.Parents.Put (TheStmt.Name.Lexeme, TheStmt.Superclass.Name.Lexeme);
@@ -413,6 +437,7 @@ begin
         begin
             PrivateMembers.Put (Str (TheStmt.Name.Lexeme), TheStmt.PrivateMembers);
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
+            Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
 
             if TheStmt.Superclass <> Nil then
                 Lookup.Parents.Put (TheStmt.Name.Lexeme, TheStmt.Superclass.Name.Lexeme);
@@ -436,6 +461,7 @@ begin
         if Kind = 'EnumStmt' then
         begin
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
+            Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
 
             for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
             begin
@@ -779,6 +805,23 @@ begin
         if Kind = 'IsExpr' then
         begin
             Reduce (TheExpr.Obj);
+
+            // ⚠️ A type name must DENOTE a declared type [TYP-013].  This used
+            // to be unchecked, so '1 is Integr' was quietly false and the
+            // branch it guarded never ran -- while the same undefined name used
+            // as a VALUE is 'Undefined variable', which made 'is' uniquely
+            // permissive about its right-hand side.
+            //
+            // ⚠️ Folded, because 'is' folds at run time: SatisfiesType lowers
+            // both sides, so '1 is dog' finds class Dog and refusing it here
+            // would refuse a program that runs.
+            if not Lookup.DeclaredTypes.Contains (FoldCase (TheExpr.TypeName.Lexeme)) then
+            begin
+                var Message := 'Unknown type ''' + Str (TheExpr.TypeName.Lexeme) + '''.';
+
+                Console.Error (TheExpr.TypeName, Message);
+                raise Message;
+            end
 
             Exit 'Boolean';
         end
