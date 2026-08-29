@@ -797,15 +797,12 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
     (void)v_statements;
     Value v_stem = args[1];
     (void)v_stem;
-    Value v_mainstatements = alg_nil();
-    (void)v_mainstatements;
     Value v_units = alg_nil();
     (void)v_units;
     Value v_files = alg_nil();
     (void)v_files;
     Value v_mainbodytext = alg_nil();
     (void)v_mainbodytext;
-    (void)((v_mainstatements = alg_list()));
     (void)((v_units = alg_list()));
     (void)((v_files = alg_map()));
     (void)((v_mainbodytext = alg_string("")));
@@ -1126,22 +1123,19 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                                 {
                                     Value v_thestmt = alg_subscript_get(alg_property(v_unit, "Statements"), v_i);
                                     (void)v_thestmt;
-                                    if (alg_truthy(alg_is(v_thestmt, "BlockStmt"))) {
+                                    if (alg_truthy((or_18 = alg_invoke(v_this, "RunsWhenTesting", (Value[]){v_thestmt}, 1), alg_truthy(or_18) ? or_18 : alg_not(((or_17 = alg_property(v_this, "EmitTests"), !alg_truthy(or_17) ? or_17 : v_ismain)))))) {
                                         {
-                                            {
-                                                Value v_j = alg_int(0);
-                                                (void)v_j;
-                                                while (alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Statements"), "Length")))) {
-                                                    {
-                                                        (void)(alg_invoke(v_mainstatements, "Add", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Statements"), v_j)}, 1));
-                                                        (void)((v_j = alg_add(v_j, alg_int(1))));
-                                                    }
+                                            if (alg_truthy(alg_is(v_thestmt, "BlockStmt"))) {
+                                                {
+                                                    (void)(alg_set_property(v_this, "Volatiles", alg_invoke(v_this, "ContainsTry", (Value[]){alg_property(v_thestmt, "Statements")}, 1)));
+                                                    (void)(alg_set_property(v_this, "Boxed", alg_invoke(v_this, "BoxesFor", (Value[]){alg_property(v_thestmt, "Statements")}, 1)));
+                                                    (void)(alg_set_property(v_this, "Cells", alg_list()));
+                                                    (void)(alg_invoke(v_this, "Execute", (Value[]){v_thestmt}, 1));
+                                                    (void)(alg_set_property(v_this, "Boxed", alg_list()));
+                                                    (void)(alg_set_property(v_this, "Cells", alg_list()));
+                                                    (void)(alg_set_property(v_this, "Volatiles", alg_bool(false)));
                                                 }
-                                            }
-                                        }
-                                    } else {
-                                        {
-                                            if (alg_truthy((or_18 = alg_invoke(v_this, "RunsWhenTesting", (Value[]){v_thestmt}, 1), alg_truthy(or_18) ? or_18 : alg_not(((or_17 = alg_property(v_this, "EmitTests"), !alg_truthy(or_17) ? or_17 : v_ismain)))))) {
+                                            } else {
                                                 (void)(alg_invoke(v_this, "Execute", (Value[]){v_thestmt}, 1));
                                             }
                                         }
@@ -1159,26 +1153,6 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                             (void)(alg_set_property(v_this, "MainBody", alg_buffer(alg_int(0))));
                             if (alg_truthy(alg_property(v_this, "EmitTests"))) {
                                 (void)(alg_invoke(v_this, "EmitTestRunner", NULL, 0));
-                            } else {
-                                {
-                                    (void)(alg_set_property(v_this, "Volatiles", alg_invoke(v_this, "ContainsTry", (Value[]){v_mainstatements}, 1)));
-                                    (void)(alg_set_property(v_this, "Boxed", alg_invoke(v_this, "BoxesFor", (Value[]){v_mainstatements}, 1)));
-                                    (void)(alg_set_property(v_this, "Cells", alg_list()));
-                                    (void)(alg_invoke(v_this, "HoistCells", (Value[]){v_mainstatements}, 1));
-                                    {
-                                        Value v_i = alg_int(0);
-                                        (void)v_i;
-                                        while (alg_truthy(alg_less(v_i, alg_property(v_mainstatements, "Length")))) {
-                                            {
-                                                (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(v_mainstatements, v_i)}, 1));
-                                                (void)((v_i = alg_add(v_i, alg_int(1))));
-                                            }
-                                        }
-                                    }
-                                    (void)(alg_set_property(v_this, "Boxed", alg_list()));
-                                    (void)(alg_set_property(v_this, "Cells", alg_list()));
-                                    (void)(alg_set_property(v_this, "Volatiles", alg_bool(false)));
-                                }
                             }
                             (void)((v_mainbodytext = alg_property(alg_property(v_this, "MainBody"), "Text")));
                             (void)(alg_set_property(v_this, "MainBody", v_initbody));
@@ -2406,6 +2380,9 @@ static Value m_cemitter_visitblockstmt_1_blockstmt(Value v_this, Value *args, in
     (void)v_thestmt;
     Value v_mark = alg_invoke(v_this, "OpenScope", NULL, 0);
     (void)v_mark;
+    Value v_enclosingtop = alg_property(v_this, "AtTopLevel");
+    (void)v_enclosingtop;
+    (void)(alg_set_property(v_this, "AtTopLevel", alg_bool(false)));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_char_value(123)}, 1));
     (void)(alg_set_property(v_this, "Depth", alg_add(alg_property(v_this, "Depth"), alg_int(1))));
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
@@ -2421,6 +2398,7 @@ static Value m_cemitter_visitblockstmt_1_blockstmt(Value v_this, Value *args, in
     }
     (void)(alg_set_property(v_this, "Depth", alg_subtract(alg_property(v_this, "Depth"), alg_int(1))));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_char_value(125)}, 1));
+    (void)(alg_set_property(v_this, "AtTopLevel", v_enclosingtop));
     (void)(alg_invoke(v_this, "CloseScope", (Value[]){v_mark}, 1));
     return alg_nil();
 }

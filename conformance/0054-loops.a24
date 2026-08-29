@@ -1,12 +1,9 @@
 // spec: STM-005, STM-006, STM-007, STM-010
 //
-// ⚠️ Everything runs inside a procedure rather than at the top level, so that
-// this case can run under both processors.  Two counted 'for' loops sharing a
-// variable name at the TOP LEVEL emit invalid C -- see C-13 -- and this file
-// has four such loops.  Keeping the cross-check is worth the wrapper.
-
-procedure Body ();
-begin
+// ⚠️ These loops used to be wrapped in a procedure so the case could run under
+// both processors: two counted 'for' loops sharing a variable name at the TOP
+// LEVEL emitted invalid C, and this file has four such loops.  C-13 is fixed,
+// so they are written where they belong -- which is also what proves it.
 
 // STM-005: while.
 var N := 0;
@@ -51,6 +48,3 @@ begin
     Write ('|');
 end
 WriteLn ('');
-end
-
-Body ();

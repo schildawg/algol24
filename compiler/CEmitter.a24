@@ -831,13 +831,11 @@ begin
     ///
     function Emit (Statements : List, Stem : String) : Map;
     var
-        MainStatements : List;
         Units          : List;
         Files          : Map;
         MainBodyText   : String;
 
     begin
-        MainStatements := List();
         Units := List();
         Files := Map();
         MainBodyText := '';
@@ -1050,33 +1048,56 @@ begin
                 end
             end
 
+            // ⚠️ EVERY top-level statement is emitted IN ORDER, blocks
+            // included.  A top-level block used to be pulled out and run after
+            // every other statement, on the grounds that it was "the program's
+            // 'begin ... end'" -- but the emitter cannot tell that block from
+            // any other, and a counted 'for' desugars into one [STM-006].  So
+            // an ordinary loop was deferred to the end of the program (C-11),
+            // and two of them declared one variable in one C scope (C-13).
+            //
+            // ⚠️ Deferring was unnecessary as well as wrong.  Its purpose was
+            // to run the program body after every module had initialized, and
+            // that already holds: the root's initializer is the LAST one
+            // 'main' calls, so everything in it runs after every import's.
+            //
+            // ⚠️ Under '--test' the root file's statements are emitted only if
+            // they DECLARE something.  A test run builds what the file declares
+            // and never executes its program -- and holding back the block was
+            // never enough for that, since a top-level call is an
+            // ExpressionStmt: 'Main();' went straight into the initializer and
+            // ran ahead of the report.
             AtTopLevel := True;
+
             for var I := 0; I < Unit.Statements.Length; I := I + 1 do
             begin
                 var TheStmt := Unit.Statements[I];
 
-                // The program's 'begin ... end'.  Emitted after every module
-                // has initialized, so it is held back to the end.
-                if TheStmt is BlockStmt then
+                if RunsWhenTesting (TheStmt) or not (EmitTests and IsMain) then
                 begin
-                    for var J := 0; J < TheStmt.Statements.Length; J := J + 1 do
-                        MainStatements.Add (TheStmt.Statements[J]);
-                end
-                else
-                begin
-                    // ⚠️ Under '--test' the root file's statements are emitted
-                    // only if they DECLARE something.  A test run builds what
-                    // the file declares and never executes its program, and
-                    // holding back the 'begin ... end' is not enough to do
-                    // that: a top-level call is an ExpressionStmt, not a block,
-                    // so 'Main();' went straight into the unit's initializer
-                    // and ran ahead of the report.  Compiled, this compiler's
-                    // own suite printed the sample program before its first
-                    // test while interpreted it printed nothing.
-                    if RunsWhenTesting (TheStmt) or not (EmitTests and IsMain) then
+                    // ⚠️ A BLOCK gets the closure setup its contents need, and
+                    // ONLY a block.  Doing it for the whole unit boxed the
+                    // top-level vars, which are file-scope globals on the
+                    // AtTopLevel path -- so a read went through a cell that
+                    // nothing had filled, and closures, truthiness and the
+                    // collection tests all broke at once.  A global needs no
+                    // cell: a nested function can already see it.
+                    if TheStmt is BlockStmt then
+                    begin
+                        Volatiles := ContainsTry (TheStmt.Statements);
+                        Boxed     := BoxesFor (TheStmt.Statements);
+                        Cells     := List();
+
                         Execute (TheStmt);
+
+                        Boxed     := List();
+                        Cells     := List();
+                        Volatiles := False;
+                    end
+                    else Execute (TheStmt);
                 end
             end
+
             AtTopLevel := False;
 
             if IsMain then
@@ -1088,20 +1109,6 @@ begin
                 MainBody := Buffer();
 
                 if EmitTests then EmitTestRunner ();
-                else
-                begin
-                    Volatiles := ContainsTry (MainStatements);
-                    Boxed := BoxesFor (MainStatements);
-                    Cells := List();
-                    HoistCells (MainStatements);
-
-                    for var I := 0; I < MainStatements.Length; I := I + 1 do
-                        Execute (MainStatements[I]);
-
-                    Boxed := List();
-                    Cells := List();
-                    Volatiles := False;
-                end
 
                 MainBodyText := MainBody.Text;
                 MainBody := InitBody;
@@ -2103,6 +2110,13 @@ begin
     begin
         var Mark := OpenScope ();
 
+        // ⚠️ A BLOCK IS NOT THE TOP LEVEL, however it is reached.  A var inside
+        // one is scoped to it [DCL-008] and must be a C local; on the
+        // AtTopLevel path it was declared at file scope instead, so it outlived
+        // its block and was readable after the 'end'.
+        var EnclosingTop := AtTopLevel;
+        AtTopLevel := False;
+
         Line ('{');
         Depth := Depth + 1;
         HoistCells (TheStmt.Statements);
@@ -2113,6 +2127,7 @@ begin
         Depth := Depth - 1;
         Line ('}');
 
+        AtTopLevel := EnclosingTop;
         CloseScope (Mark);
     end
 

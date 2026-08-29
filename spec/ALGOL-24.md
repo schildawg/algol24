@@ -3877,7 +3877,8 @@ which is why it took a rule split to describe.
     gap  0044-variables-are-not-hoisted.a24
     gap  0033-a-variable-is-not-hoisted.a24
 
-**C-11 — A top-level block is reordered.** *(silent)*
+**C-11 — A top-level block is reordered.**
+***Withdrawn.***
 
 ```
 WriteLn ('one');
@@ -3926,20 +3927,31 @@ order — so a program whose blocks write files, print, or set variables the res
 of the file reads will behave differently under the two processors with nothing
 to indicate it.
 
-The emitter treats a top-level block as the program's main body, which is right
+The emitter treated a top-level block as the program's main body, which is right
 for the one block a program conventionally ends with and wrong for a block
 appearing anywhere else.
+
+⚠️ **Deferring was unnecessary as well as wrong.** Its stated purpose was to run
+the program body after every module had initialized, and that already held: the
+root's initializer is the *last* one `main` calls. Every top-level statement is
+emitted in order now, blocks included.
+
+⚠️ **C-13 was the same bug**, reached through a counted loop rather than a bare
+block, and closed with it.
+
+⚠️ `conformance/0039` still differs, for a different reason now: with the block
+correctly scoped, a name read after the `end` does not exist, and the emitter
+writes a reference to it rather than refusing by name. That is C-34.
 
 ⚠️ It also constrains the conformance corpus: any case using a bare top-level
 block to demonstrate scoping cannot be run under both processors.
 `conformance/0040` puts its blocks inside procedures for exactly this reason,
 which keeps the cross-check.
 
-    gap  0039-blocks-and-scope.a24
-    gap  0094-program-order.a24
 
 **C-13 — Two counted `for` loops sharing a variable name at the top level emit
-invalid C.** *(loud, but in the wrong place)*
+invalid C.**
+***Withdrawn.***
 *(refers to [STM-006], [DCL-008])*
 
 ```
@@ -3964,10 +3976,15 @@ that `cc` rejects, so the diagnostic names `v_I` and a line in a generated file
 rather than the loop the programmer wrote. A refusal from `algc` would be
 strictly better than a valid-looking emission that fails downstream.
 
-⚠️ It also constrains the corpus: `conformance/0054` puts its loops inside a
-procedure to keep the cross-check, as `conformance/0040` does for C-11.
+⚠️ **The same bug as C-11**, and closed with it. A top-level block was pulled
+out and run at the end; a counted `for` desugars into a block, so an ordinary
+loop was deferred and two of them declared one variable in one C scope. Every
+top-level statement is emitted in order now, and a block opens a C block, so its
+variable is a local.
 
-    gap  0142-two-counted-loops-share-a-name.a24
+⚠️ It constrained the corpus while it stood: `conformance/0054` puts its loops
+inside a procedure, as `conformance/0040` does for C-11. Neither needs to now.
+
 
 **C-14 — Compiled code does not check arity.** *(silent)*
 *(refers to [EXP-011])*
@@ -4344,19 +4361,29 @@ compiled text names the back end for something that is a rule about the
 
     gap  0030-assert-outside-a-test-run.a24
 
-**C-34 — A name reached through a non-transitive import emits invalid C.**
+**C-34 — A name that does not resolve emits invalid C.**
 *(loud, in the wrong place)*
-*(refers to [MOD-009])*
+*(refers to [MOD-009], [DCL-008])*
 
-A file reaching a name its own imports do not export is
-`Undefined variable 'DeepName'.` interpreted, with the suggestion naming the unit
-that has it. Compiled, the emitter writes a call to `f_deepname` and `cc` refuses
-the result.
+A name the program cannot reach is a runtime error interpreted and a `cc`
+failure compiled, because the emitter writes a reference to a symbol it never
+declared. Two shapes reach it:
+
+| | Interpreted | Compiled |
+| --- | --- | --- |
+| a name its imports do not export | `Undefined variable 'DeepName'.`, naming the unit that has it | `undeclared identifier 'f_deepname'` |
+| a block-local name read after the `end` | `Undefined variable 'Inner'.` | `undeclared identifier 'v_inner'` |
+
+⚠️ The second shape only became reachable when C-11 was fixed. Before that a
+top-level block's variable was emitted at file scope, so it wrongly *did* exist
+after the block and the program ran with no complaint at all — a silent wrong
+answer traded for a loud one, which is the right direction.
 
 ⚠️ The emitter breaks its own contract, as in C-13 and C-16: it should refuse by
 name what it cannot emit rather than emit C that does not build.
 
     gap  0085-uses-is-not-transitive.a24
+    gap  0039-blocks-and-scope.a24
 
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
 > blocked on "a registry of declared type names that does not exist —
