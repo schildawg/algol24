@@ -151,25 +151,30 @@ keyword** and exactly otherwise. See [SRC-010].
 **[SRC-001]**  Source text is **UTF-8**. A character, not a byte, is the unit
 of measurement and of subscripting.
 
-⚠️ **NOT YET IMPLEMENTED.** The implementation treats source and strings as
-bytes and attaches no encoding to either. See DEF-01.
+⚠️ **PARTLY IMPLEMENTED.** A character is the unit of measurement and of
+subscripting. What a String does *not* yet carry is its own **length**: it is a
+NUL-terminated C string, which is safe only because `#0` is refused where it is
+read [LEX-032], and which is why `Str(Char(0))` still truncates. See DEF-08.
 
     interpreter  compiler/Scanner.a24  ScanTokens
     compiler     bootstrap/algol.c     alg_length
     unit         Scan A Whole Program
-    defect       DEF-01-text-is-bytes.a24
+    conformance  0128-text-is-characters.a24
+    defect       DEF-08-nul-char-truncates.a24
 
 **[SRC-002]**  Outside comments, string literals and character literals, every
 character must be one the scanner recognises — a letter [SRC-005], a digit, or
 an operator or item of punctuation [LEX-012]. Any other is an error reading
 `[line N] Error: Unexpected character: C`.
 
-⚠️ **PARTLY IMPLEMENTED.** The implementation refuses every non-ASCII byte
-here, including letters that [SRC-005] admits. See DEF-01.
+⚠️ **PARTLY IMPLEMENTED.** The implementation now admits *every* character above
+127 as a letter, where this rule admits only what Unicode classifies as one — so
+an emoji is accepted where it should be refused. See DEF-34.
 
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Unrecognized Character Is Recorded
     refusal      0001-unexpected-character.a24
+    defect       DEF-34-any-high-character-is-a-letter.a24
 
 **[SRC-003]**  Inside a comment, a string literal or a character literal, any
 byte is permitted and is carried through unchanged. A program may therefore
@@ -187,15 +192,16 @@ subscripting a String yields the character at that position. `Length('café')` i
 The same holds for every operation that counts or indexes text — `Copy`, `Pos`,
 and `Ord` [16.2].
 
-⚠️ **NOT YET IMPLEMENTED.** The implementation counts bytes: `Length('café')` is
-5 and `'café'[3]` is the first byte of a two-byte sequence. See DEF-01.
+⚠️ **Counting characters came out faster than counting bytes**, which is not the
+direction it looks. Subscripting text used to call `strlen` on the whole string
+for every character, so the scanner walked its entire source once per character
+read — quadratic, and nothing had noticed. Caching a string's character count
+by pointer removed that: measured over three runs of `./test.sh`, 20.1 s against
+21.2 s before.
 
     interpreter  compiler/Interpreter.a24  LengthNative
     compiler     bootstrap/algol.c         alg_length
-    defect       DEF-01-text-is-bytes.a24
-
-> `Length('café')` is 5, not 4, in both processors — the defect above, recorded
-> as evidence for it rather than as the rule.
+    conformance  0128-text-is-characters.a24
 
 ⚠️ **[SRC-002] and [SRC-003] together mean an identifier is ASCII while a
 string is not.** The restriction is on the *program text the scanner reads*,
@@ -213,12 +219,16 @@ identifier_mark = "?" | "!" .
 
 `unicode_letter` is any character Unicode classifies as a letter.
 
-⚠️ **PARTLY IMPLEMENTED.** The implementation admits only the ASCII forms. See
-DEF-01.
+⚠️ **PARTLY IMPLEMENTED.** A Unicode letter may appear in an identifier now, but
+the test is "above 127" rather than "a letter", so the implementation is
+*looser* than the rule. Narrowing it needs Unicode character tables, which
+nothing here has. See DEF-34.
 
     interpreter  compiler/Scanner.a24  IsAlpha
     unit         Scan Identifier With A Question Mark
     conformance  0002-letters-and-digits.a24
+    conformance  0128-text-is-characters.a24
+    defect       DEF-34-any-high-character-is-a-letter.a24
 
 ⚠️ **An identifier mark is not a letter.** `?` and `!` may appear *within* an
 identifier but may not begin one [LEX-007], so `Gate?` and `Gate!` are each a
@@ -635,13 +645,13 @@ same character carry two types depending on how it was spelled:
 Ord ('''')     →  Ord failed: ''' has no ordinal.
 ```
 
-⚠️ **NOT YET IMPLEMENTED, twice over.** The implementation measures the span,
-and measures it in *bytes* — so `''''` is a String and `'é'` is a String of
-length 2. See DEF-32 and DEF-01.
+⚠️ **This was wrong twice over.** The implementation measured the span, and
+measured it in *bytes* — so `''''` was a String and `'é'` a String of length 2.
+One line decided both, which is why they were corrected together.
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan One Character Is A Char
-    defect       DEF-01-text-is-bytes.a24
+    conformance  0128-text-is-characters.a24
 
 **[LEX-024]**  A Char may also be written `#` followed by decimal digits, giving
 the character with that code point: `#65` is `A`, `#10` is a line feed and
@@ -667,8 +677,10 @@ surrogate range D800 … DFFF, which encodes no character. A `#` literal outside
 that range is refused when the program is read, with the shape every other
 scan error has — `[line N] Error: …` — because that is where it is detected.
 
-⚠️ **NOT YET IMPLEMENTED.** The range is 0 … 127, so `#200` is refused where
-the specification admits it. See DEF-06.
+⚠️ A Char is held as its **UTF-8 encoding** — a String of one character and
+possibly several bytes — and `alg_char_value` is the single place that encodes
+it, so the two processors agree by construction rather than by both being
+restricted to what a byte can hold.
 
 ⚠️ **The diagnostic half is done.** It used to arrive as
 `Uncaught: Char is limited to 0..127.` with no line and no caret, because
@@ -678,7 +690,7 @@ widening a Char is the same change as a String of characters rather than bytes.
 
     interpreter  compiler/Scanner.a24  ScanChar
     compiler     bootstrap/algol.c     alg_char
-    defect       DEF-06-char-range.a24
+    refusal      0038-char-out-of-range.a24
 
 **[LEX-026]**  A Char and a String are never equal, however alike they look.
 `'a' = 'a'` is true because both sides are Chars; `Copy('abc', 0, 1) = 'a'` is
@@ -717,7 +729,9 @@ however many of source [LEX-023].
 ⚠️ `''''` and `#39` are therefore the same value, and equal. They are two
 spellings of one character.
 
-⚠️ **NOT YET IMPLEMENTED.** `''''` is a String of length one. See DEF-32.
+⚠️ The scanner measures the literal's **value**, not its source span, and that
+one line decides two things: `'é'` is a Char rather than a String of two bytes,
+and a doubled quote counts once.
 
 ⚠️ **There is then no literal for a one-character String**, and that is not a
 loss. `var S : String := 'c';` is already a type mismatch for every character
@@ -728,9 +742,9 @@ is written, and it works for every character alike.
 
     interpreter  compiler/Scanner.a24  ScanString
     unit         Scan Empty String
-    unit         Scan An Escaped Quote Is A String
+    unit         Scan An Escaped Quote Is A Char
     conformance  0016-string-literals.a24
-    defect       DEF-32-a-doubled-quote-is-a-string.a24
+    conformance  0130-a-doubled-quote-is-a-char.a24
 
 **[LEX-030]**  A string literal may span lines. The line feed is part of its
 value and advances the line count, so `'one` ⏎ `two'` is seven characters.
@@ -753,13 +767,18 @@ runs to the end.
 **[LEX-032]**  `#0` is not a Char. A code point of 0 is refused exactly as an
 out-of-range one is [LEX-025], when the program is read.
 
-⚠️ **NOT YET IMPLEMENTED.** `#0` is accepted and `#0 is Char` is true, but a
-String cannot hold it: concatenating one truncates the String there, so
-`Length('a' + Str(#0) + 'b')` is 2. Both processors agree, because both
-represent a String as C does, terminated by the zero byte. See DEF-08.
+⚠️ **Only the LITERAL is refused.** [LEX-025] puts a Char at 0 … 10FFFF and the
+built-in `Char(0)` stays legal — which it must, because the scanner's own
+end-of-input sentinel is `Char(0)`, and a scanner that cannot name its sentinel
+cannot scan.
 
-    interpreter  compiler/Interpreter.a24  StrNative
-    compiler     bootstrap/algol.c         alg_string
+⚠️ **PARTLY IMPLEMENTED.** `Str(Char(0))` still truncates a String, so
+`Length('a' + Str(Char(0)) + 'b')` is 2. That residue needs the explicit length
+[SRC-001] asks for, not a range check. See DEF-08.
+
+    interpreter  compiler/Scanner.a24  ScanChar
+    compiler     bootstrap/algol.c     alg_char
+    refusal      0037-nul-char-literal.a24
     defect       DEF-08-nul-char-truncates.a24
 
 > Refusing `#0` is the smaller of the two available fixes and matches the range
@@ -2849,11 +2868,13 @@ a point (`1.0`), a Boolean lowercase (`true`), `nil` as `nil`, a List as
 range of [LEX-025] — 0 … 10FFFF, excluding the surrogates. `Ord` and `Char` are
 inverse across it.
 
-⚠️ **NOT YET IMPLEMENTED.** The range is 0 … 127. See DEF-06.
+⚠️ `Char(0)` is legal here, and only the **literal** `#0` is refused
+[LEX-032] — the scanner's own end-of-input sentinel is `Char(0)`.
 
     interpreter  compiler/Interpreter.a24  CharNative
     compiler     bootstrap/algol.c         alg_char
-    defect       DEF-06-char-range.a24
+    conformance  0128-text-is-characters.a24
+    refusal      0038-char-out-of-range.a24
 
 ### 16.3 Numeric
 
@@ -3937,6 +3958,18 @@ the emitter learns to rename.
 *Fix:* rename the colliding symbol per unit, as a private name colliding across
 units already is.
 
+**C-22 — A Unicode identifier will not compile.** *(loud)*
+
+A Unicode letter may appear in an identifier [SRC-005] and the interpreter runs
+the program. The emitter refuses it with `An identifier containing 'é' is not
+supported by the C back end yet.`
+
+⚠️ The refusal predates the rule and was right for a different reason — C cannot
+spell the name. It is the honest shape: refused by name rather than emitted as
+something else.
+
+*Fix:* mangle per Annex G, which specifies an escape for exactly this.
+
 ## Annex D — advisory notes *(non-normative)*
 
 Where the specified behaviour looks like a mistake. Nothing here weakens the
@@ -4586,39 +4619,6 @@ behaviour and passes while that behaviour persists. It turns **red when the
 defect stops reproducing**, because a fix is as much a change to be noticed as a
 regression — and a suite that is permanently red is a suite nobody reads.
 
-**DEF-01 — Text is bytes, not characters.**
-*(violates [SRC-001], [SRC-002], [SRC-004], [SRC-005])*
-
-The implementation treats source and strings as bytes. `Length('café')` is 5
-rather than 4; `'café'[3]` is the first byte of a two-byte sequence rather than
-`é`; and the scanner refuses every non-ASCII byte outside a comment or literal,
-so a Unicode letter cannot appear in an identifier.
-
-*Reproduce:* `defects/DEF-01-text-is-bytes.a24`
-
-*Scope of the fix.* This is the largest change the specification asks for, and
-it is not confined to one place:
-
-| Where | What changes |
-| --- | --- |
-| Scanner | admit Unicode letters in identifiers; decode UTF-8 |
-| Runtime, both | a String gains a character count distinct from its byte length |
-| Runtime, both | …and stops being NUL-terminated, which is what makes `+` fixable — see G.2 |
-| `Length` `Copy` `Pos` subscript | count and index characters |
-| `Ord` `Char` | full code-point range, not 0 … 127 [LEX-025] |
-| Emitter | identifiers mangled per Annex G |
-
-⚠️ It also decides D-3 on the way past: a String that carries its own length can
-hold `#0`, and the truncation recorded there stops being possible.
-
-⚠️ **And it is what makes `+` affordable.** Building a String a piece at a time
-costs about n²/2 bytes today — 776 MB for 40,000 appends, against 17 MB through
-a `Buffer` — because `concat` copies both operands and the arena never
-reclaims. An in-place append is safe only once a String carries its own length,
-since an alias must keep reading its own shorter view. G.2 has the measurement
-and the mechanism. This defect is therefore the gate on the largest performance
-problem the runtime has, which is not obvious from its title.
-
 **DEF-04 — `print` is a keyword and a statement.**
 *(violates [LEX-010], [STM-022])*
 
@@ -4657,38 +4657,36 @@ neighbours in the runtime. Unlike the literal half — checked once, during the
 scan — this one costs on every operation a program performs, which is why the
 two were separated in the first place.
 
-**DEF-06 — A Char is limited to 0 … 127, and says so in the wrong shape.**
-*(violates [LEX-024], [LEX-025])*
+**DEF-08 — A String cannot hold a zero character.**
+*(violates [SRC-001], [LEX-032])*
 
-`#233` is refused where the specification requires `é`. The refusal also has the
-wrong form: `ScanChar` builds the value by calling the `Char` built-in during
-the scan, so a range failure surfaces as a bare `Char is limited to 0..127.`
-with no line number and no source caret, unlike every other scan error
-[ERR-004].
+⚠️ **THE LITERAL HALF IS FIXED.** `#0` is refused where it is read —
+`refusals/0037` — so `#0 is Char` can no longer be written.
 
-*Reproduce:* `defects/DEF-06-char-range.a24`
-
-⚠️ The diagnostic half is worth fixing **whatever** the range turns out to be.
-It is not really about Unicode; it is a scan error escaping as a raise.
-
-*Scope of the fix.* The range moves with DEF-01, since a Char wider than a byte
-and a String of characters are the same change. The diagnostic is independent:
-`ScanChar` checks the range itself and records an error rather than calling a
-built-in that raises.
-
-**DEF-08 — `#0` is accepted and truncates a String.**
-*(violates [LEX-032])*
-
-`#0 is Char` is true where the specification refuses the literal outright, and a
-String silently truncates where one is concatenated in, so
-`Length('a' + Str(#0) + 'b')` is 2. Both processors agree, because both
-represent a String as C does.
+What remains is the runtime: `Char(0)` is legal [LEX-025] and a String
+concatenating one truncates there, so `Length('a' + Str(Char(0)) + 'b')` is 2.
+Both processors agree, because both represent a String as C does.
 
 *Reproduce:* `defects/DEF-08-nul-char-truncates.a24`
 
-*Scope of the fix.* The same range check as DEF-06, extended downwards. See D-3
-for why refusal rather than storage is what the rule asks for, and why the
-larger fix stays available.
+*Scope of what remains.* Not a range check — the range is right. A String must
+carry its own length instead of ending at the first zero byte, which is what
+[SRC-001] asks for. `Value` gains a byte length beside its pointer, every reader
+uses it rather than `strlen`, and `%s` becomes `%.*s`.
+
+⚠️ **This is also the gate on the largest performance problem the runtime has**,
+which is not obvious from the title. Building a String a piece at a time costs
+about n²/2 bytes — 776 MB for 40,000 appends, against 17 MB through a `Buffer` —
+because `concat` copies both operands and the arena never reclaims. An in-place
+append when the left operand is the arena's most recent allocation makes
+`S := S + 'x'` linear, and is safe **only** once a String carries its own length,
+since an alias must keep reading its own shorter view. Annex G.2 has the
+measurement and the mechanism.
+
+⚠️ DEF-01 covered this and is **withdrawn**: everything else in it is done, and
+what was left had no reproduction of its own — a String's missing length is
+observable only as the truncation above, which is this case. One fault, one
+case.
 
 **DEF-09 — A written type is enforced on a declaration and not on an
 assignment.** *(violates [VAR-006])*
@@ -4874,37 +4872,6 @@ C runtime must change together, and `conformance/0105` records the current text.
 No test in `compiler/*.a24` asserts on these strings, so the suite itself is
 unaffected.
 
-**DEF-32 — A doubled quote is a String.**
-*(violates [LEX-023], [LEX-029])*
-
-`''''` is a String of length one where [LEX-029] makes it the Char holding a
-quote. The scanner classifies by the **source span** between the quotes rather
-than by the value the literal denotes, and the doubled quote is the one case
-where the two differ.
-
-*Reproduce:* `defects/DEF-32-a-doubled-quote-is-a-string.a24`
-
-⚠️ **Three consequences, and the second settles it.** The same character carries
-two types depending on how it is spelled; it is not equal to itself across those
-spellings; and it has an ordinal under one spelling only.
-
-```
-''''  is Char  →  false            #39  is Char  →  true
-''''  =  #39   →  false
-Ord ('''')     →  Ord failed: ''' has no ordinal.
-```
-
-*Scope of the fix.* `ScanString` counts the characters the literal **denotes**
-rather than the span it occupies, so a doubled quote counts as one. ⚠️ It should
-land with DEF-01, which changes that count from bytes to characters — the same
-line of code decides both, and fixing one without the other means touching it
-twice.
-
-⚠️ **It removes the only literal for a one-character String**, which is correct
-and not a loss: `var S : String := 'c';` is already a type mismatch for every
-other character, so `''''` being writable was an accident of the measurement.
-DEF-10's widening is what makes one-character Strings writable properly.
-
 **DEF-33 — A top-level subprogram does not overload.**
 *(violates [FUN-013], [VAR-007])*
 
@@ -4941,6 +4908,25 @@ kind of duplicate this should permit." It must be corrected with the code, as
 DEF-02's comment must.
 
 ---
+
+**DEF-34 — Any character above 127 counts as a letter.**
+*(violates [SRC-002], [SRC-005])*
+
+[SRC-005] admits `unicode_letter` — what Unicode classifies as a letter — and
+the scanner admits every code point above 127, so `var 🙂 := 1;` is accepted
+where the rule refuses it.
+
+*Reproduce:* `defects/DEF-34-any-high-character-is-a-letter.a24`
+
+⚠️ **Introduced deliberately, in the direction that keeps correct programs
+working.** The scanner used to refuse every non-ASCII byte, so no Unicode letter
+could appear in a program at all; admitting them all is over-acceptance, which
+lets correct programs run, where under-acceptance refused them. It is recorded
+rather than hidden.
+
+*Scope of the fix.* A table of the letter ranges, or a dependency that carries
+one. Nothing in this compiler classifies a code point today, and that is the
+whole of the work — the call site is one condition in `IsAlpha`.
 
 ## Annex G — implementation notes *(non-normative)*
 

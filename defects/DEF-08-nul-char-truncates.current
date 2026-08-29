@@ -1,3 +1,2 @@
-true
-2
-exit: 0
+Uncaught: [line 8] Error: '#0' is not a Char.
+exit: 70

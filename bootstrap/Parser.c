@@ -582,7 +582,7 @@ static Value m_Parser_ResolveModule_2_Token_String(Value v_this, Value *args, in
     Value v_Searched = alg_string("the working directory");
     (void)v_Searched;
     if (alg_truthy(alg_not_equal(v_Dir, alg_string("")))) {
-        (void)((v_Searched = alg_add(alg_add(alg_string("'"), v_Dir), alg_string("' or the working directory"))));
+        (void)((v_Searched = alg_add(alg_add(alg_char_value(39), v_Dir), alg_string("' or the working directory"))));
     }
     alg_raise(alg_invoke(v_this, "Error", (Value[]){v_Where, alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("Could not find module '"), v_ModuleName), alg_string("': no ")), v_TheFile), alg_string(" in ")), v_Searched), alg_char_value(46))}, 2));
     return alg_nil();

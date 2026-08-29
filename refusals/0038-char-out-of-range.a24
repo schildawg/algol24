@@ -1,0 +1,12 @@
+// spec: LEX-025
+//
+// A Char is a Unicode code point: 0 .. 10FFFF, less the surrogates
+// D800 .. DFFF, which encode no character.
+//
+// ⚠️ The range used to be 0..127, so '#233' was refused where the language
+// requires 'é'.  The diagnostic has the shape every other scan error has --
+// '[line N] Error: ...' -- because that is where it is detected; it used to
+// arrive as a bare raise with no line and no caret, since ScanChar built the
+// value by calling the Char built-in.
+
+WriteLn (#1114112);

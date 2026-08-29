@@ -2080,7 +2080,7 @@ static Value m_Interpreter_VisitClassStmt_1_ClassStmt(Value v_this, Value *args,
             (void)((v_Superclass = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheStmt, "Superclass")}, 1)));
             if (alg_truthy(alg_not((alg_is(v_Superclass, "ObjClass"))))) {
                 {
-                    alg_raise(alg_add(alg_add(alg_string("'"), alg_str(alg_property(alg_property(alg_property(v_TheStmt, "Superclass"), "Name"), "Lexeme"))), alg_string("' is not a class.")));
+                    alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(alg_property(v_TheStmt, "Superclass"), "Name"), "Lexeme"))), alg_string("' is not a class.")));
                 }
             }
         }
@@ -2231,7 +2231,7 @@ static Value m_Interpreter_VisitFunctionStmt_1_FunctionStmt(Value v_this, Value 
     (void)v_TheFunction;
     (void)((v_TheFunction = alg_new(k_ObjFunction, (Value[]){v_TheStmt, alg_property(v_this, "Env"), alg_bool(false)}, 3)));
     if (alg_truthy(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme")}, 1)}, 1))) {
-        alg_raise(alg_add(alg_add(alg_string("'"), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
+        alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
     }
     (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"), v_TheFunction}, 2));
     return alg_nil();

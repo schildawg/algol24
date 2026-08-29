@@ -1,8 +1,0 @@
-// spec: SRC-001, SRC-004
-//
-
-// SRC-004 says Length counts CHARACTERS, so this must print 4 and then e-acute.
-// It prints 5 and half of a two-byte sequence.
-
-WriteLn (Length ('café'));
-WriteLn ('café'[3]);

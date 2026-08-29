@@ -30,6 +30,9 @@ static Value or_9;
 static Value or_10;
 static Value or_11;
 static Value or_12;
+static Value or_13;
+static Value or_14;
+static Value or_15;
 static const char *t_Scanner_Init_1[] = { "Any" };
 static const char *t_Scanner_Match_1_Char[] = { "Char" };
 static const char *t_Scanner_AddToken_1_TokenType[] = { "TokenType" };
@@ -379,7 +382,7 @@ static Value m_Scanner_ScanString_0(Value v_this, Value *args, int32_t count) {
         }
     }
     (void)(alg_invoke(v_this, "Advance", NULL, 0));
-    if (alg_truthy(alg_equal(alg_subtract(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start")), alg_int(2)), alg_int(1)))) {
+    if (alg_truthy(alg_equal(alg_length(v_Value), alg_int(1)))) {
         (void)(alg_invoke(v_this, "AddToken", (Value[]){e_TokenType_TOKEN_CHAR, alg_subscript_get(v_Value, alg_int(0))}, 2));
     } else {
         (void)(alg_invoke(v_this, "AddToken", (Value[]){e_TokenType_TOKEN_STRING, v_Value}, 2));
@@ -401,10 +404,17 @@ static Value m_Scanner_ScanChar_0(Value v_this, Value *args, int32_t count) {
     }
     Value v_Code = f_ToInteger(NULL, (Value[]){alg_copy(alg_property(v_this, "Source"), alg_add(alg_property(v_this, "Start"), alg_int(1)), alg_subtract(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start")), alg_int(1)))}, 1);
     (void)v_Code;
-    if (alg_truthy(alg_greater(v_Code, alg_int(127)))) {
+    if (alg_truthy(alg_equal(v_Code, alg_int(0)))) {
         {
             (void)((v_HadError = alg_bool(true)));
-            (void)((v_LastError = alg_add(alg_add(alg_string("[line "), alg_property(v_this, "Line")), alg_string("] Error: Char is limited to 0..127."))));
+            (void)((v_LastError = alg_add(alg_add(alg_string("[line "), alg_property(v_this, "Line")), alg_string("] Error: '#0' is not a Char."))));
+            return alg_nil();
+        }
+    }
+    if (alg_truthy((or_6 = alg_greater(v_Code, alg_int(1114111)), alg_truthy(or_6) ? or_6 : ((or_5 = alg_greater_equal(v_Code, alg_int(55296)), !alg_truthy(or_5) ? or_5 : alg_less_equal(v_Code, alg_int(57343))))))) {
+        {
+            (void)((v_HadError = alg_bool(true)));
+            (void)((v_LastError = alg_add(alg_add(alg_add(alg_string("[line "), alg_property(v_this, "Line")), alg_string("] Error: Char is limited to 0..10FFFF, excluding D800..DFFF: #")), v_Code)));
             return alg_nil();
         }
     }
@@ -430,7 +440,7 @@ static Value m_Scanner_Match_1_Char(Value v_this, Value *args, int32_t count) {
 static Value m_Scanner_Peek_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     if (alg_truthy(alg_invoke(v_this, "IsAtEnd", NULL, 0))) {
-        return alg_char_value(0);
+        return alg_char(alg_int(0));
     }
     return alg_subscript_get(alg_property(v_this, "Source"), alg_property(v_this, "Current"));
     return alg_nil();
@@ -439,7 +449,7 @@ static Value m_Scanner_Peek_0(Value v_this, Value *args, int32_t count) {
 static Value m_Scanner_PeekNext_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     if (alg_truthy(alg_greater_equal(alg_add(alg_property(v_this, "Current"), alg_int(1)), alg_length(alg_property(v_this, "Source"))))) {
-        return alg_char_value(0);
+        return alg_char(alg_int(0));
     }
     return alg_subscript_get(alg_property(v_this, "Source"), alg_add(alg_property(v_this, "Current"), alg_int(1)));
     return alg_nil();
@@ -490,7 +500,7 @@ static Value m_Scanner_IsAlpha_1_Char(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_8 = (or_7 = ((or_5 = alg_greater_equal(v_C, alg_char_value(97)), !alg_truthy(or_5) ? or_5 : alg_less_equal(v_C, alg_char_value(122)))), alg_truthy(or_7) ? or_7 : ((or_6 = alg_greater_equal(v_C, alg_char_value(65)), !alg_truthy(or_6) ? or_6 : alg_less_equal(v_C, alg_char_value(90))))), alg_truthy(or_8) ? or_8 : (alg_equal(v_C, alg_char_value(95))));
+    return (or_11 = (or_10 = (or_9 = ((or_7 = alg_greater_equal(v_C, alg_char_value(97)), !alg_truthy(or_7) ? or_7 : alg_less_equal(v_C, alg_char_value(122)))), alg_truthy(or_9) ? or_9 : ((or_8 = alg_greater_equal(v_C, alg_char_value(65)), !alg_truthy(or_8) ? or_8 : alg_less_equal(v_C, alg_char_value(90))))), alg_truthy(or_10) ? or_10 : (alg_equal(v_C, alg_char_value(95)))), alg_truthy(or_11) ? or_11 : (alg_greater(alg_ord(v_C), alg_int(127))));
     return alg_nil();
 }
 
@@ -498,7 +508,7 @@ static Value m_Scanner_IsMark_1_Char(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_9 = (alg_equal(v_C, alg_char_value(63))), alg_truthy(or_9) ? or_9 : (alg_equal(v_C, alg_char_value(33))));
+    return (or_12 = (alg_equal(v_C, alg_char_value(63))), alg_truthy(or_12) ? or_12 : (alg_equal(v_C, alg_char_value(33))));
     return alg_nil();
 }
 
@@ -506,7 +516,7 @@ static Value m_Scanner_IsAlphaNumeric_1_Char(Value v_this, Value *args, int32_t 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_11 = (or_10 = alg_invoke(v_this, "IsAlpha", (Value[]){v_C}, 1), alg_truthy(or_10) ? or_10 : alg_invoke(v_this, "IsDigit", (Value[]){v_C}, 1)), alg_truthy(or_11) ? or_11 : alg_invoke(v_this, "IsMark", (Value[]){v_C}, 1));
+    return (or_14 = (or_13 = alg_invoke(v_this, "IsAlpha", (Value[]){v_C}, 1), alg_truthy(or_13) ? or_13 : alg_invoke(v_this, "IsDigit", (Value[]){v_C}, 1)), alg_truthy(or_14) ? or_14 : alg_invoke(v_this, "IsMark", (Value[]){v_C}, 1));
     return alg_nil();
 }
 
@@ -514,7 +524,7 @@ static Value m_Scanner_IsDigit_1_Char(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_12 = alg_greater_equal(v_C, alg_char_value(48)), !alg_truthy(or_12) ? or_12 : alg_less_equal(v_C, alg_char_value(57)));
+    return (or_15 = alg_greater_equal(v_C, alg_char_value(48)), !alg_truthy(or_15) ? or_15 : alg_less_equal(v_C, alg_char_value(57)));
     return alg_nil();
 }
 

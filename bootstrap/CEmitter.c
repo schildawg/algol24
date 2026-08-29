@@ -439,7 +439,7 @@ static Value m_CEmitter_QuestionsOut_1_String(Value v_this, Value *args, int32_t
                         if (alg_truthy((or_0 = alg_equal(v_C, alg_char_value(95)), alg_truthy(or_0) ? or_0 : alg_invoke(v_this, "IsLetterOrDigit", (Value[]){v_C}, 1)))) {
                             (void)((v_Result = alg_add(v_Result, alg_str(v_C))));
                         } else {
-                            (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("An identifier containing '"), alg_str(v_C)), alg_string("'"))}, 1));
+                            (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("An identifier containing '"), alg_str(v_C)), alg_char_value(39))}, 1));
                         }
                     }
                 }
@@ -686,7 +686,7 @@ static Value m_CEmitter_CollectFunctions_1_List(Value v_this, Value *args, int32
                                             (void)v_Member;
                                             if (alg_truthy(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_Member}, 1))) {
                                                 if (alg_truthy(alg_not_equal(alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){v_Member}, 1)), alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))))) {
-                                                    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two enumerations binding '"), v_Member), alg_string("'"))}, 1));
+                                                    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two enumerations binding '"), v_Member), alg_char_value(39))}, 1));
                                                 }
                                             }
                                             (void)(alg_invoke(alg_property(v_this, "EnumMembers"), "Put", (Value[]){v_Member, alg_str(alg_property(alg_property(v_TheStmt, "Name"), "Lexeme"))}, 2));
@@ -788,7 +788,7 @@ static Value m_CEmitter_Emit_2_List_String(Value v_this, Value *args, int32_t co
             {
                 {
                     if (alg_truthy(alg_invoke(v_Seen, "Contains", (Value[]){alg_str(alg_property(alg_subscript_get(v_Units, v_U), "Name"))}, 1))) {
-                        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two modules named '"), alg_str(alg_property(alg_subscript_get(v_Units, v_U), "Name"))), alg_string("'"))}, 1));
+                        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two modules named '"), alg_str(alg_property(alg_subscript_get(v_Units, v_U), "Name"))), alg_char_value(39))}, 1));
                     }
                     (void)(alg_invoke(v_Seen, "Add", (Value[]){alg_str(alg_property(alg_subscript_get(v_Units, v_U), "Name"))}, 1));
                 }
@@ -934,7 +934,7 @@ static Value m_CEmitter_Emit_2_List_String(Value v_this, Value *args, int32_t co
                                             if (alg_truthy(alg_invoke(v_ExportedBy, "Contains", (Value[]){v_TheName}, 1))) {
                                                 {
                                                     if (alg_truthy(alg_not_equal(alg_str(alg_invoke(v_ExportedBy, "Get", (Value[]){v_TheName}, 1)), alg_str(alg_property(alg_subscript_get(v_Units, v_U), "Name"))))) {
-                                                        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two modules exporting '"), v_TheName), alg_string("'"))}, 1));
+                                                        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two modules exporting '"), v_TheName), alg_char_value(39))}, 1));
                                                     }
                                                 }
                                             } else {
@@ -1838,7 +1838,7 @@ static Value m_CEmitter_RequireCell_1_String(Value v_this, Value *args, int32_t 
     Value v_Name = args[0];
     (void)v_Name;
     if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Cells"), "Contains", (Value[]){v_Name}, 1)))) {
-        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("A capture of '"), v_Name), alg_string("'"))}, 1));
+        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("A capture of '"), v_Name), alg_char_value(39))}, 1));
     }
     return alg_nil();
 }
@@ -2774,7 +2774,7 @@ static Value m_CEmitter_VisitUnary_1_UnaryExpr(Value v_this, Value *args, int32_
             return alg_add(alg_add(alg_string("alg_not("), v_Operand), alg_char_value(41));
         }
     }
-    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Unary '"), alg_str(alg_property(alg_property(v_TheExpr, "Op"), "Lexeme"))), alg_string("'"))}, 1));
+    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Unary '"), alg_str(alg_property(alg_property(v_TheExpr, "Op"), "Lexeme"))), alg_char_value(39))}, 1));
     return alg_nil();
 }
 
@@ -2835,7 +2835,7 @@ static Value m_CEmitter_VisitBinary_1_BinaryExpr(Value v_this, Value *args, int3
         }
     }
     if (alg_truthy(alg_equal(v_Call, alg_string("")))) {
-        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Binary '"), alg_str(alg_property(alg_property(v_TheExpr, "Op"), "Lexeme"))), alg_string("'"))}, 1));
+        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Binary '"), alg_str(alg_property(alg_property(v_TheExpr, "Op"), "Lexeme"))), alg_char_value(39))}, 1));
     }
     return alg_add(alg_add(alg_add(alg_add(alg_add(v_Call, alg_char_value(40)), v_Left), alg_string(", ")), v_Right), alg_char_value(41));
     return alg_nil();
@@ -3067,7 +3067,7 @@ static Value m_CEmitter_UnitCall_4_String_String_List_String(Value v_this, Value
             if (alg_truthy(alg_not_equal(v_TheConstructor, alg_string("")))) {
                 return v_TheConstructor;
             }
-            (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("A call to '"), v_Unit), alg_char_value(46)), v_Name), alg_string("'"))}, 1));
+            (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("A call to '"), v_Unit), alg_char_value(46)), v_Name), alg_char_value(39))}, 1));
         }
     }
     Value v_Saved = alg_property(v_this, "Renames");
@@ -3090,7 +3090,7 @@ static Value m_CEmitter_UnitCall_4_String_String_List_String(Value v_this, Value
     if (alg_truthy(alg_not_equal(v_Built, alg_string("")))) {
         return v_Built;
     }
-    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("A call to '"), v_Unit), alg_char_value(46)), v_Name), alg_string("'"))}, 1));
+    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("A call to '"), v_Unit), alg_char_value(46)), v_Name), alg_char_value(39))}, 1));
     return alg_string("");
     return alg_nil();
 }
@@ -3257,7 +3257,7 @@ static Value m_CEmitter_VisitCall_1_CallExpr(Value v_this, Value *args, int32_t 
     if (alg_truthy(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_Name}, 1))) {
         return alg_add(alg_add(alg_add(alg_add(alg_string("alg_call("), alg_invoke(v_this, "Read", (Value[]){v_Name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_Arguments}, 1)), alg_char_value(41));
     }
-    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("A call to '"), v_Name), alg_string("'"))}, 1));
+    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("A call to '"), v_Name), alg_char_value(39))}, 1));
     return alg_nil();
 }
 
@@ -3347,7 +3347,7 @@ static Value m_CEmitter_UnitValue_2_String_String(Value v_this, Value *args, int
         return alg_add(alg_add(alg_string("(alg_error("), f_QuoteC(NULL, (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), v_Name), alg_string("' in unit '")), v_Unit), alg_string("'."))}, 1)), alg_string("), alg_nil())"));
     }
     if (alg_truthy(alg_equal(v_Unit, alg_string("System")))) {
-        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("'"), v_Unit), alg_char_value(46)), v_Name), alg_string("' as a value"))}, 1));
+        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_char_value(39), v_Unit), alg_char_value(46)), v_Name), alg_string("' as a value"))}, 1));
     }
     Value v_Saved = alg_property(v_this, "Renames");
     (void)v_Saved;
@@ -3381,7 +3381,7 @@ static Value m_CEmitter_UnitValue_2_String_String(Value v_this, Value *args, int
     if (alg_truthy(alg_not_equal(v_Built, alg_string("")))) {
         return v_Built;
     }
-    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("'"), v_Unit), alg_char_value(46)), v_Name), alg_string("' as a value"))}, 1));
+    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_char_value(39), v_Unit), alg_char_value(46)), v_Name), alg_string("' as a value"))}, 1));
     return alg_string("");
     return alg_nil();
 }
@@ -3415,7 +3415,7 @@ static Value m_CEmitter_VisitSetExpr_1_SetExpr(Value v_this, Value *args, int32_
             if (alg_truthy((or_59 = alg_not_equal(v_Unit, alg_string("System")), !alg_truthy(or_59) ? or_59 : alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_Name}, 1)))) {
                 return alg_add(alg_add(alg_add(alg_add(alg_char_value(40), alg_invoke(v_this, "VariableName", (Value[]){v_Name}, 1)), alg_string(" = ")), v_Written), alg_char_value(41));
             }
-            (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("An assignment to '"), v_Unit), alg_char_value(46)), v_Name), alg_string("'"))}, 1));
+            (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("An assignment to '"), v_Unit), alg_char_value(46)), v_Name), alg_char_value(39))}, 1));
         }
     }
     return alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("alg_set_property("), alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheExpr, "Obj")}, 1)), alg_string(", ")), f_QuoteC(NULL, (Value[]){alg_str(alg_property(alg_property(v_TheExpr, "Name"), "Lexeme"))}, 1)), alg_string(", ")), alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_TheExpr, "Value")}, 1)), alg_char_value(41));

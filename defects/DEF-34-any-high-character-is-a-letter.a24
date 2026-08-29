@@ -1,0 +1,19 @@
+// spec: SRC-002, SRC-005
+//
+// ⚠️ A defect is a statement about the INTERPRETER and is never compiled.
+//
+// SRC-005 admits 'unicode_letter' -- what Unicode CLASSIFIES as a letter -- so
+// this program must be refused with
+// '[line N] Error: Unexpected character: 🙂'.
+//
+// The scanner admits every code point above 127 instead, so it runs and prints
+// 1.
+//
+// ⚠️ Introduced deliberately, in the direction that keeps correct programs
+// working.  The scanner used to refuse every non-ASCII byte, so no Unicode
+// letter could appear in a program at all; admitting them all over-accepts,
+// where refusing them all under-accepted.  Narrowing it needs a table of the
+// letter ranges, which nothing in this compiler has.
+
+var 🙂 := 1;
+WriteLn (🙂);

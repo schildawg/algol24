@@ -91,7 +91,7 @@ static Value m_Environment_RaiseAmbiguousImport_2_String_String(Value v_this, Va
             }
         }
     }
-    alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("'"), alg_str(v_Display)), alg_string("' is ambiguous: ")), v_Owners), alg_char_value(46)));
+    alg_raise(alg_add(alg_add(alg_add(alg_add(alg_char_value(39), alg_str(v_Display)), alg_string("' is ambiguous: ")), v_Owners), alg_char_value(46)));
     return alg_nil();
 }
 
@@ -166,7 +166,7 @@ static Value m_Environment_Assign_2_Token(Value v_this, Value *args, int32_t cou
     }
     if (alg_truthy(alg_not_equal(alg_property(v_this, "Ambiguous"), alg_nil()))) {
         if (alg_truthy(alg_invoke(alg_property(v_this, "Ambiguous"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1))) {
-            alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("'"), alg_str(alg_property(v_Name, "Lexeme"))), alg_string("' is ambiguous: ")), alg_str(alg_invoke(alg_property(v_this, "Ambiguous"), "Get", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1))), alg_char_value(46)));
+            alg_raise(alg_add(alg_add(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(v_Name, "Lexeme"))), alg_string("' is ambiguous: ")), alg_str(alg_invoke(alg_property(v_this, "Ambiguous"), "Get", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1))), alg_char_value(46)));
         }
     }
     Value v_Owner = alg_invoke(v_this, "OwnerOf", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1), alg_str(alg_property(v_Name, "Lexeme"))}, 2);
@@ -198,7 +198,7 @@ static Value m_Environment_Get_1_Token(Value v_this, Value *args, int32_t count)
     }
     if (alg_truthy(alg_not_equal(alg_property(v_this, "Ambiguous"), alg_nil()))) {
         if (alg_truthy(alg_invoke(alg_property(v_this, "Ambiguous"), "Contains", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1))) {
-            alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("'"), alg_str(alg_property(v_Name, "Lexeme"))), alg_string("' is ambiguous: ")), alg_str(alg_invoke(alg_property(v_this, "Ambiguous"), "Get", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1))), alg_char_value(46)));
+            alg_raise(alg_add(alg_add(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(v_Name, "Lexeme"))), alg_string("' is ambiguous: ")), alg_str(alg_invoke(alg_property(v_this, "Ambiguous"), "Get", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1)}, 1))), alg_char_value(46)));
         }
     }
     Value v_Owner = alg_invoke(v_this, "OwnerOf", (Value[]){f_FoldCase(NULL, (Value[]){alg_property(v_Name, "Lexeme")}, 1), alg_str(alg_property(v_Name, "Lexeme"))}, 2);

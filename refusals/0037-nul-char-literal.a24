@@ -1,0 +1,12 @@
+// spec: LEX-032
+//
+// '#0' is not a Char.  A code point of 0 is refused where the program is read,
+// exactly as an out-of-range one is [LEX-025].
+//
+// ⚠️ Only the LITERAL is refused.  [LEX-025] puts a Char at 0..10FFFF and the
+// built-in Char(0) stays legal -- which it must, because the scanner's own
+// end-of-input sentinel is Char(0), and a scanner that cannot name its
+// sentinel cannot scan.  Str(Char(0)) still truncates a String, which is the
+// half of DEF-08 that remains.
+
+WriteLn (#0 is Char);

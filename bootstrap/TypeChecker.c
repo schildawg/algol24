@@ -276,7 +276,7 @@ static Value m_TypeChecker_CheckVisibility_2_Token(Value v_this, Value *args, in
     if (alg_truthy((or_5 = alg_equal(v_Owner, alg_string("")), alg_truthy(or_5) ? or_5 : alg_equal(v_Owner, alg_property(alg_property(v_this, "Lookup"), "CurrentClassName"))))) {
         return alg_nil();
     }
-    alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("'"), alg_property(v_Member, "Lexeme")), alg_string("' is private to ")), v_Owner), alg_char_value(46)));
+    alg_raise(alg_add(alg_add(alg_add(alg_add(alg_char_value(39), alg_property(v_Member, "Lexeme")), alg_string("' is private to ")), v_Owner), alg_char_value(46)));
     return alg_nil();
 }
 

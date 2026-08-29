@@ -185,6 +185,15 @@ static const char *as_text(Value v);
 static bool is_number(Value v);
 static bool is_text(Value v);
 static int32_t as_integer(Value v, const char *message);
+
+/* Text is characters, not bytes [SRC-004] -- see the utf8 section, which sits
+ * beside is_text because that is where the text predicates live, and is
+ * declared here because counting and indexing are wanted well above it. */
+static int32_t utf8_count(const char *text);
+static int32_t utf8_offset(const char *text, int32_t index);
+static int32_t utf8_chars_in(const char *text, int32_t bytes);
+static int32_t utf8_decode(const char *at);
+static int utf8_encode(int32_t code, char *out);
 _Noreturn static void undefined(const char *what, const char *name);
 
 /* Declared here because the protocol checks live in the collections section,
@@ -940,7 +949,7 @@ Value alg_to_list(Value receiver) {
 static int32_t count_of(Value v) {
     if (is_obj(v, OBJ_MAP))    return ((ObjMap *)v.obj)->count;
     if (is_sequence(v))        return ((ObjSeq *)v.obj)->count;
-    if (is_text(v))            return (int32_t)strlen(v.string);
+    if (is_text(v))            return utf8_count(v.string);
 
     /* A Buffer's Length is its size in bytes, never its capacity -- see the
      * Buffer section.  as_buffer is what makes Length on a freed one raise
@@ -972,9 +981,12 @@ Value alg_subscript_get(Value target, Value index) {
         return seq->items[bounded(index, seq->count, false)];
     }
     if (is_text(target)) {
-        int32_t at = bounded(index, (int32_t)strlen(target.string), false);
+        /* ⚠️ Bounded in CHARACTERS and indexed in characters [SRC-004].  This
+         * used to hand back one byte, so 'café'[3] was the first half of a
+         * two-byte sequence rather than 'é'. */
+        int32_t at = bounded(index, utf8_count(target.string), false);
 
-        return alg_char_value((unsigned char)target.string[at]);
+        return alg_char_value(utf8_decode(target.string + utf8_offset(target.string, at)));
     }
 
     alg_error("Only a collection or a String can be subscripted.");
@@ -2194,9 +2206,21 @@ Value alg_double(double d)       { Value v; v.type = VAL_DOUBLE; v.number  = d; 
 Value alg_string(const char *s)  { Value v; v.type = VAL_STRING; v.string  = s; return v; }
 
 Value alg_char_value(int32_t code) {
-    char *one = arena_alloc(2);
-    one[0] = (char)code;
-    one[1] = '\0';
+    /* ⚠️ Four bytes and a terminator: a Char is a Unicode code point [LEX-025]
+     * and is held as its UTF-8 encoding, so it is a String of one CHARACTER and
+     * possibly several bytes.  The range is checked where the literal is read,
+     * which is where the line number is. */
+    /* ⚠️ The ASCII case keeps its two bytes.  This is the hottest allocation in
+     * the runtime -- the scanner's Peek builds a Char for every character of
+     * every source file -- and taking five bytes for all of them put 2.5x the
+     * traffic through the arena for no gain. */
+    char *one;
+    int   span;
+
+    if (code < 0x80) { one = arena_alloc(2); one[0] = (char)code; span = 1; }
+    else             { one = arena_alloc(5); span = utf8_encode(code, one); }
+
+    one[span] = '\0';
 
     Value v;
     v.type   = VAL_CHAR;
@@ -2214,6 +2238,162 @@ static bool is_number(Value v) {
  * equality that keeps it apart from a String. */
 static bool is_text(Value v) {
     return v.type == VAL_STRING || v.type == VAL_CHAR;
+}
+
+/* ------------------------------------------------------------------ utf8 --
+ *
+ * Text is CHARACTERS, not bytes [SRC-004].  Length('café') is 4, 'café'[3] is
+ * 'é', and Copy, Pos and Ord count and index the same way.  Source is UTF-8
+ * [SRC-001] and a String holds it unchanged; only the counting changed.
+ *
+ * ⚠️ Strings stay NUL-terminated, and may, because #0 is REFUSED where it is
+ * read [LEX-032] -- so no String can contain a zero byte.  Giving a String an
+ * explicit length is a separate change, wanted for a different reason: it is
+ * what would make an in-place append safe and '+' affordable (Annex G.2).
+ */
+
+/* Bytes in the sequence this lead byte opens.  A continuation byte or a
+ * malformed lead answers 1, so a bad string still advances and cannot loop. */
+static int utf8_span(unsigned char lead) {
+    if (lead < 0x80)           return 1;
+    if ((lead & 0xE0) == 0xC0) return 2;
+    if ((lead & 0xF0) == 0xE0) return 3;
+    if ((lead & 0xF8) == 0xF0) return 4;
+    return 1;
+}
+
+static int32_t utf8_decode(const char *at) {
+    const unsigned char *p = (const unsigned char *)at;
+    int span = utf8_span(*p);
+
+    if (span == 1) return *p;
+    if (span == 2) return ((p[0] & 0x1F) << 6)  |  (p[1] & 0x3F);
+    if (span == 3) return ((p[0] & 0x0F) << 12) | ((p[1] & 0x3F) << 6)  |  (p[2] & 0x3F);
+
+    return ((p[0] & 0x07) << 18) | ((p[1] & 0x3F) << 12) | ((p[2] & 0x3F) << 6) | (p[3] & 0x3F);
+}
+
+/* Writes the code point and answers how many bytes it took.  The caller
+ * supplies at least 4 bytes; the range is checked where the literal is READ. */
+static int utf8_encode(int32_t code, char *out) {
+    if (code < 0x80)    { out[0] = (char)code; return 1; }
+
+    if (code < 0x800)   { out[0] = (char)(0xC0 | (code >> 6));
+                          out[1] = (char)(0x80 | (code & 0x3F)); return 2; }
+
+    if (code < 0x10000) { out[0] = (char)(0xE0 | (code >> 12));
+                          out[1] = (char)(0x80 | ((code >> 6) & 0x3F));
+                          out[2] = (char)(0x80 | (code & 0x3F)); return 3; }
+
+    out[0] = (char)(0xF0 | (code >> 18));
+    out[1] = (char)(0x80 | ((code >> 12) & 0x3F));
+    out[2] = (char)(0x80 | ((code >> 6) & 0x3F));
+    out[3] = (char)(0x80 | (code & 0x3F));
+    return 4;
+}
+
+/* ⚠️ WITHOUT A CACHE THIS IS QUADRATIC, and that is the whole reason it exists.
+ * Indexing by character means finding the Nth character's byte, which is a walk
+ * from the start -- and the scanner reads its source one character at a time,
+ * so 'Source[I]' in a loop over a 100 KB file would walk 100 KB every step.
+ *
+ * Two things make it cheap.  An all-ASCII string needs no walk at all, because
+ * the character index IS the byte index, and every source file this compiler
+ * has ever read is one.  A string that does need walking keeps a cursor, so
+ * reading it in order costs one step per character rather than one walk.
+ *
+ * ⚠️ Keyed by POINTER, which is sound only because a String is immutable and
+ * the arena never frees -- so a pointer identifies its contents for the life of
+ * the process.  Direct-mapped rather than one entry, because two strings are
+ * routinely measured in alternation and a single entry would thrash. */
+typedef struct {
+    const char *text;
+    int32_t     chars;
+    int         ascii;
+
+    /* Where the last walk stopped, so reading in order does not restart. */
+    int32_t     at_char;
+    int32_t     at_byte;
+} TextInfo;
+
+#define TEXT_CACHE_SLOTS 64
+static TextInfo text_cache[TEXT_CACHE_SLOTS];
+
+static TextInfo *text_info(const char *text) {
+    size_t    slot  = ((uintptr_t)text >> 4) & (TEXT_CACHE_SLOTS - 1);
+    TextInfo *entry = &text_cache[slot];
+
+    if (entry->text == text) return entry;
+
+    /* strlen first, then a WORD-AT-A-TIME test for a high bit, because the ASCII
+     * answer is the one that has to be cheap: strlen is vectorised and a byte
+     * loop counting code points is not.
+     *
+     * ⚠️ Measured, three runs each of './test.sh': 20.1 s with this section
+     * against 21.2 s without it.  Counting characters came out FASTER than
+     * counting bytes did, which is not the direction it looks.  The reason is
+     * the cache above rather than anything here -- subscripting text used to
+     * call strlen on the whole string for every character, so the scanner's
+     * Peek walked its entire source once per character read.  That was
+     * quadratic and nothing had noticed. */
+    size_t bytes = strlen(text);
+    int    ascii = 1;
+
+    const unsigned char *p = (const unsigned char *)text;
+    size_t at = 0;
+
+    for (; at + 8 <= bytes; at += 8) {
+        uint64_t chunk;
+        memcpy(&chunk, p + at, 8);
+
+        if (chunk & 0x8080808080808080ULL) { ascii = 0; break; }
+    }
+    if (ascii) {
+        for (; at < bytes; at++) if (p[at] >= 0x80) { ascii = 0; break; }
+    }
+
+    int32_t chars;
+
+    if (ascii) chars = (int32_t)bytes;
+    else {
+        chars = 0;
+        for (size_t i = 0; i < bytes; chars++) i += (size_t)utf8_span(p[i]);
+    }
+
+    entry->text    = text;
+    entry->chars   = chars;
+    entry->ascii   = ascii;
+    entry->at_char = 0;
+    entry->at_byte = 0;
+    return entry;
+}
+
+static int32_t utf8_count(const char *text) { return text_info(text)->chars; }
+
+/* The byte offset of character 'index', which must be in range. */
+static int32_t utf8_offset(const char *text, int32_t index) {
+    TextInfo *entry = text_info(text);
+
+    if (entry->ascii) return index;
+
+    if (index < entry->at_char) { entry->at_char = 0; entry->at_byte = 0; }
+
+    while (entry->at_char < index) {
+        entry->at_byte += utf8_span((unsigned char)text[entry->at_byte]);
+        entry->at_char++;
+    }
+    return entry->at_byte;
+}
+
+/* Characters in the first 'bytes' bytes -- what turns a byte offset that
+ * strstr found back into the character index a program asked for. */
+static int32_t utf8_chars_in(const char *text, int32_t bytes) {
+    if (text_info(text)->ascii) return bytes;
+
+    int32_t chars = 0;
+    for (int32_t at = 0; at < bytes; chars++) at += utf8_span((unsigned char)text[at]);
+
+    return chars;
 }
 
 static bool is_double_arithmetic(Value a, Value b) {
@@ -2828,7 +3008,9 @@ Value alg_copy(Value text, Value begin, Value length) {
     int32_t     start = as_integer(begin, "Copy expects an Integer start.");
     int32_t     count = as_integer(length, "Copy expects an Integer length.");
 
-    int32_t size = (int32_t)strlen(from);
+    /* ⚠️ Start and count are in CHARACTERS [SRC-004]; the copy itself is in
+     * bytes, so both ends are converted. */
+    int32_t size = utf8_count(from);
 
     if (start < 0 || start > size) {
         char message[80];
@@ -2842,10 +3024,13 @@ Value alg_copy(Value text, Value begin, Value length) {
     int32_t end = start + count;
     if (end > size) end = size;
 
-    int32_t taken  = end - start;
+    int32_t from_byte = utf8_offset(from, start);
+    int32_t to_byte   = utf8_offset(from, end);
+
+    int32_t taken  = to_byte - from_byte;
     char   *result = arena_alloc((size_t)taken + 1);
 
-    memcpy(result, from + start, (size_t)taken);
+    memcpy(result, from + from_byte, (size_t)taken);
     result[taken] = '\0';
 
     return alg_string(result);
@@ -2857,16 +3042,35 @@ Value alg_pos(Value text, Value part) {
 
     const char *found = strstr(haystack, needle);
 
-    /* -1 rather than 0 when absent, so position 0 is usable. */
-    return alg_int(found == NULL ? -1 : (int32_t)(found - haystack));
+    /* -1 rather than 0 when absent, so position 0 is usable.
+     *
+     * ⚠️ strstr answers a BYTE offset and a program counts characters
+     * [SRC-004], so the answer is converted.  A UTF-8 sequence cannot occur
+     * inside another one, so a byte match is always a character match. */
+    if (found == NULL) return alg_int(-1);
+
+    return alg_int(utf8_chars_in(haystack, (int32_t)(found - haystack)));
 }
 
 Value alg_char(Value code) {
     int32_t point = as_integer(code, "Char expects an Integer.");
 
-    /* ASCII only.  Above 127 the interpreter yields a UTF-16 char and this would
-     * have to encode UTF-8 to agree with it, so it refuses rather than guessing. */
-    if (point < 0 || point > 127) alg_error("Char is limited to 0..127.");
+    /* ⚠️ A Unicode code point [LEX-025], less the surrogates D800..DFFF, which
+     * encode no character.
+     *
+     * This used to be 0..127, on the grounds that anything above would 'have to
+     * encode UTF-8 to agree with the interpreter'.  It does encode UTF-8 now --
+     * alg_char_value is the single place that does it, so the two agree by
+     * construction rather than by both being restricted.
+     *
+     * ⚠️ ZERO IS STILL ADMITTED HERE, and only the LITERAL '#0' is refused, in
+     * the scanner [LEX-032].  [LEX-025] puts a Char at 0..10FFFF and refusing
+     * the literal is what that rule asks for -- 'when the program is read'.
+     * The scanner's own end-of-input sentinel is Char(0), so refusing it here
+     * would leave this compiler unable to scan anything, including itself. */
+    if (point < 0 || point > 0x10FFFF || (point >= 0xD800 && point <= 0xDFFF)) {
+        alg_error("Char is limited to 0..10FFFF, excluding D800..DFFF.");
+    }
 
     return alg_char_value(point);
 }
@@ -2904,7 +3108,7 @@ Value alg_ord(Value v) {
     /* A Char is held as a one-character C string rather than a number, so the
      * code point is that character -- unsigned, or a high byte would sign-extend
      * to a negative ordinal. */
-    if (v.type == VAL_CHAR) return alg_int((unsigned char)v.string[0]);
+    if (v.type == VAL_CHAR) return alg_int(utf8_decode(v.string));
 
     if (v.type == VAL_BOOL) return alg_int(v.boolean ? 1 : 0);
     if (v.type == VAL_INT)  return alg_int(v.integer);

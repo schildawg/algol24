@@ -350,14 +350,30 @@ begin
         end
         Advance();
 
-        // A one-character literal is a Char, not a String, and the two are
-        // never equal.  Measured on the RAW span between the quotes rather than
-        // on Value: '''' is an escaped quote, two characters of source and one
-        // of value, and the language calls it a String.  Testing Value would
-        // call it a Char instead and get '''' wrong.
+        // A one-character literal is a Char, not a String, and the two are never
+        // equal [LEX-023].
+        //
+        // ⚠️ Measured on the VALUE, not on the source span.  It used to count
+        // 'Current - Start - 2' -- the characters BETWEEN the quotes -- and that
+        // made the same character carry two types depending on how it was
+        // spelled: '''' was a String of one where #39 was a Char, so a quote was
+        // not equal to itself and had an ordinal under one spelling only.  The
+        // doubling is notation for a character, and notation must not change a
+        // type.
+        //
+        // ⚠️ ONE LINE decides two things, which is why they were fixed together.
+        // Length counts CHARACTERS now [SRC-004], so 'é' is a Char rather than a
+        // String of two bytes; and Value holds what the literal DENOTES, so a
+        // doubled quote counts once.  Measuring the span got both wrong.
+        //
+        // ⚠️ This removes the only literal for a one-character String, which is
+        // not a loss: 'var S : String := ''c'';' was already a type mismatch for
+        // every character but the quote, so '''' being writable was an accident
+        // of the measurement rather than a way of writing anything.
+        //
         // Value[0], not Ord(Value): subscripting a String yields a Char, while
         // Ord parses its argument as a number and fails on anything else.
-        if Current - Start - 2 = 1 then AddToken(TOKEN_CHAR, Value[0]);
+        if Length(Value) = 1 then AddToken(TOKEN_CHAR, Value[0]);
         else AddToken(TOKEN_STRING, Value);
     end
 
@@ -382,13 +398,36 @@ begin
         // 0..127.' with no line and no caret, unlike every other scan error.
         // It is a scan error and is now recorded as one [ERR-004].
         //
-        // ⚠️ The RANGE is still 0..127 and is wrong: LEX-025 makes a Char a
-        // Unicode code point, and widening it belongs with DEF-01, which is
-        // where a Char stops being a byte.  Only the diagnostic is fixed here.
-        if Code > 127 then
+        // ⚠️ A Char is a Unicode CODE POINT [LEX-025], not a byte: 0 .. 10FFFF,
+        // less the surrogates D800 .. DFFF, which encode no character and exist
+        // only to let UTF-16 carry what UTF-8 carries directly.
+        //
+        // ⚠️ '#0' is refused too [LEX-032].  It used to be accepted, and a
+        // String could not hold it: concatenating one truncated the String
+        // there, so Length('a' + Str(#0) + 'b') was 2.  Refusing the literal is
+        // the smaller of the two available fixes and is what keeps a String
+        // safely NUL-terminated.
+        //
+        // ⚠️ Only the LITERAL.  [LEX-025] puts a Char at 0..10FFFF and the
+        // built-in Char(0) stays legal -- which it must, because Peek returns
+        // Char(0) at end of input, and a scanner that cannot name its own
+        // sentinel cannot scan.  Str(Char(0)) still truncates a String; that
+        // residue needs the explicit length DEF-01 describes, not this check.
+        // ⚠️ Two rules, two messages.  '#0' is refused by [LEX-032] while
+        // [LEX-025] puts a Char at 0..10FFFF, so one message covering both
+        // would have to state a range that neither rule gives.
+        if Code = 0 then
         begin
             HadError := True;
-            LastError := '[line ' + Line + '] Error: Char is limited to 0..127.';
+            LastError := '[line ' + Line + '] Error: ''#0'' is not a Char.';
+            Exit;
+        end
+
+        if Code > 1114111 or (Code >= 55296 and Code <= 57343) then
+        begin
+            HadError := True;
+            LastError := '[line ' + Line
+                + '] Error: Char is limited to 0..10FFFF, excluding D800..DFFF: #' + Code;
             Exit;
         end
 
@@ -410,7 +449,7 @@ begin
     //
     function Peek();
     begin
-        if IsAtEnd() then exit #0;
+        if IsAtEnd() then exit Char(0);
 
         exit Source[Current];
     end
@@ -423,7 +462,7 @@ begin
        // the last character.  Lox only ever called this from ScanNumber, where
        // a digit always followed, so the off-by-one was unreachable until
        // ScanString started using it to spot a doubled quote.
-       if Current + 1 >= Length(Source) then exit #0;
+       if Current + 1 >= Length(Source) then exit Char(0);
        
        exit Source[Current + 1];
     end
@@ -484,11 +523,27 @@ begin
     /// so that 'Gate?' scans as one word also let it BEGIN an identifier, and
     /// 'var ? := 7;' declared a variable named '?' -- which fell out of the
     /// letter class rather than from any decision [SRC-005, LEX-008].
+    /// A letter, for the purpose of starting or continuing an identifier
+    /// [SRC-005].
+    ///
+    /// ⚠️ Every non-ASCII character counts, so 'café' and 'Straße' are
+    /// identifiers.  The scanner used to refuse every non-ASCII byte outright
+    /// [SRC-002], which meant a Unicode letter could not appear in a program at
+    /// all outside a comment or a literal.
+    ///
+    /// ⚠️ This is LOOSER than the rule, and knowingly so.  [SRC-005] admits
+    /// what Unicode classifies as a letter, and this admits every code point
+    /// above 127 -- so an emoji is accepted where the rule refuses it.
+    /// Narrowing it needs Unicode character tables, which nothing in this
+    /// compiler has and which are a far larger commitment than admitting the
+    /// letters.  Over-acceptance is the direction that keeps correct programs
+    /// working, and it is recorded rather than hidden.
     function IsAlpha(C : Char) : Boolean;
     begin
         Exit (C >= 'a' and C <= 'z') or
              (C >= 'A' and C <= 'Z') or
-             (C = '_');
+             (C = '_') or
+             (Ord (C) > 127);
     end
 
     /// An identifier MARK: may continue an identifier, may not begin one.
@@ -753,14 +808,19 @@ end
 // rather than a Char -- and that is the reason the length is measured on the
 // raw span instead of on the built value.
 //
-test 'Scan An Escaped Quote Is A String';
+// ⚠️ A doubled quote is a CHAR, not a String.  This test asserted the opposite
+// and was pinning a defect: the scanner measured the source SPAN, so '''' was
+// two characters of source and came out a String, while #39 -- the same
+// character -- was a Char.  A quote was not equal to itself [LEX-023].
+//
+test 'Scan An Escaped Quote Is A Char';
 begin
     var Uut := Scanner(#39 + #39 + #39 + #39);
 
     Uut.ScanTokens();
 
-    AssertEqual(TOKEN_STRING, Uut.Tokens[0].TypeOfToken);
-    AssertEqual(1, Length(Uut.Tokens[0].Literal));
+    AssertEqual(TOKEN_CHAR, Uut.Tokens[0].TypeOfToken);
+    AssertEqual(#39, Uut.Tokens[0].Literal);
 end
 
 // A Char written by code point.

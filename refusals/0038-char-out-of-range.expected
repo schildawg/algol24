@@ -1,0 +1,2 @@
+Uncaught: [line 12] Error: Char is limited to 0..10FFFF, excluding D800..DFFF: #1114112
+exit: 70
