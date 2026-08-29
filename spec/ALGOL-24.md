@@ -1893,6 +1893,7 @@ its variable is scoped [DCL-008].
     unit         Execute For Loop
     unit         Parse For Statement
     conformance  0054-loops.a24
+    conformance  0142-two-counted-loops-share-a-name.a24
 
 **[STM-007]**  `for var X in C do S` walks a collection or a String. Over a
 String it yields each `Char`; over a `Map` it yields each **key**.
@@ -2541,6 +2542,7 @@ A bracketed list of `key : value` pairs is a `Map`, and `[:]` is an empty one.
 
     interpreter  compiler/Parser.a24  Primary
     conformance  0075-collection-construction.a24
+    conformance  0143-a-large-computed-literal.a24
 
 **[COL-002]**  `List()`, `Set()`, `Stack()` and `Map()` construct empty
 collections, `Set(L)` builds a Set from a collection, and `Array(N)` an Array of
@@ -3658,6 +3660,8 @@ A function nested more than one level deep is not supported by the C back end ye
 
 Three levels of nesting run correctly interpreted and refuse to compile.
 
+    gap  0063-nesting.a24
+
 **C-3 — A compiled assertion failure carries no message.**
 ***Withdrawn.***
 
@@ -3743,6 +3747,8 @@ defect in one or the other.
 
 ---
 
+    gap  0095-module-init-order.a24
+
 **C-6 — Reading a method as a property crashes the compiled program.**
 *(silent, and the worst kind)*
 *(refers to [TYP-012])*
@@ -3773,7 +3779,9 @@ bare `B.Length` on a method an error — the spelling being wanted for propertie
 — so the construct that crashes would stop being writable. Reading a method as
 a value appears nowhere in `compiler/*.a24`, so nothing depends on it.
 
-**C-7 — Two runtime diagnostics are worded differently.** *(loud)*
+    gap  0033-no-computed-property.a24
+
+**C-7 — Four runtime diagnostics are worded differently.** *(loud)*
 *(refers to [TYP-009], [TYP-010])*
 
 | Program | Interpreted | Compiled |
@@ -3781,9 +3789,10 @@ a value appears nowhere in `compiler/*.a24`, so nothing depends on it.
 | `List ().ClassName` | `Undefined property 'ClassName'.` | `Only instances have properties.` |
 | `B[0]` on an instance | `Subscript target should be an ordinal.` | `Only a collection or a String can be subscripted.` |
 | `C (1, 2)` on a class with no constructor | `Expected 0 arguments but got 2.` | `This class takes no constructor arguments.` |
+| `Colour.Nope` | `Undefined enum member 'Nope'.` | `That enum has no such member.` |
 
-Both processors refuse both programs, so nothing runs that should not — but the
-text differs, and [ERR-002] requires a diagnostic to be the same wherever it is
+Both processors refuse every one of them, so nothing runs that should not — but
+the text differs, and [ERR-002] requires a diagnostic to be the same wherever it is
 produced.
 
 ⚠️ The compiled wording is the better of the two in both cases. `Subscript
@@ -3791,6 +3800,11 @@ target should be an ordinal.` describes the *subscript* when the fault is the
 *target*, and it is the message a reader of [TYP-010] meets first. Fixing this
 should move the interpreter toward the compiler, which is the opposite of the
 usual direction and is worth saying out loud.
+
+    gap  0030-collections-have-no-classname.a24
+    gap  0031-instance-is-not-subscriptable.a24
+    gap  0065-construction.a24
+    gap  0072-unknown-enum-member.a24
 
 **C-8 — An uncaught runtime error carries no `Uncaught:` prefix.** *(loud)*
 
@@ -3817,6 +3831,19 @@ comments claimed a divergence they did not have.
 ⚠️ Unlike C-3, this is not a consequence of compiled code lacking line
 information — the prefix needs nothing the compiled program does not have.
 
+    gap  0029-array-is-fixed.a24
+    gap  0032-instance-is-not-iterable.a24
+    gap  0038-strings-are-not-ordered.a24
+    gap  0047-division-by-zero.a24
+    gap  0051-string-subscript.a24
+    gap  0067-undefined-property.a24
+    gap  0073-enum-members-are-not-ordered.a24
+    gap  0080-sort.a24
+    gap  0084-module-private.a24
+    gap  0098-runtime-errors-follow-output.a24
+    gap  0025-method-parameter-type-is-enforced.a24
+    gap  0041-integer-overflow.a24
+
 **C-10 — The compiled back end hoists variables.** *(silent)*
 *(refers to [DCL-016])*
 
@@ -3840,6 +3867,9 @@ was meant, and nothing anywhere says so.
 [DCL-006] requires, and the interpreter does it. Hoisting a *variable* is what
 [DCL-016] forbids and the compiler is the defect here. One mechanism, correct for one kind of declaration and not the other,
 which is why it took a rule split to describe.
+
+    gap  0044-variables-are-not-hoisted.a24
+    gap  0033-a-variable-is-not-hoisted.a24
 
 **C-11 — A top-level block is reordered.** *(silent)*
 
@@ -3899,6 +3929,9 @@ block to demonstrate scoping cannot be run under both processors.
 `conformance/0040` puts its blocks inside procedures for exactly this reason,
 which keeps the cross-check.
 
+    gap  0039-blocks-and-scope.a24
+    gap  0094-program-order.a24
+
 **C-13 — Two counted `for` loops sharing a variable name at the top level emit
 invalid C.** *(loud, but in the wrong place)*
 *(refers to [STM-006], [DCL-008])*
@@ -3928,6 +3961,8 @@ strictly better than a valid-looking emission that fails downstream.
 ⚠️ It also constrains the corpus: `conformance/0054` puts its loops inside a
 procedure to keep the cross-check, as `conformance/0040` does for C-11.
 
+    gap  0142-two-counted-loops-share-a-name.a24
+
 **C-14 — Compiled code does not check arity.** *(silent)*
 *(refers to [EXP-011])*
 
@@ -3950,6 +3985,8 @@ and the case it silences is exactly the case that would have found the bug.
 call with any number of arguments, so every arity error in a program compiled by
 this back end is undetected, and a function reading a parameter that was never
 passed gets whatever the calling convention left there.
+
+    gap  0049-call-failures.a24
 
 **C-15 — A call to an object will not compile.** *(loud)*
 *(refers to [CLS-016])*
@@ -3988,9 +4025,9 @@ language merely rejects at run time has no compiled form at all. That is the
 right way round for a gap — loud, named, and impossible to miss — but it is
 still a program the two processors do not agree on.
 
-**C-16 — Inheriting from a non-class emits invalid C.** *(loud, in the wrong place)*
+    gap  0070-object-is-not-callable.a24
 
-    gap  0046-inherit-from-a-non-class.a24
+**C-16 — Inheriting from a non-class emits invalid C.** *(loud, in the wrong place)*
 
 *(refers to [CLS-014])*
 
@@ -4014,6 +4051,9 @@ to refuse by name what it cannot emit, and instead produces C that `cc` rejects,
 so the diagnostic names a generated symbol rather than the declaration the
 programmer wrote.
 
+    gap  0112-inherit-from-a-non-class.a24
+    gap  0046-inherit-from-a-non-class.a24
+
 **C-17 — An enum member has no properties compiled.** *(loud)*
 *(refers to [ENU-010])*
 
@@ -4022,6 +4062,8 @@ interpreter answers `0`.
 
 ⚠️ **New in generation 1**, and expected: the interpreter gained the property
 and the C runtime has not. `alg_property` needs the case `ObjEnum` now has.
+
+    gap  0113-enum-ordinal.a24
 
 **C-18 — `Length` of a collection is not refused compiled.** *(silent)*
 *(refers to [RT-003])*
@@ -4032,6 +4074,8 @@ rendering, as the interpreter used to.
 
 ⚠️ **Silent, and the same trap the interpreter just lost**: a plausible number
 rather than an error. `alg_length` needs the refusal `LengthNative` gained.
+
+    gap  0115-length-refuses-a-collection.a24
 
 **C-19 — A cast is not checked compiled.** *(silent)*
 *(refers to [VAL-007])*
@@ -4056,6 +4100,8 @@ rule and the front end is shared, so both processors already agree that
 
 ---
 
+    gap  0117-as-is-checked.a24
+
 **C-20 — Two enumerations binding one member is refused compiled.** *(loud)*
 
 Two enumerations may share a member name [ENU-003] and the interpreter runs the
@@ -4071,6 +4117,8 @@ added deliberately, in preference to emitting a wrong answer.
 
 *Fix:* key the member map on the owning enumeration as well as the member.
 
+    gap  0123-enumerations-may-share-member-names.a24
+
 **C-21 — Two modules exporting one name is refused compiled.** *(loud)*
 
 Two imported modules may export one name [MOD-008] and the interpreter runs the
@@ -4084,6 +4132,8 @@ the emitter learns to rename.
 
 *Fix:* rename the colliding symbol per unit, as a private name colliding across
 units already is.
+
+    gap  0124-modules-may-share-exported-names.a24
 
 **C-22 — A Unicode identifier will not compile.**
 ***Withdrawn.***
@@ -4104,90 +4154,6 @@ symbols; generation 2 emits new ones; generation 3 is where the output stops
 changing. `fixedpoint.sh` iterates for exactly this.
 
 **C-23 — A compiled test run never says why a test failed.**
-**C-24 — A compiled top-level subprogram is matched on arity, not signature.**
-*(silent)* *(refers to [FUN-006])*
-
-`function G (N : Integer)` called with a String is `No matching signature for
-function.` interpreted and runs compiled, returning the String. The emitted call
-checks the count and nothing else.
-
-⚠️ **Silent, and in the dangerous direction**: the compiler accepts a program the
-language refuses, so one developed against the compiler fails the moment it is
-run interpreted. It is the same shape C-4 had, and the same remedy applies —
-bring the compiler up, not the interpreter down.
-
-*Fix:* the emitted call site compares declared parameter types as `Fits` does.
-⚠️ The type is known at emit time only where the argument's type is known, which
-is the gradual-typing case — so the check has to be a run-time one against
-`type_name`, as the interpreter's is.
-
-**C-25 — A compiled argument does not widen into its parameter.** *(silent)*
-*(refers to [VAR-017], [EXP-014])*
-
-`function D (X : Double)` called as `D (1)` yields `1` compiled and `1.0`
-interpreted. A parameter is an assignment context, so the argument should widen
-on the way in and the parameter should hold the wider type.
-
-⚠️ Distinct from C-24, which is about *refusing* a mismatch: this one is about
-*converting* a match. A compiled program silently holds an Integer where its own
-declaration says Double.
-
-*Fix:* `alg_call` converts an argument whose parameter is declared `Double` or
-`String`, as `ObjFunction.Call` does through `Widen`.
-
-**C-26 — Two top-level subprograms of one name will not compile.** *(loud)*
-
-A top-level subprogram overloads [FUN-013] and the interpreter selects between
-them. The emitter refuses with `Two subprograms named 'Take' is not supported by
-the C back end yet.`
-
-⚠️ **It used to emit and die at `cc`** — `redefinition of f_Take` — which is a
-compiler producing a program it cannot build, and past anything the emitter's
-own checks observe. The refusal was added with the rule.
-
-*Fix:* two halves, and the second is the real one. `FunctionName` mangles by
-signature as `MethodSymbol` already does, so both definitions can be spelled;
-and the **call site** dispatches at run time, because it does not know which
-candidate it wants until it has its arguments — exactly as a method call does
-not. `alg_invoke` already does that for methods.
-
-**C-27 — A large literal of computed elements will not compile.** *(loud)*
-
-A collection literal is emitted as nested `alg_list_keep` calls, one bracket
-level per element, and `cc` gives up at 256 — clang says `bracket nesting level
-exceeded maximum of 256`. Above a hundred elements the emitter builds the
-literal in a helper function instead, one assignment per element, so depth stays
-at one however many there are.
-
-⚠️ That is only possible when every element is **itself a literal**. `[X, Y]`
-reads two variables and a helper lifted to file scope cannot see them, so a large
-literal with computed elements is refused by name rather than emitted as
-something `cc` rejects: `A literal of 200 computed elements is not supported by
-the C back end yet.`
-
-⚠️ **It used to emit and die at `cc`**, which is the failure this back end exists
-to avoid — found by a generated table of 659 ranges producing a 40 KB expression
-nested 659 deep.
-
-*Fix:* pass the computed elements into the helper, or emit the literal into the
-enclosing statement rather than the expression. Neither is hard; nothing has
-needed it.
-
-> **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
-> blocked on "a registry of declared type names that does not exist —
-> `Lookup.Parents` holds only classes that *have* a superclass, and enumerations
-> are not tracked at all." `Parents` is the **inheritance** map and was never the
-> registry. `Types` is, and all three declaring forms populate it: `ClassStmt`,
-> `ObjectStmt` and `EnumStmt` each register their own name. The checker already
-> refused `var E : Nonexistent := 1;` on that basis. The defect sat deferred
-> through five waves on a misreading of which map to look at, and the fix came to
-> three lines of registration and one check.
->
-> ⚠️ The lesson is about *where* a blocker is recorded. "Blocked on machinery
-> that does not exist" is a claim about the code, and it goes stale — or is wrong
-> from the start — exactly like any other comment. It deserves the same
-> re-checking as a `⚠️` before it is trusted a second time.
-
 ***Withdrawn.***
 
 `alg_test_run` caught the failure and printed `FAIL` but never read the value
@@ -4217,6 +4183,190 @@ had to `raise` to set exit 70. `Halt` [RT-018] was added for it, and the
 interpreted driver calls that instead — so neither side prints anything the
 report did not ask for, and a failing suite is now identical through both
 processors.
+
+**C-24 — A compiled top-level subprogram is matched on arity, not signature.**
+*(silent)* *(refers to [FUN-006])*
+
+`function G (N : Integer)` called with a String is `No matching signature for
+function.` interpreted and runs compiled, returning the String. The emitted call
+checks the count and nothing else.
+
+⚠️ **Silent, and in the dangerous direction**: the compiler accepts a program the
+language refuses, so one developed against the compiler fails the moment it is
+run interpreted. It is the same shape C-4 had, and the same remedy applies —
+bring the compiler up, not the interpreter down.
+
+*Fix:* the emitted call site compares declared parameter types as `Fits` does.
+⚠️ The type is known at emit time only where the argument's type is known, which
+is the gradual-typing case — so the check has to be a run-time one against
+`type_name`, as the interpreter's is.
+
+    gap  0042-top-level-parameter-type.a24
+
+**C-25 — A compiled argument does not widen into its parameter.** *(silent)*
+*(refers to [VAR-017], [EXP-014])*
+
+`function D (X : Double)` called as `D (1)` yields `1` compiled and `1.0`
+interpreted. A parameter is an assignment context, so the argument should widen
+on the way in and the parameter should hold the wider type.
+
+⚠️ Distinct from C-24, which is about *refusing* a mismatch: this one is about
+*converting* a match. A compiled program silently holds an Integer where its own
+declaration says Double.
+
+*Fix:* `alg_call` converts an argument whose parameter is declared `Double` or
+`String`, as `ObjFunction.Call` does through `Widen`.
+
+    gap  0140-widening-at-every-context.a24
+    gap  0137-parameters-match-on-signature.a24
+
+**C-26 — Two top-level subprograms of one name will not compile.** *(loud)*
+
+A top-level subprogram overloads [FUN-013] and the interpreter selects between
+them. The emitter refuses with `Two subprograms named 'Take' is not supported by
+the C back end yet.`
+
+⚠️ **It used to emit and die at `cc`** — `redefinition of f_Take` — which is a
+compiler producing a program it cannot build, and past anything the emitter's
+own checks observe. The refusal was added with the rule.
+
+*Fix:* two halves, and the second is the real one. `FunctionName` mangles by
+signature as `MethodSymbol` already does, so both definitions can be spelled;
+and the **call site** dispatches at run time, because it does not know which
+candidate it wants until it has its arguments — exactly as a method call does
+not. `alg_invoke` already does that for methods.
+
+    gap  0138-top-level-overloading.a24
+
+**C-27 — A large literal of computed elements will not compile.** *(loud)*
+
+A collection literal is emitted as nested `alg_list_keep` calls, one bracket
+level per element, and `cc` gives up at 256 — clang says `bracket nesting level
+exceeded maximum of 256`. Above a hundred elements the emitter builds the
+literal in a helper function instead, one assignment per element, so depth stays
+at one however many there are.
+
+⚠️ That is only possible when every element is **itself a literal**. `[X, Y]`
+reads two variables and a helper lifted to file scope cannot see them, so a large
+literal with computed elements is refused by name rather than emitted as
+something `cc` rejects: `A literal of 200 computed elements is not supported by
+the C back end yet.`
+
+⚠️ **It used to emit and die at `cc`**, which is the failure this back end exists
+to avoid — found by a generated table of 659 ranges producing a 40 KB expression
+nested 659 deep.
+
+*Fix:* pass the computed elements into the helper, or emit the literal into the
+enclosing statement rather than the expression. Neither is hard; nothing has
+needed it.
+
+    gap  0143-a-large-computed-literal.a24
+
+**C-28 — An undefined collection member is not refused compiled.** *(silent)*
+*(refers to [COL-003])*
+
+`L.Get (0)` on a `List` is `Undefined property 'Get'.` interpreted — `Get`
+belongs to a Map — and compiled it runs and answers. The runtime's member
+dispatch falls through to something that succeeds instead of refusing.
+
+⚠️ Silent, and in the direction that matters: the compiler accepts a program the
+language refuses.
+
+    gap  0077-undefined-collection-member.a24
+
+**C-29 — An invalid subscript target is not refused compiled.** *(silent)*
+*(refers to [TYP-010])*
+
+Subscripting something that is neither a collection nor a String is
+`Subscript target should be an ordinal.` interpreted, and compiled it answers a
+value. Same shape as C-28, on the subscript path rather than the member path.
+
+    gap  0081-subscripting-by-kind.a24
+
+**C-30 — `Max` and `Val` answer differently compiled.** *(silent)*
+*(refers to [RT-010], [RT-011])*
+
+| | Interpreted | Compiled |
+| --- | --- | --- |
+| `Max (3.5, 2)` | `-7`-style promotion, answering the larger | `Max expects Integers.` |
+| `Val ('42')` | `42` | `42.0` |
+
+⚠️ Two faults in one case, and they pull opposite ways: `Max` refuses what the
+language admits, and `Val` answers a Double where the language says Integer.
+
+    gap  0119-val-and-max.a24
+
+**C-31 — A compiled class does not inherit from a parent declared below it.**
+*(silent, then loud)*
+*(refers to [DCL-006])*
+
+`class Puppy (Hound);` written above `class Hound;` links to nothing compiled:
+`Puppy () is Hound` is **false**, and the inherited method is then
+`Undefined property 'Speak'.`
+
+⚠️ The interpreter hoists a class in two phases for exactly this — the name is
+bound before anything runs and filled in where the declaration stands, so the
+subclass holds the finished parent. The emitter hoists every top-level name
+(C-10) and still gets this wrong, which is worth noticing: hoisting *more* did
+not make it right.
+
+    gap  0122-functions-are-hoisted.a24
+
+**C-32 — A call is not matched without regard to case compiled.** *(loud)*
+*(refers to [SRC-011])*
+
+`GREET ('you')` calling `function Greet` is
+`A call to 'GREET' is not supported by the C back end yet.`
+
+⚠️ **Annex G.3's mangling already solves this and the emitter does not use it
+here.** Both spellings lower to `f_greet`; the refusal comes from a lookup keyed
+by the name *as written*, before mangling. This is the last of C-4's family —
+the interpreter folds everywhere now, and one emitter lookup does not.
+
+    gap  0126-identifiers-are-case-insensitive.a24
+
+**C-33 — An assertion outside a test run is refused compiled.** *(loud)*
+*(refers to [RT-002])*
+
+Calling `AssertTrue` outside `--test` is `Undefined variable 'AssertTrue'.`
+interpreted — the name is registered only during a test run — and compiled it is
+`A call to 'AssertTrue' is not supported by the C back end yet.`
+
+⚠️ Both refuse, so this is a wording difference like C-7 rather than a hole. The
+compiled text names the back end for something that is a rule about the
+*language*, which is the part that misleads.
+
+    gap  0030-assert-outside-a-test-run.a24
+
+**C-34 — A name reached through a non-transitive import emits invalid C.**
+*(loud, in the wrong place)*
+*(refers to [MOD-009])*
+
+A file reaching a name its own imports do not export is
+`Undefined variable 'DeepName'.` interpreted, with the suggestion naming the unit
+that has it. Compiled, the emitter writes a call to `f_deepname` and `cc` refuses
+the result.
+
+⚠️ The emitter breaks its own contract, as in C-13 and C-16: it should refuse by
+name what it cannot emit rather than emit C that does not build.
+
+    gap  0085-uses-is-not-transitive.a24
+
+> **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
+> blocked on "a registry of declared type names that does not exist —
+> `Lookup.Parents` holds only classes that *have* a superclass, and enumerations
+> are not tracked at all." `Parents` is the **inheritance** map and was never the
+> registry. `Types` is, and all three declaring forms populate it: `ClassStmt`,
+> `ObjectStmt` and `EnumStmt` each register their own name. The checker already
+> refused `var E : Nonexistent := 1;` on that basis. The defect sat deferred
+> through five waves on a misreading of which map to look at, and the fix came to
+> three lines of registration and one check.
+>
+> ⚠️ The lesson is about *where* a blocker is recorded. "Blocked on machinery
+> that does not exist" is a claim about the code, and it goes stale — or is wrong
+> from the start — exactly like any other comment. It deserves the same
+> re-checking as a `⚠️` before it is trusted a second time.
+
 
 ## Annex D — advisory notes *(non-normative)*
 
