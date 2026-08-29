@@ -168,14 +168,13 @@ character must be one the scanner recognises — a letter [SRC-005], a digit, or
 an operator or item of punctuation [LEX-012]. Any other is an error reading
 `[line N] Error: Unexpected character: C`.
 
-⚠️ **PARTLY IMPLEMENTED.** The implementation now admits *every* character above
-127 as a letter, where this rule admits only what Unicode classifies as one — so
-an emoji is accepted where it should be refused. See DEF-34.
+⚠️ The scanner used to refuse every non-ASCII byte, and then briefly admitted
+every code point above 127 — wrong in opposite directions. A table answers it.
 
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Unrecognized Character Is Recorded
     refusal      0001-unexpected-character.a24
-    defect       DEF-34-any-high-character-is-a-letter.a24
+    refusal      0044-emoji-is-not-a-letter.a24
 
 **[SRC-003]**  Inside a comment, a string literal or a character literal, any
 byte is permitted and is carried through unchanged. A program may therefore
@@ -220,16 +219,29 @@ identifier_mark = "?" | "!" .
 
 `unicode_letter` is any character Unicode classifies as a letter.
 
-⚠️ **PARTLY IMPLEMENTED.** A Unicode letter may appear in an identifier now, but
-the test is "above 127" rather than "a letter", so the implementation is
-*looser* than the rule. Narrowing it needs Unicode character tables, which
-nothing here has. See DEF-34.
+⚠️ `unicode_letter` is **categories Lu, Ll, Lt, Lm and Lo**, held as 659
+inclusive ranges generated from Unicode 15.0.0 and searched by bisection —
+`compiler/Unicode.a24`. An emoji is not a letter and is refused.
 
-    interpreter  compiler/Scanner.a24  IsAlpha
+⚠️ **A Unicode digit is not an identifier character at all.** `decimal_digit` is
+ASCII `0`–`9`, and only the letter categories are collected, so an Arabic-Indic
+digit can neither begin nor continue a name.
+
+⚠️ **ASCII is answered before the table is consulted.** `IsAlpha` runs once per
+character of every file the compiler reads, itself included, and almost every
+one is ASCII; falling through to a bisection over 659 ranges to discover that
+`x` is a letter would put a binary search on the hot path for nothing.
+
+⚠️ `_` is a letter to *this grammar* and not to Unicode, so it is named in the
+rule rather than expected from the table.
+
+    interpreter  compiler/Unicode.a24  IsLetterCode
     unit         Scan Identifier With A Question Mark
+    unit         Unicode Letters Are Letters
+    unit         Unicode Non-Letters Are Not Letters
     conformance  0002-letters-and-digits.a24
     conformance  0128-text-is-characters.a24
-    defect       DEF-34-any-high-character-is-a-letter.a24
+    refusal      0045-unicode-digit-is-not-a-letter.a24
 
 ⚠️ **An identifier mark is not a letter.** `?` and `!` may appear *within* an
 identifier but may not begin one [LEX-007], so `Gate?` and `Gate!` are each a
@@ -309,9 +321,13 @@ is otherwise insignificant.
 `Xyz` and `xyz` are one name, and declaring both in one scope is a duplicate
 [VAR-007].
 
-⚠️ Folding is **ASCII-only**. `Straße` and `STRASSE` are different names, because
-the language carries no Unicode case tables and full folding is a far larger
-commitment than admitting Unicode letters.
+⚠️ Folding is **ASCII-only**. `Straße` and `STRASSE` are different names.
+
+⚠️ **This is a decision, not a gap, and it survived the letter table arriving.**
+`compiler/Unicode.a24` carries the letters because [SRC-005] needs them;
+admitting Unicode *case folding* is a separate change to this rule, not a
+consequence of that one. Full folding maps `ß` to `ss`, which would make those
+two one name — a different language from the one signed off here.
 
 ⚠️ Only the *lookup* is folded. A diagnostic quotes the lexeme **as written**, so
 a program declaring `Xyz` and misspelling it `xyZ` is told about `xyZ`.
@@ -4913,25 +4929,6 @@ time so a construction above it resolves, and evaluate the superclass where the
 declaration stands so its dependencies have run. ⚠️ Still only functions and
 classes — a `var` keeps its initializer where it is written, and the compiled
 back end hoists every top-level name and is wrong about exactly that (C-10).
-
-**DEF-34 — Any character above 127 counts as a letter.**
-*(violates [SRC-002], [SRC-005])*
-
-[SRC-005] admits `unicode_letter` — what Unicode classifies as a letter — and
-the scanner admits every code point above 127, so `var 🙂 := 1;` is accepted
-where the rule refuses it.
-
-*Reproduce:* `defects/DEF-34-any-high-character-is-a-letter.a24`
-
-⚠️ **Introduced deliberately, in the direction that keeps correct programs
-working.** The scanner used to refuse every non-ASCII byte, so no Unicode letter
-could appear in a program at all; admitting them all is over-acceptance, which
-lets correct programs run, where under-acceptance refused them. It is recorded
-rather than hidden.
-
-*Scope of the fix.* A table of the letter ranges, or a dependency that carries
-one. Nothing in this compiler classifies a code point today, and that is the
-whole of the work — the call site is one condition in `IsAlpha`.
 
 ## Annex G — implementation notes *(non-normative)*
 

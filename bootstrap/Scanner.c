@@ -3,6 +3,7 @@
 #include "SourceCode.h"
 #include "Token.h"
 #include "TokenType.h"
+#include "Unicode.h"
 
 Value f_ToLower(Value **cells, Value *args, int32_t count);
 Value f_ToInteger(Value **cells, Value *args, int32_t count);
@@ -30,9 +31,6 @@ static Value or_9;
 static Value or_10;
 static Value or_11;
 static Value or_12;
-static Value or_13;
-static Value or_14;
-static Value or_15;
 static const char *t_Scanner_Init_1[] = { "Any" };
 static const char *t_Scanner_Match_1_Char[] = { "Char" };
 static const char *t_Scanner_AddToken_1_TokenType[] = { "TokenType" };
@@ -500,7 +498,19 @@ static Value m_Scanner_IsAlpha_1_Char(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_11 = (or_10 = (or_9 = ((or_7 = alg_greater_equal(v_C, alg_char_value(97)), !alg_truthy(or_7) ? or_7 : alg_less_equal(v_C, alg_char_value(122)))), alg_truthy(or_9) ? or_9 : ((or_8 = alg_greater_equal(v_C, alg_char_value(65)), !alg_truthy(or_8) ? or_8 : alg_less_equal(v_C, alg_char_value(90))))), alg_truthy(or_10) ? or_10 : (alg_equal(v_C, alg_char_value(95)))), alg_truthy(or_11) ? or_11 : (alg_greater(alg_ord(v_C), alg_int(127))));
+    if (alg_truthy((or_7 = alg_greater_equal(v_C, alg_char_value(97)), !alg_truthy(or_7) ? or_7 : alg_less_equal(v_C, alg_char_value(122))))) {
+        return alg_bool(true);
+    }
+    if (alg_truthy((or_8 = alg_greater_equal(v_C, alg_char_value(65)), !alg_truthy(or_8) ? or_8 : alg_less_equal(v_C, alg_char_value(90))))) {
+        return alg_bool(true);
+    }
+    if (alg_truthy(alg_equal(v_C, alg_char_value(95)))) {
+        return alg_bool(true);
+    }
+    if (alg_truthy(alg_less(alg_ord(v_C), alg_int(128)))) {
+        return alg_bool(false);
+    }
+    return f_IsLetterCode(NULL, (Value[]){alg_ord(v_C)}, 1);
     return alg_nil();
 }
 
@@ -508,7 +518,7 @@ static Value m_Scanner_IsMark_1_Char(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_12 = (alg_equal(v_C, alg_char_value(63))), alg_truthy(or_12) ? or_12 : (alg_equal(v_C, alg_char_value(33))));
+    return (or_9 = (alg_equal(v_C, alg_char_value(63))), alg_truthy(or_9) ? or_9 : (alg_equal(v_C, alg_char_value(33))));
     return alg_nil();
 }
 
@@ -516,7 +526,7 @@ static Value m_Scanner_IsAlphaNumeric_1_Char(Value v_this, Value *args, int32_t 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_14 = (or_13 = alg_invoke(v_this, "IsAlpha", (Value[]){v_C}, 1), alg_truthy(or_13) ? or_13 : alg_invoke(v_this, "IsDigit", (Value[]){v_C}, 1)), alg_truthy(or_14) ? or_14 : alg_invoke(v_this, "IsMark", (Value[]){v_C}, 1));
+    return (or_11 = (or_10 = alg_invoke(v_this, "IsAlpha", (Value[]){v_C}, 1), alg_truthy(or_10) ? or_10 : alg_invoke(v_this, "IsDigit", (Value[]){v_C}, 1)), alg_truthy(or_11) ? or_11 : alg_invoke(v_this, "IsMark", (Value[]){v_C}, 1));
     return alg_nil();
 }
 
@@ -524,7 +534,7 @@ static Value m_Scanner_IsDigit_1_Char(Value v_this, Value *args, int32_t count) 
     (void)v_this; (void)args; (void)count;
     Value v_C = args[0];
     (void)v_C;
-    return (or_15 = alg_greater_equal(v_C, alg_char_value(48)), !alg_truthy(or_15) ? or_15 : alg_less_equal(v_C, alg_char_value(57)));
+    return (or_12 = alg_greater_equal(v_C, alg_char_value(48)), !alg_truthy(or_12) ? or_12 : alg_less_equal(v_C, alg_char_value(57)));
     return alg_nil();
 }
 

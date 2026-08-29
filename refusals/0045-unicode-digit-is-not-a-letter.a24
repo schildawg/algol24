@@ -1,0 +1,6 @@
+// spec: SRC-005
+//
+// A digit is ASCII 0-9.  A Unicode digit is not an identifier character at all,
+// so it cannot begin a name -- only the LETTER categories are in the table.
+
+var ٠x := 1;

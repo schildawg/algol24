@@ -3,6 +3,7 @@
 #include "AstPrinter.h"
 #include "Token.h"
 #include "TokenType.h"
+#include "Unicode.h"
 #include "Expr.h"
 #include "Stmt.h"
 #include "Environment.h"
@@ -330,6 +331,7 @@ int main(int argc, char **argv) {
     init_Token();
     init_Expr();
     init_AstPrinter();
+    init_Unicode();
     init_Stmt();
     init_Environment();
     init_SourceCode();

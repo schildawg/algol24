@@ -1,6 +1,7 @@
 uses SourceCode;
 uses Token;
 uses TokenType;
+uses Unicode;
 
 const DIGITS    := '0123456789';
 const UPPERCASE := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -525,24 +526,29 @@ begin
     /// A letter, for the purpose of starting or continuing an identifier
     /// [SRC-005].
     ///
-    /// ⚠️ Every non-ASCII character counts, so 'café' and 'Straße' are
-    /// identifiers.  The scanner used to refuse every non-ASCII byte outright
-    /// [SRC-002], which meant a Unicode letter could not appear in a program at
-    /// all outside a comment or a literal.
+    /// ⚠️ A Unicode LETTER, asked of the table [SRC-005] -- categories Lu, Ll,
+    /// Lt, Lm and Lo.  The scanner used to refuse every non-ASCII byte outright
+    /// [SRC-002], and then briefly admitted every code point above 127, which
+    /// was looser than the rule: an emoji was accepted where the rule refuses
+    /// it.  Both were wrong in opposite directions.
     ///
-    /// ⚠️ This is LOOSER than the rule, and knowingly so.  [SRC-005] admits
-    /// what Unicode classifies as a letter, and this admits every code point
-    /// above 127 -- so an emoji is accepted where the rule refuses it.
-    /// Narrowing it needs Unicode character tables, which nothing in this
-    /// compiler has and which are a far larger commitment than admitting the
-    /// letters.  Over-acceptance is the direction that keeps correct programs
-    /// working, and it is recorded rather than hidden.
+    /// ⚠️ ASCII IS ANSWERED FIRST, and the order is the point.  This runs once
+    /// per character of every file the compiler reads, itself included, and
+    /// almost every one of them is ASCII.  Falling through to a bisection over
+    /// 659 ranges to discover that 'x' is a letter would put a binary search on
+    /// the hot path for nothing.
+    ///
+    /// ⚠️ '_' is a letter to the GRAMMAR and not to Unicode, so it is named here
+    /// rather than expected from the table.
     function IsAlpha(C : Char) : Boolean;
     begin
-        Exit (C >= 'a' and C <= 'z') or
-             (C >= 'A' and C <= 'Z') or
-             (C = '_') or
-             (Ord (C) > 127);
+        if C >= 'a' and C <= 'z' then Exit True;
+        if C >= 'A' and C <= 'Z' then Exit True;
+        if C = '_' then Exit True;
+
+        if Ord (C) < 128 then Exit False;
+
+        Exit IsLetterCode (Ord (C));
     end
 
     /// An identifier MARK: may continue an identifier, may not begin one.

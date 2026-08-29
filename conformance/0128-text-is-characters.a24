@@ -24,9 +24,15 @@ WriteLn (Length (Str (Char (233))));
 WriteLn ('é' is Char);
 
 // A Unicode letter may appear in an identifier [SRC-005], where the scanner
-// used to refuse every non-ASCII byte outright [SRC-002].
+// used to refuse every non-ASCII byte outright [SRC-002].  A LETTER -- what
+// Unicode classifies as one -- so an emoji is refused: refusals/0044.
 var café := 3;
 WriteLn (café);
+
+// Letters from any script, since the table is all of Lu, Ll, Lt, Lm and Lo.
+var 日本 := 4;
+var Ωμέγα := 5;
+WriteLn (日本 + Ωμέγα);
 
 // ⚠️ Folding is ASCII-only [SRC-011], so these are two names, not one.
 var Straße := 'ok';

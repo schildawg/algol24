@@ -168,3 +168,7 @@ Language points that bite when editing:
 - ⚠️ `uses` order in `Main.a24` matters: a module's functions close over the environment its file was loaded in, so `TypeChecker` must come after `Parser` for its test blocks to reach the parser.
 
 If you add a token to `compiler/TokenType.a24` and register it in `Scanner.a24`'s `Keywords`, mirror it into `vscode/syntaxes/algol24.tmLanguage.json` — nothing checks that, and no test covers that directory.
+
+⚠️ `compiler/Unicode.a24` is **generated** — 659 letter ranges from Unicode 15.0.0, with the recipe in its own header. Do not hand-edit a row; regenerate the table. It carries **letters only**: case folding is ASCII-only by decision (`SRC-011`), so adding a fold table would change the language rather than fix anything.
+
+⚠️ **A collection literal above a hundred elements is emitted as a helper function**, not as nested calls, because `cc` gives up at 256 bracket levels. That only works when every element is itself a literal; a large literal of *computed* elements is refused by name (C-27).
