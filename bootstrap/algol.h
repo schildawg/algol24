@@ -103,6 +103,22 @@ typedef struct {
 /* C11 anonymous union, so a Value reads as v.integer rather than v.as.integer. */
 typedef struct {
     ValueType type;
+
+    /* ⚠️ A String and a Char carry their own BYTE length, and every operation
+     * on their value uses it rather than strlen.  A String may therefore hold a
+     * zero character, which is what [SRC-001] asks for -- 'a' + Str(Char(0)) +
+     * 'b' is three characters long and prints as three.
+     *
+     * They are still NUL-terminated as well, and deliberately: as_text hands a
+     * plain C string to everything that builds a diagnostic, and that stays
+     * cheap.  Only the value-semantic operations -- concat, output, equality,
+     * hashing, Copy, Pos, Length, subscript -- consult this field.
+     *
+     * ⚠️ Meaningless for every other type, and left zero there rather than
+     * unset, so two Values of one number compare and hash alike whatever route
+     * built them. */
+    int32_t length;
+
     union {
         bool        boolean;
         int32_t     integer;
@@ -118,6 +134,10 @@ Value alg_bool(bool b);
 Value alg_int(int32_t i);
 Value alg_double(double d);
 Value alg_string(const char *s);
+
+/* A String of exactly n bytes, which may contain a zero character.  alg_string
+ * is this with strlen, and is what a C literal wants. */
+Value alg_string_n(const char *s, int32_t n);
 Value alg_char_value(int32_t code);
 
 /* Arithmetic.  Integer op Integer stays an Integer -- including '/', which is

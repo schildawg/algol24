@@ -151,16 +151,17 @@ keyword** and exactly otherwise. See [SRC-010].
 **[SRC-001]**  Source text is **UTF-8**. A character, not a byte, is the unit
 of measurement and of subscripting.
 
-⚠️ **PARTLY IMPLEMENTED.** A character is the unit of measurement and of
-subscripting. What a String does *not* yet carry is its own **length**: it is a
-NUL-terminated C string, which is safe only because `#0` is refused where it is
-read [LEX-032], and which is why `Str(Char(0))` still truncates. See DEF-08.
+⚠️ A String carries its own **byte length** beside its pointer, so it may hold a
+zero character. It is NUL-terminated as well, which keeps `as_text` cheap for
+everything that builds a diagnostic; only the value-semantic operations —
+concat, output, equality, hashing, `Copy`, `Pos`, `Length`, subscript — consult
+the length.
 
     interpreter  compiler/Scanner.a24  ScanTokens
     compiler     bootstrap/algol.c     alg_length
     unit         Scan A Whole Program
     conformance  0128-text-is-characters.a24
-    defect       DEF-08-nul-char-truncates.a24
+    conformance  0131-a-string-holds-a-zero-character.a24
 
 **[SRC-002]**  Outside comments, string literals and character literals, every
 character must be one the scanner recognises — a letter [SRC-005], a digit, or
@@ -772,14 +773,13 @@ built-in `Char(0)` stays legal — which it must, because the scanner's own
 end-of-input sentinel is `Char(0)`, and a scanner that cannot name its sentinel
 cannot scan.
 
-⚠️ **PARTLY IMPLEMENTED.** `Str(Char(0))` still truncates a String, so
-`Length('a' + Str(Char(0)) + 'b')` is 2. That residue needs the explicit length
-[SRC-001] asks for, not a range check. See DEF-08.
+⚠️ `Str(Char(0))` no longer truncates: a String carries its own length
+[SRC-001], so `Length('a' + Str(Char(0)) + 'b')` is 3.
 
     interpreter  compiler/Scanner.a24  ScanChar
     compiler     bootstrap/algol.c     alg_char
     refusal      0037-nul-char-literal.a24
-    defect       DEF-08-nul-char-truncates.a24
+    conformance  0131-a-string-holds-a-zero-character.a24
 
 > Refusing `#0` is the smaller of the two available fixes and matches the range
 > check that already exists. The larger one — giving a String an explicit length
@@ -4656,37 +4656,6 @@ alone, and the defect case has been narrowed to it.
 neighbours in the runtime. Unlike the literal half — checked once, during the
 scan — this one costs on every operation a program performs, which is why the
 two were separated in the first place.
-
-**DEF-08 — A String cannot hold a zero character.**
-*(violates [SRC-001], [LEX-032])*
-
-⚠️ **THE LITERAL HALF IS FIXED.** `#0` is refused where it is read —
-`refusals/0037` — so `#0 is Char` can no longer be written.
-
-What remains is the runtime: `Char(0)` is legal [LEX-025] and a String
-concatenating one truncates there, so `Length('a' + Str(Char(0)) + 'b')` is 2.
-Both processors agree, because both represent a String as C does.
-
-*Reproduce:* `defects/DEF-08-nul-char-truncates.a24`
-
-*Scope of what remains.* Not a range check — the range is right. A String must
-carry its own length instead of ending at the first zero byte, which is what
-[SRC-001] asks for. `Value` gains a byte length beside its pointer, every reader
-uses it rather than `strlen`, and `%s` becomes `%.*s`.
-
-⚠️ **This is also the gate on the largest performance problem the runtime has**,
-which is not obvious from the title. Building a String a piece at a time costs
-about n²/2 bytes — 776 MB for 40,000 appends, against 17 MB through a `Buffer` —
-because `concat` copies both operands and the arena never reclaims. An in-place
-append when the left operand is the arena's most recent allocation makes
-`S := S + 'x'` linear, and is safe **only** once a String carries its own length,
-since an alias must keep reading its own shorter view. Annex G.2 has the
-measurement and the mechanism.
-
-⚠️ DEF-01 covered this and is **withdrawn**: everything else in it is done, and
-what was left had no reproduction of its own — a String's missing length is
-observable only as the truncation above, which is this case. One fault, one
-case.
 
 **DEF-09 — A written type is enforced on a declaration and not on an
 assignment.** *(violates [VAR-006])*

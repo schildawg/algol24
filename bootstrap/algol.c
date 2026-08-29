@@ -189,8 +189,8 @@ static int32_t as_integer(Value v, const char *message);
 /* Text is characters, not bytes [SRC-004] -- see the utf8 section, which sits
  * beside is_text because that is where the text predicates live, and is
  * declared here because counting and indexing are wanted well above it. */
-static int32_t utf8_count(const char *text);
-static int32_t utf8_offset(const char *text, int32_t index);
+static int32_t utf8_count(const char *text, int32_t bytes);
+static int32_t utf8_offset(const char *text, int32_t bytes, int32_t index);
 static int32_t utf8_chars_in(const char *text, int32_t bytes);
 static int32_t utf8_decode(const char *at);
 static int utf8_encode(int32_t code, char *out);
@@ -588,7 +588,7 @@ static uint32_t hash_value(Value v) {
             return hash_bytes(hash, &bits, sizeof bits);
         }
         case VAL_STRING:
-        case VAL_CHAR:   return hash_bytes(hash, v.string, strlen(v.string));
+        case VAL_CHAR:   return hash_bytes(hash, v.string, (size_t)v.length);
 
         /* By address, matching strict_equals, which compares collections and
          * instances by identity.  Safe only because nothing iterates the index
@@ -949,7 +949,7 @@ Value alg_to_list(Value receiver) {
 static int32_t count_of(Value v) {
     if (is_obj(v, OBJ_MAP))    return ((ObjMap *)v.obj)->count;
     if (is_sequence(v))        return ((ObjSeq *)v.obj)->count;
-    if (is_text(v))            return utf8_count(v.string);
+    if (is_text(v))            return utf8_count(v.string, v.length);
 
     /* A Buffer's Length is its size in bytes, never its capacity -- see the
      * Buffer section.  as_buffer is what makes Length on a freed one raise
@@ -984,9 +984,10 @@ Value alg_subscript_get(Value target, Value index) {
         /* ⚠️ Bounded in CHARACTERS and indexed in characters [SRC-004].  This
          * used to hand back one byte, so 'café'[3] was the first half of a
          * two-byte sequence rather than 'é'. */
-        int32_t at = bounded(index, utf8_count(target.string), false);
+        int32_t at = bounded(index, utf8_count(target.string, target.length), false);
 
-        return alg_char_value(utf8_decode(target.string + utf8_offset(target.string, at)));
+        return alg_char_value(utf8_decode(target.string
+                                          + utf8_offset(target.string, target.length, at)));
     }
 
     alg_error("Only a collection or a String can be subscripted.");
@@ -2199,11 +2200,22 @@ int32_t alg_handler(Value raised, const char **names, int32_t count) {
 
 /* ----------------------------------------------------------- constructors -- */
 
-Value alg_nil(void)              { Value v; v.type = VAL_NIL;    v.integer = 0; return v; }
-Value alg_bool(bool b)           { Value v; v.type = VAL_BOOL;   v.boolean = b; return v; }
-Value alg_int(int32_t i)         { Value v; v.type = VAL_INT;    v.integer = i; return v; }
-Value alg_double(double d)       { Value v; v.type = VAL_DOUBLE; v.number  = d; return v; }
-Value alg_string(const char *s)  { Value v; v.type = VAL_STRING; v.string  = s; return v; }
+Value alg_nil(void)              { Value v; v.type = VAL_NIL;    v.length = 0; v.integer = 0; return v; }
+Value alg_bool(bool b)           { Value v; v.type = VAL_BOOL;   v.length = 0; v.boolean = b; return v; }
+Value alg_int(int32_t i)         { Value v; v.type = VAL_INT;    v.length = 0; v.integer = i; return v; }
+Value alg_double(double d)       { Value v; v.type = VAL_DOUBLE; v.length = 0; v.number  = d; return v; }
+
+Value alg_string_n(const char *s, int32_t n) {
+    Value v;
+    v.type   = VAL_STRING;
+    v.length = n;
+    v.string = s;
+    return v;
+}
+
+/* What a C literal wants.  A String built from bytes that may hold a zero
+ * character goes through alg_string_n instead. */
+Value alg_string(const char *s)  { return alg_string_n(s, (int32_t)strlen(s)); }
 
 Value alg_char_value(int32_t code) {
     /* ⚠️ Four bytes and a terminator: a Char is a Unicode code point [LEX-025]
@@ -2224,6 +2236,7 @@ Value alg_char_value(int32_t code) {
 
     Value v;
     v.type   = VAL_CHAR;
+    v.length = span;
     v.string = one;
     return v;
 }
@@ -2308,6 +2321,12 @@ static int utf8_encode(int32_t code, char *out) {
  * routinely measured in alternation and a single entry would thrash. */
 typedef struct {
     const char *text;
+
+    /* ⚠️ Part of the KEY, not just payload.  Two Strings may share a pointer and
+     * differ in length -- a prefix of another -- so a cache keyed on the pointer
+     * alone would answer with the longer one's count. */
+    int32_t     bytes;
+
     int32_t     chars;
     int         ascii;
 
@@ -2319,11 +2338,11 @@ typedef struct {
 #define TEXT_CACHE_SLOTS 64
 static TextInfo text_cache[TEXT_CACHE_SLOTS];
 
-static TextInfo *text_info(const char *text) {
+static TextInfo *text_info(const char *text, int32_t bytes) {
     size_t    slot  = ((uintptr_t)text >> 4) & (TEXT_CACHE_SLOTS - 1);
     TextInfo *entry = &text_cache[slot];
 
-    if (entry->text == text) return entry;
+    if (entry->text == text && entry->bytes == bytes) return entry;
 
     /* strlen first, then a WORD-AT-A-TIME test for a high bit, because the ASCII
      * answer is the one that has to be cheap: strlen is vectorised and a byte
@@ -2336,31 +2355,31 @@ static TextInfo *text_info(const char *text) {
      * call strlen on the whole string for every character, so the scanner's
      * Peek walked its entire source once per character read.  That was
      * quadratic and nothing had noticed. */
-    size_t bytes = strlen(text);
-    int    ascii = 1;
+    int ascii = 1;
 
     const unsigned char *p = (const unsigned char *)text;
     size_t at = 0;
 
-    for (; at + 8 <= bytes; at += 8) {
+    for (; at + 8 <= (size_t)bytes; at += 8) {
         uint64_t chunk;
         memcpy(&chunk, p + at, 8);
 
         if (chunk & 0x8080808080808080ULL) { ascii = 0; break; }
     }
     if (ascii) {
-        for (; at < bytes; at++) if (p[at] >= 0x80) { ascii = 0; break; }
+        for (; at < (size_t)bytes; at++) if (p[at] >= 0x80) { ascii = 0; break; }
     }
 
     int32_t chars;
 
-    if (ascii) chars = (int32_t)bytes;
+    if (ascii) chars = bytes;
     else {
         chars = 0;
-        for (size_t i = 0; i < bytes; chars++) i += (size_t)utf8_span(p[i]);
+        for (size_t i = 0; i < (size_t)bytes; chars++) i += (size_t)utf8_span(p[i]);
     }
 
     entry->text    = text;
+    entry->bytes   = bytes;
     entry->chars   = chars;
     entry->ascii   = ascii;
     entry->at_char = 0;
@@ -2368,11 +2387,13 @@ static TextInfo *text_info(const char *text) {
     return entry;
 }
 
-static int32_t utf8_count(const char *text) { return text_info(text)->chars; }
+static int32_t utf8_count(const char *text, int32_t bytes) {
+    return text_info(text, bytes)->chars;
+}
 
 /* The byte offset of character 'index', which must be in range. */
-static int32_t utf8_offset(const char *text, int32_t index) {
-    TextInfo *entry = text_info(text);
+static int32_t utf8_offset(const char *text, int32_t bytes, int32_t index) {
+    TextInfo *entry = text_info(text, bytes);
 
     if (entry->ascii) return index;
 
@@ -2388,7 +2409,7 @@ static int32_t utf8_offset(const char *text, int32_t index) {
 /* Characters in the first 'bytes' bytes -- what turns a byte offset that
  * strstr found back into the character index a program asked for. */
 static int32_t utf8_chars_in(const char *text, int32_t bytes) {
-    if (text_info(text)->ascii) return bytes;
+    if (text_info(text, bytes)->ascii) return bytes;
 
     int32_t chars = 0;
     for (int32_t at = 0; at < bytes; chars++) at += utf8_span((unsigned char)text[at]);
@@ -2406,19 +2427,29 @@ static double as_double(Value v) {
 
 static const char *as_text(Value v);
 
+/* as_text with the length as well.  A String and a Char answer their own, which
+ * is the whole point -- either may hold a zero character.  Everything else
+ * answers strlen of the text as_text built, which cannot. */
+static const char *as_text_len(Value v, int32_t *length) {
+    if (is_text(v)) { *length = v.length; return v.string; }
+
+    const char *text = as_text(v);
+    *length = (int32_t)strlen(text);
+    return text;
+}
+
 static Value concat(Value a, Value b) {
-    const char *left  = as_text(a);
-    const char *right = as_text(b);
+    int32_t left_len, right_len;
 
-    size_t left_len  = strlen(left);
-    size_t right_len = strlen(right);
+    const char *left  = as_text_len(a, &left_len);
+    const char *right = as_text_len(b, &right_len);
 
-    char *result = arena_alloc(left_len + right_len + 1);
-    memcpy(result, left, left_len);
-    memcpy(result + left_len, right, right_len);
+    char *result = arena_alloc((size_t)left_len + (size_t)right_len + 1);
+    memcpy(result, left, (size_t)left_len);
+    memcpy(result + left_len, right, (size_t)right_len);
     result[left_len + right_len] = '\0';
 
-    return alg_string(result);
+    return alg_string_n(result, left_len + right_len);
 }
 
 Value alg_add(Value a, Value b) {
@@ -2531,7 +2562,8 @@ static bool equals(Value a, Value b) {
         case VAL_NIL:    return true;
         case VAL_BOOL:   return a.boolean == b.boolean;
         case VAL_STRING:
-        case VAL_CHAR:   return strcmp(a.string, b.string) == 0;
+        case VAL_CHAR:   return a.length == b.length
+                             && memcmp(a.string, b.string, (size_t)a.length) == 0;
 
         /* Collections compare by identity, as they do on the JVM: two Lists with
          * the same contents are not equal, and a List is equal to itself. */
@@ -2596,7 +2628,8 @@ static bool strict_equals(Value a, Value b) {
         case VAL_INT:
         case VAL_DOUBLE: return false;   /* handled above; both are numbers */
         case VAL_STRING:
-        case VAL_CHAR:   return strcmp(a.string, b.string) == 0;
+        case VAL_CHAR:   return a.length == b.length
+                             && memcmp(a.string, b.string, (size_t)a.length) == 0;
         case VAL_OBJ:    return a.obj == b.obj;
     }
     return false;
@@ -3010,7 +3043,7 @@ Value alg_copy(Value text, Value begin, Value length) {
 
     /* ⚠️ Start and count are in CHARACTERS [SRC-004]; the copy itself is in
      * bytes, so both ends are converted. */
-    int32_t size = utf8_count(from);
+    int32_t size = utf8_count(from, text.length);
 
     if (start < 0 || start > size) {
         char message[80];
@@ -3024,8 +3057,8 @@ Value alg_copy(Value text, Value begin, Value length) {
     int32_t end = start + count;
     if (end > size) end = size;
 
-    int32_t from_byte = utf8_offset(from, start);
-    int32_t to_byte   = utf8_offset(from, end);
+    int32_t from_byte = utf8_offset(from, text.length, start);
+    int32_t to_byte   = utf8_offset(from, text.length, end);
 
     int32_t taken  = to_byte - from_byte;
     char   *result = arena_alloc((size_t)taken + 1);
@@ -3033,7 +3066,7 @@ Value alg_copy(Value text, Value begin, Value length) {
     memcpy(result, from + from_byte, (size_t)taken);
     result[taken] = '\0';
 
-    return alg_string(result);
+    return alg_string_n(result, taken);
 }
 
 Value alg_pos(Value text, Value part) {
@@ -3156,19 +3189,27 @@ Value alg_mod(Value a, Value b) {
     return alg_int(left % right);
 }
 
+/* ⚠️ fwrite with the length, not fputs.  A String may hold a zero character and
+ * fputs would stop at it -- which is the truncation this change exists to end. */
 void alg_write(Value v) {
     if (in_tests) return;
 
-    fputs(as_text(v), stdout);
+    int32_t     length;
+    const char *text = as_text_len(v, &length);
+
+    fwrite(text, 1, (size_t)length, stdout);
 }
 
 void alg_writeln(Value v) {
+    alg_write(v);
     if (in_tests) return;
 
-    fputs(as_text(v), stdout);
     fputc('\n', stdout);
 }
 
 Value alg_str(Value v) {
-    return alg_string(as_text(v));
+    int32_t     length;
+    const char *text = as_text_len(v, &length);
+
+    return alg_string_n(text, length);
 }

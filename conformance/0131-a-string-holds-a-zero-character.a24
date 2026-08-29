@@ -1,0 +1,27 @@
+// spec: SRC-001, LEX-032
+//
+// A String carries its own LENGTH and may hold a zero character.
+//
+// ⚠️ It used to end at the first zero byte, as C's do, so concatenating one
+// truncated the String there and Length('a' + Str(Char(0)) + 'b') was 2.  Both
+// processors agreed, because both represented a String the same way.
+//
+// ⚠️ The LITERAL '#0' is still refused where it is read [LEX-032] --
+// refusals/0037.  Char(0) is legal [LEX-025], and must be: the scanner's own
+// end-of-input sentinel is Char(0).
+
+var S := 'a' + Str (Char (0)) + 'b';
+
+WriteLn (Length (S));
+WriteLn (Ord (S[1]));
+
+// Equality compares the bytes it has, rather than stopping at the zero.
+WriteLn (S = 'a' + Str (Char (0)) + 'b');
+WriteLn (Copy (S, 1, 2) = Str (Char (0)) + 'b');
+
+// ⚠️ And so does the hash, or a Map would not find a key it holds.
+var M := [S : 'held'];
+WriteLn (M.Contains ('a' + Str (Char (0)) + 'b'));
+
+// Characters are still characters [SRC-004].
+WriteLn (Length ('café'));
