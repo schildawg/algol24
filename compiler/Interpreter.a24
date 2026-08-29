@@ -1457,6 +1457,13 @@ begin
         // Overloads select on the whole signature, and property access could
         // not: 'X.M' hands back the first method of that name because the
         // arguments are not known until here.  Re-select now that they are.
+        //
+        // ⚠️ SIGNATURE, NOT ARITY, AND EVERYWHERE.  This used to run only when
+        // the callee had an Owner -- that is, only for a method -- so a
+        // top-level subprogram fell through to the arity check below and its
+        // declared parameter types were never compared with anything.  The same
+        // signature as a method refused what it accepted [FUN-006], [VAR-017].
+        // Two dispatch paths behind one 'if', where the language has one rule.
         if Callee is ObjFunction then
         begin
             if Callee.Owner <> Nil then
@@ -1468,6 +1475,21 @@ begin
                 if Better = Nil then raise 'No matching signature for function.';
 
                 Callee := Better.Bind (Callee.Bound);
+            end
+
+            // ⚠️ A top-level subprogram has no owner to select from, so there
+            // is nothing to re-select -- but its signature is still a claim
+            // about what it accepts, and it is checked here.  Fits compares the
+            // arity too, so the check below stays for the natives, whose
+            // parameters are not declared in this language and which therefore
+            // have a signature only in the sense of a count.
+            else if not Callee.Fits (Arguments, True) then
+            begin
+                if Arguments.Length <> Callee.Arity() then
+                    raise 'Expected ' + Callee.Arity() + ' arguments but got '
+                        + Arguments.Length + '.';
+
+                raise 'No matching signature for function.';
             end
         end
 

@@ -1,0 +1,42 @@
+// spec: FUN-006, EXP-014, VAR-017
+//
+// Matching is on the SIGNATURE everywhere -- a top-level subprogram and a
+// method are compared the same way, because the language has one rule for it.
+
+function G (N : Integer); begin Exit 'integer ' + Str (N); end
+WriteLn (G (7));
+
+// ⚠️ A parameter is an assignment context [VAR-017], so an argument WIDENS into
+// it: an Integer where a Double is written, a Char where a String is.  The
+// parameter holds the wider type, so this prints 1.0 rather than 1.
+function D (X : Double); begin Exit X; end
+WriteLn (D (1));
+
+function S (T : String); begin Exit T + '!'; end
+WriteLn (S ('a'));
+
+// The same two widenings at a method, which is where they were already
+// admitted at the declaration and refused at the call.
+class N;
+begin
+    function Only (T : String); begin Exit 'string only'; end
+end
+WriteLn (N ().Only ('a'));
+
+// ⚠️ An EXACT match is preferred over a widened one [EXP-014], whatever order
+// the overloads are declared in.  Selection makes two passes for this: one
+// admitting no widening, then one admitting it.
+class M;
+begin
+    function Take (T : String); begin Exit 'string'; end
+    function Take (C : Char);   begin Exit 'char';   end
+end
+WriteLn (M ().Take ('a'));
+WriteLn (M ().Take ('ab'));
+
+// Inheritance is not widening -- a subclass fits its parent's type in both
+// passes, because that is the argument being what the parameter asks for.
+class Animal; begin end
+class Dog (Animal); begin end
+function Feed (A : Animal); begin Exit 'fed'; end
+WriteLn (Feed (Dog ()));

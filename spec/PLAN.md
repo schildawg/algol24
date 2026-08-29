@@ -244,9 +244,7 @@ yet" — each is blocked on a piece of machinery this compiler does not have.
 | | Blocked on |
 | --- | --- |
 | DEF-09 | inference. `Lookup.Inferred` records a type and `Reduce` never consults it, so a local's type is unknown to the checker. |
-| DEF-10, DEF-10b | the interpreter does not know a variable's declared type at run time. Widening works at a declaration and a parameter because the declaration is in hand there; assignment and field contexts have nothing to consult. |
 | DEF-15 | two-phase class declaration. Hoisting classes broke `class B (A); … class A;` because a class declaration *evaluates* its superclass. Functions are hoisted; classes need the name bound before the body runs. |
-| DEF-19 | the same gap as DEF-10: a top-level subprogram's parameter types are not enforced because nothing checks them at the call. |
 | DEF-33 | an overload set in the environment. A name binds to one value, so a second declaration replaces the first rather than joining it. |
 | DEF-34 | Unicode character tables. `IsAlpha` admits every code point above 127 where the rule admits letters. Introduced deliberately: over-acceptance keeps correct programs working where refusing every non-ASCII byte refused them. |
 
@@ -256,8 +254,13 @@ the *inheritance* map. The registry is `Types`, which every declaring form
 already populates. Deferred through five waves on a misreading; the fix was
 three lines of registration and one check.
 
-⚠️ **DEF-10's remaining half and DEF-19 are one question** — what a name's
-declared type is at run time — and answering it once answers both.
+| DEF-10 | the interpreter does not know a variable's declared type at run time. Widening works at a declaration, a `const`, a parameter and a return type because the declaration is in hand there; a plain **assignment** and a **field** have nothing to consult. |
+
+⚠️ **DEF-19 and DEF-10b are done**, and they closed together for the reason the
+entries predicted: signature comparison ran only for methods, so unifying it
+enforced a top-level subprogram's parameter types — and `Fits` had to learn to
+widen at the same moment, or `F (1)` into `X : Double` would have started
+failing. Selection gained a second pass so an exact match still wins.
 
 ### The bootstrap trap
 

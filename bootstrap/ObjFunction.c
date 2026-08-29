@@ -11,17 +11,22 @@
 
 Value f_TypeNameOf(Value **cells, Value *args, int32_t count);
 Value f_NameOfClass(Value **cells, Value *args, int32_t count);
+Value f_Widens(Value **cells, Value *args, int32_t count);
 Value f_InheritsFrom(Value **cells, Value *args, int32_t count);
 Value fn_TypeNameOf;
 Value fn_NameOfClass;
-Value fn_InheritsFrom;
-Value k_ObjFunction;
 static Value or_0;
 static Value or_1;
+Value fn_Widens;
+Value fn_InheritsFrom;
+Value k_ObjFunction;
 static Value or_2;
+static Value or_3;
+static Value or_4;
+static Value or_5;
 static const char *t_ObjFunction_Init_3_FunctionStmt_Environment_Boolean[] = { "FunctionStmt", "Environment", "Boolean" };
 static const char *t_ObjFunction_Bind_1_ObjInstance[] = { "ObjInstance" };
-static const char *t_ObjFunction_Fits_1_List[] = { "List" };
+static const char *t_ObjFunction_Fits_2_List_Boolean[] = { "List", "Boolean" };
 static const char *t_ObjFunction_Call_2[] = { "Any", "Any" };
 
 Value f_TypeNameOf(Value **cells, Value *args, int32_t count) {
@@ -98,6 +103,22 @@ Value f_NameOfClass(Value **cells, Value *args, int32_t count) {
     return alg_nil();
 }
 
+Value f_Widens(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    Value v_Actual = args[0];
+    (void)v_Actual;
+    Value v_Declared = args[1];
+    (void)v_Declared;
+    if (alg_truthy((or_0 = alg_equal(v_Declared, alg_string("Double")), !alg_truthy(or_0) ? or_0 : alg_equal(v_Actual, alg_string("Integer"))))) {
+        return alg_bool(true);
+    }
+    if (alg_truthy((or_1 = alg_equal(v_Declared, alg_string("String")), !alg_truthy(or_1) ? or_1 : alg_equal(v_Actual, alg_string("Char"))))) {
+        return alg_bool(true);
+    }
+    return alg_bool(false);
+    return alg_nil();
+}
+
 Value f_InheritsFrom(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
     Value v_Value = args[0];
@@ -163,10 +184,12 @@ static Value m_ObjFunction_Bind_1_ObjInstance(Value v_this, Value *args, int32_t
     return alg_nil();
 }
 
-static Value m_ObjFunction_Fits_1_List(Value v_this, Value *args, int32_t count) {
+static Value m_ObjFunction_Fits_2_List_Boolean(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_Arguments = args[0];
     (void)v_Arguments;
+    Value v_Widening = args[1];
+    (void)v_Widening;
     if (alg_truthy(alg_not_equal(alg_invoke(v_this, "Arity", NULL, 0), alg_property(v_Arguments, "Length")))) {
         return alg_bool(false);
     }
@@ -178,13 +201,20 @@ static Value m_ObjFunction_Fits_1_List(Value v_this, Value *args, int32_t count)
                 {
                     Value v_Declared = alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_I));
                     (void)v_Declared;
-                    if (alg_truthy((or_0 = alg_not_equal(v_Declared, alg_string("")), !alg_truthy(or_0) ? or_0 : alg_not_equal(v_Declared, alg_string("Any"))))) {
+                    if (alg_truthy((or_2 = alg_not_equal(v_Declared, alg_string("")), !alg_truthy(or_2) ? or_2 : alg_not_equal(v_Declared, alg_string("Any"))))) {
                         {
                             Value v_Actual = f_TypeNameOf(NULL, (Value[]){alg_subscript_get(v_Arguments, v_I)}, 1);
                             (void)v_Actual;
-                            if (alg_truthy((or_2 = (or_1 = alg_not_equal(v_Actual, alg_string("nil")), !alg_truthy(or_1) ? or_1 : alg_not_equal(v_Actual, alg_string("Any"))), !alg_truthy(or_2) ? or_2 : alg_not_equal(v_Actual, v_Declared)))) {
-                                if (alg_truthy(alg_not(f_InheritsFrom(NULL, (Value[]){alg_subscript_get(v_Arguments, v_I), v_Declared}, 2)))) {
-                                    return alg_bool(false);
+                            if (alg_truthy((or_4 = (or_3 = alg_not_equal(v_Actual, alg_string("nil")), !alg_truthy(or_3) ? or_3 : alg_not_equal(v_Actual, alg_string("Any"))), !alg_truthy(or_4) ? or_4 : alg_not_equal(v_Actual, v_Declared)))) {
+                                {
+                                    Value v_Fitted = f_InheritsFrom(NULL, (Value[]){alg_subscript_get(v_Arguments, v_I), v_Declared}, 2);
+                                    (void)v_Fitted;
+                                    if (alg_truthy((or_5 = alg_not(v_Fitted), !alg_truthy(or_5) ? or_5 : v_Widening))) {
+                                        (void)((v_Fitted = f_Widens(NULL, (Value[]){v_Actual, v_Declared}, 2)));
+                                    }
+                                    if (alg_truthy(alg_not(v_Fitted))) {
+                                        return alg_bool(false);
+                                    }
                                 }
                             }
                         }
@@ -280,6 +310,7 @@ static Value m_ObjFunction_Call_2(Value v_this, Value *args, int32_t count) {
 void init_ObjFunction(void) {
     fn_TypeNameOf = alg_closure("TypeNameOf", f_TypeNameOf, NULL, 0, 1);
     fn_NameOfClass = alg_closure("NameOfClass", f_NameOfClass, NULL, 0, 1);
+    fn_Widens = alg_closure("Widens", f_Widens, NULL, 0, 2);
     fn_InheritsFrom = alg_closure("InheritsFrom", f_InheritsFrom, NULL, 0, 2);
     k_ObjFunction = alg_class("ObjFunction", alg_nil());
     alg_class_field(k_ObjFunction, "Declaration");
@@ -290,7 +321,7 @@ void init_ObjFunction(void) {
     alg_class_initializer(k_ObjFunction, i_ObjFunction);
     alg_class_method(k_ObjFunction, "Init", m_ObjFunction_Init_3_FunctionStmt_Environment_Boolean, 3, t_ObjFunction_Init_3_FunctionStmt_Environment_Boolean);
     alg_class_method(k_ObjFunction, "Bind", m_ObjFunction_Bind_1_ObjInstance, 1, t_ObjFunction_Bind_1_ObjInstance);
-    alg_class_method(k_ObjFunction, "Fits", m_ObjFunction_Fits_1_List, 1, t_ObjFunction_Fits_1_List);
+    alg_class_method(k_ObjFunction, "Fits", m_ObjFunction_Fits_2_List_Boolean, 2, t_ObjFunction_Fits_2_List_Boolean);
     alg_class_method(k_ObjFunction, "Arity", m_ObjFunction_Arity_0, 0, NULL);
     alg_class_method(k_ObjFunction, "ToString", m_ObjFunction_ToString_0, 0, NULL);
     alg_class_method(k_ObjFunction, "Call", m_ObjFunction_Call_2, 2, t_ObjFunction_Call_2);

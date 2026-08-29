@@ -1764,6 +1764,15 @@ static Value m_Interpreter_VisitCall_1_CallExpr(Value v_this, Value *args, int32
                     }
                     (void)((v_Callee = alg_invoke(v_Better, "Bind", (Value[]){alg_property(v_Callee, "Bound")}, 1)));
                 }
+            } else {
+                if (alg_truthy(alg_not(alg_invoke(v_Callee, "Fits", (Value[]){v_Arguments, alg_bool(true)}, 2)))) {
+                    {
+                        if (alg_truthy(alg_not_equal(alg_property(v_Arguments, "Length"), alg_invoke(v_Callee, "Arity", NULL, 0)))) {
+                            alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Expected "), alg_invoke(v_Callee, "Arity", NULL, 0)), alg_string(" arguments but got ")), alg_property(v_Arguments, "Length")), alg_char_value(46)));
+                        }
+                        alg_raise(alg_string("No matching signature for function."));
+                    }
+                }
             }
         }
     }

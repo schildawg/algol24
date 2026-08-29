@@ -1748,14 +1748,23 @@ is an assignment context [VAR-017]. When neither fits, the call fails with
 So a `Char` argument selects a `Char` parameter where one is declared, and
 widens to a `String` parameter where it is not.
 
-⚠️ **PARTLY IMPLEMENTED.** Exact matching works and is correctly preferred —
-with both overloads declared, `Take('a')` selects the `Char`. Widening does not:
-with only a `String` overload declared, `Take('a')` is `No matching signature
-for function.` See DEF-10.
+⚠️ **Selection makes two passes**, and the order is the rule: one admitting no
+widening, then one admitting it. Adding widening to a single pass let
+*declaration order* decide instead — `Take('a')` took a `String` overload
+declared above the `Char` one — which `conformance/0050` caught at once.
+
+⚠️ Each pass runs over the **whole inheritance chain** before the other begins.
+An exact match on a parent must beat a widened match on the child, or adding an
+overload to a subclass would silently capture calls the parent was answering
+exactly.
+
+⚠️ **Inheritance is not widening.** A `Dog` fits an `Animal` parameter in both
+passes, because that is the argument being what the parameter asks for rather
+than being converted into it.
 
     interpreter  compiler/ObjClass.a24  FindOverload
     conformance  0050-overload-selection.a24
-    defect       DEF-10b-widening-at-a-parameter.a24
+    conformance  0137-parameters-match-on-signature.a24
 
 ### 9.6 Subscripting
 
@@ -2069,13 +2078,18 @@ call, whether it is a top-level subprogram or a method. A parameter is an
 assignment context [VAR-017], so an argument must have the declared type, widen
 to it [VAR-004], or be `nil` [VAR-005].
 
-⚠️ **NOT YET IMPLEMENTED for a top-level subprogram.** `function F(N : Integer)`
-accepts a String, a Double or a Boolean without complaint. Only the arity is
-checked. A **method's** types are enforced [FUN-007], so the same annotation is
-a contract in one place and decoration in the other. See DEF-19.
+⚠️ **One rule, one path.** Signature comparison used to run only when the callee
+had an *owner* — that is, only for a method — so a top-level subprogram fell
+through to an arity check and its annotation was a contract in one place and
+decoration in the other. `Fits` is asked of every declared subprogram now.
+
+⚠️ A **native** is still matched on arity alone, and correctly: its parameters
+are not declared in this language, so it has a signature only in the sense of a
+count.
 
     interpreter  compiler/Interpreter.a24  VisitCall
-    defect       DEF-19-top-level-parameter-types-unenforced.a24
+    conformance  0137-parameters-match-on-signature.a24
+    refusal      0042-top-level-parameter-type.a24
 
 **[FUN-007]**  A **method's** parameter types **are** enforced, because a method
 goes through overload selection [EXP-013]. Passing a String where `Integer` is
@@ -4028,6 +4042,37 @@ something else.
 *Fix:* mangle per Annex G, which specifies an escape for exactly this.
 
 **C-23 — A compiled test run never says why a test failed.**
+**C-24 — A compiled top-level subprogram is matched on arity, not signature.**
+*(silent)* *(refers to [FUN-006])*
+
+`function G (N : Integer)` called with a String is `No matching signature for
+function.` interpreted and runs compiled, returning the String. The emitted call
+checks the count and nothing else.
+
+⚠️ **Silent, and in the dangerous direction**: the compiler accepts a program the
+language refuses, so one developed against the compiler fails the moment it is
+run interpreted. It is the same shape C-4 had, and the same remedy applies —
+bring the compiler up, not the interpreter down.
+
+*Fix:* the emitted call site compares declared parameter types as `Fits` does.
+⚠️ The type is known at emit time only where the argument's type is known, which
+is the gradual-typing case — so the check has to be a run-time one against
+`type_name`, as the interpreter's is.
+
+**C-25 — A compiled argument does not widen into its parameter.** *(silent)*
+*(refers to [VAR-017], [EXP-014])*
+
+`function D (X : Double)` called as `D (1)` yields `1` compiled and `1.0`
+interpreted. A parameter is an assignment context, so the argument should widen
+on the way in and the parameter should hold the wider type.
+
+⚠️ Distinct from C-24, which is about *refusing* a mismatch: this one is about
+*converting* a match. A compiled program silently holds an Integer where its own
+declaration says Double.
+
+*Fix:* `alg_call` converts an argument whose parameter is declared `Double` or
+`String`, as `ObjFunction.Call` does through `Widen`.
+
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
 > blocked on "a registry of declared type names that does not exist —
 > `Lookup.Parents` holds only classes that *have* a superclass, and enumerations
@@ -4779,20 +4824,13 @@ return type are on the function; an assignment is the one context with nowhere
 to read it from. Closing it means either storing declared types in the
 environment or annotating the assignment node from the checker.
 
-⚠️ **A parameter is an assignment context too**, so the same gap shows up in
-overload selection: with only a `String` overload declared, `Take('a')` is
-`No matching signature for function.` where the Char should widen. Exact
-matching works and is correctly preferred, so only the fallback is missing.
+⚠️ **The parameter half is done**, and was DEF-10b. `Fits` admits both
+widenings, so `Take('a')` reaches a `String` overload — and selection gained a
+second pass so that an exact match still wins [EXP-014].
 
-*Reproduce:* `defects/DEF-10-widening-is-refused.a24`,
-`defects/DEF-10b-widening-at-a-parameter.a24`, and
-`conformance/0025-operators-widen.a24` for the other half.
-
-⚠️ **The two files are the defect.** One shows `1 + 1.5` and `'a' + 'bc'`
-widening; the other shows the same conversions refused a line after a type is
-written. Neither is remarkable alone. The check is whole-program and
-compile-time, so they cannot share a run — the same one-observation-per-program
-constraint as DEF-03.
+*Reproduce:* `defects/DEF-10-widening-is-refused.a24`, with
+`conformance/0025-operators-widen.a24` and
+`conformance/0137-parameters-match-on-signature.a24` for the halves that work.
 
 *Scope of the fix.* `Assignable` admits Integer where Double is expected and
 Char where String is, and both processors convert **at the point of assignment**

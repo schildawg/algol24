@@ -1,0 +1,14 @@
+// spec: FUN-006, VAR-017
+//
+// A parameter is an assignment context, so a top-level subprogram's declared
+// parameter types are enforced exactly as a method's are.
+//
+// ⚠️ Only the ARITY used to be checked here.  Signature comparison ran only
+// when the callee had an owner -- that is, only for a method -- so a top-level
+// subprogram fell through to the arity check and its annotation was a contract
+// in one place and decoration in the other.  Two dispatch paths behind one
+// 'if', where the language has one rule.
+
+function G (N : Integer); begin Exit N; end
+
+WriteLn (G ('a string'));

@@ -76,6 +76,27 @@ end
 /// type test go away: the name here arrives as a String at run time, while
 /// 'is' needs one written in the source.  This is the dynamic half.
 ///
+/// Whether a value of type Actual may be passed where Declared is written.
+///
+/// ⚠️ A parameter is an ASSIGNMENT CONTEXT [VAR-017], so the same two widenings
+/// that hold at a declaration hold here: an Integer where a Double is written,
+/// and a Char where a String is.  The value is converted on the way in by
+/// ObjFunction.Call, so the parameter holds the wider type rather than one the
+/// declaration misdescribes.
+///
+/// ⚠️ Selection had to learn this at the same moment top-level subprograms
+/// started being matched on their signatures.  Without it 'F (1)' into
+/// 'X : Double' -- correct, and printing 1.0 -- became
+/// 'No matching signature for function.'
+///
+function Widens (Actual : String, Declared : String) : Boolean;
+begin
+    if Declared = 'Double' and Actual = 'Integer' then Exit True;
+    if Declared = 'String' and Actual = 'Char'    then Exit True;
+
+    Exit False;
+end
+
 function InheritsFrom (Value : Any, TheName : String) : Boolean;
 var
     Klass : ObjClass;
@@ -146,7 +167,19 @@ begin
     /// type, a subclass standing where its parent is declared, and every
     /// parameter checked against the argument in its own position.
     ///
-    function Fits (Arguments : List) : Boolean;
+    /// Whether these arguments fit this signature.
+    ///
+    /// ⚠️ 'Widening' is what separates the two passes of overload selection.  An
+    /// exact match is PREFERRED [EXP-014], so a Char argument takes a Char
+    /// overload rather than a String one however they are ordered -- and
+    /// admitting the widening in a single pass made declaration order decide,
+    /// which conformance/0050 caught immediately.
+    ///
+    /// Inheritance is not widening: a Dog fits an Animal parameter in both
+    /// passes, because that is the argument being what the parameter asks for
+    /// rather than being converted into it.
+    ///
+    function Fits (Arguments : List, Widening : Boolean) : Boolean;
     begin
         if Arity () <> Arguments.Length then Exit False;
 
@@ -159,7 +192,12 @@ begin
                 var Actual := TypeNameOf (Arguments[I]);
 
                 if Actual <> 'nil' and Actual <> 'Any' and Actual <> Declared then
-                    if not InheritsFrom (Arguments[I], Declared) then Exit False;
+                begin
+                    var Fitted := InheritsFrom (Arguments[I], Declared);
+
+                    if not Fitted and Widening then Fitted := Widens (Actual, Declared);
+                    if not Fitted then Exit False;
+                end
             end
         end
 
