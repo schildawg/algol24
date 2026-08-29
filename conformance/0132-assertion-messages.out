@@ -1,4 +1,3 @@
-Uncaught: Tests failed.
 [WHITE][[BLUE]INFO[WHITE]] [RESET]Running 4 tests...
 [WHITE][[BLUE]INFO[WHITE]] [RESET]< [CYAN]conformance/0132-assertion-messages.a24[RESET] >
 [WHITE][[BLUE]INFO[WHITE]] [RESET]Test: AssertEqual names both values .......................... [ [RED]FAIL[RESET] ]

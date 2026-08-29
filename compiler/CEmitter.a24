@@ -2475,6 +2475,7 @@ begin
         if Key = 'Max/2'     then Exit 'alg_max';
         if Key = 'Mod/2'     then Exit 'alg_mod';
         if Key = 'clock/0'   then Exit 'alg_clock';
+        if Key = 'Halt/1'    then Exit 'alg_halt';
 
         if EmitTests then
         begin

@@ -270,6 +270,31 @@ end
 /// interpreted globals is invisible until a program that needs it is run --
 /// and algc's own scanner is such a program.
 ///
+/// Ends the program with a chosen status.
+///
+/// ⚠️ The one way a program can choose its own exit code.  Without it a driver
+/// that wants to exit non-zero has to 'raise', which prints an 'Uncaught:' line
+/// the report never asked for -- and the compiled form of the same program
+/// returns the status from main and prints nothing, so the two disagreed by
+/// exactly that line.
+///
+/// ⚠️ Delegates to the host, so an interpreted Halt IS the host's Halt and the
+/// two cannot drift.
+class HaltNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Halt (Arguments[0]);
+
+        Exit Nil;
+    end
+end
+
 class OrdNative;
 begin
     function Arity () : Integer;
@@ -705,6 +730,7 @@ begin
         Builtins.Define ('Set',    SetNative());
         Builtins.Define ('Stack',  StackNative());
 
+        Builtins.Define ('Halt', HaltNative());
         Builtins.Define ('Ord',  OrdNative());
         Builtins.Define ('Val',  ValNative());
         Builtins.Define ('Char', CharNative());

@@ -376,6 +376,11 @@ void alg_assert_fail(Value message);
 
 /* Builtins. */
 void  alg_write(Value v);
+
+/* Ends the program with this status.  ⚠️ The one way a program can choose its
+ * own exit code: without it a driver has to 'raise' to exit non-zero, which
+ * prints an 'Uncaught:' line the report never asked for. */
+void  alg_halt(Value status);
 void  alg_writeln(Value v);
 Value alg_str(Value v);
 

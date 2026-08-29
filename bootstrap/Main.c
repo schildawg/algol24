@@ -295,7 +295,7 @@ static Value f_Main(Value **cells, Value *args, int32_t count) {
             }
             (void)(f_SetProgramArguments(NULL, (Value[]){f_ArgumentsFrom(NULL, (Value[]){alg_int(2)}, 1)}, 1));
             if (alg_truthy(alg_greater(f_RunTests(NULL, (Value[]){f_ReadSource(NULL, (Value[]){v_Name}, 1), v_Name}, 2), alg_int(0)))) {
-                alg_raise(alg_string("Tests failed."));
+                (void)(alg_halt(alg_int(70)));
             }
             return alg_nil();
         }

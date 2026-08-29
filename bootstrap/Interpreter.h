@@ -22,6 +22,7 @@ extern Value v_OutputSuppressed;
 extern Value fn_SuppressOutput;
 extern Value k_WriteNative;
 extern Value k_WriteLnNative;
+extern Value k_HaltNative;
 extern Value k_OrdNative;
 extern Value k_ValNative;
 extern Value k_CharNative;

@@ -1,6 +1,6 @@
 // spec: RT-001
 //
-// The twenty-two always-available names are reachable, bare and qualified
+// The twenty-three always-available names are reachable, bare and qualified
 // against System [MOD-011].  The list itself is checked against the
 // interpreter by spec/spec.sh; this shows they answer.
 
@@ -27,3 +27,7 @@ WriteLn (ParamCount ());
 WriteLn (Length (ParamStr (0)) > 0);
 Write ('written');
 WriteLn ('');
+
+// ⚠️ Halt is exercised by conformance/0134 rather than here: calling it would
+// end this program before the rest of the list was reached, and there is no way
+// to ask whether it answers without calling it.

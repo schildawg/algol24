@@ -2877,6 +2877,9 @@ static Value m_CEmitter_Builtin_2_String_Integer(Value v_this, Value *args, int3
     if (alg_truthy(alg_equal(v_Key, alg_string("clock/0")))) {
         return alg_string("alg_clock");
     }
+    if (alg_truthy(alg_equal(v_Key, alg_string("Halt/1")))) {
+        return alg_string("alg_halt");
+    }
     if (alg_truthy(alg_property(v_this, "EmitTests"))) {
         {
             if (alg_truthy(alg_equal(v_Key, alg_string("AssertTrue/1")))) {

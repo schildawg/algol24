@@ -3323,6 +3323,18 @@ void alg_writeln(Value v) {
     fputc('\n', stdout);
 }
 
+/* ⚠️ Flushes first.  stdout is block-buffered when it is not a terminal, and
+ * exit() would otherwise discard whatever the report had written -- so a test
+ * run that halted printed nothing at all when piped. */
+void alg_halt(Value status) {
+    int32_t code = as_integer(status, "Halt expects an Integer.");
+
+    fflush(stdout);
+    fflush(stderr);
+
+    exit(code);
+}
+
 Value alg_str(Value v) {
     int32_t     length;
     const char *text = as_text_len(v, &length);

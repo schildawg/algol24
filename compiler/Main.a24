@@ -334,13 +334,15 @@ begin
             raise 'algc: cannot open ' + Name;
         end
 
-        // A failure has to reach the exit code, and the language has no Halt --
-        // so raise, which is reported and exits 70.  The [ERROR] line that
-        // produces is dropped by a report comparison, as the interpreter's
-        // assertion carets are.
         SetProgramArguments (ArgumentsFrom (2));
 
-        if RunTests(ReadSource(Name), Name) > 0 then raise 'Tests failed.';
+        // ⚠️ Halt, not 'raise'.  A failure has to reach the exit code, and this
+        // used to raise 'Tests failed.' because the language had no way to
+        // choose a status -- which printed 'Uncaught: Tests failed.' after the
+        // report [RT-018].  The compiled form of the same suite returns 70 from
+        // main and prints nothing, so the two processors disagreed by exactly
+        // that line, and it was the last line they disagreed on.
+        if RunTests(ReadSource(Name), Name) > 0 then Halt (70);
 
         Exit;
     end

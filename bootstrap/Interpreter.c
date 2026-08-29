@@ -47,6 +47,8 @@ Value k_WriteNative;
 static const char *t_WriteNative_Call_2[] = { "Any", "Any" };
 Value k_WriteLnNative;
 static const char *t_WriteLnNative_Call_2[] = { "Any", "Any" };
+Value k_HaltNative;
+static const char *t_HaltNative_Call_2[] = { "Any", "Any" };
 Value k_OrdNative;
 static const char *t_OrdNative_Call_2[] = { "Any", "Any" };
 Value k_ValNative;
@@ -461,6 +463,28 @@ static Value m_WriteLnNative_Call_2(Value v_this, Value *args, int32_t count) {
             }
         }
     }
+    return alg_nil();
+    return alg_nil();
+}
+
+static Value i_HaltNative(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_nil();
+}
+
+static Value m_HaltNative_Arity_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_int(1);
+    return alg_nil();
+}
+
+static Value m_HaltNative_Call_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_TheInterpreter = args[0];
+    (void)v_TheInterpreter;
+    Value v_Arguments = args[1];
+    (void)v_Arguments;
+    (void)(alg_halt(alg_subscript_get(v_Arguments, alg_int(0))));
     return alg_nil();
     return alg_nil();
 }
@@ -935,6 +959,7 @@ static Value m_Interpreter_Init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Map"), alg_new(k_MapNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Set"), alg_new(k_SetNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Stack"), alg_new(k_StackNative, NULL, 0)}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Halt"), alg_new(k_HaltNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Ord"), alg_new(k_OrdNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Val"), alg_new(k_ValNative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Char"), alg_new(k_CharNative, NULL, 0)}, 2));
@@ -2855,6 +2880,10 @@ void init_Interpreter(void) {
     alg_class_initializer(k_WriteLnNative, i_WriteLnNative);
     alg_class_method(k_WriteLnNative, "Arity", m_WriteLnNative_Arity_0, 0, NULL);
     alg_class_method(k_WriteLnNative, "Call", m_WriteLnNative_Call_2, 2, t_WriteLnNative_Call_2);
+    k_HaltNative = alg_class("HaltNative", alg_nil());
+    alg_class_initializer(k_HaltNative, i_HaltNative);
+    alg_class_method(k_HaltNative, "Arity", m_HaltNative_Arity_0, 0, NULL);
+    alg_class_method(k_HaltNative, "Call", m_HaltNative_Call_2, 2, t_HaltNative_Call_2);
     k_OrdNative = alg_class("OrdNative", alg_nil());
     alg_class_initializer(k_OrdNative, i_OrdNative);
     alg_class_method(k_OrdNative, "Arity", m_OrdNative_Arity_0, 0, NULL);

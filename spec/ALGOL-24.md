@@ -2773,7 +2773,7 @@ program having no compiled form.
 
 ### 16.1 The set
 
-**[RT-001]**  Twenty-five names are built in. Twenty-two are always available:
+**[RT-001]**  Twenty-six names are built in. Twenty-three are always available:
 
 ```
 Length  Copy  Pos   Str        Ord   Char  Val
@@ -2781,7 +2781,7 @@ Max     Mod   clock
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 ParamCount    ParamStr
-Write   WriteLn
+Write   WriteLn    Halt
 ```
 
 ⚠️ The list is checked against the names the interpreter registers by
@@ -2965,6 +2965,29 @@ containing those bytes.
     interpreter  compiler/ObjFile.a24  Invoke
     compiler     bootstrap/algol.c     file_read_line
     conformance  0008-readln-line-rule.a24
+
+**[RT-018]**  `Halt(N)` ends the program at once with status `N`. Nothing after
+it runs, and no enclosing `except` sees it — it is not an exception.
+
+⚠️ **It is the only way a program can choose its own exit status.** Without it a
+program that wants to exit non-zero has to `raise`, which prints `Uncaught: ` and
+the raised value [ERR-008] — output the program did not ask for and cannot
+suppress. `algc`'s own `--test` driver did exactly that, so a failing run printed
+`Uncaught: Tests failed.` after the report, while the *compiled* form of the same
+suite returned the status from `main` and printed nothing. That was the last line
+on which the two processors disagreed.
+
+⚠️ **Buffered output is flushed first.** `stdout` is block-buffered when it is
+not a terminal, so ending the process without flushing discards whatever the
+program has written — a report that halted would print nothing at all when
+piped.
+
+⚠️ The status is what the program passes. The host takes it modulo 256, as every
+process exit status is; that is the operating system's rule, not this language's.
+
+    interpreter  compiler/Interpreter.a24  HaltNative
+    compiler     bootstrap/algol.c         alg_halt
+    conformance  0134-halt.a24
 
 ---
 
@@ -3443,7 +3466,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The twenty-five built-in names, with the rule specifying each. `spec/spec.sh`
+The twenty-six built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list against the names the interpreter actually registers.
 
 | Name | Rule | Summary |
@@ -3451,6 +3474,7 @@ checks this list against the names the interpreter actually registers.
 | `AssertEqual` | [TST-012] | Fails unless two values are equal; test runs only |
 | `AssertTrue` | [TST-012] | Fails unless a value is truthy; test runs only |
 | `Fail` | [TST-012] | Fails outright with a message; test runs only |
+| `Halt` | [RT-018] | Ends the program with a chosen exit status |
 | `Array` | [COL-002] | An Array of N elements, each `nil` |
 | `Buffer` | [E.2] | Growable bytes with an explicit lifetime |
 | `List` | [COL-002] | An empty List |
@@ -3999,11 +4023,12 @@ as long as they did: nothing that compares the two reports ever looked at this
 line. Verified after the fix — the whole 221-test suite is now identical line for
 line through both processors.
 
-⚠️ **One line still differs, and it is not this entry's.** A failing run prints
-`Uncaught: Tests failed.` interpreted and nothing compiled: the language has no
-`Halt`, so the interpreted driver `raise`s to set exit 70 while generated `main`
-returns it. That is a driver artefact rather than part of the report, and which
-side should change is an open question — see C-8 for the same family.
+⚠️ **The last differing line is gone too.** A failing run used to print
+`Uncaught: Tests failed.` interpreted and nothing compiled, because the driver
+had to `raise` to set exit 70. `Halt` [RT-018] was added for it, and the
+interpreted driver calls that instead — so neither side prints anything the
+report did not ask for, and a failing suite is now identical through both
+processors.
 
 ## Annex D — advisory notes *(non-normative)*
 
