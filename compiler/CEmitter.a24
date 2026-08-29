@@ -2010,7 +2010,24 @@ begin
         // is case-insensitive, so it cannot be a variable name.  The same
         // collision that renamed Break to Broke and Object to Obj.
         var SuperHandle := 'alg_nil()';
-        if SuperName <> '' then SuperHandle := ClassHandle (SuperName);
+        if SuperName <> '' then
+        begin
+            // ⚠️ A superclass must BE a class [CLS-014], and this is the last
+            // chance to say so: the interpreter checks it when the declaration
+            // RUNS, and a compiled program never runs the declaration at emit
+            // time.  Without the check the emitter wrote 'alg_class("C", k_x)'
+            // for a name that is not a class, and cc answered 'use of
+            // undeclared identifier k_x' -- naming a generated symbol rather
+            // than the declaration the programmer wrote.
+            //
+            // ⚠️ The LANGUAGE's message, not 'not supported by the C back end
+            // yet'.  This is a program that is wrong, not one this back end
+            // cannot express, and both processors should say the same thing.
+            if not Classes.Contains (SuperName) and not Objects.Contains (SuperName) then
+                raise '''' + SuperName + ''' is not a class.';
+
+            SuperHandle := ClassHandle (SuperName);
+        end
 
         Setup.Append ('    ' + Handle + ' = alg_class(' + QuoteC (Name)
                + ', ' + SuperHandle + ');' + #10);

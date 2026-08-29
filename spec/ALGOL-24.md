@@ -4050,7 +4050,8 @@ still a program the two processors do not agree on.
 
     gap  0070-object-is-not-callable.a24
 
-**C-16 — Inheriting from a non-class emits invalid C.** *(loud, in the wrong place)*
+**C-16 — Inheriting from a non-class emits invalid C.**
+***Withdrawn.***
 
 *(refers to [CLS-014])*
 
@@ -4069,13 +4070,19 @@ The emitter writes `alg_class("C", k_X)` for a superclass that is not a class,
 and `k_X` names a class handle that was never emitted because `X` is a variable.
 The interpreter refuses the program with `'X' is not a class.`
 
-⚠️ **The emitter breaks its own contract**, as it does in C-13: it is supposed
-to refuse by name what it cannot emit, and instead produces C that `cc` rejects,
-so the diagnostic names a generated symbol rather than the declaration the
-programmer wrote.
+⚠️ **The emitter broke its own contract**, as C-13 did: it is supposed to refuse
+what it cannot emit, and instead produced C that `cc` rejected, naming a
+generated symbol rather than the declaration the programmer wrote.
 
-    gap  0112-inherit-from-a-non-class.a24
-    gap  0046-inherit-from-a-non-class.a24
+⚠️ **It refuses with the LANGUAGE's message**, not with "not supported by the C
+back end yet" — this is a program that is *wrong*, not one this back end cannot
+express. Both processors now say `'X' is not a class.` and the case stopped
+being a gap rather than merely becoming a tidier one.
+
+⚠️ **The emitter is the last chance to catch it.** The interpreter checks the
+superclass when the declaration *runs*; a compiled program never runs its
+declarations at emit time, so nothing else would have said anything.
+
 
 **C-17 — An enum member has no properties compiled.** *(loud)*
 *(refers to [ENU-010])*
