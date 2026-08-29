@@ -1,0 +1,48 @@
+// spec: VAR-004, VAR-017, EXP-014
+//
+// A parameter, a declaration, a const, a return type, a plain ASSIGNMENT and a
+// FIELD are the six assignment contexts, and a value widens into each: an
+// Integer where a Double is written, a Char where a String is.  The variable
+// holds the wider type, so the declaration describes what it actually holds.
+//
+// ⚠️ An assignment and a field reached this last, and the obstacle was
+// structural: the interpreter stores values, not types, so a plain assignment
+// had nowhere to read the declared type from.  The TypeChecker writes it onto
+// the node -- it has already computed it to check the assignment -- and the
+// interpreter widens with it.
+
+// A declaration and a const.
+var A : Double := 1;
+const C : Double := 2;
+WriteLn (A);
+WriteLn (C);
+
+// A plain assignment, which used to leave an Integer in a Double.
+var B : Double := 0.0;
+B := 1;
+WriteLn (B);
+
+// A parameter and a declared return type.
+function F (X : Double) : Double; begin Exit X; end
+WriteLn (F (1));
+
+// A field, through a constructor and through an initializer.
+class K;
+var Field : Double;
+var Seeded : Double := 3;
+begin
+    constructor Init (); begin this.Field := 1; end
+end
+
+var Instance := K ();
+WriteLn (Instance.Field);
+WriteLn (Instance.Seeded);
+
+// And from outside the class.
+Instance.Field := 4;
+WriteLn (Instance.Field);
+
+// Char widens to String at the same six contexts.
+var S : String := 'a';
+S := 'b';
+WriteLn (S + '!');

@@ -282,6 +282,7 @@ static Value i_assignexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
+    alg_set_property(v_this, "Declared", alg_string(""));
     return alg_nil();
 }
 
@@ -393,6 +394,7 @@ static Value i_setexpr(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
     alg_set_property(v_this, "Unit", alg_string(""));
+    alg_set_property(v_this, "Declared", alg_string(""));
     return alg_nil();
 }
 
@@ -550,6 +552,7 @@ void init_Expr(void) {
     k_assignexpr = alg_class("AssignExpr", k_expr);
     alg_class_field(k_assignexpr, "Name");
     alg_class_field(k_assignexpr, "Value");
+    alg_class_field(k_assignexpr, "Declared");
     alg_class_initializer(k_assignexpr, i_assignexpr);
     alg_class_method(k_assignexpr, "Init", m_assignexpr_init_2_token_expr, 2, t_assignexpr_init_2_token_expr);
     alg_class_method(k_assignexpr, "Accept", m_assignexpr_accept_1, 1, t_assignexpr_accept_1);
@@ -578,6 +581,7 @@ void init_Expr(void) {
     alg_class_field(k_setexpr, "Name");
     alg_class_field(k_setexpr, "Value");
     alg_class_field(k_setexpr, "Unit");
+    alg_class_field(k_setexpr, "Declared");
     alg_class_initializer(k_setexpr, i_setexpr);
     alg_class_method(k_setexpr, "Init", m_setexpr_init_3_expr_token_expr, 3, t_setexpr_init_3_expr_token_expr);
     alg_class_method(k_setexpr, "Accept", m_setexpr_accept_1, 1, t_setexpr_accept_1);

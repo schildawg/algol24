@@ -124,7 +124,7 @@ static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int3
                     Value v_value = alg_nil();
                     (void)v_value;
                     if (alg_truthy(alg_not_equal(alg_property(v_field, "Initializer"), alg_nil()))) {
-                        (void)((v_value = alg_invoke(v_theinterpreter, "Evaluate", (Value[]){alg_property(v_field, "Initializer")}, 1)));
+                        (void)((v_value = alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_invoke(v_theinterpreter, "Evaluate", (Value[]){alg_property(v_field, "Initializer")}, 1), alg_str(alg_property(v_field, "TypeName"))}, 2)));
                     }
                     (void)(alg_invoke(alg_property(v_instance, "Fields"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_field, "Name"), "Lexeme")}, 1), v_value}, 2));
                 }

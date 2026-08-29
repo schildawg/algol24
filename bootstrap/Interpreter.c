@@ -1961,7 +1961,7 @@ static Value m_interpreter_visitsetexpr_1_setexpr(Value v_this, Value *args, int
             alg_raise(alg_string("Only instances have fields."));
         }
     }
-    (void)((v_value = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_theexpr, "Value")}, 1)));
+    (void)((v_value = alg_invoke(v_this, "Widen", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_theexpr, "Value")}, 1), alg_str(alg_property(v_theexpr, "Declared"))}, 2)));
     (void)(alg_invoke(v_obj, "Set", (Value[]){alg_property(v_theexpr, "Name"), v_value}, 2));
     return v_value;
     return alg_nil();
@@ -2869,7 +2869,7 @@ static Value m_interpreter_visitassignexpr_1_assignexpr(Value v_this, Value *arg
     (void)v_value;
     volatile Value v_distance = alg_nil();
     (void)v_distance;
-    (void)((v_value = alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_expr, "Value")}, 1)));
+    (void)((v_value = alg_invoke(v_this, "Widen", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_expr, "Value")}, 1), alg_str(alg_property(v_expr, "Declared"))}, 2)));
     (void)((v_distance = alg_invoke(alg_property(v_this, "Locals"), "Get", (Value[]){v_expr}, 1)));
     if (alg_truthy(alg_not_equal(v_distance, alg_nil()))) {
         {

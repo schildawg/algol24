@@ -854,23 +854,13 @@ the point it arrives. There are two widening pairs:
 The variable holds the wider type afterwards. A declaration never misdescribes
 what it holds.
 
-⚠️ **PARTLY IMPLEMENTED.** The checker admits both widenings at all six
-contexts, and the value is **converted** at four of them — a declaration, a
-`const`, a parameter and a declared return type. A plain assignment and a field
-accept the value and do not convert it, so `D := 1` leaves `D` holding an
-Integer. See DEF-10.
-
-⚠️ **The rules already exist; they are simply not applied here.** `1 + 1.5` is
-`2.5`, `'a' + 'bc'` is `abc`, and `'a' + 'b'` is a String of two characters — the
-operators widen both pairs today. It is only the paths carrying a *written* type
-that refuse, so a declared type currently means something **narrower** than the
-operators do. That inconsistency is the defect; the widening itself is settled
-behaviour everywhere else, which is why this is a fault to be fixed rather than
-a facility the language has yet to gain.
+⚠️ A plain assignment and a field reached this **last**, and `D := 1` used to
+leave `D` holding an Integer — a declaration describing something the variable
+did not hold.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     conformance  0025-operators-widen.a24
-    defect       DEF-10-widening-is-refused.a24
+    conformance  0140-widening-at-every-context.a24
 
 **[VAR-017]**  Widening applies wherever a value meets a written type — the six
 **assignment contexts**, and nowhere else:
@@ -882,11 +872,19 @@ Exit E ;   (against a declared return type)
 F (E) ;    (against a declared parameter type)
 ```
 
-⚠️ **PARTLY IMPLEMENTED**, and the obstacle is structural: the interpreter does
-not know a variable's declared type at run time. `Env` stores values, not types,
-so a plain `X := 1` has nothing to widen against — a declaration knows its own
-type, a parameter and a return type are on the function, and an assignment is
-the one context with nowhere to read it from. See DEF-10.
+⚠️ **The interpreter does not know a variable's declared type at run time**, and
+this is how the last two contexts are reached anyway. `Env` stores values, not
+types, so a plain `X := 1` has nothing to consult — a declaration knows its own
+type, and a parameter and a return type are on the function. The **TypeChecker
+writes the declared type onto the assignment node**, having already computed it
+to check the assignment, and the interpreter widens with it. A field is the same
+arrangement on `SetExpr`.
+
+⚠️ A field written through `this` needs the receiver's type, and `this` is
+**deliberately untyped** so that a class's own code escapes the private-member
+check. The class name is taken for the widening lookup alone, after visibility
+has had its untyped receiver — typing `this` outright breaks that rule, which
+the checker's own tests catch.
 
 ⚠️ **Comparison is not among them and does not widen.** `'a'` and
 `Copy('abc', 0, 1)` remain unequal [LEX-026]. A widening converts *toward a
@@ -895,7 +893,8 @@ target type*, and an `=` supplies none — it would have to invent one, and
 D-6, which weighs the same question for membership.
 
     interpreter  compiler/TypeChecker.a24  Assignable
-    defect       DEF-10-widening-is-refused.a24
+    interpreter  compiler/Interpreter.a24  VisitAssignExpr
+    conformance  0140-widening-at-every-context.a24
 
 **[VAR-018]**  Narrowing is refused in every one of those contexts.
 `var X : Integer := 1.5;` is a mismatch: the value does not fit, and choosing
@@ -1240,7 +1239,7 @@ holds [VAR-006].
 
     interpreter  compiler/TypeChecker.a24  Assignable
     conformance  0034-assignability.a24
-    defect       DEF-10-widening-is-refused.a24
+    conformance  0140-widening-at-every-context.a24
 
 **[VAL-002]**  Nothing else converts. The widenings are exactly the two of
 [VAR-004] — Integer to Double and Char to String — and they apply only at the
@@ -4264,7 +4263,7 @@ initializes with `0` is told the types do not match.
 Char to String, at any of the six assignment contexts [VAR-017], converting at
 the point the value arrives. The open question — whether `X` then holds a Double
 or an Integer a declaration lied about — is answered explicitly: it holds a
-Double [VAR-004]. Narrowing stays refused [VAR-018]. Tracked by DEF-10.
+Double [VAR-004]. Narrowing stays refused [VAR-018]. **Implemented.**
 
 ⚠️ **Why this is a defect and not a later generation.** The question was asked
 directly, and the answer turns on whether the language *lacks* widening or *has
@@ -4896,37 +4895,6 @@ Tightening the rule without that refuses correct programs; that was tried, and
 ⚠️ **Tightening it also bricks the bootstrap**, which is worth knowing before
 trying again. A checker that refuses the compiler's own sources cannot emit a
 new compiler, and the only way back is `git checkout -- bootstrap/`.
-
-**DEF-10 — Widening is refused wherever a type is written.**
-*(violates [VAR-004], [VAR-017], [EXP-014])*
-
-⚠️ **Mostly fixed.** The checker admits both pairs at all six contexts and the
-value is converted at four — a declaration, a `const`, a parameter and a
-declared return type. What remains is a plain **assignment** and a **field**:
-`D := 1` where `D` is declared `Double` is accepted and leaves an Integer in it,
-so the declaration misdescribes what it holds.
-
-⚠️ **The obstacle is structural, and the scope note below understated it.** The
-interpreter does not know a variable's declared type at run time — `Env` stores
-values, not types. A declaration knows its own type, and a parameter and a
-return type are on the function; an assignment is the one context with nowhere
-to read it from. Closing it means either storing declared types in the
-environment or annotating the assignment node from the checker.
-
-⚠️ **The parameter half is done**, and was DEF-10b. `Fits` admits both
-widenings, so `Take('a')` reaches a `String` overload — and selection gained a
-second pass so that an exact match still wins [EXP-014].
-
-*Reproduce:* `defects/DEF-10-widening-is-refused.a24`, with
-`conformance/0025-operators-widen.a24` and
-`conformance/0137-parameters-match-on-signature.a24` for the halves that work.
-
-*Scope of the fix.* `Assignable` admits Integer where Double is expected and
-Char where String is, and both processors convert **at the point of assignment**
-so the variable holds the wider type rather than one the declaration
-misdescribes. The conversions themselves already exist in both runtimes, since
-the operators perform them; this is a matter of calling them from one more
-place.
 
 ## Annex G — implementation notes *(non-normative)*
 

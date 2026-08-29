@@ -852,6 +852,10 @@ begin
                 if Actual = 'Any' or not Assignable (Declared, Actual) then
                     raise Mismatch (TheExpr.Name, Declared, Actual);
 
+            // ⚠️ Handed to the interpreter on the node, which is the only way it
+            // can widen here -- Env stores values, not types [VAR-017].
+            TheExpr.Declared := Declared;
+
             Exit Declared;
         end
 
@@ -919,6 +923,12 @@ begin
             var Owner  := TypeOfReceiver (TheExpr.Obj);
             var Actual := Reduce (TheExpr.Value);
 
+            // ⚠️ AFTER CheckVisibility, which must keep seeing 'this' untyped.
+            // A field written through 'this' still has a declared type, and
+            // this is where it is found so the value can widen into it.
+            if Owner = '' and TheExpr.Obj is ThisExpr then
+                Owner := Str (Lookup.CurrentClassName);
+
             if Owner <> '' and Owner <> 'Any' then
             begin
                 var Declared := Lookup.GetType (Owner + '::' + TheExpr.Name.Lexeme);
@@ -927,6 +937,10 @@ begin
                 if Declared <> '' and Declared <> 'Any' and Actual <> '' then
                     if Actual = 'Any' or not Assignable (Declared, Actual) then
                         raise Mismatch (TheExpr.Name, Declared, Actual);
+
+                // Handed to the interpreter on the node, so the field holds the
+                // wider type rather than one its declaration misdescribes.
+                TheExpr.Declared := Declared;
             end
 
             Exit Actual;
@@ -939,6 +953,11 @@ begin
         // an untyped receiver is never caught.  Reducing it to the class name
         // made algc stricter than the language, and every 'this.Private'
         // inside a subclass became an error the language allows.
+        // ⚠️ 'this' is DELIBERATELY untyped, and typing it here breaks a rule
+        // this file tests for: an untyped receiver is what keeps a class's own
+        // code -- and a subclass's -- outside the private-member check.  The
+        // SetExpr arm takes the class name for itself, after CheckVisibility
+        // has had its untyped receiver.
         if Kind = 'ThisExpr' then Exit '';
 
         if Kind = 'CollectionExpr' then

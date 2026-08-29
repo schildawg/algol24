@@ -104,8 +104,13 @@ begin
             var Field := Fields[I];
             var Value := Nil;
 
+            // ⚠️ A field's initializer is an assignment context too [VAR-017],
+            // so 'var X : Double := 1;' seeds 1.0 rather than an Integer the
+            // declaration misdescribes.  The declaration is in hand here, which
+            // is why this one needs no help from the checker.
             if Field.Initializer <> Nil then
-                Value := TheInterpreter.Evaluate (Field.Initializer);
+                Value := TheInterpreter.Widen (TheInterpreter.Evaluate (Field.Initializer),
+                                               Str (Field.TypeName));
 
             // ⚠️ Folded, to match every read [SRC-011].  Seeded unfolded, a
             // field declared 'Lines' was invisible to the method that reads

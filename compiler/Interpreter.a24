@@ -1718,7 +1718,10 @@ begin
             raise 'Only instances have fields.';
         end
         
-        Value := Evaluate (TheExpr.Value);
+        // ⚠️ Widened with the type the checker wrote onto the node [VAR-017],
+        // for the same reason an ordinary assignment is: an instance holds
+        // values and knows nothing of its own declared types at run time.
+        Value := Widen (Evaluate (TheExpr.Value), Str (TheExpr.Declared));
         Obj.Set (TheExpr.Name, Value);
 
         Exit Value;
@@ -2565,7 +2568,11 @@ begin
         Distance : Integer;
     
     begin
-        Value := Evaluate (Expr.Value);
+        // ⚠️ Widened HERE, using the type the checker wrote onto the node.  An
+        // assignment is an assignment context [VAR-017], so 'D := 1' where D is
+        // declared Double must leave 1.0 in it -- it used to leave an Integer,
+        // and the declaration then misdescribed what the variable held.
+        Value := Widen (Evaluate (Expr.Value), Str (Expr.Declared));
         Distance := Locals.Get (Expr) as Integer;
 
         // The same fallback as reading: an assignment to a name that is not a

@@ -198,6 +198,16 @@ class AssignExpr (Expr);
 var
     Name  : Token;
     Value : Expr;
+
+    /// The type written for this variable, filled in by the TypeChecker, or ''
+    /// where none was written or none is known.
+    ///
+    /// ⚠️ Carried on the NODE because the interpreter has nowhere else to read
+    /// it from: Env stores values, not types.  A declaration, a const, a
+    /// parameter and a return type all have the declaration in hand where the
+    /// conversion happens; a plain assignment is the one context that does not,
+    /// which is why widening reached it last [VAR-004], [VAR-017].
+    Declared : String := '';
     
 begin
     constructor Init(Name : Token, Value : Expr);
@@ -295,6 +305,11 @@ var
     /// Written by the Resolver, exactly as GetExpr.Unit is -- 'A.B := C' is the
     /// same tokens whether A is a value or a unit.
     Unit : String := '';
+
+    /// The type declared for this field, filled in by the TypeChecker, or ''
+    /// where none was written or the receiver's type is not known.  A field is
+    /// an assignment context [VAR-017], and this is what lets it widen.
+    Declared : String := '';
 
 begin
     constructor Init(Obj : Expr, Name : Token, Value : Expr);

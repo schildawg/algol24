@@ -54,6 +54,7 @@ static Value or_38;
 static Value or_39;
 static Value or_40;
 static Value or_41;
+static Value or_42;
 static const char *t_typechecker_hiddenby_2_string_string[] = { "String", "String" };
 static const char *t_typechecker_typeofreceiver_1[] = { "Any" };
 static const char *t_typechecker_checkvisibility_2_token[] = { "Any", "Token" };
@@ -853,6 +854,7 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
                     alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_theexpr, "Name"), v_declared, v_actual}, 3));
                 }
             }
+            (void)(alg_set_property(v_theexpr, "Declared", v_declared));
             return v_declared;
         }
     }
@@ -918,15 +920,19 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
             (void)v_owner;
             Value v_actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Value")}, 1);
             (void)v_actual;
-            if (alg_truthy((or_26 = alg_not_equal(v_owner, alg_string("")), !alg_truthy(or_26) ? or_26 : alg_not_equal(v_owner, alg_string("Any"))))) {
+            if (alg_truthy((or_26 = alg_equal(v_owner, alg_string("")), !alg_truthy(or_26) ? or_26 : alg_is(alg_property(v_theexpr, "Obj"), "ThisExpr")))) {
+                (void)((v_owner = alg_str(alg_property(alg_property(v_this, "Lookup"), "CurrentClassName"))));
+            }
+            if (alg_truthy((or_27 = alg_not_equal(v_owner, alg_string("")), !alg_truthy(or_27) ? or_27 : alg_not_equal(v_owner, alg_string("Any"))))) {
                 {
                     Value v_declared = alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_owner, alg_string("::")), alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1);
                     (void)v_declared;
-                    if (alg_truthy((or_28 = (or_27 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_27) ? or_27 : alg_not_equal(v_declared, alg_string("Any"))), !alg_truthy(or_28) ? or_28 : alg_not_equal(v_actual, alg_string(""))))) {
-                        if (alg_truthy((or_29 = alg_equal(v_actual, alg_string("Any")), alg_truthy(or_29) ? or_29 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_declared, v_actual}, 2))))) {
+                    if (alg_truthy((or_29 = (or_28 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_28) ? or_28 : alg_not_equal(v_declared, alg_string("Any"))), !alg_truthy(or_29) ? or_29 : alg_not_equal(v_actual, alg_string(""))))) {
+                        if (alg_truthy((or_30 = alg_equal(v_actual, alg_string("Any")), alg_truthy(or_30) ? or_30 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_declared, v_actual}, 2))))) {
                             alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_theexpr, "Name"), v_declared, v_actual}, 3));
                         }
                     }
+                    (void)(alg_set_property(v_theexpr, "Declared", v_declared));
                 }
             }
             return v_actual;
@@ -988,7 +994,7 @@ static Value m_typechecker_reducebinary_1(Value v_this, Value *args, int32_t cou
     (void)v_right;
     Value v_op = alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken");
     (void)v_op;
-    if (alg_truthy((or_34 = (or_33 = (or_32 = (or_31 = (or_30 = alg_equal(v_op, e_tokentype_tokenVgreater), alg_truthy(or_30) ? or_30 : alg_equal(v_op, e_tokentype_tokenVgreaterVequal)), alg_truthy(or_31) ? or_31 : alg_equal(v_op, e_tokentype_tokenVless)), alg_truthy(or_32) ? or_32 : alg_equal(v_op, e_tokentype_tokenVlessVequal)), alg_truthy(or_33) ? or_33 : alg_equal(v_op, e_tokentype_tokenVequal)), alg_truthy(or_34) ? or_34 : alg_equal(v_op, e_tokentype_tokenVnotVequal)))) {
+    if (alg_truthy((or_35 = (or_34 = (or_33 = (or_32 = (or_31 = alg_equal(v_op, e_tokentype_tokenVgreater), alg_truthy(or_31) ? or_31 : alg_equal(v_op, e_tokentype_tokenVgreaterVequal)), alg_truthy(or_32) ? or_32 : alg_equal(v_op, e_tokentype_tokenVless)), alg_truthy(or_33) ? or_33 : alg_equal(v_op, e_tokentype_tokenVlessVequal)), alg_truthy(or_34) ? or_34 : alg_equal(v_op, e_tokentype_tokenVequal)), alg_truthy(or_35) ? or_35 : alg_equal(v_op, e_tokentype_tokenVnotVequal)))) {
         {
             (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1));
             (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1));
@@ -997,16 +1003,16 @@ static Value m_typechecker_reducebinary_1(Value v_this, Value *args, int32_t cou
     }
     (void)((v_left = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1)));
     (void)((v_right = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1)));
-    if (alg_truthy((or_37 = (or_36 = (or_35 = alg_equal(v_left, alg_string("")), alg_truthy(or_35) ? or_35 : alg_equal(v_right, alg_string(""))), alg_truthy(or_36) ? or_36 : alg_equal(v_left, alg_string("Any"))), alg_truthy(or_37) ? or_37 : alg_equal(v_right, alg_string("Any"))))) {
+    if (alg_truthy((or_38 = (or_37 = (or_36 = alg_equal(v_left, alg_string("")), alg_truthy(or_36) ? or_36 : alg_equal(v_right, alg_string(""))), alg_truthy(or_37) ? or_37 : alg_equal(v_left, alg_string("Any"))), alg_truthy(or_38) ? or_38 : alg_equal(v_right, alg_string("Any"))))) {
         return alg_string("");
     }
     if (alg_truthy(alg_equal(v_op, e_tokentype_tokenVin))) {
         return alg_string("Boolean");
     }
-    if (alg_truthy((or_39 = alg_equal(v_op, e_tokentype_tokenVplus), !alg_truthy(or_39) ? or_39 : ((or_38 = alg_invoke(v_this, "IsTextType", (Value[]){v_left}, 1), alg_truthy(or_38) ? or_38 : alg_invoke(v_this, "IsTextType", (Value[]){v_right}, 1)))))) {
+    if (alg_truthy((or_40 = alg_equal(v_op, e_tokentype_tokenVplus), !alg_truthy(or_40) ? or_40 : ((or_39 = alg_invoke(v_this, "IsTextType", (Value[]){v_left}, 1), alg_truthy(or_39) ? or_39 : alg_invoke(v_this, "IsTextType", (Value[]){v_right}, 1)))))) {
         return alg_string("String");
     }
-    if (alg_truthy((or_40 = alg_equal(v_left, alg_string("Double")), alg_truthy(or_40) ? or_40 : alg_equal(v_right, alg_string("Double"))))) {
+    if (alg_truthy((or_41 = alg_equal(v_left, alg_string("Double")), alg_truthy(or_41) ? or_41 : alg_equal(v_right, alg_string("Double"))))) {
         return alg_string("Double");
     }
     if (alg_truthy(alg_equal(v_left, v_right))) {
@@ -1020,7 +1026,7 @@ static Value m_typechecker_istexttype_1_string(Value v_this, Value *args, int32_
     (void)v_this; (void)args; (void)count;
     Value v_thetype = args[0];
     (void)v_thetype;
-    return (or_41 = alg_equal(v_thetype, alg_string("String")), alg_truthy(or_41) ? or_41 : alg_equal(v_thetype, alg_string("Char")));
+    return (or_42 = alg_equal(v_thetype, alg_string("String")), alg_truthy(or_42) ? or_42 : alg_equal(v_thetype, alg_string("Char")));
     return alg_nil();
 }
 
