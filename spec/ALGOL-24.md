@@ -3658,12 +3658,17 @@ A function nested more than one level deep is not supported by the C back end ye
 
 Three levels of nesting run correctly interpreted and refuse to compile.
 
-**C-3 — A compiled assertion failure carries no message.** *(loud enough)*
+**C-3 — A compiled assertion failure carries no message.**
+***Withdrawn.***
 
-`alg_test_run` prints no `[ERROR]` line, because compiled code has no line
-information to put in one. The `FAIL` stands alone where the interpreter also
-prints the assertion and a caret. A report comparison drops those lines for that
-reason.
+`alg_test_run` printed no `[ERROR]` line, so the `FAIL` stood alone where the
+interpreter also gave the assertion message. It prints the same line now — see
+C-23, which is where the fix and the reasoning live.
+
+⚠️ **The premise was wrong, not just the behaviour.** This entry said compiled
+code "has no line information to put in one", and inferred from that that the
+whole line was unreproducible. Only the *caret* lines need a source position;
+the message line carries the file name and the message and nothing else.
 
 **C-4 — Collection member names are matched case-insensitively.**
 ***Withdrawn.***
