@@ -23,16 +23,27 @@ WriteLn (Length (Str (Char (233))));
 // A one-character literal is a Char however many BYTES it takes [LEX-023].
 WriteLn ('é' is Char);
 
-// A Unicode letter may appear in an identifier [SRC-005], where the scanner
-// used to refuse every non-ASCII byte outright [SRC-002].  A LETTER -- what
-// Unicode classifies as one -- so an emoji is refused: refusals/0044.
+// ANY Unicode character may appear in an identifier [SRC-005], where the
+// scanner used to refuse every non-ASCII byte outright [SRC-002].
 var café := 3;
 WriteLn (café);
 
-// Letters from any script, since the table is all of Lu, Ll, Lt, Lm and Lo.
+// Any script, and no category test -- there is nothing above U+007F that is
+// excluded, so the language needs no Unicode tables.
 var 日本 := 4;
 var Ωμέγα := 5;
 WriteLn (日本 + Ωμέγα);
+
+// ⚠️ Including an emoji, which may also LEAD a name -- only a digit and the
+// marks '?' and '!' may not [LEX-007].
+var 🙂 := 'happy';
+var 💩 := 'oops';
+WriteLn (🙂 + ' ' + 💩);
+
+// A Unicode DIGIT is an ordinary identifier character too.  Only ASCII 0-9 are
+// digits to the number scanner, so this can never start a numeric literal.
+var ٠x := 6;
+WriteLn (٠x);
 
 // ⚠️ Folding is ASCII-only [SRC-011], so these are two names, not one.
 var Straße := 'ok';

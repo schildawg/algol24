@@ -2,7 +2,6 @@ uses AstPrinter;
 
 uses Token;
 uses TokenType;
-uses Unicode;
 
 uses Expr;
 uses Stmt;

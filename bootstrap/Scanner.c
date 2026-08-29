@@ -3,7 +3,6 @@
 #include "SourceCode.h"
 #include "Token.h"
 #include "TokenType.h"
-#include "Unicode.h"
 
 Value f_ToLower(Value **cells, Value *args, int32_t count);
 Value f_ToInteger(Value **cells, Value *args, int32_t count);
@@ -507,10 +506,7 @@ static Value m_Scanner_IsAlpha_1_Char(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_equal(v_C, alg_char_value(95)))) {
         return alg_bool(true);
     }
-    if (alg_truthy(alg_less(alg_ord(v_C), alg_int(128)))) {
-        return alg_bool(false);
-    }
-    return f_IsLetterCode(NULL, (Value[]){alg_ord(v_C)}, 1);
+    return alg_greater(alg_ord(v_C), alg_int(127));
     return alg_nil();
 }
 

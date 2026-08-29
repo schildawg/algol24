@@ -1,7 +1,6 @@
 uses SourceCode;
 uses Token;
 uses TokenType;
-uses Unicode;
 
 const DIGITS    := '0123456789';
 const UPPERCASE := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -526,29 +525,28 @@ begin
     /// A letter, for the purpose of starting or continuing an identifier
     /// [SRC-005].
     ///
-    /// ⚠️ A Unicode LETTER, asked of the table [SRC-005] -- categories Lu, Ll,
-    /// Lt, Lm and Lo.  The scanner used to refuse every non-ASCII byte outright
-    /// [SRC-002], and then briefly admitted every code point above 127, which
-    /// was looser than the rule: an emoji was accepted where the rule refuses
-    /// it.  Both were wrong in opposite directions.
+    /// A letter, for the purpose of starting or continuing an identifier
+    /// [SRC-005].
     ///
-    /// ⚠️ ASCII IS ANSWERED FIRST, and the order is the point.  This runs once
-    /// per character of every file the compiler reads, itself included, and
-    /// almost every one of them is ASCII.  Falling through to a bisection over
-    /// 659 ranges to discover that 'x' is a letter would put a binary search on
-    /// the hot path for nothing.
+    /// ⚠️ EVERY character above 127 counts, and that is the rule rather than an
+    /// approximation of it.  An identifier may hold any Unicode character at
+    /// all -- Annex G.3's mangling escapes whatever C cannot spell as 'U'
+    /// followed by six hexadecimal digits, so there is nothing to exclude.
     ///
-    /// ⚠️ '_' is a letter to the GRAMMAR and not to Unicode, so it is named here
-    /// rather than expected from the table.
+    /// ⚠️ This briefly asked a table of Unicode LETTER categories instead, on
+    /// the reading that [SRC-005] meant letters literally.  It does not: the
+    /// restriction excluded '🙂' and '💩', which are identifiers here, and the
+    /// table it needed answered a question the language does not ask.
+    ///
+    /// ⚠️ ASCII IS ANSWERED FIRST.  This runs once per character of every file
+    /// the compiler reads, itself included, and almost every one is ASCII.
     function IsAlpha(C : Char) : Boolean;
     begin
         if C >= 'a' and C <= 'z' then Exit True;
         if C >= 'A' and C <= 'Z' then Exit True;
         if C = '_' then Exit True;
 
-        if Ord (C) < 128 then Exit False;
-
-        Exit IsLetterCode (Ord (C));
+        Exit Ord (C) > 127;
     end
 
     /// An identifier MARK: may continue an identifier, may not begin one.

@@ -168,13 +168,12 @@ character must be one the scanner recognises — a letter [SRC-005], a digit, or
 an operator or item of punctuation [LEX-012]. Any other is an error reading
 `[line N] Error: Unexpected character: C`.
 
-⚠️ The scanner used to refuse every non-ASCII byte, and then briefly admitted
-every code point above 127 — wrong in opposite directions. A table answers it.
+⚠️ The scanner used to refuse every non-ASCII byte outright, so no Unicode
+character could appear in a program at all outside a comment or a literal.
 
     interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Unrecognized Character Is Recorded
     refusal      0001-unexpected-character.a24
-    refusal      0044-emoji-is-not-a-letter.a24
 
 **[SRC-003]**  Inside a comment, a string literal or a character literal, any
 byte is permitted and is carried through unchanged. A program may therefore
@@ -212,36 +211,35 @@ not on the data a program may carry.
 **[SRC-005]**  The following classes are used by the grammar:
 
 ```
-letter          = "a" … "z" | "A" … "Z" | "_" | unicode_letter .
+letter          = "a" … "z" | "A" … "Z" | "_" | unicode_character .
 decimal_digit   = "0" … "9" .
 identifier_mark = "?" | "!" .
 ```
 
-`unicode_letter` is any character Unicode classifies as a letter.
+`unicode_character` is **any** character above U+007F, whatever Unicode
+classifies it as. `café`, `Straße`, `日本`, `🙂` and `💩` are all identifiers.
 
-⚠️ `unicode_letter` is **categories Lu, Ll, Lt, Lm and Lo**, held as 659
-inclusive ranges generated from Unicode 15.0.0 and searched by bisection —
-`compiler/Unicode.a24`. An emoji is not a letter and is refused.
+⚠️ **There is no category test, and that is deliberate.** Nothing above U+007F
+is excluded, so the language needs no Unicode tables at all — Annex G.3's
+mangling escapes whatever C cannot spell as `U` followed by six hexadecimal
+digits, and there is nothing left for a classification to decide.
 
-⚠️ **A Unicode digit is not an identifier character at all.** `decimal_digit` is
-ASCII `0`–`9`, and only the letter categories are collected, so an Arabic-Indic
-digit can neither begin nor continue a name.
+⚠️ This briefly read `unicode_letter` literally, and the implementation grew a
+659-range table of categories Lu, Ll, Lt, Lm and Lo to match. That excluded `🙂`
+and `💩`, which are identifiers here, and the table answered a question the
+language does not ask. Both were removed.
 
-⚠️ **ASCII is answered before the table is consulted.** `IsAlpha` runs once per
-character of every file the compiler reads, itself included, and almost every
-one is ASCII; falling through to a bisection over 659 ranges to discover that
-`x` is a letter would put a binary search on the hot path for nothing.
+⚠️ A Unicode **digit** is therefore an ordinary identifier character. Only ASCII
+`0`–`9` are digits to the *number* scanner, so `٠` cannot start a numeric
+literal, but it may appear in a name.
 
-⚠️ `_` is a letter to *this grammar* and not to Unicode, so it is named in the
-rule rather than expected from the table.
+⚠️ `decimal_digit` and `identifier_mark` are still ASCII, and a digit or a mark
+may not **lead** [LEX-007]. A character above U+007F may.
 
-    interpreter  compiler/Unicode.a24  IsLetterCode
+    interpreter  compiler/Scanner.a24  IsAlpha
     unit         Scan Identifier With A Question Mark
-    unit         Unicode Letters Are Letters
-    unit         Unicode Non-Letters Are Not Letters
     conformance  0002-letters-and-digits.a24
     conformance  0128-text-is-characters.a24
-    refusal      0045-unicode-digit-is-not-a-letter.a24
 
 ⚠️ **An identifier mark is not a letter.** `?` and `!` may appear *within* an
 identifier but may not begin one [LEX-007], so `Gate?` and `Gate!` are each a
@@ -5025,9 +5023,9 @@ path that almost never takes it.
 
 ### G.3 Mangling identifiers into C
 
-The C back end must map an Algol-24 identifier — which may hold `_`, any Unicode
-letter, and the marks `?` and `!` [SRC-005] — onto a C identifier, which may
-not.
+The C back end must map an Algol-24 identifier — which may hold `_`, **any
+Unicode character**, and the marks `?` and `!` [SRC-005] — onto a C identifier,
+which may not.
 
 Because identifiers are case-insensitive [SRC-011], **case carries no
 information**, and lowercasing the name is lossless. That frees the entire
@@ -5040,6 +5038,10 @@ uppercase range to act as escape markers:
 | `!` | `E` |
 | `_` | `V` |
 | any other character | `U` followed by six hexadecimal digits |
+
+⚠️ **The last row is what admits all of Unicode.** `🙂` is U+1F642 and emits as
+`U01F642`. Nothing has to be classified or excluded, which is why [SRC-005]
+needs no letter table and the language carries none.
 
 `_` remains unused by the mapping and is therefore available as a separator
 wherever two escapes would otherwise run together ambiguously.
