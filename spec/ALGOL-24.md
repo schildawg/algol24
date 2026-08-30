@@ -221,6 +221,8 @@ not on the data a program may carry.
 ```
 letter          = "a" … "z" | "A" … "Z" | "_" | unicode_character .
 decimal_digit   = "0" … "9" .
+hex_digit       = decimal_digit | "a" … "f" | "A" … "F" .
+binary_digit    = "0" | "1" .
 identifier_mark = "?" | "!" .
 ```
 
@@ -536,28 +538,63 @@ delimiters, not as block delimiters, and not as set constructors. A block is
 
 ### 4.6 Integer literals
 
-**[LEX-015]**  An integer literal is a run of decimal digits.
+**[LEX-015]**  An integer literal is a run of digits in one of three bases,
+with an optional separator between digits.
 
 ```
-integer_lit = decimal_digit { decimal_digit } .
+integer_lit = decimal_lit | hex_lit | binary_lit .
+
+decimal_lit = decimal_digit { [ "_" ] decimal_digit } .
+hex_lit     = "0x" hex_digit { [ "_" ] hex_digit } .
+binary_lit  = "0b" binary_digit { [ "_" ] binary_digit } .
 ```
+
+⚠️ The base prefix and the hexadecimal digits are matched **without regard to
+case**, as every other name in the language is [SRC-011]: `0XFF`, `0xff` and
+`0xFF` are one literal.
 
     interpreter  compiler/Scanner.a24  ScanNumber
     unit         Scan Number
     unit         Scan Integer Is Not A Double
     conformance  0013-integer-literals.a24
 
-**[LEX-016]**  Decimal is the only base. There is no hexadecimal, octal or
-binary form, and no digit separator. `0x10` is not a number: it scans as the
-integer `0` followed by the identifier `x10`, and the two adjacent expressions
-then fail to parse.
+**[LEX-016]**  There are three bases — decimal, hexadecimal `0x` and binary
+`0b` — and a digit separator `_`. A separator **separates two digits** and
+carries no other meaning: it may not lead, trail, or stand beside anything but a
+digit.
 
-⚠️ **PLANNED — a later generation.** Hexadecimal, octal and binary forms and a
-digit separator are intended, and will change this rule. They are not part of
-the language described here. See Annex H.
+| | |
+| --- | --- |
+| `1_000_000` | ✓ |
+| `0xFF`, `0b1010` | ✓ |
+| `1_0_0` | ✓ — silly, and not worth a rule to forbid |
+| `_100` | an **identifier** [SRC-005], and cannot also be a literal |
+| `100_` | refused: nothing to the right to separate |
+| `1_.5`, `1._5`, `1e_5` | refused: the neighbour is not a digit |
+| `0x_FF` | refused: the prefix is not a digit either |
+
+⚠️ **There is no octal.** It is a PDP-11 artefact, and `0755` silently meaning
+493 is a classic defect; C# omits it for the same reason. Three bases where two
+are used is a name the reader must know for nothing.
+
+⚠️ **A comma separator is impossible rather than merely awkward.**
+`F (1,000,000)` is already a call with three arguments and `[1,000,000]` a list
+of three elements — both valid, with a different meaning. No lookahead resolves
+it, because both readings are complete. `_` is the only separator available to a
+language with comma-separated arguments and collection literals.
+
+⚠️ **`0x` and `0b` rather than Turbo Pascal's `$FF`.** `$` is unclaimed, and
+`$FF` would sit consistently beside `#10`, which the language already has for a
+code point. But Turbo Pascal has no binary form at all, so `$FF` beside `0b1010`
+would mix two traditions in one sentence. The choice is for coherence with the
+binary form, not for modernity.
+
+⚠️ **A separator does not survive into the value**, so `1_000` and `1000` are
+the same literal and print alike.
 
     interpreter  compiler/Scanner.a24  ScanNumber
-    refusal      0006-hex-is-not-a-literal.a24
+    conformance  0006-integer-bases-and-separators.a24
+    refusal      0151-a-separator-must-separate-digits.a24
 
 **[LEX-017]**  Leading zeros are permitted and carry no meaning. `007` is the
 integer 7, not an octal.
@@ -623,10 +660,10 @@ subtraction rather than two adjacent expressions.
 ### 4.7 Double literals
 
 **[LEX-020]**  A double literal requires at least one digit on **both** sides
-of the point.
+of the point, or an exponent [LEX-022] in place of the point.
 
 ```
-double_lit = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit } .
+double_lit = decimal_lit "." decimal_lit [ exponent ] | decimal_lit exponent .
 ```
 
     interpreter  compiler/Scanner.a24  ScanNumber
@@ -641,21 +678,31 @@ name after '.'.` Likewise `.5` is not a literal at all.
     unit         Scan Integer Then Dot
     refusal      0005-trailing-dot-is-not-a-double.a24
 
-**[LEX-022]**  There is no exponent notation. `1e5` scans as the integer `1`
-followed by the identifier `e5`, and the two adjacent expressions then fail to
-parse.
+**[LEX-022]**  A literal may carry an exponent, and one that does is a Double
+whether or not it has a point.
 
-⚠️ The language therefore **prints a form it cannot read**. `Str` renders a
-large Double in exponent notation — `1.0E300` — and that text is not a literal.
-Nothing becomes unreachable, because `Val` *does* parse the exponent form and
-`Val(Str(X))` round-trips; but a value cannot be written into a program the way
-the program writes it out.
+```
+exponent = ( "e" | "E" ) [ "+" | "-" ] decimal_digit { [ "_" ] decimal_digit } .
+```
 
-⚠️ **PLANNED — a later generation.** An exponent form is intended, and will
-change this rule. See Annex H.
+`1e5` is `100000.0`, `1.5e-3` is `0.0015`, and `1E300` is a Double.
+
+⚠️ **The exponent decides the type**, which is why `1e5` is a Double rather than
+an Integer of the same value. A form written to say "this is a magnitude" should
+not answer with the type that cannot express most magnitudes.
+
+⚠️ **This closed a place where the language printed a form it could not read.**
+`Str` renders a large Double in exponent notation — `1.0E300` — and that text
+was not a literal. Nothing was unreachable, because `Val` parsed the exponent
+form and `Val(Str(X))` round-tripped; but a value could not be written into a
+program the way the program wrote it out.
+
+⚠️ **The sign belongs to the exponent, not to the literal.** [LEX-019] still
+holds: there is no negative literal, and `-1e5` is the unary operator applied to
+one. The `-` inside `1e-5` is part of the exponent and is not that operator.
 
     interpreter  compiler/Scanner.a24  ScanNumber
-    refusal      0007-exponent-is-not-a-literal.a24
+    conformance  0007-exponent-notation.a24
 
 ### 4.8 Character literals
 
@@ -3555,12 +3602,20 @@ nobody checked is exactly the kind of claim this specification exists to avoid.
 ```
 letter          = "a" … "z" | "A" … "Z" | "_" | unicode_letter .
 decimal_digit   = "0" … "9" .
+hex_digit       = decimal_digit | "a" … "f" | "A" … "F" .
+binary_digit    = "0" | "1" .
 identifier_mark = "?" | "!" .
 
 identifier      = letter { letter | decimal_digit | identifier_mark } .
 
-integer_lit     = decimal_digit { decimal_digit } .
-double_lit      = decimal_digit { decimal_digit } "." decimal_digit { decimal_digit } .
+integer_lit     = decimal_lit | hex_lit | binary_lit .
+decimal_lit     = decimal_digit { [ "_" ] decimal_digit } .
+hex_lit         = "0x" hex_digit { [ "_" ] hex_digit } .
+binary_lit      = "0b" binary_digit { [ "_" ] binary_digit } .
+
+double_lit      = decimal_lit "." decimal_lit [ exponent ] | decimal_lit exponent .
+exponent        = ( "e" | "E" ) [ "+" | "-" ] decimal_lit .
+
 char_lit        = "'" source_character "'" | "#" decimal_digit { decimal_digit } .
 string_lit      = "'" { source_character_other_than_quote | "''" } "'" .
 ```

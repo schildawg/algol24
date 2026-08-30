@@ -1,5 +1,0 @@
-Uncaught: Expect ')' after arguments.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0007-exponent-is-not-a-literal.a24: Expect ')' after arguments.
-[WHITE][[RED]ERROR[WHITE]] [RESET]6 | WriteLn (1e5);
-[WHITE][[RED]ERROR[RESET]]   |[RED]          ^[RESET]
-exit: 70

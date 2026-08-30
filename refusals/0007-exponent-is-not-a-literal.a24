@@ -1,6 +1,0 @@
-// spec: LEX-022
-//
-// There is no exponent notation.  '1e5' scans as the integer 1 followed by
-// the identifier e5, and two adjacent expressions do not parse.
-
-WriteLn (1e5);

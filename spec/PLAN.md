@@ -304,13 +304,27 @@ The satisfying half, and a fair measure of whether the design is right:
 
 ## Order
 
-1. **The type set and the lattice**, interpreter first, then the C runtime.
-   Nothing else can be checked until `type_name` answers for the new types.
-2. **Subranges**, including the check in `alg_param` and the case in `alg_is`.
-3. **The scanner** — H-1, H-2, and the deletions, in one pass over number
-   scanning rather than three.
+1. ✅ **The scanner** — H-1 and H-2, in one pass over number scanning.
+2. **The type set and the lattice**, interpreter first, then the C runtime.
+   Nothing after this can be checked until `type_name` answers for the new
+   types.
+3. **Subranges**, including the check in `alg_param` and the case in `alg_is`.
 4. **`div`**, which is a token, a rule and an operator case.
 5. **Members on numbers**, last, because it is additive and gated by nothing.
+
+⚠️ **The scanner moved to the front, and the reason first given for putting it
+third was wrong.** "Nothing else can be checked until `type_name` answers for
+the new types" is true of subranges and of members on numbers; it is false of
+the lexis, which needs nothing from the type system. And the emitter writes a
+literal's **value**, not its text — `0xFF` and `255` both emit `alg_int(255)` —
+so the whole change is front-end and the compiled half agrees by construction.
+Under the new gate that makes it the ideal first slice: complete across both
+processors on the first commit.
+
+⚠️ **One limit until `Integer` is unbounded**: `0xFFFFFFFF` is out of range and
+[LEX-033] still refuses it, so a 32-bit mask cannot yet be written in hex. The
+deletions this generation promised — [LEX-033], `ExceedsInteger`, Annex G.4's
+build switch — wait on step 2, which is where they belong.
 
 ⚠️ **Unbounded arithmetic must be written once, not twice.** The interpreter's
 arithmetic *is* the host's, so the two processors agree by construction — as

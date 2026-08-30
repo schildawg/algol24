@@ -1,5 +1,0 @@
-Uncaught: Expect ')' after arguments.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0006-hex-is-not-a-literal.a24: Expect ')' after arguments.
-[WHITE][[RED]ERROR[WHITE]] [RESET]6 | WriteLn (0x10);
-[WHITE][[RED]ERROR[RESET]]   |[RED]          ^[RESET]
-exit: 70

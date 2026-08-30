@@ -3,6 +3,8 @@ uses Token;
 uses TokenType;
 
 const DIGITS    := '0123456789';
+const HEXDIGITS := '0123456789abcdef';
+const BINDIGITS := '01';
 const UPPERCASE := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const LOWERCASE := 'abcdefghijklmnopqrstuvwxyz';
 
@@ -43,6 +45,25 @@ var
 begin
     for var I := 0; I < Length(Text); I := I + 1 do
         Result := Result * 10 + Pos(DIGITS, Copy(Text, I, 1));
+
+    Exit Result;
+end
+
+/// Reads a run of digits in a base as an Integer.  The separator is already
+/// gone by the time this is called.
+///
+/// ⚠️ Hexadecimal digits are matched WITHOUT REGARD TO CASE [SRC-011], as every
+/// other name in the language is, so '0xff' and '0xFF' are one literal.  Pos
+/// searches a folded alphabet against a folded character for exactly that.
+///
+function ToRadix(Text : String, Alphabet : String) : Integer;
+var
+   Result : Integer := 0;
+
+begin
+    for var I := 0; I < Length(Text); I := I + 1 do
+        Result := Result * Length(Alphabet)
+                + Pos(Alphabet, ToLower(Copy(Text, I, 1)));
 
     Exit Result;
 end
@@ -264,25 +285,75 @@ begin
     // the two are different types.  That is what makes '7 / 2' three rather
     // than 3.5, because the arithmetic below is the host's.
     //
+    /// Scans a number: decimal, hexadecimal or binary, with an optional
+    /// fractional part, an optional exponent, and separators between digits
+    /// [LEX-015, LEX-016, LEX-022].
+    ///
+    /// ⚠️ The DIGITS are collected rather than the span sliced, because a
+    /// separator must not reach the value: '1_000' and '1000' are one literal
+    /// and print alike.  Slicing the source and stripping afterwards would work
+    /// too and would put the rule in two places.
+    ///
     procedure ScanNumber();
     var
        IsInteger : Boolean;
+       Digits    : String;
 
     begin
+        // ⚠️ A base prefix is only a prefix when a digit of that base follows.
+        // '0x' alone is the integer 0 and the identifier 'x', which is what it
+        // was before this rule existed, and 'B := 0' followed by 'b' must not
+        // become a binary literal.
+        if Source[Start] = '0' and (Peek() = 'x' or Peek() = 'X') then
+            if IsHexDigit(PeekNext()) then
+            begin
+                Advance();
+                ScanRadix(HEXDIGITS);
+                Exit;
+            end
+
+        if Source[Start] = '0' and (Peek() = 'b' or Peek() = 'B') then
+            if PeekNext() = '0' or PeekNext() = '1' then
+            begin
+                Advance();
+                ScanRadix(BINDIGITS);
+                Exit;
+            end
+
         IsInteger := True;
+        Digits := Str (Source[Start]);
 
-        while IsDigit(Peek()) do Advance();
+        Digits := Digits + ScanDigits();
 
-        // look for a fractional part.
+        // A fractional part, which needs a digit on both sides of the point
+        // [LEX-020].
         if Peek() = '.' and IsDigit(PeekNext()) then
         begin
             IsInteger := False;
             Advance();
+
+            Digits := Digits + '.' + ScanDigits();
         end
 
-        while IsDigit(Peek()) do Advance();
+        // ⚠️ An exponent makes it a Double whether or not a point did
+        // [LEX-022].  The sign here belongs to the EXPONENT and is not
+        // [LEX-019]'s unary operator, which is why it is consumed rather than
+        // left for the parser.
+        if Peek() = 'e' or Peek() = 'E' then
+            if IsExponent() then
+            begin
+                IsInteger := False;
+                Advance();
 
-        var Text := Copy(Source, Start, Current - Start);
+                Digits := Digits + 'e';
+                if Peek() = '+' or Peek() = '-' then
+                begin
+                    Digits := Digits + Str (Peek());
+                    Advance();
+                end
+
+                Digits := Digits + ScanDigits();
+            end
 
         if IsInteger then
         begin
@@ -290,17 +361,110 @@ begin
             // to be the integer -2147483648 and '99999999999999' to be
             // 276447231 -- a value the source states plainly, silently replaced
             // by a different one [LEX-033].
-            if ExceedsInteger(Text) then
+            if ExceedsInteger(Digits) then
             begin
                 HadError := True;
                 LastError := '[line ' + Line
-                    + '] Error: Integer literal out of range: ' + Text;
+                    + '] Error: Integer literal out of range: ' + Digits;
                 Exit;
             end
 
-            AddToken(TOKEN_INTEGER, ToInteger(Text));
+            AddToken(TOKEN_INTEGER, ToInteger(Digits));
         end
-        else AddToken(TOKEN_NUMBER, Val(Text));
+        else AddToken(TOKEN_NUMBER, Val(Digits));
+    end
+
+    /// Consumes a run of digits with separators between them, and answers the
+    /// digits alone.
+    ///
+    /// ⚠️ A separator is consumed only when a DIGIT follows it, so '100_' ends
+    /// the literal at '100' and leaves '_' to start an identifier -- which is
+    /// what '_' does [SRC-005].  The rule is that a separator separates two
+    /// digits, and this is the whole of it.
+    ///
+    function ScanDigits() : String;
+    var
+        Digits : String;
+
+    begin
+        Digits := '';
+
+        while True do
+        begin
+            if IsDigit(Peek()) then
+            begin
+                Digits := Digits + Str (Peek());
+                Advance();
+            end
+            else if Peek() = '_' and IsDigit(PeekNext()) then Advance();
+            else Exit Digits;
+        end
+
+        Exit Digits;
+    end
+
+    /// The same, for a base whose digits are not decimal.  The prefix has been
+    /// consumed and at least one digit is known to follow.
+    ///
+    procedure ScanRadix(Alphabet : String);
+    var
+        Digits : String;
+
+    begin
+        Digits := '';
+
+        while True do
+        begin
+            if InAlphabet(Alphabet, Peek()) then
+            begin
+                Digits := Digits + Str (Peek());
+                Advance();
+            end
+            else if Peek() = '_' and InAlphabet(Alphabet, PeekNext()) then Advance();
+            else
+            begin
+                // ⚠️ The range check reads the DECIMAL value, so a hexadecimal
+                // or binary literal is bounded by the arithmetic that builds it
+                // rather than by ExceedsInteger.  '0xFFFFFFFF' is out of range
+                // for an Integer today and raises there [LEX-018]; unbounded
+                // Integer is what will make it writable.
+                AddToken(TOKEN_INTEGER, ToRadix(Digits, Alphabet));
+                Exit;
+            end
+        end
+    end
+
+    /// Whether a character is one of a base's digits, without regard to case.
+    ///
+    function InAlphabet(Alphabet : String, C : Char) : Boolean;
+    begin
+        Exit Pos(Alphabet, ToLower(Str(C))) >= 0;
+    end
+
+    function IsHexDigit(C : Char) : Boolean;
+    begin
+        Exit InAlphabet(HEXDIGITS, C);
+    end
+
+    /// Whether what follows 'e' is an exponent rather than an identifier.
+    ///
+    /// ⚠️ Asked BEFORE consuming the 'e', because '1eight' is the integer 1
+    /// followed by the identifier 'eight' and must stay that way.  An exponent
+    /// needs a digit, optionally behind one sign.
+    ///
+    function IsExponent() : Boolean;
+    var
+        At : Integer;
+
+    begin
+        At := Current + 1;
+
+        if At < Length(Source) then
+            if Source[At] = '+' or Source[At] = '-' then At := At + 1;
+
+        if At >= Length(Source) then Exit False;
+
+        Exit IsDigit(Source[At]);
     end
 
     // Scans a String

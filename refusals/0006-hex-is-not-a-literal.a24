@@ -1,6 +1,0 @@
-// spec: LEX-016
-//
-// Decimal is the only base.  '0x10' is not a number: it scans as the integer
-// 0 followed by the identifier x10, and two adjacent expressions do not parse.
-
-WriteLn (0x10);

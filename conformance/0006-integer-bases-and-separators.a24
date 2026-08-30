@@ -1,0 +1,29 @@
+// spec: LEX-015, LEX-016
+//
+// Three bases, and a separator between digits.
+//
+// ⚠️ The separator does not reach the value, so '1_000' and '1000' are one
+// literal and compare and print alike.
+
+WriteLn (0xFF);
+WriteLn (0b1010);
+WriteLn (1_000_000);
+
+// ⚠️ The prefix and the hexadecimal digits fold [SRC-011], as every other name
+// in the language does.
+WriteLn (0xff = 0XFF);
+WriteLn (0B1010 = 0b1010);
+
+// A separator may stand between any two digits, in any base.
+WriteLn (0xFF_FF);
+WriteLn (0b1010_1010);
+WriteLn (1_0_0);
+
+WriteLn (1_000 = 1000);
+WriteLn (0x10 = 16);
+WriteLn (0b1010 is Integer);
+
+// ⚠️ '0x' is a prefix only when a digit of that base follows it.  A variable
+// named 'x' after a zero is still two things.
+var x := 5;
+WriteLn (0 + x);

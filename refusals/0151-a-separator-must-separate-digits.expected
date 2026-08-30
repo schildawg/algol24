@@ -1,0 +1,5 @@
+Uncaught: Expect ')' after arguments.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0151-a-separator-must-separate-digits.a24: Expect ')' after arguments.
+[WHITE][[RED]ERROR[WHITE]] [RESET]11 | WriteLn (100_);
+[WHITE][[RED]ERROR[RESET]]    |[RED]          ^^^[RESET]
+exit: 70
