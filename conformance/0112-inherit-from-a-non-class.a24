@@ -1,7 +1,5 @@
 // spec: CLS-014
 //
-// ⚠️ Expected to FAIL compiled, because of C-8.
-//
 // Naming something that is not a class says so, and names it -- beside the
 // existing 'A class can't inherit from itself.'  It used to say 'Only
 // instances have properties.', a sentence naming neither the class, nor the

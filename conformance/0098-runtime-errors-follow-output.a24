@@ -1,7 +1,5 @@
 // spec: ERR-003
 //
-// ⚠️ Expected to FAIL compiled, because of C-8.
-//
 // A runtime error occurs during execution, so statements before it have run
 // and their output stands.  This is the contrast with 0097: the same shape of
 // program, failing in a different phase, keeps its output.

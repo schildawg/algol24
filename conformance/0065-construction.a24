@@ -1,7 +1,4 @@
 // spec: CLS-003, CLS-004
-//
-// ⚠️ Expected to FAIL compiled, because of C-8: the run ends in an uncaught
-// runtime error and the compiled runtime omits the 'Uncaught: ' prefix.
 
 class Point;
 var X, Y : Integer;

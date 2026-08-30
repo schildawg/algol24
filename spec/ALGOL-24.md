@@ -1,20 +1,28 @@
 # The Algol-24 Programming Language Specification
 
-> **Status: Gen 0 — read, corrected and signed off.** Nineteen chapters and
-> eight annexes, 261 rules. Every rule is **decided** — what the language should
-> do — and every rule is claimed by a case: a program in `conformance/`, a refusal in
-> `refusals/`, or a reproduction in `defects/`. None awaits one.
+> **Status: the specification is read, corrected and signed off.** Nineteen
+> chapters and eight annexes, 263 rules. Every rule is **decided** — what the
+> language should do — and every rule is claimed by a case: a program in
+> `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
+> None awaits one.
 >
-> ⚠️ **This document is now the authority, and the implementation is measured
-> against it** [1.1]. Where the two disagree, **33 defects** in Annex F say so
-> and carry a reproduction that passes while the fault persists. A rule ahead of
-> the implementation says which of three things it is — `NOT YET IMPLEMENTED`,
-> `PARTLY IMPLEMENTED`, or `PLANNED — a later generation` — and `spec/spec.sh`
-> enforces that each points somewhere.
+> ⚠️ **This document is the authority, and the implementation is measured
+> against it** [1.1]. Where the two disagree, a defect in Annex F says so and
+> carries a reproduction that passes while the fault persists. **Annex F is
+> empty**: every defect it held has been fixed and `defects/` is empty with it.
+> A rule ahead of the implementation says which of three things it is —
+> `NOT YET IMPLEMENTED`, `PARTLY IMPLEMENTED`, or `PLANNED — a later generation`
+> — and `spec/spec.sh` enforces that each points somewhere.
 >
-> Fifteen divergences between the interpreter and the C back end are recorded in
-> Annex C, six of them silent. Annex D's eighteen advisory notes are all
-> resolved. Annex H holds nine changes planned for later generations.
+> Annex C records **36 divergences** between the interpreter and the C back end,
+> and **all of them are withdrawn**: `./conform.sh` reports no gap, so every case
+> the interpreter gets right the compiled back end gets right too. Annex D's
+> eighteen advisory notes are all resolved. Annex H holds nine changes planned
+> for later generations.
+>
+> ⚠️ **The entries stay after they are withdrawn**, and are worth more than the
+> count. Each carries what was actually wrong, which in a dozen cases is not what
+> the entry first recorded — several name a mistake in their own proposed fix.
 >
 > ⚠️ **From this tag onward the document leads and the implementation follows.**
 > A defect is closed by changing the code; a rule is changed only by deciding to
@@ -1820,9 +1828,9 @@ than being converted into it.
 position, counted from zero [SRC-004]. An index outside the value is
 `Index N out of range 0..M.`
 
-⚠️ **PARTLY IMPLEMENTED.** The position is counted in bytes, so a subscript into
-text outside ASCII yields part of a sequence rather than a character. See
-DEF-01.
+⚠️ The position used to be counted in bytes, so a subscript into text outside
+ASCII yielded part of a sequence rather than a character — `'café'[3]` was the
+first half of a two-byte sequence. DEF-01 closed it; it is `é`.
 
     interpreter  compiler/Interpreter.a24  VisitSubscript
     compiler     bootstrap/algol.c         alg_subscript_get
@@ -2150,7 +2158,8 @@ declared is `No matching signature for function.`
 > Types are checked because overload selection compares whole signatures
 > [EXP-013]. That is why [FUN-013] matters beyond overloading itself: a
 > subprogram that goes through selection has its parameters compared as a
-> consequence, which is what DEF-19 is waiting for.
+> consequence, which is how DEF-19 was fixed: there was nothing to add, only a
+> check to reach.
 
 **[FUN-008]**  A declared **return** type **is** enforced. `Exit` of a value
 that does not fit is `Type mismatch!`
@@ -2211,17 +2220,19 @@ restriction look structural. The value can be a **set** of subprograms, and the
 call selects from it exactly as a method call selects from a class's methods —
 the mechanism was already here.
 
-⚠️ **Compiled, two subprograms of one name are refused** — C-26.
+⚠️ Compiled, a name with more than one subprogram behind it is reached through
+an overload set that selects at the call, and only such a name carries a
+signature in its C symbol — see C-26.
 
 ⚠️ Nothing in this specification ever restricted overloading to methods.
 [EXP-013] and [EXP-014] describe selection without qualification; the
 restriction lived in two of this document's own notes and in a comment in
 `compiler/Resolver.a24`, none of which was a rule.
 
-⚠️ **This is upstream of DEF-19.** A subprogram that goes through overload
+⚠️ **This was upstream of DEF-19.** A subprogram that goes through overload
 selection has its declared parameter types compared as part of being selected —
-which is exactly why a *method's* types are enforced and a top-level
-subprogram's are not [FUN-006]. Fixing this fixes that.
+which is exactly why a *method's* types were enforced and a top-level
+subprogram's were not [FUN-006]. Fixing this fixed that.
 
     interpreter  compiler/ObjFunction.a24  ObjOverloads
     interpreter  compiler/Resolver.a24     SignatureOf
@@ -2233,7 +2244,8 @@ subprogram's are not [FUN-006]. Fixing this fixes that.
 ⚠️ **A method's body counts**, and is where the depth rule meets [CLS-011]: a
 function declared in one closes over the method's locals *and* over `this`, so a
 field read inside it resolves through the receiver the method was called on.
-The C back end refuses that shape (C-38); the depth itself it handles.
+The C back end handles both the depth and that shape; C-38 records what the
+second needed.
 
     interpreter  compiler/Parser.a24  ParseFunction
     conformance  0063-nesting.a24
@@ -2444,7 +2456,8 @@ in it holding one of the two, so a bare read cannot quietly find one. The
 qualified form is unaffected: it reaches the member through the enumeration
 rather than through that binding.
 
-⚠️ **Compiled, the declaration is refused** rather than the use — C-20.
+⚠️ Compiled, the ambiguity is carried to the use and reported there in the same
+words — see C-20, which was aimed at the symbols and did not need to be.
 
     interpreter  compiler/Environment.a24  MarkAmbiguous
     conformance  0123-enumerations-may-share-member-names.a24
@@ -2818,7 +2831,8 @@ only place the ambiguity is real. Importing one module twice is not a clash with
 itself: the same environment appearing twice in the import list is still one
 module.
 
-⚠️ **Compiled, the program is refused** rather than run — C-21.
+⚠️ Compiled, each owner's symbol takes its unit as a suffix and the bare use is
+reported where it cannot be resolved — see C-21.
 
     interpreter  compiler/Environment.a24  OwnerOf
     conformance  0124-modules-may-share-exported-names.a24
@@ -2928,8 +2942,8 @@ a String or a Char. Given a collection it is refused — `Length expects text; u
 .Length for a collection.` — because a collection's count is a property
 [COL-003] and the two are different questions.
 
-⚠️ **PARTLY IMPLEMENTED.** A collection is now refused. It still measures
-**bytes** rather than characters, which moves with DEF-01.
+⚠️ It measured **bytes** rather than characters until DEF-01, so
+`Length ('café')` was 5. It is 4.
 
 ⚠️ It used to stringify whatever it was given, so `Length([10, 20, 30])` was
 **12** — the length of the rendering — where `L.Length` is 3. The failure mode
@@ -2940,7 +2954,7 @@ never equal, since a List of *n* one-digit numbers renders as `3n` characters.
 was getting by accident.
 
     interpreter  compiler/Interpreter.a24  LengthNative
-    compiler     bootstrap/algol.c         alg_length
+    compiler     bootstrap/algol.c         alg_text_length
     conformance  0115-length-refuses-a-collection.a24
 
 **[RT-017]**  A `String` answers `Length` as a **property**, its count of
@@ -3123,9 +3137,10 @@ process exit status is; that is the operating system's rule, not this language's
 the order they are written, and there is no distinguished entry point — no
 `main`, and no statement that begins execution.
 
-⚠️ The compiled back end does not preserve this order for a bare top-level
-block (C-11) or for module bodies (C-5), so `conformance/0094` is expected to
-fail its compiled half.
+⚠️ The compiled back end preserves this order too, and did not always: a bare
+top-level block was deferred to the end of the program (C-11) and every module
+body ran before any root statement (C-5). Both are closed, and
+`conformance/0094` agrees through either processor.
 
     interpreter  compiler/Main.a24  Run
     conformance  0094-program-order.a24
@@ -3163,10 +3178,11 @@ initialized before it, so a module's own body may use anything it imported.
     interpreter  compiler/Interpreter.a24  VisitModuleStmt
     conformance  0095-module-init-order.a24
 
-⚠️ **compile-only divergence, and a silent one.** The compiled program runs
-**every** module initializer before **any** root statement, so the example above
-prints both module bodies first and then all three root lines. The same program
-produces two different orders. See Annex C, C-5.
+⚠️ **This follows from [INI-003] rather than needing its own mechanism**: a
+module's `uses` clauses stand at the top of its body, so its initializer runs
+them before its own statements. Compiled, the `uses` clause is what starts a
+module — it used to run every module initializer before any root statement,
+which is C-5.
 
 ### 17.3 Termination
 
@@ -3475,7 +3491,9 @@ comparison drops the `[ERROR]` lines an assertion failure prints, so the one
 message a programmer reads most often was outside everything that checks the two
 against each other.
 
-⚠️ **Compiled, none of these messages is printed** — C-23.
+⚠️ Compiled, every one of these messages is printed, in the same words — see
+C-23, where the premise that compiled code could not build the line was the part
+that was wrong.
 
     interpreter  compiler/Interpreter.a24  AssertTrueNative
     compiler     bootstrap/algol.c         alg_assert_equal
@@ -3494,16 +3512,18 @@ line and colour for colour. It is the surface on which two implementations are
 compared, so a difference in it is a difference in conformance and not a matter
 of presentation.
 
-⚠️ The interpreter meets this; the **compiled back end does not**. Its report
-omits the `[ERROR]` line after a failure, because compiled code carries no line
-information to build one from (C-3). Every other line is byte-identical, colour
-included. `conformance/0105` pins the interpreted report, and its compiled half
-is expected to differ by exactly those lines — a compiler gap, not an
-interpreter defect.
+⚠️ **Both processors meet this**, line for line and colour for colour, over the
+whole suite — which is the strongest available check that the two implementations
+agree, since a test report is built from almost everything the language has.
+
+⚠️ The compiled report used to omit the `[ERROR]` line after a failure (C-3), on
+the premise that compiled code carries no line information to build one from.
+Only the *caret* lines need a source position; the message line carries the file
+name and the message and nothing else.
 
 ⚠️ This rule previously stated only that the compiled report differs, which said
-nothing about what an implementation must **do**. The requirement is agreement;
-C-3 is the current distance from it.
+nothing about what an implementation must **do**. The requirement is agreement,
+and it is now met.
 
     interpreter  compiler/Interpreter.a24  Report
     compiler     bootstrap/algol.c         alg_test_run
@@ -3633,6 +3653,13 @@ Where the C back end does not do what the interpreter does. The interpreter is
 the authority [1.1], so every entry here is a defect in the compiler rather than
 a choice the language has made.
 
+⚠️ **Every entry is withdrawn**, and `./conform.sh` reports no gap. They are
+kept because each records what was actually wrong — which in a dozen cases is
+not what the entry first said, and in several is a mistake in the fix the entry
+itself proposed. Two were the *interpreter's* fault rather than the compiler's
+(C-4, C-37), which the classification above does not admit and which is worth
+seeing.
+
 ⚠️ A **loud** divergence refuses to compile and says why. A **silent** one
 produces a program that runs and behaves differently. The second kind is far
 worse, and the column says which each is.
@@ -3649,11 +3676,11 @@ case never depends on the compiler's state:
 | right | `conformance/` or `refusals/`, even if the compiler is wrong |
 | wrong | `defects/`, even if the compiler is right |
 
-This follows the generation plan rather than tidiness. The goal of the next
-generation is an interpreter that matches this specification; the goal of the
-one after is a compiler that matches the interpreter. Compiler gaps are
-therefore **expected** to be red throughout the first of those, and the count is
-a progress measure for the second.
+This follows the generation plan rather than tidiness. The goal of the first of
+those generations was an interpreter that matches this specification; of the one
+after, a compiler that matches the interpreter. Compiler gaps were therefore
+**expected** to be red throughout the first, and the count was the progress
+measure for the second. It has reached zero.
 
 ⚠️ The one thing that must not break is the compiler's ability to **build and
 reproduce itself** — `./fixedpoint.sh` and `./test.sh`. A compiler that cannot
@@ -4022,12 +4049,13 @@ emitted in order now, blocks included.
 ⚠️ **C-13 was the same bug**, reached through a counted loop rather than a bare
 block, and closed with it.
 
-⚠️ `conformance/0039` still differs, for a different reason now: with the block
+⚠️ `conformance/0039` differed after this for a different reason: with the block
 correctly scoped, a name read after the `end` does not exist, and the emitter
-writes a reference to it rather than refusing by name. That is C-34.
+wrote a reference to it rather than refusing by name. That was C-34, and it is
+closed too.
 
-⚠️ It also constrains the conformance corpus: any case using a bare top-level
-block to demonstrate scoping cannot be run under both processors.
+⚠️ It used to constrain the conformance corpus: a case using a bare top-level
+block to demonstrate scoping could not be run under both processors.
 `conformance/0040` puts its blocks inside procedures for exactly this reason,
 which keeps the cross-check.
 
@@ -4654,9 +4682,9 @@ name what it cannot emit rather than emit C that does not build.
 ***Withdrawn.***
 *(refers to [COL-005])*
 
-`var Sort := L.Sort;` binds a callable interpreted and is `Undefined property
-'Sort'.` compiled. Only `Length` and `IsEmpty` are answered on this path, so of
-the 41 kind/member pairs [COL-003] records, a compiled program can read 10.
+`var Sort := L.Sort;` binds a callable interpreted and was `Undefined property
+'Sort'.` compiled. Only `Length` and `IsEmpty` were answered on this path, so of
+the 41 kind/member pairs [COL-003] records, a compiled program could read 10.
 
 ⚠️ **This is the instance case again, one receiver kind later.** `alg_property`
 already gained the note that a method reached without calling it binds to its
@@ -4826,8 +4854,9 @@ the range check is a separate question, and both are now answered.
 they continue an identifier and may not begin one [LEX-008], so `Gate?` and
 `Send!` are single words while `?` and `!` alone are not identifiers at all.
 
-The implementation classes `?` as a letter, so it leads; and it does not admit
-`!` in an identifier at all. Tracked by DEF-03.
+The implementation classed `?` as a letter, so it led; and it did not admit `!`
+in an identifier at all. Tracked by DEF-03, and fixed there: `Gate?` and `Send!`
+are words, and `?bad` is `Unexpected character: ?`.
 
 **D-3 — `#0` is constructible but unstorable.** *(refers to [LEX-032])*
 
@@ -4841,6 +4870,11 @@ character — remains the better language, and [SRC-001] already obliges a Strin
 to carry a character count distinct from its byte length, so the two changes
 meet. [LEX-032] is worded so that adopting it later relaxes a restriction
 rather than reversing a guarantee. Tracked by DEF-08.
+
+⚠️ **The larger fix landed anyway.** A String carries its own byte length now,
+so `'a' + Str (Char (0)) + 'b'` is three characters long, prints as three and
+compares equal to itself. Only the **literal** `#0` is still refused, which is
+what [LEX-032] says and all it says.
 
 **D-4 — Widening is refused as firmly as narrowing.** *(refers to [VAR-004])*
 
@@ -5024,9 +5058,9 @@ not — which is the reverse of what a reader would guess, since arguments come
 from outside and are the less trustworthy of the two.
 
 **Resolved.** [FUN-006] requires parameter types to be enforced on every call,
-top-level subprogram or method alike. The check already exists in `Fits`; what
-is missing is calling it when there is nothing to select between. Tracked by
-DEF-19.
+top-level subprogram or method alike. The check already existed in `Fits`; what
+was missing was calling it when there is nothing to select between. Tracked by
+DEF-19, and fixed there.
 
 ⚠️ This was not really an open question by the time it was reached: [VAR-017]
 had already listed a parameter as one of the six assignment contexts, so
@@ -5156,16 +5190,17 @@ fixtures now return two-character strings and the probe records `Ay`.
 
 What remains true is the **root** case [MOD-014]: a module importing the file
 being run leaves the root's own imported names undefined, after the root's body
-has already printed. Compiled, the same shape refuses with `Two modules named
-'X'` (C-1), which at least names the right subject.
+has already printed. Compiled, the same shape used to refuse with `Two modules
+named 'X'` (C-1) — closed by giving the root a module identity, which is what
+[MOD-014] asks for and what the fix below describes.
 
 So there is one shape of problem rather than three, and it is the one this
 repository already knew about — the root is never entered in the loader's map,
 so it is parsed twice.
 
 **Resolved.** [MOD-012] states that cycles between modules work, which they do.
-[MOD-014] requires the root case to work the same way, and DEF-24 tracks the
-distance.
+[MOD-014] requires the root case to work the same way; DEF-24 tracked the
+distance and closed it.
 
 The fix is to give the root a module identity, so a `uses` pointing back at it
 resolves to the copy already loaded — what [MOD-003] does for every other file
@@ -5247,8 +5282,8 @@ literal rules do [LEX-015], [LEX-020]. [RT-010] lets `Max` take any two numbers,
 promoting as every other numeric operator does [EXP-005].
 
 ⚠️ They are **one** defect, DEF-27, rather than two. Either change alone helps,
-but only both together make `Max(Val(A), Val(B))` — which fails for every input
-today — work at all.
+but only both together make `Max(Val(A), Val(B))` — which failed for every input
+— work at all.
 
 **D-17 — A type error says only "Type mismatch!"** *(refers to [ERR-006])*
 
@@ -5450,6 +5485,15 @@ behaviour and passes while that behaviour persists. It turns **red when the
 defect stops reproducing**, because a fix is as much a change to be noticed as a
 regression — and a suite that is permanently red is a suite nobody reads.
 
+⚠️ **This annex is empty, and that is a result rather than an absence.** It held
+thirty-three defects; every one has been fixed and its reproduction removed, so
+`defects/` is empty with it. Three of them turned out to be the **rule's** fault
+rather than the implementation's, and were closed by changing this document —
+`SRC-005` on Unicode identifiers, `LEX-025` on `Char(0)`, and a blocker recorded
+in a defect entry that named the wrong data structure. The note at the end of
+Annex C keeps that last one, because the lesson is about where a blocker is
+written down rather than about the defect.
+
 ## Annex G — implementation notes *(non-normative)*
 
 Guidance for implementers. Nothing here is a rule; an implementation may reach
@@ -5576,15 +5620,30 @@ needs no letter table and the language carries none.
 `_` remains unused by the mapping and is therefore available as a separator
 wherever two escapes would otherwise run together ambiguously.
 
-The existing per-kind prefixes — `v_` a variable, `f_` a function, `fn_` its
-closure, `k_` a class, `e_` an enum, `c_` a constant, `m_` a method, `d_` the
-flag saying a file-scope variable's declaration has run [DCL-016] — continue to
-keep the emitter's names clear of C's.
+The per-kind prefixes keep the emitter's names clear of C's. Every one is built
+by a constructor of its own, never by concatenating a prefix by hand:
+
+| | |
+| --- | --- |
+| `v_` | a variable, or a constant — a `const` differs in what may assign to it, not in how it is stored |
+| `d_` | the flag saying a file-scope variable's declaration has run [DCL-016] |
+| `c_` | a **cell**: a variable a nested function captured, which lives on the heap |
+| `f_` | a subprogram |
+| `fn_` | its closure, so the name can be used as a value [FUN-011] |
+| `o_` | the set of subprograms sharing one name, where there is more than one [FUN-013] |
+| `k_` | a class or an object |
+| `i_` | its field initializer |
+| `m_` | a method, with its signature |
+| `e_` | an enumeration, and with a member appended, one of its members |
 
 ⚠️ A prefix names a *kind*, so a name that reaches C twice reaches it through
 two constructors rather than one string built by hand: `d_` goes through
 `Mangle` exactly as `v_` does, or a variable spelled `Gate?` would have a legal
 symbol and an illegal flag.
+
+⚠️ Symbols not derived from a name at all — a hoisted literal, a method's
+parameter-type table, a test body, a `try` frame — are numbered rather than
+mangled, and need none of this.
 
 ⚠️ **This scheme is injective, and the one it replaced was not.** That one wrote
 `?` as `_q` and passed letters through untouched, so `Ready?` and `Ready_q`
@@ -5740,9 +5799,9 @@ properties, so the three cases separate:
 
 ⚠️ **The construct being displaced is free to take.** Reading a method as a
 value appears nowhere in `compiler/*.a24` — the largest body of Algol-24 there
-is — and it **crashes the compiled program** (C-6). Nothing can be relying on
-it, and making it an error closes C-6 by removing the construct rather than
-implementing it.
+is. It used to crash the compiled program outright (C-6, since fixed), so this
+argument was once that the construct could be removed rather than implemented;
+what remains of it is that nothing is relying on the spelling.
 
 ⚠️ [FUN-011] already makes a subprogram's bare name a value, and that stays.
 The sigil is needed only on a **receiver**, which is the one place that spelling
@@ -5807,8 +5866,9 @@ specified for every collection, `Set` and `Map` included, so a unit is a third
 implementation bound by it exactly as the two processors are.
 
 ⚠️ **The point is Annex C.** Everything moved out of the runtime is one thing
-the two processors can no longer disagree about, and that annex is now fifteen
-entries long. `spec/probes/TYP-012-stack-and-set-in-algol24.a24` already holds a
+the two processors can no longer disagree about — which is worth doing even now
+that the annex has no open entry, because it removes the *opportunity* rather
+than the current instance. `spec/probes/TYP-012-stack-and-set-in-algol24.a24` already holds a
 working `Stack` and `Set` written in the language, so the path is not
 speculative.
 

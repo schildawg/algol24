@@ -1,7 +1,4 @@
 // spec: CLS-010
-//
-// ⚠️ Expected to FAIL compiled, because of C-7: both processors refuse this,
-// with different wording.
 
 class Thing;
 begin

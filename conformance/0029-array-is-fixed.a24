@@ -1,8 +1,4 @@
 // spec: TYP-008
-//
-// ⚠️ Expected to FAIL compiled, because of C-8: the compiled runtime omits
-// the 'Uncaught: ' prefix. The interpreter is right, so this stays an ordinary
-// conformance case and the compiled failure is the record of the divergence.
 
 var A := Array (3);
 

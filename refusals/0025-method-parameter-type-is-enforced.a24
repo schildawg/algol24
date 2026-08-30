@@ -1,9 +1,4 @@
 // spec: FUN-007
-//
-// ⚠️ Expected to FAIL compiled, because of C-8: both processors refuse this
-// with the same message, and only the driver's 'Uncaught: ' prefix differs.
-// A method's parameter types ARE enforced, because a method goes through
-// overload selection and selection compares whole signatures.
 
 class M;
 begin

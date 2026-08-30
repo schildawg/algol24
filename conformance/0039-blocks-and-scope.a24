@@ -1,7 +1,4 @@
 // spec: DCL-001, DCL-002, DCL-008
-//
-// ⚠️ Expected to FAIL compiled, because of C-8 and C-11: the run ends in an
-// uncaught runtime error, and the bare top-level block below is reordered.
 
 var Outer := 1;
 

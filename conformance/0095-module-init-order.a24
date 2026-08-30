@@ -1,9 +1,4 @@
 // spec: INI-003, INI-004
-//
-// ⚠️ Expected to FAIL compiled, because of C-5 -- and this case is what
-// records it.  The compiled program runs EVERY module initializer before ANY
-// root statement, so it prints both module bodies first and then all three
-// root lines.  The same program, two orders.
 
 // INI-003: a uses loads and runs its module AT THE POINT IT APPEARS, so root
 // statements between two uses clauses run between the two module bodies.
