@@ -2745,7 +2745,17 @@ begin
 
         var Mark := OpenScope ();
 
-        Line ('while (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
+        // ⚠️ A C 'for' when there is a step, and that is not a nicety.  With the
+        // step written at the END OF THE BODY -- 'while (c) { body; step; }' --
+        // a 'continue' jumps over it and the loop never ends.  In the increment
+        // clause C runs it on every continue, which is exactly what the
+        // interpreter does by catching Continued around the body alone.
+        if TheStmt.Increment <> Nil then
+            Line ('for (; alg_truthy(' + Evaluate (TheStmt.Condition) + '); '
+                + Evaluate (TheStmt.Increment) + ') {');
+        else
+            Line ('while (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
+
         Depth := Depth + 1;
 
         var EnclosingLoopDepth := LoopTryDepth;
@@ -4608,6 +4618,19 @@ begin
             Line ('alg_pop_frame();');
 
         Line ('break;');
+    end
+
+    /// ⚠️ Pops the same frames 'break' does, and for the same reason: leaving
+    /// the body of a try without reaching its pop leaves the runtime's frame
+    /// stack pointing at a C frame that has returned.  'continue' leaves every
+    /// try opened INSIDE the loop, exactly as 'break' does -- the two differ in
+    /// where they go, not in what they leave behind.
+    procedure VisitContinueStmt (TheStmt : ContinueStmt);
+    begin
+        for var I := LoopTryDepth; I < TryDepth; I := I + 1 do
+            Line ('alg_pop_frame();');
+
+        Line ('continue;');
     end
 
     /// 'var X, Y : Integer := 0;' -- one initializer, several names.

@@ -115,12 +115,9 @@ Value f_foldcase(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
-            {
-                if (alg_truthy(alg_greater_equal(alg_pos((alg_declared(d_foldVupper, "FOLD_UPPER"), v_foldVupper), alg_str(alg_subscript_get(v_text, v_i))), alg_int(0)))) {
-                    (void)((v_needs = alg_bool(true)));
-                }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+        for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_greater_equal(alg_pos((alg_declared(d_foldVupper, "FOLD_UPPER"), v_foldVupper), alg_str(alg_subscript_get(v_text, v_i))), alg_int(0)))) {
+                (void)((v_needs = alg_bool(true)));
             }
         }
     }
@@ -131,18 +128,15 @@ Value f_foldcase(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
+        for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_at = alg_pos((alg_declared(d_foldVupper, "FOLD_UPPER"), v_foldVupper), alg_str(alg_subscript_get(v_text, v_i)));
-                    (void)v_at;
-                    if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
-                        (void)(alg_invoke(v_out, "Append", (Value[]){alg_copy((alg_declared(d_foldVlower, "FOLD_LOWER"), v_foldVlower), v_at, alg_int(1))}, 1));
-                    } else {
-                        (void)(alg_invoke(v_out, "Append", (Value[]){alg_str(alg_subscript_get(v_text, v_i))}, 1));
-                    }
+                Value v_at = alg_pos((alg_declared(d_foldVupper, "FOLD_UPPER"), v_foldVupper), alg_str(alg_subscript_get(v_text, v_i)));
+                (void)v_at;
+                if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
+                    (void)(alg_invoke(v_out, "Append", (Value[]){alg_copy((alg_declared(d_foldVlower, "FOLD_LOWER"), v_foldVlower), v_at, alg_int(1))}, 1));
+                } else {
+                    (void)(alg_invoke(v_out, "Append", (Value[]){alg_str(alg_subscript_get(v_text, v_i))}, 1));
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }

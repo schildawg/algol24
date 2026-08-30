@@ -1,0 +1,5 @@
+Uncaught: Must be inside a loop to use 'continue'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0161-continue-outside-a-loop.a24: Must be inside a loop to use 'continue'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]10 | continue;
+[WHITE][[RED]ERROR[RESET]]    |[RED] ^^^^^^^^[RESET]
+exit: 70

@@ -155,11 +155,8 @@ static Value f_argumentsfrom(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = v_first;
         (void)v_i;
-        while (alg_truthy(alg_less_equal(v_i, alg_param_count()))) {
-            {
-                (void)(alg_invoke(v_result, "Add", (Value[]){alg_param_str(v_i)}, 1));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less_equal(v_i, alg_param_count())); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(v_result, "Add", (Value[]){alg_param_str(v_i)}, 1));
         }
     }
     return v_result;
@@ -269,24 +266,21 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
             {
                 Value v_i = alg_int(2);
                 (void)v_i;
-                while (alg_truthy(alg_less_equal(v_i, alg_param_count()))) {
+                for (; alg_truthy(alg_less_equal(v_i, alg_param_count())); (v_i = alg_add(v_i, alg_int(1)))) {
                     {
-                        {
-                            Value v_arg = alg_param_str(v_i);
-                            (void)v_arg;
-                            if (alg_truthy(alg_equal(v_arg, alg_string("--test")))) {
-                                (void)((v_wanttests = alg_bool(true)));
-                            } else {
-                                {
-                                    if (alg_truthy(alg_equal(alg_copy(v_arg, alg_int(0), alg_int(6)), alg_string("--out=")))) {
-                                        (void)((v_outdir = alg_copy(v_arg, alg_int(6), alg_subtract(alg_text_length(v_arg), alg_int(6)))));
-                                    } else {
-                                        (void)((v_name = alg_widen(v_arg, "String")));
-                                    }
+                        Value v_arg = alg_param_str(v_i);
+                        (void)v_arg;
+                        if (alg_truthy(alg_equal(v_arg, alg_string("--test")))) {
+                            (void)((v_wanttests = alg_bool(true)));
+                        } else {
+                            {
+                                if (alg_truthy(alg_equal(alg_copy(v_arg, alg_int(0), alg_int(6)), alg_string("--out=")))) {
+                                    (void)((v_outdir = alg_copy(v_arg, alg_int(6), alg_subtract(alg_text_length(v_arg), alg_int(6)))));
+                                } else {
+                                    (void)((v_name = alg_widen(v_arg, "String")));
                                 }
                             }
                         }
-                        (void)((v_i = alg_add(v_i, alg_int(1))));
                     }
                 }
             }

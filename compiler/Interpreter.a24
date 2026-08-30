@@ -2366,12 +2366,24 @@ begin
     /// it is why a break inside a for skips the increment as well as the rest
     /// of the body, which is what leaving the loop means.
     ///
+    /// ⚠️ TWO CATCHES, ONE STATEMENT APART, and the gap between them is the
+    /// rule.  Broke is caught around the WHOLE loop, so breaking skips the step
+    /// as well as the rest of the body -- which is what leaving a loop means.
+    /// Continued is caught around the BODY ALONE, so the step still runs; with
+    /// one catch around both, a 'continue' in a 'for' would jump the step and
+    /// the loop would never end.
     procedure VisitWhileStmt (Stmt : WhileStmt);
     begin
         try
             while IsTruthy (Evaluate (Stmt.Condition)) do
             begin
-                Execute (Stmt.Body);
+                try
+                    Execute (Stmt.Body);
+                except
+                    on c : Continued do begin end
+                end
+
+                if Stmt.Increment <> Nil then Evaluate (Stmt.Increment);
             end
         except
             on e : Broke do Exit;
@@ -2501,7 +2513,13 @@ begin
                 Scope.Enclosing := Env;
                 Scope.Define (TheStmt.Name.Lexeme, Elements[I]);
 
-                ExecuteBlock ([TheStmt.Body], Scope);
+                // Around the body alone, for the reason VisitWhileStmt gives:
+                // continuing begins the next element, breaking leaves.
+                try
+                    ExecuteBlock ([TheStmt.Body], Scope);
+                except
+                    on c : Continued do begin end
+                end
             end
         except
             on e : Broke do Exit;
@@ -2511,6 +2529,11 @@ begin
     procedure VisitBreakStmt (TheStmt : BreakStmt);
     begin
         raise Broke ();
+    end
+
+    procedure VisitContinueStmt (TheStmt : ContinueStmt);
+    begin
+        raise Continued ();
     end
 
     /// Runs a module's declarations, then hands the exported ones over.
@@ -2823,6 +2846,22 @@ end
 /// always the one that catches.
 ///
 class Broke;
+begin
+end
+
+/// A 'continue', travelling as a host exception.
+///
+/// ⚠️ The fourth of these -- Return for Exit, Raised for raise, Broke for
+/// break -- and a class of its own for the reason those are three rather than
+/// one with a tag: every place that unwinds treats them differently, and where
+/// each is CAUGHT is the difference.  Broke is caught around the whole loop and
+/// Continued around the body alone, one statement apart and not
+/// interchangeable.
+///
+/// It carries nothing.  There is no labelled continue, so the innermost loop is
+/// always the one that catches.
+///
+class Continued;
 begin
 end
 

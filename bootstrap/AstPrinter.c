@@ -81,13 +81,10 @@ static Value m_astprinter_parenthesize_2(Value v_this, Value *args, int32_t coun
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_exprs, "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_exprs, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    (void)((v_builder = alg_add(v_builder, alg_char_value(32))));
-                    (void)((v_builder = alg_add(v_builder, alg_invoke(alg_subscript_get(v_exprs, v_i), "Accept", (Value[]){v_this}, 1))));
-                }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                (void)((v_builder = alg_add(v_builder, alg_char_value(32))));
+                (void)((v_builder = alg_add(v_builder, alg_invoke(alg_subscript_get(v_exprs, v_i), "Accept", (Value[]){v_this}, 1))));
             }
         }
     }

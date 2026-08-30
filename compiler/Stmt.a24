@@ -266,6 +266,28 @@ begin
     end
 end
 
+/// Continue Statement!
+///
+/// Carries nothing, on the same terms BreakStmt does: 'continue' begins the
+/// innermost loop's next iteration.  The Token is kept only so a 'continue'
+/// outside a loop can be reported against itself.
+///
+class ContinueStmt (Stmt);
+var
+    Keyword : Token;
+
+begin
+    constructor Init (Keyword : Token);
+    begin
+        this.Keyword := Keyword;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitContinueStmt (this);
+    end
+end
+
 /// Try Statement!
 ///
 /// Handlers are a Map from type name to ExceptHandler, with the catch-all
@@ -343,7 +365,19 @@ end
 class WhileStmt (Stmt);
 var
     Condition : Expr;
-    Body      : Stmt; 
+    Body      : Stmt;
+
+    /// The step of a 'for', or Nil for a plain 'while'.
+    ///
+    /// ⚠️ HELD HERE rather than appended to the body, and 'continue' is the
+    /// whole reason.  A 'for' desugars into a while, and while the step sat at
+    /// the end of the body, beginning the next iteration jumped over it -- an
+    /// INFINITE LOOP interpreted, and the same in C, where
+    /// 'while (c) { body; step; }' skips the step exactly as the tree-walker
+    /// does.  With the step held apart, the interpreter runs it after catching
+    /// a Continued and the emitter writes a real C 'for', so both processors
+    /// step for the same reason rather than by two separate arrangements.
+    Increment : Expr := Nil;
 
 begin
     constructor Init (Condition : Expr, Body : Stmt);

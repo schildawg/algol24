@@ -240,6 +240,7 @@ begin
         if Match (TOKEN_EXIT) then Exit ReturnStatement();
         if Match (TOKEN_TRY) then Exit TryStatement();
         if Match (TOKEN_BREAK) then Exit BreakStatement();
+        if Match (TOKEN_CONTINUE) then Exit ContinueStatement();
         if Match (TOKEN_RAISE) then Exit RaiseStatement();
         if Match (TOKEN_BEGIN) then Exit BlockStmt (Block());
 
@@ -450,17 +451,15 @@ begin
         Body := BodyStatement ();
         LoopDepth := LoopDepth - 1;
         
-        if Increment <> Nil then
-        begin
-            StmtList := List();
-            StmtList.Add (Body);
-            StmtList.Add (ExpressionStmt (Increment));
-
-            Body := BlockStmt (StmtList);
-        end
-
         if Condition = Nil then Condition := LiteralExpr (True);
-        Body := WhileStmt(Condition, Body);
+
+        // ⚠️ The step is HANDED to the while rather than appended to the body.
+        // Appending it put it after everything 'continue' skips, so the next
+        // iteration never stepped and the loop never ended -- see WhileStmt.
+        var Loop := WhileStmt (Condition, Body);
+        Loop.Increment := Increment;
+
+        Body := Loop;
 
         if Initializer <> Nil then
         begin
@@ -955,6 +954,27 @@ begin
 
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after ''break''.');
         Exit BreakStmt (Keyword);
+    end
+
+    /// Parses 'continue;'.
+    ///
+    /// # Errors
+    ///
+    /// Raises an error when written outside a loop, for the reason 'break'
+    /// does: there is no next iteration to begin, however the program runs.
+    ///
+    function ContinueStatement () : Stmt;
+    var
+        Keyword : Token;
+
+    begin
+        Keyword := Previous();
+
+        if LoopDepth = 0 then
+            raise Error (Keyword, 'Must be inside a loop to use ''continue''.');
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after ''continue''.');
+        Exit ContinueStmt (Keyword);
     end
 
     /// Parses 'raise Expr;'.

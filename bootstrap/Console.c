@@ -56,11 +56,8 @@ static Value m_console_repeat_2_char_integer(Value v_this, Value *args, int32_t 
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, v_times))) {
-            {
-                (void)((v_result = alg_widen(alg_add(v_result, v_what), "String")));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, v_times)); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)((v_result = alg_widen(alg_add(v_result, v_what), "String")));
         }
     }
     return v_result;

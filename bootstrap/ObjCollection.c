@@ -204,11 +204,8 @@ static Value m_objcollection_aslist_1_list(Value v_this, Value *args, int32_t co
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_from, "Length")))) {
-            {
-                (void)(alg_invoke(alg_property(v_result, "Items"), "Add", (Value[]){alg_subscript_get(v_from, v_i)}, 1));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_property(v_from, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(alg_property(v_result, "Items"), "Add", (Value[]){alg_subscript_get(v_from, v_i)}, 1));
         }
     }
     return v_result;
@@ -283,11 +280,8 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
             {
                 Value v_i = alg_int(0);
                 (void)v_i;
-                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Items"), "Length")))) {
-                    {
-                        (void)(alg_subscript_set(alg_property(v_this, "Items"), v_i, alg_subscript_get(v_arguments, alg_int(0))));
-                        (void)((v_i = alg_add(v_i, alg_int(1))));
-                    }
+                for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Items"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    (void)(alg_subscript_set(alg_property(v_this, "Items"), v_i, alg_subscript_get(v_arguments, alg_int(0))));
                 }
             }
             return alg_nil();
@@ -397,11 +391,8 @@ static Value m_objcollection_allocate_1_integer(Value v_this, Value *args, int32
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, v_size))) {
-            {
-                (void)(alg_invoke(alg_property(v_this, "Items"), "Add", (Value[]){alg_nil()}, 1));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, v_size)); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(alg_property(v_this, "Items"), "Add", (Value[]){alg_nil()}, 1));
         }
     }
     return alg_nil();

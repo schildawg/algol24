@@ -68,16 +68,13 @@ static Value m_objclass_findoverload_2_string_list(Value v_this, Value *args, in
     {
         Value v_pass = (alg_declared(d_exact, "EXACT"), v_exact);
         (void)v_pass;
-        while (alg_truthy(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing)))) {
+        for (; alg_truthy(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))); (v_pass = alg_add(v_pass, alg_int(1)))) {
             {
-                {
-                    Value v_found = alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, v_pass}, 3);
-                    (void)v_found;
-                    if (alg_truthy(alg_not_equal(v_found, alg_nil()))) {
-                        return v_found;
-                    }
+                Value v_found = alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, v_pass}, 3);
+                (void)v_found;
+                if (alg_truthy(alg_not_equal(v_found, alg_nil()))) {
+                    return v_found;
                 }
-                (void)((v_pass = alg_add(v_pass, alg_int(1))));
             }
         }
     }
@@ -99,12 +96,9 @@ static Value m_objclass_fitting_3_string_list_integer(Value v_this, Value *args,
             {
                 Value v_i = alg_int(0);
                 (void)v_i;
-                while (alg_truthy(alg_less(v_i, alg_property(v_candidates, "Length")))) {
-                    {
-                        if (alg_truthy(alg_invoke(alg_subscript_get(v_candidates, v_i), "Selects", (Value[]){v_arguments, v_pass}, 2))) {
-                            return alg_cast(alg_subscript_get(v_candidates, v_i), "ObjFunction");
-                        }
-                        (void)((v_i = alg_add(v_i, alg_int(1))));
+                for (; alg_truthy(alg_less(v_i, alg_property(v_candidates, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    if (alg_truthy(alg_invoke(alg_subscript_get(v_candidates, v_i), "Selects", (Value[]){v_arguments, v_pass}, 2))) {
+                        return alg_cast(alg_subscript_get(v_candidates, v_i), "ObjFunction");
                     }
                 }
             }
@@ -128,19 +122,16 @@ static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int3
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Fields"), "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Fields"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_field = alg_subscript_get(alg_property(v_this, "Fields"), v_i);
-                    (void)v_field;
-                    Value v_value = alg_nil();
-                    (void)v_value;
-                    if (alg_truthy(alg_not_equal(alg_property(v_field, "Initializer"), alg_nil()))) {
-                        (void)((v_value = alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_invoke(v_theinterpreter, "Evaluate", (Value[]){alg_property(v_field, "Initializer")}, 1), alg_str(alg_property(v_field, "TypeName"))}, 2)));
-                    }
-                    (void)(alg_invoke(alg_property(v_instance, "Fields"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_field, "Name"), "Lexeme")}, 1), v_value}, 2));
+                Value v_field = alg_subscript_get(alg_property(v_this, "Fields"), v_i);
+                (void)v_field;
+                Value v_value = alg_nil();
+                (void)v_value;
+                if (alg_truthy(alg_not_equal(alg_property(v_field, "Initializer"), alg_nil()))) {
+                    (void)((v_value = alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_invoke(v_theinterpreter, "Evaluate", (Value[]){alg_property(v_field, "Initializer")}, 1), alg_str(alg_property(v_field, "TypeName"))}, 2)));
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                (void)(alg_invoke(alg_property(v_instance, "Fields"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_field, "Name"), "Lexeme")}, 1), v_value}, 2));
             }
         }
     }

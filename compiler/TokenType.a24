@@ -28,6 +28,7 @@ type
 
         // Keywords
         TOKEN_AND, TOKEN_AS, TOKEN_BREAK, TOKEN_CASE, TOKEN_CLASS, TOKEN_CONST,
+       TOKEN_CONTINUE,
        TOKEN_DO,
        TOKEN_ELSE,
        TOKEN_EXIT,

@@ -171,15 +171,12 @@ static Value m_parser_unitstem_1_string(Value v_this, Value *args, int32_t count
     {
         Value v_i = alg_subtract(alg_text_length(v_key), alg_int(1));
         (void)v_i;
-        while (alg_truthy(alg_greater_equal(v_i, alg_int(0)))) {
-            {
-                if (alg_truthy((or_1 = alg_equal(alg_subscript_get(v_key, v_i), alg_char_value(47)), alg_truthy(or_1) ? or_1 : alg_equal(alg_subscript_get(v_key, v_i), alg_char_value(92))))) {
-                    {
-                        (void)((v_stem = alg_widen(alg_copy(v_key, alg_add(v_i, alg_int(1)), alg_subtract(alg_subtract(alg_text_length(v_key), v_i), alg_int(1))), "String")));
-                        (void)((v_i = alg_negate(alg_int(1))));
-                    }
+        for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+            if (alg_truthy((or_1 = alg_equal(alg_subscript_get(v_key, v_i), alg_char_value(47)), alg_truthy(or_1) ? or_1 : alg_equal(alg_subscript_get(v_key, v_i), alg_char_value(92))))) {
+                {
+                    (void)((v_stem = alg_widen(alg_copy(v_key, alg_add(v_i, alg_int(1)), alg_subtract(alg_subtract(alg_text_length(v_key), v_i), alg_int(1))), "String")));
+                    (void)((v_i = alg_negate(alg_int(1))));
                 }
-                (void)((v_i = alg_subtract(v_i, alg_int(1))));
             }
         }
     }
@@ -270,6 +267,9 @@ static Value m_parser_statement_0(Value v_this, Value *args, int32_t count) {
     }
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVbreak}, 1))) {
         return alg_invoke(v_this, "BreakStatement", NULL, 0);
+    }
+    if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcontinue}, 1))) {
+        return alg_invoke(v_this, "ContinueStatement", NULL, 0);
     }
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVraise}, 1))) {
         return alg_invoke(v_this, "RaiseStatement", NULL, 0);
@@ -423,18 +423,13 @@ static Value m_parser_forstatement_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_set_property(v_this, "LoopDepth", alg_widen(alg_add(alg_property(v_this, "LoopDepth"), alg_int(1)), "Integer")));
     (void)((v_body = alg_widen(alg_invoke(v_this, "BodyStatement", NULL, 0), "Stmt")));
     (void)(alg_set_property(v_this, "LoopDepth", alg_widen(alg_subtract(alg_property(v_this, "LoopDepth"), alg_int(1)), "Integer")));
-    if (alg_truthy(alg_not_equal(v_increment, alg_nil()))) {
-        {
-            (void)((v_stmtlist = alg_widen(alg_list(), "List")));
-            (void)(alg_invoke(v_stmtlist, "Add", (Value[]){v_body}, 1));
-            (void)(alg_invoke(v_stmtlist, "Add", (Value[]){alg_new(k_expressionstmt, (Value[]){v_increment}, 1)}, 1));
-            (void)((v_body = alg_widen(alg_new(k_blockstmt, (Value[]){v_stmtlist}, 1), "Stmt")));
-        }
-    }
     if (alg_truthy(alg_equal(v_condition, alg_nil()))) {
         (void)((v_condition = alg_widen(alg_new(k_literalexpr, (Value[]){alg_bool(true)}, 1), "Expr")));
     }
-    (void)((v_body = alg_widen(alg_new(k_whilestmt, (Value[]){v_condition, v_body}, 2), "Stmt")));
+    Value v_loop = alg_new(k_whilestmt, (Value[]){v_condition, v_body}, 2);
+    (void)v_loop;
+    (void)(alg_set_property(v_loop, "Increment", alg_widen(v_increment, "Expr")));
+    (void)((v_body = alg_widen(v_loop, "Stmt")));
     if (alg_truthy(alg_not_equal(v_initializer, alg_nil()))) {
         {
             (void)((v_whilelist = alg_widen(alg_list(), "List")));
@@ -497,11 +492,8 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
             {
                 Value v_i = alg_int(0);
                 (void)v_i;
-                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_decl, "Names"), "Length")))) {
-                    {
-                        (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_decl, "Names"), v_i), "Lexeme"))}, 1));
-                        (void)((v_i = alg_add(v_i, alg_int(1))));
-                    }
+                for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_decl, "Names"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_decl, "Names"), v_i), "Lexeme"))}, 1));
                 }
             }
             return alg_nil();
@@ -513,11 +505,8 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
             {
                 Value v_i = alg_int(0);
                 (void)v_i;
-                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_decl, "Members"), "Length")))) {
-                    {
-                        (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_decl, "Members"), v_i), "Lexeme"))}, 1));
-                        (void)((v_i = alg_add(v_i, alg_int(1))));
-                    }
+                for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_decl, "Members"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_decl, "Members"), v_i), "Lexeme"))}, 1));
                 }
             }
             return alg_nil();
@@ -536,12 +525,9 @@ static Value m_parser_directoryof_1_string(Value v_this, Value *args, int32_t co
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_text_length(v_path)))) {
-            {
-                if (alg_truthy(alg_equal(alg_subscript_get(v_path, v_i), alg_char_value(47)))) {
-                    (void)((v_cut = alg_widen(v_i, "Integer")));
-                }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+        for (; alg_truthy(alg_less(v_i, alg_text_length(v_path))); (v_i = alg_add(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_equal(alg_subscript_get(v_path, v_i), alg_char_value(47)))) {
+                (void)((v_cut = alg_widen(v_i, "Integer")));
             }
         }
     }
@@ -727,11 +713,8 @@ static Value m_parser_declarationsection_1_boolean(Value v_this, Value *args, in
                 {
                     Value v_i = alg_int(0);
                     (void)v_i;
-                    while (alg_truthy(alg_less(v_i, alg_property(v_names, "Length")))) {
-                        {
-                            (void)(alg_invoke(alg_property(v_this, "ClassPrivates"), "Add", (Value[]){alg_str(alg_property(alg_subscript_get(v_names, v_i), "Lexeme"))}, 1));
-                            (void)((v_i = alg_add(v_i, alg_int(1))));
-                        }
+                    for (; alg_truthy(alg_less(v_i, alg_property(v_names, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                        (void)(alg_invoke(alg_property(v_this, "ClassPrivates"), "Add", (Value[]){alg_str(alg_property(alg_subscript_get(v_names, v_i), "Lexeme"))}, 1));
                     }
                 }
             }
@@ -814,11 +797,8 @@ static Value m_parser_readdeclarationsections_2_list_boolean(Value v_this, Value
                     {
                         Value v_i = alg_int(0);
                         (void)v_i;
-                        while (alg_truthy(alg_less(v_i, alg_property(v_section, "Length")))) {
-                            {
-                                (void)(alg_invoke(v_body, "Add", (Value[]){alg_subscript_get(v_section, v_i)}, 1));
-                                (void)((v_i = alg_add(v_i, alg_int(1))));
-                            }
+                        for (; alg_truthy(alg_less(v_i, alg_property(v_section, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                            (void)(alg_invoke(v_body, "Add", (Value[]){alg_subscript_get(v_section, v_i)}, 1));
                         }
                     }
                 }
@@ -830,11 +810,8 @@ static Value m_parser_readdeclarationsections_2_list_boolean(Value v_this, Value
                         {
                             Value v_i = alg_int(0);
                             (void)v_i;
-                            while (alg_truthy(alg_less(v_i, alg_property(v_section, "Length")))) {
-                                {
-                                    (void)(alg_invoke(v_body, "Add", (Value[]){alg_subscript_get(v_section, v_i)}, 1));
-                                    (void)((v_i = alg_add(v_i, alg_int(1))));
-                                }
+                            for (; alg_truthy(alg_less(v_i, alg_property(v_section, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                                (void)(alg_invoke(v_body, "Add", (Value[]){alg_subscript_get(v_section, v_i)}, 1));
                             }
                         }
                     }
@@ -879,6 +856,19 @@ static Value m_parser_breakstatement_0(Value v_this, Value *args, int32_t count)
     }
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_string("Expect ';' after 'break'.")}, 2));
     return alg_new(k_breakstmt, (Value[]){v_keyword}, 1);
+    return alg_nil();
+}
+
+static Value m_parser_continuestatement_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_keyword = alg_nil();
+    (void)v_keyword;
+    (void)((v_keyword = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
+    if (alg_truthy(alg_equal(alg_property(v_this, "LoopDepth"), alg_int(0)))) {
+        alg_raise(alg_invoke(v_this, "Error", (Value[]){v_keyword, alg_string("Must be inside a loop to use 'continue'.")}, 2));
+    }
+    (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_string("Expect ';' after 'continue'.")}, 2));
+    return alg_new(k_continuestmt, (Value[]){v_keyword}, 1);
     return alg_nil();
 }
 
@@ -1071,11 +1061,8 @@ static Value m_parser_parsefunction_1_string(Value v_this, Value *args, int32_t 
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_rest, "Length")))) {
-            {
-                (void)(alg_invoke(v_body, "Add", (Value[]){alg_subscript_get(v_rest, v_i)}, 1));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_property(v_rest, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(v_body, "Add", (Value[]){alg_subscript_get(v_rest, v_i)}, 1));
         }
     }
     Value v_thefunction = alg_new(k_functionstmt, (Value[]){v_name, v_params, v_body}, 3);
@@ -1331,35 +1318,29 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_section, "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_section, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_each = alg_subscript_get(v_section, v_i);
-                    (void)v_each;
-                    if (alg_truthy(alg_is(v_each, "VarGroupStmt"))) {
+                Value v_each = alg_subscript_get(v_section, v_i);
+                (void)v_each;
+                if (alg_truthy(alg_is(v_each, "VarGroupStmt"))) {
+                    {
                         {
-                            {
-                                Value v_j = alg_int(0);
-                                (void)v_j;
-                                while (alg_truthy(alg_less(v_j, alg_property(alg_property(v_each, "Names"), "Length")))) {
-                                    {
-                                        {
-                                            Value v_field = alg_new(k_varstmt, (Value[]){alg_subscript_get(alg_property(v_each, "Names"), v_j), alg_property(v_each, "Initializer")}, 2);
-                                            (void)v_field;
-                                            (void)(alg_set_property(v_field, "TypeName", alg_widen(alg_property(v_each, "TypeName"), "String")));
-                                            (void)(alg_set_property(v_field, "Generic", alg_widen(alg_property(v_each, "Generic"), "String")));
-                                            (void)(alg_invoke(v_fields, "Add", (Value[]){v_field}, 1));
-                                        }
-                                        (void)((v_j = alg_add(v_j, alg_int(1))));
-                                    }
+                            Value v_j = alg_int(0);
+                            (void)v_j;
+                            for (; alg_truthy(alg_less(v_j, alg_property(alg_property(v_each, "Names"), "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
+                                {
+                                    Value v_field = alg_new(k_varstmt, (Value[]){alg_subscript_get(alg_property(v_each, "Names"), v_j), alg_property(v_each, "Initializer")}, 2);
+                                    (void)v_field;
+                                    (void)(alg_set_property(v_field, "TypeName", alg_widen(alg_property(v_each, "TypeName"), "String")));
+                                    (void)(alg_set_property(v_field, "Generic", alg_widen(alg_property(v_each, "Generic"), "String")));
+                                    (void)(alg_invoke(v_fields, "Add", (Value[]){v_field}, 1));
                                 }
                             }
                         }
-                    } else {
-                        (void)(alg_invoke(v_fields, "Add", (Value[]){v_each}, 1));
                     }
+                } else {
+                    (void)(alg_invoke(v_fields, "Add", (Value[]){v_each}, 1));
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
@@ -1860,6 +1841,7 @@ void init_Parser(void) {
     alg_class_method(k_parser, "ReadDeclarationSections", m_parser_readdeclarationsections_2_list_boolean, 2, t_parser_readdeclarationsections_2_list_boolean);
     alg_class_method(k_parser, "ForInStatement", m_parser_forinstatement_1_token, 1, t_parser_forinstatement_1_token);
     alg_class_method(k_parser, "BreakStatement", m_parser_breakstatement_0, 0, NULL);
+    alg_class_method(k_parser, "ContinueStatement", m_parser_continuestatement_0, 0, NULL);
     alg_class_method(k_parser, "RaiseStatement", m_parser_raisestatement_0, 0, NULL);
     alg_class_method(k_parser, "TryStatement", m_parser_trystatement_0, 0, NULL);
     alg_class_method(k_parser, "VarDeclaration", m_parser_vardeclaration_0, 0, NULL);

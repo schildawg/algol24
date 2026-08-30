@@ -14,6 +14,7 @@ extern Value k_excepthandler;
 extern Value k_objectstmt;
 extern Value k_modulestmt;
 extern Value k_breakstmt;
+extern Value k_continuestmt;
 extern Value k_trystmt;
 extern Value k_raisestmt;
 extern Value k_forinstmt;

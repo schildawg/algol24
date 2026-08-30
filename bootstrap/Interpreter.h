@@ -44,6 +44,7 @@ extern Value k_assertequalnative;
 extern Value k_failnative;
 extern Value k_interpreter;
 extern Value k_broke;
+extern Value k_continued;
 extern Value k_raised;
 extern Value k_return;
 void init_Interpreter(void);

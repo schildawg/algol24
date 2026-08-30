@@ -464,15 +464,16 @@ case, because the keyword is recognised first. `var begin := 7;` and
 
 ### 4.4 Keywords
 
-**[LEX-010]**  The following 38 words are keywords and are matched
+**[LEX-010]**  The following 39 words are keywords and are matched
 case-insensitively per [SRC-010]:
 
 ```
 and     as       begin   break   case    class     const   constructor
-div     do       else    end     except  exit      false   for
-function         if      in      is      nil       not     object
-of      or       private procedure       public    raise   super
-then    this     true    try     type    uses      var     while
+continue         div     do      else    end       except  exit
+false   for      function        if      in        is      nil
+not     object   of      or      private procedure public  raise
+super   then     this    true    try     type      uses    var
+while
 ```
 
 No other word is a keyword. Every word not in this list is an identifier and
@@ -2174,15 +2175,32 @@ Adding to it inside the loop does not lengthen the walk.
     compiler     bootstrap/algol.c         alg_iterable
     conformance  0055-loop-snapshot.a24
 
-**[STM-010]**  `break` leaves the innermost enclosing loop. Outside a loop it is
-refused **where it is written** — a parse-time check — with `Must be inside a
-loop to use 'break'.`
+**[STM-010]**  `break` leaves the innermost enclosing loop, and `continue`
+begins its next iteration. Outside a loop either is refused **where it is
+written** — a parse-time check — with `Must be inside a loop to use 'break'.` or
+`Must be inside a loop to use 'continue'.`
+
+⚠️ **A `for` still takes its step.** `continue` skips the rest of the body and
+nothing else, so `for var I := 0; I < 5; I := I + 1 do` with a `continue` in it
+runs `I := I + 1` on that pass exactly as on every other. This is what separates
+`continue` from `break`, which skips the step as well, because leaving a loop
+means leaving all of it.
+
+⚠️ **It is the reason a `for` is not merely a `while`.** A `for` desugars into a
+while, and while the step was written at the end of the body a `continue` jumped
+over it and the loop never ended — in both processors, since
+`while (c) { body; step; }` skips the step in C for the same reason the
+tree-walker does. The step is now held by the loop itself, so the interpreter
+runs it after catching a `continue` and the C back end writes a real `for`.
 
     interpreter  compiler/Parser.a24  BreakStatement
+    interpreter  compiler/Parser.a24  ContinueStatement
     unit         Parse Break Inside A While
     unit         Parse Break Outside A Loop
     conformance  0054-loops.a24
+    conformance  0161-continue.a24
     refusal      0021-break-outside-a-loop.a24
+    refusal      0161-continue-outside-a-loop.a24
 
 ### 10.4 Case
 

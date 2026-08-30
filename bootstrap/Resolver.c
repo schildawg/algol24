@@ -35,6 +35,7 @@ static const char *t_resolver_visittrystmt_1_trystmt[] = { "Stmt : TryStmt" };
 static const char *t_resolver_visitmodulestmt_1_modulestmt[] = { "Stmt : ModuleStmt" };
 static const char *t_resolver_visitforinstmt_1_forinstmt[] = { "Stmt : ForInStmt" };
 static const char *t_resolver_visitbreakstmt_1_breakstmt[] = { "Stmt : BreakStmt" };
+static const char *t_resolver_visitcontinuestmt_1_continuestmt[] = { "Stmt : ContinueStmt" };
 static const char *t_resolver_visitraisestmt_1_raisestmt[] = { "Stmt : RaiseStmt" };
 static const char *t_resolver_visitreturnstmt_1_returnstmt[] = { "Stmt : ReturnStmt" };
 static const char *t_resolver_visitwhilestmt_1_whilestmt[] = { "Stmt : WhileStmt" };
@@ -106,37 +107,31 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_statements, "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_thestmt = alg_subscript_get(v_statements, v_i);
-                    (void)v_thestmt;
-                    if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
-                        (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
-                    }
-                    if (alg_truthy(alg_is(v_thestmt, "EnumStmt"))) {
-                        (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
-                    }
-                    if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
-                        (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
-                    }
-                    if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
-                        {
-                            Value v_j = alg_int(0);
-                            (void)v_j;
-                            while (alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Names"), "Length")))) {
-                                {
-                                    (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme")}, 1)}, 1));
-                                    (void)((v_j = alg_add(v_j, alg_int(1))));
-                                }
-                            }
+                Value v_thestmt = alg_subscript_get(v_statements, v_i);
+                (void)v_thestmt;
+                if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
+                    (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
+                }
+                if (alg_truthy(alg_is(v_thestmt, "EnumStmt"))) {
+                    (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
+                }
+                if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
+                    (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
+                }
+                if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
+                    {
+                        Value v_j = alg_int(0);
+                        (void)v_j;
+                        for (; alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Names"), "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
+                            (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme")}, 1)}, 1));
                         }
                     }
-                    if (alg_truthy((or_0 = alg_is(v_thestmt, "ModuleStmt"), !alg_truthy(or_0) ? or_0 : alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil())))) {
-                        (void)(alg_invoke(v_this, "CollectDottable", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
-                    }
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                if (alg_truthy((or_0 = alg_is(v_thestmt, "ModuleStmt"), !alg_truthy(or_0) ? or_0 : alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil())))) {
+                    (void)(alg_invoke(v_this, "CollectDottable", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
+                }
             }
         }
     }
@@ -161,12 +156,9 @@ static Value m_resolver_isunitqualifier_1(Value v_this, Value *args, int32_t cou
     {
         Value v_i = alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1));
         (void)v_i;
-        while (alg_truthy(alg_greater_equal(v_i, alg_int(0)))) {
-            {
-                if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
-                    return alg_bool(false);
-                }
-                (void)((v_i = alg_subtract(v_i, alg_int(1))));
+        for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
+                return alg_bool(false);
             }
         }
     }
@@ -216,19 +208,16 @@ static Value m_resolver_visitclassstmt_1_classstmt(Value v_this, Value *args, in
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Methods"), "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Methods"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_declaration = e_functiontype_funVfunction;
-                    (void)v_declaration;
-                    if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(alg_property(v_stmt, "Methods"), v_i), "Name"), "Lexeme")}, 1), alg_string("init")))) {
-                        {
-                            (void)((v_declaration = e_functiontype_funVinitializer));
-                        }
+                Value v_declaration = e_functiontype_funVfunction;
+                (void)v_declaration;
+                if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(alg_property(v_stmt, "Methods"), v_i), "Name"), "Lexeme")}, 1), alg_string("init")))) {
+                    {
+                        (void)((v_declaration = e_functiontype_funVinitializer));
                     }
-                    (void)(alg_invoke(v_this, "ResolveFunction", (Value[]){alg_subscript_get(alg_property(v_stmt, "Methods"), v_i), v_declaration}, 2));
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                (void)(alg_invoke(v_this, "ResolveFunction", (Value[]){alg_subscript_get(alg_property(v_stmt, "Methods"), v_i), v_declaration}, 2));
             }
         }
     }
@@ -267,13 +256,10 @@ static Value m_resolver_visitenumstmt_1_enumstmt(Value v_this, Value *args, int3
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Members"), "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Members"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    (void)(alg_invoke(v_this, "Declare", (Value[]){alg_subscript_get(alg_property(v_stmt, "Members"), v_i)}, 1));
-                    (void)(alg_invoke(v_this, "Define", (Value[]){alg_subscript_get(alg_property(v_stmt, "Members"), v_i)}, 1));
-                }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                (void)(alg_invoke(v_this, "Declare", (Value[]){alg_subscript_get(alg_property(v_stmt, "Members"), v_i)}, 1));
+                (void)(alg_invoke(v_this, "Define", (Value[]){alg_subscript_get(alg_property(v_stmt, "Members"), v_i)}, 1));
             }
         }
     }
@@ -311,11 +297,8 @@ static Value m_resolver_visittrystmt_1_trystmt(Value v_this, Value *args, int32_
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_keys, "Length")))) {
-            {
-                (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(alg_invoke(alg_property(v_stmt, "Handlers"), "Get", (Value[]){alg_subscript_get(v_keys, v_i)}, 1), "Body")}, 1));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_property(v_keys, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(alg_invoke(alg_property(v_stmt, "Handlers"), "Get", (Value[]){alg_subscript_get(v_keys, v_i)}, 1), "Body")}, 1));
         }
     }
     return alg_nil();
@@ -358,6 +341,13 @@ static Value m_resolver_visitforinstmt_1_forinstmt(Value v_this, Value *args, in
 static Value m_resolver_visitbreakstmt_1_breakstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_stmt = alg_widen(args[0], "BreakStmt");
+    (void)v_stmt;
+    return alg_nil();
+}
+
+static Value m_resolver_visitcontinuestmt_1_continuestmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_stmt = alg_widen(args[0], "ContinueStmt");
     (void)v_stmt;
     return alg_nil();
 }
@@ -432,11 +422,8 @@ static Value m_resolver_visitvargroupstmt_1_vargroupstmt(Value v_this, Value *ar
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Names"), "Length")))) {
-            {
-                (void)(alg_invoke(v_this, "DeclareBinding", (Value[]){alg_subscript_get(alg_property(v_stmt, "Names"), v_i), alg_property(v_stmt, "IsConstant")}, 2));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Names"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(v_this, "DeclareBinding", (Value[]){alg_subscript_get(alg_property(v_stmt, "Names"), v_i), alg_property(v_stmt, "IsConstant")}, 2));
         }
     }
     if (alg_truthy(alg_not_equal(alg_property(v_stmt, "Initializer"), alg_nil()))) {
@@ -445,11 +432,8 @@ static Value m_resolver_visitvargroupstmt_1_vargroupstmt(Value v_this, Value *ar
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Names"), "Length")))) {
-            {
-                (void)(alg_invoke(v_this, "Define", (Value[]){alg_subscript_get(alg_property(v_stmt, "Names"), v_i)}, 1));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Names"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(v_this, "Define", (Value[]){alg_subscript_get(alg_property(v_stmt, "Names"), v_i)}, 1));
         }
     }
     return alg_nil();
@@ -501,12 +485,9 @@ static Value m_resolver_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Arguments"), "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Arguments"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Arguments"), v_i)}, 1));
-                }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Arguments"), v_i)}, 1));
             }
         }
     }
@@ -613,21 +594,15 @@ static Value m_resolver_visitcollectionexpr_1_collectionexpr(Value v_this, Value
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Keys"), "Length")))) {
-            {
-                (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Keys"), v_i)}, 1));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Keys"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Keys"), v_i)}, 1));
         }
     }
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Values"), "Length")))) {
-            {
-                (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Values"), v_i)}, 1));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Values"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Values"), v_i)}, 1));
         }
     }
     return alg_nil();
@@ -669,139 +644,127 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_statements, "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_thestmt = alg_subscript_get(v_statements, v_i);
-                    (void)v_thestmt;
-                    if (alg_truthy(alg_is(v_thestmt, "ModuleStmt"))) {
-                        {
-                            if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil()))) {
-                                (void)(alg_invoke(v_this, "CheckDuplicates", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
-                            }
+                Value v_thestmt = alg_subscript_get(v_statements, v_i);
+                (void)v_thestmt;
+                if (alg_truthy(alg_is(v_thestmt, "ModuleStmt"))) {
+                    {
+                        if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil()))) {
+                            (void)(alg_invoke(v_this, "CheckDuplicates", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
                         }
-                    } else {
-                        {
-                            Value v_thename = alg_string("");
-                            (void)v_thename;
-                            Value v_written = alg_string("");
-                            (void)v_written;
-                            if (alg_truthy(alg_is(v_thestmt, "FunctionStmt"))) {
-                                {
-                                    Value v_fnname = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
-                                    (void)v_fnname;
-                                    Value v_signature = alg_invoke(v_this, "SignatureOf", (Value[]){v_thestmt}, 1);
-                                    (void)v_signature;
-                                    if (alg_truthy((or_3 = alg_invoke(v_seen, "Contains", (Value[]){v_fnname}, 1), alg_truthy(or_3) ? or_3 : alg_invoke(v_memberowner, "Contains", (Value[]){v_fnname}, 1)))) {
-                                        alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
-                                    }
-                                    if (alg_truthy(alg_not(alg_invoke(v_signatures, "Contains", (Value[]){v_fnname}, 1)))) {
-                                        (void)(alg_invoke(v_signatures, "Put", (Value[]){v_fnname, alg_list()}, 2));
-                                    }
-                                    Value v_taken = alg_invoke(v_signatures, "Get", (Value[]){v_fnname}, 1);
-                                    (void)v_taken;
-                                    {
-                                        Value v_j = alg_int(0);
-                                        (void)v_j;
-                                        while (alg_truthy(alg_less(v_j, alg_property(v_taken, "Length")))) {
-                                            {
-                                                if (alg_truthy(alg_equal(alg_str(alg_subscript_get(v_taken, v_j)), v_signature))) {
-                                                    alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
-                                                }
-                                                (void)((v_j = alg_add(v_j, alg_int(1))));
-                                            }
-                                        }
-                                    }
-                                    (void)(alg_invoke(v_taken, "Add", (Value[]){v_signature}, 1));
+                    }
+                } else {
+                    {
+                        Value v_thename = alg_string("");
+                        (void)v_thename;
+                        Value v_written = alg_string("");
+                        (void)v_written;
+                        if (alg_truthy(alg_is(v_thestmt, "FunctionStmt"))) {
+                            {
+                                Value v_fnname = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
+                                (void)v_fnname;
+                                Value v_signature = alg_invoke(v_this, "SignatureOf", (Value[]){v_thestmt}, 1);
+                                (void)v_signature;
+                                if (alg_truthy((or_3 = alg_invoke(v_seen, "Contains", (Value[]){v_fnname}, 1), alg_truthy(or_3) ? or_3 : alg_invoke(v_memberowner, "Contains", (Value[]){v_fnname}, 1)))) {
+                                    alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
                                 }
-                            }
-                            if (alg_truthy(alg_is(v_thestmt, "ClassStmt"))) {
-                                (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
-                            }
-                            if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
-                                (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
-                            }
-                            if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
-                                (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
-                            }
-                            if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
-                                (void)((v_written = alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))));
-                            }
-                            if (alg_truthy(alg_is(v_thestmt, "EnumStmt"))) {
-                                {
-                                    Value v_owner = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
-                                    (void)v_owner;
-                                    {
-                                        Value v_j = alg_int(0);
-                                        (void)v_j;
-                                        while (alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Members"), "Length")))) {
-                                            {
-                                                {
-                                                    Value v_member = f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Members"), v_j), "Lexeme")}, 1);
-                                                    (void)v_member;
-                                                    Value v_aswritten = alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Members"), v_j), "Lexeme"));
-                                                    (void)v_aswritten;
-                                                    if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_member}, 1))) {
-                                                        alg_raise(alg_add(alg_add(alg_char_value(39), v_aswritten), alg_string("' is already defined.")));
-                                                    }
-                                                    if (alg_truthy(alg_invoke(v_memberowner, "Contains", (Value[]){v_member}, 1))) {
-                                                        if (alg_truthy(alg_equal(alg_str(alg_invoke(v_memberowner, "Get", (Value[]){v_member}, 1)), v_owner))) {
-                                                            alg_raise(alg_add(alg_add(alg_char_value(39), v_aswritten), alg_string("' is already defined.")));
-                                                        }
-                                                    }
-                                                    (void)(alg_invoke(v_memberowner, "Put", (Value[]){v_member, v_owner}, 2));
-                                                }
-                                                (void)((v_j = alg_add(v_j, alg_int(1))));
-                                            }
-                                        }
-                                    }
-                                    (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
-                                    (void)((v_written = alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))));
+                                if (alg_truthy(alg_not(alg_invoke(v_signatures, "Contains", (Value[]){v_fnname}, 1)))) {
+                                    (void)(alg_invoke(v_signatures, "Put", (Value[]){v_fnname, alg_list()}, 2));
                                 }
-                            }
-                            if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
+                                Value v_taken = alg_invoke(v_signatures, "Get", (Value[]){v_fnname}, 1);
+                                (void)v_taken;
                                 {
                                     Value v_j = alg_int(0);
                                     (void)v_j;
-                                    while (alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Names"), "Length")))) {
-                                        {
-                                            {
-                                                Value v_each = f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme")}, 1);
-                                                (void)v_each;
-                                                if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_each}, 1))) {
-                                                    alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
-                                                }
-                                                if (alg_truthy(alg_invoke(v_memberowner, "Contains", (Value[]){v_each}, 1))) {
-                                                    alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
-                                                }
-                                                if (alg_truthy(alg_invoke(v_signatures, "Contains", (Value[]){v_each}, 1))) {
-                                                    alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
-                                                }
-                                                (void)(alg_invoke(v_seen, "Add", (Value[]){v_each}, 1));
-                                            }
-                                            (void)((v_j = alg_add(v_j, alg_int(1))));
+                                    for (; alg_truthy(alg_less(v_j, alg_property(v_taken, "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
+                                        if (alg_truthy(alg_equal(alg_str(alg_subscript_get(v_taken, v_j)), v_signature))) {
+                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
                                         }
                                     }
                                 }
+                                (void)(alg_invoke(v_taken, "Add", (Value[]){v_signature}, 1));
                             }
-                            if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
+                        }
+                        if (alg_truthy(alg_is(v_thestmt, "ClassStmt"))) {
+                            (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
+                        }
+                        if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
+                            (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
+                        }
+                        if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
+                            (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
+                        }
+                        if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
+                            (void)((v_written = alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))));
+                        }
+                        if (alg_truthy(alg_is(v_thestmt, "EnumStmt"))) {
+                            {
+                                Value v_owner = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
+                                (void)v_owner;
                                 {
-                                    if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_thename}, 1))) {
-                                        alg_raise(alg_add(alg_add(alg_char_value(39), v_written), alg_string("' is already defined.")));
+                                    Value v_j = alg_int(0);
+                                    (void)v_j;
+                                    for (; alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Members"), "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
+                                        {
+                                            Value v_member = f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Members"), v_j), "Lexeme")}, 1);
+                                            (void)v_member;
+                                            Value v_aswritten = alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Members"), v_j), "Lexeme"));
+                                            (void)v_aswritten;
+                                            if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_member}, 1))) {
+                                                alg_raise(alg_add(alg_add(alg_char_value(39), v_aswritten), alg_string("' is already defined.")));
+                                            }
+                                            if (alg_truthy(alg_invoke(v_memberowner, "Contains", (Value[]){v_member}, 1))) {
+                                                if (alg_truthy(alg_equal(alg_str(alg_invoke(v_memberowner, "Get", (Value[]){v_member}, 1)), v_owner))) {
+                                                    alg_raise(alg_add(alg_add(alg_char_value(39), v_aswritten), alg_string("' is already defined.")));
+                                                }
+                                            }
+                                            (void)(alg_invoke(v_memberowner, "Put", (Value[]){v_member, v_owner}, 2));
+                                        }
                                     }
-                                    if (alg_truthy(alg_invoke(v_memberowner, "Contains", (Value[]){v_thename}, 1))) {
-                                        alg_raise(alg_add(alg_add(alg_char_value(39), v_written), alg_string("' is already defined.")));
-                                    }
-                                    if (alg_truthy(alg_invoke(v_signatures, "Contains", (Value[]){v_thename}, 1))) {
-                                        alg_raise(alg_add(alg_add(alg_char_value(39), v_written), alg_string("' is already defined.")));
-                                    }
-                                    (void)(alg_invoke(v_seen, "Add", (Value[]){v_thename}, 1));
                                 }
+                                (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
+                                (void)((v_written = alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))));
+                            }
+                        }
+                        if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
+                            {
+                                Value v_j = alg_int(0);
+                                (void)v_j;
+                                for (; alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Names"), "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
+                                    {
+                                        Value v_each = f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme")}, 1);
+                                        (void)v_each;
+                                        if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_each}, 1))) {
+                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
+                                        }
+                                        if (alg_truthy(alg_invoke(v_memberowner, "Contains", (Value[]){v_each}, 1))) {
+                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
+                                        }
+                                        if (alg_truthy(alg_invoke(v_signatures, "Contains", (Value[]){v_each}, 1))) {
+                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
+                                        }
+                                        (void)(alg_invoke(v_seen, "Add", (Value[]){v_each}, 1));
+                                    }
+                                }
+                            }
+                        }
+                        if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
+                            {
+                                if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_thename}, 1))) {
+                                    alg_raise(alg_add(alg_add(alg_char_value(39), v_written), alg_string("' is already defined.")));
+                                }
+                                if (alg_truthy(alg_invoke(v_memberowner, "Contains", (Value[]){v_thename}, 1))) {
+                                    alg_raise(alg_add(alg_add(alg_char_value(39), v_written), alg_string("' is already defined.")));
+                                }
+                                if (alg_truthy(alg_invoke(v_signatures, "Contains", (Value[]){v_thename}, 1))) {
+                                    alg_raise(alg_add(alg_add(alg_char_value(39), v_written), alg_string("' is already defined.")));
+                                }
+                                (void)(alg_invoke(v_seen, "Add", (Value[]){v_thename}, 1));
                             }
                         }
                     }
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
@@ -818,17 +781,14 @@ static Value m_resolver_signatureof_1(Value v_this, Value *args, int32_t count) 
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Params"), "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_declared = alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), v_i));
-                    (void)v_declared;
-                    if (alg_truthy(alg_equal(v_declared, alg_string("")))) {
-                        (void)((v_declared = alg_string("Any")));
-                    }
-                    (void)((v_text = alg_widen(alg_add(alg_add(v_text, alg_char_value(47)), f_foldcase(NULL, (Value[]){v_declared}, 1)), "String")));
+                Value v_declared = alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), v_i));
+                (void)v_declared;
+                if (alg_truthy(alg_equal(v_declared, alg_string("")))) {
+                    (void)((v_declared = alg_string("Any")));
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                (void)((v_text = alg_widen(alg_add(alg_add(v_text, alg_char_value(47)), f_foldcase(NULL, (Value[]){v_declared}, 1)), "String")));
             }
         }
     }
@@ -846,14 +806,11 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_statements, "Length")))) {
-            {
-                if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "ClassStmt"))) {
-                    if (alg_truthy(alg_not_equal(alg_property(alg_subscript_get(v_statements, v_i), "Superclass"), alg_nil()))) {
-                        (void)(alg_invoke(v_parent, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme")}, 1), f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Superclass"), "Name"), "Lexeme")}, 1)}, 2));
-                    }
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "ClassStmt"))) {
+                if (alg_truthy(alg_not_equal(alg_property(alg_subscript_get(v_statements, v_i), "Superclass"), alg_nil()))) {
+                    (void)(alg_invoke(v_parent, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme")}, 1), f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Superclass"), "Name"), "Lexeme")}, 1)}, 2));
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
@@ -897,12 +854,9 @@ static Value m_resolver_resolveall_1_list(Value v_this, Value *args, int32_t cou
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(v_statements, "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
-                }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
             }
         }
     }
@@ -931,15 +885,12 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "Params"), "Length")))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_param = alg_subscript_get(alg_property(v_thefunction, "Params"), v_i);
-                    (void)v_param;
-                    (void)(alg_invoke(v_this, "Declare", (Value[]){v_param}, 1));
-                    (void)(alg_invoke(v_this, "Define", (Value[]){v_param}, 1));
-                }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
+                Value v_param = alg_subscript_get(alg_property(v_thefunction, "Params"), v_i);
+                (void)v_param;
+                (void)(alg_invoke(v_this, "Declare", (Value[]){v_param}, 1));
+                (void)(alg_invoke(v_this, "Define", (Value[]){v_param}, 1));
             }
         }
     }
@@ -1006,12 +957,9 @@ static Value m_resolver_isconstant_1_token(Value v_this, Value *args, int32_t co
     {
         Value v_i = alg_subtract(alg_property(alg_property(v_this, "Constants"), "Length"), alg_int(1));
         (void)v_i;
-        while (alg_truthy(alg_greater_equal(v_i, alg_int(0)))) {
-            {
-                if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Constants"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_lexeme}, 1)}, 1))) {
-                    return alg_invoke(alg_subscript_get(alg_property(v_this, "Constants"), v_i), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_lexeme}, 1)}, 1);
-                }
-                (void)((v_i = alg_subtract(v_i, alg_int(1))));
+        for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Constants"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_lexeme}, 1)}, 1))) {
+                return alg_invoke(alg_subscript_get(alg_property(v_this, "Constants"), v_i), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_lexeme}, 1)}, 1);
             }
         }
     }
@@ -1045,17 +993,14 @@ static Value m_resolver_resolvelocal_2_expr_token(Value v_this, Value *args, int
     {
         Value v_i = alg_widen(alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1)), "Integer");
         (void)v_i;
-        while (alg_truthy(alg_greater_equal(v_i, alg_int(0)))) {
+        for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
             {
-                {
-                    if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))) {
-                        {
-                            (void)(alg_invoke(alg_property(v_this, "TheInterpreter"), "Resolve", (Value[]){v_theexpr, alg_subtract(alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1)), v_i)}, 2));
-                            return alg_nil();
-                        }
+                if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))) {
+                    {
+                        (void)(alg_invoke(alg_property(v_this, "TheInterpreter"), "Resolve", (Value[]){v_theexpr, alg_subtract(alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1)), v_i)}, 2));
+                        return alg_nil();
                     }
                 }
-                (void)((v_i = alg_widen(alg_subtract(v_i, alg_int(1)), "Integer")));
             }
         }
     }
@@ -1097,6 +1042,7 @@ void init_Resolver(void) {
     alg_class_method(k_resolver, "VisitModuleStmt", m_resolver_visitmodulestmt_1_modulestmt, 1, t_resolver_visitmodulestmt_1_modulestmt);
     alg_class_method(k_resolver, "VisitForInStmt", m_resolver_visitforinstmt_1_forinstmt, 1, t_resolver_visitforinstmt_1_forinstmt);
     alg_class_method(k_resolver, "VisitBreakStmt", m_resolver_visitbreakstmt_1_breakstmt, 1, t_resolver_visitbreakstmt_1_breakstmt);
+    alg_class_method(k_resolver, "VisitContinueStmt", m_resolver_visitcontinuestmt_1_continuestmt, 1, t_resolver_visitcontinuestmt_1_continuestmt);
     alg_class_method(k_resolver, "VisitRaiseStmt", m_resolver_visitraisestmt_1_raisestmt, 1, t_resolver_visitraisestmt_1_raisestmt);
     alg_class_method(k_resolver, "VisitReturnStmt", m_resolver_visitreturnstmt_1_returnstmt, 1, t_resolver_visitreturnstmt_1_returnstmt);
     alg_class_method(k_resolver, "VisitWhileStmt", m_resolver_visitwhilestmt_1_whilestmt, 1, t_resolver_visitwhilestmt_1_whilestmt);

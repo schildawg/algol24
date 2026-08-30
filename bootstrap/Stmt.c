@@ -30,6 +30,9 @@ static const char *t_modulestmt_accept_1[] = { "Visitor : Any" };
 Value k_breakstmt;
 static const char *t_breakstmt_init_1_token[] = { "Keyword : Token" };
 static const char *t_breakstmt_accept_1[] = { "Visitor : Any" };
+Value k_continuestmt;
+static const char *t_continuestmt_init_1_token[] = { "Keyword : Token" };
+static const char *t_continuestmt_accept_1[] = { "Visitor : Any" };
 Value k_trystmt;
 static const char *t_trystmt_init_2_stmt_map[] = { "TryBlock : Stmt", "Handlers : Map" };
 static const char *t_trystmt_accept_1[] = { "Visitor : Any" };
@@ -302,6 +305,28 @@ static Value m_breakstmt_accept_1(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value i_continuestmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Keyword", alg_nil());
+    return alg_nil();
+}
+
+static Value m_continuestmt_init_1_token(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_keyword = alg_widen(args[0], "Token");
+    (void)v_keyword;
+    (void)(alg_set_property(v_this, "Keyword", alg_widen(v_keyword, "Token")));
+    return alg_nil();
+}
+
+static Value m_continuestmt_accept_1(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitContinueStmt", (Value[]){v_this}, 1);
+    return alg_nil();
+}
+
 static Value i_trystmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "TryBlock", alg_nil());
@@ -388,6 +413,7 @@ static Value i_whilestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Condition", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
+    alg_set_property(v_this, "Increment", alg_widen(alg_nil(), "Expr"));
     return alg_nil();
 }
 
@@ -572,6 +598,7 @@ void init_Stmt(void) {
     k_objectstmt = alg_class("ObjectStmt", alg_nil());
     k_modulestmt = alg_class("ModuleStmt", alg_nil());
     k_breakstmt = alg_class("BreakStmt", alg_nil());
+    k_continuestmt = alg_class("ContinueStmt", alg_nil());
     k_trystmt = alg_class("TryStmt", alg_nil());
     k_raisestmt = alg_class("RaiseStmt", alg_nil());
     k_forinstmt = alg_class("ForInStmt", alg_nil());
@@ -644,6 +671,11 @@ void init_Stmt(void) {
     alg_class_initializer(k_breakstmt, i_breakstmt);
     alg_class_method(k_breakstmt, "Init", m_breakstmt_init_1_token, 1, t_breakstmt_init_1_token);
     alg_class_method(k_breakstmt, "Accept", m_breakstmt_accept_1, 1, t_breakstmt_accept_1);
+    alg_class_super(k_continuestmt, k_stmt);
+    alg_class_field(k_continuestmt, "Keyword");
+    alg_class_initializer(k_continuestmt, i_continuestmt);
+    alg_class_method(k_continuestmt, "Init", m_continuestmt_init_1_token, 1, t_continuestmt_init_1_token);
+    alg_class_method(k_continuestmt, "Accept", m_continuestmt_accept_1, 1, t_continuestmt_accept_1);
     alg_class_super(k_trystmt, k_stmt);
     alg_class_field(k_trystmt, "TryBlock");
     alg_class_field(k_trystmt, "Handlers");
@@ -666,6 +698,7 @@ void init_Stmt(void) {
     alg_class_super(k_whilestmt, k_stmt);
     alg_class_field(k_whilestmt, "Condition");
     alg_class_field(k_whilestmt, "Body");
+    alg_class_field(k_whilestmt, "Increment");
     alg_class_initializer(k_whilestmt, i_whilestmt);
     alg_class_method(k_whilestmt, "Init", m_whilestmt_init_2_expr_stmt, 2, t_whilestmt_init_2_expr_stmt);
     alg_class_method(k_whilestmt, "Accept", m_whilestmt_accept_1, 1, t_whilestmt_accept_1);

@@ -37,6 +37,7 @@ extern Value e_tokentype_tokenVbreak;
 extern Value e_tokentype_tokenVcase;
 extern Value e_tokentype_tokenVclass;
 extern Value e_tokentype_tokenVconst;
+extern Value e_tokentype_tokenVcontinue;
 extern Value e_tokentype_tokenVdo;
 extern Value e_tokentype_tokenVelse;
 extern Value e_tokentype_tokenVexit;

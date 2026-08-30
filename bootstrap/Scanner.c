@@ -74,20 +74,17 @@ Value f_tolower(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
+        for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                {
-                    Value v_c = alg_copy(v_text, v_i, alg_int(1));
-                    (void)v_c;
-                    Value v_at = alg_pos((alg_declared(d_uppercase, "UPPERCASE"), v_uppercase), v_c);
-                    (void)v_at;
-                    if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
-                        (void)((v_result = alg_widen(alg_add(v_result, alg_copy((alg_declared(d_lowercase, "LOWERCASE"), v_lowercase), v_at, alg_int(1))), "String")));
-                    } else {
-                        (void)((v_result = alg_widen(alg_add(v_result, v_c), "String")));
-                    }
+                Value v_c = alg_copy(v_text, v_i, alg_int(1));
+                (void)v_c;
+                Value v_at = alg_pos((alg_declared(d_uppercase, "UPPERCASE"), v_uppercase), v_c);
+                (void)v_at;
+                if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
+                    (void)((v_result = alg_widen(alg_add(v_result, alg_copy((alg_declared(d_lowercase, "LOWERCASE"), v_lowercase), v_at, alg_int(1))), "String")));
+                } else {
+                    (void)((v_result = alg_widen(alg_add(v_result, v_c), "String")));
                 }
-                (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }
     }
@@ -105,11 +102,8 @@ Value f_tointeger(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
-            {
-                (void)((v_result = alg_widen(alg_add(alg_multiply(v_result, alg_int(10)), alg_pos((alg_declared(d_digits, "DIGITS"), v_digits), alg_copy(v_text, v_i, alg_int(1)))), "Integer")));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)((v_result = alg_widen(alg_add(alg_multiply(v_result, alg_int(10)), alg_pos((alg_declared(d_digits, "DIGITS"), v_digits), alg_copy(v_text, v_i, alg_int(1)))), "Integer")));
         }
     }
     return v_result;
@@ -128,11 +122,8 @@ Value f_toradix(Value **cells, Value *args, int32_t count) {
     {
         Value v_i = alg_int(0);
         (void)v_i;
-        while (alg_truthy(alg_less(v_i, alg_text_length(v_text)))) {
-            {
-                (void)((v_result = alg_widen(alg_add(alg_multiply(v_result, alg_text_length(v_alphabet)), alg_pos(v_alphabet, f_tolower(NULL, (Value[]){alg_copy(v_text, v_i, alg_int(1))}, 1))), "Integer")));
-                (void)((v_i = alg_add(v_i, alg_int(1))));
-            }
+        for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)((v_result = alg_widen(alg_add(alg_multiply(v_result, alg_text_length(v_alphabet)), alg_pos(v_alphabet, f_tolower(NULL, (Value[]){alg_copy(v_text, v_i, alg_int(1))}, 1))), "Integer")));
         }
     }
     return v_result;
@@ -708,7 +699,7 @@ void init_Scanner(void) {
     d_uppercase = true;
     v_lowercase = alg_string("abcdefghijklmnopqrstuvwxyz");
     d_lowercase = true;
-    v_keywords = alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map(), alg_string("and"), e_tokentype_tokenVand), alg_string("as"), e_tokentype_tokenVas), alg_string("begin"), e_tokentype_tokenVbegin), alg_string("break"), e_tokentype_tokenVbreak), alg_string("case"), e_tokentype_tokenVcase), alg_string("class"), e_tokentype_tokenVclass), alg_string("const"), e_tokentype_tokenVconst), alg_string("constructor"), e_tokentype_tokenVconstructor), alg_string("div"), e_tokentype_tokenVdiv), alg_string("do"), e_tokentype_tokenVdo), alg_string("else"), e_tokentype_tokenVelse), alg_string("end"), e_tokentype_tokenVend), alg_string("except"), e_tokentype_tokenVexcept), alg_string("exit"), e_tokentype_tokenVexit), alg_string("false"), e_tokentype_tokenVfalse), alg_string("for"), e_tokentype_tokenVfor), alg_string("function"), e_tokentype_tokenVfunction), alg_string("if"), e_tokentype_tokenVif), alg_string("in"), e_tokentype_tokenVin), alg_string("is"), e_tokentype_tokenVis), alg_string("nil"), e_tokentype_tokenVnil), alg_string("not"), e_tokentype_tokenVnot), alg_string("object"), e_tokentype_tokenVobject), alg_string("of"), e_tokentype_tokenVof), alg_string("or"), e_tokentype_tokenVor), alg_string("private"), e_tokentype_tokenVprivate), alg_string("procedure"), e_tokentype_tokenVprocedure), alg_string("public"), e_tokentype_tokenVpublic), alg_string("raise"), e_tokentype_tokenVraise), alg_string("super"), e_tokentype_tokenVsuper), alg_string("uses"), e_tokentype_tokenVuses), alg_string("then"), e_tokentype_tokenVthen), alg_string("try"), e_tokentype_tokenVtry), alg_string("this"), e_tokentype_tokenVthis), alg_string("true"), e_tokentype_tokenVtrue), alg_string("type"), e_tokentype_tokenVtype), alg_string("var"), e_tokentype_tokenVvar), alg_string("while"), e_tokentype_tokenVwhile);
+    v_keywords = alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map(), alg_string("and"), e_tokentype_tokenVand), alg_string("as"), e_tokentype_tokenVas), alg_string("begin"), e_tokentype_tokenVbegin), alg_string("break"), e_tokentype_tokenVbreak), alg_string("continue"), e_tokentype_tokenVcontinue), alg_string("case"), e_tokentype_tokenVcase), alg_string("class"), e_tokentype_tokenVclass), alg_string("const"), e_tokentype_tokenVconst), alg_string("constructor"), e_tokentype_tokenVconstructor), alg_string("div"), e_tokentype_tokenVdiv), alg_string("do"), e_tokentype_tokenVdo), alg_string("else"), e_tokentype_tokenVelse), alg_string("end"), e_tokentype_tokenVend), alg_string("except"), e_tokentype_tokenVexcept), alg_string("exit"), e_tokentype_tokenVexit), alg_string("false"), e_tokentype_tokenVfalse), alg_string("for"), e_tokentype_tokenVfor), alg_string("function"), e_tokentype_tokenVfunction), alg_string("if"), e_tokentype_tokenVif), alg_string("in"), e_tokentype_tokenVin), alg_string("is"), e_tokentype_tokenVis), alg_string("nil"), e_tokentype_tokenVnil), alg_string("not"), e_tokentype_tokenVnot), alg_string("object"), e_tokentype_tokenVobject), alg_string("of"), e_tokentype_tokenVof), alg_string("or"), e_tokentype_tokenVor), alg_string("private"), e_tokentype_tokenVprivate), alg_string("procedure"), e_tokentype_tokenVprocedure), alg_string("public"), e_tokentype_tokenVpublic), alg_string("raise"), e_tokentype_tokenVraise), alg_string("super"), e_tokentype_tokenVsuper), alg_string("uses"), e_tokentype_tokenVuses), alg_string("then"), e_tokentype_tokenVthen), alg_string("try"), e_tokentype_tokenVtry), alg_string("this"), e_tokentype_tokenVthis), alg_string("true"), e_tokentype_tokenVtrue), alg_string("type"), e_tokentype_tokenVtype), alg_string("var"), e_tokentype_tokenVvar), alg_string("while"), e_tokentype_tokenVwhile);
     d_keywords = true;
     v_haderror = alg_bool(false);
     d_haderror = true;

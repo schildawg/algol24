@@ -34,6 +34,7 @@ Value e_tokentype_tokenVbreak;
 Value e_tokentype_tokenVcase;
 Value e_tokentype_tokenVclass;
 Value e_tokentype_tokenVconst;
+Value e_tokentype_tokenVcontinue;
 Value e_tokentype_tokenVdo;
 Value e_tokentype_tokenVelse;
 Value e_tokentype_tokenVexit;
@@ -101,6 +102,7 @@ void init_TokenType(void) {
     e_tokentype_tokenVcase = alg_enum_member(e_tokentype, "TOKEN_CASE");
     e_tokentype_tokenVclass = alg_enum_member(e_tokentype, "TOKEN_CLASS");
     e_tokentype_tokenVconst = alg_enum_member(e_tokentype, "TOKEN_CONST");
+    e_tokentype_tokenVcontinue = alg_enum_member(e_tokentype, "TOKEN_CONTINUE");
     e_tokentype_tokenVdo = alg_enum_member(e_tokentype, "TOKEN_DO");
     e_tokentype_tokenVelse = alg_enum_member(e_tokentype, "TOKEN_ELSE");
     e_tokentype_tokenVexit = alg_enum_member(e_tokentype, "TOKEN_EXIT");
