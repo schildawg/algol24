@@ -4237,21 +4237,42 @@ Only the **bare** name has two answers, and having two answers is exactly what
 there, in the interpreter's words, after everything above it has run —
 `Environment.Ambiguous` is consulted at the same moment for the same reason.
 
-**C-21 — Two modules exporting one name is refused compiled.** *(loud)*
+**C-21 — Two modules exporting one name is refused compiled.**
+***Withdrawn.***
 
 Two imported modules may export one name [MOD-008] and the interpreter runs the
-program, refusing only the ambiguous bare use [MOD-013]. The emitter refuses with
+program, refusing only the ambiguous bare use [MOD-013]. The emitter refused with
 `Two modules exporting 'Shared' is not supported by the C back end yet.`
 
 ⚠️ Two modules exporting one **function** would emit cleanly from both back ends
 and then die at the **linker** on a duplicate symbol — past anything a
-compile-only check can observe — which is why the refusal is worth keeping until
-the emitter learns to rename.
+compile-only check can observe — which is why the refusal was worth keeping
+until the emitter learned to rename.
 
-*Fix:* rename the colliding symbol per unit, as a private name colliding across
-units already is.
+⚠️ **Renaming and resolving are different questions**, and the recorded fix named
+only the first. The *symbol* is program-wide, so both owners take their unit as
+a suffix wherever they are written. *Which* symbol a bare use means is per file:
+one importing a single owner names it bare quite legally and must reach that
+owner's suffixed symbol, and only one importing both has a name with no answer.
+A qualified use resolves either way, which is what makes this a use-site error
+rather than a refusal.
 
-    gap  0124-modules-may-share-exported-names.a24
+⚠️ **`Renames` had to stop being suspended at a qualified name and start being
+replaced.** Clearing it was right only while an exported name could never be
+renamed; with one that can, `Alpha.Shared()` emitted the unsuffixed name nothing
+defines.
+
+⚠️ **And it was C-2 that actually refused the program**, not this entry's check.
+`TopLevel` accumulated across the whole program, so `Shared` in Alpha and
+`Shared` in Beta read as an *overload* [FUN-013] and were refused as one — the
+emitter reporting a language feature it does not have for a program using one it
+does. The set is cleared per unit now, which is what the check always meant.
+
+⚠️ **`Renames` also held the wrong thing.** It stored `Name__Unit` and `Mangle`
+escaped that whole string, which is exactly what `Mangle`'s own note forbids: `_`
+escapes to `V`, so the joined form and an identifier spelled `NameVVUnit` meet.
+It stayed injective only by the accident of the name appearing twice, and nothing
+in the compiler's own sources is renamed, so no emitted symbol ever showed it.
 
 **C-22 — A Unicode identifier will not compile.**
 ***Withdrawn.***

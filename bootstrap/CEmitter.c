@@ -94,6 +94,7 @@ static Value or_75;
 static Value or_76;
 static Value or_77;
 static Value or_78;
+static Value or_79;
 static const char *t_cemitter_unsupported_1[] = { "Any" };
 static const char *t_cemitter_line_1[] = { "Any" };
 static const char *t_cemitter_mangle_2_string_string[] = { "String", "String" };
@@ -170,6 +171,8 @@ static const char *t_cemitter_visitunary_1_unaryexpr[] = { "UnaryExpr" };
 static const char *t_cemitter_visitbinary_1_binaryexpr[] = { "BinaryExpr" };
 static const char *t_cemitter_builtincounts_1_string[] = { "String" };
 static const char *t_cemitter_countsmessage_2_list_integer[] = { "List", "Integer" };
+static const char *t_cemitter_renamesof_2_string_string[] = { "String", "String" };
+static const char *t_cemitter_markambiguousimport_3_string_string_string[] = { "String", "String", "String" };
 static const char *t_cemitter_markambiguousmember_3_string_string_string[] = { "String", "String", "String" };
 static const char *t_cemitter_ambiguousmessage_2_string_string[] = { "String", "String" };
 static const char *t_cemitter_isassertion_1_string[] = { "String" };
@@ -323,6 +326,8 @@ static Value i_cemitter(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "LoopTryDepth", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "Volatiles", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "Renames", alg_nil());
+    alg_set_property(v_this, "Renamed", alg_nil());
+    alg_set_property(v_this, "AmbiguousImports", alg_nil());
     alg_set_property(v_this, "AmbiguousMembers", alg_nil());
     alg_set_property(v_this, "Boxed", alg_nil());
     alg_set_property(v_this, "Cells", alg_nil());
@@ -363,6 +368,8 @@ static Value m_cemitter_init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_set_property(v_this, "VisibleMethods", alg_widen(alg_set(), "Set")));
     (void)(alg_set_property(v_this, "Renames", alg_widen(alg_map(), "Map")));
     (void)(alg_set_property(v_this, "AmbiguousMembers", alg_widen(alg_map(), "Map")));
+    (void)(alg_set_property(v_this, "AmbiguousImports", alg_widen(alg_map(), "Map")));
+    (void)(alg_set_property(v_this, "Renamed", alg_widen(alg_set(), "Set")));
     (void)(alg_set_property(v_this, "Boxed", alg_widen(alg_list(), "List")));
     (void)(alg_set_property(v_this, "Cells", alg_widen(alg_list(), "List")));
     (void)(alg_set_property(v_this, "Captured", alg_widen(alg_map(), "Map")));
@@ -927,7 +934,10 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
         (void)v_u;
         while (alg_truthy(alg_less(v_u, alg_property(v_units, "Length")))) {
             {
-                (void)(alg_invoke(v_this, "CollectGlobals", (Value[]){alg_property(alg_subscript_get(v_units, v_u), "Statements")}, 1));
+                {
+                    (void)(alg_set_property(v_this, "TopLevel", alg_widen(alg_set(), "Set")));
+                    (void)(alg_invoke(v_this, "CollectGlobals", (Value[]){alg_property(alg_subscript_get(v_units, v_u), "Statements")}, 1));
+                }
                 (void)((v_u = alg_add(v_u, alg_int(1))));
             }
         }
@@ -1050,7 +1060,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                                             if (alg_truthy(alg_invoke(v_exportedby, "Contains", (Value[]){v_thename}, 1))) {
                                                 {
                                                     if (alg_truthy(alg_not_equal(alg_str(alg_invoke(v_exportedby, "Get", (Value[]){v_thename}, 1)), alg_str(alg_property(alg_subscript_get(v_units, v_u), "Name"))))) {
-                                                        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Two modules exporting '"), v_thename), alg_char_value(39))}, 1));
+                                                        (void)(alg_invoke(alg_property(v_this, "Renamed"), "Add", (Value[]){v_thename}, 1));
                                                     }
                                                 }
                                             } else {
@@ -1108,6 +1118,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                     (void)(alg_set_property(v_this, "Renames", alg_widen(alg_map(), "Map")));
                     Value v_visible = alg_set();
                     (void)v_visible;
+                    Value v_importowner = alg_map();
+                    (void)v_importowner;
+                    (void)(alg_set_property(v_this, "AmbiguousImports", alg_widen(alg_map(), "Map")));
                     {
                         Value v_i = alg_int(0);
                         (void)v_i;
@@ -1115,14 +1128,29 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                             {
                                 if (alg_truthy(alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i))}, 1))) {
                                     {
-                                        Value v_seen = alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i))}, 1), "Set")), "ToList", NULL, 0);
+                                        Value v_from = alg_str(alg_subscript_get(alg_property(v_unit, "Imports"), v_i));
+                                        (void)v_from;
+                                        Value v_seen = alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_from}, 1), "Set")), "ToList", NULL, 0);
                                         (void)v_seen;
                                         {
                                             Value v_j = alg_int(0);
                                             (void)v_j;
                                             while (alg_truthy(alg_less(v_j, alg_property(v_seen, "Length")))) {
                                                 {
-                                                    (void)(alg_invoke(v_visible, "Add", (Value[]){alg_subscript_get(v_seen, v_j)}, 1));
+                                                    {
+                                                        Value v_thename = alg_str(alg_subscript_get(v_seen, v_j));
+                                                        (void)v_thename;
+                                                        (void)(alg_invoke(v_visible, "Add", (Value[]){v_thename}, 1));
+                                                        if (alg_truthy(alg_invoke(v_importowner, "Contains", (Value[]){v_thename}, 1))) {
+                                                            {
+                                                                if (alg_truthy(alg_not_equal(alg_str(alg_invoke(v_importowner, "Get", (Value[]){v_thename}, 1)), v_from))) {
+                                                                    (void)(alg_invoke(v_this, "MarkAmbiguousImport", (Value[]){v_thename, alg_str(alg_invoke(v_importowner, "Get", (Value[]){v_thename}, 1)), v_from}, 3));
+                                                                }
+                                                            }
+                                                        } else {
+                                                            (void)(alg_invoke(v_importowner, "Put", (Value[]){v_thename, v_from}, 2));
+                                                        }
+                                                    }
                                                     (void)((v_j = alg_add(v_j, alg_int(1))));
                                                 }
                                             }
@@ -1130,6 +1158,22 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                                     }
                                 }
                                 (void)((v_i = alg_add(v_i, alg_int(1))));
+                            }
+                        }
+                    }
+                    if (alg_truthy(alg_invoke(alg_property(v_this, "UnitAll"), "Contains", (Value[]){alg_str(alg_property(v_unit, "Name"))}, 1))) {
+                        {
+                            Value v_declares = alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitAll"), "Get", (Value[]){alg_str(alg_property(v_unit, "Name"))}, 1), "Set")), "ToList", NULL, 0);
+                            (void)v_declares;
+                            {
+                                Value v_i = alg_int(0);
+                                (void)v_i;
+                                while (alg_truthy(alg_less(v_i, alg_property(v_declares, "Length")))) {
+                                    {
+                                        (void)(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Remove", (Value[]){alg_str(alg_subscript_get(v_declares, v_i))}, 1));
+                                        (void)((v_i = alg_add(v_i, alg_int(1))));
+                                    }
+                                }
                             }
                         }
                     }
@@ -1145,7 +1189,32 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                                     (void)v_thename;
                                     if (alg_truthy(alg_invoke(v_visible, "Contains", (Value[]){v_thename}, 1))) {
                                         if (alg_truthy((or_17 = v_ismain, alg_truthy(or_17) ? or_17 : alg_invoke(alg_property(v_unit, "PrivateNames"), "Contains", (Value[]){v_thename}, 1)))) {
-                                            (void)(alg_invoke(alg_property(v_this, "Renames"), "Put", (Value[]){v_thename, alg_add(alg_add(v_thename, alg_string("__")), alg_str(alg_property(v_unit, "Name")))}, 2));
+                                            (void)(alg_invoke(alg_property(v_this, "Renames"), "Put", (Value[]){v_thename, alg_str(alg_property(v_unit, "Name"))}, 2));
+                                        }
+                                    }
+                                    if (alg_truthy(alg_invoke(alg_property(v_this, "Renamed"), "Contains", (Value[]){v_thename}, 1))) {
+                                        if (alg_truthy(alg_not(alg_invoke(alg_property(v_unit, "PrivateNames"), "Contains", (Value[]){v_thename}, 1)))) {
+                                            (void)(alg_invoke(alg_property(v_this, "Renames"), "Put", (Value[]){v_thename, alg_str(alg_property(v_unit, "Name"))}, 2));
+                                        }
+                                    }
+                                }
+                                (void)((v_i = alg_add(v_i, alg_int(1))));
+                            }
+                        }
+                    }
+                    Value v_reached = alg_invoke(v_importowner, "Keys", NULL, 0);
+                    (void)v_reached;
+                    {
+                        Value v_i = alg_int(0);
+                        (void)v_i;
+                        while (alg_truthy(alg_less(v_i, alg_property(v_reached, "Length")))) {
+                            {
+                                {
+                                    Value v_thename = alg_str(alg_subscript_get(v_reached, v_i));
+                                    (void)v_thename;
+                                    if (alg_truthy((or_18 = alg_invoke(alg_property(v_this, "Renamed"), "Contains", (Value[]){v_thename}, 1), !alg_truthy(or_18) ? or_18 : alg_not(alg_invoke(alg_property(v_this, "Renames"), "Contains", (Value[]){v_thename}, 1))))) {
+                                        if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Contains", (Value[]){v_thename}, 1)))) {
+                                            (void)(alg_invoke(alg_property(v_this, "Renames"), "Put", (Value[]){v_thename, alg_str(alg_invoke(v_importowner, "Get", (Value[]){v_thename}, 1))}, 2));
                                         }
                                     }
                                 }
@@ -1203,7 +1272,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                                 {
                                     Value v_thestmt = alg_subscript_get(alg_property(v_unit, "Statements"), v_i);
                                     (void)v_thestmt;
-                                    if (alg_truthy((or_18 = alg_is(v_thestmt, "FunctionStmt"), !alg_truthy(or_18) ? or_18 : alg_not(alg_invoke(v_this, "IsTest", (Value[]){v_thestmt}, 1))))) {
+                                    if (alg_truthy((or_19 = alg_is(v_thestmt, "FunctionStmt"), !alg_truthy(or_19) ? or_19 : alg_not(alg_invoke(v_this, "IsTest", (Value[]){v_thestmt}, 1))))) {
                                         {
                                             (void)(alg_invoke(alg_property(v_this, "Declarations"), "Append", (Value[]){alg_add(alg_add(alg_invoke(v_this, "Prototype", (Value[]){v_thestmt}, 1), alg_char_value(59)), alg_char_value(10))}, 1));
                                             if (alg_truthy(alg_invoke(v_this, "Exported", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1))) {
@@ -1225,7 +1294,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                                 {
                                     Value v_thestmt = alg_subscript_get(alg_property(v_unit, "Statements"), v_i);
                                     (void)v_thestmt;
-                                    if (alg_truthy((or_20 = alg_invoke(v_this, "RunsWhenTesting", (Value[]){v_thestmt}, 1), alg_truthy(or_20) ? or_20 : alg_not(((or_19 = alg_property(v_this, "EmitTests"), !alg_truthy(or_19) ? or_19 : v_ismain)))))) {
+                                    if (alg_truthy((or_21 = alg_invoke(v_this, "RunsWhenTesting", (Value[]){v_thestmt}, 1), alg_truthy(or_21) ? or_21 : alg_not(((or_20 = alg_property(v_this, "EmitTests"), !alg_truthy(or_20) ? or_20 : v_ismain)))))) {
                                         {
                                             if (alg_truthy(alg_is(v_thestmt, "BlockStmt"))) {
                                                 {
@@ -1604,7 +1673,7 @@ static Value m_cemitter_refusebarebinding_1(Value v_this, Value *args, int32_t c
     (void)v_this; (void)args; (void)count;
     Value v_body = args[0];
     (void)v_body;
-    if (alg_truthy((or_21 = alg_is(v_body, "VarStmt"), alg_truthy(or_21) ? or_21 : alg_is(v_body, "VarGroupStmt")))) {
+    if (alg_truthy((or_22 = alg_is(v_body, "VarStmt"), alg_truthy(or_22) ? or_22 : alg_is(v_body, "VarGroupStmt")))) {
         (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_string("A 'var' as an unbraced branch or loop body")}, 1));
     }
     return alg_nil();
@@ -1625,13 +1694,13 @@ static Value m_cemitter_declaresnested_1_list(Value v_this, Value *args, int32_t
                     if (alg_truthy(alg_is(v_thestmt, "FunctionStmt"))) {
                         return alg_bool(true);
                     }
-                    if (alg_truthy((or_22 = alg_is(v_thestmt, "BlockStmt"), !alg_truthy(or_22) ? or_22 : alg_invoke(v_this, "DeclaresNested", (Value[]){alg_property(v_thestmt, "Statements")}, 1)))) {
+                    if (alg_truthy((or_23 = alg_is(v_thestmt, "BlockStmt"), !alg_truthy(or_23) ? or_23 : alg_invoke(v_this, "DeclaresNested", (Value[]){alg_property(v_thestmt, "Statements")}, 1)))) {
                         return alg_bool(true);
                     }
-                    if (alg_truthy((or_23 = alg_is(v_thestmt, "WhileStmt"), !alg_truthy(or_23) ? or_23 : alg_invoke(v_this, "DeclaresNested", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "Body"))}, 1)))) {
+                    if (alg_truthy((or_24 = alg_is(v_thestmt, "WhileStmt"), !alg_truthy(or_24) ? or_24 : alg_invoke(v_this, "DeclaresNested", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "Body"))}, 1)))) {
                         return alg_bool(true);
                     }
-                    if (alg_truthy((or_24 = alg_is(v_thestmt, "ForInStmt"), !alg_truthy(or_24) ? or_24 : alg_invoke(v_this, "DeclaresNested", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "Body"))}, 1)))) {
+                    if (alg_truthy((or_25 = alg_is(v_thestmt, "ForInStmt"), !alg_truthy(or_25) ? or_25 : alg_invoke(v_this, "DeclaresNested", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "Body"))}, 1)))) {
                         return alg_bool(true);
                     }
                     if (alg_truthy(alg_is(v_thestmt, "IfStmt"))) {
@@ -1639,7 +1708,7 @@ static Value m_cemitter_declaresnested_1_list(Value v_this, Value *args, int32_t
                             if (alg_truthy(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "ThenBranch"))}, 1))) {
                                 return alg_bool(true);
                             }
-                            if (alg_truthy((or_25 = alg_not_equal(alg_property(v_thestmt, "ElseBranch"), alg_nil()), !alg_truthy(or_25) ? or_25 : alg_invoke(v_this, "DeclaresNested", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "ElseBranch"))}, 1)))) {
+                            if (alg_truthy((or_26 = alg_not_equal(alg_property(v_thestmt, "ElseBranch"), alg_nil()), !alg_truthy(or_26) ? or_26 : alg_invoke(v_this, "DeclaresNested", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "ElseBranch"))}, 1)))) {
                                 return alg_bool(true);
                             }
                         }
@@ -1871,13 +1940,13 @@ static Value m_cemitter_containstry_1_list(Value v_this, Value *args, int32_t co
                     if (alg_truthy(alg_is(v_thestmt, "TryStmt"))) {
                         return alg_bool(true);
                     }
-                    if (alg_truthy((or_26 = alg_is(v_thestmt, "BlockStmt"), !alg_truthy(or_26) ? or_26 : alg_invoke(v_this, "ContainsTry", (Value[]){alg_property(v_thestmt, "Statements")}, 1)))) {
+                    if (alg_truthy((or_27 = alg_is(v_thestmt, "BlockStmt"), !alg_truthy(or_27) ? or_27 : alg_invoke(v_this, "ContainsTry", (Value[]){alg_property(v_thestmt, "Statements")}, 1)))) {
                         return alg_bool(true);
                     }
-                    if (alg_truthy((or_27 = alg_is(v_thestmt, "WhileStmt"), !alg_truthy(or_27) ? or_27 : alg_invoke(v_this, "ContainsTry", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "Body"))}, 1)))) {
+                    if (alg_truthy((or_28 = alg_is(v_thestmt, "WhileStmt"), !alg_truthy(or_28) ? or_28 : alg_invoke(v_this, "ContainsTry", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "Body"))}, 1)))) {
                         return alg_bool(true);
                     }
-                    if (alg_truthy((or_28 = alg_is(v_thestmt, "ForInStmt"), !alg_truthy(or_28) ? or_28 : alg_invoke(v_this, "ContainsTry", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "Body"))}, 1)))) {
+                    if (alg_truthy((or_29 = alg_is(v_thestmt, "ForInStmt"), !alg_truthy(or_29) ? or_29 : alg_invoke(v_this, "ContainsTry", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "Body"))}, 1)))) {
                         return alg_bool(true);
                     }
                     if (alg_truthy(alg_is(v_thestmt, "IfStmt"))) {
@@ -1885,7 +1954,7 @@ static Value m_cemitter_containstry_1_list(Value v_this, Value *args, int32_t co
                             if (alg_truthy(alg_invoke(v_this, "ContainsTry", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "ThenBranch"))}, 1))) {
                                 return alg_bool(true);
                             }
-                            if (alg_truthy((or_29 = alg_not_equal(alg_property(v_thestmt, "ElseBranch"), alg_nil()), !alg_truthy(or_29) ? or_29 : alg_invoke(v_this, "ContainsTry", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "ElseBranch"))}, 1)))) {
+                            if (alg_truthy((or_30 = alg_not_equal(alg_property(v_thestmt, "ElseBranch"), alg_nil()), !alg_truthy(or_30) ? or_30 : alg_invoke(v_this, "ContainsTry", (Value[]){alg_list_keep(alg_list(), alg_property(v_thestmt, "ElseBranch"))}, 1)))) {
                                 return alg_bool(true);
                             }
                         }
@@ -1967,7 +2036,7 @@ static Value m_cemitter_hoistcells_1_list(Value v_this, Value *args, int32_t cou
                 {
                     Value v_thestmt = alg_subscript_get(v_statements, v_i);
                     (void)v_thestmt;
-                    if (alg_truthy((or_30 = alg_is(v_thestmt, "VarStmt"), !alg_truthy(or_30) ? or_30 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1)))) {
+                    if (alg_truthy((or_31 = alg_is(v_thestmt, "VarStmt"), !alg_truthy(or_31) ? or_31 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1)))) {
                         {
                             (void)(alg_invoke(alg_property(v_this, "Locals"), "Add", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1));
                             (void)(alg_invoke(v_this, "DeclareCell", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme")), alg_string("alg_nil()")}, 2));
@@ -2194,7 +2263,7 @@ static Value m_cemitter_emitmethod_2_string(Value v_this, Value *args, int32_t c
                         {
                             Value v_declared = alg_str(alg_subscript_get(alg_property(v_themethod, "ParamTypes"), v_i));
                             (void)v_declared;
-                            if (alg_truthy((or_31 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_31) ? or_31 : alg_not_equal(v_declared, alg_string("Any"))))) {
+                            if (alg_truthy((or_32 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_32) ? or_32 : alg_not_equal(v_declared, alg_string("Any"))))) {
                                 (void)((v_slot = alg_add(alg_add(alg_add(alg_add(alg_string("alg_widen("), v_slot), alg_string(", ")), f_quotec(NULL, (Value[]){v_declared}, 1)), alg_char_value(41))));
                             }
                         }
@@ -2289,7 +2358,7 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
             }
         }
     }
-    Value v_addid = (or_32 = v_isobject, !alg_truthy(or_32) ? or_32 : alg_not(v_declaresid));
+    Value v_addid = (or_33 = v_isobject, !alg_truthy(or_33) ? or_33 : alg_not(v_declaresid));
     (void)v_addid;
     if (alg_truthy(v_addid)) {
         (void)(alg_invoke(alg_property(v_this, "VisibleFields"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_string("Id")}, 1)}, 1));
@@ -2337,11 +2406,11 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
     (void)(alg_set_property(v_this, "VisibleFields", alg_widen(v_enclosingfields, "Set")));
     (void)(alg_set_property(v_this, "VisibleMethods", alg_widen(v_enclosingmethods, "Set")));
     (void)(alg_invoke(alg_property(v_this, "Shells"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    "), v_handle), alg_string(" = alg_class(")), f_quotec(NULL, (Value[]){v_name}, 1)), alg_string(", alg_nil());")), alg_char_value(10))}, 1));
-    Value v_hoisted = (or_33 = alg_equal(v_supername, alg_string("")), alg_truthy(or_33) ? or_33 : alg_invoke(alg_property(v_this, "OwnClasses"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_supername}, 1)}, 1));
+    Value v_hoisted = (or_34 = alg_equal(v_supername, alg_string("")), alg_truthy(or_34) ? or_34 : alg_invoke(alg_property(v_this, "OwnClasses"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_supername}, 1)}, 1));
     (void)v_hoisted;
     if (alg_truthy(alg_not_equal(v_supername, alg_string("")))) {
         {
-            if (alg_truthy((or_34 = alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_supername}, 1)), !alg_truthy(or_34) ? or_34 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_supername}, 1))))) {
+            if (alg_truthy((or_35 = alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_supername}, 1)), !alg_truthy(or_35) ? or_35 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_supername}, 1))))) {
                 alg_raise(alg_add(alg_add(alg_char_value(39), v_supername), alg_string("' is not a class.")));
             }
             if (alg_truthy(alg_not(v_hoisted))) {
@@ -2449,7 +2518,7 @@ static Value m_cemitter_visitvarstmt_1_varstmt(Value v_this, Value *args, int32_
     if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Initializer"), alg_nil()))) {
         {
             (void)((v_value = alg_widen(alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_thestmt, "Initializer")}, 1), "String")));
-            if (alg_truthy((or_35 = alg_not_equal(alg_str(alg_property(v_thestmt, "TypeName")), alg_string("")), !alg_truthy(or_35) ? or_35 : alg_not_equal(alg_str(alg_property(v_thestmt, "TypeName")), alg_string("Any"))))) {
+            if (alg_truthy((or_36 = alg_not_equal(alg_str(alg_property(v_thestmt, "TypeName")), alg_string("")), !alg_truthy(or_36) ? or_36 : alg_not_equal(alg_str(alg_property(v_thestmt, "TypeName")), alg_string("Any"))))) {
                 (void)((v_value = alg_widen(alg_add(alg_add(alg_add(alg_add(alg_string("alg_widen("), v_value), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_property(v_thestmt, "TypeName"))}, 1)), alg_char_value(41)), "String")));
             }
         }
@@ -2617,10 +2686,10 @@ static Value m_cemitter_visitfunctionstmt_1_functionstmt(Value v_this, Value *ar
     }
     Value v_nested = alg_not(alg_property(v_this, "AtTopLevel"));
     (void)v_nested;
-    if (alg_truthy((or_36 = v_nested, !alg_truthy(or_36) ? or_36 : alg_property(v_this, "InsideNested")))) {
+    if (alg_truthy((or_37 = v_nested, !alg_truthy(or_37) ? or_37 : alg_property(v_this, "InsideNested")))) {
         (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_string("A function nested more than one level deep")}, 1));
     }
-    if (alg_truthy((or_37 = v_nested, !alg_truthy(or_37) ? or_37 : alg_not_equal(alg_property(v_this, "CurrentClass"), alg_string(""))))) {
+    if (alg_truthy((or_38 = v_nested, !alg_truthy(or_38) ? or_38 : alg_not_equal(alg_property(v_this, "CurrentClass"), alg_string(""))))) {
         (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_string("A function declared inside a method")}, 1));
     }
     (void)((v_enclosinglocals = alg_widen(alg_property(v_this, "Locals"), "List")));
@@ -2798,16 +2867,19 @@ static Value m_cemitter_visitvariableexpr_1_variableexpr(Value v_this, Value *ar
     Value v_name = alg_nil();
     (void)v_name;
     (void)((v_name = alg_widen(alg_invoke(v_this, "Spelled", (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1), "String")));
-    if (alg_truthy((or_38 = alg_invoke(alg_property(v_this, "Captured"), "Contains", (Value[]){v_name}, 1), alg_truthy(or_38) ? or_38 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){v_name}, 1)))) {
+    if (alg_truthy((or_39 = alg_invoke(alg_property(v_this, "Captured"), "Contains", (Value[]){v_name}, 1), alg_truthy(or_39) ? or_39 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){v_name}, 1)))) {
         return alg_invoke(v_this, "Read", (Value[]){v_name}, 1);
     }
-    if (alg_truthy((or_40 = (or_39 = alg_not_equal(alg_property(v_this, "CurrentClass"), alg_string("")), !alg_truthy(or_39) ? or_39 : alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_40) ? or_40 : alg_invoke(alg_property(v_this, "VisibleFields"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1)))) {
+    if (alg_truthy((or_41 = (or_40 = alg_not_equal(alg_property(v_this, "CurrentClass"), alg_string("")), !alg_truthy(or_40) ? or_40 : alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_41) ? or_41 : alg_invoke(alg_property(v_this, "VisibleFields"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1)))) {
         return alg_add(alg_add(alg_string("alg_property(v_this, "), f_quotec(NULL, (Value[]){v_name}, 1)), alg_char_value(41));
     }
     if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)))) {
         {
             if (alg_truthy(alg_invoke(alg_property(v_this, "AmbiguousMembers"), "Contains", (Value[]){v_name}, 1))) {
                 return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "AmbiguousMessage", (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme")), alg_str(alg_invoke(alg_property(v_this, "AmbiguousMembers"), "Get", (Value[]){v_name}, 1))}, 2)}, 1)), alg_string("), alg_nil())"));
+            }
+            if (alg_truthy(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Contains", (Value[]){v_name}, 1))) {
+                return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "AmbiguousMessage", (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme")), alg_str(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Get", (Value[]){v_name}, 1))}, 2)}, 1)), alg_string("), alg_nil())"));
             }
             if (alg_truthy(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_name}, 1))) {
                 return alg_invoke(v_this, "EnumMemberName", (Value[]){alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){v_name}, 1)), v_name}, 2);
@@ -2824,7 +2896,7 @@ static Value m_cemitter_visitvariableexpr_1_variableexpr(Value v_this, Value *ar
         }
     }
     (void)(alg_invoke(v_this, "Unreachable", (Value[]){v_name}, 1));
-    if (alg_truthy((or_43 = (or_42 = (or_41 = alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)), !alg_truthy(or_41) ? or_41 : alg_not(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_42) ? or_42 : alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_43) ? or_43 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_44 = (or_43 = (or_42 = alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)), !alg_truthy(or_42) ? or_42 : alg_not(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_43) ? or_43 : alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_44) ? or_44 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "MissingName", (Value[]){v_name}, 1)}, 1)), alg_string("), alg_nil())"));
     }
     return alg_invoke(v_this, "Guarded", (Value[]){v_name, alg_invoke(v_this, "VariableName", (Value[]){v_name}, 1)}, 2);
@@ -2907,7 +2979,7 @@ static Value m_cemitter_boundvalue_2_string(Value v_this, Value *args, int32_t c
     (void)v_declared;
     Value v_value = alg_widen(args[1], "String");
     (void)v_value;
-    if (alg_truthy((or_44 = alg_equal(alg_str(v_declared), alg_string("")), alg_truthy(or_44) ? or_44 : alg_equal(alg_str(v_declared), alg_string("Any"))))) {
+    if (alg_truthy((or_45 = alg_equal(alg_str(v_declared), alg_string("")), alg_truthy(or_45) ? or_45 : alg_equal(alg_str(v_declared), alg_string("Any"))))) {
         return alg_str(v_value);
     }
     return alg_add(alg_add(alg_add(alg_add(alg_string("alg_widen("), alg_str(v_value)), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(v_declared)}, 1)), alg_char_value(41));
@@ -2923,10 +2995,10 @@ static Value m_cemitter_visitassignexpr_1_assignexpr(Value v_this, Value *args, 
     (void)((v_name = alg_widen(alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme")), "String")));
     Value v_written = alg_invoke(v_this, "BoundValue", (Value[]){alg_property(v_theexpr, "Declared"), alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_theexpr, "Value")}, 1)}, 2);
     (void)v_written;
-    if (alg_truthy((or_45 = alg_invoke(alg_property(v_this, "Captured"), "Contains", (Value[]){v_name}, 1), alg_truthy(or_45) ? or_45 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){v_name}, 1)))) {
+    if (alg_truthy((or_46 = alg_invoke(alg_property(v_this, "Captured"), "Contains", (Value[]){v_name}, 1), alg_truthy(or_46) ? or_46 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){v_name}, 1)))) {
         return alg_add(alg_add(alg_add(alg_add(alg_char_value(40), alg_invoke(v_this, "Read", (Value[]){v_name}, 1)), alg_string(" = ")), v_written), alg_char_value(41));
     }
-    if (alg_truthy((or_47 = (or_46 = alg_not_equal(alg_property(v_this, "CurrentClass"), alg_string("")), !alg_truthy(or_46) ? or_46 : alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_47) ? or_47 : alg_invoke(alg_property(v_this, "VisibleFields"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1)))) {
+    if (alg_truthy((or_48 = (or_47 = alg_not_equal(alg_property(v_this, "CurrentClass"), alg_string("")), !alg_truthy(or_47) ? or_47 : alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_48) ? or_48 : alg_invoke(alg_property(v_this, "VisibleFields"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1)))) {
         return alg_add(alg_add(alg_add(alg_add(alg_string("alg_set_property(v_this, "), f_quotec(NULL, (Value[]){v_name}, 1)), alg_string(", ")), v_written), alg_char_value(41));
     }
     (void)(alg_invoke(v_this, "Unreachable", (Value[]){v_name}, 1));
@@ -3100,6 +3172,40 @@ static Value m_cemitter_countsmessage_2_list_integer(Value v_this, Value *args, 
     return alg_nil();
 }
 
+static Value m_cemitter_renamesof_2_string_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_unit = alg_widen(args[0], "String");
+    (void)v_unit;
+    Value v_name = alg_widen(args[1], "String");
+    (void)v_name;
+    Value v_only = alg_nil();
+    (void)v_only;
+    (void)((v_only = alg_widen(alg_map(), "Map")));
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Renamed"), "Contains", (Value[]){v_name}, 1))) {
+        (void)(alg_invoke(v_only, "Put", (Value[]){v_name, v_unit}, 2));
+    }
+    return v_only;
+    return alg_nil();
+}
+
+static Value m_cemitter_markambiguousimport_3_string_string_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_name = alg_widen(args[0], "String");
+    (void)v_name;
+    Value v_first = alg_widen(args[1], "String");
+    (void)v_first;
+    Value v_second = alg_widen(args[2], "String");
+    (void)v_second;
+    if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Contains", (Value[]){v_name}, 1)))) {
+        {
+            (void)(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Put", (Value[]){v_name, alg_add(alg_add(v_first, alg_string(" or ")), v_second)}, 2));
+            return alg_nil();
+        }
+    }
+    (void)(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Put", (Value[]){v_name, alg_add(alg_add(alg_str(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Get", (Value[]){v_name}, 1)), alg_string(" or ")), v_second)}, 2));
+    return alg_nil();
+}
+
 static Value m_cemitter_markambiguousmember_3_string_string_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_member = alg_widen(args[0], "String");
@@ -3135,7 +3241,7 @@ static Value m_cemitter_isassertion_1_string(Value v_this, Value *args, int32_t 
     Value v_folded = alg_nil();
     (void)v_folded;
     (void)((v_folded = alg_widen(f_foldcase(NULL, (Value[]){v_name}, 1), "String")));
-    return (or_49 = (or_48 = alg_equal(v_folded, alg_string("asserttrue")), alg_truthy(or_48) ? or_48 : alg_equal(v_folded, alg_string("assertequal"))), alg_truthy(or_49) ? or_49 : alg_equal(v_folded, alg_string("fail")));
+    return (or_50 = (or_49 = alg_equal(v_folded, alg_string("asserttrue")), alg_truthy(or_49) ? or_49 : alg_equal(v_folded, alg_string("assertequal"))), alg_truthy(or_50) ? or_50 : alg_equal(v_folded, alg_string("fail")));
     return alg_nil();
 }
 
@@ -3259,7 +3365,7 @@ static Value m_cemitter_exportednames_1_emitunit(Value v_this, Value *args, int3
                 {
                     Value v_thestmt = alg_subscript_get(alg_property(v_unit, "Statements"), v_i);
                     (void)v_thestmt;
-                    if (alg_truthy((or_50 = alg_is(v_thestmt, "FunctionStmt"), !alg_truthy(or_50) ? or_50 : alg_not(alg_invoke(v_this, "IsTest", (Value[]){v_thestmt}, 1))))) {
+                    if (alg_truthy((or_51 = alg_is(v_thestmt, "FunctionStmt"), !alg_truthy(or_51) ? or_51 : alg_not(alg_invoke(v_this, "IsTest", (Value[]){v_thestmt}, 1))))) {
                         (void)(alg_invoke(v_names, "Add", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1));
                     }
                     if (alg_truthy(alg_is(v_thestmt, "ClassStmt"))) {
@@ -3315,31 +3421,31 @@ static Value m_cemitter_constructorfor_3_string_list_string(Value v_this, Value 
     (void)v_arguments;
     Value v_joined = alg_widen(args[2], "String");
     (void)v_joined;
-    if (alg_truthy((or_51 = alg_equal(v_name, alg_string("List")), !alg_truthy(or_51) ? or_51 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
+    if (alg_truthy((or_52 = alg_equal(v_name, alg_string("List")), !alg_truthy(or_52) ? or_52 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
         return alg_string("alg_list()");
     }
-    if (alg_truthy((or_52 = alg_equal(v_name, alg_string("Map")), !alg_truthy(or_52) ? or_52 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
+    if (alg_truthy((or_53 = alg_equal(v_name, alg_string("Map")), !alg_truthy(or_53) ? or_53 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
         return alg_string("alg_map()");
     }
-    if (alg_truthy((or_53 = alg_equal(v_name, alg_string("Stack")), !alg_truthy(or_53) ? or_53 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
+    if (alg_truthy((or_54 = alg_equal(v_name, alg_string("Stack")), !alg_truthy(or_54) ? or_54 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
         return alg_string("alg_stack()");
     }
-    if (alg_truthy((or_54 = alg_equal(v_name, alg_string("Set")), !alg_truthy(or_54) ? or_54 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
+    if (alg_truthy((or_55 = alg_equal(v_name, alg_string("Set")), !alg_truthy(or_55) ? or_55 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
         return alg_string("alg_set()");
     }
-    if (alg_truthy((or_55 = alg_equal(v_name, alg_string("Set")), !alg_truthy(or_55) ? or_55 : alg_equal(alg_property(v_arguments, "Length"), alg_int(1))))) {
+    if (alg_truthy((or_56 = alg_equal(v_name, alg_string("Set")), !alg_truthy(or_56) ? or_56 : alg_equal(alg_property(v_arguments, "Length"), alg_int(1))))) {
         return alg_add(alg_add(alg_string("alg_set_of("), v_joined), alg_char_value(41));
     }
-    if (alg_truthy((or_56 = alg_equal(v_name, alg_string("Array")), !alg_truthy(or_56) ? or_56 : alg_equal(alg_property(v_arguments, "Length"), alg_int(1))))) {
+    if (alg_truthy((or_57 = alg_equal(v_name, alg_string("Array")), !alg_truthy(or_57) ? or_57 : alg_equal(alg_property(v_arguments, "Length"), alg_int(1))))) {
         return alg_add(alg_add(alg_string("alg_array("), v_joined), alg_char_value(41));
     }
-    if (alg_truthy((or_57 = alg_equal(v_name, alg_string("TextFile")), !alg_truthy(or_57) ? or_57 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
+    if (alg_truthy((or_58 = alg_equal(v_name, alg_string("TextFile")), !alg_truthy(or_58) ? or_58 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
         return alg_string("alg_text_file()");
     }
-    if (alg_truthy((or_58 = alg_equal(v_name, alg_string("Buffer")), !alg_truthy(or_58) ? or_58 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
+    if (alg_truthy((or_59 = alg_equal(v_name, alg_string("Buffer")), !alg_truthy(or_59) ? or_59 : alg_equal(alg_property(v_arguments, "Length"), alg_int(0))))) {
         return alg_string("alg_buffer(alg_int(0))");
     }
-    if (alg_truthy((or_59 = alg_equal(v_name, alg_string("Buffer")), !alg_truthy(or_59) ? or_59 : alg_equal(alg_property(v_arguments, "Length"), alg_int(1))))) {
+    if (alg_truthy((or_60 = alg_equal(v_name, alg_string("Buffer")), !alg_truthy(or_60) ? or_60 : alg_equal(alg_property(v_arguments, "Length"), alg_int(1))))) {
         return alg_add(alg_add(alg_string("alg_buffer("), v_joined), alg_char_value(41));
     }
     return alg_string("");
@@ -3356,7 +3462,7 @@ static Value m_cemitter_unitcall_4_string_string_list_string(Value v_this, Value
     (void)v_arguments;
     Value v_joined = alg_widen(args[3], "String");
     (void)v_joined;
-    if (alg_truthy((or_60 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_60) ? or_60 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_61 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_61) ? or_61 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), v_name), alg_string("' in unit '")), v_unit), alg_string("'."))}, 1)), alg_string("), alg_nil())"));
     }
     if (alg_truthy(alg_equal(v_unit, alg_string("System")))) {
@@ -3376,7 +3482,7 @@ static Value m_cemitter_unitcall_4_string_string_list_string(Value v_this, Value
     }
     Value v_saved = alg_property(v_this, "Renames");
     (void)v_saved;
-    (void)(alg_set_property(v_this, "Renames", alg_widen(alg_map(), "Map")));
+    (void)(alg_set_property(v_this, "Renames", alg_widen(alg_invoke(v_this, "RenamesOf", (Value[]){v_unit, v_name}, 2), "Map")));
     Value v_built = alg_string("");
     (void)v_built;
     if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))) {
@@ -3427,7 +3533,7 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
             return alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("alg_invoke_from("), alg_invoke(v_this, "ClassHandle", (Value[]){alg_property(v_this, "CurrentClass")}, 1)), alg_string(", v_this, ")), f_quotec(NULL, (Value[]){alg_str(alg_property(alg_property(alg_property(v_theexpr, "Callee"), "Method"), "Lexeme"))}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_emitted}, 1)), alg_char_value(41));
         }
     }
-    if (alg_truthy((or_61 = alg_is(alg_property(v_theexpr, "Callee"), "GetExpr"), !alg_truthy(or_61) ? or_61 : alg_not_equal(alg_property(alg_property(v_theexpr, "Callee"), "Unit"), alg_string(""))))) {
+    if (alg_truthy((or_62 = alg_is(alg_property(v_theexpr, "Callee"), "GetExpr"), !alg_truthy(or_62) ? or_62 : alg_not_equal(alg_property(alg_property(v_theexpr, "Callee"), "Unit"), alg_string(""))))) {
         {
             Value v_emitted = alg_list();
             (void)v_emitted;
@@ -3526,7 +3632,7 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
     }
     Value v_name = alg_invoke(v_this, "Spelled", (Value[]){alg_str(alg_property(alg_property(alg_property(v_theexpr, "Callee"), "Name"), "Lexeme"))}, 1);
     (void)v_name;
-    if (alg_truthy((or_63 = (or_62 = alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1), alg_truthy(or_62) ? or_62 : alg_invoke(alg_property(v_this, "Captured"), "Contains", (Value[]){v_name}, 1)), alg_truthy(or_63) ? or_63 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){v_name}, 1)))) {
+    if (alg_truthy((or_64 = (or_63 = alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1), alg_truthy(or_63) ? or_63 : alg_invoke(alg_property(v_this, "Captured"), "Contains", (Value[]){v_name}, 1)), alg_truthy(or_64) ? or_64 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){v_name}, 1)))) {
         return alg_add(alg_add(alg_add(alg_add(alg_string("alg_call("), alg_invoke(v_this, "Read", (Value[]){v_name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_arguments}, 1)), alg_char_value(41));
     }
     Value v_shadowed = alg_invoke(alg_property(v_this, "ShadowNames"), "Contains", (Value[]){v_name}, 1);
@@ -3552,10 +3658,13 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
     if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))) {
         return alg_add(alg_add(alg_add(alg_add(alg_string("alg_new("), alg_invoke(v_this, "ClassHandle", (Value[]){v_name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_arguments}, 1)), alg_char_value(41));
     }
-    if (alg_truthy((or_65 = (or_64 = alg_not_equal(alg_property(v_this, "CurrentClass"), alg_string("")), !alg_truthy(or_64) ? or_64 : alg_not(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_65) ? or_65 : alg_invoke(alg_property(v_this, "VisibleMethods"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1)))) {
+    if (alg_truthy(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Contains", (Value[]){v_name}, 1))) {
+        return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "AmbiguousMessage", (Value[]){alg_str(alg_property(alg_property(alg_property(v_theexpr, "Callee"), "Name"), "Lexeme")), alg_str(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Get", (Value[]){v_name}, 1))}, 2)}, 1)), alg_string("), alg_nil())"));
+    }
+    if (alg_truthy((or_66 = (or_65 = alg_not_equal(alg_property(v_this, "CurrentClass"), alg_string("")), !alg_truthy(or_65) ? or_65 : alg_not(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_66) ? or_66 : alg_invoke(alg_property(v_this, "VisibleMethods"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1)))) {
         return alg_add(alg_add(alg_add(alg_add(alg_string("alg_invoke(v_this, "), f_quotec(NULL, (Value[]){v_name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_arguments}, 1)), alg_char_value(41));
     }
-    if (alg_truthy((or_66 = alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1), !alg_truthy(or_66) ? or_66 : alg_not(alg_invoke(alg_property(v_this, "ShadowNames"), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_67 = alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1), !alg_truthy(or_67) ? or_67 : alg_not(alg_invoke(alg_property(v_this, "ShadowNames"), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "MissingName", (Value[]){v_name}, 1)}, 1)), alg_string("), alg_nil())"));
     }
     if (alg_truthy(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))) {
@@ -3564,7 +3673,7 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
     if (alg_truthy(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))) {
         return alg_add(alg_add(alg_add(alg_add(alg_string("alg_call("), alg_invoke(v_this, "Read", (Value[]){v_name}, 1)), alg_string(", ")), alg_invoke(v_this, "ArgumentArray", (Value[]){v_arguments}, 1)), alg_char_value(41));
     }
-    if (alg_truthy((or_67 = alg_not(alg_property(v_this, "EmitTests")), !alg_truthy(or_67) ? or_67 : alg_invoke(v_this, "IsAssertion", (Value[]){v_name}, 1)))) {
+    if (alg_truthy((or_68 = alg_not(alg_property(v_this, "EmitTests")), !alg_truthy(or_68) ? or_68 : alg_invoke(v_this, "IsAssertion", (Value[]){v_name}, 1)))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "MissingName", (Value[]){v_name}, 1)}, 1)), alg_string("), alg_nil())"));
     }
     if (alg_truthy(alg_not(v_shadowed))) {
@@ -3576,7 +3685,7 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
             }
         }
     }
-    if (alg_truthy((or_74 = (or_73 = (or_72 = (or_71 = (or_70 = (or_69 = (or_68 = alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)), !alg_truthy(or_68) ? or_68 : alg_not(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_69) ? or_69 : alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_70) ? or_70 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_71) ? or_71 : alg_not(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_72) ? or_72 : alg_not(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_73) ? or_73 : alg_not(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_74) ? or_74 : alg_not(alg_invoke(alg_property(v_this, "AmbiguousMembers"), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_75 = (or_74 = (or_73 = (or_72 = (or_71 = (or_70 = (or_69 = alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)), !alg_truthy(or_69) ? or_69 : alg_not(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_70) ? or_70 : alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_71) ? or_71 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_72) ? or_72 : alg_not(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_73) ? or_73 : alg_not(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_74) ? or_74 : alg_not(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_75) ? or_75 : alg_not(alg_invoke(alg_property(v_this, "AmbiguousMembers"), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "MissingName", (Value[]){v_name}, 1)}, 1)), alg_string("), alg_nil())"));
     }
     (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("A call to '"), v_name), alg_char_value(39))}, 1));
@@ -3621,7 +3730,7 @@ static Value m_cemitter_boundargument_3_integer(Value v_this, Value *args, int32
     }
     Value v_declared = alg_str(alg_subscript_get(v_types, v_i));
     (void)v_declared;
-    if (alg_truthy((or_75 = alg_equal(v_declared, alg_string("")), alg_truthy(or_75) ? or_75 : alg_equal(v_declared, alg_string("Any"))))) {
+    if (alg_truthy((or_76 = alg_equal(v_declared, alg_string("")), alg_truthy(or_76) ? or_76 : alg_equal(v_declared, alg_string("Any"))))) {
         return v_slot;
     }
     return alg_add(alg_add(alg_add(alg_add(alg_string("alg_param("), v_slot), alg_string(", ")), f_quotec(NULL, (Value[]){v_declared}, 1)), alg_char_value(41));
@@ -3773,7 +3882,7 @@ static Value m_cemitter_unitvalue_2_string_string(Value v_this, Value *args, int
     (void)v_unit;
     Value v_name = alg_widen(args[1], "String");
     (void)v_name;
-    if (alg_truthy((or_76 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_76) ? or_76 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_77 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_77) ? or_77 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), v_name), alg_string("' in unit '")), v_unit), alg_string("'."))}, 1)), alg_string("), alg_nil())"));
     }
     if (alg_truthy(alg_equal(v_unit, alg_string("System")))) {
@@ -3781,7 +3890,7 @@ static Value m_cemitter_unitvalue_2_string_string(Value v_this, Value *args, int
     }
     Value v_saved = alg_property(v_this, "Renames");
     (void)v_saved;
-    (void)(alg_set_property(v_this, "Renames", alg_widen(alg_map(), "Map")));
+    (void)(alg_set_property(v_this, "Renames", alg_widen(alg_invoke(v_this, "RenamesOf", (Value[]){v_unit, v_name}, 2), "Map")));
     Value v_built = alg_string("");
     (void)v_built;
     if (alg_truthy(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_name}, 1))) {
@@ -3839,10 +3948,10 @@ static Value m_cemitter_visitsetexpr_1_setexpr(Value v_this, Value *args, int32_
             (void)v_unit;
             Value v_name = alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"));
             (void)v_name;
-            if (alg_truthy((or_77 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_77) ? or_77 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
+            if (alg_truthy((or_78 = alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){v_unit}, 1), !alg_truthy(or_78) ? or_78 : alg_not(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_unit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))))) {
                 return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("Undefined name '"), v_name), alg_string("' in unit '")), v_unit), alg_string("'."))}, 1)), alg_string("), alg_nil())"));
             }
-            if (alg_truthy((or_78 = alg_not_equal(v_unit, alg_string("System")), !alg_truthy(or_78) ? or_78 : alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1)))) {
+            if (alg_truthy((or_79 = alg_not_equal(v_unit, alg_string("System")), !alg_truthy(or_79) ? or_79 : alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1)))) {
                 return alg_invoke(v_this, "Guarded", (Value[]){v_name, alg_add(alg_add(alg_add(alg_add(alg_char_value(40), alg_invoke(v_this, "VariableName", (Value[]){v_name}, 1)), alg_string(" = ")), v_written), alg_char_value(41))}, 2);
             }
             (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("An assignment to '"), v_unit), alg_char_value(46)), v_name), alg_char_value(39))}, 1));
@@ -4214,6 +4323,8 @@ void init_CEmitter(void) {
     alg_class_field(k_cemitter, "LoopTryDepth");
     alg_class_field(k_cemitter, "Volatiles");
     alg_class_field(k_cemitter, "Renames");
+    alg_class_field(k_cemitter, "Renamed");
+    alg_class_field(k_cemitter, "AmbiguousImports");
     alg_class_field(k_cemitter, "AmbiguousMembers");
     alg_class_field(k_cemitter, "Boxed");
     alg_class_field(k_cemitter, "Cells");
@@ -4320,6 +4431,8 @@ void init_CEmitter(void) {
     alg_class_method(k_cemitter, "VisitBinary", m_cemitter_visitbinary_1_binaryexpr, 1, t_cemitter_visitbinary_1_binaryexpr);
     alg_class_method(k_cemitter, "BuiltinCounts", m_cemitter_builtincounts_1_string, 1, t_cemitter_builtincounts_1_string);
     alg_class_method(k_cemitter, "CountsMessage", m_cemitter_countsmessage_2_list_integer, 2, t_cemitter_countsmessage_2_list_integer);
+    alg_class_method(k_cemitter, "RenamesOf", m_cemitter_renamesof_2_string_string, 2, t_cemitter_renamesof_2_string_string);
+    alg_class_method(k_cemitter, "MarkAmbiguousImport", m_cemitter_markambiguousimport_3_string_string_string, 3, t_cemitter_markambiguousimport_3_string_string_string);
     alg_class_method(k_cemitter, "MarkAmbiguousMember", m_cemitter_markambiguousmember_3_string_string_string, 3, t_cemitter_markambiguousmember_3_string_string_string);
     alg_class_method(k_cemitter, "AmbiguousMessage", m_cemitter_ambiguousmessage_2_string_string, 2, t_cemitter_ambiguousmessage_2_string_string);
     alg_class_method(k_cemitter, "IsAssertion", m_cemitter_isassertion_1_string, 1, t_cemitter_isassertion_1_string);

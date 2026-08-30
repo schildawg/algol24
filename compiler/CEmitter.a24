@@ -269,6 +269,22 @@ var
     /// outside the file because nothing else can refer to them.
     Renames      : Map;
 
+    /// Exported names that more than one unit binds [MOD-008].
+    ///
+    /// ⚠️ Program-wide, because the SYMBOL is: two units defining 'v_shared'
+    /// meet at the linker, which is past anything a compile-only check sees.
+    /// Every reference to one of these carries its owner's unit, wherever it is
+    /// written -- inside the owner, bare from an importer, or qualified.
+    Renamed      : Set;
+
+    /// A bare name this unit's imports leave ambiguous [MOD-013], mapped to its
+    /// owners as the diagnostic names them -- 'Alpha or Beta'.
+    ///
+    /// ⚠️ Per UNIT, unlike Renamed, and the difference is the whole rule: a
+    /// file importing one owner names it bare quite legally, and only a file
+    /// importing both has a name with two answers.
+    AmbiguousImports : Map;
+
     /// A bare name more than one enumeration binds [ENU-011], mapped to its
     /// owners as the diagnostic names them -- 'First or Second'.
     ///
@@ -421,6 +437,8 @@ begin
         this.VisibleMethods := Set();
         this.Renames := Map();
         this.AmbiguousMembers := Map();
+        this.AmbiguousImports := Map();
+        this.Renamed := Set();
         this.Boxed := List();
         this.Cells := List();
         this.Captured := Map();
@@ -471,6 +489,12 @@ begin
     /// actually spelled 'NameVVUnit' also gives.  Escaping the halves keeps the
     /// separator outside the alphabet the escape uses, which is what Annex G.3
     /// reserves it for.
+    ///
+    /// ⚠️ Renames therefore holds the UNIT alone.  It held 'Name__Unit' and
+    /// this escaped that whole string, which is the very thing the note above
+    /// forbids -- the result stayed injective only by the accident of the name
+    /// appearing twice.  Nothing in the compiler's own sources is renamed, so
+    /// no emitted symbol ever showed it.
     function Mangle (Prefix : String, Name : String) : String;
     begin
         if Renames.Contains (Str (Name)) then
@@ -985,8 +1009,18 @@ begin
         for var U := 0; U < Units.Length; U := U + 1 do
             CollectFunctions (Units[U].Statements);
 
+        // ⚠️ TopLevel is cleared PER UNIT, because the duplicate it looks for is
+        // an overload [FUN-013] and two units declaring one name are not one:
+        // they are two subprograms in two files, which [MOD-008] allows and
+        // Renamed keeps apart in C.  Accumulated across the program, 'Shared'
+        // in Alpha and 'Shared' in Beta read as an overload and were refused
+        // (C-21), so the emitter reported a language feature it does not have
+        // for a program using one it does.
         for var U := 0; U < Units.Length; U := U + 1 do
+        begin
+            TopLevel := Set();
             CollectGlobals (Units[U].Statements);
+        end
 
         // What each unit exports: its top-level declarations less what it marked
         // 'private'.  Built from the EmitUnits rather than by another walk, so
@@ -1043,9 +1077,16 @@ begin
 
         // ⚠️ Two units exporting one name do not clash while compiling -- they
         // clash at the LINKER, on a duplicate symbol, which is past 'cc -c' and
-        // so past anything a compile-only check can observe.  The interpreter
-        // refuses the program; without this the compiler emitted it happily and
-        // the user met 'ld: 1 duplicate symbols' instead.
+        // so past anything a compile-only check can observe.  Two modules may
+        // export one name [MOD-008], so the program is valid and the symbols
+        // have to be made distinct: each colliding name takes its owner's unit
+        // as a suffix, which is what Renames already does for a private name.
+        //
+        // ⚠️ Renaming is not the same question as resolving.  A file importing
+        // ONE of the owners still names it bare and must reach that owner's
+        // symbol; a file importing BOTH cannot resolve the bare name at all
+        // [MOD-013], and that is an error at the use.  Renamed answers the
+        // first, and each unit's own import table answers the second.
         //
         // ⚠️ The ROOT file is excluded, and must be: it exports nothing, every
         // symbol in it is static, and a name it shares with a module it imports
@@ -1069,7 +1110,7 @@ begin
                     if ExportedBy.Contains (TheName) then
                     begin
                         if Str (ExportedBy.Get (TheName)) <> Str (Units[U].Name) then
-                            Unsupported ('Two modules exporting ''' + TheName + '''');
+                            Renamed.Add (TheName);
                     end
                     else ExportedBy.Put (TheName, Str (Units[U].Name));
                 end
@@ -1129,18 +1170,62 @@ begin
             // nothing outside this file can be referring to it.  The root's
             // names qualify because nothing can import the file a program
             // started from; a module's 'private' names qualify because that is
-            // what 'private' means.  An EXPORTED name never qualifies -- an
-            // importer names it -- and does not need to, because two units
-            // exporting one name is refused above.
+            // what 'private' means.
+            //
+            // ⚠️ An EXPORTED name qualifies too when another unit exports it,
+            // which is the third population and the one that used to be refused
+            // (C-21).  It is not the same rule -- an importer DOES name it, so
+            // the importer has to be told the same suffix, which is what the
+            // import walk below and UnitValue's lookup do.
+            //
+            // ⚠️ Renames now holds the UNIT, not 'Name__Unit'.  Mangle joins the
+            // halves with a raw '__' after escaping each, and escaping the
+            // joined form instead is exactly what its own note forbids: '_'
+            // escapes to 'V', so 'Shared__Alpha' and an identifier spelled
+            // 'SharedVVAlpha' would meet.
             Renames := Map();
 
             var Visible := Set();
+            var ImportOwner := Map();
+
+            AmbiguousImports := Map();
+
             for var I := 0; I < Unit.Imports.Length; I := I + 1 do
                 if UnitExports.Contains (Str (Unit.Imports[I])) then
                 begin
-                    var Seen := (UnitExports.Get (Str (Unit.Imports[I])) as Set).ToList();
-                    for var J := 0; J < Seen.Length; J := J + 1 do Visible.Add (Seen[J]);
+                    var From := Str (Unit.Imports[I]);
+                    var Seen := (UnitExports.Get (From) as Set).ToList();
+
+                    for var J := 0; J < Seen.Length; J := J + 1 do
+                    begin
+                        var TheName := Str (Seen[J]);
+
+                        Visible.Add (TheName);
+
+                        // ⚠️ Two imports exporting one name leaves the BARE form
+                        // with no answer [MOD-013] -- the qualified one still
+                        // resolves, which is why this is recorded and not
+                        // refused.  Owners accumulate in import order, so the
+                        // message reads the same whichever compiler runs.
+                        if ImportOwner.Contains (TheName) then
+                        begin
+                            if Str (ImportOwner.Get (TheName)) <> From then
+                                MarkAmbiguousImport (TheName, Str (ImportOwner.Get (TheName)), From);
+                        end
+                        else ImportOwner.Put (TheName, From);
+                    end
                 end
+
+            // ⚠️ A name this file declares ITSELF is not ambiguous: its own
+            // declaration shadows every import, which is what [MOD-013] means
+            // by a name it cannot resolve.  Removed here rather than tested at
+            // each use, so every use site asks one question.
+            if UnitAll.Contains (Str (Unit.Name)) then
+            begin
+                var Declares := (UnitAll.Get (Str (Unit.Name)) as Set).ToList();
+                for var I := 0; I < Declares.Length; I := I + 1 do
+                    AmbiguousImports.Remove (Str (Declares[I]));
+            end
 
             var Mine := ExportedNames (Unit);
             for var I := 0; I < Mine.Length; I := I + 1 do
@@ -1149,7 +1234,24 @@ begin
 
                 if Visible.Contains (TheName) then
                     if IsMain or Unit.PrivateNames.Contains (TheName) then
-                        Renames.Put (TheName, TheName + '__' + Str (Unit.Name));
+                        Renames.Put (TheName, Str (Unit.Name));
+
+                // This unit's own copy of a name two units export.
+                if Renamed.Contains (TheName) then
+                    if not Unit.PrivateNames.Contains (TheName) then
+                        Renames.Put (TheName, Str (Unit.Name));
+            end
+
+            // A name this unit does not declare but reaches through exactly one
+            // import, where that import had to rename it.
+            var Reached := ImportOwner.Keys();
+            for var I := 0; I < Reached.Length; I := I + 1 do
+            begin
+                var TheName := Str (Reached[I]);
+
+                if Renamed.Contains (TheName) and not Renames.Contains (TheName) then
+                    if not AmbiguousImports.Contains (TheName) then
+                        Renames.Put (TheName, Str (ImportOwner.Get (TheName)));
             end
 
             ShadowNames := Set();
@@ -2681,6 +2783,13 @@ begin
                                              Str (AmbiguousMembers.Get (Name))))
                    + '), alg_nil())';
 
+            // The same rule one scope out: a name two of this file's imports
+            // export [MOD-013].  The qualified form still resolves it.
+            if AmbiguousImports.Contains (Name) then
+                Exit '(alg_error(' + QuoteC (AmbiguousMessage (Str (TheExpr.Name.Lexeme),
+                                             Str (AmbiguousImports.Get (Name))))
+                   + '), alg_nil())';
+
             // An enum member binds bare as well as qualified, and both forms
             // must be the same object because comparison is identity.
             if EnumMembers.Contains (Name) then
@@ -2947,6 +3056,40 @@ begin
         Exit 'Expected ' + Expected + ' arguments but got ' + Str (Got) + '.';
     end
 
+    /// The renames in force while emitting a name reached THROUGH a unit
+    /// qualifier -- the target's, not this file's.
+    ///
+    /// ⚠️ Empty unless the name is one two units export.  A qualified reference
+    /// otherwise reaches an ordinary unsuffixed symbol, and applying this
+    /// file's renames to it is the bug the comment at each call site records:
+    /// 'Held.Twin' read the root's own shadowing value back.
+    ///
+    function RenamesOf (Unit : String, Name : String) : Map;
+    var
+        Only : Map;
+
+    begin
+        Only := Map();
+        if Renamed.Contains (Name) then Only.Put (Name, Unit);
+
+        Exit Only;
+    end
+
+    /// Records that a bare name is exported by more than one of this unit's
+    /// imports [MOD-013].
+    ///
+    procedure MarkAmbiguousImport (Name : String, First : String, Second : String);
+    begin
+        if not AmbiguousImports.Contains (Name) then
+        begin
+            AmbiguousImports.Put (Name, First + ' or ' + Second);
+            Exit;
+        end
+
+        AmbiguousImports.Put (Name,
+            Str (AmbiguousImports.Get (Name)) + ' or ' + Second);
+    end
+
     /// Records that a member name is bound by more than one enumeration.
     ///
     /// ⚠️ Owners accumulate, so a THIRD enumeration binding the same name reads
@@ -3157,10 +3300,14 @@ begin
             Unsupported ('A call to ''' + Unit + '.' + Name + '''');
         end
 
-        // ⚠️ Renames suspended for the same reason as UnitValue: a qualified
-        // call reaches another unit's symbol, not the root's shadowing one.
+        // ⚠️ Renames REPLACED, not merely suspended: a qualified call reaches
+        // another unit's symbol rather than the root's shadowing one, so the
+        // renames that apply are the TARGET's.  Clearing was right only while
+        // an exported name could never be renamed -- now that two units may
+        // export one [MOD-008], 'Alpha.Shared()' has to reach Alpha's suffixed
+        // symbol and clearing would emit the unsuffixed name nothing defines.
         var Saved := Renames;
-        Renames := Map();
+        Renames := RenamesOf (Unit, Name);
 
         var Built := '';
         if Classes.Contains (Name) then
@@ -3303,6 +3450,15 @@ begin
 
         if Classes.Contains (Name) then
             Exit 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+
+        // ⚠️ Ahead of Declared, and that is the point: both owners ARE declared,
+        // which is exactly why the bare name cannot be resolved [MOD-013].
+        // Reaching the branch below would pick whichever the flattened program
+        // recorded first -- a silent wrong answer where the interpreter refuses.
+        if AmbiguousImports.Contains (Name) then
+            Exit '(alg_error(' + QuoteC (AmbiguousMessage (Str (TheExpr.Callee.Name.Lexeme),
+                                         Str (AmbiguousImports.Get (Name))))
+               + '), alg_nil())';
 
         // ⚠️ A bare call inside a method is a call on 'this', and dispatches
         // DYNAMICALLY -- Describe() calling Speak() has to reach a subclass's
@@ -3575,8 +3731,12 @@ begin
         // this a root that shadows an import read its own value back through
         // 'Held.Twin' -- the right symbol renamed out from under the one form
         // whose whole purpose is to reach past the shadow.
+        //
+        // ⚠️ The TARGET's renames, not none at all.  Two units may export one
+        // name [MOD-008] and each then carries its own suffix, so 'Alpha.Shared'
+        // reaches Alpha's -- see RenamesOf.
         var Saved := Renames;
-        Renames := Map();
+        Renames := RenamesOf (Unit, Name);
 
         var Built := '';
         if EnumMembers.Contains (Name) then
