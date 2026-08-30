@@ -1,0 +1,94 @@
+// spec: TYP-010, EXP-016
+//
+// A class declaring 'Get' of one argument is subscriptable, and one declaring
+// 'Put' of two is assignable through a subscript.
+//
+// ⚠️ The fifth structural protocol, and it needs no member name of its own:
+// 'Get' and 'Put' are what the built-in collections already answer to
+// [COL-003], so a collection written in Algol-24 reuses the names rather than
+// being given a second set.
+
+class Row;
+var
+private:
+    Cells : List;
+
+begin
+    constructor Init (); begin this.Cells := [10, 20, 30]; end
+
+    function  Get (I : Integer) : Any;    begin Exit Cells[I]; end
+    procedure Put (I : Integer, V : Any); begin Cells[I] := V; end
+
+    property  Length : Integer;           begin Exit Cells.Length; end
+end
+
+var R := Row ();
+
+WriteLn (R[0], ' ', R[1], ' ', R[2]);
+WriteLn (R.Length);
+
+R[1] := 99;
+WriteLn (R[1]);
+
+// ⚠️ THE TWO FORMS ARE TWO MEMBERS of different arity, so a class declaring
+// only 'Get' is readable and not assignable -- which needs no separate way of
+// saying so.
+class ReadOnly;
+var
+private:
+    Cells : List;
+
+begin
+    constructor Init ();              begin this.Cells := [1, 2]; end
+    function Get (I : Integer) : Any; begin Exit Cells[I]; end
+end
+
+var O := ReadOnly ();
+WriteLn (O[0]);
+
+try
+    O[0] := 5;
+except
+    on e : String do WriteLn (e);
+end
+
+// A protocol is a NAME and a shape: 'Get' of two arguments is not this one.
+class WrongShape;
+begin
+    constructor Init (); begin end
+    function Get (I : Integer, J : Integer) : Any; begin Exit 0; end
+end
+
+try
+    WriteLn (WrongShape ()[0]);
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ And this is what the whole protocol run was for: a Stack written in
+// Algol-24 that reads like the built-in it would replace -- subscripted,
+// iterated, ordered, and answering Length without parentheses.
+class Stack;
+var
+private:
+    Items : List;
+
+begin
+    constructor Init ();                  begin this.Items := []; end
+    procedure Push (V : Any);             begin Items.Add (V); end
+
+    function  Get (I : Integer) : Any;    begin Exit Items[I]; end
+    function  Elements () : List;         begin Exit Items; end
+    property  Length  : Integer;          begin Exit Items.Length; end
+    property  IsEmpty : Boolean;          begin Exit Items.Length = 0; end
+end
+
+var S := Stack ();
+S.Push (10);
+S.Push (20);
+S.Push (30);
+
+WriteLn (S.Length, ' ', S.IsEmpty, ' ', S[1]);
+
+for var X in S do Write (Str (X) + ' ');
+WriteLn ();

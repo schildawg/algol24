@@ -1424,6 +1424,16 @@ Value alg_subscript_get(Value target, Value index) {
                                           + utf8_offset(target.string, target.length, at)));
     }
 
+    /* ⚠️ A class declaring 'Get' of one argument is SUBSCRIPTABLE [TYP-010].
+     * The fifth structural protocol, and it needs no new member name: 'Get' is
+     * what the built-in collections already answer to [COL-003]. */
+    if (has_method(target, "Get", 1)) {
+        Value args[1];
+        args[0] = index;
+
+        return alg_invoke(target, "Get", args, 1);
+    }
+
     /* ⚠️ [TYP-010] pins this wording, and it is the interpreter's.  The text
      * here was 'Only a collection or a String can be subscripted.', which reads
      * better -- Annex D is where that argument belongs, not the runtime. */
@@ -1454,6 +1464,19 @@ Value alg_subscript_set(Value target, Value index, Value value) {
 
         seq->items[bounded(index, seq->count, false)] = value;
         return value;
+    }
+
+    /* ⚠️ And 'Put' of TWO arguments is the write [TYP-010].  The two forms of
+     * subscript are two members of different arity, which the language already
+     * tells apart everywhere else -- so nothing has to pair a getter with a
+     * setter syntactically, which is the one question subscripting adds that no
+     * other operator has. */
+    if (has_method(target, "Put", 2)) {
+        Value args[2];
+        args[0] = index;
+        args[1] = value;
+
+        return alg_invoke(target, "Put", args, 2);
     }
 
     /* ⚠️ A String is subscriptable and not assignable, and says so.  This

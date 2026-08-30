@@ -1390,14 +1390,30 @@ These rules are normative in their own right, and together they say which
 built-in behaviour a program cannot reproduce for a type of its own. Annex E
 takes up what it would cost to lift each one.
 
-**[TYP-010]**  A class instance may not be subscripted. `B[0]` on an instance
-is the runtime error `Subscript target should be an ordinal.`, whatever methods
-the class declares.
+**[TYP-010]**  A class instance is subscriptable when its class declares `Get`
+taking one argument: `B[0]` calls `B.Get (0)`. Assignment needs `Put` taking
+two: `B[0] := X` calls `B.Put (0, X)`. Without them, `B[0]` is the runtime error
+`Subscript target should be an ordinal.`
 
-⚠️ **PLANNED — a later generation.** A subscript operator a class may declare.
-See Annex H, H-4.
+⚠️ **The fifth structural protocol**, beside `Elements` [TYP-011], `Contains`,
+`ToString` [CLS-009], a `property` [CLS-017] and `Compare` [VAL-014]. It needs
+no member name of its own: `Get` and `Put` are what the built-in collections
+already answer to [COL-003], so a collection written in Algol-24 reuses the
+names rather than being given a second set.
+
+⚠️ **The two forms are two members of different arity**, which is the one
+question subscripting adds that no other operator has — and the language already
+tells arities apart everywhere else, so nothing has to pair a getter with a
+setter syntactically. A class declaring only `Get` is readable and not
+assignable, which needs no separate way of saying so.
+
+⚠️ **It is not an operator declaration**, and that was the change of mind. This
+was H-4, folded into operator overloading (H-8) as "the same feature in a
+particular spelling"; it turned out to want no operator feature at all.
 
     interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
+    compiler     bootstrap/algol.c         alg_subscript_get
+    conformance  0171-a-class-that-subscripts.a24
     conformance  0031-instance-is-not-subscriptable.a24
 
 **[TYP-011]**  A class instance is iterable when its class declares an
@@ -2210,11 +2226,12 @@ first half of a two-byte sequence. DEF-01 closed it; it is `é`.
     compiler     bootstrap/algol.c         alg_subscript_get
     conformance  0051-string-subscript.a24
 
-**[EXP-016]**  A class instance may not be subscripted — see [TYP-010], and
-Annex H, H-4.
+**[EXP-016]**  A class instance is subscripted through `Get` and `Put` — see
+[TYP-010].
 
     interpreter  compiler/Interpreter.a24  VisitSubscript
     conformance  0031-instance-is-not-subscriptable.a24
+    conformance  0171-a-class-that-subscripts.a24
 
 ### 9.7 Assignment
 
@@ -6446,7 +6463,7 @@ be trusted.
 ***Folded into H-15.*** *(will change [TYP-010])*
 
 Subscripting turned out not to want an operator declaration at all: it is a
-structural protocol, and is decided in **H-15**. This entry is kept because
+structural protocol, and landed as **H-15** in Generation 7. This entry is kept because
 [TYP-010] and [EXP-016] point a reader at this number, and a number that has
 been cited should lead somewhere.
 
@@ -6786,25 +6803,26 @@ will have to say where conformance stops — the first place in this language
 where that sentence has to be written.
 
 **H-15 — Subscripting through `Get` and `Put`.**
-*(will change [TYP-010], [EXP-016])*
+***Landed in Generation 7.*** *(changed [TYP-010], [EXP-016])*
 
-`B[0]` on a class instance calls `B.Get (0)`, and `B[0] := X` calls
-`B.Put (0, X)`. `B[0]` is `Subscript target should be an ordinal.` today,
-whatever methods the class declares. Pinned by
-`conformance/0031-instance-is-not-subscriptable.a24`.
+`B[0]` calls `B.Get (0)` and `B[0] := X` calls `B.Put (0, X)`. The fifth
+structural protocol, needing no member name of its own — `Get` and `Put` are
+what the built-in collections already answer to [COL-003].
 
-⚠️ **No new syntax, and no operator feature.** `Get` and `Put` are already the
-built-in collection member names [COL-003], so this is the **fifth structural
-protocol** beside `Elements` [TYP-011], `Contains`, `ToString` [CLS-009] and the
-`property` of Generation 6 — a class either declares the member or it does not.
+⚠️ **It wanted no operator feature at all**, which is the change of mind this
+entry records. It was H-4, folded into operator overloading as "the same feature
+in a particular spelling"; asking what it actually added turned up one thing —
+that it needs **two** members where every other operator needs one — and that
+question answers itself the moment the two are ordinary members of different
+arity.
 
-⚠️ **The two forms fall out as two members**, which answers the one question
-subscripting adds that no other operator has. A read and a write are `Get` of
-one argument and `Put` of two; the language already tells those apart everywhere
-else, so nothing has to pair a getter with a setter syntactically.
+⚠️ **A class declaring only `Get` is readable and not assignable**, and needs no
+separate way of saying so.
 
-⚠️ **A protocol is a name AND a shape** [TYP-011]. `Get` taking two arguments
-does not implement this one.
+⚠️ **This is what the protocol run was for.** A `Stack` written in Algol-24 is
+now subscripted, iterated [TYP-011], ordered [VAL-014] and answers `Length`
+without parentheses [CLS-017] — the four things Annex E named as pinning the
+collections to being native. `conformance/0171` ends with one.
 
 **H-16 — Ordering through `Compare`.**
 ***Landed in Generation 7.*** *(changed [VAL-014])*

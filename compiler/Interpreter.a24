@@ -1322,6 +1322,18 @@ begin
         if Target is ObjCollection then Exit Target.At (Index);
         if Target is ObjBuffer     then Exit Target.At (Index);
 
+        // ⚠️ A class declaring 'Get' of one argument is SUBSCRIPTABLE
+        // [TYP-010].  The fifth structural protocol, and it needs no new member
+        // name: 'Get' is what the built-in collections already answer to
+        // [COL-003], so a class written in Algol-24 reuses the name rather than
+        // being given one of its own.
+        if Target is ObjInstance then
+        begin
+            var Reader := Target.Klass.MethodOfArity ('get', 1);
+
+            if Reader <> Nil then Exit Reader.Bind (Target).Call (this, [Index]);
+        end
+
         // Not a collection, so the only thing left that can be subscripted is
         // a String -- and subscripting one yields a Char.
         if IsText (Target) then Exit Str(Target)[Index];
@@ -1344,6 +1356,18 @@ begin
 
         if Target is ObjCollection then Exit Target.PutAt (Index, Value);
         if Target is ObjBuffer     then Exit Target.PutAt (Index, Value);
+
+        // ⚠️ And 'Put' of TWO arguments is the write [TYP-010].  The two forms
+        // of subscript are two members of different arity, which the language
+        // already tells apart everywhere else -- so nothing has to pair a
+        // getter with a setter syntactically, which is the one question
+        // subscripting adds that no other operator has.
+        if Target is ObjInstance then
+        begin
+            var Writer := Target.Klass.MethodOfArity ('put', 2);
+
+            if Writer <> Nil then Exit Writer.Bind (Target).Call (this, [Index, Value]);
+        end
 
         if IsText (Target) then raise 'Strings are immutable.';
 

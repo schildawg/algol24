@@ -1584,6 +1584,15 @@ static Value m_interpreter_visitsubscriptexpr_1_subscriptexpr(Value v_this, Valu
     if (alg_truthy(alg_is(v_target, "ObjBuffer"))) {
         return alg_invoke(v_target, "At", (Value[]){v_index}, 1);
     }
+    if (alg_truthy(alg_is(v_target, "ObjInstance"))) {
+        {
+            Value v_reader = alg_invoke(alg_property(v_target, "Klass"), "MethodOfArity", (Value[]){alg_string("get"), alg_int(1)}, 2);
+            (void)v_reader;
+            if (alg_truthy(alg_not_equal(v_reader, alg_nil()))) {
+                return alg_invoke(alg_invoke(v_reader, "Bind", (Value[]){v_target}, 1), "Call", (Value[]){v_this, alg_list_keep(alg_list(), v_index)}, 2);
+            }
+        }
+    }
     if (alg_truthy(alg_invoke(v_this, "IsText", (Value[]){v_target}, 1))) {
         return alg_subscript_get(alg_str(v_target), v_index);
     }
@@ -1609,6 +1618,15 @@ static Value m_interpreter_visitsetsubscriptexpr_1_setsubscriptexpr(Value v_this
     }
     if (alg_truthy(alg_is(v_target, "ObjBuffer"))) {
         return alg_invoke(v_target, "PutAt", (Value[]){v_index, v_value}, 2);
+    }
+    if (alg_truthy(alg_is(v_target, "ObjInstance"))) {
+        {
+            Value v_writer = alg_invoke(alg_property(v_target, "Klass"), "MethodOfArity", (Value[]){alg_string("put"), alg_int(2)}, 2);
+            (void)v_writer;
+            if (alg_truthy(alg_not_equal(v_writer, alg_nil()))) {
+                return alg_invoke(alg_invoke(v_writer, "Bind", (Value[]){v_target}, 1), "Call", (Value[]){v_this, alg_list_keep(alg_list_keep(alg_list(), v_index), v_value)}, 2);
+            }
+        }
     }
     if (alg_truthy(alg_invoke(v_this, "IsText", (Value[]){v_target}, 1))) {
         alg_raise(alg_string("Strings are immutable."));
