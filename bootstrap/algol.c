@@ -2121,7 +2121,7 @@ static Value builtin_member(Value receiver, const char *name) {
     const Member *found = member_of(receiver, name);
     if (found == NULL) undefined("property", name);
 
-    return builtin_bound(receiver, found->name, found->arity);
+    return builtin_bound(receiver, name, found->arity);
 }
 
 Value alg_property(Value receiver, const char *name) {
@@ -2459,11 +2459,12 @@ static Value alg_bound(Value receiver, MethodEntry *method) {
 
 /* The same, for a member the RUNTIME provides rather than a class.
  *
- * ⚠️ The name is the table's spelling, not the call site's, so 'L.SORT' and
- * 'L.Sort' bind the same thing and print alike -- a bound method prints the
- * name its declaration used [SRC-011], and a built-in's declaration is the
- * table.  Nothing else may be stored: a call-site string is a literal in the
- * emitted C, which outlives the call, but the table's is the canonical one. */
+ * ⚠️ The name is the CALL SITE's spelling.  A built-in member has no
+ * declaration in the language to take a canonical spelling from -- a bound
+ * method prints the name its declaration used [TYP-012], and the table here is
+ * not one -- so the only spelling both processors can agree on is the one the
+ * program wrote.  Storing it is safe: it is a string literal in the emitted C,
+ * with the lifetime of the program. */
 static Value builtin_bound(Value receiver, const char *name, int32_t arity) {
     ObjBuiltinBound *bound = arena_alloc(sizeof(ObjBuiltinBound));
 
@@ -3542,10 +3543,10 @@ static const char *as_text(Value v) {
             }
 
             /* ⚠️ A BUILT-IN member read without calling it prints the same way,
-             * because it is the same kind of thing.  The interpreter prints
+             * because it is the same kind of thing.  The interpreter printed
              * 'CollectionMethod instance' here, naming a class that exists only
-             * inside algc -- recorded as C-37, where the interpreter is the one
-             * that is wrong. */
+             * inside algc; it prints '<fn Sort>' now, from the same spelling
+             * this uses -- the one the program wrote. */
             if (v.obj->type == OBJ_BUILTIN_BOUND) {
                 Builder b = { NULL, 0, 0 };
                 builder_append(&b, "<fn ");

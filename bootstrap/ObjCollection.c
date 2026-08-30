@@ -3,7 +3,7 @@
 #include "Token.h"
 
 Value k_collectionmethod;
-static const char *t_collectionmethod_init_3_objcollection_string_integer[] = { "ObjCollection", "String", "Integer" };
+static const char *t_collectionmethod_init_3_objcollection_token_integer[] = { "ObjCollection", "Token", "Integer" };
 static const char *t_collectionmethod_call_2[] = { "Any", "Any" };
 Value k_objcollection;
 static const char *t_objcollection_init_1_string[] = { "String" };
@@ -22,16 +22,16 @@ static Value i_collectionmethod(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_collectionmethod_init_3_objcollection_string_integer(Value v_this, Value *args, int32_t count) {
+static Value m_collectionmethod_init_3_objcollection_token_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_receiver = alg_widen(args[0], "ObjCollection");
     (void)v_receiver;
-    Value v_name = alg_widen(args[1], "String");
+    Value v_name = alg_widen(args[1], "Token");
     (void)v_name;
     Value v_thearity = alg_widen(args[2], "Integer");
     (void)v_thearity;
     (void)(alg_set_property(v_this, "Receiver", alg_widen(v_receiver, "ObjCollection")));
-    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
     (void)(alg_set_property(v_this, "TheArity", alg_widen(v_thearity, "Integer")));
     return alg_nil();
 }
@@ -48,7 +48,13 @@ static Value m_collectionmethod_call_2(Value v_this, Value *args, int32_t count)
     (void)v_theinterpreter;
     Value v_arguments = args[1];
     (void)v_arguments;
-    return alg_invoke(alg_property(v_this, "Receiver"), "Invoke", (Value[]){alg_property(v_this, "Name"), v_arguments}, 2);
+    return alg_invoke(alg_property(v_this, "Receiver"), "Invoke", (Value[]){f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(v_this, "Name"), "Lexeme"))}, 1), v_arguments}, 2);
+    return alg_nil();
+}
+
+static Value m_collectionmethod_tostring_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_add(alg_add(alg_string("<fn "), alg_str(alg_property(alg_property(v_this, "Name"), "Lexeme"))), alg_char_value(62));
     return alg_nil();
 }
 
@@ -84,103 +90,103 @@ static Value m_objcollection_get_1_token(Value v_this, Value *args, int32_t coun
         return alg_equal(alg_invoke(v_this, "Count", NULL, 0), alg_int(0));
     }
     if (alg_truthy(alg_equal(v_member, alg_string("contains")))) {
-        return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+        return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("List")))) {
         {
             if (alg_truthy(alg_equal(v_member, alg_string("get")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("add")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("insert")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(2)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(2)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("removeat")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("indexof")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("sort")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("clear")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
         }
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Array")))) {
         {
             if (alg_truthy(alg_equal(v_member, alg_string("get")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("set")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(2)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(2)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("fill")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("indexof")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("sort")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
         }
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Map")))) {
         {
             if (alg_truthy(alg_equal(v_member, alg_string("get")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("put")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(2)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(2)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("remove")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("keys")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("values")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("clear")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
         }
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Set")))) {
         {
             if (alg_truthy(alg_equal(v_member, alg_string("add")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("remove")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("tolist")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("clear")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
         }
     }
     if (alg_truthy(alg_equal(alg_property(v_this, "Kind"), alg_string("Stack")))) {
         {
             if (alg_truthy(alg_equal(v_member, alg_string("push")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("pop")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("peek")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
             if (alg_truthy(alg_equal(v_member, alg_string("clear")))) {
-                return alg_new(k_collectionmethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+                return alg_new(k_collectionmethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
             }
         }
     }
@@ -426,9 +432,10 @@ void init_ObjCollection(void) {
     alg_class_field(k_collectionmethod, "Name");
     alg_class_field(k_collectionmethod, "TheArity");
     alg_class_initializer(k_collectionmethod, i_collectionmethod);
-    alg_class_method(k_collectionmethod, "Init", m_collectionmethod_init_3_objcollection_string_integer, 3, t_collectionmethod_init_3_objcollection_string_integer);
+    alg_class_method(k_collectionmethod, "Init", m_collectionmethod_init_3_objcollection_token_integer, 3, t_collectionmethod_init_3_objcollection_token_integer);
     alg_class_method(k_collectionmethod, "Arity", m_collectionmethod_arity_0, 0, NULL);
     alg_class_method(k_collectionmethod, "Call", m_collectionmethod_call_2, 2, t_collectionmethod_call_2);
+    alg_class_method(k_collectionmethod, "ToString", m_collectionmethod_tostring_0, 0, NULL);
     alg_class_field(k_objcollection, "Kind");
     alg_class_field(k_objcollection, "Items");
     alg_class_field(k_objcollection, "Pairs");

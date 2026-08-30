@@ -3,7 +3,7 @@
 #include "Token.h"
 
 Value k_buffermethod;
-static const char *t_buffermethod_init_3_objbuffer_string_integer[] = { "ObjBuffer", "String", "Integer" };
+static const char *t_buffermethod_init_3_objbuffer_token_integer[] = { "ObjBuffer", "Token", "Integer" };
 static const char *t_buffermethod_call_2[] = { "Any", "Any" };
 Value k_objbuffer;
 static const char *t_objbuffer_init_1_integer[] = { "Integer" };
@@ -20,16 +20,16 @@ static Value i_buffermethod(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_buffermethod_init_3_objbuffer_string_integer(Value v_this, Value *args, int32_t count) {
+static Value m_buffermethod_init_3_objbuffer_token_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_receiver = alg_widen(args[0], "ObjBuffer");
     (void)v_receiver;
-    Value v_name = alg_widen(args[1], "String");
+    Value v_name = alg_widen(args[1], "Token");
     (void)v_name;
     Value v_thearity = alg_widen(args[2], "Integer");
     (void)v_thearity;
     (void)(alg_set_property(v_this, "Receiver", alg_widen(v_receiver, "ObjBuffer")));
-    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
     (void)(alg_set_property(v_this, "TheArity", alg_widen(v_thearity, "Integer")));
     return alg_nil();
 }
@@ -46,7 +46,13 @@ static Value m_buffermethod_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_theinterpreter;
     Value v_arguments = args[1];
     (void)v_arguments;
-    return alg_invoke(alg_property(v_this, "Receiver"), "Invoke", (Value[]){alg_property(v_this, "Name"), v_arguments}, 2);
+    return alg_invoke(alg_property(v_this, "Receiver"), "Invoke", (Value[]){f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(v_this, "Name"), "Lexeme"))}, 1), v_arguments}, 2);
+    return alg_nil();
+}
+
+static Value m_buffermethod_tostring_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_add(alg_add(alg_string("<fn "), alg_str(alg_property(alg_property(v_this, "Name"), "Lexeme"))), alg_char_value(62));
     return alg_nil();
 }
 
@@ -81,19 +87,19 @@ static Value m_objbuffer_get_1_token(Value v_this, Value *args, int32_t count) {
         return alg_property(alg_property(v_this, "Handle"), "IsEmpty");
     }
     if (alg_truthy(alg_equal(v_member, alg_string("append")))) {
-        return alg_new(k_buffermethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
     }
     if (alg_truthy(alg_equal(v_member, alg_string("putint")))) {
-        return alg_new(k_buffermethod, (Value[]){v_this, v_member, alg_int(2)}, 3);
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(2)}, 3);
     }
     if (alg_truthy(alg_equal(v_member, alg_string("getint")))) {
-        return alg_new(k_buffermethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
     }
     if (alg_truthy(alg_equal(v_member, alg_string("resize")))) {
-        return alg_new(k_buffermethod, (Value[]){v_this, v_member, alg_int(1)}, 3);
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
     }
     if (alg_truthy(alg_equal(v_member, alg_string("free")))) {
-        return alg_new(k_buffermethod, (Value[]){v_this, v_member, alg_int(0)}, 3);
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(0)}, 3);
     }
     alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(v_thename, "Lexeme"))), alg_string("'.")));
     return alg_nil();
@@ -156,9 +162,10 @@ void init_ObjBuffer(void) {
     alg_class_field(k_buffermethod, "Name");
     alg_class_field(k_buffermethod, "TheArity");
     alg_class_initializer(k_buffermethod, i_buffermethod);
-    alg_class_method(k_buffermethod, "Init", m_buffermethod_init_3_objbuffer_string_integer, 3, t_buffermethod_init_3_objbuffer_string_integer);
+    alg_class_method(k_buffermethod, "Init", m_buffermethod_init_3_objbuffer_token_integer, 3, t_buffermethod_init_3_objbuffer_token_integer);
     alg_class_method(k_buffermethod, "Arity", m_buffermethod_arity_0, 0, NULL);
     alg_class_method(k_buffermethod, "Call", m_buffermethod_call_2, 2, t_buffermethod_call_2);
+    alg_class_method(k_buffermethod, "ToString", m_buffermethod_tostring_0, 0, NULL);
     alg_class_field(k_objbuffer, "Handle");
     alg_class_initializer(k_objbuffer, i_objbuffer);
     alg_class_method(k_objbuffer, "Init", m_objbuffer_init_1_integer, 1, t_objbuffer_init_1_integer);

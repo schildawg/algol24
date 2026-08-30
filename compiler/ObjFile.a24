@@ -21,11 +21,15 @@ uses Token;
 class FileMethod;
 var
     Receiver : ObjFile;
-    Name     : String;
+
+    /// ⚠️ The TOKEN, not the folded member name.  Dispatch wants the fold
+    /// and the diagnostic wants the spelling the program wrote [SRC-011];
+    /// keeping the token keeps both without a second table.
+    Name     : Token;
     TheArity : Integer;
 
 begin
-    constructor Init (Receiver : ObjFile, Name : String, TheArity : Integer);
+    constructor Init (Receiver : ObjFile, Name : Token, TheArity : Integer);
     begin
         this.Receiver := Receiver;
         this.Name := Name;
@@ -39,7 +43,17 @@ begin
 
     function Call (TheInterpreter, Arguments) : Any;
     begin
-        Exit Receiver.Invoke (Name, Arguments);
+        Exit Receiver.Invoke (FoldCase (Str (Name.Lexeme)), Arguments);
+    end
+
+    /// ⚠️ Printed as a bound METHOD is [TYP-012], because it is the same kind
+    /// of thing: a member read without being called.  This inherited
+    /// ObjInstance's rendering and printed 'FileMethod instance', naming a class
+    /// that exists only inside algc -- a program has no way to know it, and
+    /// nothing in the language answers to it.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Str (Name.Lexeme) + '>';
     end
 end
 
@@ -68,17 +82,17 @@ begin
 
         if Member = 'eof' then Exit Handle.Eof;
 
-        if Member = 'assign'  then Exit FileMethod (this, Member, 1);
-        if Member = 'reset'   then Exit FileMethod (this, Member, 0);
-        if Member = 'rewrite' then Exit FileMethod (this, Member, 0);
-        if Member = 'append'  then Exit FileMethod (this, Member, 0);
-        if Member = 'readln'  then Exit FileMethod (this, Member, 0);
-        if Member = 'write'   then Exit FileMethod (this, Member, 1);
-        if Member = 'writeln' then Exit FileMethod (this, Member, 1);
-        if Member = 'flush'   then Exit FileMethod (this, Member, 0);
-        if Member = 'close'   then Exit FileMethod (this, Member, 0);
-        if Member = 'erase'   then Exit FileMethod (this, Member, 0);
-        if Member = 'rename'  then Exit FileMethod (this, Member, 1);
+        if Member = 'assign'  then Exit FileMethod (this, TheName, 1);
+        if Member = 'reset'   then Exit FileMethod (this, TheName, 0);
+        if Member = 'rewrite' then Exit FileMethod (this, TheName, 0);
+        if Member = 'append'  then Exit FileMethod (this, TheName, 0);
+        if Member = 'readln'  then Exit FileMethod (this, TheName, 0);
+        if Member = 'write'   then Exit FileMethod (this, TheName, 1);
+        if Member = 'writeln' then Exit FileMethod (this, TheName, 1);
+        if Member = 'flush'   then Exit FileMethod (this, TheName, 0);
+        if Member = 'close'   then Exit FileMethod (this, TheName, 0);
+        if Member = 'erase'   then Exit FileMethod (this, TheName, 0);
+        if Member = 'rename'  then Exit FileMethod (this, TheName, 1);
 
         raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end

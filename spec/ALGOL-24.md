@@ -1225,8 +1225,15 @@ itself, printing `<fn Length>`, where a collection's `Length` yields its count.
 ⚠️ **PLANNED — a later generation.** A computed property — a method read
 without parentheses. See Annex H, H-6.
 
+⚠️ **A BUILT-IN member reads the same way.** `L.Sort` yields something callable
+and prints `<fn Sort>`, because it is the same kind of thing as a bound method.
+The spelling is the one the program wrote — a built-in member has no declaration
+to take a canonical one from, where a method prints the name its declaration
+used.
+
     interpreter  compiler/ObjInstance.a24  Get
     conformance  0033-no-computed-property.a24
+    conformance  0149-a-built-in-member-as-a-value.a24
 
 ---
 
@@ -4707,36 +4714,38 @@ program with no compiled form, which is what C-1 was and which this back end is
 supposed to have none of.
 
 **C-37 — A built-in member printed without being called reads differently.**
-*(silent)*
+***Withdrawn.***
 *(refers to [TYP-012])*
 
 | | |
 | --- | --- |
-| Interpreted | `WriteLn (L.Sort)` is `CollectionMethod instance` |
+| Interpreted | `WriteLn (L.Sort)` was `CollectionMethod instance` |
 | Compiled | `<fn Sort>` |
 
-⚠️ **The interpreter is the one that is wrong here**, as in C-4 — and this entry
-is recorded rather than fixed for that reason. `CollectionMethod` names a class
-that exists only inside `algc`; a program has no way to know it and nothing in
-the language answers to it. A bound *method* prints `<fn Name>` [TYP-012]
-through both processors, and a bound built-in member is the same kind of thing,
-so `<fn Sort>` is the answer that follows the rule.
+⚠️ **The interpreter was the one that was wrong here**, as in C-4 — and it is
+the interpreter that changed. `CollectionMethod` names a class that exists only
+inside `algc`; a program has no way to know it and nothing in the language
+answers to it. A bound *method* prints `<fn Name>` [TYP-012], and a bound
+built-in member is the same kind of thing.
 
-⚠️ **No `gap` case pins this, deliberately.** A conformance case records what
-the language *should* do, and its `.out` would have to be the interpreter's
-current answer — enshrining the leak as the rule. The disagreement is written
-down here instead, and the case belongs with the fix.
+⚠️ **The obstacle was the spelling, not the hook.** The three wrappers carried
+the member name **folded**, because their tables are written folded to meet a
+folded lookup [SRC-011], so the obvious `ToString` would have given `<fn sort>`.
+They carry the **token** now: dispatch folds it, and the diagnostic reads the
+lexeme, which needs no second table.
 
-*Fix:* `CollectionMethod`, `BufferMethod` and `FileMethod` need a `ToString`,
-which the runtime already honours. The obstacle is the spelling, not the hook:
-those three carry the member name **folded**, because their tables are written
-folded to meet a folded lookup [SRC-011], so the obvious `'<fn ' + Name + '>'`
-gives `<fn sort>` where the compiled side gives `<fn Sort>`. Making them agree
-means carrying the canonical spelling alongside the folded one — a fifth copy of
-the member table unless it is threaded through the three `Get`s that already
-have the written lexeme in hand.
+⚠️ **And the spelling is the call site's, on both sides.** A built-in member has
+no declaration in the language to take a canonical spelling from — a bound
+method prints the name its *declaration* used, and a member table is not a
+declaration — so the only spelling the two processors can agree on is the one
+the program wrote. `L.SORT` is `<fn SORT>` through both. The C runtime had
+stored the table's spelling instead, on a stated worry about lifetime that was
+unfounded: a call-site name is a string literal in the emitted C.
 
-**C-38 — A function declared inside a method will not compile.** *(loud)*
+    conformance  0149-a-built-in-member-as-a-value.a24
+
+**C-38 — A function declared inside a method will not compile.**
+***Withdrawn.***
 *(refers to [FUN-012], [CLS-011])*
 
 ```
@@ -4754,14 +4763,22 @@ boxes has nowhere to put its cells, and a nested function there closes over
 `this` as well as over the locals: `conformance/0148` reads a field bare, writes
 one through `this`, and the write sticks.
 
-*Fix:* three pieces. A method body boxes what a nested function reads, exactly as
-a function body does — `BoxesFor` and `HoistCells` are already written and are
-simply not called there. The receiver joins the cells, since a nested function
-reading a field needs it. And a bare field name inside such a function resolves
-through the captured receiver rather than through `v_this`, which does not exist
-in a nested function's signature.
+⚠️ **Three pieces, and two were already written.** A method body boxes what a
+nested function reads exactly as a function body does — the analysis existed and
+was simply not called there. The **receiver joins the cells**, under the name the
+language uses for it, because a nested function reading a field reaches it
+through `this`. And every emission of the receiver goes through one place now,
+which answers `v_this` in a method and reads the cell in a function nested
+inside one.
 
-    gap  0148-a-function-inside-a-method.a24
+⚠️ **`v_this` is a parameter, and that is the whole difficulty.** A method's C
+function takes a receiver; a nested function takes cells and has no such
+parameter. Writing `v_this` unconditionally is what made the shape unemittable,
+and the five sites that wrote it — a field read, a field write, a bare method
+call, `super`, and `this` itself — all had to ask instead.
+
+A closure that escapes a method keeps its receiver: `C.Make (3)` hands back a
+function that goes on mutating `C`'s field, and a second `Counter` gets its own.
 
 
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was

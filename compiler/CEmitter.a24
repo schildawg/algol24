@@ -1883,6 +1883,22 @@ begin
         Exit Mangle ('c_', Name);
     end
 
+    /// The receiver, as the function being emitted can name it.
+    ///
+    /// ⚠️ 'v_this' is a PARAMETER of a method's C function, and a function
+    /// nested inside a method has no such parameter -- it takes cells like any
+    /// other nested function.  So the receiver is boxed with the locals when a
+    /// method declares one, and reached through the cell array there.  Writing
+    /// 'v_this' unconditionally is what made a nested function inside a method
+    /// unemittable (C-38).
+    ///
+    function ThisRef () : String;
+    begin
+        if Captured.Contains ('this') then Exit Read ('this');
+
+        Exit 'v_this';
+    end
+
     /// The POINTER to a cell, as the function being emitted can name it.
     ///
     /// ⚠️ Two shapes, and having only the first is what limited nesting to one
@@ -2235,9 +2251,8 @@ begin
         var EnclosingVolatiles := Volatiles;
         Volatiles := ContainsTry (TheMethod.Body);
 
-        // A method body is a C function of its own.  It boxes nothing -- a
-        // function declared inside one is refused -- but it must not inherit
-        // the boxes of whatever body encloses the class declaration either.
+        // A method body is a C function of its own, so it must not inherit the
+        // boxes of whatever body encloses the class declaration.
         var EnclosingBoxed := Boxed;
         var EnclosingCaptured := Captured;
         var EnclosingCells := Cells;
@@ -2245,6 +2260,24 @@ begin
         Boxed := List();
         Captured := Map();
         Cells := List();
+
+        // ⚠️ A method body BOXES, exactly as a function body does [FUN-012].
+        // It did not, and a function declared inside one was refused instead
+        // (C-38) -- the analysis was already written and simply not called
+        // here, so a nested function would have read the method's locals as
+        // plain C locals of another function.
+        //
+        // ⚠️ The RECEIVER is boxed with them, under the name the language uses
+        // for it.  A nested function reading a field reaches it through 'this',
+        // and 'v_this' is a parameter of this C function that the nested one
+        // does not have -- see ThisRef.
+        if DeclaresNested (TheMethod.Body) then
+        begin
+            Boxed := BoundNames (TheMethod);
+            AddOnce (Boxed, 'this');
+
+            DeclareCell ('this', 'v_this');
+        end
 
         var EnclosingTryDepth := TryDepth;
         var EnclosingLoopTry := LoopTryDepth;
@@ -2279,9 +2312,18 @@ begin
                     Slot := 'alg_widen(' + Slot + ', ' + QuoteC (Declared) + ')';
             end
 
-            Line (Local () + VariableName (Name) + ' = ' + Slot + ';');
-            Line ('(void)' + VariableName (Name) + ';');
+            // A parameter a nested function reads has to outlive this call, so
+            // it is a cell rather than a C local -- the same rule a function's
+            // parameters follow.
+            if Boxed.Contains (Name) then DeclareCell (Name, Slot);
+            else
+            begin
+                Line (Local () + VariableName (Name) + ' = ' + Slot + ';');
+                Line ('(void)' + VariableName (Name) + ';');
+            end
         end
+
+        HoistCells (TheMethod.Body);
 
         for var I := 0; I < TheMethod.Body.Length; I := I + 1 do
             Execute (TheMethod.Body[I]);
@@ -2680,9 +2722,6 @@ begin
         // that exist at that moment.
         var Nested := not AtTopLevel;
 
-        if Nested and CurrentClass <> '' then
-            Unsupported ('A function declared inside a method');
-
         EnclosingLocals := Locals;
         EnclosingTop := AtTopLevel;
         EnclosingDepth := Depth;
@@ -2931,7 +2970,7 @@ begin
         // fallback; here it has to be decided when the C is written.
         if CurrentClass <> '' and not Locals.Contains (Name)
                               and VisibleFields.Contains (FoldCase (Name)) then
-            Exit 'alg_property(v_this, ' + QuoteC (Name) + ')';
+            Exit 'alg_property(' + ThisRef () + ', ' + QuoteC (Name) + ')';
 
         if not Locals.Contains (Name) then
         begin
@@ -3102,7 +3141,7 @@ begin
         // ever looked at.
         if CurrentClass <> '' and not Locals.Contains (Name)
                               and VisibleFields.Contains (FoldCase (Name)) then
-            Exit 'alg_set_property(v_this, ' + QuoteC (Name) + ', ' + Written + ')';
+            Exit 'alg_set_property(' + ThisRef () + ', ' + QuoteC (Name) + ', ' + Written + ')';
 
         Unreachable (Name);
 
@@ -3513,7 +3552,7 @@ begin
             for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
                 Emitted.Add (Evaluate (TheExpr.Arguments[I]));
 
-            Exit 'alg_invoke_from(' + ClassHandle (CurrentClass) + ', v_this, '
+            Exit 'alg_invoke_from(' + ClassHandle (CurrentClass) + ', ' + ThisRef () + ', '
                + QuoteC (Str (TheExpr.Callee.Method.Lexeme)) + ', '
                + ArgumentArray (Emitted) + ')';
         end
@@ -3641,7 +3680,7 @@ begin
         // override, which a direct call to this class's symbol would not.
         if CurrentClass <> '' and not Declared.Contains (Name)
                               and VisibleMethods.Contains (FoldCase (Name)) then
-            Exit 'alg_invoke(v_this, ' + QuoteC (Name) + ', '
+            Exit 'alg_invoke(' + ThisRef () + ', ' + QuoteC (Name) + ', '
                + ArgumentArray (Arguments) + ')';
 
         // ⚠️ DECLARED IS NOT THE SAME AS REACHABLE.  Declared spans the whole
@@ -4060,7 +4099,7 @@ begin
 
     function VisitThisExpr (TheExpr : ThisExpr) : String;
     begin
-        Exit 'v_this';
+        Exit ThisRef ();
     end
 
     procedure VisitClassStmt (TheStmt : ClassStmt);

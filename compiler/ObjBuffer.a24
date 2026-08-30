@@ -21,11 +21,15 @@ uses Token;
 class BufferMethod;
 var
     Receiver : ObjBuffer;
-    Name     : String;
+
+    /// ⚠️ The TOKEN, not the folded member name.  Dispatch wants the fold
+    /// and the diagnostic wants the spelling the program wrote [SRC-011];
+    /// keeping the token keeps both without a second table.
+    Name     : Token;
     TheArity : Integer;
 
 begin
-    constructor Init (Receiver : ObjBuffer, Name : String, TheArity : Integer);
+    constructor Init (Receiver : ObjBuffer, Name : Token, TheArity : Integer);
     begin
         this.Receiver := Receiver;
         this.Name := Name;
@@ -39,7 +43,17 @@ begin
 
     function Call (TheInterpreter, Arguments) : Any;
     begin
-        Exit Receiver.Invoke (Name, Arguments);
+        Exit Receiver.Invoke (FoldCase (Str (Name.Lexeme)), Arguments);
+    end
+
+    /// ⚠️ Printed as a bound METHOD is [TYP-012], because it is the same kind
+    /// of thing: a member read without being called.  This inherited
+    /// ObjInstance's rendering and printed 'BufferMethod instance', naming a class
+    /// that exists only inside algc -- a program has no way to know it, and
+    /// nothing in the language answers to it.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Str (Name.Lexeme) + '>';
     end
 end
 
@@ -73,11 +87,11 @@ begin
         if Member = 'length'  then Exit Handle.Length;
         if Member = 'isempty' then Exit Handle.IsEmpty;
 
-        if Member = 'append' then Exit BufferMethod (this, Member, 1);
-        if Member = 'putint' then Exit BufferMethod (this, Member, 2);
-        if Member = 'getint' then Exit BufferMethod (this, Member, 1);
-        if Member = 'resize' then Exit BufferMethod (this, Member, 1);
-        if Member = 'free'   then Exit BufferMethod (this, Member, 0);
+        if Member = 'append' then Exit BufferMethod (this, TheName, 1);
+        if Member = 'putint' then Exit BufferMethod (this, TheName, 2);
+        if Member = 'getint' then Exit BufferMethod (this, TheName, 1);
+        if Member = 'resize' then Exit BufferMethod (this, TheName, 1);
+        if Member = 'free'   then Exit BufferMethod (this, TheName, 0);
 
         raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end

@@ -9,11 +9,15 @@ uses Token;
 class CollectionMethod;
 var
     Receiver  : ObjCollection;
-    Name      : String;
+
+    /// ⚠️ The TOKEN, not the folded member name.  Dispatch wants the fold
+    /// and the diagnostic wants the spelling the program wrote [SRC-011];
+    /// keeping the token keeps both without a second table.
+    Name      : Token;
     TheArity  : Integer;
 
 begin
-    constructor Init (Receiver : ObjCollection, Name : String, TheArity : Integer);
+    constructor Init (Receiver : ObjCollection, Name : Token, TheArity : Integer);
     begin
         this.Receiver := Receiver;
         this.Name := Name;
@@ -27,7 +31,17 @@ begin
 
     function Call (TheInterpreter, Arguments) : Any;
     begin
-        Exit Receiver.Invoke (Name, Arguments);
+        Exit Receiver.Invoke (FoldCase (Str (Name.Lexeme)), Arguments);
+    end
+
+    /// ⚠️ Printed as a bound METHOD is [TYP-012], because it is the same kind
+    /// of thing: a member read without being called.  This inherited
+    /// ObjInstance's rendering and printed 'CollectionMethod instance', naming a class
+    /// that exists only inside algc -- a program has no way to know it, and
+    /// nothing in the language answers to it.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Str (Name.Lexeme) + '>';
     end
 end
 
@@ -85,52 +99,52 @@ begin
         if Member = 'isempty' then Exit Count() = 0;
 
         // Shared by every kind.
-        if Member = 'contains' then Exit CollectionMethod (this, Member, 1);
+        if Member = 'contains' then Exit CollectionMethod (this, TheName, 1);
 
         if Kind = 'List' then
         begin
-            if Member = 'get'      then Exit CollectionMethod (this, Member, 1);
-            if Member = 'add'      then Exit CollectionMethod (this, Member, 1);
-            if Member = 'insert'   then Exit CollectionMethod (this, Member, 2);
-            if Member = 'removeat' then Exit CollectionMethod (this, Member, 1);
-            if Member = 'indexof'  then Exit CollectionMethod (this, Member, 1);
-            if Member = 'sort'     then Exit CollectionMethod (this, Member, 0);
-            if Member = 'clear'    then Exit CollectionMethod (this, Member, 0);
+            if Member = 'get'      then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'add'      then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'insert'   then Exit CollectionMethod (this, TheName, 2);
+            if Member = 'removeat' then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'indexof'  then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'sort'     then Exit CollectionMethod (this, TheName, 0);
+            if Member = 'clear'    then Exit CollectionMethod (this, TheName, 0);
         end
 
         if Kind = 'Array' then
         begin
-            if Member = 'get'     then Exit CollectionMethod (this, Member, 1);
-            if Member = 'set'     then Exit CollectionMethod (this, Member, 2);
-            if Member = 'fill'    then Exit CollectionMethod (this, Member, 1);
-            if Member = 'indexof' then Exit CollectionMethod (this, Member, 1);
-            if Member = 'sort'    then Exit CollectionMethod (this, Member, 0);
+            if Member = 'get'     then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'set'     then Exit CollectionMethod (this, TheName, 2);
+            if Member = 'fill'    then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'indexof' then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'sort'    then Exit CollectionMethod (this, TheName, 0);
         end
 
         if Kind = 'Map' then
         begin
-            if Member = 'get'    then Exit CollectionMethod (this, Member, 1);
-            if Member = 'put'    then Exit CollectionMethod (this, Member, 2);
-            if Member = 'remove' then Exit CollectionMethod (this, Member, 1);
-            if Member = 'keys'   then Exit CollectionMethod (this, Member, 0);
-            if Member = 'values' then Exit CollectionMethod (this, Member, 0);
-            if Member = 'clear'  then Exit CollectionMethod (this, Member, 0);
+            if Member = 'get'    then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'put'    then Exit CollectionMethod (this, TheName, 2);
+            if Member = 'remove' then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'keys'   then Exit CollectionMethod (this, TheName, 0);
+            if Member = 'values' then Exit CollectionMethod (this, TheName, 0);
+            if Member = 'clear'  then Exit CollectionMethod (this, TheName, 0);
         end
 
         if Kind = 'Set' then
         begin
-            if Member = 'add'    then Exit CollectionMethod (this, Member, 1);
-            if Member = 'remove' then Exit CollectionMethod (this, Member, 1);
-            if Member = 'tolist' then Exit CollectionMethod (this, Member, 0);
-            if Member = 'clear'  then Exit CollectionMethod (this, Member, 0);
+            if Member = 'add'    then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'remove' then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'tolist' then Exit CollectionMethod (this, TheName, 0);
+            if Member = 'clear'  then Exit CollectionMethod (this, TheName, 0);
         end
 
         if Kind = 'Stack' then
         begin
-            if Member = 'push'  then Exit CollectionMethod (this, Member, 1);
-            if Member = 'pop'   then Exit CollectionMethod (this, Member, 0);
-            if Member = 'peek'  then Exit CollectionMethod (this, Member, 0);
-            if Member = 'clear' then Exit CollectionMethod (this, Member, 0);
+            if Member = 'push'  then Exit CollectionMethod (this, TheName, 1);
+            if Member = 'pop'   then Exit CollectionMethod (this, TheName, 0);
+            if Member = 'peek'  then Exit CollectionMethod (this, TheName, 0);
+            if Member = 'clear' then Exit CollectionMethod (this, TheName, 0);
         end
 
         raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
