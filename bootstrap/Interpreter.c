@@ -58,6 +58,10 @@ Value k_writelnnative;
 static const char *t_writelnnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_haltnative;
 static const char *t_haltnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
+Value k_succnative;
+static const char *t_succnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
+Value k_prednative;
+static const char *t_prednative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_ordnative;
 static const char *t_ordnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_valnative;
@@ -534,6 +538,48 @@ static Value m_haltnative_call_2(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value i_succnative(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_nil();
+}
+
+static Value m_succnative_arity_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_int(1);
+    return alg_nil();
+}
+
+static Value m_succnative_call_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_theinterpreter = args[0];
+    (void)v_theinterpreter;
+    Value v_arguments = args[1];
+    (void)v_arguments;
+    return alg_succ(alg_subscript_get(v_arguments, alg_int(0)));
+    return alg_nil();
+}
+
+static Value i_prednative(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_nil();
+}
+
+static Value m_prednative_arity_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_int(1);
+    return alg_nil();
+}
+
+static Value m_prednative_call_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_theinterpreter = args[0];
+    (void)v_theinterpreter;
+    Value v_arguments = args[1];
+    (void)v_arguments;
+    return alg_pred(alg_subscript_get(v_arguments, alg_int(0)));
+    return alg_nil();
+}
+
 static Value i_ordnative(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_nil();
@@ -1006,6 +1052,8 @@ static Value m_interpreter_init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Stack"), alg_new(k_stacknative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Halt"), alg_new(k_haltnative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Ord"), alg_new(k_ordnative, NULL, 0)}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Succ"), alg_new(k_succnative, NULL, 0)}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Pred"), alg_new(k_prednative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Val"), alg_new(k_valnative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Char"), alg_new(k_charnative, NULL, 0)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Max"), alg_new(k_maxnative, NULL, 0)}, 2));
@@ -3277,6 +3325,8 @@ void init_Interpreter(void) {
     k_writenative = alg_class("WriteNative", alg_nil());
     k_writelnnative = alg_class("WriteLnNative", alg_nil());
     k_haltnative = alg_class("HaltNative", alg_nil());
+    k_succnative = alg_class("SuccNative", alg_nil());
+    k_prednative = alg_class("PredNative", alg_nil());
     k_ordnative = alg_class("OrdNative", alg_nil());
     k_valnative = alg_class("ValNative", alg_nil());
     k_charnative = alg_class("CharNative", alg_nil());
@@ -3336,6 +3386,12 @@ void init_Interpreter(void) {
     alg_class_initializer(k_haltnative, i_haltnative);
     alg_class_method(k_haltnative, "Arity", m_haltnative_arity_0, 0, NULL);
     alg_class_method(k_haltnative, "Call", m_haltnative_call_2, 2, t_haltnative_call_2);
+    alg_class_initializer(k_succnative, i_succnative);
+    alg_class_method(k_succnative, "Arity", m_succnative_arity_0, 0, NULL);
+    alg_class_method(k_succnative, "Call", m_succnative_call_2, 2, t_succnative_call_2);
+    alg_class_initializer(k_prednative, i_prednative);
+    alg_class_method(k_prednative, "Arity", m_prednative_arity_0, 0, NULL);
+    alg_class_method(k_prednative, "Call", m_prednative_call_2, 2, t_prednative_call_2);
     alg_class_initializer(k_ordnative, i_ordnative);
     alg_class_method(k_ordnative, "Arity", m_ordnative_arity_0, 0, NULL);
     alg_class_method(k_ordnative, "Call", m_ordnative_call_2, 2, t_ordnative_call_2);

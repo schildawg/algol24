@@ -1,0 +1,44 @@
+// spec: EXP-008, EXP-019, RT-020
+//
+// A Char is an ordinal.  Subtracting two measures the distance between them,
+// Succ and Pred step one, and '+' refuses to mix a Char with a number.
+//
+// ⚠️ Turbo Pascal's model, with one addition.  TP concatenates 'a' + 'b',
+// refuses 'a' + 1, and steps with Succ and Pred; it answers a distance with
+// Ord (X) - Ord (Y), which stays available.  'z' - 'a' is the departure.
+
+// The distance between two Chars, as an Integer.
+WriteLn ('z' - 'a');
+WriteLn ('a' - 'z');
+WriteLn ('a' - 'a');
+
+// Code points, so this is the same 232 and 233 that Ord answers.
+WriteLn ('é' - 'è');
+
+// Stepping, on a Char and on an Integer.
+WriteLn (Succ ('a'), ' ', Pred ('b'));
+WriteLn (Succ (5), ' ', Pred (5));
+WriteLn (Succ ('è'));
+
+// ⚠️ A CHAR MIXED WITH A NUMBER IS REFUSED.  A Char is an ordinal, so 'a' + 1
+// reads two ways -- step the character, or join it to the text '1' -- and
+// rather than pick one silently the language makes the program say which.
+try WriteLn ('a' + 1); except on e : String do WriteLn (e); end
+try WriteLn (1 + 'a'); except on e : String do WriteLn (e); end
+try WriteLn ('a' - 1); except on e : String do WriteLn (e); end
+
+// Str is how a Char widens, and now it means something: these two differ.
+WriteLn (Str ('a') + 1);
+WriteLn (Succ ('a'));
+
+// ⚠️ A STRING mixed with a number still concatenates.  A String is not an
+// ordinal, so it has only one reading and nothing to disambiguate.
+WriteLn ('ab' + 1);
+WriteLn (1 + 'ab');
+
+// And two Chars still concatenate, which is what Turbo Pascal does.
+WriteLn ('a' + 'b');
+
+// Anything that is not an ordinal has no Succ.
+try WriteLn (Succ (True));  except on e : String do WriteLn (e); end
+try WriteLn (Succ ('ab'));  except on e : String do WriteLn (e); end

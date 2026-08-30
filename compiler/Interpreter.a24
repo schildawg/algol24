@@ -314,6 +314,39 @@ begin
     end
 end
 
+/// Succ and Pred step an ordinal [RT-020].
+///
+/// ⚠️ Delegated to the host, so interpreted Succ IS host Succ and the two
+/// cannot disagree -- the arrangement every builtin here follows.  An
+/// interpreted enum member is an ObjEnum, which the host's Succ could not step
+/// even if it stepped enums, and it does not: see alg_succ.
+///
+class SuccNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Succ (Arguments[0]);
+    end
+end
+
+class PredNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Pred (Arguments[0]);
+    end
+end
+
 class OrdNative;
 begin
     function Arity () : Integer;
@@ -761,6 +794,8 @@ begin
 
         Builtins.Define ('Halt', HaltNative());
         Builtins.Define ('Ord',  OrdNative());
+        Builtins.Define ('Succ', SuccNative());
+        Builtins.Define ('Pred', PredNative());
         Builtins.Define ('Val',  ValNative());
         Builtins.Define ('Char', CharNative());
         Builtins.Define ('Max',  MaxNative());

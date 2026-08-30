@@ -2002,14 +2002,48 @@ precedence, so `A + B div C` groups the way `A + B / C` does.
     compiler     bootstrap/algol.c         alg_div_int
     conformance  0155-integer-division.a24
 
-**[EXP-008]**  `+` concatenates when **either** operand is a String or a Char,
-converting the other. `'x' + 1` is `x1`, `1 + 'x'` is `1x`, and `'a' + 'b'` —
-two Chars — is the String `ab`.
+**[EXP-008]**  `+` concatenates when **either** operand is text, converting the
+other. `'ab' + 1` is `ab1`, `1 + 'ab'` is `1ab`, and `'a' + 'b'` — two Chars — is
+the String `ab`.
+
+A **`Char` mixed with a number** is refused: `'a' + 1` is `A Char and a number
+cannot be added; use Succ or Str.` So is `'a' - 1`, with `use Pred.`
+
+⚠️ **A Char is an ordinal, so the mixed form reads two ways** — step the
+character, or join it to the text `1` — and rather than pick one silently the
+language makes the program say which: `Succ ('a')` [RT-020] for the step,
+`Str ('a') + 1` for the join.
+
+⚠️ **It used to concatenate, and that quietly widened the Char.** `Str` is how a
+Char becomes a String, which is why `Line ('{')` must be declared `Any`
+[LEX-026] — yet `'a' + 1` and `Str ('a') + 1` both gave `a1`, so in this one
+place the widening happened without being asked for and `Str` was decorative.
+[VAR-004] specifies widening **to reach a written type**, at a declaration; `+`
+in an expression was never that rule being applied.
+
+⚠️ **A String mixed with a number still concatenates.** A String is not an
+ordinal, so `'ab' + 1` has only one reading and nothing to disambiguate.
 
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         alg_add
     unit         Evaluate Binary Plus String
     conformance  0025-operators-widen.a24
+    conformance  0167-character-arithmetic.a24
+
+**[EXP-019]**  `-` on **two Chars** answers the Integer distance between their
+code points: `'z' - 'a'` is 25.
+
+⚠️ **The only arithmetic a Char takes**, and it is the one that cannot be read
+two ways: subtracting two ordinals is a distance and nothing else. Stepping is
+`Succ` and `Pred` [RT-020], joining is `Str` and `+` [EXP-008].
+
+⚠️ **Turbo Pascal has neither**, and this is a deliberate departure from it. TP
+answers a distance with `Ord (X) - Ord (Y)`, which stays available and says the
+same thing at greater length.
+
+    interpreter  compiler/Interpreter.a24  VisitBinary
+    compiler     bootstrap/algol.c         alg_subtract
+    conformance  0167-character-arithmetic.a24
 
 ### 9.4 Logical operators
 
@@ -3350,10 +3384,12 @@ program having no compiled form.
 
 ### 16.1 The set
 
-**[RT-001]**  Twenty-six names are built in. Twenty-three are always available:
+**[RT-001]**  Twenty-eight names are built in. Twenty-five are always
+available:
 
 ```
 Length  Copy  Pos   Str        Ord   Char  Val
+Succ    Pred
 Max     Mod   clock
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
@@ -3582,6 +3618,24 @@ for an Integer past the machine's width.
     interpreter  compiler/ObjFunction.a24  NumberMethod
     compiler     bootstrap/algol.c         number_method
     conformance  0156-number-members.a24
+
+**[RT-020]**  `Succ(X)` and `Pred(X)` step an ordinal. A `Char` moves one code
+point, an `Integer` moves one. `Succ ('a')` is `'b'` and `Pred (5)` is `4`.
+
+Anything else is `Succ failed: 'X' has no ordinal.`, and a Char at the end of
+the code-point range is `Succ failed: 'X' has no ordinal beyond it.`
+
+⚠️ **An enum member is not stepped, and the gap is honest rather than chosen.**
+Stepping one is the most Pascal use of `Succ` there is, but a member carries its
+type's *name* and its ordinal rather than a pointer to the type, so there is no
+way from a member to the list it belongs to. That link is a change of its own.
+
+⚠️ **An Integer has no end to check** because it is unbounded [LEX-018]; a Char
+does, stopping at U+10FFFF.
+
+    interpreter  compiler/Interpreter.a24  SuccNative
+    compiler     bootstrap/algol.c         alg_succ
+    conformance  0167-character-arithmetic.a24
 
 **[RT-018]**  `Halt(N)` ends the program at once with status `N`. Nothing after
 it runs, and no enclosing `except` sees it — it is not an exception.
@@ -4158,14 +4212,16 @@ checks this list against the names the interpreter actually registers.
 | `Map` | [COL-002] | An empty Map |
 | `Set` | [COL-002] | An empty Set, or a Set of a collection's values |
 | `Stack` | [COL-002] | An empty Stack |
-| `Char` | [RT-008] | The character with a code point, 0 … 127 |
+| `Char` | [RT-008] | The character with a code point, 0 … 10FFFF, surrogates excluded |
 | `Copy` | [RT-004] | A substring, from a zero-based start, length clamped |
 | `Length` | [RT-003] | ⚠️ The length of the argument's **text**, not a count |
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
+| `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
+| `Pred` | [RT-020] | The previous ordinal, on the same terms |
 | `Pos` | [RT-005] | A zero-based index, or -1 when absent |
 | `Str` | [RT-006] | Any value rendered as text |
-| `Val` | [RT-009] | ⚠️ A number parsed from text, **always a Double** |
-| `Max` | [RT-010] | ⚠️ The greater of two **Integers** only |
+| `Val` | [RT-009] | A number parsed from text — an **Integer** without a point, a Double with one |
+| `Max` | [RT-010] | The greater of two numbers, promoting as arithmetic does |
 | `Mod` | [RT-011] | The remainder, its sign following the dividend |
 | `clock` | [RT-012] | Seconds since the epoch, as a Double |
 | `FileExists` | [RT-014] | Whether a named file exists |
@@ -6608,50 +6664,29 @@ than `WARN`, because names are matched without regard to case [SRC-011] and a
 `procedure Warn` beside it would be the same name.
 
 **H-13 — Character arithmetic, the Pascal way.**
-*(will change [VAL-009], [RT-001])*
+***Landed in Generation 6.*** *(changed [EXP-008], [RT-001]; added [EXP-019], [RT-020])*
 
-A `Char` is an ordinal. Stepping one has a name, measuring two is subtraction,
-and `+` goes back to meaning exactly one thing:
+`'z' - 'a'` is 25, `Succ` and `Pred` step an ordinal, and `'a' + 1` is refused.
+Turbo Pascal's model with one departure: TP answers a distance with
+`Ord (X) - Ord (Y)`, which stays available and says the same thing at greater
+length.
 
-| written | today | wanted |
-| --- | --- | --- |
-| `'z' - 'a'` | `Operands must be numbers.` | `25` — a distance |
-| `Succ ('a')`, `Pred ('b')` | `Undefined variable 'Succ'.` | `'b'`, `'a'` |
-| `'a' + 1` | `'a1'` — a **String** | **refused** |
-| `Str ('a') + 1` | `'a1'` | `'a1'` — unchanged |
-| `'a' + 'b'` | `'ab'` | `'ab'` — unchanged |
+⚠️ **Refusing `'a' + 1` was the repair, and the reason to do this.** `Str` is how
+a Char widens to a String — that is why `Line ('{')` must be declared `Any` —
+yet `'a' + 1` and `Str ('a') + 1` both gave `a1`, so in that one place widening
+happened without being asked for and `Str` was decorative. The two differ now.
 
-⚠️ **Turbo Pascal's model, and only one part of it is already here.** TP
-concatenates `'a' + 'b'`, refuses `'a' + 1` outright, has no char subtraction at
-all, and steps with `Succ` and `Pred`. Algol-24 matches on the first and on
-nothing else: `'a' + 1` silently widens, `'z' - 'a'` is an error, and `Succ`
-and `Pred` are not built in.
+⚠️ **The C model was declined.** `'a' + 1` yielding `'b'` puts arithmetic on `+`
+and makes the operator mean a step or a join depending on its right operand.
+`Succ` costs one word, says what it does, and leaves `+` meaning one thing.
 
-⚠️ **Refusing `'a' + 1` is the repair, and it is the reason to do this.** `Str`
-is how a `Char` widens to a `String` — that is why `Line ('{')` must be declared
-`Any` — yet `'a' + 1` and `Str ('a') + 1` both give `a1` today, so in this one
-place widening happens without being asked for and `Str` is decorative.
-[VAR-004] specifies widening **to reach a written type**, at a declaration; `+`
-in an expression is not that rule being applied, it is an extra one nobody wrote
-down. Making the mixed form an error gives `Str` its meaning back.
+⚠️ **Breaking in the safer direction**, and the blast radius was measured before
+the change: no `Char + Integer` appears anywhere in `compiler/*.a24`, and the
+expression becomes an **error** rather than quietly computing something else.
 
-⚠️ **Breaking, but in the safer direction.** `'a' + 1` becomes an **error**
-rather than quietly changing value, so no program silently computes something
-new — and the blast radius is measured: no `Char + Integer` appears anywhere in
-`compiler/*.a24`. A defect records what the expression used to do.
-
-⚠️ **Unicode is not the difficulty, and it was expected to be.** A `Char` is
-already a code point [LEX-025], and `Ord` already answers an Integer one. `'é' -
-'a'` being 132 is arithmetic that is well defined and merely not linguistically
-meaningful — the bargain every language makes here.
-
-⚠️ **The C model was considered and declined.** `'a' + 1` yielding `'b'` puts
-arithmetic on `+` and makes the operator mean a step or a join depending on its
-right operand. `Succ` costs one word, says what it does, and leaves `+` alone.
-
-⚠️ **Two of the three are already expressible**, which makes this a question of
-reading rather than of power: `Ord ('z') - Ord ('a')` is 25 today and
-`Char (Ord ('a') + 1)` is `'b'`, in both processors.
+⚠️ **An enum member is not stepped** [RT-020]. A member carries its type's name
+and its ordinal rather than a pointer to the type, so there is no way from a
+member to the list it belongs to — the gap is honest rather than chosen.
 
 **H-14 — A foreign function interface.** *(will change [RT-001], and more)*
 

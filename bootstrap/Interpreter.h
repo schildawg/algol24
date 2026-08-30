@@ -29,6 +29,8 @@ extern Value fn_rendered;
 extern Value k_writenative;
 extern Value k_writelnnative;
 extern Value k_haltnative;
+extern Value k_succnative;
+extern Value k_prednative;
 extern Value k_ordnative;
 extern Value k_valnative;
 extern Value k_charnative;

@@ -396,6 +396,10 @@ Value alg_pos(Value text, Value part);
 Value alg_char(Value code);
 Value alg_ord(Value v);
 Value alg_val(Value v);
+
+/* Succ and Pred step an ordinal -- a Char or an Integer [RT-020]. */
+Value alg_succ(Value v);
+Value alg_pred(Value v);
 Value alg_max(Value a, Value b);
 
 /* Seconds since the epoch, at millisecond resolution -- the same units and the

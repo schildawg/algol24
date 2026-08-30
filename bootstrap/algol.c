@@ -4016,6 +4016,22 @@ static Value concat(Value a, Value b) {
  */
 
 Value alg_add(Value a, Value b) {
+    /* ⚠️ A CHAR MIXED WITH A NUMBER IS REFUSED [VAL-009].  A Char is an ordinal,
+     * so 'a' + 1 reads two ways -- step the character, or join it to the text
+     * '1' -- and rather than pick one silently the language makes the program
+     * say which: Succ ('a') for the step, Str ('a') + 1 for the join.
+     *
+     * ⚠️ It used to concatenate, and that quietly widened the Char.  Str is how
+     * a Char becomes a String, which is why Line ('{') must be declared Any --
+     * yet 'a' + 1 and Str ('a') + 1 both gave 'a1', so in this one place the
+     * widening happened without being asked for and Str was decorative.
+     *
+     * ⚠️ A STRING mixed with a number still concatenates: 'ab' + 1 is 'ab1'.  A
+     * String is not an ordinal, so it has only one reading and nothing to
+     * disambiguate. */
+    if ((a.type == VAL_CHAR && is_number(b)) || (is_number(a) && b.type == VAL_CHAR))
+        alg_error("A Char and a number cannot be added; use Succ or Str.");
+
     if (is_text(a) || is_text(b)) return concat(a, b);
 
     if (is_number(a) && is_number(b)) {
@@ -4038,6 +4054,15 @@ Value alg_add(Value a, Value b) {
 }
 
 Value alg_subtract(Value a, Value b) {
+    /* Two Chars measure the distance between them, as an Integer [VAL-009]. */
+    if (a.type == VAL_CHAR && b.type == VAL_CHAR)
+        return alg_int(utf8_decode(a.string) - utf8_decode(b.string));
+
+    /* ⚠️ And a Char with a number is refused, as it is for '+': stepping back
+     * is Pred, and there is nothing else subtraction could mean. */
+    if ((a.type == VAL_CHAR && is_number(b)) || (is_number(a) && b.type == VAL_CHAR))
+        alg_error("A Char and a number cannot be subtracted; use Pred.");
+
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_double(as_double(a) - as_double(b));
 
@@ -5013,6 +5038,47 @@ Value alg_ord(Value v) {
     alg_error(b.text);
     return alg_nil();
 }
+
+/* Succ and Pred step an ordinal [RT-020].
+ *
+ * ⚠️ A CHAR AND AN INTEGER ONLY, and the gap is honest rather than chosen: an
+ * ObjEnum carries its type's NAME and its ordinal, not a pointer to the type,
+ * so there is no way from a member to the list it belongs to.  Stepping an
+ * enum -- which is the most Pascal use of Succ there is -- wants that link
+ * first, and it is a change of its own.
+ *
+ * ⚠️ An Integer is unbounded [LEX-018], so stepping one has no end to check.  A
+ * Char does: a code point stops at U+10FFFF. */
+static Value stepped(Value v, int32_t by, const char *name) {
+    if (v.type == VAL_INT || is_bigint(v)) return alg_add(v, alg_int(by));
+
+    if (v.type == VAL_CHAR) {
+        int32_t code = utf8_decode(v.string) + by;
+
+        if (code < 0 || code > 0x10FFFF) {
+            Builder b = { NULL, 0, 0 };
+            builder_append(&b, name);
+            builder_append(&b, " failed: '");
+            builder_append(&b, as_text(v));
+            builder_append(&b, "' has no ordinal beyond it.");
+
+            alg_error(b.text);
+        }
+        return alg_char_value(code);
+    }
+
+    Builder b = { NULL, 0, 0 };
+    builder_append(&b, name);
+    builder_append(&b, " failed: '");
+    builder_append(&b, as_text(v));
+    builder_append(&b, "' has no ordinal.");
+
+    alg_error(b.text);
+    return alg_nil();
+}
+
+Value alg_succ(Value v) { return stepped(v,  1, "Succ"); }
+Value alg_pred(Value v) { return stepped(v, -1, "Pred"); }
 
 Value alg_clock(void) {
     struct timeval now;
