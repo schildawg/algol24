@@ -193,6 +193,55 @@ visibility because it costs on every *access*, and while a property's cost would
 fall on writes alone, buying a boundary the rest of the language does not have
 is not worth the asymmetry.
 
+## ✅ Generation 7 is complete
+
+**Ordering, subscripting, and arithmetic operators** — H-16, H-15 and H-8, with
+221 tests, 220 conformance cases, no gap in either processor, and the fixed
+point holding.
+
+⚠️ **`spec.sh` now reports `0 rule(s) planned for a later generation`.** Every
+rule the specification ever deferred has landed. TYP-010 was the last, and it
+went in this generation.
+
+⚠️ **H-8 shrank to a quarter of itself by being asked what it added.** It called
+itself "the umbrella over much of Annex H": H-6's property and H-7's ordering
+landed in Generation 6 without it, and subscripting and comparison came out here
+as **protocols**. What was left — arithmetic — is the only part that wanted an
+operator declaration. The question that did the work each time was not "how
+would we build this" but "what does this add that we do not have".
+
+⚠️ **The one place a keyword beat a protocol, after five protocols in a row.**
+`Compare`, `Get` and `Put` are not *translations* of operators — `Compare`
+yields four of them, `Get` and `Put` are two halves of one — while a `Plus`
+method would be a pure synonym for `+`: a name added without a concept. Where
+the name says something the symbol does not, the protocol wins; here it would
+not.
+
+⚠️ **"And `Sort` gets it for free" was wrong, and H-16 said it before it was
+built.** `Sort` gets it free *compiled*; the interpreter delegates `Sort` to the
+host's, whose values are `ObjInstance` — the compiler's own class, not the
+program's — so the host looks for `Compare` there and never finds it. Rather
+than answer compiled and refuse interpreted, the runtime's `Sort` does not ask
+either. **The narrower feature shipped instead of the wider gap.**
+
+⚠️ **Adding a keyword broke the compiler's own source**, as it has before.
+`Operator` was a local variable in `Parser.a24`, sixteen times over, and became
+unspellable the moment the word was reserved — the collision that renamed
+`Break` to `Broke` and Lox's `Expr.Get.object` to `Obj`. The language's word
+wins and the compiler adapts.
+
+⚠️ **The staleness pass found two claims written during the generation that
+contradicted each other.** TYP-010 called subscripting the fifth structural
+protocol and VAL-014 called `Compare` the sixth, each listing the other. Both
+also counted a `property`, which is *declared* rather than structural. There are
+five protocols and one declared member kind.
+
+⚠️ **Nothing in the language pins the collections to being native any longer.**
+`conformance/0171` ends with a `Stack` written in Algol-24 that is subscripted,
+iterated, ordered and answers `Length` without parentheses — the four things
+Annex E named. What H-9 waits on now is H-14, which is a runtime question rather
+than a language one.
+
 ## 0. The road to v1
 
 | | | Ends when |
