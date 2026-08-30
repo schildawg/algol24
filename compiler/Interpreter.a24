@@ -1614,9 +1614,18 @@ begin
             // arity too, so the check below stays for the natives, whose
             // parameters are not declared in this language and which therefore
             // have a signature only in the sense of a count.
-            else if not Callee.Fits (Arguments, True) then
+            // ⚠️ And absorption is admitted here too, or a lone variadic
+            // subprogram -- one with no overload set to select from -- would
+            // be the only one that could not be called with its elements
+            // written out.
+            else if not Callee.Fits (Arguments, True) and not Callee.Absorbs (Arguments) then
             begin
-                if Arguments.Length <> Callee.Arity() then
+                // ⚠️ An absorbing signature is never described by a COUNT, so
+                // it must not fail with one.  'Take (1, 2, ''red'')' against
+                // 'List of Integer' is refused because 'red' is not an Integer,
+                // and 'Expected 1 arguments but got 3' would send the reader to
+                // look at the wrong thing entirely.
+                if not Callee.Variadic () and Arguments.Length <> Callee.Arity() then
                     raise 'Expected ' + Callee.Arity() + ' arguments but got '
                         + Arguments.Length + '.';
 
@@ -1624,10 +1633,20 @@ begin
             end
         end
 
+        // ⚠️ An absorbing call carries MORE arguments than its signature has
+        // parameters, by design [FUN-005], so a count is not its rule and this
+        // check has to stand aside for it.  Its rule is the element type, which
+        // Absorbs has already applied to every gathered argument.
+        //
+        // Written as a statement rather than folded into the condition below
+        // because Absorbs is a member no native has.
+        var Gathering := False;
+        if Callee is ObjFunction then Gathering := Callee.Absorbs (Arguments);
+
         // A negative arity means the callee checks its own, which is how a
         // native with a range of legal counts reports the two failures
         // separately.
-        if Callee.Arity() >= 0 and Arguments.Length <> Callee.Arity() then
+        if not Gathering and Callee.Arity() >= 0 and Arguments.Length <> Callee.Arity() then
         begin
             // RuntimeError was never declared anywhere, so this line raised
             // 'Undefined variable' instead of the message it names, and only on

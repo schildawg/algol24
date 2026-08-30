@@ -52,35 +52,40 @@ begin
     ///
     function FindOverload (Name : String, Arguments : List) : ObjFunction;
     begin
-        // ⚠️ TWO PASSES, and the order is the rule.  An exact match is preferred
-        // [EXP-014]: a Char argument takes a Char overload rather than widening
-        // into a String one, however the two are declared.  One pass that
-        // admitted widening let declaration order decide instead.
+        // ⚠️ THREE PASSES, and the order is the rule.  An exact match is
+        // preferred [EXP-014]: a Char argument takes a Char overload rather
+        // than widening into a String one, however the two are declared, and
+        // an absorbing signature takes only what neither of the first two
+        // answered.  One pass that admitted widening let declaration order
+        // decide instead.
         //
-        // ⚠️ Both passes run over the WHOLE chain before the other begins --
-        // hence the two calls below rather than a loop inside one walk.  An
-        // exact match on a parent must beat a widened match on the child, or
-        // adding an overload to a subclass would silently capture calls the
-        // parent was answering exactly.
-        if Fitting (Name, Arguments, False) <> Nil then Exit Fitting (Name, Arguments, False);
+        // ⚠️ Each pass runs over the WHOLE chain before the next begins --
+        // hence the loop below rather than one walk that tries all three at
+        // each class.  An exact match on a parent must beat a widened match on
+        // the child, or adding an overload to a subclass would silently capture
+        // calls the parent was answering exactly.
+        for var Pass := EXACT; Pass <= ABSORBING; Pass := Pass + 1 do
+        begin
+            var Found := Fitting (Name, Arguments, Pass);
 
-        Exit Fitting (Name, Arguments, True);
+            if Found <> Nil then Exit Found;
+        end
     end
 
     /// One pass of overload selection, up the whole chain.
     ///
-    function Fitting (Name : String, Arguments : List, Widening : Boolean) : ObjFunction;
+    function Fitting (Name : String, Arguments : List, Pass : Integer) : ObjFunction;
     begin
         if Methods.Contains (Name) then
         begin
             var Candidates := Methods.Get (Name);
 
             for var I := 0; I < Candidates.Length; I := I + 1 do
-                if Candidates[I].Fits (Arguments, Widening) then
+                if Candidates[I].Selects (Arguments, Pass) then
                     Exit Candidates[I] as ObjFunction;
         end
 
-        if Superclass <> Nil then Exit Superclass.Fitting (Name, Arguments, Widening);
+        if Superclass <> Nil then Exit Superclass.Fitting (Name, Arguments, Pass);
     end
 
     /// Puts every declared field on an instance, walking up the chain so a

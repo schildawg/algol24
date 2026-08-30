@@ -1960,28 +1960,130 @@ Value alg_param(Value argument, const char *declared) {
  * subprogram overloads on the whole signature too [FUN-013] and selection is
  * one rule -- 'never on arity, and everywhere the same'.  It carries the types
  * in an ObjOverloads entry instead of a method table, and asks this. */
+/* Splits a declared type into its base and its element type: "List of Integer"
+ * gives "List" in 'base' and a pointer to "Integer".  A type with no element
+ * type is copied whole and NULL comes back.
+ *
+ * ⚠️ The element type travels INSIDE the declared type string [FUN-005], which
+ * is what let alg_overload and alg_class_method keep their signatures and every
+ * emitted call site keep its shape.  The price is that everything comparing a
+ * declared type has to stop at " of ", so nothing may compare types[i] raw. */
+static const char *split_type(const char *declared, char *base, size_t size) {
+    if (declared == NULL) {
+        base[0] = '\0';
+        return NULL;
+    }
+
+    const char *of = strstr(declared, " of ");
+    size_t head = (of != NULL) ? (size_t)(of - declared) : strlen(declared);
+
+    if (head >= size) head = size - 1;
+
+    memcpy(base, declared, head);
+    base[head] = '\0';
+
+    return (of != NULL) ? of + 4 : NULL;
+}
+
+/* Whether one argument stands where a parameter of this type is declared.
+ *
+ * ⚠️ Lifted out of types_match so that ABSORPTION asks the same question of a
+ * gathered argument that selection asks of a positional one -- the interpreter's
+ * ObjFunction.FitsAt, which this has to keep agreeing with. */
+static bool type_fits(const char *declared, Value argument, bool widening) {
+    /* ⚠️ Seen through, so selection IGNORES a subrange's bounds [FUN-013].
+     * Consulting them would send 'Take (200)' and 'Take (300)' to different
+     * subprograms, and would let ADDING an overload steal calls from one that
+     * was already there. */
+    const char *wanted = underlying_type(declared);
+    if (wanted == NULL || alg_stricmp(wanted, "Any") == 0) return true;
+
+    const char *actual = type_name(argument);
+    if (alg_stricmp(actual, "Any") == 0) return true;
+    if (alg_stricmp(actual, "nil") == 0) return true;
+    if (alg_stricmp(wanted, actual) == 0) return true;
+
+    if (is_a(argument, wanted)) return true;
+
+    return widening && widens_to(actual, wanted);
+}
+
 static bool types_match(const char **types, Value *args, int32_t count, bool widening) {
     if (args == NULL || types == NULL) return true;
 
     for (int32_t i = 0; i < count; i++) {
-        /* ⚠️ Seen through, so selection IGNORES a subrange's bounds [FUN-013].
-         * Consulting them would send 'Take (200)' and 'Take (300)' to different
-         * subprograms, and would let ADDING an overload steal calls from one
-         * that was already there. */
-        const char *declared = underlying_type(types[i]);
-        if (declared == NULL || alg_stricmp(declared, "Any") == 0) continue;
+        char base[64];
 
-        const char *actual = type_name(args[i]);
-        if (alg_stricmp(actual, "Any") == 0) continue;
-        if (alg_stricmp(actual, "nil") == 0) continue;
-        if (alg_stricmp(declared, actual) == 0) continue;
-
-        if (is_a(args[i], declared)) continue;
-        if (widening && widens_to(actual, declared)) continue;
-
-        return false;
+        split_type(types[i], base, sizeof base);
+        if (!type_fits(base, args[i], widening)) return false;
     }
     return true;
+}
+
+/* The element type of a last parameter that may gather trailing arguments, or
+ * NULL when the signature has none [FUN-005].
+ *
+ * ⚠️ An ELEMENT TYPE is what makes a parameter absorbing, so a bare "List" does
+ * not absorb: there would be nothing to check the gathered arguments against,
+ * and it leaves "List" as the spelling for a parameter that wants the list
+ * itself and nothing else. */
+static const char *variadic_element(const char **types, int32_t arity) {
+    if (types == NULL || arity <= 0) return NULL;
+
+    static char base[64];
+    const char *element = split_type(types[arity - 1], base, sizeof base);
+
+    if (element == NULL) return NULL;
+    if (alg_stricmp(base, "List") != 0) return NULL;
+
+    return element;
+}
+
+/* Whether these arguments fit by gathering the trailing ones [FUN-005].
+ *
+ * ⚠️ The element type replaces the arity check and is STRICTER than it:
+ * 'Log ("warn", 1, 2, "red")' is still refused against 'List of Integer'. */
+static bool types_absorb(const char **types, int32_t arity, Value *args, int32_t count) {
+    const char *element = variadic_element(types, arity);
+    if (element == NULL) return false;
+
+    int32_t fixed = arity - 1;
+    if (count < fixed) return false;
+
+    if (!types_match(types, args, fixed, true)) return false;
+
+    for (int32_t i = fixed; i < count; i++)
+        if (!type_fits(element, args[i], true)) return false;
+
+    return true;
+}
+
+/* Mirrors ObjFunction.Absorb: the earlier passes are asked again, so a call
+ * that fits WITHOUT gathering is left alone [EXP-014]. */
+static bool should_absorb(const char **types, int32_t arity, Value *args, int32_t count) {
+    if (arity == count && types_match(types, args, count, true)) return false;
+
+    return types_absorb(types, arity, args, count);
+}
+
+/* The arguments with the trailing ones gathered into a List [FUN-005].
+ *
+ * ⚠️ Gathering NOTHING yields the empty list, which is what makes 'WriteLn ()'
+ * an ordinary call rather than a special case.  The list is STRUCTURAL and not
+ * a default: gathering none gives [] by the same rule that gathering three
+ * gives a list of three. */
+static Value *absorb_args(int32_t arity, Value *args, int32_t count) {
+    Value  *gathered = arena_alloc((size_t)arity * sizeof(Value));
+    int32_t fixed    = arity - 1;
+
+    for (int32_t i = 0; i < fixed; i++) gathered[i] = args[i];
+
+    Value rest = alg_list();
+    for (int32_t i = fixed; i < count; i++) rest = alg_list_keep(rest, args[i]);
+
+    gathered[fixed] = rest;
+
+    return gathered;
 }
 
 static bool signature_matches(MethodEntry *entry, Value *args, int32_t count, bool widening) {
@@ -2006,16 +2108,28 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
 
     uint32_t want = hash_folded(name);
 
-    /* ⚠️ TWO PASSES over the WHOLE chain, exact before widening [EXP-014].  An
-     * exact match on a parent must beat a widened match on a child, or adding
-     * an overload to a subclass would silently capture calls the parent was
-     * answering exactly.  One pass admitting widening would also let
-     * declaration order decide which overload a Char reaches. */
-    for (int pass = 0; pass < 2; pass++) {
+    /* ⚠️ THREE PASSES over the WHOLE chain, exact then widening then absorbing
+     * [EXP-014].  An exact match on a parent must beat a widened match on a
+     * child, or adding an overload to a subclass would silently capture calls
+     * the parent was answering exactly.  One pass admitting widening would also
+     * let declaration order decide which overload a Char reaches, and one
+     * admitting absorption would let a variadic signature take a call a
+     * fixed-arity one answers exactly. */
+    for (int pass = 0; pass < 3; pass++) {
         for (ObjClass *at = klass; at != NULL; at = at->super) {
             for (int32_t i = 0; i < at->method_count; i++) {
                 if (at->methods[i].hash != want) continue;
                 if (alg_stricmp(at->methods[i].name, name) != 0) continue;
+
+                /* ⚠️ The absorbing pass does not test the arity, because an
+                 * absorbing call has a different one by design -- that is what
+                 * it is.  Its rule is the element type instead. */
+                if (pass == 2) {
+                    if (types_absorb(at->methods[i].types, at->methods[i].arity, args, arity))
+                        return &at->methods[i];
+
+                    continue;
+                }
 
                 if (at->methods[i].arity == arity) {
                     if (signature_matches(&at->methods[i], args, arity, pass == 1)) {
@@ -2911,6 +3025,14 @@ static Value invoke_found(MethodEntry *method, Value receiver, Value *args, int3
      * and a method selects on the whole signature rather than on arity, so the
      * counts are not the story to tell.  This said 'Wrong number of
      * arguments.', which no interpreted run produces. */
+    /* ⚠️ Absorption happens HERE, at the one gate every method call passes
+     * through, which is where the interpreter does it too -- ObjFunction.Call.
+     * Selection above only decided WHICH method; reshaping the arguments once,
+     * here, spares find_method and every caller from knowing that absorption
+     * exists [FUN-005]. */
+    if (should_absorb(method->types, method->arity, args, count))
+        return method->fn(receiver, absorb_args(method->arity, args, count), method->arity);
+
     if (method->arity != count) alg_error("No matching signature for function.");
 
     return method->fn(receiver, args, count);
@@ -3116,16 +3238,30 @@ void alg_overload(Value value, AlgFunction fn, int32_t arity, const char **types
     set->capacity = set->count;
 }
 
-/* ⚠️ TWO PASSES, exact before widening [EXP-014], as find_method does and for
- * the same reason: one pass admitting widening lets declaration order decide
- * which candidate a Char reaches, which is a silent wrong answer.  Within a
- * pass the scan runs forwards, so when two both fit the first declared wins. */
+/* ⚠️ THREE PASSES, exact then widening then absorbing [EXP-014], as find_method
+ * does and for the same reason: one pass admitting widening lets declaration
+ * order decide which candidate a Char reaches, which is a silent wrong answer,
+ * and one admitting absorption lets a variadic candidate take a call a
+ * fixed-arity one answers exactly.  Within a pass the scan runs forwards, so
+ * when two both fit the first declared wins. */
 static Value call_overload(ObjOverloads *set, Value *args, int32_t count) {
-    for (int pass = 0; pass < 2; pass++)
-        for (int32_t i = 0; i < set->count; i++)
-            if (set->entries[i].arity == count
-             && types_match(set->entries[i].types, args, count, pass == 1))
-                return set->entries[i].fn(NULL, args, count);
+    for (int pass = 0; pass < 3; pass++)
+        for (int32_t i = 0; i < set->count; i++) {
+            OverloadEntry *entry = &set->entries[i];
+
+            /* ⚠️ The absorbing pass does not test the arity -- an absorbing
+             * call has a different one by design, and the element type is its
+             * rule instead. */
+            if (pass == 2) {
+                if (types_absorb(entry->types, entry->arity, args, count))
+                    return entry->fn(NULL, absorb_args(entry->arity, args, count), entry->arity);
+
+                continue;
+            }
+
+            if (entry->arity == count && types_match(entry->types, args, count, pass == 1))
+                return entry->fn(NULL, args, count);
+        }
 
     /* ⚠️ ONE message for both failures, which is what the interpreter gives: a
      * wrong count and a wrong type are both "nothing fitted" here, and there is

@@ -2,6 +2,7 @@ uses Environment;
 uses Interpreter;
 uses ObjBuffer;
 uses ObjClass;
+uses ObjCollection;
 uses ObjFile;
 uses ObjInstance;
 uses Stmt;
@@ -111,16 +112,20 @@ begin
         Exit -1;
     end
 
-    /// ⚠️ TWO PASSES, exact before widening, as ObjClass.FindOverload does and
-    /// for the same reason [EXP-014]: one pass admitting widening would let
-    /// declaration order decide which overload a Char reaches.
+    /// ⚠️ THREE PASSES, exact then widening then absorbing, as
+    /// ObjClass.FindOverload does and for the same reason [EXP-014]: one pass
+    /// admitting widening would let declaration order decide which overload a
+    /// Char reaches, and one admitting absorption would let a variadic
+    /// signature take a call a fixed-arity one answers exactly.
+    ///
+    /// ⚠️ The passes are a LOOP BOUND rather than three unrolled walks, so the
+    /// order that is the entire rule is written once and cannot be half
+    /// changed.
     function Select (Arguments : List) : Any;
     begin
-        for var I := 0; I < Candidates.Length; I := I + 1 do
-            if Candidates[I].Fits (Arguments, False) then Exit Candidates[I];
-
-        for var I := 0; I < Candidates.Length; I := I + 1 do
-            if Candidates[I].Fits (Arguments, True) then Exit Candidates[I];
+        for var Pass := EXACT; Pass <= ABSORBING; Pass := Pass + 1 do
+            for var I := 0; I < Candidates.Length; I := I + 1 do
+                if Candidates[I].Selects (Arguments, Pass) then Exit Candidates[I];
 
         Exit Nil;
     end
@@ -219,6 +224,18 @@ end
 /// 'X : Double' -- correct, and printing 1.0 -- became
 /// 'No matching signature for function.'
 ///
+/// The three passes of overload selection, in the order they run [EXP-014].
+///
+/// ⚠️ The ORDER IS THE RULE, and there is no other.  "A fixed-arity signature
+/// beats an absorbing one" is a sentence other languages have to write into
+/// their specifications; here ABSORBING simply never runs when EXACT or
+/// WIDENING found something.  That is why 'Log (''warn'', [1, 2])' passes the
+/// list rather than gathering it into a second one holding it.
+///
+const EXACT     := 0;
+const WIDENING  := 1;
+const ABSORBING := 2;
+
 function Widens (Actual : String, Declared : String) : Boolean;
 begin
     if Declared = 'Double' and Actual = 'Integer' then Exit True;
@@ -292,6 +309,32 @@ begin
         Exit Result;
     end
 
+    /// Whether one argument stands where a parameter of this type is declared.
+    ///
+    /// ⚠️ Lifted out of Fits so that ABSORPTION asks the same question of a
+    /// gathered argument that selection asks of a positional one.  Two copies
+    /// would be two chances for an element type to start disagreeing with the
+    /// parameter type it is an element type of.
+    ///
+    function FitsAt (Argument : Any, Declared : String, Widening : Boolean) : Boolean;
+    begin
+        // ⚠️ Seen through, so selection IGNORES a subrange's bounds [FUN-013]:
+        // 'Take (B : Byte)' accepts whatever 'Take (I : Integer)' accepts.
+        // Consulting the bounds here would send 'Take (200)' and 'Take (300)'
+        // to different subprograms, and would let ADDING an overload steal
+        // calls from one that was already there.
+        var Wanted := UnderlyingType (Declared);
+
+        if Wanted = '' or Wanted = 'Any' then Exit True;
+
+        var Actual := TypeNameOf (Argument);
+
+        if Actual = 'nil' or Actual = 'Any' or Actual = Wanted then Exit True;
+        if InheritsFrom (Argument, Wanted) then Exit True;
+
+        Exit Widening and Widens (Actual, Wanted);
+    end
+
     /// Whether these arguments fit this signature.
     ///
     /// The rule is the C runtime's signature_matches, and the two have to stay
@@ -299,9 +342,7 @@ begin
     /// type, a subclass standing where its parent is declared, and every
     /// parameter checked against the argument in its own position.
     ///
-    /// Whether these arguments fit this signature.
-    ///
-    /// ⚠️ 'Widening' is what separates the two passes of overload selection.  An
+    /// ⚠️ 'Widening' is what separates the first two passes of selection.  An
     /// exact match is PREFERRED [EXP-014], so a Char argument takes a Char
     /// overload rather than a String one however they are ordered -- and
     /// admitting the widening in a single pass made declaration order decide,
@@ -316,29 +357,118 @@ begin
         if Arity () <> Arguments.Length then Exit False;
 
         for var I := 0; I < Arguments.Length; I := I + 1 do
-        begin
-            // ⚠️ Seen through, so selection IGNORES a subrange's bounds
-            // [FUN-013]: 'Take (B : Byte)' accepts whatever 'Take (I : Integer)'
-            // accepts.  Consulting the bounds here would send 'Take (200)' and
-            // 'Take (300)' to different subprograms, and would let ADDING an
-            // overload steal calls from one that was already there.
-            var Declared := UnderlyingType (Declaration.ParamTypes[I]);
-
-            if Declared <> '' and Declared <> 'Any' then
-            begin
-                var Actual := TypeNameOf (Arguments[I]);
-
-                if Actual <> 'nil' and Actual <> 'Any' and Actual <> Declared then
-                begin
-                    var Fitted := InheritsFrom (Arguments[I], Declared);
-
-                    if not Fitted and Widening then Fitted := Widens (Actual, Declared);
-                    if not Fitted then Exit False;
-                end
-            end
-        end
+            if not FitsAt (Arguments[I], Str (Declaration.ParamTypes[I]), Widening) then
+                Exit False;
 
         Exit True;
+    end
+
+    /// Whether the last parameter may gather trailing arguments [FUN-005].
+    ///
+    /// ⚠️ An ELEMENT TYPE is what makes a parameter absorbing, so a bare 'List'
+    /// does not absorb.  There would be nothing to check the gathered arguments
+    /// against -- and it leaves 'List' as the spelling for a parameter that
+    /// wants the list itself and nothing else.
+    ///
+    function Variadic () : Boolean;
+    var
+        Last : Integer;
+
+    begin
+        if Arity () = 0 then Exit False;
+
+        Last := Arity () - 1;
+
+        if Last >= Declaration.ParamTypes.Length    then Exit False;
+        if Last >= Declaration.ParamGenerics.Length then Exit False;
+
+        Exit Str (Declaration.ParamTypes[Last]) = 'List'
+         and Str (Declaration.ParamGenerics[Last]) <> '';
+    end
+
+    /// Whether these arguments fit by gathering the trailing ones [FUN-005].
+    ///
+    /// ⚠️ The element type replaces the arity check, and is STRICTER than it.
+    /// 'Log (''warn'', 1, 2, ''red'')' is still an error against
+    /// 'List of Integer', because the stray argument fails the element type.
+    /// What absorption gives up is given up only for 'List of Any', which is
+    /// already the declaration that means anything.
+    ///
+    function Absorbs (Arguments : List) : Boolean;
+    var
+        Fixed   : Integer;
+        Element : String;
+
+    begin
+        if not Variadic () then Exit False;
+
+        Fixed := Arity () - 1;
+        if Arguments.Length < Fixed then Exit False;
+
+        // The parameters before the absorbing one are ordinary ones.
+        for var I := 0; I < Fixed; I := I + 1 do
+            if not FitsAt (Arguments[I], Str (Declaration.ParamTypes[I]), True) then
+                Exit False;
+
+        Element := Str (Declaration.ParamGenerics[Fixed]);
+
+        for var I := Fixed; I < Arguments.Length; I := I + 1 do
+            if not FitsAt (Arguments[I], Element, True) then Exit False;
+
+        Exit True;
+    end
+
+    /// The arguments with the trailing ones gathered into a List [FUN-005].
+    ///
+    /// ⚠️ Asks the earlier passes again rather than trusting its caller, so a
+    /// call that fits WITHOUT gathering is left alone [EXP-014].  Call is the
+    /// one place every route into a subprogram passes through -- an overload
+    /// set, a method found up a chain, a plain name -- and reshaping here is
+    /// what spares all three from knowing that absorption exists.
+    ///
+    /// ⚠️ Gathering NOTHING yields the empty list, which is what makes
+    /// 'WriteLn ()' an ordinary call rather than a special case.  The list is
+    /// STRUCTURAL and not a default: gathering none gives [] by the same rule
+    /// that gathering three gives a list of three.
+    ///
+    /// ⚠️ TWO KINDS OF LIST MEET HERE, and confusing them is the first thing
+    /// this got wrong.  The argument vector is a HOST list -- this compiler's
+    /// own -- while an element of it is an INTERPRETED value, so the gathered
+    /// arguments have to arrive as an ObjCollection and not as a second host
+    /// list.  A host list bound to a parameter reaches the program as something
+    /// with no properties at all, and 'Items.Length' inside the body fails with
+    /// 'Only instances have properties.'
+    ///
+    function Absorb (Arguments : List) : List;
+    var
+        Gathered : List;
+        Rest     : ObjCollection;
+
+    begin
+        if Fits (Arguments, True)  then Exit Arguments;
+        if not Absorbs (Arguments) then Exit Arguments;
+
+        Gathered := List();
+        Rest     := ObjCollection ('List');
+
+        for var I := 0; I < Arity () - 1; I := I + 1 do
+            Gathered.Add (Arguments[I]);
+
+        for var I := Arity () - 1; I < Arguments.Length; I := I + 1 do
+            Rest.Items.Add (Arguments[I]);
+
+        Gathered.Add (Rest);
+
+        Exit Gathered;
+    end
+
+    /// Whether this subprogram answers the call on the given pass [EXP-014].
+    ///
+    function Selects (Arguments : List, Pass : Integer) : Boolean;
+    begin
+        if Pass = ABSORBING then Exit Absorbs (Arguments);
+
+        Exit Fits (Arguments, Pass = WIDENING);
     end
 
     /// Number of parameters in function signature.
@@ -367,6 +497,10 @@ begin
     begin
         Env := Environment();
         Env.Enclosing := Closure;
+
+        // ⚠️ Absorption happens HERE, at the one gate every call goes through,
+        // rather than at each of the three places that select a callee.
+        Arguments := Absorb (Arguments);
 
         for var I := 0; I < Declaration.Params.Length; I := I + 1 do
         begin

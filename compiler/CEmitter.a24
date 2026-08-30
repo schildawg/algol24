@@ -1013,7 +1013,15 @@ begin
                 // method call does not.  FunctionSymbol mangles by signature as
                 // MethodSymbol does, and a name with more than one behind it is
                 // reached through an overload SET that chooses at the call.
-                if TopLevel.Contains (Str (TheStmt.Name.Lexeme)) then
+                //
+                // ⚠️ And a VARIADIC subprogram goes through a set even when it
+                // is the only one of its name [FUN-005].  Its C symbol takes a
+                // fixed number of arguments, so an absorbing call -- which has
+                // a different number by definition -- has nowhere to land; the
+                // set is the one path that selects from the arguments and
+                // gathers them.  The cost is paid only by the subprograms that
+                // asked for it.
+                if TopLevel.Contains (Str (TheStmt.Name.Lexeme)) or Variadic (TheStmt) then
                     Overloaded.Add (Str (TheStmt.Name.Lexeme));
 
                 TopLevel.Add (Str (TheStmt.Name.Lexeme));
@@ -2152,10 +2160,48 @@ begin
             var Declared := Str (TheMethod.ParamTypes[I]);
             if Declared = '' then Declared := 'Any';
 
+            // ⚠️ The ELEMENT type travels WITH the declared type, spelled as the
+            // source spells it -- 'List of Integer' -- rather than in a second
+            // table beside this one.  It is what makes a parameter absorbing
+            // [FUN-005], so the runtime needs it exactly where it needs the
+            // type, and one string keeps the two from drifting apart:
+            // alg_overload and alg_class_method both take this array and
+            // neither had to grow an argument for it.
+            if I < TheMethod.ParamGenerics.Length then
+            begin
+                var Element := Str (TheMethod.ParamGenerics[I]);
+
+                if Element <> '' then Declared := Declared + ' of ' + Element;
+            end
+
             Types.Add (Declared);
         end
 
         Exit Types;
+    end
+
+    /// Whether this declaration's last parameter may gather trailing arguments.
+    ///
+    /// ⚠️ The emitter has to ask, because a subprogram with ONE declaration is
+    /// normally called by its own C symbol with a fixed argument count -- and
+    /// an absorbing call has a count the symbol cannot accept.  A variadic
+    /// subprogram therefore goes through an overload SET even when it is the
+    /// only one of its name, which puts it on the one path that selects from
+    /// the arguments and gathers them.
+    ///
+    function Variadic (TheStmt : Any) : Boolean;
+    begin
+        if TheStmt.Params.Length = 0 then Exit False;
+
+        // Inferred rather than declared Integer: TheStmt is Any, so its members
+        // are untyped and a written type here would be a claim [VAR-006].
+        var Last := TheStmt.Params.Length - 1;
+
+        if Last >= TheStmt.ParamTypes.Length    then Exit False;
+        if Last >= TheStmt.ParamGenerics.Length then Exit False;
+
+        Exit Str (TheStmt.ParamTypes[Last]) = 'List'
+         and Str (TheStmt.ParamGenerics[Last]) <> '';
     end
 
     /// ⚠️ A method's C symbol carries its arity AND its declared parameter

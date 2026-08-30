@@ -8,7 +8,7 @@ Value k_objclass;
 static const char *t_objclass_init_4_string_objclass_map_list[] = { "String", "ObjClass", "Map", "List" };
 static const char *t_objclass_findmethod_1_string[] = { "String" };
 static const char *t_objclass_findoverload_2_string_list[] = { "String", "List" };
-static const char *t_objclass_fitting_3_string_list_boolean[] = { "String", "List", "Boolean" };
+static const char *t_objclass_fitting_3_string_list_integer[] = { "String", "List", "Integer" };
 static const char *t_objclass_seedfields_2_objinstance[] = { "ObjInstance", "Any" };
 static const char *t_objclass_call_2[] = { "Any", "Any" };
 
@@ -65,21 +65,33 @@ static Value m_objclass_findoverload_2_string_list(Value v_this, Value *args, in
     (void)v_name;
     Value v_arguments = alg_widen(args[1], "List");
     (void)v_arguments;
-    if (alg_truthy(alg_not_equal(alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, alg_bool(false)}, 3), alg_nil()))) {
-        return alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, alg_bool(false)}, 3);
+    {
+        Value v_pass = (alg_declared(d_exact, "EXACT"), v_exact);
+        (void)v_pass;
+        while (alg_truthy(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing)))) {
+            {
+                {
+                    Value v_found = alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, v_pass}, 3);
+                    (void)v_found;
+                    if (alg_truthy(alg_not_equal(v_found, alg_nil()))) {
+                        return v_found;
+                    }
+                }
+                (void)((v_pass = alg_add(v_pass, alg_int(1))));
+            }
+        }
     }
-    return alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, alg_bool(true)}, 3);
     return alg_nil();
 }
 
-static Value m_objclass_fitting_3_string_list_boolean(Value v_this, Value *args, int32_t count) {
+static Value m_objclass_fitting_3_string_list_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     Value v_arguments = alg_widen(args[1], "List");
     (void)v_arguments;
-    Value v_widening = alg_widen(args[2], "Boolean");
-    (void)v_widening;
+    Value v_pass = alg_widen(args[2], "Integer");
+    (void)v_pass;
     if (alg_truthy(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_name}, 1))) {
         {
             Value v_candidates = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1);
@@ -89,7 +101,7 @@ static Value m_objclass_fitting_3_string_list_boolean(Value v_this, Value *args,
                 (void)v_i;
                 while (alg_truthy(alg_less(v_i, alg_property(v_candidates, "Length")))) {
                     {
-                        if (alg_truthy(alg_invoke(alg_subscript_get(v_candidates, v_i), "Fits", (Value[]){v_arguments, v_widening}, 2))) {
+                        if (alg_truthy(alg_invoke(alg_subscript_get(v_candidates, v_i), "Selects", (Value[]){v_arguments, v_pass}, 2))) {
                             return alg_cast(alg_subscript_get(v_candidates, v_i), "ObjFunction");
                         }
                         (void)((v_i = alg_add(v_i, alg_int(1))));
@@ -99,7 +111,7 @@ static Value m_objclass_fitting_3_string_list_boolean(Value v_this, Value *args,
         }
     }
     if (alg_truthy(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil()))) {
-        return alg_invoke(alg_property(v_this, "Superclass"), "Fitting", (Value[]){v_name, v_arguments, v_widening}, 3);
+        return alg_invoke(alg_property(v_this, "Superclass"), "Fitting", (Value[]){v_name, v_arguments, v_pass}, 3);
     }
     return alg_nil();
 }
@@ -188,7 +200,7 @@ void init_ObjClass(void) {
     alg_class_method(k_objclass, "Init", m_objclass_init_4_string_objclass_map_list, 4, t_objclass_init_4_string_objclass_map_list);
     alg_class_method(k_objclass, "FindMethod", m_objclass_findmethod_1_string, 1, t_objclass_findmethod_1_string);
     alg_class_method(k_objclass, "FindOverload", m_objclass_findoverload_2_string_list, 2, t_objclass_findoverload_2_string_list);
-    alg_class_method(k_objclass, "Fitting", m_objclass_fitting_3_string_list_boolean, 3, t_objclass_fitting_3_string_list_boolean);
+    alg_class_method(k_objclass, "Fitting", m_objclass_fitting_3_string_list_integer, 3, t_objclass_fitting_3_string_list_integer);
     alg_class_method(k_objclass, "SeedFields", m_objclass_seedfields_2_objinstance, 2, t_objclass_seedfields_2_objinstance);
     alg_class_method(k_objclass, "Arity", m_objclass_arity_0, 0, NULL);
     alg_class_method(k_objclass, "ToString", m_objclass_tostring_0, 0, NULL);
