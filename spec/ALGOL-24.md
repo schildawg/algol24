@@ -1,7 +1,7 @@
 # The Algol-24 Programming Language Specification
 
 > **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 267 rules. Every rule is **decided** — what the
+> chapters and eight annexes, 272 rules. Every rule is **decided** — what the
 > language should do — and every rule is claimed by a case: a program in
 > `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
 > None awaits one.
@@ -1442,8 +1442,7 @@ lazy protocol would be a different feature and would take that guarantee away.
     conformance  0165-a-class-that-iterates.a24
 
 **[TYP-012]**  A class exposes a **field** without parentheses and a **method**
-with them. There is no getter declaration, so a computed value cannot be read as
-a property: a method named `Length` read as `B.Length` yields the function
+with them: a method named `Length` read as `B.Length` yields the function
 itself, printing `<fn Length>`, where a collection's `Length` yields its count.
 
 A class may also declare a **property**: a member read without parentheses,
@@ -1679,9 +1678,9 @@ String is entitled to hold and which orders bytes rather than characters.
     unit         Evaluate Binary Greater Left Not Number
     conformance  0166-text-is-ordered.a24
 
-> A program needing to order text must compare it character by character, which
-> is what `compiler/CEmitter.a24`'s `TextLess` does — a function the compiler
-> writes for itself because the language does not provide the operator.
+> Ordering text used to mean comparing it character by character, which is what
+> `compiler/CEmitter.a24`'s `TextLess` did — a function the compiler wrote for
+> itself because the language provided no operator. It is gone.
 
 ---
 
@@ -2776,7 +2775,8 @@ different Lists.
 ### 12.3 Members
 
 **[CLS-007]**  A field is read without parentheses and a method is called with
-them. There is no getter declaration — see [TYP-012].
+them. A `property` is read without them too, and its read is the call
+[CLS-017].
 
     interpreter  compiler/ObjInstance.a24  Get
     unit         Call Setters And Getters
@@ -3254,9 +3254,16 @@ between the numeric types, not a structural comparison.
 against numbers and text against text; mixing them is `Can only sort numbers
 against numbers, or text against text.`
 
+⚠️ **Text is ordered by [VAL-014]**, the same ordering `<` gives, rather than by
+a second one that happens to agree. It compared with `strcmp` until Generation 6
+— bytes rather than characters, stopping at an embedded zero a String is
+entitled to hold — which matched only because UTF-8 is designed so byte order
+follows code-point order.
+
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           alg_sort
     conformance  0080-sort.a24
+    conformance  0166-text-is-ordered.a24
 
 **[COL-014]**  Subscripting reads by position for a `List` and an `Array` and by
 key for a `Map`. A `Set` has no positions and is refused with `Subscript target
@@ -4261,7 +4268,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The twenty-six built-in names, with the rule specifying each. `spec/spec.sh`
+The twenty-eight built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list against the names the interpreter actually registers.
 
 | Name | Rule | Summary |
@@ -5391,7 +5398,7 @@ instead.
 ⚠️ **The counts are asked of the tables, not listed again.** `BuiltinCounts`
 probes the two tables that map a name to its runtime entry point, once per
 count, so a built-in added to either is described the moment it is added. A
-fifth transcription of the twenty-six names is exactly the rot [COL-003]'s
+fifth transcription of the twenty-eight names is exactly the rot [COL-003]'s
 matrix already needs a harness to guard against.
 
 ⚠️ **And the same key hid a missing feature.** `WriteLn ()` — the newline on its
@@ -6055,13 +6062,16 @@ unit will have to reproduce.
 
 The reason is the one below, and it is worth more than the tidiness: everything
 moved out of the runtime is one less thing the C back end and the interpreter
-can disagree about — and Annex C is now fifteen entries long.
+can disagree about — and Annex C ran to thirty-seven entries -- numbered to C-39 -- before every
+one of them was withdrawn.
 
-⚠️ Three rules do most of the pinning, and they are worth naming once rather
-than repeating: a class cannot be subscripted [TYP-010], cannot be iterated
-[TYP-011], and cannot expose a computed property [TYP-012]. A collection written
-in Algol-24 would work, but it would be written `L.Get(0)`, `L.Length()` and a
-loop over an index — a second-class citizen beside the built-ins.
+⚠️ **Three rules did most of the pinning, and two have since gone.** A class can
+be iterated as of Generation 5 [TYP-011] and can expose a read-only property as
+of Generation 6 [CLS-017]; what remains is that it cannot be **subscripted**
+[TYP-010], which H-8 would settle. A collection written in Algol-24 today reads
+`L.Get (0)` where a built-in reads `L[0]`, and that is the whole of the
+remaining distance rather than the three-part gap this annex was written
+against.
 
 ### E.1 The collections
 
@@ -6087,11 +6097,13 @@ and a `Mod` built from arithmetic alone. All three behave as the built-ins do.
 Nothing about it is primitive: no literal claims its name, no subscript is
 needed, and its whole surface is method calls.
 
-The only visible difference would be `S.Length()` against the built-in
-`S.Length` — [TYP-012] alone.
+There is no visible difference left. `S.Length` reads without parentheses as
+the built-in's does, now that a class may declare a `property` [CLS-017] — which
+was the one thing this entry said it was waiting on.
 
-*Recommendation:* the best first candidate to move into a unit. It would prove
-the path with the least at stake, and the only thing it waits on is a getter.
+*Recommendation:* the best first candidate to move into a unit, and it now waits
+on nothing of its own. What it waits on is H-14: a unit is only a saving if it
+can reach what it needs without the runtime growing a built-in for every call.
 
 **Set — writable today; would want hashing later.**
 
@@ -6500,12 +6512,14 @@ instance is by identity [VAL-011] with no way to say otherwise, and a
 user-written collection cannot be compared, ordered or combined the way a
 built-in one can.
 
-⚠️ **This is the umbrella over much of Annex H, not another item in it.**
-Subscripting (H-4, folded into this entry) and H-6's computed property are
-operator overloading in two particular spellings, and H-7 is the built-in case
-of an ordering that overloading would let a program supply for itself. Several
-rules in chapters 6 and 7 are shaped by the language having no answer here, and
-they will want revisiting together rather than one at a time.
+⚠️ **This is the umbrella over what is left of Annex H, and most of what it
+covered has already gone out from under it.** Subscripting (H-4, folded into
+this entry) is operator overloading in a particular spelling; H-6's property and
+H-7's ordering were two more, and both landed in Generation 6 without waiting
+for this — a property by being a member kind, and ordering by being built in.
+What remains here is the general case: an operator a program defines for its own
+type. Several rules in chapters 6 and 7 are shaped by the language having no
+answer, and they will want revisiting together rather than one at a time.
 
 ⚠️ **Subscripting is the one that needs TWO members where the rest need one**,
 and that is the whole of what it adds. `B[0]` reads and `B[0] := X` writes, so a
@@ -6539,11 +6553,12 @@ can reach what it needs without the runtime growing a built-in for every call �
 otherwise everything removed from chapter 14 arrives back in chapter 16, and
 this is paid for twice.
 
-⚠️ **Subscripting (H-8), H-5 and H-6 are prerequisites for the last two**, not
-merely desirable alongside them. Without a subscript operator, an iteration protocol and a
-computed property, a `List` written in Algol-24 reads `L.Get(I)` and
-`L.Length()` and needs an index loop — strictly worse to use than the built-in
-it replaces, which is not a trade worth making.
+⚠️ **Only subscripting (H-8) is still owed.** Iteration landed in Generation 5
+[TYP-011] and a read-only property in Generation 6 [CLS-017], so a `List`
+written in Algol-24 already answers `L.Length` without parentheses and walks in
+a `for ... in`. What it still cannot do is `L[0]`, and until it can it is
+strictly worse to use than the built-in it would replace — which is not a trade
+worth making.
 
 ⚠️ **[COL-007] is the constraint that outlives the move.** Insertion order is
 specified for every collection, `Set` and `Map` included, so a unit is a third
@@ -6710,7 +6725,7 @@ member to the list it belongs to — the gap is honest rather than chosen.
 **H-14 — A foreign function interface.** *(will change [RT-001], and more)*
 
 A way to declare and call a C function directly, so that the built-ins can stop
-being a closed set of twenty-six names the runtime has to carry.
+being a closed set of twenty-eight names the runtime has to carry.
 
 ⚠️ **This is the prerequisite for H-9, not a companion to it.** Moving the
 collections into a unit written in Algol-24 is only a saving if the unit can
