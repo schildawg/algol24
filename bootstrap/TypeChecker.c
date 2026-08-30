@@ -461,7 +461,10 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
         }
     }
     if (alg_truthy(alg_equal(v_kind, alg_string("FunctionStmt")))) {
-        (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(v_thestmt, "ReturnType")}, 2));
+        {
+            (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(v_thestmt, "ReturnType")}, 2));
+            (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme")), alg_property(v_thestmt, "ReturnGeneric")}, 2));
+        }
     }
     if (alg_truthy(alg_equal(v_kind, alg_string("SubrangeStmt")))) {
         (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
@@ -773,7 +776,12 @@ static Value m_typechecker_checkfunction_1(Value v_this, Value *args, int32_t co
         (void)v_i;
         while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "Params"), "Length")))) {
             {
-                (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_thefunction, "Params"), v_i), "Lexeme"), alg_str(alg_subscript_get(alg_property(v_thefunction, "ParamTypes"), v_i))}, 2));
+                {
+                    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_thefunction, "Params"), v_i), "Lexeme"), alg_str(alg_subscript_get(alg_property(v_thefunction, "ParamTypes"), v_i))}, 2));
+                    if (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "ParamGenerics"), "Length")))) {
+                        (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Generics"), "SetType", (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(v_thefunction, "Params"), v_i), "Lexeme")), alg_str(alg_subscript_get(alg_property(v_thefunction, "ParamGenerics"), v_i))}, 2));
+                    }
+                }
                 (void)((v_i = alg_add(v_i, alg_int(1))));
             }
         }

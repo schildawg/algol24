@@ -372,6 +372,16 @@ var
     /// Declared parameter types, positionally, '' where none was written.
     ParamTypes : List := [];
 
+    /// ⚠️ Element types, positionally, for the parameters declared with 'of'
+    /// -- 'Items : List of Integer' [VAR-008].  Carried BESIDE ParamTypes
+    /// rather than folded into it, exactly as a var carries Generic beside
+    /// TypeName: the two answer different questions, and the type name is what
+    /// selection and widening compare.
+    ParamGenerics : List := [];
+
+    /// The same for the return type: 'function Make () : List of Integer'.
+    ReturnGeneric : String := '';
+
 begin
     constructor Init (Name : Token, Params : List, Body : List);
     begin

@@ -417,6 +417,8 @@ static Value i_functionstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Body", alg_nil());
     alg_set_property(v_this, "ReturnType", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "ParamTypes", alg_widen(alg_list(), "List"));
+    alg_set_property(v_this, "ParamGenerics", alg_widen(alg_list(), "List"));
+    alg_set_property(v_this, "ReturnGeneric", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
 
@@ -673,6 +675,8 @@ void init_Stmt(void) {
     alg_class_field(k_functionstmt, "Body");
     alg_class_field(k_functionstmt, "ReturnType");
     alg_class_field(k_functionstmt, "ParamTypes");
+    alg_class_field(k_functionstmt, "ParamGenerics");
+    alg_class_field(k_functionstmt, "ReturnGeneric");
     alg_class_initializer(k_functionstmt, i_functionstmt);
     alg_class_method(k_functionstmt, "Init", m_functionstmt_init_3_token_list_list, 3, t_functionstmt_init_3_token_list_list);
     alg_class_method(k_functionstmt, "Accept", m_functionstmt_accept_1, 1, t_functionstmt_accept_1);

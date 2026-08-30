@@ -479,7 +479,14 @@ begin
                                 TheStmt.Methods[I].ReturnType);
         end
 
-        if Kind = 'FunctionStmt' then Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.ReturnType);
+        if Kind = 'FunctionStmt' then
+        begin
+            Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.ReturnType);
+
+            // ⚠️ The RETURN's element type too, so 'Make ().Get (0)' types as
+            // the element rather than reducing to nothing [VAR-016].
+            Lookup.Generics.SetType (Str (TheStmt.Name.Lexeme), TheStmt.ReturnGeneric);
+        end
 
         // ⚠️ Registered as a declared type, and NOT given a type of its own:
         // Assignable sees through it to Integer [TYP-015], so 'Digit' accepts
@@ -776,7 +783,17 @@ begin
         // reduces its own parameters to nothing.  That gap was found while
         // building per-class visibility.
         for var I := 0; I < TheFunction.Params.Length; I := I + 1 do
+        begin
             Lookup.SetType (TheFunction.Params[I].Lexeme, Str (TheFunction.ParamTypes[I]));
+
+            // ⚠️ And its ELEMENT type, or 'Items : List of Integer' would parse
+            // and mean nothing -- a declaration the reader is invited to trust
+            // and the checker ignores.  [VAR-016] makes it a source of types
+            // for reads, and a parameter is where reads happen.
+            if I < TheFunction.ParamGenerics.Length then
+                Lookup.Generics.SetType (Str (TheFunction.Params[I].Lexeme),
+                                         Str (TheFunction.ParamGenerics[I]));
+        end
 
         // ⚠️ A NESTED declaration shadows the name outside it, and that
         // includes a builtin's registered return type.  Without this a

@@ -89,6 +89,13 @@ var
    /// declared inside a procedure, and its 'Exit E' is perfectly legal.
    InProcedure : Boolean := False;
 
+   /// ParameterType's second answer.
+   ///
+   /// ⚠️ A parameter's element type is wanted beside its type name, and a
+   /// function returns one thing.  A field for one caller is the smaller of the
+   /// two evils; the alternative is re-reading the tokens.
+   LastGeneric : String := '';
+
 begin
     /// Creates a new Parser.
     ///
@@ -1151,11 +1158,13 @@ begin
         Consume (TOKEN_LEFT_PAREN, 'Expect ''('' after ' + Kind + ' name.');
         Params := List();
         var ParamTypes := List();
+        var ParamGenerics := List();
 
         if Not Check (TOKEN_RIGHT_PAREN) then
         begin
             Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));
             ParamTypes.Add (ParameterType ());
+            ParamGenerics.Add (LastGeneric);
 
             while Match (TOKEN_COMMA) do
             begin
@@ -1166,13 +1175,20 @@ begin
                 end
                 Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));
                 ParamTypes.Add (ParameterType ());
+                ParamGenerics.Add (LastGeneric);
             end
         end
         Consume (TOKEN_RIGHT_PAREN, 'Expect '')'' after parameters.');
 
         var ReturnType := '';
+        var ReturnGeneric := '';
         if Match (TOKEN_COLON) then
-            ReturnType := Consume (TOKEN_IDENTIFIER, 'Expect return type.').Lexeme;
+            ReturnType := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect return type.').Lexeme);
+
+            // ⚠️ A return type is a Type too, so it carries an element type --
+            // 'function Make () : List of Integer' [TYP-002].
+            if IsCollectionType (ReturnType) and Match (TOKEN_OF) then
+                ReturnGeneric := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
 
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after ' + Kind + ' signature.');
 
@@ -1199,18 +1215,36 @@ begin
 
         var TheFunction := FunctionStmt (Name, Params, Body);
         TheFunction.ReturnType := ReturnType;
+        TheFunction.ReturnGeneric := ReturnGeneric;
         TheFunction.ParamTypes := ParamTypes;
+        TheFunction.ParamGenerics := ParamGenerics;
 
         Exit TheFunction;
     end
     
     // An optional ': Type' after a parameter name, or '' when none was written.
     //
+    // ⚠️ A parameter takes the SAME Type as a declaration does [TYP-002],
+    // element type and all.  It did not, and 'Items : List of Integer' was
+    // 'Expect '')'' after parameters.' -- a form the grammar in Annex A has
+    // always described, refused by the parser alone.
+    //
+    // ⚠️ The element type is left in LastGeneric rather than returned, because
+    // this answers the TYPE and the caller wants both.  One out-parameter for
+    // one call site beats a second function that re-parses.
+    //
     function ParameterType () : String;
     begin
+        LastGeneric := '';
+
         if not Match (TOKEN_COLON) then Exit '';
 
-        Exit CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+        var TypeName := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+
+        if IsCollectionType (TypeName) and Match (TOKEN_OF) then
+            LastGeneric := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
+
+        Exit TypeName;
     end
 
     // Parses a block of statements.

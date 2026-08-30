@@ -1028,9 +1028,17 @@ differ: they are overloads [FUN-013], selected between at the call. Two with the
 ⚠️ For a `Map` the element type is the **value** type, since that is what a
 subscript and a `Get` yield [VAR-016]. A Map's keys are not constrained.
 
+⚠️ **Wherever a type may be written**, which is every context [TYP-002] names —
+a variable, a constant, a field, a **parameter** and a **return type**. The last
+two did not parse: `Items : List of Integer` was `Expect ')' after parameters.`
+and a return type stopped at the collection's name. Annex A's grammar has
+described both since it was written, and only the parser disagreed.
+
     interpreter  compiler/Parser.a24  IsCollectionType
+    interpreter  compiler/Parser.a24  ParameterType
     conformance  0019-declaration-forms.a24
     conformance  0121-element-type-on-every-collection.a24
+    conformance  0157-element-types-on-parameters.a24
 
 **[VAR-016]**  An element type is a **source of types for reads, and no
 constraint on writes.** Given `var L : List of Integer`:
