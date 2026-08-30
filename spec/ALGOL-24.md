@@ -1669,14 +1669,39 @@ this rule never said either way. `'è'` and `'é'` are `C3 A8` and `C3 A9`, shar
 a lead byte, and compared **equal** — while `Ord` answered 232 and 233, so the
 language disagreed with itself about which came first. Fixed with this rule.
 
-⚠️ **`Sort` uses this ordering** [COL-013], rather than a second one that
-happens to agree. It compared with `strcmp`, which stops at an embedded zero a
-String is entitled to hold and which orders bytes rather than characters.
+A **class instance** orders when its class declares `Compare (Other) : Integer`,
+answering negative, zero or positive. Without one, `A < B` on two instances is
+`Operands must be numbers.`
+
+⚠️ **The sixth structural protocol**, beside `Elements` [TYP-011], `Contains`,
+`ToString` [CLS-009], a `property` [CLS-017] and subscripting [TYP-010]. A name
+and a shape: `Compare` taking one argument. There is no declaration keyword and
+no precedence question, because `<` already has a precedence [EXP-001].
+
+⚠️ **Ordering costs nothing that equality would.** It touches no hash and no
+membership, so unlike [VAL-013]'s coupling of `=` with `in` there is no second
+protocol that must move with it. That is why this is settled and equality is
+not — see Annex H, H-17.
+
+⚠️ **`Sort` does NOT ask `Compare`** [COL-013], and the asymmetry is forced
+rather than chosen. The interpreter delegates `Sort` to the host's, and the
+values it passes are `ObjInstance` — the *compiler's* class, not the program's —
+so the host would look for `Compare` there and never find it. Answering compiled
+and refusing interpreted is the divergence the corpus exists to catch, so
+neither does it. Sorting by `Compare` wants an interpreter inside
+`ObjCollection` and is a piece of work of its own.
+
+⚠️ **`Sort` uses this ordering for TEXT** [COL-013], rather than a second one
+that happens to agree. It compared with `strcmp`, which stops at an embedded
+zero a String is entitled to hold and which orders bytes rather than
+characters.
 
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         text_order
+    compiler     bootstrap/algol.c         method_order
     unit         Evaluate Binary Greater Left Not Number
     conformance  0166-text-is-ordered.a24
+    conformance  0170-a-class-that-orders.a24
 
 > Ordering text used to mean comparing it character by character, which is what
 > `compiler/CEmitter.a24`'s `TextLess` did — a function the compiler wrote for
@@ -6781,18 +6806,30 @@ else, so nothing has to pair a getter with a setter syntactically.
 ⚠️ **A protocol is a name AND a shape** [TYP-011]. `Get` taking two arguments
 does not implement this one.
 
-**H-16 — Ordering through `Compare`.** *(will change [VAL-014], [COL-013])*
+**H-16 — Ordering through `Compare`.**
+***Landed in Generation 7.*** *(changed [VAL-014])*
 
-A class declaring `Compare (Other) : Integer` — negative, zero or positive —
-orders with `<`, `<=`, `>` and `>=`, and sorts.
+A class declaring `Compare (Other) : Integer` orders with `<`, `<=`, `>` and
+`>=`. The sixth structural protocol, needing no declaration keyword and raising
+no precedence question, because `<` already has a precedence.
 
-⚠️ **It costs nothing that equality costs.** Ordering touches no hash and no
-membership, so unlike [VAL-013]'s coupling there is no second protocol that must
-move with it. `Sort` [COL-013] gets it for free, since Sort already asks the
-same ordering `<` does as of Generation 6.
+⚠️ **It cost nothing equality would**, which is why it is settled and H-17 is
+not: ordering touches no hash and no membership, so no second protocol has to
+move with it.
 
-⚠️ **The sixth structural protocol**, on the same terms as H-15: a name and a
-shape, no declaration keyword, no precedence question.
+⚠️ **"And `Sort` gets it for free" was wrong**, and the entry said it before it
+was built. `Sort` gets it free *compiled* — the interpreter delegates `Sort` to
+the host's, whose values are `ObjInstance`, this compiler's own class rather
+than the program's, so the host looks for `Compare` there and never finds it.
+Answering compiled while refusing interpreted is the divergence the corpus
+exists to catch, so the runtime's `Sort` does not ask either. Sorting by
+`Compare` wants an interpreter inside `ObjCollection` and is its own work.
+
+⚠️ **The interpreter could not delegate the operators either**, for the same
+reason, and this is the fourth protocol to hit it — `Ord` on an enum member and
+`Stringify` on a `ToString` were the first two. `VisitBinary` replaces the
+operands with the `Compare` result and `0`, so the four comparisons below it run
+unchanged rather than being written a second time.
 
 **H-17 — Equality, and the hash that must come with it.**
 *(will change [VAL-011], [VAL-013])*

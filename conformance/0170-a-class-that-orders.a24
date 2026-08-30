@@ -1,0 +1,66 @@
+// spec: VAL-014, VAL-011
+//
+// A class declaring 'Compare (Other) : Integer' orders with '<', '<=', '>' and
+// '>=' -- the sixth structural protocol, beside Elements, Contains, ToString, a
+// property and subscripting.  A name and a shape, with no declaration keyword
+// and no precedence question, because '<' already has a precedence.
+
+class Money;
+var Cents : Integer;
+begin
+    constructor Init (C : Integer); begin this.Cents := C; end
+
+    function Compare (Other : Money) : Integer; begin Exit Cents - Other.Cents; end
+    function ToString () : String;              begin Exit Str (Cents); end
+end
+
+var A := Money (100);
+var B := Money (200);
+
+WriteLn (A < B, ' ', A > B, ' ', A <= B, ' ', A >= B);
+WriteLn (A < A, ' ', A <= A, ' ', A >= A);
+
+// ⚠️ EQUALITY IS UNTOUCHED and stays identity [VAL-011].  Ordering needs no
+// hash and no membership, which is exactly why it is settled where equality is
+// not: '=' is coupled to 'in' by [VAL-013], and a second protocol would have to
+// move with it.
+WriteLn (Money (100) = Money (100));
+WriteLn (A = A);
+WriteLn (Money (100) in [A]);
+
+// ⚠️ Sort does NOT ask Compare, and the asymmetry is forced rather than chosen:
+// the interpreter delegates Sort to the host's, whose values are the compiler's
+// own instances and not the program's.  Answering compiled while refusing
+// interpreted is the divergence this corpus exists to catch.
+var L := [Money (300), Money (100)];
+try
+    L.Sort ();
+except
+    on e : String do WriteLn (e);
+end
+
+// A class without Compare does not order.
+class Plain;
+begin
+    constructor Init (); begin end
+end
+
+try WriteLn (Plain () < Plain ()); except on e : String do WriteLn (e); end
+
+// ⚠️ A protocol is a name AND a shape: 'Compare' taking no argument is not it.
+class WrongShape;
+begin
+    constructor Init (); begin end
+    function Compare () : Integer; begin Exit 0; end
+end
+
+try WriteLn (WrongShape () < WrongShape ()); except on e : String do WriteLn (e); end
+
+// Compare must answer a number.
+class BadAnswer;
+begin
+    constructor Init (); begin end
+    function Compare (Other : Any) : Any; begin Exit 'soon'; end
+end
+
+try WriteLn (BadAnswer () < BadAnswer ()); except on e : String do WriteLn (e); end

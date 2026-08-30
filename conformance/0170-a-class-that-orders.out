@@ -1,0 +1,10 @@
+true false true false
+false true true
+false
+true
+false
+Can only sort numbers against numbers, or text against text.
+Operands must be numbers.
+Operands must be numbers.
+Compare must answer an Integer.
+exit: 0

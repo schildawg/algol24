@@ -200,6 +200,7 @@ static int32_t utf8_offset(const char *text, int32_t bytes, int32_t index);
 static int32_t utf8_chars_in(const char *text, int32_t bytes);
 static int32_t utf8_decode(const char *at);
 static int     text_order(Value a, Value b);
+static int     method_order(Value a, Value b);
 static int utf8_encode(int32_t code, char *out);
 _Noreturn static void undefined(const char *what, const char *name);
 
@@ -1295,6 +1296,14 @@ static int compare(Value a, Value b) {
      * between two implementations is the kind this repository keeps finding. */
     if (is_text(a) && is_text(b)) return text_order(a, b);
 
+    /* ⚠️ SORT DOES NOT ASK Compare, though '<' does [VAL-014], and the asymmetry
+     * is forced rather than chosen.  The interpreter's Sort delegates to this
+     * one -- ObjCollection calls the host's List.Sort -- and the values it
+     * passes are ObjInstance, this compiler's own class, whose Compare would be
+     * looked for here and never found.  Answering Compare compiled and refusing
+     * interpreted is exactly the divergence the corpus exists to catch, so
+     * neither does it.  Sorting by Compare wants an interpreter inside
+     * ObjCollection, and is a piece of work of its own. */
     alg_error("Can only sort numbers against numbers, or text against text.");
     return 0;
 }
@@ -4215,6 +4224,29 @@ static bool compares_as_text(Value a, Value b) {
     return is_text(a) && is_text(b) && !(a.type == VAL_CHAR && b.type == VAL_CHAR);
 }
 
+/* A class declaring 'Compare (Other) : Integer' orders [VAL-014] -- the sixth
+ * structural protocol, beside Elements, Contains, ToString, a property and
+ * subscripting.
+ *
+ * ⚠️ Ordering costs nothing that equality would.  It touches no hash and no
+ * membership, so unlike [VAL-013]'s coupling there is no second protocol that
+ * has to move with it. */
+static int method_order(Value a, Value b) {
+    Value args[1];
+    args[0] = b;
+
+    Value answer = alg_invoke(a, "Compare", args, 1);
+
+    if (!is_number(answer)) alg_error("Compare must answer an Integer.");
+
+    /* Compared through the runtime's own less/greater so that a Compare
+     * answering a value past the machine's width still orders [LEX-018]. */
+    if (alg_truthy(alg_less(answer, alg_int(0))))    return -1;
+    if (alg_truthy(alg_greater(answer, alg_int(0)))) return  1;
+
+    return 0;
+}
+
 /* Lexicographic by code point, a prefix before what extends it.
  *
  * ⚠️ Code points rather than bytes, so it agrees with char_order above and with
@@ -4249,6 +4281,9 @@ Value alg_greater(Value a, Value b) {
     /* Text is ordered lexicographically by code point [VAL-014]. */
     if (compares_as_text(a, b)) return alg_bool(text_order(a, b) > 0);
 
+    /* And a class says how its own instances order [VAL-014]. */
+    if (has_method(a, "Compare", 1)) return alg_bool(method_order(a, b) > 0);
+
     if (compares_as_char(a)) return alg_bool(char_order(a, b) > 0);
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
@@ -4263,6 +4298,9 @@ Value alg_greater_equal(Value a, Value b) {
 
     /* Text is ordered lexicographically by code point [VAL-014]. */
     if (compares_as_text(a, b)) return alg_bool(text_order(a, b) >= 0);
+
+    /* And a class says how its own instances order [VAL-014]. */
+    if (has_method(a, "Compare", 1)) return alg_bool(method_order(a, b) >= 0);
 
     if (compares_as_char(a)) return alg_bool(char_order(a, b) >= 0);
 
@@ -4279,6 +4317,9 @@ Value alg_less(Value a, Value b) {
     /* Text is ordered lexicographically by code point [VAL-014]. */
     if (compares_as_text(a, b)) return alg_bool(text_order(a, b) < 0);
 
+    /* And a class says how its own instances order [VAL-014]. */
+    if (has_method(a, "Compare", 1)) return alg_bool(method_order(a, b) < 0);
+
     if (compares_as_char(a)) return alg_bool(char_order(a, b) < 0);
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
@@ -4293,6 +4334,9 @@ Value alg_less_equal(Value a, Value b) {
 
     /* Text is ordered lexicographically by code point [VAL-014]. */
     if (compares_as_text(a, b)) return alg_bool(text_order(a, b) <= 0);
+
+    /* And a class says how its own instances order [VAL-014]. */
+    if (has_method(a, "Compare", 1)) return alg_bool(method_order(a, b) <= 0);
 
     if (compares_as_char(a)) return alg_bool(char_order(a, b) <= 0);
 

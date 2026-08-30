@@ -1587,6 +1587,14 @@ begin
         Exit Left / Right;
     end
 
+    /// Whether this operator asks which of two values comes first.
+    ///
+    function Orders (Op : Any) : Boolean;
+    begin
+        Exit Op = TOKEN_LESS  or Op = TOKEN_LESS_EQUAL
+          or Op = TOKEN_GREATER or Op = TOKEN_GREATER_EQUAL;
+    end
+
     function VisitBinary (TheExpr : BinaryExpr);
     var
         Left  : Any;
@@ -1595,6 +1603,31 @@ begin
     begin
         Left  := Evaluate (TheExpr.Left);
         Right := Evaluate (TheExpr.Right);
+
+        // ⚠️ A class declaring 'Compare (Other) : Integer' ORDERS [VAL-014].
+        //
+        // ⚠️ Handled HERE rather than delegated to the host, which is what the
+        // four comparisons below do for every other kind of value.  An
+        // interpreted instance is an ObjInstance -- this compiler's own class --
+        // so the host's '<' would look for Compare on THAT and never see the
+        // interpreted class's.  The same reason OrdNative answers ObjEnum
+        // itself, and Stringify calls an interpreted ToString.
+        //
+        // ⚠️ The result REPLACES the operands, so the case below runs
+        // unchanged: 'A < B' becomes 'Compare (A, B) < 0'.  Writing the four
+        // comparisons a second time is how the two spellings would drift.
+        if Left is ObjInstance and Orders (TheExpr.Op.TypeOfToken) then
+        begin
+            var Ordering := Left.Klass.MethodOfArity ('compare', 1);
+
+            if Ordering <> Nil then
+            begin
+                Left  := Ordering.Bind (Left).Call (this, [Right]);
+                Right := 0;
+
+                if not (Left is Integer) then raise 'Compare must answer an Integer.';
+            end
+        end
 
         case TheExpr.Op.TypeOfToken of
            TOKEN_GREATER       : Exit Left > Right;
