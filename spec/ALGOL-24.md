@@ -6182,10 +6182,14 @@ ends with a `Stack` written in Algol-24 that is subscripted, iterated, ordered
 and answers `Length` without parentheses. **Nothing in the language pins the
 collections to being native any longer.**
 
-⚠️ **What remains is not a language question but a runtime one**, and it is
-H-14. A unit is only a saving if it can reach what it needs without the runtime
-growing a built-in for every call, or everything removed from chapter 14 arrives
-back in chapter 16 and is paid for twice.
+⚠️ **And nothing outside the language pins them either**, which was the last
+objection standing. This annex claimed a foreign function interface had to come
+first — that a unit could only be a saving if it could reach what it needed
+without the runtime growing a built-in for every call. It was wrong: what a
+collections unit needs is **storage**, and the storage it needs is `Array`,
+which this annex itself keeps native as "the primitive the others are built on".
+Nothing removed from chapter 14 arrives back in chapter 16, so H-9 waits on
+nothing at all.
 
 ⚠️ **This paragraph has now been rewritten in three consecutive staleness
 passes**, each time to remove one more thing from the list. That is worth
@@ -6220,9 +6224,9 @@ There is no visible difference left. `S.Length` reads without parentheses as
 the built-in's does, now that a class may declare a `property` [CLS-017] — which
 was the one thing this entry said it was waiting on.
 
-*Recommendation:* the best first candidate to move into a unit, and it now waits
-on nothing of its own. What it waits on is H-14: a unit is only a saving if it
-can reach what it needs without the runtime growing a built-in for every call.
+*Recommendation:* the best first candidate to move into a unit, and it waits on
+nothing — not on the language, and not on H-14 either. It is written over a
+`List`, a `List` would be written over an `Array`, and an `Array` stays.
 
 **Set — writable today; would want hashing later.**
 
@@ -6673,10 +6677,11 @@ what; in short:
 | `List` | pinned by `[…]` alone now. Subscripting and iteration both arrived, so what holds it is the literal claiming its name and nothing else. |
 | `Map` | pinned by `[:]` and `[k : v]`. `M[K]` is answerable now through `Get` and `Put` [TYP-010], so the literals are all that remain. |
 
-⚠️ **H-14 comes first.** Moving a collection out is only a saving if the unit
-can reach what it needs without the runtime growing a built-in for every call —
-otherwise everything removed from chapter 14 arrives back in chapter 16, and
-this is paid for twice.
+⚠️ **H-14 does NOT come first**, though this entry said so in three places. A
+unit needs storage, and the storage it needs is `Array` — which Annex E keeps
+native by design, as "the primitive the others are built on". Nothing removed
+from chapter 14 arrives back in chapter 16, so no foreign call is wanted and the
+two entries are independent.
 
 ⚠️ **Nothing in the language is owed any longer.** Iteration landed in
 Generation 5 [TYP-011], a read-only property in Generation 6 [CLS-017], and
@@ -6848,36 +6853,74 @@ expression becomes an **error** rather than quietly computing something else.
 and its ordinal rather than a pointer to the type, so there is no way from a
 member to the list it belongs to — the gap is honest rather than chosen.
 
-**H-14 — A foreign function interface.** *(will change [RT-001], and more)*
+**H-14 — A foreign function interface.**
+*(will change [RT-001], and more)*
 
-A way to declare and call a C function directly, so that the built-ins can stop
-being a closed set of twenty-eight names the runtime has to carry.
+A way to declare and call a C function, so that a program can reach a library
+someone else already wrote. **SDL is the first target**, and a graphics library
+written in Algol-24 over it is the reason the entry exists.
 
-⚠️ **This is the prerequisite for H-9, not a companion to it.** Moving the
-collections into a unit written in Algol-24 is only a saving if the unit can
-reach what it needs without the runtime growing a built-in for every call it
-wants — otherwise each thing removed from chapter 14 arrives back in chapter 16.
-Taken in the other order, H-9 would be paid for twice.
+```
+function Init   (Flags : Integer)                   : Integer; external 'SDL_Init' from 'libSDL2';
+function Window (Title : String, W, H, F : Integer) : Pointer; external 'SDL_CreateWindow' from 'libSDL2';
+procedure Quit  ();                                            external 'SDL_Quit' from 'libSDL2';
+```
 
-⚠️ **The interpreter is the difficulty, and it is a real one.** A compiled
-program can call anything it is linked against — the back end already emits C
-and the runtime already is C. The tree-walker cannot: it would need `dlopen`,
-`dlsym` and a way to marshal a tagged `Value` into a C calling convention it
-does not know at compile time. An FFI that works compiled and not interpreted
-would be a **gap by construction**, and a generation is not complete until both
-processors pass every case.
+⚠️ **The point is not to shrink the runtime.** This entry used to argue that the
+built-ins are a closed set of twenty-eight names and that an FFI would let them
+leave — and it claimed, in three places, that H-9 could not proceed without it.
+Both were wrong. The purpose is to stop the language being an island: to use
+decades of other people's work rather than reimplement it a built-in at a time.
 
-⚠️ **Which makes the shape of the declaration the whole design.** A signature
-narrow enough that the interpreter can dispatch it from a fixed table of
-supported forms is a different feature from one that admits arbitrary C, and
-choosing between them is the first decision, not a detail of it. The narrow one
-may be enough: what the collections actually need is memory, comparison and
-counted loops, not the whole of libc.
+⚠️ **And it does not gate H-9.** A collections unit needs storage; the storage
+it needs is `Array`, which Annex E keeps native by design as "the primitive the
+others are built on". Nothing removed from chapter 14 arrives back in chapter
+16, so the two entries are independent and H-9 may go first.
 
-⚠️ **It also changes what "the two processors agree" can mean.** A foreign call
-has behaviour this specification does not define and cannot check, so the rules
-will have to say where conformance stops — the first place in this language
-where that sentence has to be written.
+⚠️ **The interpreter is not the difficulty either**, which this entry also once
+claimed. The tree-walker cannot call C, but it runs *inside* `algc`, which is a
+C program — so if the **runtime** marshals, the interpreter gets the FFI for
+free and both processors share one implementation. That is how text ordering
+reached the tree-walker in Generation 6 without a line changing in
+`Interpreter.a24`.
+
+⚠️ **libffi, compiled in optionally.** A closed set of hand-written call shapes
+was considered and does not survive contact with SDL, which is pointer-oriented,
+struct-heavy and mixed in its signatures; hand-writing shapes is reimplementing
+the library one function at a time, which is the island problem again.
+`CLAUDE.md`'s "a C compiler is the only dependency" is a statement about the
+**bootstrap** — its own reason is that the only way into the language is a
+checked-in copy of its own output — and a build switch preserves it exactly: the
+default build stays a C compiler and nothing else.
+
+⚠️ **`Pointer` is required, not a later nicety.** SDL hands back opaque handles
+throughout. It must be a type of its own rather than an Integer, so that it
+cannot be arithmetic'd, printed as a number, or confused with one.
+
+⚠️ **Three stages, and the first one puts a window on screen.**
+
+| | | |
+| --- | --- | --- |
+| 1 | scalars, `Pointer`, `String` | most of SDL's surface is exactly this |
+| 2 | structs **by pointer**, backed by a `Buffer` | `SDL_Rect` through `PutInt` and `GetInt`, so no struct-by-value marshalling is needed and the language already has the piece |
+| 3 | callbacks into Algol-24 | the genuinely hard one; SDL can be driven by a polling loop, so it may wait indefinitely |
+
+⚠️ **The specification will have to say where conformance stops**, and this is
+the first place that sentence is needed. A foreign call has behaviour this
+document does not define and cannot check: the language specifies the **call**,
+not the callee. `conform.sh` cannot test SDL and should not pretend to.
+
+⚠️ **It also introduces two configurations**, which the language has never had.
+`external` works in an FFI build and is refused in a plain one. Both processors
+still agree *within* a build, so the standing rule survives — but the corpus
+runs one configuration and the rules must say which, and what the other does.
+
+⚠️ **Generations 6 and 7 were the preparation for this**, whether or not they
+were meant to be. A `Vector` with `operator +` [EXP-020], a `Colour` with a
+read-only property [CLS-017], a sprite list that subscripts and iterates
+[TYP-010], [TYP-011] — a binding written with those reads like Algol-24 rather
+than like C, which is the difference between using a library and merely
+reaching it.
 
 **H-15 — Subscripting through `Get` and `Put`.**
 ***Landed in Generation 7.*** *(changed [TYP-010], [EXP-016])*
