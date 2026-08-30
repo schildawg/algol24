@@ -5,13 +5,13 @@
 #include "Token.h"
 
 Value k_objinstance;
-static const char *t_objinstance_init_1_objclass[] = { "ObjClass" };
-static const char *t_objinstance_get_1_token[] = { "Token" };
-static const char *t_objinstance_set_2_token[] = { "Token", "Any" };
+static const char *t_objinstance_init_1_objclass[] = { "Klass : ObjClass" };
+static const char *t_objinstance_get_1_token[] = { "Name : Token" };
+static const char *t_objinstance_set_2_token[] = { "Name : Token", "Value : Any" };
 Value k_objsingleton;
-static const char *t_objsingleton_init_2_objclass[] = { "ObjClass", "Any" };
-static const char *t_objsingleton_get_1_token[] = { "Token" };
-static const char *t_objsingleton_set_2_token[] = { "Token", "Any" };
+static const char *t_objsingleton_init_2_objclass[] = { "Klass : ObjClass", "TheInterpreter : Any" };
+static const char *t_objsingleton_get_1_token[] = { "Name : Token" };
+static const char *t_objsingleton_set_2_token[] = { "Name : Token", "Value : Any" };
 
 static Value i_objinstance(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;

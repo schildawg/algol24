@@ -3,14 +3,14 @@
 #include "Token.h"
 
 Value k_buffermethod;
-static const char *t_buffermethod_init_3_objbuffer_token_integer[] = { "ObjBuffer", "Token", "Integer" };
-static const char *t_buffermethod_call_2[] = { "Any", "Any" };
+static const char *t_buffermethod_init_3_objbuffer_token_integer[] = { "Receiver : ObjBuffer", "Name : Token", "TheArity : Integer" };
+static const char *t_buffermethod_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_objbuffer;
-static const char *t_objbuffer_init_1_integer[] = { "Integer" };
-static const char *t_objbuffer_get_1_token[] = { "Token" };
-static const char *t_objbuffer_invoke_2_string_list[] = { "String", "List" };
-static const char *t_objbuffer_at_1[] = { "Any" };
-static const char *t_objbuffer_putat_2[] = { "Any", "Any" };
+static const char *t_objbuffer_init_1_integer[] = { "Size : Integer" };
+static const char *t_objbuffer_get_1_token[] = { "TheName : Token" };
+static const char *t_objbuffer_invoke_2_string_list[] = { "Name : String", "Arguments : List" };
+static const char *t_objbuffer_at_1[] = { "Index : Any" };
+static const char *t_objbuffer_putat_2[] = { "Index : Any", "Value : Any" };
 
 static Value i_buffermethod(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;

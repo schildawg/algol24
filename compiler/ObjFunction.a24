@@ -224,6 +224,20 @@ end
 /// 'X : Double' -- correct, and printing 1.0 -- became
 /// 'No matching signature for function.'
 ///
+/// Whether any argument named the parameter it fills [EXP-013].
+///
+/// ⚠️ Asked FIRST everywhere, because nothing is named in the overwhelming
+/// majority of calls and that case must cost nothing.  A call with no names is
+/// handed back its own argument list, untouched and unallocated.
+///
+function AnyNamed (Names : List) : Boolean;
+begin
+    for var I := 0; I < Names.Length; I := I + 1 do
+        if Str (Names[I]) <> '' then Exit True;
+
+    Exit False;
+end
+
 /// The three passes of overload selection, in the order they run [EXP-014].
 ///
 /// ⚠️ The ORDER IS THE RULE, and there is no other.  "A fixed-arity signature
@@ -460,6 +474,74 @@ begin
         Gathered.Add (Rest);
 
         Exit Gathered;
+    end
+
+    /// The position of the parameter of this name, or -1 [EXP-013].
+    ///
+    /// ⚠️ Folded [SRC-011].  A parameter is a name like any other, so
+    /// 'F (level: 1)' and 'F (Level: 1)' fill the same one.
+    ///
+    function ParameterAt (TheName : String) : Integer;
+    begin
+        for var I := 0; I < Declaration.Params.Length; I := I + 1 do
+            if FoldCase (Str (Declaration.Params[I].Lexeme)) = FoldCase (TheName) then
+                Exit I;
+
+        Exit -1;
+    end
+
+    /// The arguments in declaration order, or Nil when the names do not fit
+    /// this signature [EXP-013].
+    ///
+    /// ⚠️ Nil rather than an error, because with an overload set a name that
+    /// fits no candidate here may fit the next one.  Selection asks each
+    /// candidate and the CALL reports the failure, which is the same division
+    /// Fits already follows.
+    ///
+    /// ⚠️ Naming the absorbing parameter turns absorption OFF, and needs no
+    /// rule to do it [FUN-005]: an arrangement fills every slot exactly once,
+    /// so the arranged list has precisely the declared arity and the exact pass
+    /// takes it before absorption is ever reached.
+    ///
+    function Arrange (Arguments : List, Names : List) : List;
+    var
+        Slots  : List;
+        Filled : List;
+
+    begin
+        if not AnyNamed (Names) then Exit Arguments;
+
+        Slots  := List();
+        Filled := List();
+
+        for var I := 0; I < Arity (); I := I + 1 do
+        begin
+            Slots.Add (Nil);
+            Filled.Add (False);
+        end
+
+        for var I := 0; I < Arguments.Length; I := I + 1 do
+        begin
+            var TheName := '';
+            if I < Names.Length then TheName := Str (Names[I]);
+
+            // ⚠️ A positional argument goes to slot I, and that is correct only
+            // because positional arguments come FIRST [EXP-013] -- they fill
+            // 0..k-1 in order, and naming begins after them.
+            var At := I;
+            if TheName <> '' then At := ParameterAt (TheName);
+
+            if At < 0 or At >= Slots.Length then Exit Nil;
+            if Filled[At] then Exit Nil;
+
+            Slots[At]  := Arguments[I];
+            Filled[At] := True;
+        end
+
+        for var I := 0; I < Filled.Length; I := I + 1 do
+            if not Filled[I] then Exit Nil;
+
+        Exit Slots;
     end
 
     /// Whether this subprogram answers the call on the given pass [EXP-014].

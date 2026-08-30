@@ -13,19 +13,25 @@
 Value f_typenameof(Value **cells, Value *args, int32_t count);
 Value f_nameofclass(Value **cells, Value *args, int32_t count);
 Value f_samesignature(Value **cells, Value *args, int32_t count);
+Value f_anynamed(Value **cells, Value *args, int32_t count);
 Value f_widens(Value **cells, Value *args, int32_t count);
 Value f_inheritsfrom(Value **cells, Value *args, int32_t count);
 Value fn_typenameof;
+static const char *t_f_typenameof[] = { "Value : Any" };
 Value fn_nameofclass;
+static const char *t_f_nameofclass[] = { "Obj : Any" };
 Value k_objoverloads;
-static const char *t_objoverloads_init_1_string[] = { "String" };
-static const char *t_objoverloads_add_1[] = { "Any" };
-static const char *t_objoverloads_select_1_list[] = { "List" };
-static const char *t_objoverloads_call_2[] = { "Any", "Any" };
+static const char *t_objoverloads_init_1_string[] = { "Name : String" };
+static const char *t_objoverloads_add_1[] = { "TheFunction : Any" };
+static const char *t_objoverloads_select_1_list[] = { "Arguments : List" };
+static const char *t_objoverloads_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_numbermethod;
-static const char *t_numbermethod_init_2_token[] = { "Any", "Token" };
-static const char *t_numbermethod_call_2[] = { "Any", "Any" };
+static const char *t_numbermethod_init_2_token[] = { "Receiver : Any", "Name : Token" };
+static const char *t_numbermethod_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value fn_samesignature;
+static const char *t_f_samesignature[] = { "Left : Any", "Right : Any" };
+Value fn_anynamed;
+static const char *t_f_anynamed[] = { "Names : List" };
 Value v_exact;
 bool d_exact;
 Value v_widening;
@@ -35,21 +41,26 @@ bool d_absorbing;
 static Value or_0;
 static Value or_1;
 Value fn_widens;
+static const char *t_f_widens[] = { "Actual : String", "Declared : String" };
 Value fn_inheritsfrom;
+static const char *t_f_inheritsfrom[] = { "Value : Any", "TheName : String" };
 Value k_objfunction;
 static Value or_2;
 static Value or_3;
 static Value or_4;
 static Value or_5;
 static Value or_6;
-static const char *t_objfunction_init_3_functionstmt_environment_boolean[] = { "FunctionStmt", "Environment", "Boolean" };
-static const char *t_objfunction_bind_1_objinstance[] = { "ObjInstance" };
-static const char *t_objfunction_fitsat_3_string_boolean[] = { "Any", "String", "Boolean" };
-static const char *t_objfunction_fits_2_list_boolean[] = { "List", "Boolean" };
-static const char *t_objfunction_absorbs_1_list[] = { "List" };
-static const char *t_objfunction_absorb_1_list[] = { "List" };
-static const char *t_objfunction_selects_2_list_integer[] = { "List", "Integer" };
-static const char *t_objfunction_call_2[] = { "Any", "Any" };
+static Value or_7;
+static const char *t_objfunction_init_3_functionstmt_environment_boolean[] = { "Declaration : FunctionStmt", "Closure : Environment", "IsInitializer : Boolean" };
+static const char *t_objfunction_bind_1_objinstance[] = { "Instance : ObjInstance" };
+static const char *t_objfunction_fitsat_3_string_boolean[] = { "Argument : Any", "Declared : String", "Widening : Boolean" };
+static const char *t_objfunction_fits_2_list_boolean[] = { "Arguments : List", "Widening : Boolean" };
+static const char *t_objfunction_absorbs_1_list[] = { "Arguments : List" };
+static const char *t_objfunction_absorb_1_list[] = { "Arguments : List" };
+static const char *t_objfunction_parameterat_1_string[] = { "TheName : String" };
+static const char *t_objfunction_arrange_2_list_list[] = { "Arguments : List", "Names : List" };
+static const char *t_objfunction_selects_2_list_integer[] = { "Arguments : List", "Pass : Integer" };
+static const char *t_objfunction_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 
 Value f_typenameof(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
@@ -271,6 +282,27 @@ Value f_samesignature(Value **cells, Value *args, int32_t count) {
         }
     }
     return alg_bool(true);
+    return alg_nil();
+}
+
+Value f_anynamed(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
+    Value v_names = alg_param(args[0], "List");
+    (void)v_names;
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(v_names, "Length")))) {
+            {
+                if (alg_truthy(alg_not_equal(alg_str(alg_subscript_get(v_names, v_i)), alg_string("")))) {
+                    return alg_bool(true);
+                }
+                (void)((v_i = alg_add(v_i, alg_int(1))));
+            }
+        }
+    }
+    return alg_bool(false);
     return alg_nil();
 }
 
@@ -510,6 +542,99 @@ static Value m_objfunction_absorb_1_list(Value v_this, Value *args, int32_t coun
     return alg_nil();
 }
 
+static Value m_objfunction_parameterat_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thename = alg_widen(args[0], "String");
+    (void)v_thename;
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(alg_property(alg_property(v_this, "Declaration"), "Params"), "Length")))) {
+            {
+                if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "Params"), v_i), "Lexeme"))}, 1), f_foldcase(NULL, (Value[]){v_thename}, 1)))) {
+                    return v_i;
+                }
+                (void)((v_i = alg_add(v_i, alg_int(1))));
+            }
+        }
+    }
+    return alg_negate(alg_int(1));
+    return alg_nil();
+}
+
+static Value m_objfunction_arrange_2_list_list(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_arguments = alg_widen(args[0], "List");
+    (void)v_arguments;
+    Value v_names = alg_widen(args[1], "List");
+    (void)v_names;
+    Value v_slots = alg_nil();
+    (void)v_slots;
+    Value v_filled = alg_nil();
+    (void)v_filled;
+    if (alg_truthy(alg_not(f_anynamed(NULL, (Value[]){v_names}, 1)))) {
+        return v_arguments;
+    }
+    (void)((v_slots = alg_widen(alg_list(), "List")));
+    (void)((v_filled = alg_widen(alg_list(), "List")));
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_invoke(v_this, "Arity", NULL, 0)))) {
+            {
+                {
+                    (void)(alg_invoke(v_slots, "Add", (Value[]){alg_nil()}, 1));
+                    (void)(alg_invoke(v_filled, "Add", (Value[]){alg_bool(false)}, 1));
+                }
+                (void)((v_i = alg_add(v_i, alg_int(1))));
+            }
+        }
+    }
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(v_arguments, "Length")))) {
+            {
+                {
+                    Value v_thename = alg_string("");
+                    (void)v_thename;
+                    if (alg_truthy(alg_less(v_i, alg_property(v_names, "Length")))) {
+                        (void)((v_thename = alg_str(alg_subscript_get(v_names, v_i))));
+                    }
+                    Value v_at = v_i;
+                    (void)v_at;
+                    if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
+                        (void)((v_at = alg_invoke(v_this, "ParameterAt", (Value[]){v_thename}, 1)));
+                    }
+                    if (alg_truthy((or_7 = alg_less(v_at, alg_int(0)), alg_truthy(or_7) ? or_7 : alg_greater_equal(v_at, alg_property(v_slots, "Length"))))) {
+                        return alg_nil();
+                    }
+                    if (alg_truthy(alg_subscript_get(v_filled, v_at))) {
+                        return alg_nil();
+                    }
+                    (void)(alg_subscript_set(v_slots, v_at, alg_subscript_get(v_arguments, v_i)));
+                    (void)(alg_subscript_set(v_filled, v_at, alg_bool(true)));
+                }
+                (void)((v_i = alg_add(v_i, alg_int(1))));
+            }
+        }
+    }
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(v_filled, "Length")))) {
+            {
+                if (alg_truthy(alg_not(alg_subscript_get(v_filled, v_i)))) {
+                    return alg_nil();
+                }
+                (void)((v_i = alg_add(v_i, alg_int(1))));
+            }
+        }
+    }
+    return v_slots;
+    return alg_nil();
+}
+
 static Value m_objfunction_selects_2_list_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_arguments = alg_widen(args[0], "List");
@@ -607,8 +732,8 @@ void init_ObjFunction(void) {
     k_objoverloads = alg_class("ObjOverloads", alg_nil());
     k_numbermethod = alg_class("NumberMethod", alg_nil());
     k_objfunction = alg_class("ObjFunction", alg_nil());
-    fn_typenameof = alg_closure("TypeNameOf", f_typenameof, NULL, 0, 1);
-    fn_nameofclass = alg_closure("NameOfClass", f_nameofclass, NULL, 0, 1);
+    fn_typenameof = alg_closure("TypeNameOf", f_typenameof, NULL, 0, 1, t_f_typenameof);
+    fn_nameofclass = alg_closure("NameOfClass", f_nameofclass, NULL, 0, 1, t_f_nameofclass);
     alg_class_field(k_objoverloads, "Name");
     alg_class_field(k_objoverloads, "Candidates");
     alg_class_initializer(k_objoverloads, i_objoverloads);
@@ -625,9 +750,10 @@ void init_ObjFunction(void) {
     alg_class_method(k_numbermethod, "Arity", m_numbermethod_arity_0, 0, NULL);
     alg_class_method(k_numbermethod, "Call", m_numbermethod_call_2, 2, t_numbermethod_call_2);
     alg_class_method(k_numbermethod, "ToString", m_numbermethod_tostring_0, 0, NULL);
-    fn_samesignature = alg_closure("SameSignature", f_samesignature, NULL, 0, 2);
-    fn_widens = alg_closure("Widens", f_widens, NULL, 0, 2);
-    fn_inheritsfrom = alg_closure("InheritsFrom", f_inheritsfrom, NULL, 0, 2);
+    fn_samesignature = alg_closure("SameSignature", f_samesignature, NULL, 0, 2, t_f_samesignature);
+    fn_anynamed = alg_closure("AnyNamed", f_anynamed, NULL, 0, 1, t_f_anynamed);
+    fn_widens = alg_closure("Widens", f_widens, NULL, 0, 2, t_f_widens);
+    fn_inheritsfrom = alg_closure("InheritsFrom", f_inheritsfrom, NULL, 0, 2, t_f_inheritsfrom);
     alg_class_field(k_objfunction, "Declaration");
     alg_class_field(k_objfunction, "Closure");
     alg_class_field(k_objfunction, "IsInitializer");
@@ -641,6 +767,8 @@ void init_ObjFunction(void) {
     alg_class_method(k_objfunction, "Variadic", m_objfunction_variadic_0, 0, NULL);
     alg_class_method(k_objfunction, "Absorbs", m_objfunction_absorbs_1_list, 1, t_objfunction_absorbs_1_list);
     alg_class_method(k_objfunction, "Absorb", m_objfunction_absorb_1_list, 1, t_objfunction_absorb_1_list);
+    alg_class_method(k_objfunction, "ParameterAt", m_objfunction_parameterat_1_string, 1, t_objfunction_parameterat_1_string);
+    alg_class_method(k_objfunction, "Arrange", m_objfunction_arrange_2_list_list, 2, t_objfunction_arrange_2_list_list);
     alg_class_method(k_objfunction, "Selects", m_objfunction_selects_2_list_integer, 2, t_objfunction_selects_2_list_integer);
     alg_class_method(k_objfunction, "Arity", m_objfunction_arity_0, 0, NULL);
     alg_class_method(k_objfunction, "ToString", m_objfunction_tostring_0, 0, NULL);

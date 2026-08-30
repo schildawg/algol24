@@ -18,8 +18,11 @@ bool d_uppercase;
 Value v_lowercase;
 bool d_lowercase;
 Value fn_tolower;
+static const char *t_f_tolower[] = { "Text : String" };
 Value fn_tointeger;
+static const char *t_f_tointeger[] = { "Text : String" };
 Value fn_toradix;
+static const char *t_f_toradix[] = { "Text : String", "Alphabet : String" };
 Value v_keywords;
 bool d_keywords;
 Value v_haderror;
@@ -49,17 +52,17 @@ static Value or_18;
 static Value or_19;
 static Value or_20;
 static Value or_21;
-static const char *t_scanner_init_1[] = { "Any" };
-static const char *t_scanner_scanradix_1_string[] = { "String" };
-static const char *t_scanner_inalphabet_2_string_char[] = { "String", "Char" };
-static const char *t_scanner_ishexdigit_1_char[] = { "Char" };
-static const char *t_scanner_match_1_char[] = { "Char" };
-static const char *t_scanner_addtoken_1_tokentype[] = { "TokenType" };
-static const char *t_scanner_addtoken_2_tokentype[] = { "TokenType", "Any" };
-static const char *t_scanner_isalpha_1_char[] = { "Char" };
-static const char *t_scanner_ismark_1_char[] = { "Char" };
-static const char *t_scanner_isalphanumeric_1_char[] = { "Char" };
-static const char *t_scanner_isdigit_1_char[] = { "Char" };
+static const char *t_scanner_init_1[] = { "Source : Any" };
+static const char *t_scanner_scanradix_1_string[] = { "Alphabet : String" };
+static const char *t_scanner_inalphabet_2_string_char[] = { "Alphabet : String", "C : Char" };
+static const char *t_scanner_ishexdigit_1_char[] = { "C : Char" };
+static const char *t_scanner_match_1_char[] = { "Expected : Char" };
+static const char *t_scanner_addtoken_1_tokentype[] = { "TypeOfToken : TokenType" };
+static const char *t_scanner_addtoken_2_tokentype[] = { "TypeOfToken : TokenType", "Literal : Any" };
+static const char *t_scanner_isalpha_1_char[] = { "C : Char" };
+static const char *t_scanner_ismark_1_char[] = { "C : Char" };
+static const char *t_scanner_isalphanumeric_1_char[] = { "C : Char" };
+static const char *t_scanner_isdigit_1_char[] = { "C : Char" };
 
 Value f_tolower(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
@@ -661,9 +664,9 @@ static Value m_scanner_isdigit_1_char(Value v_this, Value *args, int32_t count) 
 
 void init_Scanner(void) {
     k_scanner = alg_class("Scanner", alg_nil());
-    fn_tolower = alg_closure("ToLower", f_tolower, NULL, 0, 1);
-    fn_tointeger = alg_closure("ToInteger", f_tointeger, NULL, 0, 1);
-    fn_toradix = alg_closure("ToRadix", f_toradix, NULL, 0, 2);
+    fn_tolower = alg_closure("ToLower", f_tolower, NULL, 0, 1, t_f_tolower);
+    fn_tointeger = alg_closure("ToInteger", f_tointeger, NULL, 0, 1, t_f_tointeger);
+    fn_toradix = alg_closure("ToRadix", f_toradix, NULL, 0, 2, t_f_toradix);
     alg_class_field(k_scanner, "Source");
     alg_class_field(k_scanner, "Tokens");
     alg_class_field(k_scanner, "Current");

@@ -250,6 +250,16 @@ var
     Paren      : Token;
     Arguments  : List;
 
+    /// The parameter each argument names, or '' where it was written
+    /// positionally -- 'F (A, Name: B)' gives ['', 'Name'] [EXP-013].
+    ///
+    /// ⚠️ Carried BESIDE Arguments rather than inside them, exactly as
+    /// ParamGenerics is carried beside ParamTypes.  An argument is an
+    /// expression and a name is not one, so a name is not something the tree
+    /// can hold in the same slot -- and every visitor that walks Arguments
+    /// keeps walking it unchanged.
+    ArgumentNames : List := [];
+
 begin
     constructor Init(Callee : Expr, Paren : Token, Arguments : List);
     begin

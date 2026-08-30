@@ -279,6 +279,9 @@ var
     Overloaded   : Set;
     OverloadsIn  : Map;
 
+    /// Static parameter-list arrays already declared, so one is emitted once.
+    Tables       : Set;
+
     /// The overload sets already built, so a name with three subprograms makes
     /// one set rather than three.
     SetsBuilt    : Set;
@@ -455,6 +458,7 @@ begin
         this.Renamed := Set();
         this.Overloaded := Set();
         this.OverloadsIn := Map();
+        this.Tables := Set();
         this.SetsBuilt := Set();
         this.Boxed := List();
         this.Cells := List();
@@ -1986,9 +1990,14 @@ begin
             Array := '(Value*[]){' + Joined + '}, ' + Str (Cells.Length);
         end
 
+        // ⚠️ A closure carries its PARAMETER LIST too.  A function held in a
+        // variable is still called by the names of its parameters [EXP-013] and
+        // may still absorb [FUN-005], and without this a closure was the one
+        // callable in the runtime that had forgotten both.
         Exit 'alg_closure(' + QuoteC (Str (TheStmt.Name.Lexeme)) + ', '
            + FunctionSymbol (TheStmt) + ', ' + Array + ', '
-           + Str (TheStmt.Params.Length) + ')';
+           + Str (TheStmt.Params.Length) + ', '
+           + TypeTable (FunctionSymbol (TheStmt), ParameterTable (TheStmt)) + ')';
     end
 
     /// Whether a body contains a try, anywhere a jump could cross.
@@ -2160,13 +2169,40 @@ begin
             var Declared := Str (TheMethod.ParamTypes[I]);
             if Declared = '' then Declared := 'Any';
 
-            // ⚠️ The ELEMENT type travels WITH the declared type, spelled as the
-            // source spells it -- 'List of Integer' -- rather than in a second
-            // table beside this one.  It is what makes a parameter absorbing
-            // [FUN-005], so the runtime needs it exactly where it needs the
-            // type, and one string keeps the two from drifting apart:
-            // alg_overload and alg_class_method both take this array and
-            // neither had to grow an argument for it.
+            Types.Add (Declared);
+        end
+
+        Exit Types;
+    end
+
+    /// Each parameter as the source declares it -- 'Level : List of Integer' --
+    /// which is what the RUNTIME is given.
+    ///
+    /// ⚠️ Separate from DeclaredTypes, which MANGLES.  The two jobs want
+    /// different strings and sharing one broke both ways: a symbol carrying an
+    /// element type gains 'U000020' for every space, and a symbol carrying a
+    /// parameter NAME would make 'Take (A : Integer)' and 'Take (B : Integer)'
+    /// two different symbols where the language sees one signature and refuses
+    /// the second -- a program the compiler would build and the interpreter
+    /// would not.
+    ///
+    /// ⚠️ The name and the element type travel INSIDE the type string rather
+    /// than in tables beside it, which is why alg_overload and alg_class_method
+    /// never had to grow an argument for either [EXP-013], [FUN-005].  The
+    /// array they take is simply the parameter list as written.
+    ///
+    function ParameterTable (TheMethod : Any) : List;
+    var
+        Written : List;
+
+    begin
+        Written := List();
+
+        for var I := 0; I < TheMethod.Params.Length; I := I + 1 do
+        begin
+            var Declared := Str (TheMethod.ParamTypes[I]);
+            if Declared = '' then Declared := 'Any';
+
             if I < TheMethod.ParamGenerics.Length then
             begin
                 var Element := Str (TheMethod.ParamGenerics[I]);
@@ -2174,10 +2210,10 @@ begin
                 if Element <> '' then Declared := Declared + ' of ' + Element;
             end
 
-            Types.Add (Declared);
+            Written.Add (Str (TheMethod.Params[I].Lexeme) + ' : ' + Declared);
         end
 
-        Exit Types;
+        Exit Written;
     end
 
     /// Whether this declaration's last parameter may gather trailing arguments.
@@ -2547,15 +2583,18 @@ begin
         for var I := 0; I < Methods.Length; I := I + 1 do
         begin
             var TheMethod := Methods[I];
-            var Types := DeclaredTypes (TheMethod);
+            var Types := ParameterTable (TheMethod);
 
             // ⚠️ The type array is a file-scope static rather than a compound
             // literal at the call, so its lifetime is obviously the program's
             // -- the class table keeps the pointer for as long as it lives.
+            //
+            // ⚠️ Emitted whenever there is a parameter at all, not only when one
+            // was given a type.  A method with nothing but 'Any' parameters
+            // still has their NAMES, and a named argument needs them [EXP-013];
+            // the array used to be dropped in that case, which left exactly the
+            // untyped methods unable to be called by name.
             var Table := 'NULL';
-            var AnyDeclared := False;
-            for var J := 0; J < Types.Length; J := J + 1 do
-                if Types[J] <> 'Any' then AnyDeclared := True;
 
             if Types.Length > 0 then
             begin
@@ -2941,7 +2980,7 @@ begin
 
             Setup.Append ('    alg_overload(' + SetName (Name) + ', '
                    + FunctionSymbol (TheStmt) + ', ' + Str (TheStmt.Params.Length)
-                   + ', ' + TypeTable (FunctionSymbol (TheStmt), DeclaredTypes (TheStmt))
+                   + ', ' + TypeTable (FunctionSymbol (TheStmt), ParameterTable (TheStmt))
                    + ');' + #10);
         end
         else
@@ -2971,6 +3010,13 @@ begin
         if Types.Length = 0 then Exit 'NULL';
 
         Table := 't_' + Symbol;
+
+        // ⚠️ Emitted ONCE per symbol.  A subprogram's parameter list is now
+        // wanted in two places -- its overload entry and its closure -- and a
+        // static array declared twice is 'redefinition of t_x', a program this
+        // compiler emitted and cc refused.
+        if Tables.Contains (Table) then Exit Table;
+        Tables.Add (Table);
 
         var Quoted := '';
         for var I := 0; I < Types.Length; I := I + 1 do
@@ -3468,6 +3514,80 @@ begin
         Exit Result;
     end
 
+    /// Whether any argument named the parameter it fills [EXP-013].
+    ///
+    function AnyNamed (Names : List) : Boolean;
+    begin
+        for var I := 0; I < Names.Length; I := I + 1 do
+            if Str (Names[I]) <> '' then Exit True;
+
+        Exit False;
+    end
+
+    /// The names beside the arguments, '' where one was written positionally.
+    ///
+    function NameArray (Names : List) : String;
+    var
+        Joined : String := '';
+
+    begin
+        if Names.Length = 0 then Exit 'NULL';
+
+        for var I := 0; I < Names.Length; I := I + 1 do
+        begin
+            if I > 0 then Joined := Joined + ', ';
+
+            Joined := Joined + QuoteC (Str (Names[I]));
+        end
+
+        Exit '(const char*[]){' + Joined + '}';
+    end
+
+    /// A call to a callee value, in its named form when a name was written.
+    ///
+    /// ⚠️ ONE RULE for every named call: the arguments go to the runtime WITH
+    /// their names and are put in declaration order there [EXP-013].  Emitting
+    /// the permutation here instead would need the callee's declaration, which
+    /// a method call does not have -- the receiver's class is not known until
+    /// run time -- so the emitter would need two rules for one feature, which is
+    /// how the two processors start to disagree.
+    ///
+    /// ⚠️ A call with no name emits exactly what it always did, so this costs
+    /// nothing anywhere the feature is not used.
+    ///
+    function Calling (Callee : String, Emitted : List, Names : List) : String;
+    begin
+        if not AnyNamed (Names) then
+            Exit 'alg_call(' + Callee + ', ' + ArgumentArray (Emitted) + ')';
+
+        Exit 'alg_call_named(' + Callee + ', ' + ArgumentArray (Emitted) + ', '
+           + NameArray (Names) + ')';
+    end
+
+    /// Constructing an instance, on the same terms.
+    ///
+    function Constructing (Handle : String, Emitted : List, Names : List) : String;
+    begin
+        if not AnyNamed (Names) then
+            Exit 'alg_new(' + Handle + ', ' + ArgumentArray (Emitted) + ')';
+
+        Exit 'alg_new_named(' + Handle + ', ' + ArgumentArray (Emitted) + ', '
+           + NameArray (Names) + ')';
+    end
+
+    /// A method call, on the same terms.
+    ///
+    function Invoking (Receiver : String, TheName : String, Emitted : List,
+                       Names : List) : String;
+    begin
+        if not AnyNamed (Names) then
+            Exit 'alg_invoke(' + Receiver + ', ' + QuoteC (TheName) + ', '
+               + ArgumentArray (Emitted) + ')';
+
+        Exit 'alg_invoke_named(' + Receiver + ', ' + QuoteC (TheName) + ', '
+           + ArgumentArray (Emitted) + ', ' + NameArray (Names) + ')';
+    end
+
     /// Arguments as an array plus a count, so every method shares one C
     /// signature regardless of arity.
     ///
@@ -3566,7 +3686,8 @@ begin
     /// end still emits with no notion of who may see what -- so it resolves as a
     /// bare call would, minus the tables, since a unit cannot export a built-in.
     ///
-    function UnitCall (Unit : String, Name : String, Arguments : List, Joined : String) : String;
+    function UnitCall (Unit : String, Name : String, Arguments : List, Joined : String,
+                       Names : List) : String;
     begin
         // ⚠️ Not exported -- 'private', or simply not there.  The interpreter
         // answers this at RUN time, because a unit's exports are a set it looks
@@ -3599,13 +3720,18 @@ begin
 
         var Built := '';
         if Classes.Contains (Name) then
-            Built := 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+            Built := Constructing (ClassHandle (Name), Arguments, Names);
         else if Declared.Contains (Name) and Overloaded.Contains (Name) then
-            Built := 'alg_call(' + SetName (Name) + ', ' + ArgumentArray (Arguments) + ')';
+            Built := Calling (SetName (Name), Arguments, Names);
         else if Declared.Contains (Name) then
-            Built := FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
+            // ⚠️ A lone subprogram is called by its own C symbol, which takes
+            // its arguments positionally and so has no named form.  Its
+            // HANDLE does -- every top-level subprogram exists as a value --
+            // and that is the one path a named call can take [EXP-013].
+            if AnyNamed (Names) then Built := Calling (HandleName (Name), Arguments, Names);
+            else Built := FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
         else if Globals.Contains (Name) then
-            Built := 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+            Built := Calling (Read (Name), Arguments, Names);
 
         Renames := Saved;
 
@@ -3660,7 +3786,7 @@ begin
             // and the left of the dot is not a value at all -- evaluating it
             // would emit a read of a variable that does not exist.
             Exit UnitCall (Str (TheExpr.Callee.Unit), Str (TheExpr.Callee.Name.Lexeme),
-                           Emitted, Text);
+                           Emitted, Text, TheExpr.ArgumentNames);
         end
 
         if TheExpr.Callee is GetExpr then
@@ -3671,9 +3797,8 @@ begin
             for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
                 Emitted.Add (Evaluate (TheExpr.Arguments[I]));
 
-            Exit 'alg_invoke(' + Receiver + ', '
-               + QuoteC (Str (TheExpr.Callee.Name.Lexeme)) + ', '
-               + ArgumentArray (Emitted) + ')';
+            Exit Invoking (Receiver, Str (TheExpr.Callee.Name.Lexeme), Emitted,
+                           TheExpr.ArgumentNames);
         end
 
         // Anything else that evaluates to a function -- an element of a
@@ -3684,8 +3809,7 @@ begin
             for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
                 Emitted.Add (Evaluate (TheExpr.Arguments[I]));
 
-            Exit 'alg_call(' + Evaluate (TheExpr.Callee) + ', '
-               + ArgumentArray (Emitted) + ')';
+            Exit Calling (Evaluate (TheExpr.Callee), Emitted, TheExpr.ArgumentNames);
         end
 
         Arguments := List();
@@ -3706,7 +3830,7 @@ begin
         // ...' followed by 'Set(42)' calls the variable rather than
         // constructing a Set.
         if Locals.Contains (Name) or Captured.Contains (Name) or Boxed.Contains (Name) then
-            Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+            Exit Calling (Read (Name), Arguments, TheExpr.ArgumentNames);
 
         // ⚠️ A FILE-SCOPE declaration shadows a builtin too, by exactly the same
         // rule.  builtins is the outermost environment and every module's
@@ -3725,6 +3849,21 @@ begin
         // whole file, which the interpreter does not do.  TopLevel is the
         // shallow set, collected the same way Globals is.
         var Shadowed := ShadowNames.Contains (Name);
+
+        // ⚠️ A BUILT-IN has no named parameters [EXP-013], and this is the last
+        // point at which the name is still known to be one.  Its parameters are
+        // not declared in this language at all -- they exist only as a count --
+        // so there is no name to write.
+        //
+        // ⚠️ A RUNTIME error rather than a refusal, because that is what the
+        // interpreter gives.  Without it the emitter simply dropped the names
+        // and 'WriteLn (V: ''abc'')' printed 'abc' compiled where the
+        // interpreter refused it -- the two processors disagreeing about a
+        // program, which is the one thing this back end exists not to do.
+        if not Shadowed and AnyNamed (TheExpr.ArgumentNames)
+                        and BuiltinCounts (Name).Length > 0 then
+            Exit '(alg_error(' + QuoteC ('A built-in has no named parameters.')
+               + '), alg_nil())';
 
         // ⚠️ Write and WriteLn take ANY number of values [RT-001], and every
         // other built-in is reached by name AND arity -- so the many-value form
@@ -3757,7 +3896,7 @@ begin
         end
 
         if Classes.Contains (Name) then
-            Exit 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+            Exit Constructing (ClassHandle (Name), Arguments, TheExpr.ArgumentNames);
 
         // ⚠️ An object is not a class; it is already the instance [CLS-016], so
         // calling one is a program that is WRONG rather than a shape this back
@@ -3766,8 +3905,8 @@ begin
         // first, and alg_call gives the language's wording for a value that is
         // not callable.
         if Objects.Contains (Name) then
-            Exit 'alg_call(alg_singleton(' + ClassHandle (Name) + '), '
-               + ArgumentArray (Arguments) + ')';
+            Exit Calling ('alg_singleton(' + ClassHandle (Name) + ')', Arguments,
+                          TheExpr.ArgumentNames);
 
         // ⚠️ Ahead of Declared, and that is the point: both owners ARE declared,
         // which is exactly why the bare name cannot be resolved [MOD-013].
@@ -3783,8 +3922,7 @@ begin
         // override, which a direct call to this class's symbol would not.
         if CurrentClass <> '' and not Declared.Contains (Name)
                               and VisibleMethods.Contains (FoldCase (Name)) then
-            Exit 'alg_invoke(' + ThisRef () + ', ' + QuoteC (Name) + ', '
-               + ArgumentArray (Arguments) + ')';
+            Exit Invoking (ThisRef (), Name, Arguments, TheExpr.ArgumentNames);
 
         // ⚠️ DECLARED IS NOT THE SAME AS REACHABLE.  Declared spans the whole
         // flattened program, so a function in a unit this file never imported
@@ -3805,16 +3943,23 @@ begin
         // still called by its own symbol: nothing to select between, and the
         // emitted C of every program without an overload stays as it was.
         if Declared.Contains (Name) and Overloaded.Contains (Name) then
-            Exit 'alg_call(' + SetName (Name) + ', ' + ArgumentArray (Arguments) + ')';
+            Exit Calling (SetName (Name), Arguments, TheExpr.ArgumentNames);
 
         if Declared.Contains (Name) then
+        begin
+            // ⚠️ Through the HANDLE when a name was written, for the reason
+            // UnitCall gives: the C symbol has no named form and the value does.
+            if AnyNamed (TheExpr.ArgumentNames) then
+                Exit Calling (HandleName (Name), Arguments, TheExpr.ArgumentNames);
+
             Exit FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
+        end
 
         // A file-scope 'var' holding a function, called by its name.  Reached
         // only now that a global shadows a builtin: before that, 'var Str' then
         // 'Str(1)' emitted alg_str and called the builtin instead.
         if Globals.Contains (Name) then
-            Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+            Exit Calling (Read (Name), Arguments, TheExpr.ArgumentNames);
 
         // ⚠️ An assertion outside a test run is a fact about the LANGUAGE, not
         // a shape this back end cannot emit.  AssertTrue, AssertEqual and Fail

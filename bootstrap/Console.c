@@ -27,14 +27,14 @@ bool d_infoVtag;
 Value v_errorVtag;
 bool d_errorVtag;
 Value k_console;
-static const char *t_console_repeat_2_char_integer[] = { "Char", "Integer" };
-static const char *t_console_header_1_string[] = { "String" };
-static const char *t_console_subheader_1_string[] = { "String" };
-static const char *t_console_info_1_string[] = { "String" };
-static const char *t_console_success_1_string[] = { "String" };
-static const char *t_console_fail_1_string[] = { "String" };
-static const char *t_console_debug_1_string[] = { "String" };
-static const char *t_console_error_2_token_string[] = { "Token", "String" };
+static const char *t_console_repeat_2_char_integer[] = { "What : Char", "Times : Integer" };
+static const char *t_console_header_1_string[] = { "Name : String" };
+static const char *t_console_subheader_1_string[] = { "Name : String" };
+static const char *t_console_info_1_string[] = { "Text : String" };
+static const char *t_console_success_1_string[] = { "Name : String" };
+static const char *t_console_fail_1_string[] = { "Name : String" };
+static const char *t_console_debug_1_string[] = { "Text : String" };
+static const char *t_console_error_2_token_string[] = { "Where : Token", "Message : String" };
 
 static Value i_console(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;

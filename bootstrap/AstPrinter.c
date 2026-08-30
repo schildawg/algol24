@@ -5,12 +5,12 @@
 #include "TokenType.h"
 
 Value k_astprinter;
-static const char *t_astprinter_doprint_1[] = { "Any" };
-static const char *t_astprinter_visitbinary_1[] = { "Any" };
-static const char *t_astprinter_visitgrouping_1[] = { "Any" };
-static const char *t_astprinter_visitliteral_1[] = { "Any" };
-static const char *t_astprinter_visitunary_1[] = { "Any" };
-static const char *t_astprinter_parenthesize_2[] = { "Any", "Any" };
+static const char *t_astprinter_doprint_1[] = { "Expr : Any" };
+static const char *t_astprinter_visitbinary_1[] = { "Expr : Any" };
+static const char *t_astprinter_visitgrouping_1[] = { "Expr : Any" };
+static const char *t_astprinter_visitliteral_1[] = { "Expr : Any" };
+static const char *t_astprinter_visitunary_1[] = { "Expr : Any" };
+static const char *t_astprinter_parenthesize_2[] = { "Name : Any", "Exprs : Any" };
 
 static Value i_astprinter(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;

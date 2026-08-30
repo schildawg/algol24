@@ -7,6 +7,7 @@
 Value f_typenameof(Value **cells, Value *args, int32_t count);
 Value f_nameofclass(Value **cells, Value *args, int32_t count);
 Value f_samesignature(Value **cells, Value *args, int32_t count);
+Value f_anynamed(Value **cells, Value *args, int32_t count);
 Value f_widens(Value **cells, Value *args, int32_t count);
 Value f_inheritsfrom(Value **cells, Value *args, int32_t count);
 extern Value fn_typenameof;
@@ -14,6 +15,7 @@ extern Value fn_nameofclass;
 extern Value k_objoverloads;
 extern Value k_numbermethod;
 extern Value fn_samesignature;
+extern Value fn_anynamed;
 extern Value v_exact;
 extern bool d_exact;
 extern Value v_widening;

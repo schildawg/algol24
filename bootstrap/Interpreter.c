@@ -22,72 +22,76 @@ Value f_suppressoutput(Value **cells, Value *args, int32_t count);
 Value f_rendered(Value **cells, Value *args, int32_t count);
 Value f_stringify(Value **cells, Value *args, int32_t count);
 Value k_clocknative;
-static const char *t_clocknative_call_2[] = { "Any", "Any" };
+static const char *t_clocknative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_lengthnative;
-static const char *t_lengthnative_call_2[] = { "Any", "Any" };
+static const char *t_lengthnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_copynative;
-static const char *t_copynative_call_2[] = { "Any", "Any" };
+static const char *t_copynative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_posnative;
-static const char *t_posnative_call_2[] = { "Any", "Any" };
+static const char *t_posnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_arraynative;
-static const char *t_arraynative_call_2[] = { "Any", "Any" };
+static const char *t_arraynative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_listnative;
-static const char *t_listnative_call_2[] = { "Any", "Any" };
+static const char *t_listnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_mapnative;
-static const char *t_mapnative_call_2[] = { "Any", "Any" };
+static const char *t_mapnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_setnative;
 static Value or_0;
-static const char *t_setnative_call_2[] = { "Any", "Any" };
+static const char *t_setnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_stacknative;
-static const char *t_stacknative_call_2[] = { "Any", "Any" };
+static const char *t_stacknative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value v_programarguments;
 bool d_programarguments;
 Value fn_setprogramarguments;
+static const char *t_f_setprogramarguments[] = { "Arguments : List" };
 Value v_outputsuppressed;
 bool d_outputsuppressed;
 Value fn_suppressoutput;
+static const char *t_f_suppressoutput[] = { "Suppress : Boolean" };
 Value fn_rendered;
+static const char *t_f_rendered[] = { "TheInterpreter : Any", "Arguments : List" };
 Value k_writenative;
-static const char *t_writenative_call_2[] = { "Any", "Any" };
+static const char *t_writenative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_writelnnative;
-static const char *t_writelnnative_call_2[] = { "Any", "Any" };
+static const char *t_writelnnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_haltnative;
-static const char *t_haltnative_call_2[] = { "Any", "Any" };
+static const char *t_haltnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_ordnative;
-static const char *t_ordnative_call_2[] = { "Any", "Any" };
+static const char *t_ordnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_valnative;
 static Value or_1;
 static Value or_2;
-static const char *t_valnative_call_2[] = { "Any", "Any" };
+static const char *t_valnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_charnative;
-static const char *t_charnative_call_2[] = { "Any", "Any" };
+static const char *t_charnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_maxnative;
 static Value or_3;
 static Value or_4;
 static Value or_5;
-static const char *t_maxnative_call_2[] = { "Any", "Any" };
+static const char *t_maxnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_modnative;
-static const char *t_modnative_call_2[] = { "Any", "Any" };
+static const char *t_modnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_textfilenative;
-static const char *t_textfilenative_call_2[] = { "Any", "Any" };
+static const char *t_textfilenative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_buffernative;
-static const char *t_buffernative_call_2[] = { "Any", "Any" };
+static const char *t_buffernative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_fileexistsnative;
-static const char *t_fileexistsnative_call_2[] = { "Any", "Any" };
+static const char *t_fileexistsnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_paramcountnative;
-static const char *t_paramcountnative_call_2[] = { "Any", "Any" };
+static const char *t_paramcountnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_paramstrnative;
 static Value or_6;
-static const char *t_paramstrnative_call_2[] = { "Any", "Any" };
+static const char *t_paramstrnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value fn_stringify;
+static const char *t_f_stringify[] = { "TheInterpreter : Any", "Value : Any" };
 Value k_strnative;
-static const char *t_strnative_call_2[] = { "Any", "Any" };
+static const char *t_strnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_asserttruenative;
-static const char *t_asserttruenative_call_2[] = { "Any", "Any" };
+static const char *t_asserttruenative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_assertequalnative;
-static const char *t_assertequalnative_call_2[] = { "Any", "Any" };
+static const char *t_assertequalnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_failnative;
-static const char *t_failnative_call_2[] = { "Any", "Any" };
+static const char *t_failnative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_interpreter;
 static Value or_7;
 static Value or_8;
@@ -120,73 +124,74 @@ static Value or_34;
 static Value or_35;
 static Value or_36;
 static Value or_37;
-static const char *t_interpreter_hoist_1_list[] = { "List" };
-static const char *t_interpreter_hoistedclass_1_string[] = { "String" };
-static const char *t_interpreter_interpret_1_list[] = { "List" };
-static const char *t_interpreter_hoisttests_11_list_list_map_boolean_environment_map_string_list_map_set_boolean[] = { "List", "List", "Map", "Boolean", "Environment", "Map", "String", "List", "Map", "Set", "Boolean" };
-static const char *t_interpreter_runtests_2_list_string[] = { "List", "String" };
-static const char *t_interpreter_report_2_string_string[] = { "String", "String" };
-static const char *t_interpreter_visitliteral_1_literalexpr[] = { "LiteralExpr" };
-static const char *t_interpreter_visitlogical_1_logicalexpr[] = { "LogicalExpr" };
-static const char *t_interpreter_visitgrouping_1_groupingexpr[] = { "GroupingExpr" };
-static const char *t_interpreter_visitunary_1_unaryexpr[] = { "UnaryExpr" };
-static const char *t_interpreter_visitcollectionexpr_1_collectionexpr[] = { "CollectionExpr" };
-static const char *t_interpreter_visitsubscriptexpr_1_subscriptexpr[] = { "SubscriptExpr" };
-static const char *t_interpreter_visitsetsubscriptexpr_1_setsubscriptexpr[] = { "SetSubscriptExpr" };
-static const char *t_interpreter_istext_1[] = { "Any" };
-static const char *t_interpreter_insubrange_2_string[] = { "Any", "String" };
-static const char *t_interpreter_satisfiestype_2_string[] = { "Any", "String" };
-static const char *t_interpreter_visitisexpr_1_isexpr[] = { "IsExpr" };
-static const char *t_interpreter_visitvariableexpr_1_variableexpr[] = { "VariableExpr" };
-static const char *t_interpreter_thisfield_2_token_string[] = { "Token", "String" };
-static const char *t_interpreter_setthisfield_3_token_string[] = { "Token", "Any", "String" };
-static const char *t_interpreter_lookupvariable_2_token_expr[] = { "Token", "Expr" };
-static const char *t_interpreter_suggestunit_2_token_string[] = { "Token", "String" };
-static const char *t_interpreter_integerdivide_2[] = { "Any", "Any" };
-static const char *t_interpreter_visitbinary_1_binaryexpr[] = { "BinaryExpr" };
-static const char *t_interpreter_visitcall_1_callexpr[] = { "CallExpr" };
-static const char *t_interpreter_assignqualified_3_string_token[] = { "String", "Token", "Any" };
-static const char *t_interpreter_qualified_2_string_token[] = { "String", "Token" };
-static const char *t_interpreter_visitgetexpr_1_getexpr[] = { "GetExpr" };
-static const char *t_interpreter_visitsetexpr_1_setexpr[] = { "SetExpr" };
-static const char *t_interpreter_visitsuperexpr_1_superexpr[] = { "SuperExpr" };
-static const char *t_interpreter_visitthisexpr_1_thisexpr[] = { "ThisExpr" };
-static const char *t_interpreter_classnameof_1[] = { "Any" };
-static const char *t_interpreter_istruthy_1[] = { "Any" };
-static const char *t_interpreter_isequal_2[] = { "Any", "Any" };
-static const char *t_interpreter_widen_2_string[] = { "Any", "String" };
-static const char *t_interpreter_evaluate_1_expr[] = { "Expr" };
-static const char *t_interpreter_execute_1_stmt[] = { "Stmt" };
-static const char *t_interpreter_resolve_2_expr_integer[] = { "Expr", "Integer" };
-static const char *t_interpreter_executeblock_2_list_environment[] = { "List", "Environment" };
-static const char *t_interpreter_visitblockstmt_1_blockstmt[] = { "BlockStmt" };
-static const char *t_interpreter_visitclassstmt_1_classstmt[] = { "ClassStmt" };
-static const char *t_interpreter_visitobjectstmt_1_objectstmt[] = { "ObjectStmt" };
-static const char *t_interpreter_visitsubrangestmt_1_subrangestmt[] = { "SubrangeStmt" };
-static const char *t_interpreter_visitenumstmt_1_enumstmt[] = { "EnumStmt" };
-static const char *t_interpreter_visitexpressionstmt_1_expressionstmt[] = { "ExpressionStmt" };
-static const char *t_interpreter_visitfunctionstmt_1_functionstmt[] = { "FunctionStmt" };
-static const char *t_interpreter_visitifstmt_1_ifstmt[] = { "IfStmt" };
-static const char *t_interpreter_visitwhilestmt_1_whilestmt[] = { "WhileStmt" };
-static const char *t_interpreter_contains_2[] = { "Any", "Any" };
-static const char *t_interpreter_iscallable_1[] = { "Any" };
-static const char *t_interpreter_elementsof_2_token[] = { "Token", "Any" };
-static const char *t_interpreter_visitforinstmt_1_forinstmt[] = { "ForInStmt" };
-static const char *t_interpreter_visitbreakstmt_1_breakstmt[] = { "BreakStmt" };
-static const char *t_interpreter_visitmodulestmt_1_modulestmt[] = { "ModuleStmt" };
-static const char *t_interpreter_visitraisestmt_1_raisestmt[] = { "RaiseStmt" };
-static const char *t_interpreter_findhandler_2_map[] = { "Map", "Any" };
-static const char *t_interpreter_handle_3_trystmt[] = { "TryStmt", "Any", "Any" };
-static const char *t_interpreter_visittrystmt_1_trystmt[] = { "TryStmt" };
-static const char *t_interpreter_visitreturnstmt_1_returnstmt[] = { "ReturnStmt" };
-static const char *t_interpreter_visitvarstmt_1_varstmt[] = { "VarStmt" };
-static const char *t_interpreter_visitvargroupstmt_1_vargroupstmt[] = { "VarGroupStmt" };
-static const char *t_interpreter_visitassignexpr_1_assignexpr[] = { "AssignExpr" };
+static const char *t_interpreter_hoist_1_list[] = { "Statements : List" };
+static const char *t_interpreter_hoistedclass_1_string[] = { "Name : String" };
+static const char *t_interpreter_interpret_1_list[] = { "Statements : List" };
+static const char *t_interpreter_hoisttests_11_list_list_map_boolean_environment_map_string_list_map_set_boolean[] = { "Statements : List", "Tests : List", "ByName : Map", "Define : Boolean", "Scope : Environment", "DeclaredIn : Map", "File : String", "Files : List", "ByFile : Map", "Hoisted : Set", "Collect : Boolean" };
+static const char *t_interpreter_runtests_2_list_string[] = { "Statements : List", "FileName : String" };
+static const char *t_interpreter_report_2_string_string[] = { "Name : String", "Status : String" };
+static const char *t_interpreter_visitliteral_1_literalexpr[] = { "TheExpr : LiteralExpr" };
+static const char *t_interpreter_visitlogical_1_logicalexpr[] = { "TheExpr : LogicalExpr" };
+static const char *t_interpreter_visitgrouping_1_groupingexpr[] = { "TheExpr : GroupingExpr" };
+static const char *t_interpreter_visitunary_1_unaryexpr[] = { "TheExpr : UnaryExpr" };
+static const char *t_interpreter_visitcollectionexpr_1_collectionexpr[] = { "TheExpr : CollectionExpr" };
+static const char *t_interpreter_visitsubscriptexpr_1_subscriptexpr[] = { "TheExpr : SubscriptExpr" };
+static const char *t_interpreter_visitsetsubscriptexpr_1_setsubscriptexpr[] = { "TheExpr : SetSubscriptExpr" };
+static const char *t_interpreter_istext_1[] = { "Obj : Any" };
+static const char *t_interpreter_insubrange_2_string[] = { "Value : Any", "TheName : String" };
+static const char *t_interpreter_satisfiestype_2_string[] = { "Value : Any", "TheName : String" };
+static const char *t_interpreter_visitisexpr_1_isexpr[] = { "TheExpr : IsExpr" };
+static const char *t_interpreter_visitvariableexpr_1_variableexpr[] = { "TheExpr : VariableExpr" };
+static const char *t_interpreter_thisfield_2_token_string[] = { "Name : Token", "Original : String" };
+static const char *t_interpreter_setthisfield_3_token_string[] = { "Name : Token", "Value : Any", "Original : String" };
+static const char *t_interpreter_lookupvariable_2_token_expr[] = { "Name : Token", "TheExpr : Expr" };
+static const char *t_interpreter_suggestunit_2_token_string[] = { "Name : Token", "Message : String" };
+static const char *t_interpreter_integerdivide_2[] = { "Left : Any", "Right : Any" };
+static const char *t_interpreter_visitbinary_1_binaryexpr[] = { "TheExpr : BinaryExpr" };
+static const char *t_interpreter_arranged_3_list_list[] = { "Callee : Any", "Arguments : List", "Names : List" };
+static const char *t_interpreter_visitcall_1_callexpr[] = { "TheExpr : CallExpr" };
+static const char *t_interpreter_assignqualified_3_string_token[] = { "Unit : String", "Name : Token", "Value : Any" };
+static const char *t_interpreter_qualified_2_string_token[] = { "Unit : String", "Name : Token" };
+static const char *t_interpreter_visitgetexpr_1_getexpr[] = { "TheExpr : GetExpr" };
+static const char *t_interpreter_visitsetexpr_1_setexpr[] = { "TheExpr : SetExpr" };
+static const char *t_interpreter_visitsuperexpr_1_superexpr[] = { "TheExpr : SuperExpr" };
+static const char *t_interpreter_visitthisexpr_1_thisexpr[] = { "TheExpr : ThisExpr" };
+static const char *t_interpreter_classnameof_1[] = { "Obj : Any" };
+static const char *t_interpreter_istruthy_1[] = { "Obj : Any" };
+static const char *t_interpreter_isequal_2[] = { "A : Any", "B : Any" };
+static const char *t_interpreter_widen_2_string[] = { "Value : Any", "Declared : String" };
+static const char *t_interpreter_evaluate_1_expr[] = { "TheExpr : Expr" };
+static const char *t_interpreter_execute_1_stmt[] = { "TheStmt : Stmt" };
+static const char *t_interpreter_resolve_2_expr_integer[] = { "TheExpr : Expr", "Depth : Integer" };
+static const char *t_interpreter_executeblock_2_list_environment[] = { "Statements : List", "NewEnv : Environment" };
+static const char *t_interpreter_visitblockstmt_1_blockstmt[] = { "TheStmt : BlockStmt" };
+static const char *t_interpreter_visitclassstmt_1_classstmt[] = { "TheStmt : ClassStmt" };
+static const char *t_interpreter_visitobjectstmt_1_objectstmt[] = { "TheStmt : ObjectStmt" };
+static const char *t_interpreter_visitsubrangestmt_1_subrangestmt[] = { "TheStmt : SubrangeStmt" };
+static const char *t_interpreter_visitenumstmt_1_enumstmt[] = { "TheStmt : EnumStmt" };
+static const char *t_interpreter_visitexpressionstmt_1_expressionstmt[] = { "Stmt : ExpressionStmt" };
+static const char *t_interpreter_visitfunctionstmt_1_functionstmt[] = { "TheStmt : FunctionStmt" };
+static const char *t_interpreter_visitifstmt_1_ifstmt[] = { "Stmt : IfStmt" };
+static const char *t_interpreter_visitwhilestmt_1_whilestmt[] = { "Stmt : WhileStmt" };
+static const char *t_interpreter_contains_2[] = { "Collection : Any", "Value : Any" };
+static const char *t_interpreter_iscallable_1[] = { "Value : Any" };
+static const char *t_interpreter_elementsof_2_token[] = { "Where : Token", "Target : Any" };
+static const char *t_interpreter_visitforinstmt_1_forinstmt[] = { "TheStmt : ForInStmt" };
+static const char *t_interpreter_visitbreakstmt_1_breakstmt[] = { "TheStmt : BreakStmt" };
+static const char *t_interpreter_visitmodulestmt_1_modulestmt[] = { "TheStmt : ModuleStmt" };
+static const char *t_interpreter_visitraisestmt_1_raisestmt[] = { "TheStmt : RaiseStmt" };
+static const char *t_interpreter_findhandler_2_map[] = { "Handlers : Map", "Value : Any" };
+static const char *t_interpreter_handle_3_trystmt[] = { "TheStmt : TryStmt", "Value : Any", "Original : Any" };
+static const char *t_interpreter_visittrystmt_1_trystmt[] = { "TheStmt : TryStmt" };
+static const char *t_interpreter_visitreturnstmt_1_returnstmt[] = { "Stmt : ReturnStmt" };
+static const char *t_interpreter_visitvarstmt_1_varstmt[] = { "Stmt : VarStmt" };
+static const char *t_interpreter_visitvargroupstmt_1_vargroupstmt[] = { "TheStmt : VarGroupStmt" };
+static const char *t_interpreter_visitassignexpr_1_assignexpr[] = { "Expr : AssignExpr" };
 Value k_broke;
 Value k_raised;
-static const char *t_raised_init_1[] = { "Any" };
+static const char *t_raised_init_1[] = { "Value : Any" };
 Value k_return;
-static const char *t_return_init_1[] = { "Any" };
+static const char *t_return_init_1[] = { "Value : Any" };
 
 static Value i_clocknative(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
@@ -1875,6 +1880,68 @@ static Value m_interpreter_visitbinary_1_binaryexpr(Value v_this, Value *args, i
     return alg_nil();
 }
 
+static Value m_interpreter_arranged_3_list_list(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_callee = args[0];
+    (void)v_callee;
+    Value v_arguments = alg_widen(args[1], "List");
+    (void)v_arguments;
+    Value v_names = alg_widen(args[2], "List");
+    (void)v_names;
+    if (alg_truthy(alg_not(f_anynamed(NULL, (Value[]){v_names}, 1)))) {
+        return v_arguments;
+    }
+    if (alg_truthy(alg_is(v_callee, "ObjFunction"))) {
+        {
+            Value v_fitted = alg_invoke(v_callee, "Arrange", (Value[]){v_arguments, v_names}, 2);
+            (void)v_fitted;
+            if (alg_truthy(alg_equal(v_fitted, alg_nil()))) {
+                alg_raise(alg_string("No matching signature for function."));
+            }
+            return v_fitted;
+        }
+    }
+    if (alg_truthy(alg_is(v_callee, "ObjOverloads"))) {
+        {
+            {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_callee, "Candidates"), "Length")))) {
+                    {
+                        {
+                            Value v_fitted = alg_invoke(alg_subscript_get(alg_property(v_callee, "Candidates"), v_i), "Arrange", (Value[]){v_arguments, v_names}, 2);
+                            (void)v_fitted;
+                            if (alg_truthy(alg_not_equal(v_fitted, alg_nil()))) {
+                                return v_fitted;
+                            }
+                        }
+                        (void)((v_i = alg_add(v_i, alg_int(1))));
+                    }
+                }
+            }
+            alg_raise(alg_string("No matching signature for function."));
+        }
+    }
+    if (alg_truthy(alg_is(v_callee, "ObjClass"))) {
+        {
+            Value v_init = alg_invoke(v_callee, "FindMethod", (Value[]){alg_string("init")}, 1);
+            (void)v_init;
+            if (alg_truthy(alg_not_equal(v_init, alg_nil()))) {
+                {
+                    Value v_fitted = alg_invoke(v_init, "Arrange", (Value[]){v_arguments, v_names}, 2);
+                    (void)v_fitted;
+                    if (alg_truthy(alg_not_equal(v_fitted, alg_nil()))) {
+                        return v_fitted;
+                    }
+                }
+            }
+            alg_raise(alg_string("No matching signature for function."));
+        }
+    }
+    alg_raise(alg_string("A built-in has no named parameters."));
+    return alg_nil();
+}
+
 static Value m_interpreter_visitcall_1_callexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_theexpr = alg_widen(args[0], "CallExpr");
@@ -1897,6 +1964,7 @@ static Value m_interpreter_visitcall_1_callexpr(Value v_this, Value *args, int32
             }
         }
     }
+    (void)((v_arguments = alg_widen(alg_invoke(v_this, "Arranged", (Value[]){v_callee, v_arguments, alg_property(v_theexpr, "ArgumentNames")}, 3), "List")));
     if (alg_truthy(alg_not(alg_invoke(v_this, "IsCallable", (Value[]){v_callee}, 1)))) {
         {
             alg_raise(alg_string("Can only call functions and classes."));
@@ -3121,9 +3189,9 @@ void init_Interpreter(void) {
     alg_class_initializer(k_stacknative, i_stacknative);
     alg_class_method(k_stacknative, "Arity", m_stacknative_arity_0, 0, NULL);
     alg_class_method(k_stacknative, "Call", m_stacknative_call_2, 2, t_stacknative_call_2);
-    fn_setprogramarguments = alg_closure("SetProgramArguments", f_setprogramarguments, NULL, 0, 1);
-    fn_suppressoutput = alg_closure("SuppressOutput", f_suppressoutput, NULL, 0, 1);
-    fn_rendered = alg_closure("Rendered", f_rendered, NULL, 0, 2);
+    fn_setprogramarguments = alg_closure("SetProgramArguments", f_setprogramarguments, NULL, 0, 1, t_f_setprogramarguments);
+    fn_suppressoutput = alg_closure("SuppressOutput", f_suppressoutput, NULL, 0, 1, t_f_suppressoutput);
+    fn_rendered = alg_closure("Rendered", f_rendered, NULL, 0, 2, t_f_rendered);
     alg_class_initializer(k_writenative, i_writenative);
     alg_class_method(k_writenative, "Arity", m_writenative_arity_0, 0, NULL);
     alg_class_method(k_writenative, "Call", m_writenative_call_2, 2, t_writenative_call_2);
@@ -3163,7 +3231,7 @@ void init_Interpreter(void) {
     alg_class_initializer(k_paramstrnative, i_paramstrnative);
     alg_class_method(k_paramstrnative, "Arity", m_paramstrnative_arity_0, 0, NULL);
     alg_class_method(k_paramstrnative, "Call", m_paramstrnative_call_2, 2, t_paramstrnative_call_2);
-    fn_stringify = alg_closure("Stringify", f_stringify, NULL, 0, 2);
+    fn_stringify = alg_closure("Stringify", f_stringify, NULL, 0, 2, t_f_stringify);
     alg_class_initializer(k_strnative, i_strnative);
     alg_class_method(k_strnative, "Arity", m_strnative_arity_0, 0, NULL);
     alg_class_method(k_strnative, "Call", m_strnative_call_2, 2, t_strnative_call_2);
@@ -3211,6 +3279,7 @@ void init_Interpreter(void) {
     alg_class_method(k_interpreter, "SuggestUnit", m_interpreter_suggestunit_2_token_string, 2, t_interpreter_suggestunit_2_token_string);
     alg_class_method(k_interpreter, "IntegerDivide", m_interpreter_integerdivide_2, 2, t_interpreter_integerdivide_2);
     alg_class_method(k_interpreter, "VisitBinary", m_interpreter_visitbinary_1_binaryexpr, 1, t_interpreter_visitbinary_1_binaryexpr);
+    alg_class_method(k_interpreter, "Arranged", m_interpreter_arranged_3_list_list, 3, t_interpreter_arranged_3_list_list);
     alg_class_method(k_interpreter, "VisitCall", m_interpreter_visitcall_1_callexpr, 1, t_interpreter_visitcall_1_callexpr);
     alg_class_method(k_interpreter, "AssignQualified", m_interpreter_assignqualified_3_string_token, 3, t_interpreter_assignqualified_3_string_token);
     alg_class_method(k_interpreter, "Qualified", m_interpreter_qualified_2_string_token, 2, t_interpreter_qualified_2_string_token);

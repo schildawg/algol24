@@ -1996,6 +1996,39 @@ Integer and String selects the Integer. No static rule could reach that, and an
 implementation must not resolve overloads at compile time on declared types
 alone.
 
+An argument may **name the parameter it fills** — `Log (Level: 'warn')`. The
+arguments are then put in declaration order, so the order at the call site is
+free.
+
+⚠️ **The names select the signature**, which is why the feature exists. Run-time
+selection above stays the rule, and stays right; what a programmer who *does*
+know which overload they mean has lacked is a way to say so. A name identifies
+one signature, where values only describe something several signatures might
+accept.
+
+⚠️ **Positional arguments come first and named ones after.** A positional
+argument following a named one is refused, as is a parameter supplied twice, and
+a name no parameter has. This is also what spares [FUN-005] a rule of its own:
+gathering takes trailing *positional* arguments, and positional arguments end
+exactly where naming begins — so naming the absorbing parameter turns gathering
+off without anything having to say so.
+
+⚠️ **`:` rather than `=>`, because the language already has this colon.**
+`[k : v]` is a Map literal [COL-001]: a name on the left, a value on the right,
+read by parsing an expression and then looking for a colon. A named argument
+means the same thing and parses the same way. The ambiguity that usually rules
+`:` out is absent — a colon in expression position normally meets a conditional
+expression's `? :`, and this language has none, because `?` is an identifier
+mark [LEX-008] and `Gate?` is one word.
+
+⚠️ **A built-in has no named parameters.** Its parameters are not declared in
+this language at all — they exist only as a count [RT-001] — so there is no name
+to write, and `WriteLn (V: 'abc')` is *A built-in has no named parameters.*
+
+    interpreter  compiler/Interpreter.a24  Arranged
+    conformance  0160-named-arguments.a24
+    refusal      0160-a-positional-argument-after-a-named-one.a24
+
     interpreter  compiler/ObjClass.a24  FindOverload
     compiler     bootstrap/algol.c      alg_invoke
     conformance  0050-overload-selection.a24
@@ -6205,7 +6238,8 @@ exact pass takes the hot calls without allocating.
     procedure WriteLn (S : String);           // exact pass -- builds nothing
     procedure WriteLn (Items : List of Any);  // absorption pass
 
-**H-11 — Named arguments.** *(will change [EXP-013], [FUN-013])*
+**H-11 — Named arguments.**
+***Landed in Generation 4.*** *(changed [EXP-013])*
 
 An argument may name the parameter it fills — `Log (Level: 'warn', Items: [1])`.
 

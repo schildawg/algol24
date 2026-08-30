@@ -5,12 +5,12 @@
 #include "ObjInstance.h"
 
 Value k_objclass;
-static const char *t_objclass_init_4_string_objclass_map_list[] = { "String", "ObjClass", "Map", "List" };
-static const char *t_objclass_findmethod_1_string[] = { "String" };
-static const char *t_objclass_findoverload_2_string_list[] = { "String", "List" };
-static const char *t_objclass_fitting_3_string_list_integer[] = { "String", "List", "Integer" };
-static const char *t_objclass_seedfields_2_objinstance[] = { "ObjInstance", "Any" };
-static const char *t_objclass_call_2[] = { "Any", "Any" };
+static const char *t_objclass_init_4_string_objclass_map_list[] = { "Name : String", "Superclass : ObjClass", "Methods : Map", "Fields : List" };
+static const char *t_objclass_findmethod_1_string[] = { "Name : String" };
+static const char *t_objclass_findoverload_2_string_list[] = { "Name : String", "Arguments : List" };
+static const char *t_objclass_fitting_3_string_list_integer[] = { "Name : String", "Arguments : List", "Pass : Integer" };
+static const char *t_objclass_seedfields_2_objinstance[] = { "Instance : ObjInstance", "TheInterpreter : Any" };
+static const char *t_objclass_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 
 static Value i_objclass(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;

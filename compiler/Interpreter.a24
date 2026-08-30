@@ -1574,6 +1574,63 @@ begin
     ///
     /// Returns a runtime error if called with wrong number of parameters.
     ///
+    /// The arguments in the callee's declaration order [EXP-013].
+    ///
+    /// ⚠️ THE NAMES SELECT THE SIGNATURE, which is the point of the feature.
+    /// Selection is otherwise at run time from the values actually passed
+    /// [FUN-013] -- right for a gradually typed language, and unchanged -- but
+    /// a programmer who knows which overload they mean has had no way to say
+    /// so.  Naming the parameters says it, because a name identifies one
+    /// signature where values only describe something several might accept.
+    ///
+    /// ⚠️ A BUILT-IN has no named parameters, and this is where that is said.
+    /// Its parameters are not declared in this language at all -- they exist
+    /// only as a count -- so there is no name to write.
+    ///
+    function Arranged (Callee : Any, Arguments : List, Names : List) : List;
+    begin
+        if not AnyNamed (Names) then Exit Arguments;
+
+        if Callee is ObjFunction then
+        begin
+            var Fitted := Callee.Arrange (Arguments, Names);
+
+            if Fitted = Nil then raise 'No matching signature for function.';
+
+            Exit Fitted;
+        end
+
+        if Callee is ObjOverloads then
+        begin
+            for var I := 0; I < Callee.Candidates.Length; I := I + 1 do
+            begin
+                var Fitted := Callee.Candidates[I].Arrange (Arguments, Names);
+
+                if Fitted <> Nil then Exit Fitted;
+            end
+
+            raise 'No matching signature for function.';
+        end
+
+        // Constructing an instance is a call to the constructor, so its
+        // parameters are named the same way [CLS-002].
+        if Callee is ObjClass then
+        begin
+            var Init := Callee.FindMethod ('init');
+
+            if Init <> Nil then
+            begin
+                var Fitted := Init.Arrange (Arguments, Names);
+
+                if Fitted <> Nil then Exit Fitted;
+            end
+
+            raise 'No matching signature for function.';
+        end
+
+        raise 'A built-in has no named parameters.';
+    end
+
     function VisitCall (TheExpr : CallExpr) : Any;
     var
         Callee    : Any;
@@ -1587,6 +1644,13 @@ begin
         begin
             Arguments.Add (Evaluate (TheExpr.Arguments[I]));
         end
+
+        // ⚠️ Named arguments are put in DECLARATION ORDER here, once, before
+        // anything else sees the list -- so selection, absorption and binding
+        // all go on working positionally and none of them learns that a name
+        // can appear at a call [EXP-013].  Arranging later would mean teaching
+        // Call to take names, and every native implements Call.
+        Arguments := Arranged (Callee, Arguments, TheExpr.ArgumentNames);
 
         // ⚠️ Callability is STRUCTURAL, like every other protocol here: a
         // thing is callable when it answers to Arity, which the natives, the

@@ -5,16 +5,16 @@
 
 Value k_environment;
 static Value or_0;
-static const char *t_environment_markambiguous_2_string_string[] = { "String", "String" };
-static const char *t_environment_raiseambiguousimport_2_string_string[] = { "String", "String" };
-static const char *t_environment_isexported_1_string[] = { "String" };
-static const char *t_environment_ownerof_2_string_string[] = { "String", "String" };
-static const char *t_environment_define_2_string[] = { "String", "Any" };
-static const char *t_environment_assign_2_token[] = { "Token", "Any" };
-static const char *t_environment_get_1_token[] = { "Token" };
-static const char *t_environment_getat_2_integer_string[] = { "Integer", "String" };
-static const char *t_environment_assignat_3_integer_token[] = { "Integer", "Token", "Any" };
-static const char *t_environment_ancestor_1_integer[] = { "Integer" };
+static const char *t_environment_markambiguous_2_string_string[] = { "Name : String", "Owners : String" };
+static const char *t_environment_raiseambiguousimport_2_string_string[] = { "Name : String", "Display : String" };
+static const char *t_environment_isexported_1_string[] = { "Name : String" };
+static const char *t_environment_ownerof_2_string_string[] = { "Name : String", "Display : String" };
+static const char *t_environment_define_2_string[] = { "Name : String", "Value : Any" };
+static const char *t_environment_assign_2_token[] = { "Name : Token", "Value : Any" };
+static const char *t_environment_get_1_token[] = { "Name : Token" };
+static const char *t_environment_getat_2_integer_string[] = { "Distance : Integer", "Name : String" };
+static const char *t_environment_assignat_3_integer_token[] = { "Distance : Integer", "Name : Token", "Value : Any" };
+static const char *t_environment_ancestor_1_integer[] = { "Distance : Integer" };
 
 static Value i_environment(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;

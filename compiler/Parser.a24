@@ -1878,25 +1878,73 @@ begin
     function FinishCall (Callee : Expr) : Expr;
     var
         Arguments : List of Expr;
+        Names     : List of String;
         Paren     : Token;
 
     begin
         Arguments := List();
+        Names     := List();
+
         if Not Check (TOKEN_RIGHT_PAREN) then
         begin
-            Arguments.Add (Expression ());
+            Argument (Arguments, Names);
             while Match (TOKEN_COMMA) do
             begin
-                if Arguments.Length >= 255 then 
+                if Arguments.Length >= 255 then
                     //Error (Peek(), 'Can''t have more than 255 arguments.');
                     raise 'Can''t have more than 255 arguments.';
 
-                Arguments.Add (Expression ());
+                Argument (Arguments, Names);
             end
         end
         Paren := Consume(TOKEN_RIGHT_PAREN, 'Expect '')'' after arguments.');
 
-        Exit CallExpr (Callee, Paren, Arguments);
+        var TheCall := CallExpr (Callee, Paren, Arguments);
+        TheCall.ArgumentNames := Names;
+
+        Exit TheCall;
+    end
+
+    // One argument, positional or naming the parameter it fills [EXP-013].
+    //
+    // ⚠️ IDENTIFIER then COLON, one token of lookahead -- the same shape the
+    // Map literal uses to tell '[k : v]' from '[v]' [COL-001], and the same
+    // meaning: a name on the left, a value on the right.  It is decided BEFORE
+    // parsing rather than after, because a parameter name is not an expression.
+    //
+    // ⚠️ The colon collides with nothing.  A ':' in expression position would
+    // normally meet a conditional expression's '? :', and this language has no
+    // conditional expression because '?' is an identifier mark [LEX-008] and
+    // 'Gate?' is one word.  The ':' in 'case ... of' is a statement's.
+    //
+    procedure Argument (Arguments : List, Names : List);
+    begin
+        if Check (TOKEN_IDENTIFIER) and PeekNext().TypeOfToken = TOKEN_COLON then
+        begin
+            var TheName := Str (Advance().Lexeme);
+            Advance ();
+
+            Names.Add (TheName);
+            Arguments.Add (Expression ());
+
+            Exit;
+        end
+
+        // ⚠️ Positional arguments come FIRST and named ones after -- Python's
+        // rule.  It is also what spares absorption a rule of its own [FUN-005]:
+        // gathering takes trailing POSITIONAL arguments, and positional
+        // arguments end exactly where naming begins.
+        //
+        // ⚠️ The LAST entry is what decides, not whether Names is empty: it
+        // holds '' for every positional argument too, so a length test would
+        // refuse the second positional argument of every call.  Checking the
+        // last one is enough, because this check is what keeps the named
+        // arguments contiguous at the end.
+        if Names.Length > 0 and Str (Names[Names.Length - 1]) <> '' then
+            raise 'A positional argument cannot follow a named one.';
+
+        Names.Add ('');
+        Arguments.Add (Expression ());
     end
 
     // Parses a primary expression:  True, False, Nil, Number, String or Grouping.

@@ -19,13 +19,19 @@ bool d_subrangeVlows;
 Value v_subrangeVhighs;
 bool d_subrangeVhighs;
 Value fn_definesubrange;
+static const char *t_f_definesubrange[] = { "Name : Any", "Low : Integer", "High : Integer" };
 Value fn_subrangeindex;
+static const char *t_f_subrangeindex[] = { "Name : Any" };
 Value fn_issubrange;
+static const char *t_f_issubrange[] = { "Name : Any" };
 Value fn_underlyingtype;
+static const char *t_f_underlyingtype[] = { "Name : Any" };
 Value fn_canonicaltype;
+static const char *t_f_canonicaltype[] = { "Name : Any" };
 Value fn_foldcase;
+static const char *t_f_foldcase[] = { "Name : Any" };
 Value k_token;
-static const char *t_token_init_4_tokentype_string_integer[] = { "TokenType", "String", "Any", "Integer" };
+static const char *t_token_init_4_tokentype_string_integer[] = { "TypeOfToken : TokenType", "Lexeme : String", "Literal : Any", "LineNumber : Integer" };
 
 Value f_definesubrange(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
@@ -179,12 +185,12 @@ static Value m_token_tostring_0(Value v_this, Value *args, int32_t count) {
 
 void init_Token(void) {
     k_token = alg_class("Token", alg_nil());
-    fn_definesubrange = alg_closure("DefineSubrange", f_definesubrange, NULL, 0, 3);
-    fn_subrangeindex = alg_closure("SubrangeIndex", f_subrangeindex, NULL, 0, 1);
-    fn_issubrange = alg_closure("IsSubrange", f_issubrange, NULL, 0, 1);
-    fn_underlyingtype = alg_closure("UnderlyingType", f_underlyingtype, NULL, 0, 1);
-    fn_canonicaltype = alg_closure("CanonicalType", f_canonicaltype, NULL, 0, 1);
-    fn_foldcase = alg_closure("FoldCase", f_foldcase, NULL, 0, 1);
+    fn_definesubrange = alg_closure("DefineSubrange", f_definesubrange, NULL, 0, 3, t_f_definesubrange);
+    fn_subrangeindex = alg_closure("SubrangeIndex", f_subrangeindex, NULL, 0, 1, t_f_subrangeindex);
+    fn_issubrange = alg_closure("IsSubrange", f_issubrange, NULL, 0, 1, t_f_issubrange);
+    fn_underlyingtype = alg_closure("UnderlyingType", f_underlyingtype, NULL, 0, 1, t_f_underlyingtype);
+    fn_canonicaltype = alg_closure("CanonicalType", f_canonicaltype, NULL, 0, 1, t_f_canonicaltype);
+    fn_foldcase = alg_closure("FoldCase", f_foldcase, NULL, 0, 1, t_f_foldcase);
     alg_class_field(k_token, "TypeOfToken");
     alg_class_field(k_token, "Lexeme");
     alg_class_field(k_token, "Literal");

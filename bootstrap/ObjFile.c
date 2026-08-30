@@ -3,11 +3,11 @@
 #include "Token.h"
 
 Value k_filemethod;
-static const char *t_filemethod_init_3_objfile_token_integer[] = { "ObjFile", "Token", "Integer" };
-static const char *t_filemethod_call_2[] = { "Any", "Any" };
+static const char *t_filemethod_init_3_objfile_token_integer[] = { "Receiver : ObjFile", "Name : Token", "TheArity : Integer" };
+static const char *t_filemethod_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_objfile;
-static const char *t_objfile_get_1_token[] = { "Token" };
-static const char *t_objfile_invoke_2_string_list[] = { "String", "List" };
+static const char *t_objfile_get_1_token[] = { "TheName : Token" };
+static const char *t_objfile_invoke_2_string_list[] = { "Name : String", "Arguments : List" };
 
 static Value i_filemethod(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;

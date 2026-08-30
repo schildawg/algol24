@@ -10,6 +10,7 @@
 
 Value f_readwholefile(Value **cells, Value *args, int32_t count);
 Value fn_readwholefile;
+static const char *t_f_readwholefile[] = { "Name : String" };
 Value k_parser;
 static Value or_0;
 static Value or_1;
@@ -64,26 +65,29 @@ static Value or_49;
 static Value or_50;
 static Value or_51;
 static Value or_52;
-static const char *t_parser_init_1_list[] = { "List" };
-static const char *t_parser_unitstem_1_string[] = { "String" };
-static const char *t_parser_iscollectiontype_1_string[] = { "String" };
-static const char *t_parser_recordprivate_1[] = { "Any" };
-static const char *t_parser_directoryof_1_string[] = { "String" };
-static const char *t_parser_resolvemodule_2_token_string[] = { "Token", "String" };
-static const char *t_parser_declarationsection_1_boolean[] = { "Boolean" };
-static const char *t_parser_readdeclarationsections_1_list[] = { "List" };
-static const char *t_parser_readdeclarationsections_2_list_boolean[] = { "List", "Boolean" };
-static const char *t_parser_forinstatement_1_token[] = { "Token" };
-static const char *t_parser_vardeclaration_1_token[] = { "Token" };
-static const char *t_parser_parsefunction_1_string[] = { "String" };
-static const char *t_parser_subrangedeclaration_1_token[] = { "Token" };
-static const char *t_parser_classdeclaration_1_string[] = { "String" };
-static const char *t_parser_finishcall_1_expr[] = { "Expr" };
-static const char *t_parser_match_1_tokentype[] = { "TokenType" };
-static const char *t_parser_error_2_token_string[] = { "Token", "String" };
-static const char *t_parser_consume_2_tokentype_string[] = { "TokenType", "String" };
-static const char *t_parser_check_1_tokentype[] = { "TokenType" };
-static const char *t_parser_checkword_1_string[] = { "String" };
+static Value or_53;
+static Value or_54;
+static const char *t_parser_init_1_list[] = { "Tokens : List" };
+static const char *t_parser_unitstem_1_string[] = { "Key : String" };
+static const char *t_parser_iscollectiontype_1_string[] = { "TypeName : String" };
+static const char *t_parser_recordprivate_1[] = { "Decl : Any" };
+static const char *t_parser_directoryof_1_string[] = { "Path : String" };
+static const char *t_parser_resolvemodule_2_token_string[] = { "Where : Token", "ModuleName : String" };
+static const char *t_parser_declarationsection_1_boolean[] = { "IsConstant : Boolean" };
+static const char *t_parser_readdeclarationsections_1_list[] = { "Body : List" };
+static const char *t_parser_readdeclarationsections_2_list_boolean[] = { "Body : List", "AllowVisibility : Boolean" };
+static const char *t_parser_forinstatement_1_token[] = { "Name : Token" };
+static const char *t_parser_vardeclaration_1_token[] = { "Name : Token" };
+static const char *t_parser_parsefunction_1_string[] = { "Kind : String" };
+static const char *t_parser_subrangedeclaration_1_token[] = { "Name : Token" };
+static const char *t_parser_classdeclaration_1_string[] = { "Kind : String" };
+static const char *t_parser_finishcall_1_expr[] = { "Callee : Expr" };
+static const char *t_parser_argument_2_list_list[] = { "Arguments : List", "Names : List" };
+static const char *t_parser_match_1_tokentype[] = { "TheType : TokenType" };
+static const char *t_parser_error_2_token_string[] = { "TheToken : Token", "Message : String" };
+static const char *t_parser_consume_2_tokentype_string[] = { "TypeOfToken : TokenType", "Message : String" };
+static const char *t_parser_check_1_tokentype[] = { "TheType : TokenType" };
+static const char *t_parser_checkword_1_string[] = { "Word : String" };
 
 Value f_readwholefile(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
@@ -1616,24 +1620,54 @@ static Value m_parser_finishcall_1_expr(Value v_this, Value *args, int32_t count
     (void)v_callee;
     Value v_arguments = alg_nil();
     (void)v_arguments;
+    Value v_names = alg_nil();
+    (void)v_names;
     Value v_paren = alg_nil();
     (void)v_paren;
     (void)((v_arguments = alg_widen(alg_list(), "List")));
+    (void)((v_names = alg_widen(alg_list(), "List")));
     if (alg_truthy(alg_not(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVrightVparen}, 1)))) {
         {
-            (void)(alg_invoke(v_arguments, "Add", (Value[]){alg_invoke(v_this, "Expression", NULL, 0)}, 1));
+            (void)(alg_invoke(v_this, "Argument", (Value[]){v_arguments, v_names}, 2));
             while (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcomma}, 1))) {
                 {
                     if (alg_truthy(alg_greater_equal(alg_property(v_arguments, "Length"), alg_int(255)))) {
                         alg_raise(alg_string("Can't have more than 255 arguments."));
                     }
-                    (void)(alg_invoke(v_arguments, "Add", (Value[]){alg_invoke(v_this, "Expression", NULL, 0)}, 1));
+                    (void)(alg_invoke(v_this, "Argument", (Value[]){v_arguments, v_names}, 2));
                 }
             }
         }
     }
     (void)((v_paren = alg_widen(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVrightVparen, alg_string("Expect ')' after arguments.")}, 2), "Token")));
-    return alg_new(k_callexpr, (Value[]){v_callee, v_paren, v_arguments}, 3);
+    Value v_thecall = alg_new(k_callexpr, (Value[]){v_callee, v_paren, v_arguments}, 3);
+    (void)v_thecall;
+    (void)(alg_set_property(v_thecall, "ArgumentNames", alg_widen(v_names, "List")));
+    return v_thecall;
+    return alg_nil();
+}
+
+static Value m_parser_argument_2_list_list(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_arguments = alg_widen(args[0], "List");
+    (void)v_arguments;
+    Value v_names = alg_widen(args[1], "List");
+    (void)v_names;
+    if (alg_truthy((or_50 = alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVidentifier}, 1), !alg_truthy(or_50) ? or_50 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVcolon)))) {
+        {
+            Value v_thename = alg_str(alg_property(alg_invoke(v_this, "Advance", NULL, 0), "Lexeme"));
+            (void)v_thename;
+            (void)(alg_invoke(v_this, "Advance", NULL, 0));
+            (void)(alg_invoke(v_names, "Add", (Value[]){v_thename}, 1));
+            (void)(alg_invoke(v_arguments, "Add", (Value[]){alg_invoke(v_this, "Expression", NULL, 0)}, 1));
+            return alg_nil();
+        }
+    }
+    if (alg_truthy((or_51 = alg_greater(alg_property(v_names, "Length"), alg_int(0)), !alg_truthy(or_51) ? or_51 : alg_not_equal(alg_str(alg_subscript_get(v_names, alg_subtract(alg_property(v_names, "Length"), alg_int(1)))), alg_string(""))))) {
+        alg_raise(alg_string("A positional argument cannot follow a named one."));
+    }
+    (void)(alg_invoke(v_names, "Add", (Value[]){alg_string("")}, 1));
+    (void)(alg_invoke(v_arguments, "Add", (Value[]){alg_invoke(v_this, "Expression", NULL, 0)}, 1));
     return alg_nil();
 }
 
@@ -1657,7 +1691,7 @@ static Value m_parser_primary_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVleftVbracket}, 1))) {
         return alg_invoke(v_this, "CollectionLiteral", NULL, 0);
     }
-    if (alg_truthy((or_52 = (or_51 = (or_50 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVinteger}, 1), alg_truthy(or_50) ? or_50 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnumber}, 1)), alg_truthy(or_51) ? or_51 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstring}, 1)), alg_truthy(or_52) ? or_52 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVchar}, 1)))) {
+    if (alg_truthy((or_54 = (or_53 = (or_52 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVinteger}, 1), alg_truthy(or_52) ? or_52 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnumber}, 1)), alg_truthy(or_53) ? or_53 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstring}, 1)), alg_truthy(or_54) ? or_54 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVchar}, 1)))) {
         {
             return alg_new(k_literalexpr, (Value[]){alg_property(alg_invoke(v_this, "Previous", NULL, 0), "Literal")}, 1);
         }
@@ -1787,7 +1821,7 @@ static Value m_parser_previous_0(Value v_this, Value *args, int32_t count) {
 
 void init_Parser(void) {
     k_parser = alg_class("Parser", alg_nil());
-    fn_readwholefile = alg_closure("ReadWholeFile", f_readwholefile, NULL, 0, 1);
+    fn_readwholefile = alg_closure("ReadWholeFile", f_readwholefile, NULL, 0, 1, t_f_readwholefile);
     alg_class_field(k_parser, "Tokens");
     alg_class_field(k_parser, "Current");
     alg_class_field(k_parser, "FileName");
@@ -1854,6 +1888,7 @@ void init_Parser(void) {
     alg_class_method(k_parser, "CollectionLiteral", m_parser_collectionliteral_0, 0, NULL);
     alg_class_method(k_parser, "Call", m_parser_call_0, 0, NULL);
     alg_class_method(k_parser, "FinishCall", m_parser_finishcall_1_expr, 1, t_parser_finishcall_1_expr);
+    alg_class_method(k_parser, "Argument", m_parser_argument_2_list_list, 2, t_parser_argument_2_list_list);
     alg_class_method(k_parser, "Primary", m_parser_primary_0, 0, NULL);
     alg_class_method(k_parser, "Match", m_parser_match_1_tokentype, 1, t_parser_match_1_tokentype);
     alg_class_method(k_parser, "Error", m_parser_error_2_token_string, 2, t_parser_error_2_token_string);

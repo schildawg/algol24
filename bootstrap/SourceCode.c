@@ -2,9 +2,9 @@
 #include "SourceCode.h"
 
 Value k_sourcecode;
-static const char *t_sourcecode_begins_1_string[] = { "String" };
-static const char *t_sourcecode_add_2_integer_string[] = { "Integer", "String" };
-static const char *t_sourcecode_get_1_integer[] = { "Integer" };
+static const char *t_sourcecode_begins_1_string[] = { "Name : String" };
+static const char *t_sourcecode_add_2_integer_string[] = { "LineNumber : Integer", "Text : String" };
+static const char *t_sourcecode_get_1_integer[] = { "LineNumber : Integer" };
 
 static Value i_sourcecode(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;

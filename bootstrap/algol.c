@@ -1968,7 +1968,40 @@ Value alg_param(Value argument, const char *declared) {
  * is what let alg_overload and alg_class_method keep their signatures and every
  * emitted call site keep its shape.  The price is that everything comparing a
  * declared type has to stop at " of ", so nothing may compare types[i] raw. */
+/* The parameter name a declaration carries -- the "Level" of
+ * "Level : List of Integer" -- or NULL when it carries none.
+ *
+ * ⚠️ A parameter's NAME travels inside the declared type string, beside its
+ * element type, so the array alg_overload and alg_class_method take is simply
+ * the parameter list as the source writes it.  Neither had to grow an argument
+ * for names any more than it did for element types [EXP-013]. */
+static const char *param_name(const char *declared, char *out, size_t size) {
+    if (declared == NULL) return NULL;
+
+    const char *colon = strstr(declared, " : ");
+    if (colon == NULL) return NULL;
+
+    size_t head = (size_t)(colon - declared);
+    if (head >= size) head = size - 1;
+
+    memcpy(out, declared, head);
+    out[head] = '\0';
+
+    return out;
+}
+
+/* The type half of a parameter declaration, past any name it carries. */
+static const char *type_part(const char *declared) {
+    if (declared == NULL) return NULL;
+
+    const char *colon = strstr(declared, " : ");
+
+    return (colon != NULL) ? colon + 3 : declared;
+}
+
 static const char *split_type(const char *declared, char *base, size_t size) {
+    declared = type_part(declared);
+
     if (declared == NULL) {
         base[0] = '\0';
         return NULL;
@@ -2056,6 +2089,74 @@ static bool types_absorb(const char **types, int32_t arity, Value *args, int32_t
         if (!type_fits(element, args[i], true)) return false;
 
     return true;
+}
+
+/* Whether any argument named the parameter it fills [EXP-013].
+ *
+ * ⚠️ Asked FIRST everywhere, because nothing is named in the overwhelming
+ * majority of calls and that case must cost nothing. */
+static bool any_named(const char **names, int32_t count) {
+    if (names == NULL) return false;
+
+    for (int32_t i = 0; i < count; i++)
+        if (names[i] != NULL && names[i][0] != '\0') return true;
+
+    return false;
+}
+
+/* The position of the parameter of this name, or -1.
+ *
+ * ⚠️ Folded [SRC-011].  A parameter is a name like any other, so 'F (level: 1)'
+ * and 'F (Level: 1)' fill the same one. */
+static int32_t parameter_at(const char **types, int32_t arity, const char *name) {
+    if (types == NULL) return -1;
+
+    for (int32_t i = 0; i < arity; i++) {
+        char declared[64];
+
+        if (param_name(types[i], declared, sizeof declared) == NULL) continue;
+        if (alg_stricmp(declared, name) == 0) return i;
+    }
+
+    return -1;
+}
+
+/* The arguments in declaration order, or NULL when the names do not fit this
+ * signature [EXP-013].  Mirrors ObjFunction.Arrange, which it has to agree
+ * with exactly.
+ *
+ * ⚠️ NULL rather than an error, because with an overload set a name that fits
+ * no candidate here may fit the next one.  Selection asks each candidate and
+ * the CALL reports the failure. */
+static Value *arrange_args(const char **types, int32_t arity,
+                           Value *args, int32_t count, const char **names) {
+    if (arity < 0 || arity > 255) return NULL;
+
+    Value *slots  = arena_alloc((size_t)(arity > 0 ? arity : 1) * sizeof(Value));
+    bool   filled[256];
+
+    for (int32_t i = 0; i < arity; i++) filled[i] = false;
+
+    for (int32_t i = 0; i < count; i++) {
+        const char *name = (names != NULL) ? names[i] : NULL;
+
+        /* ⚠️ A positional argument goes to slot i, and that is correct only
+         * because positional arguments come FIRST [EXP-013] -- they fill
+         * 0..k-1 in order, and naming begins after them. */
+        int32_t at = i;
+        if (name != NULL && name[0] != '\0') at = parameter_at(types, arity, name);
+
+        if (at < 0 || at >= arity) return NULL;
+        if (filled[at]) return NULL;
+
+        slots[at]  = args[i];
+        filled[at] = true;
+    }
+
+    for (int32_t i = 0; i < arity; i++)
+        if (!filled[i]) return NULL;
+
+    return slots;
 }
 
 /* Mirrors ObjFunction.Absorb: the earlier passes are asked again, so a call
@@ -3149,6 +3250,12 @@ typedef struct {
     Value     **cells;
     int32_t     cell_count;
     int32_t     arity;
+
+    /* The parameter list as written -- "Level : String" -- or NULL.  A function
+     * held in a variable is still called by the names of its parameters
+     * [EXP-013], and without this a closure was the one callable in the runtime
+     * that had forgotten them. */
+    const char **types;
 } ObjClosure;
 
 /* A captured variable is one of these rather than a C local, so it survives the
@@ -3160,7 +3267,8 @@ Value *alg_cell(Value initial) {
     return cell;
 }
 
-Value alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity) {
+Value alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity,
+                  const char **types) {
     ObjClosure *closure = arena_alloc(sizeof(ObjClosure));
 
     closure->obj.type   = OBJ_CLOSURE;
@@ -3168,6 +3276,7 @@ Value alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_
     closure->fn         = fn;
     closure->arity      = arity;
     closure->cell_count = cell_count;
+    closure->types      = types;
 
     /* Copied, because the array the caller built is a compound literal whose
      * lifetime ends with the enclosing block. */
@@ -3300,10 +3409,118 @@ Value alg_call(Value callee, Value *args, int32_t count) {
 
     ObjClosure *closure = (ObjClosure *)callee.obj;
 
+    /* ⚠️ Absorption before the count is judged, for the reason invoke_found
+     * gives: an absorbing call has a different count by design [FUN-005]. */
+    if (should_absorb(closure->types, closure->arity, args, count))
+        return closure->fn(closure->cells, absorb_args(closure->arity, args, count), closure->arity);
+
     /* One signature, so the counts are the whole story -- see arity_error. */
     alg_arity(count, closure->arity);
 
     return closure->fn(closure->cells, args, count);
+}
+
+/* ------------------------------------------------------- named arguments -- */
+
+/* An argument may name the parameter it fills [EXP-013].  These three mirror
+ * the interpreter's Arranged: the arguments are put in DECLARATION ORDER once,
+ * before anything else sees them, so selection, absorption and binding all go
+ * on working positionally and none of them learns that a name can appear.
+ *
+ * ⚠️ THE NAMES SELECT THE SIGNATURE, which is the point of the feature.
+ * Selection is otherwise from the values actually passed [FUN-013] -- right for
+ * a gradually typed language, and unchanged -- but a programmer who knows which
+ * overload they mean had no way to say so.  A name identifies one signature
+ * where values only describe something several might accept.
+ *
+ * ⚠️ Emitted only where a name was actually written, so a call without one
+ * still emits alg_call, alg_invoke or alg_new and costs nothing. */
+Value alg_call_named(Value callee, Value *args, int32_t count, const char **names) {
+    if (!any_named(names, count)) return alg_call(callee, args, count);
+
+    if (is_obj(callee, OBJ_CLASS)) return alg_new_named(callee, args, count, names);
+
+    if (is_obj(callee, OBJ_OVERLOADS)) {
+        ObjOverloads *set = (ObjOverloads *)callee.obj;
+
+        for (int32_t i = 0; i < set->count; i++) {
+            OverloadEntry *entry = &set->entries[i];
+            Value *arranged = arrange_args(entry->types, entry->arity, args, count, names);
+
+            if (arranged != NULL) return alg_call(callee, arranged, entry->arity);
+        }
+
+        alg_error("No matching signature for function.");
+    }
+
+    if (is_obj(callee, OBJ_CLOSURE)) {
+        ObjClosure *closure = (ObjClosure *)callee.obj;
+        Value *arranged = arrange_args(closure->types, closure->arity, args, count, names);
+
+        if (arranged == NULL) alg_error("No matching signature for function.");
+
+        return alg_call(callee, arranged, closure->arity);
+    }
+
+    /* ⚠️ A BUILT-IN has no named parameters, and this is where that is said.
+     * Its parameters are not declared in this language at all -- they exist
+     * only as a count -- so there is no name to write. */
+    alg_error("A built-in has no named parameters.");
+    return alg_nil();
+}
+
+Value alg_invoke_named(Value receiver, const char *name, Value *args, int32_t count,
+                       const char **names) {
+    if (!any_named(names, count)) return alg_invoke(receiver, name, args, count);
+
+    if (is_obj(receiver, OBJ_INSTANCE)) {
+        ObjInstance *instance = (ObjInstance *)receiver.obj;
+
+        /* ⚠️ The whole chain, outermost first, exactly as find_method walks it
+         * -- an override is reached before the method it replaced. */
+        for (ObjClass *at = instance->klass; at != NULL; at = at->super) {
+            for (int32_t i = 0; i < at->method_count; i++) {
+                if (alg_stricmp(at->methods[i].name, name) != 0) continue;
+
+                Value *arranged = arrange_args(at->methods[i].types, at->methods[i].arity,
+                                               args, count, names);
+
+                if (arranged != NULL)
+                    return alg_invoke(receiver, name, arranged, at->methods[i].arity);
+            }
+        }
+
+        alg_error("No matching signature for function.");
+    }
+
+    alg_error("A built-in has no named parameters.");
+    return alg_nil();
+}
+
+Value alg_new_named(Value klass, Value *args, int32_t count, const char **names) {
+    if (!any_named(names, count)) return alg_new(klass, args, count);
+
+    if (!is_obj(klass, OBJ_CLASS)) alg_error("Can only call functions and classes.");
+
+    /* Constructing an instance is a call to the constructor, so its parameters
+     * are named the same way [CLS-002].
+     *
+     * ⚠️ The chain is walked HERE rather than through find_method, which
+     * selects on a count -- and a named call has no meaningful count until the
+     * arguments have been arranged, which is what this is doing. */
+    for (ObjClass *at = (ObjClass *)klass.obj; at != NULL; at = at->super) {
+        for (int32_t i = 0; i < at->method_count; i++) {
+            if (alg_stricmp(at->methods[i].name, "init") != 0) continue;
+
+            Value *arranged = arrange_args(at->methods[i].types, at->methods[i].arity,
+                                           args, count, names);
+
+            if (arranged != NULL) return alg_new(klass, arranged, at->methods[i].arity);
+        }
+    }
+
+    alg_error("No matching signature for function.");
+    return alg_nil();
 }
 
 /* ----------------------------------------------------------------- errors -- */

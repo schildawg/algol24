@@ -1,0 +1,101 @@
+// spec: EXP-013, FUN-013
+//
+// An argument may name the parameter it fills [EXP-013].
+//
+// ⚠️ THE NAMES SELECT THE SIGNATURE, which is the point of the feature.
+// Selection is otherwise at run time from the values actually passed
+// [FUN-013] -- right for a gradually typed language, and unchanged -- but a
+// programmer who knows which overload they mean had no way to say so.  Naming
+// the parameters says it, because a name identifies one signature where values
+// only describe something several signatures might accept.
+//
+// ⚠️ ':' rather than '=>', because the language already has this colon.
+// '[k : v]' is a Map literal [COL-001]: a name on the left, a value on the
+// right, read by parsing an expression and then looking for a colon.  A named
+// argument means the same thing and parses the same way.
+
+procedure Log (Level : String, Message : String);
+begin
+    WriteLn (Level + ': ' + Message);
+end
+
+Log ('warn', 'disk');
+Log (Level: 'warn', Message: 'disk');
+
+// The order at the call site is free; the order that matters is the
+// declaration's.
+Log (Message: 'disk', Level: 'warn');
+
+// Positional first, named after.
+Log ('warn', Message: 'disk');
+
+// A name folds like every other name [SRC-011].
+Log (level: 'warn', MESSAGE: 'disk');
+
+// Two subprograms of one name, told apart by the names alone.
+procedure Note (Level : String, Message : String); begin WriteLn ('two'); end
+procedure Note (Code : Integer);                   begin WriteLn ('one'); end
+
+Note (Code: 7);
+Note (Level: 'warn', Message: 'x');
+
+// Constructing an instance is a call to the constructor, so its parameters are
+// named the same way [CLS-002].
+class Dog;
+begin
+    constructor Init (Name : String, Age : Integer);
+    begin
+        WriteLn (Name + ' is ' + Str (Age));
+    end
+
+    procedure Fetch (What : String, Times : Integer);
+    begin
+        WriteLn (What + ' x' + Str (Times));
+    end
+end
+
+var D := Dog (Age: 3, Name: 'Rex');
+
+// And a method, whose class is not known until the receiver is.
+D.Fetch (Times: 2, What: 'ball');
+
+// A subprogram held in a variable keeps its parameter names.
+var F := Log;
+
+F (Message: 'held', Level: 'warn');
+
+// ⚠️ Naming the absorbing parameter turns absorption OFF, and needs no rule to
+// do it [FUN-005]: an arrangement fills every slot exactly once, so the
+// arranged call has precisely the declared arity and the exact pass takes it
+// before absorption is ever reached.
+procedure Take (Label : String, Items : List of Integer);
+begin
+    WriteLn (Label + ' ' + Str (Items.Length));
+end
+
+Take ('a', 1, 2, 3);
+Take ('a', Items: [1, 2, 3]);
+Take (Items: [1], Label: 'a');
+
+// A name no parameter has.
+try
+    Log (Levl: 'warn', Message: 'x');
+except
+    on e : String do WriteLn (e);
+end
+
+// A parameter supplied twice.
+try
+    Log (Level: 'a', Level: 'b');
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ A BUILT-IN has no named parameters.  Its parameters are not declared in
+// this language at all -- they exist only as a count -- so there is no name to
+// write [RT-001].
+try
+    WriteLn (V: 'abc');
+except
+    on e : String do WriteLn (e);
+end

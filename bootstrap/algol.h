@@ -358,7 +358,8 @@ Value alg_invoke_from(Value klass, Value receiver, const char *name, Value *args
 typedef Value (*AlgFunction)(Value **cells, Value *args, int32_t count);
 
 Value  *alg_cell(Value initial);
-Value   alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity);
+Value   alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity,
+                    const char **types);
 Value   alg_call(Value callee, Value *args, int32_t count);
 
 /* Every top-level subprogram of one name, in one value the call site hands its
@@ -371,6 +372,18 @@ Value   alg_call(Value callee, Value *args, int32_t count);
  * ⚠️ Emitted only for a name that HAS more than one subprogram.  A single one
  * is still called by its own symbol, which keeps every other program's C
  * unchanged and the selection cost where the language asks for it. */
+/* A call in which an argument named the parameter it fills [EXP-013].  The
+ * arguments are put in declaration order and the call proceeds positionally, so
+ * nothing downstream learns that a name can appear at a call.
+ *
+ * 'names' runs parallel to 'args', holding "" where an argument was written
+ * positionally.  Emitted only where a name was actually written, so an ordinary
+ * call still reaches alg_call, alg_invoke and alg_new and costs nothing. */
+Value   alg_call_named(Value callee, Value *args, int32_t count, const char **names);
+Value   alg_invoke_named(Value receiver, const char *name, Value *args, int32_t count,
+                         const char **names);
+Value   alg_new_named(Value klass, Value *args, int32_t count, const char **names);
+
 Value   alg_overloads(const char *name);
 void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **types);
 

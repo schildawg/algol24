@@ -9,8 +9,8 @@
 
 Value f_rejects(Value **cells, Value *args, int32_t count);
 Value k_typelookup;
-static const char *t_typelookup_settype_2_string_string[] = { "String", "String" };
-static const char *t_typelookup_gettype_1_string[] = { "String" };
+static const char *t_typelookup_settype_2_string_string[] = { "Symbol : String", "TheType : String" };
+static const char *t_typelookup_gettype_1_string[] = { "Symbol : String" };
 Value k_typechecker;
 static Value or_0;
 static Value or_1;
@@ -54,21 +54,22 @@ static Value or_38;
 static Value or_39;
 static Value or_40;
 static Value or_41;
-static const char *t_typechecker_hiddenby_2_string_string[] = { "String", "String" };
-static const char *t_typechecker_typeofreceiver_1[] = { "Any" };
-static const char *t_typechecker_checkvisibility_2_token[] = { "Any", "Token" };
-static const char *t_typechecker_assignable_2_string_string[] = { "String", "String" };
-static const char *t_typechecker_mismatch_3_token_string_string[] = { "Token", "String", "String" };
-static const char *t_typechecker_resolve_1_list[] = { "List" };
-static const char *t_typechecker_maptype_1[] = { "Any" };
-static const char *t_typechecker_check_1[] = { "Any" };
-static const char *t_typechecker_checkfunction_1[] = { "Any" };
-static const char *t_typechecker_reduce_1[] = { "Any" };
-static const char *t_typechecker_reducebinary_1[] = { "Any" };
-static const char *t_typechecker_istexttype_1_string[] = { "String" };
-static const char *t_typechecker_typeofvalue_1[] = { "Any" };
-static const char *t_typechecker_classnameof_1[] = { "Any" };
+static const char *t_typechecker_hiddenby_2_string_string[] = { "TheType : String", "Member : String" };
+static const char *t_typechecker_typeofreceiver_1[] = { "Obj : Any" };
+static const char *t_typechecker_checkvisibility_2_token[] = { "Obj : Any", "Member : Token" };
+static const char *t_typechecker_assignable_2_string_string[] = { "Expected : String", "Actual : String" };
+static const char *t_typechecker_mismatch_3_token_string_string[] = { "Where : Token", "Expected : String", "Actual : String" };
+static const char *t_typechecker_resolve_1_list[] = { "Statements : List" };
+static const char *t_typechecker_maptype_1[] = { "TheStmt : Any" };
+static const char *t_typechecker_check_1[] = { "TheStmt : Any" };
+static const char *t_typechecker_checkfunction_1[] = { "TheFunction : Any" };
+static const char *t_typechecker_reduce_1[] = { "TheExpr : Any" };
+static const char *t_typechecker_reducebinary_1[] = { "TheExpr : Any" };
+static const char *t_typechecker_istexttype_1_string[] = { "TheType : String" };
+static const char *t_typechecker_typeofvalue_1[] = { "Value : Any" };
+static const char *t_typechecker_classnameof_1[] = { "Obj : Any" };
 Value fn_rejects;
+static const char *t_f_rejects[] = { "Source : String" };
 Value v_hider;
 bool d_hider;
 
@@ -1208,7 +1209,7 @@ void init_TypeChecker(void) {
     alg_class_method(k_typechecker, "IsTextType", m_typechecker_istexttype_1_string, 1, t_typechecker_istexttype_1_string);
     alg_class_method(k_typechecker, "TypeOfValue", m_typechecker_typeofvalue_1, 1, t_typechecker_typeofvalue_1);
     alg_class_method(k_typechecker, "ClassNameOf", m_typechecker_classnameof_1, 1, t_typechecker_classnameof_1);
-    fn_rejects = alg_closure("Rejects", f_rejects, NULL, 0, 1);
+    fn_rejects = alg_closure("Rejects", f_rejects, NULL, 0, 1, t_f_rejects);
     v_hider = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Counter;"), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    var Count : Integer := 0;")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Bump();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        Count := Count + 1;")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    procedure Advance();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10));
     d_hider = true;
 }
