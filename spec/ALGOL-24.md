@@ -6299,71 +6299,78 @@ implemented in both processors and specified nowhere: [COL-012] governs the
 *equality* membership uses, not the protocol that lets a class answer it. The
 same paragraph [TYP-011] now carries for `Elements` is owed to `in`.
 
-**H-6 — A computed property.** *(will change [TYP-012])*
+**H-6 — A read-only property a class may expose.**
+*(will change [TYP-012], [DCL-011])*
 
-A method read without parentheses yields the method. There is no getter, so a
-class cannot expose a computed `Length` the way every collection does. Pinned by
-`conformance/0033-no-computed-property.a24`.
-
-### The shape
-
-**Declared by the class, not marked by the caller.** A member kind beside
-`function`, `procedure` and `constructor`, needing no new punctuation:
+A class may declare a member that is **read from outside and written only from
+inside**, computed or stored alike:
 
 ```
-class Box;
-var Items : List;
+class Stack;
+var
+private:
+    Items : List;
+
 begin
-    constructor Init ();  begin this.Items := []; end
-    property Length ();   begin Exit this.Items.Length; end
+    constructor Init ();      begin this.Items := []; end
+    procedure Push (V : Any); begin Items.Add (V); end
+
+    property Count   : Integer; begin Exit Items.Length; end
+    property IsEmpty : Boolean; begin Exit Items.Length = 0; end
 end
 ```
 
-`B.Length` then reads as a value with no parentheses and no sigil, so a
-user-written `Stack` is indistinguishable from the built-in.
+`S.Count` reads and `S.Count := 99` has nowhere to go. Pinned by
+`conformance/0033-no-computed-property.a24`.
 
-⚠️ **A marker at the use site — `B.^Length` — was considered and rejected.** It
-would leave the replacement visibly second-class: an Algol-24 `Stack` needing
-`S.^Length` where the built-in takes `S.Length` preserves exactly the asymmetry
-H-6 exists to remove, and that asymmetry is the reason Annex E gives for not
-moving `List` and `Map` out of the core. It also puts the decision in the wrong
-place — whether `Length` is a field, a computed value or a method is the
-**class's** interface, and the resolver has to know statically which it is
-before the emitter can do anything useful with it.
-
-### A sigil belongs, but in the other direction
-
-Bare `B.Length` on a method yields the **method** today, silently, where a call
-was almost always meant. With `property` in hand that spelling is wanted for
-properties, so the three cases separate:
+⚠️ **The need is a read-only view, not parentheses.** This entry used to argue
+that a class "cannot expose a computed `Length` the way every collection does",
+which reads as a complaint about cosmetics and invites the obvious answer —
+store the length in a field. That answer works, and it is worse than the
+built-in it imitates:
 
 | | |
 | --- | --- |
-| `B.Length` | a field or a property — an **error** if `Length` is a method |
-| `B.Length ()` | a call |
-| `@B.Length` | the method as a value, said deliberately |
+| `S.Count := 99` on a class with a public field | **succeeds** |
+| `L.Length := 99` on a built-in List | `Only instances have fields.` |
 
-⚠️ **The construct being displaced is free to take.** Reading a method as a
-value appears nowhere in `compiler/*.a24` — the largest body of Algol-24 there
-is. It used to crash the compiled program outright (C-6, since fixed), so this
-argument was once that the construct could be removed rather than implemented;
-what remains of it is that nothing is relying on the spelling.
+A field is public — meaning readable **and writable** — or private, meaning
+invisible [DCL-011]. There is no third state, so a `Stack` written in Algol-24
+cannot protect its own count while showing it. That is the gap, and it is not an
+aesthetic one.
 
-⚠️ [FUN-011] already makes a subprogram's bare name a value, and that stays.
-The sigil is needed only on a **receiver**, which is the one place that spelling
-collides with property access.
+⚠️ **A derived value is the second case, and it cannot be stored honestly.**
+`IsEmpty` is `Count = 0`; keeping it as a field means maintaining a redundant
+one on every mutation, which is exactly the bookkeeping a read-only computed
+member exists to remove.
 
-⚠️ `@` is unclaimed — not an operator [LEX-012] and not a letter [SRC-005]. It
-is the character `conformance/0099` currently uses to provoke a scan error,
-which is a one-line change if this lands.
+⚠️ **A member kind, beside `function` and `procedure`** — decided over two
+alternatives. Delphi's `property Count : Integer read GetCount;` needs an
+accessor function per property and a field naming convention; C#'s
+`{ get; private set; }` needs punctuation the language does not otherwise use.
+This form needs neither, and read-only falls out of the declaration rather than
+out of a visibility keyword.
 
-⚠️ **Subscripting, H-5 and H-6 are one piece of work, not three.** They are
-exactly what Annex E identifies as pinning the collections to being native: a
-`Stack` written in Algol-24 cannot be subscripted (H-8), cannot be iterated
-(H-5), and cannot answer `Length` without parentheses (H-6). Any one of them alone leaves a user-written
-collection visibly second-class, so the generation that brings them should bring
-all three — and Annex E's estimate of what could then move out of the runtime
-depends on it.
+⚠️ **`@B.Length` was proposed here and is withdrawn.** The earlier shape made a
+bare `B.Length` on a method an *error* and introduced `@` for taking a method as
+a value. That displaced a construct which works and is specified — [FUN-011]
+makes a subprogram's bare name a value — in order to free a spelling. Adding a
+feature to work around a feature is the wrong trade; reading a method as a value
+stays exactly as it is, and a property is simply a different kind of member.
+
+⚠️ **This would be the language's first enforced boundary**, and D-9 does not
+forbid it. D-9 rejected enforcing `private:` at run time because that "puts a
+check on **every property access**", which the type-system direction exists to
+avoid. A property's cost is nothing like it: writes are rarer than reads by far,
+only a class that declares one pays anything, and nothing is checked on the read
+path. So a property can be a boundary where `private:` [DCL-015] is advisory —
+the first thing in this language a program may actually rely on.
+
+⚠️ **`set` is deferred, and `protected` is not this feature.** A settable
+property with validation is a later clause on the same member; per-accessor
+visibility in the C# sense needs a third visibility level, and [DCL-011] has
+only `private:` and `public:`. Adding one is a decision about the whole language
+rather than about properties.
 
 **H-7 — Ordering for Strings.** *(will change [VAL-014])*
 
