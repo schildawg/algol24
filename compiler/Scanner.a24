@@ -68,46 +68,6 @@ begin
     Exit Result;
 end
 
-/// Whether a run of digits names a value above the largest Integer.
-///
-/// ⚠️ Compared as TEXT, because the arithmetic that would compute the value is
-/// exactly the arithmetic that wraps -- 'Result * 10 + digit' silently gives
-/// the wrong answer for the number being tested, so the test cannot be made
-/// from it [LEX-033].
-///
-/// ⚠️ There is no negative literal [LEX-019]: a leading '-' is the unary
-/// operator applied to a non-negative one.  So this bounds against 2147483647,
-/// and '-2147483648' -- the most negative Integer -- cannot be written as a
-/// literal at all.  That is a real gap, and the same one C has.
-///
-function ExceedsInteger(Text : String) : Boolean;
-var
-   Body : String;
-
-begin
-    Body := Text;
-
-    // Leading zeros carry no meaning [LEX-017], and would otherwise make a
-    // short number look long.
-    while Length(Body) > 1 and Body[0] = '0' do
-        Body := Copy(Body, 1, Length(Body) - 1);
-
-    if Length(Body) < 10 then Exit False;
-    if Length(Body) > 10 then Exit True;
-
-    // ⚠️ Character by character, because STRINGS ARE NOT ORDERED [VAL-014] --
-    // 'Body > ''2147483647''' raises 'Operands must be numbers.'  Chars are
-    // ordered, so the comparison is made one at a time.  This is the same
-    // reason CEmitter writes its own TextLess.
-    var Limit := '2147483647';
-    for var I := 0; I < 10; I := I + 1 do
-    begin
-        if Body[I] > Limit[I] then Exit True;
-        if Body[I] < Limit[I] then Exit False;
-    end
-
-    Exit False;
-end
 
 /// Keywords, lower-cased on lookup because Algol-24's are case-insensitive --
 /// 'begin', 'Begin' and 'BEGIN' are one token -- while identifiers are not.
@@ -357,18 +317,13 @@ begin
 
         if IsInteger then
         begin
-            // ⚠️ Refused where it is READ, not left to wrap.  '2147483648' used
-            // to be the integer -2147483648 and '99999999999999' to be
-            // 276447231 -- a value the source states plainly, silently replaced
-            // by a different one [LEX-033].
-            if ExceedsInteger(Digits) then
-            begin
-                HadError := True;
-                LastError := '[line ' + Line
-                    + '] Error: Integer literal out of range: ' + Digits;
-                Exit;
-            end
-
+            // ⚠️ No range to check.  An Integer is unbounded [LEX-018], so a
+            // literal cannot be out of range and ToInteger's own arithmetic --
+            // 'Result * 10 + digit' -- grows to hold whatever was written.
+            // ExceedsInteger compared the digits as TEXT because the
+            // arithmetic that would have computed the value was exactly the
+            // arithmetic that wrapped; nothing wraps now, so the whole
+            // question is gone.
             AddToken(TOKEN_INTEGER, ToInteger(Digits));
         end
         else AddToken(TOKEN_NUMBER, Val(Digits));
@@ -423,11 +378,9 @@ begin
             else if Peek() = '_' and InAlphabet(Alphabet, PeekNext()) then Advance();
             else
             begin
-                // ⚠️ The range check reads the DECIMAL value, so a hexadecimal
-                // or binary literal is bounded by the arithmetic that builds it
-                // rather than by ExceedsInteger.  '0xFFFFFFFF' is out of range
-                // for an Integer today and raises there [LEX-018]; unbounded
-                // Integer is what will make it writable.
+                // ⚠️ Built by the same arithmetic every other literal is, so
+                // a hexadecimal or binary literal grows exactly as a decimal
+                // one does -- '0xFFFFFFFFFFFFFFFFFF' is an Integer [LEX-018].
                 AddToken(TOKEN_INTEGER, ToRadix(Digits, Alphabet));
                 Exit;
             end

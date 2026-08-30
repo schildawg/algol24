@@ -1,6 +1,11 @@
 // spec: LEX-018, EXP-007
 //
-// Arithmetic inside the 32-bit range is unaffected, including at the edges.
+// Ordinary arithmetic is unaffected by an Integer being unbounded, including
+// at the widths that used to be boundaries.
+//
+// ⚠️ These all used to sit just inside a 32-bit range that no longer exists.
+// They are kept because a rule that removes a limit should be shown not to
+// have disturbed anything below it.
 
 WriteLn (2147483646 + 1);
 WriteLn (-2147483647 - 1);
@@ -8,11 +13,15 @@ WriteLn (46340 * 46340);
 WriteLn (2147483647 / 1);
 WriteLn (-(-2147483647));
 
-// ⚠️ The most negative Integer has no literal [LEX-033], so this is how it is
-// written -- and the subtraction that reaches it is itself in range.
+// ⚠️ This was once the ONLY way to write the most negative 32-bit Integer,
+// because a literal could not exceed 2147483647 and there is no negative
+// literal [LEX-019].  It is now an ordinary subtraction of two ordinary
+// numbers, and '-2147483648' is writable directly.
 WriteLn (-2147483647 - 1);
+WriteLn (-2147483648);
 
-// ⚠️ Only INTEGER arithmetic is ranged.  A Double follows IEEE 754 and does not
-// raise -- 1.0 / 0 is Infinity [EXP-006], which conformance/0047 pins.
+// ⚠️ A Double is NOT unbounded, and that asymmetry is deliberate: it follows
+// IEEE 754, so 1.0 / 0 is Infinity [EXP-006] rather than an error, and a mixed
+// expression is Double arithmetic.  conformance/0047 pins the division.
 WriteLn (1.0 / 0 > 0);
 WriteLn (2147483647 + 1.0);

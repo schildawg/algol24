@@ -5,11 +5,11 @@
 #   ./build.sh                 # -> ./algc
 #   CC=clang CFLAGS=-O0 ./build.sh
 #
-# ⚠️ CFLAGS="-std=c11 -O2 -DALG_NO_OVERFLOW_CHECK" turns off integer range
-# checking.  Such a build wraps on overflow instead of raising, and so does NOT
-# conform -- [LEX-018] requires the raise.  The switch is there because the cost
-# is per-operation; measured at about 2-4% on ./test.sh, which is why it is ON
-# by default and off in no build these harnesses make.
+# ⚠️ There is no switch to turn integer range checking off, and there used to
+# be: -DALG_NO_OVERFLOW_CHECK skipped a check and left a defined wrap.  An
+# Integer is unbounded now [LEX-018], so the same branch decides whether to
+# promote -- skipping it would not be a faster conforming build, it would be
+# wrong answers.
 #
 # Needs a C compiler and nothing else -- no JDK, no Maven, no make.  That is the
 # point of this directory: the compiler is written in Algol-24 and compiles

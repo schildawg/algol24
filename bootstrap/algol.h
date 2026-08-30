@@ -96,6 +96,11 @@ typedef enum {
      * a name with a single subprogram behind it has no set and is called
      * directly. */
     OBJ_OVERLOADS,
+
+    /* An Integer past the machine width.  Arithmetic promotes into one rather
+     * than raising [LEX-018], and demotes out of it the moment a result fits
+     * again -- so one value never has two representations. */
+    OBJ_BIGINT,
     OBJ_LIST,
     OBJ_SET,
     OBJ_STACK,
@@ -134,7 +139,7 @@ typedef struct {
 
     union {
         bool        boolean;
-        int32_t     integer;
+        int64_t     integer;
         double      number;
         const char *string;
         Obj        *obj;
@@ -144,7 +149,11 @@ typedef struct {
 /* Constructors. */
 Value alg_nil(void);
 Value alg_bool(bool b);
-Value alg_int(int32_t i);
+Value alg_int(int64_t i);
+
+/* An Integer from decimal text.  The emitter uses it for a literal too wide for
+ * C to spell -- an Integer is unbounded [LEX-018] and a C literal is not. */
+Value alg_integer(const char *digits);
 Value alg_double(double d);
 Value alg_string(const char *s);
 

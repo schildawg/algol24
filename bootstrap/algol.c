@@ -211,6 +211,349 @@ static bool is_obj(Value v, ObjType type) {
     return v.type == VAL_OBJ && v.obj->type == type;
 }
 
+static Value object(Obj *obj);
+
+/* ------------------------------------------------------------ big integers --
+ *
+ * An Integer is unbounded [LEX-018]: arithmetic that leaves the machine width
+ * GROWS rather than raising, so "an Integer is an integer" is the whole of the
+ * type and there is no range for a program to be surprised by.
+ *
+ * ⚠️ The slow path begins past 2^63 and almost nothing reaches it.  algc cannot
+ * -- its own scanner accumulates digits through this very arithmetic -- so the
+ * cost of the rule for an ordinary program is one predicted branch per
+ * operation, which is what the old range check already spent.
+ *
+ * ⚠️ CANONICAL FORM: a big integer never holds a value that fits in an int64.
+ * Every operation ends at big_value, which demotes.  Without that invariant one
+ * value would have two representations, and '=' , hashing and Map keys would
+ * all disagree with themselves.
+ *
+ * ⚠️ The limbs are base 2^32 with a separate sign, rather than two's complement,
+ * because magnitude arithmetic is the same for both signs and the sign rules
+ * are then stated once in the signed wrappers rather than threaded through
+ * every loop. */
+
+typedef struct {
+    Obj obj;
+
+    bool      negative;
+    int32_t   count;    /* limbs in use; the top one is never zero */
+    uint32_t *limbs;    /* little-endian, base 2^32 */
+} ObjBigInt;
+
+static ObjBigInt *big_alloc(int32_t count) {
+    ObjBigInt *b = arena_alloc(sizeof(ObjBigInt));
+
+    b->obj.type = OBJ_BIGINT;
+    b->negative = false;
+    b->count    = count;
+    b->limbs    = count == 0 ? NULL : arena_alloc((size_t)count * sizeof(uint32_t));
+
+    for (int32_t i = 0; i < count; i++) b->limbs[i] = 0;
+    return b;
+}
+
+/* Drops leading zero limbs, and with them the possibility of a negative zero. */
+static void big_trim(ObjBigInt *b) {
+    while (b->count > 0 && b->limbs[b->count - 1] == 0) b->count--;
+    if (b->count == 0) b->negative = false;
+}
+
+/* ⚠️ INT64_MIN has no positive counterpart, so the magnitude is taken through
+ * unsigned arithmetic rather than by negating. */
+static ObjBigInt *big_of_i64(int64_t n) {
+    ObjBigInt *b = big_alloc(2);
+    uint64_t   m;
+
+    if (n < 0) {
+        b->negative = true;
+        m = (uint64_t)(-(n + 1)) + 1u;
+    }
+    else m = (uint64_t)n;
+
+    b->limbs[0] = (uint32_t)(m & 0xFFFFFFFFu);
+    b->limbs[1] = (uint32_t)(m >> 32);
+
+    big_trim(b);
+    return b;
+}
+
+static bool big_fits_i64(const ObjBigInt *b) {
+    if (b->count < 2) return true;
+    if (b->count > 2) return false;
+
+    uint64_t m = ((uint64_t)b->limbs[1] << 32) | b->limbs[0];
+
+    return b->negative ? m <= (uint64_t)INT64_MAX + 1u : m <= (uint64_t)INT64_MAX;
+}
+
+static int64_t big_to_i64(const ObjBigInt *b) {
+    uint64_t m = 0;
+
+    if (b->count > 1) m = (uint64_t)b->limbs[1] << 32;
+    if (b->count > 0) m |= b->limbs[0];
+
+    if (!b->negative) return (int64_t)m;
+    if (m == (uint64_t)INT64_MAX + 1u) return INT64_MIN;
+
+    return -(int64_t)m;
+}
+
+/* The one way a big integer becomes a Value -- see the canonical-form note. */
+static Value big_value(ObjBigInt *b) {
+    big_trim(b);
+
+    if (big_fits_i64(b)) return alg_int(big_to_i64(b));
+    return object((Obj *)b);
+}
+
+static int mag_cmp(const ObjBigInt *a, const ObjBigInt *b) {
+    if (a->count != b->count) return a->count < b->count ? -1 : 1;
+
+    for (int32_t i = a->count - 1; i >= 0; i--)
+        if (a->limbs[i] != b->limbs[i]) return a->limbs[i] < b->limbs[i] ? -1 : 1;
+
+    return 0;
+}
+
+static ObjBigInt *mag_add(const ObjBigInt *a, const ObjBigInt *b) {
+    int32_t    n = (a->count > b->count ? a->count : b->count) + 1;
+    ObjBigInt *r = big_alloc(n);
+    uint64_t   carry = 0;
+
+    for (int32_t i = 0; i < n; i++) {
+        uint64_t sum = carry;
+
+        if (i < a->count) sum += a->limbs[i];
+        if (i < b->count) sum += b->limbs[i];
+
+        r->limbs[i] = (uint32_t)sum;
+        carry = sum >> 32;
+    }
+    big_trim(r);
+    return r;
+}
+
+/* Requires |a| >= |b|, which every caller establishes with mag_cmp. */
+static ObjBigInt *mag_sub(const ObjBigInt *a, const ObjBigInt *b) {
+    ObjBigInt *r = big_alloc(a->count);
+    int64_t    borrow = 0;
+
+    for (int32_t i = 0; i < a->count; i++) {
+        int64_t d = (int64_t)a->limbs[i] - borrow - (i < b->count ? (int64_t)b->limbs[i] : 0);
+
+        if (d < 0) {
+            d += (int64_t)1 << 32;
+            borrow = 1;
+        }
+        else borrow = 0;
+
+        r->limbs[i] = (uint32_t)d;
+    }
+    big_trim(r);
+    return r;
+}
+
+static ObjBigInt *big_add_signed(const ObjBigInt *a, const ObjBigInt *b) {
+    ObjBigInt *r;
+
+    if (a->negative == b->negative) {
+        r = mag_add(a, b);
+        r->negative = a->negative;
+    }
+    else {
+        int c = mag_cmp(a, b);
+
+        if (c == 0) return big_alloc(0);
+
+        if (c > 0) { r = mag_sub(a, b); r->negative = a->negative; }
+        else       { r = mag_sub(b, a); r->negative = b->negative; }
+    }
+    big_trim(r);
+    return r;
+}
+
+static ObjBigInt *big_negate_of(const ObjBigInt *a) {
+    ObjBigInt *r = big_alloc(a->count);
+
+    for (int32_t i = 0; i < a->count; i++) r->limbs[i] = a->limbs[i];
+
+    r->negative = !a->negative;
+    big_trim(r);
+    return r;
+}
+
+static ObjBigInt *big_sub_signed(const ObjBigInt *a, const ObjBigInt *b) {
+    return big_add_signed(a, big_negate_of(b));
+}
+
+static ObjBigInt *big_mul(const ObjBigInt *a, const ObjBigInt *b) {
+    if (a->count == 0 || b->count == 0) return big_alloc(0);
+
+    ObjBigInt *r = big_alloc(a->count + b->count);
+
+    for (int32_t i = 0; i < a->count; i++) {
+        uint64_t carry = 0;
+
+        for (int32_t j = 0; j < b->count; j++) {
+            uint64_t cur = (uint64_t)r->limbs[i + j]
+                         + (uint64_t)a->limbs[i] * b->limbs[j] + carry;
+
+            r->limbs[i + j] = (uint32_t)cur;
+            carry = cur >> 32;
+        }
+
+        for (int32_t k = i + b->count; carry != 0; k++) {
+            uint64_t cur = (uint64_t)r->limbs[k] + carry;
+
+            r->limbs[k] = (uint32_t)cur;
+            carry = cur >> 32;
+        }
+    }
+    r->negative = a->negative != b->negative;
+
+    big_trim(r);
+    return r;
+}
+
+/* |a| divided by |b|, by binary long division.
+ *
+ * ⚠️ Shift-and-subtract rather than Knuth's algorithm D, deliberately.  It is
+ * one loop with nothing to get subtly wrong, and the path is reached only by a
+ * program dividing numbers past 2^63 -- where being obviously correct is worth
+ * more than being fast. */
+static void mag_divmod(const ObjBigInt *a, const ObjBigInt *b,
+                       ObjBigInt **quotient, ObjBigInt **remainder) {
+    ObjBigInt *q = big_alloc(a->count == 0 ? 1 : a->count);
+    ObjBigInt *r = big_alloc(a->count + 2);
+
+    r->count = 0;
+
+    for (int64_t bit = (int64_t)a->count * 32 - 1; bit >= 0; bit--) {
+        uint32_t carry = 0;
+
+        for (int32_t i = 0; i < r->count; i++) {
+            uint32_t out = r->limbs[i] >> 31;
+
+            r->limbs[i] = (r->limbs[i] << 1) | carry;
+            carry = out;
+        }
+        if (carry != 0) {
+            r->limbs[r->count] = carry;
+            r->count++;
+        }
+
+        if ((a->limbs[bit / 32] >> (bit % 32)) & 1u) {
+            if (r->count == 0) {
+                r->limbs[0] = 1;
+                r->count = 1;
+            }
+            else r->limbs[0] |= 1u;
+        }
+
+        if (mag_cmp(r, b) >= 0) {
+            ObjBigInt *d = mag_sub(r, b);
+
+            for (int32_t i = 0; i < d->count; i++)   r->limbs[i] = d->limbs[i];
+            for (int32_t i = d->count; i < r->count; i++) r->limbs[i] = 0;
+
+            r->count = d->count;
+            q->limbs[bit / 32] |= 1u << (bit % 32);
+        }
+    }
+    big_trim(q);
+    big_trim(r);
+
+    *quotient  = q;
+    *remainder = r;
+}
+
+/* Divides in place by a single limb and answers the remainder.  Used only to
+ * render a big integer as decimal, nine digits at a time. */
+static uint32_t mag_divmod_small(ObjBigInt *b, uint32_t divisor) {
+    uint64_t rem = 0;
+
+    for (int32_t i = b->count - 1; i >= 0; i--) {
+        uint64_t cur = (rem << 32) | b->limbs[i];
+
+        b->limbs[i] = (uint32_t)(cur / divisor);
+        rem = cur % divisor;
+    }
+    big_trim(b);
+    return (uint32_t)rem;
+}
+
+static double big_to_double(const ObjBigInt *b) {
+    double d = 0.0;
+
+    for (int32_t i = b->count - 1; i >= 0; i--) d = d * 4294967296.0 + b->limbs[i];
+
+    return b->negative ? -d : d;
+}
+
+static ObjBigInt *big_copy(const ObjBigInt *a) {
+    ObjBigInt *r = big_alloc(a->count);
+
+    for (int32_t i = 0; i < a->count; i++) r->limbs[i] = a->limbs[i];
+
+    r->negative = a->negative;
+    return r;
+}
+
+/* Decimal, in nine-digit chunks so the division is by a single limb.
+ *
+ * ⚠️ The chunk array is sized from the value rather than fixed.  Each division
+ * by 10^9 removes just under 30 bits, so 32 bits of limb need at most 2 chunks
+ * -- generous, and generous is the point: a fixed cap would silently truncate
+ * the one kind of number this whole path exists for. */
+static const char *big_to_text(const ObjBigInt *value) {
+    if (value->count == 0) return "0";
+
+    ObjBigInt *work   = big_copy(value);
+    int32_t    room   = value->count * 2 + 2;
+    uint32_t  *chunk  = arena_alloc((size_t)room * sizeof(uint32_t));
+    int32_t    chunks = 0;
+
+    while (work->count > 0 && chunks < room)
+        chunk[chunks++] = mag_divmod_small(work, 1000000000u);
+
+    /* One chunk is nine digits; the leading one may be fewer. */
+    char   *text = arena_alloc((size_t)chunks * 9 + 2);
+    int32_t at   = 0;
+
+    if (value->negative) text[at++] = '-';
+
+    at += snprintf(text + at, 11, "%u", chunk[chunks - 1]);
+
+    for (int32_t i = chunks - 2; i >= 0; i--)
+        at += snprintf(text + at, 11, "%09u", chunk[i]);
+
+    text[at] = '\0';
+    return text;
+}
+
+static bool is_bigint(Value v)  { return is_obj(v, OBJ_BIGINT); }
+
+/* Either shape of Integer, as one question. */
+static bool is_integer(Value v) { return v.type == VAL_INT || is_bigint(v); }
+
+static ObjBigInt *as_big(Value v) {
+    return v.type == VAL_INT ? big_of_i64(v.integer) : (ObjBigInt *)v.obj;
+}
+
+/* -1, 0 or 1, comparing two Integers of either shape. */
+static int big_compare(Value a, Value b) {
+    ObjBigInt *x = as_big(a);
+    ObjBigInt *y = as_big(b);
+
+    if (x->negative != y->negative) return x->negative ? -1 : 1;
+
+    int c = mag_cmp(x, y);
+    return x->negative ? -c : c;
+}
+
+
 static bool is_sequence(Value v) {
     if (v.type != VAL_OBJ) return false;
 
@@ -475,7 +818,7 @@ Value alg_array(Value size) {
 
     /* Fixed length, and nil-filled: reading an untouched slot yields nil rather
      * than being an error. */
-    for (int32_t i = 0; i < size.integer; i++) seq_append(seq, alg_nil());
+    for (int64_t i = 0; i < size.integer; i++) seq_append(seq, alg_nil());
 
     return value;
 }
@@ -582,7 +925,10 @@ static uint32_t hash_value(Value v) {
      * Mixing the real type in is what used to keep them apart, and that was
      * right only while membership was strict. */
     ValueType tag = v.type;
-    if (tag == VAL_INT) tag = VAL_DOUBLE;
+    /* ⚠️ An Integer, a big Integer and a Double of one value must reach one
+     * slot, because '=' promotes and [VAL-013] makes a Map keyed 1 findable by
+     * 1.0.  They therefore share a tag as well as a hashed form. */
+    if (tag == VAL_INT || is_bigint(v)) tag = VAL_DOUBLE;
 
     uint32_t hash = hash_bytes(2166136261u, &tag, sizeof tag);
 
@@ -590,12 +936,19 @@ static uint32_t hash_value(Value v) {
         case VAL_NIL:    return hash;
         case VAL_BOOL:   return hash_bytes(hash, &v.boolean, sizeof v.boolean);
 
-        /* Every int32 converts to a double exactly, so hashing both AS a double
-         * makes them agree with no range test to get wrong. */
+        /* ⚠️ Hashed AS A DOUBLE, so an Integer and a Double of one value reach
+         * the same slot -- which [VAL-013] requires, since '=' promotes.
+         *
+         * ⚠️ It used to say "every int32 converts to a double exactly", and
+         * that stopped being true when an Integer became unbounded: past 2^53
+         * the conversion rounds, so two Integers can share a slot.  That is a
+         * COLLISION and not a fault -- equal values still hash alike, which is
+         * the only thing a hash must promise. */
         case VAL_INT: {
             double widened = (double)v.integer;
             return hash_bytes(hash, &widened, sizeof widened);
         }
+
 
         case VAL_DOUBLE: {
             /* ⚠️ All NaNs are one key in strict_equals, so all NaNs must be one
@@ -615,10 +968,18 @@ static uint32_t hash_value(Value v) {
         case VAL_STRING:
         case VAL_CHAR:   return hash_bytes(hash, v.string, (size_t)v.length);
 
-        /* By address, matching strict_equals, which compares collections and
-         * instances by identity.  Safe only because nothing iterates the index
-         * -- see the ⚠️ on ObjMap. */
+        /* ⚠️ A big Integer is a NUMBER and hashes as one.  By address -- which
+         * is what every other heap value does -- two equal big Integers would
+         * be two Map keys, and a Map would hold a key it could not find. */
         case VAL_OBJ: {
+            if (v.obj->type == OBJ_BIGINT) {
+                double widened = big_to_double((ObjBigInt *)v.obj);
+                return hash_bytes(hash, &widened, sizeof widened);
+            }
+
+            /* By address otherwise, matching strict_equals, which compares
+             * collections and instances by identity.  Safe only because nothing
+             * iterates the index -- see the ⚠️ on ObjMap. */
             void *address = v.obj;
             return hash_bytes(hash, &address, sizeof address);
         }
@@ -740,19 +1101,24 @@ Value alg_map_keep(Value map, Value key, Value item) {
  * Get is on three of them -- and the receiver's type is only known at run time.
  * That is what the interpreter does too: get(Token) is resolved on the instance.
  */
+/* ⚠️ Compared in 64 bits and only then narrowed.  An Integer is wider than a
+ * position is, so truncating first would wrap a huge index into a valid one --
+ * a silent wrong element where the language has a diagnostic that already says
+ * exactly the right thing. */
 static int32_t bounded(Value index, int32_t count, bool inclusive) {
     if (index.type != VAL_INT) alg_error("Index must be an Integer.");
 
-    int32_t at    = index.integer;
-    int32_t limit = inclusive ? count : count - 1;
+    int64_t at    = index.integer;
+    int64_t limit = inclusive ? count : count - 1;
 
     if (at < 0 || at > limit) {
         // Named, because the interpreter names it and the text is catchable.
-        char message[80];
-        snprintf(message, sizeof message, "Index %d out of range 0..%d.", at, limit);
+        char message[96];
+        snprintf(message, sizeof message, "Index %lld out of range 0..%lld.",
+                 (long long)at, (long long)limit);
         alg_error(message);
     }
-    return at;
+    return (int32_t)at;
 }
 
 Value alg_add_item(Value receiver, Value item) {
@@ -2726,6 +3092,10 @@ static const char *type_name(Value v) {
         /* The collections named none of themselves here and only two of
          * themselves in the interpreter, so 'X is List' and 'X is Map'
          * disagreed both between the back ends and with each other. */
+        /* A big Integer is an Integer.  The representation is the runtime's
+         * business and the language has one name for the type. */
+        case OBJ_BIGINT:   return "Integer";
+
         case OBJ_LIST:     return "List";
         case OBJ_SET:      return "Set";
         case OBJ_STACK:    return "Stack";
@@ -2763,7 +3133,29 @@ int32_t alg_handler(Value raised, const char **names, int32_t count) {
 
 Value alg_nil(void)              { Value v; v.type = VAL_NIL;    v.length = 0; v.integer = 0; return v; }
 Value alg_bool(bool b)           { Value v; v.type = VAL_BOOL;   v.length = 0; v.boolean = b; return v; }
-Value alg_int(int32_t i)         { Value v; v.type = VAL_INT;    v.length = 0; v.integer = i; return v; }
+Value alg_int(int64_t i)         { Value v; v.type = VAL_INT;    v.length = 0; v.integer = i; return v; }
+
+/* An Integer from its decimal text, for a literal too wide for C to spell.
+ *
+ * ⚠️ Built by the same arithmetic a program would use -- multiply by ten and
+ * add -- so the promotion path is the one already there rather than a second
+ * way of making a big integer.  The scanner accumulates a literal exactly this
+ * way, which is why the two cannot disagree about what the digits mean. */
+Value alg_integer(const char *digits) {
+    Value       value = alg_int(0);
+    const char *at    = digits;
+    bool        negative = false;
+
+    if (*at == '-') {
+        negative = true;
+        at++;
+    }
+
+    for (; *at != '\0'; at++)
+        value = alg_add(alg_multiply(value, alg_int(10)), alg_int(*at - '0'));
+
+    return negative ? alg_negate(value) : value;
+}
 Value alg_double(double d)       { Value v; v.type = VAL_DOUBLE; v.length = 0; v.number  = d; return v; }
 
 Value alg_string_n(const char *s, int32_t n) {
@@ -2805,7 +3197,7 @@ Value alg_char_value(int32_t code) {
 /* ------------------------------------------------------------- arithmetic -- */
 
 static bool is_number(Value v) {
-    return v.type == VAL_INT || v.type == VAL_DOUBLE;
+    return v.type == VAL_INT || v.type == VAL_DOUBLE || is_obj(v, OBJ_BIGINT);
 }
 
 /* A Char is text for concatenation, substring search and sorting -- it is only
@@ -2983,6 +3375,8 @@ static bool is_double_arithmetic(Value a, Value b) {
 }
 
 static double as_double(Value v) {
+    if (is_obj(v, OBJ_BIGINT)) return big_to_double((ObjBigInt *)v.obj);
+
     return v.type == VAL_DOUBLE ? v.number : (double)v.integer;
 }
 
@@ -3067,39 +3461,25 @@ static Value concat(Value a, Value b) {
     return alg_string_n(result, need);
 }
 
-/* ---------------------------------------------------------- integer range --
+/* -------------------------------------------------------------- integer -- 
  *
- * An arithmetic result outside the 32-bit range RAISES rather than wrapping
- * [LEX-018], [EXP-007].  A program that computes a wrong answer silently is the
- * thing this rule exists to prevent.
+ * An Integer is UNBOUNDED [LEX-018].  Arithmetic that leaves the machine width
+ * promotes into a big integer rather than raising, and demotes again the moment
+ * a result fits -- see the big-integer section above.
  *
  * ⚠️ Signed overflow in C is UNDEFINED BEHAVIOUR, not a wrap, and at this
  * project's own -O2 the optimiser exploits it: 'x + 1 > x' folds to true.  The
- * arithmetic here has always been done through the builtins or unsigned for
- * that reason -- the range check is a separate question from the undefined
- * behaviour, and both are answered.
+ * arithmetic here goes through the builtins for that reason, and always did;
+ * what changed is only what happens on the overflow they report.
  *
- * ⚠️ The builtins are used WHETHER OR NOT the check is compiled in, so the
- * arithmetic is defined either way.  Turning the check off does not reintroduce
- * undefined behaviour; it only stops an overflow being an error, leaving the
- * two's-complement wrap that was there before.
- *
- * ⚠️ Compile with -DALG_NO_OVERFLOW_CHECK to turn it off.  Such a build is
- * FASTER and does NOT conform: [LEX-018] requires the raise.  The switch exists
- * because the cost is per-operation and a program that has been proved not to
- * overflow should not keep paying it.
+ * ⚠️ There is no switch to turn this off, and the one that existed is gone.
+ * '-DALG_NO_OVERFLOW_CHECK' skipped a RANGE CHECK, leaving the two's-complement
+ * wrap that had been there before -- a build that did not conform but did still
+ * compute something.  The same branch now decides whether to promote, so
+ * skipping it would not be a faster conforming build, it would be wrong
+ * answers.  A check that can be turned off and a promotion that cannot are the
+ * same line of C and a different bargain.
  */
-#ifdef ALG_NO_OVERFLOW_CHECK
-#define ALG_RANGE(over, a, op, b) ((void)(over))
-#else
-_Noreturn static void overflowed(int32_t a, const char *op, int32_t b) {
-    char message[80];
-    snprintf(message, sizeof message, "Integer overflow: %d %s %d.", a, op, b);
-
-    alg_error(message);
-}
-#define ALG_RANGE(over, a, op, b) do { if (over) overflowed((a), (op), (b)); } while (0)
-#endif
 
 Value alg_add(Value a, Value b) {
     if (is_text(a) || is_text(b)) return concat(a, b);
@@ -3107,9 +3487,15 @@ Value alg_add(Value a, Value b) {
     if (is_number(a) && is_number(b)) {
         if (is_double_arithmetic(a, b)) return alg_double(as_double(a) + as_double(b));
 
-        int32_t result;
-        ALG_RANGE(__builtin_add_overflow(a.integer, b.integer, &result),
-                  a.integer, "+", b.integer);
+        if (is_bigint(a) || is_bigint(b))
+            return big_value(big_add_signed(as_big(a), as_big(b)));
+
+        /* ⚠️ The builtin is the PROMOTION trigger now, not a range check.  It
+         * was one until [LEX-018] made an Integer unbounded; the branch is the
+         * same and what follows it is not. */
+        int64_t result;
+        if (__builtin_add_overflow(a.integer, b.integer, &result))
+            return big_value(big_add_signed(as_big(a), as_big(b)));
 
         return alg_int(result);
     }
@@ -3121,9 +3507,12 @@ Value alg_subtract(Value a, Value b) {
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_double(as_double(a) - as_double(b));
 
-    int32_t result;
-    ALG_RANGE(__builtin_sub_overflow(a.integer, b.integer, &result),
-              a.integer, "-", b.integer);
+    if (is_bigint(a) || is_bigint(b))
+        return big_value(big_sub_signed(as_big(a), as_big(b)));
+
+    int64_t result;
+    if (__builtin_sub_overflow(a.integer, b.integer, &result))
+        return big_value(big_sub_signed(as_big(a), as_big(b)));
 
     return alg_int(result);
 }
@@ -3132,9 +3521,12 @@ Value alg_multiply(Value a, Value b) {
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_double(as_double(a) * as_double(b));
 
-    int32_t result;
-    ALG_RANGE(__builtin_mul_overflow(a.integer, b.integer, &result),
-              a.integer, "*", b.integer);
+    if (is_bigint(a) || is_bigint(b))
+        return big_value(big_mul(as_big(a), as_big(b)));
+
+    int64_t result;
+    if (__builtin_mul_overflow(a.integer, b.integer, &result))
+        return big_value(big_mul(as_big(a), as_big(b)));
 
     return alg_int(result);
 }
@@ -3143,26 +3535,41 @@ Value alg_divide(Value a, Value b) {
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_double(as_double(a) / as_double(b));
 
+    if (is_bigint(a) || is_bigint(b)) {
+        ObjBigInt *x = as_big(a);
+        ObjBigInt *y = as_big(b);
+
+        if (y->count == 0) alg_error("Division by zero.");
+
+        ObjBigInt *quotient;
+        ObjBigInt *remainder;
+        mag_divmod(x, y, &quotient, &remainder);
+
+        /* Truncated toward zero [EXP-004]: magnitude division does that by
+         * construction, so only the sign has to be put back. */
+        quotient->negative = x->negative != y->negative;
+        return big_value(quotient);
+    }
+
     if (b.integer == 0) alg_error("Division by zero.");
 
-    /* ⚠️ INT_MIN / -1 is the one division that leaves the range -- the quotient
-     * is 2147483648.  It used to answer INT_MIN, which is the wrap; it raises
-     * with every other out-of-range result now [LEX-018].  It must still be
-     * caught explicitly, because dividing would TRAP on some targets rather
-     * than yielding a value to test. */
-    if (a.integer == INT32_MIN && b.integer == -1) {
-        ALG_RANGE(1, a.integer, "/", b.integer);
-        return alg_int(INT32_MIN);
-    }
+    /* ⚠️ INT_MIN / -1 is the one division whose quotient does not fit, and it
+     * must be caught EXPLICITLY: dividing would TRAP on some targets rather
+     * than yielding a value to test afterwards. */
+    if (a.integer == INT64_MIN && b.integer == -1)
+        return big_value(big_negate_of(as_big(a)));
 
     return alg_int(a.integer / b.integer);
 }
 
 Value alg_negate(Value a) {
+    if (is_bigint(a)) return big_value(big_negate_of(as_big(a)));
+
     if (a.type == VAL_INT) {
-        /* -INT_MIN is 2147483648, which is out of range [LEX-018]. */
-        int32_t result;
-        ALG_RANGE(__builtin_sub_overflow(0, a.integer, &result), 0, "-", a.integer);
+        /* -INT_MIN is one past the largest Integer, so it promotes. */
+        int64_t result;
+        if (__builtin_sub_overflow(0, a.integer, &result))
+            return big_value(big_negate_of(as_big(a)));
 
         return alg_int(result);
     }
@@ -3196,6 +3603,7 @@ Value alg_greater(Value a, Value b) {
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_bool(as_double(a) > as_double(b));
+    if (is_bigint(a) || is_bigint(b)) return alg_bool(big_compare(a, b) > 0);
     return alg_bool(a.integer > b.integer);
 }
 
@@ -3204,6 +3612,7 @@ Value alg_greater_equal(Value a, Value b) {
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_bool(as_double(a) >= as_double(b));
+    if (is_bigint(a) || is_bigint(b)) return alg_bool(big_compare(a, b) >= 0);
     return alg_bool(a.integer >= b.integer);
 }
 
@@ -3212,6 +3621,7 @@ Value alg_less(Value a, Value b) {
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_bool(as_double(a) < as_double(b));
+    if (is_bigint(a) || is_bigint(b)) return alg_bool(big_compare(a, b) < 0);
     return alg_bool(a.integer < b.integer);
 }
 
@@ -3220,12 +3630,14 @@ Value alg_less_equal(Value a, Value b) {
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_bool(as_double(a) <= as_double(b));
+    if (is_bigint(a) || is_bigint(b)) return alg_bool(big_compare(a, b) <= 0);
     return alg_bool(a.integer <= b.integer);
 }
 
 static bool equals(Value a, Value b) {
     if (is_number(a) && is_number(b)) {
         if (is_double_arithmetic(a, b)) return as_double(a) == as_double(b);
+        if (is_bigint(a) || is_bigint(b)) return big_compare(a, b) == 0;
         return a.integer == b.integer;
     }
     if (a.type != b.type) return false;
@@ -3545,6 +3957,10 @@ static const char *as_text(Value v) {
                 builder_append(&b, ">");
                 return b.text;
             }
+            /* A big Integer prints as the number it is -- the representation
+             * is the runtime's business, not the program's. */
+            if (v.obj->type == OBJ_BIGINT)    return big_to_text((ObjBigInt *)v.obj);
+
             if (v.obj->type == OBJ_ENUM)      return ((ObjEnum *)v.obj)->name;
             if (v.obj->type == OBJ_ENUM_TYPE) return ((ObjEnumType *)v.obj)->name;
 
@@ -3613,8 +4029,14 @@ static const char *as_text(Value v) {
             return collection_text(v);
 
         case VAL_INT: {
-            char *buffer = arena_alloc(12);
-            snprintf(buffer, 12, "%d", v.integer);
+            /* ⚠️ 24, not 12.  An Integer is 64 bits wide before it promotes, so
+             * the longest is 20 characters and a sign -- it was 12 while an
+             * Integer was 32 bits, and widening the type without widening this
+             * wrote past the allocation into whatever the arena handed out
+             * next.  The string itself read back correctly, so the damage
+             * showed up in an unrelated value. */
+            char *buffer = arena_alloc(24);
+            snprintf(buffer, 24, "%lld", (long long)v.integer);
             return buffer;
         }
 
@@ -3801,9 +4223,26 @@ static const char *as_string(Value v, const char *what) {
     return as_text(v);
 }
 
+/* An Integer narrowed to the machine width the caller needs.
+ *
+ * ⚠️ CHECKED, not cast.  An Integer is wider than a size, an offset or a code
+ * point, so every place that needs a machine integer asks here and gets a
+ * diagnostic rather than a truncation.  One honest gate beats a silent wrap in
+ * several places -- and there are several: a Buffer's size and offset, a byte,
+ * ParamStr's index, Copy's start and count, Char's code point, Halt's status.
+ *
+ * ⚠️ Arithmetic does NOT come through here.  '+' and its neighbours work at the
+ * Integer's own width; this is only for crossing into C's. */
 static int32_t as_integer(Value v, const char *what) {
     if (v.type != VAL_INT) alg_error(what);
-    return v.integer;
+
+    if (v.integer < INT32_MIN || v.integer > INT32_MAX) {
+        char message[96];
+        snprintf(message, sizeof message, "Integer %lld is too large to use here.",
+                 (long long)v.integer);
+        alg_error(message);
+    }
+    return (int32_t)v.integer;
 }
 
 Value alg_copy(Value text, Value begin, Value length) {
@@ -3986,13 +4425,33 @@ Value alg_max(Value a, Value b) {
 }
 
 Value alg_mod(Value a, Value b) {
-    int32_t left  = as_integer(a, "Mod expects Integers.");
-    int32_t right = as_integer(b, "Mod expects Integers.");
+    /* At the Integer's own width: Mod is arithmetic, not a crossing into C. */
+    if (!is_integer(a)) alg_error("Mod expects Integers.");
+    if (!is_integer(b)) alg_error("Mod expects Integers.");
+
+    if (is_bigint(a) || is_bigint(b)) {
+        ObjBigInt *x = as_big(a);
+        ObjBigInt *y = as_big(b);
+
+        if (y->count == 0) alg_error("Mod failed: Division by zero.");
+
+        ObjBigInt *quotient;
+        ObjBigInt *remainder;
+        mag_divmod(x, y, &quotient, &remainder);
+
+        /* C's sign rule, which the Integer path also follows: the remainder
+         * takes the sign of the dividend. */
+        remainder->negative = x->negative;
+        return big_value(remainder);
+    }
+
+    int64_t left  = a.integer;
+    int64_t right = b.integer;
 
     if (right == 0) alg_error("Mod failed: Division by zero.");
 
     /* INT_MIN % -1 overflows on some targets; the JVM yields 0. */
-    if (left == INT32_MIN && right == -1) return alg_int(0);
+    if (left == INT64_MIN && right == -1) return alg_int(0);
 
     return alg_int(left % right);
 }

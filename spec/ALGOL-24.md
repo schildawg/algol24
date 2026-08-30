@@ -602,53 +602,50 @@ integer 7, not an octal.
     interpreter  compiler/Scanner.a24  ScanNumber
     conformance  0013-integer-literals.a24
 
-**[LEX-018]**  An Integer is a signed 32-bit value, from −2147483648 to
-2147483647. An arithmetic operation whose result falls outside that range
-**raises** rather than wrapping.
+**[LEX-018]**  An Integer is **unbounded**. Arithmetic never overflows: a result
+too large for the machine's width grows to hold it.
 
-⚠️ It used to wrap silently, so `2147483647 + 1` was `-2147483648` and a program
-could compute a wrong answer with no sign of it.
+⚠️ **This is the whole of the type.** "An `Integer` is an integer" is a sentence
+a reader needs nothing else to understand, where "an `Integer` is a signed
+32-bit value, and an operation whose result falls outside that range raises"
+asks them to carry a boundary. Removing the boundary removes a category of
+error rather than diagnosing it.
+
+⚠️ **Cheaper than it sounds, and the reason is worth stating.** The wide path
+begins past 2⁶³ and almost nothing reaches it — `algc` cannot, since its own
+scanner accumulates digits through this very arithmetic. What an ordinary
+program pays is one predicted branch per operation, which is exactly what the
+range check it replaced already cost.
+
+⚠️ **It used to wrap silently**, so `2147483647 + 1` was `-2147483648`; then it
+raised [was LEX-018 as first written]; now it grows. Each step removed a way for
+a program to be surprised, and the last one removes the surprise itself.
 
 ⚠️ **One implementation, not two.** The interpreter's `+` *is* the runtime's —
 `Exit Left + Right` in `VisitBinary` compiles to `alg_add` — so the two cannot
 disagree, and this landed in `bootstrap/algol.c` alone.
 
 ⚠️ **Signed overflow in C is undefined behaviour, not a wrap**, which is a
-different problem and was already avoided here: the arithmetic was computed
-unsigned for that reason, and goes through `__builtin_*_overflow` now. The
-builtins are used whether or not the check is compiled in, so turning the check
-off leaves a *defined* wrap rather than reintroducing undefined behaviour.
+different problem and was already avoided: the arithmetic goes through
+`__builtin_*_overflow`. What changed is only what happens on the overflow they
+report — the same branch that raised now promotes.
 
-⚠️ **A build made with `-DALG_NO_OVERFLOW_CHECK` does not conform**, and that is
-the point of naming it: the cost is per-operation — about 2–4% — and a program
-proved not to overflow should not have to keep paying it. See Annex G.4.
+⚠️ **The switch that turned the check off is gone.**
+`-DALG_NO_OVERFLOW_CHECK` skipped a range check and left the defined wrap that
+preceded it: a build that did not conform but did compute something. The same
+branch now decides whether to promote, so skipping it would not be a faster
+conforming build — it would be wrong answers. A check that may be turned off and
+a promotion that may not are one line of C and a different bargain.
+
+⚠️ **Crossing into a machine width is a separate question**, and one place
+answers it. A subscript, a `Buffer` offset, a code point and an exit status all
+need a number C can hold, so each asks for one and gets a diagnostic naming the
+value rather than a truncation.
 
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         alg_add
-    refusal      0041-integer-overflow.a24
+    conformance  0041-integers-grow.a24
     conformance  0136-integer-range.a24
-
-**[LEX-033]**  An integer **literal** outside the range of [LEX-018] is refused
-when the program is read, not when it runs. It is a value the source states
-plainly and the processor can check without executing anything.
-
-The scanner compares the digits as **text** against `2147483647`, rather than
-computing the value and testing it: the arithmetic that would compute the value
-is exactly the arithmetic that wraps, so a value large enough to be refused is a
-value too large to be computed first.
-
-⚠️ Because there is no negative literal [LEX-019], `-2147483648` is unary minus
-applied to `2147483648`, which this rule refuses. **The most negative Integer
-cannot be written as a literal at all** and must be reached by arithmetic, as
-`-2147483647 - 1`. This is the same gap C has, and for the same reason.
-
-    interpreter  compiler/Scanner.a24  ExceedsInteger
-    conformance  0013-integer-literals.a24
-    refusal      0035-integer-literal-out-of-range.a24
-
-> The two halves are separated because they cost differently. A literal is
-> checked once, while it is being scanned; an arithmetic result must be checked
-> on every operation the program performs.
 
 **[LEX-019]**  There is no negative literal. A leading `-` is the unary
 operator applied to a non-negative literal, which is why `2-1` is a
@@ -1773,18 +1770,22 @@ infinity to return for the other.
     compiler     bootstrap/algol.c         alg_divide
     conformance  0047-division-by-zero.a24
 
-**[EXP-007]**  Arithmetic that leaves the bounds of a 32-bit Integer **raises**
-— see [LEX-018].
+**[EXP-007]**  Integer arithmetic never overflows: a result too large for the
+machine's width grows to hold it [LEX-018].
 
-⚠️ Only **Integer** arithmetic is ranged. A Double follows IEEE 754 and does not
-raise — `1.0 / 0` is `Infinity` [EXP-006] — and a mixed expression is Double
-arithmetic, so `2147483647 + 1.0` is `2.147483648E9` rather than an error.
+⚠️ **A Double does not**, and the asymmetry is deliberate. A Double follows IEEE
+754, so `1.0 / 0` is `Infinity` [EXP-006] rather than an error and precision is
+lost silently past 2⁵³. An Integer is exact and unbounded; a Double is
+approximate and bounded, and a program choosing between them is choosing
+between those.
+
+⚠️ **A mixed expression is Double arithmetic** [EXP-005], so
+`2147483647 + 1.0` is `2.147483648E9` — the Integer promotes to a Double and the
+exactness goes with it.
 
     compiler     bootstrap/algol.c  alg_add
-    refusal      0041-integer-overflow.a24
+    conformance  0041-integers-grow.a24
     conformance  0136-integer-range.a24
-
-### 9.3 Concatenation
 
 **[EXP-008]**  `+` concatenates when **either** operand is a String or a Char,
 converting the other. `'x' + 1` is `x1`, `1 + 'x'` is `1x`, and `'a' + 'b'` —
@@ -4920,21 +4921,24 @@ rule it refers to: the body states what the language does, and this annex
 argues about it. Entries are added as the chapters that expose them are
 written.
 
-**D-1 — Integer overflow is silent.** *(refers to [LEX-018], [LEX-033])*
+**D-1 — Integer overflow is silent.** *(refers to [LEX-018])*
 
-**Resolved.** The specification now requires an out-of-range literal to be
-refused when the program is read [LEX-033], and an out-of-range arithmetic
-result to raise [LEX-018]. The two were separated because they cost
+**Resolved, and then resolved again.** The specification first required an
+out-of-range literal to be refused when the program is read and an out-of-range
+arithmetic result to raise. The two were separated because they cost
 differently: a literal is checked once during the scan, while an arithmetic
 result must be checked on every operation a program performs.
 
-**Implemented, both halves.** A literal outside the range is refused where it is
-read and an out-of-range arithmetic result raises.
+⚠️ **Both halves are now moot**, because [LEX-018] makes an Integer unbounded:
+there is no range for a literal to be outside of, and no result to refuse. The
+literal rule was deleted and the scanner's text comparison with it. What began
+as "make the wrap an error" ended as "have no wrap" — the second answer is the
+one a reader needs nothing else to understand.
 
 ⚠️ "What C does natively" was the wrong way to put it, and this note said it:
 signed overflow in C is *undefined behaviour*, not a wrap. The runtime had
-always computed unsigned to avoid that, so what it produced was a defined wrap —
-the range check is a separate question, and both are now answered.
+always computed through the builtins to avoid that, so what it produced was a
+defined wrap — and the same branch that reported it now decides to promote.
 
 **D-2 — `?` alone is a valid identifier.** *(refers to [LEX-008])*
 
@@ -5758,32 +5762,6 @@ separator back into the alphabet the escape uses: `Name__Unit` would give
 ---
 
 ---
-
-### G.4 Turning off the integer range check
-
-[LEX-018] requires an out-of-range arithmetic result to raise, and the cost is
-**per operation** — unlike the literal check [LEX-033], which happens once
-during the scan. That was the reason the two halves were separated, and it is
-the reason the run-time half has a switch.
-
-```sh
-CFLAGS="-std=c11 -O2 -DALG_NO_OVERFLOW_CHECK" ./bootstrap/build.sh
-```
-
-⚠️ **Such a build does not conform.** It wraps where the language raises, which
-is precisely the behaviour [LEX-018] exists to forbid. It is not a
-configuration of the language; it is a way of not running the language's
-arithmetic.
-
-⚠️ **It does not reintroduce undefined behaviour.** `__builtin_add_overflow` and
-its neighbours are used whether or not the check is compiled in, so the
-arithmetic stays defined either way — the switch only decides whether the
-overflow flag is an error. Signed overflow in C is undefined, not a wrap, and at
-`-O2` the optimiser exploits it: `x + 1 > x` folds to `true` for `INT32_MAX`.
-
-Measured on `./test.sh`, three runs each: 21.3 s checked against 20.9 s
-unchecked, about 2–4%. The branch is perfectly predicted, which is why it costs
-so little — and why the default is on.
 
 ## Annex H — planned for later generations *(non-normative)*
 

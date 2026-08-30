@@ -7,7 +7,6 @@
 Value f_tolower(Value **cells, Value *args, int32_t count);
 Value f_tointeger(Value **cells, Value *args, int32_t count);
 Value f_toradix(Value **cells, Value *args, int32_t count);
-Value f_exceedsinteger(Value **cells, Value *args, int32_t count);
 extern Value v_digits;
 extern bool d_digits;
 extern Value v_hexdigits;
@@ -21,7 +20,6 @@ extern bool d_lowercase;
 extern Value fn_tolower;
 extern Value fn_tointeger;
 extern Value fn_toradix;
-extern Value fn_exceedsinteger;
 extern Value v_keywords;
 extern bool d_keywords;
 extern Value v_haderror;

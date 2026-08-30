@@ -2948,7 +2948,17 @@ begin
         if Value = True then Exit 'alg_bool(true)';
         if Value = False then Exit 'alg_bool(false)';
 
-        if Value is Integer then Exit 'alg_int(' + Str (Value) + ')';
+        // ⚠️ An Integer is unbounded [LEX-018] and a C integer literal is not,
+        // so one too wide to spell is emitted as its DIGITS and rebuilt at run
+        // time.  INT64_MIN goes the same way: C has no literal for it either,
+        // only a negation of one that does not fit.
+        if Value is Integer then
+        begin
+            if Value > 9223372036854775807 or Value < -9223372036854775807 then
+                Exit 'alg_integer(' + QuoteC (Str (Value)) + ')';
+
+            Exit 'alg_int(' + Str (Value) + ')';
+        end
         if Value is Double then Exit 'alg_double(' + Str (Value) + ')';
         if Value is String then Exit 'alg_string(' + QuoteC (Str (Value)) + ')';
         if Value is Char then Exit 'alg_char_value(' + Str (Ord (Value)) + ')';

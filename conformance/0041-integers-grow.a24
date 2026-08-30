@@ -1,0 +1,48 @@
+// spec: LEX-018, EXP-007
+//
+// An Integer is unbounded.  Arithmetic past the machine's width grows to hold
+// the result, and comes back down the moment one fits again.
+//
+// ⚠️ This used to wrap silently -- '2147483647 + 1' was '-2147483648' -- and
+// then it raised.  Each step removed a way to be surprised; this one removes
+// the surprise itself.
+
+WriteLn (2147483647 + 1);
+WriteLn (9223372036854775807 + 1);
+WriteLn (9223372036854775807 * 9223372036854775807);
+
+// ⚠️ It DEMOTES.  A result that fits is an ordinary Integer again, so one value
+// never has two representations and '=' , hashing and Map keys agree.
+var Huge := 9223372036854775807 * 9223372036854775807;
+
+WriteLn (Huge / 9223372036854775807 = 9223372036854775807);
+WriteLn ((9223372036854775807 + 1) - 1 = 9223372036854775807);
+WriteLn (Huge / Huge);
+WriteLn (Huge / Huge is Integer);
+
+// Factorials are the ordinary reason to want this.
+function Fact (N);
+begin
+    var R := 1;
+    for var I := 1; I <= N; I := I + 1 do R := R * I;
+    Exit R;
+end
+
+WriteLn (Fact (25));
+WriteLn (Fact (30) / Fact (29));
+
+// ⚠️ There is still no negative literal [LEX-019], so a large negative value is
+// the unary operator applied to a large positive one -- which now works.
+WriteLn (-9223372036854775808);
+WriteLn (0 - Huge < 0);
+
+// Truncation toward zero, both signs [EXP-004], and a remainder that takes the
+// sign of the dividend.
+WriteLn (Huge / 1000000000000000000000);
+WriteLn ((0 - Huge) / 1000000000000000000000);
+WriteLn (Mod (Huge, 1000000000000000000000));
+WriteLn (Mod (0 - Huge, 1000000000000000000000));
+
+// It is an Integer, by every question the language can ask.
+WriteLn (Huge is Integer);
+WriteLn (Val (Str (Huge)) = Huge);
