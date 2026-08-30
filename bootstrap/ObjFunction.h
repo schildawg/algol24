@@ -12,6 +12,7 @@ Value f_inheritsfrom(Value **cells, Value *args, int32_t count);
 extern Value fn_typenameof;
 extern Value fn_nameofclass;
 extern Value k_objoverloads;
+extern Value k_numbermethod;
 extern Value fn_samesignature;
 extern Value fn_widens;
 extern Value fn_inheritsfrom;

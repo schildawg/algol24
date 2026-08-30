@@ -2689,6 +2689,10 @@ Value alg_property(Value receiver, const char *name) {
     if (alg_stricmp(name, "Length") == 0)  return alg_length(receiver);
     if (alg_stricmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
 
+    /* A number's members bind like any other, so '5.ToString' reads as
+     * something callable [COL-005]. */
+    if (is_number(receiver)) return builtin_member(receiver, name);
+
     /* ⚠️ A COLLECTION names the property it does not have [TYP-009], as the
      * interpreter does -- 'List ().ClassName' is 'Undefined property
      * ''ClassName''.'  This said 'Only instances have properties.', which is
@@ -2823,7 +2827,17 @@ static const Member *member_of(Value receiver, const char *name) {
     /* Shared by every collection kind, and by no other receiver. */
     static const Member shared[] = { {"Contains", 1}, {NULL, 0} };
 
+    /* ⚠️ A NUMBER answers members too, and it is the C# arrangement rather than
+     * Java's: '5.ToString ()' works because an Integer is a type with members,
+     * not because a box wraps a primitive.  There is no second kind of thing to
+     * compare wrongly with '=', and no null to unbox. */
+    static const Member number[] = { {"ToString", 0}, {NULL, 0} };
+
+    if (is_number(receiver) && !is_bigint(receiver)) return row_in(name, number);
+
     if (receiver.type != VAL_OBJ) return NULL;
+
+    if (is_bigint(receiver)) return row_in(name, number);
 
     if (is_sequence(receiver) || is_obj(receiver, OBJ_MAP)) {
         const Member *found = row_in(name, shared);
@@ -2841,6 +2855,20 @@ static const Member *member_of(Value receiver, const char *name) {
 
         default: return NULL;
     }
+}
+
+/* A number's members.  ToString is the only one, and it is Str by another
+ * spelling -- one rendering, so the two cannot disagree. */
+static bool number_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
+    (void)args;
+    (void)count;
+
+    if (!is_number(receiver)) return false;
+
+    if (member_of(receiver, name) == NULL) undefined("property", name);
+
+    *result = alg_string(as_text(receiver));
+    return true;
 }
 
 static bool collection_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
@@ -2898,6 +2926,7 @@ Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
     }
 
     Value result;
+    if (number_method(receiver, name, args, count, &result)) return result;
     if (file_method(receiver, name, args, count, &result)) return result;
     if (buffer_method(receiver, name, args, count, &result)) return result;
     if (collection_method(receiver, name, args, count, &result)) return result;
@@ -3684,6 +3713,19 @@ Value alg_divide(Value a, Value b) {
         return big_value(big_negate_of(as_big(a)));
 
     return alg_int(a.integer / b.integer);
+}
+
+/* 'A div B' -- integer division, said deliberately [EXP-008].
+ *
+ * ⚠️ Refuses a Double rather than truncating it.  '/' is integer division on
+ * two Integers and real division as soon as a Double reaches it, so 'X / Y'
+ * cannot be read where X is 'Any'; 'div' always truncates, and a programmer
+ * who writes it has said the operands are Integers.  The same bargain alg_mod
+ * already makes. */
+Value alg_div_int(Value a, Value b) {
+    if (!is_integer(a) || !is_integer(b)) alg_error("div expects Integers.");
+
+    return alg_divide(a, b);
 }
 
 Value alg_negate(Value a) {

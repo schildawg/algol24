@@ -142,6 +142,47 @@ begin
     end
 end
 
+/// A bound member of a number -- '5.ToString' without the call.
+///
+/// ⚠️ The fourth of these wrappers, beside CollectionMethod, BufferMethod and
+/// FileMethod.  A number's members come from the runtime rather than from a
+/// class, so there is no method to bind and the name and arity are carried
+/// instead -- which is what the C runtime's ObjBuiltinBound does with one
+/// struct for all four.
+///
+/// ⚠️ It lives here rather than in an ObjNumber of its own because a number is
+/// not wrapped: it is a host value, and this is only the callable it hands back.
+///
+class NumberMethod;
+var
+    Receiver : Any;
+    Name     : Token;
+
+begin
+    constructor Init (Receiver : Any, Name : Token);
+    begin
+        this.Receiver := Receiver;
+        this.Name := Name;
+    end
+
+    function Arity () : Integer;
+    begin
+        Exit 0;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Str (Receiver);
+    end
+
+    /// Printed as a bound method is [TYP-012], like every other member read
+    /// without being called.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Str (Name.Lexeme) + '>';
+    end
+end
+
 /// Whether two declarations claim the same signature, and are therefore a
 /// duplicate rather than an overload.
 ///

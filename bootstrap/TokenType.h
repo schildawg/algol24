@@ -12,6 +12,7 @@ extern Value e_tokentype_tokenVrightVbracket;
 extern Value e_tokentype_tokenVcomma;
 extern Value e_tokentype_tokenVdot;
 extern Value e_tokentype_tokenVdotVdot;
+extern Value e_tokentype_tokenVdiv;
 extern Value e_tokentype_tokenVminus;
 extern Value e_tokentype_tokenVplus;
 extern Value e_tokentype_tokenVcolon;

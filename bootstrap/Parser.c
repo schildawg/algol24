@@ -61,6 +61,7 @@ static Value or_46;
 static Value or_47;
 static Value or_48;
 static Value or_49;
+static Value or_50;
 static const char *t_parser_init_1_list[] = { "List" };
 static const char *t_parser_unitstem_1_string[] = { "String" };
 static const char *t_parser_iscollectiontype_1_string[] = { "String" };
@@ -1467,7 +1468,7 @@ static Value m_parser_factor_0(Value v_this, Value *args, int32_t count) {
     Value v_right = alg_nil();
     (void)v_right;
     (void)((v_theexpr = alg_widen(alg_invoke(v_this, "Unary", NULL, 0), "Expr")));
-    while (alg_truthy((or_45 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVslash}, 1), alg_truthy(or_45) ? or_45 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstar}, 1)))) {
+    while (alg_truthy((or_46 = (or_45 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVslash}, 1), alg_truthy(or_45) ? or_45 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstar}, 1)), alg_truthy(or_46) ? or_46 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVdiv}, 1)))) {
         {
             (void)((v_operator = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
             (void)((v_right = alg_widen(alg_invoke(v_this, "Unary", NULL, 0), "Expr")));
@@ -1486,7 +1487,7 @@ static Value m_parser_unary_0(Value v_this, Value *args, int32_t count) {
     (void)v_right;
     Value v_theexpr = alg_nil();
     (void)v_theexpr;
-    if (alg_truthy((or_46 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnot}, 1), alg_truthy(or_46) ? or_46 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVminus}, 1)))) {
+    if (alg_truthy((or_47 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnot}, 1), alg_truthy(or_47) ? or_47 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVminus}, 1)))) {
         {
             (void)((v_operator = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
             (void)((v_right = alg_widen(alg_invoke(v_this, "Unary", NULL, 0), "Expr")));
@@ -1636,7 +1637,7 @@ static Value m_parser_primary_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVleftVbracket}, 1))) {
         return alg_invoke(v_this, "CollectionLiteral", NULL, 0);
     }
-    if (alg_truthy((or_49 = (or_48 = (or_47 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVinteger}, 1), alg_truthy(or_47) ? or_47 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnumber}, 1)), alg_truthy(or_48) ? or_48 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstring}, 1)), alg_truthy(or_49) ? or_49 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVchar}, 1)))) {
+    if (alg_truthy((or_50 = (or_49 = (or_48 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVinteger}, 1), alg_truthy(or_48) ? or_48 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnumber}, 1)), alg_truthy(or_49) ? or_49 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstring}, 1)), alg_truthy(or_50) ? or_50 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVchar}, 1)))) {
         {
             return alg_new(k_literalexpr, (Value[]){alg_property(alg_invoke(v_this, "Previous", NULL, 0), "Literal")}, 1);
         }

@@ -9,6 +9,7 @@ Value e_tokentype_tokenVrightVbracket;
 Value e_tokentype_tokenVcomma;
 Value e_tokentype_tokenVdot;
 Value e_tokentype_tokenVdotVdot;
+Value e_tokentype_tokenVdiv;
 Value e_tokentype_tokenVminus;
 Value e_tokentype_tokenVplus;
 Value e_tokentype_tokenVcolon;
@@ -75,6 +76,7 @@ void init_TokenType(void) {
     e_tokentype_tokenVcomma = alg_enum_member(e_tokentype, "TOKEN_COMMA");
     e_tokentype_tokenVdot = alg_enum_member(e_tokentype, "TOKEN_DOT");
     e_tokentype_tokenVdotVdot = alg_enum_member(e_tokentype, "TOKEN_DOT_DOT");
+    e_tokentype_tokenVdiv = alg_enum_member(e_tokentype, "TOKEN_DIV");
     e_tokentype_tokenVminus = alg_enum_member(e_tokentype, "TOKEN_MINUS");
     e_tokentype_tokenVplus = alg_enum_member(e_tokentype, "TOKEN_PLUS");
     e_tokentype_tokenVcolon = alg_enum_member(e_tokentype, "TOKEN_COLON");

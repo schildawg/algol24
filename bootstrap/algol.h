@@ -169,6 +169,10 @@ Value alg_add(Value a, Value b);
 Value alg_subtract(Value a, Value b);
 Value alg_multiply(Value a, Value b);
 Value alg_divide(Value a, Value b);
+
+/* 'A div B': integer division said deliberately, refusing a Double where '/'
+ * would quietly do real division instead. */
+Value alg_div_int(Value a, Value b);
 Value alg_negate(Value a);
 
 /* Comparison.  Returns a Bool Value. */

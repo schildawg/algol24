@@ -1698,7 +1698,10 @@ begin
         // operator, so '20 / 2 / 5' consumed '20 / 2' and left '/ 5' behind,
         // which the caller reported as a missing ';'.  Repeated '*' or '/' did
         // not parse at all.
-        while Match(TOKEN_SLASH) or Match(TOKEN_STAR) do
+        // ⚠️ 'div' binds as '*' and '/' do.  It is a different OPERATION,
+        // not a different precedence: 'A + B div C' groups the way
+        // 'A + B / C' does, which is the only grouping a reader expects.
+        while Match(TOKEN_SLASH) or Match(TOKEN_STAR) or Match(TOKEN_DIV) do
         begin
             Operator := Previous();
             Right := Unary();

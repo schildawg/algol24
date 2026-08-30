@@ -75,7 +75,7 @@ var  Keywords := [
     'and':TOKEN_AND, 'as':TOKEN_AS, 'begin':TOKEN_BEGIN, 'break':TOKEN_BREAK,
     'case':TOKEN_CASE, 'class':TOKEN_CLASS,
     'const':TOKEN_CONST, 'constructor':TOKEN_CONSTRUCTOR,
-    'do':TOKEN_DO, 'else':TOKEN_ELSE,
+    'div':TOKEN_DIV, 'do':TOKEN_DO, 'else':TOKEN_ELSE,
     'end':TOKEN_END, 'except':TOKEN_EXCEPT, 'exit':TOKEN_EXIT,
     'false':TOKEN_FALSE, 'for':TOKEN_FOR,
     'function':TOKEN_FUNCTION, 'if':TOKEN_IF, 'in':TOKEN_IN, 'is':TOKEN_IS,

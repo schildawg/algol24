@@ -21,6 +21,9 @@ static const char *t_objoverloads_init_1_string[] = { "String" };
 static const char *t_objoverloads_add_1[] = { "Any" };
 static const char *t_objoverloads_select_1_list[] = { "List" };
 static const char *t_objoverloads_call_2[] = { "Any", "Any" };
+Value k_numbermethod;
+static const char *t_numbermethod_init_2_token[] = { "Any", "Token" };
+static const char *t_numbermethod_call_2[] = { "Any", "Any" };
 Value fn_samesignature;
 static Value or_0;
 static Value or_1;
@@ -193,6 +196,46 @@ static Value m_objoverloads_call_2(Value v_this, Value *args, int32_t count) {
 static Value m_objoverloads_tostring_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_add(alg_add(alg_string("<fn "), alg_property(v_this, "Name")), alg_char_value(62));
+    return alg_nil();
+}
+
+static Value i_numbermethod(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Receiver", alg_nil());
+    alg_set_property(v_this, "Name", alg_nil());
+    return alg_nil();
+}
+
+static Value m_numbermethod_init_2_token(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_receiver = args[0];
+    (void)v_receiver;
+    Value v_name = alg_widen(args[1], "Token");
+    (void)v_name;
+    (void)(alg_set_property(v_this, "Receiver", v_receiver));
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    return alg_nil();
+}
+
+static Value m_numbermethod_arity_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_int(0);
+    return alg_nil();
+}
+
+static Value m_numbermethod_call_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_theinterpreter = args[0];
+    (void)v_theinterpreter;
+    Value v_arguments = args[1];
+    (void)v_arguments;
+    return alg_str(alg_property(v_this, "Receiver"));
+    return alg_nil();
+}
+
+static Value m_numbermethod_tostring_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_add(alg_add(alg_string("<fn "), alg_str(alg_property(alg_property(v_this, "Name"), "Lexeme"))), alg_char_value(62));
     return alg_nil();
 }
 
@@ -430,6 +473,7 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
 
 void init_ObjFunction(void) {
     k_objoverloads = alg_class("ObjOverloads", alg_nil());
+    k_numbermethod = alg_class("NumberMethod", alg_nil());
     k_objfunction = alg_class("ObjFunction", alg_nil());
     fn_typenameof = alg_closure("TypeNameOf", f_typenameof, NULL, 0, 1);
     fn_nameofclass = alg_closure("NameOfClass", f_nameofclass, NULL, 0, 1);
@@ -442,6 +486,13 @@ void init_ObjFunction(void) {
     alg_class_method(k_objoverloads, "Select", m_objoverloads_select_1_list, 1, t_objoverloads_select_1_list);
     alg_class_method(k_objoverloads, "Call", m_objoverloads_call_2, 2, t_objoverloads_call_2);
     alg_class_method(k_objoverloads, "ToString", m_objoverloads_tostring_0, 0, NULL);
+    alg_class_field(k_numbermethod, "Receiver");
+    alg_class_field(k_numbermethod, "Name");
+    alg_class_initializer(k_numbermethod, i_numbermethod);
+    alg_class_method(k_numbermethod, "Init", m_numbermethod_init_2_token, 2, t_numbermethod_init_2_token);
+    alg_class_method(k_numbermethod, "Arity", m_numbermethod_arity_0, 0, NULL);
+    alg_class_method(k_numbermethod, "Call", m_numbermethod_call_2, 2, t_numbermethod_call_2);
+    alg_class_method(k_numbermethod, "ToString", m_numbermethod_tostring_0, 0, NULL);
     fn_samesignature = alg_closure("SameSignature", f_samesignature, NULL, 0, 2);
     fn_widens = alg_closure("Widens", f_widens, NULL, 0, 2);
     fn_inheritsfrom = alg_closure("InheritsFrom", f_inheritsfrom, NULL, 0, 2);

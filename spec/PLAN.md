@@ -319,8 +319,12 @@ The satisfying half, and a fair measure of whether the design is right:
 4. ✅ **Subranges**, the predefined `Byte`, `Word` and `Short`. A program
    declaring its own -- `type Digit = 0 .. 9;` -- wants a `..` token and a
    statement node, and is the natural next slice.
-5. **`div`**, which is a token, a rule and an operator case.
-6. **Members on numbers**, last, because it is additive and gated by nothing.
+5. ✅ **`div`**, a token, a rule and an operator case.
+6. ✅ **Members on numbers** — `5.ToString ()`, C#'s alias rather than Java's box.
+
+⚠️ **Generation 3 is complete.** The numbers are unbounded, the widths are
+subranges a program may add to, the literals have three bases and an exponent,
+`div` says which division was meant, and a number answers a member.
 
 ⚠️ **The scanner moved to the front, and the reason first given for putting it
 third was wrong.** "Nothing else can be checked until `type_name` answers for

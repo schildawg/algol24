@@ -1497,6 +1497,22 @@ begin
 
     /// Interprets a binary expression.
     ///
+    /// 'A div B' -- integer division, said deliberately [EXP-008].
+    ///
+    /// ⚠️ Refuses a Double rather than truncating it.  A programmer writing
+    /// 'div' has said the operands are Integers; if they are not, that is a
+    /// mistake worth reporting, and the same bargain 'Mod' already makes.
+    ///
+    function IntegerDivide (Left : Any, Right : Any) : Integer;
+    begin
+        if not (Left is Integer) or not (Right is Integer) then
+            raise 'div expects Integers.';
+
+        if Right = 0 then raise 'Division by zero.';
+
+        Exit Left / Right;
+    end
+
     function VisitBinary (TheExpr : BinaryExpr);
     var
         Left  : Any;
@@ -1522,6 +1538,13 @@ begin
            TOKEN_PLUS  : Exit Left + Right;
            TOKEN_MINUS : Exit Left - Right;
            TOKEN_SLASH : Exit Left / Right;
+
+           // ⚠️ 'div' says which division was MEANT, and checks it.  '/' is
+           // integer division on two Integers and real division as soon as a
+           // Double reaches it [EXP-004, EXP-005] -- so 'X / Y' cannot be read
+           // where X is 'Any'.  'div' always truncates, and refuses anything
+           // that is not an Integer rather than quietly doing the other thing.
+           TOKEN_DIV : Exit IntegerDivide (Left, Right);
            TOKEN_STAR  : Exit Left * Right;
         end
     end
@@ -1700,6 +1723,18 @@ begin
         if Obj is String then
         begin
             if FoldCase (TheExpr.Name.Lexeme) = 'length' then Exit Length (Obj);
+
+            raise 'Undefined property ''' + Str (TheExpr.Name.Lexeme) + '''.';
+        end
+
+        // ⚠️ A NUMBER answers members, C#'s way and not Java's: '5.ToString ()'
+        // works because an Integer is a type with members, not because a box
+        // wraps a primitive [RT-019].  There is no second kind of thing to
+        // compare wrongly with '=', and no null to unbox.
+        if Obj is Integer or Obj is Double then
+        begin
+            if FoldCase (TheExpr.Name.Lexeme) = 'tostring' then
+                Exit NumberMethod (Obj, TheExpr.Name);
 
             raise 'Undefined property ''' + Str (TheExpr.Name.Lexeme) + '''.';
         end

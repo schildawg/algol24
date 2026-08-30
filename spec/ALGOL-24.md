@@ -464,15 +464,15 @@ case, because the keyword is recognised first. `var begin := 7;` and
 
 ### 4.4 Keywords
 
-**[LEX-010]**  The following 37 words are keywords and are matched
+**[LEX-010]**  The following 38 words are keywords and are matched
 case-insensitively per [SRC-010]:
 
 ```
 and     as       begin   break   case    class     const   constructor
-do      else     end     except  exit    false     for     function
-if      in       is      nil     not     object    of      or
-private procedure         public raise   super     then
-this    true     try     type    uses    var       while
+div     do       else    end     except  exit      false   for
+function         if      in      is      nil       not     object
+of      or       private procedure       public    raise   super
+then    this     true    try     type    uses      var     while
 ```
 
 No other word is a keyword. Every word not in this list is an identifier and
@@ -1909,6 +1909,32 @@ exactness goes with it.
     conformance  0041-integers-grow.a24
     conformance  0136-integer-range.a24
 
+**[EXP-018]**  `A div B` is integer division, said deliberately. It truncates
+toward zero as `/` does on two Integers, and **refuses** anything that is not an
+Integer.
+
+⚠️ **It says which division was meant.** `/` is integer division on two Integers
+and real division as soon as a Double reaches it [EXP-004], [EXP-005] — so
+`X / Y` cannot be read where `X` is declared `Any`, and an edit far from the
+division can change which operation it is. `div` always truncates.
+
+⚠️ **`/` is unchanged**, deliberately. Making it always real would be more
+predictable, and is a migration through every division in the tree — `algc`'s
+own included. `div` gives the programmer the option of saying plainly which was
+meant, and breaks nothing.
+
+⚠️ **Refusing a Double rather than truncating it** is the bargain `Mod` already
+makes. A programmer writing `div` has said the operands are Integers; if they
+are not, that is a mistake worth reporting rather than a conversion worth
+performing silently.
+
+⚠️ It binds as `*` and `/` do — a different operation, not a different
+precedence, so `A + B div C` groups the way `A + B / C` does.
+
+    interpreter  compiler/Interpreter.a24  IntegerDivide
+    compiler     bootstrap/algol.c         alg_div_int
+    conformance  0155-integer-division.a24
+
 **[EXP-008]**  `+` concatenates when **either** operand is a String or a Char,
 converting the other. `'x' + 1` is `x1`, `1 + 'x'` is `1x`, and `'a' + 'b'` —
 two Chars — is the String `ab`.
@@ -3282,6 +3308,28 @@ containing those bytes.
     interpreter  compiler/ObjFile.a24  Invoke
     compiler     bootstrap/algol.c     file_read_line
     conformance  0008-readln-line-rule.a24
+
+**[RT-019]**  A number answers `ToString`, which is `Str` by another spelling.
+`5.ToString ()` is `'5'`.
+
+⚠️ **C#'s arrangement, not Java's.** `5.ToString ()` works because an Integer is
+a type with members, not because a box wraps a primitive. There is no second
+kind of thing that compares differently under `=`, and nothing to unbox.
+Java's `int`/`Integer` duality — two things with almost the same name behaving
+differently — is what this avoids, and is the same objection [TYP-014] makes to
+a `Real` that converts.
+
+⚠️ **One rendering, so the two spellings cannot disagree.** `ToString` answers
+exactly what `Str` does, including for a Double's shortest round-trip form and
+for an Integer past the machine's width.
+
+⚠️ **It reads without being called**, like every other member [COL-005]:
+`var T := 7.ToString;` binds something callable and prints `<fn ToString>`
+[TYP-012].
+
+    interpreter  compiler/ObjFunction.a24  NumberMethod
+    compiler     bootstrap/algol.c         number_method
+    conformance  0156-number-members.a24
 
 **[RT-018]**  `Halt(N)` ends the program at once with status `N`. Nothing after
 it runs, and no enclosing `except` sees it — it is not an exception.
