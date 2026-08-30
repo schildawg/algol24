@@ -1,0 +1,7 @@
+10 20 30 
+a b 
+Can only iterate a collection or a String.
+Right operand of 'in' must be a collection or a String.
+BadToString instance
+1 2 
+exit: 0

@@ -1755,10 +1755,30 @@ typedef struct {
 static const Member *member_of(Value receiver, const char *name);
 static Value builtin_bound(Value receiver, const char *name, int32_t arity);
 
+/* Whether an instance's class declares a method of this name taking exactly
+ * this many arguments -- how a STRUCTURAL PROTOCOL is recognised.
+ *
+ * ⚠️ The ARITY has to match, and find_method cannot answer that: with 'strict'
+ * false it falls back to any method of the name, so a class declaring
+ * 'Elements (N : Integer)' answered true here and then failed inside alg_invoke
+ * with a message about signatures.  A protocol is a name AND a shape, and a
+ * method of the right name and the wrong shape does not implement it.
+ *
+ * ⚠️ All three protocols had it -- Contains/1, Elements/0, ToString/0 -- and
+ * the interpreter had the mirror image, asking FindMethod, which answers the
+ * first method of a name whatever its shape.  The worst of the three was 'in':
+ * '1 in B' on a class declaring 'Contains ()' answered TRUE interpreted, a
+ * wrong answer rather than an error, and raised compiled. */
 static bool has_method(Value v, const char *name, int32_t arity) {
     if (!is_obj(v, OBJ_INSTANCE)) return false;
 
-    return find_method(((ObjInstance *)v.obj)->klass, name, arity, NULL, false) != NULL;
+    for (ObjClass *at = ((ObjInstance *)v.obj)->klass; at != NULL; at = at->super)
+        for (int32_t i = 0; i < at->method_count; i++)
+            if (at->methods[i].arity == arity
+             && alg_stricmp(at->methods[i].name, name) == 0)
+                return true;
+
+    return false;
 }
 
 /* Whether a value stands where a class of this name is declared -- itself, or

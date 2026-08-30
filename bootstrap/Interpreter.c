@@ -820,7 +820,7 @@ Value f_stringify(Value **cells, Value *args, int32_t count) {
     }
     if (alg_truthy(alg_is(v_value, "ObjInstance"))) {
         {
-            Value v_method = alg_invoke(alg_property(v_value, "Klass"), "FindMethod", (Value[]){alg_string("tostring")}, 1);
+            Value v_method = alg_invoke(alg_property(v_value, "Klass"), "MethodOfArity", (Value[]){alg_string("tostring"), alg_int(0)}, 2);
             (void)v_method;
             if (alg_truthy(alg_not_equal(v_method, alg_nil()))) {
                 return f_stringify(NULL, (Value[]){v_theinterpreter, alg_invoke(alg_invoke(v_method, "Bind", (Value[]){v_value}, 1), "Call", (Value[]){v_theinterpreter, alg_list()}, 2)}, 2);
@@ -2652,7 +2652,7 @@ static Value m_interpreter_contains_2(Value v_this, Value *args, int32_t count) 
     }
     if (alg_truthy(alg_is(v_collection, "ObjInstance"))) {
         {
-            Value v_method = alg_invoke(alg_property(v_collection, "Klass"), "FindMethod", (Value[]){alg_string("contains")}, 1);
+            Value v_method = alg_invoke(alg_property(v_collection, "Klass"), "MethodOfArity", (Value[]){alg_string("contains"), alg_int(1)}, 2);
             (void)v_method;
             if (alg_truthy(alg_not_equal(v_method, alg_nil()))) {
                 return alg_invoke(v_this, "IsTruthy", (Value[]){alg_invoke(alg_invoke(v_method, "Bind", (Value[]){v_collection}, 1), "Call", (Value[]){v_this, alg_list_keep(alg_list(), v_value)}, 2)}, 1);
@@ -2738,7 +2738,7 @@ static Value m_interpreter_elementsof_2_token(Value v_this, Value *args, int32_t
     }
     if (alg_truthy(alg_is(v_target, "ObjInstance"))) {
         {
-            Value v_elements = alg_invoke(alg_property(v_target, "Klass"), "FindMethod", (Value[]){alg_string("elements")}, 1);
+            Value v_elements = alg_invoke(alg_property(v_target, "Klass"), "MethodOfArity", (Value[]){alg_string("elements"), alg_int(0)}, 2);
             (void)v_elements;
             if (alg_truthy(alg_not_equal(v_elements, alg_nil()))) {
                 return alg_invoke(v_this, "ElementsOf", (Value[]){v_where, alg_invoke(alg_invoke(v_elements, "Bind", (Value[]){v_target}, 1), "Call", (Value[]){v_this, alg_list()}, 2)}, 2);

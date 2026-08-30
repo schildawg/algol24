@@ -29,6 +29,34 @@ begin
     /// arguments yet, so the first of that name is handed back and the call
     /// site re-selects once it knows them.
     ///
+    /// The method of this name taking exactly this many arguments, or Nil.
+    ///
+    /// ⚠️ How a STRUCTURAL PROTOCOL is recognised, and the reason FindMethod
+    /// cannot do it: that answers the first method of a name whatever its
+    /// shape.  A protocol is a name AND a shape -- 'Elements' taking no
+    /// arguments, 'Contains' taking one, 'ToString' taking none -- and a method
+    /// of the right name and the wrong shape does not implement it.
+    ///
+    /// ⚠️ Asking FindMethod instead let three protocols accept a method they
+    /// then could not call.  The worst was 'in': '1 in B' on a class declaring
+    /// 'Contains ()' answered TRUE interpreted -- a wrong answer, not an error
+    /// -- while the compiled program raised.  The runtime's has_method had the
+    /// same hole, from the other side: find_method with strict false falls back
+    /// to any method of the name.
+    ///
+    function MethodOfArity (Name : String, TheArity : Integer) : ObjFunction;
+    begin
+        if Methods.Contains (Name) then
+        begin
+            var Found := Methods.Get (Name);
+
+            for var I := 0; I < Found.Length; I := I + 1 do
+                if Found[I].Arity () = TheArity then Exit Found[I] as ObjFunction;
+        end
+
+        if Superclass <> Nil then Exit Superclass.MethodOfArity (Name, TheArity);
+    end
+
     function FindMethod (Name : String) : ObjFunction;
     begin
         if Methods.Contains (Name) then

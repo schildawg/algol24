@@ -554,7 +554,8 @@ begin
 
     if Value is ObjInstance then
     begin
-        var Method := Value.Klass.FindMethod ('tostring');
+        // Arity 0: a protocol is a name AND a shape [TYP-011].
+        var Method := Value.Klass.MethodOfArity ('tostring', 0);
 
         if Method <> Nil then
             Exit Stringify (TheInterpreter, Method.Bind (Value).Call (TheInterpreter, List()));
@@ -2455,7 +2456,9 @@ begin
 
         if Collection is ObjInstance then
         begin
-            var Method := Collection.Klass.FindMethod ('contains');
+            // Arity 1.  Asking FindMethod let a class declaring 'Contains ()'
+            // answer '1 in B' with TRUE -- a wrong answer, not an error.
+            var Method := Collection.Klass.MethodOfArity ('contains', 1);
             if Method <> Nil then
                 Exit IsTruthy (Method.Bind (Collection).Call (this, [Value]));
         end
@@ -2522,7 +2525,7 @@ begin
 
         if Target is ObjInstance then
         begin
-            var Elements := Target.Klass.FindMethod ('elements');
+            var Elements := Target.Klass.MethodOfArity ('elements', 0);
             if Elements <> Nil then
                 Exit ElementsOf (Where, Elements.Bind (Target).Call (this, List()));
         end

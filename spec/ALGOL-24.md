@@ -1400,14 +1400,46 @@ See Annex H, H-4.
     interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
     conformance  0031-instance-is-not-subscriptable.a24
 
-**[TYP-011]**  A class instance may not be iterated. `for var X in B do` over an
-instance is the runtime error `Can only iterate a collection or a String.`
+**[TYP-011]**  A class instance is iterable when its class declares an
+`Elements` method **taking no arguments**; `for var X in B do` then walks what
+that method returns. An instance whose class declares no such method is the
+runtime error `Can only iterate a collection or a String.`
 
-⚠️ **PLANNED — a later generation.** An iteration protocol a class may
-implement. See Annex H, H-5.
+```
+class Bag;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [10, 20, 30]; end
+    function Elements (); begin Exit Items; end
+end
 
-    interpreter  compiler/Interpreter.a24  VisitForInStmt
+for var X in Bag () do Write (X);      // 102030
+```
+
+⚠️ **The protocol is STRUCTURAL, not declared.** There is nothing to inherit
+from and nothing to announce: a class either has the method or it does not. `Str`
+works the same way through `ToString` [CLS-009], and `in` through a `Contains`
+taking one argument — three protocols, one convention.
+
+⚠️ **A protocol is a name AND a shape.** `Elements` taking an argument does not
+implement this one, and such a class is simply not iterable. Neither processor
+checked that: the interpreter asked for the first method of the name whatever
+its shape, the runtime's `has_method` fell back to the same, and the two then
+failed differently — `Index 0 out of range 0..-1.` against
+`No matching signature for function.`, neither of them the message above.
+
+⚠️ **The result is walked, not re-asked.** `Elements` may return another
+instance that also declares `Elements`, and the chain resolves — which is what
+stops a `List` whose `Elements` returns a `List` from recursing forever.
+
+⚠️ **It is snapshotted like any other walk** [STM-009]. The method answers a
+whole collection, so the loop has its elements before the first pass runs; a
+lazy protocol would be a different feature and would take that guarantee away.
+
+    interpreter  compiler/Interpreter.a24  ElementsOf
+    compiler     bootstrap/algol.c         alg_iterable
     conformance  0032-instance-is-not-iterable.a24
+    conformance  0165-a-class-that-iterates.a24
 
 **[TYP-012]**  A class exposes a **field** without parentheses and a **method**
 with them. There is no getter declaration, so a computed value cannot be read as
@@ -2190,7 +2222,7 @@ String it yields each `Char`; over a `Map` it yields each **key**.
     conformance  0054-loops.a24
 
 **[STM-008]**  Iterating anything else is `Can only iterate a collection or a
-String.` — see [TYP-011], and Annex H, H-5.
+String.` — see [TYP-011], which is where a class says it is iterable.
 
     interpreter  compiler/Interpreter.a24  VisitForInStmt
     conformance  0032-instance-is-not-iterable.a24
@@ -2701,12 +2733,18 @@ it.
     compiler     bootstrap/algol.c         alg_property
     conformance  0066-members.a24
 
-**[CLS-009]**  A class declaring `ToString()` decides how its instances render
-through `Str` [RT-006] and wherever a value is written [RT-015]. With none, an
-instance renders as its class name followed by ` instance` — `C instance`.
+**[CLS-009]**  A class declaring `ToString()` — **taking no arguments** —
+decides how its instances render through `Str` [RT-006] and wherever a value is
+written [RT-015]. With none, an instance renders as its class name followed by
+` instance` — `C instance`.
+
+⚠️ **The arity is part of the protocol**, as it is for `Elements` [TYP-011]. A
+`ToString` taking an argument does not implement this one and the default
+rendering stands, rather than the call being attempted and failing.
 
     interpreter  compiler/Interpreter.a24  Stringify
     conformance  0066-members.a24
+    conformance  0165-a-class-that-iterates.a24
 
 **[CLS-010]**  Reading or calling a member the class does not have is
 `Undefined property 'X'.`
@@ -6238,10 +6276,28 @@ point a reader at this number, and a number that has been cited should lead
 somewhere.
 
 **H-5 — An iteration protocol a class may implement.**
-*(will change [TYP-011])*
+***Largely landed in Generation 5.*** *(changed [TYP-011], [CLS-009])*
 
-`for var X in B` over a class instance is `Can only iterate a collection or a
-String.` today. Pinned by `conformance/0032-instance-is-not-iterable.a24`.
+A class declaring `Elements` taking no arguments is iterable, and always was —
+the interpreter's `ElementsOf` and the runtime's `alg_iterable` both had it, in
+agreement. What was missing was the **rule**, and an unspecified protocol had
+already drifted: an `Elements` of the wrong arity failed differently in the two
+processors, and a `Contains` of the wrong arity answered `1 in B` with **true**
+interpreted while raising compiled — a wrong answer, not merely a wrong message.
+[TYP-011] now states the protocol and both sides check the shape.
+
+⚠️ **What is left is not iteration but its neighbours.** Two questions the
+protocol raises and does not answer:
+
+| | |
+| --- | --- |
+| A class that iterates like a `Map` | A built-in `Map` yields its **keys** [STM-007]. A class can return a list of keys, but has no way to say it is pair-shaped, so `for var K in M` and a user-written map cannot mean the same thing. |
+| `Elements` returning `this` | The result is walked rather than re-asked, which stops the ordinary chain from recursing — but a class whose `Elements` answers itself recurses without bound in both processors. |
+
+⚠️ **Membership has no rule of its own.** `Contains` on a class instance is
+implemented in both processors and specified nowhere: [COL-012] governs the
+*equality* membership uses, not the protocol that lets a class answer it. The
+same paragraph [TYP-011] now carries for `Elements` is owed to `in`.
 
 **H-6 — A computed property.** *(will change [TYP-012])*
 

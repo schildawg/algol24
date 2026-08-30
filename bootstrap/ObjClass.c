@@ -6,6 +6,7 @@
 
 Value k_objclass;
 static const char *t_objclass_init_4_string_objclass_map_list[] = { "Name : String", "Superclass : ObjClass", "Methods : Map", "Fields : List" };
+static const char *t_objclass_methodofarity_2_string_integer[] = { "Name : String", "TheArity : Integer" };
 static const char *t_objclass_findmethod_1_string[] = { "Name : String" };
 static const char *t_objclass_findoverload_2_string_list[] = { "Name : String", "Arguments : List" };
 static const char *t_objclass_fitting_3_string_list_integer[] = { "Name : String", "Arguments : List", "Pass : Integer" };
@@ -35,6 +36,33 @@ static Value m_objclass_init_4_string_objclass_map_list(Value v_this, Value *arg
     (void)(alg_set_property(v_this, "Methods", alg_widen(v_methods, "Map")));
     (void)(alg_set_property(v_this, "Superclass", alg_widen(v_superclass, "ObjClass")));
     (void)(alg_set_property(v_this, "Fields", alg_widen(v_fields, "List")));
+    return alg_nil();
+}
+
+static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_name = alg_widen(args[0], "String");
+    (void)v_name;
+    Value v_thearity = alg_widen(args[1], "Integer");
+    (void)v_thearity;
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Methods"), "Contains", (Value[]){v_name}, 1))) {
+        {
+            Value v_found = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1);
+            (void)v_found;
+            {
+                Value v_i = alg_int(0);
+                (void)v_i;
+                for (; alg_truthy(alg_less(v_i, alg_property(v_found, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    if (alg_truthy(alg_equal(alg_invoke(alg_subscript_get(v_found, v_i), "Arity", NULL, 0), v_thearity))) {
+                        return alg_cast(alg_subscript_get(v_found, v_i), "ObjFunction");
+                    }
+                }
+            }
+        }
+    }
+    if (alg_truthy(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil()))) {
+        return alg_invoke(alg_property(v_this, "Superclass"), "MethodOfArity", (Value[]){v_name, v_thearity}, 2);
+    }
     return alg_nil();
 }
 
@@ -189,6 +217,7 @@ void init_ObjClass(void) {
     alg_class_field(k_objclass, "Fields");
     alg_class_initializer(k_objclass, i_objclass);
     alg_class_method(k_objclass, "Init", m_objclass_init_4_string_objclass_map_list, 4, t_objclass_init_4_string_objclass_map_list);
+    alg_class_method(k_objclass, "MethodOfArity", m_objclass_methodofarity_2_string_integer, 2, t_objclass_methodofarity_2_string_integer);
     alg_class_method(k_objclass, "FindMethod", m_objclass_findmethod_1_string, 1, t_objclass_findmethod_1_string);
     alg_class_method(k_objclass, "FindOverload", m_objclass_findoverload_2_string_list, 2, t_objclass_findoverload_2_string_list);
     alg_class_method(k_objclass, "Fitting", m_objclass_fitting_3_string_list_integer, 3, t_objclass_fitting_3_string_list_integer);

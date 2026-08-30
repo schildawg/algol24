@@ -1,0 +1,90 @@
+// spec: TYP-011, STM-009
+//
+// A class is iterable when it declares 'Elements' taking no arguments.
+//
+// ⚠️ The protocol is STRUCTURAL, not declared: there is nothing to inherit from
+// and nothing to announce.  'in' works the same way through Contains, and 'Str'
+// through ToString -- three protocols, one convention.
+
+class Bag;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [10, 20, 30]; end
+    function Elements (); begin Exit Items; end
+end
+
+for var X in Bag () do Write (Str (X) + ' ');
+WriteLn ();
+
+// ⚠️ The result is WALKED, not re-asked, so Elements may hand back another
+// instance that also declares Elements and the chain resolves.  That is what
+// stops a List whose Elements returns a List from recursing forever.
+class Inner;
+begin
+    constructor Init (); begin end
+    function Elements (); begin Exit ['a', 'b']; end
+end
+
+class Outer;
+begin
+    constructor Init (); begin end
+    function Elements (); begin Exit Inner (); end
+end
+
+for var Y in Outer () do Write (Str (Y) + ' ');
+WriteLn ();
+
+// ⚠️ A PROTOCOL IS A NAME AND A SHAPE.  'Elements' taking an argument does not
+// implement this one, so the class is simply not iterable -- and says so with
+// the ordinary message rather than with a complaint about signatures.
+class WrongShape;
+begin
+    constructor Init (); begin end
+    function Elements (N : Integer); begin Exit [1]; end
+end
+
+try
+    for var Z in WrongShape () do WriteLn (Z);
+except
+    on e : String do WriteLn (e);
+end
+
+// The same rule on the other two protocols.  'Contains ()' does not implement
+// membership, and answering it TRUE was a wrong answer rather than an error.
+class BadContains;
+begin
+    constructor Init (); begin end
+    function Contains (); begin Exit True; end
+end
+
+try
+    WriteLn (1 in BadContains ());
+except
+    on e : String do WriteLn (e);
+end
+
+// And 'ToString (N)' does not implement stringification, so the default stands.
+class BadToString;
+begin
+    constructor Init (); begin end
+    function ToString (N : Integer); begin Exit 'never'; end
+end
+
+WriteLn (Str (BadToString ()));
+
+// ⚠️ Snapshotted like any other walk [STM-009]: Elements answers a whole
+// collection, so the loop has its elements before the first pass runs.
+class Growing;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [1, 2]; end
+    function Elements (); begin Exit Items; end
+end
+
+var G := Growing ();
+for var W in G do
+begin
+    Write (Str (W) + ' ');
+    G.Items.Add (99);
+end
+WriteLn ();
