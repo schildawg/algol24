@@ -6418,12 +6418,12 @@ gate in it, which is worse than no fence because it invites the declared type to
 be trusted.
 
 **H-4 — A subscript operator a class may declare.**
-***Folded into H-8.*** *(will change [TYP-010])*
+***Folded into H-15.*** *(will change [TYP-010])*
 
-Subscripting is operator overloading in a particular spelling, so it is decided
-there rather than separately. The entry is kept because [TYP-010] and [EXP-016]
-point a reader at this number, and a number that has been cited should lead
-somewhere.
+Subscripting turned out not to want an operator declaration at all: it is a
+structural protocol, and is decided in **H-15**. This entry is kept because
+[TYP-010] and [EXP-016] point a reader at this number, and a number that has
+been cited should lead somewhere.
 
 **H-5 — An iteration protocol a class may implement.**
 ***Largely landed in Generation 5.*** *(changed [TYP-011], [CLS-009])*
@@ -6505,33 +6505,40 @@ is entitled to hold. It agreed with the new operator only because UTF-8 is
 designed so byte order matches code-point order, which is right by accident.
 Both now go through one function.
 
-**H-8 — Operator overloading.** *(will change [VAL-011], and more)*
+**H-8 — Arithmetic operators a program may define.**
+*(will change [EXP-004], and more)*
 
-An operator a program may define for its own type. Today comparison of a class
-instance is by identity [VAL-011] with no way to say otherwise, and a
-user-written collection cannot be compared, ordered or combined the way a
-built-in one can.
+`+`, `-`, `*`, `/`, `div` and unary `-` on a type of a program's own — a Vector,
+a Money, a Matrix.
 
-⚠️ **This is the umbrella over what is left of Annex H, and most of what it
-covered has already gone out from under it.** Subscripting (H-4, folded into
-this entry) is operator overloading in a particular spelling; H-6's property and
-H-7's ordering were two more, and both landed in Generation 6 without waiting
-for this — a property by being a member kind, and ordering by being built in.
-What remains here is the general case: an operator a program defines for its own
-type. Several rules in chapters 6 and 7 are shaped by the language having no
-answer, and they will want revisiting together rather than one at a time.
+⚠️ **This is what is left after the rest of the annex was taken out from under
+it.** The entry used to be "the umbrella over much of Annex H": H-6's property
+and H-7's ordering were named as operator overloading in particular spellings,
+and both landed in Generation 6 without it. Subscripting (H-15) and comparison
+(H-16) come out too, as **protocols** rather than operators. What remains is
+arithmetic, which is the only part that genuinely wants an operator declaration.
 
-⚠️ **Subscripting is the one that needs TWO members where the rest need one**,
-and that is the whole of what it adds. `B[0]` reads and `B[0] := X` writes, so a
-class declaring it supplies a getter and a setter; `+`, `<` and `=` are each a
-single expression yielding a value. `B[0]` on an instance is
-`Subscript target should be an ordinal.` today, whatever methods the class
-declares, and `conformance/0031-instance-is-not-subscriptable.a24` pins that.
+⚠️ **`not` is not on the list**, and deliberately. It tests truthiness, which
+[VAL-008] defines for every value in the language; a type overloading it can be
+neither consistently falsey nor consistently truthy, which is lying about a
+language-wide property rather than defining its own behaviour.
 
-⚠️ **`[` and `]` are punctuation rather than operators** [LEX-012], listed
-beside `(`, `,` and `;`. So "a program may define an operator" does not reach
-subscripting on its own — that it is overloadable at all is a decision this
-entry has to take, not one it inherits.
+⚠️ **`:=` is not on the list either, and could not be.** Dispatch is on the whole
+signature from the values actually passed [FUN-013], and the left of an
+assignment is a **location**, not a value — `A := B` with a fresh `A` has nothing
+to select on. It is outside the mechanism rather than excluded from it.
+
+⚠️ **No new operators, and no Unicode ones.** Three reasons, in descending
+force: precedence has nowhere to come from, since [EXP-001] is a fixed
+seven-level table and a new operator would need declared precedence and
+associativity; the character space is contested, since `?` and `!` are already
+identifier marks [LEX-008]; and a reader meeting `⊕` must find its declaration
+to learn how it binds, which is the opposite of every other choice this language
+has made. It also serves nothing H-9 needs, which is the existing operators.
+
+⚠️ **`Mod` is a function and `div` is an operator** [RT-011], [EXP-018], so a
+type could take `div` and never `mod`. The asymmetry predates this entry and is
+not caused by it, but it will look as though it were.
 
 **H-9 — The collections as a unit written in Algol-24.**
 *(will retire most of chapter 14)*
@@ -6553,10 +6560,10 @@ can reach what it needs without the runtime growing a built-in for every call �
 otherwise everything removed from chapter 14 arrives back in chapter 16, and
 this is paid for twice.
 
-⚠️ **Only subscripting (H-8) is still owed.** Iteration landed in Generation 5
+⚠️ **Only subscripting (H-15) is still owed.** Iteration landed in Generation 5
 [TYP-011] and a read-only property in Generation 6 [CLS-017], so a `List`
 written in Algol-24 already answers `L.Length` without parentheses and walks in
-a `for ... in`. What it still cannot do is `L[0]`, and until it can it is
+a `for ... in`. What it still cannot do is `L[0]` — H-15 — and until it can it is
 strictly worse to use than the built-in it would replace — which is not a trade
 worth making.
 
@@ -6752,3 +6759,70 @@ counted loops, not the whole of libc.
 has behaviour this specification does not define and cannot check, so the rules
 will have to say where conformance stops — the first place in this language
 where that sentence has to be written.
+
+**H-15 — Subscripting through `Get` and `Put`.**
+*(will change [TYP-010], [EXP-016])*
+
+`B[0]` on a class instance calls `B.Get (0)`, and `B[0] := X` calls
+`B.Put (0, X)`. `B[0]` is `Subscript target should be an ordinal.` today,
+whatever methods the class declares. Pinned by
+`conformance/0031-instance-is-not-subscriptable.a24`.
+
+⚠️ **No new syntax, and no operator feature.** `Get` and `Put` are already the
+built-in collection member names [COL-003], so this is the **fifth structural
+protocol** beside `Elements` [TYP-011], `Contains`, `ToString` [CLS-009] and the
+`property` of Generation 6 — a class either declares the member or it does not.
+
+⚠️ **The two forms fall out as two members**, which answers the one question
+subscripting adds that no other operator has. A read and a write are `Get` of
+one argument and `Put` of two; the language already tells those apart everywhere
+else, so nothing has to pair a getter with a setter syntactically.
+
+⚠️ **A protocol is a name AND a shape** [TYP-011]. `Get` taking two arguments
+does not implement this one.
+
+**H-16 — Ordering through `Compare`.** *(will change [VAL-014], [COL-013])*
+
+A class declaring `Compare (Other) : Integer` — negative, zero or positive —
+orders with `<`, `<=`, `>` and `>=`, and sorts.
+
+⚠️ **It costs nothing that equality costs.** Ordering touches no hash and no
+membership, so unlike [VAL-013]'s coupling there is no second protocol that must
+move with it. `Sort` [COL-013] gets it for free, since Sort already asks the
+same ordering `<` does as of Generation 6.
+
+⚠️ **The sixth structural protocol**, on the same terms as H-15: a name and a
+shape, no declaration keyword, no precedence question.
+
+**H-17 — Equality, and the hash that must come with it.**
+*(will change [VAL-011], [VAL-013])*
+
+A class deciding what `=` means for its instances. Today comparison is by
+**identity** [VAL-011] with no way to say otherwise, so two values that are
+alike are never equal.
+
+⚠️ **The coupling is the whole difficulty, and it is a rule rather than an
+implementation detail.** [VAL-013] states that membership and equality are one
+relation: *if `X = Y` then a collection holding `Y` contains `X`*. A Map and a
+Set bucket by a hash, and an object key hashes by its **address** — so the
+moment two distinct instances compare equal, `A = B` is true while `B in [A]` is
+false, and a specified rule is broken silently.
+
+⚠️ **Which is exactly why Java pairs `equals` with `hashCode`**, and the
+discipline is the argument *for* this feature rather than against it: the two
+must move together, so a language that offers one must offer the other and say
+so. Java cannot enforce the pairing either; what it does is make the obligation
+explicit and famous.
+
+⚠️ **The fixed point is NOT an obstacle, though it first looked like one.**
+`ObjMap`'s index carries a warning that an address-keyed hash deciding iteration
+order would make the fixed-point check fail intermittently — "the worst failure
+mode this project has", and a bug already made once. Reading it again: it
+describes a design that was **rejected**. Entries stay in insertion order and
+nothing iterates the index, which is what makes the index legal. A user-defined
+hash changes which bucket a key lands in and not the order anything is read in,
+so the hazard is already neutralised structurally.
+
+⚠️ **What it does need is both processors**, as ever: an interpreted `Equals`
+and a compiled one, and a hash protocol in each, agreeing exactly. That is the
+real size of the entry.
