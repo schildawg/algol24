@@ -252,6 +252,25 @@ var
     /// the frames opened inside the loop.
     LoopTryDepth : Integer := 0;
 
+    /// The label of each enclosing loop, innermost last, and the TryDepth each
+    /// began at.
+    ///
+    /// ⚠️ LoopTryDepth is not enough once a break can NAME a loop.  It holds
+    /// the innermost loop's depth, and 'break Outer' from two loops in has to
+    /// pop everything opened inside OUTER -- the frames of the inner loop
+    /// included.  One number cannot answer that; a stack can.
+    LoopLabels   : List := [];
+    LoopDepths   : List := [];
+
+    /// C labels a goto has actually been emitted for.
+    ///
+    /// ⚠️ Emitted only when jumped to, and this is why it can be decided at
+    /// all: the loop's BODY is written before its labels are, so by the time
+    /// the closing brace is reached it is already known whether anything jumped.
+    /// A label nothing jumps to is a warning under -Wall, and writing one for
+    /// every labelled loop would produce a pair of them for every single use.
+    Jumped       : Set  := [];
+
     /// True while emitting a body that contains a try.
     Volatiles    : Boolean := False;
 
@@ -2760,13 +2779,42 @@ begin
 
         var EnclosingLoopDepth := LoopTryDepth;
         LoopTryDepth := TryDepth;
+        LoopLabels.Add (TheStmt.Label);
+        LoopDepths.Add (TryDepth);
+
         Execute (TheStmt.Body);
+
+        LoopLabels.RemoveAt (LoopLabels.Length - 1);
+        LoopDepths.RemoveAt (LoopDepths.Length - 1);
         LoopTryDepth := EnclosingLoopDepth;
+
+        EmitContinueTarget (TheStmt.Label);
 
         Depth := Depth - 1;
         Line ('}');
 
+        EmitBreakTarget (TheStmt.Label);
+
         CloseScope (Mark);
+    end
+
+    /// ⚠️ The last thing INSIDE the body, so falling off the end runs the C
+    /// 'for' increment and re-tests -- which is what continuing means.
+    procedure EmitContinueTarget (TheLabel : String);
+    begin
+        if TheLabel = '' then Exit;
+        if not Jumped.Contains (ContinueTarget (TheLabel)) then Exit;
+
+        Line (ContinueTarget (TheLabel) + ': ;');
+    end
+
+    /// ⚠️ The first thing AFTER the loop, which is where leaving it lands.
+    procedure EmitBreakTarget (TheLabel : String);
+    begin
+        if TheLabel = '' then Exit;
+        if not Jumped.Contains (BreakTarget (TheLabel)) then Exit;
+
+        Line (BreakTarget (TheLabel) + ': ;');
     end
 
     procedure VisitReturnStmt (TheStmt : ReturnStmt);
@@ -4598,11 +4646,21 @@ begin
 
         var EnclosingLoopDepth := LoopTryDepth;
         LoopTryDepth := TryDepth;
+        LoopLabels.Add (TheStmt.Label);
+        LoopDepths.Add (TryDepth);
+
         Execute (TheStmt.Body);
+
+        LoopLabels.RemoveAt (LoopLabels.Length - 1);
+        LoopDepths.RemoveAt (LoopDepths.Length - 1);
         LoopTryDepth := EnclosingLoopDepth;
+
+        EmitContinueTarget (TheStmt.Label);
 
         Depth := Depth - 1;
         Line ('}');
+
+        EmitBreakTarget (TheStmt.Label);
 
         Depth := Depth - 1;
         Line ('}');
@@ -4610,14 +4668,68 @@ begin
         CloseScope (Mark);
     end
 
+    /// The C label a 'break Outer' jumps to -- written after the loop.
+    ///
+    /// ⚠️ FOLDED before mangling [SRC-011], so 'Outer' and 'outer' produce one
+    /// symbol.  Annex G.3's mangling lowercases anyway, but folding here says
+    /// that the two labels ARE one, rather than relying on the mangler.
+    function BreakTarget (TheLabel : String) : String;
+    begin
+        Exit 'lb_' + Escaped (FoldCase (TheLabel));
+    end
+
+    /// The C label a 'continue Outer' jumps to -- the last thing in the body.
+    ///
+    /// ⚠️ At the END OF THE BODY, not after the loop, and that placement is the
+    /// whole trick.  Falling off the end of a C 'for' body runs the increment
+    /// clause and re-tests, which is exactly what continuing means -- so the
+    /// step is taken for a labelled continue by the same mechanism that takes
+    /// it for an unlabelled one.
+    function ContinueTarget (TheLabel : String) : String;
+    begin
+        Exit 'lc_' + Escaped (FoldCase (TheLabel));
+    end
+
+    /// The TryDepth the loop of this label began at.
+    ///
+    function DepthOfLoop (TheLabel : String) : Integer;
+    begin
+        for var I := LoopLabels.Length - 1; I >= 0; I := I - 1 do
+            if FoldCase (Str (LoopLabels[I])) = FoldCase (TheLabel) then
+                Exit LoopDepths[I] as Integer;
+
+        Exit LoopTryDepth;
+    end
+
+    /// Leaves every try opened inside the loop being left.
+    ///
+    procedure PopFramesTo (From : Integer);
+    begin
+        for var I := From; I < TryDepth; I := I + 1 do
+            Line ('alg_pop_frame();');
+    end
+
+    /// ⚠️ C HAS NO LABELLED BREAK, so a named one is a goto to a label written
+    /// after the loop.  That is what makes 'goto' machinery this back end needs
+    /// whether or not the language has the statement.
     procedure VisitBreakStmt (TheStmt : BreakStmt);
     begin
-        // Only the frames opened inside the loop: the ones outside it are
-        // still live once the loop is left.
-        for var I := LoopTryDepth; I < TryDepth; I := I + 1 do
-            Line ('alg_pop_frame();');
+        if TheStmt.Label = '' then
+        begin
+            // Only the frames opened inside the loop: the ones outside it are
+            // still live once the loop is left.
+            PopFramesTo (LoopTryDepth);
+            Line ('break;');
 
-        Line ('break;');
+            Exit;
+        end
+
+        PopFramesTo (DepthOfLoop (TheStmt.Label));
+
+        var Target := BreakTarget (TheStmt.Label);
+        Jumped.Add (Target);
+
+        Line ('goto ' + Target + ';');
     end
 
     /// ⚠️ Pops the same frames 'break' does, and for the same reason: leaving
@@ -4627,10 +4739,27 @@ begin
     /// where they go, not in what they leave behind.
     procedure VisitContinueStmt (TheStmt : ContinueStmt);
     begin
-        for var I := LoopTryDepth; I < TryDepth; I := I + 1 do
-            Line ('alg_pop_frame();');
+        if TheStmt.Label = '' then
+        begin
+            PopFramesTo (LoopTryDepth);
+            Line ('continue;');
 
-        Line ('continue;');
+            Exit;
+        end
+
+        PopFramesTo (DepthOfLoop (TheStmt.Label));
+
+        var Target := ContinueTarget (TheStmt.Label);
+        Jumped.Add (Target);
+
+        Line ('goto ' + Target + ';');
+    end
+
+    /// A label emits nothing of its own: the loop it names writes its targets,
+    /// because only the loop knows where they belong.
+    procedure VisitLabelStmt (TheStmt : LabelStmt);
+    begin
+        Execute (TheStmt.Inner);
     end
 
     /// 'var X, Y : Integer := 0;' -- one initializer, several names.

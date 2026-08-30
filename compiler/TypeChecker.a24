@@ -694,6 +694,20 @@ begin
         begin
             Reduce (TheStmt.Condition);
             Check (TheStmt.Body);
+
+            // The step is the loop's now, not the body's, so it is checked here
+            // -- it used to be an ordinary statement inside the body [STM-010].
+            if TheStmt.Increment <> Nil then Reduce (TheStmt.Increment);
+            Exit;
+        end
+
+        // ⚠️ A label must be SEEN THROUGH, not ignored.  This dispatches on the
+        // statement's kind, so an unhandled one is walked past in silence --
+        // which would have left the whole body of every labelled loop
+        // unchecked.
+        if Kind = 'LabelStmt' then
+        begin
+            Check (TheStmt.Inner);
             Exit;
         end
 

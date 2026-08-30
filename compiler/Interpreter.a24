@@ -2380,13 +2380,17 @@ begin
                 try
                     Execute (Stmt.Body);
                 except
-                    on c : Continued do begin end
+                    // ⚠️ RE-RAISED when it names another loop, which is what
+                    // lets a labelled continue travel outward past this one.
+                    on c : Continued do
+                        if not Names (c.Label, Stmt.Label) then raise c;
                 end
 
                 if Stmt.Increment <> Nil then Evaluate (Stmt.Increment);
             end
         except
-            on e : Broke do Exit;
+            on e : Broke do
+                if not Names (e.Label, Stmt.Label) then raise e;
         end
     end
 
@@ -2518,22 +2522,34 @@ begin
                 try
                     ExecuteBlock ([TheStmt.Body], Scope);
                 except
-                    on c : Continued do begin end
+                    on c : Continued do
+                        if not Names (c.Label, TheStmt.Label) then raise c;
                 end
             end
         except
-            on e : Broke do Exit;
+            on e : Broke do
+                if not Names (e.Label, TheStmt.Label) then raise e;
         end
     end
 
     procedure VisitBreakStmt (TheStmt : BreakStmt);
     begin
-        raise Broke ();
+        raise Broke (TheStmt.Label);
     end
 
     procedure VisitContinueStmt (TheStmt : ContinueStmt);
     begin
-        raise Continued ();
+        raise Continued (TheStmt.Label);
+    end
+
+    /// A label does nothing when execution simply reaches it.
+    ///
+    /// ⚠️ It is a POSITION, not an action.  Its whole purpose is to be found --
+    /// by a break or continue naming the loop it marks, and by a goto scanning
+    /// the block it sits in.
+    procedure VisitLabelStmt (TheStmt : LabelStmt);
+    begin
+        Execute (TheStmt.Inner);
     end
 
     /// Runs a module's declarations, then hands the exported ones over.
@@ -2842,11 +2858,20 @@ end
 /// every place that unwinds treats them differently, and the handler list is
 /// where that difference is written down.
 ///
-/// It carries nothing.  There is no labelled break, so the innermost loop is
-/// always the one that catches.
+/// It carries the LABEL written after the keyword, or '' for the innermost
+/// loop.  A loop catches it only when the label is empty or names that loop,
+/// and re-raises otherwise -- which is how it travels outward past the loops it
+/// does not mean [STM-010].
 ///
 class Broke;
+var
+    Label : String;
+
 begin
+    constructor Init (Label : String);
+    begin
+        this.Label := Label;
+    end
 end
 
 /// A 'continue', travelling as a host exception.
@@ -2858,11 +2883,28 @@ end
 /// Continued around the body alone, one statement apart and not
 /// interchangeable.
 ///
-/// It carries nothing.  There is no labelled continue, so the innermost loop is
-/// always the one that catches.
+/// It carries a label on the same terms Broke does.
 ///
 class Continued;
+var
+    Label : String;
+
 begin
+    constructor Init (Label : String);
+    begin
+        this.Label := Label;
+    end
+end
+
+/// Whether a loop of this label is the one a break or continue named.
+///
+/// ⚠️ Folded [SRC-011], because a label is a name like any other.
+///
+function Names (Wanted : String, Loop : String) : Boolean;
+begin
+    if Wanted = '' then Exit True;
+
+    Exit FoldCase (Wanted) = FoldCase (Loop);
 end
 
 /// An interpreted 'raise', travelling as a host exception.

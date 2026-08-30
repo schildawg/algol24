@@ -33,6 +33,9 @@ static const char *t_breakstmt_accept_1[] = { "Visitor : Any" };
 Value k_continuestmt;
 static const char *t_continuestmt_init_1_token[] = { "Keyword : Token" };
 static const char *t_continuestmt_accept_1[] = { "Visitor : Any" };
+Value k_labelstmt;
+static const char *t_labelstmt_init_2_token_stmt[] = { "Name : Token", "Inner : Stmt" };
+static const char *t_labelstmt_accept_1[] = { "Visitor : Any" };
 Value k_trystmt;
 static const char *t_trystmt_init_2_stmt_map[] = { "TryBlock : Stmt", "Handlers : Map" };
 static const char *t_trystmt_accept_1[] = { "Visitor : Any" };
@@ -286,6 +289,7 @@ static Value m_modulestmt_accept_1(Value v_this, Value *args, int32_t count) {
 static Value i_breakstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Keyword", alg_nil());
+    alg_set_property(v_this, "Label", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
 
@@ -308,6 +312,7 @@ static Value m_breakstmt_accept_1(Value v_this, Value *args, int32_t count) {
 static Value i_continuestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Keyword", alg_nil());
+    alg_set_property(v_this, "Label", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
 
@@ -324,6 +329,32 @@ static Value m_continuestmt_accept_1(Value v_this, Value *args, int32_t count) {
     Value v_visitor = args[0];
     (void)v_visitor;
     return alg_invoke(v_visitor, "VisitContinueStmt", (Value[]){v_this}, 1);
+    return alg_nil();
+}
+
+static Value i_labelstmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Name", alg_nil());
+    alg_set_property(v_this, "Inner", alg_nil());
+    return alg_nil();
+}
+
+static Value m_labelstmt_init_2_token_stmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_name = alg_widen(args[0], "Token");
+    (void)v_name;
+    Value v_inner = alg_widen(args[1], "Stmt");
+    (void)v_inner;
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Inner", alg_widen(v_inner, "Stmt")));
+    return alg_nil();
+}
+
+static Value m_labelstmt_accept_1(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitLabelStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
@@ -384,6 +415,7 @@ static Value i_forinstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Iterable", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
+    alg_set_property(v_this, "Label", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
 
@@ -414,6 +446,7 @@ static Value i_whilestmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Condition", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
     alg_set_property(v_this, "Increment", alg_widen(alg_nil(), "Expr"));
+    alg_set_property(v_this, "Label", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
 
@@ -599,6 +632,7 @@ void init_Stmt(void) {
     k_modulestmt = alg_class("ModuleStmt", alg_nil());
     k_breakstmt = alg_class("BreakStmt", alg_nil());
     k_continuestmt = alg_class("ContinueStmt", alg_nil());
+    k_labelstmt = alg_class("LabelStmt", alg_nil());
     k_trystmt = alg_class("TryStmt", alg_nil());
     k_raisestmt = alg_class("RaiseStmt", alg_nil());
     k_forinstmt = alg_class("ForInStmt", alg_nil());
@@ -668,14 +702,22 @@ void init_Stmt(void) {
     alg_class_method(k_modulestmt, "Accept", m_modulestmt_accept_1, 1, t_modulestmt_accept_1);
     alg_class_super(k_breakstmt, k_stmt);
     alg_class_field(k_breakstmt, "Keyword");
+    alg_class_field(k_breakstmt, "Label");
     alg_class_initializer(k_breakstmt, i_breakstmt);
     alg_class_method(k_breakstmt, "Init", m_breakstmt_init_1_token, 1, t_breakstmt_init_1_token);
     alg_class_method(k_breakstmt, "Accept", m_breakstmt_accept_1, 1, t_breakstmt_accept_1);
     alg_class_super(k_continuestmt, k_stmt);
     alg_class_field(k_continuestmt, "Keyword");
+    alg_class_field(k_continuestmt, "Label");
     alg_class_initializer(k_continuestmt, i_continuestmt);
     alg_class_method(k_continuestmt, "Init", m_continuestmt_init_1_token, 1, t_continuestmt_init_1_token);
     alg_class_method(k_continuestmt, "Accept", m_continuestmt_accept_1, 1, t_continuestmt_accept_1);
+    alg_class_super(k_labelstmt, k_stmt);
+    alg_class_field(k_labelstmt, "Name");
+    alg_class_field(k_labelstmt, "Inner");
+    alg_class_initializer(k_labelstmt, i_labelstmt);
+    alg_class_method(k_labelstmt, "Init", m_labelstmt_init_2_token_stmt, 2, t_labelstmt_init_2_token_stmt);
+    alg_class_method(k_labelstmt, "Accept", m_labelstmt_accept_1, 1, t_labelstmt_accept_1);
     alg_class_super(k_trystmt, k_stmt);
     alg_class_field(k_trystmt, "TryBlock");
     alg_class_field(k_trystmt, "Handlers");
@@ -692,6 +734,7 @@ void init_Stmt(void) {
     alg_class_field(k_forinstmt, "Name");
     alg_class_field(k_forinstmt, "Iterable");
     alg_class_field(k_forinstmt, "Body");
+    alg_class_field(k_forinstmt, "Label");
     alg_class_initializer(k_forinstmt, i_forinstmt);
     alg_class_method(k_forinstmt, "Init", m_forinstmt_init_3_token_expr_stmt, 3, t_forinstmt_init_3_token_expr_stmt);
     alg_class_method(k_forinstmt, "Accept", m_forinstmt_accept_1, 1, t_forinstmt_accept_1);
@@ -699,6 +742,7 @@ void init_Stmt(void) {
     alg_class_field(k_whilestmt, "Condition");
     alg_class_field(k_whilestmt, "Body");
     alg_class_field(k_whilestmt, "Increment");
+    alg_class_field(k_whilestmt, "Label");
     alg_class_initializer(k_whilestmt, i_whilestmt);
     alg_class_method(k_whilestmt, "Init", m_whilestmt_init_2_expr_stmt, 2, t_whilestmt_init_2_expr_stmt);
     alg_class_method(k_whilestmt, "Accept", m_whilestmt_accept_1, 1, t_whilestmt_accept_1);

@@ -21,6 +21,7 @@ Value f_setprogramarguments(Value **cells, Value *args, int32_t count);
 Value f_suppressoutput(Value **cells, Value *args, int32_t count);
 Value f_rendered(Value **cells, Value *args, int32_t count);
 Value f_stringify(Value **cells, Value *args, int32_t count);
+Value f_names(Value **cells, Value *args, int32_t count);
 Value k_clocknative;
 static const char *t_clocknative_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_lengthnative;
@@ -179,6 +180,7 @@ static const char *t_interpreter_elementsof_2_token[] = { "Where : Token", "Targ
 static const char *t_interpreter_visitforinstmt_1_forinstmt[] = { "TheStmt : ForInStmt" };
 static const char *t_interpreter_visitbreakstmt_1_breakstmt[] = { "TheStmt : BreakStmt" };
 static const char *t_interpreter_visitcontinuestmt_1_continuestmt[] = { "TheStmt : ContinueStmt" };
+static const char *t_interpreter_visitlabelstmt_1_labelstmt[] = { "TheStmt : LabelStmt" };
 static const char *t_interpreter_visitmodulestmt_1_modulestmt[] = { "TheStmt : ModuleStmt" };
 static const char *t_interpreter_visitraisestmt_1_raisestmt[] = { "TheStmt : RaiseStmt" };
 static const char *t_interpreter_findhandler_2_map[] = { "Handlers : Map", "Value : Any" };
@@ -189,7 +191,11 @@ static const char *t_interpreter_visitvarstmt_1_varstmt[] = { "Stmt : VarStmt" }
 static const char *t_interpreter_visitvargroupstmt_1_vargroupstmt[] = { "TheStmt : VarGroupStmt" };
 static const char *t_interpreter_visitassignexpr_1_assignexpr[] = { "Expr : AssignExpr" };
 Value k_broke;
+static const char *t_broke_init_1_string[] = { "Label : String" };
 Value k_continued;
+static const char *t_continued_init_1_string[] = { "Label : String" };
+Value fn_names;
+static const char *t_f_names[] = { "Wanted : String", "Loop : String" };
 Value k_raised;
 static const char *t_raised_init_1[] = { "Value : Any" };
 Value k_return;
@@ -1017,7 +1023,7 @@ static Value m_interpreter_hoist_1_list(Value v_this, Value *args, int32_t count
     {
         Value v_i = alg_widen(alg_int(0), "Integer");
         (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_widen(alg_add(v_i, alg_int(1)), "Integer"))) {
             if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "ClassStmt"))) {
                 (void)(alg_invoke(v_names, "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme")}, 1)}, 1));
             }
@@ -1026,7 +1032,7 @@ static Value m_interpreter_hoist_1_list(Value v_this, Value *args, int32_t count
     {
         Value v_i = alg_widen(alg_int(0), "Integer");
         (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_widen(alg_add(v_i, alg_int(1)), "Integer"))) {
             if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "ClassStmt"))) {
                 (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme"), alg_new(k_objclass, (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme")), alg_nil(), alg_map(), alg_list()}, 4)}, 2));
             }
@@ -1035,7 +1041,7 @@ static Value m_interpreter_hoist_1_list(Value v_this, Value *args, int32_t count
     {
         Value v_i = alg_widen(alg_int(0), "Integer");
         (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_widen(alg_add(v_i, alg_int(1)), "Integer"))) {
             if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "ClassStmt"))) {
                 {
                     Value v_parent = alg_property(alg_subscript_get(v_statements, v_i), "Superclass");
@@ -1058,7 +1064,7 @@ static Value m_interpreter_hoist_1_list(Value v_this, Value *args, int32_t count
     {
         Value v_i = alg_widen(alg_int(0), "Integer");
         (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_widen(alg_add(v_i, alg_int(1)), "Integer"))) {
             if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "FunctionStmt"))) {
                 (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
             }
@@ -1106,7 +1112,7 @@ static Value m_interpreter_interpret_1_list(Value v_this, Value *args, int32_t c
                 {
                     volatile Value v_i = alg_widen(alg_int(0), "Integer");
                     (void)v_i;
-                    for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_widen(alg_add(v_i, alg_int(1)), "Integer"))) {
                         {
                             volatile Value v_done = alg_is(alg_subscript_get(v_statements, v_i), "FunctionStmt");
                             (void)v_done;
@@ -2530,7 +2536,8 @@ static Value m_interpreter_visitwhilestmt_1_whilestmt(Value v_this, Value *args,
                                     {
                                         volatile Value v_c = frame_16.raised;
                                         (void)v_c;
-                                        {
+                                        if (alg_truthy(alg_not(f_names(NULL, (Value[]){alg_property(v_c, "Label"), alg_property(v_stmt, "Label")}, 2)))) {
+                                            alg_raise(v_c);
                                         }
                                     }
                                 }
@@ -2554,7 +2561,9 @@ static Value m_interpreter_visitwhilestmt_1_whilestmt(Value v_this, Value *args,
                 {
                     volatile Value v_e = frame_15.raised;
                     (void)v_e;
-                    return alg_nil();
+                    if (alg_truthy(alg_not(f_names(NULL, (Value[]){alg_property(v_e, "Label"), alg_property(v_stmt, "Label")}, 2)))) {
+                        alg_raise(v_e);
+                    }
                 }
             }
             else {
@@ -2727,7 +2736,8 @@ static Value m_interpreter_visitforinstmt_1_forinstmt(Value v_this, Value *args,
                                         {
                                             volatile Value v_c = frame_20.raised;
                                             (void)v_c;
-                                            {
+                                            if (alg_truthy(alg_not(f_names(NULL, (Value[]){alg_property(v_c, "Label"), alg_property(v_thestmt, "Label")}, 2)))) {
+                                                alg_raise(v_c);
                                             }
                                         }
                                     }
@@ -2749,7 +2759,9 @@ static Value m_interpreter_visitforinstmt_1_forinstmt(Value v_this, Value *args,
                 {
                     volatile Value v_e = frame_19.raised;
                     (void)v_e;
-                    return alg_nil();
+                    if (alg_truthy(alg_not(f_names(NULL, (Value[]){alg_property(v_e, "Label"), alg_property(v_thestmt, "Label")}, 2)))) {
+                        alg_raise(v_e);
+                    }
                 }
             }
             else {
@@ -2764,7 +2776,7 @@ static Value m_interpreter_visitbreakstmt_1_breakstmt(Value v_this, Value *args,
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "BreakStmt");
     (void)v_thestmt;
-    alg_raise(alg_new(k_broke, NULL, 0));
+    alg_raise(alg_new(k_broke, (Value[]){alg_property(v_thestmt, "Label")}, 1));
     return alg_nil();
 }
 
@@ -2772,7 +2784,15 @@ static Value m_interpreter_visitcontinuestmt_1_continuestmt(Value v_this, Value 
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "ContinueStmt");
     (void)v_thestmt;
-    alg_raise(alg_new(k_continued, NULL, 0));
+    alg_raise(alg_new(k_continued, (Value[]){alg_property(v_thestmt, "Label")}, 1));
+    return alg_nil();
+}
+
+static Value m_interpreter_visitlabelstmt_1_labelstmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thestmt = alg_widen(args[0], "LabelStmt");
+    (void)v_thestmt;
+    (void)(alg_invoke(v_this, "Execute", (Value[]){alg_property(v_thestmt, "Inner")}, 1));
     return alg_nil();
 }
 
@@ -3068,11 +3088,43 @@ static Value m_interpreter_visitassignexpr_1_assignexpr(Value v_this, Value *arg
 
 static Value i_broke(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Label", alg_nil());
+    return alg_nil();
+}
+
+static Value m_broke_init_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_label = alg_widen(args[0], "String");
+    (void)v_label;
+    (void)(alg_set_property(v_this, "Label", alg_widen(v_label, "String")));
     return alg_nil();
 }
 
 static Value i_continued(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Label", alg_nil());
+    return alg_nil();
+}
+
+static Value m_continued_init_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_label = alg_widen(args[0], "String");
+    (void)v_label;
+    (void)(alg_set_property(v_this, "Label", alg_widen(v_label, "String")));
+    return alg_nil();
+}
+
+Value f_names(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
+    Value v_wanted = alg_param(args[0], "String");
+    (void)v_wanted;
+    Value v_loop = alg_param(args[1], "String");
+    (void)v_loop;
+    if (alg_truthy(alg_equal(v_wanted, alg_string("")))) {
+        return alg_bool(true);
+    }
+    return alg_equal(f_foldcase(NULL, (Value[]){v_wanted}, 1), f_foldcase(NULL, (Value[]){v_loop}, 1));
     return alg_nil();
 }
 
@@ -3284,6 +3336,7 @@ void init_Interpreter(void) {
     alg_class_method(k_interpreter, "VisitForInStmt", m_interpreter_visitforinstmt_1_forinstmt, 1, t_interpreter_visitforinstmt_1_forinstmt);
     alg_class_method(k_interpreter, "VisitBreakStmt", m_interpreter_visitbreakstmt_1_breakstmt, 1, t_interpreter_visitbreakstmt_1_breakstmt);
     alg_class_method(k_interpreter, "VisitContinueStmt", m_interpreter_visitcontinuestmt_1_continuestmt, 1, t_interpreter_visitcontinuestmt_1_continuestmt);
+    alg_class_method(k_interpreter, "VisitLabelStmt", m_interpreter_visitlabelstmt_1_labelstmt, 1, t_interpreter_visitlabelstmt_1_labelstmt);
     alg_class_method(k_interpreter, "VisitModuleStmt", m_interpreter_visitmodulestmt_1_modulestmt, 1, t_interpreter_visitmodulestmt_1_modulestmt);
     alg_class_method(k_interpreter, "VisitRaiseStmt", m_interpreter_visitraisestmt_1_raisestmt, 1, t_interpreter_visitraisestmt_1_raisestmt);
     alg_class_method(k_interpreter, "FindHandler", m_interpreter_findhandler_2_map, 2, t_interpreter_findhandler_2_map);
@@ -3293,8 +3346,13 @@ void init_Interpreter(void) {
     alg_class_method(k_interpreter, "VisitVarStmt", m_interpreter_visitvarstmt_1_varstmt, 1, t_interpreter_visitvarstmt_1_varstmt);
     alg_class_method(k_interpreter, "VisitVarGroupStmt", m_interpreter_visitvargroupstmt_1_vargroupstmt, 1, t_interpreter_visitvargroupstmt_1_vargroupstmt);
     alg_class_method(k_interpreter, "VisitAssignExpr", m_interpreter_visitassignexpr_1_assignexpr, 1, t_interpreter_visitassignexpr_1_assignexpr);
+    alg_class_field(k_broke, "Label");
     alg_class_initializer(k_broke, i_broke);
+    alg_class_method(k_broke, "Init", m_broke_init_1_string, 1, t_broke_init_1_string);
+    alg_class_field(k_continued, "Label");
     alg_class_initializer(k_continued, i_continued);
+    alg_class_method(k_continued, "Init", m_continued_init_1_string, 1, t_continued_init_1_string);
+    fn_names = alg_closure("Names", f_names, NULL, 0, 2, t_f_names);
     alg_class_field(k_raised, "Value");
     alg_class_initializer(k_raised, i_raised);
     alg_class_method(k_raised, "Init", m_raised_init_1, 1, t_raised_init_1);

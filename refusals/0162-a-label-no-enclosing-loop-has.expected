@@ -1,0 +1,5 @@
+Uncaught: No enclosing loop is labelled 'Inner'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0162-a-label-no-enclosing-loop-has.a24: No enclosing loop is labelled 'Inner'.
+[WHITE][[RED]ERROR[WHITE]] [RESET]11 |     break Inner;
+[WHITE][[RED]ERROR[RESET]]    |[RED]     ^^^^^[RESET]
+exit: 70

@@ -627,6 +627,15 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
         {
             (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Condition")}, 1));
             (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_thestmt, "Body")}, 1));
+            if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Increment"), alg_nil()))) {
+                (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_thestmt, "Increment")}, 1));
+            }
+            return alg_nil();
+        }
+    }
+    if (alg_truthy(alg_equal(v_kind, alg_string("LabelStmt")))) {
+        {
+            (void)(alg_invoke(v_this, "Check", (Value[]){alg_property(v_thestmt, "Inner")}, 1));
             return alg_nil();
         }
     }

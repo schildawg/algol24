@@ -1084,7 +1084,16 @@ VarSection = "var" { identifier { "," identifier } [ ":" Type ] [ ":=" Expressio
 **[VAR-011]**  A section is a feature of a **header**, not of a program body. At
 the top level `var` declares exactly one name, and a run of declarations
 beneath it is read as ordinary statements — `var A : Integer;` followed by
-`B : String;` fails on the second with `Expect ';' after expression.`
+`B : String;` is refused.
+
+⚠️ **Labels changed how it is refused, and the diagnostic got worse.** `B :`
+is now read as a **label** [STM-010] on the statement `String;`, so the line
+parses and fails at run time with `Undefined variable 'String'.` rather than at
+parse time with `Expect ';' after expression.` The rule is unchanged and the
+program is still refused; what is lost is that it used to be caught without
+being run, so a mistaken section on a path never taken is now silent. This is
+the price of a label needing no keyword, and it is the only place in the
+language where the two forms collide.
 
     interpreter  compiler/Parser.a24  ReadDeclarationSections
     refusal      0010-no-section-at-top-level.a24
@@ -2180,6 +2189,30 @@ begins its next iteration. Outside a loop either is refused **where it is
 written** — a parse-time check — with `Must be inside a loop to use 'break'.` or
 `Must be inside a loop to use 'continue'.`
 
+A statement may be **labelled**, by writing a name and a colon before it, and
+`break` or `continue` may then name which loop it means:
+
+```
+Outer:
+for var I := 0; I < 3; I := I + 1 do
+    for var J := 0; J < 3; J := J + 1 do
+        if J = 1 then continue Outer;
+```
+
+A label naming no enclosing loop is refused where it is written, with
+`No enclosing loop is labelled 'X'.` Labels are matched without regard to case,
+like every other name [SRC-011].
+
+⚠️ **`Name:` needs no keyword**, because `:=` scans as a single token [LEX-005]
+and so `X := 1` cannot be read as a label on `= 1`. It is the third place this
+shape appears and it means the same thing each time — a name on the left, the
+thing it names on the right — beside the Map literal [COL-001] and a named
+argument [EXP-013].
+
+⚠️ **A labelled jump leaves every `try` opened inside the loop it names**, not
+merely the innermost one, so more than one frame may have to be unwound at
+once.
+
 ⚠️ **A `for` still takes its step.** `continue` skips the rest of the body and
 nothing else, so `for var I := 0; I < 5; I := I + 1 do` with a `continue` in it
 runs `I := I + 1` on that pass exactly as on every other. This is what separates
@@ -2199,8 +2232,10 @@ runs it after catching a `continue` and the C back end writes a real `for`.
     unit         Parse Break Outside A Loop
     conformance  0054-loops.a24
     conformance  0161-continue.a24
+    conformance  0162-labelled-break-and-continue.a24
     refusal      0021-break-outside-a-loop.a24
     refusal      0161-continue-outside-a-loop.a24
+    refusal      0162-a-label-no-enclosing-loop-has.a24
 
 ### 10.4 Case
 

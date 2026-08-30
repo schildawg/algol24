@@ -172,6 +172,8 @@ static const char *t_cemitter_visitexpressionstmt_1_expressionstmt[] = { "TheStm
 static const char *t_cemitter_visitblockstmt_1_blockstmt[] = { "TheStmt : BlockStmt" };
 static const char *t_cemitter_visitifstmt_1_ifstmt[] = { "TheStmt : IfStmt" };
 static const char *t_cemitter_visitwhilestmt_1_whilestmt[] = { "TheStmt : WhileStmt" };
+static const char *t_cemitter_emitcontinuetarget_1_string[] = { "TheLabel : String" };
+static const char *t_cemitter_emitbreaktarget_1_string[] = { "TheLabel : String" };
 static const char *t_cemitter_visitreturnstmt_1_returnstmt[] = { "TheStmt : ReturnStmt" };
 static const char *t_cemitter_visitfunctionstmt_1_functionstmt[] = { "TheStmt : FunctionStmt" };
 static const char *t_cemitter_typetable_2_string_list[] = { "Symbol : String", "Types : List" };
@@ -226,8 +228,13 @@ static const char *t_cemitter_visitenumstmt_1_enumstmt[] = { "TheStmt : EnumStmt
 static const char *t_cemitter_visittrystmt_1_trystmt[] = { "TheStmt : TryStmt" };
 static const char *t_cemitter_visitraisestmt_1_raisestmt[] = { "TheStmt : RaiseStmt" };
 static const char *t_cemitter_visitforinstmt_1_forinstmt[] = { "TheStmt : ForInStmt" };
+static const char *t_cemitter_breaktarget_1_string[] = { "TheLabel : String" };
+static const char *t_cemitter_continuetarget_1_string[] = { "TheLabel : String" };
+static const char *t_cemitter_depthofloop_1_string[] = { "TheLabel : String" };
+static const char *t_cemitter_popframesto_1_integer[] = { "From : Integer" };
 static const char *t_cemitter_visitbreakstmt_1_breakstmt[] = { "TheStmt : BreakStmt" };
 static const char *t_cemitter_visitcontinuestmt_1_continuestmt[] = { "TheStmt : ContinueStmt" };
+static const char *t_cemitter_visitlabelstmt_1_labelstmt[] = { "TheStmt : LabelStmt" };
 static const char *t_cemitter_visitvargroupstmt_1_vargroupstmt[] = { "TheStmt : VarGroupStmt" };
 static const char *t_cemitter_visitmodulestmt_1_modulestmt[] = { "TheStmt : ModuleStmt" };
 
@@ -345,6 +352,9 @@ static Value i_cemitter(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Loops", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "TryDepth", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "LoopTryDepth", alg_widen(alg_int(0), "Integer"));
+    alg_set_property(v_this, "LoopLabels", alg_widen(alg_list(), "List"));
+    alg_set_property(v_this, "LoopDepths", alg_widen(alg_list(), "List"));
+    alg_set_property(v_this, "Jumped", alg_widen(alg_list(), "Set"));
     alg_set_property(v_this, "Volatiles", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "Renames", alg_nil());
     alg_set_property(v_this, "Overloaded", alg_nil());
@@ -2605,11 +2615,45 @@ static Value m_cemitter_visitwhilestmt_1_whilestmt(Value v_this, Value *args, in
     Value v_enclosingloopdepth = alg_property(v_this, "LoopTryDepth");
     (void)v_enclosingloopdepth;
     (void)(alg_set_property(v_this, "LoopTryDepth", alg_widen(alg_property(v_this, "TryDepth"), "Integer")));
+    (void)(alg_invoke(alg_property(v_this, "LoopLabels"), "Add", (Value[]){alg_property(v_thestmt, "Label")}, 1));
+    (void)(alg_invoke(alg_property(v_this, "LoopDepths"), "Add", (Value[]){alg_property(v_this, "TryDepth")}, 1));
     (void)(alg_invoke(v_this, "Execute", (Value[]){alg_property(v_thestmt, "Body")}, 1));
+    (void)(alg_invoke(alg_property(v_this, "LoopLabels"), "RemoveAt", (Value[]){alg_subtract(alg_property(alg_property(v_this, "LoopLabels"), "Length"), alg_int(1))}, 1));
+    (void)(alg_invoke(alg_property(v_this, "LoopDepths"), "RemoveAt", (Value[]){alg_subtract(alg_property(alg_property(v_this, "LoopDepths"), "Length"), alg_int(1))}, 1));
     (void)(alg_set_property(v_this, "LoopTryDepth", alg_widen(v_enclosingloopdepth, "Integer")));
+    (void)(alg_invoke(v_this, "EmitContinueTarget", (Value[]){alg_property(v_thestmt, "Label")}, 1));
     (void)(alg_set_property(v_this, "Depth", alg_widen(alg_subtract(alg_property(v_this, "Depth"), alg_int(1)), "Integer")));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_char_value(125)}, 1));
+    (void)(alg_invoke(v_this, "EmitBreakTarget", (Value[]){alg_property(v_thestmt, "Label")}, 1));
     (void)(alg_invoke(v_this, "CloseScope", (Value[]){v_mark}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_emitcontinuetarget_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thelabel = alg_widen(args[0], "String");
+    (void)v_thelabel;
+    if (alg_truthy(alg_equal(v_thelabel, alg_string("")))) {
+        return alg_nil();
+    }
+    if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Jumped"), "Contains", (Value[]){alg_invoke(v_this, "ContinueTarget", (Value[]){v_thelabel}, 1)}, 1)))) {
+        return alg_nil();
+    }
+    (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_invoke(v_this, "ContinueTarget", (Value[]){v_thelabel}, 1), alg_string(": ;"))}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_emitbreaktarget_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thelabel = alg_widen(args[0], "String");
+    (void)v_thelabel;
+    if (alg_truthy(alg_equal(v_thelabel, alg_string("")))) {
+        return alg_nil();
+    }
+    if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Jumped"), "Contains", (Value[]){alg_invoke(v_this, "BreakTarget", (Value[]){v_thelabel}, 1)}, 1)))) {
+        return alg_nil();
+    }
+    (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_invoke(v_this, "BreakTarget", (Value[]){v_thelabel}, 1), alg_string(": ;"))}, 1));
     return alg_nil();
 }
 
@@ -4364,13 +4408,66 @@ static Value m_cemitter_visitforinstmt_1_forinstmt(Value v_this, Value *args, in
     Value v_enclosingloopdepth = alg_property(v_this, "LoopTryDepth");
     (void)v_enclosingloopdepth;
     (void)(alg_set_property(v_this, "LoopTryDepth", alg_widen(alg_property(v_this, "TryDepth"), "Integer")));
+    (void)(alg_invoke(alg_property(v_this, "LoopLabels"), "Add", (Value[]){alg_property(v_thestmt, "Label")}, 1));
+    (void)(alg_invoke(alg_property(v_this, "LoopDepths"), "Add", (Value[]){alg_property(v_this, "TryDepth")}, 1));
     (void)(alg_invoke(v_this, "Execute", (Value[]){alg_property(v_thestmt, "Body")}, 1));
+    (void)(alg_invoke(alg_property(v_this, "LoopLabels"), "RemoveAt", (Value[]){alg_subtract(alg_property(alg_property(v_this, "LoopLabels"), "Length"), alg_int(1))}, 1));
+    (void)(alg_invoke(alg_property(v_this, "LoopDepths"), "RemoveAt", (Value[]){alg_subtract(alg_property(alg_property(v_this, "LoopDepths"), "Length"), alg_int(1))}, 1));
     (void)(alg_set_property(v_this, "LoopTryDepth", alg_widen(v_enclosingloopdepth, "Integer")));
+    (void)(alg_invoke(v_this, "EmitContinueTarget", (Value[]){alg_property(v_thestmt, "Label")}, 1));
     (void)(alg_set_property(v_this, "Depth", alg_widen(alg_subtract(alg_property(v_this, "Depth"), alg_int(1)), "Integer")));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_char_value(125)}, 1));
+    (void)(alg_invoke(v_this, "EmitBreakTarget", (Value[]){alg_property(v_thestmt, "Label")}, 1));
     (void)(alg_set_property(v_this, "Depth", alg_widen(alg_subtract(alg_property(v_this, "Depth"), alg_int(1)), "Integer")));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_char_value(125)}, 1));
     (void)(alg_invoke(v_this, "CloseScope", (Value[]){v_mark}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_breaktarget_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thelabel = alg_widen(args[0], "String");
+    (void)v_thelabel;
+    return alg_add(alg_string("lb_"), alg_invoke(v_this, "Escaped", (Value[]){f_foldcase(NULL, (Value[]){v_thelabel}, 1)}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_continuetarget_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thelabel = alg_widen(args[0], "String");
+    (void)v_thelabel;
+    return alg_add(alg_string("lc_"), alg_invoke(v_this, "Escaped", (Value[]){f_foldcase(NULL, (Value[]){v_thelabel}, 1)}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_depthofloop_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thelabel = alg_widen(args[0], "String");
+    (void)v_thelabel;
+    {
+        Value v_i = alg_subtract(alg_property(alg_property(v_this, "LoopLabels"), "Length"), alg_int(1));
+        (void)v_i;
+        for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(alg_subscript_get(alg_property(v_this, "LoopLabels"), v_i))}, 1), f_foldcase(NULL, (Value[]){v_thelabel}, 1)))) {
+                return alg_cast(alg_subscript_get(alg_property(v_this, "LoopDepths"), v_i), "Integer");
+            }
+        }
+    }
+    return alg_property(v_this, "LoopTryDepth");
+    return alg_nil();
+}
+
+static Value m_cemitter_popframesto_1_integer(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_from = alg_widen(args[0], "Integer");
+    (void)v_from;
+    {
+        Value v_i = v_from;
+        (void)v_i;
+        for (; alg_truthy(alg_less(v_i, alg_property(v_this, "TryDepth"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("alg_pop_frame();")}, 1));
+        }
+    }
     return alg_nil();
 }
 
@@ -4378,14 +4475,18 @@ static Value m_cemitter_visitbreakstmt_1_breakstmt(Value v_this, Value *args, in
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "BreakStmt");
     (void)v_thestmt;
-    {
-        Value v_i = alg_property(v_this, "LoopTryDepth");
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_this, "TryDepth"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("alg_pop_frame();")}, 1));
+    if (alg_truthy(alg_equal(alg_property(v_thestmt, "Label"), alg_string("")))) {
+        {
+            (void)(alg_invoke(v_this, "PopFramesTo", (Value[]){alg_property(v_this, "LoopTryDepth")}, 1));
+            (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("break;")}, 1));
+            return alg_nil();
         }
     }
-    (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("break;")}, 1));
+    (void)(alg_invoke(v_this, "PopFramesTo", (Value[]){alg_invoke(v_this, "DepthOfLoop", (Value[]){alg_property(v_thestmt, "Label")}, 1)}, 1));
+    Value v_target = alg_invoke(v_this, "BreakTarget", (Value[]){alg_property(v_thestmt, "Label")}, 1);
+    (void)v_target;
+    (void)(alg_invoke(alg_property(v_this, "Jumped"), "Add", (Value[]){v_target}, 1));
+    (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_string("goto "), v_target), alg_char_value(59))}, 1));
     return alg_nil();
 }
 
@@ -4393,14 +4494,26 @@ static Value m_cemitter_visitcontinuestmt_1_continuestmt(Value v_this, Value *ar
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "ContinueStmt");
     (void)v_thestmt;
-    {
-        Value v_i = alg_property(v_this, "LoopTryDepth");
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_this, "TryDepth"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("alg_pop_frame();")}, 1));
+    if (alg_truthy(alg_equal(alg_property(v_thestmt, "Label"), alg_string("")))) {
+        {
+            (void)(alg_invoke(v_this, "PopFramesTo", (Value[]){alg_property(v_this, "LoopTryDepth")}, 1));
+            (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("continue;")}, 1));
+            return alg_nil();
         }
     }
-    (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("continue;")}, 1));
+    (void)(alg_invoke(v_this, "PopFramesTo", (Value[]){alg_invoke(v_this, "DepthOfLoop", (Value[]){alg_property(v_thestmt, "Label")}, 1)}, 1));
+    Value v_target = alg_invoke(v_this, "ContinueTarget", (Value[]){alg_property(v_thestmt, "Label")}, 1);
+    (void)v_target;
+    (void)(alg_invoke(alg_property(v_this, "Jumped"), "Add", (Value[]){v_target}, 1));
+    (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_string("goto "), v_target), alg_char_value(59))}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_visitlabelstmt_1_labelstmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thestmt = alg_widen(args[0], "LabelStmt");
+    (void)v_thestmt;
+    (void)(alg_invoke(v_this, "Execute", (Value[]){alg_property(v_thestmt, "Inner")}, 1));
     return alg_nil();
 }
 
@@ -4506,6 +4619,9 @@ void init_CEmitter(void) {
     alg_class_field(k_cemitter, "Loops");
     alg_class_field(k_cemitter, "TryDepth");
     alg_class_field(k_cemitter, "LoopTryDepth");
+    alg_class_field(k_cemitter, "LoopLabels");
+    alg_class_field(k_cemitter, "LoopDepths");
+    alg_class_field(k_cemitter, "Jumped");
     alg_class_field(k_cemitter, "Volatiles");
     alg_class_field(k_cemitter, "Renames");
     alg_class_field(k_cemitter, "Overloaded");
@@ -4612,6 +4728,8 @@ void init_CEmitter(void) {
     alg_class_method(k_cemitter, "VisitBlockStmt", m_cemitter_visitblockstmt_1_blockstmt, 1, t_cemitter_visitblockstmt_1_blockstmt);
     alg_class_method(k_cemitter, "VisitIfStmt", m_cemitter_visitifstmt_1_ifstmt, 1, t_cemitter_visitifstmt_1_ifstmt);
     alg_class_method(k_cemitter, "VisitWhileStmt", m_cemitter_visitwhilestmt_1_whilestmt, 1, t_cemitter_visitwhilestmt_1_whilestmt);
+    alg_class_method(k_cemitter, "EmitContinueTarget", m_cemitter_emitcontinuetarget_1_string, 1, t_cemitter_emitcontinuetarget_1_string);
+    alg_class_method(k_cemitter, "EmitBreakTarget", m_cemitter_emitbreaktarget_1_string, 1, t_cemitter_emitbreaktarget_1_string);
     alg_class_method(k_cemitter, "VisitReturnStmt", m_cemitter_visitreturnstmt_1_returnstmt, 1, t_cemitter_visitreturnstmt_1_returnstmt);
     alg_class_method(k_cemitter, "VisitFunctionStmt", m_cemitter_visitfunctionstmt_1_functionstmt, 1, t_cemitter_visitfunctionstmt_1_functionstmt);
     alg_class_method(k_cemitter, "TypeTable", m_cemitter_typetable_2_string_list, 2, t_cemitter_typetable_2_string_list);
@@ -4667,8 +4785,13 @@ void init_CEmitter(void) {
     alg_class_method(k_cemitter, "VisitTryStmt", m_cemitter_visittrystmt_1_trystmt, 1, t_cemitter_visittrystmt_1_trystmt);
     alg_class_method(k_cemitter, "VisitRaiseStmt", m_cemitter_visitraisestmt_1_raisestmt, 1, t_cemitter_visitraisestmt_1_raisestmt);
     alg_class_method(k_cemitter, "VisitForInStmt", m_cemitter_visitforinstmt_1_forinstmt, 1, t_cemitter_visitforinstmt_1_forinstmt);
+    alg_class_method(k_cemitter, "BreakTarget", m_cemitter_breaktarget_1_string, 1, t_cemitter_breaktarget_1_string);
+    alg_class_method(k_cemitter, "ContinueTarget", m_cemitter_continuetarget_1_string, 1, t_cemitter_continuetarget_1_string);
+    alg_class_method(k_cemitter, "DepthOfLoop", m_cemitter_depthofloop_1_string, 1, t_cemitter_depthofloop_1_string);
+    alg_class_method(k_cemitter, "PopFramesTo", m_cemitter_popframesto_1_integer, 1, t_cemitter_popframesto_1_integer);
     alg_class_method(k_cemitter, "VisitBreakStmt", m_cemitter_visitbreakstmt_1_breakstmt, 1, t_cemitter_visitbreakstmt_1_breakstmt);
     alg_class_method(k_cemitter, "VisitContinueStmt", m_cemitter_visitcontinuestmt_1_continuestmt, 1, t_cemitter_visitcontinuestmt_1_continuestmt);
+    alg_class_method(k_cemitter, "VisitLabelStmt", m_cemitter_visitlabelstmt_1_labelstmt, 1, t_cemitter_visitlabelstmt_1_labelstmt);
     alg_class_method(k_cemitter, "VisitVarGroupStmt", m_cemitter_visitvargroupstmt_1_vargroupstmt, 1, t_cemitter_visitvargroupstmt_1_vargroupstmt);
     alg_class_method(k_cemitter, "VisitModuleStmt", m_cemitter_visitmodulestmt_1_modulestmt, 1, t_cemitter_visitmodulestmt_1_modulestmt);
     v_hoistVabove = alg_int(100);

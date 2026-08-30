@@ -327,6 +327,13 @@ begin
     begin
     end
 
+    /// A label binds no name -- it marks a position [STM-010].  Its inner
+    /// statement is resolved exactly as if the label were not written.
+    procedure VisitLabelStmt (Stmt : LabelStmt);
+    begin
+        Resolve (Stmt.Inner);
+    end
+
     procedure VisitRaiseStmt (Stmt : RaiseStmt);
     begin
         Resolve (Stmt.Value);

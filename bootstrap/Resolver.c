@@ -36,6 +36,7 @@ static const char *t_resolver_visitmodulestmt_1_modulestmt[] = { "Stmt : ModuleS
 static const char *t_resolver_visitforinstmt_1_forinstmt[] = { "Stmt : ForInStmt" };
 static const char *t_resolver_visitbreakstmt_1_breakstmt[] = { "Stmt : BreakStmt" };
 static const char *t_resolver_visitcontinuestmt_1_continuestmt[] = { "Stmt : ContinueStmt" };
+static const char *t_resolver_visitlabelstmt_1_labelstmt[] = { "Stmt : LabelStmt" };
 static const char *t_resolver_visitraisestmt_1_raisestmt[] = { "Stmt : RaiseStmt" };
 static const char *t_resolver_visitreturnstmt_1_returnstmt[] = { "Stmt : ReturnStmt" };
 static const char *t_resolver_visitwhilestmt_1_whilestmt[] = { "Stmt : WhileStmt" };
@@ -349,6 +350,14 @@ static Value m_resolver_visitcontinuestmt_1_continuestmt(Value v_this, Value *ar
     (void)v_this; (void)args; (void)count;
     Value v_stmt = alg_widen(args[0], "ContinueStmt");
     (void)v_stmt;
+    return alg_nil();
+}
+
+static Value m_resolver_visitlabelstmt_1_labelstmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_stmt = alg_widen(args[0], "LabelStmt");
+    (void)v_stmt;
+    (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_stmt, "Inner")}, 1));
     return alg_nil();
 }
 
@@ -993,7 +1002,7 @@ static Value m_resolver_resolvelocal_2_expr_token(Value v_this, Value *args, int
     {
         Value v_i = alg_widen(alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1)), "Integer");
         (void)v_i;
-        for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+        for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_widen(alg_subtract(v_i, alg_int(1)), "Integer"))) {
             {
                 if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))) {
                     {
@@ -1043,6 +1052,7 @@ void init_Resolver(void) {
     alg_class_method(k_resolver, "VisitForInStmt", m_resolver_visitforinstmt_1_forinstmt, 1, t_resolver_visitforinstmt_1_forinstmt);
     alg_class_method(k_resolver, "VisitBreakStmt", m_resolver_visitbreakstmt_1_breakstmt, 1, t_resolver_visitbreakstmt_1_breakstmt);
     alg_class_method(k_resolver, "VisitContinueStmt", m_resolver_visitcontinuestmt_1_continuestmt, 1, t_resolver_visitcontinuestmt_1_continuestmt);
+    alg_class_method(k_resolver, "VisitLabelStmt", m_resolver_visitlabelstmt_1_labelstmt, 1, t_resolver_visitlabelstmt_1_labelstmt);
     alg_class_method(k_resolver, "VisitRaiseStmt", m_resolver_visitraisestmt_1_raisestmt, 1, t_resolver_visitraisestmt_1_raisestmt);
     alg_class_method(k_resolver, "VisitReturnStmt", m_resolver_visitreturnstmt_1_returnstmt, 1, t_resolver_visitreturnstmt_1_returnstmt);
     alg_class_method(k_resolver, "VisitWhileStmt", m_resolver_visitwhilestmt_1_whilestmt, 1, t_resolver_visitwhilestmt_1_whilestmt);

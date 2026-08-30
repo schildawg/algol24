@@ -246,13 +246,17 @@ end
 
 /// Break Statement!
 ///
-/// Carries nothing: 'break' leaves the innermost loop and there is no label to
-/// name another one and no value to hand back.  The Token is kept only so a
-/// 'break' outside a loop can be reported against itself.
+/// Carries no value: 'break' leaves a loop and hands nothing back.  It carries
+/// a LABEL, which names which loop -- '' for the innermost.  The Token is kept
+/// so a 'break' outside a loop, or one naming a label no enclosing loop has,
+/// can be reported against itself.
 ///
 class BreakStmt (Stmt);
 var
     Keyword : Token;
+
+    /// The loop named after the keyword, or '' for the innermost one.
+    Label   : String := '';
 
 begin
     constructor Init (Keyword : Token);
@@ -276,6 +280,9 @@ class ContinueStmt (Stmt);
 var
     Keyword : Token;
 
+    /// The loop named after the keyword, or '' for the innermost one.
+    Label   : String := '';
+
 begin
     constructor Init (Keyword : Token);
     begin
@@ -285,6 +292,36 @@ begin
     function Accept (Visitor);
     begin
        Exit Visitor.VisitContinueStmt (this);
+    end
+end
+
+/// Label Statement -- 'Outer:' before the statement it names.
+///
+/// ⚠️ A WRAPPER rather than a flag, because a label marks a POSITION in a block
+/// as well as naming a loop.  'goto' resolves a label by scanning the statement
+/// list it is in for one of these, which is exactly what makes the rule "the
+/// same block or an enclosing one" fall out: an exception can travel outward
+/// through blocks and there is no way for it to travel inward.
+///
+/// ⚠️ A label on a LOOP is copied into the loop as well, by the parser.  A
+/// labelled 'continue' has to be caught by the loop itself, and a wrapper
+/// cannot begin someone else's next iteration.
+///
+class LabelStmt (Stmt);
+var
+    Name  : Token;
+    Inner : Stmt;
+
+begin
+    constructor Init (Name : Token, Inner : Stmt);
+    begin
+        this.Name := Name;
+        this.Inner := Inner;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitLabelStmt (this);
     end
 end
 
@@ -346,6 +383,9 @@ var
     Iterable : Expr;
     Body     : Stmt;
 
+    /// The name written before this loop, or '' [STM-010].
+    Label    : String := '';
+
 begin
     constructor Init (Name : Token, Iterable : Expr, Body : Stmt);
     begin
@@ -378,6 +418,14 @@ var
     /// a Continued and the emitter writes a real C 'for', so both processors
     /// step for the same reason rather than by two separate arrangements.
     Increment : Expr := Nil;
+
+    /// The name written before this loop, or '' [STM-010].
+    ///
+    /// ⚠️ Held by the LOOP and not only by the LabelStmt around it, because a
+    /// labelled 'continue' has to be caught by the loop itself -- a wrapper
+    /// cannot begin someone else's next iteration.  Break could have been done
+    /// either way; continue could not, so both are done here.
+    Label     : String := '';
 
 begin
     constructor Init (Condition : Expr, Body : Stmt);

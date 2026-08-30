@@ -1,5 +1,2 @@
-Uncaught: Expect ';' after expression.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0010-no-section-at-top-level.a24: Expect ';' after expression.
-[WHITE][[RED]ERROR[WHITE]] [RESET]9 |     B : String;
-[WHITE][[RED]ERROR[RESET]]   |[RED]     ^[RESET]
+Uncaught: Undefined variable 'String'.
 exit: 70

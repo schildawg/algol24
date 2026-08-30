@@ -96,6 +96,13 @@ var
    /// two evils; the alternative is re-reading the tokens.
    LastGeneric : String := '';
 
+   /// The label written just before the loop now being parsed, or ''.
+   PendingLabel : String := '';
+
+   /// The labels of the loops this statement is inside, innermost last.  ''
+   /// for an unlabelled one, so the depth is right and no name matches it.
+   LoopLabels : List := [];
+
 begin
     /// Creates a new Parser.
     ///
@@ -232,6 +239,16 @@ begin
         if Match (TOKEN_PROCEDURE) then Exit ParseFunction ('procedure');
         if Match (TOKEN_VAR) then Exit VarDeclaration ();
         if Match (TOKEN_CONST) then Exit ConstDeclaration ();
+
+        // ⚠️ IDENTIFIER then COLON, one token of lookahead -- the third place
+        // this shape is used and the third time it means the same thing: a name
+        // on the left, the thing it names on the right.  The Map literal
+        // [COL-001] and a named argument [EXP-013] are the other two.
+        //
+        // ⚠️ ':=' scans as ONE token [LEX-005], so 'X := 1' cannot be read as a
+        // label on '= 1'.  That is the whole reason a label needs no keyword.
+        if Check (TOKEN_IDENTIFIER) and PeekNext().TypeOfToken = TOKEN_COLON then
+            Exit LabelStatement ();
 
         if Match (TOKEN_CASE) then Exit CaseStatement();
         if Match (TOKEN_IF) then Exit IfStatement();
@@ -447,10 +464,14 @@ begin
         end
         Consume (TOKEN_DO, 'Expect ''do'' after for clauses.');
 
+        var Named := TakeLabel ();
+
         LoopDepth := LoopDepth + 1;
         Body := BodyStatement ();
         LoopDepth := LoopDepth - 1;
-        
+
+        LoopLabels.RemoveAt (LoopLabels.Length - 1);
+
         if Condition = Nil then Condition := LiteralExpr (True);
 
         // ⚠️ The step is HANDED to the while rather than appended to the body.
@@ -458,6 +479,7 @@ begin
         // iteration never stepped and the loop never ended -- see WhileStmt.
         var Loop := WhileStmt (Condition, Body);
         Loop.Increment := Increment;
+        Loop.Label := Named;
 
         Body := Loop;
 
@@ -489,11 +511,18 @@ begin
         Condition := Expression();
         Consume (TOKEN_DO, 'Expect ''do'' after condition.');
 
+        var Named := TakeLabel ();
+
         LoopDepth := LoopDepth + 1;
         Body := BodyStatement ();
         LoopDepth := LoopDepth - 1;
 
-        Exit WhileStmt (Condition, Body);
+        LoopLabels.RemoveAt (LoopLabels.Length - 1);
+
+        var Loop := WhileStmt (Condition, Body);
+        Loop.Label := Named;
+
+        Exit Loop;
     end
 
     /// Parses a statement
@@ -927,11 +956,18 @@ begin
         Iterable := Expression ();
         Consume (TOKEN_DO, 'Expect ''do'' after ''for ... in'' clause.');
 
+        var Named := TakeLabel ();
+
         LoopDepth := LoopDepth + 1;
         Body := BodyStatement ();
         LoopDepth := LoopDepth - 1;
 
-        Exit ForInStmt (Name, Iterable, Body);
+        LoopLabels.RemoveAt (LoopLabels.Length - 1);
+
+        var Loop := ForInStmt (Name, Iterable, Body);
+        Loop.Label := Named;
+
+        Exit Loop;
     end
 
     /// Parses 'break;'.
@@ -952,8 +988,92 @@ begin
         if LoopDepth = 0 then
             raise Error (Keyword, 'Must be inside a loop to use ''break''.');
 
+        var Named := JumpLabel (Keyword, 'break');
+
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after ''break''.');
-        Exit BreakStmt (Keyword);
+
+        var Leaving := BreakStmt (Keyword);
+        Leaving.Label := Named;
+
+        Exit Leaving;
+    end
+
+    /// Parses 'Outer: Statement'.
+    ///
+    /// ⚠️ The label is copied ONTO the loop as well as wrapping it.  A labelled
+    /// 'continue' is caught by the loop itself -- a wrapper cannot begin
+    /// someone else's next iteration -- so the loop has to know its own name.
+    ///
+    /// ⚠️ PendingLabel rather than an argument, because the loop is parsed by
+    /// one of three functions and each reads it at a different point.  It is
+    /// cleared as it is taken, so a label never reaches a second loop.
+    ///
+    function LabelStatement () : Stmt;
+    var
+        Name : Token;
+
+    begin
+        Name := Advance ();
+        Advance ();
+
+        PendingLabel := Str (Name.Lexeme);
+
+        var Inner := Statement ();
+
+        // Not a loop, so nothing took it.  It is still a position 'goto' can
+        // name; it simply names no loop for 'break' to leave.
+        PendingLabel := '';
+
+        Exit LabelStmt (Name, Inner);
+    end
+
+    /// Takes the label written before the loop now being parsed, if any, and
+    /// makes it the innermost labelled loop for the length of its body.
+    ///
+    function TakeLabel () : String;
+    var
+        Taken : String;
+
+    begin
+        Taken := PendingLabel;
+        PendingLabel := '';
+
+        LoopLabels.Add (Taken);
+
+        Exit Taken;
+    end
+
+    /// Whether a label names a loop this statement is inside.
+    ///
+    function EnclosingLoop (TheLabel : String) : Boolean;
+    begin
+        for var I := 0; I < LoopLabels.Length; I := I + 1 do
+            if FoldCase (Str (LoopLabels[I])) = FoldCase (TheLabel) then Exit True;
+
+        Exit False;
+    end
+
+    /// The label after 'break' or 'continue', or '' when none was written.
+    ///
+    /// # Errors
+    ///
+    /// Raises an error when the label names no enclosing loop.  A jump to a
+    /// loop that does not surround the statement is wrong however the program
+    /// runs, and the parser is where the enclosing loops are known.
+    ///
+    function JumpLabel (Keyword : Token, Verb : String) : String;
+    var
+        Named : String;
+
+    begin
+        if not Check (TOKEN_IDENTIFIER) then Exit '';
+
+        Named := Str (Advance ().Lexeme);
+
+        if not EnclosingLoop (Named) then
+            raise Error (Keyword, 'No enclosing loop is labelled ''' + Named + '''.');
+
+        Exit Named;
     end
 
     /// Parses 'continue;'.
@@ -973,8 +1093,14 @@ begin
         if LoopDepth = 0 then
             raise Error (Keyword, 'Must be inside a loop to use ''continue''.');
 
+        var Named := JumpLabel (Keyword, 'continue');
+
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after ''continue''.');
-        Exit ContinueStmt (Keyword);
+
+        var Beginning := ContinueStmt (Keyword);
+        Beginning.Label := Named;
+
+        Exit Beginning;
     end
 
     /// Parses 'raise Expr;'.
