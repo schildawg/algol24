@@ -472,6 +472,38 @@ else
         && echo "  LEX-010 keywords match Scanner.a24 ($(wc -l < "$WORK/kw_norm" | tr -d ' ') in the language, $(( $(wc -l < "$WORK/kw_spec" | tr -d ' ') - $(wc -l < "$WORK/kw_norm" | tr -d ' ') )) registered in error)"
 fi
 
+# ⚠️ The editor's grammar is a SECOND transcription of the keyword list, and
+# nothing else guards it.  CLAUDE.md warns to mirror a new keyword by hand into
+# vscode/syntaxes/, which is exactly the kind of instruction that gets followed
+# until it is not -- 'div' had to be remembered on the day it was added.
+#
+# ⚠️ PRESENCE, not correctness.  A keyword mirrored into the wrong rule would
+# still colour wrongly and pass here.  Matching TextMate's structure would mean
+# parsing several patterns that each legitimately list a different subset, and a
+# brittle check that cries wolf is worse than a narrow one that does not: this
+# catches the failure that actually happens, which is a keyword never mirrored
+# at all.
+
+GRAMMAR="vscode/syntaxes/algol24.tmLanguage.json"
+
+if [ ! -f "$GRAMMAR" ]; then
+    problem "the editor grammar is missing: $GRAMMAR"
+elif [ ! -s "$WORK/kw_source" ]; then
+    problem "the keyword list could not be read from Scanner.a24"
+else
+    GRAMMAR_MISSING=""
+    while read -r word; do
+        grep -qE "[^A-Za-z0-9_]${word}[^A-Za-z0-9_]" "$GRAMMAR" \
+            || GRAMMAR_MISSING="$GRAMMAR_MISSING $word"
+    done < "$WORK/kw_source"
+
+    if [ -n "$GRAMMAR_MISSING" ]; then
+        problem "the editor grammar never mentions keyword(s):$GRAMMAR_MISSING"
+    else
+        echo "  every keyword appears in the editor grammar ($(wc -l < "$WORK/kw_source" | tr -d ' ') checked for presence)"
+    fi
+fi
+
 # ⚠️ [COL-003]'s member matrix is five kinds by twenty names, transcribed by
 # hand, and it is the single most rot-prone thing in the document.  spec/
 # members.a24 asks the interpreter which members each kind actually answers for,

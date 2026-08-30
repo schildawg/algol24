@@ -313,10 +313,14 @@ Value alg_singleton(Value klass);
 Value alg_enum_type(const char *name);
 Value alg_enum_member(Value type, const char *name);
 
-/* Records a subrange a program declared -- 'type Digit = 0 .. 9;' [TYP-016].
- * Emitted beside the class shells, because a subrange must be known before any
- * statement can assign through it. */
-void  alg_subrange(const char *name, int64_t low, int64_t high);
+/* Records a subrange -- the predefined ones [TYP-015] and a program's own
+ * [TYP-016] alike, since the emitter registers both by this one route.  Emitted
+ * beside the class shells, because a subrange must be known before any
+ * statement can assign through it.
+ *
+ * ⚠️ The bounds arrive as decimal TEXT, because a bound may be any Integer and
+ * C cannot spell one past its own width. */
+void  alg_subrange(const char *name, const char *low, const char *high);
 
 /* Property and method access.  Both dispatch on the receiver at run time, so one
  * emitted call covers an instance field, a collection's Length, and a method on

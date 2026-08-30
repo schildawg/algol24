@@ -1216,6 +1216,10 @@ begin
 
             var IsMain := U = Units.Length - 1;
 
+            // Every subrange the program can name, registered once -- see
+            // EmitSubranges for why it is the root's shells and nowhere else.
+            if IsMain then EmitSubranges ();
+
             UnitName := Str (Unit.Name);
             PrivateNames := Unit.PrivateNames as List;
             RootUnit := IsMain;
@@ -4140,14 +4144,34 @@ begin
     /// same object -- enum comparison is identity, and a copy would make
     /// 'Colour.Red = Red' false.
     ///
-    /// ⚠️ Emitted as a SHELL, beside the classes, because a subrange must be
-    /// known before any statement can assign through it -- and unlike a class
-    /// it has nothing to fill in afterwards.
+    /// ⚠️ Nothing to emit HERE.  Every subrange is registered once, from the
+    /// resolver's table, in EmitSubranges -- the predefined ones and a
+    /// program's own by the same route, so the runtime holds no second copy of
+    /// the built-in three.  A subrange is hoisted, so the declaration's
+    /// position carries no information to lose.
     ///
     procedure VisitSubrangeStmt (TheStmt : SubrangeStmt);
     begin
-        Shells.Append ('    alg_subrange(' + QuoteC (Str (TheStmt.Name.Lexeme))
-               + ', ' + Str (TheStmt.Low) + ', ' + Str (TheStmt.High) + ');' + #10);
+    end
+
+    /// Registers every subrange the program can name.
+    ///
+    /// ⚠️ In the ROOT's shells, which run before anything else: init_Main
+    /// begins with them, and every module's initializer is reached from its
+    /// body.  A subrange must exist before any statement can assign through
+    /// one, wherever it was declared.
+    ///
+    /// ⚠️ The bounds go out as decimal TEXT.  A bound may be any Integer
+    /// [LEX-018] and C cannot spell one past its own width -- the same reason
+    /// a wide literal is emitted as digits.
+    ///
+    procedure EmitSubranges ();
+    begin
+        for var I := 0; I < SUBRANGE_NAMES.Length; I := I + 1 do
+            Shells.Append ('    alg_subrange('
+                   + QuoteC (Str (SUBRANGE_NAMES[I])) + ', '
+                   + QuoteC (Str (SUBRANGE_LOWS[I]))  + ', '
+                   + QuoteC (Str (SUBRANGE_HIGHS[I])) + ');' + #10);
     end
 
     procedure VisitEnumStmt (TheStmt : EnumStmt);

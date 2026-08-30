@@ -321,6 +321,9 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
 }
 
 void init_Main(void) {
+    alg_subrange("byte", "0", "255");
+    alg_subrange("word", "0", "65535");
+    alg_subrange("short", "-32768", "32767");
     fn_readsource = alg_closure("ReadSource", f_readsource, NULL, 0, 1);
     fn_checkscanned = alg_closure("CheckScanned", f_checkscanned, NULL, 0, 0);
     fn_runtests = alg_closure("RunTests", f_runtests, NULL, 0, 2);

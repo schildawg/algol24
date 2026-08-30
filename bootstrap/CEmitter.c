@@ -1180,6 +1180,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                     (void)(alg_set_property(v_this, "UnitTests", alg_widen(alg_int(0), "Integer")));
                     Value v_ismain = alg_equal(v_u, alg_subtract(alg_property(v_units, "Length"), alg_int(1)));
                     (void)v_ismain;
+                    if (alg_truthy(v_ismain)) {
+                        (void)(alg_invoke(v_this, "EmitSubranges", NULL, 0));
+                    }
                     (void)(alg_set_property(v_this, "UnitName", alg_widen(alg_str(alg_property(v_unit, "Name")), "String")));
                     (void)(alg_set_property(v_this, "PrivateNames", alg_widen(alg_cast(alg_property(v_unit, "PrivateNames"), "List"), "List")));
                     (void)(alg_set_property(v_this, "RootUnit", alg_widen(v_ismain, "Boolean")));
@@ -4267,7 +4270,21 @@ static Value m_cemitter_visitsubrangestmt_1_subrangestmt(Value v_this, Value *ar
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "SubrangeStmt");
     (void)v_thestmt;
-    (void)(alg_invoke(alg_property(v_this, "Shells"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    alg_subrange("), f_quotec(NULL, (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1)), alg_string(", ")), alg_str(alg_property(v_thestmt, "Low"))), alg_string(", ")), alg_str(alg_property(v_thestmt, "High"))), alg_string(");")), alg_char_value(10))}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_emitsubranges_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "Length")))) {
+            {
+                (void)(alg_invoke(alg_property(v_this, "Shells"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    alg_subrange("), f_quotec(NULL, (Value[]){alg_str(alg_subscript_get((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), v_i))}, 1)), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_subscript_get((alg_declared(d_subrangeVlows, "SUBRANGE_LOWS"), v_subrangeVlows), v_i))}, 1)), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_subscript_get((alg_declared(d_subrangeVhighs, "SUBRANGE_HIGHS"), v_subrangeVhighs), v_i))}, 1)), alg_string(");")), alg_char_value(10))}, 1));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
+            }
+        }
+    }
     return alg_nil();
 }
 
@@ -4746,6 +4763,7 @@ void init_CEmitter(void) {
     alg_class_method(k_cemitter, "VisitClassStmt", m_cemitter_visitclassstmt_1_classstmt, 1, t_cemitter_visitclassstmt_1_classstmt);
     alg_class_method(k_cemitter, "VisitObjectStmt", m_cemitter_visitobjectstmt_1_objectstmt, 1, t_cemitter_visitobjectstmt_1_objectstmt);
     alg_class_method(k_cemitter, "VisitSubrangeStmt", m_cemitter_visitsubrangestmt_1_subrangestmt, 1, t_cemitter_visitsubrangestmt_1_subrangestmt);
+    alg_class_method(k_cemitter, "EmitSubranges", m_cemitter_emitsubranges_0, 0, NULL);
     alg_class_method(k_cemitter, "VisitEnumStmt", m_cemitter_visitenumstmt_1_enumstmt, 1, t_cemitter_visitenumstmt_1_enumstmt);
     alg_class_method(k_cemitter, "VisitTryStmt", m_cemitter_visittrystmt_1_trystmt, 1, t_cemitter_visittrystmt_1_trystmt);
     alg_class_method(k_cemitter, "VisitRaiseStmt", m_cemitter_visitraisestmt_1_raisestmt, 1, t_cemitter_visitraisestmt_1_raisestmt);

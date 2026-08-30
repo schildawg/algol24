@@ -1786,59 +1786,57 @@ static bool is_a(Value v, const char *name) {
 /* Whether an argument of this type may be passed where 'declared' is written,
  * by WIDENING [VAR-004] -- an Integer where a Double is asked for, a Char where
  * a String is.  A parameter is an assignment context [VAR-017]. */
-/* The predefined subranges [TYP-015]: a name with a low and a high bound.
+/* A subrange: a name with a low and a high bound [TYP-015], [TYP-016].
  *
  * ⚠️ A subrange is a CONSTRAINT on an Integer, not a type of its own.  Nothing
  * is ever "a Byte" at run time -- type_name still answers "Integer" -- so the
  * name appears only where a type is WRITTEN, and the bounds are checked there.
  *
- * ⚠️ The same three rows as Token.a24's, and they have to stay that way.  Two
- * copies of one table is what [COL-003] already needs a harness to guard; this
- * one is guarded by conformance running under both processors. */
+ * ⚠️ There is NO predefined table here, and there used to be one holding Byte,
+ * Word and Short.  It was a second copy of Token.a24's, kept in step by nothing
+ * but a conformance case -- so the emitter registers all of them instead, the
+ * built-in three by exactly the route a program's own take.  Deleting a copy
+ * beats checking a copy.
+ *
+ * ⚠️ The bounds are VALUES, not int64s, so a bound may be any Integer [LEX-018].
+ * They arrive as decimal TEXT for the same reason a wide literal does: C cannot
+ * spell one past its own width, and alg_integer rebuilds it through the
+ * arithmetic that promotes. */
 typedef struct {
     const char *name;
-    int64_t     low;
-    int64_t     high;
+    Value       low;
+    Value       high;
 } Subrange;
 
-static const Subrange SUBRANGES[] = {
-    { "Byte",  0,      255   },
-    { "Word",  0,      65535 },
-    { "Short", -32768, 32767 },
-    { NULL,    0,      0     },
-};
-
-/* ⚠️ A program declares subranges of its own [TYP-016], so the predefined
- * three are only the first entries of a table generated code adds to.  Fixed
- * capacity rather than growable: this is filled once at startup, before any
- * statement runs, and a program with 64 subrange declarations is not the
+/* Fixed capacity rather than growable: this is filled once at startup, before
+ * any statement runs, and a program with 64 subrange declarations is not the
  * program this language is for. */
 #define ALG_SUBRANGE_MAX 64
 
 static Subrange declared_subranges[ALG_SUBRANGE_MAX];
 static int32_t  declared_count = 0;
 
-void alg_subrange(const char *name, int64_t low, int64_t high) {
+void alg_subrange(const char *name, const char *low, const char *high) {
+    Value from = alg_integer(low);
+    Value to   = alg_integer(high);
+
     for (int32_t i = 0; i < declared_count; i++)
         if (alg_stricmp(name, declared_subranges[i].name) == 0) {
-            declared_subranges[i].low  = low;
-            declared_subranges[i].high = high;
+            declared_subranges[i].low  = from;
+            declared_subranges[i].high = to;
             return;
         }
 
     if (declared_count == ALG_SUBRANGE_MAX) alg_error("Too many subrange declarations.");
 
     declared_subranges[declared_count].name = name;
-    declared_subranges[declared_count].low  = low;
-    declared_subranges[declared_count].high = high;
+    declared_subranges[declared_count].low  = from;
+    declared_subranges[declared_count].high = to;
     declared_count++;
 }
 
 static const Subrange *subrange_of(const char *name) {
     if (name == NULL) return NULL;
-
-    for (int32_t i = 0; SUBRANGES[i].name != NULL; i++)
-        if (alg_stricmp(name, SUBRANGES[i].name) == 0) return &SUBRANGES[i];
 
     for (int32_t i = 0; i < declared_count; i++)
         if (alg_stricmp(name, declared_subranges[i].name) == 0) return &declared_subranges[i];
@@ -1846,12 +1844,15 @@ static const Subrange *subrange_of(const char *name) {
     return NULL;
 }
 
-/* ⚠️ Only an Integer can lie within one, and only one that fits the machine's
- * width: a big Integer is past every bound these name. */
+/* ⚠️ Only an Integer lies within one, and the comparison is the language's own
+ * -- so a bound past the machine's width works exactly as any other Integer
+ * does.  Comparing int64s here would have made every value past 2^63 fall
+ * outside every subrange, whatever its bounds said. */
 static bool in_subrange(Value v, const Subrange *range) {
-    if (v.type != VAL_INT) return false;
+    if (!is_integer(v)) return false;
 
-    return v.integer >= range->low && v.integer <= range->high;
+    return alg_truthy(alg_greater_equal(v, range->low))
+        && alg_truthy(alg_less_equal(v, range->high));
 }
 
 /* The type a written name stands for once a subrange is seen through.
