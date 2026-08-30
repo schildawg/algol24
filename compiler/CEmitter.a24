@@ -269,6 +269,20 @@ var
     /// outside the file because nothing else can refer to them.
     Renames      : Map;
 
+    /// Names this unit declares more than one top-level subprogram for
+    /// [FUN-013], and the same per unit for the whole program.
+    ///
+    /// ⚠️ A name in here is reached through an overload SET rather than by its
+    /// own symbol, because the call site cannot know which candidate it wants
+    /// until it has its arguments.  A name with one subprogram behind it is
+    /// called directly, which is what keeps every other program's C unchanged.
+    Overloaded   : Set;
+    OverloadsIn  : Map;
+
+    /// The overload sets already built, so a name with three subprograms makes
+    /// one set rather than three.
+    SetsBuilt    : Set;
+
     /// Exported names that more than one unit binds [MOD-008].
     ///
     /// ⚠️ Program-wide, because the SYMBOL is: two units defining 'v_shared'
@@ -439,6 +453,9 @@ begin
         this.AmbiguousMembers := Map();
         this.AmbiguousImports := Map();
         this.Renamed := Set();
+        this.Overloaded := Set();
+        this.OverloadsIn := Map();
+        this.SetsBuilt := Set();
         this.Boxed := List();
         this.Cells := List();
         this.Captured := Map();
@@ -752,6 +769,50 @@ begin
         Exit Mangle ('fn_', Name);
     end
 
+    /// The overload set for a name more than one subprogram is declared for.
+    ///
+    function SetName (Name : String) : String;
+    begin
+        Exit Mangle ('o_', Name);
+    end
+
+    /// The value a bare reference to a top-level subprogram yields: its closure
+    /// normally, and the overload set when there is more than one of it.
+    ///
+    function SubprogramValue (Name : String) : String;
+    begin
+        if Overloaded.Contains (Name) then Exit SetName (Name);
+
+        Exit HandleName (Name);
+    end
+
+    /// A top-level subprogram's C symbol.
+    ///
+    /// ⚠️ Carries the signature only when the name is OVERLOADED, so an
+    /// ordinary function keeps the symbol it has always had and the emitted C
+    /// of every program without an overload is unchanged.  MethodSymbol
+    /// suffixes unconditionally because a method's symbol is private to its
+    /// class; a subprogram's appears in a header an importer includes.
+    ///
+    /// ⚠️ The parts are joined with a RAW '_' after each is escaped, which is
+    /// what Annex G.3 reserves it for -- the same rule as the unit suffix.
+    function FunctionSymbol (TheStmt : Any) : String;
+    var
+        Symbol : String;
+
+    begin
+        var Name := Str (TheStmt.Name.Lexeme);
+        if not Overloaded.Contains (Name) then Exit FunctionName (Name);
+
+        Symbol := FunctionName (Name) + '_' + Str (TheStmt.Params.Length);
+
+        var Types := DeclaredTypes (TheStmt);
+        for var I := 0; I < Types.Length; I := I + 1 do
+            if Types[I] <> 'Any' then Symbol := Symbol + '_' + Escaped (Str (Types[I]));
+
+        Exit Symbol;
+    end
+
     /// ⚠️ Every function has the same C signature whatever its arity, so any of
     /// them can be wrapped in a closure and called through one path.
     function Prototype (TheStmt : Any) : String;
@@ -762,7 +823,7 @@ begin
         Lead := 'static Value ';
         if Exported (Str (TheStmt.Name.Lexeme)) then Lead := 'Value ';
 
-        Exit Lead + FunctionName (Str (TheStmt.Name.Lexeme))
+        Exit Lead + FunctionSymbol (TheStmt)
            + '(Value **cells, Value *args, int32_t count)';
     end
 
@@ -940,20 +1001,20 @@ begin
             if TheStmt is FunctionStmt and not IsTest (TheStmt) then
             begin
                 // ⚠️ A top-level subprogram OVERLOADS [FUN-013], and this back
-                // end cannot spell two of one name: FunctionName mangles to
+                // end could not spell two of one name: FunctionName mangled to
                 // 'f_Name' alone, so the second definition made cc say
                 // 'redefinition of f_Take' -- a compiler emitting a program it
                 // cannot build, which is the one thing refusing by name exists
                 // to prevent.
                 //
-                // ⚠️ Selecting the overload is a RUN-TIME question, so this is
-                // not a mangling fix alone: the call site does not know which
+                // ⚠️ Selecting the overload is a RUN-TIME question, so this was
+                // never a mangling fix alone: the call site does not know which
                 // candidate it wants until it has its arguments, exactly as a
-                // method call does not.  MethodSymbol already mangles by
-                // signature and alg_invoke already dispatches on one; a
-                // top-level subprogram needs both.
+                // method call does not.  FunctionSymbol mangles by signature as
+                // MethodSymbol does, and a name with more than one behind it is
+                // reached through an overload SET that chooses at the call.
                 if TopLevel.Contains (Str (TheStmt.Name.Lexeme)) then
-                    Unsupported ('Two subprograms named ''' + Str (TheStmt.Name.Lexeme) + '''');
+                    Overloaded.Add (Str (TheStmt.Name.Lexeme));
 
                 TopLevel.Add (Str (TheStmt.Name.Lexeme));
             end
@@ -1019,7 +1080,15 @@ begin
         for var U := 0; U < Units.Length; U := U + 1 do
         begin
             TopLevel := Set();
+            Overloaded := Set();
+
             CollectGlobals (Units[U].Statements);
+
+            // ⚠️ Kept per unit, for the reason TopLevel is cleared per unit:
+            // two units declaring one name are two subprograms, not an
+            // overload set, and merging them would let a call in one file
+            // select a candidate the other file declared.
+            OverloadsIn.Put (Str (Units[U].Name), Overloaded);
         end
 
         // What each unit exports: its top-level declarations less what it marked
@@ -1125,6 +1194,9 @@ begin
             Functions := Buffer();
             Setup := Buffer();
             Shells := Buffer();
+
+            Overloaded := OverloadsIn.Get (Str (Unit.Name)) as Set;
+            SetsBuilt := Set();
 
             OwnClasses := Set();
             for var I := 0; I < Unit.Statements.Length; I := I + 1 do
@@ -1853,7 +1925,7 @@ begin
         end
 
         Exit 'alg_closure(' + QuoteC (Str (TheStmt.Name.Lexeme)) + ', '
-           + FunctionName (Str (TheStmt.Name.Lexeme)) + ', ' + Array + ', '
+           + FunctionSymbol (TheStmt) + ', ' + Array + ', '
            + Str (TheStmt.Params.Length) + ')';
     end
 
@@ -2723,6 +2795,25 @@ begin
             Line (Local () + VariableName (Name) + ' = '
                 + ClosureOf (TheStmt, CapturedCells) + ';');
         end
+        else if Overloaded.Contains (Name) then
+        begin
+            // ⚠️ ONE set for the name, however many subprograms carry it, so a
+            // third declaration adds a candidate rather than replacing the set
+            // the first two were added to.
+            if not SetsBuilt.Contains (Name) then
+            begin
+                SetsBuilt.Add (Name);
+
+                DeclareValue (SetName (Name), Name);
+                Setup.Append ('    ' + SetName (Name) + ' = alg_overloads('
+                       + QuoteC (Name) + ');' + #10);
+            end
+
+            Setup.Append ('    alg_overload(' + SetName (Name) + ', '
+                   + FunctionSymbol (TheStmt) + ', ' + Str (TheStmt.Params.Length)
+                   + ', ' + TypeTable (FunctionSymbol (TheStmt), DeclaredTypes (TheStmt))
+                   + ');' + #10);
+        end
         else
         begin
             // A top-level function also exists as a value, so it can be passed
@@ -2732,6 +2823,36 @@ begin
             Setup.Append ('    ' + HandleName (Name) + ' = '
                    + ClosureOf (TheStmt, List()) + ';' + #10);
         end
+    end
+
+    /// A static array naming each parameter's declared type, or NULL when there
+    /// are none.
+    ///
+    /// ⚠️ A file-scope static rather than a compound literal at the call, so its
+    /// lifetime is obviously the program's -- whatever holds the pointer keeps
+    /// it for as long as it lives.  EmitClass builds the same thing for a
+    /// method's table and this is that code, named.
+    ///
+    function TypeTable (Symbol : String, Types : List) : String;
+    var
+        Table : String;
+
+    begin
+        if Types.Length = 0 then Exit 'NULL';
+
+        Table := 't_' + Symbol;
+
+        var Quoted := '';
+        for var I := 0; I < Types.Length; I := I + 1 do
+        begin
+            if I > 0 then Quoted := Quoted + ', ';
+
+            Quoted := Quoted + QuoteC (Str (Types[I]));
+        end
+
+        Declarations.Append ('static const char *' + Table + '[] = { ' + Quoted + ' };' + #10);
+
+        Exit Table;
     end
 
     // ----------------------------------------------------------- expressions
@@ -2801,8 +2922,10 @@ begin
             if Objects.Contains (Name) then
                 Exit 'alg_singleton(' + ClassHandle (Name) + ')';
 
-            // A function used as a value rather than called.
-            if Declared.Contains (Name) then Exit HandleName (Name);
+            // A function used as a value rather than called -- its overload set
+            // when the name has more than one, which is what the interpreter
+            // hands back too: the value is callable and selects when called.
+            if Declared.Contains (Name) then Exit SubprogramValue (Name);
         end
 
         Unreachable (Name);
@@ -3312,6 +3435,8 @@ begin
         var Built := '';
         if Classes.Contains (Name) then
             Built := 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
+        else if Declared.Contains (Name) and Overloaded.Contains (Name) then
+            Built := 'alg_call(' + SetName (Name) + ', ' + ArgumentArray (Arguments) + ')';
         else if Declared.Contains (Name) then
             Built := FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
         else if Globals.Contains (Name) then
@@ -3451,6 +3576,16 @@ begin
         if Classes.Contains (Name) then
             Exit 'alg_new(' + ClassHandle (Name) + ', ' + ArgumentArray (Arguments) + ')';
 
+        // ⚠️ An object is not a class; it is already the instance [CLS-016], so
+        // calling one is a program that is WRONG rather than a shape this back
+        // end cannot emit -- which is what refusing it by name claimed (C-15).
+        // The singleton is built first, as the interpreter evaluates the callee
+        // first, and alg_call gives the language's wording for a value that is
+        // not callable.
+        if Objects.Contains (Name) then
+            Exit 'alg_call(alg_singleton(' + ClassHandle (Name) + '), '
+               + ArgumentArray (Arguments) + ')';
+
         // ⚠️ Ahead of Declared, and that is the point: both owners ARE declared,
         // which is exactly why the bare name cannot be resolved [MOD-013].
         // Reaching the branch below would pick whichever the flattened program
@@ -3481,6 +3616,13 @@ begin
         // on a path never taken is not an error at all.
         if Declared.Contains (Name) and not ShadowNames.Contains (Name) then
             Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+
+        // ⚠️ A name with more than one subprogram behind it goes through its
+        // SET, which picks from the arguments [FUN-013].  A name with one is
+        // still called by its own symbol: nothing to select between, and the
+        // emitted C of every program without an overload stays as it was.
+        if Declared.Contains (Name) and Overloaded.Contains (Name) then
+            Exit 'alg_call(' + SetName (Name) + ', ' + ArgumentArray (Arguments) + ')';
 
         if Declared.Contains (Name) then
             Exit FunctionName (Name) + '(NULL, ' + ArgumentArray (Arguments) + ')';
@@ -3744,7 +3886,7 @@ begin
         else if EnumTypes.Contains (Name) then Built := EnumTypeName (Name);
         else if Objects.Contains (Name)   then Built := 'alg_singleton(' + ClassHandle (Name) + ')';
         else if Classes.Contains (Name)   then Built := ClassHandle (Name);
-        else if Declared.Contains (Name)  then Built := HandleName (Name);
+        else if Declared.Contains (Name)  then Built := SubprogramValue (Name);
         else if Globals.Contains (Name)   then Built := Guarded (Name, VariableName (Name));
 
         Renames := Saved;

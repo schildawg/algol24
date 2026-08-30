@@ -4079,7 +4079,8 @@ expected count to name. The runtime said `Wrong number of arguments.` for the
 method case and `Wrong number of arguments to Init.` for a constructor, neither
 of which any interpreted run produces; `0049` now pins all four shapes.
 
-**C-15 — A call to an object will not compile.** *(loud)*
+**C-15 — A call to an object will not compile.**
+***Withdrawn.***
 *(refers to [CLS-016])*
 
 ```
@@ -4111,12 +4112,18 @@ sees a call to a name it cannot resolve and refuses it as unsupported, which
 describes the emitter rather than the program.
 
 ⚠️ The program is a **valid** one whose defined behaviour is to raise. The
-emitter refuses it rather than emitting something that raises, so a program the
-language merely rejects at run time has no compiled form at all. That is the
-right way round for a gap — loud, named, and impossible to miss — but it is
-still a program the two processors do not agree on.
+emitter refused it rather than emitting something that raises, so a program the
+language merely rejects at run time had no compiled form at all. That was the
+right way round for a gap — loud, named, and impossible to miss — but it was
+still a program the two processors did not agree on.
 
-    gap  0070-object-is-not-callable.a24
+⚠️ **The runtime already had the wording.** `alg_call` says `Can only call
+functions and classes.` for anything that is not callable, so emitting the call
+rather than refusing it produces the language's own message: the singleton is
+built first, as the interpreter evaluates the callee first, and handed to
+`alg_call` like any other value. Both rows of the table above are closed — the
+second by C-33, and for the same reason: neither program is one the back end
+cannot express.
 
 **C-16 — Inheriting from a non-class emits invalid C.**
 ***Withdrawn.***
@@ -4152,16 +4159,21 @@ superclass when the declaration *runs*; a compiled program never runs its
 declarations at emit time, so nothing else would have said anything.
 
 
-**C-17 — An enum member has no properties compiled.** *(loud)*
+**C-17 — An enum member has no properties compiled.**
+***Withdrawn.***
 *(refers to [ENU-010])*
 
-`RED.Ordinal` is `Only instances have properties.` compiled, where the
+`RED.Ordinal` was `Only instances have properties.` compiled, where the
 interpreter answers `0`.
 
 ⚠️ **New in generation 1**, and expected: the interpreter gained the property
-and the C runtime has not. `alg_property` needs the case `ObjEnum` now has.
+and the C runtime had not. `alg_property` needed the case `ObjEnum` had gained.
 
-    gap  0113-enum-ordinal.a24
+⚠️ **The ordinal was already there to answer with.** The runtime has carried it
+since enums were emitted at all, because truthiness reads it — the first member
+of every enumeration is falsey [ENU-009] — so a compiled program was governed by
+a number it had no way to read, and could discover whether a member was falsey
+only by testing it for truth.
 
 **C-18 — `Length` of a collection is not refused compiled.**
 ***Withdrawn.***
@@ -4376,23 +4388,40 @@ constructor's signature is unchecked by design. `alg_widen` converts and refuses
 nothing; `alg_param` does both and is used only where a check belongs.
 
 
-**C-26 — Two top-level subprograms of one name will not compile.** *(loud)*
+**C-26 — Two top-level subprograms of one name will not compile.**
+***Withdrawn.***
 
 A top-level subprogram overloads [FUN-013] and the interpreter selects between
-them. The emitter refuses with `Two subprograms named 'Take' is not supported by
+them. The emitter refused with `Two subprograms named 'Take' is not supported by
 the C back end yet.`
 
 ⚠️ **It used to emit and die at `cc`** — `redefinition of f_Take` — which is a
 compiler producing a program it cannot build, and past anything the emitter's
 own checks observe. The refusal was added with the rule.
 
-*Fix:* two halves, and the second is the real one. `FunctionName` mangles by
-signature as `MethodSymbol` already does, so both definitions can be spelled;
-and the **call site** dispatches at run time, because it does not know which
-candidate it wants until it has its arguments — exactly as a method call does
-not. `alg_invoke` already does that for methods.
+⚠️ **The two halves the entry named were both needed, and the second is the one
+that shapes the design.** `FunctionSymbol` mangles by signature so both
+definitions can be spelled; and because the call site cannot know which
+candidate it wants until it has its arguments, a name with more than one
+subprogram behind it is reached through an **overload set** — one value per
+name, holding every candidate with its arity and declared types, which selects
+when called. `alg_call` on one is `find_method` for subprograms: two passes,
+exact before widening [EXP-014], forwards within a pass so the first declared
+wins.
 
-    gap  0138-top-level-overloading.a24
+⚠️ **Only an overloaded name pays for it.** A name with a single subprogram
+behind it is still called by its own symbol and still carries no signature
+suffix, so the emitted C of every program without an overload is unchanged —
+which is also what let the seed stay comparable across this change.
+
+⚠️ **One message for both failures**, which is what the interpreter gives: a
+wrong count and a wrong type are both "nothing fitted", and there is no single
+expected arity to name when the candidates disagree about it.
+
+⚠️ **The refusal was also firing across units**, which is how C-21 met it:
+`TopLevel` accumulated program-wide, so one name in two files read as an
+overload. Two subprograms in two files are not one, and the set is cleared per
+unit.
 
 **C-27 — A large literal of computed elements will not compile.** *(loud)*
 

@@ -1486,11 +1486,17 @@ Value alg_param(Value argument, const char *declared) {
  * rather than a String one however they are declared; admitting the widening in
  * a single pass would let declaration order decide.  The interpreter's Fits
  * takes the same flag for the same reason. */
-static bool signature_matches(MethodEntry *entry, Value *args, int32_t count, bool widening) {
-    if (args == NULL || entry->types == NULL) return true;
+/* Whether these arguments fit these declared parameter types.
+ *
+ * ⚠️ Takes the type array rather than a MethodEntry, because a top-level
+ * subprogram overloads on the whole signature too [FUN-013] and selection is
+ * one rule -- 'never on arity, and everywhere the same'.  It carries the types
+ * in an ObjOverloads entry instead of a method table, and asks this. */
+static bool types_match(const char **types, Value *args, int32_t count, bool widening) {
+    if (args == NULL || types == NULL) return true;
 
     for (int32_t i = 0; i < count; i++) {
-        const char *declared = entry->types[i];
+        const char *declared = types[i];
         if (declared == NULL || alg_stricmp(declared, "Any") == 0) continue;
 
         const char *actual = type_name(args[i]);
@@ -1504,6 +1510,10 @@ static bool signature_matches(MethodEntry *entry, Value *args, int32_t count, bo
         return false;
     }
     return true;
+}
+
+static bool signature_matches(MethodEntry *entry, Value *args, int32_t count, bool widening) {
+    return types_match(entry->types, args, count, widening);
 }
 
 /* Selects a method by name, then by signature.
@@ -2162,6 +2172,18 @@ Value alg_property(Value receiver, const char *name) {
         return alg_bound(receiver, method);
     }
 
+    /* ⚠️ A MEMBER answers exactly one property: its zero-based position
+     * [ENU-010].  The ordinal was already carried here -- truthiness reads it,
+     * so the first member of every enumeration is falsey [ENU-009] -- and a
+     * compiled program had no way to read it, so it could discover whether a
+     * member was falsey only by testing it for truth.  This fell through to
+     * 'Only instances have properties.' (C-17). */
+    if (is_obj(receiver, OBJ_ENUM)) {
+        if (alg_stricmp(name, "Ordinal") == 0) return alg_int(((ObjEnum *)receiver.obj)->ordinal);
+
+        undefined("property", name);
+    }
+
     if (is_obj(receiver, OBJ_ENUM_TYPE)) {
         ObjEnumType *type = (ObjEnumType *)receiver.obj;
 
@@ -2495,6 +2517,81 @@ Value alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_
     return object((Obj *)closure);
 }
 
+/* ------------------------------------------------------------- overloads -- */
+
+/* A top-level subprogram overloads [FUN-013], and selection is on the whole
+ * signature from the values actually passed -- the same rule methods use, and
+ * for the same reason: a declared type may be Any, so no static rule can always
+ * reach the right candidate.
+ *
+ * ⚠️ ONE object per overloaded NAME, not one symbol per declaration reached by
+ * a call site that guessed.  The call site cannot know which candidate it wants
+ * until it has its arguments, exactly as a method call cannot, so it hands them
+ * all to this and lets it choose. */
+typedef struct {
+    AlgFunction  fn;
+    int32_t      arity;
+    const char **types;
+} OverloadEntry;
+
+typedef struct {
+    Obj obj;
+
+    const char    *name;
+    OverloadEntry *entries;
+    int32_t        count;
+    int32_t        capacity;
+} ObjOverloads;
+
+Value alg_overloads(const char *name) {
+    ObjOverloads *set = arena_alloc(sizeof(ObjOverloads));
+
+    set->obj.type = OBJ_OVERLOADS;
+    set->name     = name;
+    set->entries  = NULL;
+    set->count    = 0;
+    set->capacity = 0;
+
+    return object((Obj *)set);
+}
+
+void alg_overload(Value value, AlgFunction fn, int32_t arity, const char **types) {
+    if (!is_obj(value, OBJ_OVERLOADS)) alg_error("Expected an overload set.");
+
+    ObjOverloads *set = (ObjOverloads *)value.obj;
+
+    /* Fixed at startup and short, so this grows by one rather than doubling --
+     * the same bargain alg_class_field makes. */
+    OverloadEntry *entries = arena_alloc((size_t)(set->count + 1) * sizeof(OverloadEntry));
+    if (set->count > 0) memcpy(entries, set->entries, (size_t)set->count * sizeof(OverloadEntry));
+
+    entries[set->count].fn    = fn;
+    entries[set->count].arity = arity;
+    entries[set->count].types = types;
+
+    set->entries = entries;
+    set->count++;
+    set->capacity = set->count;
+}
+
+/* ⚠️ TWO PASSES, exact before widening [EXP-014], as find_method does and for
+ * the same reason: one pass admitting widening lets declaration order decide
+ * which candidate a Char reaches, which is a silent wrong answer.  Within a
+ * pass the scan runs forwards, so when two both fit the first declared wins. */
+static Value call_overload(ObjOverloads *set, Value *args, int32_t count) {
+    for (int pass = 0; pass < 2; pass++)
+        for (int32_t i = 0; i < set->count; i++)
+            if (set->entries[i].arity == count
+             && types_match(set->entries[i].types, args, count, pass == 1))
+                return set->entries[i].fn(NULL, args, count);
+
+    /* ⚠️ ONE message for both failures, which is what the interpreter gives: a
+     * wrong count and a wrong type are both "nothing fitted" here, and there is
+     * no single expected arity to name when the candidates disagree about it. */
+    alg_error("No matching signature for function.");
+    return alg_nil();
+}
+
 Value alg_call(Value callee, Value *args, int32_t count) {
     /* A class is callable: naming one constructs an instance. */
     if (is_obj(callee, OBJ_CLASS)) return alg_new(callee, args, count);
@@ -2505,6 +2602,11 @@ Value alg_call(Value callee, Value *args, int32_t count) {
 
         return invoke_found(bound->method, bound->receiver, args, count);
     }
+
+    /* A name with more than one subprogram behind it picks one from the
+     * arguments -- see call_overload. */
+    if (is_obj(callee, OBJ_OVERLOADS))
+        return call_overload((ObjOverloads *)callee.obj, args, count);
 
     /* And so does a built-in member.  One signature, so the counts are the
      * whole story -- CollectionMethod, BufferMethod and FileMethod each carry

@@ -90,6 +90,12 @@ typedef enum {
      * call goes back through alg_invoke.  The interpreter's CollectionMethod,
      * BufferMethod and FileMethod are the same three fields. */
     OBJ_BUILTIN_BOUND,
+
+    /* Every top-level subprogram of one name, selected between at the call from
+     * the values actually passed [FUN-013].  One of these per overloaded name;
+     * a name with a single subprogram behind it has no set and is called
+     * directly. */
+    OBJ_OVERLOADS,
     OBJ_LIST,
     OBJ_SET,
     OBJ_STACK,
@@ -329,6 +335,19 @@ typedef Value (*AlgFunction)(Value **cells, Value *args, int32_t count);
 Value  *alg_cell(Value initial);
 Value   alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity);
 Value   alg_call(Value callee, Value *args, int32_t count);
+
+/* Every top-level subprogram of one name, in one value the call site hands its
+ * arguments to [FUN-013].  Built once at startup: alg_overloads makes the set
+ * and alg_overload adds a candidate, in declaration order, so that when two
+ * both fit the first declared wins.  'types' names each parameter's declared
+ * type, "Any" where none was written, and may be NULL for no parameters --
+ * exactly as alg_class_method's does.
+ *
+ * ⚠️ Emitted only for a name that HAS more than one subprogram.  A single one
+ * is still called by its own symbol, which keeps every other program's C
+ * unchanged and the selection cost where the language asks for it. */
+Value   alg_overloads(const char *name);
+void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **types);
 
 /* String and numeric builtins.
  *
