@@ -1,0 +1,55 @@
+// spec: VAL-014, COL-013
+//
+// '<', '<=', '>' and '>=' apply to numbers and to text.  Text is ordered
+// lexicographically by CODE POINT, and a prefix sorts before what extends it.
+//
+// ⚠️ Replaces 0038-strings-are-not-ordered, which pinned the opposite and said
+// so: "H-7 would give Strings an ordering, and this case is what turns red when
+// it lands."  It landed.
+
+// Numbers and Chars still order as they did.
+WriteLn (1 < 2);
+WriteLn (1.5 >= 1.5);
+WriteLn ('a' < 'b');
+
+// Strings now do.
+WriteLn ('ab' < 'cd');
+WriteLn ('cd' < 'ab');
+WriteLn ('ab' <= 'ab');
+WriteLn ('' < 'a');
+
+// A prefix sorts before what extends it.
+WriteLn ('ab' < 'abc');
+WriteLn ('abc' > 'ab');
+
+// ⚠️ A Char and a String compare as TEXT.  The two are still never equal
+// [VAL-009], but they sit in one order.
+WriteLn ('a' < 'ab');
+WriteLn ('ab' > 'a');
+WriteLn (Str ('a') < 'b');
+
+// By code point, so case is not folded: 'Z' is 90 and 'a' is 97.
+WriteLn ('Z' < 'a');
+
+// ⚠️ CODE POINTS, NOT BYTES.  'è' and 'é' are C3 A8 and C3 A9 in UTF-8: they
+// share a lead byte and used to compare EQUAL, while Ord answered 232 and 233 --
+// the language disagreeing with itself about which came first.
+WriteLn (Ord ('è'), ' ', Ord ('é'));
+WriteLn ('è' < 'é');
+WriteLn ('é' <= 'è');
+
+// ⚠️ Sort uses this same ordering [COL-013], not a second one that agrees.
+var Names := ['pear', 'Apple', 'banana', 'apple'];
+Names.Sort ();
+WriteLn (Names);
+
+var Accents := ['é', 'e', 'è', 'z'];
+Accents.Sort ();
+WriteLn (Accents);
+
+// Mixing text with numbers is still refused.
+try
+    WriteLn ('ab' < 1);
+except
+    on e : String do WriteLn (e);
+end

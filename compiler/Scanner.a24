@@ -34,9 +34,20 @@ end
 
 /// Reads a run of digits as an Integer.
 ///
-/// Ord would be the obvious call and returns a Double, which is the one thing
-/// this must not do.  Pos hands back an Integer, so accumulating digits keeps
-/// the whole computation in Integer arithmetic.
+/// ⚠️ This used to say "Ord would be the obvious call and returns a Double",
+/// which is wrong twice over.  Ord answers an INTEGER [RT-007], and what it
+/// answers is a CODE POINT -- 'Ord (''9'')' is 57, not 9 -- so it was never the
+/// call this wants.  The note reads as though it were written while Ord and Val
+/// were being confused with one another.
+///
+/// Val is the one that parses text to a number, and it is genuinely unusable
+/// here: it answers an Integer or a Double depending on what it reads
+/// [RT-009], so it reduces to no type at all and 'Exit Val (Text)' cannot fill
+/// a return declared Integer [VAR-006].
+///
+/// Pos hands back an Integer, and a digit's position in '0123456789' IS its
+/// value, so accumulating that way keeps the whole computation in Integer
+/// arithmetic.
 ///
 function ToInteger(Text : String) : Integer;
 var

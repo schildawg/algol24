@@ -1646,15 +1646,32 @@ cannot disagree.
 
 ### 7.7 Ordering
 
-**[VAL-014]**  `<`, `<=`, `>` and `>=` apply to numbers and to `Char` only.
-**Strings are not ordered**: `'ab' < 'cd'` is the runtime error `Operands must
-be numbers.`
+**[VAL-014]**  `<`, `<=`, `>` and `>=` apply to numbers and to **text**. Text
+is ordered **lexicographically by code point**, and a prefix sorts before what
+extends it: `'ab' < 'abc'`. Anything else is `Operands must be numbers.`
 
-⚠️ **PLANNED — a later generation.** Ordering for Strings. See Annex H, H-7.
+⚠️ **A `Char` and a `String` compare as text.** `'a' < 'ab'` is true, and the
+one-character String `Str ('a')` orders identically to the Char `'a'` — the two
+are still never *equal* [VAL-009], but they sit in one order.
+
+⚠️ **Code points, not bytes.** UTF-8 was designed so that byte order and
+code-point order agree, so an implementation comparing bytes is right by
+accident; this one is written in terms of code points so that it is right on
+purpose, and so that it cannot disagree with `Ord`.
+
+⚠️ **Char ordering was by the FIRST BYTE and is now by the code point**, which
+this rule never said either way. `'è'` and `'é'` are `C3 A8` and `C3 A9`, share
+a lead byte, and compared **equal** — while `Ord` answered 232 and 233, so the
+language disagreed with itself about which came first. Fixed with this rule.
+
+⚠️ **`Sort` uses this ordering** [COL-013], rather than a second one that
+happens to agree. It compared with `strcmp`, which stops at an embedded zero a
+String is entitled to hold and which orders bytes rather than characters.
 
     interpreter  compiler/Interpreter.a24  VisitBinary
+    compiler     bootstrap/algol.c         text_order
     unit         Evaluate Binary Greater Left Not Number
-    conformance  0038-strings-are-not-ordered.a24
+    conformance  0166-text-is-ordered.a24
 
 > A program needing to order text must compare it character by character, which
 > is what `compiler/CEmitter.a24`'s `TextLess` does — a function the compiler
@@ -6373,12 +6390,33 @@ visibility in the C# sense needs a third visibility level, and [DCL-011] has
 only `private:` and `public:`. Adding one is a decision about the whole language
 rather than about properties.
 
-**H-7 — Ordering for Strings.** *(will change [VAL-014])*
+**H-7 — Ordering for Strings.**
+***Landed in Generation 6.*** *(changed [VAL-014], [COL-013])*
 
-`'ab' < 'cd'` is the runtime error `Operands must be numbers.` today, so a
-program needing to order text compares it character by character —
-`compiler/CEmitter.a24` writes `TextLess` for exactly this. Pinned by
-`conformance/0038-strings-are-not-ordered.a24`.
+`'ab' < 'cd'` was the runtime error `Operands must be numbers.`, so a program
+needing to order text compared it character by character — which is what
+`compiler/CEmitter.a24`'s `TextLess` did, a function the compiler wrote for
+itself because the language did not provide the operator. `TextLess` is gone.
+
+⚠️ **One change in the runtime served both processors.** The interpreter's
+`VisitBinary` evaluates `Left < Right` in the host language, so interpreted `<`
+*is* `alg_less` — the arrangement that makes interpreted `Length` and host
+`Length` one function [RT-003]. Teaching the four comparison operators about
+text gave the tree-walker the same ordering in the same commit, with nothing in
+`Interpreter.a24` to change.
+
+⚠️ **It uncovered an older fault than itself.** `Char` ordering compared
+`a.string[0]` — the first **byte** of a UTF-8 encoding — so `'è'` and `'é'`
+shared a lead byte and compared **equal**, while `Ord` answered 232 and 233. The
+language disagreed with itself about which of two characters came first, in both
+processors alike, and no case covered it because [VAL-014] never said how Chars
+order.
+
+⚠️ **And a second ordering nobody had noticed.** `Sort` compared with `strcmp`
+[COL-013] — bytes rather than characters, stopping at an embedded zero a String
+is entitled to hold. It agreed with the new operator only because UTF-8 is
+designed so byte order matches code-point order, which is right by accident.
+Both now go through one function.
 
 **H-8 — Operator overloading.** *(will change [VAL-011], and more)*
 

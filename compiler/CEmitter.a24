@@ -1592,34 +1592,6 @@ begin
         Exit Result;
     end
 
-    /// Whether A sorts before B.
-    ///
-    /// ⚠️ Written out because the language has no ordering on Strings -- '<'
-    /// is numbers and Chars only.  Chars DO compare by code point, so this
-    /// walks them one at a time, which is the ordering the report has to
-    /// match.
-    ///
-    function TextLess (A : String, B : String) : Boolean;
-    var
-        Shorter : Integer;
-
-    begin
-        Shorter := Length (A);
-        if Length (B) < Shorter then Shorter := Length (B);
-
-        for var I := 0; I < Shorter; I := I + 1 do
-        begin
-            var Left  := Str (A)[I];
-            var Right := Str (B)[I];
-
-            if Left < Right then Exit True;
-            if Right < Left then Exit False;
-        end
-
-        // A prefix sorts before what extends it.
-        Exit Length (A) < Length (B);
-    end
-
     /// The runner, reproducing the interpreter's report line for line.
     ///
     /// ⚠️ Grouped by file in the order their tests were first met -- which for
@@ -1659,8 +1631,8 @@ begin
 
             for var A := 0; A < Ordered.Length; A := A + 1 do
                 for var B := A + 1; B < Ordered.Length; B := B + 1 do
-                    if TextLess (Str (Tests[Ordered[B]].Name.Lexeme),
-                                 Str (Tests[Ordered[A]].Name.Lexeme)) then
+                    if Str (Tests[Ordered[B]].Name.Lexeme)
+                     < Str (Tests[Ordered[A]].Name.Lexeme) then
                     begin
                         var Swap := Ordered[A];
                         Ordered[A] := Ordered[B];

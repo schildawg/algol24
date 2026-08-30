@@ -199,6 +199,7 @@ static int32_t utf8_count(const char *text, int32_t bytes);
 static int32_t utf8_offset(const char *text, int32_t bytes, int32_t index);
 static int32_t utf8_chars_in(const char *text, int32_t bytes);
 static int32_t utf8_decode(const char *at);
+static int     text_order(Value a, Value b);
 static int utf8_encode(int32_t code, char *out);
 _Noreturn static void undefined(const char *what, const char *name);
 
@@ -1286,7 +1287,13 @@ static int compare(Value a, Value b) {
 
         return left < right ? -1 : (left > right ? 1 : 0);
     }
-    if (is_text(a) && is_text(b)) return strcmp(a.string, b.string);
+    /* ⚠️ text_order, not strcmp, and for two reasons.  A String carries its own
+     * LENGTH and may hold an embedded zero, which strcmp would stop at; and
+     * sorting has to be the same ordering '<' gives [VAL-014], not a second one
+     * that happens to agree.  Byte order and code-point order coincide in UTF-8
+     * by design, so strcmp was right by accident -- and an accident shared
+     * between two implementations is the kind this repository keeps finding. */
+    if (is_text(a) && is_text(b)) return text_order(a, b);
 
     alg_error("Can only sort numbers against numbers, or text against text.");
     return 0;
@@ -4132,13 +4139,62 @@ static bool compares_as_char(Value a) {
 static int char_order(Value a, Value b) {
     if (b.type != VAL_CHAR) alg_error("Operands must be numbers.");
 
-    unsigned char left  = (unsigned char)a.string[0];
-    unsigned char right = (unsigned char)b.string[0];
+    /* ⚠️ THE CODE POINT, not the first byte.  A Char is held as its UTF-8
+     * encoding [LEX-025], so comparing a.string[0] read one byte of it: 'è' and
+     * 'é' are C3 A8 and C3 A9, share a lead byte, and compared EQUAL -- while
+     * Ord answered 232 and 233 correctly, so the language disagreed with
+     * itself about which of two characters came first.  utf8_decode is what
+     * alg_ord already uses. */
+    int32_t left  = utf8_decode(a.string);
+    int32_t right = utf8_decode(b.string);
 
     return left < right ? -1 : (left > right ? 1 : 0);
 }
 
+/* Whether a value is ordered as text -- a String, or a Char being compared with
+ * one [VAL-014].
+ *
+ * ⚠️ Keyed off BOTH operands, unlike compares_as_char, which asks only the
+ * left.  'a' < 'ab' has a Char on the left and a String on the right and is a
+ * text comparison; char_order would refuse it. */
+static bool compares_as_text(Value a, Value b) {
+    return is_text(a) && is_text(b) && !(a.type == VAL_CHAR && b.type == VAL_CHAR);
+}
+
+/* Lexicographic by code point, a prefix before what extends it.
+ *
+ * ⚠️ Code points rather than bytes, so it agrees with char_order above and with
+ * Ord.  UTF-8 happens to sort the same either way -- it was designed to -- but
+ * writing it in terms of bytes would be true by accident, and the two orderings
+ * this language exposes have to be one ordering. */
+static int text_order(Value a, Value b) {
+    const char *left  = a.string;
+    const char *right = b.string;
+
+    int32_t la = utf8_count(a.string, a.length);
+    int32_t lb = utf8_count(b.string, b.length);
+    int32_t n  = la < lb ? la : lb;
+
+    for (int32_t i = 0; i < n; i++) {
+        int32_t x = utf8_decode(left);
+        int32_t y = utf8_decode(right);
+
+        if (x != y) return x < y ? -1 : 1;
+
+        left  += utf8_span((unsigned char)*left);
+        right += utf8_span((unsigned char)*right);
+    }
+
+    return la < lb ? -1 : (la > lb ? 1 : 0);
+}
+
 Value alg_greater(Value a, Value b) {
+    if (compares_as_char(a) && b.type == VAL_CHAR)
+        return alg_bool(char_order(a, b) > 0);
+
+    /* Text is ordered lexicographically by code point [VAL-014]. */
+    if (compares_as_text(a, b)) return alg_bool(text_order(a, b) > 0);
+
     if (compares_as_char(a)) return alg_bool(char_order(a, b) > 0);
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
@@ -4148,6 +4204,12 @@ Value alg_greater(Value a, Value b) {
 }
 
 Value alg_greater_equal(Value a, Value b) {
+    if (compares_as_char(a) && b.type == VAL_CHAR)
+        return alg_bool(char_order(a, b) >= 0);
+
+    /* Text is ordered lexicographically by code point [VAL-014]. */
+    if (compares_as_text(a, b)) return alg_bool(text_order(a, b) >= 0);
+
     if (compares_as_char(a)) return alg_bool(char_order(a, b) >= 0);
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
@@ -4157,6 +4219,12 @@ Value alg_greater_equal(Value a, Value b) {
 }
 
 Value alg_less(Value a, Value b) {
+    if (compares_as_char(a) && b.type == VAL_CHAR)
+        return alg_bool(char_order(a, b) < 0);
+
+    /* Text is ordered lexicographically by code point [VAL-014]. */
+    if (compares_as_text(a, b)) return alg_bool(text_order(a, b) < 0);
+
     if (compares_as_char(a)) return alg_bool(char_order(a, b) < 0);
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
@@ -4166,6 +4234,12 @@ Value alg_less(Value a, Value b) {
 }
 
 Value alg_less_equal(Value a, Value b) {
+    if (compares_as_char(a) && b.type == VAL_CHAR)
+        return alg_bool(char_order(a, b) <= 0);
+
+    /* Text is ordered lexicographically by code point [VAL-014]. */
+    if (compares_as_text(a, b)) return alg_bool(text_order(a, b) <= 0);
+
     if (compares_as_char(a)) return alg_bool(char_order(a, b) <= 0);
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");

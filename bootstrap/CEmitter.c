@@ -138,7 +138,6 @@ static const char *t_cemitter_emit_2_list_string[] = { "Statements : List", "Ste
 static const char *t_cemitter_unitheader_1[] = { "Unit : Any" };
 static const char *t_cemitter_unitsource_4_list_boolean_string[] = { "Unit : Any", "Units : List", "IsMain : Boolean", "Written : String" };
 static const char *t_cemitter_upper_1_string[] = { "Text : String" };
-static const char *t_cemitter_textless_2_string_string[] = { "A : String", "B : String" };
 static const char *t_cemitter_execute_1[] = { "TheStmt : Any" };
 static const char *t_cemitter_evaluate_1[] = { "TheExpr : Any" };
 static const char *t_cemitter_emittest_1[] = { "TheStmt : Any" };
@@ -1436,40 +1435,6 @@ static Value m_cemitter_upper_1_string(Value v_this, Value *args, int32_t count)
     return alg_nil();
 }
 
-static Value m_cemitter_textless_2_string_string(Value v_this, Value *args, int32_t count) {
-    (void)v_this; (void)args; (void)count;
-    Value v_a = alg_widen(args[0], "String");
-    (void)v_a;
-    Value v_b = alg_widen(args[1], "String");
-    (void)v_b;
-    Value v_shorter = alg_nil();
-    (void)v_shorter;
-    (void)((v_shorter = alg_widen(alg_text_length(v_a), "Integer")));
-    if (alg_truthy(alg_less(alg_text_length(v_b), v_shorter))) {
-        (void)((v_shorter = alg_widen(alg_text_length(v_b), "Integer")));
-    }
-    {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, v_shorter)); (v_i = alg_add(v_i, alg_int(1)))) {
-            {
-                Value v_left = alg_subscript_get(alg_str(v_a), v_i);
-                (void)v_left;
-                Value v_right = alg_subscript_get(alg_str(v_b), v_i);
-                (void)v_right;
-                if (alg_truthy(alg_less(v_left, v_right))) {
-                    return alg_bool(true);
-                }
-                if (alg_truthy(alg_less(v_right, v_left))) {
-                    return alg_bool(false);
-                }
-            }
-        }
-    }
-    return alg_less(alg_text_length(v_a), alg_text_length(v_b));
-    return alg_nil();
-}
-
 static Value m_cemitter_emittestrunner_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_files = alg_nil();
@@ -1517,7 +1482,7 @@ static Value m_cemitter_emittestrunner_0(Value v_this, Value *args, int32_t coun
                             Value v_b = alg_add(v_a, alg_int(1));
                             (void)v_b;
                             for (; alg_truthy(alg_less(v_b, alg_property(v_ordered, "Length"))); (v_b = alg_add(v_b, alg_int(1)))) {
-                                if (alg_truthy(alg_invoke(v_this, "TextLess", (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_this, "Tests"), alg_subscript_get(v_ordered, v_b)), "Name"), "Lexeme")), alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_this, "Tests"), alg_subscript_get(v_ordered, v_a)), "Name"), "Lexeme"))}, 2))) {
+                                if (alg_truthy(alg_less(alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_this, "Tests"), alg_subscript_get(v_ordered, v_b)), "Name"), "Lexeme")), alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_this, "Tests"), alg_subscript_get(v_ordered, v_a)), "Name"), "Lexeme"))))) {
                                     {
                                         Value v_swap = alg_subscript_get(v_ordered, v_a);
                                         (void)v_swap;
@@ -4772,7 +4737,6 @@ void init_CEmitter(void) {
     alg_class_method(k_cemitter, "UnitHeader", m_cemitter_unitheader_1, 1, t_cemitter_unitheader_1);
     alg_class_method(k_cemitter, "UnitSource", m_cemitter_unitsource_4_list_boolean_string, 4, t_cemitter_unitsource_4_list_boolean_string);
     alg_class_method(k_cemitter, "Upper", m_cemitter_upper_1_string, 1, t_cemitter_upper_1_string);
-    alg_class_method(k_cemitter, "TextLess", m_cemitter_textless_2_string_string, 2, t_cemitter_textless_2_string_string);
     alg_class_method(k_cemitter, "EmitTestRunner", m_cemitter_emittestrunner_0, 0, NULL);
     alg_class_method(k_cemitter, "Execute", m_cemitter_execute_1, 1, t_cemitter_execute_1);
     alg_class_method(k_cemitter, "Evaluate", m_cemitter_evaluate_1, 1, t_cemitter_evaluate_1);
