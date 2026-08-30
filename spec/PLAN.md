@@ -58,10 +58,18 @@ was the one in error — and no rule was weakened to make a gap go away.
 | **Gen 0** | The specification is written and reviewed. | The spec is read carefully and signed off. Merge to `main`, tag **Gen 0**. |
 | **Gen 1** | The spec is authoritative and conformance is enforcement. Work through the defects until there are none. | `defects/` is empty. Tag **Gen 1**. |
 | **Gen 2** | Turn on the compiler. Annex C's divergences become defects and are worked through the same way. | Conformance passes under **both** processors and no defect remains. Tag **Gen 2**. |
+| **Gen 3** | The numbers: what they are, how they are written, what may be asked of them. | The type set below is implemented under both processors, conformance passes, and the fixed point holds. Tag **Gen 3**. |
 | **v1** | New language features and a runtime library, prioritized, each staying within conformance. | Release. |
 
 ⚠️ **The Gen 2 gate is met.** `./conform.sh` reports no gap, so `--strict`
 passes too; the relaxation described below no longer relaxes anything.
+
+⚠️ **Sections 1 to 7 below describe Generation 1's work** and are kept as its
+record. The plan for the generation now in front of us is *Plan: Generation 3 —
+the numbers*, which follows the rest of this section; nothing in §2's dependency
+ordering or §3's sequence applies to it.
+
+---
 
 ⚠️ **What changed at the Gen 1 → Gen 2 boundary is the corpus doctrine itself.**
 Today a case is classified by one question — *is the interpreter right?* — and
@@ -88,7 +96,7 @@ up as compiler defects when the time comes:
 
 ⚠️ **Three of those four held; C-6 did not.** C-1 closed with DEF-24, C-12 with
 DEF-17, and C-4 and C-9 reversed as predicted. C-6 was expected to close by
-[H-6] removing the construct that crashed, and instead closed with an ordinary
+H-6 removing the construct that crashed, and instead closed with an ordinary
 repair — the crash was a missing case in `as_text`, not a reason to withdraw the
 spelling. A prediction about *how* an entry will close is worth less than the
 entry itself.
@@ -98,6 +106,228 @@ specification.** The point of signing off is that the document stops being a
 description of the implementation and starts being the thing the implementation
 is measured against — so a defect is closed by changing the code, and a rule is
 changed only by deciding to change the language.
+
+# Plan: Generation 3 — the numbers
+
+One subject. What a number **is**, how it is **written**, and what may be
+**asked** of it. Every rule this generation touches lives in chapters 5, 7, 9
+and 16, and nothing it does reaches chapter 14 — which is why H-3 is not in it.
+
+⚠️ **The guiding question throughout is whether a reader can say what a thing is
+without looking it up.** "An `Integer` is a 32-bit two's-complement integer, and
+arithmetic that leaves that range raises" fails that test. "An `Integer` is an
+integer" passes it. Most of what follows is downstream of preferring the second
+sentence.
+
+## The decisions, and why
+
+**`Integer` is unbounded.** It grows rather than overflowing. This deletes a
+category of error instead of diagnosing it, and it makes the type describable in
+four words.
+
+⚠️ **Cheaper than it sounds.** The slow path begins past 2⁶³, and almost no
+program reaches it — `algc` cannot, since `Scanner.a24` compares digit strings
+precisely because it may not do the arithmetic. The cost is one branch per
+operation, which [LEX-018]'s range check already spends, plus an allocation only
+where a program genuinely needs one.
+
+**`Real` is an alias for `Double`.** Turbo Pascal's 6-byte software float was a
+pre-8087 artefact with no C type to map onto. A type whose only distinction is a
+1985 storage format is the opposite of self-explanatory. Delphi reached the same
+conclusion.
+
+| Algol-24 | C | Notes |
+| --- | --- | --- |
+| `Integer` | `int64_t`, widening past that | unbounded |
+| `Single` | `float` | |
+| `Double` | `double` | |
+| `Real` | `double` | an alias for `Double`, not a fourth thing |
+
+**`Byte`, `Word` and `Short` are subranges, not representations.**
+
+```
+type Byte  = 0 .. 255;
+type Word  = 0 .. 65535;
+type Short = -32768 .. 32767;
+```
+
+⚠️ **One feature instead of five special cases**, and it is Pascal-native.
+`type Digit = 0 .. 9` comes free with it, and the range check lands exactly where
+[VAR-017]'s six assignment contexts already are.
+
+**There is no signed/unsigned family.** Unsigned types exist to buy one more bit
+inside a fixed width, and to say "this cannot be negative". Unbounded `Integer`
+removes the first reason entirely, and `0 ..` states the second directly instead
+of encoding it in a name the reader has to know.
+
+⚠️ It also avoids C#'s worst corner here: `long + ulong` is a compile error
+there, because no type holds both. Every mixture has an answer when `Integer`
+holds everything.
+
+**`Char` stays out of the numeric types.** Turbo Pascal made `Char` ordinal and
+compatible with `Byte` because both were eight bits. Ours is a Unicode code
+point, so the conflation is not available — and the language already commits to
+a Char not being a number [LEX-026]. `Ord` and `Char` remain the explicit bridge.
+
+**Promote on mixing; range-check on assignment.** Arithmetic promotes to at
+least `Integer`, so `B + 1` on a `Byte` is an `Integer`; assigning the result
+back into a `Byte` is what checks the range. This is C#'s rule, and it means
+[LEX-018] survives — for subranges, at the six assignment contexts, where
+`alg_param` already stands.
+
+**Overload selection ignores ranges.** Two subprograms differing only in a
+parameter's range claim the **same signature** and are a duplicate, refused by
+[FUN-013] as it stands.
+
+⚠️ **This is the argument [FUN-013] already makes about return types**: selection
+happens from the arguments, so two subprograms that a call could never tell apart
+are a duplicate rather than an overload. A range does not distinguish an overload
+for the same reason.
+
+⚠️ **The principle underneath: a program may ask about a value; the language may
+not silently dispatch on one.** Value-dependent selection would send `Take (200)`
+and `Take (300)` to different subprograms, and would let *adding* a `Byte`
+overload steal calls from an `Integer` one that already existed.
+
+⚠️ **Which is why `X is Byte` is a range test, and is not a contradiction.**
+`is` is the program asking, explicitly, where it wrote the question.
+
+**`div` is added; `/` is unchanged.** [EXP-004] makes `/` truncate on integers
+and [EXP-005] makes it real when a Double is present, so `X / Y` means integer or
+real division depending on what reaches it at run time — unreadable when `X` is
+`Any`. `div` gives the programmer the option of saying which was meant, and
+breaks nothing.
+
+⚠️ **The option rather than the change**, deliberately. Making `/` always real
+is more predictable and is a migration through every division in the tree,
+`algc`'s own included. [EXP-006]'s existing ⚠️ already records the unease; `div`
+answers it without spending the generation on it.
+
+**Numbers answer members, C#'s way and not Java's.** `5.ToString ()` works
+because `Integer` is a type with members, not because a box wraps a primitive.
+
+⚠️ **Java's `int`/`Integer` duality is the thing to avoid**, not the model to
+follow: `==` comparing boxes, `NullPointerException` from unboxing a null, a
+cache that makes `==` work for small numbers and fail for large ones. Two things
+with almost the same name behaving differently is the asymmetry Annex H already
+rejected once, when it turned down `B.^Length` for computed properties.
+
+⚠️ **The mechanism exists.** Gen 2 built `member_of` for receivers whose members
+come from the runtime rather than from a class — collections, `Buffer`,
+`TextFile`. Numbers are rows in that table, and read-without-calling comes free.
+
+## Writing them — H-1 and H-2
+
+**H-1: `0x` hexadecimal, `0b` binary, `_` separators. No octal.**
+
+⚠️ **Octal is dropped deliberately.** It is a PDP-11 artefact, and `0755`
+silently meaning 493 is a classic bug. C# has no octal literal for this reason.
+Three bases where two are used is exactly what this language declines.
+
+⚠️ **`0x`/`0b` rather than Turbo Pascal's `$FF`.** `$` is unclaimed and `$FF`
+would sit consistently beside `#10`, which the language already has — but TP has
+no binary literal at all, so `$FF` beside `0b1010` mixes two traditions in one
+sentence. The choice is for coherence with binary, not for modernity.
+
+**Separators: a separator separates two digits.**
+
+| | |
+| --- | --- |
+| `1_000_000` | ✓ |
+| `1_0_0` | ✓ — silly, harmless, not worth a rule to forbid |
+| `_100` | **already an identifier** [SRC-005]; it cannot also be a literal |
+| `100_` | refused — nothing to the right to separate |
+| `1_.5`, `1._5`, `1e_5` | refused — the neighbour is not a digit |
+| `0x_FF` | refused — the prefix is not a digit either |
+
+⚠️ **A comma was considered and is impossible, not merely awkward.**
+`F (1,000,000)` is a call with three arguments and `[1,000,000]` is a list of
+three elements — both valid Algol-24 today, with a different meaning. No
+lookahead resolves it, because both readings are complete.
+
+**H-2: exponent notation.** `1e5`, `1.5e-3`. This closes a real asymmetry rather
+than adding a convenience: `Str` prints a large Double as `1.0E300` and the
+language cannot read back what it wrote.
+
+## What it deletes
+
+The satisfying half, and a fair measure of whether the design is right:
+
+- **[LEX-033]** — an integer literal outside Integer's range. Vacuous once no
+  literal is out of range.
+- **`ExceedsInteger`** in `Scanner.a24`, and its ⚠️ about comparing digits as
+  text because strings are not ordered.
+- **Annex G.4's `-DALG_NO_OVERFLOW_CHECK`** — probably. Its stated reason is
+  that [LEX-018] costs per operation; if `Integer` never overflows, the switch is
+  disabling a subrange check that is nowhere near a hot path.
+- **`Char (N)`'s hand-written 0..10FFFF check**, which becomes a subrange like
+  any other.
+
+## Rules that change
+
+| Rule | Change |
+| --- | --- |
+| [LEX-016] | bases and separators arrive |
+| [LEX-018] | Integer stops being 32-bit; the raise survives for subranges |
+| [LEX-022] | exponent notation arrives |
+| [LEX-033] | **deleted** |
+| [TYP-001] | the runtime type table gains `Single`; `Real` named as an alias |
+| [TYP-002] | subrange declaration form |
+| [VAR-004] | the widening lattice replaces the two pairs |
+| [VAR-017] | unchanged in shape; the range check joins the widening already there |
+| [VAR-018] | narrowing, restated against subranges |
+| [EXP-004] | `div`, and `/` restated |
+| [EXP-005] | promotion restated as a lattice |
+| [EXP-006] | survives intact |
+| [EXP-007] | "32-bit" goes |
+| [VAL-009] | equality across the widened set |
+| [RT-009] | `Val` answers across the set |
+| [RT-010] | `Max` follows the lattice |
+| Annex B | numeric members — `ToString` and what else is decided |
+
+## Order
+
+1. **The type set and the lattice**, interpreter first, then the C runtime.
+   Nothing else can be checked until `type_name` answers for the new types.
+2. **Subranges**, including the check in `alg_param` and the case in `alg_is`.
+3. **The scanner** — H-1, H-2, and the deletions, in one pass over number
+   scanning rather than three.
+4. **`div`**, which is a token, a rule and an operator case.
+5. **Members on numbers**, last, because it is additive and gated by nothing.
+
+⚠️ **Unbounded arithmetic must be written once, not twice.** The interpreter's
+arithmetic *is* the host's, so the two processors agree by construction — as
+long as the bignum lives in `bootstrap/algol.c` and the interpreter reaches it
+through the same operators every other Algol-24 program does. Writing a second
+implementation in `compiler/*.a24` would reintroduce exactly the class of
+divergence Gen 2 spent itself closing.
+
+⚠️ **Every operation that needs a machine integer needs one honest gate** — a
+subscript, a `Buffer` offset, `Char (n)`, a hash. "Give me an `int32` or fail"
+in one place, not a silent truncation in several.
+
+## Not in this generation, and why
+
+- **H-3, element types checked on insertion.** It is a collections change, not a
+  numbers one. ⚠️ And doing it now may be work that H-9 redoes: `List of Integer`
+  is a checker-side annotation today, and once collections are a unit written in
+  Algol-24 the same constraint on a *user-written* class needs something like
+  generics, which the language does not have.
+- **H-8, operator overloading**, and with it any notion of `Integer` as a class.
+  Arithmetic is the hottest path in the language, `algc` bootstraps on it, and
+  overloading is the one item on the list that aesthetics argues *against*.
+- **Wrapping arithmetic.** `hash_folded` relies on `uint32_t` wraparound, and
+  that is fine while hashing stays native. It becomes a language question only
+  if H-9 moves `Map` and `Set` into a unit that must express a mixing step.
+
+## Also due
+
+**Annex H gains an entry for named parameters**, which are intended and are
+recorded in no document. They would let an overload be identified at compile
+time, giving the programmer the option of static resolution where selection is
+otherwise from the values actually passed [FUN-013].
+
+---
 
 ## 1. What "done" means
 
