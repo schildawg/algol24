@@ -149,6 +149,50 @@ with the line `algc` actually raises. A probe was the wrong home — `record.sh`
 says so itself — and the corpus cannot pin it, because it drops `[WARN]` from
 both sides by design.
 
+## ✅ Generation 6 is complete
+
+**Text ordering, character arithmetic, and a read-only property** — H-7, H-13
+and H-6, with 221 tests, 216 conformance cases, no gap in either processor, and
+the fixed point holding.
+
+⚠️ **Every one of the three found a pre-existing fault while landing**, and that
+is the finding of this generation rather than any of the features. Adding a rule
+to an area is what makes someone look at it closely enough to see what was
+already wrong there.
+
+| feature | what it uncovered |
+| --- | --- |
+| H-7 | `Char` ordering compared the **first byte** of a UTF-8 encoding, so `'è'` and `'é'` compared *equal* while `Ord` answered 232 and 233 — the language disagreeing with itself, in both processors. And `Sort` had a *second* ordering, `strcmp`, right only by UTF-8's accident. |
+| H-13 | Three **stale rows in Annex B** — `Char` claiming `0 … 127`, `Val` claiming "always a Double", `Max` claiming "two Integers only" — because `spec.sh` checks that annex's *names* against the interpreter and not its *descriptions*. |
+| H-6 | Instances were **open** in the interpreter and **closed** compiled, so `B.Undeclared := 1` was `1` one way and refused the other. A divergence no case covered, held in place by a unit test inherited from Lox along with the behaviour. |
+
+⚠️ **One change in the runtime served both processors, twice.** `VisitBinary`
+evaluates `Left < Right` in the host language, so teaching `alg_less` about text
+gave the tree-walker the same ordering with nothing in `Interpreter.a24` to
+change — the arrangement that makes interpreted `Length` and host `Length` one
+function. The same held for `Succ` and `Pred`.
+
+⚠️ **Two features were declined on the way, and both by the same argument.**
+`'a' + 1` yielding `'b'` would have put arithmetic on `+`, making the operator
+mean a step or a join depending on its right operand; `@B.Length` would have
+displaced a construct that works and is specified in order to free a spelling.
+`Succ` costs one word and a property is simply a different kind of member.
+
+⚠️ **H-6's justification improved before it was built.** It began as a complaint
+about parentheses — a class cannot expose a computed `Length` the way a
+collection does — which invites the obvious answer of storing the value in a
+field. That answer works and is *worse* than the built-in: `S.Count := 99`
+succeeds where `L.Length := 99` is refused. The gap was a read-only view, not
+cosmetics, and the entry was rewritten before a line of it was written.
+
+⚠️ **A property is the first thing in the language a program might have relied
+on, and deliberately is not.** Assignment is refused where the receiver's type is
+known and reported nowhere when it is not — the same silence `private:` keeps
+[DCL-015]. A run-time check was considered and declined: D-9 rejected enforcing
+visibility because it costs on every *access*, and while a property's cost would
+fall on writes alone, buying a boundary the rest of the language does not have
+is not worth the asymmetry.
+
 ## 0. The road to v1
 
 | | | Ends when |
