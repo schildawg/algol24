@@ -403,6 +403,33 @@ else
     echo "  every Annex F entry has a reproduction ($(wc -l < "$WORK/annex_defects" | tr -d ' ') defects)"
 fi
 
+# ⚠️ Annex H's pins were checked by nothing, and rotted exactly as predicted.
+# A planned change is pinned by a case recording the CURRENT rule, so the case
+# is meant to be rewritten in the generation that lands the change -- which is
+# the moment the citation goes stale.  H-1 and H-2 landed in Generation 3 and
+# went on citing the two refusals that were deleted with them, for a whole
+# generation, in the annex whose own preamble describes that very sequence.
+#
+# ⚠️ A landed entry is skipped rather than dropped.  It has no live pin by
+# definition, and its prose is worth keeping: it says what the language used to
+# do, which the rule it changed no longer records anywhere.
+
+awk '/^## Annex H/{inH=1} inH' "$SPEC" \
+  | awk '/^\*\*H-[0-9]/{landed=0} /^\*\*\*Landed/{landed=1} !landed' \
+  | grep -oE '(conformance|refusals)/[A-Za-z0-9.-]+\.a24' | sort -u > "$WORK/h_pins"
+
+MISSING_PIN=""
+while read -r _case; do
+    [ -n "$_case" ] || continue
+    [ -f "$_case" ] || MISSING_PIN="$MISSING_PIN $_case"
+done < "$WORK/h_pins"
+
+if [ -n "$MISSING_PIN" ]; then
+    problem "Annex H pins case(s) that do not exist:$MISSING_PIN"
+else
+    echo "  every live Annex H pin exists ($(wc -l < "$WORK/h_pins" | tr -d ' ') pins)"
+fi
+
 UNCITED=$(comm -23 "$WORK/cases_on_disk" "$WORK/cases_cited" | tr '\n' ' ')
 if [ -n "$UNCITED" ]; then
     problem "case file(s) no rule cites: $UNCITED"

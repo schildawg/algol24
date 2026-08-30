@@ -5957,22 +5957,23 @@ ordinary conformance test or refusal pinning the **current** rule, which turns
 red when the generation lands — deliberately, because that is the moment the
 rule changes and the test should change with it.
 
-**H-1 — Other bases and digit separators.** *(will change [LEX-016])*
+**H-1 — Other bases and digit separators.**
+***Landed in Generation 3.*** *(changed [LEX-016])*
 
 Hexadecimal, octal and binary integer literals, and a separator within a run of
-digits. Today decimal is the only base and there is no separator; `0x10` scans
-as `0` followed by the identifier `x10`, and the adjacent expressions do not
-parse. Pinned by `refusals/0006-hex-is-not-a-literal.a24`.
+digits. Now covered by `conformance/0006-integer-bases-and-separators.a24`; the
+refusal that pinned the old rule went with the generation.
 
-**H-2 — Exponent notation.** *(will change [LEX-022])*
+**H-2 — Exponent notation.**
+***Landed in Generation 3.*** *(changed [LEX-022])*
 
-A double literal with an exponent. Today `1e5` scans as `1` followed by the
-identifier `e5`. Pinned by `refusals/0007-exponent-is-not-a-literal.a24`.
+A double literal with an exponent. Now covered by
+`conformance/0007-exponent-notation.a24`.
 
-⚠️ This one closes a genuine asymmetry rather than only adding a convenience:
+⚠️ This one closed a genuine asymmetry rather than only adding a convenience:
 `Str` **prints** a large Double in exponent form — `1.0E300` — and the language
-cannot read back what it wrote. Nothing is unreachable today, because `Val`
-parses the exponent form, but the round trip goes through a built-in rather than
+could not read back what it wrote. Nothing was unreachable, because `Val` parses
+the exponent form, but the round trip went through a built-in rather than
 through the source.
 
 **H-3 — Element types checked on insertion.** *(will change [VAR-016])*
@@ -6124,3 +6125,116 @@ speculative.
 conformance cases become **unit tests of the unit**. A rule retired because its
 subject became a library has not been falsified — the distinction matters to
 anyone reading `conformance/` later and wondering where the cases went.
+
+**H-10 — Varargs from an element type.**
+*(will change [FUN-005], [EXP-013])*
+
+A subprogram whose **last parameter is a `List of T`** may be called with the
+elements written directly, and the call builds the list:
+
+| written | means |
+| --- | --- |
+| `Log ('warn', 1, 2)` | `Log ('warn', [1, 2])` |
+| `Log ('warn')` | `Log ('warn', [])` |
+
+Today only the right-hand column parses.
+
+⚠️ **No new syntax, and that is the design rather than an economy.** The
+declaration already says `List of T` [VAR-008]; absorption is a *reading* of a
+type that exists, not a marker added to it. It became possible only when element
+types were admitted on parameters — before that a bare `List` carried no element
+type, and the trailing arguments would have had nothing to be checked against.
+
+⚠️ **"Fixed arity beats variadic" is not a rule here, it is the pass order.**
+Selection is already two passes, exact before widening [EXP-014]. Absorption is
+a third, so an exact match always wins and `Log ('warn', [1, 2])` passes the list
+rather than absorbing it into a one-element one. The tiebreak that other
+languages state in prose falls out of machinery this language already has.
+
+⚠️ **The element type replaces the arity check and is stricter than it.**
+`Log ('warn', 1, 2, 'red')` is still an error when the parameter is
+`List of Integer`, because the stray argument fails the element type. What is
+given up is given up only for `List of Any`, which is already the declaration
+that means "anything".
+
+⚠️ **Absorbing zero is what makes `WriteLn` ordinary**, and is the case that
+decided it. `WriteLn` is a native of arity −1 with a hand-written branch on
+`Arguments.Length = 0`; declared `procedure WriteLn (Items : List of Any)` the
+blank line stops being a special case, and `WriteLn ('ABC', 123)` — not legal
+today — arrives with it. Requiring at least one argument was considered and
+rejected on that example alone. The empty list is **structural, not a default**:
+absorbing nothing yields `[]` by the same rule that absorbing three yields a
+three-element list, so this is not default arguments under another name.
+
+⚠️ **The cost is one list per call, and this runtime never frees one** — the
+arena has no collector. The mitigation is expressible in the language and
+changes no call site: declare a fixed overload beside the variadic one, and the
+exact pass takes the hot calls without allocating.
+
+    procedure WriteLn (S : String);           // exact pass -- builds nothing
+    procedure WriteLn (Items : List of Any);  // absorption pass
+
+**H-11 — Named arguments.** *(will change [EXP-013], [FUN-013])*
+
+An argument may name the parameter it fills — `Log (Level: 'warn', Items: [1])`.
+
+⚠️ **The point is overload selection at compile time.** Selection is at run
+time, from the values actually passed [FUN-013], because a declared type may be
+`Any` and no static rule could reach the right overload from that. That is the
+right default for a gradually typed language and it does not change. What is
+missing is a way for a programmer who *does* know which overload they mean to
+say so, and naming the parameters says it — a name identifies one signature,
+where values only describe something several signatures might accept. Static
+resolution becomes **available**, not mandatory.
+
+⚠️ **`:` rather than `=>`, because the language already has this colon.**
+`[k : v]` is a Map literal [COL-001]: a name on the left, a value on the right,
+parsed by reading an expression and then looking for a colon. A named argument
+means the same thing and parses the same way. `=>` would be a second punctuation
+for a meaning already spelled.
+
+⚠️ **The ambiguity that usually rules `:` out is absent here.** A colon in
+expression position normally collides with a conditional expression's `? :`;
+this language has no conditional expression, because `?` is an identifier mark
+[LEX-008] and `Gate?` is one word. The `:` in `case … of` is a statement's.
+
+⚠️ **Positional arguments first, named ones after.** A positional argument
+following a named one is refused, as is a parameter supplied twice.
+
+⚠️ **Which is also why H-10 needs no rule about the two meeting.** Absorption
+takes trailing *positional* arguments, and positional arguments end exactly
+where naming begins. `Log ('warn', Items: [1, 2])` names the absorbing parameter,
+so nothing absorbs; `Log ('warn', 1, 2, Items: [3])` supplies it twice and is
+caught by a rule named arguments need anyway. The two features share one rule
+set, which is the argument for bringing them in one generation rather than two.
+
+**H-12 — A warning for a call that binds at run time.**
+*(a diagnostic, not a rule)*
+
+A third severity beside `[INFO]` and `[ERROR]` — **`[WARN]`, in yellow** —
+reporting that a call selects among overloads at run time rather than
+statically. Non-blocking: the program compiles and runs.
+
+    [WARN] Main.a24:12: 'Log' selects among 3 overloads at run time.
+
+⚠️ **It makes a cost visible without forbidding it.** Run-time selection is the
+language's rule and stays so [FUN-013]; H-11 gives a programmer the means to
+avoid it in a particular call. The warning is what connects the two — without it
+the cost is real and invisible, and the remedy has nothing to point at.
+
+⚠️ **It is silent on this compiler**, which is the evidence that it is a scalpel
+and not noise: no top-level name in `compiler/*.a24` is overloaded, so over a
+hundred kilobytes of Algol-24 raise no warning at all.
+
+⚠️ **It must be written to standard error.** The corpus compares standard
+output, and a warning is raised by the front end — which both back ends share,
+so it is printed when an interpreted program *runs* and when a compiled one is
+*emitted*. Those are different moments; on stdout the two processors' output
+would differ for every warned program, which is precisely the drift the corpus
+exists to catch.
+
+⚠️ **The tag belongs in `Console.a24` beside the other two.** `ANSI_YELLOW` is
+already defined there, and `WARN_TAG` follows `INFO_TAG` and `ERROR_TAG`
+exactly — including the ⚠️ those two carry about their names: `WARN_TAG` rather
+than `WARN`, because names are matched without regard to case [SRC-011] and a
+`procedure Warn` beside it would be the same name.
