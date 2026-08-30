@@ -481,6 +481,13 @@ begin
 
         if Kind = 'FunctionStmt' then Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.ReturnType);
 
+        // ⚠️ Registered as a declared type, and NOT given a type of its own:
+        // Assignable sees through it to Integer [TYP-015], so 'Digit' accepts
+        // what 'Integer' accepts and the bounds are checked where the value
+        // arrives.
+        if Kind = 'SubrangeStmt' then
+            Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
+
         if Kind = 'EnumStmt' then
         begin
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);

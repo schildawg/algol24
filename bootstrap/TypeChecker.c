@@ -463,6 +463,9 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_kind, alg_string("FunctionStmt")))) {
         (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(v_thestmt, "ReturnType")}, 2));
     }
+    if (alg_truthy(alg_equal(v_kind, alg_string("SubrangeStmt")))) {
+        (void)(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
+    }
     if (alg_truthy(alg_equal(v_kind, alg_string("EnumStmt")))) {
         {
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 2));

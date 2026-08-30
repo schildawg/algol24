@@ -154,6 +154,7 @@ static const char *t_interpreter_executeblock_2_list_environment[] = { "List", "
 static const char *t_interpreter_visitblockstmt_1_blockstmt[] = { "BlockStmt" };
 static const char *t_interpreter_visitclassstmt_1_classstmt[] = { "ClassStmt" };
 static const char *t_interpreter_visitobjectstmt_1_objectstmt[] = { "ObjectStmt" };
+static const char *t_interpreter_visitsubrangestmt_1_subrangestmt[] = { "SubrangeStmt" };
 static const char *t_interpreter_visitenumstmt_1_enumstmt[] = { "EnumStmt" };
 static const char *t_interpreter_visitexpressionstmt_1_expressionstmt[] = { "ExpressionStmt" };
 static const char *t_interpreter_visitfunctionstmt_1_functionstmt[] = { "FunctionStmt" };
@@ -2335,6 +2336,13 @@ static Value m_interpreter_visitobjectstmt_1_objectstmt(Value v_this, Value *arg
     return alg_nil();
 }
 
+static Value m_interpreter_visitsubrangestmt_1_subrangestmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thestmt = alg_widen(args[0], "SubrangeStmt");
+    (void)v_thestmt;
+    return alg_nil();
+}
+
 static Value m_interpreter_visitenumstmt_1_enumstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "EnumStmt");
@@ -3163,6 +3171,7 @@ void init_Interpreter(void) {
     alg_class_method(k_interpreter, "VisitBlockStmt", m_interpreter_visitblockstmt_1_blockstmt, 1, t_interpreter_visitblockstmt_1_blockstmt);
     alg_class_method(k_interpreter, "VisitClassStmt", m_interpreter_visitclassstmt_1_classstmt, 1, t_interpreter_visitclassstmt_1_classstmt);
     alg_class_method(k_interpreter, "VisitObjectStmt", m_interpreter_visitobjectstmt_1_objectstmt, 1, t_interpreter_visitobjectstmt_1_objectstmt);
+    alg_class_method(k_interpreter, "VisitSubrangeStmt", m_interpreter_visitsubrangestmt_1_subrangestmt, 1, t_interpreter_visitsubrangestmt_1_subrangestmt);
     alg_class_method(k_interpreter, "VisitEnumStmt", m_interpreter_visitenumstmt_1_enumstmt, 1, t_interpreter_visitenumstmt_1_enumstmt);
     alg_class_method(k_interpreter, "VisitExpressionStmt", m_interpreter_visitexpressionstmt_1_expressionstmt, 1, t_interpreter_visitexpressionstmt_1_expressionstmt);
     alg_class_method(k_interpreter, "VisitFunctionStmt", m_interpreter_visitfunctionstmt_1_functionstmt, 1, t_interpreter_visitfunctionstmt_1_functionstmt);

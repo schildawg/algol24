@@ -1808,11 +1808,40 @@ static const Subrange SUBRANGES[] = {
     { NULL,    0,      0     },
 };
 
+/* ⚠️ A program declares subranges of its own [TYP-016], so the predefined
+ * three are only the first entries of a table generated code adds to.  Fixed
+ * capacity rather than growable: this is filled once at startup, before any
+ * statement runs, and a program with 64 subrange declarations is not the
+ * program this language is for. */
+#define ALG_SUBRANGE_MAX 64
+
+static Subrange declared_subranges[ALG_SUBRANGE_MAX];
+static int32_t  declared_count = 0;
+
+void alg_subrange(const char *name, int64_t low, int64_t high) {
+    for (int32_t i = 0; i < declared_count; i++)
+        if (alg_stricmp(name, declared_subranges[i].name) == 0) {
+            declared_subranges[i].low  = low;
+            declared_subranges[i].high = high;
+            return;
+        }
+
+    if (declared_count == ALG_SUBRANGE_MAX) alg_error("Too many subrange declarations.");
+
+    declared_subranges[declared_count].name = name;
+    declared_subranges[declared_count].low  = low;
+    declared_subranges[declared_count].high = high;
+    declared_count++;
+}
+
 static const Subrange *subrange_of(const char *name) {
     if (name == NULL) return NULL;
 
     for (int32_t i = 0; SUBRANGES[i].name != NULL; i++)
         if (alg_stricmp(name, SUBRANGES[i].name) == 0) return &SUBRANGES[i];
+
+    for (int32_t i = 0; i < declared_count; i++)
+        if (alg_stricmp(name, declared_subranges[i].name) == 0) return &declared_subranges[i];
 
     return NULL;
 }

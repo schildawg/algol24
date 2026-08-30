@@ -27,6 +27,7 @@ static const char *t_resolver_isunitqualifier_1[] = { "Any" };
 static const char *t_resolver_visitblockstmt_1_blockstmt[] = { "BlockStmt" };
 static const char *t_resolver_visitclassstmt_1_classstmt[] = { "ClassStmt" };
 static const char *t_resolver_visitobjectstmt_1_objectstmt[] = { "ObjectStmt" };
+static const char *t_resolver_visitsubrangestmt_1_subrangestmt[] = { "SubrangeStmt" };
 static const char *t_resolver_visitenumstmt_1_enumstmt[] = { "EnumStmt" };
 static const char *t_resolver_visitexpressionstmt_1_expressionstmt[] = { "ExpressionStmt" };
 static const char *t_resolver_visitifstmt_1_ifstmt[] = { "IfStmt" };
@@ -244,6 +245,16 @@ static Value m_resolver_visitobjectstmt_1_objectstmt(Value v_this, Value *args, 
     Value v_stmt = alg_widen(args[0], "ObjectStmt");
     (void)v_stmt;
     (void)(alg_invoke(v_this, "VisitClassStmt", (Value[]){alg_new(k_classstmt, (Value[]){alg_property(v_stmt, "Name"), alg_property(v_stmt, "Superclass"), alg_property(v_stmt, "Methods"), alg_property(v_stmt, "Fields")}, 4)}, 1));
+    return alg_nil();
+}
+
+static Value m_resolver_visitsubrangestmt_1_subrangestmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_stmt = alg_widen(args[0], "SubrangeStmt");
+    (void)v_stmt;
+    (void)(alg_invoke(v_this, "Declare", (Value[]){alg_property(v_stmt, "Name")}, 1));
+    (void)(alg_invoke(v_this, "Define", (Value[]){alg_property(v_stmt, "Name")}, 1));
+    (void)(f_definesubrange(NULL, (Value[]){alg_property(alg_property(v_stmt, "Name"), "Lexeme"), alg_property(v_stmt, "Low"), alg_property(v_stmt, "High")}, 3));
     return alg_nil();
 }
 
@@ -1078,6 +1089,7 @@ void init_Resolver(void) {
     alg_class_method(k_resolver, "VisitBlockStmt", m_resolver_visitblockstmt_1_blockstmt, 1, t_resolver_visitblockstmt_1_blockstmt);
     alg_class_method(k_resolver, "VisitClassStmt", m_resolver_visitclassstmt_1_classstmt, 1, t_resolver_visitclassstmt_1_classstmt);
     alg_class_method(k_resolver, "VisitObjectStmt", m_resolver_visitobjectstmt_1_objectstmt, 1, t_resolver_visitobjectstmt_1_objectstmt);
+    alg_class_method(k_resolver, "VisitSubrangeStmt", m_resolver_visitsubrangestmt_1_subrangestmt, 1, t_resolver_visitsubrangestmt_1_subrangestmt);
     alg_class_method(k_resolver, "VisitEnumStmt", m_resolver_visitenumstmt_1_enumstmt, 1, t_resolver_visitenumstmt_1_enumstmt);
     alg_class_method(k_resolver, "VisitExpressionStmt", m_resolver_visitexpressionstmt_1_expressionstmt, 1, t_resolver_visitexpressionstmt_1_expressionstmt);
     alg_class_method(k_resolver, "VisitIfStmt", m_resolver_visitifstmt_1_ifstmt, 1, t_resolver_visitifstmt_1_ifstmt);

@@ -21,6 +21,7 @@ extern Value k_whilestmt;
 extern Value k_functionstmt;
 extern Value k_returnstmt;
 extern Value k_enumstmt;
+extern Value k_subrangestmt;
 extern Value k_classstmt;
 void init_Stmt(void);
 

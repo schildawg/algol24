@@ -204,6 +204,19 @@ begin
         VisitClassStmt (ClassStmt (Stmt.Name, Stmt.Superclass, Stmt.Methods, Stmt.Fields));
     end
 
+    /// ⚠️ The bounds are recorded HERE, and this is the only pass that can do
+    /// it: the type checker, the interpreter and the emitter all need them, and
+    /// the resolver is the last thing that sees every declaration before any of
+    /// them runs.
+    ///
+    procedure VisitSubrangeStmt (Stmt : SubrangeStmt);
+    begin
+        Declare (Stmt.Name);
+        Define (Stmt.Name);
+
+        DefineSubrange (Stmt.Name.Lexeme, Stmt.Low, Stmt.High);
+    end
+
     procedure VisitEnumStmt (Stmt : EnumStmt);
     begin
         Declare (Stmt.Name);

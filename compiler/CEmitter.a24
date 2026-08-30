@@ -851,7 +851,7 @@ begin
         Exit TheStmt is FunctionStmt or TheStmt is ClassStmt
           or TheStmt is ObjectStmt   or TheStmt is EnumStmt
           or TheStmt is VarGroupStmt or TheStmt is VarStmt
-          or TheStmt is ModuleStmt;
+          or TheStmt is SubrangeStmt or TheStmt is ModuleStmt;
     end
 
     /// Whether a name leaves its own file.  A 'private' one does not, and needs
@@ -4139,6 +4139,16 @@ begin
     /// same object -- enum comparison is identity, and a copy would make
     /// 'Colour.Red = Red' false.
     ///
+    /// ⚠️ Emitted as a SHELL, beside the classes, because a subrange must be
+    /// known before any statement can assign through it -- and unlike a class
+    /// it has nothing to fill in afterwards.
+    ///
+    procedure VisitSubrangeStmt (TheStmt : SubrangeStmt);
+    begin
+        Shells.Append ('    alg_subrange(' + QuoteC (Str (TheStmt.Name.Lexeme))
+               + ', ' + Str (TheStmt.Low) + ', ' + Str (TheStmt.High) + ');' + #10);
+    end
+
     procedure VisitEnumStmt (TheStmt : EnumStmt);
     var
         TheType : String;

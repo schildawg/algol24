@@ -2105,6 +2105,15 @@ begin
     /// Both bindings are the SAME object, because enum equality is identity --
     /// 'Colour.Red = Red' has to be true.
     ///
+    /// ⚠️ Nothing to do.  The resolver recorded the bounds before anything
+    /// ran, and a subrange binds no VALUE -- it constrains one.  The statement
+    /// is kept in the tree so the declaration has a place in the program's
+    /// order and the emitter has something to walk.
+    ///
+    procedure VisitSubrangeStmt (TheStmt : SubrangeStmt);
+    begin
+    end
+
     procedure VisitEnumStmt (TheStmt : EnumStmt);
     var
         TheType : ObjEnumType;

@@ -73,6 +73,7 @@ static const char *t_parser_readdeclarationsections_2_list_boolean[] = { "List",
 static const char *t_parser_forinstatement_1_token[] = { "Token" };
 static const char *t_parser_vardeclaration_1_token[] = { "Token" };
 static const char *t_parser_parsefunction_1_string[] = { "String" };
+static const char *t_parser_subrangedeclaration_1_token[] = { "Token" };
 static const char *t_parser_classdeclaration_1_string[] = { "String" };
 static const char *t_parser_finishcall_1_expr[] = { "Expr" };
 static const char *t_parser_match_1_tokentype[] = { "TokenType" };
@@ -1220,6 +1221,9 @@ static Value m_parser_enumdeclaration_0(Value v_this, Value *args, int32_t count
     (void)v_members;
     (void)((v_name = alg_widen(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect enum name.")}, 2), "Token")));
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVequal, alg_string("Expect '=' after enum declaration.")}, 2));
+    if (alg_truthy(alg_not(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVleftVparen}, 1)))) {
+        return alg_invoke(v_this, "SubrangeDeclaration", (Value[]){v_name}, 1);
+    }
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVleftVparen, alg_string("Expect '(' before enum members.")}, 2));
     (void)((v_members = alg_widen(alg_list(), "List")));
     (void)(alg_invoke(v_members, "Add", (Value[]){alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect member name.")}, 2)}, 1));
@@ -1229,6 +1233,39 @@ static Value m_parser_enumdeclaration_0(Value v_this, Value *args, int32_t count
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVrightVparen, alg_string("Expect ')' after enum members.")}, 2));
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_string("Expect ';' after enum declaration.")}, 2));
     return alg_new(k_enumstmt, (Value[]){v_name, v_members}, 2);
+    return alg_nil();
+}
+
+static Value m_parser_subrangedeclaration_1_token(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_name = alg_widen(args[0], "Token");
+    (void)v_name;
+    Value v_low = alg_nil();
+    (void)v_low;
+    Value v_high = alg_nil();
+    (void)v_high;
+    (void)((v_low = alg_widen(alg_invoke(v_this, "SubrangeBound", NULL, 0), "Integer")));
+    (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVdotVdot, alg_string("Expect '..' between subrange bounds.")}, 2));
+    (void)((v_high = alg_widen(alg_invoke(v_this, "SubrangeBound", NULL, 0), "Integer")));
+    (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_string("Expect ';' after subrange declaration.")}, 2));
+    if (alg_truthy(alg_greater(v_low, v_high))) {
+        (void)(alg_invoke(v_this, "Error", (Value[]){v_name, alg_add(alg_add(alg_add(alg_add(alg_string("A subrange must not be empty: "), alg_str(v_low)), alg_string(" is above ")), alg_str(v_high)), alg_char_value(46))}, 2));
+    }
+    return alg_new(k_subrangestmt, (Value[]){v_name, v_low, v_high}, 3);
+    return alg_nil();
+}
+
+static Value m_parser_subrangebound_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_negative = alg_nil();
+    (void)v_negative;
+    (void)((v_negative = alg_widen(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVminus}, 1), "Boolean")));
+    Value v_bound = alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVinteger, alg_string("Expect an integer bound.")}, 2);
+    (void)v_bound;
+    if (alg_truthy(v_negative)) {
+        return alg_subtract(alg_int(0), (alg_cast(alg_property(v_bound, "Literal"), "Integer")));
+    }
+    return alg_cast(alg_property(v_bound, "Literal"), "Integer");
     return alg_nil();
 }
 
@@ -1783,6 +1820,8 @@ void init_Parser(void) {
     alg_class_method(k_parser, "IsTestBlock", m_parser_istestblock_0, 0, NULL);
     alg_class_method(k_parser, "TestDeclaration", m_parser_testdeclaration_0, 0, NULL);
     alg_class_method(k_parser, "EnumDeclaration", m_parser_enumdeclaration_0, 0, NULL);
+    alg_class_method(k_parser, "SubrangeDeclaration", m_parser_subrangedeclaration_1_token, 1, t_parser_subrangedeclaration_1_token);
+    alg_class_method(k_parser, "SubrangeBound", m_parser_subrangebound_0, 0, NULL);
     alg_class_method(k_parser, "ClassDeclaration", m_parser_classdeclaration_0, 0, NULL);
     alg_class_method(k_parser, "ClassDeclaration", m_parser_classdeclaration_1_string, 1, t_parser_classdeclaration_1_string);
     alg_class_method(k_parser, "Equality", m_parser_equality_0, 0, NULL);

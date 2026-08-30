@@ -152,7 +152,11 @@ begin
             '[' : AddToken(TOKEN_LEFT_BRACKET);
             ']' : AddToken(TOKEN_RIGHT_BRACKET);
             ',' : AddToken(TOKEN_COMMA);
-            '.' : AddToken(TOKEN_DOT);
+            // ⚠️ Maximal munch, and it is what lets a range live beside a
+            // future '...' -- one more dot is one more peek.  '1..9' already
+            // scans as three tokens, because ScanNumber takes a point only when
+            // a DIGIT follows it [LEX-020].
+            '.' : if Match('.') then AddToken(TOKEN_DOT_DOT); else AddToken(TOKEN_DOT);
             '-' : AddToken(TOKEN_MINUS);
             '+' : AddToken(TOKEN_PLUS);
             ';' : AddToken(TOKEN_SEMICOLON);

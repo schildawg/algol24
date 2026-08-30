@@ -1189,6 +1189,45 @@ is already an Integer.
     compiler     bootstrap/algol.c         in_subrange
     conformance  0153-subranges.a24
 
+**[TYP-016]**  A program declares a subrange of its own with `type`, giving a
+low and a high bound.
+
+```
+SubrangeDecl = "type" identifier "=" bound ".." bound ";" .
+bound = [ "-" ] integer_lit .
+```
+
+```
+type Digit   = 0 .. 9;
+type Celsius = -273 .. 1000;
+```
+
+It behaves exactly as a predefined one [TYP-015]: an Integer for every question
+about type, its own name for the question about range.
+
+⚠️ **The bounds are literals, not expressions.** A subrange is hoisted like a
+class and an enumeration, so its bounds must be known before anything runs — and
+an expression would have to be *evaluated*, which needs the declaration to have
+run already. The restriction can be relaxed later by admitting constants, and
+nothing in the rule prevents it.
+
+⚠️ **The sign is read by the declaration**, because [LEX-019] still holds: there
+is no negative literal, and `-273` is the unary operator applied to one. Where
+an expression cannot be evaluated, the same rule is applied by hand.
+
+⚠️ **An empty subrange is refused where it is read.** `type Empty = 9 .. 0;` is
+`A subrange must not be empty: 9 is above 0.` — it admits no value at all, so
+every assignment through it would fail and the declaration is the only place
+that can say why.
+
+⚠️ **`type` declares two different things**, and which is decided by the
+character after the `=`: a `(` begins an enumeration [ENU-001], anything else a
+subrange. Both bind a name that denotes a type and neither binds a value.
+
+    interpreter  compiler/Parser.a24    SubrangeDeclaration
+    interpreter  compiler/Resolver.a24  VisitSubrangeStmt
+    conformance  0154-declared-subranges.a24
+
 **[TYP-014]**  `Real` is another spelling of `Double`. It is not a second type:
 `X is Real` and `X is Double` answer alike, a parameter declared either accepts
 the same arguments, and two subprograms differing only in which was written
@@ -2551,6 +2590,8 @@ order.
 
 ```
 EnumDecl = "type" identifier "=" "(" identifier { "," identifier } ")" ";" .
+SubrangeDecl = "type" identifier "=" bound ".." bound ";" .
+bound = [ "-" ] integer_lit .
 ```
 
     interpreter  compiler/Parser.a24  EnumDeclaration
@@ -3721,6 +3762,8 @@ Params     = identifier [ ":" Type ] { "," identifier [ ":" Type ] } .
 ClassDecl  = "class" identifier [ "(" identifier ")" ] ";"
              [ Sections ] "begin" { Member } "end" .
 EnumDecl   = "type" identifier "=" "(" identifier { "," identifier } ")" ";" .
+SubrangeDecl = "type" identifier "=" bound ".." bound ";" .
+bound      = [ "-" ] integer_lit .
 
 UsesStmt   = "uses" ( identifier | string_lit ) ";" .
 TestDecl   = "test" string_lit ";" Block .

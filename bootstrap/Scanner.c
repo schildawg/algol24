@@ -195,7 +195,11 @@ static Value m_scanner_scantoken_0(Value v_this, Value *args, int32_t count) {
                         (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVcomma}, 1));
                     } else {
                         if (alg_truthy(alg_equal(v_c, alg_char_value(46)))) {
-                            (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVdot}, 1));
+                            if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(46)}, 1))) {
+                                (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVdotVdot}, 1));
+                            } else {
+                                (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVdot}, 1));
+                            }
                         } else {
                             if (alg_truthy(alg_equal(v_c, alg_char_value(45)))) {
                                 (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVminus}, 1));

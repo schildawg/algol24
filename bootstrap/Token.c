@@ -2,6 +2,7 @@
 #include "Token.h"
 #include "TokenType.h"
 
+Value f_definesubrange(Value **cells, Value *args, int32_t count);
 Value f_subrangeindex(Value **cells, Value *args, int32_t count);
 Value f_issubrange(Value **cells, Value *args, int32_t count);
 Value f_underlyingtype(Value **cells, Value *args, int32_t count);
@@ -17,6 +18,7 @@ Value v_subrangeVlows;
 bool d_subrangeVlows;
 Value v_subrangeVhighs;
 bool d_subrangeVhighs;
+Value fn_definesubrange;
 Value fn_subrangeindex;
 Value fn_issubrange;
 Value fn_underlyingtype;
@@ -24,6 +26,31 @@ Value fn_canonicaltype;
 Value fn_foldcase;
 Value k_token;
 static const char *t_token_init_4_tokentype_string_integer[] = { "TokenType", "String", "Any", "Integer" };
+
+Value f_definesubrange(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 3);
+    Value v_name = args[0];
+    (void)v_name;
+    Value v_low = alg_param(args[1], "Integer");
+    (void)v_low;
+    Value v_high = alg_param(args[2], "Integer");
+    (void)v_high;
+    Value v_at = alg_nil();
+    (void)v_at;
+    (void)((v_at = alg_widen(alg_invoke((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "IndexOf", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1), "Integer")));
+    if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
+        {
+            (void)(alg_invoke((alg_declared(d_subrangeVlows, "SUBRANGE_LOWS"), v_subrangeVlows), "Set", (Value[]){v_at, v_low}, 2));
+            (void)(alg_invoke((alg_declared(d_subrangeVhighs, "SUBRANGE_HIGHS"), v_subrangeVhighs), "Set", (Value[]){v_at, v_high}, 2));
+            return alg_nil();
+        }
+    }
+    (void)(alg_invoke((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "Add", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1));
+    (void)(alg_invoke((alg_declared(d_subrangeVlows, "SUBRANGE_LOWS"), v_subrangeVlows), "Add", (Value[]){v_low}, 1));
+    (void)(alg_invoke((alg_declared(d_subrangeVhighs, "SUBRANGE_HIGHS"), v_subrangeVhighs), "Add", (Value[]){v_high}, 1));
+    return alg_nil();
+}
 
 Value f_subrangeindex(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
@@ -152,6 +179,7 @@ static Value m_token_tostring_0(Value v_this, Value *args, int32_t count) {
 
 void init_Token(void) {
     k_token = alg_class("Token", alg_nil());
+    fn_definesubrange = alg_closure("DefineSubrange", f_definesubrange, NULL, 0, 3);
     fn_subrangeindex = alg_closure("SubrangeIndex", f_subrangeindex, NULL, 0, 1);
     fn_issubrange = alg_closure("IsSubrange", f_issubrange, NULL, 0, 1);
     fn_underlyingtype = alg_closure("UnderlyingType", f_underlyingtype, NULL, 0, 1);

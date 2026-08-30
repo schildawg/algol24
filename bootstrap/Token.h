@@ -4,6 +4,7 @@
 
 #include "algol.h"
 
+Value f_definesubrange(Value **cells, Value *args, int32_t count);
 Value f_subrangeindex(Value **cells, Value *args, int32_t count);
 Value f_issubrange(Value **cells, Value *args, int32_t count);
 Value f_underlyingtype(Value **cells, Value *args, int32_t count);
@@ -19,6 +20,7 @@ extern Value v_subrangeVlows;
 extern bool d_subrangeVlows;
 extern Value v_subrangeVhighs;
 extern bool d_subrangeVhighs;
+extern Value fn_definesubrange;
 extern Value fn_subrangeindex;
 extern Value fn_issubrange;
 extern Value fn_underlyingtype;

@@ -48,9 +48,39 @@ const FOLD_LOWER := 'abcdefghijklmnopqrstuvwxyz';
 /// inside a fixed width and to say "not negative"; an unbounded Integer removes
 /// the first reason and '0 ..' states the second directly.
 ///
-const SUBRANGE_NAMES := ['byte', 'word', 'short'];
-const SUBRANGE_LOWS  := [0, 0, -32768];
-const SUBRANGE_HIGHS := [255, 65535, 32767];
+/// ⚠️ A LIST that a program may add to, not a constant, because a program
+/// declares subranges of its own -- 'type Digit = 0 .. 9;' [TYP-016].  The
+/// three predefined ones are simply the first entries, so a name a program
+/// wrote and a name the language provides are answered by one lookup.
+///
+/// ⚠️ Module-level, and filled by the RESOLVER, which runs before the type
+/// checker, the interpreter and the emitter alike.  Every one of them needs to
+/// know a subrange's bounds, and the resolver is the last pass that sees every
+/// declaration before any of them do.
+var SUBRANGE_NAMES := ['byte', 'word', 'short'];
+var SUBRANGE_LOWS  := [0, 0, -32768];
+var SUBRANGE_HIGHS := [255, 65535, 32767];
+
+/// Records a subrange a program declared.  Re-declaring one replaces its
+/// bounds rather than adding a second entry, so a name has one meaning.
+procedure DefineSubrange (Name : Any, Low : Integer, High : Integer);
+var
+    At : Integer;
+
+begin
+    At := SUBRANGE_NAMES.IndexOf (FoldCase (Name));
+
+    if At >= 0 then
+    begin
+        SUBRANGE_LOWS.Set (At, Low);
+        SUBRANGE_HIGHS.Set (At, High);
+        Exit;
+    end
+
+    SUBRANGE_NAMES.Add (FoldCase (Name));
+    SUBRANGE_LOWS.Add (Low);
+    SUBRANGE_HIGHS.Add (High);
+end
 
 function SubrangeIndex (Name : Any) : Integer;
 begin

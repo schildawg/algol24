@@ -51,6 +51,9 @@ static const char *t_returnstmt_accept_1[] = { "Any" };
 Value k_enumstmt;
 static const char *t_enumstmt_init_2_token_list[] = { "Token", "List" };
 static const char *t_enumstmt_accept_1[] = { "Any" };
+Value k_subrangestmt;
+static const char *t_subrangestmt_init_3_token_integer_integer[] = { "Token", "Integer", "Integer" };
+static const char *t_subrangestmt_accept_1[] = { "Any" };
 Value k_classstmt;
 static const char *t_classstmt_init_4_token_variableexpr_list_list[] = { "Token", "VariableExpr", "List", "List" };
 static const char *t_classstmt_accept_1[] = { "Any" };
@@ -491,6 +494,36 @@ static Value m_enumstmt_accept_1(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value i_subrangestmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Name", alg_nil());
+    alg_set_property(v_this, "Low", alg_nil());
+    alg_set_property(v_this, "High", alg_nil());
+    return alg_nil();
+}
+
+static Value m_subrangestmt_init_3_token_integer_integer(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_name = alg_widen(args[0], "Token");
+    (void)v_name;
+    Value v_low = alg_widen(args[1], "Integer");
+    (void)v_low;
+    Value v_high = alg_widen(args[2], "Integer");
+    (void)v_high;
+    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
+    (void)(alg_set_property(v_this, "Low", alg_widen(v_low, "Integer")));
+    (void)(alg_set_property(v_this, "High", alg_widen(v_high, "Integer")));
+    return alg_nil();
+}
+
+static Value m_subrangestmt_accept_1(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitSubrangeStmt", (Value[]){v_this}, 1);
+    return alg_nil();
+}
+
 static Value i_classstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
@@ -544,6 +577,7 @@ void init_Stmt(void) {
     k_functionstmt = alg_class("FunctionStmt", alg_nil());
     k_returnstmt = alg_class("ReturnStmt", alg_nil());
     k_enumstmt = alg_class("EnumStmt", alg_nil());
+    k_subrangestmt = alg_class("SubrangeStmt", alg_nil());
     k_classstmt = alg_class("ClassStmt", alg_nil());
     alg_class_initializer(k_stmt, i_stmt);
     alg_class_super(k_blockstmt, k_stmt);
@@ -654,6 +688,13 @@ void init_Stmt(void) {
     alg_class_initializer(k_enumstmt, i_enumstmt);
     alg_class_method(k_enumstmt, "Init", m_enumstmt_init_2_token_list, 2, t_enumstmt_init_2_token_list);
     alg_class_method(k_enumstmt, "Accept", m_enumstmt_accept_1, 1, t_enumstmt_accept_1);
+    alg_class_super(k_subrangestmt, k_stmt);
+    alg_class_field(k_subrangestmt, "Name");
+    alg_class_field(k_subrangestmt, "Low");
+    alg_class_field(k_subrangestmt, "High");
+    alg_class_initializer(k_subrangestmt, i_subrangestmt);
+    alg_class_method(k_subrangestmt, "Init", m_subrangestmt_init_3_token_integer_integer, 3, t_subrangestmt_init_3_token_integer_integer);
+    alg_class_method(k_subrangestmt, "Accept", m_subrangestmt_accept_1, 1, t_subrangestmt_accept_1);
     alg_class_super(k_classstmt, k_stmt);
     alg_class_field(k_classstmt, "Name");
     alg_class_field(k_classstmt, "Superclass");

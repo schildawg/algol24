@@ -309,6 +309,11 @@ Value alg_singleton(Value klass);
 Value alg_enum_type(const char *name);
 Value alg_enum_member(Value type, const char *name);
 
+/* Records a subrange a program declared -- 'type Digit = 0 .. 9;' [TYP-016].
+ * Emitted beside the class shells, because a subrange must be known before any
+ * statement can assign through it. */
+void  alg_subrange(const char *name, int64_t low, int64_t high);
+
 /* Property and method access.  Both dispatch on the receiver at run time, so one
  * emitted call covers an instance field, a collection's Length, and a method on
  * either -- the emitter cannot know which it is looking at.

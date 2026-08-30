@@ -1401,6 +1401,9 @@ begin
         Exit FunctionStmt (Name, List(), Body);
     end
 
+    /// 'type X = ...' declares an enumeration or a subrange, and which is
+    /// decided by the character after the '='.
+    ///
     function EnumDeclaration () : Stmt;
     var
         Name    : Token;
@@ -1409,6 +1412,9 @@ begin
     begin
         Name := Consume (TOKEN_IDENTIFIER, 'Expect enum name.');
         Consume (TOKEN_EQUAL, 'Expect ''='' after enum declaration.');
+
+        if not Check (TOKEN_LEFT_PAREN) then Exit SubrangeDeclaration (Name);
+
         Consume (TOKEN_LEFT_PAREN, 'Expect ''('' before enum members.');
 
         Members := List();
@@ -1421,6 +1427,55 @@ begin
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after enum declaration.');
 
         Exit EnumStmt (Name, Members);
+    end
+
+    /// 'type Digit = 0 .. 9;' -- a subrange of Integer [TYP-016].
+    ///
+    /// ⚠️ The bounds are LITERALS, optionally signed, rather than expressions.
+    /// A subrange is hoisted like a class and an enum, so its bounds must be
+    /// known before anything runs -- and an expression would have to be
+    /// evaluated, which needs the declaration to have run already.
+    ///
+    function SubrangeDeclaration (Name : Token) : Stmt;
+    var
+        Low  : Integer;
+        High : Integer;
+
+    begin
+        Low := SubrangeBound ();
+        Consume (TOKEN_DOT_DOT, 'Expect ''..'' between subrange bounds.');
+        High := SubrangeBound ();
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after subrange declaration.');
+
+        // ⚠️ Refused where it is READ.  An empty subrange admits no value at
+        // all, so every assignment through it would fail and the declaration
+        // is the only place that can say why.
+        if Low > High then
+            Error (Name, 'A subrange must not be empty: ' + Str (Low)
+                       + ' is above ' + Str (High) + '.');
+
+        Exit SubrangeStmt (Name, Low, High);
+    end
+
+    /// One bound: an integer literal, optionally preceded by '-'.
+    ///
+    /// ⚠️ There is no negative literal [LEX-019], so the sign is read here
+    /// rather than being part of the number -- the same rule the rest of the
+    /// language follows, applied where an expression cannot be.
+    ///
+    function SubrangeBound () : Integer;
+    var
+        Negative : Boolean;
+
+    begin
+        Negative := Match (TOKEN_MINUS);
+
+        var Bound := Consume (TOKEN_INTEGER, 'Expect an integer bound.');
+
+        if Negative then Exit 0 - (Bound.Literal as Integer);
+
+        Exit Bound.Literal as Integer;
     end
 
     function ClassDeclaration ();

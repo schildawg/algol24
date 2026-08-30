@@ -1,0 +1,53 @@
+// spec: TYP-016
+//
+// A program declares subranges of its own, and they behave exactly as the
+// predefined ones do [TYP-015].
+
+type Digit   = 0 .. 9;
+type Celsius = -273 .. 1000;
+
+var D : Digit := 7;
+
+WriteLn (D);
+WriteLn (D is Digit);
+
+// ⚠️ It is an Integer, and stays one.  A subrange constrains a value where a
+// type is written; nothing is ever 'a Digit' [TYP-001].
+WriteLn (D is Integer);
+WriteLn (D + 1 is Integer);
+
+WriteLn (0 is Digit);
+WriteLn (9 is Digit);
+WriteLn (10 is Digit);
+WriteLn (-1 is Digit);
+
+// ⚠️ The sign is read by the DECLARATION, because there is no negative
+// literal [LEX-019].
+WriteLn (-273 is Celsius);
+WriteLn (-274 is Celsius);
+WriteLn (1000 is Celsius);
+
+// The bounds are checked at the assignment contexts [VAR-017].
+try
+    var Bad : Digit := 10;
+except
+    on e : String do WriteLn (e);
+end
+
+procedure Show (N : Digit);
+begin
+    WriteLn ('digit ' + Str (N));
+end
+
+Show (3);
+
+try
+    Show (42);
+except
+    on e : String do WriteLn (e);
+end
+
+// A declared subrange and a predefined one are the same kind of thing.
+var B : Byte := 200;
+WriteLn (B is Byte);
+WriteLn (B is Digit);

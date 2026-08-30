@@ -428,6 +428,33 @@ begin
     end
 end
 
+/// 'type Digit = 0 .. 9;' -- a subrange of Integer [TYP-015].
+///
+/// ⚠️ The bounds are TOKENS, not expressions.  A subrange declaration is
+/// hoisted like a class and an enum are, so its bounds have to be known before
+/// anything runs; an expression would need evaluating, and evaluating it would
+/// need the declaration to have run already.
+///
+class SubrangeStmt (Stmt);
+var
+    Name : Token;
+    Low  : Integer;
+    High : Integer;
+
+begin
+    constructor Init (Name : Token, Low : Integer, High : Integer);
+    begin
+        this.Name := Name;
+        this.Low := Low;
+        this.High := High;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitSubrangeStmt(this);
+    end
+end
+
 class ClassStmt (Stmt);
 var
     Name       : Token;
