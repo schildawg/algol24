@@ -1,7 +1,7 @@
 # The Algol-24 Programming Language Specification
 
 > **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 272 rules. Every rule is **decided** — what the
+> chapters and eight annexes, 273 rules. Every rule is **decided** — what the
 > language should do — and every rule is claimed by a case: a program in
 > `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
 > None awaits one.
@@ -1395,11 +1395,17 @@ taking one argument: `B[0]` calls `B.Get (0)`. Assignment needs `Put` taking
 two: `B[0] := X` calls `B.Put (0, X)`. Without them, `B[0]` is the runtime error
 `Subscript target should be an ordinal.`
 
-⚠️ **The fifth structural protocol**, beside `Elements` [TYP-011], `Contains`,
-`ToString` [CLS-009], a `property` [CLS-017] and `Compare` [VAL-014]. It needs
-no member name of its own: `Get` and `Put` are what the built-in collections
-already answer to [COL-003], so a collection written in Algol-24 reuses the
-names rather than being given a second set.
+⚠️ **The fifth structural protocol**, beside `Contains`, `ToString` [CLS-009],
+`Elements` [TYP-011] and `Compare` [VAL-014]. It needs no member name of its
+own: `Get` and `Put` are what the built-in collections already answer to
+[COL-003], so a collection written in Algol-24 reuses the names rather than
+being given a second set.
+
+⚠️ **A `property` is not one of them**, though it is often listed beside them.
+A protocol is *structural* — a class either happens to declare the member or it
+does not — while a property is announced with a keyword [CLS-017]. The
+difference matters when counting: there are five protocols and one declared
+member kind, not six of anything.
 
 ⚠️ **The two forms are two members of different arity**, which is the one
 question subscripting adds that no other operator has — and the language already
@@ -1617,9 +1623,19 @@ one-character String is produced by accident, not how `=` treats one.
 **identity**, not by contents. `[1, 2] = [1, 2]` is **false**: they are two
 collections. Two references to one collection are equal.
 
-⚠️ There is no way for a class to say otherwise. Comparing by contents needs an
-operator the program may define, which the language does not have; see Annex H,
-H-8.
+⚠️ **There is still no way for a class to say otherwise, and it is now a
+choice rather than an absence.** A program may define `+`, `-`, `*`, `/` and
+`div` [EXP-020]; `=` is deliberately not on that list. Equality is coupled to
+membership by [VAL-013] — *if `X = Y` then a collection holding `Y` contains
+`X`* — and an object key hashes by its address, so defining `=` without a hash
+protocol to move with it would break a stated rule silently. That pairing is
+what Java's `equals`/`hashCode` discipline exists for, and it is the whole of
+what Annex H, H-17 has to settle.
+
+⚠️ **Ordering is different, and landed in Generation 7** [VAL-014]. A class
+declaring `Compare` orders with `<` and its three companions, because ordering
+touches no hash and no membership — which is exactly why it was settled while
+equality was not.
 
     interpreter  compiler/Interpreter.a24  IsEqual
     compiler     bootstrap/algol.c         equals
@@ -1689,10 +1705,10 @@ A **class instance** orders when its class declares `Compare (Other) : Integer`,
 answering negative, zero or positive. Without one, `A < B` on two instances is
 `Operands must be numbers.`
 
-⚠️ **The sixth structural protocol**, beside `Elements` [TYP-011], `Contains`,
-`ToString` [CLS-009], a `property` [CLS-017] and subscripting [TYP-010]. A name
-and a shape: `Compare` taking one argument. There is no declaration keyword and
-no precedence question, because `<` already has a precedence [EXP-001].
+⚠️ **The fourth structural protocol**, beside `Contains`, `ToString` [CLS-009]
+and `Elements` [TYP-011]; subscripting [TYP-010] is the fifth. A name and a
+shape: `Compare` taking one argument. There is no declaration keyword and no
+precedence question, because `<` already has a precedence [EXP-001].
 
 ⚠️ **Ordering costs nothing that equality would.** It touches no hash and no
 membership, so unlike [VAL-013]'s coupling of `=` with `in` there is no second
@@ -6155,16 +6171,26 @@ unit will have to reproduce.
 
 The reason is the one below, and it is worth more than the tidiness: everything
 moved out of the runtime is one less thing the C back end and the interpreter
-can disagree about — and Annex C ran to thirty-seven entries -- numbered to C-39 -- before every
-one of them was withdrawn.
+can disagree about — and Annex C ran to thirty-seven entries, numbered to C-39,
+before every one of them was withdrawn.
 
-⚠️ **Three rules did most of the pinning, and two have since gone.** A class can
-be iterated as of Generation 5 [TYP-011] and can expose a read-only property as
-of Generation 6 [CLS-017]; what remains is that it cannot be **subscripted**
-[TYP-010], which H-8 would settle. A collection written in Algol-24 today reads
-`L.Get (0)` where a built-in reads `L[0]`, and that is the whole of the
-remaining distance rather than the three-part gap this annex was written
-against.
+⚠️ **Three rules did the pinning, and all three are gone.** A class can be
+iterated as of Generation 5 [TYP-011], can expose a read-only property as of
+Generation 6 [CLS-017], and can be subscripted as of Generation 7 [TYP-010] —
+and it can order [VAL-014] and compute [EXP-020] besides. `conformance/0171`
+ends with a `Stack` written in Algol-24 that is subscripted, iterated, ordered
+and answers `Length` without parentheses. **Nothing in the language pins the
+collections to being native any longer.**
+
+⚠️ **What remains is not a language question but a runtime one**, and it is
+H-14. A unit is only a saving if it can reach what it needs without the runtime
+growing a built-in for every call, or everything removed from chapter 14 arrives
+back in chapter 16 and is paid for twice.
+
+⚠️ **This paragraph has now been rewritten in three consecutive staleness
+passes**, each time to remove one more thing from the list. That is worth
+leaving on the record: an annex that argues from what the language *cannot* do
+goes stale exactly as fast as the language improves.
 
 ### E.1 The collections
 
@@ -6637,20 +6663,21 @@ what; in short:
 | `Array` | **stays.** Fixed-size, constant-time, holding arbitrary values — nothing in the language can express it, and it is the primitive the others are built on. |
 | `Stack` | movable today. Its whole surface is method calls and no literal claims its name. The best first candidate. |
 | `Set` | movable today with a linear scan; hashable later using `Ord`. |
-| `List` | pinned by `[…]`, and not worth moving until subscripting (H-8) and H-5 arrive. |
-| `Map` | pinned by `[:]` and `[k : v]`, and by wanting `M[K]`. |
+| `List` | pinned by `[…]` alone now. Subscripting and iteration both arrived, so what holds it is the literal claiming its name and nothing else. |
+| `Map` | pinned by `[:]` and `[k : v]`. `M[K]` is answerable now through `Get` and `Put` [TYP-010], so the literals are all that remain. |
 
 ⚠️ **H-14 comes first.** Moving a collection out is only a saving if the unit
 can reach what it needs without the runtime growing a built-in for every call —
 otherwise everything removed from chapter 14 arrives back in chapter 16, and
 this is paid for twice.
 
-⚠️ **Only subscripting (H-15) is still owed.** Iteration landed in Generation 5
-[TYP-011] and a read-only property in Generation 6 [CLS-017], so a `List`
-written in Algol-24 already answers `L.Length` without parentheses and walks in
-a `for ... in`. What it still cannot do is `L[0]` — H-15 — and until it can it is
-strictly worse to use than the built-in it would replace — which is not a trade
-worth making.
+⚠️ **Nothing in the language is owed any longer.** Iteration landed in
+Generation 5 [TYP-011], a read-only property in Generation 6 [CLS-017], and
+subscripting, ordering and arithmetic in Generation 7 [TYP-010], [VAL-014],
+[EXP-020]. A `List` written in Algol-24 reads `L[0]`, answers `L.Length` without
+parentheses, walks in a `for ... in` and orders — so it is no longer strictly
+worse to use than the built-in it would replace, which is what made the trade
+not worth making.
 
 ⚠️ **[COL-007] is the constraint that outlives the move.** Insertion order is
 specified for every collection, `Set` and `Map` included, so a unit is a third
@@ -6871,7 +6898,7 @@ collections to being native. `conformance/0171` ends with one.
 ***Landed in Generation 7.*** *(changed [VAL-014])*
 
 A class declaring `Compare (Other) : Integer` orders with `<`, `<=`, `>` and
-`>=`. The sixth structural protocol, needing no declaration keyword and raising
+`>=`. The fourth structural protocol, needing no declaration keyword and raising
 no precedence question, because `<` already has a precedence.
 
 ⚠️ **It cost nothing equality would**, which is why it is settled and H-17 is

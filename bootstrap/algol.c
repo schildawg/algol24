@@ -4281,9 +4281,9 @@ static bool compares_as_text(Value a, Value b) {
     return is_text(a) && is_text(b) && !(a.type == VAL_CHAR && b.type == VAL_CHAR);
 }
 
-/* A class declaring 'Compare (Other) : Integer' orders [VAL-014] -- the sixth
- * structural protocol, beside Elements, Contains, ToString, a property and
- * subscripting.
+/* A class declaring 'Compare (Other) : Integer' orders [VAL-014] -- the fourth
+ * structural protocol, beside Contains, ToString and Elements; subscripting is
+ * the fifth.
  *
  * ⚠️ Ordering costs nothing that equality would.  It touches no hash and no
  * membership, so unlike [VAL-013]'s coupling there is no second protocol that
