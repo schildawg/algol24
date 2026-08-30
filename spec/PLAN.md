@@ -1,4 +1,4 @@
-# Plan: Generation 1 — an interpreter that matches the specification
+# Plan: the road to v1
 
 `spec/ALGOL-24.md` is written and every one of its rules is claimed by a case: a
 program in `conformance/`, a refusal in `refusals/`, or a reproduction in
@@ -25,6 +25,32 @@ costs per operation.
 **Next is Generation 2**: Annex C's divergences become defects and are worked
 through the same way, until conformance passes under *both* processors.
 
+## ✅ Generation 2 is complete
+
+**`./conform.sh` reports no gap.** All thirty-six Annex C entries are withdrawn,
+so every case the interpreter gets right the compiled back end gets right too,
+and the compiled `--test` report is identical to the interpreted one line for
+line — 239 lines and 1,416 escape sequences over the whole suite.
+
+Four of those entries were opened *during* the generation and closed with it
+(C-35 to C-38), three of them found by writing a conformance case for something
+only the interpreter had ever run.
+
+⚠️ **A dozen entries were wrong about what was wrong**, and several named a
+mistake in the fix they themselves proposed — C-20 wanted the member map keyed
+by owner when the symbols were never the problem; C-24 wanted the check at the
+call site when the callee is one place instead of many; C-2 read as a missing
+mechanism when it was one missing case. The entries are kept for that, not for
+the count.
+
+⚠️ **Two were the interpreter's fault, not the compiler's** (C-4, C-37), which
+the annex's own classification does not admit. A divergence says the two
+processors disagree; it does not say which one is right.
+
+⚠️ **Nothing was closed by narrowing the language.** Every entry was closed by
+making the compiler do what the interpreter does, except where the interpreter
+was the one in error — and no rule was weakened to make a gap go away.
+
 ## 0. The road to v1
 
 | | | Ends when |
@@ -34,7 +60,10 @@ through the same way, until conformance passes under *both* processors.
 | **Gen 2** | Turn on the compiler. Annex C's divergences become defects and are worked through the same way. | Conformance passes under **both** processors and no defect remains. Tag **Gen 2**. |
 | **v1** | New language features and a runtime library, prioritized, each staying within conformance. | Release. |
 
-⚠️ **What changes at the Gen 1 → Gen 2 boundary is the corpus doctrine itself.**
+⚠️ **The Gen 2 gate is met.** `./conform.sh` reports no gap, so `--strict`
+passes too; the relaxation described below no longer relaxes anything.
+
+⚠️ **What changed at the Gen 1 → Gen 2 boundary is the corpus doctrine itself.**
 Today a case is classified by one question — *is the interpreter right?* — and
 compiler gaps are reported but do not fail the run
 (`conformance/README.md`). At Gen 2 that relaxation ends: `./conform.sh
@@ -56,6 +85,13 @@ up as compiler defects when the time comes:
 - **C-4** and **C-9** *reverse*: [SRC-011] and [RT-017] make the compiler right
   and the interpreter the one to change, so they are Gen 1 work (DEF-02,
   DEF-26) rather than Gen 2 work.
+
+⚠️ **Three of those four held; C-6 did not.** C-1 closed with DEF-24, C-12 with
+DEF-17, and C-4 and C-9 reversed as predicted. C-6 was expected to close by
+[H-6] removing the construct that crashed, and instead closed with an ordinary
+repair — the crash was a missing case in `as_text`, not a reason to withdraw the
+spelling. A prediction about *how* an entry will close is worth less than the
+entry itself.
 
 ⚠️ **Nothing after Gen 0 may change a rule without a reason recorded in the
 specification.** The point of signing off is that the document stops being a
