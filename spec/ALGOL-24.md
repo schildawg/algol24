@@ -6557,35 +6557,3 @@ counted loops, not the whole of libc.
 has behaviour this specification does not define and cannot check, so the rules
 will have to say where conformance stops — the first place in this language
 where that sentence has to be written.
-
-**H-15 — The `with` statement.** *(will change [EXP-009], and more)*
-
-Turbo Pascal's `with`: name a value once and reach its members without
-repeating it.
-
-```
-with Config do
-begin
-    Width  := 80;
-    Height := 25;
-end
-```
-
-⚠️ **The Resolver is the difficulty.** It binds every bare name to a scope depth
-before anything runs, which is what makes a variable read a fixed number of hops
-rather than a search. `with` puts a name in front of that decision whose meaning
-depends on a value's **class**, and in a gradually typed language the class is
-often not known until the program runs — so either `with` is restricted to
-receivers whose type the checker does know, or a bare name inside one becomes a
-run-time search and stops being the cheap thing the Resolver made it.
-
-⚠️ **Nesting is where it earns its reputation.** Two `with` statements one
-inside the other, each carrying a `Name`, and the reader cannot tell which is
-meant without knowing both classes. Pascal's own community treats this as the
-construct's known cost; the language would be choosing to take it on.
-
-⚠️ **`this` is the shape already in the language.** Inside a method a bare name
-already reaches a field, and `with` is that mechanism pointed at an arbitrary
-value instead of the receiver — so the question is less "can it be done" than
-whether a second way to make a name mean a field is worth the ambiguity of
-having two.
