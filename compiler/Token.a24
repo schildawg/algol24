@@ -15,6 +15,29 @@ uses TokenType;
 const FOLD_UPPER := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const FOLD_LOWER := 'abcdefghijklmnopqrstuvwxyz';
 
+/// The name a written type is compared under.
+///
+/// ⚠️ 'Real' is another spelling of 'Double' [TYP-014], not a type of its own,
+/// so it is replaced HERE -- at the one point a written type becomes something
+/// to compare -- and nothing downstream needs to know the alias exists.  The C
+/// runtime therefore needs no case for it at all, which is what keeps the two
+/// processors agreeing by construction rather than by both remembering.
+///
+/// ⚠️ Beside FoldCase for the same reason FoldCase exists: both normalise a
+/// name before it is matched, and a normalisation applied at some sites and
+/// not others is worse than none.
+///
+/// ⚠️ The canonical spelling wins in a DIAGNOSTIC too, so 'X as Real' on a
+/// String says 'Cannot cast String to Double.'  That is the alias telling the
+/// reader what it is, which is more use than echoing what they wrote.
+///
+function CanonicalType (Name : Any) : String;
+begin
+    if FoldCase (Name) = 'real' then Exit 'Double';
+
+    Exit Str (Name);
+end
+
 function FoldCase (Name : Any) : String;
 var
    Text : String;

@@ -3190,7 +3190,7 @@ static Value m_cemitter_visitisexpr_1_isexpr(Value v_this, Value *args, int32_t 
     (void)v_this; (void)args; (void)count;
     Value v_theexpr = alg_widen(args[0], "IsExpr");
     (void)v_theexpr;
-    return alg_add(alg_add(alg_add(alg_add(alg_string("alg_is("), alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_theexpr, "Obj")}, 1)), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_property(alg_property(v_theexpr, "TypeName"), "Lexeme"))}, 1)), alg_char_value(41));
+    return alg_add(alg_add(alg_add(alg_add(alg_string("alg_is("), alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_theexpr, "Obj")}, 1)), alg_string(", ")), f_quotec(NULL, (Value[]){f_canonicaltype(NULL, (Value[]){alg_property(alg_property(v_theexpr, "TypeName"), "Lexeme")}, 1)}, 1)), alg_char_value(41));
     return alg_nil();
 }
 

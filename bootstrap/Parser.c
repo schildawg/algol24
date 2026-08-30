@@ -628,7 +628,7 @@ static Value m_parser_constdeclaration_0(Value v_this, Value *args, int32_t coun
     (void)v_generic;
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcolon}, 1))) {
         {
-            (void)((v_typename = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme"))));
+            (void)((v_typename = f_canonicaltype(NULL, (Value[]){alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme")}, 1)));
             if (alg_truthy((or_17 = alg_invoke(v_this, "IsCollectionType", (Value[]){v_typename}, 1), !alg_truthy(or_17) ? or_17 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVof}, 1)))) {
                 (void)((v_generic = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect generic type.")}, 2), "Lexeme"))));
             }
@@ -732,7 +732,7 @@ static Value m_parser_declarationsection_1_boolean(Value v_this, Value *args, in
             (void)v_generic;
             if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcolon}, 1))) {
                 {
-                    (void)((v_typename = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme"))));
+                    (void)((v_typename = f_canonicaltype(NULL, (Value[]){alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme")}, 1)));
                     if (alg_truthy((or_29 = alg_invoke(v_this, "IsCollectionType", (Value[]){v_typename}, 1), !alg_truthy(or_29) ? or_29 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVof}, 1)))) {
                         (void)((v_generic = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect generic type.")}, 2), "Lexeme"))));
                     }
@@ -972,7 +972,7 @@ static Value m_parser_vardeclaration_1_token(Value v_this, Value *args, int32_t 
     (void)v_generic;
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcolon}, 1))) {
         {
-            (void)((v_typename = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme"))));
+            (void)((v_typename = f_canonicaltype(NULL, (Value[]){alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme")}, 1)));
             if (alg_truthy((or_34 = alg_invoke(v_this, "IsCollectionType", (Value[]){v_typename}, 1), !alg_truthy(or_34) ? or_34 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVof}, 1)))) {
                 (void)((v_generic = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect generic type.")}, 2), "Lexeme"))));
             }
@@ -1073,7 +1073,7 @@ static Value m_parser_parametertype_0(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_not(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcolon}, 1)))) {
         return alg_string("");
     }
-    return alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme");
+    return f_canonicaltype(NULL, (Value[]){alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme")}, 1);
     return alg_nil();
 }
 
@@ -1458,7 +1458,7 @@ static Value m_parser_unary_0(Value v_this, Value *args, int32_t count) {
     }
     (void)((v_theexpr = alg_widen(alg_invoke(v_this, "Call", NULL, 0), "Expr")));
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVas}, 1))) {
-        (void)(alg_set_property(v_theexpr, "Cast", alg_widen(alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect typecast identifier.")}, 2), "Lexeme")), "String")));
+        (void)(alg_set_property(v_theexpr, "Cast", alg_widen(f_canonicaltype(NULL, (Value[]){alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect typecast identifier.")}, 2), "Lexeme")}, 1), "String")));
     }
     return v_theexpr;
     return alg_nil();

@@ -148,17 +148,24 @@ precisely because it may not do the arithmetic. The cost is one branch per
 operation, which [LEX-018]'s range check already spends, plus an allocation only
 where a program genuinely needs one.
 
-**`Real` is an alias for `Double`.** Turbo Pascal's 6-byte software float was a
-pre-8087 artefact with no C type to map onto. A type whose only distinction is a
-1985 storage format is the opposite of self-explanatory. Delphi reached the same
-conclusion.
+**`Real` is an alias for `Double`, and `Single` is dropped.** Turbo Pascal's
+6-byte software float was a pre-8087 artefact with no C type to map onto. A type
+whose only distinction is a 1985 storage format is the opposite of
+self-explanatory, so the name survives and the representation does not. Delphi
+reached the same conclusion.
 
 | Algol-24 | C | Notes |
 | --- | --- | --- |
 | `Integer` | `int64_t`, widening past that | unbounded |
-| `Single` | `float` | |
 | `Double` | `double` | |
-| `Real` | `double` | an alias for `Double`, not a fourth thing |
+| `Real` | `double` | another spelling, not a second type [TYP-014] |
+
+⚠️ **`Single` was in the first sketch of this type set and is not in the
+language.** A 32-bit float earns its place where values are unboxed, by halving
+the storage of an array; Algol-24's values are tagged and one size, so it would
+cost a reader "32-bit IEEE, less precision" and buy nothing. A name that has to
+be explained and pays for nothing is the clearest case this design has for
+leaving something out.
 
 **`Byte`, `Word` and `Short` are subranges, not representations.**
 
@@ -305,12 +312,13 @@ The satisfying half, and a fair measure of whether the design is right:
 ## Order
 
 1. ✅ **The scanner** — H-1 and H-2, in one pass over number scanning.
-2. **The type set and the lattice**, interpreter first, then the C runtime.
-   Nothing after this can be checked until `type_name` answers for the new
-   types.
-3. **Subranges**, including the check in `alg_param` and the case in `alg_is`.
-4. **`div`**, which is a token, a rule and an operator case.
-5. **Members on numbers**, last, because it is additive and gated by nothing.
+2. ✅ **`Integer` is unbounded**, and with it the deletions this generation
+   promised: [LEX-033], `ExceedsInteger`, and Annex G.4's build switch.
+3. ✅ **`Real` as an alias**, replaced where a written type becomes something to
+   compare — so the C runtime needs no case for it.
+4. **Subranges**, including the check in `alg_param` and the case in `alg_is`.
+5. **`div`**, which is a token, a rule and an operator case.
+6. **Members on numbers**, last, because it is additive and gated by nothing.
 
 ⚠️ **The scanner moved to the front, and the reason first given for putting it
 third was wrong.** "Nothing else can be checked until `type_name` answers for

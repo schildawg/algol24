@@ -1547,10 +1547,12 @@ static Value m_interpreter_satisfiestype_2_string(Value v_this, Value *args, int
     (void)v_value;
     Value v_thename = alg_widen(args[1], "String");
     (void)v_thename;
-    if (alg_truthy(alg_equal(f_tolower(NULL, (Value[]){f_typenameof(NULL, (Value[]){v_value}, 1)}, 1), f_tolower(NULL, (Value[]){v_thename}, 1)))) {
+    Value v_wanted = f_canonicaltype(NULL, (Value[]){v_thename}, 1);
+    (void)v_wanted;
+    if (alg_truthy(alg_equal(f_tolower(NULL, (Value[]){f_typenameof(NULL, (Value[]){v_value}, 1)}, 1), f_tolower(NULL, (Value[]){v_wanted}, 1)))) {
         return alg_bool(true);
     }
-    return f_inheritsfrom(NULL, (Value[]){v_value, v_thename}, 2);
+    return f_inheritsfrom(NULL, (Value[]){v_value, v_wanted}, 2);
     return alg_nil();
 }
 

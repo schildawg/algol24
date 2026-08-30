@@ -4,11 +4,13 @@
 
 #include "algol.h"
 
+Value f_canonicaltype(Value **cells, Value *args, int32_t count);
 Value f_foldcase(Value **cells, Value *args, int32_t count);
 extern Value v_foldVupper;
 extern bool d_foldVupper;
 extern Value v_foldVlower;
 extern bool d_foldVlower;
+extern Value fn_canonicaltype;
 extern Value fn_foldcase;
 extern Value k_token;
 void init_Token(void);

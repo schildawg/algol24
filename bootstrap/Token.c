@@ -2,14 +2,28 @@
 #include "Token.h"
 #include "TokenType.h"
 
+Value f_canonicaltype(Value **cells, Value *args, int32_t count);
 Value f_foldcase(Value **cells, Value *args, int32_t count);
 Value v_foldVupper;
 bool d_foldVupper;
 Value v_foldVlower;
 bool d_foldVlower;
+Value fn_canonicaltype;
 Value fn_foldcase;
 Value k_token;
 static const char *t_token_init_4_tokentype_string_integer[] = { "TokenType", "String", "Any", "Integer" };
+
+Value f_canonicaltype(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
+    Value v_name = args[0];
+    (void)v_name;
+    if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){v_name}, 1), alg_string("real")))) {
+        return alg_string("Double");
+    }
+    return alg_str(v_name);
+    return alg_nil();
+}
 
 Value f_foldcase(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
@@ -96,6 +110,7 @@ static Value m_token_tostring_0(Value v_this, Value *args, int32_t count) {
 
 void init_Token(void) {
     k_token = alg_class("Token", alg_nil());
+    fn_canonicaltype = alg_closure("CanonicalType", f_canonicaltype, NULL, 0, 1);
     fn_foldcase = alg_closure("FoldCase", f_foldcase, NULL, 0, 1);
     alg_class_field(k_token, "TypeOfToken");
     alg_class_field(k_token, "Lexeme");

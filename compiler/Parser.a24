@@ -703,7 +703,7 @@ begin
 
         if Match (TOKEN_COLON) then
         begin
-            TypeName := Str (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+            TypeName := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
 
             if IsCollectionType (TypeName) and Match (TOKEN_OF) then
                 Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
@@ -825,7 +825,7 @@ begin
 
             if Match (TOKEN_COLON) then
             begin
-                TypeName := Str (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+                TypeName := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
 
                 if IsCollectionType (TypeName) and Match (TOKEN_OF) then
                     Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
@@ -1089,7 +1089,7 @@ begin
 
         if Match (TOKEN_COLON) then
         begin
-            TypeName := Str (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+            TypeName := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
 
             // ⚠️ 'of' is honoured only after 'List'.  It is
             // a keyword already -- 'case X of' -- so anywhere else it has to
@@ -1210,7 +1210,7 @@ begin
     begin
         if not Match (TOKEN_COLON) then Exit '';
 
-        Exit Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme;
+        Exit CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
     end
 
     // Parses a block of statements.
@@ -1686,7 +1686,7 @@ begin
         // ⚠️ A field on the expression rather than a node of its own, which is
         // what lets Evaluate check every cast in one place.
         if Match (TOKEN_AS) then
-            TheExpr.Cast := Str (Consume (TOKEN_IDENTIFIER,
+            TheExpr.Cast := CanonicalType (Consume (TOKEN_IDENTIFIER,
                 'Expect typecast identifier.').Lexeme);
 
         Exit TheExpr;

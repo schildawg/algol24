@@ -3169,8 +3169,11 @@ begin
 
     function VisitIsExpr (TheExpr : IsExpr) : String;
     begin
+        // ⚠️ Canonicalised here because 'is' carries a TOKEN -- the parser had
+        // no written type string to replace.  The runtime therefore never sees
+        // 'Real' and needs no case for it.
         Exit 'alg_is(' + Evaluate (TheExpr.Obj) + ', '
-           + QuoteC (Str (TheExpr.TypeName.Lexeme)) + ')';
+           + QuoteC (CanonicalType (TheExpr.TypeName.Lexeme)) + ')';
     end
 
     function VisitUnary (TheExpr : UnaryExpr) : String;

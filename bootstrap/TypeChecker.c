@@ -860,7 +860,7 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_kind, alg_string("IsExpr")))) {
         {
             (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Obj")}, 1));
-            if (alg_truthy(alg_not(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_theexpr, "TypeName"), "Lexeme")}, 1)}, 1)))) {
+            if (alg_truthy(alg_not(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "DeclaredTypes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){f_canonicaltype(NULL, (Value[]){alg_property(alg_property(v_theexpr, "TypeName"), "Lexeme")}, 1)}, 1)}, 1)))) {
                 {
                     Value v_message = alg_add(alg_add(alg_string("Unknown type '"), alg_str(alg_property(alg_property(v_theexpr, "TypeName"), "Lexeme"))), alg_string("'."));
                     (void)v_message;

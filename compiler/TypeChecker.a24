@@ -864,7 +864,11 @@ begin
             // ⚠️ Folded, because 'is' folds at run time: SatisfiesType lowers
             // both sides, so '1 is dog' finds class Dog and refusing it here
             // would refuse a program that runs.
-            if not Lookup.DeclaredTypes.Contains (FoldCase (TheExpr.TypeName.Lexeme)) then
+            // ⚠️ Canonicalised, not registered.  'Real' is another spelling of
+            // 'Double' [TYP-014] rather than a type of its own, so adding it to
+            // DeclaredTypes would say the opposite -- that two types exist.
+            if not Lookup.DeclaredTypes.Contains
+                       (FoldCase (CanonicalType (TheExpr.TypeName.Lexeme))) then
             begin
                 var Message := 'Unknown type ''' + Str (TheExpr.TypeName.Lexeme) + '''.';
 

@@ -1139,6 +1139,39 @@ two may appear together in one header.
     compiler     bootstrap/algol.c         alg_is
     conformance  0026-the-runtime-types.a24
 
+**[TYP-014]**  `Real` is another spelling of `Double`. It is not a second type:
+`X is Real` and `X is Double` answer alike, a parameter declared either accepts
+the same arguments, and two subprograms differing only in which was written
+claim the same signature [FUN-013].
+
+⚠️ **An alias, not a conversion.** C# settled this shape: `int` *is*
+`System.Int32`, one type with two names and no box between them. Java's
+`int`/`Integer` duality — two things with almost the same name behaving
+differently — is the arrangement this avoids.
+
+⚠️ **The canonical spelling is `Double`**, and a diagnostic uses it: `X as Real`
+on a String is `Cannot cast String to Double.` The alias telling a reader what it
+is, is worth more than echoing what they wrote.
+
+⚠️ **Turbo Pascal's `Real` was a 6-byte software float** from before the 8087,
+with no C type to map onto. A type whose only distinction is a 1985 storage
+format is the opposite of self-explanatory, so the name survives and the
+representation does not. Delphi reached the same conclusion.
+
+⚠️ **There is no `Single`.** A 32-bit float earns its place in a language whose
+values are unboxed, by halving the storage of an array; Algol-24's values are
+tagged and one size, so it would cost a reader "32-bit IEEE, less precision"
+and buy nothing.
+
+⚠️ **Replaced where a written type becomes something to compare**, and nowhere
+else, so no part of the implementation past the front end knows the alias
+exists — the C runtime has no case for it at all. `is` is canonicalised at its
+two use sites rather than at the parser, because it carries a token where the
+others carry a string.
+
+    interpreter  compiler/Token.a24  CanonicalType
+    conformance  0152-real-is-double.a24
+
 **[TYP-002]**  A type is written as an identifier. The only compound form is a
 collection type with an element type, written `of` — `List of Integer`,
 `Map of Token` [VAR-008].

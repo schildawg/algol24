@@ -1303,12 +1303,17 @@ begin
     ///
     /// ⚠️ Shared with the cast in Evaluate, so 'X as T' and 'X is T' cannot
     /// come to disagree about what T means.
+    /// ⚠️ Canonicalised here as well as at the parser, because 'is' carries a
+    /// TOKEN rather than a string -- there is no written type to have replaced
+    /// earlier.  'as' arrives canonical already, and doing it twice is free.
     function SatisfiesType (Value : Any, TheName : String) : Boolean;
     begin
-        if ToLower (TypeNameOf (Value)) = ToLower (TheName) then Exit True;
+        var Wanted := CanonicalType (TheName);
+
+        if ToLower (TypeNameOf (Value)) = ToLower (Wanted) then Exit True;
 
         // Walk the chain, so a Dog is an Animal.
-        Exit InheritsFrom (Value, TheName);
+        Exit InheritsFrom (Value, Wanted);
     end
 
     function VisitIsExpr (TheExpr : IsExpr) : Boolean;
