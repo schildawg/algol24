@@ -51,6 +51,53 @@ processors disagree; it does not say which one is right.
 making the compiler do what the interpreter does, except where the interpreter
 was the one in error — and no rule was weakened to make a gap go away.
 
+## ✅ Generation 4 is complete
+
+**Varargs, named arguments, and a `[WARN]` severity** — Annex H's H-10, H-11 and
+H-12, all three landed together, with 221 tests, 205 conformance cases, no gap
+in either processor, and the fixed point holding.
+
+⚠️ **The three were one generation because two of them answer each other.** The
+warning reports a call that selects among overloads at run time; naming the
+parameters is how a programmer avoids it. Shipping the warning without the
+remedy would have been a diagnostic pointing at nothing.
+
+⚠️ **Neither new feature needed a rule about meeting the other**, which is the
+strongest sign the design was right. Gathering takes trailing *positional*
+arguments and positional arguments end exactly where naming begins, so naming
+the absorbing parameter turns gathering off by itself. "A fixed-arity signature
+beats a variadic one" is likewise not written anywhere: it is the pass order,
+since absorbing is the third pass and never runs when either of the first two
+found something.
+
+⚠️ **No new syntax for varargs, and none was wanted.** The declaration already
+said `List of T` [VAR-008]; absorption is a *reading* of a type that exists. It
+was only possible because Generation 3's last commit admitted element types on
+parameters — the feature was noticed rather than added.
+
+⚠️ **The warning found a fault in itself.** Its first run reported
+`SetProgramArguments` as three overloads when it is declared once, because it
+counted visits rather than declarations and the declaring pass reaches a
+module's statements once per route into it. Keyed on the signature it is silent
+across the whole compiler, which is the evidence that it is a scalpel.
+
+⚠️ **Two things this generation got wrong on paper first.** H-12 predicted that
+the warning would go to standard error; `Console` writes every diagnostic to
+standard output and `conform.sh` captures both streams, so the entry was
+rewritten to record what is true. And Annex H's own pins had rotted — H-1 and
+H-2 landed in Generation 3 and went on citing deleted refusals for a whole
+generation, in the annex whose preamble describes exactly that sequence.
+`spec/spec.sh` checks them now.
+
+⚠️ **One gap closed that no case had covered.** A closure carried no parameter
+list, so a subprogram held in a variable could neither absorb nor be called by
+name. `alg_closure` gained an argument the checked-in seed could not call; the
+seed is regenerable, so it was patched through rather than the function renamed.
+
+⚠️ **The `[WARN]` text is not pinned by anything.** The harness drops those
+lines from both sides by design, so no conformance case can hold the wording.
+A check in `spec/spec.sh` is where it would belong.
+
 ## 0. The road to v1
 
 | | | Ends when |
