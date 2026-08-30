@@ -1,7 +1,7 @@
 # The Algol-24 Programming Language Specification
 
 > **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 262 rules. Every rule is **decided** — what the
+> chapters and eight annexes, 267 rules. Every rule is **decided** — what the
 > language should do — and every rule is claimed by a case: a program in
 > `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
 > None awaits one.
@@ -1984,9 +1984,17 @@ Boolean.
 **[EXP-011]**  A call checks arity. A mismatch is `Expected N arguments but got
 M.`
 
+⚠️ **Except where a count is not the callee's rule.** A subprogram whose last
+parameter gathers trailing arguments [FUN-005] has a different count by design,
+and reports `No matching signature for function.` instead — naming the count
+would send the reader to look at the wrong thing, since what refused the call
+was the element type. `Write` and `WriteLn` take any number of values [RT-001]
+and so can never fail this way at all.
+
     interpreter  compiler/Interpreter.a24  VisitCall
     unit         Call Wrong Number Of Arguments
     conformance  0049-call-failures.a24
+    conformance  0145-a-builtin-with-the-wrong-arity.a24
 
 **[EXP-012]**  Calling something that is neither a function nor a class is
 `Can only call functions and classes.`
@@ -2051,12 +2059,18 @@ is an assignment context [VAR-017]. When neither fits, the call fails with
 So a `Char` argument selects a `Char` parameter where one is declared, and
 widens to a `String` parameter where it is not.
 
-⚠️ **Selection makes two passes**, and the order is the rule: one admitting no
-widening, then one admitting it. Adding widening to a single pass let
-*declaration order* decide instead — `Take('a')` took a `String` overload
-declared above the `Char` one — which `conformance/0050` caught at once.
+⚠️ **Selection makes three passes**, and the order is the rule: one admitting no
+widening, then one admitting it, then one admitting **absorption** [FUN-005].
+Adding widening to a single pass let *declaration order* decide instead —
+`Take('a')` took a `String` overload declared above the `Char` one — which
+`conformance/0050` caught at once.
 
-⚠️ Each pass runs over the **whole inheritance chain** before the other begins.
+⚠️ **The third pass is why "a fixed-arity signature beats a variadic one" is
+written nowhere.** It is the pass order: absorption never runs when either of
+the first two found something, so `Log ('warn', [1, 2])` passes the list rather
+than gathering it into a second one holding it.
+
+⚠️ Each pass runs over the **whole inheritance chain** before the next begins.
 An exact match on a parent must beat a widened match on the child, or adding an
 overload to a subclass would silently capture calls the parent was answering
 exactly.
@@ -2158,6 +2172,10 @@ condition.`
 **[STM-006]**  The counted form is `for Init ; Cond ; Step do S`, and it
 **desugars into a block** holding the initializer and a `while` — which is why
 its variable is scoped [DCL-008].
+
+⚠️ **The Step is held by the `while`, not appended to the body**, and `continue`
+is the reason [STM-010]: with the step written at the end of the body, beginning
+the next iteration jumped over it and the loop never ended.
 
     interpreter  compiler/Parser.a24  ForStatement
     unit         Execute For Loop
@@ -2566,7 +2584,14 @@ function Area (A : Integer, B : Integer); begin Exit 'two integers'; end
 the *parameter* types alone decide it. A return type does not distinguish an
 overload — selection happens from the arguments, so two subprograms differing
 only in what they return could never be told apart at a call. Neither do the
-parameter names.
+parameter names: `Take (A : Integer)` and `Take (B : Integer)` are one
+signature, not two.
+
+⚠️ **That is not contradicted by named arguments** [EXP-013], and the
+distinction is worth keeping straight. Names cannot make two identical
+signatures into an overload set; what they do is let a *call* say which of
+several genuinely different signatures it means, which is a question about the
+call site rather than about the declarations.
 
 ⚠️ The environment binds one name to one value, which is what made the
 restriction look structural. The value can be a **set** of subprograms, and the
@@ -2575,7 +2600,9 @@ the mechanism was already here.
 
 ⚠️ Compiled, a name with more than one subprogram behind it is reached through
 an overload set that selects at the call, and only such a name carries a
-signature in its C symbol — see C-26.
+signature in its C symbol — see C-26. A lone **variadic** subprogram goes
+through a set as well [FUN-005]: its own symbol takes a fixed number of
+arguments, and an absorbing call has a different number by definition.
 
 ⚠️ Nothing in this specification ever restricted overloading to methods.
 [EXP-013] and [EXP-014] describe selection without qualification; the
@@ -3453,13 +3480,19 @@ not count it, so a program run with no arguments reports zero.
     compiler     bootstrap/algol.c         alg_file_exists
     conformance  0092-environment-builtins.a24
 
-**[RT-015]**  `Write(V)` and `WriteLn(V)` write the stringified value to
-standard output, `WriteLn` following it with `#10` — always that byte, never the
-host's line separator, so one program writes the same bytes everywhere.
+**[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
+output, `WriteLn` following them with `#10` — always that byte, never the host's
+line separator, so one program writes the same bytes everywhere.
 
+They take **any number of values** [RT-001], run together with nothing between
+them, so `WriteLn ('ABC', 123)` writes `ABC123` and `WriteLn ()` is the newline
+on its own.
+
+    interpreter  compiler/Interpreter.a24  Rendered
     interpreter  compiler/Interpreter.a24  WriteLnNative
     compiler     bootstrap/algol.c         alg_writeln
     conformance  0093-write-and-writeln.a24
+    conformance  0159-write-takes-any-number-of-values.a24
 
 **[RT-016]**  `ReadLn` on a `TextFile` splits on the same rule as the scanner
 [SRC-006], [SRC-007]: a line ends at `#10`, which is **not** returned; a `#13`
@@ -4835,9 +4868,10 @@ assignment and field cases **on the node**, written there by the TypeChecker —
 the same arrangement the interpreter needed.
 
 ⚠️ **Selection had to learn to widen at the same moment**, or `Only ('a')` against
-a `String` parameter found no method. `find_method` makes two passes, exact
-before widening, over the whole chain — the mirror of the interpreter's, and for
-the same reason: one pass would let declaration order decide.
+a `String` parameter found no method. `find_method` makes three passes — exact,
+widening, then absorbing [FUN-005] — over the whole chain, the mirror of the
+interpreter's, and for the same reason: one pass would let declaration order
+decide.
 
 ⚠️ **Widening and checking are separate jobs, and conflating them broke the
 bootstrap.** One helper that both converted and refused turned a String reaching
@@ -4862,10 +4896,10 @@ that shapes the design.** `FunctionSymbol` mangles by signature so both
 definitions can be spelled; and because the call site cannot know which
 candidate it wants until it has its arguments, a name with more than one
 subprogram behind it is reached through an **overload set** — one value per
-name, holding every candidate with its arity and declared types, which selects
-when called. `alg_call` on one is `find_method` for subprograms: two passes,
-exact before widening [EXP-014], forwards within a pass so the first declared
-wins.
+name, holding every candidate with its **parameter list as written** — name,
+type and element type each — which selects when called. `alg_call` on one is
+`find_method` for subprograms: three passes, exact then widening then absorbing
+[EXP-014], forwards within a pass so the first declared wins.
 
 ⚠️ **Only an overloaded name pays for it.** A name with a single subprogram
 behind it is still called by its own symbol and still carries no signature
@@ -6061,11 +6095,15 @@ by a constructor of its own, never by concatenating a prefix by hand:
 | `c_` | a **cell**: a variable a nested function captured, which lives on the heap |
 | `f_` | a subprogram |
 | `fn_` | its closure, so the name can be used as a value [FUN-011] |
-| `o_` | the set of subprograms sharing one name, where there is more than one [FUN-013] |
+| `o_` | the set of subprograms sharing one name — or a lone **variadic** one, whose C symbol takes a fixed count and so cannot answer an absorbing call [FUN-013], [FUN-005] |
 | `k_` | a class or an object |
 | `i_` | its field initializer |
 | `m_` | a method, with its signature |
 | `e_` | an enumeration, and with a member appended, one of its members |
+| `t_` | the **parameter list** a subprogram or method was declared with, as a static array the runtime selects against |
+| `lb_` | where a labelled `break` lands — after the loop [STM-010] |
+| `lc_` | where a labelled `continue` lands — the last thing in the loop's body, so falling off the end runs the C `for` increment |
+| `lg_` | where a `goto` lands [STM-024] |
 
 ⚠️ A prefix names a *kind*, so a name that reaches C twice reaches it through
 two constructors rather than one string built by hand: `d_` goes through
@@ -6315,11 +6353,11 @@ given up is given up only for `List of Any`, which is already the declaration
 that means "anything".
 
 ⚠️ **Absorbing zero is what makes `WriteLn` ordinary**, and is the case that
-decided it. `WriteLn` is a native of arity −1 with a hand-written branch on
-`Arguments.Length = 0`; declared `procedure WriteLn (Items : List of Any)` the
-blank line stops being a special case, and `WriteLn ('ABC', 123)` — not legal
-today — arrives with it. Requiring at least one argument was considered and
-rejected on that example alone. The empty list is **structural, not a default**:
+decided it. `WriteLn` was a native of arity −1 with a hand-written branch on
+`Arguments.Length = 0`; rendering the whole argument list gave `''` for none,
+so the blank line stopped being a special case and `WriteLn ('ABC', 123)` —
+which had not been legal — arrived with it [RT-015]. Requiring at least one
+argument was considered and rejected on that example alone. The empty list is **structural, not a default**:
 absorbing nothing yields `[]` by the same rule that absorbing three yields a
 three-element list, so this is not default arguments under another name.
 
