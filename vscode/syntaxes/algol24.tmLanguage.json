@@ -195,7 +195,7 @@
 
         "annotation": {
             "comment": "A declared type after a colon. The lookbehind keeps map literals out ('and':TOKEN_AND has a quote in front of the colon), the keyword list keeps case arms out ('#10 : begin'), and the '(' lookahead keeps a call in a case arm out ('#39 : ScanString()').",
-            "match": "(?<=[A-Za-z0-9_?!)\\]])\\s*:\\s*(?!(?i:begin|end|exit|if|then|else|while|for|do|break|continue|goto|case|of|try|except|raise|and|or|not|in|is|as|div|var|const|type|class|object|function|procedure|constructor|private|public|true|false|nil|this|super|uses)\\b)([A-Za-z_?!][A-Za-z0-9_?!]*)\\b(?!\\s*\\()",
+            "match": "(?<=[A-Za-z0-9_?!)\\]])\\s*:\\s*(?!(?i:begin|end|exit|if|then|else|while|for|do|break|continue|goto|case|of|try|except|raise|and|or|not|in|is|as|div|var|const|type|class|object|function|procedure|property|constructor|private|public|true|false|nil|this|super|uses)\\b)([A-Za-z_?!][A-Za-z0-9_?!]*)\\b(?!\\s*\\()",
             "captures": {
                 "1": { "name": "entity.name.type.algol24" }
             }

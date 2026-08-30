@@ -1909,6 +1909,22 @@ begin
             raise 'Only instances have properties.';
         end
 
+        // ⚠️ A PROPERTY IS CALLED, not bound [TYP-012].  It is read without
+        // parentheses, so the read IS the call -- the whole of the difference
+        // between a property and the method it otherwise is.
+        //
+        // ⚠️ Here rather than in ObjInstance.Get, which has no interpreter to
+        // call with.  Get answers what the member IS; running one is this
+        // visitor's job, as it is for every other call.
+        if Obj is ObjInstance then
+        begin
+            var Member := Obj.Klass.MethodOfArity (FoldCase (TheExpr.Name.Lexeme), 0);
+
+            if Member <> Nil and Member.Declaration.IsProperty
+                             and not Obj.Fields.Contains (FoldCase (TheExpr.Name.Lexeme)) then
+                Exit Member.Bind (Obj).Call (this, List());
+        end
+
         Exit Obj.Get (TheExpr.Name);
     end
 
@@ -4230,8 +4246,13 @@ end
 //
 test 'Call Setters And Getters';
 begin
+    // ⚠️ 'flavor' is DECLARED now.  This came from Lox, where a field appeared
+    // the moment something assigned to it, and it pinned that behaviour in the
+    // interpreter -- which the C back end never had, since an instance there is
+    // a fixed array of slots taken from the 'var' section.  The test was
+    // holding one half of a divergence in place [CLS-017].
     var TheScanner := Scanner ('
- class Bagel; begin end
+ class Bagel; var flavor; begin end
  var bagel := Bagel();
  bagel.flavor := ''Yummy'';
 

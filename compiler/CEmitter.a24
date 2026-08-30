@@ -2636,10 +2636,20 @@ begin
                              + '[] = { ' + Quoted + ' };' + #10);
             end
 
-            Built (Hoisted, 'alg_class_method(' + Handle + ', '
-                 + QuoteC (Str (TheMethod.Name.Lexeme)) + ', '
-                 + MethodSymbol (Name, TheMethod) + ', '
-                 + Str (TheMethod.Params.Length) + ', ' + Table + ');');
+            // ⚠️ A PROPERTY registers through its own entry point, which sets
+            // the flag alg_property reads [TYP-012].  The emitter cannot decide
+            // at a CALL SITE whether 'B.Count' is a property -- the receiver's
+            // class is not known until run time in a gradually typed language --
+            // so the runtime has to be told at the DECLARATION instead.
+            if TheMethod.IsProperty then
+                Built (Hoisted, 'alg_class_property(' + Handle + ', '
+                     + QuoteC (Str (TheMethod.Name.Lexeme)) + ', '
+                     + MethodSymbol (Name, TheMethod) + ');');
+            else
+                Built (Hoisted, 'alg_class_method(' + Handle + ', '
+                     + QuoteC (Str (TheMethod.Name.Lexeme)) + ', '
+                     + MethodSymbol (Name, TheMethod) + ', '
+                     + Str (TheMethod.Params.Length) + ', ' + Table + ');');
         end
 
         if IsObject then Built (Hoisted, 'alg_class_is_object(' + Handle + ');');

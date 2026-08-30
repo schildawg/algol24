@@ -1546,6 +1546,11 @@ typedef struct {
      * take one argument each and differ only in what kind. */
     const char **types;
 
+    /* Whether this member is a PROPERTY: read without parentheses, and the read
+     * is the call [TYP-012].  A flag rather than a table of its own, because a
+     * property is a method in every respect but how it is reached. */
+    bool        is_property;
+
     /* ⚠️ The name's hash, so the scan compares an int before it compares a
      * string.  find_method walks every method of every class in the chain --
      * 15.2 entries on average in algc, 2.2 BILLION strcmp calls for one
@@ -1707,7 +1712,21 @@ void alg_class_method(Value value, const char *name, AlgMethod fn, int32_t arity
     klass->methods[klass->method_count].arity = arity;
     klass->methods[klass->method_count].types = types;
     klass->methods[klass->method_count].hash  = hash_folded(name);
+    klass->methods[klass->method_count].is_property = false;
     klass->method_count++;
+}
+
+/* Registers a property: a method of arity 0 that alg_property CALLS rather than
+ * binding [TYP-012].
+ *
+ * ⚠️ A second entry point rather than an argument on alg_class_method, so the
+ * checked-in seed -- which calls the five-argument form -- still compiles while
+ * this is being introduced.  The same two-step alg_closure needed. */
+void alg_class_property(Value value, const char *name, AlgMethod fn) {
+    alg_class_method(value, name, fn, 0, NULL);
+
+    ObjClass *klass = as_class(value, "Expected a class.");
+    klass->methods[klass->method_count - 1].is_property = true;
 }
 
 void alg_class_is_object(Value value) {
@@ -2890,6 +2909,16 @@ Value alg_property(Value receiver, const char *name) {
 
         int32_t slot = field_slot(instance->klass, name);
         if (slot >= 0) return instance->slots[slot];
+
+        /* ⚠️ A PROPERTY IS CALLED, not bound.  It is read without parentheses,
+         * so the read is the call -- and it is looked for AFTER the fields, so
+         * an assignment that created a field of the name shadows it exactly as
+         * one shadows a method today. */
+        for (ObjClass *at = instance->klass; at != NULL; at = at->super)
+            for (int32_t i = 0; i < at->method_count; i++)
+                if (at->methods[i].is_property
+                 && alg_stricmp(at->methods[i].name, name) == 0)
+                    return at->methods[i].fn(receiver, NULL, 0);
 
         /* ⚠️ A method reached without calling it binds to the receiver, as the
          * interpreter does.  Only fields were looked at here, so

@@ -300,6 +300,10 @@ void  alg_class_method(Value klass, const char *name, AlgMethod fn, int32_t arit
                        const char **types);
 void  alg_class_initializer(Value klass, AlgMethod fn);
 
+/* A property: a member of arity 0 that alg_property CALLS rather than binding,
+ * so it is read without parentheses [TYP-012]. */
+void  alg_class_property(Value klass, const char *name, AlgMethod fn);
+
 Value alg_new(Value klass, Value *args, int32_t count);
 
 /* An 'object' declaration: a class with exactly one instance, built on first

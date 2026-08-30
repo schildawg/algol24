@@ -1104,6 +1104,60 @@ begin
         Exit Beginning;
     end
 
+    /// Parses 'property Count : Integer; begin ... end'.
+    ///
+    /// ⚠️ NO PARAMETER LIST, which is the whole syntactic difference.  A
+    /// property is read rather than called, so a parameter would have nowhere
+    /// to arrive from -- and leaving the parentheses off is what makes the
+    /// declaration say that.
+    ///
+    /// ⚠️ It becomes a FunctionStmt of arity 0 with IsProperty set, so
+    /// resolution, checking, binding and emission treat it as the method it is.
+    ///
+    function ParseProperty () : Stmt;
+    var
+        Name : Token;
+        Body : List;
+
+    begin
+        Name := Consume (TOKEN_IDENTIFIER, 'Expect property name.');
+
+        var ReturnType := '';
+        var ReturnGeneric := '';
+
+        if Match (TOKEN_COLON) then
+        begin
+            ReturnType := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+
+            if IsCollectionType (ReturnType) and Match (TOKEN_OF) then
+                ReturnGeneric := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
+        end
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after property signature.');
+
+        Body := List();
+        ReadDeclarationSections (Body);
+
+        Consume (TOKEN_BEGIN, 'Expect ''begin'' before property body.');
+
+        var WasInProcedure := InProcedure;
+        InProcedure := False;
+
+        var Rest := Block ();
+
+        InProcedure := WasInProcedure;
+
+        for var I := 0; I < Rest.Length; I := I + 1 do
+            Body.Add (Rest[I]);
+
+        var TheProperty := FunctionStmt (Name, List(), Body);
+        TheProperty.ReturnType    := ReturnType;
+        TheProperty.ReturnGeneric := ReturnGeneric;
+        TheProperty.IsProperty    := True;
+
+        Exit TheProperty;
+    end
+
     /// Parses 'goto Done;'.
     ///
     /// ⚠️ The label is NOT checked here.  A forward jump names a label the
@@ -1777,6 +1831,8 @@ begin
                 Method := ParseFunction ('constructor');
             else if Match (TOKEN_PROCEDURE) then
                 Method := ParseFunction ('procedure');
+            else if Match (TOKEN_PROPERTY) then
+                Method := ParseProperty ();
             else
             begin
                 Consume (TOKEN_FUNCTION,

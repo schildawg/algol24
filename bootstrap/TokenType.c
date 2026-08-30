@@ -39,6 +39,7 @@ Value e_tokentype_tokenVdo;
 Value e_tokentype_tokenVelse;
 Value e_tokentype_tokenVexit;
 Value e_tokentype_tokenVgoto;
+Value e_tokentype_tokenVproperty;
 Value e_tokentype_tokenVfalse;
 Value e_tokentype_tokenVobject;
 Value e_tokentype_tokenVof;
@@ -108,6 +109,7 @@ void init_TokenType(void) {
     e_tokentype_tokenVelse = alg_enum_member(e_tokentype, "TOKEN_ELSE");
     e_tokentype_tokenVexit = alg_enum_member(e_tokentype, "TOKEN_EXIT");
     e_tokentype_tokenVgoto = alg_enum_member(e_tokentype, "TOKEN_GOTO");
+    e_tokentype_tokenVproperty = alg_enum_member(e_tokentype, "TOKEN_PROPERTY");
     e_tokentype_tokenVfalse = alg_enum_member(e_tokentype, "TOKEN_FALSE");
     e_tokentype_tokenVobject = alg_enum_member(e_tokentype, "TOKEN_OBJECT");
     e_tokentype_tokenVof = alg_enum_member(e_tokentype, "TOKEN_OF");

@@ -1,0 +1,26 @@
+// spec: CLS-017
+//
+// Assigning to a property is refused where the receiver's type is known.  It is
+// wrong rather than merely inadvisable: a property has no setter, so the
+// assignment names something that does not exist -- the same shape as assigning
+// to a constant.
+//
+// ⚠️ Nothing is checked at RUN TIME.  Through an untyped receiver the checker
+// has no class to ask and reports nothing, exactly as 'private:' is silent
+// there [DCL-015].
+
+class Stack;
+var
+private:
+    Items : List;
+
+begin
+    constructor Init ();       begin this.Items := []; end
+    property Count : Integer;  begin Exit Items.Length; end
+end
+
+var S : Stack := Stack ();
+
+WriteLn (S.Count);
+
+S.Count := 99;

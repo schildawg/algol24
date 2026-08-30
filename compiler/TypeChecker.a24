@@ -123,6 +123,14 @@ var
     /// Class name to the list of members a 'private:' section covered.
     PrivateMembers : Map := [:];
 
+    /// Class name to the list of members declared 'property' [TYP-012].
+    ///
+    /// ⚠️ Kept so that ASSIGNMENT to one can be refused where the receiver's
+    /// type is known.  Reading is the runtime's business -- it knows the class
+    /// -- but assignment is the only thing a read-only member forbids, and the
+    /// checker is the only pass that can say so without a run-time cost.
+    PropertyMembers : Map := [:];
+
     /// The built-ins' return types, kept apart from Lookup and never written to
     /// again.
     ///
@@ -344,6 +352,51 @@ begin
         Exit TheType;
     end
 
+    /// The names a class declares as properties [TYP-012].
+    ///
+    function PropertiesOf (TheStmt : Any) : List;
+    var
+        Found : List;
+
+    begin
+        Found := List();
+
+        for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
+            if TheStmt.Methods[I].IsProperty then
+                Found.Add (Str (TheStmt.Methods[I].Name.Lexeme));
+
+        Exit Found;
+    end
+
+    /// The class declaring this member as a property, or '' -- walking the
+    /// chain, because an inherited property is still read-only.
+    ///
+    /// ⚠️ The same walk HiddenBy makes, and guarded the same way: a 'Seen' set,
+    /// because a cycle in Parents would otherwise loop forever.
+    ///
+    function DeclaresProperty (TheType : String, Member : String) : String;
+    var
+        At   : String;
+        Seen : List;
+
+    begin
+        At := TheType;
+        Seen := List();
+
+        while At <> '' and At <> 'Any' and not Seen.Contains (At) do
+        begin
+            Seen.Add (At);
+
+            if PropertyMembers.Contains (At) then
+                if PropertyMembers.Get (At).Contains (Member) then Exit At;
+
+            At := Str (Lookup.Parents.Get (At));
+            if At = 'nil' then At := '';
+        end
+
+        Exit '';
+    end
+
     procedure CheckVisibility (Obj : Any, Member : Token);
     var
         TheType : String;
@@ -458,6 +511,7 @@ begin
         if Kind = 'ClassStmt' then
         begin
             PrivateMembers.Put (Str (TheStmt.Name.Lexeme), TheStmt.PrivateMembers);
+            PropertyMembers.Put (Str (TheStmt.Name.Lexeme), PropertiesOf (TheStmt));
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
             Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
 
@@ -1130,6 +1184,19 @@ begin
 
             if Owner <> '' and Owner <> 'Any' then
             begin
+                // ⚠️ WHERE THE TYPE IS KNOWN, and nowhere else [TYP-012].  A
+                // property is read-only, so assigning to one is wrong rather
+                // than merely inadvisable -- the same shape as assigning to a
+                // constant.  Through an untyped receiver nothing is reported,
+                // exactly as 'private:' is silent there [DCL-015]: the checker
+                // has no class to ask, and a run-time check would put a cost on
+                // the most frequent operation a program performs (D-9).
+                var Declaring := DeclaresProperty (Owner, Str (TheExpr.Name.Lexeme));
+
+                if Declaring <> '' then
+                    raise '''' + Str (TheExpr.Name.Lexeme) + ''' is a property of '
+                        + Declaring + ' and cannot be assigned.';
+
                 var Declared := Lookup.GetType (Owner + '::' + TheExpr.Name.Lexeme);
 
                 // ⚠️ A field is an assignment context like any other [VAR-017].

@@ -57,6 +57,9 @@ static Value m_objinstance_set_2_token(Value v_this, Value *args, int32_t count)
     (void)v_name;
     Value v_value = args[1];
     (void)v_value;
+    if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Fields"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1)))) {
+        alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_property(v_name, "Lexeme")), alg_string("'.")));
+    }
     (void)(alg_invoke(alg_property(v_this, "Fields"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1), v_value}, 2));
     return alg_nil();
 }

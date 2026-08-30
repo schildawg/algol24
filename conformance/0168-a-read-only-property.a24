@@ -1,0 +1,65 @@
+// spec: CLS-017, TYP-012
+//
+// A 'property' is read without parentheses, and the read IS the call.
+//
+// ⚠️ It exists to give a READ-ONLY VIEW of internal state, which nothing else
+// in the language could express.  A field is public -- readable and writable --
+// or private, meaning invisible; there is no third state, so a Stack written in
+// Algol-24 could not protect its own count while showing it, and was strictly
+// worse than the built-in it imitates, whose Length cannot be assigned.
+
+class Stack;
+var
+private:
+    Items : List;
+
+begin
+    constructor Init ();      begin this.Items := []; end
+    procedure Push (V : Any); begin Items.Add (V); end
+
+    property Count   : Integer; begin Exit Items.Length; end
+    property IsEmpty : Boolean; begin Exit Items.Length = 0; end
+end
+
+var S := Stack ();
+WriteLn (S.Count, ' ', S.IsEmpty);
+
+S.Push (10);
+S.Push (20);
+WriteLn (S.Count, ' ', S.IsEmpty);
+
+// A property reduces to its declared type, so this is an Integer context.
+var N : Integer := S.Count;
+WriteLn (N + 1);
+
+// An inherited property is still a property.
+class Deque (Stack);
+begin
+    constructor Init (); begin super.Init (); end
+end
+
+var D : Deque := Deque ();
+WriteLn (D.Count);
+D.Push (1);
+WriteLn (D.Count);
+
+// A method still reads as the method it is [TYP-012] -- only a property is
+// called by being read.
+class Plain;
+begin
+    constructor Init (); begin end
+    function Size (); begin Exit 7; end
+end
+
+WriteLn (Plain ().Size);
+WriteLn (Plain ().Size ());
+
+// ⚠️ Through an UNTYPED receiver the checker has no class to ask, so the
+// assignment is not refused there -- it reaches the instance, which is closed
+// [CLS-018] and answers for itself.
+try
+    var A : Any := Stack ();
+    A.Count := 99;
+except
+    on e : String do WriteLn (e);
+end

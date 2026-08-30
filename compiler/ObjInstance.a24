@@ -46,8 +46,20 @@ begin
         raise 'Undefined property ''' + Name.Lexeme + '''.';
     end
 
+    /// ⚠️ AN INSTANCE IS CLOSED: a field must be one the class declared.
+    ///
+    /// This used to put any name at all, which is Lox's arrangement -- "a field
+    /// appeared the moment something assigned to it", as ClassStmt still
+    /// records.  The C back end never had it: an instance there is a fixed
+    /// array of slots taken from the 'var' section, so 'B.Undeclared := 1' was
+    /// 1 interpreted and 'Undefined property' compiled.  A divergence older
+    /// than the properties that found it, and covered by no case.
+    ///
     procedure Set (Name : Token, Value : Any);
     begin
+        if not Fields.Contains (FoldCase (Name.Lexeme)) then
+            raise 'Undefined property ''' + Name.Lexeme + '''.';
+
         Fields.Put (FoldCase (Name.Lexeme), Value);
     end
 

@@ -501,6 +501,16 @@ var
     /// selection and widening compare.
     ParamGenerics : List := [];
 
+    /// Whether this member is a PROPERTY: read without parentheses, and
+    /// assigned to by nobody outside the class [TYP-012].
+    ///
+    /// ⚠️ A flag on FunctionStmt rather than a node of its own, because a
+    /// property IS a method in every respect but two -- how it is read, and
+    /// that the checker refuses assignment to it.  Resolution, checking,
+    /// binding and emission all want to treat it as the method it is, and a
+    /// second node would have meant teaching each of them a second thing.
+    IsProperty : Boolean := False;
+
     /// The same for the return type: 'function Make () : List of Integer'.
     ReturnGeneric : String := '';
 

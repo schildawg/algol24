@@ -464,7 +464,7 @@ case, because the keyword is recognised first. `var begin := 7;` and
 
 ### 4.4 Keywords
 
-**[LEX-010]**  The following 40 words are keywords and are matched
+**[LEX-010]**  The following 41 words are keywords and are matched
 case-insensitively per [SRC-010]:
 
 ```
@@ -472,8 +472,8 @@ and     as       begin   break   case    class     const   constructor
 continue         div     do      else    end       except  exit
 false   for      function        goto    if        in      is
 nil     not      object  of      or      private   procedure
-public  raise    super   then    this    true      try     type
-uses    var      while
+property         public  raise   super   then      this    true
+try     type     uses    var     while
 ```
 
 No other word is a keyword. Every word not in this list is an identifier and
@@ -1446,8 +1446,14 @@ with them. There is no getter declaration, so a computed value cannot be read as
 a property: a method named `Length` read as `B.Length` yields the function
 itself, printing `<fn Length>`, where a collection's `Length` yields its count.
 
-⚠️ **PLANNED — a later generation.** A computed property — a method read
-without parentheses. See Annex H, H-6.
+A class may also declare a **property**: a member read without parentheses,
+whose read *is* the call [CLS-017].
+
+⚠️ **The three are distinguished by their declarations, not by the call site.**
+A field is a name in a `var` section, a method is `function` or `procedure`, and
+a property is `property`. Nothing at a use site says which — `B.Count` looks the
+same whichever it is — which is why the runtime decides, and why the emitter is
+told at the declaration rather than working it out at the call.
 
 ⚠️ **A BUILT-IN member reads the same way.** `L.Sort` yields something callable
 and prints `<fn Sort>`, because it is the same kind of thing as a bound method.
@@ -2877,6 +2883,64 @@ and classes.`
 
     interpreter  compiler/Interpreter.a24  VisitCall
     conformance  0070-object-is-not-callable.a24
+
+**[CLS-017]**  A `property` is a member of a class read **without parentheses**,
+whose read is the call. It takes no parameters and may declare a return type.
+
+```
+class Stack;
+var
+private:
+    Items : List;
+
+begin
+    constructor Init ();      begin this.Items := []; end
+    procedure Push (V : Any); begin Items.Add (V); end
+
+    property Count   : Integer; begin Exit Items.Length; end
+    property IsEmpty : Boolean; begin Exit Items.Length = 0; end
+end
+```
+
+Assigning to one is refused **where the receiver's type is known**, with
+`'Count' is a property of Stack and cannot be assigned.` An inherited property
+is still a property.
+
+⚠️ **It exists to give a read-only view of internal state**, which nothing else
+in the language could express. A field is public — readable **and writable** — or
+private, meaning invisible [DCL-011]; there is no third state, so a `Stack`
+written in Algol-24 could not protect its own count while showing it, and was
+strictly worse than the built-in it imitates, whose `Length` cannot be assigned.
+
+⚠️ **Nothing is checked at run time**, and that is deliberate. Assignment is
+refused by the checker where the receiver's type is known and reported nowhere
+when it is not — exactly as `private:` is silent there [DCL-015]. D-9 rejected
+enforcing visibility at run time because it puts a check on every property
+*access*; a check on writes alone would be cheaper, and is still not worth
+buying a boundary the rest of the language does not have.
+
+⚠️ **A parameter list would have nowhere to arrive from**, which is why the
+declaration has none. Leaving the parentheses off is what says the member is
+read rather than called.
+
+    interpreter  compiler/Parser.a24       ParseProperty
+    compiler     bootstrap/algol.c         alg_class_property
+    conformance  0168-a-read-only-property.a24
+    refusal      0168-assigning-to-a-property.a24
+
+**[CLS-018]**  An instance is **closed**: assignment reaches only a field the
+class declared. `B.Undeclared := 1` is `Undefined property 'Undeclared'.`
+
+⚠️ **The interpreter allowed it until Generation 6**, which is Lox's
+arrangement — a field appeared the moment something assigned to it. The C back
+end never had it, because an instance there is a fixed array of slots taken from
+the `var` section, so `B.Undeclared := 1` was `1` interpreted and refused
+compiled. A divergence older than the properties that found it, covered by no
+case, and held in place by a unit test inherited from Lox along with the
+behaviour.
+
+    interpreter  compiler/ObjInstance.a24  Set
+    conformance  0169-an-instance-is-closed.a24
 
 ---
 
@@ -6374,77 +6438,32 @@ implemented in both processors and specified nowhere: [COL-012] governs the
 same paragraph [TYP-011] now carries for `Elements` is owed to `in`.
 
 **H-6 — A read-only property a class may expose.**
-*(will change [TYP-012], [DCL-011])*
+***Landed in Generation 6.*** *(changed [TYP-012]; added [CLS-017], [CLS-018])*
 
-A class may declare a member that is **read from outside and written only from
-inside**, computed or stored alike:
+`property Count : Integer; begin Exit Items.Length; end` — a member kind beside
+`function` and `procedure`, read without parentheses, with the read being the
+call. Assignment is refused where the receiver's type is known.
 
-```
-class Stack;
-var
-private:
-    Items : List;
+⚠️ **The need was a read-only view, not parentheses.** A field is public —
+readable *and writable* — or private, meaning invisible, so a `Stack` written in
+Algol-24 could not protect its own count while showing it, and was strictly
+worse than the built-in whose `Length` cannot be assigned.
 
-begin
-    constructor Init ();      begin this.Items := []; end
-    procedure Push (V : Any); begin Items.Add (V); end
+⚠️ **The runtime is told at the DECLARATION, not asked at the call.** Nothing at
+a use site says whether `B.Count` is a field, a method or a property, and the
+receiver's class is not known until run time — so `alg_class_property` marks the
+member when the class is built and `alg_property` reads the mark.
 
-    property Count   : Integer; begin Exit Items.Length; end
-    property IsEmpty : Boolean; begin Exit Items.Length = 0; end
-end
-```
+⚠️ **The sigil half was withdrawn before any of this was built.** An earlier
+shape made a bare `B.Length` on a method an error and introduced `@` to replace
+it; that displaced a construct which works and is specified [FUN-011] in order
+to free a spelling.
 
-`S.Count` reads and `S.Count := 99` has nowhere to go. Pinned by
-`conformance/0033-no-computed-property.a24`.
-
-⚠️ **The need is a read-only view, not parentheses.** This entry used to argue
-that a class "cannot expose a computed `Length` the way every collection does",
-which reads as a complaint about cosmetics and invites the obvious answer —
-store the length in a field. That answer works, and it is worse than the
-built-in it imitates:
-
-| | |
-| --- | --- |
-| `S.Count := 99` on a class with a public field | **succeeds** |
-| `L.Length := 99` on a built-in List | `Only instances have fields.` |
-
-A field is public — meaning readable **and writable** — or private, meaning
-invisible [DCL-011]. There is no third state, so a `Stack` written in Algol-24
-cannot protect its own count while showing it. That is the gap, and it is not an
-aesthetic one.
-
-⚠️ **A derived value is the second case, and it cannot be stored honestly.**
-`IsEmpty` is `Count = 0`; keeping it as a field means maintaining a redundant
-one on every mutation, which is exactly the bookkeeping a read-only computed
-member exists to remove.
-
-⚠️ **A member kind, beside `function` and `procedure`** — decided over two
-alternatives. Delphi's `property Count : Integer read GetCount;` needs an
-accessor function per property and a field naming convention; C#'s
-`{ get; private set; }` needs punctuation the language does not otherwise use.
-This form needs neither, and read-only falls out of the declaration rather than
-out of a visibility keyword.
-
-⚠️ **`@B.Length` was proposed here and is withdrawn.** The earlier shape made a
-bare `B.Length` on a method an *error* and introduced `@` for taking a method as
-a value. That displaced a construct which works and is specified — [FUN-011]
-makes a subprogram's bare name a value — in order to free a spelling. Adding a
-feature to work around a feature is the wrong trade; reading a method as a value
-stays exactly as it is, and a property is simply a different kind of member.
-
-⚠️ **This would be the language's first enforced boundary**, and D-9 does not
-forbid it. D-9 rejected enforcing `private:` at run time because that "puts a
-check on **every property access**", which the type-system direction exists to
-avoid. A property's cost is nothing like it: writes are rarer than reads by far,
-only a class that declares one pays anything, and nothing is checked on the read
-path. So a property can be a boundary where `private:` [DCL-015] is advisory —
-the first thing in this language a program may actually rely on.
-
-⚠️ **`set` is deferred, and `protected` is not this feature.** A settable
-property with validation is a later clause on the same member; per-accessor
-visibility in the C# sense needs a third visibility level, and [DCL-011] has
-only `private:` and `public:`. Adding one is a decision about the whole language
-rather than about properties.
+⚠️ **It found a divergence older than itself** [CLS-018]. Instances were open in
+the interpreter and closed in the compiled back end — Lox's arrangement against
+fixed slots — so `B.Undeclared := 1` was `1` interpreted and refused compiled.
+No case covered it, and a unit test inherited from Lox was holding the
+interpreter's half in place.
 
 **H-7 — Ordering for Strings.**
 ***Landed in Generation 6.*** *(changed [VAL-014], [COL-013])*
