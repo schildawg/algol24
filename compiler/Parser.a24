@@ -1104,6 +1104,96 @@ begin
         Exit Beginning;
     end
 
+    /// The operators a class may define [EXP-020], and nothing else.
+    ///
+    /// ⚠️ A CLOSED LIST, and it has to be.  A new operator would need a
+    /// precedence and an associativity, and [EXP-001] is a fixed table of seven
+    /// levels with nowhere to put one.  These five already have a place in it.
+    ///
+    function OperatorToken () : Token;
+    begin
+        if Check (TOKEN_PLUS) or Check (TOKEN_MINUS) or Check (TOKEN_STAR)
+        or Check (TOKEN_SLASH) or Check (TOKEN_DIV) then Exit Advance ();
+
+        raise Error (Peek (), 'An operator must be one of + - * / div.');
+    end
+
+    /// Parses 'operator + (Other : Money) : Money; begin ... end'.
+    ///
+    /// ⚠️ The member's NAME is the operator's lexeme, so '+' is a method called
+    /// '+'.  Nothing downstream needs a new idea: dispatch, mangling [G.3] and
+    /// the class table all treat it as the method it is, and Annex G.3 spells a
+    /// '+' as U00002B without being asked.
+    ///
+    /// ⚠️ UNARY AND BINARY ARE TOLD APART BY ARITY, as the two forms of
+    /// subscript are [TYP-010]: 'operator - (Other)' is subtraction and
+    /// 'operator - ()' is negation.  The language already tells arities apart
+    /// everywhere, so neither form needs a word of its own.
+    ///
+    function ParseOperator () : Stmt;
+    var
+        Name   : Token;
+        Params : List;
+        Body   : List;
+
+    begin
+        Name := OperatorToken ();
+
+        Consume (TOKEN_LEFT_PAREN, 'Expect ''('' after operator.');
+
+        Params := List();
+        var ParamTypes := List();
+        var ParamGenerics := List();
+
+        if not Check (TOKEN_RIGHT_PAREN) then
+        begin
+            Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));
+            ParamTypes.Add (ParameterType ());
+            ParamGenerics.Add (LastGeneric);
+        end
+
+        Consume (TOKEN_RIGHT_PAREN, 'Expect '')'' after operator parameters.');
+
+        if Params.Length > 1 then
+            raise Error (Name, 'An operator takes one argument, or none for a unary one.');
+
+        var ReturnType := '';
+        var ReturnGeneric := '';
+
+        if Match (TOKEN_COLON) then
+        begin
+            ReturnType := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
+
+            if IsCollectionType (ReturnType) and Match (TOKEN_OF) then
+                ReturnGeneric := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
+        end
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after operator signature.');
+
+        Body := List();
+        ReadDeclarationSections (Body);
+
+        Consume (TOKEN_BEGIN, 'Expect ''begin'' before operator body.');
+
+        var WasInProcedure := InProcedure;
+        InProcedure := False;
+
+        var Rest := Block ();
+
+        InProcedure := WasInProcedure;
+
+        for var I := 0; I < Rest.Length; I := I + 1 do
+            Body.Add (Rest[I]);
+
+        var TheOperator := FunctionStmt (Name, Params, Body);
+        TheOperator.ReturnType    := ReturnType;
+        TheOperator.ReturnGeneric := ReturnGeneric;
+        TheOperator.ParamTypes    := ParamTypes;
+        TheOperator.ParamGenerics := ParamGenerics;
+
+        Exit TheOperator;
+    end
+
     /// Parses 'property Count : Integer; begin ... end'.
     ///
     /// ⚠️ NO PARAMETER LIST, which is the whole syntactic difference.  A
@@ -1833,6 +1923,8 @@ begin
                 Method := ParseFunction ('procedure');
             else if Match (TOKEN_PROPERTY) then
                 Method := ParseProperty ();
+            else if Match (TOKEN_OPERATOR) then
+                Method := ParseOperator ();
             else
             begin
                 Consume (TOKEN_FUNCTION,
@@ -1866,7 +1958,7 @@ begin
     function Equality() : Expr;
     var 
        TheExpr  : Expr;
-       Operator : Token;
+       TheOperator : Token;
        Right    : Expr;
        
     begin
@@ -1874,10 +1966,10 @@ begin
 
        while Match (TOKEN_NOT_EQUAL) or Match (TOKEN_EQUAL) do
        begin
-           Operator := Previous();
+           TheOperator := Previous();
            Right := Comparison();
 
-           TheExpr := BinaryExpr(TheExpr, Operator, Right); 
+           TheExpr := BinaryExpr(TheExpr, TheOperator, Right); 
        end
 
        Exit TheExpr;
@@ -1888,7 +1980,7 @@ begin
     function Comparison() : Expr;
     var
         TheExpr : Expr;
-        Operator : Token;
+        TheOperator : Token;
         Right : Expr;
 
     begin
@@ -1909,9 +2001,9 @@ begin
                     Match (TOKEN_LESS)    or Match (TOKEN_LESS_EQUAL) or
                     Match (TOKEN_IN) then
             begin
-                Operator := Previous();
+                TheOperator := Previous();
                 Right := Term();
-                TheExpr := BinaryExpr(TheExpr, Operator, Right);
+                TheExpr := BinaryExpr(TheExpr, TheOperator, Right);
             end
             else Exit TheExpr;
         end
@@ -1923,7 +2015,7 @@ begin
     function Term() : Expr;
     var
         TheExpr : Expr;
-        Operator : Token;
+        TheOperator : Token;
         Right : Expr;
 
     begin
@@ -1936,9 +2028,9 @@ begin
         // rung down.
         while Match (TOKEN_MINUS) or Match (TOKEN_PLUS) do
         begin
-            Operator := Previous();
+            TheOperator := Previous();
             Right := Factor();
-            TheExpr := BinaryExpr(TheExpr, Operator, Right);
+            TheExpr := BinaryExpr(TheExpr, TheOperator, Right);
         end
         Exit TheExpr;
     end
@@ -1948,7 +2040,7 @@ begin
     function Factor() : Expr;
     var
         TheExpr  : Expr;
-        Operator : Token;
+        TheOperator : Token;
         Right    : Expr;
 
     begin
@@ -1962,10 +2054,10 @@ begin
         // 'A + B / C' does, which is the only grouping a reader expects.
         while Match(TOKEN_SLASH) or Match(TOKEN_STAR) or Match(TOKEN_DIV) do
         begin
-            Operator := Previous();
+            TheOperator := Previous();
             Right := Unary();
 
-            TheExpr := BinaryExpr(TheExpr, Operator, Right);
+            TheExpr := BinaryExpr(TheExpr, TheOperator, Right);
         end
         Exit TheExpr;
     end
@@ -1985,17 +2077,17 @@ begin
     ///
     function Unary() : Expr;
     var
-       Operator : Token;
+       TheOperator : Token;
        Right    : Expr;
        TheExpr  : Expr;
 
     begin
         if Match (TOKEN_NOT) or Match (TOKEN_MINUS) then
         begin
-            Operator := Previous();
+            TheOperator := Previous();
             Right    := Unary();
 
-            Exit UnaryExpr(Operator, Right);
+            Exit UnaryExpr(TheOperator, Right);
         end
 
         TheExpr := Call();

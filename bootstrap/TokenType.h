@@ -43,6 +43,7 @@ extern Value e_tokentype_tokenVelse;
 extern Value e_tokentype_tokenVexit;
 extern Value e_tokentype_tokenVgoto;
 extern Value e_tokentype_tokenVproperty;
+extern Value e_tokentype_tokenVoperator;
 extern Value e_tokentype_tokenVfalse;
 extern Value e_tokentype_tokenVobject;
 extern Value e_tokentype_tokenVof;

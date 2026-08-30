@@ -1,0 +1,56 @@
+// spec: EXP-020
+//
+// A class may define '+', '-', '*', '/' and 'div' for its own instances, and
+// unary '-'.  The member is named for the operator.
+
+class Money;
+var Cents : Integer;
+begin
+    constructor Init (C : Integer); begin this.Cents := C; end
+
+    operator + (Other : Money) : Money;   begin Exit Money (Cents + Other.Cents); end
+    operator - (Other : Money) : Money;   begin Exit Money (Cents - Other.Cents); end
+    operator * (N : Integer)   : Money;   begin Exit Money (Cents * N); end
+    operator div (N : Integer) : Money;   begin Exit Money (Cents div N); end
+
+    // ⚠️ UNARY, told apart from subtraction by ARITY -- as the two forms of
+    // subscript are.  The language tells arities apart everywhere, so neither
+    // form needs a word of its own.
+    operator - ()              : Money;   begin Exit Money (-Cents); end
+
+    function ToString () : String;        begin Exit Str (Cents); end
+end
+
+var A := Money (100);
+var B := Money (250);
+
+WriteLn (A + B);
+WriteLn (B - A);
+WriteLn (A * 3);
+WriteLn (B div 5);
+WriteLn (-A);
+
+// It composes with the other protocols: an operator answering an instance is
+// an instance like any other.
+WriteLn ((A + B) - A);
+
+// ⚠️ THE LEFT OPERAND DECIDES, as a receiver does everywhere else in this
+// language.  An operator is a member, and a member is reached through the value
+// on its left.
+try
+    WriteLn (3 * A);
+except
+    on e : String do WriteLn (e);
+end
+
+// A class defining no operator is unchanged.
+class Plain;
+begin
+    constructor Init (); begin end
+end
+
+try
+    WriteLn (Plain () + Plain ());
+except
+    on e : String do WriteLn (e);
+end

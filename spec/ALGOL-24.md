@@ -464,16 +464,16 @@ case, because the keyword is recognised first. `var begin := 7;` and
 
 ### 4.4 Keywords
 
-**[LEX-010]**  The following 41 words are keywords and are matched
+**[LEX-010]**  The following 42 words are keywords and are matched
 case-insensitively per [SRC-010]:
 
 ```
 and     as       begin   break   case    class     const   constructor
 continue         div     do      else    end       except  exit
 false   for      function        goto    if        in      is
-nil     not      object  of      or      private   procedure
-property         public  raise   super   then      this    true
-try     type     uses    var     while
+nil     not      object  of      operator          or      private
+procedure        property        public  raise     super   then
+this    true     try     type    uses    var       while
 ```
 
 No other word is a keyword. Every word not in this list is an identifier and
@@ -2090,6 +2090,57 @@ same thing at greater length.
     interpreter  compiler/Interpreter.a24  VisitBinary
     compiler     bootstrap/algol.c         alg_subtract
     conformance  0167-character-arithmetic.a24
+
+**[EXP-020]**  A class may define `+`, `-`, `*`, `/` and `div` for its own
+instances, and unary `-`. The member is named for the operator, and takes one
+argument — or **none**, which is what makes it the unary form.
+
+```
+class Money;
+var Cents : Integer;
+begin
+    constructor Init (C : Integer); begin this.Cents := C; end
+
+    operator + (Other : Money) : Money; begin Exit Money (Cents + Other.Cents); end
+    operator * (N : Integer)   : Money; begin Exit Money (Cents * N); end
+    operator - ()              : Money; begin Exit Money (-Cents); end
+end
+```
+
+⚠️ **A closed list, and it has to be.** A new operator would need a precedence
+and an associativity, and [EXP-001] is a fixed table of seven levels with
+nowhere to put one. These five already have a place in it. `operator =` is
+refused with `An operator must be one of + - * / div.`
+
+⚠️ **The LEFT operand decides**, as a receiver does everywhere else in this
+language: `Money * 3` is a Money and `3 * Money` is `Operands must be numbers.`
+An operator is a member, and a member is reached through the value on its left.
+
+⚠️ **Unary and binary are told apart by ARITY**, as the two forms of subscript
+are [TYP-010]. `operator - (Other)` is subtraction and `operator - ()` is
+negation; the language tells arities apart everywhere, so neither form needs a
+word of its own.
+
+⚠️ **This is the one place a keyword was chosen over a protocol**, after six
+protocols in a row. `Compare` [VAL-014], `Get` and `Put` are not *translations*
+of operators — `Compare` yields four of them, `Get` and `Put` are two halves of
+one — while a `Plus` method would be a pure synonym for `+`, a name added
+without a concept. Where the name says something the symbol does not, the
+protocol wins; here it would not.
+
+⚠️ **`not` and `:=` are not on the list.** `not` tests truthiness, which
+[VAL-008] defines for every value, so a type overloading it lies about a
+language-wide property rather than defining its own behaviour. `:=` is outside
+the mechanism entirely: dispatch is on values [FUN-013], and the left of an
+assignment is a location.
+
+⚠️ **`Mod` is a function and `div` is an operator** [RT-011], so a class may
+define `div` and never `mod`. The asymmetry predates this rule.
+
+    interpreter  compiler/Parser.a24  ParseOperator
+    compiler     bootstrap/algol.c    apply_operator
+    conformance  0172-a-class-that-computes.a24
+    refusal      0172-an-operator-not-on-the-list.a24
 
 ### 9.4 Logical operators
 
@@ -6548,39 +6599,31 @@ designed so byte order matches code-point order, which is right by accident.
 Both now go through one function.
 
 **H-8 — Arithmetic operators a program may define.**
-*(will change [EXP-004], and more)*
+***Landed in Generation 7.*** *(added [EXP-020])*
 
-`+`, `-`, `*`, `/`, `div` and unary `-` on a type of a program's own — a Vector,
-a Money, a Matrix.
+`+`, `-`, `*`, `/`, `div` and unary `-` on a program's own type, declared
+`operator + (Other : Money) : Money;`.
 
-⚠️ **This is what is left after the rest of the annex was taken out from under
-it.** The entry used to be "the umbrella over much of Annex H": H-6's property
-and H-7's ordering were named as operator overloading in particular spellings,
-and both landed in Generation 6 without it. Subscripting (H-15) and comparison
-(H-16) come out too, as **protocols** rather than operators. What remains is
-arithmetic, which is the only part that genuinely wants an operator declaration.
+⚠️ **What is left of an entry that once claimed most of this annex.** It called
+itself "the umbrella over much of Annex H"; H-6's property and H-7's ordering
+landed in Generation 6 without it, and subscripting (H-15) and comparison
+(H-16) landed in Generation 7 as **protocols**. Arithmetic was the only part
+that wanted an operator declaration.
 
-⚠️ **`not` is not on the list**, and deliberately. It tests truthiness, which
-[VAL-008] defines for every value in the language; a type overloading it can be
-neither consistently falsey nor consistently truthy, which is lying about a
-language-wide property rather than defining its own behaviour.
+⚠️ **The one place a keyword beat a protocol, after six protocols in a row.**
+`Compare`, `Get` and `Put` are not translations of operators — `Compare` yields
+four of them, `Get` and `Put` are two halves of one — while a `Plus` method
+would be a pure synonym for `+`: a name added without a concept. Where the name
+says something the symbol does not, the protocol wins; here it would not.
 
-⚠️ **`:=` is not on the list either, and could not be.** Dispatch is on the whole
-signature from the values actually passed [FUN-013], and the left of an
-assignment is a **location**, not a value — `A := B` with a fresh `A` has nothing
-to select on. It is outside the mechanism rather than excluded from it.
+⚠️ **Adding the keyword broke the compiler's own source**, which is the hazard
+this repository has met before: `Operator` was a local variable in
+`Parser.a24`, sixteen times over, and became unspellable the moment the word
+was reserved. The same collision renamed `Break` to `Broke` and Lox's
+`Expr.Get.object` to `Obj`. The language's word wins and the compiler adapts.
 
-⚠️ **No new operators, and no Unicode ones.** Three reasons, in descending
-force: precedence has nowhere to come from, since [EXP-001] is a fixed
-seven-level table and a new operator would need declared precedence and
-associativity; the character space is contested, since `?` and `!` are already
-identifier marks [LEX-008]; and a reader meeting `⊕` must find its declaration
-to learn how it binds, which is the opposite of every other choice this language
-has made. It also serves nothing H-9 needs, which is the existing operators.
-
-⚠️ **`Mod` is a function and `div` is an operator** [RT-011], [EXP-018], so a
-type could take `div` and never `mod`. The asymmetry predates this entry and is
-not caused by it, but it will look as though it were.
+⚠️ **The left operand decides**, as a receiver does everywhere else.
+`Money * 3` is a Money; `3 * Money` is `Operands must be numbers.`
 
 **H-9 — The collections as a unit written in Algol-24.**
 *(will retire most of chapter 14)*

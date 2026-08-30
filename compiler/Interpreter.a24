@@ -1276,7 +1276,19 @@ begin
         Right := Evaluate (TheExpr.Right);
 
         case TheExpr.Op.TypeOfToken of
-            TOKEN_MINUS : Exit -Right;
+            // ⚠️ Unary, told apart from subtraction by ARITY: a class defines
+            // negation as 'operator - ()' [EXP-020].
+            TOKEN_MINUS :
+                begin
+                    if Right is ObjInstance then
+                    begin
+                        var Negate := Right.Klass.MethodOfArity ('-', 0);
+
+                        if Negate <> Nil then Exit Negate.Bind (Right).Call (this, List());
+                    end
+
+                    Exit -Right;
+                end
             TOKEN_NOT  : Exit Not IsTruthy(Right);
         end           
     end
@@ -1611,6 +1623,14 @@ begin
         Exit Left / Right;
     end
 
+    /// Whether this operator is one a class may define [EXP-020].
+    ///
+    function Arithmetic (Op : Any) : Boolean;
+    begin
+        Exit Op = TOKEN_PLUS or Op = TOKEN_MINUS or Op = TOKEN_STAR
+          or Op = TOKEN_SLASH or Op = TOKEN_DIV;
+    end
+
     /// Whether this operator asks which of two values comes first.
     ///
     function Orders (Op : Any) : Boolean;
@@ -1627,6 +1647,21 @@ begin
     begin
         Left  := Evaluate (TheExpr.Left);
         Right := Evaluate (TheExpr.Right);
+
+        // ⚠️ A class defining an ARITHMETIC OPERATOR uses it [EXP-020].  The
+        // member is named for the operator -- '+' is a method called '+' -- so
+        // this is an ordinary dispatch on an ordinary name.
+        //
+        // ⚠️ Handled here rather than delegated to the host, for the reason the
+        // comparisons below give: an interpreted instance is an ObjInstance,
+        // this compiler's own class, so the host's '+' would look for the
+        // operator on THAT.
+        if Left is ObjInstance and Arithmetic (TheExpr.Op.TypeOfToken) then
+        begin
+            var Defined := Left.Klass.MethodOfArity (Str (TheExpr.Op.Lexeme), 1);
+
+            if Defined <> Nil then Exit Defined.Bind (Left).Call (this, [Right]);
+        end
 
         // ⚠️ A class declaring 'Compare (Other) : Integer' ORDERS [VAL-014].
         //

@@ -94,7 +94,7 @@ var  Keywords := [
     'nil':TOKEN_NIL,
     'not':TOKEN_NOT, 'object':TOKEN_OBJECT, 'of':TOKEN_OF, 'or':TOKEN_OR,
     'private':TOKEN_PRIVATE, 'procedure':TOKEN_PROCEDURE,
-    'property':TOKEN_PROPERTY,
+    'property':TOKEN_PROPERTY, 'operator':TOKEN_OPERATOR,
     'public':TOKEN_PUBLIC,
     'raise':TOKEN_RAISE, 'super':TOKEN_SUPER, 'uses':TOKEN_USES,
     'then':TOKEN_THEN, 'try':TOKEN_TRY,

@@ -4076,7 +4076,28 @@ static Value concat(Value a, Value b) {
  * same line of C and a different bargain.
  */
 
+/* A class defining an arithmetic operator uses it [EXP-020].  The member is
+ * named for the operator -- '+' is a method called '+' -- so this is an
+ * ordinary dispatch on an ordinary name, and Annex G.3 spells the symbol
+ * without being asked.
+ *
+ * ⚠️ Asked of the LEFT operand only, which is what makes 'Money * 3' a Money
+ * and leaves '3 * Money' alone.  Dispatch is on the receiver everywhere else in
+ * this language, and an operator is a member like any other. */
+static bool defines_operator(Value a, const char *op) {
+    return has_method(a, op, 1);
+}
+
+static Value apply_operator(Value a, const char *op, Value b) {
+    Value args[1];
+    args[0] = b;
+
+    return alg_invoke(a, op, args, 1);
+}
+
 Value alg_add(Value a, Value b) {
+    if (defines_operator(a, "+")) return apply_operator(a, "+", b);
+
     /* ⚠️ A CHAR MIXED WITH A NUMBER IS REFUSED [VAL-009].  A Char is an ordinal,
      * so 'a' + 1 reads two ways -- step the character, or join it to the text
      * '1' -- and rather than pick one silently the language makes the program
@@ -4115,6 +4136,8 @@ Value alg_add(Value a, Value b) {
 }
 
 Value alg_subtract(Value a, Value b) {
+    if (defines_operator(a, "-")) return apply_operator(a, "-", b);
+
     /* Two Chars measure the distance between them, as an Integer [VAL-009]. */
     if (a.type == VAL_CHAR && b.type == VAL_CHAR)
         return alg_int(utf8_decode(a.string) - utf8_decode(b.string));
@@ -4138,6 +4161,8 @@ Value alg_subtract(Value a, Value b) {
 }
 
 Value alg_multiply(Value a, Value b) {
+    if (defines_operator(a, "*")) return apply_operator(a, "*", b);
+
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_double(as_double(a) * as_double(b));
 
@@ -4152,6 +4177,8 @@ Value alg_multiply(Value a, Value b) {
 }
 
 Value alg_divide(Value a, Value b) {
+    if (defines_operator(a, "/")) return apply_operator(a, "/", b);
+
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
     if (is_double_arithmetic(a, b)) return alg_double(as_double(a) / as_double(b));
 
@@ -4190,12 +4217,19 @@ Value alg_divide(Value a, Value b) {
  * who writes it has said the operands are Integers.  The same bargain alg_mod
  * already makes. */
 Value alg_div_int(Value a, Value b) {
+    if (defines_operator(a, "div")) return apply_operator(a, "div", b);
+
     if (!is_integer(a) || !is_integer(b)) alg_error("div expects Integers.");
 
     return alg_divide(a, b);
 }
 
 Value alg_negate(Value a) {
+    /* ⚠️ Unary, told apart from subtraction by ARITY: negation is a member of
+     * no arguments [EXP-020], as the two forms of subscript are told apart. */
+    if (has_method(a, "-", 0)) return alg_invoke(a, "-", NULL, 0);
+
+
     if (is_bigint(a)) return big_value(big_negate_of(as_big(a)));
 
     if (a.type == VAL_INT) {
