@@ -4214,10 +4214,11 @@ The compiled compiler runs its own 221 tests with every cast in its sources now
 checked, and reports identically to the interpreted run — which is the evidence
 that the check is the interpreter's and not a stricter one.
 
-**C-20 — Two enumerations binding one member is refused compiled.** *(loud)*
+**C-20 — Two enumerations binding one member is refused compiled.**
+***Withdrawn.***
 
 Two enumerations may share a member name [ENU-003] and the interpreter runs the
-program, refusing only the ambiguous bare use [ENU-011]. The emitter refuses the
+program, refusing only the ambiguous bare use [ENU-011]. The emitter refused the
 whole program with `Two enumerations binding 'A' is not supported by the C back
 end yet.`
 
@@ -4227,9 +4228,14 @@ first's and the first's members began resolving to the second's symbols. The
 ambiguous use that [ENU-011] refuses printed a member instead. The refusal was
 added deliberately, in preference to emitting a wrong answer.
 
-*Fix:* key the member map on the owning enumeration as well as the member.
-
-    gap  0123-enumerations-may-share-member-names.a24
+⚠️ **The symbols were never the problem**, which is why the recorded fix — "key
+the member map on the owning enumeration" — was aimed at the wrong thing. A
+member's symbol already carries its type [G.3], and the *qualified* form goes
+through `alg_property` on the enumeration rather than through the map at all.
+Only the **bare** name has two answers, and having two answers is exactly what
+[ENU-011] makes an error. So the ambiguity is carried to the use and reported
+there, in the interpreter's words, after everything above it has run —
+`Environment.Ambiguous` is consulted at the same moment for the same reason.
 
 **C-21 — Two modules exporting one name is refused compiled.** *(loud)*
 
@@ -4593,17 +4599,18 @@ copies of that table and they have to be read together; `spec/spec.sh` checks
 [COL-003] against the interpreter's, and `conformance/0144` is what compares the
 compiled one against it.
 
-**C-36 — A built-in called with the wrong arity is refused by name.** *(loud)*
+**C-36 — A built-in called with the wrong arity is refused by name.**
+***Withdrawn.***
 *(refers to [EXP-011], [RT-001])*
 
-`Length ('a', 'b')` is `Expected 1 arguments but got 2.` interpreted and
+`Length ('a', 'b')` is `Expected 1 arguments but got 2.` interpreted and was
 `A call to 'Length' is not supported by the C back end yet.` compiled.
 
-⚠️ **The name exists**, which is what makes the compiled text wrong rather than
-merely differently worded: it reports a gap in the back end for a program that
+⚠️ **The name exists**, which is what made the compiled text wrong rather than
+merely differently worded: it reported a gap in the back end for a program that
 is simply a wrong call to a real built-in. The emitter's table is keyed by name
-*and arity* (C-18), so a known name at an unknown count matches nothing and
-falls through to the catch-all refusal.
+*and arity* (C-18), so a known name at an unknown count matched nothing and fell
+through to the catch-all refusal.
 
 ⚠️ **Found while fixing C-33, and deliberately not fixed with it.** The obvious
 move there — treat everything reaching the catch-all as an undefined name —
@@ -4611,12 +4618,16 @@ would have made this *worse*, answering `Undefined variable 'Length'.` for a
 name the language defines. C-33 was narrowed to the three assertion names
 instead.
 
-*Fix:* the table needs to answer "what arity does this name take", separately
-from "what does it map to at this arity". Some built-ins accept a range —
-[RT-001]'s `Expected 0 or 1 arguments but got N.` — so the answer is not always
-a single number, which is why this is not a one-line change.
+⚠️ **The counts are asked of the tables, not listed again.** `BuiltinCounts`
+probes the two tables that map a name to its runtime entry point, once per
+count, so a built-in added to either is described the moment it is added. A
+fifth transcription of the twenty-six names is exactly the rot [COL-003]'s
+matrix already needs a harness to guard against.
 
-    gap  0145-a-builtin-with-the-wrong-arity.a24
+⚠️ **And the same key hid a missing feature.** `WriteLn ()` — the newline on its
+own — had no mapping at all, because only `WriteLn/1` was in the table. A valid
+program with no compiled form, which is what C-1 was and which this back end is
+supposed to have none of.
 
 **C-37 — A built-in member printed without being called reads differently.**
 *(silent)*

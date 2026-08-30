@@ -3891,6 +3891,16 @@ void alg_writeln(Value v) {
     fputc('\n', stdout);
 }
 
+/* 'WriteLn ()' -- the newline on its own.
+ *
+ * ⚠️ WriteLn takes nothing OR one value, and only the one-value form had a
+ * mapping here, so a bare 'WriteLn ()' was refused by name -- a valid program
+ * with no compiled form (C-36).  The emitter's table is keyed by name AND
+ * arity, which is what let one of the two forms go missing unnoticed. */
+void alg_writeln_blank(void) {
+    alg_writeln(alg_string(""));
+}
+
 /* ⚠️ Flushes first.  stdout is block-buffered when it is not a terminal, and
  * exit() would otherwise discard whatever the report had written -- so a test
  * run that halted printed nothing at all when piped. */

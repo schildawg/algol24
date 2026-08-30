@@ -21,6 +21,17 @@ except
     on e : String do WriteLn (e);
 end
 
+// ⚠️ Three built-ins take nothing OR one value -- Set, WriteLn and Buffer
+// [RT-001] -- so 'expected' is not always a single number, and WriteLn with no
+// argument is the newline on its own rather than a wrong call.
+WriteLn ();
+
+try
+    WriteLn ('a', 'b');
+except
+    on e : String do WriteLn (e);
+end
+
 // A name nothing declares is the other failure, for contrast.
 try
     WriteLn (Nonexistent (1));

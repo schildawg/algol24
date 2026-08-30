@@ -438,6 +438,9 @@ Value alg_param(Value argument, const char *declared);
  * assignment, a field, a method's parameter.  The check lives elsewhere. */
 Value alg_widen(Value argument, const char *declared);
 void  alg_writeln(Value v);
+
+/* 'WriteLn ()', the newline on its own -- WriteLn takes nothing or one value. */
+void  alg_writeln_blank(void);
 Value alg_str(Value v);
 
 /* Exceptions.

@@ -269,6 +269,15 @@ var
     /// outside the file because nothing else can refer to them.
     Renames      : Map;
 
+    /// A bare name more than one enumeration binds [ENU-011], mapped to its
+    /// owners as the diagnostic names them -- 'First or Second'.
+    ///
+    /// ⚠️ The DECLARATIONS are fine; only an unresolvable bare use is an error,
+    /// and it is an error where it is USED rather than where it was declared.
+    /// This mirrors Environment.Ambiguous, which the interpreter consults at
+    /// exactly the same moment.
+    AmbiguousMembers : Map;
+
     /// Locals of the function being emitted that live in heap cells because a
     /// nested function reads them.  Ordered, so a cell's index is stable
     /// between the capture list and the body that reads it.
@@ -411,6 +420,7 @@ begin
         this.VisibleFields := Set();
         this.VisibleMethods := Set();
         this.Renames := Map();
+        this.AmbiguousMembers := Map();
         this.Boxed := List();
         this.Cells := List();
         this.Captured := Map();
@@ -852,15 +862,23 @@ begin
 
                     // ⚠️ Two enumerations may share a member name [ENU-003], and
                     // this map cannot hold both: the second Put wins, so the
-                    // FIRST enumeration's members start resolving to symbols
-                    // belonging to the second.  Compiled, the ambiguous bare use
-                    // that [ENU-011] refuses printed a member instead -- a
-                    // silent wrong answer, which is the one thing this back end
-                    // must never emit.  Refused by name until the map can key on
-                    // the owner as well as the member.
+                    // FIRST enumeration's members would start resolving to
+                    // symbols belonging to the second, and the ambiguous bare
+                    // use that [ENU-011] refuses would print a member instead --
+                    // a silent wrong answer, which is the one thing this back
+                    // end must never emit.
+                    //
+                    // ⚠️ Recorded rather than refused, and the SYMBOLS were
+                    // never the problem: a member's symbol carries its own type
+                    // [G.3], so 'First.A' and 'Second.A' are already distinct
+                    // and the qualified form goes through alg_property anyway.
+                    // Only the BARE name has two answers, and that is exactly
+                    // what [ENU-011] makes an error -- so the ambiguity is
+                    // carried to the use, where the interpreter reports it.
                     if EnumMembers.Contains (Member) then
                         if Str (EnumMembers.Get (Member)) <> Str (TheStmt.Name.Lexeme) then
-                            Unsupported ('Two enumerations binding ''' + Member + '''');
+                            MarkAmbiguousMember (Member, Str (EnumMembers.Get (Member)),
+                                                 Str (TheStmt.Name.Lexeme));
 
                     EnumMembers.Put (Member, Str (TheStmt.Name.Lexeme));
                     Canonical.Put (FoldCase (Member), Member);
@@ -2653,6 +2671,16 @@ begin
 
         if not Locals.Contains (Name) then
         begin
+            // ⚠️ A bare member more than one enumeration binds has no answer
+            // [ENU-011], and this is where the interpreter says so -- at the
+            // USE, after everything above it has run.  The message echoes the
+            // spelling the program wrote rather than the canonical one, as
+            // every other folded diagnostic does [SRC-011].
+            if AmbiguousMembers.Contains (Name) then
+                Exit '(alg_error(' + QuoteC (AmbiguousMessage (Str (TheExpr.Name.Lexeme),
+                                             Str (AmbiguousMembers.Get (Name))))
+                   + '), alg_nil())';
+
             // An enum member binds bare as well as qualified, and both forms
             // must be the same object because comparison is identity.
             if EnumMembers.Contains (Name) then
@@ -2868,6 +2896,83 @@ begin
         Exit Call + '(' + Left + ', ' + Right + ')';
     end
 
+    /// The argument counts a built-in accepts, in order, or an empty list when
+    /// the name is not one.
+    ///
+    /// ⚠️ NOT a second list of the built-ins.  It ASKS the two tables that map
+    /// a name to its runtime entry point, once per count, so a built-in added
+    /// to Builtin or ConstructorFor is described here the moment it is added
+    /// and one removed stops being described.  A fifth transcription of the
+    /// twenty-six names is exactly the rot [COL-003]'s matrix already needs a
+    /// harness to guard against.
+    ///
+    /// ⚠️ Three of them take nothing OR one value -- Set, WriteLn and Buffer --
+    /// which is why this answers a LIST rather than a number [RT-001].
+    ///
+    function BuiltinCounts (Name : String) : List;
+    var
+        Counts : List;
+
+    begin
+        Counts := List();
+
+        // Copy takes three, and nothing takes more.
+        for var K := 0; K <= 3; K := K + 1 do
+        begin
+            var Probe := List();
+            for var I := 0; I < K; I := I + 1 do Probe.Add ('0');
+
+            if Builtin (Name, K) <> '' then Counts.Add (K);
+            else if ConstructorFor (Name, Probe, '0') <> '' then Counts.Add (K);
+        end
+
+        Exit Counts;
+    end
+
+    /// [EXP-011]'s wording for a built-in, which may accept more than one count.
+    ///
+    function CountsMessage (Counts : List, Got : Integer) : String;
+    var
+        Expected : String;
+
+    begin
+        Expected := '';
+        for var I := 0; I < Counts.Length; I := I + 1 do
+        begin
+            if I > 0 then Expected := Expected + ' or ';
+
+            Expected := Expected + Str (Counts[I]);
+        end
+
+        Exit 'Expected ' + Expected + ' arguments but got ' + Str (Got) + '.';
+    end
+
+    /// Records that a member name is bound by more than one enumeration.
+    ///
+    /// ⚠️ Owners accumulate, so a THIRD enumeration binding the same name reads
+    /// 'First or Second or Third' -- the interpreter walks its imports and
+    /// names every owner it finds, and this has to say the same thing.
+    ///
+    procedure MarkAmbiguousMember (Member : String, First : String, Second : String);
+    begin
+        if not AmbiguousMembers.Contains (Member) then
+        begin
+            AmbiguousMembers.Put (Member, First + ' or ' + Second);
+            Exit;
+        end
+
+        AmbiguousMembers.Put (Member,
+            Str (AmbiguousMembers.Get (Member)) + ' or ' + Second);
+    end
+
+    /// The interpreter's wording for a bare name with more than one owner,
+    /// echoing the spelling the program wrote [SRC-011].
+    ///
+    function AmbiguousMessage (Written : String, Owners : String) : String;
+    begin
+        Exit '''' + Written + ''' is ambiguous: ' + Owners + '.';
+    end
+
     /// The three names a test run binds and nothing else does [RT-002].
     ///
     /// ⚠️ Folded [SRC-011], and written folded to match, as every other member
@@ -2900,7 +3005,11 @@ begin
     begin
         Key := Name + '/' + Str (Count);
 
+        // ⚠️ Both forms.  WriteLn takes nothing or one value, and only the
+        // second was here, so 'WriteLn ()' -- a valid program -- had no
+        // compiled form at all and was refused by name (C-36).
         if Key = 'WriteLn/1' then Exit 'alg_writeln';
+        if Key = 'WriteLn/0' then Exit 'alg_writeln_blank';
         if Key = 'Write/1'   then Exit 'alg_write';
         if Key = 'Str/1'     then Exit 'alg_str';
         if Key = 'Length/1'  then Exit 'alg_text_length';
@@ -3233,6 +3342,40 @@ begin
         // said so, while the CALL refused with 'not supported by the C back end
         // yet', which names the emitter for a program that is just wrong.
         if not EmitTests and IsAssertion (Name) then
+            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+
+        // ⚠️ A built-in called with a count it does not take.  The NAME exists,
+        // which is what made 'not supported by the C back end yet' wrong here:
+        // it reported a gap in the emitter for a program that is a plain wrong
+        // call [EXP-011].  The tables are keyed by name AND arity, so a known
+        // name at an unknown count matched nothing and fell through to the
+        // catch-all -- which is also how 'WriteLn ()' came to be refused.
+        if not Shadowed then
+        begin
+            var Counts := BuiltinCounts (Name);
+
+            if Counts.Length > 0 then
+                Exit '(alg_error('
+                   + QuoteC (CountsMessage (Counts, Arguments.Length)) + '), alg_nil())';
+        end
+
+        // ⚠️ A call to a name NOTHING declares, which is the bare form's error
+        // written with parentheses after it.  VisitVariableExpr has emitted the
+        // interpreter's 'Undefined variable' for this since C-34 and the call
+        // path did not, so the same misspelling read as a program error in one
+        // place and as a gap in the back end in the other.
+        //
+        // ⚠️ Every set is named, rather than trusting the branches above to have
+        // caught them.  An object, an enum type and an enum member all reach
+        // here and are none of them undefined -- refusing those by name is
+        // right, and C-15 and C-17 are what that refusal is.
+        if not Locals.Contains (Name)  and not Globals.Contains (Name)
+                                       and not Classes.Contains (Name)
+                                       and not Objects.Contains (Name)
+                                       and not Declared.Contains (Name)
+                                       and not EnumTypes.Contains (Name)
+                                       and not EnumMembers.Contains (Name)
+                                       and not AmbiguousMembers.Contains (Name) then
             Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
 
         Unsupported ('A call to ''' + Name + '''');
