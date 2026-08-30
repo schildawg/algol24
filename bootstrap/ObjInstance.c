@@ -121,6 +121,7 @@ static Value m_objsingleton_tostring_0(Value v_this, Value *args, int32_t count)
 
 void init_ObjInstance(void) {
     k_objinstance = alg_class("ObjInstance", alg_nil());
+    k_objsingleton = alg_class("ObjSingleton", alg_nil());
     alg_class_field(k_objinstance, "Klass");
     alg_class_field(k_objinstance, "Fields");
     alg_class_initializer(k_objinstance, i_objinstance);
@@ -128,7 +129,7 @@ void init_ObjInstance(void) {
     alg_class_method(k_objinstance, "Get", m_objinstance_get_1_token, 1, t_objinstance_get_1_token);
     alg_class_method(k_objinstance, "Set", m_objinstance_set_2_token, 2, t_objinstance_set_2_token);
     alg_class_method(k_objinstance, "ToString", m_objinstance_tostring_0, 0, NULL);
-    k_objsingleton = alg_class("ObjSingleton", k_objinstance);
+    alg_class_super(k_objsingleton, k_objinstance);
     alg_class_field(k_objsingleton, "TheInterpreter");
     alg_class_field(k_objsingleton, "TheInstance");
     alg_class_initializer(k_objsingleton, i_objsingleton);

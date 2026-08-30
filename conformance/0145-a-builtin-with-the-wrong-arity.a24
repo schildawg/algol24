@@ -1,0 +1,29 @@
+// spec: EXP-011, RT-001
+//
+// A built-in is called like any other subprogram, so a call to one checks its
+// argument count [EXP-011] and reports it the same way.
+//
+// ⚠️ The name EXISTS, which is the whole point. 'Length' with two arguments is
+// a wrong call to a real built-in, not a reference to something undeclared,
+// and the two failures read quite differently to whoever has to fix the line.
+
+WriteLn (Length ('abc'));
+
+try
+    WriteLn (Length ('a', 'b'));
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (Ord ());
+except
+    on e : String do WriteLn (e);
+end
+
+// A name nothing declares is the other failure, for contrast.
+try
+    WriteLn (Nonexistent (1));
+except
+    on e : String do WriteLn (e);
+end

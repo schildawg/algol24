@@ -157,6 +157,7 @@ static Value m_objfile_tostring_0(Value v_this, Value *args, int32_t count) {
 
 void init_ObjFile(void) {
     k_filemethod = alg_class("FileMethod", alg_nil());
+    k_objfile = alg_class("ObjFile", alg_nil());
     alg_class_field(k_filemethod, "Receiver");
     alg_class_field(k_filemethod, "Name");
     alg_class_field(k_filemethod, "TheArity");
@@ -164,7 +165,6 @@ void init_ObjFile(void) {
     alg_class_method(k_filemethod, "Init", m_filemethod_init_3_objfile_string_integer, 3, t_filemethod_init_3_objfile_string_integer);
     alg_class_method(k_filemethod, "Arity", m_filemethod_arity_0, 0, NULL);
     alg_class_method(k_filemethod, "Call", m_filemethod_call_2, 2, t_filemethod_call_2);
-    k_objfile = alg_class("ObjFile", alg_nil());
     alg_class_field(k_objfile, "Handle");
     alg_class_initializer(k_objfile, i_objfile);
     alg_class_method(k_objfile, "Init", m_objfile_init_0, 0, NULL);

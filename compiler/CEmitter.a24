@@ -162,6 +162,17 @@ var
     /// that uses it.
     Setup        : Buffer := Buffer();
 
+    /// The empty class shells, emitted ahead of Setup.
+    ///
+    /// ⚠️ A class may inherit from one declared BELOW it [DCL-006], so binding
+    /// the name is not enough -- the parent has to EXIST when the child is
+    /// linked to it.  The interpreter hoists in two phases for exactly this,
+    /// and one buffer in declaration order cannot: 'class Puppy (Hound);'
+    /// above 'class Hound;' linked to a handle that was still nil, so
+    /// 'Puppy() is Hound' was false and the inherited method was 'Undefined
+    /// property'.  Every shell first, then the links, then fields and methods.
+    Shells       : Buffer := Buffer();
+
     /// The body of the function being emitted, if any.
     ///
     /// ⚠️ A buffer of its own, and the reason is ordering: a NESTED function
@@ -1030,6 +1041,7 @@ begin
             Declarations := Buffer();
             Functions := Buffer();
             Setup := Buffer();
+            Shells := Buffer();
             MainBody := Buffer();
             Header := '';
             Target := 'main';
@@ -1241,6 +1253,7 @@ begin
         // function the main file calls.  It cannot be a C initializer: a Value
         // here is built by a call, and C wants a constant expression.
         Text := Text + 'void init_' + Str (Unit.Name) + '(void) {' + #10;
+        Text := Text + Shells.Text;
         Text := Text + Setup.Text;
         Text := Text + MainBody.Text;
         Text := Text + '}' + #10;
@@ -2144,19 +2157,21 @@ begin
         VisibleFields := EnclosingFields;
         VisibleMethods := EnclosingMethods;
 
-        // ⚠️ SuperHandle, not Super: 'super' is a keyword, and keyword lookup
-        // is case-insensitive, so it cannot be a variable name.  The same
-        // collision that renamed Break to Broke and Object to Obj.
-        var SuperHandle := 'alg_nil()';
+        // ⚠️ The SHELL first, and it carries no parent: the parent's own shell
+        // may not exist yet -- see the note on Shells.  Every class in this
+        // unit is built before any of them is linked.
+        Shells.Append ('    ' + Handle + ' = alg_class(' + QuoteC (Name)
+               + ', alg_nil());' + #10);
+
         if SuperName <> '' then
         begin
             // ⚠️ A superclass must BE a class [CLS-014], and this is the last
             // chance to say so: the interpreter checks it when the declaration
             // RUNS, and a compiled program never runs the declaration at emit
-            // time.  Without the check the emitter wrote 'alg_class("C", k_x)'
-            // for a name that is not a class, and cc answered 'use of
-            // undeclared identifier k_x' -- naming a generated symbol rather
-            // than the declaration the programmer wrote.
+            // time.  Without the check the emitter wrote a link to a name that
+            // is not a class, and cc answered 'use of undeclared identifier
+            // k_x' -- naming a generated symbol rather than the declaration the
+            // programmer wrote.
             //
             // ⚠️ The LANGUAGE's message, not 'not supported by the C back end
             // yet'.  This is a program that is wrong, not one this back end
@@ -2164,11 +2179,12 @@ begin
             if not Classes.Contains (SuperName) and not Objects.Contains (SuperName) then
                 raise '''' + SuperName + ''' is not a class.';
 
-            SuperHandle := ClassHandle (SuperName);
+            // ⚠️ ClassHandle, not 'Super': 'super' is a keyword, and keyword
+            // lookup is case-insensitive, so it cannot be a variable name.  The
+            // same collision that renamed Break to Broke and Object to Obj.
+            Setup.Append ('    alg_class_super(' + Handle + ', '
+                   + ClassHandle (SuperName) + ');' + #10);
         end
-
-        Setup.Append ('    ' + Handle + ' = alg_class(' + QuoteC (Name)
-               + ', ' + SuperHandle + ');' + #10);
 
         for var I := 0; I < Fields.Length; I := I + 1 do
             Setup.Append ('    alg_class_field(' + Handle + ', '
@@ -2813,6 +2829,20 @@ begin
         Exit Call + '(' + Left + ', ' + Right + ')';
     end
 
+    /// The three names a test run binds and nothing else does [RT-002].
+    ///
+    /// ⚠️ Folded [SRC-011], and written folded to match, as every other member
+    /// and builtin comparison here is.
+    function IsAssertion (Name : String) : Boolean;
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (Name);
+
+        Exit Folded = 'asserttrue' or Folded = 'assertequal' or Folded = 'fail';
+    end
+
     /// The builtins this emitter covers, mapped straight onto the runtime.
     ///
     /// Keyed by name AND arity, because 'Length' is both a function here and a
@@ -3156,6 +3186,15 @@ begin
         // 'Str(1)' emitted alg_str and called the builtin instead.
         if Globals.Contains (Name) then
             Exit 'alg_call(' + Read (Name) + ', ' + ArgumentArray (Arguments) + ')';
+
+        // ⚠️ An assertion outside a test run is a fact about the LANGUAGE, not
+        // a shape this back end cannot emit.  AssertTrue, AssertEqual and Fail
+        // are registered only while a test run is in progress [RT-002], so
+        // outside one the name is simply not there -- and the bare form already
+        // said so, while the CALL refused with 'not supported by the C back end
+        // yet', which names the emitter for a program that is just wrong.
+        if not EmitTests and IsAssertion (Name) then
+            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
 
         Unsupported ('A call to ''' + Name + '''');
     end

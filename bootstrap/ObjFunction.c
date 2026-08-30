@@ -429,9 +429,10 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
 }
 
 void init_ObjFunction(void) {
+    k_objoverloads = alg_class("ObjOverloads", alg_nil());
+    k_objfunction = alg_class("ObjFunction", alg_nil());
     fn_typenameof = alg_closure("TypeNameOf", f_typenameof, NULL, 0, 1);
     fn_nameofclass = alg_closure("NameOfClass", f_nameofclass, NULL, 0, 1);
-    k_objoverloads = alg_class("ObjOverloads", alg_nil());
     alg_class_field(k_objoverloads, "Name");
     alg_class_field(k_objoverloads, "Candidates");
     alg_class_initializer(k_objoverloads, i_objoverloads);
@@ -444,7 +445,6 @@ void init_ObjFunction(void) {
     fn_samesignature = alg_closure("SameSignature", f_samesignature, NULL, 0, 2);
     fn_widens = alg_closure("Widens", f_widens, NULL, 0, 2);
     fn_inheritsfrom = alg_closure("InheritsFrom", f_inheritsfrom, NULL, 0, 2);
-    k_objfunction = alg_class("ObjFunction", alg_nil());
     alg_class_field(k_objfunction, "Declaration");
     alg_class_field(k_objfunction, "Closure");
     alg_class_field(k_objfunction, "IsInitializer");

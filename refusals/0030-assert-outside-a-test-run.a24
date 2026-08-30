@@ -1,9 +1,5 @@
 // spec: RT-002
 //
-// ⚠️ Expected to FAIL compiled, because of C-15: the emitter has no case for a
-// call to a name it cannot resolve, so it refuses with 'A call to ''AssertTrue''
-// is not supported by the C back end yet.' rather than letting the program run
-// and fail on the undefined name.
 // AssertTrue, AssertEqual and Fail are registered only while --test is
 // running, so outside one the name is simply not there.
 

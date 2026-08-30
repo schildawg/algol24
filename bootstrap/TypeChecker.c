@@ -1162,6 +1162,7 @@ Value f_rejects(Value **cells, Value *args, int32_t count) {
 
 void init_TypeChecker(void) {
     k_typelookup = alg_class("TypeLookup", alg_nil());
+    k_typechecker = alg_class("TypeChecker", alg_nil());
     alg_class_field(k_typelookup, "Scopes");
     alg_class_field(k_typelookup, "Types");
     alg_class_field(k_typelookup, "Parents");
@@ -1174,7 +1175,6 @@ void init_TypeChecker(void) {
     alg_class_method(k_typelookup, "GetType", m_typelookup_gettype_1_string, 1, t_typelookup_gettype_1_string);
     alg_class_method(k_typelookup, "BeginScope", m_typelookup_beginscope_0, 0, NULL);
     alg_class_method(k_typelookup, "EndScope", m_typelookup_endscope_0, 0, NULL);
-    k_typechecker = alg_class("TypeChecker", alg_nil());
     alg_class_field(k_typechecker, "Lookup");
     alg_class_field(k_typechecker, "CurrentReturn");
     alg_class_field(k_typechecker, "PrivateMembers");

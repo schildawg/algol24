@@ -151,6 +151,7 @@ static Value m_objbuffer_tostring_0(Value v_this, Value *args, int32_t count) {
 
 void init_ObjBuffer(void) {
     k_buffermethod = alg_class("BufferMethod", alg_nil());
+    k_objbuffer = alg_class("ObjBuffer", alg_nil());
     alg_class_field(k_buffermethod, "Receiver");
     alg_class_field(k_buffermethod, "Name");
     alg_class_field(k_buffermethod, "TheArity");
@@ -158,7 +159,6 @@ void init_ObjBuffer(void) {
     alg_class_method(k_buffermethod, "Init", m_buffermethod_init_3_objbuffer_string_integer, 3, t_buffermethod_init_3_objbuffer_string_integer);
     alg_class_method(k_buffermethod, "Arity", m_buffermethod_arity_0, 0, NULL);
     alg_class_method(k_buffermethod, "Call", m_buffermethod_call_2, 2, t_buffermethod_call_2);
-    k_objbuffer = alg_class("ObjBuffer", alg_nil());
     alg_class_field(k_objbuffer, "Handle");
     alg_class_initializer(k_objbuffer, i_objbuffer);
     alg_class_method(k_objbuffer, "Init", m_objbuffer_init_1_integer, 1, t_objbuffer_init_1_integer);

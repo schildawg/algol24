@@ -544,10 +544,10 @@ static Value m_scanner_isdigit_1_char(Value v_this, Value *args, int32_t count) 
 }
 
 void init_Scanner(void) {
+    k_scanner = alg_class("Scanner", alg_nil());
     fn_tolower = alg_closure("ToLower", f_tolower, NULL, 0, 1);
     fn_tointeger = alg_closure("ToInteger", f_tointeger, NULL, 0, 1);
     fn_exceedsinteger = alg_closure("ExceedsInteger", f_exceedsinteger, NULL, 0, 1);
-    k_scanner = alg_class("Scanner", alg_nil());
     alg_class_field(k_scanner, "Source");
     alg_class_field(k_scanner, "Tokens");
     alg_class_field(k_scanner, "Current");

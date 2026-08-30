@@ -1728,8 +1728,8 @@ static Value m_parser_previous_0(Value v_this, Value *args, int32_t count) {
 }
 
 void init_Parser(void) {
-    fn_readwholefile = alg_closure("ReadWholeFile", f_readwholefile, NULL, 0, 1);
     k_parser = alg_class("Parser", alg_nil());
+    fn_readwholefile = alg_closure("ReadWholeFile", f_readwholefile, NULL, 0, 1);
     alg_class_field(k_parser, "Tokens");
     alg_class_field(k_parser, "Current");
     alg_class_field(k_parser, "FileName");

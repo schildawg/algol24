@@ -1195,7 +1195,14 @@ typedef struct ObjClass {
     const char **fields;
     int32_t      field_count;
 
-    /* Inherited fields included, so this is the size of an instance. */
+    /* Inherited fields included, so this is the size of an instance.
+     *
+     * ⚠️ Computed on first use and cached, NOT maintained as fields are added.
+     * A class may be linked to a parent whose own fields are not registered yet
+     * -- 'class Puppy (Hound);' written above 'class Hound;' [DCL-006] -- so
+     * there is no moment during setup at which running totals would all be
+     * right.  -1 means "not yet asked".  Safe because nothing instantiates a
+     * class until every init_<Unit>() has run. */
     int32_t total_fields;
 
     MethodEntry *methods;
@@ -1236,15 +1243,46 @@ Value alg_class(const char *name, Value super) {
     klass->initializer     = NULL;
     klass->is_object       = false;
     klass->built           = false;
-    klass->total_fields    = klass->super == NULL ? 0 : klass->super->total_fields;
+    klass->total_fields    = -1;
 
     return object((Obj *)klass);
+}
+
+/* Links a class to its parent, after both shells exist.
+ *
+ * ⚠️ Separate from alg_class because a class may inherit from one declared
+ * BELOW it [DCL-006]: the interpreter binds every class as an empty shell and
+ * fills it in where its declaration stands, so the child holds the finished
+ * parent because it is the same object.  The emitter now does the same -- every
+ * shell first, then the links, then the fields and methods -- and passing the
+ * parent to alg_class could only ever see a handle that was still nil. */
+void alg_class_super(Value value, Value super) {
+    ObjClass *klass = as_class(value, "Expected a class.");
+
+    klass->super        = as_class(super, "Superclass must be a class.");
+    klass->total_fields = -1;
+}
+
+/* Instance size: this class's fields and every ancestor's.  Memoized -- see the
+ * note on the field. */
+static int32_t total_fields(ObjClass *klass) {
+    if (klass->total_fields < 0)
+        klass->total_fields = klass->field_count
+                            + (klass->super == NULL ? 0 : total_fields(klass->super));
+
+    return klass->total_fields;
 }
 
 void alg_class_field(Value value, const char *name) {
     ObjClass *klass = as_class(value, "Expected a class.");
 
-    /* Field lists are short and fixed at startup, so this grows by one rather
+    /* ⚠️ Does NOT invalidate total_fields, and deliberately: a partial
+     * invalidation would not be enough anyway -- a child's cached total would
+     * still be stale after its PARENT gained a field -- and would read as a
+     * guarantee this does not make.  What makes the cache safe is that setup
+     * finishes before anything is instantiated, not anything done here.
+     *
+     * Field lists are short and fixed at startup, so this grows by one rather
      * than doubling. */
     const char **fields = arena_alloc((size_t)(klass->field_count + 1) * sizeof(char *));
     if (klass->field_count > 0) {
@@ -1254,7 +1292,6 @@ void alg_class_field(Value value, const char *name) {
 
     klass->fields = fields;
     klass->field_count++;
-    klass->total_fields++;
 }
 
 void alg_class_method(Value value, const char *name, AlgMethod fn, int32_t arity,
@@ -1293,7 +1330,7 @@ void alg_class_initializer(Value value, AlgMethod fn) {
  * it applies inherited initializers before its own. */
 static int32_t field_slot(ObjClass *klass, const char *name) {
     for (ObjClass *at = klass; at != NULL; at = at->super) {
-        int32_t base = at->super == NULL ? 0 : at->super->total_fields;
+        int32_t base = at->super == NULL ? 0 : total_fields(at->super);
 
         for (int32_t i = 0; i < at->field_count; i++) {
             /* ⚠️ Compared WITHOUT REGARD TO CASE [SRC-011].  The first-byte
@@ -1560,13 +1597,13 @@ Value alg_new(Value value, Value *args, int32_t count) {
     ObjInstance *instance = arena_alloc(sizeof(ObjInstance));
     instance->obj.type = OBJ_INSTANCE;
     instance->klass    = klass;
-    instance->slots    = klass->total_fields == 0
-                       ? NULL
-                       : arena_alloc((size_t)klass->total_fields * sizeof(Value));
+    int32_t slots = total_fields(klass);
+
+    instance->slots = slots == 0 ? NULL : arena_alloc((size_t)slots * sizeof(Value));
 
     /* A field declared without a value is nil rather than absent, so reading it
      * is not an error. */
-    for (int32_t i = 0; i < klass->total_fields; i++) instance->slots[i] = alg_nil();
+    for (int32_t i = 0; i < slots; i++) instance->slots[i] = alg_nil();
 
     Value self = object((Obj *)instance);
 
@@ -3606,7 +3643,39 @@ Value alg_val(Value v) {
 
         alg_error(b.text);
     }
-    return alg_double(parsed);
+    Value as_double = alg_double(parsed);
+
+    /* ⚠️ An INTEGER where the text is one [RT-009], reading the same characters
+     * the literal rules do [LEX-015].  This answered a Double always, so
+     * 'Val("42")' was 42.0 -- and the result could not then be passed to Max,
+     * which took Integers only.  The two were individually defensible and
+     * jointly unusable: 'Max(Val(A), Val(B))' failed for EVERY input.
+     *
+     * ⚠️ The digits are accumulated through alg_multiply and alg_add rather
+     * than converted from the double, and not because of precision: those carry
+     * the range check [LEX-018], so 'Val("99999999999")' raises
+     * 'Integer overflow: 999999999 * 10.' exactly as the interpreter's does.
+     * A cast would answer a wrong number quietly, and there is no narrowing
+     * conversion in the language to write instead. */
+    const char *digits = text;
+    int32_t     sign   = 1;
+
+    if (*digits == '-') {
+        sign = -1;
+        digits++;
+    }
+
+    /* Nothing but a sign is not an integer; strtod already refused text that is
+     * no number at all, so what reaches here is a Double. */
+    if (*digits == '\0') return as_double;
+
+    Value result = alg_int(0);
+    for (const char *at = digits; *at != '\0'; at++) {
+        if (*at < '0' || *at > '9') return as_double;
+
+        result = alg_add(alg_multiply(result, alg_int(10)), alg_int(*at - '0'));
+    }
+    return alg_multiply(alg_int(sign), result);
 }
 
 /* The ordinal value of an ordinal-typed value, as in Turbo Pascal.
@@ -3649,11 +3718,17 @@ Value alg_clock(void) {
     return alg_double((double)millis / 1000.0);
 }
 
+/* ⚠️ Any two NUMBERS, promoting as every other numeric operator does [EXP-005]
+ * and answering the argument itself, so 'Max(3.5, 2)' is the Double 3.5.  This
+ * took Integers only, which with Val always yielding a Double left
+ * 'Max(Val(A), Val(B))' failing for every input [RT-010]. */
 Value alg_max(Value a, Value b) {
-    int32_t left  = as_integer(a, "Max expects Integers.");
-    int32_t right = as_integer(b, "Max expects Integers.");
+    bool numbers = (a.type == VAL_INT || a.type == VAL_DOUBLE)
+                && (b.type == VAL_INT || b.type == VAL_DOUBLE);
 
-    return alg_int(left > right ? left : right);
+    if (!numbers) alg_error("Max expects numbers.");
+
+    return alg_truthy(alg_greater(a, b)) ? a : b;
 }
 
 Value alg_mod(Value a, Value b) {

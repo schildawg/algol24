@@ -95,8 +95,8 @@ static Value m_token_tostring_0(Value v_this, Value *args, int32_t count) {
 }
 
 void init_Token(void) {
-    fn_foldcase = alg_closure("FoldCase", f_foldcase, NULL, 0, 1);
     k_token = alg_class("Token", alg_nil());
+    fn_foldcase = alg_closure("FoldCase", f_foldcase, NULL, 0, 1);
     alg_class_field(k_token, "TypeOfToken");
     alg_class_field(k_token, "Lexeme");
     alg_class_field(k_token, "Literal");

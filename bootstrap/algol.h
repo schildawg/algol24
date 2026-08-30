@@ -247,6 +247,16 @@ Value   alg_iterable_at(Value snapshot, int32_t index);
 typedef Value (*AlgMethod)(Value self, Value *args, int32_t count);
 
 Value alg_class(const char *name, Value super);
+
+/* Links a class to its parent, once both shells exist.
+ *
+ * ⚠️ A class may inherit from one declared BELOW it [DCL-006], so the emitter
+ * builds every shell in a unit before linking any of them -- the interpreter's
+ * two-phase hoist, written out.  Passing the parent to alg_class instead could
+ * only ever see a handle that was still nil, which linked the child to nothing
+ * and made the inherited method 'Undefined property'. */
+void  alg_class_super(Value klass, Value super);
+
 void  alg_class_field(Value klass, const char *name);
 /* Registers a method.  'types' names each parameter's declared type, "Any"
  * where none was written, and may be NULL for a method with no parameters.

@@ -421,6 +421,7 @@ static Value m_objcollection_tostring_0(Value v_this, Value *args, int32_t count
 
 void init_ObjCollection(void) {
     k_collectionmethod = alg_class("CollectionMethod", alg_nil());
+    k_objcollection = alg_class("ObjCollection", alg_nil());
     alg_class_field(k_collectionmethod, "Receiver");
     alg_class_field(k_collectionmethod, "Name");
     alg_class_field(k_collectionmethod, "TheArity");
@@ -428,7 +429,6 @@ void init_ObjCollection(void) {
     alg_class_method(k_collectionmethod, "Init", m_collectionmethod_init_3_objcollection_string_integer, 3, t_collectionmethod_init_3_objcollection_string_integer);
     alg_class_method(k_collectionmethod, "Arity", m_collectionmethod_arity_0, 0, NULL);
     alg_class_method(k_collectionmethod, "Call", m_collectionmethod_call_2, 2, t_collectionmethod_call_2);
-    k_objcollection = alg_class("ObjCollection", alg_nil());
     alg_class_field(k_objcollection, "Kind");
     alg_class_field(k_objcollection, "Items");
     alg_class_field(k_objcollection, "Pairs");

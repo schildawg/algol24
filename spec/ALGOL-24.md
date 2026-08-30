@@ -2888,7 +2888,12 @@ Write   WriteLn    Halt
 ⚠️ The list is checked against the names the interpreter registers by
 `spec/spec.sh`; Annex B is the index.
 
+⚠️ A built-in is called like any other subprogram, so a call to one checks its
+argument count [EXP-011] and reports it the same way — the name existing is what
+separates that failure from a reference to something undeclared.
+
     interpreter  compiler/Interpreter.a24  Builtins
+    conformance  0145-a-builtin-with-the-wrong-arity.a24
     conformance  0088-builtins.a24
 
 **[RT-002]**  The remaining three — `AssertTrue`, `AssertEqual` and `Fail` — are
@@ -4385,7 +4390,8 @@ Assignment was wrong in a second way the entry did not name — `'abc'[0] := 'x'
 answered `Only a collection can be subscripted.`, which is false of the receiver
 in front of it. It is `Strings are immutable.` on both sides now.
 
-**C-30 — `Max` and `Val` answer differently compiled.** *(silent)*
+**C-30 — `Max` and `Val` answer differently compiled.**
+***Withdrawn.***
 *(refers to [RT-010], [RT-011])*
 
 | | Interpreted | Compiled |
@@ -4393,26 +4399,44 @@ in front of it. It is `Strings are immutable.` on both sides now.
 | `Max (3.5, 2)` | `-7`-style promotion, answering the larger | `Max expects Integers.` |
 | `Val ('42')` | `42` | `42.0` |
 
-⚠️ Two faults in one case, and they pull opposite ways: `Max` refuses what the
-language admits, and `Val` answers a Double where the language says Integer.
+⚠️ Two faults in one case, pulling opposite ways: `Max` refused what the
+language admits, and `Val` answered a Double where the language says Integer.
+Each was defensible alone and together they left `Max (Val (A), Val (B))`
+failing for **every** input.
 
-    gap  0119-val-and-max.a24
+⚠️ **The digits are accumulated through `alg_multiply` and `alg_add`**, not
+converted from the parsed double, and not for precision: those carry the range
+check [LEX-018], so `Val ('99999999999')` raises `Integer overflow: 999999999 *
+10.` exactly as the interpreter's does. A cast would answer a wrong number
+quietly, and the language has no narrowing conversion to write instead.
 
 **C-31 — A compiled class does not inherit from a parent declared below it.**
-*(silent, then loud)*
+***Withdrawn.***
 *(refers to [DCL-006])*
 
-`class Puppy (Hound);` written above `class Hound;` links to nothing compiled:
-`Puppy () is Hound` is **false**, and the inherited method is then
+`class Puppy (Hound);` written above `class Hound;` linked to nothing compiled:
+`Puppy () is Hound` was **false**, and the inherited method was then
 `Undefined property 'Speak'.`
 
 ⚠️ The interpreter hoists a class in two phases for exactly this — the name is
 bound before anything runs and filled in where the declaration stands, so the
-subclass holds the finished parent. The emitter hoists every top-level name
-(C-10) and still gets this wrong, which is worth noticing: hoisting *more* did
-not make it right.
+subclass holds the finished parent. The emitter hoisted every top-level name
+(C-10) and still got this wrong, which was worth noticing: hoisting *more* did
+not make it right, because binding a name is not the same as the thing it names
+existing.
 
-    gap  0122-functions-are-hoisted.a24
+⚠️ **The emitter now hoists in two phases too.** Every class in a unit is built
+as an empty shell in one buffer, and the links, fields and methods follow in
+another — so a child is linked to a parent that exists rather than to a handle
+still holding `nil`. `alg_class_super` is the second phase; passing the parent
+to `alg_class` could never have worked.
+
+⚠️ **`total_fields` had to become lazy for it.** An instance's size is its
+class's fields plus its ancestors', and it was maintained as fields were
+registered — which needs the parent's fields to be in place before the child's.
+With inheritance linked ahead of any field, there is no moment during setup at
+which a running total would be right, so it is computed on first use and cached.
+Safe because nothing instantiates a class until every `init_<Unit>()` has run.
 
 **C-32 — Names are not matched without regard to case compiled.**
 ***Withdrawn.***
@@ -4448,18 +4472,22 @@ and after are the same to within noise, which matters because `find_method` is
 the hottest path in the runtime.
 
 
-**C-33 — An assertion outside a test run is refused compiled.** *(loud)*
+**C-33 — An assertion outside a test run is refused compiled.**
+***Withdrawn.***
 *(refers to [RT-002])*
 
 Calling `AssertTrue` outside `--test` is `Undefined variable 'AssertTrue'.`
-interpreted — the name is registered only during a test run — and compiled it is
-`A call to 'AssertTrue' is not supported by the C back end yet.`
+interpreted — the name is registered only during a test run — and compiled it
+was `A call to 'AssertTrue' is not supported by the C back end yet.`
 
-⚠️ Both refuse, so this is a wording difference like C-7 rather than a hole. The
-compiled text names the back end for something that is a rule about the
-*language*, which is the part that misleads.
+⚠️ Both refused, so this was a wording difference like C-7 rather than a hole.
+The compiled text named the back end for something that is a rule about the
+*language*, which is the part that misled.
 
-    gap  0030-assert-outside-a-test-run.a24
+⚠️ **The bare name was already right**; only the call was wrong. `AssertTrue`
+read as a value took the emitter's undefined-name path, and `AssertTrue (True)`
+fell through the call table to the catch-all refusal — one name, two paths,
+disagreeing about whether the program was wrong or the emitter was incapable.
 
 **C-34 — A name that does not resolve emits invalid C.**
 ***Withdrawn.***
@@ -4525,6 +4553,31 @@ runs is not evidence about the language.
 `MethodEntry` — `kind_has` already decides which names a kind answers for.
 
     gap  0144-a-collection-member-without-the-call.a24
+
+**C-36 — A built-in called with the wrong arity is refused by name.** *(loud)*
+*(refers to [EXP-011], [RT-001])*
+
+`Length ('a', 'b')` is `Expected 1 arguments but got 2.` interpreted and
+`A call to 'Length' is not supported by the C back end yet.` compiled.
+
+⚠️ **The name exists**, which is what makes the compiled text wrong rather than
+merely differently worded: it reports a gap in the back end for a program that
+is simply a wrong call to a real built-in. The emitter's table is keyed by name
+*and arity* (C-18), so a known name at an unknown count matches nothing and
+falls through to the catch-all refusal.
+
+⚠️ **Found while fixing C-33, and deliberately not fixed with it.** The obvious
+move there — treat everything reaching the catch-all as an undefined name —
+would have made this *worse*, answering `Undefined variable 'Length'.` for a
+name the language defines. C-33 was narrowed to the three assertion names
+instead.
+
+*Fix:* the table needs to answer "what arity does this name take", separately
+from "what does it map to at this arity". Some built-ins accept a range —
+[RT-001]'s `Expected 0 or 1 arguments but got N.` — so the answer is not always
+a single number, which is why this is not a one-line change.
+
+    gap  0145-a-builtin-with-the-wrong-arity.a24
 
 
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was

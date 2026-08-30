@@ -96,6 +96,7 @@ static Value m_objenumtype_tostring_0(Value v_this, Value *args, int32_t count) 
 
 void init_ObjEnum(void) {
     k_objenum = alg_class("ObjEnum", alg_nil());
+    k_objenumtype = alg_class("ObjEnumType", alg_nil());
     alg_class_field(k_objenum, "TypeName");
     alg_class_field(k_objenum, "Name");
     alg_class_field(k_objenum, "Ordinal");
@@ -103,7 +104,6 @@ void init_ObjEnum(void) {
     alg_class_method(k_objenum, "Init", m_objenum_init_3_string_string_integer, 3, t_objenum_init_3_string_string_integer);
     alg_class_method(k_objenum, "ToString", m_objenum_tostring_0, 0, NULL);
     alg_class_method(k_objenum, "Get", m_objenum_get_1_token, 1, t_objenum_get_1_token);
-    k_objenumtype = alg_class("ObjEnumType", alg_nil());
     alg_class_field(k_objenumtype, "Name");
     alg_class_field(k_objenumtype, "Members");
     alg_class_initializer(k_objenumtype, i_objenumtype);
