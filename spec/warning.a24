@@ -1,0 +1,17 @@
+// Provokes the one warning the compiler raises, so [ERR-010] can be checked
+// against what is actually printed.
+//
+// ⚠️ This is not a probe and not a conformance case.  It is the SOURCE the
+// [ERR-010] warning line is compared with, run live by spec/spec.sh -- the same
+// treatment the keyword table, Annex B and the [COL-003] matrix get.  A message
+// quoted in a specification and checked by nobody is exactly the rot those
+// three checks exist to prevent.
+//
+// ⚠️ THE LINE NUMBER IS PART OF WHAT IS CHECKED.  Nothing above the call may
+// move without [ERR-010]'s example moving with it.
+
+procedure Log (Level : String);                   begin end
+procedure Log (Level : String, Message : String); begin end
+procedure Log (Code : Integer);                   begin end
+
+Log ('warn');

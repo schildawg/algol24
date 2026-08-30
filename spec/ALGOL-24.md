@@ -3770,6 +3770,50 @@ still a failure and must not exit 0 [INI-005].
     interpreter  compiler/Main.a24  Main
     conformance  0096-exit-status.a24
 
+### 18.4 Warnings
+
+**[ERR-010]**  A **warning** reports a cost, not a fault. It is written with a
+`[WARN]` tag in **yellow**, beside `[INFO]` and `[ERROR]`, and it is
+**non-blocking**: the program compiles and runs exactly as it would without it,
+and its exit status is unaffected [ERR-009].
+
+One warning is raised. A call that will select among overloads **at run time**
+[FUN-013] says so:
+
+```
+[WARN] spec/warning.a24:17: 'Log' selects among 3 overloads at run time.
+```
+
+⚠️ **The wording is checked against what is printed**, by `spec/spec.sh` running
+`spec/warning.a24` — the treatment the keyword table, Annex B and [COL-003]'s
+matrix already get, and for the same reason. A message quoted in a specification
+and checked by nobody is the most rot-prone thing this document can hold.
+
+⚠️ **It is not raised where a named argument decides the call** [EXP-013].
+Naming the parameters identifies one signature, so nothing is left to select at
+run time — the warning and its remedy arrived together, and a warning whose
+remedy did not exist would point at nothing.
+
+⚠️ **A warning is not a refusal, and the boundary matters.** Refusal is for what
+the C back end cannot express; a construct that is legal and merely costly gets
+a warning instead, which is what keeps `<X> is not supported by the C back end
+yet.` meaning only one thing.
+
+⚠️ **It is not part of a program's output**, and the corpus drops it from both
+sides. The front end is shared, so the same warning appears when an interpreted
+program *runs* and when a compiled one is *emitted* — different moments, so
+comparing them would report a divergence where the two processors agree
+completely. Dropped rather than suppressed: it is meant to be seen by whoever is
+compiling, and only the comparison must not see it.
+
+⚠️ **It is silent on this compiler.** No top-level name in `compiler/*.a24` is
+overloaded, so `algc` compiling itself raises none at all — which is the
+evidence that it is a scalpel rather than noise.
+
+    interpreter  compiler/TypeChecker.a24  WarnIfDynamic
+    interpreter  compiler/Console.a24      Warn
+    conformance  0158-varargs-from-an-element-type.a24
+
 ---
 
 ## 19. Test blocks

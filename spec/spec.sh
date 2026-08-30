@@ -573,6 +573,37 @@ if [ -x bootstrap/algc ]; then
     fi
 fi
 
+# ⚠️ [ERR-010]'s warning is quoted in the document, and a message quoted and
+# checked by nobody is exactly what the three checks above exist to prevent.
+# spec/warning.a24 provokes it and the line is compared with the one the rule
+# shows -- file, line number and wording together.
+#
+# ⚠️ The corpus CANNOT do this.  conform.sh drops [WARN] from both sides by
+# design, because the front end is shared and the two processors raise the
+# warning at different moments; so a conformance case can exercise the warning
+# but can never see it.  This check is the only thing holding the wording.
+
+if [ -x bootstrap/algc ]; then
+    bootstrap/algc spec/warning.a24 2>/dev/null \
+      | sed "s/$(printf '\033')\\[[0-9;]*m//g" \
+      | grep '^\[WARN\]' > "$WORK/warn_actual" || true
+
+    awk '/\*\*\[ERR-010\]\*\*/{f=1}
+         f && /^\[WARN\] /{print; exit}' "$SPEC" > "$WORK/warn_spec"
+
+    if [ ! -s "$WORK/warn_actual" ]; then
+        problem "ERR-010 quotes a warning that spec/warning.a24 does not raise"
+    elif [ ! -s "$WORK/warn_spec" ]; then
+        problem "ERR-010 states no warning line to check"
+    elif ! cmp -s "$WORK/warn_actual" "$WORK/warn_spec"; then
+        problem "ERR-010's warning differs from the one raised:
+      stated: $(cat "$WORK/warn_spec")
+      raised: $(cat "$WORK/warn_actual")"
+    else
+        echo "  ERR-010 matches the warning algc raises"
+    fi
+fi
+
 # ⚠️ Annex A repeats every production the chapters state.  A repetition that
 # nothing checks is the same bet this repository has already lost twice, so
 # both directions are compared: a production stated in a chapter and missing
