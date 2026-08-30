@@ -6569,41 +6569,49 @@ exactly — including the ⚠️ those two carry about their names: `WARN_TAG` r
 than `WARN`, because names are matched without regard to case [SRC-011] and a
 `procedure Warn` beside it would be the same name.
 
-**H-13 — Character arithmetic.** *(will change [VAL-009])*
+**H-13 — Character arithmetic.** *(will change [VAL-009], [EXP-002])*
 
-`'z' - 'a'` yields the Integer 25, and `'a' + 1`… does not, which is where this
-gets interesting.
+A `Char` is an ordinal, and arithmetic on one steps or measures it:
 
 | written | today | wanted |
 | --- | --- | --- |
-| `'z' - 'a'` | `Operands must be numbers.` | `25` |
+| `'z' - 'a'` | `Operands must be numbers.` | `25` — a distance |
+| `'a' + 1` | `'a1'` — a **String** | `'b'` — a step |
 | `'z' - 1` | `Operands must be numbers.` | `'y'` |
-| `'a' + 1` | `'a1'` — a **String** | ? |
+| `Str ('a') + 1` | `'a1'` | `'a1'` — unchanged |
+| `'ab' + 1` | `'ab1'` | `'ab1'` — unchanged |
 
 ⚠️ **Unicode is not the difficulty, and it was expected to be.** A `Char` is
 already a code point [LEX-025], not a byte and not a UTF-16 unit; `Ord` already
 answers an Integer code point and `Char` already accepts one well above 127.
-Subtraction on code points is exactly what C does, and `'é' - 'a'` being 132 is
-arithmetic that is well defined and merely not linguistically meaningful — the
-same bargain every language makes here.
+`'é' - 'a'` being 132 is arithmetic that is well defined and merely not
+linguistically meaningful — the bargain every language makes here.
 
-⚠️ **The difficulty is `+`, which is taken.** `'a' + 1` is `a1` today: a `Char`
-widens to a `String` in an assignment context [VAR-004] and `+` concatenates.
-Making it yield `'b'` would silently change what existing programs mean, which
-is the one kind of change this specification will not make quietly. So the
-choice is between an **asymmetry** — subtraction arithmetic, addition
-concatenation — and a **breaking change**, and asymmetry is exactly what Annex H
-usually argues against.
+⚠️ **The difficulty is that `'a' + 1` means something already** — and what it
+means contradicts the rule the language states elsewhere. `Str` is how a `Char`
+widens to a `String`; that is why `Line ('{')` must be declared `Any`. Yet
+`'a' + 1` and `Str ('a') + 1` both give `a1` today, so in this one place the
+widening happens without being asked for and `Str` is decorative. [VAR-004]
+specifies widening **to reach a written type**, at a declaration; `+` in an
+expression is not that rule being applied, it is an extra one nobody wrote down.
 
-⚠️ **Three ways out, and none is obviously right.** Take `-` alone and live with
-the asymmetry; add `Succ` and `Pred` so stepping has a spelling of its own and
-`+` is left alone; or decide that `Char + Integer` was always a mistake and
-change it, with a defect recording what it used to do. The first is smallest,
-the second is the most Pascal, and the third is the only one that ends with a
-rule a reader can state in one sentence.
+⚠️ **So this is a repair as much as a feature.** Making `'a' + 1` yield `'b'`
+restores the meaning of `Str`: widening becomes something a program asks for
+rather than something an operator does behind it. The change is breaking, and
+the blast radius is small — no `Char + Integer` appears anywhere in
+`compiler/*.a24` — but it is still a change of meaning and wants a defect
+recording what the expression used to do.
 
-⚠️ **It is already expressible**, which is what makes this a question of reading
-rather than of power: `Ord ('z') - Ord ('a')` is 25 today, in both processors.
+⚠️ **`Char + Char` is the case left to decide.** `'a' + 'b'` is `'ab'` today.
+Under an ordinal reading it is neither a step nor a distance, so the coherent
+answers are to refuse it — the Pascal treatment of ordinals, where `Succ`,
+`Pred` and subtraction are the operations and addition of two ordinals is not
+one — or to leave it as concatenation and accept that `+` means two things
+depending on the right operand. Refusing is the more honest and the more
+breaking.
+
+⚠️ **It is already expressible**, which makes this a question of reading rather
+than of power: `Ord ('z') - Ord ('a')` is 25 today, in both processors.
 
 **H-14 — A foreign function interface.** *(will change [RT-001], and more)*
 
