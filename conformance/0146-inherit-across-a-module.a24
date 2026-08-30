@@ -1,0 +1,38 @@
+// spec: DCL-006, INI-003, CLS-005
+//
+// A class may inherit from one a module declares -- and whether it can turns
+// on WHERE the 'uses' stands, because a module runs at its clause [INI-003].
+//
+// ⚠️ This is the limit of hoisting, and the reason it has one. A class is
+// built ahead of the file's statements only when its parent is absent or is
+// another class of the SAME file; one inheriting from anything else is built
+// where its declaration stands. So the parent has to have been imported by
+// then -- hoisting the build too would need the superclass evaluated before
+// the 'uses' that supplies it.
+
+uses 'modules/Shape';
+
+WriteLn ('root, after the import');
+
+class Circle (Shape);
+begin
+    constructor Init (); begin end
+end
+
+WriteLn (Circle ().Name ());
+WriteLn (Circle () is Shape);
+
+// A class of this file may still be inherited from either side of its own
+// declaration, which is what hoisting is for.
+class Puppy (Hound);
+begin
+    constructor Init (); begin end
+end
+
+class Hound;
+begin
+    constructor Init (); begin end
+    function Name (); begin Exit 'hound'; end
+end
+
+WriteLn (Puppy ().Name ());

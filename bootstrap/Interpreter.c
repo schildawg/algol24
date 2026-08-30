@@ -3157,6 +3157,14 @@ void init_Interpreter(void) {
     alg_class_field(k_return, "Value");
     alg_class_initializer(k_return, i_return);
     alg_class_method(k_return, "Init", m_return_init_1, 1, t_return_init_1);
+    init_Console();
+    init_ObjBuffer();
+    init_ObjClass();
+    init_ObjCollection();
+    init_ObjEnum();
+    init_ObjFile();
+    init_Parser();
+    init_Resolver();
     v_programarguments = alg_widen(alg_list(), "List");
     d_programarguments = true;
     v_outputsuppressed = alg_widen(alg_bool(false), "Boolean");

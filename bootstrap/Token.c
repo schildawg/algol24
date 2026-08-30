@@ -105,6 +105,7 @@ void init_Token(void) {
     alg_class_initializer(k_token, i_token);
     alg_class_method(k_token, "Init", m_token_init_4_tokentype_string_integer, 4, t_token_init_4_tokentype_string_integer);
     alg_class_method(k_token, "ToString", m_token_tostring_0, 0, NULL);
+    init_TokenType();
     v_foldVupper = alg_string("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
     d_foldVupper = true;
     v_foldVlower = alg_string("abcdefghijklmnopqrstuvwxyz");

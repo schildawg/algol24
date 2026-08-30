@@ -1490,10 +1490,16 @@ class: an object that answered `D is Dog` and had none of Dog's methods. A
 silent wrong answer, and worse than the `Undefined variable` it replaced. The
 class is built during the hoist, not merely named.
 
-⚠️ **A class inheriting from something that is not a top-level class is left
-where it stands**, and that is what keeps [CLS-014] reachable: at hoist time a
-`var` has no value yet, so evaluating it would say `Undefined variable` in place
-of `'X' is not a class.`
+⚠️ **A class inheriting from something that is not a top-level class *of this
+file* is left where it stands**, and that is what keeps [CLS-014] reachable: at
+hoist time a `var` has no value yet, so evaluating it would say `Undefined
+variable` in place of `'X' is not a class.`
+
+⚠️ **A parent from a module is one of those**, which is where the limit of
+hoisting shows: a module runs at its `uses` [INI-003], so a class inheriting
+across a module boundary is built where its declaration stands and the import
+has to come first. Written above the `uses`, it is `Undefined variable 'Shape'.`
+— a fact about when the name is bound, not about inheritance.
 
 ⚠️ Hoisting made an inheritance **cycle** reachable for the first time — a class
 could not previously be declared above its parent at all — so [CLS-013]'s check
@@ -1501,6 +1507,8 @@ grew from a self-reference to a cycle.
 
     interpreter  compiler/Interpreter.a24  Hoist
     conformance  0122-functions-are-hoisted.a24
+    conformance  0146-inherit-across-a-module.a24
+    conformance  0147-inherit-before-the-import.a24
     refusal      0046-inherit-from-a-non-class.a24
 
 **[DCL-016]**  A **variable or constant** is not visible before its declaration
@@ -3721,7 +3729,8 @@ divergence was real and the remedy assumed which side was at fault.
 
 The number is not reused.
 
-**C-5 — Module bodies run at a different time.** *(silent)*
+**C-5 — Module bodies run at a different time.**
+***Withdrawn.***
 *(refers to [INI-003], [INI-004])*
 
 Interpreted, a `uses` runs its module where it appears, so root statements
@@ -3745,12 +3754,37 @@ The compiled shape follows from how the C is emitted — `main` calls each
 `init_<Unit>()` and then `init_Main()` — and it is the easier order to produce,
 since a module's initializer is a function and the root's body is not special.
 
-The interpreter is the authority [1.1], so the compiler is wrong.
+The interpreter is the authority [1.1], so the compiler was wrong.
 
-*Fix:* emit the root's top-level statements in place, interleaved with the
-`init_<Unit>()` calls that correspond to its `uses`, rather than collecting them
-all into `init_Main()` after the fact. That is a change to how the root unit is
-emitted and not to the runtime.
+⚠️ **The `uses` had been filtered out of the statements entirely**, which is why
+the emitter had no way to say *when*. It was split off as an import and dropped;
+keeping it is most of the fix, and `VisitModuleStmt` — until now nothing but a
+refusal for a nested `uses` — writes the call. `main` starts the root and
+nothing else. [INI-004] then follows from the same mechanism rather than needing
+its own: a module's `uses` clauses stand at the top of its body, so its
+initializer runs them before its own statements.
+
+⚠️ **A `uses` runs under `--test` too**, and had to be added to the set of
+statements a test run keeps. Only the file being *tested* has its program held
+back; while `main` started every module itself this did not matter, and the
+moment the clause became what starts one, leaving it out would have given a test
+run no modules at all.
+
+⚠️ **Hoisting a class had to become conditional, and this is where the fix
+turned out to be about more than order.** A class is built ahead of its file's
+statements only when its parent is absent or is another class of the **same
+file** — `Interpreter.Hoist`'s rule, which the emitter did not have. It built
+every class in `Setup`, before any statement, and that was indistinguishable
+from correct only because every module initializer ran first. With modules
+starting at their clause, a class inheriting from one had to be built where its
+declaration stands.
+
+⚠️ **And that exposed a silent divergence hiding inside this one.** A class
+inheriting from a module named *below* it is `Undefined variable 'Shape'.`
+interpreted — nothing has bound the name yet — and compiled it *ran*, because
+the parent's shell had been built before any statement. The compiler accepted a
+program the language refuses. `alg_class_declared` reports the name, and
+`conformance/0146` and `0147` pin both orders.
 
 **Not a divergence, and worth stating as a requirement:** interpreted and
 compiled `--test` reports are byte-identical, colour included — 239 lines and
@@ -3758,8 +3792,6 @@ compiled `--test` reports are byte-identical, colour included — 239 lines and
 defect in one or the other.
 
 ---
-
-    gap  0095-module-init-order.a24
 
 **C-6 — Reading a method as a property crashes the compiled program.**
 ***Withdrawn.***
@@ -4529,7 +4561,7 @@ two could still name different ones.
 name what it cannot emit rather than emit C that does not build.
 
 **C-35 — A collection member read without calling it is refused compiled.**
-*(silent)*
+***Withdrawn.***
 *(refers to [COL-005])*
 
 `var Sort := L.Sort;` binds a callable interpreted and is `Undefined property
@@ -4549,10 +4581,17 @@ exercised exactly this since [COL-003]'s matrix was first checked — but it is 
 compiled it and the divergence stayed invisible. A program only the interpreter
 runs is not evidence about the language.
 
-*Fix:* `alg_bound` is the shape, with a builtin member in place of a
-`MethodEntry` — `kind_has` already decides which names a kind answers for.
+⚠️ **A Buffer and a TextFile were wrong the same way**, which the entry did not
+say. All three receivers take their members from the runtime rather than from a
+class, and all three answered only their bare properties. `ObjBuffer.Get` and
+`ObjFile.Get` hand back a callable exactly as `ObjCollection.Get` does.
 
-    gap  0144-a-collection-member-without-the-call.a24
+⚠️ **The tables had to carry an ARITY, not just membership.** What a read binds
+is callable, and a callable has to know how many arguments it takes — the three
+interpreter wrappers each carry one for precisely this check. There are now four
+copies of that table and they have to be read together; `spec/spec.sh` checks
+[COL-003] against the interpreter's, and `conformance/0144` is what compares the
+compiled one against it.
 
 **C-36 — A built-in called with the wrong arity is refused by name.** *(loud)*
 *(refers to [EXP-011], [RT-001])*
@@ -4578,6 +4617,36 @@ from "what does it map to at this arity". Some built-ins accept a range —
 a single number, which is why this is not a one-line change.
 
     gap  0145-a-builtin-with-the-wrong-arity.a24
+
+**C-37 — A built-in member printed without being called reads differently.**
+*(silent)*
+*(refers to [TYP-012])*
+
+| | |
+| --- | --- |
+| Interpreted | `WriteLn (L.Sort)` is `CollectionMethod instance` |
+| Compiled | `<fn Sort>` |
+
+⚠️ **The interpreter is the one that is wrong here**, as in C-4 — and this entry
+is recorded rather than fixed for that reason. `CollectionMethod` names a class
+that exists only inside `algc`; a program has no way to know it and nothing in
+the language answers to it. A bound *method* prints `<fn Name>` [TYP-012]
+through both processors, and a bound built-in member is the same kind of thing,
+so `<fn Sort>` is the answer that follows the rule.
+
+⚠️ **No `gap` case pins this, deliberately.** A conformance case records what
+the language *should* do, and its `.out` would have to be the interpreter's
+current answer — enshrining the leak as the rule. The disagreement is written
+down here instead, and the case belongs with the fix.
+
+*Fix:* `CollectionMethod`, `BufferMethod` and `FileMethod` need a `ToString`,
+which the runtime already honours. The obstacle is the spelling, not the hook:
+those three carry the member name **folded**, because their tables are written
+folded to meet a folded lookup [SRC-011], so the obvious `'<fn ' + Name + '>'`
+gives `<fn sort>` where the compiled side gives `<fn Sort>`. Making them agree
+means carrying the canonical spelling alongside the folded one — a fifth copy of
+the member table unless it is threaded through the three `Get`s that already
+have the written lexeme in hand.
 
 
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was

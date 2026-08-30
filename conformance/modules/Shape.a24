@@ -1,0 +1,10 @@
+// A class for another file to inherit from.  Its body prints, so the order in
+// which it runs is observable [INI-003].
+
+class Shape;
+begin
+    constructor Init (); begin end
+    function Name (); begin Exit 'shape'; end
+end
+
+WriteLn ('  Shape body');

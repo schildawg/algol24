@@ -105,4 +105,5 @@ void init_AstPrinter(void) {
     alg_class_method(k_astprinter, "VisitLiteral", m_astprinter_visitliteral_1, 1, t_astprinter_visitliteral_1);
     alg_class_method(k_astprinter, "VisitUnary", m_astprinter_visitunary_1, 1, t_astprinter_visitunary_1);
     alg_class_method(k_astprinter, "Parenthesize", m_astprinter_parenthesize_2, 2, t_astprinter_parenthesize_2);
+    init_Expr();
 }

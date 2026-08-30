@@ -1256,6 +1256,27 @@ Value alg_class(const char *name, Value super) {
  * parent because it is the same object.  The emitter now does the same -- every
  * shell first, then the links, then the fields and methods -- and passing the
  * parent to alg_class could only ever see a handle that was still nil. */
+/* That the name a class inherits from is bound yet.
+ *
+ * ⚠️ A handle is nil until its own shell runs, and a module's shells run when
+ * its 'uses' does [INI-003] -- so a class inheriting from a module named BELOW
+ * it is linked to nothing, which is exactly the program the interpreter refuses
+ * with 'Undefined variable'.  Separate from alg_class_super so that this
+ * reports the NAME the program wrote: a nil handle knows nothing about itself.
+ *
+ * ⚠️ The interpreter refuses the same program for the same reason.  Hoist
+ * builds a class ahead of the statements only when its parent is absent or is
+ * another class of the same file; one inheriting from anything else is left
+ * where it stands, and there the name is simply not bound yet. */
+void alg_class_declared(Value klass, const char *name) {
+    if (klass.type != VAL_NIL) return;
+
+    char message[256];
+    snprintf(message, sizeof message, "Undefined variable '%s'.", name);
+
+    alg_error(message);
+}
+
 void alg_class_super(Value value, Value super) {
     ObjClass *klass = as_class(value, "Expected a class.");
 
@@ -1355,6 +1376,18 @@ static bool has_method(Value v, const char *name, int32_t arity);
 static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity, Value *args, bool strict);
 static Value alg_bound(Value receiver, MethodEntry *method);
 static const char *type_name(Value v);
+
+/* One row of a member table: the member's canonical spelling and how many
+ * arguments it takes.  See member_of. */
+typedef struct {
+    const char *name;
+    int32_t     arity;
+} Member;
+
+/* A built-in member and the callable a bare read of one binds to -- see the
+ * notes on their definitions. */
+static const Member *member_of(Value receiver, const char *name);
+static Value builtin_bound(Value receiver, const char *name, int32_t arity);
 
 static bool has_method(Value v, const char *name, int32_t arity) {
     if (!is_obj(v, OBJ_INSTANCE)) return false;
@@ -2061,11 +2094,31 @@ _Noreturn static void undefined(const char *what, const char *name) {
     alg_error(message);
 }
 
+/* A member read without being called, for a receiver whose members are the
+ * runtime's rather than a class's.
+ *
+ * ⚠️ Every member a kind has is a VALUE before it is a call [COL-005], exactly
+ * as a method of an instance is -- the branch below this one binds one of
+ * those, and these three receivers were left out.  Only Length and IsEmpty
+ * answered here, so of the 41 kind/member pairs [COL-003] records a compiled
+ * program could read 10, and 'var Sort := L.Sort;' was 'Undefined property'.
+ *
+ * ⚠️ Nothing in the compiler's own sources reads a built-in member without
+ * calling it, which is why this went unnoticed: the only program exercising it
+ * was spec/members.a24, a source for spec/spec.sh rather than a conformance
+ * case, so nothing ever compiled it. */
+static Value builtin_member(Value receiver, const char *name) {
+    const Member *found = member_of(receiver, name);
+    if (found == NULL) undefined("property", name);
+
+    return builtin_bound(receiver, found->name, found->arity);
+}
+
 Value alg_property(Value receiver, const char *name) {
     if (is_obj(receiver, OBJ_FILE)) {
         if (alg_stricmp(name, "Eof") == 0) return file_eof((ObjFile *)receiver.obj);
 
-        undefined("property", name);
+        return builtin_member(receiver, name);
     }
 
     /* Text is a property, like Length and IsEmpty: a zero-argument query reads
@@ -2076,7 +2129,7 @@ Value alg_property(Value receiver, const char *name) {
         if (alg_stricmp(name, "Length") == 0)  return alg_length(receiver);
         if (alg_stricmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
 
-        undefined("property", name);
+        return builtin_member(receiver, name);
     }
 
     if (is_obj(receiver, OBJ_INSTANCE)) {
@@ -2129,7 +2182,8 @@ Value alg_property(Value receiver, const char *name) {
      * ''ClassName''.'  This said 'Only instances have properties.', which is
      * true of an instance and unhelpful about a List, and is the message a
      * non-object receiver still gets below. */
-    if (is_sequence(receiver) || is_obj(receiver, OBJ_MAP)) undefined("property", name);
+    if (is_sequence(receiver) || is_obj(receiver, OBJ_MAP))
+        return builtin_member(receiver, name);
 
     alg_error("Only instances have properties.");
     return alg_nil();
@@ -2213,43 +2267,67 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
 /* Collection methods, reached by name.  Kept here rather than in the emitter
  * because a class may declare a method called Add, and only the receiver says
  * which is meant. */
-/* Whether a name is one of a list of members, folded [SRC-011].  The list ends
- * with NULL. */
-static bool one_of(const char *name, const char *const *members) {
-    for (int32_t i = 0; members[i] != NULL; i++)
-        if (alg_stricmp(name, members[i]) == 0) return true;
+/* A member's row in a table, or NULL if the table does not have it.  Folded
+ * [SRC-011].  The table ends with a NULL name. */
+static const Member *row_in(const char *name, const Member *members) {
+    for (int32_t i = 0; members[i].name != NULL; i++)
+        if (alg_stricmp(name, members[i].name) == 0) return &members[i];
 
-    return false;
+    return NULL;
 }
 
-/* Whether this KIND of collection has this member.
+/* This receiver's row for this member, or NULL if its kind has no such member.
  *
  * ⚠️ The member table is PER KIND, which is why this asks the receiver's type
  * before the name.  A flat table answers every name for every kind, so
  * 'Stack ().Get (0)' ran and handed back an element [COL-005], where the
  * interpreter refuses it -- the compiler accepting a program the language
- * refuses, which is the direction that matters.  ObjCollection.Get is the
- * table this mirrors; the two have to be read together. */
-static bool kind_has(Value receiver, const char *name) {
-    /* Shared by every kind. */
-    if (alg_stricmp(name, "Contains") == 0) return true;
+ * refuses, which is the direction that matters.
+ *
+ * ⚠️ The ARITY is carried, not just the membership, because a member read
+ * without being called binds to something callable that has to know its own
+ * -- ObjCollection.Get, ObjBuffer.Get and ObjFile.Get all pass an arity into
+ * the wrapper they hand back, and those three are the tables this mirrors.
+ * All four have to be read together. */
+static const Member *member_of(Value receiver, const char *name) {
+    static const Member list[]  = { {"Get", 1}, {"Add", 1}, {"Insert", 2}, {"RemoveAt", 1},
+                                    {"IndexOf", 1}, {"Sort", 0}, {"Clear", 0}, {NULL, 0} };
+    static const Member array[] = { {"Get", 1}, {"Set", 2}, {"Fill", 1},
+                                    {"IndexOf", 1}, {"Sort", 0}, {NULL, 0} };
+    static const Member map[]   = { {"Get", 1}, {"Put", 2}, {"Remove", 1},
+                                    {"Keys", 0}, {"Values", 0}, {"Clear", 0}, {NULL, 0} };
+    static const Member set[]   = { {"Add", 1}, {"Remove", 1}, {"ToList", 0},
+                                    {"Clear", 0}, {NULL, 0} };
+    static const Member stack[] = { {"Push", 1}, {"Pop", 0}, {"Peek", 0},
+                                    {"Clear", 0}, {NULL, 0} };
 
-    static const char *const list[]  = { "Get", "Add", "Insert", "RemoveAt",
-                                         "IndexOf", "Sort", "Clear", NULL };
-    static const char *const array[] = { "Get", "Set", "Fill", "IndexOf", "Sort", NULL };
-    static const char *const map[]   = { "Get", "Put", "Remove", "Keys",
-                                         "Values", "Clear", NULL };
-    static const char *const set[]   = { "Add", "Remove", "ToList", "Clear", NULL };
-    static const char *const stack[] = { "Push", "Pop", "Peek", "Clear", NULL };
+    static const Member buffer[] = { {"Append", 1}, {"PutInt", 2}, {"GetInt", 1},
+                                     {"Resize", 1}, {"Free", 0}, {NULL, 0} };
+    static const Member file[]   = { {"Assign", 1}, {"Reset", 0}, {"Rewrite", 0},
+                                     {"Append", 0}, {"ReadLn", 0}, {"Write", 1},
+                                     {"WriteLn", 1}, {"Flush", 0}, {"Close", 0},
+                                     {"Erase", 0}, {"Rename", 1}, {NULL, 0} };
+
+    /* Shared by every collection kind, and by no other receiver. */
+    static const Member shared[] = { {"Contains", 1}, {NULL, 0} };
+
+    if (receiver.type != VAL_OBJ) return NULL;
+
+    if (is_sequence(receiver) || is_obj(receiver, OBJ_MAP)) {
+        const Member *found = row_in(name, shared);
+        if (found != NULL) return found;
+    }
 
     switch (receiver.obj->type) {
-        case OBJ_LIST:  return one_of(name, list);
-        case OBJ_ARRAY: return one_of(name, array);
-        case OBJ_MAP:   return one_of(name, map);
-        case OBJ_SET:   return one_of(name, set);
-        case OBJ_STACK: return one_of(name, stack);
+        case OBJ_LIST:   return row_in(name, list);
+        case OBJ_ARRAY:  return row_in(name, array);
+        case OBJ_MAP:    return row_in(name, map);
+        case OBJ_SET:    return row_in(name, set);
+        case OBJ_STACK:  return row_in(name, stack);
+        case OBJ_BUFFER: return row_in(name, buffer);
+        case OBJ_FILE:   return row_in(name, file);
 
-        default: return false;
+        default: return NULL;
     }
 }
 
@@ -2261,7 +2339,7 @@ static bool collection_method(Value receiver, const char *name, Value *args, int
     /* Named by the receiver's kind, so what runs below is a member that kind
      * actually has.  'Undefined property' is the interpreter's wording, and a
      * collection names the member it does not have [TYP-009]. */
-    if (!kind_has(receiver, name)) undefined("property", name);
+    if (member_of(receiver, name) == NULL) undefined("property", name);
 
     if (alg_stricmp(name, "Add") == 0)       { *result = alg_add_item(receiver, args[0]); return true; }
     if (alg_stricmp(name, "Put") == 0)       { *result = alg_put(receiver, args[0], args[1]); return true; }
@@ -2336,12 +2414,41 @@ typedef struct {
     MethodEntry *method;
 } ObjBound;
 
+/* A built-in member with its receiver attached -- 'L.Sort' without the call.
+ * There is no MethodEntry to point at, so the name and arity are carried and
+ * the call goes back through alg_invoke. */
+typedef struct {
+    Obj obj;
+
+    Value       receiver;
+    const char *name;
+    int32_t     arity;
+} ObjBuiltinBound;
+
 static Value alg_bound(Value receiver, MethodEntry *method) {
     ObjBound *bound = arena_alloc(sizeof(ObjBound));
 
     bound->obj.type = OBJ_BOUND;
     bound->receiver = receiver;
     bound->method   = method;
+
+    return object((Obj *)bound);
+}
+
+/* The same, for a member the RUNTIME provides rather than a class.
+ *
+ * ⚠️ The name is the table's spelling, not the call site's, so 'L.SORT' and
+ * 'L.Sort' bind the same thing and print alike -- a bound method prints the
+ * name its declaration used [SRC-011], and a built-in's declaration is the
+ * table.  Nothing else may be stored: a call-site string is a literal in the
+ * emitted C, which outlives the call, but the table's is the canonical one. */
+static Value builtin_bound(Value receiver, const char *name, int32_t arity) {
+    ObjBuiltinBound *bound = arena_alloc(sizeof(ObjBuiltinBound));
+
+    bound->obj.type = OBJ_BUILTIN_BOUND;
+    bound->receiver = receiver;
+    bound->name     = name;
+    bound->arity    = arity;
 
     return object((Obj *)bound);
 }
@@ -2397,6 +2504,16 @@ Value alg_call(Value callee, Value *args, int32_t count) {
         ObjBound *bound = (ObjBound *)callee.obj;
 
         return invoke_found(bound->method, bound->receiver, args, count);
+    }
+
+    /* And so does a built-in member.  One signature, so the counts are the
+     * whole story -- CollectionMethod, BufferMethod and FileMethod each carry
+     * an arity for exactly this check. */
+    if (is_obj(callee, OBJ_BUILTIN_BOUND)) {
+        ObjBuiltinBound *bound = (ObjBuiltinBound *)callee.obj;
+
+        alg_arity(count, bound->arity);
+        return alg_invoke(bound->receiver, bound->name, args, count);
     }
 
     if (!is_obj(callee, OBJ_CLOSURE)) alg_error("Can only call functions and classes.");
@@ -3318,6 +3435,19 @@ static const char *as_text(Value v) {
                 Builder b = { NULL, 0, 0 };
                 builder_append(&b, "<fn ");
                 builder_append(&b, ((ObjBound *)v.obj)->method->name);
+                builder_append(&b, ">");
+                return b.text;
+            }
+
+            /* ⚠️ A BUILT-IN member read without calling it prints the same way,
+             * because it is the same kind of thing.  The interpreter prints
+             * 'CollectionMethod instance' here, naming a class that exists only
+             * inside algc -- recorded as C-37, where the interpreter is the one
+             * that is wrong. */
+            if (v.obj->type == OBJ_BUILTIN_BOUND) {
+                Builder b = { NULL, 0, 0 };
+                builder_append(&b, "<fn ");
+                builder_append(&b, ((ObjBuiltinBound *)v.obj)->name);
                 builder_append(&b, ">");
                 return b.text;
             }

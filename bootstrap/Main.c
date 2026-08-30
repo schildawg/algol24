@@ -329,6 +329,12 @@ void init_Main(void) {
     fn_compile = alg_closure("Compile", f_compile, NULL, 0, 4);
     fn_usage = alg_closure("Usage", f_usage, NULL, 0, 0);
     fn_main = alg_closure("Main", f_main, NULL, 0, 0);
+    init_AstPrinter();
+    init_Stmt();
+    init_Environment();
+    init_ObjFunction();
+    init_TypeChecker();
+    init_CEmitter();
     v_sample = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Doughnut;"), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        WriteLn ('Fry until golden!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("class BostonCream(Doughnut);")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        super.Cook();")), alg_char_value(10)), alg_string("        WriteLn ('Pipe full of custard and coat with chocolate!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("BostonCream().Cook();")), alg_char_value(10));
     d_sample = true;
     (void)(f_main(NULL, NULL, 0));
@@ -336,27 +342,6 @@ void init_Main(void) {
 
 int main(int argc, char **argv) {
     alg_set_arguments(argc, argv);
-    init_TokenType();
-    init_Token();
-    init_Expr();
-    init_AstPrinter();
-    init_Stmt();
-    init_Environment();
-    init_SourceCode();
-    init_Scanner();
-    init_Console();
-    init_ObjBuffer();
-    init_ObjInstance();
-    init_ObjClass();
-    init_ObjCollection();
-    init_ObjEnum();
-    init_ObjFile();
-    init_Parser();
-    init_Resolver();
-    init_Interpreter();
-    init_ObjFunction();
-    init_TypeChecker();
-    init_CEmitter();
     init_Main();
     return 0;
 }

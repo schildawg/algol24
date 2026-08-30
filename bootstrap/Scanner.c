@@ -573,6 +573,7 @@ void init_Scanner(void) {
     alg_class_method(k_scanner, "IsMark", m_scanner_ismark_1_char, 1, t_scanner_ismark_1_char);
     alg_class_method(k_scanner, "IsAlphaNumeric", m_scanner_isalphanumeric_1_char, 1, t_scanner_isalphanumeric_1_char);
     alg_class_method(k_scanner, "IsDigit", m_scanner_isdigit_1_char, 1, t_scanner_isdigit_1_char);
+    init_SourceCode();
     v_digits = alg_string("0123456789");
     d_digits = true;
     v_uppercase = alg_string("ABCDEFGHIJKLMNOPQRSTUVWXYZ");

@@ -193,4 +193,5 @@ void init_ObjClass(void) {
     alg_class_method(k_objclass, "Arity", m_objclass_arity_0, 0, NULL);
     alg_class_method(k_objclass, "ToString", m_objclass_tostring_0, 0, NULL);
     alg_class_method(k_objclass, "Call", m_objclass_call_2, 2, t_objclass_call_2);
+    init_ObjInstance();
 }

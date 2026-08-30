@@ -162,6 +162,7 @@ void init_Console(void) {
     alg_class_method(k_console, "Debug", m_console_debug_1_string, 1, t_console_debug_1_string);
     alg_class_method(k_console, "Error", m_console_error_2_token_string, 2, t_console_error_2_token_string);
     alg_class_is_object(k_console);
+    init_Scanner();
     v_bar = alg_string("------------------------------------------------------------------------");
     d_bar = true;
     v_esc = alg_char_value(27);

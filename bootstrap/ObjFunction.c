@@ -457,4 +457,5 @@ void init_ObjFunction(void) {
     alg_class_method(k_objfunction, "Arity", m_objfunction_arity_0, 0, NULL);
     alg_class_method(k_objfunction, "ToString", m_objfunction_tostring_0, 0, NULL);
     alg_class_method(k_objfunction, "Call", m_objfunction_call_2, 2, t_objfunction_call_2);
+    init_Interpreter();
 }

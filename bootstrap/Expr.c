@@ -618,4 +618,5 @@ void init_Expr(void) {
     alg_class_initializer(k_isexpr, i_isexpr);
     alg_class_method(k_isexpr, "Init", m_isexpr_init_2_expr_token, 2, t_isexpr_init_2_expr_token);
     alg_class_method(k_isexpr, "Accept", m_isexpr_accept_1, 1, t_isexpr_accept_1);
+    init_Token();
 }

@@ -365,6 +365,16 @@ var
     /// construction and an ancestor's members can be found.
     Classes      : Map;
 
+    /// The classes and objects THIS unit declares at its top level, folded.
+    ///
+    /// ⚠️ Not the same question as Classes, which spans the whole program.
+    /// Whether a class can be built ahead of the statements turns on whether
+    /// its parent is declared in the same FILE: a parent from a module does
+    /// not exist until that module's 'uses' has run [INI-003], so a class
+    /// inheriting from one has to be built where its declaration stands.  This
+    /// is Interpreter.Hoist's rule, and the reason it gives for it.
+    OwnClasses   : Set;
+
     /// Object and enum-type names, and enum members mapped to their symbols.
     Objects      : Set;
     EnumTypes    : Set;
@@ -394,6 +404,7 @@ begin
         this.Locals := List();
         this.Declared := Set();
         this.Classes := Map();
+        this.OwnClasses := Set();
         this.Objects := Set();
         this.EnumTypes := Set();
         this.EnumMembers := Map();
@@ -640,7 +651,13 @@ begin
                     CollectUnits (TheStmt.Statements, ModuleName,
                                   TheStmt.PrivateNames, Units, Str (TheStmt.FileName));
             end
-            else Own.Add (TheStmt);
+
+            // ⚠️ A 'uses' is KEPT in this unit's statements, not filtered out.
+            // A module runs where its clause appears [INI-003], so the position
+            // is the whole of what it contributes -- dropping it here left the
+            // emitter with no way to say when, and every module initializer ran
+            // before any root statement (C-5).  VisitModuleStmt writes the call.
+            Own.Add (TheStmt);
         end
 
         Units.Add (EmitUnit (Name, Own, Imports, Privates, FileName));
@@ -730,9 +747,16 @@ begin
     ///
     function RunsWhenTesting (TheStmt : Stmt) : Boolean;
     begin
+        // ⚠️ A 'uses' runs under '--test' as well.  It is how the module's
+        // names come to exist at all, and only the file being TESTED has its
+        // program held back -- the same rule the interpreter states.  Left out
+        // while a 'uses' was filtered from the statements entirely and 'main'
+        // started every module itself; now that the clause is what starts one,
+        // omitting it would leave a test run with no modules initialized.
         Exit TheStmt is FunctionStmt or TheStmt is ClassStmt
           or TheStmt is ObjectStmt   or TheStmt is EnumStmt
-          or TheStmt is VarGroupStmt or TheStmt is VarStmt;
+          or TheStmt is VarGroupStmt or TheStmt is VarStmt
+          or TheStmt is ModuleStmt;
     end
 
     /// Whether a name leaves its own file.  A 'private' one does not, and needs
@@ -1042,6 +1066,11 @@ begin
             Functions := Buffer();
             Setup := Buffer();
             Shells := Buffer();
+
+            OwnClasses := Set();
+            for var I := 0; I < Unit.Statements.Length; I := I + 1 do
+                if Unit.Statements[I] is ClassStmt or Unit.Statements[I] is ObjectStmt then
+                    OwnClasses.Add (FoldCase (Unit.Statements[I].Name.Lexeme));
             MainBody := Buffer();
             Header := '';
             Target := 'main';
@@ -1260,36 +1289,14 @@ begin
 
         if IsMain then
         begin
-            // ⚠️ The initializers of modules this file did not name, declared
-            // here rather than reached through headers -- exactly as the test
-            // runner declares its test symbols, and for the same reason: 'main'
-            // is not written in Algol-24, so the visibility rule that stops
-            // this file NAMING those modules does not stop it starting them.
-            //
-            // 'main' runs the whole transitive closure, because a module's
-            // file-scope vars must be set up before anything that uses it runs.
-            // Its #include list is the DIRECT imports, because that is what
-            // 'uses' means.  Both are right; they simply have to agree, and
-            // while they did not, 'Root uses Mid uses Deep' emitted init_Deep()
-            // with no declaration in sight and would not compile -- a valid
-            // program that both interpreters run.
-            //
-            // ⚠️ A STAR-shaped import graph hides this: every init it emits is
-            // covered by a direct include, so the case is reached only by a
-            // CHAIN -- 'Root uses Mid uses Deep' -- which is worth keeping a
-            // test for, since most programs are stars.
-            var Visible := Set();
-            Visible.Add (Str (Unit.Name));
-            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
-                Visible.Add (Str (Unit.Imports[I]));
-
-            var Undeclared := '';
-            for var I := 0; I < Units.Length; I := I + 1 do
-                if not Visible.Contains (Str (Units[I].Name)) then
-                    Undeclared := Undeclared + 'void init_' + Str (Units[I].Name)
-                                + '(void);' + #10;
-
-            if Undeclared <> '' then Text := Text + #10 + Undeclared;
+            // ⚠️ No initializer is declared here any more, and none needs to
+            // be.  'main' used to start the whole transitive closure, so it
+            // named modules this file cannot see and had to declare them --
+            // 'Root uses Mid uses Deep' emitted init_Deep() against an #include
+            // list that holds only the DIRECT imports, and would not compile.
+            // Every unit now starts exactly the modules its own 'uses' clauses
+            // name, and those are the headers it already includes, so the two
+            // lists cannot drift apart.
 
             // argc and argv are taken whether or not the program asks for them,
             // and handed straight to the runtime -- which also keeps them used,
@@ -1297,11 +1304,18 @@ begin
             Text := Text + #10 + 'int main(int argc, char **argv) {' + #10;
             Text := Text + '    alg_set_arguments(argc, argv);' + #10;
 
-            // In load order, which is dependency order: a module is reached
-            // through the file that needed it, and its own 'uses' were followed
-            // before it was finished.
-            for var I := 0; I < Units.Length; I := I + 1 do
-                Text := Text + '    init_' + Str (Units[I].Name) + '();' + #10;
+            // ⚠️ The ROOT's initializer, and nothing else.  Every other module
+            // is started by the 'uses' that names it, where that clause stands
+            // [INI-003] -- this called every initializer in load order first,
+            // so a program whose modules printed, opened a file or set a
+            // variable the root then read behaved differently under the two
+            // processors, and nothing warned (C-5).
+            //
+            // ⚠️ A module's imports still run before it [INI-004], for the same
+            // reason and by the same mechanism: its own 'uses' clauses stand at
+            // the top of its body, so its initializer starts them before its
+            // own statements run.
+            Text := Text + '    init_' + Str (Unit.Name) + '();' + #10;
 
             Text := Text + Written;
             Text := Text + '    return 0;' + #10 + '}' + #10;
@@ -2163,6 +2177,14 @@ begin
         Shells.Append ('    ' + Handle + ' = alg_class(' + QuoteC (Name)
                + ', alg_nil());' + #10);
 
+        // ⚠️ Built ahead of the statements only when its parent is absent or is
+        // another class of THIS FILE, which is Interpreter.Hoist's rule and has
+        // to be, now that a module runs where its 'uses' stands [INI-003].  A
+        // parent from a module does not exist until that clause has run, so a
+        // class inheriting from one is built where its declaration stands --
+        // where the program has already reached the 'uses' above it.
+        var Hoisted := SuperName = '' or OwnClasses.Contains (FoldCase (SuperName));
+
         if SuperName <> '' then
         begin
             // ⚠️ A superclass must BE a class [CLS-014], and this is the last
@@ -2179,21 +2201,30 @@ begin
             if not Classes.Contains (SuperName) and not Objects.Contains (SuperName) then
                 raise '''' + SuperName + ''' is not a class.';
 
+            // ⚠️ Only where the link is NOT hoisted, because only there can the
+            // parent be unbound: a hoisted one is a class of this same file and
+            // its shell has already run.  A parent from a module named BELOW
+            // this declaration has not, and that is 'Undefined variable'
+            // interpreted rather than a link to nothing.
+            if not Hoisted then
+                Built (Hoisted, 'alg_class_declared(' + ClassHandle (SuperName) + ', '
+                     + QuoteC (SuperName) + ');');
+
             // ⚠️ ClassHandle, not 'Super': 'super' is a keyword, and keyword
             // lookup is case-insensitive, so it cannot be a variable name.  The
             // same collision that renamed Break to Broke and Object to Obj.
-            Setup.Append ('    alg_class_super(' + Handle + ', '
-                   + ClassHandle (SuperName) + ');' + #10);
+            Built (Hoisted, 'alg_class_super(' + Handle + ', '
+                 + ClassHandle (SuperName) + ');');
         end
 
         for var I := 0; I < Fields.Length; I := I + 1 do
-            Setup.Append ('    alg_class_field(' + Handle + ', '
-                   + QuoteC (Str (Fields[I].Name.Lexeme)) + ');' + #10);
+            Built (Hoisted, 'alg_class_field(' + Handle + ', '
+                 + QuoteC (Str (Fields[I].Name.Lexeme)) + ');');
 
         if AddId then
-            Setup.Append ('    alg_class_field(' + Handle + ', "Id");' + #10);
+            Built (Hoisted, 'alg_class_field(' + Handle + ', "Id");');
 
-        Setup.Append ('    alg_class_initializer(' + Handle + ', ' + Initializer + ');' + #10);
+        Built (Hoisted, 'alg_class_initializer(' + Handle + ', ' + Initializer + ');');
 
         for var I := 0; I < Methods.Length; I := I + 1 do
         begin
@@ -2225,14 +2256,22 @@ begin
                              + '[] = { ' + Quoted + ' };' + #10);
             end
 
-            Setup.Append ('    alg_class_method(' + Handle + ', '
-                   + QuoteC (Str (TheMethod.Name.Lexeme)) + ', '
-                   + MethodSymbol (Name, TheMethod) + ', '
-                   + Str (TheMethod.Params.Length) + ', ' + Table + ');' + #10);
+            Built (Hoisted, 'alg_class_method(' + Handle + ', '
+                 + QuoteC (Str (TheMethod.Name.Lexeme)) + ', '
+                 + MethodSymbol (Name, TheMethod) + ', '
+                 + Str (TheMethod.Params.Length) + ', ' + Table + ');');
         end
 
-        if IsObject then
-            Setup.Append ('    alg_class_is_object(' + Handle + ');' + #10);
+        if IsObject then Built (Hoisted, 'alg_class_is_object(' + Handle + ');');
+    end
+
+    /// One line of a class's construction: hoisted ahead of the unit's
+    /// statements, or emitted where the declaration stands.
+    ///
+    procedure Built (Hoisted : Boolean, Text : String);
+    begin
+        if Hoisted then Setup.Append ('    ' + Text + #10);
+        else Line (Text);
     end
 
     // ------------------------------------------------------------ statements
@@ -3746,8 +3785,19 @@ begin
     /// Reached only for a 'uses' inside something other than the top level:
     /// Flatten pulls every top-level module out before anything is emitted.
     ///
+    /// A 'uses' runs its module HERE [INI-003].
+    ///
+    /// ⚠️ Emitted only where the module was actually loaded.  A re-import
+    /// carries no statements [MOD-003] and must not start the module a second
+    /// time; the first clause to reach it is both the first in parse order and
+    /// the first in execution order, because both are the file's source order
+    /// walked depth-first.
+    ///
     procedure VisitModuleStmt (TheStmt : ModuleStmt);
     begin
-        Unsupported ('A nested ''uses''');
+        if not AtTopLevel then Unsupported ('A nested ''uses''');
+
+        if TheStmt.Statements <> Nil then
+            Line ('init_' + UnitNameOf (Str (TheStmt.FileName)) + '();');
     end
 end

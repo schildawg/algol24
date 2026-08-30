@@ -83,6 +83,13 @@ typedef enum {
      * call.  The interpreter hands back a bound method for exactly this, and
      * nothing here did. */
     OBJ_BOUND,
+
+    /* The same thing for a BUILT-IN member -- 'L.Sort' without the call.  A
+     * collection, a Buffer and a TextFile have no MethodEntry to bind, so this
+     * carries the receiver, the member's name and its arity instead, and the
+     * call goes back through alg_invoke.  The interpreter's CollectionMethod,
+     * BufferMethod and FileMethod are the same three fields. */
+    OBJ_BUILTIN_BOUND,
     OBJ_LIST,
     OBJ_SET,
     OBJ_STACK,
@@ -256,6 +263,11 @@ Value alg_class(const char *name, Value super);
  * only ever see a handle that was still nil, which linked the child to nothing
  * and made the inherited method 'Undefined property'. */
 void  alg_class_super(Value klass, Value super);
+
+/* Checks that the name a class inherits from is bound, naming it if not.  A
+ * class whose parent comes from a module is linked where its declaration
+ * stands, and there the module may not have run -- see the definition. */
+void  alg_class_declared(Value klass, const char *name);
 
 void  alg_class_field(Value klass, const char *name);
 /* Registers a method.  'types' names each parameter's declared type, "Any"
