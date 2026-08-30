@@ -6343,6 +6343,11 @@ what; in short:
 | `List` | pinned by `[…]`, and not worth moving until H-4 and H-5 arrive. |
 | `Map` | pinned by `[:]` and `[k : v]`, and by wanting `M[K]`. |
 
+⚠️ **H-14 comes first.** Moving a collection out is only a saving if the unit
+can reach what it needs without the runtime growing a built-in for every call —
+otherwise everything removed from chapter 14 arrives back in chapter 16, and
+this is paid for twice.
+
 ⚠️ **H-4, H-5 and H-6 are prerequisites for the last two**, not merely desirable
 alongside them. Without a subscript operator, an iteration protocol and a
 computed property, a `List` written in Algol-24 reads `L.Get(I)` and
@@ -6485,3 +6490,102 @@ already defined there, and `WARN_TAG` follows `INFO_TAG` and `ERROR_TAG`
 exactly — including the ⚠️ those two carry about their names: `WARN_TAG` rather
 than `WARN`, because names are matched without regard to case [SRC-011] and a
 `procedure Warn` beside it would be the same name.
+
+**H-13 — Character arithmetic.** *(will change [VAL-009])*
+
+`'z' - 'a'` yields the Integer 25, and `'a' + 1`… does not, which is where this
+gets interesting.
+
+| written | today | wanted |
+| --- | --- | --- |
+| `'z' - 'a'` | `Operands must be numbers.` | `25` |
+| `'z' - 1` | `Operands must be numbers.` | `'y'` |
+| `'a' + 1` | `'a1'` — a **String** | ? |
+
+⚠️ **Unicode is not the difficulty, and it was expected to be.** A `Char` is
+already a code point [LEX-025], not a byte and not a UTF-16 unit; `Ord` already
+answers an Integer code point and `Char` already accepts one well above 127.
+Subtraction on code points is exactly what C does, and `'é' - 'a'` being 132 is
+arithmetic that is well defined and merely not linguistically meaningful — the
+same bargain every language makes here.
+
+⚠️ **The difficulty is `+`, which is taken.** `'a' + 1` is `a1` today: a `Char`
+widens to a `String` in an assignment context [VAR-004] and `+` concatenates.
+Making it yield `'b'` would silently change what existing programs mean, which
+is the one kind of change this specification will not make quietly. So the
+choice is between an **asymmetry** — subtraction arithmetic, addition
+concatenation — and a **breaking change**, and asymmetry is exactly what Annex H
+usually argues against.
+
+⚠️ **Three ways out, and none is obviously right.** Take `-` alone and live with
+the asymmetry; add `Succ` and `Pred` so stepping has a spelling of its own and
+`+` is left alone; or decide that `Char + Integer` was always a mistake and
+change it, with a defect recording what it used to do. The first is smallest,
+the second is the most Pascal, and the third is the only one that ends with a
+rule a reader can state in one sentence.
+
+⚠️ **It is already expressible**, which is what makes this a question of reading
+rather than of power: `Ord ('z') - Ord ('a')` is 25 today, in both processors.
+
+**H-14 — A foreign function interface.** *(will change [RT-001], and more)*
+
+A way to declare and call a C function directly, so that the built-ins can stop
+being a closed set of twenty-six names the runtime has to carry.
+
+⚠️ **This is the prerequisite for H-9, not a companion to it.** Moving the
+collections into a unit written in Algol-24 is only a saving if the unit can
+reach what it needs without the runtime growing a built-in for every call it
+wants — otherwise each thing removed from chapter 14 arrives back in chapter 16.
+Taken in the other order, H-9 would be paid for twice.
+
+⚠️ **The interpreter is the difficulty, and it is a real one.** A compiled
+program can call anything it is linked against — the back end already emits C
+and the runtime already is C. The tree-walker cannot: it would need `dlopen`,
+`dlsym` and a way to marshal a tagged `Value` into a C calling convention it
+does not know at compile time. An FFI that works compiled and not interpreted
+would be a **gap by construction**, and a generation is not complete until both
+processors pass every case.
+
+⚠️ **Which makes the shape of the declaration the whole design.** A signature
+narrow enough that the interpreter can dispatch it from a fixed table of
+supported forms is a different feature from one that admits arbitrary C, and
+choosing between them is the first decision, not a detail of it. The narrow one
+may be enough: what the collections actually need is memory, comparison and
+counted loops, not the whole of libc.
+
+⚠️ **It also changes what "the two processors agree" can mean.** A foreign call
+has behaviour this specification does not define and cannot check, so the rules
+will have to say where conformance stops — the first place in this language
+where that sentence has to be written.
+
+**H-15 — The `with` statement.** *(will change [EXP-009], and more)*
+
+Turbo Pascal's `with`: name a value once and reach its members without
+repeating it.
+
+```
+with Config do
+begin
+    Width  := 80;
+    Height := 25;
+end
+```
+
+⚠️ **The Resolver is the difficulty.** It binds every bare name to a scope depth
+before anything runs, which is what makes a variable read a fixed number of hops
+rather than a search. `with` puts a name in front of that decision whose meaning
+depends on a value's **class**, and in a gradually typed language the class is
+often not known until the program runs — so either `with` is restricted to
+receivers whose type the checker does know, or a bare name inside one becomes a
+run-time search and stops being the cheap thing the Resolver made it.
+
+⚠️ **Nesting is where it earns its reputation.** Two `with` statements one
+inside the other, each carrying a `Name`, and the reader cannot tell which is
+meant without knowing both classes. Pascal's own community treats this as the
+construct's known cost; the language would be choosing to take it on.
+
+⚠️ **`this` is the shape already in the language.** Inside a method a bare name
+already reaches a field, and `with` is that mechanism pointed at an arbitrary
+value instead of the receiver — so the question is less "can it be done" than
+whether a second way to make a name mean a field is worth the ambiguity of
+having two.
