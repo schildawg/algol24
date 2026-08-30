@@ -6569,49 +6569,51 @@ exactly — including the ⚠️ those two carry about their names: `WARN_TAG` r
 than `WARN`, because names are matched without regard to case [SRC-011] and a
 `procedure Warn` beside it would be the same name.
 
-**H-13 — Character arithmetic.** *(will change [VAL-009], [EXP-002])*
+**H-13 — Character arithmetic, the Pascal way.**
+*(will change [VAL-009], [RT-001])*
 
-A `Char` is an ordinal, and arithmetic on one steps or measures it:
+A `Char` is an ordinal. Stepping one has a name, measuring two is subtraction,
+and `+` goes back to meaning exactly one thing:
 
 | written | today | wanted |
 | --- | --- | --- |
 | `'z' - 'a'` | `Operands must be numbers.` | `25` — a distance |
-| `'a' + 1` | `'a1'` — a **String** | `'b'` — a step |
-| `'z' - 1` | `Operands must be numbers.` | `'y'` |
+| `Succ ('a')`, `Pred ('b')` | `Undefined variable 'Succ'.` | `'b'`, `'a'` |
+| `'a' + 1` | `'a1'` — a **String** | **refused** |
 | `Str ('a') + 1` | `'a1'` | `'a1'` — unchanged |
-| `'ab' + 1` | `'ab1'` | `'ab1'` — unchanged |
+| `'a' + 'b'` | `'ab'` | `'ab'` — unchanged |
+
+⚠️ **Turbo Pascal's model, and only one part of it is already here.** TP
+concatenates `'a' + 'b'`, refuses `'a' + 1` outright, has no char subtraction at
+all, and steps with `Succ` and `Pred`. Algol-24 matches on the first and on
+nothing else: `'a' + 1` silently widens, `'z' - 'a'` is an error, and `Succ`
+and `Pred` are not built in.
+
+⚠️ **Refusing `'a' + 1` is the repair, and it is the reason to do this.** `Str`
+is how a `Char` widens to a `String` — that is why `Line ('{')` must be declared
+`Any` — yet `'a' + 1` and `Str ('a') + 1` both give `a1` today, so in this one
+place widening happens without being asked for and `Str` is decorative.
+[VAR-004] specifies widening **to reach a written type**, at a declaration; `+`
+in an expression is not that rule being applied, it is an extra one nobody wrote
+down. Making the mixed form an error gives `Str` its meaning back.
+
+⚠️ **Breaking, but in the safer direction.** `'a' + 1` becomes an **error**
+rather than quietly changing value, so no program silently computes something
+new — and the blast radius is measured: no `Char + Integer` appears anywhere in
+`compiler/*.a24`. A defect records what the expression used to do.
 
 ⚠️ **Unicode is not the difficulty, and it was expected to be.** A `Char` is
-already a code point [LEX-025], not a byte and not a UTF-16 unit; `Ord` already
-answers an Integer code point and `Char` already accepts one well above 127.
-`'é' - 'a'` being 132 is arithmetic that is well defined and merely not
-linguistically meaningful — the bargain every language makes here.
+already a code point [LEX-025], and `Ord` already answers an Integer one. `'é' -
+'a'` being 132 is arithmetic that is well defined and merely not linguistically
+meaningful — the bargain every language makes here.
 
-⚠️ **The difficulty is that `'a' + 1` means something already** — and what it
-means contradicts the rule the language states elsewhere. `Str` is how a `Char`
-widens to a `String`; that is why `Line ('{')` must be declared `Any`. Yet
-`'a' + 1` and `Str ('a') + 1` both give `a1` today, so in this one place the
-widening happens without being asked for and `Str` is decorative. [VAR-004]
-specifies widening **to reach a written type**, at a declaration; `+` in an
-expression is not that rule being applied, it is an extra one nobody wrote down.
+⚠️ **The C model was considered and declined.** `'a' + 1` yielding `'b'` puts
+arithmetic on `+` and makes the operator mean a step or a join depending on its
+right operand. `Succ` costs one word, says what it does, and leaves `+` alone.
 
-⚠️ **So this is a repair as much as a feature.** Making `'a' + 1` yield `'b'`
-restores the meaning of `Str`: widening becomes something a program asks for
-rather than something an operator does behind it. The change is breaking, and
-the blast radius is small — no `Char + Integer` appears anywhere in
-`compiler/*.a24` — but it is still a change of meaning and wants a defect
-recording what the expression used to do.
-
-⚠️ **`Char + Char` is the case left to decide.** `'a' + 'b'` is `'ab'` today.
-Under an ordinal reading it is neither a step nor a distance, so the coherent
-answers are to refuse it — the Pascal treatment of ordinals, where `Succ`,
-`Pred` and subtraction are the operations and addition of two ordinals is not
-one — or to leave it as concatenation and accept that `+` means two things
-depending on the right operand. Refusing is the more honest and the more
-breaking.
-
-⚠️ **It is already expressible**, which makes this a question of reading rather
-than of power: `Ord ('z') - Ord ('a')` is 25 today, in both processors.
+⚠️ **Two of the three are already expressible**, which makes this a question of
+reading rather than of power: `Ord ('z') - Ord ('a')` is 25 today and
+`Char (Ord ('a') + 1)` is `'b'`, in both processors.
 
 **H-14 — A foreign function interface.** *(will change [RT-001], and more)*
 
