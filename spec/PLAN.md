@@ -58,11 +58,28 @@ was the one in error — and no rule was weakened to make a gap go away.
 | **Gen 0** | The specification is written and reviewed. | The spec is read carefully and signed off. Merge to `main`, tag **Gen 0**. |
 | **Gen 1** | The spec is authoritative and conformance is enforcement. Work through the defects until there are none. | `defects/` is empty. Tag **Gen 1**. |
 | **Gen 2** | Turn on the compiler. Annex C's divergences become defects and are worked through the same way. | Conformance passes under **both** processors and no defect remains. Tag **Gen 2**. |
-| **Gen 3** | The numbers: what they are, how they are written, what may be asked of them. | The type set below is implemented under both processors, conformance passes, and the fixed point holds. Tag **Gen 3**. |
+| **Gen 3** | The numbers: what they are, how they are written, what may be asked of them. | The bar below. Tag **Gen 3**. |
 | **v1** | New language features and a runtime library, prioritized, each staying within conformance. | Release. |
 
-⚠️ **The Gen 2 gate is met.** `./conform.sh` reports no gap, so `--strict`
-passes too; the relaxation described below no longer relaxes anything.
+⚠️ **From Generation 3 onward a generation is complete only when every case in
+`conformance/` and `refusals/` passes under BOTH processors** — the interpreter
+and the compiled back end — with `./test.sh`, `./spec/spec.sh` and
+`./fixedpoint.sh` green beside them. A compiler gap is a **failure**, not a
+report.
+
+⚠️ **The bar is enforced by `conform.sh` rather than stated here**, and that is
+the point. Agreement between the two processors took a whole generation to
+reach; a gate that only reports is a gate that lets it decay one accepted gap at
+a time. `--lenient` still shows work in progress and is not a way to finish
+anything.
+
+⚠️ **This is what closes the door Generations 1 and 2 held open.** Through both
+of them a gap was deliberately not a failure, because the compiler was expected
+to trail while the interpreter was brought to the specification, and `--strict`
+was the opt-in. The default is now the other way round.
+
+⚠️ **The Gen 2 gate is met**, and `conform.sh` now enforces it by default. The
+relaxation described below is over.
 
 ⚠️ **Sections 1 to 7 below describe Generation 1's work** and are kept as its
 record. The plan for the generation now in front of us is *Plan: Generation 3 —
@@ -74,8 +91,8 @@ ordering or §3's sequence applies to it.
 ⚠️ **What changed at the Gen 1 → Gen 2 boundary is the corpus doctrine itself.**
 Today a case is classified by one question — *is the interpreter right?* — and
 compiler gaps are reported but do not fail the run
-(`conformance/README.md`). At Gen 2 that relaxation ends: `./conform.sh
---strict` becomes the gate, and each Annex C entry earns a defect of its own.
+(`conformance/README.md`). At Gen 2 that relaxation ends: failing on a compiler
+gap becomes the gate, and each Annex C entry earns a defect of its own.
 The classification question does not change, because by then the interpreter
 matches the specification and "is the interpreter right?" is answered yes
 everywhere; what changes is that the compiler is no longer excused.
@@ -583,7 +600,7 @@ rest of the corpus doctrine.
 ## 5. Not in this generation
 
 **The compiler.** 28 gaps in Annex C, expected to stay red throughout. They are
-generation 2, and `./conform.sh --strict` is the gate that will open it. Four
+generation 2, and failing on a compiler gap is the gate that will open it. Four
 will close as a side effect of this generation — C-1 with DEF-24, C-12 with
 DEF-17, and C-4 and C-9 reverse, becoming interpreter defects that this
 generation fixes.

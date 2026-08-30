@@ -4094,7 +4094,13 @@ begin
     /// of emitted C never sees it.
     function VisitSuperExpr (TheExpr : SuperExpr) : String;
     begin
-        Unsupported ('''super'' as a value');
+        if CurrentClass = '' then Unsupported ('''super'' outside a class');
+
+        // ⚠️ The class that DECLARED this method, not the receiver's own, which
+        // is the same handle 'super.M ()' passes -- an override searching from
+        // its receiver would find itself.
+        Exit 'alg_bound_from(' + ClassHandle (CurrentClass) + ', ' + ThisRef ()
+           + ', ' + QuoteC (Str (TheExpr.Method.Lexeme)) + ')';
     end
 
     function VisitThisExpr (TheExpr : ThisExpr) : String;

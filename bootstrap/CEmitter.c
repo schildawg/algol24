@@ -4220,7 +4220,10 @@ static Value m_cemitter_visitsuperexpr_1_superexpr(Value v_this, Value *args, in
     (void)v_this; (void)args; (void)count;
     Value v_theexpr = alg_widen(args[0], "SuperExpr");
     (void)v_theexpr;
-    (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_string("'super' as a value")}, 1));
+    if (alg_truthy(alg_equal(alg_property(v_this, "CurrentClass"), alg_string("")))) {
+        (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_string("'super' outside a class")}, 1));
+    }
+    return alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("alg_bound_from("), alg_invoke(v_this, "ClassHandle", (Value[]){alg_property(v_this, "CurrentClass")}, 1)), alg_string(", ")), alg_invoke(v_this, "ThisRef", NULL, 0)), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Method"), "Lexeme"))}, 1)), alg_char_value(41));
     return alg_nil();
 }
 

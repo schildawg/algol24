@@ -317,6 +317,9 @@ Value alg_set_property(Value receiver, const char *name, Value value);
 Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count);
 
 /* 'super.M()' -- starts the search above the class that declared the caller. */
+/* 'super.M' as a value: the parent's method bound to this receiver. */
+Value alg_bound_from(Value klass, Value receiver, const char *name);
+
 Value alg_invoke_from(Value klass, Value receiver, const char *name, Value *args, int32_t count);
 
 /* Functions as values.

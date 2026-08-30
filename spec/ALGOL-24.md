@@ -1,7 +1,7 @@
 # The Algol-24 Programming Language Specification
 
 > **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 263 rules. Every rule is **decided** — what the
+> chapters and eight annexes, 262 rules. Every rule is **decided** — what the
 > language should do — and every rule is claimed by a case: a program in
 > `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
 > None awaits one.
@@ -2350,9 +2350,16 @@ calling method, not above the runtime class.
 of `this`. A method in `B` calling `super.Who()` reaches `A`'s version even when
 the receiver is a `C` below `B`.
 
+⚠️ **`super.M` read without calling it binds the parent's method to this
+receiver**, exactly as `B.M` binds the receiver's own [CLS-011], and the search
+starts in the same place. It is the only way a program can hold the
+implementation an override replaced.
+
     interpreter  compiler/Interpreter.a24  VisitSuperExpr
     compiler     bootstrap/algol.c         alg_invoke_from
+    compiler     bootstrap/algol.c         alg_bound_from
     conformance  0068-inheritance.a24
+    conformance  0150-super-as-a-value.a24
 
 **[CLS-013]**  A class may not inherit from itself: `A class can't inherit from
 itself.`
@@ -3668,8 +3675,10 @@ worse, and the column says which each is.
 kind of case; it is an *outcome*. Every case in `conformance/` runs under both
 processors, and a case the interpreter gets right and the compiler does not
 fails its compiled half — that failure **is** the record of the divergence, and
-`conform.sh` reports it as a gap rather than a failure. The classification of a
-case never depends on the compiler's state:
+`conform.sh` calls it a gap. **A gap fails the run**, from Generation 3 onward;
+through Generations 1 and 2 it was reported instead, while the compiler was
+deliberately allowed to trail. The classification of a case never depends on the
+compiler's state:
 
 | The interpreter is | The case goes in |
 | --- | --- |
@@ -4808,6 +4817,30 @@ call, `super`, and `this` itself — all had to ask instead.
 A closure that escapes a method keeps its receiver: `C.Make (3)` hands back a
 function that goes on mutating `C`'s field, and a second `Counter` gets its own.
 
+
+**C-39 — `super` as a value will not compile.**
+***Withdrawn.***
+*(refers to [CLS-012], [CLS-011])*
+
+```
+'super' as a value is not supported by the C back end yet.
+```
+
+`var Parent := super.Speak;` runs interpreted and was refused compiled.
+
+⚠️ **Found by the gate on the day it was tightened**, not by looking for it. The
+generation bar became "every case passes under both processors", `conform.sh`
+was changed to fail on a gap rather than report one, and the first thing needed
+was a case that would prove the new gate bites. `super` as a value was the only
+refusal still reachable — the other two the emitter names are refused by the
+*parser* first, in both processors — so it served as the fixture and turned out
+to be real work.
+
+⚠️ **The refusal was older than the mechanism it needed.** `alg_invoke_from`
+already searched from the declaring class, and `alg_bound` already bound a
+method to a receiver; `alg_bound_from` is the two of them in one call. The
+spelling had simply never been reached, because nothing in `compiler/*.a24`
+holds `super.M` as a value.
 
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
 > blocked on "a registry of declared type names that does not exist —

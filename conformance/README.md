@@ -4,9 +4,9 @@ Three directories, one question, and a distinction that decides everything
 else. `conformance/`, `refusals/` and `defects/` are run by `../conform.sh`.
 
 ```sh
-./conform.sh                # everything
+./conform.sh                # everything -- both processors must pass
 ./conform.sh --interpreted  # skip the compiled half
-./conform.sh --strict       # also fail on compiler gaps
+./conform.sh --lenient      # report compiler gaps without failing
 ./conform.sh --record       # write expectations from what happens
 ```
 
@@ -41,10 +41,16 @@ back.
 
 ## Two verdicts, because they answer different questions
 
-- **the language** — the interpreted half, which must be green. This is the
-  gate.
-- **the compiler** — gaps, counted and listed. **Expected** while the compiler
-  trails the specification, and not a failure unless `--strict`.
+- **the language** — the interpreted half, which must be green.
+- **the compiler** — the compiled half, which must be green too. A case the
+  interpreter gets right and the compiled program gets wrong is a **gap**, and a
+  gap is a **failure**.
+
+⚠️ **Both are the gate, as of Generation 3.** Through Generations 1 and 2 a gap
+was reported without failing the run, because the compiler was deliberately
+allowed to trail while the interpreter was brought to the specification. That
+relaxation ended the moment the count reached zero. `--lenient` still shows work
+in progress; it is not a way to finish anything.
 
 A third question is asked elsewhere and is the one that must not break: does the
 compiler still build and reproduce itself? That is `../fixedpoint.sh` and
@@ -182,9 +188,10 @@ Two harnesses check it, and the split matters:
   differs is a **failure**: the divergence has been fixed and the entry now reads
   as open, which is how C-1, C-3, C-4 and C-22 came to be wrong.
 
-⚠️ A gap that **no** entry cites is the backlog, not an error — the mapping is
-Generation 2's work. Under `--strict` it is an error, and `--strict` passing with
-no gaps at all is what ends Generation 2.
+⚠️ A gap that **no** entry cites fails on its own account, ahead of the gap
+count, so the message names the real problem: a divergence nothing has written
+up is worse than one that has been, whatever the totals say. Under `--lenient`
+it is the backlog it used to be.
 
 ## Colour is transliterated, not stripped
 

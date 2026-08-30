@@ -3,9 +3,9 @@
 # conform.sh -- runs the conformance corpus, the refusal corpus, and the
 # defects.
 #
-#   ./conform.sh                # everything
+#   ./conform.sh                # everything -- both processors must pass
 #   ./conform.sh --interpreted  # skip the compiled half entirely
-#   ./conform.sh --strict       # also fail on compiler gaps
+#   ./conform.sh --lenient      # report compiler gaps without failing
 #   ./conform.sh --record       # write .out/.expected/.current from what happens
 #
 # ⚠️ THE INTERPRETER DEFINES THE CORPUS. Every case here asks one question --
@@ -17,17 +17,29 @@
 #                         IS the record of the divergence.
 #   interpreter wrong  -> defects/, EVEN IF the compiler is right.
 #
-# This is deliberate and follows the generation plan: the goal of the next
-# generation is an interpreter that matches the specification, and the goal of
-# the one after is a compiler that matches the interpreter. Classifying by the
-# compiler's state would mix the two.
+# This is deliberate and outlived the generations that motivated it: the goal of
+# Generation 1 was an interpreter that matches the specification and of
+# Generation 2 a compiler that matches the interpreter. Both are met, and
+# classifying a case by the compiler's state would still mix two questions.
 #
 # ⚠️ TWO VERDICTS, NOT ONE, because they answer different questions:
 #
-#   the language   the interpreted half must be green. This is the gate.
-#   the compiler   compiled failures are counted and listed as GAPS. They are
-#                  EXPECTED while the compiler trails the specification, and do
-#                  not fail the run unless --strict is given.
+#   the language   the interpreted half must be green.
+#   the compiler   the compiled half must be green too. A case the interpreter
+#                  gets right and the compiled program gets wrong is a GAP, and
+#                  a gap is a FAILURE.
+#
+# ⚠️ BOTH ARE THE GATE, and that is new as of Generation 3. Through Generations
+# 1 and 2 a gap was reported and did not fail the run, because the compiler was
+# deliberately allowed to trail while the interpreter was brought to the
+# specification; --strict was the opt-in that made gaps fatal. That relaxation
+# ended the moment the count reached zero.
+#
+# ⚠️ The bar is enforced HERE rather than written down somewhere, because
+# agreement between the two processors took a whole generation to reach and a
+# gate that only reports is a gate that lets it decay one accepted gap at a
+# time. --lenient still exists for looking at work in progress; it is not a way
+# to finish anything.
 #
 # A third question is not asked here at all: whether the compiler still builds
 # and reproduces itself. That is ./fixedpoint.sh and ./test.sh, and it is the
@@ -52,12 +64,19 @@ ALGC="bootstrap/algc"
 SPEC="spec/ALGOL-24.md"
 RECORD=0
 COMPILED=1
-STRICT=0
+
+# Gaps fail by default -- see the note at the top.  --lenient reports them
+# instead, for looking at work in progress.
+STRICT=1
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --record)      RECORD=1 ;;
         --interpreted) COMPILED=0 ;;
+        --lenient)     STRICT=0 ;;
+
+        # Accepted and ignored: it is the default now.  Kept so a script or a
+        # habit that still passes it does not break.
         --strict)      STRICT=1 ;;
         -h|--help)
             sed -n '2,/^set -eu/p' "$0" | sed 's/^#\{1,2\} \{0,1\}//; s/^#$//; /^set -eu$/d'
@@ -277,11 +296,12 @@ if [ -n "$STALE" ]; then
     exit 1
 fi
 
-# ⚠️ An UNCITED gap is the backlog, not an error -- the mapping from Annex C to
-# the cases that demonstrate it has still to be written.  Under --strict it is
-# an error, and --strict passing with no gaps at all is what ends Generation 2.
+# ⚠️ An uncited gap fails on its own account, ahead of the gap count below, so
+# the message names the real problem: a divergence nothing has written up is
+# worse than one that has been, whatever the totals say.  Under --lenient it is
+# the backlog it used to be.
 if [ -n "$UNCITED" ] && [ "$STRICT" -eq 1 ]; then
-    echo "FAIL: --strict, and $(echo "$UNCITED" | wc -w | tr -d ' ') gap(s) no entry cites."
+    echo "FAIL: $(echo "$UNCITED" | wc -w | tr -d ' ') gap(s) no divergence entry cites."
     exit 1
 fi
 
@@ -289,10 +309,13 @@ echo
 [ "$FAIL" -eq 0 ] || { echo "FAIL: the interpreter does not match the specification."; exit 1; }
 
 if [ "$STRICT" -eq 1 ] && [ "$GAPS" -gt 0 ]; then
-    echo "FAIL: --strict, and the compiler has $GAPS gap(s)."
+    echo "FAIL: the compiler has $GAPS gap(s) -- a case the interpreter gets"
+    echo "      right and the compiled program does not.  Both processors must"
+    echo "      pass.  ./conform.sh --lenient reports these without failing."
     exit 1
 fi
 
 echo "OK: the interpreter conforms where the specification says it should,"
-echo "    and every recorded defect still reproduces."
-[ "$GAPS" -eq 0 ] || echo "    $GAPS compiler gap(s) remain, which is expected and not a failure."
+echo "    the compiled back end agrees with it, and every recorded defect still"
+echo "    reproduces."
+[ "$GAPS" -eq 0 ] || echo "    $GAPS compiler gap(s), reported and not failed (--lenient)."

@@ -2416,6 +2416,27 @@ Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
     return alg_nil();
 }
 
+/* 'super.M' read without calling it.
+ *
+ * ⚠️ The same search alg_invoke_from makes -- above the class that DECLARED the
+ * running method, not above the receiver's own -- so an override does not find
+ * itself.  Binding it is the only way a program can hold the implementation an
+ * override replaced, and the emitter refused the spelling outright until now.
+ *
+ * ⚠️ The FIRST method of that name, whatever its arity, exactly as alg_property
+ * does for a receiver's own: the interpreter re-selects on the whole signature
+ * when the value is finally called. */
+Value alg_bound_from(Value value, Value receiver, const char *name) {
+    ObjClass *klass = as_class(value, "Expected a class.");
+
+    if (klass->super == NULL) alg_error("No superclass.");
+
+    MethodEntry *method = find_method(klass->super, name, -1, NULL, false);
+    if (method == NULL) alg_error("Undefined method on the superclass.");
+
+    return alg_bound(receiver, method);
+}
+
 Value alg_invoke_from(Value value, Value receiver, const char *name, Value *args, int32_t count) {
     ObjClass *klass = as_class(value, "Expected a class.");
 
