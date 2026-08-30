@@ -2223,11 +2223,14 @@ subprogram's are not [FUN-006]. Fixing this fixes that.
 
 **[FUN-012]**  Subprograms may be declared inside subprograms, to any depth.
 
-⚠️ The C back end refuses more than one level (C-2), so `conformance/0063` is
-one of the cases expected to fail its compiled half.
+⚠️ **A method's body counts**, and is where the depth rule meets [CLS-011]: a
+function declared in one closes over the method's locals *and* over `this`, so a
+field read inside it resolves through the receiver the method was called on.
+The C back end refuses that shape (C-38); the depth itself it handles.
 
     interpreter  compiler/Parser.a24  ParseFunction
     conformance  0063-nesting.a24
+    conformance  0148-a-function-inside-a-method.a24
 
 ---
 
@@ -3671,16 +3674,32 @@ was refusing no longer exists. `--compile --test compiler/Parser.a24` emits, and
 ⚠️ The number is not reused. A withdrawn entry stays where it is, because the
 divergence it described was real and citing it should keep working.
 
-**C-2 — Functions may not nest more than one level deep.** *(loud)*
+**C-2 — Functions may not nest more than one level deep.**
+***Withdrawn.***
 *(refers to [FUN-012])*
 
 ```
 A function nested more than one level deep is not supported by the C back end yet.
 ```
 
-Three levels of nesting run correctly interpreted and refuse to compile.
+Three levels of nesting ran correctly interpreted and refused to compile.
 
-    gap  0063-nesting.a24
+⚠️ **One missing case, not a missing mechanism.** A nested function is emitted
+as a file-scope C function plus a closure over an array of heap cells, and a
+cell was reachable in only one shape: a `c_x` local the enclosing function
+declared. At depth two the enclosing function is *itself* nested, so the cells
+it was **handed** are as much in scope where the inner declaration stands as the
+ones it made — and those can only be named `cells[i]`. A capture list written
+with the local form alone named locals that do not exist, so the refusal stood
+in for the second shape.
+
+⚠️ **The handed-down cells come first and in index order**, because the
+receiving function reads them as `cells[i]` and the indices have to line up with
+the array the closure is built from.
+
+⚠️ **A function declared inside a METHOD is still refused**, and is a different
+thing: a method's C function takes a receiver and no cell array, and a nested
+function there closes over `this` as well as over the locals. Recorded as C-38.
 
 **C-3 — A compiled assertion failure carries no message.**
 ***Withdrawn.***
@@ -4423,7 +4442,8 @@ expected arity to name when the candidates disagree about it.
 overload. Two subprograms in two files are not one, and the set is cleared per
 unit.
 
-**C-27 — A large literal of computed elements will not compile.** *(loud)*
+**C-27 — A large literal of computed elements will not compile.**
+***Withdrawn.***
 
 A collection literal is emitted as nested `alg_list_keep` calls, one bracket
 level per element, and `cc` gives up at 256 — clang says `bracket nesting level
@@ -4431,9 +4451,9 @@ exceeded maximum of 256`. Above a hundred elements the emitter builds the
 literal in a helper function instead, one assignment per element, so depth stays
 at one however many there are.
 
-⚠️ That is only possible when every element is **itself a literal**. `[X, Y]`
+⚠️ That was only possible when every element was **itself a literal**. `[X, Y]`
 reads two variables and a helper lifted to file scope cannot see them, so a large
-literal with computed elements is refused by name rather than emitted as
+literal with computed elements was refused by name rather than emitted as
 something `cc` rejects: `A literal of 200 computed elements is not supported by
 the C back end yet.`
 
@@ -4441,11 +4461,18 @@ the C back end yet.`
 to avoid — found by a generated table of 659 ranges producing a 40 KB expression
 nested 659 deep.
 
-*Fix:* pass the computed elements into the helper, or emit the literal into the
-enclosing statement rather than the expression. Neither is hard; nothing has
-needed it.
+⚠️ **The elements are evaluated at the CALL and handed in**, which is the first
+of the two fixes this entry proposed. One compound literal, so the bracket depth
+is 1 however many there are — `ArgumentArray` builds every call's arguments the
+same way, so this introduced no shape the emitted C did not already have.
 
-    gap  0143-a-large-computed-literal.a24
+⚠️ **A constant literal keeps the helper it had.** The two forms differ only in
+where the elements are written, and keeping the first leaves the emitted C of
+every existing large table — `compiler/Unicode.a24`'s 659 ranges among them —
+exactly as it was.
+
+⚠️ A Map's keys and values are **interleaved** into one array, key first: two
+arrays would need two parameters and two compound literals for no gain.
 
 **C-28 — An undefined collection member is not refused compiled.**
 ***Withdrawn.***
@@ -4708,6 +4735,33 @@ gives `<fn sort>` where the compiled side gives `<fn Sort>`. Making them agree
 means carrying the canonical spelling alongside the folded one — a fifth copy of
 the member table unless it is threaded through the three `Get`s that already
 have the written lexeme in hand.
+
+**C-38 — A function declared inside a method will not compile.** *(loud)*
+*(refers to [FUN-012], [CLS-011])*
+
+```
+A function declared inside a method is not supported by the C back end yet.
+```
+
+A method's body is a body like any other, so a function may be declared in one
+and closes over what it can see there — which runs interpreted and is refused
+compiled.
+
+⚠️ **Split out of C-2 rather than fixed with it**, because it is a different
+thing. C-2 was one missing shape in an existing mechanism; this needs a new one.
+A method's C function takes a receiver and **no cell array**, so a body that
+boxes has nowhere to put its cells, and a nested function there closes over
+`this` as well as over the locals: `conformance/0148` reads a field bare, writes
+one through `this`, and the write sticks.
+
+*Fix:* three pieces. A method body boxes what a nested function reads, exactly as
+a function body does — `BoxesFor` and `HoistCells` are already written and are
+simply not called there. The receiver joins the cells, since a nested function
+reading a field needs it. And a bare field name inside such a function resolves
+through the captured receiver rather than through `v_this`, which does not exist
+in a nested function's signature.
+
+    gap  0148-a-function-inside-a-method.a24
 
 
 > **A note on DEF-13, which this annex got wrong.** Its entry said the fix was

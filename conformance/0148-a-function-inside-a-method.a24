@@ -1,0 +1,43 @@
+// spec: FUN-012, CLS-011
+//
+// A method's body is a body like any other, so a function may be declared
+// inside one [FUN-012] and closes over what it can see there.
+//
+// ⚠️ What it can see includes 'this'. A nested function reads a field bare and
+// through the receiver, and a write through it sticks -- which is the part
+// that makes this more than nesting: the enclosing body is a method, and the
+// receiver has to be captured along with the locals.
+
+class Box;
+var
+    N : Integer := 5;
+
+begin
+    function Twice ();
+    begin
+        function Helper ();
+        begin
+            Exit N * 2;
+        end
+
+        Exit Helper ();
+    end
+
+    function Bump (By : Integer);
+    begin
+        function Add (X);
+        begin
+            this.N := this.N + X;
+            Exit this.N;
+        end
+
+        Exit Add (By);
+    end
+end
+
+var B := Box ();
+
+WriteLn (B.Twice ());
+WriteLn (B.Bump (3));
+WriteLn (B.N);
+WriteLn (B.Twice ());

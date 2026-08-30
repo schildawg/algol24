@@ -1883,6 +1883,40 @@ begin
         Exit Mangle ('c_', Name);
     end
 
+    /// The POINTER to a cell, as the function being emitted can name it.
+    ///
+    /// ⚠️ Two shapes, and having only the first is what limited nesting to one
+    /// level (C-2).  A cell this function declared is a C local 'c_x'; one it
+    /// was HANDED arrives in its own 'cells' array and can only be named
+    /// 'cells[i]'.  A closure built at depth two has to pass on both kinds, so
+    /// a capture list written with Cell alone named locals that do not exist.
+    ///
+    function CellPointer (Name : String) : String;
+    begin
+        if Captured.Contains (Name) then Exit 'cells[' + Str (Captured.Get (Name)) + ']';
+
+        Exit Cell (Name);
+    end
+
+    /// Every cell the function being emitted can hand to one nested inside it:
+    /// what it was given, then what it declared.
+    ///
+    /// ⚠️ The GIVEN ones come first and in index order, because the receiving
+    /// function reads them as 'cells[i]' and the indices have to line up with
+    /// the array the closure is built from.  Captured was inserted in that
+    /// order, so its keys are already in it.
+    ///
+    function VisibleCells (Given : Map, Own : List) : List;
+    var
+        Names : List;
+
+    begin
+        Names := Given.Keys();
+        for var I := 0; I < Own.Length; I := I + 1 do AddOnce (Names, Str (Own[I]));
+
+        Exit Names;
+    end
+
     /// How a name is read, once cells and fields are accounted for.
     ///
     /// ⚠️ A captured variable is a HEAP CELL, not a copy.  Counter() hands back
@@ -1918,7 +1952,7 @@ begin
             begin
                 if I > 0 then Joined := Joined + ', ';
 
-                Joined := Joined + Cell (Str (Cells[I]));
+                Joined := Joined + CellPointer (Str (Cells[I]));
             end
 
             Array := '(Value*[]){' + Joined + '}, ' + Str (Cells.Length);
@@ -2646,9 +2680,6 @@ begin
         // that exist at that moment.
         var Nested := not AtTopLevel;
 
-        if Nested and InsideNested then
-            Unsupported ('A function nested more than one level deep');
-
         if Nested and CurrentClass <> '' then
             Unsupported ('A function declared inside a method');
 
@@ -2663,13 +2694,21 @@ begin
 
         Locals := List();
 
+        // ⚠️ Everything the enclosing function can NAME, not only what it
+        // declared: at depth two the enclosing function is itself nested, and
+        // the cells it was handed are as much in scope where this declaration
+        // stands as the ones it made.  Taking only its own is what made a
+        // capture from two levels up unreachable, and the refusal that stood
+        // here said so rather than fixing it (C-2).
+        var Inherited := VisibleCells (Captured, EnclosingCells);
+
         if Nested then
         begin
             // The cells in scope HERE become this one's, in the order they are
             // passed so the indices line up.
             var Index := Map();
-            for var I := 0; I < EnclosingCells.Length; I := I + 1 do
-                Index.Put (Str (EnclosingCells[I]), I);
+            for var I := 0; I < Inherited.Length; I := I + 1 do
+                Index.Put (Str (Inherited[I]), I);
 
             Captured := Index;
             InsideNested := True;
@@ -2774,7 +2813,9 @@ begin
         // ⚠️ The ENCLOSING function's cells, not this one's.  A nested
         // function closes over the cells that were in scope where it was
         // written; its own are what a function nested inside IT would capture.
-        var CapturedCells := EnclosingCells;
+        // 'In scope' includes the ones the enclosing function was itself
+        // handed -- see VisibleCells.
+        var CapturedCells := Inherited;
 
         Depth := EnclosingDepth;
         AtTopLevel := EnclosingTop;
@@ -3768,11 +3809,16 @@ begin
     begin
         if TheExpr.Values.Length > HOIST_ABOVE then
         begin
-            if not AllLiterals (TheExpr) then
-                Unsupported ('A literal of ' + Str (TheExpr.Values.Length)
-                           + ' computed elements');
+            // ⚠️ Two shapes, and the difference is only where the elements are
+            // written.  A literal of constants is built inside the helper,
+            // which keeps the emitted C of every existing large table exactly
+            // as it was; computed elements are evaluated at the CALL and handed
+            // in, because a helper lifted to file scope cannot see the
+            // variables they read.  That was what limited hoisting to constants
+            // and left a large computed literal refused by name (C-27).
+            if AllLiterals (TheExpr) then Exit HoistedCollection (TheExpr);
 
-            Exit HoistedCollection (TheExpr);
+            Exit ComputedCollection (TheExpr);
         end
 
         if TheExpr.IsMap then
@@ -3831,6 +3877,73 @@ begin
         Functions.Append ('    return it;' + #10 + '}' + #10 + #10);
 
         Exit Symbol + '()';
+    end
+
+    /// A large literal whose elements are COMPUTED, built by a function the
+    /// elements are passed into.
+    ///
+    /// ⚠️ One compound literal at the call, not one nested call per element, so
+    /// the bracket depth is 1 however many there are -- which is the whole
+    /// reason a large literal is hoisted at all.  ArgumentArray builds every
+    /// call's arguments the same way, so this introduces no shape the emitted C
+    /// did not already have.
+    ///
+    /// ⚠️ A Map's keys and values are INTERLEAVED into one array, key first.
+    /// Two arrays would need two parameters and two compound literals for no
+    /// gain; the helper walks them in pairs.
+    ///
+    function ComputedCollection (TheExpr : CollectionExpr) : String;
+    var
+        Symbol : String;
+        Joined : String;
+
+    begin
+        Symbol := 'lit_' + Str (Loops);
+        Loops := Loops + 1;
+
+        Joined := '';
+
+        // ⚠️ Evaluated BEFORE the helper is written, because Evaluate may emit
+        // declarations and functions of its own -- a nested large literal among
+        // the elements appends to Functions while this one is being built, and
+        // a half-written helper would swallow it.
+        var Emitted := List();
+        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+        begin
+            if TheExpr.IsMap then Emitted.Add (Evaluate (TheExpr.Keys[I]));
+
+            Emitted.Add (Evaluate (TheExpr.Values[I]));
+        end
+
+        for var I := 0; I < Emitted.Length; I := I + 1 do
+        begin
+            if I > 0 then Joined := Joined + ', ';
+
+            Joined := Joined + Str (Emitted[I]);
+        end
+
+        Declarations.Append ('static Value ' + Symbol + '(Value *e);' + #10);
+        Functions.Append ('static Value ' + Symbol + '(Value *e) {' + #10);
+
+        if TheExpr.IsMap then
+        begin
+            Functions.Append ('    Value it = alg_map();' + #10);
+
+            for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+                Functions.Append ('    it = alg_map_keep(it, e[' + Str (I * 2)
+                          + '], e[' + Str (I * 2 + 1) + ']);' + #10);
+        end
+        else
+        begin
+            Functions.Append ('    Value it = alg_list();' + #10);
+
+            for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+                Functions.Append ('    it = alg_list_keep(it, e[' + Str (I) + ']);' + #10);
+        end
+
+        Functions.Append ('    return it;' + #10 + '}' + #10 + #10);
+
+        Exit Symbol + '((Value[]){' + Joined + '})';
     end
 
     function VisitSubscriptExpr (TheExpr : SubscriptExpr) : String;
