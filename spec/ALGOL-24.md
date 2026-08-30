@@ -6229,11 +6229,13 @@ assignment, and the collection literals — or the check becomes a fence with a
 gate in it, which is worse than no fence because it invites the declared type to
 be trusted.
 
-**H-4 — A subscript operator a class may declare.** *(will change [TYP-010])*
+**H-4 — A subscript operator a class may declare.**
+***Folded into H-8.*** *(will change [TYP-010])*
 
-`B[0]` on a class instance is `Subscript target should be an ordinal.` today,
-whatever methods the class declares. Pinned by
-`conformance/0031-instance-is-not-subscriptable.a24`.
+Subscripting is operator overloading in a particular spelling, so it is decided
+there rather than separately. The entry is kept because [TYP-010] and [EXP-016]
+point a reader at this number, and a number that has been cited should lead
+somewhere.
 
 **H-5 — An iteration protocol a class may implement.**
 *(will change [TYP-011])*
@@ -6299,10 +6301,10 @@ collides with property access.
 is the character `conformance/0099` currently uses to provoke a scan error,
 which is a one-line change if this lands.
 
-⚠️ **H-4, H-5 and H-6 are one piece of work, not three.** They are exactly what
-Annex E identifies as pinning the collections to being native: a `Stack` written
-in Algol-24 cannot be subscripted, cannot be iterated, and cannot answer
-`Length` without parentheses. Any one of them alone leaves a user-written
+⚠️ **Subscripting, H-5 and H-6 are one piece of work, not three.** They are
+exactly what Annex E identifies as pinning the collections to being native: a
+`Stack` written in Algol-24 cannot be subscripted (H-8), cannot be iterated
+(H-5), and cannot answer `Length` without parentheses (H-6). Any one of them alone leaves a user-written
 collection visibly second-class, so the generation that brings them should bring
 all three — and Annex E's estimate of what could then move out of the runtime
 depends on it.
@@ -6321,12 +6323,24 @@ instance is by identity [VAL-011] with no way to say otherwise, and a
 user-written collection cannot be compared, ordered or combined the way a
 built-in one can.
 
-⚠️ **This is the umbrella over much of Annex H, not another item in it.** H-4's
-subscript operator and H-6's computed property are operator overloading in two
-particular spellings, and H-7 is the built-in case of an ordering that
-overloading would let a program supply for itself. Several rules in chapters 6
-and 7 are shaped by the language having no answer here, and they will want
-revisiting together rather than one at a time.
+⚠️ **This is the umbrella over much of Annex H, not another item in it.**
+Subscripting (H-4, folded into this entry) and H-6's computed property are
+operator overloading in two particular spellings, and H-7 is the built-in case
+of an ordering that overloading would let a program supply for itself. Several
+rules in chapters 6 and 7 are shaped by the language having no answer here, and
+they will want revisiting together rather than one at a time.
+
+⚠️ **Subscripting is the one that needs TWO members where the rest need one**,
+and that is the whole of what it adds. `B[0]` reads and `B[0] := X` writes, so a
+class declaring it supplies a getter and a setter; `+`, `<` and `=` are each a
+single expression yielding a value. `B[0]` on an instance is
+`Subscript target should be an ordinal.` today, whatever methods the class
+declares, and `conformance/0031-instance-is-not-subscriptable.a24` pins that.
+
+⚠️ **`[` and `]` are punctuation rather than operators** [LEX-012], listed
+beside `(`, `,` and `;`. So "a program may define an operator" does not reach
+subscripting on its own — that it is overloadable at all is a decision this
+entry has to take, not one it inherits.
 
 **H-9 — The collections as a unit written in Algol-24.**
 *(will retire most of chapter 14)*
@@ -6340,7 +6354,7 @@ what; in short:
 | `Array` | **stays.** Fixed-size, constant-time, holding arbitrary values — nothing in the language can express it, and it is the primitive the others are built on. |
 | `Stack` | movable today. Its whole surface is method calls and no literal claims its name. The best first candidate. |
 | `Set` | movable today with a linear scan; hashable later using `Ord`. |
-| `List` | pinned by `[…]`, and not worth moving until H-4 and H-5 arrive. |
+| `List` | pinned by `[…]`, and not worth moving until subscripting (H-8) and H-5 arrive. |
 | `Map` | pinned by `[:]` and `[k : v]`, and by wanting `M[K]`. |
 
 ⚠️ **H-14 comes first.** Moving a collection out is only a saving if the unit
@@ -6348,8 +6362,8 @@ can reach what it needs without the runtime growing a built-in for every call �
 otherwise everything removed from chapter 14 arrives back in chapter 16, and
 this is paid for twice.
 
-⚠️ **H-4, H-5 and H-6 are prerequisites for the last two**, not merely desirable
-alongside them. Without a subscript operator, an iteration protocol and a
+⚠️ **Subscripting (H-8), H-5 and H-6 are prerequisites for the last two**, not
+merely desirable alongside them. Without a subscript operator, an iteration protocol and a
 computed property, a `List` written in Algol-24 reads `L.Get(I)` and
 `L.Length()` and needs an index loop — strictly worse to use than the built-in
 it replaces, which is not a trade worth making.
