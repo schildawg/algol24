@@ -6,6 +6,7 @@
 
 Value f_setprogramarguments(Value **cells, Value *args, int32_t count);
 Value f_suppressoutput(Value **cells, Value *args, int32_t count);
+Value f_rendered(Value **cells, Value *args, int32_t count);
 Value f_stringify(Value **cells, Value *args, int32_t count);
 extern Value k_clocknative;
 extern Value k_lengthnative;
@@ -22,6 +23,7 @@ extern Value fn_setprogramarguments;
 extern Value v_outputsuppressed;
 extern bool d_outputsuppressed;
 extern Value fn_suppressoutput;
+extern Value fn_rendered;
 extern Value k_writenative;
 extern Value k_writelnnative;
 extern Value k_haltnative;

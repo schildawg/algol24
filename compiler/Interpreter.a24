@@ -224,25 +224,30 @@ begin
     OutputSuppressed := Suppress;
 end
 
-class WriteNative;
+/// Every argument rendered and run together, with nothing between them.
+///
+/// ⚠️ Write and WriteLn take ANY number of values [RT-001], and this is the one
+/// place that says what several of them mean: 'WriteLn (A, B)' is
+/// 'WriteLn (Str (A) + Str (B))', which is what Pascal has always done.  Str is
+/// Stringify too, so the rendering cannot differ between the one-value form and
+/// the many.
+///
+function Rendered (TheInterpreter : Any, Arguments : List) : String;
+var
+    Line : Buffer;
+
 begin
-    function Arity () : Integer;
-    begin
-        Exit 1;
-    end
+    Line := Buffer ();
 
-    function Call (TheInterpreter, Arguments) : Any;
-    begin
-        if not OutputSuppressed then Write (Stringify (TheInterpreter, Arguments[0]));
+    for var I := 0; I < Arguments.Length; I := I + 1 do
+        Line.Append (Stringify (TheInterpreter, Arguments[I]));
 
-        Exit Nil;
-    end
+    Exit Line.Text;
 end
 
-class WriteLnNative;
+class WriteNative;
 begin
-    /// -1: WriteLn takes a value or nothing, and the native invoker selects
-    /// between those by arity.
+    /// -1: any number of values, so this checks its own count -- which is none.
     function Arity () : Integer;
     begin
         Exit -1;
@@ -250,14 +255,28 @@ begin
 
     function Call (TheInterpreter, Arguments) : Any;
     begin
-        if Arguments.Length > 1 then
-            raise 'Expected 0 or 1 arguments but got ' + Str (Arguments.Length) + '.';
+        if not OutputSuppressed then Write (Rendered (TheInterpreter, Arguments));
 
-        if not OutputSuppressed then
-        begin
-            if Arguments.Length = 0 then WriteLn ('');
-            else WriteLn (Stringify (TheInterpreter, Arguments[0]));
-        end
+        Exit Nil;
+    end
+end
+
+class WriteLnNative;
+begin
+    /// -1: any number of values, so this checks its own count -- which is none.
+    ///
+    /// ⚠️ THE BLANK LINE IS NOT A SPECIAL CASE any more.  This used to branch on
+    /// 'Arguments.Length = 0' and refuse anything above one; rendering the whole
+    /// list gives '' for no arguments, which is exactly the newline on its own,
+    /// and 'WriteLn (''ABC'', 123)' falls out of the same line [RT-001].
+    function Arity () : Integer;
+    begin
+        Exit -1;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        if not OutputSuppressed then WriteLn (Rendered (TheInterpreter, Arguments));
 
         Exit Nil;
     end

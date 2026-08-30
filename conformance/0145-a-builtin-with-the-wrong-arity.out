@@ -2,6 +2,6 @@
 Expected 1 arguments but got 2.
 Expected 1 arguments but got 0.
 
-Expected 0 or 1 arguments but got 2.
+ab
 Undefined variable 'Nonexistent'.
 exit: 0

@@ -2329,10 +2329,34 @@ caller must otherwise guard.
 
 ### 11.2 Parameters and results
 
-**[FUN-005]**  A call checks the number of arguments — see [EXP-011].
+**[FUN-005]**  A call checks the number of arguments — see [EXP-011] — unless
+the subprogram's **last parameter is a `List of T`**, which **gathers** the
+trailing arguments into a list. `Log ('warn', 1, 2)` is `Log ('warn', [1, 2])`,
+and `Log ('warn')` is `Log ('warn', [])`.
 
-    interpreter  compiler/Interpreter.a24  VisitCall
+⚠️ **An element type is what makes a parameter absorbing**, so a bare `List`
+does not gather. There would be nothing to check the gathered arguments
+against, and it leaves `List` as the spelling for a parameter that wants the
+list itself and nothing else.
+
+⚠️ **The element type replaces the arity check and is stricter than it.**
+`Log ('warn', 1, 2, 'red')` against `List of Integer` is still refused, because
+the stray argument is not an Integer — and it is refused with *No matching
+signature for function.* rather than a count, which would name the wrong thing.
+
+⚠️ **Gathering nothing yields the empty list.** That is structural and not a
+default: absorbing none gives `[]` by the same rule that absorbing three gives
+a list of three. It is what makes `WriteLn ()` an ordinary call [RT-001].
+
+⚠️ **No new syntax, and that is the design rather than an economy.** The
+declaration already says `List of T` [VAR-008]; absorption is a *reading* of a
+type that exists, not a marker added to it. It became possible only when
+element types were admitted on parameters — before that a bare `List` carried
+no element type.
+
+    interpreter  compiler/ObjFunction.a24  Absorbs
     conformance  0049-call-failures.a24
+    conformance  0158-varargs-from-an-element-type.a24
 
 **[FUN-006]**  A subprogram's declared parameter types are enforced on every
 call, whether it is a top-level subprogram or a method. A parameter is an
@@ -3137,8 +3161,15 @@ Write   WriteLn    Halt
 argument count [EXP-011] and reports it the same way — the name existing is what
 separates that failure from a reference to something undeclared.
 
-    interpreter  compiler/Interpreter.a24  Builtins
+⚠️ **`Write` and `WriteLn` take any number of values**, rendered as `Str`
+renders them [RT-019] and run together with nothing between them — so
+`WriteLn ('ABC', 123)` writes `ABC123`, and `WriteLn (1, 2)` writes `12` rather
+than `3`. `WriteLn ()` is the newline on its own, which is the same rule and not
+a second form: rendering no values gives the empty string.
+
+    interpreter  compiler/Interpreter.a24  Rendered
     conformance  0145-a-builtin-with-the-wrong-arity.a24
+    conformance  0159-write-takes-any-number-of-values.a24
     conformance  0088-builtins.a24
 
 **[RT-002]**  The remaining three — `AssertTrue`, `AssertEqual` and `Fail` — are
@@ -6127,7 +6158,7 @@ subject became a library has not been falsified — the distinction matters to
 anyone reading `conformance/` later and wondering where the cases went.
 
 **H-10 — Varargs from an element type.**
-*(will change [FUN-005], [EXP-013])*
+***Landed in Generation 4.*** *(changed [FUN-005], [RT-001])*
 
 A subprogram whose **last parameter is a `List of T`** may be called with the
 elements written directly, and the call builds the list:
@@ -6137,7 +6168,7 @@ elements written directly, and the call builds the list:
 | `Log ('warn', 1, 2)` | `Log ('warn', [1, 2])` |
 | `Log ('warn')` | `Log ('warn', [])` |
 
-Today only the right-hand column parses.
+Both columns are legal, and the right-hand one wins where they meet.
 
 ⚠️ **No new syntax, and that is the design rather than an economy.** The
 declaration already says `List of T` [VAR-008]; absorption is a *reading* of a

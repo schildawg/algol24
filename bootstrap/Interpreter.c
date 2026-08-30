@@ -19,6 +19,7 @@
 
 Value f_setprogramarguments(Value **cells, Value *args, int32_t count);
 Value f_suppressoutput(Value **cells, Value *args, int32_t count);
+Value f_rendered(Value **cells, Value *args, int32_t count);
 Value f_stringify(Value **cells, Value *args, int32_t count);
 Value k_clocknative;
 static const char *t_clocknative_call_2[] = { "Any", "Any" };
@@ -45,6 +46,7 @@ Value fn_setprogramarguments;
 Value v_outputsuppressed;
 bool d_outputsuppressed;
 Value fn_suppressoutput;
+Value fn_rendered;
 Value k_writenative;
 static const char *t_writenative_call_2[] = { "Any", "Any" };
 Value k_writelnnative;
@@ -425,6 +427,30 @@ Value f_suppressoutput(Value **cells, Value *args, int32_t count) {
     return alg_nil();
 }
 
+Value f_rendered(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
+    Value v_theinterpreter = args[0];
+    (void)v_theinterpreter;
+    Value v_arguments = alg_param(args[1], "List");
+    (void)v_arguments;
+    Value v_line = alg_nil();
+    (void)v_line;
+    (void)((v_line = alg_widen(alg_buffer(alg_int(0)), "Buffer")));
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        while (alg_truthy(alg_less(v_i, alg_property(v_arguments, "Length")))) {
+            {
+                (void)(alg_invoke(v_line, "Append", (Value[]){f_stringify(NULL, (Value[]){v_theinterpreter, alg_subscript_get(v_arguments, v_i)}, 2)}, 1));
+                (void)((v_i = alg_add(v_i, alg_int(1))));
+            }
+        }
+    }
+    return alg_property(v_line, "Text");
+    return alg_nil();
+}
+
 static Value i_writenative(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     return alg_nil();
@@ -432,7 +458,7 @@ static Value i_writenative(Value v_this, Value *args, int32_t count) {
 
 static Value m_writenative_arity_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    return alg_int(1);
+    return alg_negate(alg_int(1));
     return alg_nil();
 }
 
@@ -443,7 +469,7 @@ static Value m_writenative_call_2(Value v_this, Value *args, int32_t count) {
     Value v_arguments = args[1];
     (void)v_arguments;
     if (alg_truthy(alg_not((alg_declared(d_outputsuppressed, "OutputSuppressed"), v_outputsuppressed)))) {
-        (void)(alg_write(f_stringify(NULL, (Value[]){v_theinterpreter, alg_subscript_get(v_arguments, alg_int(0))}, 2)));
+        (void)(alg_write(f_rendered(NULL, (Value[]){v_theinterpreter, v_arguments}, 2)));
     }
     return alg_nil();
     return alg_nil();
@@ -466,17 +492,8 @@ static Value m_writelnnative_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_theinterpreter;
     Value v_arguments = args[1];
     (void)v_arguments;
-    if (alg_truthy(alg_greater(alg_property(v_arguments, "Length"), alg_int(1)))) {
-        alg_raise(alg_add(alg_add(alg_string("Expected 0 or 1 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
-    }
     if (alg_truthy(alg_not((alg_declared(d_outputsuppressed, "OutputSuppressed"), v_outputsuppressed)))) {
-        {
-            if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(0)))) {
-                (void)(alg_writeln(alg_string("")));
-            } else {
-                (void)(alg_writeln(f_stringify(NULL, (Value[]){v_theinterpreter, alg_subscript_get(v_arguments, alg_int(0))}, 2)));
-            }
-        }
+        (void)(alg_writeln(f_rendered(NULL, (Value[]){v_theinterpreter, v_arguments}, 2)));
     }
     return alg_nil();
     return alg_nil();
@@ -3106,6 +3123,7 @@ void init_Interpreter(void) {
     alg_class_method(k_stacknative, "Call", m_stacknative_call_2, 2, t_stacknative_call_2);
     fn_setprogramarguments = alg_closure("SetProgramArguments", f_setprogramarguments, NULL, 0, 1);
     fn_suppressoutput = alg_closure("SuppressOutput", f_suppressoutput, NULL, 0, 1);
+    fn_rendered = alg_closure("Rendered", f_rendered, NULL, 0, 2);
     alg_class_initializer(k_writenative, i_writenative);
     alg_class_method(k_writenative, "Arity", m_writenative_arity_0, 0, NULL);
     alg_class_method(k_writenative, "Call", m_writenative_call_2, 2, t_writenative_call_2);

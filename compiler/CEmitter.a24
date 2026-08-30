@@ -3447,6 +3447,27 @@ begin
         Exit '';
     end
 
+    /// Several values rendered and run together, with nothing between them --
+    /// what 'WriteLn (A, B)' means [RT-001].
+    ///
+    /// ⚠️ Each value goes through alg_str FIRST, so this is text concatenation
+    /// and not addition: 'WriteLn (1, 2)' writes '12' and not '3'.  alg_str is
+    /// Str, which is the interpreter's Stringify, which is what alg_write
+    /// renders with -- so all three agree by construction.
+    ///
+    function RunTogether (Arguments : List) : String;
+    var
+        Result : String;
+
+    begin
+        Result := 'alg_str(' + Str (Arguments[0]) + ')';
+
+        for var I := 1; I < Arguments.Length; I := I + 1 do
+            Result := 'alg_add(' + Result + ', alg_str(' + Str (Arguments[I]) + '))';
+
+        Exit Result;
+    end
+
     /// Arguments as an array plus a count, so every method shares one C
     /// signature regardless of arity.
     ///
@@ -3704,6 +3725,24 @@ begin
         // whole file, which the interpreter does not do.  TopLevel is the
         // shallow set, collected the same way Globals is.
         var Shadowed := ShadowNames.Contains (Name);
+
+        // ⚠️ Write and WriteLn take ANY number of values [RT-001], and every
+        // other built-in is reached by name AND arity -- so the many-value form
+        // has no key in that table and is folded into the one-value form here.
+        // 'WriteLn (A, B)' is 'WriteLn (Str (A) + Str (B))', which is the rule
+        // the interpreter's Rendered applies, so the two cannot render the same
+        // call differently.
+        //
+        // ⚠️ Keyed off the RUNTIME FUNCTION rather than off the spelling, so it
+        // inherits whatever case Builtin already answers to and there is no
+        // second place naming these two.
+        if not Shadowed and Arguments.Length > 1 then
+        begin
+            var One := Builtin (Name, 1);
+
+            if One = 'alg_writeln' or One = 'alg_write' then
+                Exit One + '(' + RunTogether (Arguments) + ')';
+        end
 
         if not Shadowed then
         begin
