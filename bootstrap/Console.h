@@ -26,6 +26,8 @@ extern Value v_infoVtag;
 extern bool d_infoVtag;
 extern Value v_errorVtag;
 extern bool d_errorVtag;
+extern Value v_warnVtag;
+extern bool d_warnVtag;
 extern Value k_console;
 void init_Console(void);
 

@@ -26,11 +26,14 @@ Value v_infoVtag;
 bool d_infoVtag;
 Value v_errorVtag;
 bool d_errorVtag;
+Value v_warnVtag;
+bool d_warnVtag;
 Value k_console;
 static const char *t_console_repeat_2_char_integer[] = { "What : Char", "Times : Integer" };
 static const char *t_console_header_1_string[] = { "Name : String" };
 static const char *t_console_subheader_1_string[] = { "Name : String" };
 static const char *t_console_info_1_string[] = { "Text : String" };
+static const char *t_console_warn_1_string[] = { "Text : String" };
 static const char *t_console_success_1_string[] = { "Name : String" };
 static const char *t_console_fail_1_string[] = { "Name : String" };
 static const char *t_console_debug_1_string[] = { "Text : String" };
@@ -92,6 +95,14 @@ static Value m_console_info_1_string(Value v_this, Value *args, int32_t count) {
     Value v_text = alg_widen(args[0], "String");
     (void)v_text;
     (void)(alg_writeln(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), v_text)));
+    return alg_nil();
+}
+
+static Value m_console_warn_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_text = alg_widen(args[0], "String");
+    (void)v_text;
+    (void)(alg_writeln(alg_add((alg_declared(d_warnVtag, "WARN_TAG"), v_warnVtag), v_text)));
     return alg_nil();
 }
 
@@ -157,6 +168,7 @@ void init_Console(void) {
     alg_class_method(k_console, "Header", m_console_header_1_string, 1, t_console_header_1_string);
     alg_class_method(k_console, "Subheader", m_console_subheader_1_string, 1, t_console_subheader_1_string);
     alg_class_method(k_console, "Info", m_console_info_1_string, 1, t_console_info_1_string);
+    alg_class_method(k_console, "Warn", m_console_warn_1_string, 1, t_console_warn_1_string);
     alg_class_method(k_console, "Success", m_console_success_1_string, 1, t_console_success_1_string);
     alg_class_method(k_console, "Fail", m_console_fail_1_string, 1, t_console_fail_1_string);
     alg_class_method(k_console, "Debug", m_console_debug_1_string, 1, t_console_debug_1_string);
@@ -185,4 +197,6 @@ void init_Console(void) {
     d_infoVtag = true;
     v_errorVtag = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91)), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)), alg_string("ERROR")), (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite)), alg_string("] ")), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset));
     d_errorVtag = true;
+    v_warnVtag = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91)), (alg_declared(d_ansiVyellow, "ANSI_YELLOW"), v_ansiVyellow)), alg_string("WARN")), (alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite)), alg_string("] ")), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset));
+    d_warnVtag = true;
 }

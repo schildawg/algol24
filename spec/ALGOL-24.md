@@ -6274,7 +6274,7 @@ caught by a rule named arguments need anyway. The two features share one rule
 set, which is the argument for bringing them in one generation rather than two.
 
 **H-12 — A warning for a call that binds at run time.**
-*(a diagnostic, not a rule)*
+***Landed in Generation 4.*** *(a diagnostic, not a rule)*
 
 A third severity beside `[INFO]` and `[ERROR]` — **`[WARN]`, in yellow** —
 reporting that a call selects among overloads at run time rather than
@@ -6291,12 +6291,19 @@ the cost is real and invisible, and the remedy has nothing to point at.
 and not noise: no top-level name in `compiler/*.a24` is overloaded, so over a
 hundred kilobytes of Algol-24 raise no warning at all.
 
-⚠️ **It must be written to standard error.** The corpus compares standard
-output, and a warning is raised by the front end — which both back ends share,
-so it is printed when an interpreted program *runs* and when a compiled one is
-*emitted*. Those are different moments; on stdout the two processors' output
-would differ for every warned program, which is precisely the drift the corpus
-exists to catch.
+⚠️ **The corpus has to drop it, from both sides.** This entry predicted that
+standard error would be the answer; it is not, because `Console` writes every
+diagnostic this compiler produces — `[INFO]` and `[ERROR]` included — to
+standard output, and `conform.sh` captures both streams anyway. The real
+difficulty is the one the prediction was reaching for: the front end is shared,
+so a warning appears when an interpreted program *runs* and when a compiled one
+is *emitted*, which are different moments. `render()` therefore filters `[WARN]`
+lines out of both sides before comparing.
+
+⚠️ **Dropped rather than suppressed.** The warning is meant to be seen by
+whoever is compiling; it is only the comparison that must not see it. A warning
+that changed a program's recorded output would be a warning that changed the
+program — and this one changes nothing, which is what *non-blocking* means.
 
 ⚠️ **The tag belongs in `Console.a24` beside the other two.** `ANSI_YELLOW` is
 already defined there, and `WARN_TAG` follows `INFO_TAG` and `ERROR_TAG`

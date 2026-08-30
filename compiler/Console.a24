@@ -46,6 +46,15 @@ const INFO_TAG := ANSI_WHITE + '[' + ANSI_BLUE + 'INFO' + ANSI_WHITE + '] ' + AN
 ///
 const ERROR_TAG := ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_WHITE + '] ' + ANSI_RESET;
 
+/// The '[WARN] ' tag, on the same terms.
+///
+/// ⚠️ WARN_TAG rather than WARN, for the reason INFO_TAG carries: names are
+/// matched WITHOUT REGARD TO CASE [SRC-011], and the object below has a
+/// 'procedure Warn' that a constant spelled WARN would shadow inside its own
+/// body.
+///
+const WARN_TAG := ANSI_WHITE + '[' + ANSI_YELLOW + 'WARN' + ANSI_WHITE + '] ' + ANSI_RESET;
+
 object Console;
 begin
     /// Repeats a character.  There is no builtin for it.
@@ -82,6 +91,24 @@ begin
     procedure Info (Text : String);
     begin
         WriteLn (INFO_TAG + Text);
+    end
+
+    /// [WARN] Main.a24:12: 'Log' selects among 3 overloads at run time.
+    ///
+    /// ⚠️ NON-BLOCKING, and that is the whole point.  It reports a cost, not a
+    /// fault: the program compiles and runs exactly as it would without it.
+    /// Run-time selection is the language's rule [FUN-013] and stays so; naming
+    /// the parameters [EXP-013] is how a programmer avoids it in a particular
+    /// call, and this is what makes that choice visible.  Without it the cost
+    /// is real and invisible, and the remedy has nothing to point at.
+    ///
+    /// ⚠️ Refusal is for what the back end cannot express.  A construct that is
+    /// legal and merely costly gets a warning instead, which is what keeps the
+    /// twenty 'Unsupported (...)' sites meaning only one thing.
+    ///
+    procedure Warn (Text : String);
+    begin
+        WriteLn (WARN_TAG + Text);
     end
 
     /// [INFO] Program.a24 ................................. SUCCESS

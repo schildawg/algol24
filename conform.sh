@@ -106,11 +106,23 @@ ESC=$(printf '\033')
 
 # ⚠️ Colour is transliterated rather than stripped: stripping is not injective,
 # so a wrong colour and a right one would compare equal.  See spec/PLAN.md §7.3.
+# ⚠️ A [WARN] line is dropped, from BOTH sides.  A warning is a diagnostic
+# ABOUT a program, not output OF it -- and the two processors raise it at
+# different moments precisely because the front end is shared: interpreted it
+# appears when the program is run, compiled it appears when the program is
+# EMITTED, which is a step this harness captures separately.  Comparing them
+# would report a divergence where the two processors agree completely.
+#
+# ⚠️ Dropped rather than the warning being suppressed.  It is meant to be seen
+# by whoever is compiling; it is only this comparison that must not see it, and
+# a warning that changed a program's recorded output would be a warning that
+# changed the program.
 render() {
     sed -e "s/${ESC}\\[0m/[RESET]/g"  -e "s/${ESC}\\[31m/[RED]/g" \
         -e "s/${ESC}\\[32m/[GREEN]/g" -e "s/${ESC}\\[33m/[YELLOW]/g" \
         -e "s/${ESC}\\[34m/[BLUE]/g"  -e "s/${ESC}\\[36m/[CYAN]/g" \
-        -e "s/${ESC}\\[37m/[WHITE]/g" -e "s/${ESC}\\[\\([0-9;]*\\)m/[ESC:\\1]/g"
+        -e "s/${ESC}\\[37m/[WHITE]/g" -e "s/${ESC}\\[\\([0-9;]*\\)m/[ESC:\\1]/g" \
+      | { grep -v '\[YELLOW\]WARN\[WHITE\]\]' || true; }
 }
 
 PASS=0; FAIL=0; GAPS=0; RECORDED=0

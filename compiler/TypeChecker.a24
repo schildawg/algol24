@@ -2,6 +2,7 @@ uses Console;
 uses Interpreter;
 uses Parser;
 uses Scanner;
+uses SourceCode;
 uses Token;
 uses TokenType;
 
@@ -133,6 +134,32 @@ var
     /// back ends.  Qualification says where to LOOK, so the type has to come from
     /// the same place the value does.
     BuiltinTypes : Map := [:];
+
+    /// How many top-level subprograms each folded name has, so a call can say
+    /// when it will select among them at run time [FUN-013].
+    ///
+    /// ⚠️ Filled in the DECLARING pass, not while checking, because a call may
+    /// be written above the second declaration of the name it calls -- counting
+    /// as the checker walked would warn about some calls and not others
+    /// depending on where they sat in the file.
+    Overloads : Map := [:];
+
+    /// Signatures already counted, so a declaration is counted ONCE.
+    ///
+    /// ⚠️ Counting visits rather than declarations was wrong twice over, and
+    /// the warning itself is what found it: 'SetProgramArguments' is declared
+    /// exactly once, in Interpreter.a24, and was reported as three overloads
+    /// because the declaring pass reaches one module's statements once per
+    /// route into it.  Keying on the SIGNATURE fixes that, and is what the
+    /// count should have been anyway -- two declarations of one signature are a
+    /// duplicate, not an overload [FUN-013].
+    Signatures : Set := [];
+
+    /// Calls already warned about, keyed by line and name.
+    ///
+    /// ⚠️ Reduce may reach one expression more than once, and a warning printed
+    /// twice reads as two problems.
+    Warned : Set := [];
 
 begin
     constructor Init ();
@@ -481,6 +508,24 @@ begin
 
         if Kind = 'FunctionStmt' then
         begin
+            var Folded := FoldCase (Str (TheStmt.Name.Lexeme));
+
+            // The PARAMETER types alone, which is what tells an overload from a
+            // duplicate -- a return type cannot distinguish one [FUN-013].
+            var Signature := Folded + '/' + Str (TheStmt.Params.Length);
+            for var I := 0; I < TheStmt.ParamTypes.Length; I := I + 1 do
+                Signature := Signature + '/' + FoldCase (Str (TheStmt.ParamTypes[I]));
+
+            if not Signatures.Contains (Signature) then
+            begin
+                Signatures.Add (Signature);
+
+                var Seen := 0;
+                if Overloads.Contains (Folded) then Seen := Overloads.Get (Folded) as Integer;
+
+                Overloads.Put (Folded, Seen + 1);
+            end
+
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.ReturnType);
 
             // ⚠️ The RETURN's element type too, so 'Make ().Get (0)' types as
@@ -819,6 +864,53 @@ begin
     /// '' and 'Any' both mean "not known"; nothing may be rejected for being
     /// either.
     ///
+    /// Reports a call that will select among overloads at RUN TIME.
+    ///
+    /// ⚠️ NON-BLOCKING [H-12].  Run-time selection is the language's rule
+    /// [FUN-013] and stays so -- in a gradually typed language a declared type
+    /// may be 'Any' and no static rule could reach the right overload from
+    /// that.  What this reports is a cost, and naming the parameters [EXP-013]
+    /// is how a programmer avoids it in a particular call.  Without the warning
+    /// the cost is real and invisible, and the remedy has nothing to point at.
+    ///
+    /// ⚠️ Silent on this compiler, which is what makes it a scalpel and not
+    /// noise: no top-level name in compiler/*.a24 is overloaded, so over a
+    /// hundred kilobytes of Algol-24 raise none at all.
+    ///
+    /// ⚠️ TOP-LEVEL subprograms only.  A method's class is not known until the
+    /// receiver is, so every method call would warn -- and a warning that fires
+    /// everywhere reports nothing.
+    ///
+    procedure WarnIfDynamic (TheExpr : Any);
+    var
+        Folded : String;
+        Seen   : Integer;
+        Key    : String;
+
+    begin
+        if ClassNameOf (TheExpr.Callee) <> 'VariableExpr' then Exit;
+
+        // ⚠️ A NAMED argument decides the signature at compile time [EXP-013],
+        // which is the whole reason the two features are one generation: this
+        // is the warning, and that is the answer to it.
+        for var I := 0; I < TheExpr.ArgumentNames.Length; I := I + 1 do
+            if Str (TheExpr.ArgumentNames[I]) <> '' then Exit;
+
+        Folded := FoldCase (Str (TheExpr.Callee.Name.Lexeme));
+        if not Overloads.Contains (Folded) then Exit;
+
+        Seen := Overloads.Get (Folded) as Integer;
+        if Seen < 2 then Exit;
+
+        Key := Str (TheExpr.Paren.LineNumber) + ':' + Folded;
+        if Warned.Contains (Key) then Exit;
+        Warned.Add (Key);
+
+        Console.Warn (SourceCode.Name() + ':' + Str (TheExpr.Paren.LineNumber) + ': '''
+                    + Str (TheExpr.Callee.Name.Lexeme) + ''' selects among '
+                    + Str (Seen) + ' overloads at run time.');
+    end
+
     function Reduce (TheExpr : Any) : String;
     var
         Kind : String;
@@ -952,8 +1044,11 @@ begin
         if Kind = 'CallExpr' then
         begin
             var ArgTypes := List ();
+
             for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
                 ArgTypes.Add (Reduce (TheExpr.Arguments[I]));
+
+            WarnIfDynamic (TheExpr);
 
             // ⚠️ 'Max' promotes, so its type comes from its ARGUMENTS rather
             // than from a table [RT-010].  Declaring it Integer let a Double
