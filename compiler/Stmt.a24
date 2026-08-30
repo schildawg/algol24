@@ -312,6 +312,19 @@ var
     Name  : Token;
     Inner : Stmt;
 
+    /// Whether a 'goto' names this label.
+    ///
+    /// ⚠️ Set by the RESOLVER, which is the pass that has to pair a goto with
+    /// its label anyway in order to refuse one that names nothing.  The emitter
+    /// reads it so a C label is written only where something jumps to it: a
+    /// label reached only by 'break' or 'continue' needs no goto target, and an
+    /// unused C label is a warning under -Wall.
+    ///
+    /// ⚠️ It cannot be decided the way a loop's targets are.  Those are known by
+    /// the time the loop closes, because the body is emitted first; a FORWARD
+    /// goto is emitted after its label, so nothing local can know.
+    Targeted : Boolean := False;
+
 begin
     constructor Init (Name : Token, Inner : Stmt);
     begin
@@ -322,6 +335,33 @@ begin
     function Accept (Visitor);
     begin
        Exit Visitor.VisitLabelStmt (this);
+    end
+end
+
+/// Goto Statement -- 'goto Done;'.
+///
+/// ⚠️ It may name a label in the SAME BLOCK or an ENCLOSING one, and jump
+/// either forward or backward.  It may not jump INTO a nested block, and may
+/// not leave the subprogram [STM-024].  That is not a restriction chosen for
+/// this implementation: an exception can travel outward through blocks and has
+/// no way to travel inward, and C is exactly as unwilling -- jumping into a
+/// block skips initializers.
+///
+class GotoStmt (Stmt);
+var
+    Keyword : Token;
+    Label   : String;
+
+begin
+    constructor Init (Keyword : Token, Label : String);
+    begin
+        this.Keyword := Keyword;
+        this.Label := Label;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitGotoStmt (this);
     end
 end
 

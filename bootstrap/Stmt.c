@@ -36,6 +36,9 @@ static const char *t_continuestmt_accept_1[] = { "Visitor : Any" };
 Value k_labelstmt;
 static const char *t_labelstmt_init_2_token_stmt[] = { "Name : Token", "Inner : Stmt" };
 static const char *t_labelstmt_accept_1[] = { "Visitor : Any" };
+Value k_gotostmt;
+static const char *t_gotostmt_init_2_token_string[] = { "Keyword : Token", "Label : String" };
+static const char *t_gotostmt_accept_1[] = { "Visitor : Any" };
 Value k_trystmt;
 static const char *t_trystmt_init_2_stmt_map[] = { "TryBlock : Stmt", "Handlers : Map" };
 static const char *t_trystmt_accept_1[] = { "Visitor : Any" };
@@ -336,6 +339,7 @@ static Value i_labelstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Inner", alg_nil());
+    alg_set_property(v_this, "Targeted", alg_widen(alg_bool(false), "Boolean"));
     return alg_nil();
 }
 
@@ -355,6 +359,32 @@ static Value m_labelstmt_accept_1(Value v_this, Value *args, int32_t count) {
     Value v_visitor = args[0];
     (void)v_visitor;
     return alg_invoke(v_visitor, "VisitLabelStmt", (Value[]){v_this}, 1);
+    return alg_nil();
+}
+
+static Value i_gotostmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Keyword", alg_nil());
+    alg_set_property(v_this, "Label", alg_nil());
+    return alg_nil();
+}
+
+static Value m_gotostmt_init_2_token_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_keyword = alg_widen(args[0], "Token");
+    (void)v_keyword;
+    Value v_label = alg_widen(args[1], "String");
+    (void)v_label;
+    (void)(alg_set_property(v_this, "Keyword", alg_widen(v_keyword, "Token")));
+    (void)(alg_set_property(v_this, "Label", alg_widen(v_label, "String")));
+    return alg_nil();
+}
+
+static Value m_gotostmt_accept_1(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_visitor = args[0];
+    (void)v_visitor;
+    return alg_invoke(v_visitor, "VisitGotoStmt", (Value[]){v_this}, 1);
     return alg_nil();
 }
 
@@ -633,6 +663,7 @@ void init_Stmt(void) {
     k_breakstmt = alg_class("BreakStmt", alg_nil());
     k_continuestmt = alg_class("ContinueStmt", alg_nil());
     k_labelstmt = alg_class("LabelStmt", alg_nil());
+    k_gotostmt = alg_class("GotoStmt", alg_nil());
     k_trystmt = alg_class("TryStmt", alg_nil());
     k_raisestmt = alg_class("RaiseStmt", alg_nil());
     k_forinstmt = alg_class("ForInStmt", alg_nil());
@@ -715,9 +746,16 @@ void init_Stmt(void) {
     alg_class_super(k_labelstmt, k_stmt);
     alg_class_field(k_labelstmt, "Name");
     alg_class_field(k_labelstmt, "Inner");
+    alg_class_field(k_labelstmt, "Targeted");
     alg_class_initializer(k_labelstmt, i_labelstmt);
     alg_class_method(k_labelstmt, "Init", m_labelstmt_init_2_token_stmt, 2, t_labelstmt_init_2_token_stmt);
     alg_class_method(k_labelstmt, "Accept", m_labelstmt_accept_1, 1, t_labelstmt_accept_1);
+    alg_class_super(k_gotostmt, k_stmt);
+    alg_class_field(k_gotostmt, "Keyword");
+    alg_class_field(k_gotostmt, "Label");
+    alg_class_initializer(k_gotostmt, i_gotostmt);
+    alg_class_method(k_gotostmt, "Init", m_gotostmt_init_2_token_string, 2, t_gotostmt_init_2_token_string);
+    alg_class_method(k_gotostmt, "Accept", m_gotostmt_accept_1, 1, t_gotostmt_accept_1);
     alg_class_super(k_trystmt, k_stmt);
     alg_class_field(k_trystmt, "TryBlock");
     alg_class_field(k_trystmt, "Handlers");

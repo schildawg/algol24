@@ -258,6 +258,7 @@ begin
         if Match (TOKEN_TRY) then Exit TryStatement();
         if Match (TOKEN_BREAK) then Exit BreakStatement();
         if Match (TOKEN_CONTINUE) then Exit ContinueStatement();
+        if Match (TOKEN_GOTO) then Exit GotoStatement();
         if Match (TOKEN_RAISE) then Exit RaiseStatement();
         if Match (TOKEN_BEGIN) then Exit BlockStmt (Block());
 
@@ -1101,6 +1102,28 @@ begin
         Beginning.Label := Named;
 
         Exit Beginning;
+    end
+
+    /// Parses 'goto Done;'.
+    ///
+    /// ⚠️ The label is NOT checked here.  A forward jump names a label the
+    /// parser has not reached yet, so the check needs a pass that has the whole
+    /// block in hand -- which is the Resolver's [STM-024].  'break' and
+    /// 'continue' are different: a loop they are inside has always been entered
+    /// already, so the parser can answer for them.
+    ///
+    function GotoStatement () : Stmt;
+    var
+        Keyword : Token;
+
+    begin
+        Keyword := Previous();
+
+        var Named := Str (Consume (TOKEN_IDENTIFIER, 'Expect a label after ''goto''.').Lexeme);
+
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after ''goto''.');
+
+        Exit GotoStmt (Keyword, Named);
     end
 
     /// Parses 'raise Expr;'.

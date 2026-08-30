@@ -73,7 +73,7 @@ end
 /// 'begin', 'Begin' and 'BEGIN' are one token -- while identifiers are not.
 var  Keywords := [
     'and':TOKEN_AND, 'as':TOKEN_AS, 'begin':TOKEN_BEGIN, 'break':TOKEN_BREAK,
-    'continue':TOKEN_CONTINUE,
+    'continue':TOKEN_CONTINUE, 'goto':TOKEN_GOTO,
     'case':TOKEN_CASE, 'class':TOKEN_CLASS,
     'const':TOKEN_CONST, 'constructor':TOKEN_CONSTRUCTOR,
     'div':TOKEN_DIV, 'do':TOKEN_DO, 'else':TOKEN_ELSE,

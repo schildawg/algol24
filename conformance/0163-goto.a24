@@ -1,0 +1,67 @@
+// spec: STM-023
+//
+// 'goto' jumps to a label in the same block or an enclosing one, within the
+// same subprogram, forward or backward.
+//
+// ⚠️ DIRECTION IS NOT THE CONSTRAINT; NESTING IS.  A backward jump costs
+// nothing a forward one does not -- the interpreter resumes a block at an
+// index, and an index may move either way.  What neither processor can do is
+// jump INTO a nested block, which the refusals beside this case pin.
+
+// Forward, same block.
+WriteLn ('a');
+goto Skip;
+WriteLn ('never');
+Skip:
+WriteLn ('b');
+
+// Backward -- a loop written by hand.
+var N := 0;
+Again:
+N := N + 1;
+Write (Str (N));
+if N < 4 then goto Again;
+WriteLn ();
+
+// Outward: out of a loop and out of an if, to a label in the enclosing block.
+for var I := 0; I < 5; I := I + 1 do
+begin
+    if I = 2 then goto Done;
+    Write (Str (I));
+end
+WriteLn ('never either');
+
+Done:
+WriteLn (' done');
+
+// ⚠️ A jump out of a 'try' must LEAVE ITS FRAME.  The runtime's frame stack is
+// explicit, and a frame left behind points at a C frame that has returned -- so
+// the raise at the end of this case is what proves the pops happened.  Without
+// them the compiled program ran the inner handler and printed a line the
+// interpreter never printed.
+try
+    try
+        goto Out;
+    except
+        on e : String do WriteLn ('inner');
+    end
+except
+    on e : String do WriteLn ('outer');
+end
+
+WriteLn ('never a third time');
+
+Out:
+WriteLn ('out');
+
+try
+    raise 'the frame stack is still sound';
+except
+    on e : String do WriteLn (e);
+end
+
+// A label is a name, so it folds [SRC-011].
+goto FINISH;
+WriteLn ('never a fourth time');
+Finish:
+WriteLn ('finish');

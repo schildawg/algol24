@@ -1,0 +1,15 @@
+// spec: STM-023
+//
+// A 'goto' may not jump INTO a nested block.
+//
+// ⚠️ This is not a restriction chosen for convenience.  The interpreter's jump
+// travels as an exception, which propagates outward and has no way to travel
+// inward; C would be skipping the initializers of everything it jumped past.
+// Pascal restricts it the same way, for the same reason.
+
+goto Inside;
+
+begin
+    Inside:
+    WriteLn ('unreachable');
+end

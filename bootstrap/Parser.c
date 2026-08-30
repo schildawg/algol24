@@ -279,6 +279,9 @@ static Value m_parser_statement_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcontinue}, 1))) {
         return alg_invoke(v_this, "ContinueStatement", NULL, 0);
     }
+    if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVgoto}, 1))) {
+        return alg_invoke(v_this, "GotoStatement", NULL, 0);
+    }
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVraise}, 1))) {
         return alg_invoke(v_this, "RaiseStatement", NULL, 0);
     }
@@ -964,6 +967,18 @@ static Value m_parser_continuestatement_0(Value v_this, Value *args, int32_t cou
     (void)v_beginning;
     (void)(alg_set_property(v_beginning, "Label", alg_widen(v_named, "String")));
     return v_beginning;
+    return alg_nil();
+}
+
+static Value m_parser_gotostatement_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_keyword = alg_nil();
+    (void)v_keyword;
+    (void)((v_keyword = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
+    Value v_named = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect a label after 'goto'.")}, 2), "Lexeme"));
+    (void)v_named;
+    (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_string("Expect ';' after 'goto'.")}, 2));
+    return alg_new(k_gotostmt, (Value[]){v_keyword, v_named}, 2);
     return alg_nil();
 }
 
@@ -1943,6 +1958,7 @@ void init_Parser(void) {
     alg_class_method(k_parser, "EnclosingLoop", m_parser_enclosingloop_1_string, 1, t_parser_enclosingloop_1_string);
     alg_class_method(k_parser, "JumpLabel", m_parser_jumplabel_2_token_string, 2, t_parser_jumplabel_2_token_string);
     alg_class_method(k_parser, "ContinueStatement", m_parser_continuestatement_0, 0, NULL);
+    alg_class_method(k_parser, "GotoStatement", m_parser_gotostatement_0, 0, NULL);
     alg_class_method(k_parser, "RaiseStatement", m_parser_raisestatement_0, 0, NULL);
     alg_class_method(k_parser, "TryStatement", m_parser_trystatement_0, 0, NULL);
     alg_class_method(k_parser, "VarDeclaration", m_parser_vardeclaration_0, 0, NULL);

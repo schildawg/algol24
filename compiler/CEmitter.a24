@@ -271,6 +271,16 @@ var
     /// every labelled loop would produce a pair of them for every single use.
     Jumped       : Set  := [];
 
+    /// Each enclosing block's labels mapped to the TryDepth that block began
+    /// at, innermost last [STM-024].
+    ///
+    /// ⚠️ Recorded when the block is ENTERED, not when the label is emitted.  A
+    /// FORWARD goto is emitted before its label, so at the jump there would
+    /// otherwise be nothing to ask how many frames lie between them.  A label is
+    /// always a top-level statement of its block, so the block's entry depth IS
+    /// the label's depth.
+    LabelDepths  : List := [];
+
     /// True while emitting a body that contains a try.
     Volatiles    : Boolean := False;
 
@@ -1412,6 +1422,15 @@ begin
             // ran ahead of the report.
             AtTopLevel := True;
 
+            // ⚠️ THE TOP LEVEL IS A BLOCK TOO, and forgetting it here was a real
+            // divergence rather than a missing niceness.  DepthOfLabel falls
+            // back to the current depth when it finds nothing, so a 'goto' out
+            // of two trys to a top-level label popped NOTHING -- and the next
+            // raise with no enclosing try longjmped into a dead frame, ran the
+            // handler that frame belonged to, and printed a line the
+            // interpreter never printed.
+            PushLabels (Unit.Statements);
+
             for var I := 0; I < Unit.Statements.Length; I := I + 1 do
             begin
                 var TheStmt := Unit.Statements[I];
@@ -1440,6 +1459,8 @@ begin
                     else Execute (TheStmt);
                 end
             end
+
+            PopLabels ();
 
             AtTopLevel := False;
 
@@ -1734,8 +1755,15 @@ begin
 
         HoistCells (TheStmt.Body);
 
+        // ⚠️ A function body is a statement list that is NOT a BlockStmt, so it
+        // needs its own push -- and it is where the stack must START, since a
+        // goto may not leave the subprogram it is written in [STM-024].
+        PushLabels (TheStmt.Body);
+
         for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
             Execute (TheStmt.Body[I]);
+
+        PopLabels ();
 
         var Written := Body.Text;
 
@@ -2430,8 +2458,12 @@ begin
 
         HoistCells (TheMethod.Body);
 
+        PushLabels (TheMethod.Body);
+
         for var I := 0; I < TheMethod.Body.Length; I := I + 1 do
             Execute (TheMethod.Body[I]);
+
+        PopLabels ();
 
         Line ('return alg_nil();');
 
@@ -2708,6 +2740,61 @@ begin
         Line ('(void)(' + Evaluate (TheStmt.Expression) + ');');
     end
 
+    /// Records the labels a statement list declares at its top level, against
+    /// the TryDepth the list begins at.
+    ///
+    procedure PushLabels (Statements : List);
+    var
+        Here : Map;
+
+    begin
+        Here := Map();
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+            if Statements[I] is LabelStmt then
+                Here.Put (FoldCase (Str (Statements[I].Name.Lexeme)), TryDepth);
+
+        LabelDepths.Add (Here);
+    end
+
+    procedure PopLabels ();
+    begin
+        LabelDepths.RemoveAt (LabelDepths.Length - 1);
+    end
+
+    /// The TryDepth of the block declaring the nearest label of this name.
+    ///
+    function DepthOfLabel (TheLabel : String) : Integer;
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (TheLabel);
+
+        for var S := LabelDepths.Length - 1; S >= 0; S := S - 1 do
+            if LabelDepths[S].Contains (Folded) then
+                Exit LabelDepths[S].Get (Folded) as Integer;
+
+        Exit TryDepth;
+    end
+
+    /// The C label a 'goto' jumps to.
+    ///
+    function GotoTarget (TheLabel : String) : String;
+    begin
+        Exit 'lg_' + Escaped (FoldCase (TheLabel));
+    end
+
+    /// ⚠️ Popped down to the label's block, which may be several frames: a goto
+    /// out of two trys leaves both.  The runtime's frame stack would otherwise
+    /// point at C frames that have returned.
+    procedure VisitGotoStmt (TheStmt : GotoStmt);
+    begin
+        PopFramesTo (DepthOfLabel (TheStmt.Label));
+
+        Line ('goto ' + GotoTarget (TheStmt.Label) + ';');
+    end
+
     procedure VisitBlockStmt (TheStmt : BlockStmt);
     begin
         var Mark := OpenScope ();
@@ -2722,9 +2809,12 @@ begin
         Line ('{');
         Depth := Depth + 1;
         HoistCells (TheStmt.Statements);
+        PushLabels (TheStmt.Statements);
 
         for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
             Execute (TheStmt.Statements[I]);
+
+        PopLabels ();
 
         Depth := Depth - 1;
         Line ('}');
@@ -2975,9 +3065,12 @@ begin
         end
 
         HoistCells (TheStmt.Body);
+        PushLabels (TheStmt.Body);
 
         for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
             Execute (TheStmt.Body[I]);
+
+        PopLabels ();
 
         Line ('return alg_nil();');
 
@@ -4757,8 +4850,17 @@ begin
 
     /// A label emits nothing of its own: the loop it names writes its targets,
     /// because only the loop knows where they belong.
+    /// ⚠️ Emitted only when a goto names it, which the RESOLVER decided.  A
+    /// label reached only by break or continue needs no goto target, and a
+    /// forward goto is emitted after its label -- so nothing here could work it
+    /// out for itself.
+    ///
+    /// ⚠️ 'lg_X: ;' -- a C label must be followed by a statement, and the empty
+    /// one is the only thing that is safe before a declaration.
     procedure VisitLabelStmt (TheStmt : LabelStmt);
     begin
+        if TheStmt.Targeted then Line (GotoTarget (Str (TheStmt.Name.Lexeme)) + ': ;');
+
         Execute (TheStmt.Inner);
     end
 

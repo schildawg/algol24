@@ -899,7 +899,14 @@ begin
             RegisterRoot ();
             Hoist (Statements);
 
-            for var I : Integer := 0; I < Statements.Length; I := I + 1 do
+            // ⚠️ An INDEX, and a goto may move it, exactly as in ExecuteBlock.
+            // The top level is a block like any other -- it is simply not run
+            // through ExecuteBlock, because the root's statements are hoisted
+            // first and executed in the environment they already have.  Without
+            // this a 'goto' written at the top level escaped uncaught and the
+            // program stopped with 'Jumped instance' [STM-024].
+            var I : Integer := 0;
+            while I < Statements.Length do
             begin
                // ⚠️ Skipped, because Hoist already ran them.  Executing a
                // declaration twice defines the name twice, and the second is
@@ -909,8 +916,20 @@ begin
                if Statements[I] is ClassStmt then
                    Done := HoistedClasses.Contains (FoldCase (Statements[I].Name.Lexeme));
 
-               if not Done then Execute (Statements[I]);     
-            end 
+               try
+                   if not Done then Execute (Statements[I]);
+                   I := I + 1;
+               except
+                   on g : Jumped do
+                   begin
+                       var At := LabelAt (Statements, g.Label);
+
+                       if At < 0 then raise g;
+
+                       I := At;
+                   end
+               end
+            end
         except
             // ⚠️ An uncaught 'raise' from the program, unwrapped on the way
             // out.  Without this the wrapper reached the user and the report
@@ -2064,9 +2083,30 @@ begin
         // does not exist.
         try 
             this.Env := NewEnv;
-            for var I := 0; I < Statements.Length; I := I + 1 do
+
+            // ⚠️ An INDEX, not a for loop, because a goto may move it -- and
+            // may move it BACKWARDS.  Nothing else here needs that, and it is
+            // the whole reason a backward jump costs no more than a forward one
+            // [STM-024].
+            var I := 0;
+            while I < Statements.Length do
             begin
-               Execute (Statements[I]);
+                try
+                    Execute (Statements[I]);
+                    I := I + 1;
+                except
+                    // ⚠️ RE-RAISED when the label is not one of these
+                    // statements, which is how the jump travels outward to an
+                    // enclosing block -- and why it can never travel inward.
+                    on g : Jumped do
+                    begin
+                        var At := LabelAt (Statements, g.Label);
+
+                        if At < 0 then raise g;
+
+                        I := At;
+                    end
+                end
             end
         except
             on e do
@@ -2552,6 +2592,11 @@ begin
         Execute (TheStmt.Inner);
     end
 
+    procedure VisitGotoStmt (TheStmt : GotoStmt);
+    begin
+        raise Jumped (TheStmt.Label);
+    end
+
     /// Runs a module's declarations, then hands the exported ones over.
     ///
     /// ⚠️ Exports are MOVED, not copied.  A copy leaves two bindings for one
@@ -2894,6 +2939,45 @@ begin
     begin
         this.Label := Label;
     end
+end
+
+/// A 'goto', travelling as a host exception.
+///
+/// ⚠️ Named Jumped, not Goto, for the reason Broke is not named Break: 'goto'
+/// is a keyword now, keyword lookup is case-insensitive [SRC-011], and a class
+/// cannot be named one.  Past tense to sit beside Broke, Continued and Raised.
+///
+/// ⚠️ It is caught by a BLOCK, not by a statement.  ExecuteBlock looks for the
+/// label among its own statements and resumes there; failing to find it, it
+/// re-raises, so the jump travels outward through enclosing blocks.  That is
+/// the whole implementation of "the same block or an enclosing one", and it is
+/// also why a jump INTO a nested block cannot be expressed: an exception has no
+/// way to travel inward [STM-024].
+///
+class Jumped;
+var
+    Label : String;
+
+begin
+    constructor Init (Label : String);
+    begin
+        this.Label := Label;
+    end
+end
+
+/// Where a label of this name sits in a statement list, or -1.
+///
+/// ⚠️ Folded [SRC-011], and TOP LEVEL ONLY: a label nested inside one of these
+/// statements belongs to that statement's own block.
+///
+function LabelAt (Statements : List, Named : String) : Integer;
+begin
+    for var I := 0; I < Statements.Length; I := I + 1 do
+        if Statements[I] is LabelStmt then
+            if FoldCase (Str (Statements[I].Name.Lexeme)) = FoldCase (Named) then
+                Exit I;
+
+    Exit -1;
 end
 
 /// Whether a loop of this label is the one a break or continue named.

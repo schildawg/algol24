@@ -63,6 +63,9 @@ static const char *t_resolver_checkduplicates_1_list[] = { "Statements : List" }
 static const char *t_resolver_signatureof_1[] = { "TheStmt : Any" };
 static const char *t_resolver_checkinheritance_1_list[] = { "Statements : List" };
 static const char *t_resolver_resolveall_1_list[] = { "Statements : List" };
+static const char *t_resolver_pushlabels_1_list[] = { "Statements : List" };
+static const char *t_resolver_findlabel_1_string[] = { "Named : String" };
+static const char *t_resolver_visitgotostmt_1_gotostmt[] = { "Stmt : GotoStmt" };
 static const char *t_resolver_resolve_1[] = { "TheExpr : Any" };
 static const char *t_resolver_resolvefunction_2_functionstmt_functiontype[] = { "TheFunction : FunctionStmt", "TypeOfFunction : FunctionType" };
 static const char *t_resolver_declare_1_token[] = { "Name : Token" };
@@ -82,6 +85,7 @@ static Value i_resolver(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Units", alg_nil());
     alg_set_property(v_this, "Dottable", alg_nil());
     alg_set_property(v_this, "Collected", alg_widen(alg_bool(false), "Boolean"));
+    alg_set_property(v_this, "LabelScopes", alg_widen(alg_list(), "List"));
     return alg_nil();
 }
 
@@ -860,6 +864,7 @@ static Value m_resolver_resolveall_1_list(Value v_this, Value *args, int32_t cou
             (void)(alg_invoke(v_this, "CheckInheritance", (Value[]){v_statements}, 1));
         }
     }
+    (void)(alg_invoke(v_this, "PushLabels", (Value[]){v_statements}, 1));
     {
         Value v_i = alg_int(0);
         (void)v_i;
@@ -869,6 +874,74 @@ static Value m_resolver_resolveall_1_list(Value v_this, Value *args, int32_t cou
             }
         }
     }
+    (void)(alg_invoke(v_this, "PopLabels", NULL, 0));
+    return alg_nil();
+}
+
+static Value m_resolver_pushlabels_1_list(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_statements = alg_widen(args[0], "List");
+    (void)v_statements;
+    Value v_found = alg_nil();
+    (void)v_found;
+    (void)((v_found = alg_widen(alg_list(), "List")));
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "LabelStmt"))) {
+                (void)(alg_invoke(v_found, "Add", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
+            }
+        }
+    }
+    (void)(alg_invoke(alg_property(v_this, "LabelScopes"), "Add", (Value[]){v_found}, 1));
+    return alg_nil();
+}
+
+static Value m_resolver_poplabels_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    (void)(alg_invoke(alg_property(v_this, "LabelScopes"), "RemoveAt", (Value[]){alg_subtract(alg_property(alg_property(v_this, "LabelScopes"), "Length"), alg_int(1))}, 1));
+    return alg_nil();
+}
+
+static Value m_resolver_findlabel_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_named = alg_widen(args[0], "String");
+    (void)v_named;
+    {
+        Value v_s = alg_subtract(alg_property(alg_property(v_this, "LabelScopes"), "Length"), alg_int(1));
+        (void)v_s;
+        for (; alg_truthy(alg_greater_equal(v_s, alg_int(0))); (v_s = alg_subtract(v_s, alg_int(1)))) {
+            {
+                Value v_scope = alg_subscript_get(alg_property(v_this, "LabelScopes"), v_s);
+                (void)v_scope;
+                {
+                    Value v_i = alg_int(0);
+                    (void)v_i;
+                    for (; alg_truthy(alg_less(v_i, alg_property(v_scope, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                        if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(v_scope, v_i), "Name"), "Lexeme"))}, 1), f_foldcase(NULL, (Value[]){v_named}, 1)))) {
+                            return alg_subscript_get(v_scope, v_i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return alg_nil();
+    return alg_nil();
+}
+
+static Value m_resolver_visitgotostmt_1_gotostmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_stmt = alg_widen(args[0], "GotoStmt");
+    (void)v_stmt;
+    Value v_target = alg_nil();
+    (void)v_target;
+    (void)((v_target = alg_invoke(v_this, "FindLabel", (Value[]){alg_property(v_stmt, "Label")}, 1)));
+    if (alg_truthy(alg_equal(v_target, alg_nil()))) {
+        alg_raise(alg_add(alg_add(alg_string("No label '"), alg_property(v_stmt, "Label")), alg_string("' is in scope.")));
+    }
+    (void)(alg_set_property(v_target, "Targeted", alg_bool(true)));
     return alg_nil();
 }
 
@@ -903,7 +976,11 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
             }
         }
     }
+    Value v_enclosinglabels = alg_property(v_this, "LabelScopes");
+    (void)v_enclosinglabels;
+    (void)(alg_set_property(v_this, "LabelScopes", alg_widen(alg_list(), "List")));
     (void)(alg_invoke(v_this, "ResolveAll", (Value[]){alg_property(v_thefunction, "Body")}, 1));
+    (void)(alg_set_property(v_this, "LabelScopes", alg_widen(v_enclosinglabels, "List")));
     (void)(alg_invoke(v_this, "EndScope", NULL, 0));
     (void)(alg_set_property(v_this, "CurrentFunction", alg_widen(v_enclosingfunction, "FunctionType")));
     return alg_nil();
@@ -1036,6 +1113,7 @@ void init_Resolver(void) {
     alg_class_field(k_resolver, "Units");
     alg_class_field(k_resolver, "Dottable");
     alg_class_field(k_resolver, "Collected");
+    alg_class_field(k_resolver, "LabelScopes");
     alg_class_initializer(k_resolver, i_resolver);
     alg_class_method(k_resolver, "Init", m_resolver_init_1_interpreter, 1, t_resolver_init_1_interpreter);
     alg_class_method(k_resolver, "CollectDottable", m_resolver_collectdottable_1_list, 1, t_resolver_collectdottable_1_list);
@@ -1079,6 +1157,10 @@ void init_Resolver(void) {
     alg_class_method(k_resolver, "SignatureOf", m_resolver_signatureof_1, 1, t_resolver_signatureof_1);
     alg_class_method(k_resolver, "CheckInheritance", m_resolver_checkinheritance_1_list, 1, t_resolver_checkinheritance_1_list);
     alg_class_method(k_resolver, "ResolveAll", m_resolver_resolveall_1_list, 1, t_resolver_resolveall_1_list);
+    alg_class_method(k_resolver, "PushLabels", m_resolver_pushlabels_1_list, 1, t_resolver_pushlabels_1_list);
+    alg_class_method(k_resolver, "PopLabels", m_resolver_poplabels_0, 0, NULL);
+    alg_class_method(k_resolver, "FindLabel", m_resolver_findlabel_1_string, 1, t_resolver_findlabel_1_string);
+    alg_class_method(k_resolver, "VisitGotoStmt", m_resolver_visitgotostmt_1_gotostmt, 1, t_resolver_visitgotostmt_1_gotostmt);
     alg_class_method(k_resolver, "Resolve", m_resolver_resolve_1, 1, t_resolver_resolve_1);
     alg_class_method(k_resolver, "ResolveFunction", m_resolver_resolvefunction_2_functionstmt_functiontype, 2, t_resolver_resolvefunction_2_functionstmt_functiontype);
     alg_class_method(k_resolver, "BeginScope", m_resolver_beginscope_0, 0, NULL);

@@ -56,6 +56,12 @@ var
    /// and the recursive step.
    Collected : Boolean := False;
 
+   /// The labels each enclosing block declares, innermost last [STM-024].
+   ///
+   /// ⚠️ Emptied for a function body rather than pushed to, because a goto may
+   /// not leave the subprogram it is written in.
+   LabelScopes : List := [];
+
 begin
     /// Creates a Resolver.
     //
@@ -816,10 +822,82 @@ begin
             CheckInheritance (Statements);
         end
 
+        // ⚠️ EVERY statement list, which is what makes the rule "the same block
+        // or an enclosing one" fall out of one place [STM-024].  A block, a
+        // function body and the top level all arrive here, so a label is in
+        // scope for exactly the statements that can reach it -- and a label
+        // inside a nested block is never pushed while the outer one resolves,
+        // which is what refuses a jump INTO a block.
+        PushLabels (Statements);
+
         for var I := 0; I < Statements.Length; I := I + 1 do
         begin
             Resolve(Statements[I]);
         end
+
+        PopLabels ();
+    end
+
+    /// The labels declared at the top level of a statement list.
+    ///
+    /// ⚠️ TOP LEVEL ONLY, and deliberately.  A label nested inside one of these
+    /// statements belongs to that statement's own block, and pulling it up here
+    /// is exactly the jump into a nested block that neither processor can make.
+    ///
+    procedure PushLabels (Statements : List);
+    var
+        Found : List;
+
+    begin
+        Found := List();
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+            if Statements[I] is LabelStmt then Found.Add (Statements[I]);
+
+        LabelScopes.Add (Found);
+    end
+
+    procedure PopLabels ();
+    begin
+        LabelScopes.RemoveAt (LabelScopes.Length - 1);
+    end
+
+    /// The label of this name in the nearest enclosing block, or Nil.
+    ///
+    /// ⚠️ Folded [SRC-011], because a label is a name like any other.
+    ///
+    function FindLabel (Named : String) : Any;
+    begin
+        for var S := LabelScopes.Length - 1; S >= 0; S := S - 1 do
+        begin
+            var Scope := LabelScopes[S];
+
+            for var I := 0; I < Scope.Length; I := I + 1 do
+                if FoldCase (Str (Scope[I].Name.Lexeme)) = FoldCase (Named) then
+                    Exit Scope[I];
+        end
+
+        Exit Nil;
+    end
+
+    /// ⚠️ Here rather than in the Parser, because a FORWARD jump names a label
+    /// the parser has not reached yet.  The Resolver has the whole block in
+    /// hand, so it can answer for both directions at once [STM-024].
+    ///
+    /// ⚠️ It also MARKS the label.  The emitter writes a C label only where
+    /// something jumps to it, and a forward goto is emitted after its label --
+    /// so nothing at emit time could work it out.
+    procedure VisitGotoStmt (Stmt : GotoStmt);
+    var
+        Target : Any;
+
+    begin
+        Target := FindLabel (Stmt.Label);
+
+        if Target = Nil then
+            raise 'No label ''' + Stmt.Label + ''' is in scope.';
+
+        Target.Targeted := True;
     end
 
     // Resolves statements and expressions.
@@ -846,7 +924,16 @@ begin
             Declare (Param);
             Define (Param);
         end
+        // ⚠️ CLEARED, not pushed.  A goto may not leave the subprogram it is
+        // written in [STM-024] -- C's cannot, and the interpreter's exception
+        // would unwind past the call it should have stayed inside.  Emptying
+        // the stack for the body is what says so.
+        var EnclosingLabels := LabelScopes;
+        LabelScopes := List();
+
         ResolveAll (TheFunction.Body);
+
+        LabelScopes := EnclosingLabels;
         EndScope();
 
         CurrentFunction := EnclosingFunction;

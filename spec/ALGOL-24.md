@@ -464,16 +464,16 @@ case, because the keyword is recognised first. `var begin := 7;` and
 
 ### 4.4 Keywords
 
-**[LEX-010]**  The following 39 words are keywords and are matched
+**[LEX-010]**  The following 40 words are keywords and are matched
 case-insensitively per [SRC-010]:
 
 ```
 and     as       begin   break   case    class     const   constructor
 continue         div     do      else    end       except  exit
-false   for      function        if      in        is      nil
-not     object   of      or      private procedure public  raise
-super   then     this    true    try     type      uses    var
-while
+false   for      function        goto    if        in      is
+nil     not      object  of      or      private   procedure
+public  raise    super   then    this    true      try     type
+uses    var      while
 ```
 
 No other word is a keyword. Every word not in this list is an identifier and
@@ -2363,6 +2363,45 @@ every built-in alike.
 > ID is permanent: [STM-022] has been cited, and a reader who follows the
 > citation should find out what became of the statement rather than nothing.
 
+### 10.8 Goto
+
+**[STM-024]**  `goto` jumps to a label. The label must be in the **same block or
+an enclosing one**, within the same subprogram, and the jump may go **forward or
+backward**. Anything else is refused with `No label 'X' is in scope.`
+
+```
+GotoStmt = "goto" identifier ";" .
+```
+
+⚠️ **Direction is not the constraint; nesting is.** A backward jump costs
+nothing that a forward one does not — the interpreter resumes a block at an
+index, and an index may move either way, while C's `goto` has never cared. What
+neither processor can do is jump **into** a nested block: the interpreter's jump
+travels as an exception, which propagates outward and has no way inward, and C
+would be skipping initializers. Pascal restricts it the same way and for the
+same reason.
+
+⚠️ **It may not leave the subprogram.** C's cannot, and the interpreter's would
+unwind past the call it should have stayed inside.
+
+⚠️ **The check is the Resolver's, not the parser's**, because a forward jump
+names a label the parser has not reached yet. The Resolver has the whole block
+in hand and so can answer for both directions at once — which is also where
+`break` and `continue` differ: a loop they are inside has always been entered
+already, so the parser can answer for those.
+
+⚠️ **A jump out of a `try` must leave its frame.** The runtime's frame stack is
+explicit, and a frame left behind points at a C frame that has returned; the
+next `raise` then longjmps into it. A `goto` out of two `try` blocks to a
+top-level label popped nothing at first, and the compiled program ran a handler
+the interpreter never reached — the two processors disagreeing about a program,
+which is the one thing the C back end exists not to do.
+
+    interpreter  compiler/Resolver.a24  VisitGotoStmt
+    conformance  0163-goto.a24
+    refusal      0163-goto-into-a-nested-block.a24
+    refusal      0164-goto-out-of-a-subprogram.a24
+
 ---
 
 ## 11. Functions, procedures and closures
@@ -3947,6 +3986,7 @@ TestDecl   = "test" string_lit ";" Block .
 ```
 CaseStmt = "case" Expression "of" { Arm } [ "else" Statement ] "end" .
 Arm      = Expression { "," Expression } ":" Statement .
+GotoStmt = "goto" identifier ";" .
 ```
 
 ### What is specified in prose instead

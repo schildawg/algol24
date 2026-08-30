@@ -16,6 +16,7 @@ extern Value k_modulestmt;
 extern Value k_breakstmt;
 extern Value k_continuestmt;
 extern Value k_labelstmt;
+extern Value k_gotostmt;
 extern Value k_trystmt;
 extern Value k_raisestmt;
 extern Value k_forinstmt;

@@ -169,6 +169,10 @@ static const char *t_cemitter_emitclass_5_string_list_list_boolean[] = { "Name :
 static const char *t_cemitter_built_2_boolean_string[] = { "Hoisted : Boolean", "Text : String" };
 static const char *t_cemitter_visitvarstmt_1_varstmt[] = { "TheStmt : VarStmt" };
 static const char *t_cemitter_visitexpressionstmt_1_expressionstmt[] = { "TheStmt : ExpressionStmt" };
+static const char *t_cemitter_pushlabels_1_list[] = { "Statements : List" };
+static const char *t_cemitter_depthoflabel_1_string[] = { "TheLabel : String" };
+static const char *t_cemitter_gototarget_1_string[] = { "TheLabel : String" };
+static const char *t_cemitter_visitgotostmt_1_gotostmt[] = { "TheStmt : GotoStmt" };
 static const char *t_cemitter_visitblockstmt_1_blockstmt[] = { "TheStmt : BlockStmt" };
 static const char *t_cemitter_visitifstmt_1_ifstmt[] = { "TheStmt : IfStmt" };
 static const char *t_cemitter_visitwhilestmt_1_whilestmt[] = { "TheStmt : WhileStmt" };
@@ -355,6 +359,7 @@ static Value i_cemitter(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "LoopLabels", alg_widen(alg_list(), "List"));
     alg_set_property(v_this, "LoopDepths", alg_widen(alg_list(), "List"));
     alg_set_property(v_this, "Jumped", alg_widen(alg_list(), "Set"));
+    alg_set_property(v_this, "LabelDepths", alg_widen(alg_list(), "List"));
     alg_set_property(v_this, "Volatiles", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "Renames", alg_nil());
     alg_set_property(v_this, "Overloaded", alg_nil());
@@ -1287,6 +1292,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                     }
                 }
                 (void)(alg_set_property(v_this, "AtTopLevel", alg_widen(alg_bool(true), "Boolean")));
+                (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_unit, "Statements")}, 1));
                 {
                     Value v_i = alg_int(0);
                     (void)v_i;
@@ -1314,6 +1320,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                         }
                     }
                 }
+                (void)(alg_invoke(v_this, "PopLabels", NULL, 0));
                 (void)(alg_set_property(v_this, "AtTopLevel", alg_widen(alg_bool(false), "Boolean")));
                 if (alg_truthy(v_ismain)) {
                     {
@@ -1604,6 +1611,7 @@ static Value m_cemitter_emittest_1(Value v_this, Value *args, int32_t count) {
     (void)(alg_set_property(v_this, "TryDepth", alg_widen(alg_int(0), "Integer")));
     (void)(alg_set_property(v_this, "LoopTryDepth", alg_widen(alg_int(0), "Integer")));
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_thestmt, "Body")}, 1));
+    (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_thestmt, "Body")}, 1));
     {
         Value v_i = alg_int(0);
         (void)v_i;
@@ -1611,6 +1619,7 @@ static Value m_cemitter_emittest_1(Value v_this, Value *args, int32_t count) {
             (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Body"), v_i)}, 1));
         }
     }
+    (void)(alg_invoke(v_this, "PopLabels", NULL, 0));
     Value v_written = alg_property(alg_property(v_this, "Body"), "Text");
     (void)v_written;
     (void)(alg_set_property(v_this, "Target", alg_widen(v_enclosingtarget, "String")));
@@ -2300,6 +2309,7 @@ static Value m_cemitter_emitmethod_2_string(Value v_this, Value *args, int32_t c
         }
     }
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_themethod, "Body")}, 1));
+    (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_themethod, "Body")}, 1));
     {
         Value v_i = alg_int(0);
         (void)v_i;
@@ -2307,6 +2317,7 @@ static Value m_cemitter_emitmethod_2_string(Value v_this, Value *args, int32_t c
             (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(alg_property(v_themethod, "Body"), v_i)}, 1));
         }
     }
+    (void)(alg_invoke(v_this, "PopLabels", NULL, 0));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("return alg_nil();")}, 1));
     Value v_written = alg_property(alg_property(v_this, "Body"), "Text");
     (void)v_written;
@@ -2545,6 +2556,69 @@ static Value m_cemitter_visitexpressionstmt_1_expressionstmt(Value v_this, Value
     return alg_nil();
 }
 
+static Value m_cemitter_pushlabels_1_list(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_statements = alg_widen(args[0], "List");
+    (void)v_statements;
+    Value v_here = alg_nil();
+    (void)v_here;
+    (void)((v_here = alg_widen(alg_map(), "Map")));
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "LabelStmt"))) {
+                (void)(alg_invoke(v_here, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme"))}, 1), alg_property(v_this, "TryDepth")}, 2));
+            }
+        }
+    }
+    (void)(alg_invoke(alg_property(v_this, "LabelDepths"), "Add", (Value[]){v_here}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_poplabels_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    (void)(alg_invoke(alg_property(v_this, "LabelDepths"), "RemoveAt", (Value[]){alg_subtract(alg_property(alg_property(v_this, "LabelDepths"), "Length"), alg_int(1))}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_depthoflabel_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thelabel = alg_widen(args[0], "String");
+    (void)v_thelabel;
+    Value v_folded = alg_nil();
+    (void)v_folded;
+    (void)((v_folded = alg_widen(f_foldcase(NULL, (Value[]){v_thelabel}, 1), "String")));
+    {
+        Value v_s = alg_subtract(alg_property(alg_property(v_this, "LabelDepths"), "Length"), alg_int(1));
+        (void)v_s;
+        for (; alg_truthy(alg_greater_equal(v_s, alg_int(0))); (v_s = alg_subtract(v_s, alg_int(1)))) {
+            if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "LabelDepths"), v_s), "Contains", (Value[]){v_folded}, 1))) {
+                return alg_cast(alg_invoke(alg_subscript_get(alg_property(v_this, "LabelDepths"), v_s), "Get", (Value[]){v_folded}, 1), "Integer");
+            }
+        }
+    }
+    return alg_property(v_this, "TryDepth");
+    return alg_nil();
+}
+
+static Value m_cemitter_gototarget_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thelabel = alg_widen(args[0], "String");
+    (void)v_thelabel;
+    return alg_add(alg_string("lg_"), alg_invoke(v_this, "Escaped", (Value[]){f_foldcase(NULL, (Value[]){v_thelabel}, 1)}, 1));
+    return alg_nil();
+}
+
+static Value m_cemitter_visitgotostmt_1_gotostmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thestmt = alg_widen(args[0], "GotoStmt");
+    (void)v_thestmt;
+    (void)(alg_invoke(v_this, "PopFramesTo", (Value[]){alg_invoke(v_this, "DepthOfLabel", (Value[]){alg_property(v_thestmt, "Label")}, 1)}, 1));
+    (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_string("goto "), alg_invoke(v_this, "GotoTarget", (Value[]){alg_property(v_thestmt, "Label")}, 1)), alg_char_value(59))}, 1));
+    return alg_nil();
+}
+
 static Value m_cemitter_visitblockstmt_1_blockstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "BlockStmt");
@@ -2557,6 +2631,7 @@ static Value m_cemitter_visitblockstmt_1_blockstmt(Value v_this, Value *args, in
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_char_value(123)}, 1));
     (void)(alg_set_property(v_this, "Depth", alg_widen(alg_add(alg_property(v_this, "Depth"), alg_int(1)), "Integer")));
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
+    (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
     {
         Value v_i = alg_int(0);
         (void)v_i;
@@ -2564,6 +2639,7 @@ static Value m_cemitter_visitblockstmt_1_blockstmt(Value v_this, Value *args, in
             (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Statements"), v_i)}, 1));
         }
     }
+    (void)(alg_invoke(v_this, "PopLabels", NULL, 0));
     (void)(alg_set_property(v_this, "Depth", alg_widen(alg_subtract(alg_property(v_this, "Depth"), alg_int(1)), "Integer")));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_char_value(125)}, 1));
     (void)(alg_set_property(v_this, "AtTopLevel", alg_widen(v_enclosingtop, "Boolean")));
@@ -2793,6 +2869,7 @@ static Value m_cemitter_visitfunctionstmt_1_functionstmt(Value v_this, Value *ar
         }
     }
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_thestmt, "Body")}, 1));
+    (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_thestmt, "Body")}, 1));
     {
         Value v_i = alg_int(0);
         (void)v_i;
@@ -2800,6 +2877,7 @@ static Value m_cemitter_visitfunctionstmt_1_functionstmt(Value v_this, Value *ar
             (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(alg_property(v_thestmt, "Body"), v_i)}, 1));
         }
     }
+    (void)(alg_invoke(v_this, "PopLabels", NULL, 0));
     (void)(alg_invoke(v_this, "Line", (Value[]){alg_string("return alg_nil();")}, 1));
     Value v_written = alg_property(alg_property(v_this, "Body"), "Text");
     (void)v_written;
@@ -4513,6 +4591,9 @@ static Value m_cemitter_visitlabelstmt_1_labelstmt(Value v_this, Value *args, in
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "LabelStmt");
     (void)v_thestmt;
+    if (alg_truthy(alg_property(v_thestmt, "Targeted"))) {
+        (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_invoke(v_this, "GotoTarget", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1), alg_string(": ;"))}, 1));
+    }
     (void)(alg_invoke(v_this, "Execute", (Value[]){alg_property(v_thestmt, "Inner")}, 1));
     return alg_nil();
 }
@@ -4622,6 +4703,7 @@ void init_CEmitter(void) {
     alg_class_field(k_cemitter, "LoopLabels");
     alg_class_field(k_cemitter, "LoopDepths");
     alg_class_field(k_cemitter, "Jumped");
+    alg_class_field(k_cemitter, "LabelDepths");
     alg_class_field(k_cemitter, "Volatiles");
     alg_class_field(k_cemitter, "Renames");
     alg_class_field(k_cemitter, "Overloaded");
@@ -4725,6 +4807,11 @@ void init_CEmitter(void) {
     alg_class_method(k_cemitter, "Built", m_cemitter_built_2_boolean_string, 2, t_cemitter_built_2_boolean_string);
     alg_class_method(k_cemitter, "VisitVarStmt", m_cemitter_visitvarstmt_1_varstmt, 1, t_cemitter_visitvarstmt_1_varstmt);
     alg_class_method(k_cemitter, "VisitExpressionStmt", m_cemitter_visitexpressionstmt_1_expressionstmt, 1, t_cemitter_visitexpressionstmt_1_expressionstmt);
+    alg_class_method(k_cemitter, "PushLabels", m_cemitter_pushlabels_1_list, 1, t_cemitter_pushlabels_1_list);
+    alg_class_method(k_cemitter, "PopLabels", m_cemitter_poplabels_0, 0, NULL);
+    alg_class_method(k_cemitter, "DepthOfLabel", m_cemitter_depthoflabel_1_string, 1, t_cemitter_depthoflabel_1_string);
+    alg_class_method(k_cemitter, "GotoTarget", m_cemitter_gototarget_1_string, 1, t_cemitter_gototarget_1_string);
+    alg_class_method(k_cemitter, "VisitGotoStmt", m_cemitter_visitgotostmt_1_gotostmt, 1, t_cemitter_visitgotostmt_1_gotostmt);
     alg_class_method(k_cemitter, "VisitBlockStmt", m_cemitter_visitblockstmt_1_blockstmt, 1, t_cemitter_visitblockstmt_1_blockstmt);
     alg_class_method(k_cemitter, "VisitIfStmt", m_cemitter_visitifstmt_1_ifstmt, 1, t_cemitter_visitifstmt_1_ifstmt);
     alg_class_method(k_cemitter, "VisitWhileStmt", m_cemitter_visitwhilestmt_1_whilestmt, 1, t_cemitter_visitwhilestmt_1_whilestmt);
