@@ -98,6 +98,57 @@ seed is regenerable, so it was patched through rather than the function renamed.
 lines from both sides by design, so no conformance case can hold the wording.
 A check in `spec/spec.sh` is where it would belong.
 
+## ✅ Generation 5 is complete
+
+**`continue`, labels on `break` and `continue`, and `goto`** — with 221 tests,
+211 conformance cases, no gap in either processor, and the fixed point holding.
+
+⚠️ **`continue` found a bug that was already there.** A `for` desugared into a
+`while` with the step written at the *end of the body*, so beginning the next
+iteration jumped over it — an infinite loop, and in **both** processors, since
+`while (c) { body; step; }` skips the step in C for the same reason the
+tree-walker does. The step is the loop's now. The two catches end up one
+statement apart — `Broke` around the whole loop, `Continued` around the body
+alone — and that gap is the entire rule.
+
+⚠️ **The C back end needed `goto` before the language did.** C has no labelled
+break, so `break Outer` emits a jump to a label after the loop and
+`continue Outer` to one at the *end of the body* — where falling off the end
+runs the C `for` increment and re-tests, which is exactly what continuing means.
+The third feature's machinery turned out to be the second's prerequisite.
+
+⚠️ **Direction was never the constraint for `goto`; nesting is.** A backward
+jump costs nothing a forward one does not — `ExecuteBlock` runs an index, and an
+index moves either way. What neither processor can do is jump *into* a nested
+block: an exception propagates outward and has no way inward, and C would be
+skipping initializers. Pascal restricts it identically, so the rule is the
+construct's own rather than one this implementation chose.
+
+⚠️ **The sharpest bug hid behind a passing test.** A `goto` out of two `try`
+blocks to a top-level label popped no frames, because the top-level statement
+list never pushed its labels and the lookup falls back silently. The first test
+agreed across both processors — because its trailing `raise` had a handler that
+caught the bad longjmp. Removing the handler exposed it: the compiled program
+ran a handler the interpreter never reached. A test that passes for the wrong
+reason is worth more suspicion than one that fails.
+
+⚠️ **A label needing no keyword has a price, and it is paid once.**
+`B : String;` under a top-level `var` now parses as a label on `String;`, so
+[VAR-011] is caught at run time rather than at parse time. The program is still
+refused; what is lost is that it used to be caught without being run. It is the
+only place in the language where the two forms collide.
+
+⚠️ **Two numbering mistakes, both caught by `spec.sh` and neither by me.**
+`STM-010a` is invisible to every check it runs, because rule ids are matched as
+`[A-Z]+-[0-9]+`; and `STM-023` was already taken by duplicate `try` handlers.
+The rule is [STM-024].
+
+⚠️ **The generation ended by closing a hole it had not opened.** [ERR-010] gives
+the `[WARN]` severity a rule at last, and `spec.sh` now compares its wording
+with the line `algc` actually raises. A probe was the wrong home — `record.sh`
+says so itself — and the corpus cannot pin it, because it drops `[WARN]` from
+both sides by design.
+
 ## 0. The road to v1
 
 | | | Ends when |
