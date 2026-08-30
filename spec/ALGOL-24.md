@@ -4401,9 +4401,10 @@ half that mattered beyond this entry. Any heap object of an unhandled kind
 reaching it crashed rather than saying anything; it names the kind and raises
 now. A missing case should be a diagnostic, not a wild read.
 
-⚠️ It closed by repair rather than by removal. H-6 would have made bare
-`B.Length` an error and retired the construct instead — that option remains, and
-this fix does not prejudge it.
+⚠️ It closed by repair rather than by removal. H-6 once proposed making a bare
+`B.Length` an error and retiring the construct instead; that proposal has since
+been withdrawn — reading a method as a value is specified [FUN-011] and stays —
+so the repair is now the whole answer rather than an interim one.
 
 **C-7 — Four runtime diagnostics are worded differently.**
 ***Withdrawn.***
