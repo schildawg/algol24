@@ -9,6 +9,7 @@ extern Value k_typelookup;
 extern Value k_typechecker;
 extern Value fn_rejects;
 extern Value v_hider;
+extern bool d_hider;
 void init_TypeChecker(void);
 
 #endif

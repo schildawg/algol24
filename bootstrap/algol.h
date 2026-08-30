@@ -344,6 +344,22 @@ Value alg_mod(Value a, Value b);
 Value alg_text_file(void);
 Value alg_file_exists(Value name);
 
+/* Checks a call's argument count against the declared one [EXP-011], raising
+ * 'Expected N arguments but got M.' where they differ.
+ *
+ * ⚠️ Emitted in the CALLEE of a top-level subprogram, because that is the one
+ * call shape nothing else guards: it is reached by its own C symbol, so no
+ * dispatcher sits between the call and the body.  A nested function goes
+ * through alg_call and a method through alg_invoke, both of which check. */
+void alg_arity(int32_t got, int32_t expected);
+
+/* Checks that a file-scope variable's declaration has run before it is read or
+ * assigned [DCL-016], raising 'Undefined variable 'X'.' where it has not.  Each
+ * such variable carries a 'd_' bool beside its 'v_' storage; see the emitter's
+ * Guarded, and the note on the definition for why a bool rather than a
+ * sentinel Value. */
+void alg_declared(bool defined, const char *name);
+
 /* 'X is T' -- whether a value's runtime type is T or inherits from it.  nil is
  * never anything.  The type name is known when the C is written; the value's
  * type is not, which is why this is a call rather than a comparison. */

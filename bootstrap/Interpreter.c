@@ -40,8 +40,10 @@ static const char *t_setnative_call_2[] = { "Any", "Any" };
 Value k_stacknative;
 static const char *t_stacknative_call_2[] = { "Any", "Any" };
 Value v_programarguments;
+bool d_programarguments;
 Value fn_setprogramarguments;
 Value v_outputsuppressed;
+bool d_outputsuppressed;
 Value fn_suppressoutput;
 Value k_writenative;
 static const char *t_writenative_call_2[] = { "Any", "Any" };
@@ -398,17 +400,19 @@ static Value m_stacknative_call_2(Value v_this, Value *args, int32_t count) {
 
 Value f_setprogramarguments(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
     Value v_arguments = alg_param(args[0], "List");
     (void)v_arguments;
-    (void)((v_programarguments = alg_widen(v_arguments, "List")));
+    (void)((alg_declared(d_programarguments, "ProgramArguments"), (v_programarguments = alg_widen(v_arguments, "List"))));
     return alg_nil();
 }
 
 Value f_suppressoutput(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
     Value v_suppress = alg_param(args[0], "Boolean");
     (void)v_suppress;
-    (void)((v_outputsuppressed = alg_widen(v_suppress, "Boolean")));
+    (void)((alg_declared(d_outputsuppressed, "OutputSuppressed"), (v_outputsuppressed = alg_widen(v_suppress, "Boolean"))));
     return alg_nil();
 }
 
@@ -429,7 +433,7 @@ static Value m_writenative_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_theinterpreter;
     Value v_arguments = args[1];
     (void)v_arguments;
-    if (alg_truthy(alg_not(v_outputsuppressed))) {
+    if (alg_truthy(alg_not((alg_declared(d_outputsuppressed, "OutputSuppressed"), v_outputsuppressed)))) {
         (void)(alg_write(f_stringify(NULL, (Value[]){v_theinterpreter, alg_subscript_get(v_arguments, alg_int(0))}, 2)));
     }
     return alg_nil();
@@ -456,7 +460,7 @@ static Value m_writelnnative_call_2(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_greater(alg_property(v_arguments, "Length"), alg_int(1)))) {
         alg_raise(alg_add(alg_add(alg_string("Expected 0 or 1 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
     }
-    if (alg_truthy(alg_not(v_outputsuppressed))) {
+    if (alg_truthy(alg_not((alg_declared(d_outputsuppressed, "OutputSuppressed"), v_outputsuppressed)))) {
         {
             if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(0)))) {
                 (void)(alg_writeln(alg_string("")));
@@ -737,7 +741,7 @@ static Value m_paramcountnative_call_2(Value v_this, Value *args, int32_t count)
     (void)v_theinterpreter;
     Value v_arguments = args[1];
     (void)v_arguments;
-    return alg_subtract(alg_property(v_programarguments, "Length"), alg_int(1));
+    return alg_subtract(alg_property((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), "Length"), alg_int(1));
     return alg_nil();
 }
 
@@ -761,15 +765,16 @@ static Value m_paramstrnative_call_2(Value v_this, Value *args, int32_t count) {
     Value v_at = alg_nil();
     (void)v_at;
     (void)((v_at = alg_widen(alg_cast(alg_subscript_get(v_arguments, alg_int(0)), "Integer"), "Integer")));
-    if (alg_truthy((or_6 = alg_less(v_at, alg_int(0)), alg_truthy(or_6) ? or_6 : alg_greater_equal(v_at, alg_property(v_programarguments, "Length"))))) {
+    if (alg_truthy((or_6 = alg_less(v_at, alg_int(0)), alg_truthy(or_6) ? or_6 : alg_greater_equal(v_at, alg_property((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), "Length"))))) {
         return alg_string("");
     }
-    return alg_subscript_get(v_programarguments, v_at);
+    return alg_subscript_get((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), v_at);
     return alg_nil();
 }
 
 Value f_stringify(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
     Value v_theinterpreter = args[0];
     (void)v_theinterpreter;
     Value v_value = args[1];
@@ -1240,7 +1245,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
     (void)v_hoisted;
     (void)(alg_invoke(v_hoisted, "Add", (Value[]){v_filename}, 1));
     (void)(alg_invoke(v_this, "HoistTests", (Value[]){v_statements, v_tests, v_byname, alg_bool(true), alg_property(v_this, "Globals"), v_declaredin, v_filename, v_files, v_byfile, v_hoisted, alg_bool(true)}, 11));
-    (void)(alg_writeln(alg_add(alg_add(alg_add(v_infoVtag, alg_string("Running ")), alg_str(alg_property(v_tests, "Length"))), alg_string(" tests..."))));
+    (void)(alg_writeln(alg_add(alg_add(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_string("Running ")), alg_str(alg_property(v_tests, "Length"))), alg_string(" tests..."))));
     (void)((v_passed = alg_widen(alg_int(0), "Integer")));
     (void)((v_failed = alg_widen(alg_int(0), "Integer")));
     volatile Value v_ordered = alg_list();
@@ -1279,9 +1284,9 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
                     if (alg_truthy(alg_not(alg_invoke(v_byname, "Contains", (Value[]){alg_subscript_get(v_ordered, v_i)}, 1)))) {
                         {
                             if (alg_truthy(alg_greater(v_i, alg_int(0)))) {
-                                (void)(alg_writeln(v_infoVtag));
+                                (void)(alg_writeln((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag)));
                             }
-                            (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(v_infoVtag, alg_string("< ")), v_ansiVcyan), alg_str(alg_subscript_get(v_ordered, v_i))), v_ansiVreset), alg_string(" >"))));
+                            (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_string("< ")), (alg_declared(d_ansiVcyan, "ANSI_CYAN"), v_ansiVcyan)), alg_str(alg_subscript_get(v_ordered, v_i))), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)), alg_string(" >"))));
                         }
                     } else {
                         {
@@ -1317,7 +1322,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
                                             {
                                                 (void)((v_failed = alg_widen(alg_add(v_failed, alg_int(1)), "Integer")));
                                                 (void)(alg_writeln(alg_invoke(v_this, "Report", (Value[]){v_name, alg_string("FAIL")}, 2)));
-                                                (void)(alg_writeln(alg_add(alg_add(alg_add(v_errorVtag, v_filename), alg_string(": ")), v_e)));
+                                                (void)(alg_writeln(alg_add(alg_add(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), v_filename), alg_string(": ")), v_e)));
                                             }
                                         }
                                     }
@@ -1328,7 +1333,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
                                             {
                                                 (void)((v_failed = alg_widen(alg_add(v_failed, alg_int(1)), "Integer")));
                                                 (void)(alg_writeln(alg_invoke(v_this, "Report", (Value[]){v_name, alg_string("FAIL")}, 2)));
-                                                (void)(alg_writeln(alg_add(alg_add(alg_add(v_errorVtag, v_filename), alg_string(": ")), alg_str(alg_property(v_e, "Value")))));
+                                                (void)(alg_writeln(alg_add(alg_add(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), v_filename), alg_string(": ")), alg_str(alg_property(v_e, "Value")))));
                                             }
                                         }
                                     }
@@ -1344,11 +1349,11 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
             }
         }
     }
-    (void)(alg_writeln(v_infoVtag));
+    (void)(alg_writeln((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag)));
     if (alg_truthy(alg_equal(v_failed, alg_int(0)))) {
-        (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(v_infoVtag, v_ansiVgreen), alg_string("All ")), alg_str(v_passed)), alg_string(" tests passed.")), v_ansiVreset)));
+        (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), (alg_declared(d_ansiVgreen, "ANSI_GREEN"), v_ansiVgreen)), alg_string("All ")), alg_str(v_passed)), alg_string(" tests passed.")), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))));
     } else {
-        (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_infoVtag, v_ansiVred), alg_str(v_failed)), alg_string(" of ")), alg_str(alg_add(v_passed, v_failed))), alg_string(" tests failed.")), v_ansiVreset)));
+        (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)), alg_str(v_failed)), alg_string(" of ")), alg_str(alg_add(v_passed, v_failed))), alg_string(" tests failed.")), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))));
     }
     return v_failed;
     return alg_nil();
@@ -1378,12 +1383,12 @@ static Value m_interpreter_report_2_string_string(Value v_this, Value *args, int
             }
         }
     }
-    Value v_tint = v_ansiVgreen;
+    Value v_tint = (alg_declared(d_ansiVgreen, "ANSI_GREEN"), v_ansiVgreen);
     (void)v_tint;
     if (alg_truthy(alg_equal(v_status, alg_string("FAIL")))) {
-        (void)((v_tint = v_ansiVred));
+        (void)((v_tint = (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)));
     }
-    return alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(v_infoVtag, alg_string("Test: ")), v_name), alg_char_value(32)), v_leader), alg_string(" [ ")), v_tint), v_status), v_ansiVreset), alg_string(" ]"));
+    return alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add((alg_declared(d_infoVtag, "INFO_TAG"), v_infoVtag), alg_string("Test: ")), v_name), alg_char_value(32)), v_leader), alg_string(" [ ")), v_tint), v_status), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)), alg_string(" ]"));
     return alg_nil();
 }
 
@@ -3153,5 +3158,7 @@ void init_Interpreter(void) {
     alg_class_initializer(k_return, i_return);
     alg_class_method(k_return, "Init", m_return_init_1, 1, t_return_init_1);
     v_programarguments = alg_widen(alg_list(), "List");
+    d_programarguments = true;
     v_outputsuppressed = alg_widen(alg_bool(false), "Boolean");
+    d_outputsuppressed = true;
 }

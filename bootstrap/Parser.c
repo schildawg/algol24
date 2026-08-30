@@ -83,6 +83,7 @@ static const char *t_parser_checkword_1_string[] = { "String" };
 
 Value f_readwholefile(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
     Value v_name = alg_param(args[0], "String");
     (void)v_name;
     Value v_f = alg_text_file();

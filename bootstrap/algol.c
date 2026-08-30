@@ -1505,6 +1505,47 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
     return named;
 }
 
+/* [EXP-011]'s wording, in the one place that builds it.
+ *
+ * ⚠️ Two different failures, and they are not interchangeable.  A subprogram
+ * with ONE signature reports the counts, because there is nothing to select
+ * between and the count is the whole story.  A METHOD reports 'No matching
+ * signature for function.', because arity is only part of what it selects on
+ * and a wrong count is simply one way for nothing to fit -- the interpreter
+ * reaches that message through FindOverload answering nothing. */
+_Noreturn static void arity_error(int32_t expected, int32_t got) {
+    char message[64];
+    snprintf(message, sizeof message, "Expected %d arguments but got %d.", (int)expected, (int)got);
+
+    alg_error(message);
+}
+
+void alg_arity(int32_t got, int32_t expected) {
+    if (got != expected) arity_error(expected, got);
+}
+
+/* A file-scope variable read before its declaration has run [DCL-016].
+ *
+ * ⚠️ A variable is NOT hoisted, and a function, class and enum are [DCL-006].
+ * One mechanism served all four here -- every top-level name is a C file-scope
+ * symbol, so it exists from the start of the program -- which made this back
+ * end right about three kinds of declaration and wrong about the fourth.  A
+ * variable simply held nil until its initializer ran, so the program continued
+ * with a VALUE where the language has a diagnostic.
+ *
+ * ⚠️ The flag is a bool rather than a sentinel Value, so nothing the language
+ * can hold ever means "not yet declared".  A sentinel could be printed,
+ * compared or widened by any read the emitter failed to guard; the worst a
+ * missed guard can do here is what the emitter already did. */
+void alg_declared(bool defined, const char *name) {
+    if (defined) return;
+
+    char message[256];
+    snprintf(message, sizeof message, "Undefined variable '%s'.", name);
+
+    alg_error(message);
+}
+
 /* Applies declared field values, inherited ones first, so a subclass
  * redeclaring a field wins. */
 static void initialize_fields(ObjClass *klass, Value self) {
@@ -1533,17 +1574,17 @@ Value alg_new(Value value, Value *args, int32_t count) {
 
     MethodEntry *init = find_method(klass, "Init", count, args, false);
     if (init != NULL) {
-        if (init->arity != count) alg_error("Wrong number of arguments to Init.");
+        /* ⚠️ [EXP-011]'s wording here too.  This said 'Wrong number of
+         * arguments to Init.', which names the constructor helpfully and is a
+         * message the interpreter cannot produce -- construction reports the
+         * counts like any other call. */
+        alg_arity(count, init->arity);
         init->fn(self, args, count);
     }
     else if (count != 0) {
-        /* ⚠️ [EXP-011]'s shape -- 'Expected N arguments but got M.' -- which the
-         * rule pins and the interpreter produces.  A class with no constructor
-         * takes none, so the expected count is zero. */
-        char message[64];
-        snprintf(message, sizeof message, "Expected 0 arguments but got %d.", (int)count);
-
-        alg_error(message);
+        /* A class with no constructor takes none, so the expected count is
+         * zero. */
+        arity_error(0, count);
     }
     return self;
 }
@@ -2208,7 +2249,14 @@ static bool collection_method(Value receiver, const char *name, Value *args, int
 }
 
 static Value invoke_found(MethodEntry *method, Value receiver, Value *args, int32_t count) {
-    if (method->arity != count) alg_error("Wrong number of arguments.");
+    /* ⚠️ Reached only with the 'named' fallback in hand -- find_method kept a
+     * method of this name that no arity matched, so the call fits nothing.
+     * That is what the interpreter calls 'No matching signature for function.',
+     * and a method selects on the whole signature rather than on arity, so the
+     * counts are not the story to tell.  This said 'Wrong number of
+     * arguments.', which no interpreted run produces. */
+    if (method->arity != count) alg_error("No matching signature for function.");
+
     return method->fn(receiver, args, count);
 }
 
@@ -2318,7 +2366,8 @@ Value alg_call(Value callee, Value *args, int32_t count) {
 
     ObjClosure *closure = (ObjClosure *)callee.obj;
 
-    if (closure->arity != count) alg_error("Wrong number of arguments.");
+    /* One signature, so the counts are the whole story -- see arity_error. */
+    alg_arity(count, closure->arity);
 
     return closure->fn(closure->cells, args, count);
 }

@@ -3857,7 +3857,8 @@ conformance case ending in a runtime error", narrowed once by testing, and is
 in fact a single `fprintf`.
 
 
-**C-10 — The compiled back end hoists variables.** *(silent)*
+**C-10 — The compiled back end hoists variables.**
+***Withdrawn.***
 *(refers to [DCL-016])*
 
 ```
@@ -3865,24 +3866,36 @@ WriteLn (V);
 var V := 7;
 ```
 
-Interpreted this is `Undefined variable 'V'.` Compiled it prints `nil`.
+Interpreted this is `Undefined variable 'V'.` Compiled it printed `nil`.
 
 Every top-level name is emitted at C file scope, so it exists from the start of
-the program; a variable simply holds `nil` until its initializer runs. The same
-applies to a class constructed above its declaration.
+the program; a variable simply held `nil` until its initializer ran.
 
-⚠️ **This is the silent direction again, and the worst instance of it.** The
-compiler does not merely accept a refused program — it substitutes a **value**
-for a diagnostic, so the program runs to completion with `nil` where a number
-was meant, and nothing anywhere says so.
+⚠️ **This was the silent direction again, and the worst instance of it.** The
+compiler did not merely accept a refused program — it substituted a **value**
+for a diagnostic, so the program ran to completion with `nil` where a number was
+meant, and nothing anywhere said so.
 
-⚠️ **The compiler is only half wrong.** Hoisting a *function or class* is what
-[DCL-006] requires, and the interpreter does it. Hoisting a *variable* is what
-[DCL-016] forbids and the compiler is the defect here. One mechanism, correct for one kind of declaration and not the other,
-which is why it took a rule split to describe.
+⚠️ **The compiler was only half wrong.** Hoisting a *function, class or enum* is
+what [DCL-006] requires, and the interpreter does it. Hoisting a *variable* is
+what [DCL-016] forbids. One mechanism, correct for three kinds of declaration
+and wrong about the fourth, which is why it took a rule split to describe — and
+why the fix could not be to stop emitting names at file scope.
 
-    gap  0044-variables-are-not-hoisted.a24
-    gap  0033-a-variable-is-not-hoisted.a24
+⚠️ **A `d_` bool beside the `v_` storage, and a RUNTIME check.** Nothing the
+emitter can see decides it: a read may sit inside a function declared above the
+variable and called from below it, which is legal and ordinary, so
+`function Peek (); begin Exit Later; end` is correct or an error depending on
+when `Peek` is called.
+
+⚠️ **A bool rather than a sentinel `Value`**, so that nothing the language can
+hold ever means "not yet declared". A sentinel could be printed, compared or
+widened by any read the emitter failed to guard; the worst a missed guard can do
+here is what the emitter already did.
+
+⚠️ **An assignment is checked too.** A variable is bound by its *declaration*,
+not by being written to, so `V := 5;` above `var V := 7;` is the same error a
+read gets rather than a store the declaration then overwrites.
 
 **C-11 — A top-level block is reordered.**
 ***Withdrawn.***
@@ -3993,7 +4006,8 @@ variable is a local.
 inside a procedure, as `conformance/0040` does for C-11. Neither needs to now.
 
 
-**C-14 — Compiled code does not check arity.** *(silent)*
+**C-14 — Compiled code does not check arity.**
+***Withdrawn.***
 *(refers to [EXP-011])*
 
 ```
@@ -4003,20 +4017,30 @@ WriteLn ('kept going');
 ```
 
 Interpreted this is `Uncaught: Expected 1 arguments but got 2.` Compiled it
-prints `1` and then `kept going` — the extra argument is discarded and the
-program runs on. Too *few* arguments is accepted as well.
+printed `1` and then `kept going` — the extra argument was discarded and the
+program ran on. Too *few* arguments was accepted as well, and read past the end
+of the argument array.
 
 ⚠️ **This was invisible while `conformance/0049` opted out of the compiled
 half.** It was found within minutes of removing the opt-outs, which is the
 argument for not having them: an opt-out records nothing and notices nothing,
 and the case it silences is exactly the case that would have found the bug.
 
-⚠️ Silent and unbounded. C-4 accepts a lowercase member name; this accepts any
-call with any number of arguments, so every arity error in a program compiled by
-this back end is undetected, and a function reading a parameter that was never
-passed gets whatever the calling convention left there.
+⚠️ **Only one call shape was unguarded, not all of them.** A nested function is
+reached through `alg_call` and a method through `alg_invoke`, and both compared
+counts already. A **top-level subprogram** is called by its own C symbol —
+`f_one(NULL, args, 2)` — so nothing sits between the call and the body. The
+check is emitted in the *callee*, for the reason `alg_param` is: the declared
+arity is already there, and one place answers for every call site. Top-level
+overloads are refused by name (C-2), so a symbol has exactly one arity.
 
-    gap  0049-call-failures.a24
+⚠️ **Two different failures, and they are not interchangeable.** A subprogram
+with one signature reports the counts. A **method** reports `No matching
+signature for function.`, because arity is only part of what it selects on
+[EXP-014] and a wrong count is one way for nothing to fit — there is no single
+expected count to name. The runtime said `Wrong number of arguments.` for the
+method case and `Wrong number of arguments to Init.` for a constructor, neither
+of which any interpreted run produces; `0049` now pins all four shapes.
 
 **C-15 — A call to an object will not compile.** *(loud)*
 *(refers to [CLS-016])*
@@ -5299,8 +5323,14 @@ needs no letter table and the language carries none.
 wherever two escapes would otherwise run together ambiguously.
 
 The existing per-kind prefixes — `v_` a variable, `f_` a function, `fn_` its
-closure, `k_` a class, `e_` an enum, `c_` a constant, `m_` a method — continue to
+closure, `k_` a class, `e_` an enum, `c_` a constant, `m_` a method, `d_` the
+flag saying a file-scope variable's declaration has run [DCL-016] — continue to
 keep the emitter's names clear of C's.
+
+⚠️ A prefix names a *kind*, so a name that reaches C twice reaches it through
+two constructors rather than one string built by hand: `d_` goes through
+`Mangle` exactly as `v_` does, or a variable spelled `Gate?` would have a legal
+symbol and an illegal flag.
 
 ⚠️ **This scheme is injective, and the one it replaced was not.** That one wrote
 `?` as `_q` and passed letters through untouched, so `Ready?` and `Ready_q`

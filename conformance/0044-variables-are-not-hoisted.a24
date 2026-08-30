@@ -1,14 +1,30 @@
 // spec: DCL-016
 //
-// ⚠️ Expected to FAIL compiled, because of C-10 -- which is exactly what this
-// case pins. The compiled back end hoists variables and prints 'nil' here,
-// substituting a VALUE for a diagnostic. This case IS the reproduction of
-// C-10; there is no separate divergence suite.
-//
-// ⚠️ Also C-8 -- the run ends in an uncaught runtime error.
+// ⚠️ A variable is not hoisted; a function, a class and an enum are [DCL-006].
+// The contrast is the whole rule, so the hoisted kinds are exercised here
+// beside the one that is not.
 
 var Ready := 'declared';
 WriteLn (Ready);
+
+// A function IS visible above its declaration, and so is a class -- and a
+// function called from up here reads the variables that exist WHEN IT RUNS,
+// not the ones that existed where it was written.
+WriteLn (Ahead ());
+WriteLn (Thing ().ClassName);
+
+function Ahead (); begin Exit Ready; end
+class Thing; begin end
+
+// Writing to a name does not bind it either: a variable is bound by its
+// declaration, so this is the same error a read gets.
+try
+    Absent := 5;
+except
+    on e : String do WriteLn (e);
+end
+
+var Absent := 1;
 
 // A variable is not visible before its declaration has run.  Its initializer
 // is an expression evaluated in order, and a name read before that has no

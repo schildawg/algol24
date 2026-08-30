@@ -70,6 +70,7 @@ static const char *t_typechecker_typeofvalue_1[] = { "Any" };
 static const char *t_typechecker_classnameof_1[] = { "Any" };
 Value fn_rejects;
 Value v_hider;
+bool d_hider;
 
 static Value i_typelookup(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
@@ -1124,6 +1125,7 @@ static Value m_typechecker_classnameof_1(Value v_this, Value *args, int32_t coun
 
 Value f_rejects(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
     volatile Value v_source = alg_param(args[0], "String");
     (void)v_source;
     volatile Value v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1);
@@ -1195,4 +1197,5 @@ void init_TypeChecker(void) {
     alg_class_method(k_typechecker, "ClassNameOf", m_typechecker_classnameof_1, 1, t_typechecker_classnameof_1);
     fn_rejects = alg_closure("Rejects", f_rejects, NULL, 0, 1);
     v_hider = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Counter;"), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    var Count : Integer := 0;")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Bump();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        Count := Count + 1;")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    procedure Advance();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10));
+    d_hider = true;
 }

@@ -7,6 +7,7 @@
 Value f_indentation(Value **cells, Value *args, int32_t count);
 Value f_quotec(Value **cells, Value *args, int32_t count);
 extern Value v_hoistVabove;
+extern bool d_hoistVabove;
 extern Value fn_indentation;
 extern Value fn_quotec;
 extern Value k_emitunit;

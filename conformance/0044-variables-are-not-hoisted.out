@@ -1,3 +1,6 @@
 Uncaught: Undefined variable 'Later'.
 declared
+declared
+Thing
+Undefined variable 'Absent'.
 exit: 70

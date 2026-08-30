@@ -38,6 +38,7 @@ static const char *t_objfunction_call_2[] = { "Any", "Any" };
 
 Value f_typenameof(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
     Value v_value = args[0];
     (void)v_value;
     if (alg_truthy(alg_equal(v_value, alg_nil()))) {
@@ -79,6 +80,7 @@ Value f_typenameof(Value **cells, Value *args, int32_t count) {
 
 Value f_nameofclass(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
     volatile Value v_obj = args[0];
     (void)v_obj;
     {
@@ -196,6 +198,7 @@ static Value m_objoverloads_tostring_0(Value v_this, Value *args, int32_t count)
 
 Value f_samesignature(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
     Value v_left = args[0];
     (void)v_left;
     Value v_right = args[1];
@@ -221,6 +224,7 @@ Value f_samesignature(Value **cells, Value *args, int32_t count) {
 
 Value f_widens(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
     Value v_actual = alg_param(args[0], "String");
     (void)v_actual;
     Value v_declared = alg_param(args[1], "String");
@@ -237,6 +241,7 @@ Value f_widens(Value **cells, Value *args, int32_t count) {
 
 Value f_inheritsfrom(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
     Value v_value = args[0];
     (void)v_value;
     Value v_thename = alg_param(args[1], "String");

@@ -661,6 +661,22 @@ begin
         Exit Mangle ('v_', Name);
     end
 
+    /// Whether a file-scope variable's DECLARATION has run yet.
+    ///
+    /// ⚠️ A separate flag rather than a sentinel Value, deliberately. A
+    /// sentinel would be a value the runtime could accidentally print, compare
+    /// or widen if any read of a global were left unguarded; a bool cannot
+    /// escape into the language at all, so the worst a missed guard can do is
+    /// what the emitter already did.
+    ///
+    /// ⚠️ Mangled like every other symbol -- a variable named 'Gate?' needs its
+    /// flag spelled legally too, and a private name colliding across units
+    /// needs the flag renamed alongside the Value it guards.
+    function DeclaredFlag (Name : String) : String;
+    begin
+        Exit Mangle ('d_', Name);
+    end
+
     function FunctionName (Name : String) : String;
     begin
         Exit Mangle ('f_', Name);
@@ -730,6 +746,27 @@ begin
             Header := Header + 'extern Value ' + Symbol + ';' + #10;
         end
         else Declarations.Append ('static Value ' + Symbol + ';' + #10);
+    end
+
+    /// Declares a file-scope VARIABLE: its storage, and the flag saying whether
+    /// its declaration has run.
+    ///
+    /// ⚠️ Only a variable gets the flag. A function, a class and an enum ARE
+    /// hoisted [DCL-006] and the interpreter hoists them too, so they are
+    /// visible above their declarations by rule. A variable is not [DCL-016],
+    /// and one mechanism serving both is what made the compiler right about
+    /// three kinds of declaration and wrong about the fourth.
+    ///
+    procedure DeclareVariable (Symbol : String, Name : String);
+    begin
+        DeclareValue (Symbol, Name);
+
+        if Exported (Name) then
+        begin
+            Declarations.Append ('bool ' + DeclaredFlag (Name) + ';' + #10);
+            Header := Header + 'extern bool ' + DeclaredFlag (Name) + ';' + #10;
+        end
+        else Declarations.Append ('static bool ' + DeclaredFlag (Name) + ';' + #10);
     end
 
     /// A test block is a FunctionStmt whose name token carries a literal, so
@@ -1641,7 +1678,9 @@ begin
 
         if Boxed.Contains (Name) then Exit '(*' + Cell (Name) + ')';
 
-        Exit VariableName (Name);
+        // A local reads as itself; a file-scope variable is checked against its
+        // declaration having run -- see Guarded.
+        Exit Guarded (Name, VariableName (Name));
     end
 
     /// A closure over the named cells.
@@ -2206,10 +2245,15 @@ begin
         // expression, and every Value here is built by a call.
         if AtTopLevel then
         begin
-            DeclareValue (VariableName (Str (TheStmt.Name.Lexeme)),
-                          Str (TheStmt.Name.Lexeme));
+            DeclareVariable (VariableName (Str (TheStmt.Name.Lexeme)),
+                             Str (TheStmt.Name.Lexeme));
 
             Line (VariableName (Str (TheStmt.Name.Lexeme)) + ' = ' + Value + ';');
+
+            // ⚠️ AFTER the initializer, not before: the initializer is an
+            // ordinary expression evaluated in order, so a var whose own
+            // initializer reads the name is undefined there too.
+            Line (DeclaredFlag (Str (TheStmt.Name.Lexeme)) + ' = true;');
         end
         else if Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
         begin
@@ -2421,6 +2465,19 @@ begin
         Body := Buffer();
         Depth := 1;
 
+        // ⚠️ [EXP-011], and this is the one call shape nothing else guarded.  A
+        // top-level subprogram is reached by its own C symbol -- 'f_one(NULL,
+        // args, 2)' -- so no dispatcher sits between the call and the body: an
+        // extra argument was discarded and a MISSING one read past the end of
+        // the array, which is not merely a wrong answer.  A nested function
+        // goes through alg_call and a method through alg_invoke, and both
+        // compare counts already, so neither is emitted with this.
+        //
+        // ⚠️ In the CALLEE, for the reason alg_param is: the declared arity is
+        // already here, and one place answers for every call site.
+        if not Nested then
+            Line ('alg_arity(count, ' + Str (TheStmt.Params.Length) + ');');
+
         for var I := 0; I < TheStmt.Params.Length; I := I + 1 do
         begin
             var ParamName := Str (TheStmt.Params[I].Lexeme);
@@ -2574,7 +2631,34 @@ begin
                                       and not Objects.Contains (Name) then
             Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
 
-        Exit VariableName (Name);
+        Exit Guarded (Name, VariableName (Name));
+    end
+
+    /// A read of a file-scope variable, checked against its declaration having
+    /// run [DCL-016].
+    ///
+    /// ⚠️ A RUNTIME check, and it has to be: the read may sit inside a function
+    /// declared above the variable and called from below it, which is legal and
+    /// common.  Nothing the emitter can see decides it -- 'function Peek();
+    /// begin Exit Later; end' is correct or an error depending on when Peek is
+    /// called.
+    ///
+    /// ⚠️ Only a FILE-SCOPE variable.  A local is a C local declared where the
+    /// program declares it, so it cannot be named before it exists -- cc
+    /// refuses that outright, and the guard would be dead code.
+    ///
+    function Guarded (Name : String, Text : String) : String;
+    begin
+        // ⚠️ A LOCAL of this name wins, and is not guarded.  Globals is
+        // program-wide, so a function with its own 'Keywords' would otherwise
+        // be checked against the file-scope one's flag -- a name that shadows a
+        // global has nothing to do with it.
+        if Locals.Contains (Name) then Exit Text;
+
+        if not Globals.Contains (Name) then Exit Text;
+
+        Exit '(alg_declared(' + DeclaredFlag (Name) + ', '
+           + QuoteC (Name) + '), ' + Text + ')';
     end
 
     /// What the interpreter says for a name it cannot find, suggestion and all.
@@ -2665,7 +2749,12 @@ begin
             Exit 'alg_set_property(v_this, ' + QuoteC (Name) + ', ' + Written + ')';
 
         Unreachable (Name);
-        Exit '(' + VariableName (Name) + ' = ' + Written + ')';
+
+        // ⚠️ An ASSIGNMENT is checked too.  A name is bound by its declaration,
+        // not by being written to, so 'V := 5;' above 'var V := 7;' is
+        // 'Undefined variable ''V''.' interpreted rather than a store that the
+        // declaration then overwrites.
+        Exit Guarded (Name, '(' + VariableName (Name) + ' = ' + Written + ')');
     end
 
     function VisitGrouping (TheExpr : GroupingExpr) : String;
@@ -3275,7 +3364,7 @@ begin
         else if Objects.Contains (Name)   then Built := 'alg_singleton(' + ClassHandle (Name) + ')';
         else if Classes.Contains (Name)   then Built := ClassHandle (Name);
         else if Declared.Contains (Name)  then Built := HandleName (Name);
-        else if Globals.Contains (Name)   then Built := VariableName (Name);
+        else if Globals.Contains (Name)   then Built := Guarded (Name, VariableName (Name));
 
         Renames := Saved;
 
@@ -3307,7 +3396,7 @@ begin
                                            + Unit + '''.') + '), alg_nil())';
 
             if Unit <> 'System' and Globals.Contains (Name) then
-                Exit '(' + VariableName (Name) + ' = ' + Written + ')';
+                Exit Guarded (Name, '(' + VariableName (Name) + ' = ' + Written + ')');
 
             Unsupported ('An assignment to ''' + Unit + '.' + Name + '''');
         end
@@ -3593,8 +3682,10 @@ begin
 
             if AtTopLevel then
             begin
-                DeclareValue (VariableName (Name), Name);
+                DeclareVariable (VariableName (Name), Name);
+
                 Line (VariableName (Name) + ' = ' + Shared + ';');
+                Line (DeclaredFlag (Name) + ' = true;');
             end
             else if Boxed.Contains (Name) then
             begin

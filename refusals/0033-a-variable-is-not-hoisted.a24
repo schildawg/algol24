@@ -4,8 +4,7 @@
 // program produces no output before it, so it is recorded here beside the
 // hoisting cases it contrasts with.
 //
-// A variable is not visible before its declaration has run.  The compiled back
-// end hoists it and prints 'nil', substituting a value for a diagnostic (C-10).
+// A variable is not visible before its declaration has run.
 
 WriteLn (Later);
 

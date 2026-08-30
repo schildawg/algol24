@@ -31,6 +31,7 @@ static Value f_compile(Value **cells, Value *args, int32_t count);
 static Value f_usage(Value **cells, Value *args, int32_t count);
 static Value f_main(Value **cells, Value *args, int32_t count);
 static Value v_sample;
+static bool d_sample;
 static Value fn_readsource;
 static Value fn_checkscanned;
 static Value fn_runtests;
@@ -42,6 +43,7 @@ static Value fn_main;
 
 static Value f_readsource(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
     Value v_name = alg_param(args[0], "String");
     (void)v_name;
     Value v_f = alg_text_file();
@@ -63,14 +65,16 @@ static Value f_readsource(Value **cells, Value *args, int32_t count) {
 
 static Value f_checkscanned(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
-    if (alg_truthy(v_haderror)) {
-        alg_raise(alg_str(v_lasterror));
+    alg_arity(count, 0);
+    if (alg_truthy((alg_declared(d_haderror, "HadError"), v_haderror))) {
+        alg_raise(alg_str((alg_declared(d_lasterror, "LastError"), v_lasterror)));
     }
     return alg_nil();
 }
 
 static Value f_runtests(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
     Value v_source = alg_param(args[0], "String");
     (void)v_source;
     Value v_filename = alg_param(args[1], "String");
@@ -102,6 +106,7 @@ static Value f_runtests(Value **cells, Value *args, int32_t count) {
 
 static Value f_run(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
     Value v_source = alg_param(args[0], "String");
     (void)v_source;
     Value v_filename = alg_param(args[1], "String");
@@ -137,6 +142,7 @@ static Value f_run(Value **cells, Value *args, int32_t count) {
 
 static Value f_argumentsfrom(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
     Value v_first = alg_param(args[0], "Integer");
     (void)v_first;
     Value v_result = alg_widen(alg_list(), "List");
@@ -157,6 +163,7 @@ static Value f_argumentsfrom(Value **cells, Value *args, int32_t count) {
 
 static Value f_compile(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 4);
     Value v_source = alg_param(args[0], "String");
     (void)v_source;
     Value v_filename = alg_param(args[1], "String");
@@ -210,6 +217,7 @@ static Value f_compile(Value **cells, Value *args, int32_t count) {
 
 static Value f_usage(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 0);
     (void)(alg_writeln(alg_string("algc -- the Algol-24 compiler.")));
     (void)(alg_writeln(alg_string("")));
     (void)(alg_writeln(alg_string("Usage:")));
@@ -225,11 +233,12 @@ static Value f_usage(Value **cells, Value *args, int32_t count) {
 
 static Value f_main(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
+    alg_arity(count, 0);
     Value v_name = alg_nil();
     (void)v_name;
     if (alg_truthy(alg_equal(alg_param_count(), alg_int(0)))) {
         {
-            (void)(f_run(NULL, (Value[]){v_sample, alg_string("<sample>")}, 2));
+            (void)(f_run(NULL, (Value[]){(alg_declared(d_sample, "SAMPLE"), v_sample), alg_string("<sample>")}, 2));
             return alg_nil();
         }
     }
@@ -321,6 +330,7 @@ void init_Main(void) {
     fn_usage = alg_closure("Usage", f_usage, NULL, 0, 0);
     fn_main = alg_closure("Main", f_main, NULL, 0, 0);
     v_sample = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Doughnut;"), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        WriteLn ('Fry until golden!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("class BostonCream(Doughnut);")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        super.Cook();")), alg_char_value(10)), alg_string("        WriteLn ('Pipe full of custard and coat with chocolate!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("BostonCream().Cook();")), alg_char_value(10));
+    d_sample = true;
     (void)(f_main(NULL, NULL, 0));
 }
 
