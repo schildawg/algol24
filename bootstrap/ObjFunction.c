@@ -211,7 +211,7 @@ Value f_samesignature(Value **cells, Value *args, int32_t count) {
         (void)v_i;
         while (alg_truthy(alg_less(v_i, alg_property(alg_property(v_left, "Params"), "Length")))) {
             {
-                if (alg_truthy(alg_not_equal(alg_str(alg_subscript_get(alg_property(v_left, "ParamTypes"), v_i)), alg_str(alg_subscript_get(alg_property(v_right, "ParamTypes"), v_i))))) {
+                if (alg_truthy(alg_not_equal(f_underlyingtype(NULL, (Value[]){alg_subscript_get(alg_property(v_left, "ParamTypes"), v_i)}, 1), f_underlyingtype(NULL, (Value[]){alg_subscript_get(alg_property(v_right, "ParamTypes"), v_i)}, 1)))) {
                     return alg_bool(false);
                 }
                 (void)((v_i = alg_add(v_i, alg_int(1))));
@@ -320,7 +320,7 @@ static Value m_objfunction_fits_2_list_boolean(Value v_this, Value *args, int32_
         while (alg_truthy(alg_less(v_i, alg_property(v_arguments, "Length")))) {
             {
                 {
-                    Value v_declared = alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_i));
+                    Value v_declared = f_underlyingtype(NULL, (Value[]){alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_i)}, 1);
                     (void)v_declared;
                     if (alg_truthy((or_2 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_2) ? or_2 : alg_not_equal(v_declared, alg_string("Any"))))) {
                         {

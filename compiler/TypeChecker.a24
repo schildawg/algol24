@@ -246,7 +246,8 @@ begin
         // names something even though 'X is Any' is always false [VAL-005].
         for var Name in ['Any', 'Boolean', 'Integer', 'Double', 'String', 'Char',
                          'List', 'Set', 'Stack', 'Array', 'Map',
-                         'TextFile', 'Buffer'] do
+                         'TextFile', 'Buffer',
+                         'Byte', 'Word', 'Short'] do
             Lookup.DeclaredTypes.Add (FoldCase (Name));
     end
 
@@ -335,11 +336,23 @@ begin
     /// Same type, or one that inherits from it, with 'Any' matching either way
     /// and nil inhabiting everything.
     ///
+    /// ⚠️ A SUBRANGE is seen through here [TYP-015].  It constrains an Integer
+    /// and is not a type of its own, so 'Byte' accepts exactly what 'Integer'
+    /// accepts as far as TYPE goes -- the bounds are a run-time question and are
+    /// checked where the value arrives, not where the checker reads the name.
+    ///
+    /// ⚠️ Which is also why two subprograms differing only in a parameter's
+    /// range claim the same signature and are a duplicate [FUN-013]: nothing
+    /// here can tell them apart, and neither could a call.
+    ///
     function Assignable (Expected : String, Actual : String) : Boolean;
     var
         Parent : String;
 
     begin
+        Expected := UnderlyingType (Expected);
+        Actual   := UnderlyingType (Actual);
+
         if Expected = '' or Actual = '' then Exit True;
         if Expected = 'Any' or Actual = 'Any' then Exit True;
         if Actual = 'Nil' then Exit True;

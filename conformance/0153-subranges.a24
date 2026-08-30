@@ -1,0 +1,57 @@
+// spec: TYP-015
+//
+// Byte, Word and Short are subranges of Integer, not types of their own.
+
+var B : Byte := 200;
+
+WriteLn (B);
+WriteLn (B is Byte);
+
+// ⚠️ It is an Integer, and stays one.  Nothing is ever 'a Byte' -- a subrange
+// constrains a value where a type is written, and TYP-001 is unchanged.
+WriteLn (B is Integer);
+WriteLn (B + 1 is Integer);
+
+// ⚠️ 'is' on a subrange is a RANGE TEST, which is the program asking
+// explicitly.  What the language may not do is dispatch on a value silently.
+WriteLn (0 is Byte);
+WriteLn (255 is Byte);
+WriteLn (256 is Byte);
+WriteLn (-1 is Byte);
+WriteLn (32767 is Short);
+WriteLn (-32768 is Short);
+WriteLn (65535 is Word);
+
+// Only an Integer is ever within one.
+WriteLn (1.5 is Byte);
+WriteLn ('a' is Byte);
+
+// The bounds are checked at the assignment contexts [VAR-017].
+try
+    var Bad : Byte := 300;
+except
+    on e : String do WriteLn (e);
+end
+
+var C : Byte := 1;
+C := 250;
+WriteLn (C);
+
+try
+    C := 999;
+except
+    on e : String do WriteLn (e);
+end
+
+procedure Pixel (R : Byte, G : Byte);
+begin
+    WriteLn (Str (R) + ',' + Str (G));
+end
+
+Pixel (10, 20);
+
+try
+    Pixel (10, 300);
+except
+    on e : String do WriteLn (e);
+end

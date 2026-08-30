@@ -1139,6 +1139,56 @@ two may appear together in one header.
     compiler     bootstrap/algol.c         alg_is
     conformance  0026-the-runtime-types.a24
 
+**[TYP-015]**  `Byte`, `Word` and `Short` are **subranges** of `Integer`, not
+types of their own. Each names a low and a high bound:
+
+| | |
+| --- | --- |
+| `Byte` | 0 .. 255 |
+| `Word` | 0 .. 65535 |
+| `Short` | −32768 .. 32767 |
+
+A value is never *a Byte* — [TYP-001] still answers `Integer` — so a subrange
+name appears only where a type is **written**, and the bounds are checked where
+the value arrives: the six assignment contexts of [VAR-017], and nowhere else.
+
+⚠️ **One feature instead of several special cases.** With [LEX-018] making an
+Integer unbounded, a width is no longer a representation to match — only a range
+to name. `Byte` is `0 .. 255` and says so.
+
+⚠️ **`Short` is 16 bits, and Turbo Pascal's was not.** TP's `ShortInt` was 8
+bits and its `Integer` 16; the modern reading is the one a reader can state
+without looking it up, which is the test this language applies.
+
+⚠️ **There is no unsigned family.** Unsigned types exist to buy one more bit
+inside a fixed width and to say "not negative". An unbounded Integer removes the
+first reason, and `0 ..` states the second directly rather than encoding it in a
+name. It also avoids C#'s corner where `long + ulong` has no type to answer
+with.
+
+⚠️ **Selection ignores the bounds** [FUN-013]. Two subprograms differing only in
+a parameter's range claim the **same signature** and are a duplicate — which is
+the argument that rule already makes about return types: a call could never tell
+them apart. Consulting the bounds would send `Take (200)` and `Take (300)` to
+different subprograms, and would let *adding* an overload steal calls from one
+that was already there.
+
+⚠️ **`X is Byte` is nonetheless a range test**, and that is not a contradiction.
+The principle is that a program may **ask** about a value; the language may not
+silently **dispatch** on one. `is` is the question written where the programmer
+wrote it.
+
+⚠️ **The check lives where widening does, and that is safe for a reason.**
+Widening converts and refuses nothing — making it refuse on a *type* mismatch
+broke the compiler twice (C-24, C-25), because a String reaching a field
+declared `Expr` is a shape real programs use. A *range* check cannot fire on
+that shape: it applies only when the declared name is a subrange and the value
+is already an Integer.
+
+    interpreter  compiler/Interpreter.a24  InSubrange
+    compiler     bootstrap/algol.c         in_subrange
+    conformance  0153-subranges.a24
+
 **[TYP-014]**  `Real` is another spelling of `Double`. It is not a second type:
 `X is Real` and `X is Double` answer alike, a parameter declared either accepts
 the same arguments, and two subprograms differing only in which was written

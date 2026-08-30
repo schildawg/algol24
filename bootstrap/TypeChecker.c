@@ -219,7 +219,7 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
         }
     }
     {
-        Value loop_2 = alg_iterable(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("Any")), alg_string("Boolean")), alg_string("Integer")), alg_string("Double")), alg_string("String")), alg_string("Char")), alg_string("List")), alg_string("Set")), alg_string("Stack")), alg_string("Array")), alg_string("Map")), alg_string("TextFile")), alg_string("Buffer")));
+        Value loop_2 = alg_iterable(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("Any")), alg_string("Boolean")), alg_string("Integer")), alg_string("Double")), alg_string("String")), alg_string("Char")), alg_string("List")), alg_string("Set")), alg_string("Stack")), alg_string("Array")), alg_string("Map")), alg_string("TextFile")), alg_string("Buffer")), alg_string("Byte")), alg_string("Word")), alg_string("Short")));
         for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
             Value v_name = alg_iterable_at(loop_2, at_2);
             (void)v_name;
@@ -305,6 +305,8 @@ static Value m_typechecker_assignable_2_string_string(Value v_this, Value *args,
     (void)v_actual;
     Value v_parent = alg_nil();
     (void)v_parent;
+    (void)((v_expected = alg_widen(f_underlyingtype(NULL, (Value[]){v_expected}, 1), "String")));
+    (void)((v_actual = alg_widen(f_underlyingtype(NULL, (Value[]){v_actual}, 1), "String")));
     if (alg_truthy((or_5 = alg_equal(v_expected, alg_string("")), alg_truthy(or_5) ? or_5 : alg_equal(v_actual, alg_string(""))))) {
         return alg_bool(true);
     }

@@ -153,8 +153,14 @@ function SameSignature (Left : Any, Right : Any) : Boolean;
 begin
     if Left.Params.Length <> Right.Params.Length then Exit False;
 
+    // ⚠️ Compared THROUGH a subrange, so 'Take (B : Byte)' and
+    // 'Take (I : Integer)' claim the SAME signature and are a duplicate rather
+    // than an overload [FUN-013].  A call could never tell them apart -- which
+    // is the argument this rule already makes about return types -- and the
+    // range is checked when the argument arrives instead.
     for var I := 0; I < Left.Params.Length; I := I + 1 do
-        if Str (Left.ParamTypes[I]) <> Str (Right.ParamTypes[I]) then Exit False;
+        if UnderlyingType (Left.ParamTypes[I]) <> UnderlyingType (Right.ParamTypes[I]) then
+            Exit False;
 
     Exit True;
 end
@@ -270,7 +276,12 @@ begin
 
         for var I := 0; I < Arguments.Length; I := I + 1 do
         begin
-            var Declared := Str (Declaration.ParamTypes[I]);
+            // ⚠️ Seen through, so selection IGNORES a subrange's bounds
+            // [FUN-013]: 'Take (B : Byte)' accepts whatever 'Take (I : Integer)'
+            // accepts.  Consulting the bounds here would send 'Take (200)' and
+            // 'Take (300)' to different subprograms, and would let ADDING an
+            // overload steal calls from one that was already there.
+            var Declared := UnderlyingType (Declaration.ParamTypes[I]);
 
             if Declared <> '' and Declared <> 'Any' then
             begin

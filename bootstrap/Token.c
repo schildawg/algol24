@@ -2,16 +2,58 @@
 #include "Token.h"
 #include "TokenType.h"
 
+Value f_subrangeindex(Value **cells, Value *args, int32_t count);
+Value f_issubrange(Value **cells, Value *args, int32_t count);
+Value f_underlyingtype(Value **cells, Value *args, int32_t count);
 Value f_canonicaltype(Value **cells, Value *args, int32_t count);
 Value f_foldcase(Value **cells, Value *args, int32_t count);
 Value v_foldVupper;
 bool d_foldVupper;
 Value v_foldVlower;
 bool d_foldVlower;
+Value v_subrangeVnames;
+bool d_subrangeVnames;
+Value v_subrangeVlows;
+bool d_subrangeVlows;
+Value v_subrangeVhighs;
+bool d_subrangeVhighs;
+Value fn_subrangeindex;
+Value fn_issubrange;
+Value fn_underlyingtype;
 Value fn_canonicaltype;
 Value fn_foldcase;
 Value k_token;
 static const char *t_token_init_4_tokentype_string_integer[] = { "TokenType", "String", "Any", "Integer" };
+
+Value f_subrangeindex(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
+    Value v_name = args[0];
+    (void)v_name;
+    return alg_invoke((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "IndexOf", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1);
+    return alg_nil();
+}
+
+Value f_issubrange(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
+    Value v_name = args[0];
+    (void)v_name;
+    return alg_greater_equal(f_subrangeindex(NULL, (Value[]){v_name}, 1), alg_int(0));
+    return alg_nil();
+}
+
+Value f_underlyingtype(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
+    Value v_name = args[0];
+    (void)v_name;
+    if (alg_truthy(f_issubrange(NULL, (Value[]){v_name}, 1))) {
+        return alg_string("Integer");
+    }
+    return f_canonicaltype(NULL, (Value[]){v_name}, 1);
+    return alg_nil();
+}
 
 Value f_canonicaltype(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
@@ -110,6 +152,9 @@ static Value m_token_tostring_0(Value v_this, Value *args, int32_t count) {
 
 void init_Token(void) {
     k_token = alg_class("Token", alg_nil());
+    fn_subrangeindex = alg_closure("SubrangeIndex", f_subrangeindex, NULL, 0, 1);
+    fn_issubrange = alg_closure("IsSubrange", f_issubrange, NULL, 0, 1);
+    fn_underlyingtype = alg_closure("UnderlyingType", f_underlyingtype, NULL, 0, 1);
     fn_canonicaltype = alg_closure("CanonicalType", f_canonicaltype, NULL, 0, 1);
     fn_foldcase = alg_closure("FoldCase", f_foldcase, NULL, 0, 1);
     alg_class_field(k_token, "TypeOfToken");
@@ -125,4 +170,10 @@ void init_Token(void) {
     d_foldVupper = true;
     v_foldVlower = alg_string("abcdefghijklmnopqrstuvwxyz");
     d_foldVlower = true;
+    v_subrangeVnames = alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("byte")), alg_string("word")), alg_string("short"));
+    d_subrangeVnames = true;
+    v_subrangeVlows = alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_int(0)), alg_int(0)), alg_negate(alg_int(32768)));
+    d_subrangeVlows = true;
+    v_subrangeVhighs = alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_int(255)), alg_int(65535)), alg_int(32767));
+    d_subrangeVhighs = true;
 }

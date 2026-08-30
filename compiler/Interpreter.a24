@@ -1306,8 +1306,32 @@ begin
     /// ⚠️ Canonicalised here as well as at the parser, because 'is' carries a
     /// TOKEN rather than a string -- there is no written type to have replaced
     /// earlier.  'as' arrives canonical already, and doing it twice is free.
+    /// Whether a value lies within a named subrange.
+    ///
+    /// ⚠️ Only an Integer can: a subrange constrains Integers, so a Double, a
+    /// String or nil is outside every one of them.
+    ///
+    function InSubrange (Value : Any, TheName : String) : Boolean;
+    var
+        At : Integer;
+
+    begin
+        if not (Value is Integer) then Exit False;
+
+        At := SubrangeIndex (TheName);
+
+        Exit Value >= SUBRANGE_LOWS[At] and Value <= SUBRANGE_HIGHS[At];
+    end
+
     function SatisfiesType (Value : Any, TheName : String) : Boolean;
     begin
+        // ⚠️ A SUBRANGE is a RANGE TEST [TYP-015], and that is not the
+        // value-dependence the language otherwise refuses: 'is' is the program
+        // asking, explicitly, where it wrote the question.  What must never
+        // depend on a value is SELECTION, which happens behind the programmer's
+        // back -- see [FUN-013].
+        if IsSubrange (TheName) then Exit InSubrange (Value, TheName);
+
         var Wanted := CanonicalType (TheName);
 
         if ToLower (TypeNameOf (Value)) = ToLower (Wanted) then Exit True;
@@ -1823,6 +1847,21 @@ begin
     function Widen (Value : Any, Declared : String) : Any;
     begin
         if Declared = '' or Value = Nil then Exit Value;
+
+        // ⚠️ A subrange CHECKS here, where nothing else in Widen refuses
+        // anything -- and that is safe for a reason worth stating.  Making
+        // Widen refuse on a TYPE mismatch broke the compiler twice (C-24,
+        // C-25), because a String reaching a field declared 'Expr' is a shape
+        // real programs use.  A RANGE check cannot fire on that shape: it
+        // applies only when the declared name is a subrange and the value is
+        // already an Integer.
+        if IsSubrange (Declared) then
+        begin
+            if not InSubrange (Value, Declared) then
+                raise Str (Value) + ' is not in ' + Declared + '.';
+
+            Exit Value;
+        end
 
         if Declared = 'Double' and Value is Integer then Exit Value * 1.0;
         if Declared = 'String' and Value is Char    then Exit Str (Value);

@@ -31,6 +31,51 @@ const FOLD_LOWER := 'abcdefghijklmnopqrstuvwxyz';
 /// String says 'Cannot cast String to Double.'  That is the alias telling the
 /// reader what it is, which is more use than echoing what they wrote.
 ///
+/// The predefined subranges [TYP-015], as a name with a low and a high bound.
+///
+/// ⚠️ A subrange is a CONSTRAINT on an Integer, not a type of its own.  Nothing
+/// is ever "a Byte" at run time -- TypeNameOf still answers 'Integer' -- so a
+/// subrange name appears only where a type is WRITTEN, and the bounds are
+/// checked there.
+///
+/// ⚠️ 'Byte' is 0..255 and 'Short' is 16 bits, which is the modern reading and
+/// not Turbo Pascal's: its ShortInt was 8 bits and its Integer 16.  With
+/// Integer unbounded the widths are no longer representations to match, only
+/// ranges to name, and a reader should be able to say what 'Short' is without
+/// looking it up.
+///
+/// ⚠️ There is no unsigned family.  Unsigned types exist to buy one more bit
+/// inside a fixed width and to say "not negative"; an unbounded Integer removes
+/// the first reason and '0 ..' states the second directly.
+///
+const SUBRANGE_NAMES := ['byte', 'word', 'short'];
+const SUBRANGE_LOWS  := [0, 0, -32768];
+const SUBRANGE_HIGHS := [255, 65535, 32767];
+
+function SubrangeIndex (Name : Any) : Integer;
+begin
+    Exit SUBRANGE_NAMES.IndexOf (FoldCase (Name));
+end
+
+function IsSubrange (Name : Any) : Boolean;
+begin
+    Exit SubrangeIndex (Name) >= 0;
+end
+
+/// The type a written name stands for once a subrange is seen through.
+///
+/// ⚠️ Distinct from CanonicalType, and the difference is the point: 'Real' IS
+/// 'Double', so the alias is replaced everywhere; a subrange is an Integer for
+/// every question about TYPE and keeps its own name for the question about
+/// RANGE.  Collapsing the two would lose the bounds.
+///
+function UnderlyingType (Name : Any) : String;
+begin
+    if IsSubrange (Name) then Exit 'Integer';
+
+    Exit CanonicalType (Name);
+end
+
 function CanonicalType (Name : Any) : String;
 begin
     if FoldCase (Name) = 'real' then Exit 'Double';

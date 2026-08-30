@@ -1786,6 +1786,61 @@ static bool is_a(Value v, const char *name) {
 /* Whether an argument of this type may be passed where 'declared' is written,
  * by WIDENING [VAR-004] -- an Integer where a Double is asked for, a Char where
  * a String is.  A parameter is an assignment context [VAR-017]. */
+/* The predefined subranges [TYP-015]: a name with a low and a high bound.
+ *
+ * ⚠️ A subrange is a CONSTRAINT on an Integer, not a type of its own.  Nothing
+ * is ever "a Byte" at run time -- type_name still answers "Integer" -- so the
+ * name appears only where a type is WRITTEN, and the bounds are checked there.
+ *
+ * ⚠️ The same three rows as Token.a24's, and they have to stay that way.  Two
+ * copies of one table is what [COL-003] already needs a harness to guard; this
+ * one is guarded by conformance running under both processors. */
+typedef struct {
+    const char *name;
+    int64_t     low;
+    int64_t     high;
+} Subrange;
+
+static const Subrange SUBRANGES[] = {
+    { "Byte",  0,      255   },
+    { "Word",  0,      65535 },
+    { "Short", -32768, 32767 },
+    { NULL,    0,      0     },
+};
+
+static const Subrange *subrange_of(const char *name) {
+    if (name == NULL) return NULL;
+
+    for (int32_t i = 0; SUBRANGES[i].name != NULL; i++)
+        if (alg_stricmp(name, SUBRANGES[i].name) == 0) return &SUBRANGES[i];
+
+    return NULL;
+}
+
+/* ⚠️ Only an Integer can lie within one, and only one that fits the machine's
+ * width: a big Integer is past every bound these name. */
+static bool in_subrange(Value v, const Subrange *range) {
+    if (v.type != VAL_INT) return false;
+
+    return v.integer >= range->low && v.integer <= range->high;
+}
+
+/* The type a written name stands for once a subrange is seen through.
+ *
+ * ⚠️ A subrange is an Integer for every question about TYPE and keeps its own
+ * name for the question about RANGE, which is why this is not the same as
+ * replacing an alias -- collapsing the two would lose the bounds. */
+static const char *underlying_type(const char *name) {
+    return subrange_of(name) != NULL ? "Integer" : name;
+}
+
+_Noreturn static void out_of_subrange(Value v, const char *name) {
+    char message[128];
+    snprintf(message, sizeof message, "%s is not in %s.", as_text(v), name);
+
+    alg_error(message);
+}
+
 static bool widens_to(const char *actual, const char *declared) {
     if (alg_stricmp(declared, "Double") == 0 && alg_stricmp(actual, "Integer") == 0) return true;
     if (alg_stricmp(declared, "String") == 0 && alg_stricmp(actual, "Char") == 0)    return true;
@@ -1815,6 +1870,20 @@ static bool widens_to(const char *actual, const char *declared) {
 Value alg_widen(Value argument, const char *declared) {
     if (declared == NULL || *declared == '\0') return argument;
 
+    /* ⚠️ A subrange CHECKS here, where nothing else in this function refuses
+     * anything -- and that is safe for a reason worth stating.  Making this
+     * refuse on a TYPE mismatch broke the compiler twice (C-24, C-25), because
+     * a String reaching a field declared 'Expr' is a shape real programs use.
+     * A RANGE check cannot fire on that shape: it applies only when the
+     * declared name is a subrange and the value is already an Integer. */
+    const Subrange *range = subrange_of(declared);
+    if (range != NULL) {
+        if (argument.type == VAL_INT && !in_subrange(argument, range))
+            out_of_subrange(argument, declared);
+
+        return argument;
+    }
+
     const char *actual = type_name(argument);
     if (!widens_to(actual, declared)) return argument;
 
@@ -1835,6 +1904,9 @@ Value alg_widen(Value argument, const char *declared) {
 Value alg_param(Value argument, const char *declared) {
     if (declared == NULL || *declared == '\0') return argument;
     if (alg_stricmp(declared, "Any") == 0)      return argument;
+
+    /* Seen through for the TYPE question and checked for the RANGE one. */
+    if (subrange_of(declared) != NULL) return alg_widen(argument, declared);
 
     const char *actual = type_name(argument);
     if (alg_stricmp(actual, "nil") == 0) return argument;
@@ -1862,7 +1934,11 @@ static bool types_match(const char **types, Value *args, int32_t count, bool wid
     if (args == NULL || types == NULL) return true;
 
     for (int32_t i = 0; i < count; i++) {
-        const char *declared = types[i];
+        /* ⚠️ Seen through, so selection IGNORES a subrange's bounds [FUN-013].
+         * Consulting them would send 'Take (200)' and 'Take (300)' to different
+         * subprograms, and would let ADDING an overload steal calls from one
+         * that was already there. */
+        const char *declared = underlying_type(types[i]);
         if (declared == NULL || alg_stricmp(declared, "Any") == 0) continue;
 
         const char *actual = type_name(args[i]);
@@ -2387,6 +2463,13 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
  * and this is the same question asked in the language rather than by the
  * dispatcher. */
 Value alg_is(Value v, const char *name) {
+    /* ⚠️ A subrange is a RANGE TEST, and that is not the value-dependence the
+     * language otherwise refuses: 'is' is the program asking, explicitly, where
+     * it wrote the question.  What must never depend on a value is SELECTION,
+     * which happens behind the programmer's back. */
+    const Subrange *range = subrange_of(name);
+    if (range != NULL) return alg_bool(in_subrange(v, range));
+
     if (v.type == VAL_NIL) return alg_bool(false);
 
     if (alg_stricmp(type_name(v), name) == 0) return alg_bool(true);
@@ -2407,6 +2490,18 @@ Value alg_is(Value v, const char *name) {
  * anything. */
 Value alg_cast(Value v, const char *name) {
     if (v.type == VAL_NIL) return v;
+
+    /* 'as' asks the same question 'is' does, made a requirement. */
+    const Subrange *range = subrange_of(name);
+    if (range != NULL) {
+        if (in_subrange(v, range)) return v;
+
+        char message[128];
+        snprintf(message, sizeof message, "Cannot cast %s to %s.", type_name(v), name);
+
+        alg_error(message);
+    }
+
 
     if (alg_stricmp(type_name(v), name) == 0) return v;
     if (is_a(v, name)) return v;

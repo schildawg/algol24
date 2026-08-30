@@ -316,7 +316,9 @@ The satisfying half, and a fair measure of whether the design is right:
    promised: [LEX-033], `ExceedsInteger`, and Annex G.4's build switch.
 3. ✅ **`Real` as an alias**, replaced where a written type becomes something to
    compare — so the C runtime needs no case for it.
-4. **Subranges**, including the check in `alg_param` and the case in `alg_is`.
+4. ✅ **Subranges**, the predefined `Byte`, `Word` and `Short`. A program
+   declaring its own -- `type Digit = 0 .. 9;` -- wants a `..` token and a
+   statement node, and is the natural next slice.
 5. **`div`**, which is a token, a rule and an operator case.
 6. **Members on numbers**, last, because it is additive and gated by nothing.
 
