@@ -6540,9 +6540,16 @@ be trusted.
 ***Folded into H-15.*** *(will change [TYP-010])*
 
 Subscripting turned out not to want an operator declaration at all: it is a
-structural protocol, and landed as **H-15** in Generation 7. This entry is kept because
-[TYP-010] and [EXP-016] point a reader at this number, and a number that has
-been cited should lead somewhere.
+structural protocol, and landed as **H-15** in Generation 7.
+
+⚠️ **The entry is kept for the record, not for a pointer.** It was kept at first
+because [TYP-010] and [EXP-016] said "see Annex H, H-4"; both were rewritten
+when H-15 landed and neither says it now. What it still earns its place for is
+the history — this number was proposed as a *subscript operator*, folded into
+operator overloading as "the same feature in a particular spelling", and finally
+turned out to want no operator at all. A reader meeting the gap between H-3 and
+H-5 should find out that a question was asked and answered differently, rather
+than that a number was skipped.
 
 **H-5 — An iteration protocol a class may implement.**
 ***Largely landed in Generation 5.*** *(changed [TYP-011], [CLS-009])*
