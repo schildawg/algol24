@@ -1,7 +1,7 @@
 # The Algol-24 Programming Language Specification
 
 > **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 273 rules. Every rule is **decided** — what the
+> chapters and eight annexes, 276 rules. Every rule is **decided** — what the
 > language should do — and every rule is claimed by a case: a program in
 > `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
 > None awaits one.
@@ -14,11 +14,13 @@
 > `NOT YET IMPLEMENTED`, `PARTLY IMPLEMENTED`, or `PLANNED — a later generation`
 > — and `spec/spec.sh` enforces that each points somewhere.
 >
-> Annex C records **36 divergences** between the interpreter and the C back end,
+> Annex C records **37 divergences** between the interpreter and the C back end,
 > and **all of them are withdrawn**: `./conform.sh` reports no gap, so every case
 > the interpreter gets right the compiled back end gets right too. Annex D's
-> eighteen advisory notes are all resolved. Annex H holds nine changes planned
-> for later generations.
+> eighteen advisory notes are all resolved. Annex H holds **seventeen** changes
+> once planned for later generations, of which **fourteen have landed**; what
+> remains is a collections library (H-9), a stage of the foreign function
+> interface (H-14), and equality with the hash that must come with it (H-17).
 >
 > ⚠️ **The entries stay after they are withdrawn**, and are worth more than the
 > count. Each carries what was actually wrong, which in a dozen cases is not what
@@ -1181,7 +1183,12 @@ two may appear together in one header.
 | Declared | a class type, an enumeration type |
 | Collection | `List`, `Set`, `Stack`, `Array`, `Map` |
 | Resource | `Buffer`, `TextFile` |
+| Foreign | `Pointer` — only in a build with foreign calls [INI-008] |
 | Unknown | `Any` — a declaration only, never a runtime type |
+
+⚠️ **`Pointer` is in the table but not in the corpus's list**, because a program
+cannot make one without calling C [TYP-017] and a conformance case must run in
+the default build. `0026` therefore names every row but that one.
 
     interpreter  compiler/ObjFunction.a24  TypeNameOf
     compiler     bootstrap/algol.c         alg_is
@@ -1470,8 +1477,9 @@ for var X in Bag () do Write (X);      // 102030
 
 ⚠️ **The protocol is STRUCTURAL, not declared.** There is nothing to inherit
 from and nothing to announce: a class either has the method or it does not. `Str`
-works the same way through `ToString` [CLS-009], and `in` through a `Contains`
-taking one argument — three protocols, one convention.
+works the same way through `ToString` [CLS-009], `in` through a `Contains`
+taking one argument, ordering through `Compare` [VAL-014] and subscripting
+through `Get` and `Put` [TYP-010] — five protocols, one convention.
 
 ⚠️ **A protocol is a name AND a shape.** `Elements` taking an argument does not
 implement this one, and such a class is simply not iterable. Neither processor
@@ -3314,13 +3322,18 @@ truth.
 
 ## 14. Collections
 
-⚠️ **This chapter describes the collections as built-ins, which is what they are
-today and not what they are meant to remain.** The intent is to move everything
-not genuinely pinned to the core out into a unit written in Algol-24 — see
-Annex E for which of the five are pinned and by what, and Annex H, H-9 for the
-work. What survives in the core is `Array`, which nothing in the language can
-express, and the literal forms `[…]` and `[:]`, which hand out the names `List`
-and `Map` before any unit can.
+⚠️ **This chapter describes the collections as built-ins, which is what they
+are.** Annex H, H-9 proposes a second set written in Algol-24 and built on
+`Array`, added **beside** these rather than replacing them — so this chapter
+keeps describing the natives, and the library's behaviour is documented with the
+library. See Annex E for what was once thought to pin them, all of which has
+since landed.
+
+⚠️ **`Array` is what a library implementation would be built on**, and it stays:
+nothing in the language can express a fixed-size, constant-time store of
+arbitrary values. The literal forms `[…]` and `[:]` also stay, and they are why
+`List` and `Map` keep their names in the core whatever a library calls its
+own.
 
 ⚠️ **The rules below are therefore expected to leave this specification**, and
 their conformance cases with them. That is not a failure of either: a rule that
@@ -6303,20 +6316,32 @@ processors must reproduce byte for byte — so it is a change to the observable
 surface and to `bootstrap/algol.c` in the same breath, not a cosmetic edit.
 ## Annex E — what could be written in Algol-24 itself *(non-normative)*
 
-The collections and the built-in functions are native today. This annex asks,
+The collections and the built-in functions are native today. This annex asked,
 for each, whether it is native because it *must* be or only because it always
 has been — and what one feature would have to be added to unbind it.
 
-⚠️ **This is the plan, not an idle question.** The intent is to move the
-collections out of the core language and into a unit written in Algol-24
-wherever they are not genuinely pinned, and this annex is the survey of what
-that costs. Annex H, H-9 carries the work; chapter 14 records the behaviour the
-unit will have to reproduce.
+⚠️ **Every feature it asked for has landed**, in Generations 5 through 8:
+iteration [TYP-011], a read-only property [CLS-017], subscripting [TYP-010],
+ordering [VAL-014], arithmetic [EXP-020] and element types on insertion
+[VAR-016]. The survey's question is answered, and the answer is that nothing in
+the language pins them.
 
-The reason is the one below, and it is worth more than the tidiness: everything
-moved out of the runtime is one less thing the C back end and the interpreter
-can disagree about — and Annex C ran to thirty-seven entries, numbered to C-39,
-before every one of them was withdrawn.
+⚠️ **The plan changed shape, and this annex is no longer its statement.** It
+said the intent was to **move** the collections out. Annex H, H-9 now proposes a
+second implementation **beside** the native ones, written in Algol-24 and built
+on `Array`, with the compiler rewritten onto it and the natives retiring only
+once that is proven — so nothing breaks at any step, and a library
+implementation is free to offer a contract the core does not, such as a `Map`
+that does not pay for [COL-007]'s insertion order.
+
+⚠️ **And it is library work rather than language work**, which decides how it is
+tested: `conformance/` and `refusals/` pin the language, so a library written
+*in* the language is unit-tested and documented on its own instead.
+
+The reason is the one below, and it is worth more than the tidiness: anything
+written in Algol-24 rather than in the runtime is one less thing the C back end
+and the interpreter can disagree about — and Annex C ran to thirty-seven
+entries, numbered to C-39, before every one of them was withdrawn.
 
 ⚠️ **Three rules did the pinning, and all three are gone.** A class can be
 iterated as of Generation 5 [TYP-011], can expose a read-only property as of
@@ -6332,8 +6357,9 @@ first — that a unit could only be a saving if it could reach what it needed
 without the runtime growing a built-in for every call. It was wrong: what a
 collections unit needs is **storage**, and the storage it needs is `Array`,
 which this annex itself keeps native as "the primitive the others are built on".
-Nothing removed from chapter 14 arrives back in chapter 16, so H-9 waits on
-nothing at all.
+A library implementation asks chapter 16 for nothing, so H-9 waits on nothing at
+all — and the foreign function interface has since landed anyway [FUN-014],
+which settles the objection from the other side too.
 
 ⚠️ **This paragraph has now been rewritten in three consecutive staleness
 passes**, each time to remove one more thing from the list. That is worth
@@ -6368,9 +6394,10 @@ There is no visible difference left. `S.Length` reads without parentheses as
 the built-in's does, now that a class may declare a `property` [CLS-017] — which
 was the one thing this entry said it was waiting on.
 
-*Recommendation:* the best first candidate to move into a unit, and it waits on
-nothing — not on the language, and not on H-14 either. It is written over a
-`List`, a `List` would be written over an `Array`, and an `Array` stays.
+*Recommendation:* the best first candidate for a library implementation, and it
+waits on nothing — not on the language, and not on H-14 either. Written over an
+`Array`, which stays, rather than over the native `List` it would stand beside:
+a wrapper inherits the very contract an alternative exists to differ from.
 
 **Set — writable today; would want hashing later.**
 
@@ -6803,7 +6830,7 @@ landed in Generation 6 without it, and subscripting (H-15) and comparison
 (H-16) landed in Generation 7 as **protocols**. Arithmetic was the only part
 that wanted an operator declaration.
 
-⚠️ **The one place a keyword beat a protocol, after six protocols in a row.**
+⚠️ **The one place a keyword beat a protocol, after five of them in a row.**
 `Compare`, `Get` and `Put` are not translations of operators — `Compare` yields
 four of them, `Get` and `Put` are two halves of one — while a `Plus` method
 would be a pure synonym for `+`: a name added without a concept. Where the name
