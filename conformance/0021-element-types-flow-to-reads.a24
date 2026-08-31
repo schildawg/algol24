@@ -15,8 +15,16 @@ begin
     WriteLn (Doubled);
 end
 
-// ⚠️ Insertion is NOT checked.  A String goes into a List of Integer without
-// complaint, and this is what H-3 would change.
-L.Add ('not an integer');
+// ⚠️ Insertion IS checked now, and this case predicted its own change: it used
+// to end 'L.Add (''not an integer'')' with a note saying that is what H-3 would
+// alter.  It altered it -- see 0173, which covers the five routes.
+L.Add (30);
 WriteLn (L.Length);
 WriteLn (L[2]);
+
+// ⚠️ A BARE 'List' is still unconstrained.  The element type is what does the
+// constraining, so declaring none declares no constraint -- which is why this
+// rule reads as being about the annotation rather than about collections.
+var Loose : List := [1];
+Loose.Add ('anything');
+WriteLn (Loose);

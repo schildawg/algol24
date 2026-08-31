@@ -1,0 +1,5 @@
+Uncaught: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0173-element-type-on-add.a24: Expected Integer, found String.
+[WHITE][[RED]ERROR[WHITE]] [RESET]13 | L.Add ('text');
+[WHITE][[RED]ERROR[RESET]]    |[RED]   ^^^[RESET]
+exit: 70

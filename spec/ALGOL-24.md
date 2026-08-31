@@ -1041,20 +1041,49 @@ described both since it was written, and only the parser disagreed.
     conformance  0121-element-type-on-every-collection.a24
     conformance  0157-element-types-on-parameters.a24
 
-**[VAR-016]**  An element type is a **source of types for reads, and no
+**[VAR-016]**  An element type is a **source of types for reads and a
 constraint on writes.** Given `var L : List of Integer`:
 
-| Expression | Type |
+| Expression | |
 | --- | --- |
 | `L[0]` | Integer |
 | `X` in `for var X in L` | Integer |
-| `L.Add (V)` | accepts any `V`; the element type is not checked |
+| `L.Add ('text')` | refused: `Expected Integer, found String.` |
 
-⚠️ The asymmetry is deliberate rather than an oversight to be tidied away. The
-reading half is what makes a declared element type worth writing — it is how a
-loop variable acquires a type without one being written on it — and it costs
-nothing at run time. Checking every insertion is a different and much larger
-commitment; see Annex H.
+**Every route in is covered**, and there are five: `Add`, `Push`, `Put`,
+subscript assignment, and the collection **literal** at a declaration.
+
+⚠️ **A check covering some of them would be worse than none**, which is why the
+list is exhaustive rather than convenient. A fence with a gate in it invites the
+declared type to be trusted, and a type that is trusted in four places and not
+the fifth is more dangerous than one trusted nowhere.
+
+⚠️ **`Put` constrains its SECOND argument.** A `Map of T` declares the type of
+what is stored, which is what `M[K]` reads back; the key is not constrained.
+
+⚠️ **Checked where the receiver's type is known, and nowhere else** — the same
+bargain [CLS-017] makes for a property and [DCL-015] for `private:`. The element
+type is available only for a plain **name**: there is nowhere to have written
+the element type of an arbitrary expression, so an insertion through one is
+unchecked. It costs nothing at run time.
+
+⚠️ **A bare `List` is unconstrained**, as it always was. The element type does
+the constraining, so declaring none declares no constraint — which is why this
+rule is about the *annotation* rather than about collections.
+
+⚠️ **It checks and does not convert.** `D.Add (2)` into a `List of Double` is
+accepted because an Integer widens to a Double [VAR-004], and the element
+stored is the Integer `2`. Widening happens where a value reaches a *written
+type*, and an element is not one.
+
+    interpreter  compiler/TypeChecker.a24  CheckElement
+    conformance  0021-element-types-flow-to-reads.a24
+    conformance  0173-element-types-on-insertion.a24
+    refusal      0173-element-type-on-add.a24
+    refusal      0174-element-type-on-subscript.a24
+    refusal      0175-element-type-on-put.a24
+    refusal      0176-element-type-on-push.a24
+    refusal      0177-element-type-on-literal.a24
 
     interpreter  compiler/TypeChecker.a24  Reduce
     conformance  0021-element-types-flow-to-reads.a24
@@ -6526,19 +6555,31 @@ could not read back what it wrote. Nothing was unreachable, because `Val` parses
 the exponent form, but the round trip went through a built-in rather than
 through the source.
 
-**H-3 — Element types checked on insertion.** *(will change [VAR-016])*
+**H-3 — Element types checked on insertion.**
+***Landed in Generation 8.*** *(changed [VAR-016])*
 
-An element type constrains what may be put into a collection, so
-`L.Add ('text')` on a `List of Integer` is refused. Today it is a source of
-types for reads only and insertion is unchecked. Pinned by
-`conformance/0021-element-types-flow-to-reads.a24`, whose `Add` line is the part
-that will change.
+`L.Add ('text')` on a `List of Integer` is refused, and so are the other four
+routes in: `Push`, `Put`, subscript assignment, and the collection literal at a
+declaration.
 
-⚠️ Larger than it looks, and the reason it is not being done now: every route
-into a collection has to be covered — `Add`, `Put`, `Push`, subscript
-assignment, and the collection literals — or the check becomes a fence with a
-gate in it, which is worse than no fence because it invites the declared type to
-be trusted.
+⚠️ **The entry's own warning was the design.** It said every route had to be
+covered "or the check becomes a fence with a gate in it, which is worse than no
+fence because it invites the declared type to be trusted". Five routes, five
+refusal cases — one apiece, because the check is the type checker's and a
+refused program never runs, so no single case can show two.
+
+⚠️ **Checked where the receiver's type is known, and nowhere else**, at no
+run-time cost — the bargain a property [CLS-017] and `private:` [DCL-015]
+already make. The element type is available only for a plain name, which is the
+same limit *reading* one has: there is nowhere to have written the element type
+of an arbitrary expression.
+
+⚠️ **It checks and does not convert.** `D.Add (2)` into a `List of Double` is
+accepted and stores the Integer. Widening reaches a *written type* [VAR-004],
+and an element is not one.
+
+⚠️ **`conformance/0021` predicted its own change** and said so: "Insertion is
+NOT checked… this is what H-3 would change." It changed it.
 
 **H-4 — A subscript operator a class may declare.**
 ***Folded into H-15.*** *(will change [TYP-010])*

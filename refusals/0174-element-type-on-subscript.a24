@@ -1,0 +1,13 @@
+// spec: VAR-016
+//
+// An element type constrains what may be put in, and this is one of the five
+// routes in.  Refused by the type checker, so the program never runs -- which
+// is why each route needs a case of its own.
+
+var L : List  of Integer := [1, 2];
+var M : Map   of Integer := [:];
+var S : Stack of Integer := Stack ();
+
+WriteLn ('never reached');
+
+L[0] := 'text';

@@ -397,6 +397,68 @@ begin
         Exit '';
     end
 
+    /// The element type a receiver was declared with, or ''.
+    ///
+    /// ⚠️ Available only for a plain NAME, which is the same limit reading one
+    /// has [VAR-016]: there is nowhere to have written the element type of an
+    /// arbitrary expression, so an insertion through one is unchecked.
+    ///
+    function ElementOf (Obj : Any) : String;
+    begin
+        if ClassNameOf (Obj) <> 'VariableExpr' then Exit '';
+
+        Exit Lookup.Generics.GetType (Str (Obj.Name.Lexeme));
+    end
+
+    /// Refuses a value the declared element type does not admit [VAR-016].
+    ///
+    procedure CheckElement (Element : String, Actual : String, Where : Token);
+    begin
+        if Element = '' or Element = 'Any' then Exit;
+        if Actual  = '' or Actual  = 'Any' then Exit;
+
+        if not Assignable (Element, Actual) then
+            raise Mismatch (Where, Element, Actual);
+    end
+
+    /// The argument an insertion route puts INTO the collection, or -1.
+    ///
+    /// ⚠️ EVERY ROUTE, and that is the whole difficulty of this rule: a check
+    /// covering some of them is a fence with a gate in it, which is worse than
+    /// no fence because it invites the declared type to be trusted.  The five
+    /// are 'Add', 'Push', 'Put', subscript assignment and the literal.
+    ///
+    /// ⚠️ 'Put' inserts its SECOND argument.  A 'Map of T' declares the type of
+    /// what is stored, which is what 'M[K]' reads back [VAR-016]; the key is
+    /// not constrained.
+    ///
+    function InsertedAt (Member : String) : Integer;
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (Member);
+
+        if Folded = 'add'  then Exit 0;
+        if Folded = 'push' then Exit 0;
+        if Folded = 'put'  then Exit 1;
+
+        Exit -1;
+    end
+
+    /// Checks every element of a collection LITERAL against a declared element
+    /// type -- the route that is easiest to forget, because nothing is called.
+    ///
+    procedure CheckLiteral (Element : String, Initializer : Any, Where : Token);
+    begin
+        if Element = '' or Element = 'Any' then Exit;
+        if Initializer = Nil then Exit;
+        if ClassNameOf (Initializer) <> 'CollectionExpr' then Exit;
+
+        for var I := 0; I < Initializer.Values.Length; I := I + 1 do
+            CheckElement (Element, Reduce (Initializer.Values[I]), Where);
+    end
+
     procedure CheckVisibility (Obj : Any, Member : Token);
     var
         TheType : String;
@@ -654,6 +716,8 @@ begin
             // is out of reach of the visibility rule.
             if TheStmt.Initializer <> Nil and TheStmt.TypeName = '' then
                 Lookup.Inferred.SetType (Str (TheStmt.Name.Lexeme), Reduce (TheStmt.Initializer));
+
+            CheckLiteral (Str (TheStmt.Generic), TheStmt.Initializer, TheStmt.Name);
 
             if TheStmt.Initializer <> Nil and TheStmt.TypeName <> '' then
             begin
@@ -1118,6 +1182,19 @@ begin
 
             WarnIfDynamic (TheExpr);
 
+            // ⚠️ An element type constrains what may be PUT IN [VAR-016], not
+            // only what comes out.  Checked where the receiver's declared type
+            // is known and nowhere else, which is the same bargain every other
+            // rule in this checker makes.
+            if ClassNameOf (TheExpr.Callee) = 'GetExpr' then
+            begin
+                var At := InsertedAt (Str (TheExpr.Callee.Name.Lexeme));
+
+                if At >= 0 and At < ArgTypes.Length then
+                    CheckElement (ElementOf (TheExpr.Callee.Obj), Str (ArgTypes[At]),
+                                  TheExpr.Callee.Name);
+            end
+
             // ⚠️ 'Max' promotes, so its type comes from its ARGUMENTS rather
             // than from a table [RT-010].  Declaring it Integer let a Double
             // land in an Integer-declared variable with nothing said.
@@ -1260,7 +1337,13 @@ begin
             Reduce (TheExpr.Obj);
             Reduce (TheExpr.Index);
 
-            Exit Reduce (TheExpr.Value);
+            var Stored := Reduce (TheExpr.Value);
+
+            // The fourth route in [VAR-016]: 'L[0] := V' puts V in as surely as
+            // 'L.Add (V)' does.
+            CheckElement (ElementOf (TheExpr.Obj), Stored, TheExpr.Bracket);
+
+            Exit Stored;
         end
 
         Exit '';
