@@ -114,8 +114,17 @@ end
 // both, at the weight it actually covers, rather than being thresholded into
 // one of them.
 
+// ⚠️ AND A THIRD KIND, because emoji are not text in one ink colour -- they
+// are pictures.  A glyph line separated by '+' rather than ':' carries
+// RRGGBBAA per pixel, and the separator is the whole of the format marker.  No
+// amount of coverage produces a red heart, so the format admits a second kind
+// rather than pretending.
+
 var Glyphs := [:];        // codepoint -> List of rows (bit patterns, or bytes)
 var Widths := [:];        // codepoint -> pixels across
+var Pictures := [:];      // codepoint -> True when its rows are RRGGBBAA
+                          // (not 'Colour' -- DrawGlyph has a parameter of that
+                          //  name, and the local would shadow this map)
 var Height := 16;         // pixels down
 var Grey   := False;      // one byte of coverage per pixel rather than one bit
 
@@ -151,7 +160,16 @@ begin
     while not F.Eof do
     begin
         var Line := F.ReadLn ();
-        var Colon := Pos (Line, ':');
+
+        // The separator IS the format: ':' is coverage or bits, '+' is colour.
+        var Colon  := Pos (Line, ':');
+        var Painted := False;
+
+        if Colon < 0 then
+        begin
+            Colon := Pos (Line, '+');
+            if Colon >= 0 then Painted := True;
+        end
 
         // '# gray8 32' -- the header a grey font opens with, and the only line
         // in either format that is not a glyph.
@@ -181,7 +199,28 @@ begin
             var Rows := [];
             var R    := 0;
 
-            if Grey then
+            if Painted then
+            begin
+                // Eight hex digits to a pixel: RRGGBBAA, kept whole.
+                var Wide := Length (Bits) div 8 div Height;
+
+                while R < Height do
+                begin
+                    var Row := [];
+                    var C   := 0;
+                    while C < Wide do
+                    begin
+                        Row.Add (HexAt (Bits, (R * Wide + C) * 8, 8));
+                        C := C + 1;
+                    end
+                    Rows.Add (Row);
+                    R := R + 1;
+                end
+
+                Widths[Code] := Wide;
+                Pictures[Code] := True;
+            end
+            else if Grey then
             begin
                 var Wide := Length (Bits) div 2 div Height;
 
@@ -273,7 +312,30 @@ begin
 
         while C < Wide do
         begin
-            if Grey then
+            if Code in Pictures then
+            begin
+                // RRGGBBAA: the pixel brings its own colour, and only the
+                // alpha decides how much of it lands.
+                var Pixel := Row[C];
+                var Alpha := Mod (Pixel, 256);
+
+                if Alpha > 0 then
+                begin
+                    var SY := 0;
+                    while SY < Scale do
+                    begin
+                        var SX := 0;
+                        while SX < Scale do
+                        begin
+                            Wash (X + C * Scale + SX, Y + R * Scale + SY,
+                                  Pixel div 256, Alpha);
+                            SX := SX + 1;
+                        end
+                        SY := SY + 1;
+                    end
+                end
+            end
+            else if Grey then
             begin
                 // ⚠️ Blended, not stamped.  This is the whole difference: a
                 // stem falling between two pixels marks both, each at the
@@ -337,11 +399,11 @@ end
 
 // ------------------------------------------------------------ the chart --
 
-var Labels := ['Merhaba  Türkçe',
-               'Γεια σου  Ελληνικά',
-               '你好  中文',
-               '안녕하세요  한국어',
-               'Hola  Español'];
+var Labels := ['Merhaba  Türkçe  👋',
+               'Γεια σου  Ελληνικά  ⭐',
+               '你好  中文  🎉',
+               '안녕하세요  한국어  🙂',
+               'Hola  Español  🌍'];
 
 var Shares : List of Integer := [22, 18, 25, 15, 20];
 var Colours : List of Integer := [0xE8583F, 0xF2A03D, 0x4FA3C7, 0x6FC26B, 0xB07BD1];
@@ -422,7 +484,7 @@ WriteLn ('font: ' + FontFile + ', ' + Str (Glyphs.Length) + ' glyphs, '
 
 Fill (0x1E1E28);
 
-DrawText ('Hello, in five scripts', 40, 30, 0xF0F0F5, Scale);
+DrawText ('Hello, in five scripts  🌍', 40, 30, 0xF0F0F5, Scale);
 Box (40, 82, 960, 2, 0x3A3A4A);
 
 DrawPie (250, 305, 150);

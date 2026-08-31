@@ -18,7 +18,12 @@ and a thresholded bitmap does not.
 import sys, unicodedata
 from PIL import Image, ImageDraw, ImageFont
 
-FONT = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
+FONT  = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
+EMOJI = "/System/Library/Fonts/Apple Color Emoji.ttc"
+
+# Colour glyphs.  Single codepoints only: a flag is two regional indicators and
+# a family is five codepoints joined by ZWJ, and one cell holds one codepoint.
+COLOURED = "🙂🌍🎉👋⭐🐈"
 
 TEXT = (
     "".join(chr(c) for c in range(0x20, 0x7F)) +
@@ -73,6 +78,26 @@ def main():
     if grey:
         out.append("# gray8 %d" % cell_h)
 
+        # ⚠️ A COLOUR glyph, and the separator says so: ':' is coverage, '+' is
+        # RRGGBBAA.  Emoji are not coverage over one ink colour -- they are
+        # pictures -- so no amount of grey will do, and the format has to admit
+        # a second kind rather than pretend.
+        colour = ImageFont.truetype(EMOJI, 160)
+
+        for ch in COLOURED:
+            cp = ord(ch)
+            seen.add(cp)
+
+            img = Image.new("RGBA", (200, 200), (0, 0, 0, 0))
+            ImageDraw.Draw(img).text((0, 0), ch, font=colour, embedded_color=True)
+
+            box = img.getbbox() or (0, 0, 160, 160)
+            px  = img.crop(box).resize((cell_h, cell_h), Image.LANCZOS).load()
+
+            body = "".join("%02X%02X%02X%02X" % px[x, y]
+                           for y in range(cell_h) for x in range(cell_h))
+            out.append("%04X+%s" % (cp, body))
+
     for ch in sorted(set(TEXT)):
         cp = ord(ch)
         if cp in seen or cp < 0x20:
@@ -101,7 +126,8 @@ def main():
     with open(args[0], "w") as f:
         f.write("\n".join(out) + "\n")
 
-    print("%d glyphs, %s" % (len(out) - (1 if grey else 0),
-                             "grey %d" % cell_h if grey else "1-bit 16"))
+    print("%d glyphs, %s%s" % (len(out) - (1 if grey else 0),
+                               "grey %d" % cell_h if grey else "1-bit 16",
+                               " + %d in colour" % len(COLOURED) if grey else ""))
 
 main()

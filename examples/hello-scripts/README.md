@@ -80,6 +80,26 @@ which means FreeType through the FFI, which is currently blocked: reading
 `face->glyph->bitmap.buffer` means reading a pointer out of a C struct, and a
 `Buffer` has no way to hand one back.
 
+## Emoji
+
+`font-aa.hex` also carries six **colour** glyphs, and the separator on a glyph
+line is the whole of the format marker:
+
+```
+0041:...    coverage -- one byte per pixel, drawn in whatever ink is asked for
+1F642+...   colour   -- RRGGBBAA per pixel, drawn as itself
+```
+
+⚠️ **Emoji are not text in one ink colour — they are pictures**, so no amount of
+coverage produces one. The format admits a second kind rather than pretending,
+and the blitter branches on it in eleven lines. Everything else is unchanged:
+they land in the same framebuffer, at the same time, beside the pie.
+
+⚠️ **Single codepoints only.** A flag is two regional indicators and a family is
+five codepoints joined by zero-width joiners; one cell holds one codepoint, so
+those come out as their parts. This is the same line drawn under *What it does
+not do* below, and it is where a grapheme-cluster table would go.
+
 ## The font format
 
 `font.hex` is in **GNU Unifont's format** and could be replaced by the real
