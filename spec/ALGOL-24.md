@@ -1,7 +1,7 @@
 # The Algol-24 Programming Language Specification
 
 > **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 276 rules. Every rule is **decided** — what the
+> chapters and eight annexes, 280 rules. Every rule is **decided** — what the
 > language should do — and every rule is claimed by a case: a program in
 > `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
 > None awaits one.
@@ -3786,11 +3786,20 @@ start outside the text is `Copy failed: Start -2 out of range 0..6.`
 
 **[RT-006]**  `Str(V)` renders any value: an Integer bare, a Double always with
 a point (`1.0`), a Boolean lowercase (`true`), `nil` as `nil`, a List as
-`[10, 20, 30]`, a Map as `[1:2]`, and an instance by its `ToString` [CLS-009].
+`[10, 20, 30]`, a Map as `[1:2]`, an instance by its `ToString` [CLS-009], and
+the two resources as `Buffer(4)` [RT-023] and `TextFile('name')` [RT-024].
+
+⚠️ **Any value means any value, and a `TextFile` was the one that was not.**
+It had no case at all and answered `A value of object kind 14 has no text
+form.` — a message naming an internal tag, to a program that has no way to know
+what a kind 14 is. The Buffer beside it had always rendered, which is what made
+it a defect in the implementation rather than a limit worth writing down.
 
     interpreter  compiler/Interpreter.a24  Stringify
     compiler     bootstrap/algol.c         alg_str
     conformance  0090-str.a24
+    conformance  0177-a-buffers-lifetime.a24
+    conformance  0178-a-text-files-state.a24
 
 **[RT-007]**  `Ord(C)` answers the code point of a single character, as an
 **Integer**. Anything longer is `Ord failed: 'ab' has no ordinal.`
@@ -3970,6 +3979,150 @@ process exit status is; that is the operating system's rule, not this language's
     interpreter  compiler/Interpreter.a24  HaltNative
     compiler     bootstrap/algol.c         alg_halt
     conformance  0134-halt.a24
+
+### 16.5 Resources
+
+**[RT-021]**  `Buffer` and `TextFile` build the two **resources** [TYP-001]:
+values holding something the program must release rather than abandon. Neither
+is a collection — neither answers `Contains`, and only a `Buffer` answers
+`Length`. Their members are:
+
+| | Buffer | TextFile |
+| --- | :-: | :-: |
+| `Length` `IsEmpty` `Text` `Address` | ● | |
+| `PutInt` `GetInt` `Resize` `Free` | ● | |
+| `Append` | ● | ● |
+| `Eof` `Assign` `Reset` `Rewrite` | | ● |
+| `ReadLn` `Write` `WriteLn` `Flush` | | ● |
+| `Close` `Erase` `Rename` | | ● |
+
+`Length`, `IsEmpty`, `Text`, `Address` and `Eof` are **properties**, written
+without parentheses; the rest are methods. A member a resource does not have is
+`Undefined property 'X'.`, as it is for a collection [COL-005].
+
+⚠️ This table is checked against the interpreter by `spec/spec.sh`, exactly as
+[COL-003]'s is and for the same reason: a matrix transcribed into a
+specification and checked by nobody is the most rot-prone thing this document
+can hold.
+
+⚠️ **`Append` is the one name both answer to, and it means different things** —
+a Buffer's takes a value and adds its bytes, a file's takes nothing and opens
+for writing at the end. Only the receiver says which, which is why both
+processors try the file's members and the Buffer's *before* the collections'.
+
+⚠️ **A resource is not an instance either**, so neither answers `ClassName`
+[CLS-008] — the same answer a collection gives [TYP-009]. Both do render
+[RT-006]: a Buffer as its size and a file as its name, spelled out in [RT-023]
+and [RT-024].
+
+    interpreter  compiler/ObjBuffer.a24  Get
+    interpreter  compiler/ObjFile.a24    Get
+    compiler     bootstrap/algol.c       alg_property
+    conformance  0175-resource-members.a24
+
+**[RT-022]**  A `Buffer` holds **bytes**, and `Length` counts them rather than
+characters: appending `'é'` makes it 2.
+
+| | |
+| --- | --- |
+| `B[I]` | the byte at `I`, an Integer 0 … 255 |
+| `B[I] := N` | writes one; outside that range, `A byte must be in 0..255.` |
+| `Append (X)` | appends the bytes of `Str(X)` [RT-006] |
+| `PutInt (At, N)` `GetInt (At)` | a signed four-byte little-endian Integer |
+| `Text` | the bytes as a String |
+
+An offset outside the buffer is `Offset I out of range 0..N.`, where `N` is the
+**last offset a value of that width may start at** — `Length - 1` for a byte and
+`Length - 4` for an Integer. An empty Buffer therefore says `0..-1`, and a
+four-byte one asked for an Integer at 1 says `0..0`.
+
+`Text` on a Buffer holding a zero byte is `A Buffer holding a zero byte has no
+Text.`
+
+⚠️ **The message names the width by naming the last legal offset**, rather than
+by stating it. `0..0` on a four-byte buffer says everything `0..3, minus three
+for the width` would, in the terms the program already has.
+
+⚠️ **`Append` measures with the value's own length, never with a terminator.**
+A String carries its length [G.2], which is what lets `Append (Char (0))` put a
+zero byte in — and a Buffer that can *hold* one, through `Buffer (N)` and
+`B[I] := 0`, but could not be handed one was the asymmetry. `strlen` was how it
+got there.
+
+⚠️ **`Text` is the way to ask for the contents, and it is explicit.** A Buffer
+is bytes, which may not be text at all; `Str` gives its size [RT-023].
+
+    interpreter  compiler/ObjBuffer.a24  Invoke
+    compiler     bootstrap/algol.c       buffer_method
+    conformance  0176-a-buffers-bytes.a24
+
+**[RT-023]**  A `Buffer` has an **explicit lifetime**. `Buffer ()` is empty and
+`Buffer (N)` is `N` zero bytes; a negative size is `A Buffer's size cannot be
+negative.` `Resize (N)` sets the length, truncating or extending with zero
+bytes, and `Free ()` releases the bytes.
+
+Every member of a freed Buffer is `That Buffer has been freed.` — except `Free`
+itself, which is a no-op the second time.
+
+`Str` of a Buffer is `Buffer(N)`, or `Buffer(freed)`.
+
+⚠️ **`Free` is the one member a freed Buffer still accepts**, which is the
+bargain `Close` makes for a file [RT-024]: a handler can release on the way out
+without knowing how far the program got.
+
+⚠️ **Its size, never its contents and never its capacity.** Capacity is a
+function of allocation history, so printing it would make output depend on how a
+buffer happened to grow — the non-determinism the fixed-point check exists to
+catch. Contents are left out for a plainer reason: a compiler's Buffer holds
+700 KB of bytes that may not be text.
+
+⚠️ **An address does not outlive the bytes** [TYP-017]. `Resize` may move them
+and `Free` ends them.
+
+    interpreter  compiler/ObjBuffer.a24  Invoke
+    compiler     bootstrap/algol.c       buffer_method
+    conformance  0177-a-buffers-lifetime.a24
+
+**[RT-024]**  A `TextFile` is opened in one of three ways, and every member says
+what it needed when it does not have it:
+
+| | |
+| --- | --- |
+| `Assign (Name)` | names the file; a name must be a String |
+| `Reset` | opens it for reading |
+| `Rewrite` | opens it for writing, emptying it first |
+| `Append` | opens it for writing at the end |
+| `Close` `Erase` `Rename (Name)` | closes, deletes, renames |
+
+`Eof` and `ReadLn` need it open for reading and `Write`, `WriteLn` and `Flush`
+open for writing; otherwise the member fails with `X failed: the file is not
+open for reading.` or `… for writing.` Every member but `Close` needs a name,
+and without one fails with `X failed: no file has been assigned.` `ReadLn` past
+the last line is `ReadLn failed: at end of file.`
+
+`Rename` renames the file **and the handle**: the name it was given is the name
+the handle then has. `Str` of a `TextFile` is `TextFile('name')`, or
+`TextFile()` before an `Assign`.
+
+⚠️ **`Eof` is TRUE on a file open for writing**, as it is in Turbo Pascal: the
+position on an output file is always the end. It is a *position* query rather
+than a report of a failed read, which is why a file open for reading keeps one
+line of lookahead — `Eof` must answer *at* the end, which a line reader cannot
+know without having looked.
+
+⚠️ **Every failure names the member that failed**, in one shape: the member, a
+colon, and what it needed. That is what makes the messages worth quoting here —
+there is one sentence pattern rather than eleven.
+
+⚠️ **`Close` on a file that is not open is not an error**, for the reason
+`Free`'s second call is not [RT-023].
+
+⚠️ What `ReadLn` treats as a line is [RT-016], which is the scanner's rule
+[SRC-006] rather than a second one.
+
+    interpreter  compiler/ObjFile.a24  Invoke
+    compiler     bootstrap/algol.c     file_method
+    conformance  0178-a-text-files-state.a24
 
 ---
 
@@ -4533,7 +4686,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The twenty-eight built-in names, with the rule specifying each. `spec/spec.sh`
+The twenty-nine built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list against the names the interpreter actually registers.
 
 | Name | Rule | Summary |
@@ -4543,7 +4696,7 @@ checks this list against the names the interpreter actually registers.
 | `Fail` | [TST-012] | Fails outright with a message; test runs only |
 | `Halt` | [RT-018] | Ends the program with a chosen exit status |
 | `Array` | [COL-002] | An Array of N elements, each `nil` |
-| `Buffer` | [E.2] | Growable bytes with an explicit lifetime |
+| `Buffer` | [RT-023] | Growable bytes with an explicit lifetime |
 | `List` | [COL-002] | An empty List |
 | `Map` | [COL-002] | An empty Map |
 | `Set` | [COL-002] | An empty Set, or a Set of a collection's values |
@@ -4562,7 +4715,7 @@ checks this list against the names the interpreter actually registers.
 | `Mod` | [RT-011] | The remainder, its sign following the dividend |
 | `clock` | [RT-012] | Seconds since the epoch, as a Double |
 | `FileExists` | [RT-014] | Whether a named file exists |
-| `TextFile` | [E.2] | A text file handle |
+| `TextFile` | [RT-024] | A text file handle |
 | `ParamCount` | [RT-013] | The argument count, not counting the program |
 | `ParamStr` | [RT-013] | An argument by index; 0 is the program |
 | `Write` | [RT-015] | Writes a value |
@@ -5664,7 +5817,7 @@ instead.
 ⚠️ **The counts are asked of the tables, not listed again.** `BuiltinCounts`
 probes the two tables that map a name to its runtime entry point, once per
 count, so a built-in added to either is described the moment it is added. A
-fifth transcription of the twenty-eight names is exactly the rot [COL-003]'s
+fifth transcription of those names is exactly the rot [COL-003]'s
 matrix already needs a harness to guard against.
 
 ⚠️ **And the same key hid a missing feature.** `WriteLn ()` — the newline on its
@@ -6446,9 +6599,16 @@ a language that lets a unit claim `[:]` is a much larger language.
 | `Ord`, `Char` | No. They convert between a character and its code point, and nothing else reaches that representation. |
 | `Length` | No, for `String`. A user type's own length is [TYP-012]. |
 | `Str` | No. Rendering a `Double` in the specified shortest round-trip form needs the value's bits, which the language cannot see. |
-| `clock`, `TextFile`, `FileExists`, `ParamCount`, `ParamStr` | No. The operating system is not otherwise reachable. |
-| `Buffer` | No. It is a memory primitive with an explicit lifetime. |
-| `Write`, `WriteLn` | No. Output is not otherwise reachable. |
+| `clock`, `TextFile`, `FileExists` | Yes, now. `external` reaches `time`, `fopen` and `stat` directly [FUN-014]. |
+| `Buffer` | Yes, now, over `malloc` and `free` — though `Address` [TYP-017] would have nothing to hand out but a `Pointer` it got from one. |
+| `Write`, `WriteLn` | Yes, now, over `fputs` — but not their rendering, which is `Str`'s [RT-006]. |
+| `ParamCount`, `ParamStr` | No. `argc` and `argv` are the runtime's, and a foreign call cannot ask for them. |
+
+⚠️ **Three of those rows said "No. The operating system is not otherwise
+reachable"** until Generation 8, and the sentence was true when it was written.
+[FUN-014] is what made it false: a program that can declare `fopen` can write a
+file handle of its own. The answers left are the ones where the obstacle is not
+the operating system but this runtime's own state.
 
 ### E.3 The one feature that unbinds the most
 

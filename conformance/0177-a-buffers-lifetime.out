@@ -1,0 +1,18 @@
+Buffer () Length = 0
+Buffer () IsEmpty = true
+Buffer (4) Length = 4
+Buffer (4) IsEmpty = false
+Buffer (4) first and last = 0, 0
+  Buffer (-1): A Buffer's size cannot be negative.
+grown to 4 = 65, 66, 0, 0
+cut to 1 = A
+  Resize (-1): A Buffer's size cannot be negative.
+Str of a Buffer = Buffer(21)
+Str once freed = Buffer(freed)
+  Length: That Buffer has been freed.
+  Text: That Buffer has been freed.
+  Append: That Buffer has been freed.
+  Resize: That Buffer has been freed.
+  subscript: That Buffer has been freed.
+a second Free is a no-op
+exit: 0

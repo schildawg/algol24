@@ -2,10 +2,14 @@
 // machine-readable lines: "Kind Member".
 //
 // ⚠️ This is not a probe and not a conformance case. It is the SOURCE the
-// [COL-003] member matrix is checked against, run live by spec/spec.sh -- the
-// same treatment the keyword table and Annex B already get. A matrix
-// transcribed into a specification and checked by nobody is the most rot-prone
-// thing this document can hold.
+// [COL-003] and [RT-021] member matrices are checked against, run live by
+// spec/spec.sh -- the same treatment the keyword table and Annex B already get.
+// A matrix transcribed into a specification and checked by nobody is the most
+// rot-prone thing this document can hold.
+//
+// ⚠️ It prints the resources' pairs as well as the collections', and spec.sh
+// tells the two apart by the kinds each table names in its own header row.
+// One source, two tables.
 
 var Kinds := ['List', 'Set', 'Stack', 'Array', 'Map'];
 
@@ -69,3 +73,86 @@ begin
         end
     end
 end
+
+// The two resources [RT-021]. Probed the same way -- reading the member, never
+// calling it -- but listed separately because they share almost no names with
+// the collections and only one with each other.
+
+var Resources := ['Length', 'IsEmpty', 'Text', 'Address', 'Append', 'PutInt',
+                  'GetInt', 'Resize', 'Free', 'Eof', 'Assign', 'Reset',
+                  'Rewrite', 'ReadLn', 'Write', 'WriteLn', 'Flush', 'Close',
+                  'Erase', 'Rename'];
+
+// ⚠️ The file is OPEN, because Eof is the one member that answers only when it
+// is: reading it on an unopened file raises, which this probe cannot tell from
+// the member being absent. Rewrite is the cheapest open that needs no
+// pre-existing file, and the file is erased on the way out.
+var Probe := TextFile ();
+Probe.Assign ('spec-members-probe.tmp');
+Probe.Rewrite ();
+
+for var N in Resources do
+begin
+    var B := Buffer ();
+
+    try
+        var Ignored := 0;
+        case N of
+            'Length'  : Ignored := B.Length;
+            'IsEmpty' : Ignored := B.IsEmpty;
+            'Text'    : Ignored := B.Text;
+            'Address' : Ignored := B.Address;
+            'Append'  : Ignored := B.Append;
+            'PutInt'  : Ignored := B.PutInt;
+            'GetInt'  : Ignored := B.GetInt;
+            'Resize'  : Ignored := B.Resize;
+            'Free'    : Ignored := B.Free;
+            'Eof'     : Ignored := B.Eof;
+            'Assign'  : Ignored := B.Assign;
+            'Reset'   : Ignored := B.Reset;
+            'Rewrite' : Ignored := B.Rewrite;
+            'ReadLn'  : Ignored := B.ReadLn;
+            'Write'   : Ignored := B.Write;
+            'WriteLn' : Ignored := B.WriteLn;
+            'Flush'   : Ignored := B.Flush;
+            'Close'   : Ignored := B.Close;
+            'Erase'   : Ignored := B.Erase;
+            'Rename'  : Ignored := B.Rename;
+        end
+        WriteLn ('Buffer ' + N);
+    except
+        // not this one
+    end
+
+    try
+        var Ignored := 0;
+        case N of
+            'Length'  : Ignored := Probe.Length;
+            'IsEmpty' : Ignored := Probe.IsEmpty;
+            'Text'    : Ignored := Probe.Text;
+            'Address' : Ignored := Probe.Address;
+            'Append'  : Ignored := Probe.Append;
+            'PutInt'  : Ignored := Probe.PutInt;
+            'GetInt'  : Ignored := Probe.GetInt;
+            'Resize'  : Ignored := Probe.Resize;
+            'Free'    : Ignored := Probe.Free;
+            'Eof'     : Ignored := Probe.Eof;
+            'Assign'  : Ignored := Probe.Assign;
+            'Reset'   : Ignored := Probe.Reset;
+            'Rewrite' : Ignored := Probe.Rewrite;
+            'ReadLn'  : Ignored := Probe.ReadLn;
+            'Write'   : Ignored := Probe.Write;
+            'WriteLn' : Ignored := Probe.WriteLn;
+            'Flush'   : Ignored := Probe.Flush;
+            'Close'   : Ignored := Probe.Close;
+            'Erase'   : Ignored := Probe.Erase;
+            'Rename'  : Ignored := Probe.Rename;
+        end
+        WriteLn ('TextFile ' + N);
+    except
+        // not this one
+    end
+end
+
+Probe.Close ();
+Probe.Erase ();

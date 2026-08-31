@@ -1,0 +1,25 @@
+Reset failed: no file has been assigned.
+Rewrite failed: no file has been assigned.
+Append failed: no file has been assigned.
+Erase failed: no file has been assigned.
+Rename failed: no file has been assigned.
+Eof failed: the file is not open for reading.
+ReadLn failed: the file is not open for reading.
+Write failed: the file is not open for writing.
+WriteLn failed: the file is not open for writing.
+Flush failed: the file is not open for writing.
+Close before an open is not an error
+A file name must be a String.
+assigned: TextFile('t-state.txt')
+Eof while writing = true
+ReadLn failed: the file is not open for reading.
+Write failed: the file is not open for writing.
+read: one
+read: two
+Eof after the last line = true
+ReadLn failed: at end of file.
+t-state.txt exists = false
+t-renamed.txt exists = true
+the handle now = TextFile('t-renamed.txt')
+after Erase = false
+exit: 0

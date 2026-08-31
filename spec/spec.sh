@@ -532,20 +532,28 @@ else
 fi
 
 # ⚠️ [COL-003]'s member matrix is five kinds by twenty names, transcribed by
-# hand, and it is the single most rot-prone thing in the document.  spec/
-# members.a24 asks the interpreter which members each kind actually answers for,
-# and the table is compared against the answer -- the same treatment the keyword
-# table and Annex B get, for the same reason.
+# hand, and it is the single most rot-prone thing in the document.  [RT-021]'s
+# is the same shape for the two resources.  spec/members.a24 asks the
+# interpreter which members each kind actually answers for, and both tables are
+# compared against the answer -- the same treatment the keyword table and Annex
+# B get, for the same reason.
+#
+# ⚠️ ONE SOURCE, TWO TABLES, and the kinds in each table's own header row are
+# what separate them.  Checking a table against every pair the probe prints
+# would make each table look as though it omitted the other's, so the source is
+# narrowed to the kinds the table actually claims to cover.
 
-if [ -x bootstrap/algc ]; then
-    bootstrap/algc spec/members.a24 2>/dev/null | sort -u > "$WORK/mem_source"
+check_matrix() {
+    RULE=$1; STOP=$2
 
-    awk '/\*\*\[COL-003\]\*\*/{f=1}
-         f && /^\*\*\[COL-004\]\*\*/{exit}
+    awk -v rule="\\\\*\\\\*\\\\[$RULE\\\\]\\\\*\\\\*" -v stop="^\\\\*\\\\*\\\\[$STOP\\\\]\\\\*\\\\*" '
+         $0 ~ rule {f=1}
+         f && $0 ~ stop {exit}
          f && /^\| /{print}' "$SPEC" > "$WORK/mem_table"
 
     awk -F'|' 'NR==1 {
                    for (i = 3; i <= NF - 1; i++) { gsub(/ /, "", $i); kind[i] = $i }
+                   for (i = 3; i <= NF - 1; i++) print "KIND " kind[i] > "/dev/stderr"
                    next
                }
                NR == 2 { next }
@@ -559,18 +567,32 @@ if [ -x bootstrap/algc ]; then
                                if (nm != "") print kind[i] " " nm
                            }
                    }
-               }' "$WORK/mem_table" | sort -u > "$WORK/mem_spec"
+               }' "$WORK/mem_table" 2> "$WORK/mem_kinds" | sort -u > "$WORK/mem_spec"
+
+    # Only the kinds this table names.  A pair for any other kind belongs to the
+    # other table and is not this one's to account for.
+    sed 's/^KIND //' "$WORK/mem_kinds" | sort -u > "$WORK/mem_kinds_only"
+    awk 'NR == FNR { want[$1] = 1; next } want[$1]' \
+        "$WORK/mem_kinds_only" "$WORK/mem_all" | sort -u > "$WORK/mem_source"
 
     if [ ! -s "$WORK/mem_source" ] || [ ! -s "$WORK/mem_spec" ]; then
-        problem "the COL-003 member matrix could not be read from one side or the other"
-    else
-        MEM_MISSING=$(comm -23 "$WORK/mem_source" "$WORK/mem_spec" | tr '\n' ',' | sed 's/,$//')
-        MEM_EXTRA=$(comm -13 "$WORK/mem_source" "$WORK/mem_spec" | tr '\n' ',' | sed 's/,$//')
-        [ -n "$MEM_MISSING" ] && problem "COL-003 omits member(s) the interpreter answers for: $MEM_MISSING"
-        [ -n "$MEM_EXTRA" ]   && problem "COL-003 claims member(s) the interpreter does not answer for: $MEM_EXTRA"
-        [ -z "$MEM_MISSING" ] && [ -z "$MEM_EXTRA" ] \
-            && echo "  COL-003 matches the interpreter ($(wc -l < "$WORK/mem_source" | tr -d ' ') kind/member pairs)"
+        problem "the $RULE member matrix could not be read from one side or the other"
+        return
     fi
+
+    MEM_MISSING=$(comm -23 "$WORK/mem_source" "$WORK/mem_spec" | tr '\n' ',' | sed 's/,$//')
+    MEM_EXTRA=$(comm -13 "$WORK/mem_source" "$WORK/mem_spec" | tr '\n' ',' | sed 's/,$//')
+    [ -n "$MEM_MISSING" ] && problem "$RULE omits member(s) the interpreter answers for: $MEM_MISSING"
+    [ -n "$MEM_EXTRA" ]   && problem "$RULE claims member(s) the interpreter does not answer for: $MEM_EXTRA"
+    [ -z "$MEM_MISSING" ] && [ -z "$MEM_EXTRA" ] \
+        && echo "  $RULE matches the interpreter ($(wc -l < "$WORK/mem_source" | tr -d ' ') kind/member pairs)"
+}
+
+if [ -x bootstrap/algc ]; then
+    bootstrap/algc spec/members.a24 2>/dev/null | sort -u > "$WORK/mem_all"
+
+    check_matrix COL-003 COL-004
+    check_matrix RT-021  RT-022
 fi
 
 # ⚠️ [ERR-010]'s warning is quoted in the document, and a message quoted and

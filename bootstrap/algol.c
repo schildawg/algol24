@@ -188,6 +188,7 @@ typedef struct {
 static bool equals(Value a, Value b);
 static bool strict_equals(Value a, Value b);
 static const char *as_text(Value v);
+static const char *as_text_len(Value v, int32_t *length);
 static bool is_number(Value v);
 static bool is_text(Value v);
 static int32_t as_integer(Value v, const char *message);
@@ -3067,11 +3068,18 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
         return true;
     }
 
+    /* ⚠️ THE VALUE'S OWN LENGTH, not strlen's.  A String carries its length
+     * precisely so that a zero byte is a byte rather than a terminator, and
+     * measuring with strlen threw that away: 'B.Append (Char (0))' appended
+     * NOTHING, while 'Buffer (1)' and 'B[0] := 0' both put a zero byte in
+     * without complaint.  A Buffer that can hold one but not be handed one is
+     * the asymmetry, not a safety rule. */
     if (alg_stricmp(name, "Append") == 0) {
         ObjBuffer  *buffer = as_buffer(receiver, "Append");
-        const char *text   = as_text(args[0]);
+        int32_t     length;
+        const char *text   = as_text_len(args[0], &length);
 
-        buffer_append(buffer, text, strlen(text));
+        buffer_append(buffer, text, (size_t)length);
 
         *result = alg_nil();
         return true;
@@ -4832,6 +4840,30 @@ static const char *as_text(Value v) {
                 char *text = arena_alloc(32);
                 snprintf(text, 32, "Buffer(%d)", (int32_t)buffer->length);
                 return text;
+            }
+
+            /* ⚠️ Its NAME, and nothing else about it.  A TextFile had no case
+             * here at all and fell through to collection_text, so 'Str(F)'
+             * answered 'A value of object kind 14 has no text form.' -- against
+             * [RT-006], which says Str renders any value, and against the
+             * Buffer three lines up, which has always rendered.
+             *
+             * Whether it is open is deliberately left out, for the reason the
+             * Buffer leaves out its capacity: the name is what the program
+             * chose and can recognise, while the open state is a thing it
+             * already knows and the file is about to change. */
+            if (v.obj->type == OBJ_FILE) {
+                ObjFile *file = (ObjFile *)v.obj;
+                Builder  b    = { NULL, 0, 0 };
+
+                builder_append(&b, "TextFile(");
+                if (file->name[0] != '\0') {
+                    builder_append(&b, "'");
+                    builder_append(&b, file->name);
+                    builder_append(&b, "'");
+                }
+                builder_append(&b, ")");
+                return b.text;
             }
             return collection_text(v);
 
