@@ -2919,6 +2919,36 @@ begin
 
     /// A whole function body, written into its own buffer.
     ///
+    /// A subprogram that is a C symbol: a body that marshals and calls out.
+    ///
+    /// ⚠️ The DECLARED PARAMETER LIST is what describes the call, and it is the
+    /// array ParameterTable already builds for overload selection -- so nothing
+    /// new had to be emitted to say what the signature is.
+    ///
+    procedure EmitForeign (TheStmt : FunctionStmt);
+    var
+        Symbol : String;
+
+    begin
+        Symbol := FunctionSymbol (TheStmt);
+
+        var Table := TypeTable (Symbol, ParameterTable (TheStmt));
+
+        // ⚠️ Functions, not Body.  Body is the buffer a body under construction
+        // writes into and is swapped around each declaration; a finished
+        // subprogram belongs in Functions, which is what the unit's text is
+        // assembled from.  Appending here left the symbol DECLARED and never
+        // DEFINED, which cc reports as internal linkage without a definition.
+        Functions.Append ('Value ' + Symbol
+                   + '(Value **cells, Value *args, int32_t count) {' + #10);
+        Functions.Append ('    (void)cells; (void)count;' + #10);
+        Functions.Append ('    return alg_foreign(' + QuoteC (Str (TheStmt.Symbol)) + ', '
+                   + QuoteC (Str (TheStmt.Library)) + ', ' + Table + ', '
+                   + Str (TheStmt.Params.Length) + ', '
+                   + QuoteC (Str (TheStmt.ReturnType)) + ', args);' + #10);
+        Functions.Append ('}' + #10 + #10);
+    end
+
     procedure VisitFunctionStmt (TheStmt : FunctionStmt);
     var
         EnclosingLocals : List;
@@ -2932,6 +2962,18 @@ begin
         if IsTest (TheStmt) then
         begin
             if EmitTests then EmitTest (TheStmt);
+
+            Exit;
+        end
+
+        // ⚠️ An EXTERNAL declaration has no body to emit [FUN-014].  It becomes
+        // a C function that marshals its arguments and hands them to
+        // alg_foreign, which finds the symbol and builds the call -- the same
+        // function the interpreter reaches through a native, so one
+        // implementation serves both processors.
+        if TheStmt.Symbol <> '' then
+        begin
+            EmitForeign (TheStmt);
 
             Exit;
         end
@@ -3609,6 +3651,7 @@ begin
         if Key = 'Val/1'     then Exit 'alg_val';
         if Key = 'Succ/1'    then Exit 'alg_succ';
         if Key = 'Pred/1'    then Exit 'alg_pred';
+        if Key = 'Foreign/5' then Exit 'alg_foreign_call';
         if Key = 'Max/2'     then Exit 'alg_max';
         if Key = 'Mod/2'     then Exit 'alg_mod';
         if Key = 'clock/0'   then Exit 'alg_clock';

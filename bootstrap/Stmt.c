@@ -507,6 +507,8 @@ static Value i_functionstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "ReturnType", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "ParamTypes", alg_widen(alg_list(), "List"));
     alg_set_property(v_this, "ParamGenerics", alg_widen(alg_list(), "List"));
+    alg_set_property(v_this, "Symbol", alg_widen(alg_string(""), "String"));
+    alg_set_property(v_this, "Library", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "IsProperty", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "ReturnGeneric", alg_widen(alg_string(""), "String"));
     return alg_nil();
@@ -792,6 +794,8 @@ void init_Stmt(void) {
     alg_class_field(k_functionstmt, "ReturnType");
     alg_class_field(k_functionstmt, "ParamTypes");
     alg_class_field(k_functionstmt, "ParamGenerics");
+    alg_class_field(k_functionstmt, "Symbol");
+    alg_class_field(k_functionstmt, "Library");
     alg_class_field(k_functionstmt, "IsProperty");
     alg_class_field(k_functionstmt, "ReturnGeneric");
     alg_class_initializer(k_functionstmt, i_functionstmt);

@@ -1284,6 +1284,27 @@ static Value m_parser_parsefunction_1_string(Value v_this, Value *args, int32_t 
         (void)((v_returngeneric = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect generic type.")}, 2), "Lexeme"))));
     }
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_add(alg_add(alg_string("Expect ';' after "), v_kind), alg_string(" signature."))}, 2));
+    if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVexternal}, 1))) {
+        {
+            Value v_symbol = alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVstring, alg_string("Expect a symbol name after 'external'.")}, 2);
+            (void)v_symbol;
+            Value v_inlibrary = alg_string("");
+            (void)v_inlibrary;
+            if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVin}, 1))) {
+                (void)((v_inlibrary = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVstring, alg_string("Expect a library name after 'in'.")}, 2), "Literal"))));
+            }
+            (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_string("Expect ';' after an external declaration.")}, 2));
+            Value v_foreign = alg_new(k_functionstmt, (Value[]){v_name, v_params, alg_list()}, 3);
+            (void)v_foreign;
+            (void)(alg_set_property(v_foreign, "ReturnType", alg_widen(v_returntype, "String")));
+            (void)(alg_set_property(v_foreign, "ReturnGeneric", alg_widen(v_returngeneric, "String")));
+            (void)(alg_set_property(v_foreign, "ParamTypes", alg_widen(v_paramtypes, "List")));
+            (void)(alg_set_property(v_foreign, "ParamGenerics", alg_widen(v_paramgenerics, "List")));
+            (void)(alg_set_property(v_foreign, "Symbol", alg_widen(alg_str(alg_property(v_symbol, "Literal")), "String")));
+            (void)(alg_set_property(v_foreign, "Library", alg_widen(v_inlibrary, "String")));
+            return v_foreign;
+        }
+    }
     (void)((v_body = alg_widen(alg_list(), "List")));
     (void)(alg_invoke(v_this, "ReadDeclarationSections", (Value[]){v_body}, 1));
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVbegin, alg_add(alg_add(alg_string("Expect 'begin' before "), v_kind), alg_string(" body."))}, 2));

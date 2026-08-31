@@ -321,6 +321,25 @@ end
 /// interpreted enum member is an ObjEnum, which the host's Succ could not step
 /// even if it stepped enums, and it does not: see alg_succ.
 ///
+/// The interpreter's route to a foreign call [FUN-014].
+///
+/// ⚠️ A BUILT-IN because the tree-walker can reach C no other way, and it is
+/// the compiler's own plumbing rather than something a program should call:
+/// 'external' is the spelling a program uses, and this is what it becomes.
+///
+class ForeignNative;
+begin
+    function Arity () : Integer;
+    begin
+        Exit 5;
+    end
+
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit Foreign (Arguments[0], Arguments[1], Arguments[2], Arguments[3], Arguments[4]);
+    end
+end
+
 class SuccNative;
 begin
     function Arity () : Integer;
@@ -795,6 +814,7 @@ begin
         Builtins.Define ('Halt', HaltNative());
         Builtins.Define ('Ord',  OrdNative());
         Builtins.Define ('Succ', SuccNative());
+        Builtins.Define ('Foreign', ForeignNative());
         Builtins.Define ('Pred', PredNative());
         Builtins.Define ('Val',  ValNative());
         Builtins.Define ('Char', CharNative());

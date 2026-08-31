@@ -501,6 +501,17 @@ var
     /// selection and widening compare.
     ParamGenerics : List := [];
 
+    /// The C symbol this subprogram is, or '' when it has a body [FUN-014].
+    ///
+    /// ⚠️ A declaration with a symbol has NO BODY.  Its statements list is
+    /// empty and nothing walks it; the call goes to the runtime instead, which
+    /// finds the symbol and builds the call.
+    Symbol   : String := '';
+
+    /// The library the symbol is in, or '' for the running program -- which
+    /// covers libc and anything already linked.
+    Library  : String := '';
+
     /// Whether this member is a PROPERTY: read without parentheses, and
     /// assigned to by nobody outside the class [TYP-012].
     ///

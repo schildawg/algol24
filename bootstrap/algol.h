@@ -65,6 +65,13 @@ typedef enum {
      * equal -- Copy(s, 0, 1) = 'a' is false while s[0] = 'a' is true.  That is
      * Character versus String on the JVM, and compiled code has to agree. */
     VAL_CHAR,
+
+    /* An opaque handle from a foreign call [FUN-014].  A type of its own rather
+     * than an Integer, so it cannot be arithmetic'd, ordered, or printed as a
+     * number -- the language hands it back out to C and does nothing else with
+     * it. */
+    VAL_POINTER,
+
     VAL_OBJ
 } ValueType;
 
@@ -142,6 +149,7 @@ typedef struct {
         int64_t     integer;
         double      number;
         const char *string;
+        void       *pointer;
         Obj        *obj;
     };
 } Value;
@@ -387,6 +395,18 @@ Value   alg_call_named(Value callee, Value *args, int32_t count, const char **na
 Value   alg_invoke_named(Value receiver, const char *name, Value *args, int32_t count,
                          const char **names);
 Value   alg_new_named(Value klass, Value *args, int32_t count, const char **names);
+
+/* An opaque foreign handle [FUN-014]. */
+Value alg_pointer(void *address);
+
+/* Calls a C function by symbol, with the declared parameter list describing how
+ * to marshal the arguments.  'library' is "" for a symbol already in the running
+ * program, which covers libc and anything linked. */
+Value alg_foreign(const char *symbol, const char *library, const char **types,
+                  int32_t count, const char *returns, Value *args);
+
+/* The interpreter's route to one, taking Algol-24 values. */
+Value alg_foreign_call(Value symbol, Value library, Value types, Value returns, Value args);
 
 Value   alg_overloads(const char *name);
 void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **types);

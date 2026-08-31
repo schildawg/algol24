@@ -637,6 +637,9 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
     (void)((v_env = alg_widen(alg_new(k_environment, NULL, 0), "Environment")));
     (void)(alg_set_property(v_env, "Enclosing", alg_widen(alg_property(v_this, "Closure"), "Environment")));
     (void)((v_arguments = alg_invoke(v_this, "Absorb", (Value[]){v_arguments}, 1)));
+    if (alg_truthy(alg_not_equal(alg_property(alg_property(v_this, "Declaration"), "Symbol"), alg_string("")))) {
+        return alg_foreign_call(alg_property(alg_property(v_this, "Declaration"), "Symbol"), alg_property(alg_property(v_this, "Declaration"), "Library"), alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), alg_property(alg_property(v_this, "Declaration"), "ReturnType"), v_arguments);
+    }
     {
         volatile Value v_i = alg_int(0);
         (void)v_i;

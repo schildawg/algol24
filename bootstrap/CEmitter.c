@@ -178,6 +178,7 @@ static const char *t_cemitter_visitwhilestmt_1_whilestmt[] = { "TheStmt : WhileS
 static const char *t_cemitter_emitcontinuetarget_1_string[] = { "TheLabel : String" };
 static const char *t_cemitter_emitbreaktarget_1_string[] = { "TheLabel : String" };
 static const char *t_cemitter_visitreturnstmt_1_returnstmt[] = { "TheStmt : ReturnStmt" };
+static const char *t_cemitter_emitforeign_1_functionstmt[] = { "TheStmt : FunctionStmt" };
 static const char *t_cemitter_visitfunctionstmt_1_functionstmt[] = { "TheStmt : FunctionStmt" };
 static const char *t_cemitter_typetable_2_string_list[] = { "Symbol : String", "Types : List" };
 static const char *t_cemitter_visitliteral_1_literalexpr[] = { "TheExpr : LiteralExpr" };
@@ -2733,6 +2734,22 @@ static Value m_cemitter_visitreturnstmt_1_returnstmt(Value v_this, Value *args, 
     return alg_nil();
 }
 
+static Value m_cemitter_emitforeign_1_functionstmt(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thestmt = alg_widen(args[0], "FunctionStmt");
+    (void)v_thestmt;
+    Value v_symbol = alg_nil();
+    (void)v_symbol;
+    (void)((v_symbol = alg_widen(alg_invoke(v_this, "FunctionSymbol", (Value[]){v_thestmt}, 1), "String")));
+    Value v_table = alg_invoke(v_this, "TypeTable", (Value[]){v_symbol, alg_invoke(v_this, "ParameterTable", (Value[]){v_thestmt}, 1)}, 2);
+    (void)v_table;
+    (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_string("Value "), v_symbol), alg_string("(Value **cells, Value *args, int32_t count) {")), alg_char_value(10))}, 1));
+    (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_string("    (void)cells; (void)count;"), alg_char_value(10))}, 1));
+    (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    return alg_foreign("), f_quotec(NULL, (Value[]){alg_str(alg_property(v_thestmt, "Symbol"))}, 1)), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_property(v_thestmt, "Library"))}, 1)), alg_string(", ")), v_table), alg_string(", ")), alg_str(alg_property(alg_property(v_thestmt, "Params"), "Length"))), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_property(v_thestmt, "ReturnType"))}, 1)), alg_string(", args);")), alg_char_value(10))}, 1));
+    (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_char_value(125), alg_char_value(10)), alg_char_value(10))}, 1));
+    return alg_nil();
+}
+
 static Value m_cemitter_visitfunctionstmt_1_functionstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_thestmt = alg_widen(args[0], "FunctionStmt");
@@ -2748,6 +2765,12 @@ static Value m_cemitter_visitfunctionstmt_1_functionstmt(Value v_this, Value *ar
             if (alg_truthy(alg_property(v_this, "EmitTests"))) {
                 (void)(alg_invoke(v_this, "EmitTest", (Value[]){v_thestmt}, 1));
             }
+            return alg_nil();
+        }
+    }
+    if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Symbol"), alg_string("")))) {
+        {
+            (void)(alg_invoke(v_this, "EmitForeign", (Value[]){v_thestmt}, 1));
             return alg_nil();
         }
     }
@@ -3390,6 +3413,9 @@ static Value m_cemitter_builtin_2_string_integer(Value v_this, Value *args, int3
     }
     if (alg_truthy(alg_equal(v_key, alg_string("Pred/1")))) {
         return alg_string("alg_pred");
+    }
+    if (alg_truthy(alg_equal(v_key, alg_string("Foreign/5")))) {
+        return alg_string("alg_foreign_call");
     }
     if (alg_truthy(alg_equal(v_key, alg_string("Max/2")))) {
         return alg_string("alg_max");
@@ -4792,6 +4818,7 @@ void init_CEmitter(void) {
     alg_class_method(k_cemitter, "EmitContinueTarget", m_cemitter_emitcontinuetarget_1_string, 1, t_cemitter_emitcontinuetarget_1_string);
     alg_class_method(k_cemitter, "EmitBreakTarget", m_cemitter_emitbreaktarget_1_string, 1, t_cemitter_emitbreaktarget_1_string);
     alg_class_method(k_cemitter, "VisitReturnStmt", m_cemitter_visitreturnstmt_1_returnstmt, 1, t_cemitter_visitreturnstmt_1_returnstmt);
+    alg_class_method(k_cemitter, "EmitForeign", m_cemitter_emitforeign_1_functionstmt, 1, t_cemitter_emitforeign_1_functionstmt);
     alg_class_method(k_cemitter, "VisitFunctionStmt", m_cemitter_visitfunctionstmt_1_functionstmt, 1, t_cemitter_visitfunctionstmt_1_functionstmt);
     alg_class_method(k_cemitter, "TypeTable", m_cemitter_typetable_2_string_list, 2, t_cemitter_typetable_2_string_list);
     alg_class_method(k_cemitter, "VisitLiteral", m_cemitter_visitliteral_1_literalexpr, 1, t_cemitter_visitliteral_1_literalexpr);

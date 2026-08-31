@@ -584,6 +584,14 @@ begin
         // rather than at each of the three places that select a callee.
         Arguments := Absorb (Arguments);
 
+        // ⚠️ An EXTERNAL declaration has no body to run [FUN-014].  The call
+        // goes to the runtime, which finds the symbol and builds it -- the same
+        // alg_foreign a compiled program reaches directly, so one
+        // implementation serves both processors.
+        if Declaration.Symbol <> '' then
+            Exit Foreign (Declaration.Symbol, Declaration.Library,
+                          Declaration.ParamTypes, Declaration.ReturnType, Arguments);
+
         for var I := 0; I < Declaration.Params.Length; I := I + 1 do
         begin
             // ⚠️ A parameter is an assignment context [VAR-017], so an argument

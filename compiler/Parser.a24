@@ -1505,6 +1505,36 @@ begin
 
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after ' + Kind + ' signature.');
 
+        // ⚠️ An EXTERNAL declaration has no body at all [FUN-014].  It names a C
+        // symbol and stops; the call goes to the runtime, which finds the
+        // symbol and builds the call, so there are no statements to walk and
+        // nothing downstream should look for any.
+        if Match (TOKEN_EXTERNAL) then
+        begin
+            var Symbol := Consume (TOKEN_STRING, 'Expect a symbol name after ''external''.');
+
+            var InLibrary := '';
+
+            // ⚠️ 'in' rather than a keyword of its own.  The word is already
+            // reserved [LEX-010] and reads correctly here -- the symbol is IN
+            // the library -- so the feature costs one keyword instead of two.
+            if Match (TOKEN_IN) then
+                InLibrary := Str (Consume (TOKEN_STRING,
+                                  'Expect a library name after ''in''.').Literal);
+
+            Consume (TOKEN_SEMICOLON, 'Expect '';'' after an external declaration.');
+
+            var Foreign := FunctionStmt (Name, Params, List());
+            Foreign.ReturnType    := ReturnType;
+            Foreign.ReturnGeneric := ReturnGeneric;
+            Foreign.ParamTypes    := ParamTypes;
+            Foreign.ParamGenerics := ParamGenerics;
+            Foreign.Symbol      := Str (Symbol.Literal);
+            Foreign.Library       := InLibrary;
+
+            Exit Foreign;
+        end
+
         // ⚠️ Locals are read BEFORE 'begin' and prepended to the body, so they
         // are ordinary statements at the top of the block.  Nothing downstream
         // needs to know a var section existed.

@@ -938,6 +938,9 @@ static uint32_t hash_value(Value v) {
         case VAL_NIL:    return hash;
         case VAL_BOOL:   return hash_bytes(hash, &v.boolean, sizeof v.boolean);
 
+        /* A foreign handle is its address and nothing else [FUN-014]. */
+        case VAL_POINTER: return hash_bytes(hash, &v.pointer, sizeof v.pointer);
+
         /* ⚠️ Hashed AS A DOUBLE, so an Integer and a Double of one value reach
          * the same slot -- which [VAL-013] requires, since '=' promotes.
          *
@@ -3675,6 +3678,7 @@ static const char *type_name(Value v) {
         case VAL_DOUBLE: return "Double";
         case VAL_STRING: return "String";
         case VAL_CHAR:   return "Char";
+        case VAL_POINTER: return "Pointer";
         case VAL_OBJ:    break;
     }
     switch (v.obj->type) {
@@ -3752,6 +3756,14 @@ Value alg_integer(const char *digits) {
     return negative ? alg_negate(value) : value;
 }
 Value alg_double(double d)       { Value v; v.type = VAL_DOUBLE; v.length = 0; v.number  = d; return v; }
+
+Value alg_pointer(void *address) {
+    Value v;
+    v.type    = VAL_POINTER;
+    v.length  = 0;
+    v.pointer = address;
+    return v;
+}
 
 Value alg_string_n(const char *s, int32_t n) {
     Value v;
@@ -4414,6 +4426,7 @@ static bool equals(Value a, Value b) {
     switch (a.type) {
         case VAL_NIL:    return true;
         case VAL_BOOL:   return a.boolean == b.boolean;
+        case VAL_POINTER: return a.pointer == b.pointer;
         case VAL_STRING:
         case VAL_CHAR:   return a.length == b.length
                              && memcmp(a.string, b.string, (size_t)a.length) == 0;
@@ -4478,6 +4491,7 @@ static bool strict_equals(Value a, Value b) {
     switch (a.type) {
         case VAL_NIL:    return true;
         case VAL_BOOL:   return a.boolean == b.boolean;
+        case VAL_POINTER: return a.pointer == b.pointer;
         case VAL_INT:
         case VAL_DOUBLE: return false;   /* handled above; both are numbers */
         case VAL_STRING:
@@ -4695,6 +4709,13 @@ static const char *as_text(Value v) {
     switch (v.type) {
         case VAL_NIL:    return "nil";
         case VAL_BOOL:   return v.boolean ? "true" : "false";
+
+        /* ⚠️ WITHOUT ITS ADDRESS, deliberately.  Printing the address would
+         * make a program's output depend on where the allocator happened to put
+         * something, which is the non-determinism the fixed-point check exists
+         * to catch -- and a handle's value means nothing to the program holding
+         * it anyway [FUN-014]. */
+        case VAL_POINTER: return v.pointer == NULL ? "<pointer nil>" : "<pointer>";
 
         /* ⚠️ NUL-TERMINATED for the caller, which is what the twenty-odd
          * strlen-based consumers of this function need -- every one of them
@@ -5209,6 +5230,223 @@ static Value stepped(Value v, int32_t by, const char *name) {
 
 Value alg_succ(Value v) { return stepped(v,  1, "Succ"); }
 Value alg_pred(Value v) { return stepped(v, -1, "Pred"); }
+
+/* ---------------------------------------------------- foreign functions -- *
+ *
+ * A program may declare a C function and call it [FUN-014].  The point is to
+ * reach libraries someone else already wrote rather than to shrink this
+ * runtime: SDL is the first target.
+ *
+ * ⚠️ COMPILED IN OPTIONALLY.  Without -DALG_FFI there is no libffi and no
+ * dlopen, and an external call reports that rather than failing to link.  The
+ * BOOTSTRAP must stay buildable with a C compiler and nothing else -- that is
+ * what CLAUDE.md's "a C compiler is the only dependency" is about, and it is a
+ * claim about how algc is obtained from nothing rather than about what a
+ * program may link against.
+ *
+ * ⚠️ ONE IMPLEMENTATION SERVES BOTH PROCESSORS.  The tree-walker cannot call C,
+ * but it runs inside algc, which is a C program -- so the marshalling lives
+ * here and the interpreter reaches it through a native, exactly as the compiled
+ * program reaches it through an emitted call.  The same arrangement that gave
+ * the tree-walker text ordering without a line changing in Interpreter.a24. */
+
+#ifdef ALG_FFI
+
+/* ⚠️ macOS puts the header in a directory of its own; every other platform
+ * this has been built on has it at the top level. */
+#ifdef __APPLE__
+#include <ffi/ffi.h>
+#else
+#include <ffi.h>
+#endif
+
+#include <dlfcn.h>
+
+/* The declared type names arrive as the parameter list [G.3], the same array
+ * alg_overload and alg_class_method already take, so nothing new had to be
+ * emitted to describe a signature. */
+static ffi_type *foreign_type(const char *declared) {
+    char base[64];
+
+    split_type(declared, base, sizeof base);
+
+    if (alg_stricmp(base, "Double") == 0)  return &ffi_type_double;
+    if (alg_stricmp(base, "String") == 0)  return &ffi_type_pointer;
+    if (alg_stricmp(base, "Pointer") == 0) return &ffi_type_pointer;
+    if (alg_stricmp(base, "") == 0)        return &ffi_type_void;
+
+    /* Integer, Boolean and anything else a program may sensibly hand to C. */
+    return &ffi_type_sint64;
+}
+
+/* ⚠️ dlsym before dlopen, so a symbol already in the process is found without
+ * naming a library at all -- which is what makes 'external ''strlen'';' work
+ * with no library clause. */
+static void *foreign_symbol(const char *symbol, const char *library) {
+    if (library == NULL || library[0] == '\0') {
+        void *found = dlsym(RTLD_DEFAULT, symbol);
+
+        if (found == NULL) {
+            Builder b = { NULL, 0, 0 };
+            builder_append(&b, "No foreign symbol '");
+            builder_append(&b, symbol);
+            builder_append(&b, "'.");
+            alg_error(b.text);
+        }
+        return found;
+    }
+
+    void *handle = dlopen(library, RTLD_LAZY);
+
+    if (handle == NULL) {
+        Builder b = { NULL, 0, 0 };
+        builder_append(&b, "Cannot open foreign library '");
+        builder_append(&b, library);
+        builder_append(&b, "'.");
+        alg_error(b.text);
+    }
+
+    void *found = dlsym(handle, symbol);
+
+    if (found == NULL) {
+        Builder b = { NULL, 0, 0 };
+        builder_append(&b, "No foreign symbol '");
+        builder_append(&b, symbol);
+        builder_append(&b, "' in '");
+        builder_append(&b, library);
+        builder_append(&b, "'.");
+        alg_error(b.text);
+    }
+    return found;
+}
+
+Value alg_foreign(const char *symbol, const char *library, const char **types,
+                  int32_t count, const char *returns, Value *args) {
+    if (count > 8) alg_error("A foreign call takes at most eight arguments.");
+
+    void *fn = foreign_symbol(symbol, library);
+
+    ffi_type *arg_types[8];
+    ffi_type *ret_type = foreign_type(returns);
+
+    /* Storage the argument pointers point AT, which must outlive ffi_call. */
+    int64_t words[8];
+    double  reals[8];
+    const char *texts[8];
+    void   *values[8];
+
+    for (int32_t i = 0; i < count; i++) {
+        const char *declared = (types != NULL) ? types[i] : "";
+
+        arg_types[i] = foreign_type(declared);
+
+        if (arg_types[i] == &ffi_type_double) {
+            reals[i]  = as_double(args[i]);
+            values[i] = &reals[i];
+        }
+        else if (is_text(args[i])) {
+            texts[i]  = as_text(args[i]);
+            values[i] = &texts[i];
+        }
+        else if (args[i].type == VAL_POINTER) {
+            values[i] = &args[i].pointer;
+        }
+        else if (args[i].type == VAL_NIL) {
+            words[i]  = 0;
+            values[i] = &words[i];
+        }
+        else {
+            /* ⚠️ .integer directly for an Integer, not through as_double: an
+             * Integer is unbounded [LEX-018] and a Double would lose the low
+             * bits of anything past 2^53. */
+            if (args[i].type == VAL_INT)       words[i] = args[i].integer;
+            else if (args[i].type == VAL_BOOL) words[i] = args[i].boolean ? 1 : 0;
+            else if (is_number(args[i]))       words[i] = (int64_t)as_double(args[i]);
+            else                               words[i] = 0;
+
+            values[i] = &words[i];
+        }
+    }
+
+    ffi_cif cif;
+    if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)count, ret_type, arg_types) != FFI_OK)
+        alg_error("A foreign call could not be prepared.");
+
+    if (ret_type == &ffi_type_double) {
+        double answer = 0;
+        ffi_call(&cif, FFI_FN(fn), &answer, values);
+
+        return alg_double(answer);
+    }
+
+    if (ret_type == &ffi_type_void) {
+        ffi_arg ignored;
+        ffi_call(&cif, FFI_FN(fn), &ignored, values);
+
+        return alg_nil();
+    }
+
+    ffi_arg answer = 0;
+    ffi_call(&cif, FFI_FN(fn), &answer, values);
+
+    {
+        char base[64];
+        split_type(returns, base, sizeof base);
+
+        if (alg_stricmp(base, "Pointer") == 0) return alg_pointer((void *)(intptr_t)answer);
+        if (alg_stricmp(base, "Boolean") == 0) return alg_bool((int64_t)answer != 0);
+        if (alg_stricmp(base, "String")  == 0) {
+            const char *text = (const char *)(intptr_t)answer;
+
+            return text == NULL ? alg_nil() : alg_string(text);
+        }
+    }
+
+    return alg_int((int64_t)answer);
+}
+
+#else
+
+Value alg_foreign(const char *symbol, const char *library, const char **types,
+                  int32_t count, const char *returns, Value *args) {
+    (void)library; (void)types; (void)count; (void)returns; (void)args;
+
+    Builder b = { NULL, 0, 0 };
+    builder_append(&b, "Foreign calls are not available in this build: '");
+    builder_append(&b, symbol);
+    builder_append(&b, "' cannot be reached.");
+
+    alg_error(b.text);
+    return alg_nil();
+}
+
+#endif
+
+/* The interpreter's route to a foreign call [FUN-014].
+ *
+ * ⚠️ The tree-walker can only reach C through a built-in, so this takes
+ * Algol-24 values -- the symbol, the library, a List of declared parameter
+ * types, the return type and a List of arguments -- and converts them to what
+ * alg_foreign wants.  The compiled program calls alg_foreign directly, so the
+ * marshalling itself is written once and both processors share it. */
+Value alg_foreign_call(Value symbol, Value library, Value types, Value returns, Value args) {
+    const char *type_names[8];
+    Value       values[8];
+
+    ObjSeq *type_seq = (ObjSeq *)types.obj;
+    ObjSeq *arg_seq  = (ObjSeq *)args.obj;
+
+    int32_t count = arg_seq->count;
+    if (count > 8) alg_error("A foreign call takes at most eight arguments.");
+
+    for (int32_t i = 0; i < count; i++) {
+        type_names[i] = i < type_seq->count ? as_text(type_seq->items[i]) : "";
+        values[i]     = arg_seq->items[i];
+    }
+
+    return alg_foreign(as_text(symbol), as_text(library), type_names, count,
+                       as_text(returns), values);
+}
 
 Value alg_clock(void) {
     struct timeval now;
