@@ -300,10 +300,39 @@ all, and everything drawn into the framebuffer is Algol-24. What matters in this
 section is the **notes** — the signature, the convention, and what changes from
 Borland's BGI.
 
-| Routine | Verdict | Notes |
+Grouped rather than alphabetical, because the grouping is the analysis. Sixty
+routines, and the verdict is **A24 + FFI** for all but the one marked
+otherwise — `graph` needs SDL for a window and everything above that is
+Algol-24.
+
+| Group | Routines | Notes |
 | --- | --- | --- |
-| `Arc` | **A24 + FFI** | Double coordinates, degrees, BGI's angle convention — see below |
-| `AssignCrt` | **A24** | Also in `crt`; returns a sink that answers `Write`/`WriteLn` — see §4.5 |
+| **Opening** | `InitGraph`, `CloseGraph` | Size, title, and the cell size the grid derives from |
+| **Pages** | `SetActivePage`, `SetVisualPage` | Become one `Flip`; offscreen surfaces are a separate feature — O2 |
+| **Bounds** | `GetMaxX`, `GetMaxY`, `GetMaxColor` | Keep; `GetMaxX` is width **− 1** — see O3 |
+| | `GetAspectRatio` | **✗ Not needed** — square pixels — see O3 |
+| **Drawing state** | `SetColor`, `GetColor`, `SetBkColor`, `GetBkColor` | State is chosen — Q5 answered |
+| | `SetLineStyle`, `GetLineSettings` | |
+| | `SetFillStyle`, `SetFillPattern`, `GetFillPattern`, `GetFillSettings` | An 8 × 8 bit pattern |
+| | `SetWriteMode` | XOR and COPY; XOR is what rubber-banding needs |
+| **Position** | `MoveTo`, `MoveRel`, `GetX`, `GetY` | The current point `LineTo` draws from |
+| **Primitives** | `Line`, `LineTo`, `LineRel`, `Rectangle`, `Bar`, `Bar3D` | |
+| | `Circle`, `Ellipse`, `FillEllipse`, `Arc`, `PieSlice`, `Sector` | Angles as `Arc`'s |
+| | `DrawPoly`, `FillPoly` | Take a `List` of points, not a pointer and a count |
+| | `PutPixel`, `GetPixel`, `FloodFill` | `GetPixel` is free: the framebuffer is ours |
+| | `GetArcCoords` | Where the last arc started and ended |
+| **Images** | `GetImage`, `PutImage`, `ImageSize` | A `Buffer` is exactly the right shape |
+| **Viewport** | `SetViewPort`, `GetViewSettings`, `ClearViewPort` | Clipping plus an origin |
+| **Text** | `ClrScr`, `ClrEol`, `DelLine`, `InsLine` | Console vocabulary, on the cell grid |
+| | `GotoXY`, `WhereX`, `WhereY`, `Window` | |
+| | `TextColor`, `TextBackground` | |
+| | `LowVideo`, `HiVideo` | Keep, but see O5 |
+| **Text metrics** | `TextWidth`, `TextHeight` | Keep — CJK is two cells, so these are needed |
+| | `SetTextJustify`, `GetTextSettings` | Cell-based here |
+| | `SetTextOrientation` | Replaces `SetTextStyle`; vertical text — see O4 |
+| **Off-grid text** | `Write`, `WriteLn` with `X:` and `Y:` | A named-parameter overload — see O6 |
+| **Input** | `KeyPressed`, `ReadKey` | From SDL events here, from raw mode in `crt` |
+| **Sink** | `AssignCrt` | **A24**. Also in `crt` — see §4.5 |
 
 **`Arc (X, Y, Radius, StartAngle, EndAngle)`** — a circular arc. Trig comes from
 libm, the pixels are ours.
@@ -329,6 +358,108 @@ grows downward:
 
 Getting that sign wrong mirrors every arc in the library, and nothing but a
 picture would catch it.
+
+#### What the list decides
+
+⚠️ **Q5 is answered: `graph` carries drawing state.** `SetColor`, `SetBkColor`,
+`SetFillStyle`, `SetLineStyle`, `SetWriteMode`, `MoveTo` and `SetViewPort` are
+all on the list with their `Get` counterparts, which is BGI's stateful model
+entire. Chosen by choosing the routines rather than by argument — and it is the
+consistent answer, because the console half genuinely has state already:
+`TextColor` sets it and `Write` uses it. A stateless drawing half beside a
+stateful text half would have been the asymmetry.
+
+⚠️ **The list IS the merged vocabulary, which confirms the two-unit design.**
+`ClrScr`, `ClrEol`, `DelLine`, `InsLine`, `GotoXY`, `WhereX`, `WhereY`,
+`Window`, `TextColor`, `TextBackground`, `KeyPressed` and `ReadKey` are Turbo
+Pascal's **Crt** unit, not its Graph unit. Asking for them here is the design:
+one vocabulary, and `graph` owes the whole console contract.
+
+⚠️ **`OutText` and `OutTextXY` are absent, and that is the point.** BGI's way of
+drawing text was a string at a pixel coordinate. Leaving them off keeps the
+promise that text is written the same way in both units — `GotoXY` and `Write`,
+never a second spelling for a second unit.
+
+#### Open questions this list raises
+
+**O1 — ANSWERED: `InitGraph` and `CloseGraph` keep their names.** They carry
+the window's size, its title, and the cell size the character grid derives from.
+What they no longer carry is BGI's driver-and-mode pair, which existed to pick a
+video card.
+
+**O2 — the pages become `Flip`, but the need behind them is separate and
+real.** The two calls collapse into one, because the framebuffer is already a
+back buffer and `SDL_RenderPresent` already shows it.
+
+⚠️ **Drawing offscreen is a different feature, and a better one.** BGI's pages
+were a fixed number of same-sized video pages; what is actually wanted is an
+arbitrary surface a program can draw into with the ordinary routines and then
+blit. That is `GetImage` / `PutImage`'s memory with the drawing routines
+pointed at it — a **render target** — and it subsumes double buffering rather
+than being a variant of it. Left open: whether that is a distinct type or a
+`SetTarget` beside `SetViewPort`.
+
+**O3 — the `(?)` on the bounds routines.** `GetMaxX` and `GetMaxY` are needed:
+a program that draws must know how much room it has. But BGI's return is the
+maximum valid *coordinate*, one less than the width, which is a reliable
+off-by-one. Recommend keeping the routines and considering `ScreenWidth` /
+`ScreenHeight` beside them. **`GetAspectRatio` is the clearest museum piece on
+the list** — it existed because CGA and EGA pixels were not square and `Circle`
+had to correct for it. Pixels are square now, so it would answer 1:1 forever.
+
+**O4 — `SetTextStyle` becomes `SetTextOrientation`**, keeping the part that was
+wanted — BGI's `Direction` argument, for vertical text — and dropping the font
+and size multiplier, which have nothing to select here.
+
+⚠️ **"Vertical" is two different features, and BGI conflated them.** Its
+`VertDir` **rotated the glyphs** ninety degrees, which is what a chart's Y-axis
+label needs. CJK vertical writing instead keeps every glyph **upright and stacks
+them down a column**. A bitmap cell font can do both cheaply — stacking is
+advancing Y instead of X, and rotating is transposing the cell — so the question
+is which one the name means, not which one is affordable.
+
+`TextWidth` and `TextHeight` are the opposite case and should **stay**: a cell
+is one column for Latin and two for CJK, so `TextWidth ('你好')` genuinely
+differs from `TextWidth ('ab')` and nothing else can tell a program that.
+
+**O6 — off-grid text as a named-parameter overload. It works, and it binds
+better than the positional form.** The proposal is `WriteLn (S)` on the grid and
+`WriteLn (S, X: 137, Y: 42)` at a pixel — one verb, and the call site says which
+it means.
+
+⚠️ **The names are not decoration: they resolve the overload at COMPILE time.**
+Given a variadic `Show (Values : List of Any)` beside a placed
+`Show (S, X, Y)`, the bare call warns and the named call does not:
+
+```
+Show ('A', X: 1, Y: 2);      // silent  -- bound statically
+Show ('B', 1, 2);            // [WARN] 'Show' selects among 2 overloads at run time
+```
+
+That is exactly what named arguments and [ERR-010]'s warning were added for, and
+it makes the named form the *preferred* spelling rather than merely a readable
+one.
+
+⚠️ **A user-defined `WriteLn` REPLACES the built-in; it does not extend it.**
+Declaring one and calling `WriteLn ('x')` gives `Expected 3 arguments but got
+1.` So `graph` must supply the whole set — but that is wanted rather than
+suffered: in a graphics program `WriteLn` should reach the window, not standard
+output. The variadic base case reproduces [RT-015] exactly with a
+`List of Any` parameter [FUN-005], including `WriteLn ()` for a bare newline.
+
+Two things left open by it:
+
+- **What does "Ln" mean off the grid?** There is no line to end. Either it
+  advances Y by the line height — which keeps the name honest and makes
+  successive placed calls stack — or off-grid writing is `Write` only.
+- **Two cursors, or one?** If `WriteLn (S, X:, Y:)` leaves a pixel position
+  behind, where does a following bare `WriteLn (S)` go — on from there, or back
+  to the cell cursor? One of them has to be the answer, and neither is obvious.
+
+**O5 — `LowVideo` / `HiVideo` are a 16-colour idea in a 24-bit unit.** They dim
+and brighten the current text colour, which mattered when there were eight
+colours and an intensity bit. Harmless to keep as a shade of the current
+colour; worth asking whether anyone would reach for them beside `TextColor`.
 
 ### 4.8 Beyond Turbo Pascal
 
@@ -394,18 +525,11 @@ Annex B and breaks every program that uses them unqualified, so it belongs to a
 generation rather than to this survey. Recorded here because `math` is where the
 seam shows.
 
-**Q5 — does `graph` carry drawing state, or does every call say everything?**
-BGI kept a current colour, a current line style and a current position, so
-`Arc` took neither a colour nor a width — `SetColor` had said it earlier, from
-somewhere else in the program. The alternative is that every call carries what
-it needs and nothing is remembered.
-
-`Arc` is the first routine to raise this and every other drawing routine will
-inherit the answer, so it is worth settling deliberately rather than by
-whichever gets written first. It also interacts with the console half: a
-console genuinely does have current state — `TextColor` sets it and `Write`
-uses it — so answering "no state" for drawing while the text half keeps it
-would be an asymmetry inside one unit.
+**Q5 — ANSWERED: `graph` carries drawing state**, settled by the Graph list
+asking for `SetColor`, `SetBkColor`, `SetFillStyle`, `SetLineStyle`,
+`SetWriteMode`, `MoveTo` and `SetViewPort` with their `Get` counterparts. See
+§4.7. The five questions the same list opened are recorded there as O1–O5,
+beside the routines they concern.
 
 **Q3 — `Buffer.PutPointer` yes; `GetPointer` undecided.** Building a C array of
 pointers needs only the write half, and a written pointer can only be one that
