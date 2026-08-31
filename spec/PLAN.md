@@ -242,6 +242,59 @@ iterated, ordered and answers `Length` without parentheses — the four things
 Annex E named. What H-9 waits on now is H-14, which is a runtime question rather
 than a language one.
 
+## ✅ Generation 8 is complete
+
+**Element types, a foreign function interface, and the two resources at last
+specified** — H-3 and H-14 stages 1 and 2, with 221 tests, 178 conformance cases
+and 54 refusals, no gap in either processor, and the fixed point holding. 280
+rules.
+
+⚠️ **The language stopped being an island.** `external` names a C function and
+`Pointer` carries what one hands back [FUN-014], [TYP-017]. `Buffer.Address`
+[RT-022] is the whole of stage 2: a program builds a C struct in bytes it owns
+and passes the address, so a struct needed **one property, not a mechanism**.
+SDL is what the entry exists for, and a graphics library written in Algol-24
+over it is the reason to keep going.
+
+⚠️ **libffi is compiled in optionally, and the bootstrap stays dependency-free**
+[INI-008]. Two build configurations, and the corpus runs the default one — which
+is the reason `Pointer` is in [TYP-001]'s table of runtime types but not in the
+case that names every row of it.
+
+⚠️ **"A C compiler is the only dependency" is about the bootstrap, not the
+language.** It was read here as a design value forbidding dependencies
+generally, and used to rule libffi out. It is a statement about how a working
+`algc` is obtained from nothing; a *program* may link whatever it likes.
+
+⚠️ **Generation 7's record said H-9 was waiting on H-14. It is not, and it never
+was.** What a collections library needs is storage, and the storage is `Array`,
+which stays. H-9 also changed shape: it now adds a second implementation
+**beside** the natives rather than moving chapter 14 out, because moving would
+break every program that says `Set ()` without a `uses`. And it is **library
+work rather than language work**, which decides how it is tested — a library
+written *in* the language gets unit tests and documentation of its own, never
+conformance cases.
+
+⚠️ **Specifying something is a way of testing it, and it found two defects.**
+`Buffer` and `TextFile` were the only two built-ins in Annex B not claimed by a
+rule; twelve of their members appeared nowhere in the document. Writing
+[RT-021]–[RT-024] turned up a `TextFile` with no text form at all — against
+[RT-006] and against the `Buffer` beside it — and a `Buffer.Append` measuring
+with `strlen`, so that `Append (Char (0))` appended **nothing** while
+`Buffer (1)` and `B[0] := 0` both put a zero byte in. Neither was found by
+running the compiler, which uses both types heavily; both were found by trying
+to write down what they do.
+
+⚠️ **Four keyword collisions in two generations.** `external` broke a field of
+that name in `Stmt.a24`, as `operator` broke a local in `Parser.a24`, and as
+`break` once forced `Broke`. Reserving a word makes it unspellable everywhere,
+and this repository keeps relearning it.
+
+⚠️ **What remains before v0.1.0 is nothing.** H-14 stage 3 is calling *back*
+into Algol-24, which SDL can mostly do without; H-9 is library work after the
+tag; H-17 — equality and the hash that must come with it — is undecided. The
+language features are complete.
+
 ## 0. The road to v1
 
 | | | Ends when |
