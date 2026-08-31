@@ -4100,6 +4100,11 @@ open for reading.` or `… for writing.` Every member but `Close` needs a name,
 and without one fails with `X failed: no file has been assigned.` `ReadLn` past
 the last line is `ReadLn failed: at end of file.`
 
+The refusals run the other way too: **`Assign`, `Reset`, `Rewrite`, `Append`,
+`Erase` and `Rename` all require the file to be closed**, and on an open one
+fail with `X failed: the file is already open.` `Close` and the reading and
+writing members are the only ones an open file accepts.
+
 `Rename` renames the file **and the handle**: the name it was given is the name
 the handle then has. `Str` of a `TextFile` is `TextFile('name')`, or
 `TextFile()` before an `Assign`.

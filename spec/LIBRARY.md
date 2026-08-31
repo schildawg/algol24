@@ -104,14 +104,14 @@ decided.
 
 | Routine | Verdict | Notes |
 | --- | --- | --- |
-| `Abs` | | |
+| `Abs` | **A24** | Untyped, so the result type follows the argument — see below. Unit: `math` |
 | `Sqr` | | |
 | `Sqrt` | | |
 | `Exp` | | |
 | `Ln` | | |
 | `Sin` | | |
 | `Cos` | | |
-| `ArcTan` | | |
+| `ArcTan` | **FFI** | `external 'atan'` — the declaration is the implementation |
 | `Pi` | | |
 | `Int` | | |
 | `Frac` | | |
@@ -119,6 +119,38 @@ decided.
 | `Trunc` | | |
 | `Odd` | | |
 | `Random`, `Randomize` | | |
+
+*Both live in a `math` unit — see Q6 for the boundary that raises.*
+
+**`Abs (X)`** — the result takes the argument's type, and that falls out rather
+than being arranged: `0 - X` is an Integer when `X` is one and a Double as soon
+as a Double reaches it [EXP-004].
+
+```
+function Abs (X);
+begin
+    if X <= 0 then Exit 0 - X;
+    Exit X;
+end
+```
+
+⚠️ **`<=`, not `<`, and the difference is negative zero.** `-0.0 < 0` is false,
+so `<` hands `-0.0` straight back; `<=` runs it through `0 - X` and yields
+`0.0`. Turbo Pascal clears the sign bit and agrees.
+
+⚠️ **Better than the C it replaces.** `abs(INT_MIN)` is undefined behaviour in C
+because the negation overflows. An Integer here is unbounded [LEX-018], so the
+trap does not exist — `Abs` of −2¹²⁷ answers 2¹²⁷.
+
+⚠️ **It must be written UNTYPED, and that costs the caller something.** A value
+of type `Any` is not assignable to a written type [VAL-001], so `var N : Integer
+:= Abs (-5);` is refused while `Take (Abs (-5))`, `Abs (-5) + 1` and
+`var N := Abs (-5);` are all fine — a declared variable is the one context that
+rejects it. Two typed overloads are not a way out, for the reason recorded as an
+open question below.
+
+`Abs ('text')` and `Abs (nil)` answer `Operands must be numbers.`, from the
+subtraction rather than from a check of its own.
 
 ### 4.2 System — ordinals and text
 
@@ -148,20 +180,106 @@ decided.
 
 | Routine | Verdict | Notes |
 | --- | --- | --- |
-| `Ptr`, `Addr`, `Seg`, `Ofs` | | |
+| `Addr` | **✗ Not needed** | No Algol-24 variable has an address to take — see below |
+| `Ptr`, `Seg`, `Ofs` | | |
 | `Mark`, `Release` | | |
 | `MemAvail`, `MaxAvail` | | |
+
+**`Addr (X)`** — not merely unwanted but incoherent here. A value is tagged and
+arena-allocated, `concat` may move a String's bytes to append in place [G.2],
+and a `var` is a slot in an environment rather than a location. There is nothing
+whose address would stay true long enough to be worth having.
+
+The one honest case — *memory the program owns and means to hand to C* — is
+already served by `Buffer.Address` [TYP-017], which is a property of something
+that really is a block of bytes.
+
+### Can `Pointer` stay hidden?
+
+**It already is, everywhere but one place.** A program can take a handle from C,
+hold it, store it in a `List` and a `Map`, compare it by identity and hand it
+back — without the word `Pointer` appearing:
+
+```
+var A := Allocate (32);          // untyped; the type is never written
+var Handles := [A, B];
+Named['first'] := A;
+WriteLn (Named['first'] = A);    // true -- identity survives a Map
+CopyBytes (Named['first'], 'hi', 3);
+```
+
+The one place it must be written is an `external` declaration — and ⚠️ **there
+it is containment, not exposure.** The same C function declared two ways:
+
+```
+function AllocOpaque (N : Integer) : Pointer; external 'malloc';   // <pointer>
+function AllocNumber (N : Integer) : Integer; external 'malloc';   // 4381188096
+```
+
+Declared `Integer`, the address comes back as a **number** — printable,
+comparable, and arithmetic-able, which is everything [TYP-017] exists to
+prevent. Writing `Pointer` is what keeps it opaque. Removing the type from the
+language would not hide pointers; it would expose them.
+
+⚠️ **So "hidden" is a matter of library structure, not of language machinery.**
+The bindings units are plumbing and name the type; `graph`, `crt` and the rest
+hand out objects of their own, and a program that uses them never meets a
+`Pointer`. Visibility on a type name would be machinery to enforce what the
+arrangement of units already gives.
 
 ### 4.5 Crt
 
 | Routine | Verdict | Notes |
 | --- | --- | --- |
+| `AssignCrt` | **A24** | In **both** units, and it is what makes them one vocabulary — see below |
 | `ClrScr`, `ClrEol` | | |
 | `GotoXY`, `WhereX`, `WhereY` | | |
 | `TextColor`, `TextBackground` | | |
 | `KeyPressed`, `ReadKey` | | |
 | `Delay`, `Sound`, `NoSound` | | |
 | `Window` | | |
+
+**`AssignCrt (F)`** — in Turbo Pascal this bound a `Text` variable to the screen
+so that `Write (F, …)` went to the console instead of to a file. Here it is the
+routine that makes `crt` and `graph` **one vocabulary without one
+implementation**, which is the thing the two-unit design otherwise has to
+promise on trust.
+
+⚠️ **Each unit hands back a different thing, and the call site cannot tell.**
+`crt` returns a real `TextFile`, because on Unix the console *is* a file;
+`graph` returns a class of its own that writes into the cell grid. Both answer
+to `Write`, `WriteLn` and `Close`, and dispatch does the rest:
+
+```
+procedure Emit (Sink);          // does not know or care which it got
+begin
+    Sink.WriteLn ('the same call, whatever is behind it');
+    Sink.Close ();
+end
+```
+
+That is the same structural style the language already uses for `ToString`,
+`Elements` and `Contains` [TYP-011] — a thing either answers to the member or it
+does not. The shared vocabulary stops being a documented promise that two units
+export matching names and becomes a property of the values they return.
+
+⚠️ **`crt`'s half is one line, because the console is a file.**
+`F.Assign ('/dev/tty'); F.Rewrite ();` and `F.WriteLn` reaches the terminal —
+no FFI, no escape codes, nothing added to the language. Fall back to
+`/dev/stdout` where there is no controlling terminal, which is how it behaves
+under a pipe or a test harness.
+
+⚠️ **`graph`'s half CANNOT be a `TextFile`, and that is a language limit.** An
+`ObjFile` holds a `FILE *` from `fopen`; nothing in [RT-024] lets a program bind
+one to anything but a path. So the two sinks are duck-compatible but not the
+same type, and `X is TextFile` tells them apart. That is acceptable — it is only
+a problem for a program that asks, and none should.
+
+⚠️ **MIXING THE TWO SINKS REORDERS THE OUTPUT.** A `TextFile` on `/dev/stdout`
+and the ordinary `WriteLn` are two `FILE *` streams onto one descriptor, each
+with its own buffer. In the run above, a line written by `WriteLn` came out
+*after* a line written later through the file. Whichever a program picks, it
+should pick one.
 
 ### 4.6 Dos
 
@@ -176,9 +294,41 @@ decided.
 
 ### 4.7 Graph
 
-Deferred as a unit rather than routine by routine: the target is SDL, not
-Borland's BGI, and the shape of the Algol-24 API is its own question. Recorded
-here so the walk does not stall on sixty entries that all answer the same way.
+⚠️ **Every routine in this unit is A24 + FFI by construction**, so the verdict
+column carries almost no information here: `graph` needs SDL to have a window at
+all, and everything drawn into the framebuffer is Algol-24. What matters in this
+section is the **notes** — the signature, the convention, and what changes from
+Borland's BGI.
+
+| Routine | Verdict | Notes |
+| --- | --- | --- |
+| `Arc` | **A24 + FFI** | Double coordinates, degrees, BGI's angle convention — see below |
+| `AssignCrt` | **A24** | Also in `crt`; returns a sink that answers `Write`/`WriteLn` — see §4.5 |
+
+**`Arc (X, Y, Radius, StartAngle, EndAngle)`** — a circular arc. Trig comes from
+libm, the pixels are ours.
+
+⚠️ **Double coordinates, not BGI's Integer.** BGI took integer pixels because it
+was addressing a pixel grid directly. Doubles cost nothing here and are what
+make an **antialiased** arc possible — a subpixel endpoint is the difference
+between an arc that looks drawn and one that looks stair-stepped, which is the
+same argument as coverage-versus-bits for glyphs.
+
+⚠️ **Degrees, and BGI's convention: 0° at three o'clock, counterclockwise.**
+Kept because it is what a Turbo Pascal programmer expects and because
+`Arc (100, 100, 50, 0, 90)` reads better than the radian form. Note that
+counterclockwise *on screen* means **subtracting** the sine, since screen Y
+grows downward:
+
+```
+  0 deg -> x 150.0, y 100.0     three o'clock
+ 90 deg -> x 100.0, y  50.0     twelve o'clock -- y SMALLER than the centre
+180 deg -> x  50.0, y 100.0     nine o'clock
+270 deg -> x 100.0, y 150.0     six o'clock
+```
+
+Getting that sign wrong mirrors every arc in the library, and nothing but a
+picture would catch it.
 
 ### 4.8 Beyond Turbo Pascal
 
@@ -189,6 +339,81 @@ Things the walk will not produce, kept here so they are not lost:
 | Collections | The library collections built on `Array` — Annex H, H-9. |
 
 ---
+
+## 4.9 Open questions raised by the walk
+
+Recorded as they arise and settled at the end, from the whole survey rather than
+from the routine that happened to surface them.
+
+**Q1 — Where does a type-preserving function live?** `Abs` is untyped because it
+must be, and [VAL-001] then keeps its result out of a declared variable. The
+same will be true of `Sqr`, `Max`, `Min`, `Odd` and anything else whose result
+follows its argument, so this is a question about the shape of the whole
+library, not about `Abs`.
+
+**Q2 — The checker takes the LAST declared overload's return type, whatever the
+argument is.** This makes two typed overloads useless as a way round Q1, and it
+is a defect rather than a limitation: the answer is *wrong*, not unknown.
+
+```
+function F (X : Integer) : Integer; begin Exit X; end
+function F (X : String)  : String;  begin Exit X; end
+
+var N : Integer := F (5);      // Expected Integer, found String.
+```
+
+Swap the two declarations and the same line compiles and prints `5`. The
+`[WARN]` is right that selection happens at run time [ERR-010]; what should
+follow is a static type of `Any`, which [VAL-001] would then refuse
+consistently and a cast could resolve. Instead the checker commits to one
+overload it has not chosen.
+
+⚠️ **This one belongs to the language, not the library**, and wants a defect
+entry in Annex F with a reproduction — the survey found it, it does not wait on
+the survey.
+
+**Q6 — the core's numeric set is arbitrary, and `math` makes that visible.**
+`Max` [RT-010] and `Mod` [RT-011] are built-ins; `Min` and `Abs` do not exist at
+all:
+
+```
+WriteLn (Max (3, 7));    →  7
+WriteLn (Mod (7, 3));    →  1
+WriteLn (Min (3, 7));    →  Undefined variable 'Min'.
+WriteLn (Abs (-3));      →  Undefined variable 'Abs'.
+```
+
+Putting `Abs` in `math` therefore leaves a program taking `Abs` from a unit and
+`Max` from nowhere — two spellings of the same kind of thing, decided by an
+accident of which built-ins were needed while the compiler was being written.
+
+The tidy end state is that `Max` and `Mod` follow `Abs` into `math` and leave
+the core, which is the same direction Annex E and H-9 already travel. ⚠️ **But
+that is a language change, not a library one** — it removes built-ins, changes
+Annex B and breaks every program that uses them unqualified, so it belongs to a
+generation rather than to this survey. Recorded here because `math` is where the
+seam shows.
+
+**Q5 — does `graph` carry drawing state, or does every call say everything?**
+BGI kept a current colour, a current line style and a current position, so
+`Arc` took neither a colour nor a width — `SetColor` had said it earlier, from
+somewhere else in the program. The alternative is that every call carries what
+it needs and nothing is remembered.
+
+`Arc` is the first routine to raise this and every other drawing routine will
+inherit the answer, so it is worth settling deliberately rather than by
+whichever gets written first. It also interacts with the console half: a
+console genuinely does have current state — `TextColor` sets it and `Write`
+uses it — so answering "no state" for drawing while the text half keeps it
+would be an asymmetry inside one unit.
+
+**Q3 — `Buffer.PutPointer` yes; `GetPointer` undecided.** Building a C array of
+pointers needs only the write half, and a written pointer can only be one that
+already existed. `GetPointer` reads a pointer *out* of memory the program can
+also write byte by byte, so it lets a program conjure an address — the first
+thing that would break "every `Pointer` came from C". It is what opens FreeType
+and Core Text; `Addr`'s verdict above argues for containment, so the two pull
+against each other and the answer should come from the whole survey.
 
 ## 5. How a library unit is written
 

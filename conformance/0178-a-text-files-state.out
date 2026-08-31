@@ -13,6 +13,12 @@ A file name must be a String.
 assigned: TextFile('t-state.txt')
 Eof while writing = true
 ReadLn failed: the file is not open for reading.
+Assign failed: the file is already open.
+Reset failed: the file is already open.
+Rewrite failed: the file is already open.
+Append failed: the file is already open.
+Erase failed: the file is already open.
+Rename failed: the file is already open.
 Write failed: the file is not open for writing.
 read: one
 read: two

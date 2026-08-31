@@ -37,6 +37,16 @@ F.Flush ();
 
 WriteLn ('Eof while writing = ' + Str (F.Eof));
 try WriteLn (F.ReadLn ()); except on X : String do WriteLn (X); end
+
+// The refusals run the other way too: everything that opens, names, deletes or
+// renames the file wants it closed first.
+try F.Assign ('t-other.txt'); except on X : String do WriteLn (X); end
+try F.Reset ();               except on X : String do WriteLn (X); end
+try F.Rewrite ();             except on X : String do WriteLn (X); end
+try F.Append ();              except on X : String do WriteLn (X); end
+try F.Erase ();               except on X : String do WriteLn (X); end
+try F.Rename ('t-other.txt'); except on X : String do WriteLn (X); end
+
 F.Close ();
 
 // Reset opens for reading, and now the writing members are the ones that fail.
