@@ -44,3 +44,14 @@ try
 except
     on e : String do WriteLn (e);
 end
+
+// ⚠️ A Buffer answers Address, and THAT needs no foreign call to observe: a
+// program builds a region of memory here, and only handing it to C requires a
+// build that can [INI-008].
+var B := Buffer ();
+B.Append ('....');
+
+WriteLn (B.Address is Pointer);
+WriteLn (B.Address = B.Address);
+WriteLn (B.Address);
+WriteLn (B.Text);

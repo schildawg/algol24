@@ -2923,6 +2923,23 @@ Value alg_property(Value receiver, const char *name) {
     if (is_obj(receiver, OBJ_BUFFER)) {
         if (alg_stricmp(name, "Text") == 0) return buffer_text(as_buffer(receiver, "Text"));
 
+        /* ⚠️ The BYTES' address, so a program can build a C struct in a Buffer
+         * and hand it to a foreign function [FUN-014].  A property rather than
+         * an implicit conversion at the call: passing a Buffer where a Pointer
+         * is declared would take its address silently, and this language makes
+         * a program say when it means something else -- the same reason Str is
+         * how a Char widens.
+         *
+         * ⚠️ THE ADDRESS DOES NOT OUTLIVE THE BYTES.  Resize may move them and
+         * Free ends them, so an address taken before either is stale after --
+         * which is the ordinary C hazard, arrived at honestly rather than
+         * hidden. */
+        if (alg_stricmp(name, "Address") == 0) {
+            ObjBuffer *buffer = as_buffer(receiver, "Address");
+
+            return alg_pointer(buffer->bytes);
+        }
+
         if (alg_stricmp(name, "Length") == 0)  return alg_length(receiver);
         if (alg_stricmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
 

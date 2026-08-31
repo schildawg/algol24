@@ -2911,6 +2911,27 @@ it has no arithmetic, no ordering, and no conversion to a number.
 Two Pointers are equal when they address the same thing. A `Pointer` renders as
 `<pointer>`, or `<pointer nil>` for a null one.
 
+A `Buffer` answers **`Address`**, the address of its bytes, so a program can
+build a C struct and hand it to a foreign function:
+
+```
+var B := Buffer ();
+B.Append ('....');
+
+CopyBytes (B.Address, 'ABCD', 4);      // memcpy writes into the Buffer
+WriteLn (B.Text);                      // ABCD
+```
+
+⚠️ **A property rather than an implicit conversion at the call.** Passing a
+`Buffer` where a `Pointer` is declared would take its address silently; this
+language makes a program say when it means something else, which is the same
+reason `Str` is how a `Char` widens [LEX-026].
+
+⚠️ **THE ADDRESS DOES NOT OUTLIVE THE BYTES.** `Resize` may move them and
+`Free` ends them, so an address taken before either is stale afterwards. That is
+the ordinary C hazard, arrived at honestly rather than hidden — and it is the
+reason the address is taken at the point of use rather than stored.
+
 ⚠️ **It renders WITHOUT its address, deliberately.** Printing the address would
 make a program's output depend on where the allocator happened to put
 something — non-determinism of exactly the kind the fixed-point check exists to
@@ -6986,7 +7007,8 @@ and its ordinal rather than a pointer to the type, so there is no way from a
 member to the list it belongs to — the gap is honest rather than chosen.
 
 **H-14 — A foreign function interface.**
-***Stage 1 landed in Generation 8.*** *(added [FUN-014], [TYP-017], [INI-008])*
+***Stages 1 and 2 landed in Generation 8.***
+*(added [FUN-014], [TYP-017], [INI-008])*
 
 A program declares a C function and calls it — scalars, `String` and `Pointer`,
 with the library named or the running program searched. **SDL is the target**,
@@ -7010,9 +7032,14 @@ than a limitation: a handle should not be arithmetic'd. Printing the address
 would make output depend on where the allocator put something — the
 non-determinism the fixed-point check exists to catch.
 
-⚠️ **What remains: structs and callbacks.** Stage 2 is structs **by pointer**,
-backed by a `Buffer`, so no struct-by-value marshalling is needed. Stage 3 is
-calling back into Algol-24, which SDL can mostly be driven without.
+⚠️ **Stage 2 needed one property, not a mechanism.** A `Buffer` answers
+`Address` [TYP-017], so a program builds a C struct in bytes it owns and hands
+the address over; `memcpy` writing `ABCD` into a Buffer that held `....` is the
+whole proof. No struct-by-value marshalling, and nothing implicit — passing a
+`Buffer` where a `Pointer` is declared would have taken its address silently.
+
+⚠️ **What remains is stage 3: calling back into Algol-24.** SDL can mostly be
+driven by a polling loop instead, so it may wait indefinitely.
 
 ⚠️ **Four keyword collisions in two generations.** `external` broke a field of
 that name in `Stmt.a24`, as `operator` broke a local in `Parser.a24`, and as

@@ -87,6 +87,12 @@ begin
         if Member = 'length'  then Exit Handle.Length;
         if Member = 'isempty' then Exit Handle.IsEmpty;
 
+        // ⚠️ The BYTES' address, so a program can build a C struct in a Buffer
+        // and hand it to a foreign function [FUN-014].  A property rather than
+        // an implicit conversion at the call, so the program says when it means
+        // an address -- the same reason Str is how a Char widens.
+        if Member = 'address' then Exit Handle.Address;
+
         if Member = 'append' then Exit BufferMethod (this, TheName, 1);
         if Member = 'putint' then Exit BufferMethod (this, TheName, 2);
         if Member = 'getint' then Exit BufferMethod (this, TheName, 1);

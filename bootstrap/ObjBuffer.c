@@ -86,6 +86,9 @@ static Value m_objbuffer_get_1_token(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_member, alg_string("isempty")))) {
         return alg_property(alg_property(v_this, "Handle"), "IsEmpty");
     }
+    if (alg_truthy(alg_equal(v_member, alg_string("address")))) {
+        return alg_property(alg_property(v_this, "Handle"), "Address");
+    }
     if (alg_truthy(alg_equal(v_member, alg_string("append")))) {
         return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
     }
