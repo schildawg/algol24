@@ -1,0 +1,362 @@
+// A pie chart and 'Hello' in five scripts, drawn into a framebuffer this
+// program owns, then handed to SDL2 as one texture.
+//
+// Everything between the SDL calls is Algol-24: the arc test, the glyph blit,
+// the hex font loader.  The only C is SDL2 for the window, and atan2 and sqrt
+// from libm.
+//
+// ⚠️ THE LIBRARY PATH IS SPELLED OUT, sixteen times, and it should not have to
+// be.  `in` takes a string LITERAL, so the path cannot come from a const and a
+// program cannot try one name and fall back to another -- which is the one
+// thing a portable binding needs to do.  Until the runtime resolves a bare
+// name, an SDL somewhere else means one substitution:
+//
+//     sed -i '' "s|/opt/homebrew/lib/libSDL2.dylib|/usr/lib/libSDL2.so|g" hello.a24
+
+// ------------------------------------------------------------------ C --
+
+
+function SDL_Init (Flags : Integer) : Integer;                external 'SDL_Init' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_GetError () : String;                            external 'SDL_GetError' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_CreateWindow (Title : String, X : Integer, Y : Integer,
+                           W : Integer, H : Integer, Flags : Integer) : Pointer;
+                                                              external 'SDL_CreateWindow' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_CreateRenderer (Win : Pointer, Index : Integer, Flags : Integer) : Pointer;
+                                                              external 'SDL_CreateRenderer' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_CreateTexture (Ren : Pointer, Format : Integer, Access : Integer,
+                            W : Integer, H : Integer) : Pointer;
+                                                              external 'SDL_CreateTexture' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_UpdateTexture (Tex : Pointer, Rect : Pointer, Pixels : Pointer,
+                            Pitch : Integer) : Integer;       external 'SDL_UpdateTexture' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_RenderCopy (Ren : Pointer, Tex : Pointer, Src : Pointer, Dst : Pointer) : Integer;
+                                                              external 'SDL_RenderCopy' in '/opt/homebrew/lib/libSDL2.dylib';
+procedure SDL_RenderPresent (Ren : Pointer);                  external 'SDL_RenderPresent' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_PollEvent (E : Pointer) : Integer;               external 'SDL_PollEvent' in '/opt/homebrew/lib/libSDL2.dylib';
+procedure SDL_Delay (Ms : Integer);                           external 'SDL_Delay' in '/opt/homebrew/lib/libSDL2.dylib';
+procedure SDL_Quit ();                                        external 'SDL_Quit' in '/opt/homebrew/lib/libSDL2.dylib';
+
+// Saving the window to a file, so the picture outlives the program.
+function SDL_CreateRGBSurfaceWithFormatFrom (Pixels : Pointer, W : Integer, H : Integer,
+                                             Depth : Integer, Pitch : Integer,
+                                             Format : Integer) : Pointer;
+                                             external 'SDL_CreateRGBSurfaceWithFormatFrom' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_RWFromFile (Path : String, Mode : String) : Pointer;
+                                                              external 'SDL_RWFromFile' in '/opt/homebrew/lib/libSDL2.dylib';
+function SDL_SaveBMP_RW (Surface : Pointer, RW : Pointer, FreeRW : Integer) : Integer;
+                                                              external 'SDL_SaveBMP_RW' in '/opt/homebrew/lib/libSDL2.dylib';
+
+function ATan2 (Y : Double, X : Double) : Double;             external 'atan2';
+function SquareRoot (X : Double) : Double;                    external 'sqrt';
+
+const SDL_INIT_VIDEO   := 32;
+const WINDOW_SHOWN     := 4;
+const WINDOWPOS_CENTRE := 805240832;
+const PIXELFORMAT_RGB  := 370546692;      // SDL_PIXELFORMAT_RGB888, so a
+const TEXTURE_STREAM   := 1;              // colour is 0xRRGGBB and stays positive
+const EVENT_QUIT       := 256;
+const EVENT_KEYDOWN    := 768;
+const KEY_ESCAPE       := 27;
+
+// -------------------------------------------------------------- canvas --
+
+const W  := 1040;
+const H  := 520;
+const Pi := 3.14159265358979;
+
+var Pixels := Buffer (W * H * 4);
+
+procedure Plot (X : Integer, Y : Integer, Colour : Integer);
+begin
+    if X >= 0 then
+      if Y >= 0 then
+        if X < W then
+          if Y < H then Pixels.PutInt ((Y * W + X) * 4, Colour);
+end
+
+procedure Fill (Colour : Integer);
+var
+    I : Integer := 0;
+begin
+    while I < W * H do
+    begin
+        Pixels.PutInt (I * 4, Colour);
+        I := I + 1;
+    end
+end
+
+procedure Box (X : Integer, Y : Integer, Wide : Integer, High : Integer, Colour : Integer);
+var
+    R : Integer := 0;
+begin
+    while R < High do
+    begin
+        var C := 0;
+        while C < Wide do
+        begin
+            Plot (X + C, Y + R, Colour);
+            C := C + 1;
+        end
+        R := R + 1;
+    end
+end
+
+// ------------------------------------------------ the font, Unifont-style --
+//
+// XXXX:HH... -- a codepoint, then sixteen rows.  Two hex digits to a row is a
+// narrow glyph eight pixels wide, four digits is a wide one at sixteen.  The
+// LENGTH of the row data is the width, which is how Unifont carries the East
+// Asian width table without a second table.
+
+var Glyphs := [:];        // codepoint -> List of sixteen row bit patterns
+var Widths := [:];        // codepoint -> 8 or 16
+
+function HexDigit (C : Char) : Integer;
+begin
+    if C >= '0' then if C <= '9' then Exit Ord (C) - Ord ('0');
+    if C >= 'A' then if C <= 'F' then Exit Ord (C) - Ord ('A') + 10;
+    if C >= 'a' then if C <= 'f' then Exit Ord (C) - Ord ('a') + 10;
+    Exit 0;
+end
+
+function HexAt (Text : String, At : Integer, Count : Integer) : Integer;
+var
+    Value : Integer := 0;
+    I     : Integer := 0;
+begin
+    while I < Count do
+    begin
+        Value := Value * 16 + HexDigit (Text[At + I]);
+        I := I + 1;
+    end
+    Exit Value;
+end
+
+procedure LoadFont (Path : String);
+var
+    F : TextFile;
+begin
+    F := TextFile ();
+    F.Assign (Path);
+    F.Reset ();
+
+    while not F.Eof do
+    begin
+        var Line := F.ReadLn ();
+        var Colon := Pos (Line, ':');
+
+        if Colon >= 0 then
+        begin
+            var Code := HexAt (Line, 0, Colon);
+            var Bits := Copy (Line, Colon + 1, Length (Line) - Colon - 1);
+
+            // Sixteen rows always; the digits per row say how wide.
+            var Digits := Length (Bits) div 16;
+            var Rows   := [];
+            var R      := 0;
+
+            while R < 16 do
+            begin
+                Rows.Add (HexAt (Bits, R * Digits, Digits));
+                R := R + 1;
+            end
+
+            Glyphs[Code] := Rows;
+            Widths[Code] := Digits * 4;
+        end
+    end
+
+    F.Close ();
+end
+
+/// Blits one glyph, scaled, and answers how far to advance.
+function DrawGlyph (Code : Integer, X : Integer, Y : Integer,
+                    Colour : Integer, Scale : Integer) : Integer;
+var
+    Wide : Any;
+    Rows : Any;
+begin
+    if not (Code in Glyphs) then Exit 8 * Scale;
+
+    Rows := Glyphs[Code];
+    Wide := Widths[Code];
+
+    var R := 0;
+    while R < 16 do
+    begin
+        var Bits := Rows[R];
+        var C    := 0;
+
+        while C < Wide do
+        begin
+            // The high bit is the leftmost pixel.  No shift operator, so the
+            // bit is selected by dividing it down to the ones place.
+            var Place := 1;
+            var K     := 0;
+            while K < Wide - 1 - C do
+            begin
+                Place := Place * 2;
+                K := K + 1;
+            end
+
+            if Mod (Bits div Place, 2) = 1 then
+                Box (X + C * Scale, Y + R * Scale, Scale, Scale, Colour);
+
+            C := C + 1;
+        end
+        R := R + 1;
+    end
+
+    Exit Wide * Scale;
+end
+
+function DrawText (Text : String, X : Integer, Y : Integer,
+                   Colour : Integer, Scale : Integer) : Integer;
+var
+    At : Integer := X;
+    I  : Integer := 0;
+begin
+    while I < Length (Text) do
+    begin
+        At := At + DrawGlyph (Ord (Text[I]), At, Y, Colour, Scale);
+        I := I + 1;
+    end
+    Exit At;
+end
+
+// ------------------------------------------------------------ the chart --
+
+var Labels := ['Merhaba  Türkçe',
+               'Γεια σου  Ελληνικά',
+               '你好  中文',
+               '안녕하세요  한국어',
+               'Hola  Español'];
+
+var Shares : List of Integer := [22, 18, 25, 15, 20];
+var Colours : List of Integer := [0xE8583F, 0xF2A03D, 0x4FA3C7, 0x6FC26B, 0xB07BD1];
+
+procedure DrawPie (CX : Integer, CY : Integer, Radius : Integer);
+var
+    Total : Integer := 0;
+begin
+    for var S in Shares do Total := Total + S;
+
+    var Y := CY - Radius - 1;
+    while Y <= CY + Radius + 1 do
+    begin
+        var X := CX - Radius - 1;
+        while X <= CX + Radius + 1 do
+        begin
+            var DX := X - CX;
+            var DY := Y - CY;
+            var D  := SquareRoot (DX * DX + DY * DY);
+
+            if D <= Radius then
+            begin
+                // atan2 answers -Pi .. Pi from the positive X axis; turn that
+                // into a fraction of a turn measured clockwise from the top.
+                var A := ATan2 (DX, 0 - DY);
+                if A < 0.0 then A := A + 2.0 * Pi;
+
+                var Fraction := A / (2.0 * Pi);
+                var Walked   := 0.0;
+                var Index    := 0;
+                var Chosen   := 0;
+
+                for var S in Shares do
+                begin
+                    Walked := Walked + S * 1.0 / Total;
+                    if Fraction <= Walked then
+                      if Chosen = 0 then
+                      begin
+                          Plot (X, Y, Colours[Index]);
+                          Chosen := 1;
+                      end
+                    Index := Index + 1;
+                end
+
+                // A soft edge, so the circle does not look sawn out.
+                if D > Radius - 1.5 then Plot (X, Y, 0x2A2A38);
+            end
+            X := X + 1;
+        end
+        Y := Y + 1;
+    end
+end
+
+// ---------------------------------------------------------------- draw --
+
+LoadFont ('font.hex');
+WriteLn ('font: ' + Str (Glyphs.Length) + ' glyphs loaded');
+
+Fill (0x1E1E28);
+
+DrawText ('Hello, in five scripts', 40, 34, 0xF0F0F5, 2);
+Box (40, 76, 960, 2, 0x3A3A4A);
+
+DrawPie (250, 300, 150);
+
+var Row := 0;
+while Row < Labels.Length do
+begin
+    var Y := 150 + Row * 54;
+
+    Box (500, Y, 26, 26, Colours[Row]);
+    DrawText (Labels[Row], 546, Y - 3, 0xE6E6F0, 2);
+    DrawText (Str (Shares[Row]) + '%', 950, Y - 3, 0x9A9AB0, 2);
+
+    Row := Row + 1;
+end
+
+DrawText ('drawn by Algol-24 into its own framebuffer', 40, 470, 0x70708A, 1);
+DrawText ('press Esc or close the window to quit', 700, 470, 0x70708A, 1);
+
+// --------------------------------------------------------------- show --
+
+if SDL_Init (SDL_INIT_VIDEO) <> 0 then
+begin
+    WriteLn ('SDL_Init failed: ' + SDL_GetError ());
+    Halt (1);
+end
+
+var Win := SDL_CreateWindow ('Algol-24', WINDOWPOS_CENTRE, WINDOWPOS_CENTRE,
+                             W, H, WINDOW_SHOWN);
+var Ren := SDL_CreateRenderer (Win, -1, 0);
+var Tex := SDL_CreateTexture (Ren, PIXELFORMAT_RGB, TEXTURE_STREAM, W, H);
+
+SDL_UpdateTexture (Tex, nil, Pixels.Address, W * 4);
+SDL_RenderCopy (Ren, Tex, nil, nil);
+SDL_RenderPresent (Ren);
+
+// Keep the picture after the window closes.
+var Surface := SDL_CreateRGBSurfaceWithFormatFrom (Pixels.Address, W, H, 32,
+                                                   W * 4, PIXELFORMAT_RGB);
+SDL_SaveBMP_RW (Surface, SDL_RWFromFile ('hello.bmp', 'wb'), 1);
+WriteLn ('wrote hello.bmp');
+
+// The window stays up until it is closed or Esc is pressed.  An SDL_Event is
+// 56 bytes: the kind is a Uint32 at offset 0, and for a key press the key
+// itself is another at offset 20.
+var Event   := Buffer (56);
+var Running := True;
+
+while Running do
+begin
+    while SDL_PollEvent (Event.Address) <> 0 do
+    begin
+        var Kind := Event.GetInt (0);
+
+        if Kind = EVENT_QUIT then Running := False;
+        if Kind = EVENT_KEYDOWN then
+          if Event.GetInt (20) = KEY_ESCAPE then Running := False;
+    end
+
+    // ⚠️ Presented every frame rather than once.  A window that is only drawn
+    // at start-up comes back blank after it is hidden and shown again, because
+    // nothing has asked the renderer to put the texture back.
+    SDL_RenderCopy (Ren, Tex, nil, nil);
+    SDL_RenderPresent (Ren);
+
+    SDL_Delay (16);
+end
+
+SDL_Quit ();

@@ -3,6 +3,7 @@
 # Builds algc, the Algol-24 compiler, from the C checked in beside this script.
 #
 #   ./build.sh                 # -> ./algc
+#   ./build.sh --ffi           # -> ./algc, able to call C [FUN-014]
 #   CC=clang CFLAGS=-O0 ./build.sh
 #
 # ⚠️ There is no switch to turn integer range checking off, and there used to
@@ -30,8 +31,22 @@ cd "$(dirname "$0")"
 CC="${CC:-cc}"
 CFLAGS="${CFLAGS:--std=c11 -O2}"
 
-# shellcheck disable=SC2086
-$CC $CFLAGS -o algc *.c
+# ⚠️ --ffi is OFF by default, and that is the whole point of it being a switch.
+# A foreign call needs libffi and dlopen [FUN-014]; without them algc still
+# builds from a C compiler and nothing else, and an external call reports
+# 'Foreign calls are not available in this build' rather than failing to link.
+# The default build is the one the conformance corpus runs.
+FFI=""
+FFI_LIBS=""
 
-echo "Built $(pwd)/algc"
+case "${1:-}" in
+    --ffi) FFI="-DALG_FFI"; FFI_LIBS="-lffi" ;;
+    "")    ;;
+    *)     echo "usage: build.sh [--ffi]" >&2; exit 2 ;;
+esac
+
+# shellcheck disable=SC2086
+$CC $CFLAGS $FFI -o algc *.c $FFI_LIBS
+
+echo "Built $(pwd)/algc${FFI:+  (with foreign calls)}"
 echo "Try:  ./algc --help  or  ./algc <program.a24>"
