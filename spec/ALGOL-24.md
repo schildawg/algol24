@@ -6703,50 +6703,47 @@ was reserved. The same collision renamed `Break` to `Broke` and Lox's
 ⚠️ **The left operand decides**, as a receiver does everywhere else.
 `Money * 3` is a Money; `3 * Money` is `Operands must be numbers.`
 
-**H-9 — The collections as a unit written in Algol-24.**
-*(will retire most of chapter 14)*
+**H-9 — A collections library written in Algol-24.**
+*(after v0.1.0; changes no rule)*
 
-Everything in chapter 14 that is not genuinely pinned moves out of the core and
-into a unit written in Algol-24. Annex E is the survey of what is pinned and by
-what; in short:
+Collections written in Algol-24, **built on `Array`**, added **beside** the
+native ones rather than replacing them. The compiler is then rewritten onto
+them, and the natives retire only in a later generation once it is running on
+the replacements — so nothing breaks at any step.
 
-| | |
-| --- | --- |
-| `Array` | **stays.** Fixed-size, constant-time, holding arbitrary values — nothing in the language can express it, and it is the primitive the others are built on. |
-| `Stack` | movable today. Its whole surface is method calls and no literal claims its name. The best first candidate. |
-| `Set` | movable today with a linear scan; hashable later using `Ord`. |
-| `List` | pinned by `[…]` alone now. Subscripting and iteration both arrived, so what holds it is the literal claiming its name and nothing else. |
-| `Map` | pinned by `[:]` and `[k : v]`. `M[K]` is answerable now through `Get` and `Put` [TYP-010], so the literals are all that remain. |
+⚠️ **This entry used to propose moving chapter 14 out, and that was the wrong
+shape.** Moving would break every program that says `Set ()` without a `uses`,
+and force a choice between an import in every file and an implicitly-loaded
+file that would make the language depend on something being on disk. Adding a
+second implementation raises neither question.
 
-⚠️ **H-14 does NOT come first**, though this entry said so in three places. A
-unit needs storage, and the storage it needs is `Array` — which Annex E keeps
-native by design, as "the primitive the others are built on". Nothing removed
-from chapter 14 arrives back in chapter 16, so no foreign call is wanted and the
-two entries are independent.
+⚠️ **The reason is more than tidiness: the core's contract is not the only
+reasonable one.** [COL-007] pins insertion order for `Map` and `Set`, and pays
+for it — `ObjMap` carries entries in insertion order *plus* a side index. A
+library implementation may reasonably choose an unordered map with different
+costs. That makes the library worth having whether or not the natives ever
+retire, which the old framing did not.
 
-⚠️ **Nothing in the language is owed any longer.** Iteration landed in
-Generation 5 [TYP-011], a read-only property in Generation 6 [CLS-017], and
-subscripting, ordering and arithmetic in Generation 7 [TYP-010], [VAL-014],
-[EXP-020]. A `List` written in Algol-24 reads `L[0]`, answers `L.Length` without
-parentheses, walks in a `for ... in` and orders — so it is no longer strictly
-worse to use than the built-in it would replace, which is what made the trade
-not worth making.
+⚠️ **Built on `Array`, never as a wrapper.** A wrapper around the native
+collections inherits the very contract the alternative exists to differ from,
+and buys nothing. `Array` is fixed-size, so growth is by doubling and copying —
+the real thing.
 
-⚠️ **[COL-007] is the constraint that outlives the move.** Insertion order is
-specified for every collection, `Set` and `Map` included, so a unit is a third
-implementation bound by it exactly as the two processors are.
+⚠️ **`Array` has no consumer today.** The compiler constructs it nowhere, and
+annotates it nowhere; the collection this annex calls "the primitive the others
+are built on" is exercised only by the corpus. The library would be its first
+real use, which is worth knowing before relying on it.
 
-⚠️ **The point is Annex C.** Everything moved out of the runtime is one thing
-the two processors can no longer disagree about — which is worth doing even now
-that the annex has no open entry, because it removes the *opportunity* rather
-than the current instance. `spec/probes/TYP-012-stack-and-set-in-algol24.a24` already holds a
-working `Stack` and `Set` written in the language, so the path is not
-speculative.
+⚠️ **THIS IS LIBRARY WORK, NOT LANGUAGE WORK**, and the difference decides how
+it is tested and where it is written down. `conformance/` and `refusals/` pin
+**the language**; a library written *in* the language does not belong in either.
+It gets **comprehensive unit tests**, one target per collection, and library
+documentation of its own — not rules in this specification.
 
-⚠️ When a collection moves, its rules leave this specification and its
-conformance cases become **unit tests of the unit**. A rule retired because its
-subject became a library has not been falsified — the distinction matters to
-anyone reading `conformance/` later and wondering where the cases went.
+⚠️ **Nothing in the language is owed for it.** Iteration [TYP-011], a read-only
+property [CLS-017], subscripting [TYP-010], ordering [VAL-014] and arithmetic
+[EXP-020] all landed in Generations 5 through 7, and H-3 closed the element
+types. A collection written in Algol-24 reads as the built-in does.
 
 **H-10 — Varargs from an element type.**
 ***Landed in Generation 4.*** *(changed [FUN-005], [RT-001])*

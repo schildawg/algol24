@@ -4,8 +4,12 @@
 // DOES; nothing here asserts what it should do.
 //
 // Evidence for Annex E: Stack and Set written in Algol-24 itself, and
-// Mod from arithmetic alone. What they cannot do is expose Count as a
-// parenless property, which is TYP-012.
+// Mod from arithmetic alone.
+//
+// ⚠️ This header used to end "What they cannot do is expose Count as a
+// parenless property, which is TYP-012." They can, as of Generation 6:
+// 'property Count : Integer;' [CLS-017]. Nothing in the language stops a
+// collection written in Algol-24 reading as the built-in does any more.
 
 class MyStack;
 var
