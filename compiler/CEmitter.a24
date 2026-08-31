@@ -2451,6 +2451,7 @@ begin
         Functions.Append (Written);
         Functions.Append ('}' + #10 + #10);
 
+
         Depth := EnclosingDepth;
         AtTopLevel := EnclosingTop;
         Locals := EnclosingLocals;
@@ -2947,6 +2948,32 @@ begin
                    + Str (TheStmt.Params.Length) + ', '
                    + QuoteC (Str (TheStmt.ReturnType)) + ', args);' + #10);
         Functions.Append ('}' + #10 + #10);
+        // ⚠️ A foreign subprogram is a VALUE too [FUN-011], and the registration
+        // that makes it one lives at the END of VisitFunctionStmt -- which the
+        // external path returns before reaching.  Skipping it left 'var F :=
+        // TextLength;' emitting a handle nothing had declared, and cc said so.
+        var Name := Str (TheStmt.Name.Lexeme);
+
+        if Overloaded.Contains (Name) then
+        begin
+            if not Declared.Contains (SetName (Name)) then
+            begin
+                DeclareValue (SetName (Name), Name);
+                Setup.Append ('    ' + SetName (Name) + ' = alg_overloads('
+                       + QuoteC (Name) + ');' + #10);
+            end
+
+            Setup.Append ('    alg_overload(' + SetName (Name) + ', ' + Symbol + ', '
+                   + Str (TheStmt.Params.Length) + ', ' + Table + ');' + #10);
+
+            Exit;
+        end
+
+        DeclareValue (HandleName (Name), Name);
+
+        Setup.Append ('    ' + HandleName (Name) + ' = alg_closure('
+               + QuoteC (Name) + ', ' + Symbol + ', NULL, 0, '
+               + Str (TheStmt.Params.Length) + ', ' + Table + ');' + #10);
     end
 
     procedure VisitFunctionStmt (TheStmt : FunctionStmt);

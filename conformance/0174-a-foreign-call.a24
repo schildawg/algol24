@@ -1,0 +1,46 @@
+// spec: FUN-014, TYP-017, INI-008
+//
+// A subprogram may name a C function instead of having a body.
+//
+// ⚠️ THE CORPUS RUNS THE DEFAULT BUILD, which has no foreign calls -- so what
+// this case can test is that the declaration parses, checks and reaches the
+// runtime in both processors, and that the refusal reads the same either way.
+// What a foreign call DOES is outside the corpus because it is outside the
+// specification: the language defines the call and not the callee [FUN-014].
+
+function TextLength (S : String) : Integer;       external 'strlen';
+function Power (X : Double, Y : Double) : Double; external 'pow' in 'libm';
+function Allocate (Size : Integer) : Pointer;     external 'malloc';
+procedure Release (P : Pointer);                  external 'free';
+
+// A declaration is legal whether or not the build can honour it, and so is
+// reading one as a value [FUN-011].
+var F := TextLength;
+WriteLn (F <> Nil);
+
+// The call is where the configuration is felt [INI-008].
+try
+    WriteLn (TextLength ('hello'));
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (Power (2.0, 10.0));
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ 'Pointer' is a type whether or not a Pointer can be obtained.  It denotes
+// a declared type [TYP-013], so it may be written on a declaration and tested
+// with 'is' -- and nothing that is not a foreign handle is one.
+var P : Pointer;
+WriteLn (P = Nil);
+WriteLn (1 is Pointer);
+WriteLn ('text' is Pointer);
+
+try
+    Release (Allocate (64));
+except
+    on e : String do WriteLn (e);
+end

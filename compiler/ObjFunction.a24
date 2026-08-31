@@ -53,6 +53,13 @@ begin
     if Value is ObjFile       then Exit 'TextFile';
     if Value is ObjBuffer     then Exit 'Buffer';
 
+    // ⚠️ A foreign handle is a HOST value, not a wrapper [FUN-014], so it
+    // reaches here as itself and the host's 'is' answers for it.  Without this
+    // line selection could not match a parameter declared 'Pointer' and every
+    // call taking one was 'No matching signature for function.' -- interpreted
+    // only, since type_name in the runtime already answered.
+    if Value is Pointer       then Exit 'Pointer';
+
     Exit NameOfClass (Value);
 end
 

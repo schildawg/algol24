@@ -100,6 +100,9 @@ Value f_typenameof(Value **cells, Value *args, int32_t count) {
     if (alg_truthy(alg_is(v_value, "ObjBuffer"))) {
         return alg_string("Buffer");
     }
+    if (alg_truthy(alg_is(v_value, "Pointer"))) {
+        return alg_string("Pointer");
+    }
     return f_nameofclass(NULL, (Value[]){v_value}, 1);
     return alg_nil();
 }

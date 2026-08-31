@@ -464,16 +464,17 @@ case, because the keyword is recognised first. `var begin := 7;` and
 
 ### 4.4 Keywords
 
-**[LEX-010]**  The following 42 words are keywords and are matched
+**[LEX-010]**  The following 43 words are keywords and are matched
 case-insensitively per [SRC-010]:
 
 ```
-and     as       begin   break   case    class     const   constructor
-continue         div     do      else    end       except  exit
-false   for      function        goto    if        in      is
-nil     not      object  of      operator          or      private
-procedure        property        public  raise     super   then
-this    true     try     type    uses    var       while
+and     as       begin   break     case    class    const   constructor
+continue         div     do        else    end      except  exit
+external         false   for       function         goto    if
+in      is       nil     not       object  of       operator
+or      private  procedure         property         public  raise
+super   then     this    true      try     type     uses
+var     while
 ```
 
 No other word is a keyword. Every word not in this list is an identifier and
@@ -2857,6 +2858,73 @@ second needed.
     conformance  0063-nesting.a24
     conformance  0148-a-function-inside-a-method.a24
 
+**[FUN-014]**  A subprogram may name a **C function** instead of having a body.
+It is written `external` and a symbol, optionally saying which library the
+symbol is in:
+
+```
+function TextLength (S : String) : Integer;       external 'strlen';
+function Power (X : Double, Y : Double) : Double; external 'pow' in 'libm';
+procedure Release (P : Pointer);                  external 'free';
+```
+
+Without a library the symbol is looked for in the **running program**, which
+covers libc and anything already linked. The declared types say how the
+arguments are marshalled: an Integer or a Boolean passes as a machine word, a
+Double as a double, a String as a NUL-terminated C string, and a `Pointer` as
+itself [TYP-013].
+
+⚠️ **THE LANGUAGE DEFINES THE CALL AND NOT THE CALLEE**, and this is the first
+place that sentence has been needed. What a foreign function does, whether the
+symbol exists, and whether the declared types match the C ones are all outside
+this specification and cannot be checked by it. A declaration that misdescribes
+a C signature is undefined behaviour in the ordinary C sense — the conformance
+corpus tests that a call is *made*, never what it reaches.
+
+⚠️ **Both processors go through one implementation.** The tree-walker cannot
+call C, but it runs inside a C program, so the marshalling is in the runtime and
+the interpreter reaches it through a built-in while a compiled program calls it
+directly. Neither can drift from the other because there is nothing to drift.
+
+⚠️ **A foreign call is available only in a build that has one** [INI-008]. The
+default build has no libffi and no `dlopen`, and reports `Foreign calls are not
+available in this build: 'X' cannot be reached.` The **bootstrap** therefore
+still needs a C compiler and nothing else, which is what that constraint has
+always been about.
+
+⚠️ **`in` rather than a keyword of its own.** The word is already reserved
+[LEX-010] and reads correctly — the symbol is *in* the library — so the feature
+costs one new keyword instead of two.
+
+⚠️ **At most eight arguments.** More is `A foreign call takes at most eight
+arguments.` The limit is the marshalling buffers' and is not a language
+principle; it is stated so that a program meets a message rather than a crash.
+
+    interpreter  compiler/Parser.a24  ParseFunction
+    compiler     bootstrap/algol.c    alg_foreign
+    conformance  0174-a-foreign-call.a24
+
+**[TYP-017]**  A `Pointer` is an **opaque foreign handle**. It comes from a
+foreign call and goes back to one, and the language does nothing else with it:
+it has no arithmetic, no ordering, and no conversion to a number.
+
+Two Pointers are equal when they address the same thing. A `Pointer` renders as
+`<pointer>`, or `<pointer nil>` for a null one.
+
+⚠️ **It renders WITHOUT its address, deliberately.** Printing the address would
+make a program's output depend on where the allocator happened to put
+something — non-determinism of exactly the kind the fixed-point check exists to
+catch — and the value means nothing to the program holding it anyway.
+
+⚠️ **A type of its own rather than an Integer**, so that it cannot be
+arithmetic'd or compared as a number. An Integer would carry the address
+faithfully — an Integer is unbounded [LEX-018] — and that is the objection, not
+a limitation.
+
+    interpreter  compiler/ObjFunction.a24  TypeNameOf
+    compiler     bootstrap/algol.c         alg_pointer
+    conformance  0174-a-foreign-call.a24
+
 ---
 
 ## 12. Classes and objects
@@ -3593,12 +3661,12 @@ program having no compiled form.
 
 ### 16.1 The set
 
-**[RT-001]**  Twenty-eight names are built in. Twenty-five are always
+**[RT-001]**  Twenty-nine names are built in. Twenty-six are always
 available:
 
 ```
 Length  Copy  Pos   Str        Ord   Char  Val
-Succ    Pred
+Succ    Pred  Foreign
 Max     Mod   clock
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
@@ -3971,6 +4039,31 @@ follow from index 1.
     interpreter  compiler/Main.a24    ArgumentsFrom
     compiler     bootstrap/algol.c    alg_set_arguments
     conformance  0092-environment-builtins.a24
+
+**[INI-008]**  A foreign call [FUN-014] is available only in a build that has
+one. Two configurations exist:
+
+| build | `external` |
+| --- | --- |
+| default | refused at the call: `Foreign calls are not available in this build: 'X' cannot be reached.` |
+| with libffi | the call is made |
+
+**The corpus runs the default build**, and this is what decides what it can
+test: that an `external` declaration parses, checks and reaches the runtime in
+both processors, and that the refusal reads the same either way. What a foreign
+call *does* is outside the corpus, because it is outside this specification
+[FUN-014].
+
+⚠️ **Both processors still agree within a build**, which is what the standing
+rule asks. The configuration is a property of the runtime the two share, not a
+difference between them.
+
+⚠️ **The default is the one without**, so that the bootstrap needs a C compiler
+and nothing else — a claim about how `algc` is obtained from nothing, not about
+what a program may link against.
+
+    compiler     bootstrap/algol.c  alg_foreign
+    conformance  0174-a-foreign-call.a24
 
 ---
 
@@ -4426,6 +4519,7 @@ checks this list against the names the interpreter actually registers.
 | `Length` | [RT-003] | ⚠️ The length of the argument's **text**, not a count |
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
 | `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
+| `Foreign` | [FUN-014] | ⚠️ The FFI's own plumbing. `external` is the spelling a program uses; this is what it becomes, and it exists because the tree-walker can reach C no other way |
 | `Pred` | [RT-020] | The previous ordinal, on the same terms |
 | `Pos` | [RT-005] | A zero-based index, or -1 when absent |
 | `Str` | [RT-006] | Any value rendered as text |
@@ -6892,73 +6986,38 @@ and its ordinal rather than a pointer to the type, so there is no way from a
 member to the list it belongs to — the gap is honest rather than chosen.
 
 **H-14 — A foreign function interface.**
-*(will change [RT-001], and more)*
+***Stage 1 landed in Generation 8.*** *(added [FUN-014], [TYP-017], [INI-008])*
 
-A way to declare and call a C function, so that a program can reach a library
-someone else already wrote. **SDL is the first target**, and a graphics library
-written in Algol-24 over it is the reason the entry exists.
+A program declares a C function and calls it — scalars, `String` and `Pointer`,
+with the library named or the running program searched. **SDL is the target**,
+and a graphics library written in Algol-24 over it is the reason the entry
+exists; stage 1 is what a window on screen needs.
 
-```
-function Init   (Flags : Integer)                   : Integer; external 'SDL_Init' from 'libSDL2';
-function Window (Title : String, W, H, F : Integer) : Pointer; external 'SDL_CreateWindow' from 'libSDL2';
-procedure Quit  ();                                            external 'SDL_Quit' from 'libSDL2';
-```
+⚠️ **The interpreter was never the difficulty**, which the entry once claimed.
+The tree-walker cannot call C, but it runs *inside* `algc`, which is a C program
+— so the marshalling lives in the runtime, the interpreter reaches it through a
+built-in, and a compiled program calls it directly. Neither can drift from the
+other because there is nothing to drift.
 
-⚠️ **The point is not to shrink the runtime.** This entry used to argue that the
-built-ins are a closed set of twenty-eight names and that an FFI would let them
-leave — and it claimed, in three places, that H-9 could not proceed without it.
-Both were wrong. The purpose is to stop the language being an island: to use
-decades of other people's work rather than reimplement it a built-in at a time.
+⚠️ **libffi, compiled in optionally** [INI-008]. The default build has neither
+libffi nor `dlopen`, so the **bootstrap** still needs a C compiler and nothing
+else — which is what that constraint has always been about. It is the language's
+first configuration, and the corpus runs the default one.
 
-⚠️ **And it does not gate H-9.** A collections unit needs storage; the storage
-it needs is `Array`, which Annex E keeps native by design as "the primitive the
-others are built on". Nothing removed from chapter 14 arrives back in chapter
-16, so the two entries are independent and H-9 may go first.
+⚠️ **`Pointer` is a type of its own, and renders without its address.** An
+Integer would carry the address faithfully, and that is the objection rather
+than a limitation: a handle should not be arithmetic'd. Printing the address
+would make output depend on where the allocator put something — the
+non-determinism the fixed-point check exists to catch.
 
-⚠️ **The interpreter is not the difficulty either**, which this entry also once
-claimed. The tree-walker cannot call C, but it runs *inside* `algc`, which is a
-C program — so if the **runtime** marshals, the interpreter gets the FFI for
-free and both processors share one implementation. That is how text ordering
-reached the tree-walker in Generation 6 without a line changing in
-`Interpreter.a24`.
+⚠️ **What remains: structs and callbacks.** Stage 2 is structs **by pointer**,
+backed by a `Buffer`, so no struct-by-value marshalling is needed. Stage 3 is
+calling back into Algol-24, which SDL can mostly be driven without.
 
-⚠️ **libffi, compiled in optionally.** A closed set of hand-written call shapes
-was considered and does not survive contact with SDL, which is pointer-oriented,
-struct-heavy and mixed in its signatures; hand-writing shapes is reimplementing
-the library one function at a time, which is the island problem again.
-`CLAUDE.md`'s "a C compiler is the only dependency" is a statement about the
-**bootstrap** — its own reason is that the only way into the language is a
-checked-in copy of its own output — and a build switch preserves it exactly: the
-default build stays a C compiler and nothing else.
-
-⚠️ **`Pointer` is required, not a later nicety.** SDL hands back opaque handles
-throughout. It must be a type of its own rather than an Integer, so that it
-cannot be arithmetic'd, printed as a number, or confused with one.
-
-⚠️ **Three stages, and the first one puts a window on screen.**
-
-| | | |
-| --- | --- | --- |
-| 1 | scalars, `Pointer`, `String` | most of SDL's surface is exactly this |
-| 2 | structs **by pointer**, backed by a `Buffer` | `SDL_Rect` through `PutInt` and `GetInt`, so no struct-by-value marshalling is needed and the language already has the piece |
-| 3 | callbacks into Algol-24 | the genuinely hard one; SDL can be driven by a polling loop, so it may wait indefinitely |
-
-⚠️ **The specification will have to say where conformance stops**, and this is
-the first place that sentence is needed. A foreign call has behaviour this
-document does not define and cannot check: the language specifies the **call**,
-not the callee. `conform.sh` cannot test SDL and should not pretend to.
-
-⚠️ **It also introduces two configurations**, which the language has never had.
-`external` works in an FFI build and is refused in a plain one. Both processors
-still agree *within* a build, so the standing rule survives — but the corpus
-runs one configuration and the rules must say which, and what the other does.
-
-⚠️ **Generations 6 and 7 were the preparation for this**, whether or not they
-were meant to be. A `Vector` with `operator +` [EXP-020], a `Colour` with a
-read-only property [CLS-017], a sprite list that subscripts and iterates
-[TYP-010], [TYP-011] — a binding written with those reads like Algol-24 rather
-than like C, which is the difference between using a library and merely
-reaching it.
+⚠️ **Four keyword collisions in two generations.** `external` broke a field of
+that name in `Stmt.a24`, as `operator` broke a local in `Parser.a24`, and as
+`break` once forced `Broke`. Reserving a word makes it unspellable everywhere,
+and this repository keeps relearning it.
 
 **H-15 — Subscripting through `Get` and `Put`.**
 ***Landed in Generation 7.*** *(changed [TYP-010], [EXP-016])*

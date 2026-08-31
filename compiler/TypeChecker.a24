@@ -281,7 +281,7 @@ begin
         // names something even though 'X is Any' is always false [VAL-005].
         for var Name in ['Any', 'Boolean', 'Integer', 'Double', 'String', 'Char',
                          'List', 'Set', 'Stack', 'Array', 'Map',
-                         'TextFile', 'Buffer',
+                         'TextFile', 'Buffer', 'Pointer',
                          'Byte', 'Word', 'Short'] do
             Lookup.DeclaredTypes.Add (FoldCase (Name));
     end
