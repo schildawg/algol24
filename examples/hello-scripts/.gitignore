@@ -1,2 +1,5 @@
 build/
-hello.bmp
+*.bmp
+old.png
+new.png
+compare.png

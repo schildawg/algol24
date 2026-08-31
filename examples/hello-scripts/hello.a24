@@ -107,8 +107,17 @@ end
 // LENGTH of the row data is the width, which is how Unifont carries the East
 // Asian width table without a second table.
 
-var Glyphs := [:];        // codepoint -> List of sixteen row bit patterns
-var Widths := [:];        // codepoint -> 8 or 16
+// A grey font says so on its first line -- '# gray8 32' -- and then carries one
+// BYTE of coverage per pixel instead of one bit.  That single difference is
+// what separates text that looks like a character ROM from text that looks
+// like this machine's console: a stem that falls between two pixels lands on
+// both, at the weight it actually covers, rather than being thresholded into
+// one of them.
+
+var Glyphs := [:];        // codepoint -> List of rows (bit patterns, or bytes)
+var Widths := [:];        // codepoint -> pixels across
+var Height := 16;         // pixels down
+var Grey   := False;      // one byte of coverage per pixel rather than one bit
 
 function HexDigit (C : Char) : Integer;
 begin
@@ -144,28 +153,104 @@ begin
         var Line := F.ReadLn ();
         var Colon := Pos (Line, ':');
 
+        // '# gray8 32' -- the header a grey font opens with, and the only line
+        // in either format that is not a glyph.
+        if Length (Line) > 0 then
+          if Line[0] = '#' then
+          begin
+              Grey   := True;
+              Height := 0;
+
+              var I := Pos (Line, '8') + 1;        // just past 'gray8'
+              while I < Length (Line) do
+              begin
+                  if Line[I] >= '0' then
+                    if Line[I] <= '9' then
+                        Height := Height * 10 + Ord (Line[I]) - Ord ('0');
+                  I := I + 1;
+              end
+          end
+
         if Colon >= 0 then
         begin
             var Code := HexAt (Line, 0, Colon);
             var Bits := Copy (Line, Colon + 1, Length (Line) - Colon - 1);
 
-            // Sixteen rows always; the digits per row say how wide.
-            var Digits := Length (Bits) div 16;
-            var Rows   := [];
-            var R      := 0;
+            // One row of a 1-bit glyph is 2 or 4 hex digits; one row of a grey
+            // one is 2 per pixel.  Either way the total says how wide it is.
+            var Rows := [];
+            var R    := 0;
 
-            while R < 16 do
+            if Grey then
             begin
-                Rows.Add (HexAt (Bits, R * Digits, Digits));
-                R := R + 1;
+                var Wide := Length (Bits) div 2 div Height;
+
+                while R < Height do
+                begin
+                    var Row := [];
+                    var C   := 0;
+                    while C < Wide do
+                    begin
+                        Row.Add (HexAt (Bits, (R * Wide + C) * 2, 2));
+                        C := C + 1;
+                    end
+                    Rows.Add (Row);
+                    R := R + 1;
+                end
+
+                Widths[Code] := Wide;
+            end
+            else
+            begin
+                var Digits := Length (Bits) div Height;
+
+                while R < Height do
+                begin
+                    Rows.Add (HexAt (Bits, R * Digits, Digits));
+                    R := R + 1;
+                end
+
+                Widths[Code] := Digits * 4;
             end
 
             Glyphs[Code] := Rows;
-            Widths[Code] := Digits * 4;
         end
     end
 
     F.Close ();
+end
+
+/// Mixes Ink into Ground at a coverage of 0 .. 255, channel by channel.
+function Mix (Ground : Integer, Ink : Integer, Cover : Integer) : Integer;
+begin
+    if Cover >= 255 then Exit Ink;
+    if Cover <= 0   then Exit Ground;
+
+    var GR := Ground div 65536;
+    var GG := Mod (Ground div 256, 256);
+    var GB := Mod (Ground, 256);
+
+    var IR := Ink div 65536;
+    var IG := Mod (Ink div 256, 256);
+    var IB := Mod (Ink, 256);
+
+    var R := GR + (IR - GR) * Cover div 255;
+    var G := GG + (IG - GG) * Cover div 255;
+    var B := GB + (IB - GB) * Cover div 255;
+
+    Exit R * 65536 + G * 256 + B;
+end
+
+procedure Wash (X : Integer, Y : Integer, Ink : Integer, Cover : Integer);
+begin
+    if X >= 0 then
+      if Y >= 0 then
+        if X < W then
+          if Y < H then
+          begin
+              var At := (Y * W + X) * 4;
+              Pixels.PutInt (At, Mix (Pixels.GetInt (At), Ink, Cover));
+          end
 end
 
 /// Blits one glyph, scaled, and answers how far to advance.
@@ -175,31 +260,58 @@ var
     Wide : Any;
     Rows : Any;
 begin
-    if not (Code in Glyphs) then Exit 8 * Scale;
+    if not (Code in Glyphs) then Exit (Height div 2) * Scale;
 
     Rows := Glyphs[Code];
     Wide := Widths[Code];
 
     var R := 0;
-    while R < 16 do
+    while R < Height do
     begin
-        var Bits := Rows[R];
-        var C    := 0;
+        var Row := Rows[R];
+        var C   := 0;
 
         while C < Wide do
         begin
-            // The high bit is the leftmost pixel.  No shift operator, so the
-            // bit is selected by dividing it down to the ones place.
-            var Place := 1;
-            var K     := 0;
-            while K < Wide - 1 - C do
+            if Grey then
             begin
-                Place := Place * 2;
-                K := K + 1;
-            end
+                // ⚠️ Blended, not stamped.  This is the whole difference: a
+                // stem falling between two pixels marks both, each at the
+                // weight it actually covers.
+                var Cover := Row[C];
 
-            if Mod (Bits div Place, 2) = 1 then
-                Box (X + C * Scale, Y + R * Scale, Scale, Scale, Colour);
+                if Cover > 0 then
+                  if Scale = 1 then Wash (X + C, Y + R, Colour, Cover);
+                  else
+                  begin
+                      var SY := 0;
+                      while SY < Scale do
+                      begin
+                          var SX := 0;
+                          while SX < Scale do
+                          begin
+                              Wash (X + C * Scale + SX, Y + R * Scale + SY, Colour, Cover);
+                              SX := SX + 1;
+                          end
+                          SY := SY + 1;
+                      end
+                  end
+            end
+            else
+            begin
+                // The high bit is the leftmost pixel.  No shift operator, so
+                // the bit is selected by dividing it down to the ones place.
+                var Place := 1;
+                var K     := 0;
+                while K < Wide - 1 - C do
+                begin
+                    Place := Place * 2;
+                    K := K + 1;
+                end
+
+                if Mod (Row div Place, 2) = 1 then
+                    Box (X + C * Scale, Y + R * Scale, Scale, Scale, Colour);
+            end
 
             C := C + 1;
         end
@@ -285,30 +397,49 @@ end
 
 // ---------------------------------------------------------------- draw --
 
-LoadFont ('font.hex');
-WriteLn ('font: ' + Str (Glyphs.Length) + ' glyphs loaded');
+// hello.a24 [font [picture]] -- so the same program can draw the same frame
+// with a 1-bit font and a grey one, which is the comparison in the README.
+var FontFile := 'font-aa.hex';
+var Picture  := 'hello.bmp';
+
+if ParamCount () >= 1 then FontFile := ParamStr (1);
+if ParamCount () >= 2 then Picture  := ParamStr (2);
+
+LoadFont (FontFile);
+
+// ⚠️ A grey font is drawn at its own size; a 1-bit one is doubled to reach a
+// comparable height.  THAT is what the comparison is about: a 16-pixel font
+// magnified twice is not a 32-pixel font, and the difference is exactly the
+// blockiness people mean by 'looks like the eighties'.
+var Scale := 1;
+if not Grey then Scale := 2;
+
+var Kind := '1-bit';
+if Grey then Kind := 'grey';
+
+WriteLn ('font: ' + FontFile + ', ' + Str (Glyphs.Length) + ' glyphs, '
+         + Str (Height) + ' tall, ' + Kind);
 
 Fill (0x1E1E28);
 
-DrawText ('Hello, in five scripts', 40, 34, 0xF0F0F5, 2);
-Box (40, 76, 960, 2, 0x3A3A4A);
+DrawText ('Hello, in five scripts', 40, 30, 0xF0F0F5, Scale);
+Box (40, 82, 960, 2, 0x3A3A4A);
 
-DrawPie (250, 300, 150);
+DrawPie (250, 305, 150);
 
 var Row := 0;
 while Row < Labels.Length do
 begin
     var Y := 150 + Row * 54;
 
-    Box (500, Y, 26, 26, Colours[Row]);
-    DrawText (Labels[Row], 546, Y - 3, 0xE6E6F0, 2);
-    DrawText (Str (Shares[Row]) + '%', 950, Y - 3, 0x9A9AB0, 2);
+    Box (500, Y + 4, 26, 26, Colours[Row]);
+    DrawText (Labels[Row], 546, Y, 0xE6E6F0, Scale);
+    DrawText (Str (Shares[Row]) + '%', 950, Y, 0x9A9AB0, Scale);
 
     Row := Row + 1;
 end
 
 DrawText ('drawn by Algol-24 into its own framebuffer', 40, 470, 0x70708A, 1);
-DrawText ('press Esc or close the window to quit', 700, 470, 0x70708A, 1);
 
 // --------------------------------------------------------------- show --
 
@@ -330,8 +461,8 @@ SDL_RenderPresent (Ren);
 // Keep the picture after the window closes.
 var Surface := SDL_CreateRGBSurfaceWithFormatFrom (Pixels.Address, W, H, 32,
                                                    W * 4, PIXELFORMAT_RGB);
-SDL_SaveBMP_RW (Surface, SDL_RWFromFile ('hello.bmp', 'wb'), 1);
-WriteLn ('wrote hello.bmp');
+SDL_SaveBMP_RW (Surface, SDL_RWFromFile (Picture, 'wb'), 1);
+WriteLn ('wrote ' + Picture);
 
 // The window stays up until it is closed or Esc is pressed.  An SDL_Event is
 // 56 bytes: the kind is a Uint32 at offset 0, and for a key press the key

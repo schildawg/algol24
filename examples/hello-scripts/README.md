@@ -23,6 +23,7 @@ system.
 ./bootstrap/build.sh --ffi                 # algc, able to call C
 cd examples/hello-scripts
 ../../bootstrap/algc hello.a24             # interpreted -- correct, but slow
+                                           # (font-aa.hex by default)
 ```
 
 ⚠️ **Interpreted, the first frame takes about 40 seconds**, because every pixel
@@ -51,7 +52,35 @@ substitution fixes it:
 sed -i '' "s|/opt/homebrew/lib/libSDL2.dylib|/usr/lib/libSDL2.so|g" hello.a24
 ```
 
-## The font
+## Two fonts, and why one looks like 1985
+
+The program takes the font file as its first argument, so the same frame can be
+drawn twice:
+
+```sh
+./build/hello font.hex    old.bmp     # 1-bit cells, 8 x 16, doubled to fit
+./build/hello font-aa.hex new.bmp     # grey coverage, 16 x 32, drawn at 1:1
+```
+
+Two changes separate them, and only the first is interesting:
+
+1. **One byte of coverage per pixel instead of one bit.** A stem that falls
+   between two pixels marks both, each at the weight it actually covers,
+   instead of being thresholded into one of them. `Mix` and `Wash` in
+   `hello.a24` are the whole of it — eleven lines.
+2. **A 32-pixel font, not a 16-pixel font magnified twice.** Integer-scaling a
+   small bitmap doubles every error in it. This is most of what people mean
+   when they say something "looks like the eighties".
+
+⚠️ **Grey costs data, and the cost is why Unifont is 1-bit.** These 124 glyphs
+are 5 KB at one bit and 140 KB at one byte. The whole Basic Multilingual Plane
+would be about 1.4 MB at one bit and **tens of megabytes** in grey at this size —
+and a bitmap font is one file *per size*. Arbitrary sizes want a rasterizer,
+which means FreeType through the FFI, which is currently blocked: reading
+`face->glyph->bitmap.buffer` means reading a pointer out of a C struct, and a
+`Buffer` has no way to hand one back.
+
+## The font format
 
 `font.hex` is in **GNU Unifont's format** and could be replaced by the real
 thing without touching `hello.a24`:
@@ -73,8 +102,11 @@ in for shipping Unifont itself, which covers the whole Basic Multilingual Plane
 in about 1.4 MB. Do not hand-edit a row — regenerate:
 
 ```sh
-python3 makefont.py font.hex        # needs Pillow
+python3 makefont.py font.hex             # 1-bit, Unifont's format
+python3 makefont.py --gray 32 font-aa.hex
 ```
+
+Both need Pillow.
 
 ⚠️ **A proportional face does not fit an eight-pixel cell.** `M` and `W` lose a
 stem, so `makefont.py` condenses anything too wide. That is the argument for

@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Rasterise just the codepoints the demo needs into a Unifont-style .hex file.
+"""Rasterise the codepoints this demo needs into a cell font.
 
-This stands in for shipping GNU Unifont: the format is the same, so the
-Algol-24 side is written against the real thing.
+Two formats, and the difference between them is the whole point of the
+comparison in the README.
 
-  XXXX:HH x16   a narrow glyph, 8 x 16
-  XXXX:HHHH x16 a wide glyph,  16 x 16
+  makefont.py font.hex                 GNU Unifont's format: one BIT per pixel,
+                                       cells 8 x 16 and 16 x 16, width carried
+                                       by the length of the row data.
 
-Width is carried by the length of the row data, exactly as Unifont does it.
+  makefont.py --gray 32 font-aa.hex    one BYTE of coverage per pixel, at any
+                                       cell height.  The first line says so.
+
+The 1-bit form is what a 1980s character ROM held.  The grey form is what every
+console on this machine actually draws, and it is why their text looks smooth
+and a thresholded bitmap does not.
 """
 import sys, unicodedata
 from PIL import Image, ImageDraw, ImageFont
@@ -29,10 +35,8 @@ TEXT = (
 def is_wide(ch):
     return unicodedata.east_asian_width(ch) in ("W", "F")
 
-def render(ch, font, cell_w):
-    img = Image.new("L", (cell_w, 16), 0)
-    d = ImageDraw.Draw(img)
-    # Nudge each glyph into the cell using its own bounding box.
+def render(ch, font, cell_w, cell_h, baseline):
+    img = Image.new("L", (cell_w, cell_h), 0)
     try:
         box = font.getbbox(ch)
     except Exception:
@@ -41,18 +45,33 @@ def render(ch, font, cell_w):
 
     # A proportional face has letters wider than the cell -- 'M' and 'W' lose a
     # stem if they are simply clipped.  Draw those into a wider image and
-    # condense it, which is the compromise a hand-drawn cell font does not need.
+    # condense it, which is the compromise a font drawn FOR the cell avoids.
     if w > cell_w:
-        wide_img = Image.new("L", (w + 2, 16), 0)
-        ImageDraw.Draw(wide_img).text((-box[0], 13), ch, font=font, fill=255, anchor="ls")
-        return wide_img.resize((cell_w, 16), Image.LANCZOS)
+        wide = Image.new("L", (w + 2, cell_h), 0)
+        ImageDraw.Draw(wide).text((-box[0], baseline), ch, font=font, fill=255, anchor="ls")
+        return wide.resize((cell_w, cell_h), Image.LANCZOS)
 
-    d.text((-box[0] + max(0, (cell_w - w) // 2), 13), ch, font=font, fill=255, anchor="ls")
+    ImageDraw.Draw(img).text((-box[0] + max(0, (cell_w - w) // 2), baseline),
+                             ch, font=font, fill=255, anchor="ls")
     return img
 
 def main():
-    font = ImageFont.truetype(FONT, 13)
+    args = sys.argv[1:]
+    grey = False
+    cell_h = 16
+
+    if args and args[0] == "--gray":
+        grey, cell_h, args = True, int(args[1]), args[2:]
+
+    # A cell wants the face a little smaller than its height, so ascenders and
+    # descenders have somewhere to go.
+    size     = int(cell_h * 0.80)
+    baseline = int(cell_h * 0.78)
+    font     = ImageFont.truetype(FONT, size)
+
     seen, out = set(), []
+    if grey:
+        out.append("# gray8 %d" % cell_h)
 
     for ch in sorted(set(TEXT)):
         cp = ord(ch)
@@ -60,24 +79,29 @@ def main():
             continue
         seen.add(cp)
 
-        wide = is_wide(ch)
-        cell_w = 16 if wide else 8
-        img = render(ch, font, cell_w)
+        cell_w = cell_h if is_wide(ch) else cell_h // 2
+        px = render(ch, font, cell_w, cell_h, baseline).load()
 
-        rows = []
-        px = img.load()
-        for y in range(16):
-            bits = 0
-            for x in range(cell_w):
-                if px[x, y] > 110:
-                    bits |= 1 << (cell_w - 1 - x)
-            rows.append(("%04X" if wide else "%02X") % bits)
+        if grey:
+            # One byte of coverage per pixel, row by row.
+            body = "".join("%02X" % px[x, y]
+                           for y in range(cell_h) for x in range(cell_w))
+        else:
+            rows = []
+            for y in range(cell_h):
+                bits = 0
+                for x in range(cell_w):
+                    if px[x, y] > 110:
+                        bits |= 1 << (cell_w - 1 - x)
+                rows.append(("%04X" if cell_w > 8 else "%02X") % bits)
+            body = "".join(rows)
 
-        out.append("%04X:%s" % (cp, "".join(rows)))
+        out.append("%04X:%s" % (cp, body))
 
-    with open(sys.argv[1], "w") as f:
+    with open(args[0], "w") as f:
         f.write("\n".join(out) + "\n")
 
-    print("%d glyphs" % len(out))
+    print("%d glyphs, %s" % (len(out) - (1 if grey else 0),
+                             "grey %d" % cell_h if grey else "1-bit 16"))
 
 main()
