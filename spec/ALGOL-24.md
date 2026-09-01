@@ -208,7 +208,7 @@ read — quadratic, and nothing had noticed. Caching a string's character count
 by pointer removed that: measured over three runs of `./test.sh`, 20.1 s against
 21.2 s before.
 
-    interpreter  compiler/Interpreter.a24  LengthNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_length
     conformance  0128-text-is-characters.a24
 
@@ -3361,7 +3361,7 @@ A bracketed list of `key : value` pairs is a `Map`, and `[:]` is an empty one.
 collections, `Set(L)` builds a Set from a collection, and `Array(N)` an Array of
 `N` elements.
 
-    interpreter  compiler/Interpreter.a24  ArrayNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_array
     conformance  0075-collection-construction.a24
 
@@ -3751,7 +3751,7 @@ never equal, since a List of *n* one-digit numbers renders as `3n` characters.
 ⚠️ A program that means the rendering writes `Length(Str(L))`, which is what it
 was getting by accident.
 
-    interpreter  compiler/Interpreter.a24  LengthNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_text_length
     conformance  0115-length-refuses-a-collection.a24
 
@@ -3773,14 +3773,14 @@ where that was the direction.
 The length is clamped to what remains, so `Copy('abcdef', 3, 99)` is `def`. A
 start outside the text is `Copy failed: Start -2 out of range 0..6.`
 
-    interpreter  compiler/Interpreter.a24  CopyNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_copy
     conformance  0089-text-builtins.a24
 
 **[RT-005]**  `Pos(Text, Part)` answers the zero-based index of `Part` within
 `Text`, or **-1** when it is absent.
 
-    interpreter  compiler/Interpreter.a24  PosNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_pos
     conformance  0089-text-builtins.a24
 
@@ -3804,7 +3804,7 @@ it a defect in the implementation rather than a limit worth writing down.
 **[RT-007]**  `Ord(C)` answers the code point of a single character, as an
 **Integer**. Anything longer is `Ord failed: 'ab' has no ordinal.`
 
-    interpreter  compiler/Interpreter.a24  OrdNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_ord
     conformance  0089-text-builtins.a24
 
@@ -3815,7 +3815,7 @@ inverse across it.
 ⚠️ `Char(0)` is legal here, and only the **literal** `#0` is refused
 [LEX-032] — the scanner's own end-of-input sentinel is `Char(0)`.
 
-    interpreter  compiler/Interpreter.a24  CharNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_char
     conformance  0128-text-is-characters.a24
     refusal      0038-char-out-of-range.a24
@@ -3837,7 +3837,7 @@ checked [VAL-007] and fails loudly when the text held the other kind. Declaring
 `Val` to be Double, as this implementation once did, is a lie in both
 directions: it refused `var I : Integer := Val ('42');`, which works.
 
-    interpreter  compiler/Interpreter.a24  ValNative
+    interpreter  compiler/Interpreter.a24  ParsedNumber
     compiler     bootstrap/algol.c         alg_val
     conformance  0119-val-and-max.a24
 
@@ -3857,7 +3857,7 @@ defensible; together they left `Max(Val(A), Val(B))` failing for **every**
 input, so text holding two numbers could not be compared without going outside
 both built-ins.
 
-    interpreter  compiler/Interpreter.a24  MaxNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_max
     conformance  0119-val-and-max.a24
 
@@ -3865,14 +3865,14 @@ both built-ins.
 dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
 zero.`
 
-    interpreter  compiler/Interpreter.a24  ModNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_mod
     conformance  0091-numeric-builtins.a24
 
 **[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
 millisecond resolution.
 
-    interpreter  compiler/Interpreter.a24  ClockNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_clock
     conformance  0091-numeric-builtins.a24
 
@@ -3881,13 +3881,13 @@ millisecond resolution.
 **[RT-013]**  `ParamStr(0)` is the program's own name and `ParamCount()` does
 not count it, so a program run with no arguments reports zero.
 
-    interpreter  compiler/Interpreter.a24  ParamCountNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_param_count
     conformance  0092-environment-builtins.a24
 
 **[RT-014]**  `FileExists(Name)` answers whether the named file exists.
 
-    interpreter  compiler/Interpreter.a24  FileExistsNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_file_exists
     conformance  0092-environment-builtins.a24
 
@@ -3900,7 +3900,7 @@ them, so `WriteLn ('ABC', 123)` writes `ABC123` and `WriteLn ()` is the newline
 on its own.
 
     interpreter  compiler/Interpreter.a24  Rendered
-    interpreter  compiler/Interpreter.a24  WriteLnNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_writeln
     conformance  0093-write-and-writeln.a24
     conformance  0159-write-takes-any-number-of-values.a24
@@ -3953,7 +3953,7 @@ way from a member to the list it belongs to. That link is a change of its own.
 ⚠️ **An Integer has no end to check** because it is unbounded [LEX-018]; a Char
 does, stopping at U+10FFFF.
 
-    interpreter  compiler/Interpreter.a24  SuccNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_succ
     conformance  0167-character-arithmetic.a24
 
@@ -3976,7 +3976,7 @@ piped.
 ⚠️ The status is what the program passes. The host takes it modulo 256, as every
 process exit status is; that is the operating system's rule, not this language's.
 
-    interpreter  compiler/Interpreter.a24  HaltNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_halt
     conformance  0134-halt.a24
 
@@ -4566,14 +4566,14 @@ against each other.
 C-23, where the premise that compiled code could not build the line was the part
 that was wrong.
 
-    interpreter  compiler/Interpreter.a24  AssertTrueNative
+    interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_assert_equal
     conformance  0132-assertion-messages.a24
 
 **[TST-013]**  `AssertEqual` compares with `=` [VAL-009], so it promotes
 numerically and holds a `Char` unequal to a `String` [LEX-026].
 
-    interpreter  compiler/Interpreter.a24  AssertEqualNative
+    interpreter  compiler/Interpreter.a24  Native
     conformance  0107-assert-equal-comparison.a24
 
 ### 19.5 Compiled runs
