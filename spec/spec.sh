@@ -97,7 +97,7 @@ awk '
         rule = substr($0, RSTART + 1, RLENGTH - 2)
         next
     }
-    /^[ \t]+(interpreter|compiler|unit|conformance|refusal|defect)[ \t]/ {
+    /^[ \t]+(interpreter|compiler|library|unit|conformance|refusal|defect)[ \t]/ {
         if (rule == "") next
         line = $0
         sub(/^[ \t]+/, "", line)
@@ -124,7 +124,7 @@ MISSING_SYM=0
 
 while IFS="$(printf '\t')" read -r rule key value; do
     case "$key" in
-        interpreter|compiler) ;;
+        interpreter|compiler|library) ;;
         *) continue ;;
     esac
 
@@ -238,14 +238,23 @@ done < "$WORK/cites"
 # ⚠️ The reserved -000 illustration is excluded here as it is from the rule
 # count, or 'accounted for' reports 261 of 260 -- a total larger than the thing
 # it is a total of, which is the shape of a number nobody checks.
-for k in unit conformance refusal defect; do
+for k in unit conformance refusal defect library; do
     awk -F'\t' -v k="$k" '$2==k{print $1}' "$WORK/cites" \
       | grep -v -- '-000$' | sort -u > "$WORK/has_$k"
 done
-cat "$WORK/has_conformance" "$WORK/has_refusal" "$WORK/has_defect" 2>/dev/null \
+cat "$WORK/has_conformance" "$WORK/has_refusal" "$WORK/has_defect" \
+    "$WORK/has_library" 2>/dev/null \
   | sort -u > "$WORK/has_any"
 
 [ "$MISSING_CONF" -eq 0 ] && echo "  $TBD rule(s) await a conformance program (TBD)"
+
+# ⚠️ A TOMBSTONE is a rule whose subject has left the language -- moved into a
+# unit written in Algol-24.  It keeps its number so that what cites it still
+# resolves, and cites the unit instead of a conformance program: library code is
+# pinned by unit tests, never by the corpus, so demanding a case would be asking
+# for the one kind of evidence it must not have.
+MOVED=$(awk -F"\t" '$2=="library"{print $1}' "$WORK/cites" | sort -u | wc -l | tr -d " ")
+echo "  $MOVED rule(s) moved to a library unit, each citing it"
 
 # ⚠️ Every rule must carry BOTH keys.  A rule with neither is not "not yet
 # covered" -- it is unaccounted for, and the difference is the whole point of

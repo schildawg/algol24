@@ -1,5 +1,5 @@
 /* Generated from Algol-24.  Do not edit. */
-#include "System.h"
+#include "Core.h"
 
 Value f_max(Value **cells, Value *args, int32_t count);
 static Value or_0;
@@ -25,6 +25,6 @@ Value f_max(Value **cells, Value *args, int32_t count) {
     return alg_nil();
 }
 
-void init_System(void) {
+void init_Core(void) {
     fn_max = alg_closure("Max", f_max, NULL, 0, 2, t_f_max);
 }

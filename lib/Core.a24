@@ -1,4 +1,9 @@
-/// System -- what the core need not provide.
+/// Core -- what the core of the language need not provide.
+///
+/// ⚠️ NOT called 'System', which is taken: the language's own System unit is
+/// the built-ins [MOD-011], reachable as 'System.Ord'.  A library unit of that
+/// name would be a second one, and 'System.Max' would mean different things
+/// depending on which was in scope.
 ///
 /// ⚠️ Moved OUT of the language, not added to it.  Each of these was a built-in
 /// with a rule of its own; they are ordinary Algol-24 here, and the core is

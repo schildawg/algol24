@@ -16,7 +16,7 @@
 #include "Stmt.h"
 #include "Token.h"
 #include "TokenType.h"
-#include "System.h"
+#include "Core.h"
 
 Value f_setprogramarguments(Value **cells, Value *args, int32_t count);
 Value f_suppressoutput(Value **cells, Value *args, int32_t count);
@@ -3051,7 +3051,7 @@ void init_Interpreter(void) {
     init_ObjFile();
     init_Parser();
     init_Resolver();
-    init_System();
+    init_Core();
     v_programarguments = alg_widen(alg_list(), "List");
     d_programarguments = true;
     v_outputsuppressed = alg_widen(alg_bool(false), "Boolean");

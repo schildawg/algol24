@@ -14,7 +14,7 @@ uses Scanner;
 uses Stmt;
 uses Token;
 uses TokenType;
-uses 'lib/System';
+uses 'lib/Core';
 
 /// The interpreted program's own arguments -- NOT algc's.
 ///

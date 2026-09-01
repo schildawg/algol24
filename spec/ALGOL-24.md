@@ -1,7 +1,7 @@
 # The Algol-24 Programming Language Specification
 
 > **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 279 rules. Every rule is **decided** — what the
+> chapters and eight annexes, 280 rules. Every rule is **decided** — what the
 > language should do — and every rule is claimed by a case: a program in
 > `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
 > None awaits one.
@@ -3841,6 +3841,27 @@ directions: it refused `var I : Integer := Val ('42');`, which works.
     compiler     bootstrap/algol.c         alg_val
     conformance  0119-val-and-max.a24
 
+**[RT-010]**  ***Moved to `lib/Core` in Generation 9.*** `Max(A, B)` was a
+built-in. It is an ordinary function written in Algol-24 now, documented in
+`spec/LIBRARY.md`, and a program reaches it with `uses 'lib/Core';`.
+
+⚠️ **A TOMBSTONE, and the number is why.** Identifiers are permanent, and three
+entries name this one as the rule that *fixed* a past defect — C-30 and D-16
+below. Deleting it would leave them citing nothing, so the rule keeps its number
+and says where its subject went. What it no longer does is describe the
+language: `Max` is not in it.
+
+⚠️ **It cites the unit, not a conformance program**, and `spec/spec.sh` enforces
+that shape. Library code is pinned by unit tests and never by the corpus —
+`conformance/` and `refusals/` test the language — so demanding a case here
+would be asking for the one kind of evidence a library must not have.
+
+⚠️ **Measured before it moved, not after.** `Max` is called **zero** times by
+the whole test suite and by a complete compile of the compiler, which is what
+made it the first to go. `Length` in the same measurement was 392 million.
+
+    library  lib/Core.a24  Max
+
 **[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
 dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
 zero.`
@@ -5610,7 +5631,7 @@ in front of it. It is `Strings are immutable.` on both sides now.
 
 **C-30 — `Max` and `Val` answer differently compiled.**
 ***Withdrawn.***
-*(refers to `Max` — a library function now — and [RT-011])*
+*(refers to [RT-010], [RT-011])*
 
 | | Interpreted | Compiled |
 | --- | --- | --- |
@@ -6359,7 +6380,7 @@ spelling for "how many" and `Length(…)` is left meaning only "how long is this
 text".
 
 **D-16 — `Val` always yields a Double, and `Max` never accepts one.** *(refers
-to [RT-009], and to `Max` — a library function now)*
+to [RT-009], [RT-010])*
 
 `Val('42')` is `42.0`, not `42`, so text that plainly holds an integer cannot be
 parsed into one — and the result then cannot be passed to `Max`, which refuses
@@ -6373,9 +6394,9 @@ Integer at all.
 
 **Resolved, both halves.** [RT-009] makes `Val` answer an Integer where the
 text has no point and a Double where it has one, reading the same characters the
-literal rules do [LEX-015], [LEX-020]. `Max` takes any two numbers, promoting as every
-other numeric operator does [EXP-005] — and it left the core for `lib/System`
-afterwards, so what fixed it is now library code.
+literal rules do [LEX-015], [LEX-020]. [RT-010] lets `Max` take any two numbers,
+promoting as every other numeric operator does [EXP-005] — and `Max` has since
+left the core for `lib/Core`, so what fixed this is library code now.
 
 ⚠️ They are **one** defect, DEF-27, rather than two. Either change alone helps,
 but only both together make `Max(Val(A), Val(B))` — which failed for every input

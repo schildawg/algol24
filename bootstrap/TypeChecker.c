@@ -7,7 +7,7 @@
 #include "SourceCode.h"
 #include "Token.h"
 #include "TokenType.h"
-#include "System.h"
+#include "Core.h"
 
 Value f_rejects(Value **cells, Value *args, int32_t count);
 Value k_typelookup;

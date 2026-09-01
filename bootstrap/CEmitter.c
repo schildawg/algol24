@@ -5,7 +5,7 @@
 #include "Stmt.h"
 #include "TokenType.h"
 #include "Token.h"
-#include "System.h"
+#include "Core.h"
 
 Value f_indentation(Value **cells, Value *args, int32_t count);
 Value f_quotec(Value **cells, Value *args, int32_t count);

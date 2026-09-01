@@ -4,7 +4,7 @@
 // against System [MOD-011].  The list itself is checked against the
 // interpreter by spec/spec.sh; this shows they answer.
 
-uses 'lib/System';      // Max is a library function now
+uses 'lib/Core';      // Max is a library function now
 
 WriteLn (Length ('abc'));
 WriteLn (Copy ('abcdef', 0, 3));
