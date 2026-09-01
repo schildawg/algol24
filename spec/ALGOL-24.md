@@ -8405,6 +8405,25 @@ The declaration used to be refused with `'A' is already defined.`, so adding
 a member to one enumeration could break an unrelated one elsewhere in the
 program — and `First.A`, which is unambiguous, never got a chance to help.
 
+    conformance  0123-enumerations-may-share-member-names.a24
+
+**[ENU-011]**  A **bare** member name bound by more than one enumeration in
+scope is ambiguous, and using it is refused with
+`'A' is ambiguous: First or Second.` The qualified form [ENU-002] resolves it:
+`First.A` and `Second.A` are two different members.
+
+A bare name bound by only one enumeration in scope is unambiguous and needs no
+qualifier, which is the ordinary case and the reason members bind bare at all.
+
+**The refusal belongs to the use, not to the declaration.** Two enumerations
+that never meet an ambiguous use coexist without complaint, and a program is
+told about a name only where it actually cannot be resolved.
+
+The ambiguous name is **removed** from the scope's bindings rather than left
+in it holding one of the two, so a bare read cannot quietly find one. The
+qualified form is unaffected: it reaches the member through the enumeration
+rather than through that binding.
+
 ##### conformance/0123-enumerations-may-share-member-names.a24
 
 ```algol24
@@ -8417,7 +8436,7 @@ WriteLn (Second.A);
 WriteLn (First.A = Second.A);
 
 // Bare, and bound by only one enumeration each.  A shared name does not make
-// its neighbors ambiguous.
+// its neighbors ambiguous [ENU-003].
 WriteLn (B);
 WriteLn (C);
 
@@ -8437,25 +8456,6 @@ B
 C
 exit: 70
 ```
-
-**[ENU-011]**  A **bare** member name bound by more than one enumeration in
-scope is ambiguous, and using it is refused with
-`'A' is ambiguous: First or Second.` The qualified form [ENU-002] resolves it:
-`First.A` and `Second.A` are two different members.
-
-A bare name bound by only one enumeration in scope is unambiguous and needs no
-qualifier, which is the ordinary case and the reason members bind bare at all.
-
-**The refusal belongs to the use, not to the declaration.** Two enumerations
-that never meet an ambiguous use coexist without complaint, and a program is
-told about a name only where it actually cannot be resolved.
-
-The ambiguous name is **removed** from the scope's bindings rather than left
-in it holding one of the two, so a bare read cannot quietly find one. The
-qualified form is unaffected: it reaches the member through the enumeration
-rather than through that binding.
-
-    conformance  0123-enumerations-may-share-member-names.a24
 
 **[ENU-004]**  Naming a member the type does not have is `Undefined enum member
 'X'.`
