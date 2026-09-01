@@ -93,7 +93,7 @@ end
 /// case-insensitive -- 'begin', 'Begin' and 'BEGIN' are one token.
 ///
 /// 'unit', 'test' and 'on' are deliberately absent.  They are ordinary
-/// identifiers the grammar recognises by position, so a program may still name
+/// identifiers the grammar recognizes by position, so a program may still name
 /// a variable after any of them [LEX-011].
 ///
 /// # Satisfies

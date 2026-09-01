@@ -138,7 +138,7 @@ end
 so `<` hands `-0.0` straight back; `<=` runs it through `0 - X` and yields
 `0.0`. Turbo Pascal clears the sign bit and agrees.
 
-⚠️ **Better than the C it replaces.** `abs(INT_MIN)` is undefined behaviour in C
+⚠️ **Better than the C it replaces.** `abs(INT_MIN)` is undefined behavior in C
 because the negation overflows. An Integer here is unbounded [LEX-018], so the
 trap does not exist — `Abs` of −2¹²⁷ answers 2¹²⁷.
 
@@ -456,10 +456,10 @@ Two things left open by it:
   behind, where does a following bare `WriteLn (S)` go — on from there, or back
   to the cell cursor? One of them has to be the answer, and neither is obvious.
 
-**O5 — `LowVideo` / `HiVideo` are a 16-colour idea in a 24-bit unit.** They dim
-and brighten the current text colour, which mattered when there were eight
-colours and an intensity bit. Harmless to keep as a shade of the current
-colour; worth asking whether anyone would reach for them beside `TextColor`.
+**O5 — `LowVideo` / `HiVideo` are a 16-color idea in a 24-bit unit.** They dim
+and brighten the current text color, which mattered when there were eight
+colors and an intensity bit. Harmless to keep as a shade of the current
+color; worth asking whether anyone would reach for them beside `TextColor`.
 
 ### 4.8 Beyond Turbo Pascal
 

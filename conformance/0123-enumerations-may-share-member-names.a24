@@ -18,7 +18,7 @@ WriteLn (Second.A);
 WriteLn (First.A = Second.A);
 
 // Bare, and bound by only one enumeration each.  A shared name does not make
-// its neighbours ambiguous.
+// its neighbors ambiguous.
 WriteLn (B);
 WriteLn (C);
 

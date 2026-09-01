@@ -111,7 +111,7 @@ begin
     /// FILE, here as in Turbo Pascal, and the header only writes that name down
     /// where a reader can see it.  What it buys is the check.
     ///
-    /// 'unit' is not a keyword -- it is an ordinary identifier recognised by
+    /// 'unit' is not a keyword -- it is an ordinary identifier recognized by
     /// position, so a program may still name a variable after it [LEX-011].
     /// Recognising it needs three tokens: the word, an identifier, and a
     /// semicolon.
@@ -1639,7 +1639,7 @@ begin
 
     /// Whether what follows is a test block.
     ///
-    /// 'test' is not a keyword -- it is an ordinary identifier recognised by
+    /// 'test' is not a keyword -- it is an ordinary identifier recognized by
     /// position, so this needs the quoted name after it to be sure [LEX-011].
     function IsTestBlock () : Boolean;
     begin
@@ -2241,7 +2241,7 @@ begin
 
     /// Whether the next token is an identifier spelling this word.
     ///
-    /// How the context-sensitive words are recognised, since none of them is a
+    /// How the context-sensitive words are recognized, since none of them is a
     /// keyword [LEX-011].
     function CheckWord (Word : String) : Boolean;
     begin

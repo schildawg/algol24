@@ -1,6 +1,6 @@
 // spec: LEX-009
 //
-// A keyword is recognised before an identifier is, so no keyword can be
+// A keyword is recognized before an identifier is, so no keyword can be
 // declared as a name -- in any case, since keywords fold [SRC-010].
 
 var begin := 7;

@@ -1,9 +1,9 @@
-/// Formatted output: the tags, the colours and the report lines both processors
+/// Formatted output: the tags, the colors and the report lines both processors
 /// write.
 ///
-/// The shapes are fixed exactly, colour codes included, because an interpreted
+/// The shapes are fixed exactly, color codes included, because an interpreted
 /// report and a compiled one write to the same terminal and should be
-/// indistinguishable.  A comparison may strip the colouring -- assertion carets
+/// indistinguishable.  A comparison may strip the coloring -- assertion carets
 /// cannot be compared yet -- but that is not licence for the codes to differ.
 unit Console;
 
@@ -14,13 +14,13 @@ uses Token;
 /// The rule a header is drawn from, at the width a report line uses.
 const BAR := '------------------------------------------------------------------------';
 
-/// The escape character that opens every colour sequence.
+/// The escape character that opens every color sequence.
 ///
 /// Written as a code point because the language has no backslash escapes:
 /// '#27' is ESC and a backslash form would be two characters.
 const ESC := #27;
 
-/// Returns the terminal to its default colour.
+/// Returns the terminal to its default color.
 const ANSI_RESET  := ESC + '[0m';
 
 /// Red, for an error.
@@ -41,7 +41,7 @@ const ANSI_CYAN   := ESC + '[36m';
 /// White, for the brackets a tag sits in.
 const ANSI_WHITE  := ESC + '[37m';
 
-/// The '[INFO] ' tag every report line opens with, colour and trailing space
+/// The '[INFO] ' tag every report line opens with, color and trailing space
 /// included.
 ///
 /// Named INFO_TAG rather than INFO because names are matched WITHOUT REGARD TO

@@ -6,8 +6,8 @@ uses Token;
 /// A single enum member.
 ///
 /// Members are interned by their type, so the bare 'Red' and the qualified
-/// 'Colour.Red' are the same object and comparing them by identity succeeds.
-/// A copy would make 'Colour.Red = Red' false.
+/// 'Color.Red' are the same object and comparing them by identity succeeds.
+/// A copy would make 'Color.Red = Red' false.
 class ObjEnum;
 var
     /// The enumeration this member belongs to.
@@ -41,7 +41,7 @@ begin
 
     /// Gets the one property a member answers: its zero-based position.
     ///
-    /// The position GOVERNS behaviour -- truthiness reads it, so the first
+    /// The position GOVERNS behavior -- truthiness reads it, so the first
     /// member of every enumeration is falsey [ENU-009] -- and a program used to
     /// have no way to read it, so it could discover whether a member was falsey
     /// only by testing it for truth.  It is also what a program needs in order
@@ -76,7 +76,7 @@ var
     /// Member name to the one ObjEnum bound under it.
     ///
     /// The same objects the bare names are bound to -- handing back a copy would
-    /// break identity, and 'Colour.Red = Red' with it.
+    /// break identity, and 'Color.Red = Red' with it.
     Members : Map;
 
 begin
@@ -103,7 +103,7 @@ begin
         Exit Member;
     end
 
-    /// Gets a member by qualified access -- 'Colour.Red'.
+    /// Gets a member by qualified access -- 'Color.Red'.
     ///
     /// # Raises
     ///

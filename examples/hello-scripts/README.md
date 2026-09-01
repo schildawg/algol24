@@ -82,15 +82,15 @@ which means FreeType through the FFI, which is currently blocked: reading
 
 ## Emoji
 
-`font-aa.hex` also carries six **colour** glyphs, and the separator on a glyph
+`font-aa.hex` also carries six **color** glyphs, and the separator on a glyph
 line is the whole of the format marker:
 
 ```
 0041:...    coverage -- one byte per pixel, drawn in whatever ink is asked for
-1F642+...   colour   -- RRGGBBAA per pixel, drawn as itself
+1F642+...   color   -- RRGGBBAA per pixel, drawn as itself
 ```
 
-⚠️ **Emoji are not text in one ink colour — they are pictures**, so no amount of
+⚠️ **Emoji are not text in one ink color — they are pictures**, so no amount of
 coverage produces one. The format admits a second kind rather than pretending,
 and the blitter branches on it in eleven lines. Everything else is unchanged:
 they land in the same framebuffer, at the same time, beside the pie.

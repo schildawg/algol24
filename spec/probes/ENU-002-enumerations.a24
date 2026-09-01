@@ -3,13 +3,13 @@
 // A probe, not a conformance test. It records what the implementation
 // DOES; nothing here asserts what it should do.
 
-type Colour = (RED, GREEN, BLUE);
+type Color = (RED, GREEN, BLUE);
 
 WriteLn('-- access and rendering --');
 WriteLn('  bare       : ' + Str(RED));
-WriteLn('  qualified  : ' + Str(Colour.RED));
-WriteLn('  identical  : ' + Str(RED = Colour.RED));
-WriteLn('  is Colour  : ' + Str(RED is Colour));
+WriteLn('  qualified  : ' + Str(Color.RED));
+WriteLn('  identical  : ' + Str(RED = Color.RED));
+WriteLn('  is Color  : ' + Str(RED is Color));
 WriteLn('  RED = GREEN: ' + Str(RED = GREEN));
 
 WriteLn('-- truthiness follows the ordinal --');
@@ -18,7 +18,7 @@ if GREEN then WriteLn('  GREEN truthy'); else WriteLn('  GREEN falsey');
 if BLUE  then WriteLn('  BLUE truthy');  else WriteLn('  BLUE falsey');
 
 WriteLn('-- in a case --');
-procedure Pick (C : Colour);
+procedure Pick (C : Color);
 begin
     case C of
         RED   : WriteLn('  red');

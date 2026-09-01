@@ -1,6 +1,6 @@
 # Algol-24 for VS Code
 
-Syntax colouring and a Test Explorer for `.a24` files: a TextMate grammar, a
+Syntax coloring and a Test Explorer for `.a24` files: a TextMate grammar, a
 language configuration, and a `TestController` that runs `test` blocks through
 either processor. No language server and no diagnostics — the compiler already
 reports those, and this does not duplicate them.
@@ -38,10 +38,10 @@ fifteen of them are recorded in the specification's Annex C — so seeing the tw
 outputs one above the other is worth a click.
 
 ⚠️ **A pseudoterminal, not an output channel**, for two reasons that are both
-about this language. Its output is **coloured unconditionally** — `Console.a24`
+about this language. Its output is **colored unconditionally** — `Console.a24`
 writes the escapes without asking whether anything is listening, because the
 language has no way to ask — and an output channel renders them as gibberish.
-And the **exit status is specified behaviour**: 0 for a program that reached the
+And the **exit status is specified behavior**: 0 for a program that reached the
 end of its statements, 70 for every failure whichever phase reported it. The
 terminal prints it, because a program that raised on its last line otherwise
 looks like one that finished.
@@ -59,7 +59,7 @@ and does not fit a one-line executor. Use the title-bar commands above for it.
 
 ⚠️ The settings also set `code-runner.runInTerminal`, for the same reason this
 extension uses a pseudoterminal — the Output panel renders this language's
-colour escapes as gibberish.
+color escapes as gibberish.
 
 ⚠️ **The working directory is the workspace root**, for both processors. `uses`
 resolves beside the importing file first and then the working directory, which
@@ -68,7 +68,7 @@ is why this repository's own instructions say to run from the root.
 The file is saved before it runs. Closing the terminal kills whatever is running
 in it.
 
-## What it colours
+## What it colors
 
 Derived from `compiler/Scanner.a24` and `compiler/TokenType.a24` rather than
 from a Pascal grammar, because the two differ in ways that show:
@@ -78,7 +78,7 @@ from a Pascal grammar, because the two differ in ways that show:
   exactly the ones in `Scanner.a24`'s `Keywords` table — checked both ways, so
   none is missing and none is invented.
 - **`unit`, `test` and `on` are not keywords.** They are context-sensitive
-  identifiers — a variable may be called `test` — so each is coloured only in
+  identifiers — a variable may be called `test` — so each is colored only in
   the position that makes it structural: `unit` opening a file, `test` before a
   block's quoted name, `on` before a handler's `e : Type`. A variable named
   `test` stays a variable.
@@ -87,7 +87,7 @@ from a Pascal grammar, because the two differ in ways that show:
   String.
 - **`#27` is a Char by code point**, which is how `Console.a24` writes `ESC`.
 - **A `Double` needs a digit on both sides of the point.** `1.` is an Integer
-  followed by a dot, and colours that way.
+  followed by a dot, and colors that way.
 - **`?` and `!` are identifier characters.** `Gate?` is one word to
   double-click, one word to the grammar, and one word to the scanner.
 - **`///` is distinguished from `//`.** The scanner does not tell them apart —
@@ -147,13 +147,13 @@ on lives outside it.
 - **No `begin`/`end` bracket matching.** VS Code's bracket pairs are character
   pairs, and these are words. Folding and indentation are configured for them,
   so they behave; they just do not highlight as a pair.
-- **User-defined types colour only where they are declared or annotated.** The
+- **User-defined types color only where they are declared or annotated.** The
   annotation rule reads `Name : Type`, and deliberately declines three shapes
   that look like it and are not: a map literal (`'and':TOKEN_AND`), a case arm
   (`#10 : begin`), and a call in a case arm (`#39 : ScanString()`). All three
   occur in `Scanner.a24`, which is what they were tested against.
-- **No semantic colouring.** Nothing here knows that a name is a class, that a
-  method is private, or that a `uses` resolves. `Length` is coloured as a
+- **No semantic coloring.** Nothing here knows that a name is a class, that a
+  method is private, or that a `uses` resolves. `Length` is colored as a
   built-in wherever it appears, including where a program has shadowed it.
 
 ## Keeping it honest

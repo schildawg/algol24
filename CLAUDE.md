@@ -4,10 +4,16 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 
 ## What this is
 
-Algol-24 (`.a24`) is a Pascal-flavoured, gradually typed language whose compiler
-— `algc` — is written in Algol-24 and compiles itself. There is no JDK, no
-Maven, no make: a C compiler is the only dependency, because the only way into
-the language is a checked-in copy of its own output.
+Algol-24 (`.a24`) is a **retro-modern** language: classic Pascal syntax over
+unbounded integers, full Unicode, gradual types, closures and a foreign function
+interface. Its compiler — `algc` — is written in Algol-24 and compiles itself.
+There is no JDK, no Maven, no make: a C compiler is the only dependency, because
+the only way into the language is a checked-in copy of its own output.
+
+⚠️ **Do not describe it as "Pascal-flavored".** That sells it as a derivative of
+an old thing, when the old-looking surface is the deliberate part and the
+capability behind it is the point. Pascal may be named as the *syntax's*
+lineage, never as the language's identity.
 
 **v0.1.0 — the feature-complete alpha release.** The language is done. What
 v0.1.0 does not have is a library written in Algol-24, which is the whole of

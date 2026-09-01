@@ -10,7 +10,7 @@
 # has no dependencies beyond the operating system.  A Linux formula would need
 # depends_on "libffi".
 class Algol24 < Formula
-  desc "Pascal-flavoured, gradually typed, self-hosting language"
+  desc "Retro-modern, gradually typed, self-hosting language"
   homepage "https://github.com/schildawg/algol24"
   url "https://github.com/schildawg/algol24/archive/refs/tags/v0.1.0.tar.gz"
   sha256 "REPLACE-WITH-THE-RELEASE-TARBALL-SHA256"

@@ -62,13 +62,13 @@ closes these gaps.
 ## Why a defect passes while the code is wrong
 
 A case in `defects/` is a **reverse conformance test**. It records the wrong
-behaviour and passes while that behaviour persists; it turns **red when the
+behavior and passes while that behavior persists; it turns **red when the
 defect stops reproducing**, because a fix is as much a change to be noticed as a
 regression.
 
 The alternative — a suite with permanently failing entries — is a suite nobody
 reads. This repository has already been there once: the old notes said the tree
-was "red on purpose" and gated on the count rather than the colour.
+was "red on purpose" and gated on the count rather than the color.
 
 ⚠️ A defect is a statement about the **interpreter** and is never compiled.
 Whether the compiler happens to share the fault says nothing about whether the
@@ -78,7 +78,7 @@ interpreter still has it.
 
 Two reasons, and they must not look alike in a diff.
 
-**Withdrawn** — the case pinned the wrong behaviour. `refusals/0028` pinned two
+**Withdrawn** — the case pinned the wrong behavior. `refusals/0028` pinned two
 enumerations being unable to share a member name; the decision went the other
 way, so the case was deleted and a defect took its place. A correction: the case
 was wrong from the moment it was written.
@@ -99,7 +99,7 @@ recording is what a *correct* implementation would produce.**
 | --- | --- |
 | A probe of CRLF handling | git normalized the line endings, so it passed with no `#13` left in it to be whitespace |
 | Three chapter 7 probes | header comment, no program — recorded `exit: 0` and reported green, while nine rules cited them as evidence |
-| The first DEF-16 | recorded `5` for a cast covering a conjunction — which is what the *fixed* behaviour prints too |
+| The first DEF-16 | recorded `5` for a cast covering a conjunction — which is what the *fixed* behavior prints too |
 | The first DEF-28 | recorded `exit: 0` for a driver bug no program can exhibit — exactly what a correct implementation gives |
 
 **Before recording a case, ask what it would print if the implementation were
@@ -125,7 +125,7 @@ whether the language **lacks** the facility or **has it inconsistently**.
   when the generation lands, which is correct.
 - **Annex F, a defect** — the rule exists and is applied elsewhere, and one path
   does not follow it. `1 + 1.5` is `2.5` and `'a' + 'bc'` is `abc`, so widening
-  is settled behaviour; only the paths carrying a *written* type refused it,
+  is settled behavior; only the paths carrying a *written* type refused it,
   which made a declared type mean something narrower than the operators do.
 
 ⚠️ A useful second check: does the change only make more programs legal, or does
@@ -151,7 +151,7 @@ implementation printed, and a rewritten byte is a false record.
 ## Divergences — Annex C, and why they need no corpus
 
 A **defect** was a fault in the interpreter, and it needed a case of its own:
-nothing else recorded the wrong behaviour, so `defects/X.current` held it, the
+nothing else recorded the wrong behavior, so `defects/X.current` held it, the
 case passed while the fault persisted, and it turned red when the fault stopped.
 `defects/` is empty as of Gen 1.
 
@@ -164,7 +164,7 @@ difference on every run and calls it a **gap**.
 | --- | --- | --- |
 | Wrong implementation | the interpreter | the compiler |
 | Truth is | the specification | the case's own `.out` |
-| Faulty behaviour recorded in | `.current` | nothing — recomputed each run |
+| Faulty behavior recorded in | `.current` | nothing — recomputed each run |
 | Passes while | the fault persists | the fault persists |
 | Turns red when | it is fixed | it is fixed |
 
@@ -195,8 +195,8 @@ count, so the message names the real problem: a divergence nothing has written
 up is worse than one that has been, whatever the totals say. Under `--lenient`
 it is the backlog it used to be.
 
-## Colour is transliterated, not stripped
+## Color is transliterated, not stripped
 
-`\033[31m` becomes `[RED]`. Stripping is not injective — a wrong colour and a
-right one would compare equal — and the test report's colours are part of the
+`\033[31m` becomes `[RED]`. Stripping is not injective — a wrong color and a
+right one would compare equal — and the test report's colors are part of the
 specified surface [TST-010].

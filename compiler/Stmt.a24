@@ -620,7 +620,7 @@ begin
     end
 end
 
-/// An enumeration declaration -- 'type Colour = (Red, Green, Blue);'.
+/// An enumeration declaration -- 'type Color = (Red, Green, Blue);'.
 class EnumStmt (Stmt);
 var
     /// The type name being declared.

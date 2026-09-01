@@ -2,7 +2,7 @@
 //
 // ⚠️ COL-003's matrix is checked against the interpreter by spec/spec.sh, which
 // runs spec/members.a24.  This case exercises the members rather than
-// enumerating them: the table is verified mechanically, the behaviour here.
+// enumerating them: the table is verified mechanically, the behavior here.
 
 var L := [3, 1, 2];
 WriteLn (Str (L.Length) + ' ' + Str (L.IsEmpty) + ' ' + Str (L.Contains (1)));

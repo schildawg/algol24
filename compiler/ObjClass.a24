@@ -36,7 +36,7 @@ begin
 
     /// Gets the method of this name taking exactly this many arguments, or Nil.
     ///
-    /// How a STRUCTURAL PROTOCOL is recognised, and the reason FindMethod cannot
+    /// How a STRUCTURAL PROTOCOL is recognized, and the reason FindMethod cannot
     /// do it: that answers the first method of a name whatever its shape.  A
     /// protocol is a name AND a shape -- 'Elements' taking none, 'Contains'
     /// taking one, 'ToString' taking none -- and a method of the right name and

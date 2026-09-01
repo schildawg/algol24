@@ -1,7 +1,7 @@
 {
     "name": "algol24",
     "displayName": "Algol-24",
-    "description": "Syntax colouring for Algol-24, the Pascal-flavoured gradually typed language whose compiler compiles itself.",
+    "description": "Syntax coloring for Algol-24, the retro-modern gradually typed language whose compiler compiles itself.",
     "version": "0.1.0",
     "publisher": "schildawg",
     "license": "MIT",

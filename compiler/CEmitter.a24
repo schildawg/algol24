@@ -9,7 +9,7 @@
 ///
 /// The output is a FIXED POINT, and exactly so: re-emitting this compiler from
 /// its own source must reproduce the checked-in C byte for byte, which is what
-/// makes a rebuild from the seed mean anything.  Behavioural equivalence would
+/// makes a rebuild from the seed mean anything.  Behavioral equivalence would
 /// be the weaker test and would not serve that.
 ///
 /// Coverage is the language as this compiler itself uses it, which is the only

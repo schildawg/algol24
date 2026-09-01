@@ -86,7 +86,7 @@
         },
 
         "unit": {
-            "comment": "'unit' is a context-sensitive identifier and not a keyword, so it is only coloured where it opens a file.",
+            "comment": "'unit' is a context-sensitive identifier and not a keyword, so it is only colored where it opens a file.",
             "match": "^\\s*(?i:(unit))\\s+([A-Za-z_?!][A-Za-z0-9_?!]*)",
             "captures": {
                 "1": { "name": "keyword.other.unit.algol24" },
@@ -104,7 +104,7 @@
         },
 
         "test-block": {
-            "comment": "'test' is a context-sensitive identifier too -- a variable may be called test -- so it is coloured only before the block's name.",
+            "comment": "'test' is a context-sensitive identifier too -- a variable may be called test -- so it is colored only before the block's name.",
             "match": "(?i:\\b(test)\\b)(?=\\s*')",
             "captures": {
                 "1": { "name": "keyword.other.test.algol24" }

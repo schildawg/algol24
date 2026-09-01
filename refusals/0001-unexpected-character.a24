@@ -1,6 +1,6 @@
 // spec: SRC-002
 //
 
-// '$' is not a character the scanner recognises.
+// '$' is not a character the scanner recognizes.
 var A := 1;
 $

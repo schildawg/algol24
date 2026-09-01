@@ -1232,11 +1232,11 @@ begin
     AssertTrue (Rejects ('var S : String := ''abc''; var N : Integer := S[0];'));
 end
 
-// 'of' is honoured only after 'List'.  Anywhere else the type is whatever was
+// 'of' is honored only after 'List'.  Anywhere else the type is whatever was
 // written and the 'of' is not consumed -- which is what keeps 'case X of'
 // meaning what it meant.
 //
-test 'Of Is Honoured Only After List';
+test 'Of Is Honored Only After List';
 begin
     AssertTrue (not Rejects ('var M : Map := [''a'':1];'));
 end
@@ -1504,37 +1504,37 @@ end
 
 /// ⚠️ Both spellings of one member type as the enum.
 ///
-/// algc registered only the bare name, so 'Colour.Red' reduced to nothing and
+/// algc registered only the bare name, so 'Color.Red' reduced to nothing and
 /// a declaration against it was a mismatch -- while the same value written
 /// 'Red' was fine.  Enum comparison is identity, so the two spellings are one
 /// value; they had better also be one type.
 test 'Both Spellings Of An Enum Member Type As The Enum';
 begin
     AssertTrue (not Rejects (
-        'type Colour = (Red, Green);' + #10 +
-        'var A : Colour := Red;'));
+        'type Color = (Red, Green);' + #10 +
+        'var A : Color := Red;'));
 
     AssertTrue (not Rejects (
-        'type Colour = (Red, Green);' + #10 +
-        'var B : Colour := Colour.Green;'));
+        'type Color = (Red, Green);' + #10 +
+        'var B : Color := Color.Green;'));
 end
 
 test 'An Enum Member Does Not Satisfy Another Enum';
 begin
     AssertTrue (Rejects (
-        'type Colour = (Red, Green);' + #10 +
+        'type Color = (Red, Green);' + #10 +
         'type Size = (Small, Large);' + #10 +
         'var A : Size := Red;'));
 
     AssertTrue (Rejects (
-        'type Colour = (Red, Green);' + #10 +
+        'type Color = (Red, Green);' + #10 +
         'type Size = (Small, Large);' + #10 +
-        'var A : Size := Colour.Red;'));
+        'var A : Size := Color.Red;'));
 end
 
 test 'An Enum Type Name Types As Itself';
 begin
     AssertTrue (not Rejects (
-        'type Colour = (Red, Green);' + #10 +
-        'var C : Colour := Colour.Red;'));
+        'type Color = (Red, Green);' + #10 +
+        'var C : Color := Color.Red;'));
 end

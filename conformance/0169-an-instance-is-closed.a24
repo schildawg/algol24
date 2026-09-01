@@ -7,7 +7,7 @@
 // never had it, because an instance there is a fixed array of slots taken from
 // the 'var' section, so 'B.Undeclared := 1' was 1 interpreted and refused
 // compiled.  A divergence covered by no case, and held in place by a unit test
-// inherited from Lox along with the behaviour.
+// inherited from Lox along with the behavior.
 
 class Box;
 var Items : List;

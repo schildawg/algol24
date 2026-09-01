@@ -22,10 +22,10 @@
         ".a24": "cd \"$workspaceRoot\" && bootstrap/algc \"$fullFileName\""
     },
 
-    // ⚠️ A terminal, not the Output panel. Algol-24 writes colour
+    // ⚠️ A terminal, not the Output panel. Algol-24 writes color
     // unconditionally -- Console.a24 emits the escapes without asking whether
     // anything is listening, because the language has no way to ask -- and the
-    // Output panel renders them as gibberish rather than colour.
+    // Output panel renders them as gibberish rather than color.
     "code-runner.runInTerminal": true,
 
     // The file is what runs, so save it first.

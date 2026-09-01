@@ -9,7 +9,7 @@ begin
     WriteLn ('a test body ran, which it must not have');
 end
 
-// 'test' is not a keyword [LEX-011] -- it is recognised here by the quoted
+// 'test' is not a keyword [LEX-011] -- it is recognized here by the quoted
 // name that follows it, so a variable may still be called 'test'.
 var test := 7;
 WriteLn (test);

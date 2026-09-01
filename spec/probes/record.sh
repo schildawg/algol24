@@ -12,7 +12,7 @@
 #
 # The distinction is the whole point. Deciding what the language ought to do is
 # a deliberate act, taken once per rule, with Annex D in hand -- writing a
-# conformance test the moment a behaviour is discovered would canonize every
+# conformance test the moment a behavior is discovered would canonize every
 # defect on sight. LEX-018 is the standing example: these probes record that
 # 2147483648 prints -2147483648, and Annex D recommends that it should raise
 # instead. Both are true at once, and only one of them is a commitment.
@@ -44,9 +44,9 @@ done
 
 ESC=$(printf '\033')
 
-# ⚠️ Colour is TRANSLITERATED, not stripped.  Stripping is not injective -- a
-# wrong colour and a right one compare equal afterwards -- so it would make a
-# colour change invisible to the detector.  An escape with no mapping renders
+# ⚠️ Color is TRANSLITERATED, not stripped.  Stripping is not injective -- a
+# wrong color and a right one compare equal afterwards -- so it would make a
+# color change invisible to the detector.  An escape with no mapping renders
 # as [ESC:...] rather than passing through or vanishing.
 render() {
     sed -e "s/${ESC}\\[0m/[RESET]/g"  -e "s/${ESC}\\[31m/[RED]/g" \
@@ -113,6 +113,6 @@ echo "$TOTAL probe(s); $MOVED moved, $NEW never recorded, $EMPTY empty."
 [ "$MOVED" -eq 0 ] && [ "$NEW" -eq 0 ] && [ "$EMPTY" -eq 0 ] \
     && { echo "OK: nothing has shifted."; exit 0; }
 echo
-echo "Nothing here says the new behaviour is wrong -- only that it changed."
+echo "Nothing here says the new behavior is wrong -- only that it changed."
 echo "Re-record with --record once you have decided it is intended."
 exit 1

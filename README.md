@@ -1,10 +1,13 @@
 # Algol-24
 
-A Pascal-flavoured, gradually typed language whose compiler is written in
-Algol-24 and compiles itself.
+**Legacy meets the future. Strength meets beauty. Power wrapped in simplicity.**
+
+Algol-24 is a retro-modern language: classic Pascal syntax over unbounded
+integers, full Unicode, gradual types, closures and a foreign function
+interface. Its compiler is written in Algol-24 and compiles itself.
 
 ```pascal
-type Colour = (Red, Green, Blue);
+type Color = (Red, Green, Blue);
 
 class Point;
 var
@@ -98,7 +101,7 @@ comparison through `Compare`, subscripting through `Get` and `Put`. A foreign
 function interface that reaches C, so a program can call SDL or libm directly.
 
 `examples/hello-scripts/` draws a pie chart and the word *hello* in Turkish,
-Greek, Chinese, Korean and Spanish — with colour emoji — into an SDL2 window.
+Greek, Chinese, Korean and Spanish — with color emoji — into an SDL2 window.
 Everything in the picture is drawn by the Algol-24 program.
 
 ## How it is checked

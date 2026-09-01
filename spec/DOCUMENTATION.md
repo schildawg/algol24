@@ -227,7 +227,7 @@ unit TokenType;
 ```
 
 **The header must come before the `uses` clauses**, because it opens the file —
-`unit` is recognised by position, so a header after an import is two identifiers
+`unit` is recognized by position, so a header after an import is two identifiers
 in a row and the file will not parse. Only comments may precede it.
 
 **A file with no `unit` declaration has no unit documentation.** There is

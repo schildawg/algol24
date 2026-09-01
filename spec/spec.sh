@@ -519,7 +519,7 @@ fi
 # until it is not -- 'div' had to be remembered on the day it was added.
 #
 # ⚠️ PRESENCE, not correctness.  A keyword mirrored into the wrong rule would
-# still colour wrongly and pass here.  Matching TextMate's structure would mean
+# still color wrongly and pass here.  Matching TextMate's structure would mean
 # parsing several patterns that each legitimately list a different subset, and a
 # brittle check that cries wolf is worse than a narrow one that does not: this
 # catches the failure that actually happens, which is a keyword never mirrored

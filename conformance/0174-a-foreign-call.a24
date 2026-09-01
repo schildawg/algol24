@@ -13,7 +13,7 @@ function Power (X : Double, Y : Double) : Double; external 'pow' in 'libm';
 function Allocate (Size : Integer) : Pointer;     external 'malloc';
 procedure Release (P : Pointer);                  external 'free';
 
-// A declaration is legal whether or not the build can honour it, and so is
+// A declaration is legal whether or not the build can honor it, and so is
 // reading one as a value [FUN-011].
 var F := TextLength;
 WriteLn (F <> Nil);

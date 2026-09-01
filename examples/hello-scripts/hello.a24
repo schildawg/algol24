@@ -52,7 +52,7 @@ const SDL_INIT_VIDEO   := 32;
 const WINDOW_SHOWN     := 4;
 const WINDOWPOS_CENTRE := 805240832;
 const PIXELFORMAT_RGB  := 370546692;      // SDL_PIXELFORMAT_RGB888, so a
-const TEXTURE_STREAM   := 1;              // colour is 0xRRGGBB and stays positive
+const TEXTURE_STREAM   := 1;              // color is 0xRRGGBB and stays positive
 const EVENT_QUIT       := 256;
 const EVENT_KEYDOWN    := 768;
 const KEY_ESCAPE       := 27;
@@ -65,26 +65,26 @@ const Pi := 3.14159265358979;
 
 var Pixels := Buffer (W * H * 4);
 
-procedure Plot (X : Integer, Y : Integer, Colour : Integer);
+procedure Plot (X : Integer, Y : Integer, Color : Integer);
 begin
     if X >= 0 then
       if Y >= 0 then
         if X < W then
-          if Y < H then Pixels.PutInt ((Y * W + X) * 4, Colour);
+          if Y < H then Pixels.PutInt ((Y * W + X) * 4, Color);
 end
 
-procedure Fill (Colour : Integer);
+procedure Fill (Color : Integer);
 var
     I : Integer := 0;
 begin
     while I < W * H do
     begin
-        Pixels.PutInt (I * 4, Colour);
+        Pixels.PutInt (I * 4, Color);
         I := I + 1;
     end
 end
 
-procedure Box (X : Integer, Y : Integer, Wide : Integer, High : Integer, Colour : Integer);
+procedure Box (X : Integer, Y : Integer, Wide : Integer, High : Integer, Color : Integer);
 var
     R : Integer := 0;
 begin
@@ -93,7 +93,7 @@ begin
         var C := 0;
         while C < Wide do
         begin
-            Plot (X + C, Y + R, Colour);
+            Plot (X + C, Y + R, Color);
             C := C + 1;
         end
         R := R + 1;
@@ -114,7 +114,7 @@ end
 // both, at the weight it actually covers, rather than being thresholded into
 // one of them.
 
-// ⚠️ AND A THIRD KIND, because emoji are not text in one ink colour -- they
+// ⚠️ AND A THIRD KIND, because emoji are not text in one ink color -- they
 // are pictures.  A glyph line separated by '+' rather than ':' carries
 // RRGGBBAA per pixel, and the separator is the whole of the format marker.  No
 // amount of coverage produces a red heart, so the format admits a second kind
@@ -123,7 +123,7 @@ end
 var Glyphs := [:];        // codepoint -> List of rows (bit patterns, or bytes)
 var Widths := [:];        // codepoint -> pixels across
 var Pictures := [:];      // codepoint -> True when its rows are RRGGBBAA
-                          // (not 'Colour' -- DrawGlyph has a parameter of that
+                          // (not 'Color' -- DrawGlyph has a parameter of that
                           //  name, and the local would shadow this map)
 var Height := 16;         // pixels down
 var Grey   := False;      // one byte of coverage per pixel rather than one bit
@@ -161,7 +161,7 @@ begin
     begin
         var Line := F.ReadLn ();
 
-        // The separator IS the format: ':' is coverage or bits, '+' is colour.
+        // The separator IS the format: ':' is coverage or bits, '+' is color.
         var Colon  := Pos (Line, ':');
         var Painted := False;
 
@@ -294,7 +294,7 @@ end
 
 /// Blits one glyph, scaled, and answers how far to advance.
 function DrawGlyph (Code : Integer, X : Integer, Y : Integer,
-                    Colour : Integer, Scale : Integer) : Integer;
+                    Color : Integer, Scale : Integer) : Integer;
 var
     Wide : Any;
     Rows : Any;
@@ -314,7 +314,7 @@ begin
         begin
             if Code in Pictures then
             begin
-                // RRGGBBAA: the pixel brings its own colour, and only the
+                // RRGGBBAA: the pixel brings its own color, and only the
                 // alpha decides how much of it lands.
                 var Pixel := Row[C];
                 var Alpha := Mod (Pixel, 256);
@@ -343,7 +343,7 @@ begin
                 var Cover := Row[C];
 
                 if Cover > 0 then
-                  if Scale = 1 then Wash (X + C, Y + R, Colour, Cover);
+                  if Scale = 1 then Wash (X + C, Y + R, Color, Cover);
                   else
                   begin
                       var SY := 0;
@@ -352,7 +352,7 @@ begin
                           var SX := 0;
                           while SX < Scale do
                           begin
-                              Wash (X + C * Scale + SX, Y + R * Scale + SY, Colour, Cover);
+                              Wash (X + C * Scale + SX, Y + R * Scale + SY, Color, Cover);
                               SX := SX + 1;
                           end
                           SY := SY + 1;
@@ -372,7 +372,7 @@ begin
                 end
 
                 if Mod (Row div Place, 2) = 1 then
-                    Box (X + C * Scale, Y + R * Scale, Scale, Scale, Colour);
+                    Box (X + C * Scale, Y + R * Scale, Scale, Scale, Color);
             end
 
             C := C + 1;
@@ -384,14 +384,14 @@ begin
 end
 
 function DrawText (Text : String, X : Integer, Y : Integer,
-                   Colour : Integer, Scale : Integer) : Integer;
+                   Color : Integer, Scale : Integer) : Integer;
 var
     At : Integer := X;
     I  : Integer := 0;
 begin
     while I < Length (Text) do
     begin
-        At := At + DrawGlyph (Ord (Text[I]), At, Y, Colour, Scale);
+        At := At + DrawGlyph (Ord (Text[I]), At, Y, Color, Scale);
         I := I + 1;
     end
     Exit At;
@@ -406,7 +406,7 @@ var Labels := ['Merhaba  Türkçe  👋',
                'Hola  Español  🌍'];
 
 var Shares : List of Integer := [22, 18, 25, 15, 20];
-var Colours : List of Integer := [0xE8583F, 0xF2A03D, 0x4FA3C7, 0x6FC26B, 0xB07BD1];
+var Colors : List of Integer := [0xE8583F, 0xF2A03D, 0x4FA3C7, 0x6FC26B, 0xB07BD1];
 
 procedure DrawPie (CX : Integer, CY : Integer, Radius : Integer);
 var
@@ -442,7 +442,7 @@ begin
                     if Fraction <= Walked then
                       if Chosen = 0 then
                       begin
-                          Plot (X, Y, Colours[Index]);
+                          Plot (X, Y, Colors[Index]);
                           Chosen := 1;
                       end
                     Index := Index + 1;
@@ -494,7 +494,7 @@ while Row < Labels.Length do
 begin
     var Y := 150 + Row * 54;
 
-    Box (500, Y + 4, 26, 26, Colours[Row]);
+    Box (500, Y + 4, 26, 26, Colors[Row]);
     DrawText (Labels[Row], 546, Y, 0xE6E6F0, Scale);
     DrawText (Str (Shares[Row]) + '%', 950, Y, 0x9A9AB0, Scale);
 

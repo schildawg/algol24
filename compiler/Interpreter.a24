@@ -94,7 +94,7 @@ end
 /// Renders a value as text.
 ///
 /// A class with a ToString () method decides how it prints, and algc did not
-/// honour that at all -- 'Money ()' gave 'Money instance' rather than '$5'.
+/// honor that at all -- 'Money ()' gave 'Money instance' rather than '$5'.
 /// Delegating straight to the host worked only because at one level of
 /// interpretation every value algc holds is a HOST value, whose own rendering
 /// does the right thing.  The moment algc interprets algc, the collections it is
@@ -1741,7 +1741,7 @@ begin
     /// under the type.
     ///
     /// Both bindings are the SAME object, because enum equality is identity --
-    /// 'Colour.Red = Red' has to be true.
+    /// 'Color.Red = Red' has to be true.
     ///
     /// # Satisfies
     ///
@@ -3491,7 +3491,7 @@ end
 test 'Call Setters And Getters';
 begin
     // ⚠️ 'flavor' is DECLARED now.  This came from Lox, where a field appeared
-    // the moment something assigned to it, and it pinned that behaviour in the
+    // the moment something assigned to it, and it pinned that behavior in the
     // interpreter -- which the C back end never had, since an instance there is
     // a fixed array of slots taken from the 'var' section.  The test was
     // holding one half of a divergence in place [CLS-017].

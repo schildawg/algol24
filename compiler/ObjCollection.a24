@@ -62,7 +62,7 @@ end
 /// It WRAPS a host collection rather than being one.  A host List is not an
 /// instance -- it has no class -- so ClassName raises on it and the interpreter
 /// could not tell it from a number.  Wrapping gives it a class name to
-/// recognise, and costs one field.
+/// recognize, and costs one field.
 ///
 /// All five share this class because they share almost every method, and what
 /// differs is checked where it matters -- see Get, whose member table is per

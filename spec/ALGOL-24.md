@@ -41,8 +41,9 @@
 
 ## 1. Introduction
 
-Algol-24 is a Pascal-flavoured, gradually typed language. This document
-specifies its lexis, syntax, and semantics.
+Algol-24 is a retro-modern, gradually typed language: classic Pascal syntax over
+unbounded integers, full Unicode, gradual types, closures and a foreign function
+interface. This document specifies its lexis, syntax, and semantics.
 
 ### 1.1 Authority
 
@@ -58,12 +59,12 @@ it does it carries a marker:
 
 > ⚠️ **NOT YET IMPLEMENTED.** … See DEF-nn.
 
-⚠️ **A rule without such a marker describes behaviour that was observed.** A rule
-with one describes behaviour that was decided. The distinction is what keeps the
+⚠️ **A rule without such a marker describes behavior that was observed.** A rule
+with one describes behavior that was decided. The distinction is what keeps the
 document trustworthy, and it is why the markers are in the normative text rather
 than in an annex.
 
-⚠️ **The specification does not hedge.** Where a behaviour is kept despite
+⚠️ **The specification does not hedge.** Where a behavior is kept despite
 looking wrong, it is stated flatly and the misgiving goes to Annex D. A
 specification that argues with itself cannot be conformed to.
 
@@ -108,7 +109,7 @@ four keys do different jobs, and two of them are easy to confuse:
 A unit test reaches into algc's own classes — it constructs a `Scanner` and
 asserts token types — so it tests the implementation, not the language. It is
 still worth citing, because [1.1] makes the interpreter normative and a test
-pinning the interpreter's behaviour therefore pins the language's. But another
+pinning the interpreter's behavior therefore pins the language's. But another
 implementation has no `Scanner` class to test, so a unit test can never be run
 against it. Only a conformance program can.
 
@@ -180,7 +181,7 @@ the length.
     conformance  0131-a-string-holds-a-zero-character.a24
 
 **[SRC-002]**  Outside comments, string literals and character literals, every
-character must be one the scanner recognises — a letter [SRC-005], a digit, or
+character must be one the scanner recognizes — a letter [SRC-005], a digit, or
 an operator or item of punctuation [LEX-012]. Any other is an error reading
 `[line N] Error: Unexpected character: C`.
 
@@ -464,7 +465,7 @@ language claims it.
 > an operator the language does not have.
 
 **[LEX-009]**  An identifier may not be spelled the same as a keyword in any
-case, because the keyword is recognised first. `var begin := 7;` and
+case, because the keyword is recognized first. `var begin := 7;` and
 `var BEGIN := 7;` are both refused with `Expect variable name.`
 
     interpreter  compiler/Scanner.a24  ScanIdentifier
@@ -498,7 +499,7 @@ with `Expect variable name.`
     conformance  0133-print-is-an-ordinary-name.a24
 
 **[LEX-011]**  `unit`, `test` and `on` are **not** keywords. They are ordinary
-identifiers that the grammar recognises by position — `unit` opening a file,
+identifiers that the grammar recognizes by position — `unit` opening a file,
 `test` before a block's quoted name, `on` introducing a handler — and each may
 be used as a variable name.
 
@@ -581,7 +582,7 @@ digit.
 | `1_0_0` | ✓ — silly, and not worth a rule to forbid |
 | `_100` | an **identifier** [SRC-005], and cannot also be a literal |
 | `100_` | refused: nothing to the right to separate |
-| `1_.5`, `1._5`, `1e_5` | refused: the neighbour is not a digit |
+| `1_.5`, `1._5`, `1e_5` | refused: the neighbor is not a digit |
 | `0x_FF` | refused: the prefix is not a digit either |
 
 ⚠️ **There is no octal.** It is a PDP-11 artefact, and `0755` silently meaning
@@ -636,7 +637,7 @@ a program to be surprised, and the last one removes the surprise itself.
 `Exit Left + Right` in `VisitBinary` compiles to `alg_add` — so the two cannot
 disagree, and this landed in `bootstrap/algol.c` alone.
 
-⚠️ **Signed overflow in C is undefined behaviour, not a wrap**, which is a
+⚠️ **Signed overflow in C is undefined behavior, not a wrap**, which is a
 different problem and was already avoided: the arithmetic goes through
 `__builtin_*_overflow`. What changed is only what happens on the overflow they
 report — the same branch that raised now promotes.
@@ -1432,7 +1433,7 @@ and asking for one is the error `Undefined property 'ClassName'.`
 ### 6.5 What a class type cannot do
 
 These rules are normative in their own right, and together they say which
-built-in behaviour a program cannot reproduce for a type of its own. Annex E
+built-in behavior a program cannot reproduce for a type of its own. Annex E
 takes up what it would cost to lift each one.
 
 **[TYP-010]**  A class instance is subscriptable when its class declares `Get`
@@ -2059,7 +2060,7 @@ zero.` **Double division by zero is not an error**: it yields `Infinity`,
 ⚠️ Whether dividing by zero is a fault or a value therefore depends on which
 type reached the operator, and [EXP-005] promotes an Integer whenever it meets a
 Double — so an edit far from the division can move it from one category to the
-other. This is specified rather than merely tolerated: each behaviour is right
+other. This is specified rather than merely tolerated: each behavior is right
 for its own type. IEEE 754 defines the Double case and there is no integer
 infinity to return for the other.
 
@@ -2192,7 +2193,7 @@ protocol wins; here it would not.
 
 ⚠️ **`not` and `:=` are not on the list.** `not` tests truthiness, which
 [VAL-008] defines for every value, so a type overloading it lies about a
-language-wide property rather than defining its own behaviour. `:=` is outside
+language-wide property rather than defining its own behavior. `:=` is outside
 the mechanism entirely: dispatch is on values [FUN-013], and the left of an
 assignment is a location.
 
@@ -2612,7 +2613,7 @@ word could not be used as a name.
 
 ⚠️ **It also bypassed the test runner's output suppression**, which `Write` and
 `WriteLn` respect — so a compiled suite printed the sample program before its
-first test while interpreted it printed nothing. That behaviour went with the
+first test while interpreted it printed nothing. That behavior went with the
 statement, and nothing replaces it: output during a test run is suppressed for
 every built-in alike.
 
@@ -2894,7 +2895,7 @@ itself [TYP-013].
 place that sentence has been needed. What a foreign function does, whether the
 symbol exists, and whether the declared types match the C ones are all outside
 this specification and cannot be checked by it. A declaration that misdescribes
-a C signature is undefined behaviour in the ordinary C sense — the conformance
+a C signature is undefined behavior in the ordinary C sense — the conformance
 corpus tests that a call is *made*, never what it reaches.
 
 ⚠️ **Both processors go through one implementation.** The tree-walker cannot
@@ -3180,7 +3181,7 @@ end never had it, because an instance there is a fixed array of slots taken from
 the `var` section, so `B.Undeclared := 1` was `1` interpreted and refused
 compiled. A divergence older than the properties that found it, covered by no
 case, and held in place by a unit test inherited from Lox along with the
-behaviour.
+behavior.
 
     interpreter  compiler/ObjInstance.a24  Set
     conformance  0169-an-instance-is-closed.a24
@@ -3205,7 +3206,7 @@ bound = [ "-" ] integer_lit .
 
 **[ENU-002]**  Each member is bound as a **bare name** in the enclosing scope and
 is also reachable qualified as `Type.Member`. Both spellings denote the **same
-interned object**, so `RED = Colour.RED` is true.
+interned object**, so `RED = Color.RED` is true.
 
     interpreter  compiler/ObjEnum.a24  ObjEnumType
     compiler     bootstrap/algol.c     alg_enum_member
@@ -3333,7 +3334,7 @@ truth.
 ⚠️ **This chapter describes the collections as built-ins, which is what they
 are.** Annex H, H-9 proposes a second set written in Algol-24 and built on
 `Array`, added **beside** these rather than replacing them — so this chapter
-keeps describing the natives, and the library's behaviour is documented with the
+keeps describing the natives, and the library's behavior is documented with the
 library. See Annex E for what was once thought to pin them, all of which has
 since landed.
 
@@ -3348,7 +3349,7 @@ their conformance cases with them. That is not a failure of either: a rule that
 stops describing the *language* because its subject became a *library* has been
 retired, not falsified, and the cases that pinned it become the unit tests of
 the unit that replaces it. They are worth writing now precisely because they are
-the behavioural target that unit has to meet.
+the behavioral target that unit has to meet.
 
 ⚠️ One rule in this chapter is **not** provisional in that way. [COL-007]
 specifies insertion order for every collection, including `Set` and `Map`, and
@@ -3466,13 +3467,13 @@ correspond element for element.
     interpreter  compiler/ObjCollection.a24  Invoke
     conformance  0078-collection-order.a24
 
-### 14.4 Behaviour
+### 14.4 Behavior
 
 **[COL-010]**  A `Set` holds each value once. Adding a value it already has
 leaves its length unchanged.
 
     interpreter  compiler/ObjCollection.a24  Invoke
-    conformance  0079-collection-behaviour.a24
+    conformance  0079-collection-behavior.a24
 
 **[COL-011]**  ⚠️ `Remove` answers **different kinds of thing** by kind. A `Map`
 returns the value removed, and `nil` when the key was absent. A `Set` returns
@@ -3484,7 +3485,7 @@ two cannot be used interchangeably, and nothing in the call says which is coming
 
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           alg_remove
-    conformance  0079-collection-behaviour.a24
+    conformance  0079-collection-behavior.a24
 
 **[COL-012]**  Membership — `Contains`, `in`, and Map key lookup — uses the
 equality of [VAL-009], so a collection holding `1.0` contains `1`. See
@@ -4483,7 +4484,7 @@ it, then a block.
 TestDecl = "test" ( string_lit | char_lit ) ";" Block .
 ```
 
-`test` is not a keyword [LEX-011]; it is recognised here by the quoted name that
+`test` is not a keyword [LEX-011]; it is recognized here by the quoted name that
 follows it, so a variable may still be called `test`.
 
 ⚠️ **Either quoted form**, because the name is *text* and a one-character name is
@@ -4563,7 +4564,7 @@ of one, so a name longer than the banner still produces a well-formed line.
     compiler     bootstrap/algol.c         alg_test_run
     conformance  0106-dot-leader.a24
 
-**[TST-010]**  The report is coloured, and the colours are part of it: the
+**[TST-010]**  The report is colored, and the colors are part of it: the
 `[INFO]` tag white and blue, `[ERROR]` white and red, the file name cyan, `PASS`
 green, `FAIL` red, and the summary green when all passed and red otherwise.
 
@@ -4628,11 +4629,11 @@ numerically and holds a `Char` unequal to a `String` [LEX-026].
 ### 19.5 Compiled runs
 
 **[TST-014]**  The report is **the same from any implementation**, line for
-line and colour for colour. It is the surface on which two implementations are
+line and color for color. It is the surface on which two implementations are
 compared, so a difference in it is a difference in conformance and not a matter
 of presentation.
 
-⚠️ **Both processors meet this**, line for line and colour for colour, over the
+⚠️ **Both processors meet this**, line for line and color for color, over the
 whole suite — which is the strongest available check that the two implementations
 agree, since a test report is built from almost everything the language has.
 
@@ -4877,7 +4878,7 @@ function there closes over `this` as well as over the locals. Recorded as C-38.
 interpreter also gave the assertion message. It prints the same line now — see
 C-23, which is where the fix and the reasoning live.
 
-⚠️ **The premise was wrong, not just the behaviour.** This entry said compiled
+⚠️ **The premise was wrong, not just the behavior.** This entry said compiled
 code "has no line information to put in one", and inferred from that that the
 whole line was unreproducible. Only the *caret* lines need a source position;
 the message line carries the file name and the message and nothing else.
@@ -4975,7 +4976,7 @@ program the language refuses. `alg_class_declared` reports the name, and
 `conformance/0146` and `0147` pin both orders.
 
 **Not a divergence, and worth stating as a requirement:** interpreted and
-compiled `--test` reports are byte-identical, colour included — 239 lines and
+compiled `--test` reports are byte-identical, color included — 239 lines and
 1,416 escape sequences for the full suite. Any difference between them is a
 defect in one or the other.
 
@@ -5031,7 +5032,7 @@ so the repair is now the whole answer rather than an interim one.
 | `List ().ClassName` | `Undefined property 'ClassName'.` | `Only instances have properties.` |
 | `B[0]` on an instance | `Subscript target should be an ordinal.` | `Only a collection or a String can be subscripted.` |
 | `C (1, 2)` on a class with no constructor | `Expected 0 arguments but got 2.` | `This class takes no constructor arguments.` |
-| `Colour.Nope` | `Undefined enum member 'Nope'.` | `That enum has no such member.` |
+| `Color.Nope` | `Undefined enum member 'Nope'.` | `That enum has no such member.` |
 
 Both processors refuse every one of them, so nothing runs that should not — but
 the text differs, and [ERR-002] requires a diagnostic to be the same wherever it is
@@ -5301,7 +5302,7 @@ is running** [RT-002], so outside one the name is simply not there. The emitter
 sees a call to a name it cannot resolve and refuses it as unsupported, which
 describes the emitter rather than the program.
 
-⚠️ The program is a **valid** one whose defined behaviour is to raise. The
+⚠️ The program is a **valid** one whose defined behavior is to raise. The
 emitter refused it rather than emitting something that raises, so a program the
 language merely rejects at run time had no compiled form at all. That was the
 right way round for a gap — loud, named, and impossible to miss — but it was
@@ -5741,7 +5742,7 @@ again:
 | --- | --- |
 | a **field** — `this.VALUE` against `Value` | `field_slot` compared with `strcmp` |
 | a **method** — `B.DOUBLED ()` against `Doubled` | `find_method` hashed and compared the exact spelling |
-| an **enum member** — `COLOUR.red` against `Colour.Red` | the member scan compared with `strcmp` |
+| an **enum member** — `COLOUR.red` against `Color.Red` | the member scan compared with `strcmp` |
 
 ⚠️ **The emitter canonicalises, the runtime folds**, and the split is deliberate.
 The emitter maps a name to the spelling it was declared with, once, so the sets
@@ -5987,7 +5988,7 @@ holds `super.M` as a value.
 
 ## Annex D — advisory notes *(non-normative)*
 
-Where the specified behaviour looks like a mistake. Nothing here weakens the
+Where the specified behavior looks like a mistake. Nothing here weakens the
 rule it refers to: the body states what the language does, and this annex
 argues about it. Entries are added as the chapters that expose them are
 written.
@@ -6007,7 +6008,7 @@ as "make the wrap an error" ended as "have no wrap" — the second answer is the
 one a reader needs nothing else to understand.
 
 ⚠️ "What C does natively" was the wrong way to put it, and this note said it:
-signed overflow in C is *undefined behaviour*, not a wrap. The runtime had
+signed overflow in C is *undefined behavior*, not a wrap. The runtime had
 always computed through the builtins to avoid that, so what it produced was a
 defined wrap — and the same branch that reported it now decides to promote.
 
@@ -6187,12 +6188,12 @@ is a bug or a value depends on which numeric type reached the operator — and
 [EXP-005] means an Integer becomes a Double whenever it meets one, so the same
 expression can change category with an edit far from it.
 
-The Double behaviour is IEEE 754 and is what C does for free; the Integer
-behaviour has no such answer available, since there is no integer infinity to
+The Double behavior is IEEE 754 and is what C does for free; the Integer
+behavior has no such answer available, since there is no integer infinity to
 produce.
 
 **Resolved by keeping both.** [EXP-006] now states the asymmetry as a rule
-rather than leaving it to be discovered, and says why: each behaviour is correct
+rather than leaving it to be discovered, and says why: each behavior is correct
 for its own type. Raising on Double division would depart from IEEE 754 for no
 gain, and returning a value for Integer division would have to invent one, since
 there is no integer infinity.
@@ -6254,7 +6255,7 @@ wording is at fault, which makes this smaller than it was recorded as being —
 and is why it was worth running rather than reasoning about.
 
 Diagnostics are part of the observable surface [1.2], so this is a specified
-behaviour and not merely a rough edge — a conforming implementation must
+behavior and not merely a rough edge — a conforming implementation must
 reproduce the misleading sentence exactly.
 
 **Resolved.** [CLS-014] requires the shape the other inheritance errors already
@@ -6271,7 +6272,7 @@ member's ordinal — and the ordinal is not reachable from the language. `RED` i
 false and `GREEN` is true, and a program can discover which is which only by
 testing each for truth.
 
-So `if Colour then` depends on where a member sits in a list that the program
+So `if Color then` depends on where a member sits in a list that the program
 cannot inspect, and reordering an enumeration's members silently changes the
 truth of every conditional written over it. Nothing warns, because nothing
 about the declaration looks conditional.
@@ -6282,7 +6283,7 @@ represented by, which is a real convention and not an accident.
 **Resolved, in both halves and in opposite directions.**
 
 [ENU-010] requires a member to answer `Ordinal`, its zero-based position, so the
-value that governs the behaviour can be read and compared. `Ordinal` already
+value that governs the behavior can be read and compared. `Ordinal` already
 existed on the implementation's own class and simply was not published. Done.
 
 [ENU-009] is **kept**, and stated as a feature rather than tolerated as a
@@ -6619,7 +6620,7 @@ literal form.
 *Recommendation:* movable, and the performance question is separable — ship the
 linear version as a unit, hash it later if it matters.
 
-**List — pinned by its literal, not by its behaviour.**
+**List — pinned by its literal, not by its behavior.**
 
 A growable sequence over `Array`, doubling when full, is straightforward
 Algol-24. What pins `List` is syntax: `[1, 2]` produces one, so the language
@@ -6636,7 +6637,7 @@ use than the built-in it replaces.
 and the natural `M[K]` needs [TYP-010] as well. The implementation itself is
 ordinary: two sequences, or `Array` buckets with an `Ord`-based hash.
 
-⚠️ Insertion order is specified behaviour, not an accident of the
+⚠️ Insertion order is specified behavior, not an accident of the
 implementation, so any replacement must keep it.
 
 *Recommendation:* same as `List`, and after it. The literal is the harder half:
@@ -6685,7 +6686,7 @@ entry names the rules it violates, what the implementation does today, and the
 program in `defects/` that reproduces it.
 
 ⚠️ A defect's test is a **reverse conformance test**: it records the wrong
-behaviour and passes while that behaviour persists. It turns **red when the
+behavior and passes while that behavior persists. It turns **red when the
 defect stops reproducing**, because a fix is as much a change to be noticed as a
 regression — and a suite that is permanently red is a suite nobody reads.
 
@@ -6945,7 +6946,7 @@ is right about these; the specification describes the language as it now is, and
 each of these will change a rule when it arrives.
 
 ⚠️ The distinction matters to the corpus. A defect gets a reverse conformance
-test that passes while the wrong behaviour persists. A planned change gets an
+test that passes while the wrong behavior persists. A planned change gets an
 ordinary conformance test or refusal pinning the **current** rule, which turns
 red when the generation lands — deliberately, because that is the moment the
 rule changes and the test should change with it.
@@ -7021,7 +7022,7 @@ processors, and a `Contains` of the wrong arity answered `1 in B` with **true**
 interpreted while raising compiled — a wrong answer, not merely a wrong message.
 [TYP-011] now states the protocol and both sides check the shape.
 
-⚠️ **What is left is not iteration but its neighbours.** Two questions the
+⚠️ **What is left is not iteration but its neighbors.** Two questions the
 protocol raises and does not answer:
 
 | | |

@@ -79,7 +79,7 @@ fi
 # The last [INFO] line of a completed run is its verdict -- 'All N tests
 # passed.' or 'N of M tests failed.'
 #
-# ⚠️ Stripped before matching, never before printing.  The report is coloured
+# ⚠️ Stripped before matching, never before printing.  The report is colored
 # unconditionally -- the interpreter has no way to ask whether it is talking to
 # a terminal, so it always says so and readers strip -- which means a report
 # line does not begin with '[' at all, and an anchored pattern matches nothing.
