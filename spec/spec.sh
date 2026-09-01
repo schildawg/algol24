@@ -313,6 +313,62 @@ if [ -s "$WORK/no_conf" ]; then
     done < "$WORK/no_conf"
 fi
 
+# ------------------------------------------------------- citations in cases --
+#
+# Every check above reads from a rule OUTWARD: does the thing this rule names
+# exist?  A case comment points the other way -- it names a rule from inside a
+# printed program -- and nothing followed that direction until a comment was
+# found citing LEX-033, a rule that has never existed.
+#
+# ⚠️ The other checks deliberately SKIP case blocks, so that case code is not
+# read as grammar.  That is why this gap could open, and why the scan here is
+# the mirror image: it reads case blocks and nothing else.
+#
+# ⚠️ Only the algol24 fence is scanned, never the console one.  A program may
+# legitimately PRINT something shaped like a rule identifier, and a diagnostic
+# it provoked is output, not a citation.
+#
+# ⚠️ A case may cite a DEFECT as well as a rule, to disclaim a half the
+# implementation does not yet meet.  Those are checked against DEFECTS.md
+# ALONE, never against the closed record in HISTORY.md, because a caveat naming
+# a defect that has since been FIXED is worse than one naming nothing: it tells
+# the reader a working behavior cannot be relied on, and it reads as current.
+# Five such caveats had outlived their defects when this check was written.
+#
+# The identifier shape is deliberately narrow.  Two- and three-letter
+# namespaces both exist (RT-021 beside LEX-015), but demanding two digits is
+# what keeps ordinary prose out -- 'UTF-8' is not a citation.
+grep -ohE 'DEF-[0-9]+' "$DEFECTS" 2>/dev/null | sort -u \
+  > "$WORK/known_ids"
+cat "$WORK/ids_sorted" >> "$WORK/known_ids"
+sort -u -o "$WORK/known_ids" "$WORK/known_ids"
+
+awk '
+    /^## Annex/ { stop = 1 }
+    stop { next }
+    /^##### (conformance|refusals)\// { want = 1; next }
+    want && /^```algol24/ { want = 0; incode = 1; next }
+    incode && /^```/ { incode = 0; next }
+    incode {
+        s = $0
+        while (match(s, /[A-Z]{2,3}-[0-9]{2,3}/)) {
+            print NR "\t" substr(s, RSTART, RLENGTH)
+            s = substr(s, RSTART + RLENGTH)
+        }
+    }
+' "$SPEC" | sort -u -k2,2 > "$WORK/case_cites"
+
+DANGLING=0
+while IFS="$(printf '\t')" read -r line id; do
+    grep -qxF "$id" "$WORK/known_ids" || {
+        problem "$SPEC:$line cites [$id] from inside a case, and no such rule or live defect exists"
+        DANGLING=$((DANGLING + 1))
+    }
+done < "$WORK/case_cites"
+
+[ "$DANGLING" -eq 0 ] && \
+    echo "  $(wc -l < "$WORK/case_cites" | tr -d ' ') rule(s) cited from inside a case, all defined"
+
 # ⚠️ The two markers a rule uses to admit it is ahead of the implementation each
 # owe the reader somewhere to go, and a marker with nowhere to go is worse than
 # none -- it announces a gap and then strands whoever followed it.

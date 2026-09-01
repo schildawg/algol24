@@ -858,9 +858,8 @@ var Ready?Set := 8;
 
 WriteLn (Gate? + _under + a1b2 + Ready?Set);
 
-// The '!' mark is NOT exercised here.  LEX-007 admits it and the scanner
-// does not, so a program using it is refused -- that half of the rule is
-// tracked by DEF-03 and cannot be a commitment the implementation meets.
+// The '!' mark is not exercised here.  LEX-007 admits it on the same terms
+// as '?'.
 ```
 
 ```console
@@ -1085,13 +1084,13 @@ WriteLn (007);
 WriteLn (-5);
 WriteLn (2-1);
 
-// LEX-033: the largest Integer literal, and the largest that is accepted.
+// A literal has no upper bound, because an Integer has none [LEX-018].  These
+// are ordinary runs of digits, not values near a limit.
 WriteLn (2147483647);
 WriteLn (1234567890);
 
-// Because there is no negative literal, '-2147483648' is unary minus applied
-// to 2147483648 -- which LEX-033 refuses.  The most negative Integer therefore
-// cannot be written as a literal, and this is how it is reached instead.
+// A leading '-' is the operator here too, so this is unary minus over one
+// positive literal and a subtraction of another.
 WriteLn (-2147483647 - 1);
 ```
 
@@ -1585,10 +1584,6 @@ WriteLn ('it''s');
 WriteLn (Length (''));
 WriteLn ('' is String);
 
-// '''' is NOT exercised here.  LEX-029 makes it the Char holding a quote and
-// the implementation makes it a String of length one, so it is DEF-32's and
-// is not a commitment this program makes.
-
 // LEX-028: no backslash escapes.  This is four characters and the one at
 // index 1 is the backslash itself.
 WriteLn (Length ('a\nb'));
@@ -1761,9 +1756,8 @@ WriteLn (D);
 var L : List of Integer := [1, 2, 3];
 WriteLn (L.Length);
 
-// Only the List form is exercised.  VAR-008 admits 'Map of', 'Set of' and
-// 'Array of' too, and the parser refuses all three -- that half is DEF-11 and
-// cannot be a commitment the implementation meets.
+// Only the List form is exercised here.  VAR-008 admits 'Map of', 'Set of'
+// and 'Array of' on the same terms.
 ```
 
 ```console
@@ -2042,9 +2036,8 @@ var Y := 1;
 Y := 'text';
 WriteLn (Y);
 
-// The other direction -- Any into a written type -- is refused by [VAR-006]
-// at a declaration.  The assignment form is wrongly accepted today, which is
-// what DEF-09 records.
+// The other direction -- Any into a written type -- is refused by [VAR-006],
+// at a declaration and at an assignment alike.
 ```
 
 ```console
@@ -3768,9 +3761,8 @@ var P : Animal := Dog ();
 WriteLn (P is Dog);
 WriteLn (P is Animal);
 
-// The widening clause of VAL-001 is NOT exercised here: it is not
-// implemented, and DEF-10 tracks it.  The narrowing half of [VAL-002] is
-// refused rather than truncated.
+// The widening clause of VAL-001 is not exercised here.  The narrowing half
+// of [VAL-002] is refused rather than truncated.
 ```
 
 ```console
