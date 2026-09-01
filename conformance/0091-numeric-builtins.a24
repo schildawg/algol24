@@ -2,6 +2,8 @@
 //
 
 // RT-011: Mod's sign follows the DIVIDEND.
+uses 'lib/Core';        // Mod, Succ and Pred are library functions now
+
 WriteLn (Mod (7, 3));
 WriteLn (Mod (-7, 3));
 WriteLn (Mod (7, -3));

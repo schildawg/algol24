@@ -3862,13 +3862,20 @@ made it the first to go. `Length` in the same measurement was 392 million.
 
     library  lib/Core.a24  Max
 
-**[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
-dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
-zero.`
+**[RT-011]**  ***Moved to `lib/Core` in Generation 9.*** `Mod(A, B)` answered
+the remainder, whose sign follows the dividend. It is an ordinary function
+written in Algol-24 now, and a program reaches it with `uses 'lib/Core';`.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_mod
-    conformance  0091-numeric-builtins.a24
+⚠️ **`div` stays in the language and `Mod` does not**, which is the line this
+move draws: `div` is an **operator** [EXP-018] and an operator cannot be written
+in a unit, while `Mod` was only ever a function. `A - (A div B) * B` is the
+whole of it, and truncation toward zero is exactly what gives the remainder the
+dividend's sign.
+
+⚠️ **Zero calls in a full test suite and a full compile**, measured before it
+moved.
+
+    library  lib/Core.a24  Mod
 
 **[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
 millisecond resolution.
@@ -3940,23 +3947,20 @@ for an Integer past the machine's width.
     compiler     bootstrap/algol.c         number_method
     conformance  0156-number-members.a24
 
-**[RT-020]**  `Succ(X)` and `Pred(X)` step an ordinal. A `Char` moves one code
-point, an `Integer` moves one. `Succ ('a')` is `'b'` and `Pred (5)` is `4`.
+**[RT-020]**  ***Moved to `lib/Core` in Generation 9.*** `Succ(X)` and
+`Pred(X)` stepped an ordinal — an Integer by one, a `Char` by one code point.
+They are ordinary functions written in Algol-24 now, over `Ord` and `Char`.
 
-Anything else is `Succ failed: 'X' has no ordinal.`, and a Char at the end of
-the code-point range is `Succ failed: 'X' has no ordinal beyond it.`
+⚠️ **The two failures stayed two sentences**, which is what an equivalence check
+across fifteen inputs was for: a value with no ordinal at all is
+`Succ failed: 'Red' has no ordinal.`, while a `Char` at the end of the range is
+`Pred failed: '' has no ordinal beyond it.` — the ordinal exists and the next
+one does not, and that is a different thing to say.
 
-⚠️ **An enum member is not stepped, and the gap is honest rather than chosen.**
-Stepping one is the most Pascal use of `Succ` there is, but a member carries its
-type's *name* and its ordinal rather than a pointer to the type, so there is no
-way from a member to the list it belongs to. That link is a change of its own.
+⚠️ **An enum member is still not stepped.** It answers `Ordinal` [ENU-010]; it
+never answered `Succ`.
 
-⚠️ **An Integer has no end to check** because it is unbounded [LEX-018]; a Char
-does, stopping at U+10FFFF.
-
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_succ
-    conformance  0167-character-arithmetic.a24
+    library  lib/Core.a24  Stepped
 
 **[RT-018]**  `Halt(N)` ends the program at once with status `N`. Nothing after
 it runs, and no enclosing `except` sees it — it is not an exception.
@@ -4692,7 +4696,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The twenty-eight built-in names, with the rule specifying each. `spec/spec.sh`
+The twenty-five built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list against the names the interpreter actually registers.
 
 | Name | Rule | Summary |
@@ -4711,13 +4715,10 @@ checks this list against the names the interpreter actually registers.
 | `Copy` | [RT-004] | A substring, from a zero-based start, length clamped |
 | `Length` | [RT-003] | ⚠️ The length of the argument's **text**, not a count |
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
-| `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
 | `Foreign` | [FUN-014] | ⚠️ The FFI's own plumbing. `external` is the spelling a program uses; this is what it becomes, and it exists because the tree-walker can reach C no other way |
-| `Pred` | [RT-020] | The previous ordinal, on the same terms |
 | `Pos` | [RT-005] | A zero-based index, or -1 when absent |
 | `Str` | [RT-006] | Any value rendered as text |
 | `Val` | [RT-009] | A number parsed from text — an **Integer** without a point, a Double with one |
-| `Mod` | [RT-011] | The remainder, its sign following the dividend |
 | `clock` | [RT-012] | Seconds since the epoch, as a Double |
 | `FileExists` | [RT-014] | Whether a named file exists |
 | `TextFile` | [RT-024] | A text file handle |

@@ -522,7 +522,7 @@ static Value m_cemitter_hexof_1_integer(Value v_this, Value *args, int32_t count
         (void)v_i;
         for (; alg_truthy(alg_less(v_i, alg_int(6))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                (void)((v_result = alg_widen(alg_add(alg_copy(alg_string("0123456789ABCDEF"), alg_mod(v_left, alg_int(16)), alg_int(1)), v_result), "String")));
+                (void)((v_result = alg_widen(alg_add(alg_copy(alg_string("0123456789ABCDEF"), f_mod(NULL, (Value[]){v_left, alg_int(16)}, 2), alg_int(1)), v_result), "String")));
                 (void)((v_left = alg_widen(alg_divide(v_left, alg_int(16)), "Integer")));
             }
         }

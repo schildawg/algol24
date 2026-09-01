@@ -27,3 +27,53 @@ begin
     AssertEqual (7, Max (7, 3));
     AssertEqual (3, Max (3, 3));
 end
+
+/// The remainder, its sign following the dividend.
+///
+/// ⚠️ `A - (A div B) * B` and not a primitive, because `div` truncates toward
+/// zero [EXP-018] -- which is exactly what makes the remainder take the
+/// dividend's sign.  Mod(-7, 3) is -1 and Mod(7, -3) is 1.
+///
+/// ⚠️ Its own zero check, because `div` would raise `Division by zero.` and the
+/// message here names the operation the program actually wrote.
+function Mod (A, B);
+begin
+    if not (A is Integer and B is Integer) then raise 'Mod expects Integers.';
+    if B = 0 then raise 'Mod failed: Division by zero.';
+
+    Exit A - (A div B) * B;
+end
+
+/// Succ and Pred step an ordinal: an Integer by one, a Char by one code point.
+///
+/// ⚠️ NOT enums.  'Succ (Red)' is 'Succ failed: ''Red'' has no ordinal.' -- an
+/// enum member answers `Ordinal` [ENU-010] and stepping one was never part of
+/// this.  Anything that is not an Integer or a single character is the same
+/// message.
+///
+/// ⚠️ The two failures are different sentences.  A value with no ordinal at all
+/// is one thing; a Char at the end of the range, where the ordinal exists and
+/// the next one does not, is another.
+function Stepped (X, By : Integer, What : String) : Any;
+begin
+    if X is Integer then Exit X + By;
+
+    if not (X is Char) then
+        raise What + ' failed: ''' + Str (X) + ''' has no ordinal.';
+
+    var Code := Ord (X) + By;
+    if Code < 0 or Code > 1114111 then
+        raise What + ' failed: ''' + Str (X) + ''' has no ordinal beyond it.';
+
+    Exit Char (Code);
+end
+
+function Succ (X);
+begin
+    Exit Stepped (X, 1, 'Succ');
+end
+
+function Pred (X);
+begin
+    Exit Stepped (X, -1, 'Pred');
+end

@@ -272,8 +272,6 @@ begin
             'Foreign' : Exit Foreign (Arguments[0], Arguments[1], Arguments[2],
                                       Arguments[3], Arguments[4]);
 
-            'Succ' : Exit Succ (Arguments[0]);
-            'Pred' : Exit Pred (Arguments[0]);
 
             // ⚠️ An interpreted enum member is an ObjEnum, not a host one, so
             // the host's Ord cannot see its ordinal -- the same reason
@@ -287,7 +285,6 @@ begin
             'Val'  : Exit ParsedNumber (Str (Arguments[0]));
             'Char' : Exit Char (Arguments[0]);
 
-            'Mod'        : Exit Mod (Arguments[0], Arguments[1]);
             'TextFile'   : Exit ObjFile ();
             'FileExists' : Exit FileExists (Str (Arguments[0]));
 
@@ -492,12 +489,9 @@ begin
 
         Builtins.Define ('Halt', Native ('Halt', 1));
         Builtins.Define ('Ord', Native ('Ord', 1));
-        Builtins.Define ('Succ', Native ('Succ', 1));
         Builtins.Define ('Foreign', Native ('Foreign', 5));
-        Builtins.Define ('Pred', Native ('Pred', 1));
         Builtins.Define ('Val', Native ('Val', 1));
         Builtins.Define ('Char', Native ('Char', 1));
-        Builtins.Define ('Mod', Native ('Mod', 2));
 
         Builtins.Define ('Write', Native ('Write', -1));
         Builtins.Define ('WriteLn', Native ('WriteLn', -1));
