@@ -61,7 +61,11 @@ set -eu
 cd "$(dirname "$0")"
 
 ALGC="bootstrap/algc"
-SPEC="spec/ALGOL-24.md"
+# ⚠️ The divergence record left the specification for spec/HISTORY.md, and this
+# check went with it.  ALGOL-24.md describes the language; a closed divergence is
+# not part of that description, but it still has to be checked against what the
+# compiler actually does.
+SPEC="spec/HISTORY.md"
 RECORD=0
 COMPILED=1
 
@@ -217,7 +221,7 @@ check() {
         else
             echo "  CHANGED  $_name — the defect no longer reproduces as recorded"
             diff "$_want" "$WORK/interpreted" | sed 's/^/             /'
-            echo "             If this is a fix, promote it to conformance/ and remove the entry from Annex F."
+            echo "             If this is a fix, promote it to conformance/ and remove the entry from spec/DEFECTS.md."
             FAIL=$((FAIL + 1))
         fi
         return 0
@@ -241,7 +245,7 @@ check() {
               | sed 's/^/      /' | head -8
         } >> "$WORK/gaplist"
 
-        # ⚠️ The names alone, for the Annex C cross-check below.  A gap IS the
+        # ⚠️ The names alone, for the divergence cross-check below.  A gap IS the
         # divergence's reproduction: the interpreted expectation is the correct
         # answer and the compiled run is the fault, so unlike a defect it needs
         # no recorded file of its own.
@@ -272,16 +276,16 @@ if [ "$COMPILED" -eq 1 ]; then
     echo "the compiler:  $GAPS gap(s) — cases the interpreter gets right and the compiled back end does not."
     if [ "$GAPS" -gt 0 ]; then
         echo
-        echo "Compiler gaps (Annex C). Expected while the compiler trails the"
+        echo "Compiler gaps. Expected while the compiler trails the"
         echo "specification; each is a case for the generation after this one."
         cat "$WORK/gaplist"
     fi
 fi
 
-# ---------------------------------------------------------------- Annex C --
+# ----------------------------------------------------------- divergences --
 #
-# ⚠️ Every divergence Annex C records must still HAPPEN, and every divergence
-# that happens must be recorded.  Both directions, for the reason the Annex F
+# ⚠️ Every divergence spec/HISTORY.md records must still HAPPEN, and every one
+# that happens must be recorded.  Both directions, for the reason the defect
 # check in spec.sh exists: an entry describing a fault that has been fixed goes
 # on reading as open, and C-1, C-3, C-4 and C-22 all reached that state.
 #
@@ -299,10 +303,10 @@ UNCITED=$(comm -13 "$WORK/gaps_cited" "$WORK/gaps_live" | tr '\n' ' ')
 CITED_N=$(wc -l < "$WORK/gaps_cited" | tr -d ' ')
 
 echo
-echo "Annex C:       $GAPS gap(s), $CITED_N cited by a divergence entry."
+echo "Divergences:   $GAPS gap(s), $CITED_N cited by an entry in HISTORY.md."
 
 if [ -n "$STALE" ]; then
-    echo "FAIL: Annex C cites case(s) that no longer diverge, so a fixed"
+    echo "FAIL: HISTORY.md cites case(s) that no longer diverge, so a fixed"
     echo "      divergence still reads as open: $STALE"
     echo "      Withdraw the entry, as C-1, C-3, C-4 and C-22 were."
     exit 1

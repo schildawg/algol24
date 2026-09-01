@@ -20,8 +20,9 @@ v0.1.0 does not have is a library written in Algol-24, which is the whole of
 what *alpha* means here; nothing in the language is provisional.
 
 - `spec/ALGOL-24.md` — **the authority.** 280 rules, every one claimed by a case.
-  The implementation is measured against it: where the two disagree, Annex F
-  names the defect and carries a program that reproduces it.
+  The implementation is measured against it: where the two disagree,
+  `spec/DEFECTS.md` names the defect and carries a program that reproduces it,
+  and `spec/HISTORY.md` holds the closed divergences and settled questions.
 - `compiler/*.a24` — the source. Scanner, Parser, Resolver, TypeChecker,
   tree-walking Interpreter, and the C back end.
 - `bootstrap/` — the seed. `algol.c` / `algol.h` are the hand-written C runtime;

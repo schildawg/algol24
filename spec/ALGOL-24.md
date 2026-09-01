@@ -1,41 +1,15 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.1.0 — the feature-complete alpha release.** The language is
-> complete, and this document describes it: nineteen chapters and eight annexes,
-> 280 rules. Every rule is **decided** — what the language should do — and every
-> rule is claimed by a case: a program in `conformance/`, a refusal in
-> `refusals/`, or a reproduction in `defects/`. None awaits one.
+> **Algol-24 v0.1.0.** Nineteen chapters and three annexes, 280 rules. Every
+> rule is decided — what the language should do — and every rule is claimed by a
+> case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
+> in `defects/`.
 >
-> ⚠️ **"Alpha" is about the library, not the language.** Nothing here is
-> provisional or expected to be withdrawn; what v0.1.0 does not yet have is a
-> library written in Algol-24 to stand beside the built-ins, which is why the
-> release is not v1.
->
-> ⚠️ **This document is the authority, and the implementation is measured
-> against it** [1.1]. Where the two disagree, a defect in Annex F says so and
-> carries a reproduction that passes while the fault persists. Annex F holds
-> **two** entries at this release — DEF-34, on what `Val` accepts, and DEF-35,
-> on a type the checker infers but cannot see above its declaration. A rule ahead of
-> the implementation says which of three things it is — `NOT YET IMPLEMENTED`,
-> `PARTLY IMPLEMENTED`, or `PLANNED — a later generation` — and `spec/spec.sh`
-> enforces that each points somewhere.
->
-> **The two processors agree.** Annex C records **37 divergences** between the
-> interpreter and the C back end, and **all of them are withdrawn**:
-> `./conform.sh` reports no gap, so every case the interpreter gets right the
-> compiled back end gets right too. Annex D's eighteen advisory notes are all
-> resolved. Annex H holds **seventeen** changes once planned for later
-> generations, of which **fourteen have landed**; what remains is a collections
-> library (H-9), a stage of the foreign function interface (H-14), and equality
-> with the hash that must come with it (H-17).
->
-> ⚠️ **The entries stay after they are withdrawn**, and are worth more than the
-> count. Each carries what was actually wrong, which in a dozen cases is not what
-> the entry first recorded — several name a mistake in their own proposed fix.
->
-> ⚠️ **The document leads and the implementation follows.** A defect is closed by
-> changing the code; a rule is changed only by deciding to change the language,
-> and the reason is recorded here when it is.
+> This document describes the language and nothing else. Where the
+> implementation disagrees with it, `spec/DEFECTS.md` records the difference and
+> carries a program that reproduces it. How the language arrived — the
+> divergences that were closed, the questions that were settled, the changes once
+> planned — is in `spec/HISTORY.md`.
 
 ---
 
@@ -47,9 +21,9 @@ interface. This document specifies its lexis, syntax, and semantics.
 
 ### 1.1 Authority
 
-⚠️ **This specification is the authority.** Where an implementation differs from
-a rule, the implementation is in error, and the difference is recorded as a
-numbered defect in Annex F with a program that reproduces it.
+**This specification is the authority.** Where an implementation differs from
+a rule, the implementation is in error, and the difference is recorded in
+`spec/DEFECTS.md` with a program that reproduces it.
 
 That was not always so. Every rule here began as a description of what the
 tree-walking interpreter in `compiler/*.a24` does, verified by **running** it
@@ -57,16 +31,16 @@ rather than by reading it — and most rules still are exactly that. A rule is
 only allowed to depart from the implementation by an explicit decision, and when
 it does it carries a marker:
 
-> ⚠️ **NOT YET IMPLEMENTED.** … See DEF-nn.
+> **NOT YET IMPLEMENTED.** … See DEF-nn.
 
-⚠️ **A rule without such a marker describes behavior that was observed.** A rule
+**A rule without such a marker describes behavior that was observed.** A rule
 with one describes behavior that was decided. The distinction is what keeps the
 document trustworthy, and it is why the markers are in the normative text rather
 than in an annex.
 
-⚠️ **The specification does not hedge.** Where a behavior is kept despite
-looking wrong, it is stated flatly and the misgiving goes to Annex D. A
-specification that argues with itself cannot be conformed to.
+**The specification does not hedge.** Where a behavior is kept despite
+looking wrong, it is stated flatly. A specification that argues with itself
+cannot be conformed to.
 
 ### 1.2 Conformance
 
@@ -90,7 +64,7 @@ or disprove.
     unit         Scan A Whole Program
     conformance  TBD
 
-⚠️ **Identifiers are permanent.** They are assigned once, never reused and
+**Identifiers are permanent.** They are assigned once, never reused and
 never renumbered; sections may be renamed and reordered freely. Numbering the
 sections instead would mean that inserting one clause silently rots every
 citation to everything after it.
@@ -105,7 +79,7 @@ four keys do different jobs, and two of them are easy to confuse:
 | `unit` | a test in the `compiler/` suite | evidence the rule *transcribes the authority accurately* |
 | `conformance` | a program in `conformance/` | a check that *any implementation* obeys the rule |
 
-⚠️ **`unit` is not conformance evidence, and the distinction is not pedantic.**
+**`unit` is not conformance evidence, and the distinction is not pedantic.**
 A unit test reaches into algc's own classes — it constructs a `Scanner` and
 asserts token types — so it tests the implementation, not the language. It is
 still worth citing, because [1.1] makes the interpreter normative and a test
@@ -120,7 +94,7 @@ value was the literal `TBD`, so the gap was stated rather than left to be
 discovered; **that backlog is now empty**, and `spec.sh` still requires the line
 so a new rule cannot be added without one.
 
-⚠️ A rule may cite more than one, and most cases pin more than one rule. A
+A rule may cite more than one, and most cases pin more than one rule. A
 partly implemented rule cites a conformance program for the half that works and
 a defect for the half that does not, so the per-kind counts overlap and do not
 sum to the total. `spec.sh --coverage` reports them separately.
@@ -156,7 +130,7 @@ non-terminals. Tokens are enclosed in double quotes.
 The form `a … b` means the set of characters from `a` through `b` inclusive.
 The symbol `∅` marks an empty alternative.
 
-⚠️ A quoted token in this document is matched **case-insensitively if it is a
+A quoted token in this document is matched **case-insensitively if it is a
 keyword** and exactly otherwise. See [SRC-010].
 
 ---
@@ -168,7 +142,7 @@ keyword** and exactly otherwise. See [SRC-010].
 **[SRC-001]**  Source text is **UTF-8**. A character, not a byte, is the unit
 of measurement and of subscripting.
 
-⚠️ A String carries its own **byte length** beside its pointer, so it may hold a
+A String carries its own **byte length** beside its pointer, so it may hold a
 zero character. It is NUL-terminated as well, which keeps `as_text` cheap for
 everything that builds a diagnostic; only the value-semantic operations —
 concat, output, equality, hashing, `Copy`, `Pos`, `Length`, subscript — consult
@@ -185,7 +159,7 @@ character must be one the scanner recognizes — a letter [SRC-005], a digit, or
 an operator or item of punctuation [LEX-012]. Any other is an error reading
 `[line N] Error: Unexpected character: C`.
 
-⚠️ The scanner used to refuse every non-ASCII byte outright, so no Unicode
+The scanner used to refuse every non-ASCII byte outright, so no Unicode
 character could appear in a program at all outside a comment or a literal.
 
     interpreter  compiler/Scanner.a24  ScanToken
@@ -208,7 +182,7 @@ subscripting a String yields the character at that position. `Length('café')` i
 The same holds for every operation that counts or indexes text — `Copy`, `Pos`,
 and `Ord` [16.2].
 
-⚠️ **Counting characters came out faster than counting bytes**, which is not the
+**Counting characters came out faster than counting bytes**, which is not the
 direction it looks. Subscripting text used to call `strlen` on the whole string
 for every character, so the scanner walked its entire source once per character
 read — quadratic, and nothing had noticed. Caching a string's character count
@@ -219,7 +193,7 @@ by pointer removed that: measured over three runs of `./test.sh`, 20.1 s against
     compiler     bootstrap/algol.c         alg_length
     conformance  0128-text-is-characters.a24
 
-⚠️ **[SRC-002] and [SRC-003] together mean an identifier is ASCII while a
+**[SRC-002] and [SRC-003] together mean an identifier is ASCII while a
 string is not.** The restriction is on the *program text the scanner reads*,
 not on the data a program may carry.
 
@@ -238,21 +212,21 @@ identifier_mark = "?" | "!" .
 `unicode_character` is **any** character above U+007F, whatever Unicode
 classifies it as. `café`, `Straße`, `日本`, `🙂` and `💩` are all identifiers.
 
-⚠️ **There is no category test, and that is deliberate.** Nothing above U+007F
+**There is no category test, and that is deliberate.** Nothing above U+007F
 is excluded, so the language needs no Unicode tables at all — Annex G.3's
 mangling escapes whatever C cannot spell as `U` followed by six hexadecimal
 digits, and there is nothing left for a classification to decide.
 
-⚠️ This briefly read `unicode_letter` literally, and the implementation grew a
+This briefly read `unicode_letter` literally, and the implementation grew a
 659-range table of categories Lu, Ll, Lt, Lm and Lo to match. That excluded `🙂`
 and `💩`, which are identifiers here, and the table answered a question the
 language does not ask. Both were removed.
 
-⚠️ A Unicode **digit** is therefore an ordinary identifier character. Only ASCII
+A Unicode **digit** is therefore an ordinary identifier character. Only ASCII
 `0`–`9` are digits to the *number* scanner, so `٠` cannot start a numeric
 literal, but it may appear in a name.
 
-⚠️ `decimal_digit` and `identifier_mark` are still ASCII, and a digit or a mark
+`decimal_digit` and `identifier_mark` are still ASCII, and a digit or a mark
 may not **lead** [LEX-007]. A character above U+007F may.
 
     interpreter  compiler/Scanner.a24  IsAlpha
@@ -262,7 +236,7 @@ may not **lead** [LEX-007]. A character above U+007F may.
     conformance  0128-text-is-characters.a24
     conformance  0139-unicode-identifiers.a24
 
-⚠️ **An identifier mark is not a letter.** `?` and `!` may appear *within* an
+**An identifier mark is not a letter.** `?` and `!` may appear *within* an
 identifier but may not begin one [LEX-007], so `Gate?` and `Gate!` are each a
 single word — one word to the scanner, and one word to double-click — while `?`
 and `!` alone are not identifiers at all. `_` is a letter and may lead.
@@ -276,7 +250,7 @@ Neither mark is an operator. The language spells negation `not` and inequality
 the terminator and is absorbed with it, so a file with CRLF endings and the same
 file with LF endings report identical line numbers.
 
-⚠️ The two cases below are a **pair**, and neither proves the rule alone: they
+The two cases below are a **pair**, and neither proves the rule alone: they
 are the same program with different line endings, and the rule is that they
 report identically.
 
@@ -290,11 +264,11 @@ report identically.
 whitespace [SRC-008]; in data it is ordinary text that `ReadLn` returns
 [RT-016].
 
-⚠️ A file whose only line endings are `#13` therefore holds **one line**, in
+A file whose only line endings are `#13` therefore holds **one line**, in
 source and in data alike. Every diagnostic in such a source file reports
 `line 1`.
 
-⚠️ A sharper consequence, from this rule meeting [LEX-001]: a comment runs to
+A sharper consequence, from this rule meeting [LEX-001]: a comment runs to
 `#10` or to end of file, so **a `//` comment in a file with no `#10` anywhere
 swallows the rest of the file**. A CR-only source beginning with a comment is
 therefore an empty program that runs and does nothing, rather than one that
@@ -340,24 +314,24 @@ is otherwise insignificant.
 `Xyz` and `xyz` are one name, and declaring both in one scope is a duplicate
 [VAR-007].
 
-⚠️ Folding is **ASCII-only**. `Straße` and `STRASSE` are different names.
+Folding is **ASCII-only**. `Straße` and `STRASSE` are different names.
 
-⚠️ **This is a decision, not a gap.** Admitting Unicode *case folding* would be a
+**This is a decision, not a gap.** Admitting Unicode *case folding* would be a
 change to this rule in its own right, and it is not implied by [SRC-005]
 admitting every character above U+007F as a letter — that rule needs no tables
 precisely because it classifies nothing. Full folding maps `ß` to `ss`, which
 would make those two one name — a different language from the one signed off
 here.
 
-⚠️ Only the *lookup* is folded. A diagnostic quotes the lexeme **as written**, so
+Only the *lookup* is folded. A diagnostic quotes the lexeme **as written**, so
 a program declaring `Xyz` and misspelling it `xyZ` is told about `xyZ`.
 
-⚠️ Folding happens where a name becomes a **key**, never to the lexeme itself,
+Folding happens where a name becomes a **key**, never to the lexeme itself,
 through one named function so that every store folds the same way as every
 lookup. `compiler/Token.a24`'s `FoldCase` scans for an uppercase letter before
 building anything, because a name that is already folded must not allocate.
 
-⚠️ **Every diagnostic on the path had to be corrected.** Folding the key made
+**Every diagnostic on the path had to be corrected.** Folding the key made
 messages echo the key: a program writing `Shared` was told about `shared`, a
 unit spelled `Deep` was reported as `deep`. A message names the occurrence the
 program wrote.
@@ -367,12 +341,12 @@ program wrote.
     conformance  0126-identifiers-are-case-insensitive.a24
     refusal      0036-case-insensitive-duplicate.a24
 
-⚠️ **Folding is uniform**, as Pascal's is: a name is a name whether it is a
+**Folding is uniform**, as Pascal's is: a name is a name whether it is a
 keyword, a variable, a field, a method or a type [VAL-006]. A program may not
 declare `Count` and `count` as two variables, and may not declare a variable
 named `Begin` [LEX-009].
 
-⚠️ **A module name is the one exception**, and it is not the language's to
+**A module name is the one exception**, and it is not the language's to
 make: a module names a file, and the filesystem decides how that name is
 matched. See [MOD-002].
 
@@ -490,7 +464,7 @@ var     while
 No other word is a keyword. Every word not in this list is an identifier and
 may be declared as a name.
 
-⚠️ `print` used to be registered as a thirty-eighth, introducing a statement
+`print` used to be registered as a thirty-eighth, introducing a statement
 [STM-022]. Neither was part of the language, and `var print := 7;` was refused
 with `Expect variable name.`
 
@@ -544,7 +518,7 @@ keywords rather than punctuation, and are subject to [SRC-010].
     unit         Scan Keywords
     conformance  0012-operators.a24
 
-⚠️ `{` and `}` are not tokens of the language at all — not as comment
+`{` and `}` are not tokens of the language at all — not as comment
 delimiters, not as block delimiters, and not as set constructors. A block is
 `begin` … `end`; a collection literal uses `[` and `]`.
 
@@ -561,7 +535,7 @@ hex_lit     = "0x" hex_digit { [ "_" ] hex_digit } .
 binary_lit  = "0b" binary_digit { [ "_" ] binary_digit } .
 ```
 
-⚠️ The base prefix and the hexadecimal digits are matched **without regard to
+The base prefix and the hexadecimal digits are matched **without regard to
 case**, as every other name in the language is [SRC-011]: `0XFF`, `0xff` and
 `0xFF` are one literal.
 
@@ -585,23 +559,23 @@ digit.
 | `1_.5`, `1._5`, `1e_5` | refused: the neighbor is not a digit |
 | `0x_FF` | refused: the prefix is not a digit either |
 
-⚠️ **There is no octal.** It is a PDP-11 artefact, and `0755` silently meaning
+**There is no octal.** It is a PDP-11 artefact, and `0755` silently meaning
 493 is a classic defect; C# omits it for the same reason. Three bases where two
 are used is a name the reader must know for nothing.
 
-⚠️ **A comma separator is impossible rather than merely awkward.**
+**A comma separator is impossible rather than merely awkward.**
 `F (1,000,000)` is already a call with three arguments and `[1,000,000]` a list
 of three elements — both valid, with a different meaning. No lookahead resolves
 it, because both readings are complete. `_` is the only separator available to a
 language with comma-separated arguments and collection literals.
 
-⚠️ **`0x` and `0b` rather than Turbo Pascal's `$FF`.** `$` is unclaimed, and
+**`0x` and `0b` rather than Turbo Pascal's `$FF`.** `$` is unclaimed, and
 `$FF` would sit consistently beside `#10`, which the language already has for a
 code point. But Turbo Pascal has no binary form at all, so `$FF` beside `0b1010`
 would mix two traditions in one sentence. The choice is for coherence with the
 binary form, not for modernity.
 
-⚠️ **A separator does not survive into the value**, so `1_000` and `1000` are
+**A separator does not survive into the value**, so `1_000` and `1000` are
 the same literal and print alike.
 
     interpreter  compiler/Scanner.a24  ScanNumber
@@ -617,39 +591,39 @@ integer 7, not an octal.
 **[LEX-018]**  An Integer is **unbounded**. Arithmetic never overflows: a result
 too large for the machine's width grows to hold it.
 
-⚠️ **This is the whole of the type.** "An `Integer` is an integer" is a sentence
+**This is the whole of the type.** "An `Integer` is an integer" is a sentence
 a reader needs nothing else to understand, where "an `Integer` is a signed
 32-bit value, and an operation whose result falls outside that range raises"
 asks them to carry a boundary. Removing the boundary removes a category of
 error rather than diagnosing it.
 
-⚠️ **Cheaper than it sounds, and the reason is worth stating.** The wide path
+**Cheaper than it sounds, and the reason is worth stating.** The wide path
 begins past 2⁶³ and almost nothing reaches it — `algc` cannot, since its own
 scanner accumulates digits through this very arithmetic. What an ordinary
 program pays is one predicted branch per operation, which is exactly what the
 range check it replaced already cost.
 
-⚠️ **It used to wrap silently**, so `2147483647 + 1` was `-2147483648`; then it
+**It used to wrap silently**, so `2147483647 + 1` was `-2147483648`; then it
 raised [was LEX-018 as first written]; now it grows. Each step removed a way for
 a program to be surprised, and the last one removes the surprise itself.
 
-⚠️ **One implementation, not two.** The interpreter's `+` *is* the runtime's —
+**One implementation, not two.** The interpreter's `+` *is* the runtime's —
 `Exit Left + Right` in `VisitBinary` compiles to `alg_add` — so the two cannot
 disagree, and this landed in `bootstrap/algol.c` alone.
 
-⚠️ **Signed overflow in C is undefined behavior, not a wrap**, which is a
+**Signed overflow in C is undefined behavior, not a wrap**, which is a
 different problem and was already avoided: the arithmetic goes through
 `__builtin_*_overflow`. What changed is only what happens on the overflow they
 report — the same branch that raised now promotes.
 
-⚠️ **The switch that turned the check off is gone.**
+**The switch that turned the check off is gone.**
 `-DALG_NO_OVERFLOW_CHECK` skipped a range check and left the defined wrap that
 preceded it: a build that did not conform but did compute something. The same
 branch now decides whether to promote, so skipping it would not be a faster
 conforming build — it would be wrong answers. A check that may be turned off and
 a promotion that may not are one line of C and a different bargain.
 
-⚠️ **Crossing into a machine width is a separate question**, and one place
+**Crossing into a machine width is a separate question**, and one place
 answers it. A subscript, a `Buffer` offset, a code point and an exit status all
 need a number C can hold, so each asks for one and gets a diagnostic naming the
 value rather than a truncation.
@@ -696,17 +670,17 @@ exponent = ( "e" | "E" ) [ "+" | "-" ] decimal_digit { [ "_" ] decimal_digit } .
 
 `1e5` is `100000.0`, `1.5e-3` is `0.0015`, and `1E300` is a Double.
 
-⚠️ **The exponent decides the type**, which is why `1e5` is a Double rather than
+**The exponent decides the type**, which is why `1e5` is a Double rather than
 an Integer of the same value. A form written to say "this is a magnitude" should
 not answer with the type that cannot express most magnitudes.
 
-⚠️ **This closed a place where the language printed a form it could not read.**
+**This closed a place where the language printed a form it could not read.**
 `Str` renders a large Double in exponent notation — `1.0E300` — and that text
 was not a literal. Nothing was unreachable, because `Val` parsed the exponent
 form and `Val(Str(X))` round-tripped; but a value could not be written into a
 program the way the program wrote it out.
 
-⚠️ **The sign belongs to the exponent, not to the literal.** [LEX-019] still
+**The sign belongs to the exponent, not to the literal.** [LEX-019] still
 holds: there is no negative literal, and `-1e5` is the unary operator applied to
 one. The `-` inside `1e-5` is part of the exponent and is not that operator.
 
@@ -719,12 +693,12 @@ one. The `-` inside `1e-5` is part of the exponent and is not that operator.
 than a String. `'a'`, `'é'` and `''''` are all Chars; `''` is the empty String
 and `'ab'` a String of two.
 
-⚠️ **The measurement is on the VALUE, not on the source span.** A doubled quote
+**The measurement is on the VALUE, not on the source span.** A doubled quote
 `''''` is two characters of source and one character of value, and it is the
 value that decides — because the doubling is *notation for a character*, and
 notation must not change a type.
 
-⚠️ **This was the other way round, and was wrong.** Measuring the span made the
+**This was the other way round, and was wrong.** Measuring the span made the
 same character carry two types depending on how it was spelled:
 
 ```
@@ -733,7 +707,7 @@ same character carry two types depending on how it was spelled:
 Ord ('''')     →  Ord failed: ''' has no ordinal.
 ```
 
-⚠️ **This was wrong twice over.** The implementation measured the span, and
+**This was wrong twice over.** The implementation measured the span, and
 measured it in *bytes* — so `''''` was a String and `'é'` a String of length 2.
 One line decided both, which is why they were corrected together.
 
@@ -751,7 +725,7 @@ char_lit = "'" ( source_character_other_than_quote | "''" ) "'"
          | "#" decimal_digit { decimal_digit } .
 ```
 
-⚠️ `char_lit` and `string_lit` are not distinguished by the grammar — both open
+`char_lit` and `string_lit` are not distinguished by the grammar — both open
 with a quote — and are not meant to be. [LEX-023] decides between them by
 counting the characters the literal denotes.
 
@@ -765,16 +739,10 @@ surrogate range D800 … DFFF, which encodes no character. A `#` literal outside
 that range is refused when the program is read, with the shape every other
 scan error has — `[line N] Error: …` — because that is where it is detected.
 
-⚠️ A Char is held as its **UTF-8 encoding** — a String of one character and
+A Char is held as its **UTF-8 encoding** — a String of one character and
 possibly several bytes — and `alg_char_value` is the single place that encodes
 it, so the two processors agree by construction rather than by both being
 restricted to what a byte can hold.
-
-⚠️ **The diagnostic half is done.** It used to arrive as
-`Uncaught: Char is limited to 0..127.` with no line and no caret, because
-`ScanChar` built the value by calling the `Char` built-in, which raises. It is a
-scan error and is now reported as one [ERR-004]. The range moves with DEF-01 —
-widening a Char is the same change as a String of characters rather than bytes.
 
     interpreter  compiler/Scanner.a24  ScanChar
     compiler     bootstrap/algol.c     alg_char
@@ -814,14 +782,14 @@ concatenated.
 empty Char. `''''` is the **Char** holding a quote: one character of value,
 however many of source [LEX-023].
 
-⚠️ `''''` and `#39` are therefore the same value, and equal. They are two
+`''''` and `#39` are therefore the same value, and equal. They are two
 spellings of one character.
 
-⚠️ The scanner measures the literal's **value**, not its source span, and that
+The scanner measures the literal's **value**, not its source span, and that
 one line decides two things: `'é'` is a Char rather than a String of two bytes,
 and a doubled quote counts once.
 
-⚠️ **There is then no literal for a one-character String**, and that is not a
+**There is then no literal for a one-character String**, and that is not a
 loss. `var S : String := 'c';` is already a type mismatch for every character
 but the quote [LEX-023], so `''''` being writable was an accident of the
 measurement rather than a way of writing anything. Once a Char widens to a
@@ -844,7 +812,7 @@ value and advances the line count, so `'one` ⏎ `two'` is seven characters.
 reading `[line N] Error: Unterminated string.`, where N is the line the string
 **opened** on.
 
-⚠️ A quote closes the string before it. A file with several stray quotes
+A quote closes the string before it. A file with several stray quotes
 therefore reports the last *unpaired* one, which is the string that actually
 runs to the end.
 
@@ -855,12 +823,12 @@ runs to the end.
 **[LEX-032]**  `#0` is not a Char. A code point of 0 is refused exactly as an
 out-of-range one is [LEX-025], when the program is read.
 
-⚠️ **Only the LITERAL is refused.** [LEX-025] puts a Char at 0 … 10FFFF and the
+**Only the LITERAL is refused.** [LEX-025] puts a Char at 0 … 10FFFF and the
 built-in `Char(0)` stays legal — which it must, because the scanner's own
 end-of-input sentinel is `Char(0)`, and a scanner that cannot name its sentinel
 cannot scan.
 
-⚠️ `Str(Char(0))` no longer truncates: a String carries its own length
+`Str(Char(0))` no longer truncates: a String carries its own length
 [SRC-001], so `Length('a' + Str(Char(0)) + 'b')` is 3.
 
     interpreter  compiler/Scanner.a24  ScanChar
@@ -918,7 +886,7 @@ the point it arrives. There are two widening pairs:
 The variable holds the wider type afterwards. A declaration never misdescribes
 what it holds.
 
-⚠️ A plain assignment and a field reached this **last**, and `D := 1` used to
+A plain assignment and a field reached this **last**, and `D := 1` used to
 leave `D` holding an Integer — a declaration describing something the variable
 did not hold.
 
@@ -936,7 +904,7 @@ Exit E ;   (against a declared return type)
 F (E) ;    (against a declared parameter type)
 ```
 
-⚠️ **The interpreter does not know a variable's declared type at run time**, and
+**The interpreter does not know a variable's declared type at run time**, and
 this is how the last two contexts are reached anyway. `Env` stores values, not
 types, so a plain `X := 1` has nothing to consult — a declaration knows its own
 type, and a parameter and a return type are on the function. The **TypeChecker
@@ -944,17 +912,16 @@ writes the declared type onto the assignment node**, having already computed it
 to check the assignment, and the interpreter widens with it. A field is the same
 arrangement on `SetExpr`.
 
-⚠️ A field written through `this` needs the receiver's type, and `this` is
+A field written through `this` needs the receiver's type, and `this` is
 **deliberately untyped** so that a class's own code escapes the private-member
 check. The class name is taken for the widening lookup alone, after visibility
 has had its untyped receiver — typing `this` outright breaks that rule, which
 the checker's own tests catch.
 
-⚠️ **Comparison is not among them and does not widen.** `'a'` and
+**Comparison is not among them and does not widen.** `'a'` and
 `Copy('abc', 0, 1)` remain unequal [LEX-026]. A widening converts *toward a
 target type*, and an `=` supplies none — it would have to invent one, and
-"convert when the sides differ" is the rule that makes `=` unpredictable. See
-D-6, which weighs the same question for membership.
+"convert when the sides differ" is the rule that makes `=` unpredictable.
 
     interpreter  compiler/TypeChecker.a24  Assignable
     interpreter  compiler/Interpreter.a24  VisitAssignExpr
@@ -983,16 +950,16 @@ could not be determined at all, does not satisfy a written type: neither
 `var I : Integer := A;` nor a later `I := A;` is accepted where `A` is `Any`.
 The conversion must be written, and `as` [VAL-007] is how to write it.
 
-⚠️ **A type is not a suggestion once it is written.** Where a program declares a
+**A type is not a suggestion once it is written.** Where a program declares a
 type, every value reaching that variable either has the type already or is
 converted by an expression that says so and checks it. This is what lets a
 declared type be relied upon — by a reader, and by the C back end, which can
 only generate a machine representation for a variable whose type it may trust.
 
-⚠️ Writing no type remains entirely permissive. `var A := M.Get (1);` is
+Writing no type remains entirely permissive. `var A := M.Get (1);` is
 ordinary and unremarkable; the rule bites only where a type was written down.
 
-⚠️ **An assignment is now as strict as a declaration**, and getting there was an
+**An assignment is now as strict as a declaration**, and getting there was an
 inference problem rather than a rule problem. The asymmetry existed because
 refusing an untyped value at an assignment refused *correct code*, and the wrong
 trade would have been to punish a program for the checker's blind spot.
@@ -1006,12 +973,12 @@ and seeing what the compiler's own sources tripped on:
 | a bare name inside a method that is a **field** — an implicit `this.Field` — had no type, since a field is registered under `Class::Field` | look it up as a field, walking the inheritance chain, after the scoped lookup so a local still shadows |
 | a `Buffer` held in a variable declared `Any` gave `.Text` no type | declare the variable `Buffer`; the emitter's own four buffers were `Any` |
 
-⚠️ **Five sites in the compiler genuinely could not be typed**, and each was
+**Five sites in the compiler genuinely could not be typed**, and each was
 given the `as` this rule prescribes — a member of an untyped parameter, a
 subscript of one. That is the rule working as intended rather than a concession
 to it: the conversion is written where the checker cannot see the type.
 
-⚠️ **Scoping `Inferred` was not optional.** While one helper read it a stale
+**Scoping `Inferred` was not optional.** While one helper read it a stale
 entry could only lose checking; once an ordinary variable's type comes from it, a
 leftover `String` from another function's `C` makes a correct program fail to
 check — the one kind of wrong answer that is not harmless. `Generics` was made
@@ -1026,7 +993,7 @@ scoped for exactly this reason and the pattern was copied.
 **[VAR-007]**  A name may not be declared twice in one scope. The second is
 refused with `'X' is already defined.`
 
-⚠️ **Two subprograms of one name are not a duplicate** where their signatures
+**Two subprograms of one name are not a duplicate** where their signatures
 differ: they are overloads [FUN-013], selected between at the call. Two with the
 *same* signature are a duplicate like any other name.
 
@@ -1038,10 +1005,10 @@ differ: they are overloads [FUN-013], selected between at the call. Two with the
 `var L : List of Integer := [];`. Every collection type accepts one — `List`,
 `Map`, `Set` and `Array`.
 
-⚠️ For a `Map` the element type is the **value** type, since that is what a
+For a `Map` the element type is the **value** type, since that is what a
 subscript and a `Get` yield [VAR-016]. A Map's keys are not constrained.
 
-⚠️ **Wherever a type may be written**, which is every context [TYP-002] names —
+**Wherever a type may be written**, which is every context [TYP-002] names —
 a variable, a constant, a field, a **parameter** and a **return type**. The last
 two did not parse: `Items : List of Integer` was `Expect ')' after parameters.`
 and a return type stopped at the collection's name. Annex A's grammar has
@@ -1065,25 +1032,25 @@ constraint on writes.** Given `var L : List of Integer`:
 **Every route in is covered**, and there are five: `Add`, `Push`, `Put`,
 subscript assignment, and the collection **literal** at a declaration.
 
-⚠️ **A check covering some of them would be worse than none**, which is why the
+**A check covering some of them would be worse than none**, which is why the
 list is exhaustive rather than convenient. A fence with a gate in it invites the
 declared type to be trusted, and a type that is trusted in four places and not
 the fifth is more dangerous than one trusted nowhere.
 
-⚠️ **`Put` constrains its SECOND argument.** A `Map of T` declares the type of
+**`Put` constrains its SECOND argument.** A `Map of T` declares the type of
 what is stored, which is what `M[K]` reads back; the key is not constrained.
 
-⚠️ **Checked where the receiver's type is known, and nowhere else** — the same
+**Checked where the receiver's type is known, and nowhere else** — the same
 bargain [CLS-017] makes for a property and [DCL-015] for `private:`. The element
 type is available only for a plain **name**: there is nowhere to have written
 the element type of an arbitrary expression, so an insertion through one is
 unchecked. It costs nothing at run time.
 
-⚠️ **A bare `List` is unconstrained**, as it always was. The element type does
+**A bare `List` is unconstrained**, as it always was. The element type does
 the constraining, so declaring none declares no constraint — which is why this
 rule is about the *annotation* rather than about collections.
 
-⚠️ **It checks and does not convert.** `D.Add (2)` into a `List of Double` is
+**It checks and does not convert.** `D.Add (2)` into a `List of Double` is
 accepted because an Integer widens to a Double [VAR-004], and the element
 stored is the Integer `2`. Widening happens where a value reaches a *written
 type*, and an element is not one.
@@ -1127,7 +1094,7 @@ the top level `var` declares exactly one name, and a run of declarations
 beneath it is read as ordinary statements — `var A : Integer;` followed by
 `B : String;` is refused.
 
-⚠️ **Labels changed how it is refused, and the diagnostic got worse.** `B :`
+**Labels changed how it is refused, and the diagnostic got worse.** `B :`
 is now read as a **label** [STM-010] on the statement `String;`, so the line
 parses and fails at run time with `Undefined variable 'String'.` rather than at
 parse time with `Expect ';' after expression.` The rule is unchanged and the
@@ -1159,7 +1126,7 @@ ConstDecl = "const" identifier [ ":" Type ] ":=" Expression ";" .
     interpreter  compiler/Resolver.a24  VisitAssignExpr
     refusal      0012-const-is-not-assignable.a24
 
-**[VAR-014]**  ⚠️ A constant's initializer is an **ordinary expression evaluated
+**[VAR-014]**  A constant's initializer is an **ordinary expression evaluated
 at run time**, not a constant expression. `const C := 1 + 2;` is legal, and so
 is `const C := V;` where `V` is a variable — the constant takes whatever value
 `V` held at that moment.
@@ -1195,7 +1162,7 @@ two may appear together in one header.
 | Foreign | `Pointer` — only in a build with foreign calls [INI-008] |
 | Unknown | `Any` — a declaration only, never a runtime type |
 
-⚠️ **`Pointer` is in the table but not in the corpus's list**, because a program
+**`Pointer` is in the table but not in the corpus's list**, because a program
 cannot make one without calling C [TYP-017] and a conformance case must run in
 the default build. `0026` therefore names every row but that one.
 
@@ -1216,36 +1183,36 @@ A value is never *a Byte* — [TYP-001] still answers `Integer` — so a subrang
 name appears only where a type is **written**, and the bounds are checked where
 the value arrives: the six assignment contexts of [VAR-017], and nowhere else.
 
-⚠️ **One feature instead of several special cases.** With [LEX-018] making an
+**One feature instead of several special cases.** With [LEX-018] making an
 Integer unbounded, a width is no longer a representation to match — only a range
 to name. `Byte` is `0 .. 255` and says so.
 
-⚠️ **`Short` is 16 bits, and Turbo Pascal's was not.** TP's `ShortInt` was 8
+**`Short` is 16 bits, and Turbo Pascal's was not.** TP's `ShortInt` was 8
 bits and its `Integer` 16; the modern reading is the one a reader can state
 without looking it up, which is the test this language applies.
 
-⚠️ **There is no unsigned family.** Unsigned types exist to buy one more bit
+**There is no unsigned family.** Unsigned types exist to buy one more bit
 inside a fixed width and to say "not negative". An unbounded Integer removes the
 first reason, and `0 ..` states the second directly rather than encoding it in a
 name. It also avoids C#'s corner where `long + ulong` has no type to answer
 with.
 
-⚠️ **Selection ignores the bounds** [FUN-013]. Two subprograms differing only in
+**Selection ignores the bounds** [FUN-013]. Two subprograms differing only in
 a parameter's range claim the **same signature** and are a duplicate — which is
 the argument that rule already makes about return types: a call could never tell
 them apart. Consulting the bounds would send `Take (200)` and `Take (300)` to
 different subprograms, and would let *adding* an overload steal calls from one
 that was already there.
 
-⚠️ **`X is Byte` is nonetheless a range test**, and that is not a contradiction.
+**`X is Byte` is nonetheless a range test**, and that is not a contradiction.
 The principle is that a program may **ask** about a value; the language may not
 silently **dispatch** on one. `is` is the question written where the programmer
 wrote it.
 
-⚠️ **The check lives where widening does, and that is safe for a reason.**
-Widening converts and refuses nothing — making it refuse on a *type* mismatch
-broke the compiler twice (C-24, C-25), because a String reaching a field
-declared `Expr` is a shape real programs use. A *range* check cannot fire on
+**The check lives where widening does, and that is safe for a reason.**
+Widening converts and refuses nothing, and making it refuse on a *type*
+mismatch would break a shape real programs use: a String reaching a field
+declared `Expr`. A *range* check cannot fire on
 that shape: it applies only when the declared name is a subrange and the value
 is already an Integer.
 
@@ -1269,22 +1236,22 @@ type Celsius = -273 .. 1000;
 It behaves exactly as a predefined one [TYP-015]: an Integer for every question
 about type, its own name for the question about range.
 
-⚠️ **The bounds are literals, not expressions.** A subrange is hoisted like a
+**The bounds are literals, not expressions.** A subrange is hoisted like a
 class and an enumeration, so its bounds must be known before anything runs — and
 an expression would have to be *evaluated*, which needs the declaration to have
 run already. The restriction can be relaxed later by admitting constants, and
 nothing in the rule prevents it.
 
-⚠️ **The sign is read by the declaration**, because [LEX-019] still holds: there
+**The sign is read by the declaration**, because [LEX-019] still holds: there
 is no negative literal, and `-273` is the unary operator applied to one. Where
 an expression cannot be evaluated, the same rule is applied by hand.
 
-⚠️ **An empty subrange is refused where it is read.** `type Empty = 9 .. 0;` is
+**An empty subrange is refused where it is read.** `type Empty = 9 .. 0;` is
 `A subrange must not be empty: 9 is above 0.` — it admits no value at all, so
 every assignment through it would fail and the declaration is the only place
 that can say why.
 
-⚠️ **`type` declares two different things**, and which is decided by the
+**`type` declares two different things**, and which is decided by the
 character after the `=`: a `(` begins an enumeration [ENU-001], anything else a
 subrange. Both bind a name that denotes a type and neither binds a value.
 
@@ -1297,26 +1264,26 @@ subrange. Both bind a name that denotes a type and neither binds a value.
 the same arguments, and two subprograms differing only in which was written
 claim the same signature [FUN-013].
 
-⚠️ **An alias, not a conversion.** C# settled this shape: `int` *is*
+**An alias, not a conversion.** C# settled this shape: `int` *is*
 `System.Int32`, one type with two names and no box between them. Java's
 `int`/`Integer` duality — two things with almost the same name behaving
 differently — is the arrangement this avoids.
 
-⚠️ **The canonical spelling is `Double`**, and a diagnostic uses it: `X as Real`
+**The canonical spelling is `Double`**, and a diagnostic uses it: `X as Real`
 on a String is `Cannot cast String to Double.` The alias telling a reader what it
 is, is worth more than echoing what they wrote.
 
-⚠️ **Turbo Pascal's `Real` was a 6-byte software float** from before the 8087,
+**Turbo Pascal's `Real` was a 6-byte software float** from before the 8087,
 with no C type to map onto. A type whose only distinction is a 1985 storage
 format is the opposite of self-explanatory, so the name survives and the
 representation does not. Delphi reached the same conclusion.
 
-⚠️ **There is no `Single`.** A 32-bit float earns its place in a language whose
+**There is no `Single`.** A 32-bit float earns its place in a language whose
 values are unboxed, by halving the storage of an array; Algol-24's values are
 tagged and one size, so it would cost a reader "32-bit IEEE, less precision"
 and buy nothing.
 
-⚠️ **Replaced where a written type becomes something to compare**, and nowhere
+**Replaced where a written type becomes something to compare**, and nowhere
 else, so no part of the implementation past the front end knows the alias
 exists — the C runtime has no case for it at all. `is` is canonicalised at its
 two use sites rather than at the parser, because it carries a token where the
@@ -1339,7 +1306,7 @@ Type = identifier [ "of" identifier ] .
 **[TYP-003]**  `Char` and `String` are distinct types, and a one-character
 value is a `Char`. `'s' is String` is **false**.
 
-⚠️ **Widening does not change this.** A Char widens to a String on its way into
+**Widening does not change this.** A Char widens to a String on its way into
 a written type [VAR-004], but `is` asks what a value *is*, not what it could
 become, and a type test is not one of the six assignment contexts [VAR-017]. A
 Char that has widened is a String and answers so; the Char it came from is not.
@@ -1382,19 +1349,19 @@ and is accepted everywhere.
 nothing is refused when the program is read, rather than being read as a type no
 value has.
 
-⚠️ The name used never to be resolved: `1 is Nonexistent` was `false`, silently,
+The name used never to be resolved: `1 is Nonexistent` was `false`, silently,
 so a misspelled type answered false and the branch it guarded never ran — while
 an undefined *variable* in the same position has always been
 `Undefined variable 'X'`.
 
-⚠️ **`Any` stays legal**, though `X is Any` is always false [VAL-005]. It names
+**`Any` stays legal**, though `X is Any` is always false [VAL-005]. It names
 something; it just never matches.
 
-⚠️ Checked **folded**, because `is` folds at run time — `SatisfiesType` lowers
+Checked **folded**, because `is` folds at run time — `SatisfiesType` lowers
 both sides, so `1 is dog` finds `class Dog` and refusing it here would refuse a
 program that runs.
 
-⚠️ Writing that case down found a second fault: `InheritsFrom` compared class
+Writing that case down found a second fault: `InheritsFrom` compared class
 names **exactly** while `SatisfiesType` folded its direct match, so
 `Puppy() is Dog` was true and `Puppy() is dog` was false — one operator
 disagreeing with itself about case, and the C runtime folding both. Fixed with
@@ -1433,35 +1400,30 @@ and asking for one is the error `Undefined property 'ClassName'.`
 ### 6.5 What a class type cannot do
 
 These rules are normative in their own right, and together they say which
-built-in behavior a program cannot reproduce for a type of its own. Annex E
-takes up what it would cost to lift each one.
+built-in behavior a program cannot reproduce for a type of its own.
 
 **[TYP-010]**  A class instance is subscriptable when its class declares `Get`
 taking one argument: `B[0]` calls `B.Get (0)`. Assignment needs `Put` taking
 two: `B[0] := X` calls `B.Put (0, X)`. Without them, `B[0]` is the runtime error
 `Subscript target should be an ordinal.`
 
-⚠️ **The fifth structural protocol**, beside `Contains`, `ToString` [CLS-009],
+**The fifth structural protocol**, beside `Contains`, `ToString` [CLS-009],
 `Elements` [TYP-011] and `Compare` [VAL-014]. It needs no member name of its
 own: `Get` and `Put` are what the built-in collections already answer to
 [COL-003], so a collection written in Algol-24 reuses the names rather than
 being given a second set.
 
-⚠️ **A `property` is not one of them**, though it is often listed beside them.
+**A `property` is not one of them**, though it is often listed beside them.
 A protocol is *structural* — a class either happens to declare the member or it
 does not — while a property is announced with a keyword [CLS-017]. The
 difference matters when counting: there are five protocols and one declared
 member kind, not six of anything.
 
-⚠️ **The two forms are two members of different arity**, which is the one
+**The two forms are two members of different arity**, which is the one
 question subscripting adds that no other operator has — and the language already
 tells arities apart everywhere else, so nothing has to pair a getter with a
 setter syntactically. A class declaring only `Get` is readable and not
 assignable, which needs no separate way of saying so.
-
-⚠️ **It is not an operator declaration**, and that was the change of mind. This
-was H-4, folded into operator overloading (H-8) as "the same feature in a
-particular spelling"; it turned out to want no operator feature at all.
 
     interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
     compiler     bootstrap/algol.c         alg_subscript_get
@@ -1484,24 +1446,24 @@ end
 for var X in Bag () do Write (X);      // 102030
 ```
 
-⚠️ **The protocol is STRUCTURAL, not declared.** There is nothing to inherit
+**The protocol is STRUCTURAL, not declared.** There is nothing to inherit
 from and nothing to announce: a class either has the method or it does not. `Str`
 works the same way through `ToString` [CLS-009], `in` through a `Contains`
 taking one argument, ordering through `Compare` [VAL-014] and subscripting
 through `Get` and `Put` [TYP-010] — five protocols, one convention.
 
-⚠️ **A protocol is a name AND a shape.** `Elements` taking an argument does not
+**A protocol is a name AND a shape.** `Elements` taking an argument does not
 implement this one, and such a class is simply not iterable. Neither processor
 checked that: the interpreter asked for the first method of the name whatever
 its shape, the runtime's `has_method` fell back to the same, and the two then
 failed differently — `Index 0 out of range 0..-1.` against
 `No matching signature for function.`, neither of them the message above.
 
-⚠️ **The result is walked, not re-asked.** `Elements` may return another
+**The result is walked, not re-asked.** `Elements` may return another
 instance that also declares `Elements`, and the chain resolves — which is what
 stops a `List` whose `Elements` returns a `List` from recursing forever.
 
-⚠️ **It is snapshotted like any other walk** [STM-009]. The method answers a
+**It is snapshotted like any other walk** [STM-009]. The method answers a
 whole collection, so the loop has its elements before the first pass runs; a
 lazy protocol would be a different feature and would take that guarantee away.
 
@@ -1517,13 +1479,13 @@ itself, printing `<fn Length>`, where a collection's `Length` yields its count.
 A class may also declare a **property**: a member read without parentheses,
 whose read *is* the call [CLS-017].
 
-⚠️ **The three are distinguished by their declarations, not by the call site.**
+**The three are distinguished by their declarations, not by the call site.**
 A field is a name in a `var` section, a method is `function` or `procedure`, and
 a property is `property`. Nothing at a use site says which — `B.Count` looks the
 same whichever it is — which is why the runtime decides, and why the emitter is
 told at the declaration rather than working it out at the call.
 
-⚠️ **A BUILT-IN member reads the same way.** `L.Sort` yields something callable
+**A BUILT-IN member reads the same way.** `L.Sort` yields something callable
 and prints `<fn Sort>`, because it is the same kind of thing as a bound method.
 The spelling is the one the program wrote — a built-in member has no declaration
 to take a canonical one from, where a method prints the name its declaration
@@ -1544,7 +1506,7 @@ declared type, when the **declaration** is `Any`, when the value is `nil`, when
 its class inherits from the declared class, or when it widens to the declared
 type [VAR-004].
 
-⚠️ A value *of* type `Any` is not assignable to a written type; only the reverse
+A value *of* type `Any` is not assignable to a written type; only the reverse
 holds [VAR-006].
 
     interpreter  compiler/TypeChecker.a24  Assignable
@@ -1580,7 +1542,7 @@ has no type to test.
 **[VAL-005]**  `X is Any` is **false** for every `X`. `Any` is a declaration,
 never a runtime type.
 
-⚠️ `Any` is nonetheless a legal type name in `is` [TYP-013]. It denotes
+`Any` is nonetheless a legal type name in `is` [TYP-013]. It denotes
 something; it just never matches.
 
     interpreter  compiler/Interpreter.a24  VisitIsExpr
@@ -1601,14 +1563,14 @@ the expression has type `T`, and verifies the claim when the program runs: if
 
 `nil` satisfies every type [VAR-005] and therefore passes every cast.
 
-⚠️ `as` is the one construct that moves a value from untyped into typed
+`as` is the one construct that moves a value from untyped into typed
 [VAR-006], so it carries the whole weight of that boundary. A cast that could
 not fail would make the boundary a formality, and every declared type downstream
 of it a claim nothing had checked.
 
 A cast that does not hold raises `Cannot cast String to Integer.`
 
-⚠️ The test is the one `is` uses [VAL-003] — the value's own type, or a class it
+The test is the one `is` uses [VAL-003] — the value's own type, or a class it
 inherits from — and deliberately the same code, so `X as T` and `X is T` cannot
 come to disagree about what `T` means.
 
@@ -1620,10 +1582,10 @@ come to disagree about what `T` means.
 **[VAL-008]**  A value is **falsey** if it is `nil`, `False`, the Integer `0`, or
 an enumeration member whose ordinal is `0`. Every other value is **truthy**.
 
-⚠️ In particular these are all truthy: `0.0`, the empty String `''`, the empty
+In particular these are all truthy: `0.0`, the empty String `''`, the empty
 List `[]`, the empty Map `[:]`, and every `Char`.
 
-⚠️ Truthiness is **independent of a value's contents**. A collection is a thing,
+Truthiness is **independent of a value's contents**. A collection is a thing,
 and a thing is there; `if not S then` therefore does not test emptiness, and
 `if S.Length = 0 then` is the only spelling that does.
 
@@ -1632,11 +1594,6 @@ and a thing is there; `if not S then` therefore does not test emptiness, and
     unit         Execute Logical Truthy
     unit         Evaluate Unary Bang Nil
     conformance  0036-truthiness.a24
-
-> D-8 observes that Integer `0` is the odd one out, and that were it truthy the
-> rule would reduce to "only `nil` and `False` are false". That is a change to
-> what existing programs mean and is not scheduled; the rule as written is the
-> decided one.
 
 ### 7.5 Equality
 
@@ -1651,14 +1608,14 @@ and a thing is there; `if not S then` therefore does not test emptiness, and
 **[VAL-010]**  A `Char` is never equal to a `String` — see [LEX-026]. `'a'` and
 `Copy('abc', 0, 1)` are not equal.
 
-⚠️ **Widening does not reach equality**, and the asymmetry with [VAL-009] is
+**Widening does not reach equality**, and the asymmetry with [VAL-009] is
 deliberate. A numeric promotion has one obvious target — the wider of the two
 types — and converting toward it loses nothing. `Char` against `String` has no
 target at all: it is a change of representation rather than a widening of value,
 and picking a direction would mean `=` converting its operands differently
 depending on which side they arrived on.
 
-⚠️ The rule bites less often than it appears to. `'a' = 'a'` is already true,
+The rule bites less often than it appears to. `'a' = 'a'` is already true,
 because both sides are Chars; it is only reached when one side came from `Copy`,
 `Str` or a subscript. The complaint worth acting on is how easily a
 one-character String is produced by accident, not how `=` treats one.
@@ -1670,16 +1627,16 @@ one-character String is produced by accident, not how `=` treats one.
 **identity**, not by contents. `[1, 2] = [1, 2]` is **false**: they are two
 collections. Two references to one collection are equal.
 
-⚠️ **There is still no way for a class to say otherwise, and it is now a
+**There is still no way for a class to say otherwise, and it is now a
 choice rather than an absence.** A program may define `+`, `-`, `*`, `/` and
 `div` [EXP-020]; `=` is deliberately not on that list. Equality is coupled to
 membership by [VAL-013] — *if `X = Y` then a collection holding `Y` contains
 `X`* — and an object key hashes by its address, so defining `=` without a hash
 protocol to move with it would break a stated rule silently. That pairing is
 what Java's `equals`/`hashCode` discipline exists for, and it is the whole of
-what Annex H, H-17 has to settle.
+what a program-defined `=` would have to settle first.
 
-⚠️ **Ordering is different, and landed in Generation 7** [VAL-014]. A class
+**Ordering is different** [VAL-014]. A class
 declaring `Compare` orders with `<` and its three companions, because ordering
 touches no hash and no membership — which is exactly why it was settled while
 equality was not.
@@ -1701,20 +1658,20 @@ equality was not.
 collection holding `Y` contains `X`. `1 in [1.0]` is **true**, and a Map holding
 the key `1` contains the key `1.0`.
 
-⚠️ **The hash is what pays for it**, not the comparison. A Map and a Set bucket
+**The hash is what pays for it**, not the comparison. A Map and a Set bucket
 by a hash, so an Integer and a Double of one value must reach the same slot or
 `Contains` answers false for a key the Map holds. Every `int32` converts to a
 `double` exactly, so both hash *as* a double and no range test can get it wrong.
 
-⚠️ **`-0.0`, `0.0` and `0` are one key.** They were three while the comparison
+**`-0.0`, `0.0` and `0` are one key.** They were three while the comparison
 was a `memcmp`, and the runtime said so in a comment this rule made stale.
 
-⚠️ **NaN is the one departure, and this rule permits it.** The rule is an
+**NaN is the one departure, and this rule permits it.** The rule is an
 *implication*: a pair that is not equal is unconstrained by it, and `NaN = NaN`
 is false. All NaNs are one **key**, because a Map that cannot find a key it
 holds is broken in a way no rule asks for.
 
-⚠️ One implementation, not two: `ObjCollection` delegates to the host's own
+One implementation, not two: `ObjCollection` delegates to the host's own
 `Contains`, so the interpreter's membership *is* the runtime's and the two
 cannot disagree.
 
@@ -1722,28 +1679,22 @@ cannot disagree.
     compiler     bootstrap/algol.c           strict_equals
     conformance  0127-membership-follows-equality.a24
 
-> Each half was defensible alone, which is how they came to disagree: `=`
-> promotes because arithmetic does, and membership is strict because a hash
-> table cannot be built over a relation that promotes. The second reason is a
-> statement about the implementation, not about the language, and it is the one
-> that gives way — see D-6 for the cost.
-
 ### 7.7 Ordering
 
 **[VAL-014]**  `<`, `<=`, `>` and `>=` apply to numbers and to **text**. Text
 is ordered **lexicographically by code point**, and a prefix sorts before what
 extends it: `'ab' < 'abc'`. Anything else is `Operands must be numbers.`
 
-⚠️ **A `Char` and a `String` compare as text.** `'a' < 'ab'` is true, and the
+**A `Char` and a `String` compare as text.** `'a' < 'ab'` is true, and the
 one-character String `Str ('a')` orders identically to the Char `'a'` — the two
 are still never *equal* [VAL-009], but they sit in one order.
 
-⚠️ **Code points, not bytes.** UTF-8 was designed so that byte order and
+**Code points, not bytes.** UTF-8 was designed so that byte order and
 code-point order agree, so an implementation comparing bytes is right by
 accident; this one is written in terms of code points so that it is right on
 purpose, and so that it cannot disagree with `Ord`.
 
-⚠️ **Char ordering was by the FIRST BYTE and is now by the code point**, which
+**Char ordering was by the FIRST BYTE and is now by the code point**, which
 this rule never said either way. `'è'` and `'é'` are `C3 A8` and `C3 A9`, share
 a lead byte, and compared **equal** — while `Ord` answered 232 and 233, so the
 language disagreed with itself about which came first. Fixed with this rule.
@@ -1752,17 +1703,17 @@ A **class instance** orders when its class declares `Compare (Other) : Integer`,
 answering negative, zero or positive. Without one, `A < B` on two instances is
 `Operands must be numbers.`
 
-⚠️ **The fourth structural protocol**, beside `Contains`, `ToString` [CLS-009]
+**The fourth structural protocol**, beside `Contains`, `ToString` [CLS-009]
 and `Elements` [TYP-011]; subscripting [TYP-010] is the fifth. A name and a
 shape: `Compare` taking one argument. There is no declaration keyword and no
 precedence question, because `<` already has a precedence [EXP-001].
 
-⚠️ **Ordering costs nothing that equality would.** It touches no hash and no
+**Ordering costs nothing that equality would.** It touches no hash and no
 membership, so unlike [VAL-013]'s coupling of `=` with `in` there is no second
 protocol that must move with it. That is why this is settled and equality is
-not — see Annex H, H-17.
+not.
 
-⚠️ **`Sort` does NOT ask `Compare`** [COL-013], and the asymmetry is forced
+**`Sort` does NOT ask `Compare`** [COL-013], and the asymmetry is forced
 rather than chosen. The interpreter delegates `Sort` to the host's, and the
 values it passes are `ObjInstance` — the *compiler's* class, not the program's —
 so the host would look for `Compare` there and never find it. Answering compiled
@@ -1770,7 +1721,7 @@ and refusing interpreted is the divergence the corpus exists to catch, so
 neither does it. Sorting by `Compare` wants an interpreter inside
 `ObjCollection` and is a piece of work of its own.
 
-⚠️ **`Sort` uses this ordering for TEXT** [COL-013], rather than a second one
+**`Sort` uses this ordering for TEXT** [COL-013], rather than a second one
 that happens to agree. It compared with `strcmp`, which stops at an embedded
 zero a String is entitled to hold and which orders bytes rather than
 characters.
@@ -1835,30 +1786,30 @@ initializer.`, even where an outer `X` exists.
 visible throughout that file, wherever it is written. A call may precede the
 declaration, so a program may be organized from the top down.
 
-⚠️ **A class is declared in two phases**, which is what C gets from a header:
+**A class is declared in two phases**, which is what C gets from a header:
 every top-level class name is bound to an empty class before anything runs, and
 each is *filled in* — the same object, never replaced — when its declaration is
 reached. A subclass written above its parent therefore ends up holding the
 finished parent.
 
-⚠️ **Binding the name is not enough**, and it looks as though it were. With only
+**Binding the name is not enough**, and it looks as though it were. With only
 the name bound, `var D := Dog ();` above the declaration built from an *empty*
 class: an object that answered `D is Dog` and had none of Dog's methods. A
 silent wrong answer, and worse than the `Undefined variable` it replaced. The
 class is built during the hoist, not merely named.
 
-⚠️ **A class inheriting from something that is not a top-level class *of this
+**A class inheriting from something that is not a top-level class *of this
 file* is left where it stands**, and that is what keeps [CLS-014] reachable: at
 hoist time a `var` has no value yet, so evaluating it would say `Undefined
 variable` in place of `'X' is not a class.`
 
-⚠️ **A parent from a module is one of those**, which is where the limit of
+**A parent from a module is one of those**, which is where the limit of
 hoisting shows: a module runs at its `uses` [INI-003], so a class inheriting
 across a module boundary is built where its declaration stands and the import
 has to come first. Written above the `uses`, it is `Undefined variable 'Shape'.`
 — a fact about when the name is bound, not about inheritance.
 
-⚠️ Hoisting made an inheritance **cycle** reachable for the first time — a class
+Hoisting made an inheritance **cycle** reachable for the first time — a class
 could not previously be declared above its parent at all — so [CLS-013]'s check
 grew from a self-reference to a cycle.
 
@@ -1872,7 +1823,7 @@ grew from a self-reference to a cycle.
 has run. Its initializer is an expression evaluated in order [VAR-014], and a
 name read before that has no value to give — so it is an error, not `nil`.
 
-⚠️ The split is deliberate. A function or class declaration is complete as soon
+The split is deliberate. A function or class declaration is complete as soon
 as it is read and has nothing to execute; a `var` has an initializer whose
 effects belong at the point it is written. Hoisting the first is what lets a
 file be read top-down; hoisting the second would silently substitute `nil` for a
@@ -1958,7 +1909,7 @@ private member through a receiver declared as the parent is refused with
     unit         A Subclass Does Not Reach What Its Parent Hid
     refusal      0020-subclass-does-not-reach-what-a-parent-hid.a24
 
-**[DCL-015]**  ⚠️ **`private:` is advisory.** It is checked **statically, and
+**[DCL-015]**  **`private:` is advisory.** It is checked **statically, and
 only where the receiver's type is known**. Reached through a receiver declared
 `Any`, or through a bare name inside a method — which resolves through `this`,
 and `this` has no type — a private member is readable and writable from
@@ -1975,13 +1926,12 @@ types are written down. It is **not** a boundary, and a program must not rely on
 it as one. Both processors agree, so it is a property of the language rather
 than of one implementation.
 
-⚠️ **The guarantee is therefore strongest exactly where it is least needed** —
+**The guarantee is therefore strongest exactly where it is least needed** —
 in well-annotated code — and absent from the code most likely to be reaching
 somewhere it should not. That is an honest description of a checker in a
-gradually typed language, not an accident, and D-9 records what enforcing it
-would cost.
+gradually typed language, not an accident.
 
-⚠️ `as` becoming a checked conversion [VAL-007] does not close this. Member
+`as` becoming a checked conversion [VAL-007] does not close this. Member
 access is not one of the assignment contexts [VAR-017], so nothing obliges a
 receiver to be narrowed before it is read through.
 
@@ -2028,7 +1978,7 @@ receiver to be narrowed before it is read through.
 applies to the operand beside it and to nothing further: `A and B as C` is
 `A and (B as C)`, and `A as Integer > 3` is `(A as Integer) > 3`.
 
-⚠️ The binding stopped being cosmetic when `as` became a checked conversion
+The binding stopped being cosmetic when `as` became a checked conversion
 [VAL-007]. Under the old reading `False and 5 as Integer` was
 `(False and 5) as Integer` — a Boolean cast to Integer, which raises. It is now
 `False and (5 as Integer)`, which is `False`.
@@ -2053,11 +2003,11 @@ divides and truncates toward zero: `7 / 2` is 3 and `-7 / 2` is -3.
     unit         Evaluate Binary Plus Mixed
     conformance  0046-arithmetic.a24
 
-**[EXP-006]**  ⚠️ Integer division by zero is the runtime error `Division by
+**[EXP-006]**  Integer division by zero is the runtime error `Division by
 zero.` **Double division by zero is not an error**: it yields `Infinity`,
 `-Infinity` or `NaN`, and the program continues.
 
-⚠️ Whether dividing by zero is a fault or a value therefore depends on which
+Whether dividing by zero is a fault or a value therefore depends on which
 type reached the operator, and [EXP-005] promotes an Integer whenever it meets a
 Double — so an edit far from the division can move it from one category to the
 other. This is specified rather than merely tolerated: each behavior is right
@@ -2071,13 +2021,13 @@ infinity to return for the other.
 **[EXP-007]**  Integer arithmetic never overflows: a result too large for the
 machine's width grows to hold it [LEX-018].
 
-⚠️ **A Double does not**, and the asymmetry is deliberate. A Double follows IEEE
+**A Double does not**, and the asymmetry is deliberate. A Double follows IEEE
 754, so `1.0 / 0` is `Infinity` [EXP-006] rather than an error and precision is
 lost silently past 2⁵³. An Integer is exact and unbounded; a Double is
 approximate and bounded, and a program choosing between them is choosing
 between those.
 
-⚠️ **A mixed expression is Double arithmetic** [EXP-005], so
+**A mixed expression is Double arithmetic** [EXP-005], so
 `2147483647 + 1.0` is `2.147483648E9` — the Integer promotes to a Double and the
 exactness goes with it.
 
@@ -2089,22 +2039,22 @@ exactness goes with it.
 toward zero as `/` does on two Integers, and **refuses** anything that is not an
 Integer.
 
-⚠️ **It says which division was meant.** `/` is integer division on two Integers
+**It says which division was meant.** `/` is integer division on two Integers
 and real division as soon as a Double reaches it [EXP-004], [EXP-005] — so
 `X / Y` cannot be read where `X` is declared `Any`, and an edit far from the
 division can change which operation it is. `div` always truncates.
 
-⚠️ **`/` is unchanged**, deliberately. Making it always real would be more
+**`/` is unchanged**, deliberately. Making it always real would be more
 predictable, and is a migration through every division in the tree — `algc`'s
 own included. `div` gives the programmer the option of saying plainly which was
 meant, and breaks nothing.
 
-⚠️ **Refusing a Double rather than truncating it** is the bargain `Mod` already
+**Refusing a Double rather than truncating it** is the bargain `Mod` already
 makes. A programmer writing `div` has said the operands are Integers; if they
 are not, that is a mistake worth reporting rather than a conversion worth
 performing silently.
 
-⚠️ It binds as `*` and `/` do — a different operation, not a different
+It binds as `*` and `/` do — a different operation, not a different
 precedence, so `A + B div C` groups the way `A + B / C` does.
 
     interpreter  compiler/Interpreter.a24  IntegerDivide
@@ -2118,19 +2068,19 @@ the String `ab`.
 A **`Char` mixed with a number** is refused: `'a' + 1` is `A Char and a number
 cannot be added; use Succ or Str.` So is `'a' - 1`, with `use Pred.`
 
-⚠️ **A Char is an ordinal, so the mixed form reads two ways** — step the
+**A Char is an ordinal, so the mixed form reads two ways** — step the
 character, or join it to the text `1` — and rather than pick one silently the
 language makes the program say which: `Succ ('a')` [RT-020] for the step,
 `Str ('a') + 1` for the join.
 
-⚠️ **It used to concatenate, and that quietly widened the Char.** `Str` is how a
+**It used to concatenate, and that quietly widened the Char.** `Str` is how a
 Char becomes a String, which is why `Line ('{')` must be declared `Any`
 [LEX-026] — yet `'a' + 1` and `Str ('a') + 1` both gave `a1`, so in this one
 place the widening happened without being asked for and `Str` was decorative.
 [VAR-004] specifies widening **to reach a written type**, at a declaration; `+`
 in an expression was never that rule being applied.
 
-⚠️ **A String mixed with a number still concatenates.** A String is not an
+**A String mixed with a number still concatenates.** A String is not an
 ordinal, so `'ab' + 1` has only one reading and nothing to disambiguate.
 
     interpreter  compiler/Interpreter.a24  VisitBinary
@@ -2142,11 +2092,11 @@ ordinal, so `'ab' + 1` has only one reading and nothing to disambiguate.
 **[EXP-019]**  `-` on **two Chars** answers the Integer distance between their
 code points: `'z' - 'a'` is 25.
 
-⚠️ **The only arithmetic a Char takes**, and it is the one that cannot be read
+**The only arithmetic a Char takes**, and it is the one that cannot be read
 two ways: subtracting two ordinals is a distance and nothing else. Stepping is
 `Succ` and `Pred` [RT-020], joining is `Str` and `+` [EXP-008].
 
-⚠️ **Turbo Pascal has neither**, and this is a deliberate departure from it. TP
+**Turbo Pascal has neither**, and this is a deliberate departure from it. TP
 answers a distance with `Ord (X) - Ord (Y)`, which stays available and says the
 same thing at greater length.
 
@@ -2170,34 +2120,34 @@ begin
 end
 ```
 
-⚠️ **A closed list, and it has to be.** A new operator would need a precedence
+**A closed list, and it has to be.** A new operator would need a precedence
 and an associativity, and [EXP-001] is a fixed table of seven levels with
 nowhere to put one. These five already have a place in it. `operator =` is
 refused with `An operator must be one of + - * / div.`
 
-⚠️ **The LEFT operand decides**, as a receiver does everywhere else in this
+**The LEFT operand decides**, as a receiver does everywhere else in this
 language: `Money * 3` is a Money and `3 * Money` is `Operands must be numbers.`
 An operator is a member, and a member is reached through the value on its left.
 
-⚠️ **Unary and binary are told apart by ARITY**, as the two forms of subscript
+**Unary and binary are told apart by ARITY**, as the two forms of subscript
 are [TYP-010]. `operator - (Other)` is subtraction and `operator - ()` is
 negation; the language tells arities apart everywhere, so neither form needs a
 word of its own.
 
-⚠️ **This is the one place a keyword was chosen over a protocol**, after six
+**This is the one place a keyword was chosen over a protocol**, after six
 protocols in a row. `Compare` [VAL-014], `Get` and `Put` are not *translations*
 of operators — `Compare` yields four of them, `Get` and `Put` are two halves of
 one — while a `Plus` method would be a pure synonym for `+`, a name added
 without a concept. Where the name says something the symbol does not, the
 protocol wins; here it would not.
 
-⚠️ **`not` and `:=` are not on the list.** `not` tests truthiness, which
+**`not` and `:=` are not on the list.** `not` tests truthiness, which
 [VAL-008] defines for every value, so a type overloading it lies about a
 language-wide property rather than defining its own behavior. `:=` is outside
 the mechanism entirely: dispatch is on values [FUN-013], and the left of an
 assignment is a location.
 
-⚠️ **`Mod` is a function and `div` is an operator** [RT-011], so a class may
+**`Mod` is a function and `div` is an operator** [RT-011], so a class may
 define `div` and never `mod`. The asymmetry predates this rule.
 
     interpreter  compiler/Parser.a24  ParseOperator
@@ -2227,7 +2177,7 @@ Boolean.
 **[EXP-011]**  A call checks arity. A mismatch is `Expected N arguments but got
 M.`
 
-⚠️ **Except where a count is not the callee's rule.** A subprogram whose last
+**Except where a count is not the callee's rule.** A subprogram whose last
 parameter gathers trailing arguments [FUN-005] has a different count by design,
 and reports `No matching signature for function.` instead — naming the count
 would send the reader to look at the wrong thing, since what refused the call
@@ -2250,7 +2200,7 @@ and so can never fail this way at all.
 signature** — the number of arguments and the type of each — and is made **at
 run time**, from the arguments actually passed.
 
-⚠️ **Run-time selection is required, not an implementation choice.** The type
+**Run-time selection is required, not an implementation choice.** The type
 system is gradual, so an argument's declared type may be `Any` or absent while
 its value has a definite type: `var A : Any := 1;` passed to a name overloaded on
 Integer and String selects the Integer. No static rule could reach that, and an
@@ -2261,20 +2211,20 @@ An argument may **name the parameter it fills** — `Log (Level: 'warn')`. The
 arguments are then put in declaration order, so the order at the call site is
 free.
 
-⚠️ **The names select the signature**, which is why the feature exists. Run-time
+**The names select the signature**, which is why the feature exists. Run-time
 selection above stays the rule, and stays right; what a programmer who *does*
 know which overload they mean has lacked is a way to say so. A name identifies
 one signature, where values only describe something several signatures might
 accept.
 
-⚠️ **Positional arguments come first and named ones after.** A positional
+**Positional arguments come first and named ones after.** A positional
 argument following a named one is refused, as is a parameter supplied twice, and
 a name no parameter has. This is also what spares [FUN-005] a rule of its own:
 gathering takes trailing *positional* arguments, and positional arguments end
 exactly where naming begins — so naming the absorbing parameter turns gathering
 off without anything having to say so.
 
-⚠️ **`:` rather than `=>`, because the language already has this colon.**
+**`:` rather than `=>`, because the language already has this colon.**
 `[k : v]` is a Map literal [COL-001]: a name on the left, a value on the right,
 read by parsing an expression and then looking for a colon. A named argument
 means the same thing and parses the same way. The ambiguity that usually rules
@@ -2282,7 +2232,7 @@ means the same thing and parses the same way. The ambiguity that usually rules
 expression's `? :`, and this language has none, because `?` is an identifier
 mark [LEX-008] and `Gate?` is one word.
 
-⚠️ **A built-in has no named parameters.** Its parameters are not declared in
+**A built-in has no named parameters.** Its parameters are not declared in
 this language at all — they exist only as a count [RT-001] — so there is no name
 to write, and `WriteLn (V: 'abc')` is *A built-in has no named parameters.*
 
@@ -2302,23 +2252,23 @@ is an assignment context [VAR-017]. When neither fits, the call fails with
 So a `Char` argument selects a `Char` parameter where one is declared, and
 widens to a `String` parameter where it is not.
 
-⚠️ **Selection makes three passes**, and the order is the rule: one admitting no
+**Selection makes three passes**, and the order is the rule: one admitting no
 widening, then one admitting it, then one admitting **absorption** [FUN-005].
 Adding widening to a single pass let *declaration order* decide instead —
 `Take('a')` took a `String` overload declared above the `Char` one — which
 `conformance/0050` caught at once.
 
-⚠️ **The third pass is why "a fixed-arity signature beats a variadic one" is
+**The third pass is why "a fixed-arity signature beats a variadic one" is
 written nowhere.** It is the pass order: absorption never runs when either of
 the first two found something, so `Log ('warn', [1, 2])` passes the list rather
 than gathering it into a second one holding it.
 
-⚠️ Each pass runs over the **whole inheritance chain** before the next begins.
+Each pass runs over the **whole inheritance chain** before the next begins.
 An exact match on a parent must beat a widened match on the child, or adding an
 overload to a subclass would silently capture calls the parent was answering
 exactly.
 
-⚠️ **Inheritance is not widening.** A `Dog` fits an `Animal` parameter in both
+**Inheritance is not widening.** A `Dog` fits an `Animal` parameter in both
 passes, because that is the argument being what the parameter asks for rather
 than being converted into it.
 
@@ -2331,10 +2281,6 @@ than being converted into it.
 **[EXP-015]**  Subscripting a String yields the `Char` at that **character**
 position, counted from zero [SRC-004]. An index outside the value is
 `Index N out of range 0..M.`
-
-⚠️ The position used to be counted in bytes, so a subscript into text outside
-ASCII yielded part of a sequence rather than a character — `'café'[3]` was the
-first half of a two-byte sequence. DEF-01 closed it; it is `é`.
 
     interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
     compiler     bootstrap/algol.c         alg_subscript_get
@@ -2371,16 +2317,11 @@ assigned: `X := (Y := 1)` leaves both at 1.
 **[STM-002]**  A declaration may **not** stand as the body of a branch or a
 loop. `if C then var X := 1;` is refused; the declaration must be inside a block.
 
-⚠️ It used to be accepted, and the declared name **escaped into the enclosing
+It used to be accepted, and the declared name **escaped into the enclosing
 scope** — so whether the name existed was decided by a runtime condition, and a
 loop body never entered behaved the same way.
 
-⚠️ Fixing it **removed** a divergence rather than creating one: the C back end
-already refused the construct (C-12), so the language, the compiler and the
-interpreter now agree. It is the only entry in Annex C that closed by the
-*language* moving.
-
-⚠️ A declaration stays legal as a `try` body, which is a statement rather than a
+A declaration stays legal as a `try` body, which is a statement rather than a
 branch: `try var X := 1; …` has to parse.
 
     interpreter  compiler/Parser.a24  BodyStatement
@@ -2417,7 +2358,7 @@ condition.`
 **desugars into a block** holding the initializer and a `while` — which is why
 its variable is scoped [DCL-008].
 
-⚠️ **The Step is held by the `while`, not appended to the body**, and `continue`
+**The Step is held by the `while`, not appended to the body**, and `continue`
 is the reason [STM-010]: with the step written at the end of the body, beginning
 the next iteration jumped over it and the loop never ended.
 
@@ -2439,7 +2380,7 @@ String.` — see [TYP-011], which is where a class says it is iterable.
     interpreter  compiler/Interpreter.a24  VisitForInStmt
     conformance  0032-instance-is-not-iterable.a24
 
-**[STM-009]**  ⚠️ The collection is **snapshotted** when the loop begins.
+**[STM-009]**  The collection is **snapshotted** when the loop begins.
 Adding to it inside the loop does not lengthen the walk.
 
     interpreter  compiler/Interpreter.a24  VisitForInStmt
@@ -2465,23 +2406,23 @@ A label naming no enclosing loop is refused where it is written, with
 `No enclosing loop is labelled 'X'.` Labels are matched without regard to case,
 like every other name [SRC-011].
 
-⚠️ **`Name:` needs no keyword**, because `:=` scans as a single token [LEX-005]
+**`Name:` needs no keyword**, because `:=` scans as a single token [LEX-005]
 and so `X := 1` cannot be read as a label on `= 1`. It is the third place this
 shape appears and it means the same thing each time — a name on the left, the
 thing it names on the right — beside the Map literal [COL-001] and a named
 argument [EXP-013].
 
-⚠️ **A labelled jump leaves every `try` opened inside the loop it names**, not
+**A labelled jump leaves every `try` opened inside the loop it names**, not
 merely the innermost one, so more than one frame may have to be unwound at
 once.
 
-⚠️ **A `for` still takes its step.** `continue` skips the rest of the body and
+**A `for` still takes its step.** `continue` skips the rest of the body and
 nothing else, so `for var I := 0; I < 5; I := I + 1 do` with a `continue` in it
 runs `I := I + 1` on that pass exactly as on every other. This is what separates
 `continue` from `break`, which skips the step as well, because leaving a loop
 means leaving all of it.
 
-⚠️ **It is the reason a `for` is not merely a `while`.** A `for` desugars into a
+**It is the reason a `for` is not merely a `while`.** A `for` desugars into a
 while, and while the step was written at the end of the body a `continue` jumped
 over it and the loop never ended — in both processors, since
 `while (c) { body; step; }` skips the step in C for the same reason the
@@ -2512,7 +2453,7 @@ Arm      = Expression { "," Expression } ":" Statement .
     interpreter  compiler/Parser.a24  CaseStatement
     conformance  0056-case.a24
 
-**[STM-012]**  ⚠️ `case` **desugars into an if/else-if chain**. There is no case
+**[STM-012]**  `case` **desugars into an if/else-if chain**. There is no case
 statement downstream of the parser, and two consequences follow from that rather
 than from any rule of their own:
 
@@ -2561,10 +2502,10 @@ value.
     unit         Parse Try With A Typed Handler
     conformance  0058-exceptions.a24
 
-**[STM-018]**  ⚠️ The **most derived** matching handler runs, however the
+**[STM-018]**  The **most derived** matching handler runs, however the
 handlers are ordered. Writing the base first does not shadow the derived one.
 
-⚠️ This is a deliberate departure from first-match, and [STM-023] is what makes
+This is a deliberate departure from first-match, and [STM-023] is what makes
 it total: two handlers for one type are refused, so "most derived" always names
 exactly one handler and there is never a tie to break by position. The
 commonest bug in a first-match language — a base handler written above a derived
@@ -2608,10 +2549,10 @@ is caught by `on e : String` with `e` equal to `Division by zero.`
 **[STM-022]**  There is no print statement. `WriteLn` [RT-015] writes a value
 and a newline, and it is an ordinary built-in rather than syntax.
 
-⚠️ The statement existed, and `print` was a keyword for it [LEX-010], so the
+The statement existed, and `print` was a keyword for it [LEX-010], so the
 word could not be used as a name.
 
-⚠️ **It also bypassed the test runner's output suppression**, which `Write` and
+**It also bypassed the test runner's output suppression**, which `Write` and
 `WriteLn` respect — so a compiled suite printed the sample program before its
 first test while interpreted it printed nothing. That behavior went with the
 statement, and nothing replaces it: output during a test run is suppressed for
@@ -2635,7 +2576,7 @@ backward**. Anything else is refused with `No label 'X' is in scope.`
 GotoStmt = "goto" identifier ";" .
 ```
 
-⚠️ **Direction is not the constraint; nesting is.** A backward jump costs
+**Direction is not the constraint; nesting is.** A backward jump costs
 nothing that a forward one does not — the interpreter resumes a block at an
 index, and an index may move either way, while C's `goto` has never cared. What
 neither processor can do is jump **into** a nested block: the interpreter's jump
@@ -2643,16 +2584,16 @@ travels as an exception, which propagates outward and has no way inward, and C
 would be skipping initializers. Pascal restricts it the same way and for the
 same reason.
 
-⚠️ **It may not leave the subprogram.** C's cannot, and the interpreter's would
+**It may not leave the subprogram.** C's cannot, and the interpreter's would
 unwind past the call it should have stayed inside.
 
-⚠️ **The check is the Resolver's, not the parser's**, because a forward jump
+**The check is the Resolver's, not the parser's**, because a forward jump
 names a label the parser has not reached yet. The Resolver has the whole block
 in hand and so can answer for both directions at once — which is also where
 `break` and `continue` differ: a loop they are inside has always been entered
 already, so the parser can answer for those.
 
-⚠️ **A jump out of a `try` must leave its frame.** The runtime's frame stack is
+**A jump out of a `try` must leave its frame.** The runtime's frame stack is
 explicit, and a frame left behind points at a C frame that has returned; the
 next `raise` then longjmps into it. A `goto` out of two `try` blocks to a
 top-level label popped nothing at first, and the compiled program ran a handler
@@ -2695,10 +2636,10 @@ its result is always `nil` [FUN-002].
 
 A **function** may `Exit` a value or not, and yields `nil` when it does not.
 
-⚠️ A function declared **inside** a procedure may still exit a value: the
+A function declared **inside** a procedure may still exit a value: the
 restriction belongs to the body being parsed, not to everything within it.
 
-⚠️ The restriction is what makes the word mean something. Without it `procedure`
+The restriction is what makes the word mean something. Without it `procedure`
 is a comment, and a reader cannot tell from a declaration whether a call has a
 result worth using — which the C back end must also decide, and which every
 caller must otherwise guard.
@@ -2721,21 +2662,21 @@ the subprogram's **last parameter is a `List of T`**, which **gathers** the
 trailing arguments into a list. `Log ('warn', 1, 2)` is `Log ('warn', [1, 2])`,
 and `Log ('warn')` is `Log ('warn', [])`.
 
-⚠️ **An element type is what makes a parameter absorbing**, so a bare `List`
+**An element type is what makes a parameter absorbing**, so a bare `List`
 does not gather. There would be nothing to check the gathered arguments
 against, and it leaves `List` as the spelling for a parameter that wants the
 list itself and nothing else.
 
-⚠️ **The element type replaces the arity check and is stricter than it.**
+**The element type replaces the arity check and is stricter than it.**
 `Log ('warn', 1, 2, 'red')` against `List of Integer` is still refused, because
 the stray argument is not an Integer — and it is refused with *No matching
 signature for function.* rather than a count, which would name the wrong thing.
 
-⚠️ **Gathering nothing yields the empty list.** That is structural and not a
+**Gathering nothing yields the empty list.** That is structural and not a
 default: absorbing none gives `[]` by the same rule that absorbing three gives
 a list of three. It is what makes `WriteLn ()` an ordinary call [RT-001].
 
-⚠️ **No new syntax, and that is the design rather than an economy.** The
+**No new syntax, and that is the design rather than an economy.** The
 declaration already says `List of T` [VAR-008]; absorption is a *reading* of a
 type that exists, not a marker added to it. It became possible only when
 element types were admitted on parameters — before that a bare `List` carried
@@ -2750,12 +2691,12 @@ call, whether it is a top-level subprogram or a method. A parameter is an
 assignment context [VAR-017], so an argument must have the declared type, widen
 to it [VAR-004], or be `nil` [VAR-005].
 
-⚠️ **One rule, one path.** Signature comparison used to run only when the callee
+**One rule, one path.** Signature comparison used to run only when the callee
 had an *owner* — that is, only for a method — so a top-level subprogram fell
 through to an arity check and its annotation was a contract in one place and
 decoration in the other. `Fits` is asked of every declared subprogram now.
 
-⚠️ A **native** is still matched on arity alone, and correctly: its parameters
+A **native** is still matched on arity alone, and correctly: its parameters
 are not declared in this language, so it has a signature only in the sense of a
 count.
 
@@ -2769,12 +2710,6 @@ declared is `No matching signature for function.`
 
     interpreter  compiler/ObjClass.a24  FindOverload
     refusal      0025-method-parameter-type-is-enforced.a24
-
-> Types are checked because overload selection compares whole signatures
-> [EXP-013]. That is why [FUN-013] matters beyond overloading itself: a
-> subprogram that goes through selection has its parameters compared as a
-> consequence, which is how DEF-19 was fixed: there was nothing to add, only a
-> check to reach.
 
 **[FUN-008]**  A declared **return** type **is** enforced. `Exit` of a value
 that does not fit is `Type mismatch!`
@@ -2824,39 +2759,28 @@ function Area (S : String);               begin Exit 'string';       end
 function Area (A : Integer, B : Integer); begin Exit 'two integers'; end
 ```
 
-⚠️ **Two declarations claiming the SAME signature are still a duplicate**, and
+**Two declarations claiming the SAME signature are still a duplicate**, and
 the *parameter* types alone decide it. A return type does not distinguish an
 overload — selection happens from the arguments, so two subprograms differing
 only in what they return could never be told apart at a call. Neither do the
 parameter names: `Take (A : Integer)` and `Take (B : Integer)` are one
 signature, not two.
 
-⚠️ **That is not contradicted by named arguments** [EXP-013], and the
+**That is not contradicted by named arguments** [EXP-013], and the
 distinction is worth keeping straight. Names cannot make two identical
 signatures into an overload set; what they do is let a *call* say which of
 several genuinely different signatures it means, which is a question about the
 call site rather than about the declarations.
 
-⚠️ The environment binds one name to one value, which is what made the
+The environment binds one name to one value, which is what made the
 restriction look structural. The value can be a **set** of subprograms, and the
 call selects from it exactly as a method call selects from a class's methods —
 the mechanism was already here.
 
-⚠️ Compiled, a name with more than one subprogram behind it is reached through
-an overload set that selects at the call, and only such a name carries a
-signature in its C symbol — see C-26. A lone **variadic** subprogram goes
-through a set as well [FUN-005]: its own symbol takes a fixed number of
-arguments, and an absorbing call has a different number by definition.
-
-⚠️ Nothing in this specification ever restricted overloading to methods.
+Nothing in this specification ever restricted overloading to methods.
 [EXP-013] and [EXP-014] describe selection without qualification; the
 restriction lived in two of this document's own notes and in a comment in
 `compiler/Resolver.a24`, none of which was a rule.
-
-⚠️ **This was upstream of DEF-19.** A subprogram that goes through overload
-selection has its declared parameter types compared as part of being selected —
-which is exactly why a *method's* types were enforced and a top-level
-subprogram's were not [FUN-006]. Fixing this fixed that.
 
     interpreter  compiler/ObjFunction.a24  ObjOverloads
     interpreter  compiler/Resolver.a24     SignatureOf
@@ -2864,12 +2788,6 @@ subprogram's were not [FUN-006]. Fixing this fixed that.
     refusal      0043-same-signature-twice.a24
 
 **[FUN-012]**  Subprograms may be declared inside subprograms, to any depth.
-
-⚠️ **A method's body counts**, and is where the depth rule meets [CLS-011]: a
-function declared in one closes over the method's locals *and* over `this`, so a
-field read inside it resolves through the receiver the method was called on.
-The C back end handles both the depth and that shape; C-38 records what the
-second needed.
 
     interpreter  compiler/Parser.a24  ParseFunction
     conformance  0063-nesting.a24
@@ -2891,29 +2809,29 @@ arguments are marshalled: an Integer or a Boolean passes as a machine word, a
 Double as a double, a String as a NUL-terminated C string, and a `Pointer` as
 itself [TYP-013].
 
-⚠️ **THE LANGUAGE DEFINES THE CALL AND NOT THE CALLEE**, and this is the first
+**THE LANGUAGE DEFINES THE CALL AND NOT THE CALLEE**, and this is the first
 place that sentence has been needed. What a foreign function does, whether the
 symbol exists, and whether the declared types match the C ones are all outside
 this specification and cannot be checked by it. A declaration that misdescribes
 a C signature is undefined behavior in the ordinary C sense — the conformance
 corpus tests that a call is *made*, never what it reaches.
 
-⚠️ **Both processors go through one implementation.** The tree-walker cannot
+**Both processors go through one implementation.** The tree-walker cannot
 call C, but it runs inside a C program, so the marshalling is in the runtime and
 the interpreter reaches it through a built-in while a compiled program calls it
 directly. Neither can drift from the other because there is nothing to drift.
 
-⚠️ **A foreign call is available only in a build that has one** [INI-008]. The
+**A foreign call is available only in a build that has one** [INI-008]. The
 default build has no libffi and no `dlopen`, and reports `Foreign calls are not
 available in this build: 'X' cannot be reached.` The **bootstrap** therefore
 still needs a C compiler and nothing else, which is what that constraint has
 always been about.
 
-⚠️ **`in` rather than a keyword of its own.** The word is already reserved
+**`in` rather than a keyword of its own.** The word is already reserved
 [LEX-010] and reads correctly — the symbol is *in* the library — so the feature
 costs one new keyword instead of two.
 
-⚠️ **At most eight arguments.** More is `A foreign call takes at most eight
+**At most eight arguments.** More is `A foreign call takes at most eight
 arguments.` The limit is the marshalling buffers' and is not a language
 principle; it is stated so that a program meets a message rather than a crash.
 
@@ -2939,22 +2857,22 @@ CopyBytes (B.Address, 'ABCD', 4);      // memcpy writes into the Buffer
 WriteLn (B.Text);                      // ABCD
 ```
 
-⚠️ **A property rather than an implicit conversion at the call.** Passing a
+**A property rather than an implicit conversion at the call.** Passing a
 `Buffer` where a `Pointer` is declared would take its address silently; this
 language makes a program say when it means something else, which is the same
 reason `Str` is how a `Char` widens [LEX-026].
 
-⚠️ **THE ADDRESS DOES NOT OUTLIVE THE BYTES.** `Resize` may move them and
+**THE ADDRESS DOES NOT OUTLIVE THE BYTES.** `Resize` may move them and
 `Free` ends them, so an address taken before either is stale afterwards. That is
 the ordinary C hazard, arrived at honestly rather than hidden — and it is the
 reason the address is taken at the point of use rather than stored.
 
-⚠️ **It renders WITHOUT its address, deliberately.** Printing the address would
+**It renders WITHOUT its address, deliberately.** Printing the address would
 make a program's output depend on where the allocator happened to put
 something — non-determinism of exactly the kind the fixed-point check exists to
 catch — and the value means nothing to the program holding it anyway.
 
-⚠️ **A type of its own rather than an Integer**, so that it cannot be
+**A type of its own rather than an Integer**, so that it cannot be
 arithmetic'd or compared as a number. An Integer would carry the address
 faithfully — an Integer is unbounded [LEX-018] — and that is the objection, not
 a limitation.
@@ -3003,7 +2921,7 @@ checks its arity, and a class with no constructor takes no arguments —
     interpreter  compiler/ObjClass.a24  FindMethod
     conformance  0065-construction.a24
 
-**[CLS-005]**  ⚠️ A field's initializer is evaluated **once per instance**, at
+**[CLS-005]**  A field's initializer is evaluated **once per instance**, at
 construction. Two instances of a class whose field is `List := []` hold two
 different Lists.
 
@@ -3039,7 +2957,7 @@ decides how its instances render through `Str` [RT-006] and wherever a value is
 written [RT-015]. With none, an instance renders as its class name followed by
 ` instance` — `C instance`.
 
-⚠️ **The arity is part of the protocol**, as it is for `Elements` [TYP-011]. A
+**The arity is part of the protocol**, as it is for `Elements` [TYP-011]. A
 `ToString` taking an argument does not implement this one and the default
 rendering stands, rather than the call being attempted and failing.
 
@@ -3065,11 +2983,11 @@ method of the same name overrides the inherited one.
 **[CLS-012]**  `super.M()` calls the version above the class that declared the
 calling method, not above the runtime class.
 
-⚠️ It binds to the class that **declared** the method, not to the runtime class
+It binds to the class that **declared** the method, not to the runtime class
 of `this`. A method in `B` calling `super.Who()` reaches `A`'s version even when
 the receiver is a `C` below `B`.
 
-⚠️ **`super.M` read without calling it binds the parent's method to this
+**`super.M` read without calling it binds the parent's method to this
 receiver**, exactly as `B.M` binds the receiver's own [CLS-011], and the search
 starts in the same place. It is the only way a program can hold the
 implementation an override replaced.
@@ -3094,13 +3012,13 @@ is not a class is `'X' is not a class.`, beside the existing
 
 Naming a name that denotes nothing is `Undefined variable 'X'.`
 
-⚠️ The check fires at the declaration, so a program that never constructs the
+The check fires at the declaration, so a program that never constructs the
 class is still refused. It used to ask the superclass for `.ClassName` first,
 which raised `Only instances have properties.` before the comparison meant to
 reject it could run — a sentence naming neither the class, nor the superclass,
 nor inheritance.
 
-⚠️ **A cycle counts as inheriting from itself.** `class A (B); class B (A);` ran
+**A cycle counts as inheriting from itself.** `class A (B); class B (A);` ran
 silently until classes were hoisted [DCL-006], leaving a superclass chain with
 no end for method lookup to walk. It is refused with the same sentence the
 direct case gives, because it is the same fault reached the long way round.
@@ -3150,20 +3068,19 @@ Assigning to one is refused **where the receiver's type is known**, with
 `'Count' is a property of Stack and cannot be assigned.` An inherited property
 is still a property.
 
-⚠️ **It exists to give a read-only view of internal state**, which nothing else
+**It exists to give a read-only view of internal state**, which nothing else
 in the language could express. A field is public — readable **and writable** — or
 private, meaning invisible [DCL-011]; there is no third state, so a `Stack`
 written in Algol-24 could not protect its own count while showing it, and was
 strictly worse than the built-in it imitates, whose `Length` cannot be assigned.
 
-⚠️ **Nothing is checked at run time**, and that is deliberate. Assignment is
+**Nothing is checked at run time**, and that is deliberate. Assignment is
 refused by the checker where the receiver's type is known and reported nowhere
-when it is not — exactly as `private:` is silent there [DCL-015]. D-9 rejected
-enforcing visibility at run time because it puts a check on every property
-*access*; a check on writes alone would be cheaper, and is still not worth
-buying a boundary the rest of the language does not have.
+when it is not — exactly as `private:` is silent there [DCL-015]. Enforcing
+visibility at run time would put a check on every property *access*, which is not
+worth buying a boundary the rest of the language does not have.
 
-⚠️ **A parameter list would have nowhere to arrive from**, which is why the
+**A parameter list would have nowhere to arrive from**, which is why the
 declaration has none. Leaving the parentheses off is what says the member is
 read rather than called.
 
@@ -3174,14 +3091,6 @@ read rather than called.
 
 **[CLS-018]**  An instance is **closed**: assignment reaches only a field the
 class declared. `B.Undeclared := 1` is `Undefined property 'Undeclared'.`
-
-⚠️ **The interpreter allowed it until Generation 6**, which is Lox's
-arrangement — a field appeared the moment something assigned to it. The C back
-end never had it, because an instance there is a fixed array of slots taken from
-the `var` section, so `B.Undeclared := 1` was `1` interpreted and refused
-compiled. A divergence older than the properties that found it, covered by no
-case, and held in place by a unit test inherited from Lox along with the
-behavior.
 
     interpreter  compiler/ObjInstance.a24  Set
     conformance  0169-an-instance-is-closed.a24
@@ -3217,7 +3126,7 @@ interned object**, so `RED = Color.RED` is true.
 `type First = (A, B);` and `type Second = (A, C);` in one scope is accepted, and
 neither declaration is affected by the other.
 
-⚠️ The declaration used to be refused with `'A' is already defined.`, so adding
+The declaration used to be refused with `'A' is already defined.`, so adding
 a member to one enumeration could break an unrelated one elsewhere in the
 program — and `First.A`, which is unambiguous, never got a chance to help.
 
@@ -3233,17 +3142,14 @@ scope is ambiguous, and using it is refused with
 A bare name bound by only one enumeration in scope is unambiguous and needs no
 qualifier, which is the ordinary case and the reason members bind bare at all.
 
-⚠️ **The refusal belongs to the use, not to the declaration.** Two enumerations
+**The refusal belongs to the use, not to the declaration.** Two enumerations
 that never meet an ambiguous use coexist without complaint, and a program is
 told about a name only where it actually cannot be resolved.
 
-⚠️ The ambiguous name is **removed** from the scope's bindings rather than left
+The ambiguous name is **removed** from the scope's bindings rather than left
 in it holding one of the two, so a bare read cannot quietly find one. The
 qualified form is unaffected: it reaches the member through the enumeration
 rather than through that binding.
-
-⚠️ Compiled, the ambiguity is carried to the use and reported there in the same
-words — see C-20, which was aimed at the symbols and did not need to be.
 
     interpreter  compiler/Environment.a24  MarkAmbiguous
     conformance  0123-enumerations-may-share-member-names.a24
@@ -3278,7 +3184,7 @@ other.
 **[ENU-008]**  Members are **not ordered**. `RED < GREEN` is `Operands must be
 numbers.`
 
-⚠️ A program that needs an order compares ordinals [ENU-010]. The operators are
+A program that needs an order compares ordinals [ENU-010]. The operators are
 left alone deliberately: `<` on two members would have to mean position, and
 position is exactly the property [ENU-009] shows to be a trap when it acts
 implicitly.
@@ -3302,13 +3208,13 @@ type Answer = (No, Yes);
 if F then …
 ```
 
-⚠️ **The discipline it asks for: put the absent, off or zero member first.** The
+**The discipline it asks for: put the absent, off or zero member first.** The
 position is part of the declaration's meaning, so reordering members changes the
 truth of every condition written over them — in the same way, and for the same
 reason, that reordering a `case`'s arms changes which one runs. The position is
 readable [ENU-010], so nothing here is hidden.
 
-⚠️ This compiler's own enumerations already follow the convention: `FUN_NONE`
+This compiler's own enumerations already follow the convention: `FUN_NONE`
 and `CLASS_NONE` are the first members of `FunctionType` and `ClassType`.
 
     interpreter  compiler/Interpreter.a24  IsTruthy
@@ -3319,7 +3225,7 @@ and `CLASS_NONE` are the first members of `FunctionType` and `ClassType`.
 declaration. `RED.Ordinal` is 0 and `BLUE.Ordinal` is 2. It answers no other
 property.
 
-⚠️ The ordinal is what a program needs to order members [ENU-008], to index an
+The ordinal is what a program needs to order members [ENU-008], to index an
 array by one, or to write one out and read it back. It also governs truthiness
 [ENU-009], and a program could once discover that only by testing a member for
 truth.
@@ -3331,27 +3237,25 @@ truth.
 
 ## 14. Collections
 
-⚠️ **This chapter describes the collections as built-ins, which is what they
-are.** Annex H, H-9 proposes a second set written in Algol-24 and built on
-`Array`, added **beside** these rather than replacing them — so this chapter
-keeps describing the natives, and the library's behavior is documented with the
-library. See Annex E for what was once thought to pin them, all of which has
-since landed.
+**This chapter describes the collections as built-ins, which is what they
+are.** A second set written in Algol-24 may one day stand **beside** them
+rather than replace them, in which case this chapter keeps describing the
+natives and the library's behavior is documented with the library.
 
-⚠️ **`Array` is what a library implementation would be built on**, and it stays:
+**`Array` is what a library implementation would be built on**, and it stays:
 nothing in the language can express a fixed-size, constant-time store of
 arbitrary values. The literal forms `[…]` and `[:]` also stay, and they are why
 `List` and `Map` keep their names in the core whatever a library calls its
 own.
 
-⚠️ **The rules below are therefore expected to leave this specification**, and
+**The rules below are therefore expected to leave this specification**, and
 their conformance cases with them. That is not a failure of either: a rule that
 stops describing the *language* because its subject became a *library* has been
 retired, not falsified, and the cases that pinned it become the unit tests of
 the unit that replaces it. They are worth writing now precisely because they are
 the behavioral target that unit has to meet.
 
-⚠️ One rule in this chapter is **not** provisional in that way. [COL-007]
+One rule in this chapter is **not** provisional in that way. [COL-007]
 specifies insertion order for every collection, including `Set` and `Map`, and
 any replacement must reproduce it — it was specified rather than left to the
 representation because both processors must agree, and a unit is a third
@@ -3393,7 +3297,7 @@ collections, `Set(L)` builds a Set from a collection, and `Array(N)` an Array of
 | `ToList` | | ● | | | |
 | `Push` `Pop` `Peek` | | | ● | | |
 
-⚠️ This table is checked against the interpreter by `spec/spec.sh`, which asks
+This table is checked against the interpreter by `spec/spec.sh`, which asks
 `spec/members.a24` which members each kind actually answers for. A matrix
 transcribed into a specification and checked by nobody is the most rot-prone
 thing this document can hold.
@@ -3401,11 +3305,11 @@ thing this document can hold.
     interpreter  compiler/ObjCollection.a24  Get
     conformance  0076-collection-members.a24
 
-**[COL-004]**  ⚠️ A `List` has **no `Remove`**. Removing a value from a List
+**[COL-004]**  A `List` has **no `Remove`**. Removing a value from a List
 means finding it with `IndexOf` and passing that to `RemoveAt`, while a `Set` and
 a `Map` remove by value and by key directly.
 
-⚠️ The asymmetry has a reason, and it is not an oversight. A List may hold the
+The asymmetry has a reason, and it is not an oversight. A List may hold the
 same value more than once, so "remove this value" has no single meaning — the
 first, the last, or all of them — while a Set holds each value once and a Map
 each key once, so for those it has exactly one. Making a program write `IndexOf`
@@ -3416,7 +3320,7 @@ and `RemoveAt` is making it say which it meant.
 
 **[COL-005]**  A member a kind does not have is `Undefined property 'X'.`
 
-⚠️ A member the kind *does* have is a value before it is a call, as a method of
+A member the kind *does* have is a value before it is a call, as a method of
 an instance is [CLS-011]: `L.Sort` reads as something callable. That is also the
 only way to ask whether a kind has a member without arranging arguments for it,
 which is how `spec/members.a24` — the source [COL-003]'s matrix is checked
@@ -3430,12 +3334,7 @@ against — probes for one.
 as every name in the language is [SRC-011]. `L.Add(2)` and `L.add(2)` are the
 same member.
 
-⚠️ **This is the one place where the C back end was already right and the
-interpreter was the one that changed** — C-4, now withdrawn. The compiler
-compared these names with `alg_stricmp`, which was recorded as a divergence
-while the interpreter was taken to be the authority; [SRC-011] reversed that.
-
-⚠️ The comparison literals in `ObjCollection`, `ObjFile` and `ObjBuffer` are
+The comparison literals in `ObjCollection`, `ObjFile` and `ObjBuffer` are
 written **folded**, and the incoming member is folded to meet them. The
 diagnostic still quotes the member as the program wrote it: `L.Zap` is
 `Undefined property 'Zap'.`, not `'zap'`.
@@ -3475,11 +3374,11 @@ leaves its length unchanged.
     interpreter  compiler/ObjCollection.a24  Invoke
     conformance  0079-collection-behavior.a24
 
-**[COL-011]**  ⚠️ `Remove` answers **different kinds of thing** by kind. A `Map`
+**[COL-011]**  `Remove` answers **different kinds of thing** by kind. A `Map`
 returns the value removed, and `nil` when the key was absent. A `Set` returns
 whether there was anything to remove.
 
-⚠️ Each answer is the useful one for its kind — a Map's removed value is worth
+Each answer is the useful one for its kind — a Map's removed value is worth
 having, and a Set has nothing to hand back but whether it did anything — but the
 two cannot be used interchangeably, and nothing in the call says which is coming.
 
@@ -3491,7 +3390,7 @@ two cannot be used interchangeably, and nothing in the call says which is coming
 equality of [VAL-009], so a collection holding `1.0` contains `1`. See
 [VAL-013].
 
-⚠️ A collection still compares by **identity**, and that is unchanged: two Lists
+A collection still compares by **identity**, and that is unchanged: two Lists
 of the same contents are not equal, so `[1] in [[1]]` is false. Promotion is
 between the numeric types, not a structural comparison.
 
@@ -3503,11 +3402,10 @@ between the numeric types, not a structural comparison.
 against numbers and text against text; mixing them is `Can only sort numbers
 against numbers, or text against text.`
 
-⚠️ **Text is ordered by [VAL-014]**, the same ordering `<` gives, rather than by
-a second one that happens to agree. It compared with `strcmp` until Generation 6
-— bytes rather than characters, stopping at an embedded zero a String is
-entitled to hold — which matched only because UTF-8 is designed so byte order
-follows code-point order.
+**Text is ordered by [VAL-014]**, the same ordering `<` gives, rather than by
+a second one that happens to agree. Comparing bytes would stop at an embedded
+zero a String is entitled to hold, and matches only because UTF-8 is designed so
+byte order follows code-point order.
 
     interpreter  compiler/ObjCollection.a24  Invoke
     compiler     bootstrap/algol.c           alg_sort
@@ -3544,7 +3442,7 @@ UsesStmt = "uses" ( identifier | string_lit ) ";" .
     interpreter  compiler/Parser.a24  UsesStatement
     conformance  0082-module-import.a24
 
-**[MOD-002]**  ⚠️ A module name is the one place [SRC-011] does **not** reach.
+**[MOD-002]**  A module name is the one place [SRC-011] does **not** reach.
 It names a file, and the filesystem decides how that name is matched — case-
 insensitively on macOS and Windows, sensitively on Linux. `uses scanner` may
 therefore find `Scanner.a24` on one machine and fail on another.
@@ -3599,7 +3497,7 @@ qualified. Qualified, it is `Undefined name 'Hidden' in unit 'Mid'.`
 **[MOD-008]**  Two imported modules **may** export one name. Importing both is
 accepted, and neither module is affected by the other.
 
-⚠️ The import used to be refused with `'Clash' is already defined; mark it
+The import used to be refused with `'Clash' is already defined; mark it
 private in one of the modules.` — advice to edit a module because of what some
 other module, possibly written by someone else, happens to export.
 
@@ -3614,30 +3512,27 @@ ambiguous, and using it is refused with
 A bare name exported by only one imported module is unambiguous and needs no
 qualifier, which is the ordinary case.
 
-⚠️ **The refusal belongs to the use, not to the import.** Two modules that
+**The refusal belongs to the use, not to the import.** Two modules that
 export a common name and are never used ambiguously coexist without complaint,
 and a program is told about a name only where it actually cannot be resolved.
 
-⚠️ This is [ENU-011] applied to units, and for the same reason: a name that
+This is [ENU-011] applied to units, and for the same reason: a name that
 cannot be resolved is a property of the *use*, not of the declaration. It also
 removes the need for the advice the old diagnostic gave — a module should not
 have to be edited because of what some other module, possibly written by someone
 else, happens to export.
 
-⚠️ Detected where the name is **resolved through the imports**, which is the
+Detected where the name is **resolved through the imports**, which is the
 only place the ambiguity is real. Importing one module twice is not a clash with
 itself: the same environment appearing twice in the import list is still one
 module.
-
-⚠️ Compiled, each owner's symbol takes its unit as a suffix and the bare use is
-reported where it cannot be resolved — see C-21.
 
     interpreter  compiler/Environment.a24  OwnerOf
     conformance  0124-modules-may-share-exported-names.a24
 
 ### 15.3 Visibility
 
-**[MOD-009]**  ⚠️ `uses` is **not transitive**. If `A` imports `B` and `B`
+**[MOD-009]**  `uses` is **not transitive**. If `A` imports `B` and `B`
 imports `C`, then `A` does not see `C`'s names — `B` may use them, and `A` may
 not. The diagnostic names the unit that would export it:
 
@@ -3684,10 +3579,10 @@ import-only node carries no statements, so the importer needs the environment to
 exist by the time it links to it; a name is looked up when it is *used*, by which
 time everything has loaded.
 
-⚠️ The root's own environment is the **globals**, not a copy, so the importer
+The root's own environment is the **globals**, not a copy, so the importer
 sees the same bindings. It exports every name it declares.
 
-⚠️ The root used to be the one file never entered in the loader's map, so a
+The root used to be the one file never entered in the loader's map, so a
 module importing it back parsed it a **second** time and the two copies did not
 share their names — the root's body printed and then its own imported name was
 undefined. Compiled, the duplicate refused with `Two modules named 'X' is not
@@ -3717,14 +3612,14 @@ ParamCount    ParamStr
 Write   WriteLn    Halt
 ```
 
-⚠️ The list is checked against the names the interpreter registers by
+The list is checked against the names the interpreter registers by
 `spec/spec.sh`; Annex B is the index.
 
-⚠️ A built-in is called like any other subprogram, so a call to one checks its
+A built-in is called like any other subprogram, so a call to one checks its
 argument count [EXP-011] and reports it the same way — the name existing is what
 separates that failure from a reference to something undeclared.
 
-⚠️ **`Write` and `WriteLn` take any number of values**, rendered as `Str`
+**`Write` and `WriteLn` take any number of values**, rendered as `Str`
 renders them [RT-019] and run together with nothing between them — so
 `WriteLn ('ABC', 123)` writes `ABC123`, and `WriteLn (1, 2)` writes `12` rather
 than `3`. `WriteLn ()` is the newline on its own, which is the same rule and not
@@ -3749,15 +3644,12 @@ a String or a Char. Given a collection it is refused — `Length expects text; u
 .Length for a collection.` — because a collection's count is a property
 [COL-003] and the two are different questions.
 
-⚠️ It measured **bytes** rather than characters until DEF-01, so
-`Length ('café')` was 5. It is 4.
-
-⚠️ It used to stringify whatever it was given, so `Length([10, 20, 30])` was
+It used to stringify whatever it was given, so `Length([10, 20, 30])` was
 **12** — the length of the rendering — where `L.Length` is 3. The failure mode
 was the bad one: a *plausible number* rather than an error, and the two are
 never equal, since a List of *n* one-digit numbers renders as `3n` characters.
 
-⚠️ A program that means the rendering writes `Length(Str(L))`, which is what it
+A program that means the rendering writes `Length(Str(L))`, which is what it
 was getting by accident.
 
     interpreter  compiler/Interpreter.a24  Native
@@ -3767,12 +3659,6 @@ was getting by accident.
 **[RT-017]**  A `String` answers `Length` as a **property**, its count of
 characters: `'abc'.Length` is 3. This is the same count `Length('abc')` gives,
 and the same spelling every collection uses [COL-003].
-
-⚠️ A String is already iterable [STM-007] and subscriptable [EXP-015]; not
-answering for its own length was the odd one out. The **compiled** back end
-answered 3 while the interpreter refused, which was C-9 — the fix closed the
-divergence by bringing the interpreter to the compiler, one of only two rules
-where that was the direction.
 
     interpreter  compiler/Interpreter.a24  VisitGetExpr
     compiler     bootstrap/algol.c         alg_property
@@ -3798,7 +3684,7 @@ a point (`1.0`), a Boolean lowercase (`true`), `nil` as `nil`, a List as
 `[10, 20, 30]`, a Map as `[1:2]`, an instance by its `ToString` [CLS-009], and
 the two resources as `Buffer(4)` [RT-023] and `TextFile('name')` [RT-024].
 
-⚠️ **Any value means any value, and a `TextFile` was the one that was not.**
+**Any value means any value, and a `TextFile` was the one that was not.**
 It had no case at all and answered `A value of object kind 14 has no text
 form.` — a message naming an internal tag, to a program that has no way to know
 what a kind 14 is. The Buffer beside it had always rendered, which is what made
@@ -3821,10 +3707,10 @@ it a defect in the implementation rather than a limit worth writing down.
 range of [LEX-025] — 0 … 10FFFF, excluding the surrogates. `Ord` and `Char` are
 inverse across it.
 
-⚠️ `Char(0)` is legal here, and only the **literal** `#0` is refused
+`Char(0)` is legal here, and only the **literal** `#0` is refused
 [LEX-032] — the scanner's own end-of-input sentinel is `Char(0)`.
 
-⚠️ **And everything that carries a character has to carry it, including the way
+**And everything that carries a character has to carry it, including the way
 out.** `Write (Char (0))` raised interpreted and printed the byte compiled,
 because the interpreter joined `Write`'s values through a `Buffer` and a Buffer
 refuses to hand back `Text` when it holds a zero byte [RT-022]. A String carries
@@ -3844,30 +3730,31 @@ the text has no point and a **Double** where it has one — reading the same
 characters the literal rules do [LEX-015], [LEX-020]. Failure is `Val failed:
 'abc' is not a number.`
 
-⚠️ Text that is neither — `'1e5'`, which no literal rule spells [LEX-022] — is
+Text that is neither — `'1e5'`, which no literal rule spells [LEX-022] — is
 a Double, since only an integer literal yields an Integer.
 
-⚠️ **NOT YET IMPLEMENTED.** See DEF-34. `Val` delegates to C's `strtod`, whose
+**NOT YET IMPLEMENTED**, and `spec/DEFECTS.md` records it. `Val` delegates
+to C's `strtod`, whose
 idea of a number is not this language's, so five forms disagree with the rule
 above: `'0x1F'` answers a Double where a hex literal is an Integer [LEX-016],
 `'1_000'` is refused where a separator is permitted, and `' 42'`, `'.5'`, `'5.'`
 and `'+7'` are all accepted where no literal spells them.
 
-⚠️ **AND `Val` IS THE SCANNER'S OWN NUMBER PARSER**, which is why the fix is not
+**AND `Val` IS THE SCANNER'S OWN NUMBER PARSER**, which is why the fix is not
 where it looks. `Scanner.a24` reads every numeric literal with
 `AddToken (TOKEN_NUMBER, Val (Digits))`, so whatever `Val` does *is* what a
 literal means — the rule and the scanner cannot drift apart, because they are
 one function. It also makes "compare `Val ('0x1F')` with the literal `0x1F`" a
 **circular** test, which is the trap this rule sets for anyone fixing it.
 
-⚠️ **Rewriting it in Algol-24 was tried and withdrawn.** The literal forms came
+**Rewriting it in Algol-24 was tried and withdrawn.** The literal forms came
 out right, but the exponent did not: repeated multiplication and even
 exponentiation by squaring drift, so `1.0E300` read back as
 `1.0000000000000002E300`. A correctly-rounded decimal-to-binary conversion is a
 hard numerical problem that `strtod` already solves, and getting the *acceptance*
 right is not worth losing the *precision*.
 
-⚠️ **`Val` therefore has no static type**, and a checker cannot give it one: the
+**`Val` therefore has no static type**, and a checker cannot give it one: the
 answer depends on the *content* of the text, not on its type. A typed
 declaration needs a cast — `var D : Double := Val (S) as Double;` — which is
 checked [VAL-007] and fails loudly when the text held the other kind. Declaring
@@ -3879,24 +3766,16 @@ directions: it refused `var I : Integer := Val ('42');`, which works.
     conformance  0119-val.a24
     defect       DEF-34-val-follows-strtod.a24
 
-**[RT-010]**  ***Removed in Generation 9.*** `Max(A, B)` was a built-in
+**[RT-010]**  ***Removed.*** `Max(A, B)` was a built-in
 answering the greater of two numbers. It is not in the language and is not in a
 library either: **nothing called it**, and Turbo Pascal never had it.
 
-⚠️ **A tombstone for a removal, and the number is why.** Identifiers are
-permanent, and C-30 and D-16 name this one as the rule that *fixed* a past
-defect. Deleting it would leave them citing nothing.
-
-⚠️ **It was found by asking where it was used.** Every mention of `Max` in
-`compiler/*.a24` was a **comment** — which is why a profile of a full test suite
-and a full compile counted zero calls. There was nothing to call.
-
-⚠️ **Removing it deleted a special case rather than moving one.** `Max`
+**Removing it deleted a special case rather than moving one.** `Max`
 promoted, so its type came from its arguments rather than from a table, and
 `TypeChecker.Reduce` carried a branch for exactly that. `Val` is now the only
 built-in with no static return type.
 
-⚠️ **A removal needs a case as much as an addition does**, or nothing would
+**A removal needs a case as much as an addition does**, or nothing would
 notice `Max` quietly coming back.
 
     interpreter  compiler/TypeChecker.a24  BuiltinTypes
@@ -3922,7 +3801,7 @@ millisecond resolution.
 **[RT-013]**  `ParamStr(0)` is the program's own name and `ParamCount()` does
 not count it, so a program run with no arguments reports zero.
 
-⚠️ **A RESOLVED path, not the bare word a shell passes.** A program found on
+**A RESOLVED path, not the bare word a shell passes.** A program found on
 `PATH` is handed `algc` and nothing else, which is a name with nowhere to start
 from — so the runtime asks the operating system where the executable really is
 and answers that. It is still the program's own name; it is just the whole of
@@ -3970,18 +3849,18 @@ containing those bytes.
 **[RT-019]**  A number answers `ToString`, which is `Str` by another spelling.
 `5.ToString ()` is `'5'`.
 
-⚠️ **C#'s arrangement, not Java's.** `5.ToString ()` works because an Integer is
+**C#'s arrangement, not Java's.** `5.ToString ()` works because an Integer is
 a type with members, not because a box wraps a primitive. There is no second
 kind of thing that compares differently under `=`, and nothing to unbox.
 Java's `int`/`Integer` duality — two things with almost the same name behaving
 differently — is what this avoids, and is the same objection [TYP-014] makes to
 a `Real` that converts.
 
-⚠️ **One rendering, so the two spellings cannot disagree.** `ToString` answers
+**One rendering, so the two spellings cannot disagree.** `ToString` answers
 exactly what `Str` does, including for a Double's shortest round-trip form and
 for an Integer past the machine's width.
 
-⚠️ **It reads without being called**, like every other member [COL-005]:
+**It reads without being called**, like every other member [COL-005]:
 `var T := 7.ToString;` binds something callable and prints `<fn ToString>`
 [TYP-012].
 
@@ -3995,12 +3874,12 @@ point, an `Integer` moves one. `Succ ('a')` is `'b'` and `Pred (5)` is `4`.
 Anything else is `Succ failed: 'X' has no ordinal.`, and a Char at the end of
 the code-point range is `Succ failed: 'X' has no ordinal beyond it.`
 
-⚠️ **An enum member is not stepped, and the gap is honest rather than chosen.**
+**An enum member is not stepped, and the gap is honest rather than chosen.**
 Stepping one is the most Pascal use of `Succ` there is, but a member carries its
 type's *name* and its ordinal rather than a pointer to the type, so there is no
 way from a member to the list it belongs to. That link is a change of its own.
 
-⚠️ **An Integer has no end to check** because it is unbounded [LEX-018]; a Char
+**An Integer has no end to check** because it is unbounded [LEX-018]; a Char
 does, stopping at U+10FFFF.
 
     interpreter  compiler/Interpreter.a24  Native
@@ -4010,7 +3889,7 @@ does, stopping at U+10FFFF.
 **[RT-018]**  `Halt(N)` ends the program at once with status `N`. Nothing after
 it runs, and no enclosing `except` sees it — it is not an exception.
 
-⚠️ **It is the only way a program can choose its own exit status.** Without it a
+**It is the only way a program can choose its own exit status.** Without it a
 program that wants to exit non-zero has to `raise`, which prints `Uncaught: ` and
 the raised value [ERR-008] — output the program did not ask for and cannot
 suppress. `algc`'s own `--test` driver did exactly that, so a failing run printed
@@ -4018,12 +3897,12 @@ suppress. `algc`'s own `--test` driver did exactly that, so a failing run printe
 suite returned the status from `main` and printed nothing. That was the last line
 on which the two processors disagreed.
 
-⚠️ **Buffered output is flushed first.** `stdout` is block-buffered when it is
+**Buffered output is flushed first.** `stdout` is block-buffered when it is
 not a terminal, so ending the process without flushing discards whatever the
 program has written — a report that halted would print nothing at all when
 piped.
 
-⚠️ The status is what the program passes. The host takes it modulo 256, as every
+The status is what the program passes. The host takes it modulo 256, as every
 process exit status is; that is the operating system's rule, not this language's.
 
     interpreter  compiler/Interpreter.a24  Native
@@ -4050,17 +3929,17 @@ is a collection — neither answers `Contains`, and only a `Buffer` answers
 without parentheses; the rest are methods. A member a resource does not have is
 `Undefined property 'X'.`, as it is for a collection [COL-005].
 
-⚠️ This table is checked against the interpreter by `spec/spec.sh`, exactly as
+This table is checked against the interpreter by `spec/spec.sh`, exactly as
 [COL-003]'s is and for the same reason: a matrix transcribed into a
 specification and checked by nobody is the most rot-prone thing this document
 can hold.
 
-⚠️ **`Append` is the one name both answer to, and it means different things** —
+**`Append` is the one name both answer to, and it means different things** —
 a Buffer's takes a value and adds its bytes, a file's takes nothing and opens
 for writing at the end. Only the receiver says which, which is why both
 processors try the file's members and the Buffer's *before* the collections'.
 
-⚠️ **A resource is not an instance either**, so neither answers `ClassName`
+**A resource is not an instance either**, so neither answers `ClassName`
 [CLS-008] — the same answer a collection gives [TYP-009]. Both do render
 [RT-006]: a Buffer as its size and a file as its name, spelled out in [RT-023]
 and [RT-024].
@@ -4089,17 +3968,17 @@ four-byte one asked for an Integer at 1 says `0..0`.
 `Text` on a Buffer holding a zero byte is `A Buffer holding a zero byte has no
 Text.`
 
-⚠️ **The message names the width by naming the last legal offset**, rather than
+**The message names the width by naming the last legal offset**, rather than
 by stating it. `0..0` on a four-byte buffer says everything `0..3, minus three
 for the width` would, in the terms the program already has.
 
-⚠️ **`Append` measures with the value's own length, never with a terminator.**
+**`Append` measures with the value's own length, never with a terminator.**
 A String carries its length [G.2], which is what lets `Append (Char (0))` put a
 zero byte in — and a Buffer that can *hold* one, through `Buffer (N)` and
 `B[I] := 0`, but could not be handed one was the asymmetry. `strlen` was how it
 got there.
 
-⚠️ **`Text` is the way to ask for the contents, and it is explicit.** A Buffer
+**`Text` is the way to ask for the contents, and it is explicit.** A Buffer
 is bytes, which may not be text at all; `Str` gives its size [RT-023].
 
     interpreter  compiler/ObjBuffer.a24  Invoke
@@ -4116,17 +3995,17 @@ itself, which is a no-op the second time.
 
 `Str` of a Buffer is `Buffer(N)`, or `Buffer(freed)`.
 
-⚠️ **`Free` is the one member a freed Buffer still accepts**, which is the
+**`Free` is the one member a freed Buffer still accepts**, which is the
 bargain `Close` makes for a file [RT-024]: a handler can release on the way out
 without knowing how far the program got.
 
-⚠️ **Its size, never its contents and never its capacity.** Capacity is a
+**Its size, never its contents and never its capacity.** Capacity is a
 function of allocation history, so printing it would make output depend on how a
 buffer happened to grow — the non-determinism the fixed-point check exists to
 catch. Contents are left out for a plainer reason: a compiler's Buffer holds
 700 KB of bytes that may not be text.
 
-⚠️ **An address does not outlive the bytes** [TYP-017]. `Resize` may move them
+**An address does not outlive the bytes** [TYP-017]. `Resize` may move them
 and `Free` ends them.
 
     interpreter  compiler/ObjBuffer.a24  Invoke
@@ -4159,20 +4038,20 @@ writing members are the only ones an open file accepts.
 the handle then has. `Str` of a `TextFile` is `TextFile('name')`, or
 `TextFile()` before an `Assign`.
 
-⚠️ **`Eof` is TRUE on a file open for writing**, as it is in Turbo Pascal: the
+**`Eof` is TRUE on a file open for writing**, as it is in Turbo Pascal: the
 position on an output file is always the end. It is a *position* query rather
 than a report of a failed read, which is why a file open for reading keeps one
 line of lookahead — `Eof` must answer *at* the end, which a line reader cannot
 know without having looked.
 
-⚠️ **Every failure names the member that failed**, in one shape: the member, a
+**Every failure names the member that failed**, in one shape: the member, a
 colon, and what it needed. That is what makes the messages worth quoting here —
 there is one sentence pattern rather than eleven.
 
-⚠️ **`Close` on a file that is not open is not an error**, for the reason
+**`Close` on a file that is not open is not an error**, for the reason
 `Free`'s second call is not [RT-023].
 
-⚠️ What `ReadLn` treats as a line is [RT-016], which is the scanner's rule
+What `ReadLn` treats as a line is [RT-016], which is the scanner's rule
 [SRC-006] rather than a second one.
 
     interpreter  compiler/ObjFile.a24  Invoke
@@ -4189,11 +4068,6 @@ there is one sentence pattern rather than eleven.
 the order they are written, and there is no distinguished entry point — no
 `main`, and no statement that begins execution.
 
-⚠️ The compiled back end preserves this order too, and did not always: a bare
-top-level block was deferred to the end of the program (C-11) and every module
-body ran before any root statement (C-5). Both are closed, and
-`conformance/0094` agrees through either processor.
-
     interpreter  compiler/Main.a24  Run
     conformance  0094-program-order.a24
 
@@ -4201,7 +4075,7 @@ body ran before any root statement (C-5). Both are closed, and
 reached, so a name is undefined above its declaration [DCL-016]. A **function or
 class** is visible throughout the file wherever it is written [DCL-006].
 
-⚠️ A **variable** is still bound when its statement runs, and only a function or
+A **variable** is still bound when its statement runs, and only a function or
 a class is hoisted — `refusals/0033` pins the difference.
 
     interpreter  compiler/Interpreter.a24  Interpret
@@ -4230,11 +4104,9 @@ initialized before it, so a module's own body may use anything it imported.
     interpreter  compiler/Interpreter.a24  VisitModuleStmt
     conformance  0095-module-init-order.a24
 
-⚠️ **This follows from [INI-003] rather than needing its own mechanism**: a
+**This follows from [INI-003] rather than needing its own mechanism**: a
 module's `uses` clauses stand at the top of its body, so its initializer runs
-them before its own statements. Compiled, the `uses` clause is what starts a
-module — it used to run every module initializer before any root statement,
-which is C-5.
+them before its own statements.
 
 ### 17.3 Termination
 
@@ -4242,7 +4114,7 @@ which is C-5.
 status **0**, and **only** such a program does. A run that never began — because
 the file could not be read — is a failure and exits non-zero [INI-006].
 
-⚠️ **No case in `conformance/` covers the second half, and none can.** Every
+**No case in `conformance/` covers the second half, and none can.** Every
 case is run by handing `algc` a file that exists, so a run that never began is
 not reachable from inside the corpus. It is checked by hand:
 
@@ -4266,7 +4138,7 @@ error, which are reported before any statement runs.
     compiler     bootstrap/algol.c  alg_error
     conformance  0096-exit-status.a24
 
-> ⚠️ **One status for every kind of failure** is deliberate rather than
+> **One status for every kind of failure** is deliberate rather than
 > unconsidered. A caller wanting to tell a compile error from a runtime one
 > reads the diagnostic; the alternative — a second status for failures found
 > before execution — buys a little for tooling and costs every existing caller a
@@ -4296,11 +4168,11 @@ both processors, and that the refusal reads the same either way. What a foreign
 call *does* is outside the corpus, because it is outside this specification
 [FUN-014].
 
-⚠️ **Both processors still agree within a build**, which is what the standing
+**Both processors still agree within a build**, which is what the standing
 rule asks. The configuration is a property of the runtime the two share, not a
 difference between them.
 
-⚠️ **The default is the one without**, so that the bootstrap needs a C compiler
+**The default is the one without**, so that the bootstrap needs a C compiler
 and nothing else — a claim about how `algc` is obtained from nothing, not about
 what a program may link against.
 
@@ -4342,7 +4214,7 @@ are specified.
 source excerpt. Like every error in the first four phases it prevents execution
 [ERR-002].
 
-⚠️ **That is the whole of the requirement.** This rule previously went on to say
+**That is the whole of the requirement.** This rule previously went on to say
 the error is "recorded rather than raised: the scanner sets a flag and keeps the
 message, and a driver must ask" — which describes how *this* implementation
 happens to work, not what an implementation must do. A specification that
@@ -4384,12 +4256,12 @@ rather than a type name:
 Uncaught: Expected Integer, found an untyped expression.
 ```
 
-⚠️ **The caret names the declaration or the assignment, not the offending
+**The caret names the declaration or the assignment, not the offending
 value.** A literal carries no token, so there is nothing inside the initializer
 to point at without giving every expression one — and the message already names
 both types, which is what the caret would otherwise have to convey.
 
-⚠️ **This compounds with [ERR-002]:** a type error stops the program before any
+**This compounds with [ERR-002]:** a type error stops the program before any
 statement runs, so there is no output to orient by either. The message is the
 only information available, which is why it has to carry some.
 
@@ -4417,7 +4289,7 @@ mistyped declaration in a handler does not suppress it.
 **[ERR-009]**  Every failure exits with status **70**, whichever phase reported
 it [INI-006].
 
-⚠️ A failure that never reaches a phase at all — a file that cannot be read — is
+A failure that never reaches a phase at all — a file that cannot be read — is
 still a failure and must not exit 0 [INI-005].
 
     interpreter  compiler/Main.a24  Main
@@ -4437,29 +4309,29 @@ One warning is raised. A call that will select among overloads **at run time**
 [WARN] spec/warning.a24:17: 'Log' selects among 3 overloads at run time.
 ```
 
-⚠️ **The wording is checked against what is printed**, by `spec/spec.sh` running
+**The wording is checked against what is printed**, by `spec/spec.sh` running
 `spec/warning.a24` — the treatment the keyword table, Annex B and [COL-003]'s
 matrix already get, and for the same reason. A message quoted in a specification
 and checked by nobody is the most rot-prone thing this document can hold.
 
-⚠️ **It is not raised where a named argument decides the call** [EXP-013].
+**It is not raised where a named argument decides the call** [EXP-013].
 Naming the parameters identifies one signature, so nothing is left to select at
 run time — the warning and its remedy arrived together, and a warning whose
 remedy did not exist would point at nothing.
 
-⚠️ **A warning is not a refusal, and the boundary matters.** Refusal is for what
+**A warning is not a refusal, and the boundary matters.** Refusal is for what
 the C back end cannot express; a construct that is legal and merely costly gets
 a warning instead, which is what keeps `<X> is not supported by the C back end
 yet.` meaning only one thing.
 
-⚠️ **It is not part of a program's output**, and the corpus drops it from both
+**It is not part of a program's output**, and the corpus drops it from both
 sides. The front end is shared, so the same warning appears when an interpreted
 program *runs* and when a compiled one is *emitted* — different moments, so
 comparing them would report a divergence where the two processors agree
 completely. Dropped rather than suppressed: it is meant to be seen by whoever is
 compiling, and only the comparison must not see it.
 
-⚠️ **It is silent on this compiler.** No top-level name in `compiler/*.a24` is
+**It is silent on this compiler.** No top-level name in `compiler/*.a24` is
 overloaded, so `algc` compiling itself raises none at all — which is the
 evidence that it is a scalpel rather than noise.
 
@@ -4487,7 +4359,7 @@ TestDecl = "test" ( string_lit | char_lit ) ";" Block .
 `test` is not a keyword [LEX-011]; it is recognized here by the quoted name that
 follows it, so a variable may still be called `test`.
 
-⚠️ **Either quoted form**, because the name is *text* and a one-character name is
+**Either quoted form**, because the name is *text* and a one-character name is
 an ordinary thing to write. `'X'` is a Char rather than a String [LEX-023], and
 that distinction belongs to values rather than to a declaration naming itself.
 
@@ -4568,7 +4440,7 @@ of one, so a name longer than the banner still produces a well-formed line.
 `[INFO]` tag white and blue, `[ERROR]` white and red, the file name cyan, `PASS`
 green, `FAIL` red, and the summary green when all passed and red otherwise.
 
-⚠️ The escapes are emitted **unconditionally**, whether or not the output is a
+The escapes are emitted **unconditionally**, whether or not the output is a
 terminal — the language has no way to ask — so anything reading a report strips
 or transliterates them.
 
@@ -4596,25 +4468,21 @@ and the run exits **0** when every test passed and **70** when any failed.
 
 Two spaces follow the full stop in each.
 
-⚠️ **The third form is not an alternative wording but a different case**, and it
+**The third form is not an alternative wording but a different case**, and it
 is the reason the second is not enough: a `Char` and a `String` both render as
 `3` and are never equal [LEX-026], so a message quoting only the rendered values
 would read `Expected '3' but got '3'.` Naming the types is what makes that
 legible. Both processors already do this, and it was missing from this table.
 
-⚠️ Every form used to begin `Assertion 'left = right' failed.` — including
+Every form used to begin `Assertion 'left = right' failed.` — including
 `AssertTrue`, which makes no comparison and has no left or right. The stem read
 like a template nobody filled in.
 
-⚠️ **The two processors disagreed here**, and nothing caught it: the C runtime
+**The two processors disagreed here**, and nothing caught it: the C runtime
 said only `Assertion failed.` for `AssertTrue`, with no value at all. A report
 comparison drops the `[ERROR]` lines an assertion failure prints, so the one
 message a programmer reads most often was outside everything that checks the two
 against each other.
-
-⚠️ Compiled, every one of these messages is printed, in the same words — see
-C-23, where the premise that compiled code could not build the line was the part
-that was wrong.
 
     interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_assert_equal
@@ -4633,16 +4501,11 @@ line and color for color. It is the surface on which two implementations are
 compared, so a difference in it is a difference in conformance and not a matter
 of presentation.
 
-⚠️ **Both processors meet this**, line for line and color for color, over the
+**Both processors meet this**, line for line and color for color, over the
 whole suite — which is the strongest available check that the two implementations
 agree, since a test report is built from almost everything the language has.
 
-⚠️ The compiled report used to omit the `[ERROR]` line after a failure (C-3), on
-the premise that compiled code carries no line information to build one from.
-Only the *caret* lines need a source position; the message line carries the file
-name and the message and nothing else.
-
-⚠️ This rule previously stated only that the compiled report differs, which said
+This rule previously stated only that the compiled report differs, which said
 nothing about what an implementation must **do**. The requirement is agreement,
 and it is now met.
 
@@ -4658,7 +4521,7 @@ Every production stated in the chapters, collected. This annex adds nothing:
 each line appears in the chapter that specifies it, and `spec/spec.sh` checks
 that none has been added here or lost from here.
 
-⚠️ **The grammar is partial, deliberately.** Where a construct's shape was
+**The grammar is partial, deliberately.** Where a construct's shape was
 verified by running it rather than by writing a production, the chapter states
 it in prose and no production appears below. The gaps are named at the end of
 this annex rather than filled with plausible-looking rules, because a production
@@ -4733,7 +4596,7 @@ production:
 | Blocks and expression statements | [STM-001], [STM-002] |
 | Visibility sections | [DCL-011], [DCL-012] |
 
-⚠️ `Sections`, `Block`, `Member` and `Statement` are referenced above and not
+`Sections`, `Block`, `Member` and `Statement` are referenced above and not
 themselves defined. Completing the grammar is worth doing; inventing those four
 productions from memory is not.
 
@@ -4762,8 +4625,8 @@ checks this list against the names the interpreter actually registers.
 | `Mod` | [RT-011] | The remainder, its sign following the dividend |
 | `Char` | [RT-008] | The character with a code point, 0 … 10FFFF, surrogates excluded |
 | `Copy` | [RT-004] | A substring, from a zero-based start, length clamped |
-| `Length` | [RT-003] | ⚠️ The length of the argument's **text**, not a count |
-| `Foreign` | [FUN-014] | ⚠️ The FFI's own plumbing. `external` is the spelling a program uses; this is what it becomes, and it exists because the tree-walker can reach C no other way |
+| `Length` | [RT-003] | The length of the argument's **text**, not a count |
+| `Foreign` | [FUN-014] | The FFI's own plumbing. `external` is the spelling a program uses; this is what it becomes, and it exists because the tree-walker can reach C no other way |
 | `Pos` | [RT-005] | A zero-based index, or -1 when absent |
 | `Str` | [RT-006] | Any value rendered as text |
 | `Val` | [RT-009] | A number parsed from text — an **Integer** without a point, a Double with one |
@@ -4775,1989 +4638,11 @@ checks this list against the names the interpreter actually registers.
 | `Write` | [RT-015] | Writes a value |
 | `WriteLn` | [RT-015] | Writes a value and `#10` |
 
-⚠️ `clock` is the only built-in spelled in lower case, and the only one whose
+`clock` is the only built-in spelled in lower case, and the only one whose
 name is not a noun or an imperative. Nothing depends on this; it is noted
 because a reader will wonder.
 
 ---
-
-## Annex C — compiler divergences *(non-normative)*
-
-Where the C back end does not do what the interpreter does. The interpreter is
-the authority [1.1], so every entry here is a defect in the compiler rather than
-a choice the language has made.
-
-⚠️ **Every entry is withdrawn**, and `./conform.sh` reports no gap. They are
-kept because each records what was actually wrong — which in a dozen cases is
-not what the entry first said, and in several is a mistake in the fix the entry
-itself proposed. Two were the *interpreter's* fault rather than the compiler's
-(C-4, C-37), which the classification above does not admit and which is worth
-seeing.
-
-⚠️ A **loud** divergence refuses to compile and says why. A **silent** one
-produces a program that runs and behaves differently. The second kind is far
-worse, and the column says which each is.
-
-⚠️ **Nothing here is tracked by a suite of its own.** A divergence is not a third
-kind of case; it is an *outcome*. Every case in `conformance/` runs under both
-processors, and a case the interpreter gets right and the compiler does not
-fails its compiled half — that failure **is** the record of the divergence, and
-`conform.sh` calls it a gap. **A gap fails the run**, from Generation 3 onward;
-through Generations 1 and 2 it was reported instead, while the compiler was
-deliberately allowed to trail. The classification of a case never depends on the
-compiler's state:
-
-| The interpreter is | The case goes in |
-| --- | --- |
-| right | `conformance/` or `refusals/`, even if the compiler is wrong |
-| wrong | `defects/`, even if the compiler is right |
-
-This was decided by the order the work came in rather than by tidiness. The
-first goal was an interpreter that matches this specification; the next, a
-compiler that matches the interpreter. Compiler gaps were therefore
-**expected** to be red throughout the first, and the count was the progress
-measure for the second. It has reached zero.
-
-⚠️ The one thing that must not break is the compiler's ability to **build and
-reproduce itself** — `./fixedpoint.sh` and `./test.sh`. A compiler that cannot
-compile cannot produce the generation that fixes these entries.
-
-⚠️ **An opt-out records nothing and notices nothing.** Twelve conformance cases
-once carried a `// compiled: no` marker to keep the suite quiet. C-14 was found
-within minutes of removing them, in a case that had been opted out since it was
-written — and C-9, C-11 and C-13 had no reproduction at all while the markers
-stood.
-
-**C-1 — A file in an import cycle with the root will not compile.**
-***Withdrawn.***
-
-The root file was never entered in the parser's `Loaded` map, so a module
-importing the root back parsed it a second time and the emitter saw two units of
-one name — `Two modules named 'Parser' is not supported by the C back end yet.`
-This was the only known case of a valid program having no compiled form.
-
-⚠️ **Withdrawn because the cause was removed, not because the emitter changed.**
-The root is registered as a module now [MOD-014], so the duplicate the emitter
-was refusing no longer exists. `--compile --test compiler/Parser.a24` emits, and
-`conformance/0125` compiles and runs identically to the interpreted form.
-
-⚠️ The number is not reused. A withdrawn entry stays where it is, because the
-divergence it described was real and citing it should keep working.
-
-**C-2 — Functions may not nest more than one level deep.**
-***Withdrawn.***
-*(refers to [FUN-012])*
-
-```
-A function nested more than one level deep is not supported by the C back end yet.
-```
-
-Three levels of nesting ran correctly interpreted and refused to compile.
-
-⚠️ **One missing case, not a missing mechanism.** A nested function is emitted
-as a file-scope C function plus a closure over an array of heap cells, and a
-cell was reachable in only one shape: a `c_x` local the enclosing function
-declared. At depth two the enclosing function is *itself* nested, so the cells
-it was **handed** are as much in scope where the inner declaration stands as the
-ones it made — and those can only be named `cells[i]`. A capture list written
-with the local form alone named locals that do not exist, so the refusal stood
-in for the second shape.
-
-⚠️ **The handed-down cells come first and in index order**, because the
-receiving function reads them as `cells[i]` and the indices have to line up with
-the array the closure is built from.
-
-⚠️ **A function declared inside a METHOD is still refused**, and is a different
-thing: a method's C function takes a receiver and no cell array, and a nested
-function there closes over `this` as well as over the locals. Recorded as C-38.
-
-**C-3 — A compiled assertion failure carries no message.**
-***Withdrawn.***
-
-`alg_test_run` printed no `[ERROR]` line, so the `FAIL` stood alone where the
-interpreter also gave the assertion message. It prints the same line now — see
-C-23, which is where the fix and the reasoning live.
-
-⚠️ **The premise was wrong, not just the behavior.** This entry said compiled
-code "has no line information to put in one", and inferred from that that the
-whole line was unreproducible. Only the *caret* lines need a source position;
-the message line carries the file name and the message and nothing else.
-
-**C-4 — Collection member names are matched case-insensitively.**
-***Withdrawn.***
-*(refers to [COL-006])*
-
-```
-var L := [1];
-L.add (2);
-```
-
-Interpreted this is `Undefined property 'add'.` Compiled it works, and the
-program prints a length of 2.
-
-⚠️ This is the first **silent** divergence recorded, and it runs in the more
-dangerous direction: the compiler **accepts a program the language refuses**. A
-program developed against the compiler can use lowercase member names
-throughout and fail everywhere the moment it is run interpreted, with no warning
-from either processor that the two disagree.
-
-The C runtime compares collection members with `alg_stricmp`, which is
-deliberate — but `bootstrap/algol.h` asserted alongside it that this was "what
-the interpreter does", and it is not. That comment has been corrected.
-
-⚠️ **Withdrawn in the compiler's favour**, which is the opposite of what this
-entry proposed. [SRC-011] folds *every* name, so a built-in member is a name like
-any other and `alg_stricmp` was right all along. The interpreter is what changed:
-`ObjCollection`, `ObjFile` and `ObjBuffer` fold the incoming member and their
-comparison literals are written folded to match.
-
-⚠️ The entry's proposed fix — compare exactly in `alg_property` and `alg_invoke`
-— would have been **wrong**, and it was written before [SRC-011] was enforced
-anywhere. That is the hazard of recording a remedy alongside a divergence: the
-divergence was real and the remedy assumed which side was at fault.
-
-The number is not reused.
-
-**C-5 — Module bodies run at a different time.**
-***Withdrawn.***
-*(refers to [INI-003], [INI-004])*
-
-Interpreted, a `uses` runs its module where it appears, so root statements
-interleave with module bodies in source order. Compiled, every module
-initializer runs before any root statement.
-
-```
-WriteLn ('1 root');        interpreted        compiled
-uses Alpha;                 1 root              Alpha body
-WriteLn ('2 root');           Alpha body        Gamma body
-uses Gamma;                 2 root              1 root
-WriteLn ('3 root');           Gamma body        2 root
-                            3 root              3 root
-```
-
-⚠️ Silent, and unlike C-4 it needs no unusual spelling to provoke: any program
-whose modules print, open a file, or set a variable the root then reads will
-behave differently under the two processors, and nothing warns.
-
-The compiled shape follows from how the C is emitted — `main` calls each
-`init_<Unit>()` and then `init_Main()` — and it is the easier order to produce,
-since a module's initializer is a function and the root's body is not special.
-
-The interpreter is the authority [1.1], so the compiler was wrong.
-
-⚠️ **The `uses` had been filtered out of the statements entirely**, which is why
-the emitter had no way to say *when*. It was split off as an import and dropped;
-keeping it is most of the fix, and `VisitModuleStmt` — until now nothing but a
-refusal for a nested `uses` — writes the call. `main` starts the root and
-nothing else. [INI-004] then follows from the same mechanism rather than needing
-its own: a module's `uses` clauses stand at the top of its body, so its
-initializer runs them before its own statements.
-
-⚠️ **A `uses` runs under `--test` too**, and had to be added to the set of
-statements a test run keeps. Only the file being *tested* has its program held
-back; while `main` started every module itself this did not matter, and the
-moment the clause became what starts one, leaving it out would have given a test
-run no modules at all.
-
-⚠️ **Hoisting a class had to become conditional, and this is where the fix
-turned out to be about more than order.** A class is built ahead of its file's
-statements only when its parent is absent or is another class of the **same
-file** — `Interpreter.Hoist`'s rule, which the emitter did not have. It built
-every class in `Setup`, before any statement, and that was indistinguishable
-from correct only because every module initializer ran first. With modules
-starting at their clause, a class inheriting from one had to be built where its
-declaration stands.
-
-⚠️ **And that exposed a silent divergence hiding inside this one.** A class
-inheriting from a module named *below* it is `Undefined variable 'Shape'.`
-interpreted — nothing has bound the name yet — and compiled it *ran*, because
-the parent's shell had been built before any statement. The compiler accepted a
-program the language refuses. `alg_class_declared` reports the name, and
-`conformance/0146` and `0147` pin both orders.
-
-**Not a divergence, and worth stating as a requirement:** interpreted and
-compiled `--test` reports are byte-identical, color included — 239 lines and
-1,416 escape sequences for the full suite. Any difference between them is a
-defect in one or the other.
-
----
-
-**C-6 — Reading a method as a property crashes the compiled program.**
-***Withdrawn.***
-*(refers to [TYP-012])*
-
-```
-class Box;
-begin
-    function Size (); begin Exit 7; end
-end
-
-var B := Box ();
-WriteLn (B.Size ());
-WriteLn (B.Size);
-```
-
-Interpreted this prints `7` and then `<fn Size>`, which is what [TYP-012]
-requires. Compiled it dies of `SIGSEGV` (exit 139) with **no output at all** —
-the earlier `WriteLn` is lost with the buffer.
-
-⚠️ This is the most serious divergence recorded so far, and it is worse than
-C-4. C-4 accepts a program the language refuses; this one takes a program both
-processors accept and crashes it, without a diagnostic, in the processor that is
-supposed to be the fast one. `alg_property` has no case for a method reached
-without a call.
-
-⚠️ **The fault was in `as_text`, not in `alg_property`.** This entry blamed the
-property lookup, which had handled a bare method for some time. `as_text` had no
-case for a bound method and fell through to `collection_text`, which casts
-anything that is not a Map to `ObjSeq *` and reads a count out of it. Both
-processors print `<fn Length>` now.
-
-⚠️ **`collection_text` was a catch-all and is not one any more**, which is the
-half that mattered beyond this entry. Any heap object of an unhandled kind
-reaching it crashed rather than saying anything; it names the kind and raises
-now. A missing case should be a diagnostic, not a wild read.
-
-⚠️ It closed by repair rather than by removal. H-6 once proposed making a bare
-`B.Length` an error and retiring the construct instead; that proposal has since
-been withdrawn — reading a method as a value is specified [FUN-011] and stays —
-so the repair is now the whole answer rather than an interim one.
-
-**C-7 — Four runtime diagnostics are worded differently.**
-***Withdrawn.***
-*(refers to [TYP-009], [TYP-010])*
-
-| Program | Interpreted | Compiled |
-| --- | --- | --- |
-| `List ().ClassName` | `Undefined property 'ClassName'.` | `Only instances have properties.` |
-| `B[0]` on an instance | `Subscript target should be an ordinal.` | `Only a collection or a String can be subscripted.` |
-| `C (1, 2)` on a class with no constructor | `Expected 0 arguments but got 2.` | `This class takes no constructor arguments.` |
-| `Color.Nope` | `Undefined enum member 'Nope'.` | `That enum has no such member.` |
-
-Both processors refuse every one of them, so nothing runs that should not — but
-the text differs, and [ERR-002] requires a diagnostic to be the same wherever it is
-produced.
-
-⚠️ **This entry recommended the wrong direction**, and the rules settle it. It
-argued that the compiled wording was better and that the interpreter should move
-toward the compiler. But all four texts are *pinned by rules* — [TYP-009],
-[TYP-010], [EXP-011] and [ENU-004] each quote the interpreted wording — so the
-compiler was simply wrong, and it moved.
-
-⚠️ The aesthetic argument survives the fix and is worth keeping: `Subscript
-target should be an ordinal.` does describe the *subscript* when the fault is the
-*target*. That is a case for changing [TYP-010], which belongs in Annex D as a
-proposal, not in the runtime as a divergence. Nothing here forecloses it.
-
-
-**C-8 — An uncaught runtime error carries no `Uncaught:` prefix.**
-***Withdrawn.***
-
-| | |
-| --- | --- |
-| Interpreted | `Uncaught: Index 5 out of range 0..2.` |
-| Compiled | `Index 5 out of range 0..2.` |
-
-The message is identical; only the prefix the driver adds is missing.
-
-⚠️ **Narrower than it was first recorded.** This entry said "every conformance
-case ending in a runtime error meets this". It applies only to an error raised
-by the **runtime** — a division by zero, a subscript out of range, no matching
-signature. Two cases keep the prefix and were wrongly marked as meeting it:
-
-| | |
-| --- | --- |
-| An explicit `raise` | prefix present in **both**; `raise 'boom'` gives `Uncaught: boom` either way |
-| A scan, parse or type error | prefix present in **both**, because the front end is shared [1.1] |
-
-The correction came from running the two processors against four cases whose
-comments claimed a divergence they did not have.
-
-⚠️ Unlike C-3, this was not a consequence of compiled code lacking line
-information — the prefix needs nothing the compiled program does not have.
-
-⚠️ **One line, and twelve cases.** `alg_raise` printed the prefix on its uncaught
-path and `alg_error` did not, so an error raised by the *runtime* lost it while
-an explicit `raise` kept it. That asymmetry inside one file is what made the
-entry look larger and vaguer than it was: it was first recorded as "every
-conformance case ending in a runtime error", narrowed once by testing, and is
-in fact a single `fprintf`.
-
-
-**C-10 — The compiled back end hoists variables.**
-***Withdrawn.***
-*(refers to [DCL-016])*
-
-```
-WriteLn (V);
-var V := 7;
-```
-
-Interpreted this is `Undefined variable 'V'.` Compiled it printed `nil`.
-
-Every top-level name is emitted at C file scope, so it exists from the start of
-the program; a variable simply held `nil` until its initializer ran.
-
-⚠️ **This was the silent direction again, and the worst instance of it.** The
-compiler did not merely accept a refused program — it substituted a **value**
-for a diagnostic, so the program ran to completion with `nil` where a number was
-meant, and nothing anywhere said so.
-
-⚠️ **The compiler was only half wrong.** Hoisting a *function, class or enum* is
-what [DCL-006] requires, and the interpreter does it. Hoisting a *variable* is
-what [DCL-016] forbids. One mechanism, correct for three kinds of declaration
-and wrong about the fourth, which is why it took a rule split to describe — and
-why the fix could not be to stop emitting names at file scope.
-
-⚠️ **A `d_` bool beside the `v_` storage, and a RUNTIME check.** Nothing the
-emitter can see decides it: a read may sit inside a function declared above the
-variable and called from below it, which is legal and ordinary, so
-`function Peek (); begin Exit Later; end` is correct or an error depending on
-when `Peek` is called.
-
-⚠️ **A bool rather than a sentinel `Value`**, so that nothing the language can
-hold ever means "not yet declared". A sentinel could be printed, compared or
-widened by any read the emitter failed to guard; the worst a missed guard can do
-here is what the emitter already did.
-
-⚠️ **An assignment is checked too.** A variable is bound by its *declaration*,
-not by being written to, so `V := 5;` above `var V := 7;` is the same error a
-read gets rather than a store the declaration then overwrites.
-
-**C-11 — A top-level block is reordered.**
-***Withdrawn.***
-
-```
-WriteLn ('one');
-begin
-    WriteLn ('two');
-end
-WriteLn ('three');
-```
-
-| Interpreted | Compiled |
-| --- | --- |
-| `one two three` | `one three two` |
-
-A bare `begin` … `end` at the top level runs **in place** interpreted and
-**after every other top-level statement** compiled. With two such blocks, both
-are deferred and run in their own order at the end.
-
-⚠️ **A counted `for` is affected too, and that is the case that matters.**
-[STM-006] desugars it into a block holding the initializer and a `while`, so a
-top-level counted loop is a top-level block and is deferred with the rest:
-
-```
-WriteLn ('one');
-for var I := 1; I <= 2; I := I + 1 do WriteLn ('  loop ' + Str (I));
-WriteLn ('two');
-```
-
-| Interpreted | Compiled |
-| --- | --- |
-| `one` `loop 1` `loop 2` `two` | `one` `two` `loop 1` `loop 2` |
-
-A bare block at the top level is rare; a counted loop is ordinary code, so the
-divergence is far more reachable than the entry first suggested. It was found by
-running the first three-line program written to try the VS Code **Run Both**
-command.
-
-⚠️ **Scoped by running each shape.** These are *not* affected, because the block
-in each is a body rather than a top-level statement: a `while` with a block
-body, a `for … in`, and an `if`.
-
-⚠️ **Statement order is not preserved**, which makes this the most damaging
-silent divergence recorded. C-6 crashes, which is at least noticeable; C-10
-substitutes `nil` for a diagnostic, which a careful reader may spot. This one
-runs every statement, produces no error, and simply performs them in a different
-order — so a program whose blocks write files, print, or set variables the rest
-of the file reads will behave differently under the two processors with nothing
-to indicate it.
-
-The emitter treated a top-level block as the program's main body, which is right
-for the one block a program conventionally ends with and wrong for a block
-appearing anywhere else.
-
-⚠️ **Deferring was unnecessary as well as wrong.** Its stated purpose was to run
-the program body after every module had initialized, and that already held: the
-root's initializer is the *last* one `main` calls. Every top-level statement is
-emitted in order now, blocks included.
-
-⚠️ **C-13 was the same bug**, reached through a counted loop rather than a bare
-block, and closed with it.
-
-⚠️ `conformance/0039` differed after this for a different reason: with the block
-correctly scoped, a name read after the `end` does not exist, and the emitter
-wrote a reference to it rather than refusing by name. That was C-34, and it is
-closed too.
-
-⚠️ It used to constrain the conformance corpus: a case using a bare top-level
-block to demonstrate scoping could not be run under both processors.
-`conformance/0040` puts its blocks inside procedures for exactly this reason,
-which keeps the cross-check.
-
-
-**C-13 — Two counted `for` loops sharing a variable name at the top level emit
-invalid C.**
-***Withdrawn.***
-*(refers to [STM-006], [DCL-008])*
-
-```
-for var I := 0; I < 2; I := I + 1 do Write (I);
-for var I := 0; I < 2; I := I + 1 do Write (I);
-```
-
-```
-error: redefinition of 'v_I'
-```
-
-[STM-006] desugars a counted `for` into a block holding the initializer and a
-`while`, which is why its variable is scoped [DCL-008]. At the top level the
-emitter does not open a C block for it, so both loops declare `v_I` in one
-scope. Inside a function or method it is emitted correctly, which is why the
-compiler compiles itself — all sixty-eight of its own counted loops are inside
-one.
-
-⚠️ **The emitter breaks its own contract here.** It is supposed to refuse by
-name what it cannot emit rather than emit something wrong. Instead it produces C
-that `cc` rejects, so the diagnostic names `v_I` and a line in a generated file
-rather than the loop the programmer wrote. A refusal from `algc` would be
-strictly better than a valid-looking emission that fails downstream.
-
-⚠️ **The same bug as C-11**, and closed with it. A top-level block was pulled
-out and run at the end; a counted `for` desugars into a block, so an ordinary
-loop was deferred and two of them declared one variable in one C scope. Every
-top-level statement is emitted in order now, and a block opens a C block, so its
-variable is a local.
-
-⚠️ It constrained the corpus while it stood: `conformance/0054` puts its loops
-inside a procedure, as `conformance/0040` does for C-11. Neither needs to now.
-
-
-**C-14 — Compiled code does not check arity.**
-***Withdrawn.***
-*(refers to [EXP-011])*
-
-```
-function One (A); begin Exit A; end
-WriteLn (One (1, 2));
-WriteLn ('kept going');
-```
-
-Interpreted this is `Uncaught: Expected 1 arguments but got 2.` Compiled it
-printed `1` and then `kept going` — the extra argument was discarded and the
-program ran on. Too *few* arguments was accepted as well, and read past the end
-of the argument array.
-
-⚠️ **This was invisible while `conformance/0049` opted out of the compiled
-half.** It was found within minutes of removing the opt-outs, which is the
-argument for not having them: an opt-out records nothing and notices nothing,
-and the case it silences is exactly the case that would have found the bug.
-
-⚠️ **Only one call shape was unguarded, not all of them.** A nested function is
-reached through `alg_call` and a method through `alg_invoke`, and both compared
-counts already. A **top-level subprogram** is called by its own C symbol —
-`f_one(NULL, args, 2)` — so nothing sits between the call and the body. The
-check is emitted in the *callee*, for the reason `alg_param` is: the declared
-arity is already there, and one place answers for every call site. Top-level
-overloads are refused by name (C-2), so a symbol has exactly one arity.
-
-⚠️ **Two different failures, and they are not interchangeable.** A subprogram
-with one signature reports the counts. A **method** reports `No matching
-signature for function.`, because arity is only part of what it selects on
-[EXP-014] and a wrong count is one way for nothing to fit — there is no single
-expected count to name. The runtime said `Wrong number of arguments.` for the
-method case and `Wrong number of arguments to Init.` for a constructor, neither
-of which any interpreted run produces; `0049` now pins all four shapes.
-
-**C-15 — A call to an object will not compile.**
-***Withdrawn.***
-*(refers to [CLS-016])*
-
-```
-object Config;
-begin
-    function Value (); begin Exit 1; end
-end
-WriteLn (Config ());
-```
-
-```
-A call to 'Config' is not supported by the C back end yet.
-```
-
-Interpreted the program runs until the call, which raises `Can only call
-functions and classes.` [CLS-016].
-
-The same refusal covers a call the emitter has no case for at all:
-
-| Program | Interpreted | Compiled |
-| --- | --- | --- |
-| `Config ()` on an object | `Can only call functions and classes.` | `A call to 'Config' is not supported…` |
-| `AssertTrue (True)` outside a test run | `Undefined variable 'AssertTrue'.` | `A call to 'AssertTrue' is not supported…` |
-
-⚠️ The second is worth noticing because the interpreter is right for a reason
-the emitter does not share: the assertions are registered **only while `--test`
-is running** [RT-002], so outside one the name is simply not there. The emitter
-sees a call to a name it cannot resolve and refuses it as unsupported, which
-describes the emitter rather than the program.
-
-⚠️ The program is a **valid** one whose defined behavior is to raise. The
-emitter refused it rather than emitting something that raises, so a program the
-language merely rejects at run time had no compiled form at all. That was the
-right way round for a gap — loud, named, and impossible to miss — but it was
-still a program the two processors did not agree on.
-
-⚠️ **The runtime already had the wording.** `alg_call` says `Can only call
-functions and classes.` for anything that is not callable, so emitting the call
-rather than refusing it produces the language's own message: the singleton is
-built first, as the interpreter evaluates the callee first, and handed to
-`alg_call` like any other value. Both rows of the table above are closed — the
-second by C-33, and for the same reason: neither program is one the back end
-cannot express.
-
-**C-16 — Inheriting from a non-class emits invalid C.**
-***Withdrawn.***
-
-*(refers to [CLS-014])*
-
-```
-var X := 1;
-class C (X);
-begin
-end
-```
-
-```
-error: use of undeclared identifier 'k_X'
-```
-
-The emitter writes `alg_class("C", k_X)` for a superclass that is not a class,
-and `k_X` names a class handle that was never emitted because `X` is a variable.
-The interpreter refuses the program with `'X' is not a class.`
-
-⚠️ **The emitter broke its own contract**, as C-13 did: it is supposed to refuse
-what it cannot emit, and instead produced C that `cc` rejected, naming a
-generated symbol rather than the declaration the programmer wrote.
-
-⚠️ **It refuses with the LANGUAGE's message**, not with "not supported by the C
-back end yet" — this is a program that is *wrong*, not one this back end cannot
-express. Both processors now say `'X' is not a class.` and the case stopped
-being a gap rather than merely becoming a tidier one.
-
-⚠️ **The emitter is the last chance to catch it.** The interpreter checks the
-superclass when the declaration *runs*; a compiled program never runs its
-declarations at emit time, so nothing else would have said anything.
-
-
-**C-17 — An enum member has no properties compiled.**
-***Withdrawn.***
-*(refers to [ENU-010])*
-
-`RED.Ordinal` was `Only instances have properties.` compiled, where the
-interpreter answers `0`.
-
-⚠️ **New in generation 1**, and expected: the interpreter gained the property
-and the C runtime had not. `alg_property` needed the case `ObjEnum` had gained.
-
-⚠️ **The ordinal was already there to answer with.** The runtime has carried it
-since enums were emitted at all, because truthiness reads it — the first member
-of every enumeration is falsey [ENU-009] — so a compiled program was governed by
-a number it had no way to read, and could discover whether a member was falsey
-only by testing it for truth.
-
-**C-18 — `Length` of a collection is not refused compiled.**
-***Withdrawn.***
-*(refers to [RT-003])*
-
-`Length([10, 20, 30])` is refused interpreted — `Length expects text; use
-.Length for a collection.` — and compiled it returned the length of the
-rendering, as the interpreter used to.
-
-⚠️ **Silent, and the same trap the interpreter had just lost**: a plausible
-number rather than an error.
-
-⚠️ **The cause was one C function doing two jobs.** `Length(X)` and `X.Length`
-are spelled alike and are not the same operation — one measures text, the other
-answers a count — and the emitter mapped both onto `alg_length`, keyed by arity
-so that it could. `alg_text_length` is the function; `alg_length` stays the
-property. The comment on the emitter's builtin table asserted the two "mean the
-same thing", which is what made the conflation look deliberate.
-
-**C-19 — A cast is not checked compiled.**
-***Withdrawn.***
-*(refers to [VAL-007])*
-
-```
-var Bad : Any := 'text';
-WriteLn (Bad as Integer);
-```
-
-Interpreted this is `Cannot cast String to Integer.` Compiled it printed `text`,
-which is what the interpreter did before DEF-12.
-
-⚠️ **The most consequential divergence recorded.** [VAR-006] routes every
-untyped-to-typed crossing through `as`, so a compiled program had no verified
-boundary anywhere: a value of the wrong type passed into a declared type and
-nothing said so. The parser stored the cast on the expression and the emitter
-read the field nowhere.
-
-⚠️ **Fixed in the one place the interpreter fixes it.** `as` sets a *field* on
-an expression rather than wrapping it, so both processors check it in their own
-`Evaluate` — the single point every expression passes through, whatever its
-shape. `alg_cast` is `alg_is` made a requirement, and parts company with it on
-exactly one value: `nil` satisfies every type [VAR-005] and so passes every
-cast, where it `is` nothing.
-
-⚠️ The *precedence* half of the same work needed nothing: [EXP-003] is a parsing
-rule and the front end is shared, so both processors already agreed that
-`False and 5 as Integer` is `False`.
-
-The compiled compiler ran its own 221 tests with every cast in its sources
-checked, and reported identically to the interpreted run — which is the evidence
-that the check is the interpreter's and not a stricter one.
-
-**C-20 — Two enumerations binding one member is refused compiled.**
-***Withdrawn.***
-
-Two enumerations may share a member name [ENU-003] and the interpreter runs the
-program, refusing only the ambiguous bare use [ENU-011]. The emitter refused the
-whole program with `Two enumerations binding 'A' is not supported by the C back
-end yet.`
-
-⚠️ **It used to be silent, and that was worse.** The emitter keys each member's C
-symbol by the member name alone, so the second enumeration's entry overwrote the
-first's and the first's members began resolving to the second's symbols. The
-ambiguous use that [ENU-011] refuses printed a member instead. The refusal was
-added deliberately, in preference to emitting a wrong answer.
-
-⚠️ **The symbols were never the problem**, which is why the recorded fix — "key
-the member map on the owning enumeration" — was aimed at the wrong thing. A
-member's symbol already carries its type [G.3], and the *qualified* form goes
-through `alg_property` on the enumeration rather than through the map at all.
-Only the **bare** name has two answers, and having two answers is exactly what
-[ENU-011] makes an error. So the ambiguity is carried to the use and reported
-there, in the interpreter's words, after everything above it has run —
-`Environment.Ambiguous` is consulted at the same moment for the same reason.
-
-**C-21 — Two modules exporting one name is refused compiled.**
-***Withdrawn.***
-
-Two imported modules may export one name [MOD-008] and the interpreter runs the
-program, refusing only the ambiguous bare use [MOD-013]. The emitter refused with
-`Two modules exporting 'Shared' is not supported by the C back end yet.`
-
-⚠️ Two modules exporting one **function** would emit cleanly from both back ends
-and then die at the **linker** on a duplicate symbol — past anything a
-compile-only check can observe — which is why the refusal was worth keeping
-until the emitter learned to rename.
-
-⚠️ **Renaming and resolving are different questions**, and the recorded fix named
-only the first. The *symbol* is program-wide, so both owners take their unit as
-a suffix wherever they are written. *Which* symbol a bare use means is per file:
-one importing a single owner names it bare quite legally and must reach that
-owner's suffixed symbol, and only one importing both has a name with no answer.
-A qualified use resolves either way, which is what makes this a use-site error
-rather than a refusal.
-
-⚠️ **`Renames` had to stop being suspended at a qualified name and start being
-replaced.** Clearing it was right only while an exported name could never be
-renamed; with one that can, `Alpha.Shared()` emitted the unsuffixed name nothing
-defines.
-
-⚠️ **And it was C-2 that actually refused the program**, not this entry's check.
-`TopLevel` accumulated across the whole program, so `Shared` in Alpha and
-`Shared` in Beta read as an *overload* [FUN-013] and were refused as one — the
-emitter reporting a language feature it does not have for a program using one it
-does. The set is cleared per unit now, which is what the check always meant.
-
-⚠️ **`Renames` also held the wrong thing.** It stored `Name__Unit` and `Mangle`
-escaped that whole string, which is exactly what `Mangle`'s own note forbids: `_`
-escapes to `V`, so the joined form and an identifier spelled `NameVVUnit` meet.
-It stayed injective only by the accident of the name appearing twice, and nothing
-in the compiler's own sources is renamed, so no emitted symbol ever showed it.
-
-**C-22 — A Unicode identifier will not compile.**
-***Withdrawn.***
-
-Any Unicode character may appear in an identifier [SRC-005] and the emitter
-refused it with `An identifier containing 'é' is not supported by the C back end
-yet.` Annex G.3's scheme is implemented, so `🙂` emits as `U01F642` and
-`conformance/0139` compiles to output identical to the interpreted run.
-
-⚠️ **Adopting G.3 in part would not have worked**, which is why this waited. The
-escape only becomes free once every letter is lowercased; adding `U` escapes to
-the old pass-through scheme would have collided with an identifier spelled like
-one. The two halves of G.3 are a single decision.
-
-⚠️ **Three bootstrap generations**, not two. The old binary emits the new
-scheme's *source* under the old rules, so generation 1 still carries old
-symbols; generation 2 emits new ones; generation 3 is where the output stops
-changing. `fixedpoint.sh` iterates for exactly this.
-
-**C-23 — A compiled test run never says why a test failed.**
-***Withdrawn.***
-
-`alg_test_run` caught the failure and printed `FAIL` but never read the value
-that was raised, so a compiled suite reported *that* a test failed and never
-*what*. It prints the same `[ERROR] <file>: <message>` line the interpreter does
-now, from `AlgFrame`'s `raised`.
-
-⚠️ **There were no caret lines to worry about.** This entry assumed a test
-failure printed three lines, of which compiled code could reproduce one. It
-prints exactly **one**: `Console.Error` adds a source line and a caret, and a
-test failure does not go through it. So no filtering was needed on either side —
-the reports simply match.
-
-⚠️ **The file named is the ROOT**, not the file the failing test lives in, and
-the compiled runner had to copy that to agree. `SourceCode` is one global keyed
-by line number, so the interpreter names the file the run started from whatever
-module the test came from. Reproducing a fault is what agreement costs here.
-
-⚠️ It is why the two processors could disagree about `AssertTrue`'s wording for
-as long as they did: nothing that compares the two reports ever looked at this
-line. Verified after the fix — the whole suite, 221 tests at the time, came out
-identical line for line through both processors.
-
-⚠️ **The last differing line is gone too.** A failing run used to print
-`Uncaught: Tests failed.` interpreted and nothing compiled, because the driver
-had to `raise` to set exit 70. `Halt` [RT-018] was added for it, and the
-interpreted driver calls that instead — so neither side prints anything the
-report did not ask for, and a failing suite is now identical through both
-processors.
-
-**C-24 — A compiled top-level subprogram is matched on arity, not signature.**
-***Withdrawn.***
-*(refers to [FUN-006])*
-
-`function G (N : Integer)` called with a String is `No matching signature for
-function.` interpreted and runs compiled, returning the String. The emitted call
-checks the count and nothing else.
-
-⚠️ **Silent, and in the dangerous direction**: the compiler accepts a program the
-language refuses, so one developed against the compiler fails the moment it is
-run interpreted. It is the same shape C-4 had, and the same remedy applies —
-bring the compiler up, not the interpreter down.
-
-⚠️ **Checked in the CALLEE, not at the call site.** The entry proposed the call
-site; the callee is one place instead of many, and it is where the declared type
-already is. `alg_param` raises what does not fit and widens what does.
-
-⚠️ **Only a top-level subprogram goes through it.** A method's parameters are
-checked when the overload is *selected*, and a constructor's are deliberately not
-checked at all — see `find_method`'s `strict`. A top-level subprogram has no
-selection step, which is exactly why the check had nowhere else to live.
-
-
-**C-25 — A compiled value does not widen into a written type.**
-***Withdrawn.***
-*(refers to [VAR-017], [EXP-014])*
-
-`function D (X : Double)` called as `D (1)` yields `1` compiled and `1.0`
-interpreted. A parameter is an assignment context, so the argument should widen
-on the way in and the parameter should hold the wider type.
-
-⚠️ Distinct from C-24, which is about *refusing* a mismatch: this one is about
-*converting* a match. A compiled program silently held an Integer where its own
-declaration said Double.
-
-⚠️ **Wider than a parameter.** The entry named only arguments; a declaration, a
-`const`, a plain assignment, a field and a field's initializer were all
-unconverted too. `alg_widen` is called at each, and the declared type reaches the
-assignment and field cases **on the node**, written there by the TypeChecker —
-the same arrangement the interpreter needed.
-
-⚠️ **Selection had to learn to widen at the same moment**, or `Only ('a')` against
-a `String` parameter found no method. `find_method` makes three passes — exact,
-widening, then absorbing [FUN-005] — over the whole chain, the mirror of the
-interpreter's, and for the same reason: one pass would let declaration order
-decide.
-
-⚠️ **Widening and checking are separate jobs, and conflating them broke the
-bootstrap.** One helper that both converted and refused turned a String reaching
-a field declared `Expr` into an error — a shape real programs use, since a
-constructor's signature is unchecked by design. `alg_widen` converts and refuses
-nothing; `alg_param` does both and is used only where a check belongs.
-
-
-**C-26 — Two top-level subprograms of one name will not compile.**
-***Withdrawn.***
-
-A top-level subprogram overloads [FUN-013] and the interpreter selects between
-them. The emitter refused with `Two subprograms named 'Take' is not supported by
-the C back end yet.`
-
-⚠️ **It used to emit and die at `cc`** — `redefinition of f_Take` — which is a
-compiler producing a program it cannot build, and past anything the emitter's
-own checks observe. The refusal was added with the rule.
-
-⚠️ **The two halves the entry named were both needed, and the second is the one
-that shapes the design.** `FunctionSymbol` mangles by signature so both
-definitions can be spelled; and because the call site cannot know which
-candidate it wants until it has its arguments, a name with more than one
-subprogram behind it is reached through an **overload set** — one value per
-name, holding every candidate with its **parameter list as written** — name,
-type and element type each — which selects when called. `alg_call` on one is
-`find_method` for subprograms: three passes, exact then widening then absorbing
-[EXP-014], forwards within a pass so the first declared wins.
-
-⚠️ **Only an overloaded name pays for it.** A name with a single subprogram
-behind it is still called by its own symbol and still carries no signature
-suffix, so the emitted C of every program without an overload is unchanged —
-which is also what let the seed stay comparable across this change.
-
-⚠️ **One message for both failures**, which is what the interpreter gives: a
-wrong count and a wrong type are both "nothing fitted", and there is no single
-expected arity to name when the candidates disagree about it.
-
-⚠️ **The refusal was also firing across units**, which is how C-21 met it:
-`TopLevel` accumulated program-wide, so one name in two files read as an
-overload. Two subprograms in two files are not one, and the set is cleared per
-unit.
-
-**C-27 — A large literal of computed elements will not compile.**
-***Withdrawn.***
-
-A collection literal is emitted as nested `alg_list_keep` calls, one bracket
-level per element, and `cc` gives up at 256 — clang says `bracket nesting level
-exceeded maximum of 256`. Above a hundred elements the emitter builds the
-literal in a helper function instead, one assignment per element, so depth stays
-at one however many there are.
-
-⚠️ That was only possible when every element was **itself a literal**. `[X, Y]`
-reads two variables and a helper lifted to file scope cannot see them, so a large
-literal with computed elements was refused by name rather than emitted as
-something `cc` rejects: `A literal of 200 computed elements is not supported by
-the C back end yet.`
-
-⚠️ **It used to emit and die at `cc`**, which is the failure this back end exists
-to avoid — found by a generated table of 659 ranges producing a 40 KB expression
-nested 659 deep.
-
-⚠️ **The elements are evaluated at the CALL and handed in**, which is the first
-of the two fixes this entry proposed. One compound literal, so the bracket depth
-is 1 however many there are — `ArgumentArray` builds every call's arguments the
-same way, so this introduced no shape the emitted C did not already have.
-
-⚠️ **A constant literal keeps the helper it had.** The two forms differ only in
-where the elements are written, and keeping the first leaves the emitted C of
-every existing large table exactly as it was.
-
-⚠️ A Map's keys and values are **interleaved** into one array, key first: two
-arrays would need two parameters and two compound literals for no gain.
-
-**C-28 — An undefined collection member is not refused compiled.**
-***Withdrawn.***
-*(refers to [COL-005])*
-
-`K.Get (0)` on a `Stack` is `Undefined property 'Get'.` interpreted — `Get`
-belongs to a List, an Array and a Map — and compiled it ran and answered.
-
-⚠️ Silent, and in the direction that matters: the compiler accepted a program
-the language refuses.
-
-⚠️ **The member table is per KIND, and the runtime's was flat.** Every name was
-answered for every collection, so the kinds were distinguishable only by what
-happened to work. `kind_has` mirrors `ObjCollection.Get`'s chain of kind tests;
-the two are one table written twice and have to be read together.
-
-**C-29 — An invalid subscript target is not refused compiled.**
-***Withdrawn.***
-*(refers to [TYP-010])*
-
-Subscripting a Set is `Subscript target should be an ordinal.` interpreted, and
-compiled it answered a value. Same cause as C-28: a Set is a sequence in the
-runtime's representation, so the position path took it.
-
-⚠️ **A Set reports as though it were not a collection at all**, which is what
-`ObjCollection.At` does deliberately: there is no subscript path for a Set, so
-it falls through to the complaint anything else without one gets.
-
-Assignment was wrong in a second way the entry did not name — `'abc'[0] := 'x'`
-answered `Only a collection can be subscripted.`, which is false of the receiver
-in front of it. It is `Strings are immutable.` on both sides now.
-
-**C-30 — `Max` and `Val` answer differently compiled.**
-***Withdrawn.***
-*(refers to [RT-010], [RT-011])*
-
-| | Interpreted | Compiled |
-| --- | --- | --- |
-| `Max (3.5, 2)` | `-7`-style promotion, answering the larger | `Max expects Integers.` |
-| `Val ('42')` | `42` | `42.0` |
-
-⚠️ Two faults in one case, pulling opposite ways: `Max` refused what the
-language admits, and `Val` answered a Double where the language says Integer.
-Each was defensible alone and together they left `Max (Val (A), Val (B))`
-failing for **every** input.
-
-⚠️ **The digits are accumulated through `alg_multiply` and `alg_add`**, not
-converted from the parsed double, and not for precision: those carry the range
-check [LEX-018], so `Val ('99999999999')` raises `Integer overflow: 999999999 *
-10.` exactly as the interpreter's does. A cast would answer a wrong number
-quietly, and the language has no narrowing conversion to write instead.
-
-**C-31 — A compiled class does not inherit from a parent declared below it.**
-***Withdrawn.***
-*(refers to [DCL-006])*
-
-`class Puppy (Hound);` written above `class Hound;` linked to nothing compiled:
-`Puppy () is Hound` was **false**, and the inherited method was then
-`Undefined property 'Speak'.`
-
-⚠️ The interpreter hoists a class in two phases for exactly this — the name is
-bound before anything runs and filled in where the declaration stands, so the
-subclass holds the finished parent. The emitter hoisted every top-level name
-(C-10) and still got this wrong, which was worth noticing: hoisting *more* did
-not make it right, because binding a name is not the same as the thing it names
-existing.
-
-⚠️ **The emitter now hoists in two phases too.** Every class in a unit is built
-as an empty shell in one buffer, and the links, fields and methods follow in
-another — so a child is linked to a parent that exists rather than to a handle
-still holding `nil`. `alg_class_super` is the second phase; passing the parent
-to `alg_class` could never have worked.
-
-⚠️ **`total_fields` had to become lazy for it.** An instance's size is its
-class's fields plus its ancestors', and it was maintained as fields were
-registered — which needs the parent's fields to be in place before the child's.
-With inheritance linked ahead of any field, there is no moment during setup at
-which a running total would be right, so it is computed on first use and cached.
-Safe because nothing instantiates a class until every `init_<Unit>()` has run.
-
-**C-32 — Names are not matched without regard to case compiled.**
-***Withdrawn.***
-*(refers to [SRC-011])*
-
-`GREET ('you')` calling `function Greet` is
-`A call to 'GREET' is not supported by the C back end yet.`
-
-⚠️ **The call was only the first layer.** Annex G.3's mangling already lowers
-both spellings to `f_greet`, so the *symbol* was never the problem — the lookup
-that decides which branch to take was keyed by the name as written. Fixing it
-uncovered three more of exactly the same kind, each found by running the case
-again:
-
-| | |
-| --- | --- |
-| a **field** — `this.VALUE` against `Value` | `field_slot` compared with `strcmp` |
-| a **method** — `B.DOUBLED ()` against `Doubled` | `find_method` hashed and compared the exact spelling |
-| an **enum member** — `COLOUR.red` against `Color.Red` | the member scan compared with `strcmp` |
-
-⚠️ **The emitter canonicalises, the runtime folds**, and the split is deliberate.
-The emitter maps a name to the spelling it was declared with, once, so the sets
-it consults stay as they are; the runtime folds its own field, method and enum
-lookups because it has no declaration to consult. A name is still *emitted* as
-written, so a diagnostic quotes what the program wrote.
-
-⚠️ A comment in `alg_property` claimed the interpreter's fields were
-case-sensitive too. That stopped being true when DEF-02 landed, and nothing
-noticed until this entry was worked.
-
-⚠️ The folded hash costs nothing measurable — three runs of `./test.sh` before
-and after are the same to within noise, which matters because `find_method` is
-the hottest path in the runtime.
-
-
-**C-33 — An assertion outside a test run is refused compiled.**
-***Withdrawn.***
-*(refers to [RT-002])*
-
-Calling `AssertTrue` outside `--test` is `Undefined variable 'AssertTrue'.`
-interpreted — the name is registered only during a test run — and compiled it
-was `A call to 'AssertTrue' is not supported by the C back end yet.`
-
-⚠️ Both refused, so this was a wording difference like C-7 rather than a hole.
-The compiled text named the back end for something that is a rule about the
-*language*, which is the part that misled.
-
-⚠️ **The bare name was already right**; only the call was wrong. `AssertTrue`
-read as a value took the emitter's undefined-name path, and `AssertTrue (True)`
-fell through the call table to the catch-all refusal — one name, two paths,
-disagreeing about whether the program was wrong or the emitter was incapable.
-
-**C-34 — A name that does not resolve emits invalid C.**
-***Withdrawn.***
-*(refers to [MOD-009], [DCL-008])*
-
-A name the program cannot reach is a runtime error interpreted and a `cc`
-failure compiled, because the emitter writes a reference to a symbol it never
-declared. Two shapes reach it:
-
-| | Interpreted | Compiled |
-| --- | --- | --- |
-| a name its imports do not export | `Undefined variable 'DeepName'.`, naming the unit that has it | `undeclared identifier 'f_deepname'` |
-| a block-local name read after the `end` | `Undefined variable 'Inner'.` | `undeclared identifier 'v_inner'` |
-
-⚠️ The second shape only became reachable when C-11 was fixed. Before that a
-top-level block's variable was emitted at file scope, so it wrongly *did* exist
-after the block and the program ran with no complaint at all.
-
-⚠️ **Emitted as a RUNTIME error, not refused at compile time**, which is what the
-interpreter does: a name is looked up when it is *used*, so a reference on a path
-never taken is not an error at all. Refusing at emit time would reject programs
-the language accepts. `UnitValue` had done exactly this for a *qualified* name all
-along — `(alg_error("…"), alg_nil())` — and the bare forms now do the same.
-
-⚠️ **`Declared` is not the same as reachable**, which is what the first shape
-turned on. `Declared` spans the whole flattened program, so a function in a unit
-this file never imported still counted as declared and the call emitted
-`f_deepname` against a header that was never included. `uses` is not transitive
-[MOD-009]; `ShadowNames` is what a unit can actually see.
-
-⚠️ **The suggestion is part of the message and is reproduced.** `Undefined
-variable 'X'.` alone is indistinguishable from a typo for a name the reader can
-see in another file, so the compiled text names the unit too — the two outputs
-are byte-identical. ⚠️ Units are walked in *name* order here where the
-interpreter walks them in *load* order; with two units exporting one name the
-two could still name different ones.
-
-⚠️ The emitter breaks its own contract, as in C-13 and C-16: it should refuse by
-name what it cannot emit rather than emit C that does not build.
-
-**C-35 — A collection member read without calling it is refused compiled.**
-***Withdrawn.***
-*(refers to [COL-005])*
-
-`var Sort := L.Sort;` binds a callable interpreted and was `Undefined property
-'Sort'.` compiled. Only `Length` and `IsEmpty` were answered on this path, so of
-the 41 kind/member pairs [COL-003] records, a compiled program could read 10.
-
-⚠️ **This is the instance case again, one receiver kind later.** `alg_property`
-already gained the note that a method reached without calling it binds to its
-receiver — written because `algc`'s own `IsCallable` asks every value for its
-`Arity`, so a compiled `algc` could not call anything at all. Collections were
-not given the same treatment, and nothing noticed because nothing reads a
-collection member without calling it.
-
-⚠️ **Found by adding a conformance case for a probe.** `spec/members.a24` has
-exercised exactly this since [COL-003]'s matrix was first checked — but it is a
-*source* for `spec/spec.sh`, not a conformance case, so `conform.sh` never
-compiled it and the divergence stayed invisible. A program only the interpreter
-runs is not evidence about the language.
-
-⚠️ **A Buffer and a TextFile were wrong the same way**, which the entry did not
-say. All three receivers take their members from the runtime rather than from a
-class, and all three answered only their bare properties. `ObjBuffer.Get` and
-`ObjFile.Get` hand back a callable exactly as `ObjCollection.Get` does.
-
-⚠️ **The tables had to carry an ARITY, not just membership.** What a read binds
-is callable, and a callable has to know how many arguments it takes — the three
-interpreter wrappers each carry one for precisely this check. There are now four
-copies of that table and they have to be read together; `spec/spec.sh` checks
-[COL-003] against the interpreter's, and `conformance/0144` is what compares the
-compiled one against it.
-
-**C-36 — A built-in called with the wrong arity is refused by name.**
-***Withdrawn.***
-*(refers to [EXP-011], [RT-001])*
-
-`Length ('a', 'b')` is `Expected 1 arguments but got 2.` interpreted and was
-`A call to 'Length' is not supported by the C back end yet.` compiled.
-
-⚠️ **The name exists**, which is what made the compiled text wrong rather than
-merely differently worded: it reported a gap in the back end for a program that
-is simply a wrong call to a real built-in. The emitter's table is keyed by name
-*and arity* (C-18), so a known name at an unknown count matched nothing and fell
-through to the catch-all refusal.
-
-⚠️ **Found while fixing C-33, and deliberately not fixed with it.** The obvious
-move there — treat everything reaching the catch-all as an undefined name —
-would have made this *worse*, answering `Undefined variable 'Length'.` for a
-name the language defines. C-33 was narrowed to the three assertion names
-instead.
-
-⚠️ **The counts are asked of the tables, not listed again.** `BuiltinCounts`
-probes the two tables that map a name to its runtime entry point, once per
-count, so a built-in added to either is described the moment it is added. A
-fifth transcription of those names is exactly the rot [COL-003]'s
-matrix already needs a harness to guard against.
-
-⚠️ **And the same key hid a missing feature.** `WriteLn ()` — the newline on its
-own — had no mapping at all, because only `WriteLn/1` was in the table. A valid
-program with no compiled form, which is what C-1 was and which this back end is
-supposed to have none of.
-
-**C-37 — A built-in member printed without being called reads differently.**
-***Withdrawn.***
-*(refers to [TYP-012])*
-
-| | |
-| --- | --- |
-| Interpreted | `WriteLn (L.Sort)` was `CollectionMethod instance` |
-| Compiled | `<fn Sort>` |
-
-⚠️ **The interpreter was the one that was wrong here**, as in C-4 — and it is
-the interpreter that changed. `CollectionMethod` names a class that exists only
-inside `algc`; a program has no way to know it and nothing in the language
-answers to it. A bound *method* prints `<fn Name>` [TYP-012], and a bound
-built-in member is the same kind of thing.
-
-⚠️ **The obstacle was the spelling, not the hook.** The three wrappers carried
-the member name **folded**, because their tables are written folded to meet a
-folded lookup [SRC-011], so the obvious `ToString` would have given `<fn sort>`.
-They carry the **token** now: dispatch folds it, and the diagnostic reads the
-lexeme, which needs no second table.
-
-⚠️ **And the spelling is the call site's, on both sides.** A built-in member has
-no declaration in the language to take a canonical spelling from — a bound
-method prints the name its *declaration* used, and a member table is not a
-declaration — so the only spelling the two processors can agree on is the one
-the program wrote. `L.SORT` is `<fn SORT>` through both. The C runtime had
-stored the table's spelling instead, on a stated worry about lifetime that was
-unfounded: a call-site name is a string literal in the emitted C.
-
-    conformance  0149-a-built-in-member-as-a-value.a24
-
-**C-38 — A function declared inside a method will not compile.**
-***Withdrawn.***
-*(refers to [FUN-012], [CLS-011])*
-
-```
-A function declared inside a method is not supported by the C back end yet.
-```
-
-A method's body is a body like any other, so a function may be declared in one
-and closes over what it can see there — which runs interpreted and is refused
-compiled.
-
-⚠️ **Split out of C-2 rather than fixed with it**, because it is a different
-thing. C-2 was one missing shape in an existing mechanism; this needs a new one.
-A method's C function takes a receiver and **no cell array**, so a body that
-boxes has nowhere to put its cells, and a nested function there closes over
-`this` as well as over the locals: `conformance/0148` reads a field bare, writes
-one through `this`, and the write sticks.
-
-⚠️ **Three pieces, and two were already written.** A method body boxes what a
-nested function reads exactly as a function body does — the analysis existed and
-was simply not called there. The **receiver joins the cells**, under the name the
-language uses for it, because a nested function reading a field reaches it
-through `this`. And every emission of the receiver goes through one place now,
-which answers `v_this` in a method and reads the cell in a function nested
-inside one.
-
-⚠️ **`v_this` is a parameter, and that is the whole difficulty.** A method's C
-function takes a receiver; a nested function takes cells and has no such
-parameter. Writing `v_this` unconditionally is what made the shape unemittable,
-and the five sites that wrote it — a field read, a field write, a bare method
-call, `super`, and `this` itself — all had to ask instead.
-
-A closure that escapes a method keeps its receiver: `C.Make (3)` hands back a
-function that goes on mutating `C`'s field, and a second `Counter` gets its own.
-
-
-**C-39 — `super` as a value will not compile.**
-***Withdrawn.***
-*(refers to [CLS-012], [CLS-011])*
-
-```
-'super' as a value is not supported by the C back end yet.
-```
-
-`var Parent := super.Speak;` runs interpreted and was refused compiled.
-
-⚠️ **Found by the gate on the day it was tightened**, not by looking for it. The
-generation bar became "every case passes under both processors", `conform.sh`
-was changed to fail on a gap rather than report one, and the first thing needed
-was a case that would prove the new gate bites. `super` as a value was the only
-refusal still reachable — the other two the emitter names are refused by the
-*parser* first, in both processors — so it served as the fixture and turned out
-to be real work.
-
-⚠️ **The refusal was older than the mechanism it needed.** `alg_invoke_from`
-already searched from the declaring class, and `alg_bound` already bound a
-method to a receiver; `alg_bound_from` is the two of them in one call. The
-spelling had simply never been reached, because nothing in `compiler/*.a24`
-holds `super.M` as a value.
-
-> **A note on DEF-13, which this annex got wrong.** Its entry said the fix was
-> blocked on "a registry of declared type names that does not exist —
-> `Lookup.Parents` holds only classes that *have* a superclass, and enumerations
-> are not tracked at all." `Parents` is the **inheritance** map and was never the
-> registry. `Types` is, and all three declaring forms populate it: `ClassStmt`,
-> `ObjectStmt` and `EnumStmt` each register their own name. The checker already
-> refused `var E : Nonexistent := 1;` on that basis. The defect sat deferred
-> through five waves on a misreading of which map to look at, and the fix came to
-> three lines of registration and one check.
->
-> ⚠️ The lesson is about *where* a blocker is recorded. "Blocked on machinery
-> that does not exist" is a claim about the code, and it goes stale — or is wrong
-> from the start — exactly like any other comment. It deserves the same
-> re-checking as a `⚠️` before it is trusted a second time.
-
-
-## Annex D — advisory notes *(non-normative)*
-
-Where the specified behavior looks like a mistake. Nothing here weakens the
-rule it refers to: the body states what the language does, and this annex
-argues about it. Entries are added as the chapters that expose them are
-written.
-
-**D-1 — Integer overflow is silent.** *(refers to [LEX-018])*
-
-**Resolved, and then resolved again.** The specification first required an
-out-of-range literal to be refused when the program is read and an out-of-range
-arithmetic result to raise. The two were separated because they cost
-differently: a literal is checked once during the scan, while an arithmetic
-result must be checked on every operation a program performs.
-
-⚠️ **Both halves are now moot**, because [LEX-018] makes an Integer unbounded:
-there is no range for a literal to be outside of, and no result to refuse. The
-literal rule was deleted and the scanner's text comparison with it. What began
-as "make the wrap an error" ended as "have no wrap" — the second answer is the
-one a reader needs nothing else to understand.
-
-⚠️ "What C does natively" was the wrong way to put it, and this note said it:
-signed overflow in C is *undefined behavior*, not a wrap. The runtime had
-always computed through the builtins to avoid that, so what it produced was a
-defined wrap — and the same branch that reported it now decides to promote.
-
-**D-2 — `?` alone is a valid identifier.** *(refers to [LEX-008])*
-
-**Resolved.** `?` and `!` are identifier *marks* rather than letters [SRC-005]:
-they continue an identifier and may not begin one [LEX-008], so `Gate?` and
-`Send!` are single words while `?` and `!` alone are not identifiers at all.
-
-The implementation classed `?` as a letter, so it led; and it did not admit `!`
-in an identifier at all. Tracked by DEF-03, and fixed there: `Gate?` and `Send!`
-are words, and `?bad` is `Unexpected character: ?`.
-
-**D-3 — `#0` is constructible but unstorable.** *(refers to [LEX-032])*
-
-**Resolved by refusing it.** `#0` is not a Char [LEX-032], and is refused when
-the program is read exactly as an out-of-range code point is [LEX-025]. That is
-the smaller of the two available fixes and matches a check the scanner already
-performs.
-
-The larger fix — giving a String an explicit length so it can hold a zero
-character — remains the better language, and [SRC-001] already obliges a String
-to carry a character count distinct from its byte length, so the two changes
-meet. [LEX-032] is worded so that adopting it later relaxes a restriction
-rather than reversing a guarantee. Tracked by DEF-08.
-
-⚠️ **The larger fix landed anyway.** A String carries its own byte length now,
-so `'a' + Str (Char (0)) + 'b'` is three characters long, prints as three and
-compares equal to itself. Only the **literal** `#0` is still refused, which is
-what [LEX-032] says and all it says.
-
-**D-4 — Widening is refused as firmly as narrowing.** *(refers to [VAR-004])*
-
-`var X : Integer := 1.5;` should certainly be refused: the value does not fit.
-But `var X : Double := 1;` is refused on the same terms, and there the value
-fits exactly and every arithmetic operation in the language already promotes an
-Integer to a Double when the two meet. A programmer who writes `: Double` and
-initializes with `0` is told the types do not match.
-
-**Resolved, and generalized.** Widening follows Pascal: Integer to Double and
-Char to String, at any of the six assignment contexts [VAR-017], converting at
-the point the value arrives. The open question — whether `X` then holds a Double
-or an Integer a declaration lied about — is answered explicitly: it holds a
-Double [VAR-004]. Narrowing stays refused [VAR-018]. **Implemented.**
-
-⚠️ **Why this is a defect and not a later generation.** The question was asked
-directly, and the answer turns on whether the language *lacks* widening or *has
-it inconsistently*. It has it: `1 + 1.5` is `2.5` and `'a' + 'bc'` is `abc`
-today. Only the paths carrying a written type refuse, so a declared type means
-something narrower than the operators do. An absent facility goes to Annex H —
-H-1's alternate bases are absent, with nothing in the language to be
-inconsistent with. One path disagreeing with the rest of the same language is a
-fault.
-
-⚠️ Equality was deliberately left out. Pascal converts in comparisons too, which
-would make `Copy('abc', 0, 1) = 'a'` true and reverse [LEX-026] — the one part
-of this that changes what an existing program *means* rather than accepting a
-program that was refused. It belongs with D-6, in the chapter that specifies
-`=`.
-
-**D-5 — `const` promises less than it appears to.** *(refers to [VAR-014])*
-
-`const C := V;` is legal where `V` is a variable, so a constant's value need not
-be known before the program runs. The word means only that the binding cannot
-be reassigned. A reader who takes `const` to mean a compile-time constant — as
-Pascal's does, and as most languages' do — will be wrong about when the
-initializer runs and about what the compiler can assume.
-
-**Resolved by keeping it.** The run-time form is genuinely useful for a value
-computed once at startup, and nothing here is broken — the word means *this
-binding may not be reassigned*, which [VAR-014] now states plainly rather than
-leaving to be inferred. A true compile-time constant, if one is ever wanted,
-needs a different word rather than a narrowing of this one.
-
-**D-6 — Equality and membership disagree.** *(refers to [VAL-009], [VAL-013])*
-
-`1 = 1.0` is true, and `1 in [1.0]` is false. A Map holding the key `1` does not
-contain `1.0`. Each rule is defensible alone — `=` promotes because arithmetic
-does, and membership is strict because a hash table cannot be built over a
-relation that promotes — but together they mean a program can hold two values it
-calls equal and find only one of them in a collection.
-
-`bootstrap/algol.c` already names this a rough edge in its own comments, which
-is a fair sign it was noticed and not resolved.
-
-**Resolved in favour of `=`.** Membership and equality are one relation
-[VAL-013], paid for by hashing an Integer and a Double of the same numeric value
-to the same bucket. Making `=` strict instead would have been the far larger
-change and would surprise every program doing ordinary arithmetic.
-
-⚠️ The reason the two diverged is worth keeping: `=` promotes because arithmetic
-does, and membership was strict because a hash table cannot be built over a
-promoting relation. The second is a statement about the implementation and the
-first about the language, which is what decided it.
-
-**Implemented.** `strict_equals` promotes and `hash_value` brings both numeric
-types to one slot.
-
-**D-7 — `as` is an unchecked assertion.** *(refers to [VAL-007])*
-
-`X as Integer` where `X` holds `'text'` yields `'text'` and raises nothing. The
-cast silences the checker and is never verified, so the one construct a
-programmer reaches for when they know more than the checker does is also the one
-that cannot tell them when they are wrong.
-
-**Resolved, and done.** `as` is a checked conversion and raises when the value
-is not of the named type [VAL-007]. The cost falls only on programs that use `as`, which
-are the programs that asked for the assurance, and a cast that cannot fail is
-not an assurance at all.
-
-⚠️ This decision is what makes [VAR-006] tenable. `as` is the only way a value
-crosses from untyped into typed, so the strictness there is only reasonable if
-the crossing is verified; an unchecked cast would have made the boundary a
-formality and every declared type beyond it a claim nothing had checked. The two
-rules were decided together and neither stands alone. Both are now implemented.
-
-**D-8 — Empty is truthy.** *(refers to [VAL-008])*
-
-`0` is falsey, but `0.0`, `''`, `[]` and `[:]` are all truthy. So
-`if not S then` does not mean what a reader coming from most languages will
-expect it to mean, and `if S.Length = 0 then` is the only reliable spelling.
-
-The rule is at least short to state, and it makes truthiness independent of a
-value's contents — a collection is a thing, and a thing is there.
-
-**Resolved by keeping it.** [VAL-008] now states plainly that truthiness is
-independent of a value's contents, and that `if S.Length = 0 then` is the only
-spelling that tests emptiness.
-
-⚠️ The observation still stands and is **not scheduled**: Integer `0` is the odd
-one out, and were it truthy the rule would reduce to the genuinely simple "only
-`nil` and `False` are false". That changes what existing programs mean rather
-than admitting programs that were refused, so it belongs to neither annex until
-someone decides to take it — recorded here so the option is not lost.
-
-**D-9 — Visibility is advisory.** *(refers to [DCL-015])*
-
-`private:` is checked by the type checker, and only where the receiver's type is
-known. `var C : Any := Counter(); C.Count` yields the private field and raises
-nothing. A subclass reading its parent's private member by bare name gets it,
-because a bare name inside a method resolves through `this`, and `this` reduces
-to no type at all — while the same member through a receiver declared as the
-parent is correctly refused.
-
-So the guarantee is real for code that annotates its types and absent for code
-that does not, which is the opposite of where a guarantee is most wanted. It is
-also not a security property and was never meant to be: the checker is advisory
-by design in a gradually typed language.
-
-⚠️ Any fix collides with a deliberate decision recorded in the checker: `this`
-reduces to nothing precisely so that a class's own code is free of the
-visibility rule. Typing `this` as its class would make the bare-name case work
-and would also make every `this.Private` inside a subclass an error the language
-currently allows.
-
-**Resolved by saying so plainly.** [DCL-015] now states normatively that
-`private:` is advisory — an intention that buys a diagnostic wherever types are
-written, and not a boundary a program may rely on.
-
-⚠️ The alternative was enforcing it at run time on the instance, where the class
-is always known. That closes the hole completely and was the earlier
-recommendation here, but it puts a check on **every property access** — which is
-the cost the whole type-system direction of this specification exists to avoid.
-[VAR-006] tightened declarations so the C back end could trust a declared type
-and emit without runtime checks; paying one back here, on the most frequent
-operation a program performs, would trade away more than it buys.
-
-Nothing is lost that was ever really held: the guarantee was already absent
-whenever a type was omitted, and the change is to stop implying otherwise.
-
-**D-10 — Integer division by zero raises; Double division by zero does not.**
-*(refers to [EXP-006])*
-
-`1 / 0` is the runtime error `Division by zero.` `1.0 / 0` is `Infinity`, and
-`0.0 / 0` is `NaN`, and neither stops the program. So whether dividing by zero
-is a bug or a value depends on which numeric type reached the operator — and
-[EXP-005] means an Integer becomes a Double whenever it meets one, so the same
-expression can change category with an edit far from it.
-
-The Double behavior is IEEE 754 and is what C does for free; the Integer
-behavior has no such answer available, since there is no integer infinity to
-produce.
-
-**Resolved by keeping both.** [EXP-006] now states the asymmetry as a rule
-rather than leaving it to be discovered, and says why: each behavior is correct
-for its own type. Raising on Double division would depart from IEEE 754 for no
-gain, and returning a value for Integer division would have to invent one, since
-there is no integer infinity.
-
-⚠️ The genuinely surprising part is not the asymmetry but its reach: [EXP-005]
-promotes an Integer whenever it meets a Double, so an edit far from a division
-can move it from the raising category to the value-producing one. That is
-recorded in the rule.
-
-**D-11 — A parameter's declared type is decoration on a function and a contract
-on a method.** *(refers to [FUN-006], [FUN-007])*
-
-`function F(N : Integer)` accepts a String, a Double or a Boolean without
-complaint. The same signature as a method refuses all three with `No matching
-signature for function.` Nothing in the language says the two differ, and the
-annotation looks identical in both places.
-
-The cause is structural rather than deliberate: a method goes through overload
-selection, which compares whole signatures, and a top-level function does not
-overload [see 8.3] so nothing ever compares its parameters. Only the arity is
-checked.
-
-⚠️ Note the direction of the surprise. A declared return type IS enforced
-[FUN-008], so within one declaration the result is checked and the arguments are
-not — which is the reverse of what a reader would guess, since arguments come
-from outside and are the less trustworthy of the two.
-
-**Resolved.** [FUN-006] requires parameter types to be enforced on every call,
-top-level subprogram or method alike. The check already existed in `Fits`; what
-was missing was calling it when there is nothing to select between. Tracked by
-DEF-19, and fixed there.
-
-⚠️ This was not really an open question by the time it was reached: [VAR-017]
-had already listed a parameter as one of the six assignment contexts, so
-[FUN-006] as written contradicted a decided rule. The direction-of-surprise
-note above still stands and is worth keeping — a declared *return* type is
-checked while the arguments are not, which is the reverse of what a reader would
-guess.
-
-**D-12 — Inheriting from a non-class reports the wrong thing.**
-*(refers to [CLS-014])*
-
-```
-var X := 1;
-class C (X);
-begin
-end
-```
-
-fails with `Only instances have properties.` — a sentence naming neither the
-class, nor the superclass, nor inheritance, and describing a property access the
-program never wrote. The message belongs to the machinery rather than to the
-mistake.
-
-⚠️ **Corrected.** This entry previously said the check happens where the
-superclass is *used* rather than where it is declared. It does not: the
-declaration above is refused even when the class is never constructed. Only the
-wording is at fault, which makes this smaller than it was recorded as being —
-and is why it was worth running rather than reasoning about.
-
-Diagnostics are part of the observable surface [1.2], so this is a specified
-behavior and not merely a rough edge — a conforming implementation must
-reproduce the misleading sentence exactly.
-
-**Resolved.** [CLS-014] requires the shape the other inheritance errors already
-use — `'X' is not a class.`, beside `A class can't inherit from itself.` The
-check already happens in the right place, so this is a message and nothing else.
-Done: `VisitClassStmt` tests the superclass with `is` rather than asking it for
-a property, so the comparison meant to reject it is now reached.
-
-**D-13 — Truthiness reads a value a program cannot.** *(refers to [ENU-009],
-[ENU-010])*
-
-The first member of every enumeration is falsey, because truthiness reads the
-member's ordinal — and the ordinal is not reachable from the language. `RED` is
-false and `GREEN` is true, and a program can discover which is which only by
-testing each for truth.
-
-So `if Color then` depends on where a member sits in a list that the program
-cannot inspect, and reordering an enumeration's members silently changes the
-truth of every conditional written over it. Nothing warns, because nothing
-about the declaration looks conditional.
-
-The rule exists so that enumerations behave like the small integers they are
-represented by, which is a real convention and not an accident.
-
-**Resolved, in both halves and in opposite directions.**
-
-[ENU-010] requires a member to answer `Ordinal`, its zero-based position, so the
-value that governs the behavior can be read and compared. `Ordinal` already
-existed on the implementation's own class and simply was not published. Done.
-
-[ENU-009] is **kept**, and stated as a feature rather than tolerated as a
-quirk — position-based truthiness is what makes `(Off, On)` and `(No, Yes)`
-usable directly in a condition. The entry below records the reasoning, which
-began as an argument for changing it and ended as the argument for keeping it.
-
-⚠️ **[ENU-009] is settled: it stays.** The case against it was: an enumeration member is not a number, nothing else in the language makes a
-declared name falsey by position, and reordering an enumeration silently changes
-the truth of every conditional written over it.
-
-⚠️ **The case for it is stronger, and was missed when this entry was written.**
-Position-based truthiness is what lets a program declare its own two-valued
-types and use them directly in a condition:
-
-```
-type Flag   = (Off, On);
-type Answer = (No, Yes);
-```
-
-`if F then` reads correctly for both, with no comparison and no conversion. The
-convention that falls out — put the absent, off or zero member first — is
-already the one this compiler follows in `FUN_NONE` and `CLASS_NONE`. Under that
-reading the rule is a feature with a discipline attached, not a trap, and the
-discipline is the same one a `case` statement already asks for.
-
-⚠️ **And the original complaint is half answered.** This entry's title says
-truthiness reads a value a program *cannot* — but [ENU-010] now requires the
-ordinal to be readable. Position-based truthiness over a *visible* position is a
-stated rule rather than hidden machinery, which is most of what was wrong with
-it.
-
-⚠️ **A further prospect, TABLED and separable: it could remove the built-in
-Boolean**, leaving `type Boolean = (False, True)` as an ordinary enumeration.
-This is not decided and is not scheduled. Two costs argue for keeping the two
-questions apart:
-
-- **[ENU-011] collides with it.** Members bind bare, so any program declaring an
-  enumeration with a `True`, `False`, `Yes` or `No` member would make that bare
-  name ambiguous — and those names appear in almost every program. Boolean would
-  have to be exempt from the ambiguity rule, which is a special case
-  reintroduced one level down.
-- **Representation.** `VAL_BOOL` is a distinct runtime tag while an enumeration
-  member is an interned object, so this puts an indirection on the most common
-  value a program has. That runs against the reason [VAR-006] was tightened.
-
-`true` and `false` are also keywords [LEX-010], which would drop from 37 to 35.
-
-Changing it would reverse part of [VAL-008], which the conformance pass decided
-in chapter 7, so it is recorded here rather than taken unilaterally. Evidence
-gathered for whoever decides: the compiler's own two enumerations are compared
-explicitly at all five of their use sites — `if CurrentFunction = FUN_NONE then`
-— and never tested for truth bare, so the change is safe against the largest
-body of Algol-24 that exists.
-
-**D-14 — Circular imports fail, and say something else.** *(refers to
-[MOD-012])*
-
-⚠️ **This entry was largely wrong, and running it is what showed that.** It said
-a cycle between two modules fails with `Type mismatch!` It does not: cycles
-between modules **work**, and so do cycles of three or more [MOD-012].
-
-The `Type mismatch!` came from the probe's own fixtures, which returned `'A'`
-and `'B'` from functions declared `: String`. A one-character literal is a Char
-[LEX-023], so those functions failed whether or not any cycle existed — the
-recording was evidence of DEF-10 and was read as evidence about modules. The
-fixtures now return two-character strings and the probe records `Ay`.
-
-What remains true is the **root** case [MOD-014]: a module importing the file
-being run leaves the root's own imported names undefined, after the root's body
-has already printed. Compiled, the same shape used to refuse with `Two modules
-named 'X'` (C-1) — closed by giving the root a module identity, which is what
-[MOD-014] asks for and what the fix below describes.
-
-So there is one shape of problem rather than three, and it is the one this
-repository already knew about — the root is never entered in the loader's map,
-so it is parsed twice.
-
-**Resolved.** [MOD-012] states that cycles between modules work, which they do.
-[MOD-014] requires the root case to work the same way; DEF-24 tracked the
-distance and closed it.
-
-The fix is to give the root a module identity, so a `uses` pointing back at it
-resolves to the copy already loaded — what [MOD-003] does for every other file
-and what makes [MOD-012] work. That is more than a guard: an import-only node
-carries no statements, and the importer genuinely needs the root's exports, so
-the root must be registered with its environment **before its own body runs**.
-
-Refusing the root cycle by name would be an improvement on the present
-diagnostic and is much the smaller change, but it settles for less than
-[MOD-014] asks.
-
-⚠️ **Not hypothetical for this repository, and narrower than it once read.**
-`compiler/Parser.a24` uses `Interpreter`, which uses `Parser` — a cycle between
-two modules, which works, interpreted and compiled alike. The compiler compiles
-itself and reaches a fixed point.
-
-What fails is making a file in that cycle the **root**:
-`algc --compile compiler/Parser.a24` refuses with `Two modules named 'Parser' is
-not supported by the C back end yet.` [Annex C, C-1]. `compiler/Main.a24` is
-unaffected because nothing imports it, which is why the whole suite compiles.
-An earlier version of this entry said the compiler's own source could not be
-compiled by itself; that was wrong.
-
-**D-15 — Two different things are spelled `Length`.** *(refers to [RT-003])*
-
-```
-var L := [10, 20, 30];
-L.Length      →  3
-Length(L)     → 12
-```
-
-The property answers the collection's count. The function stringifies its
-argument and measures the text, so `Length(L)` is the length of `[10, 20, 30]`.
-`LengthNative` is literally `Exit Length(Str(Arguments[0]))`.
-
-⚠️ The failure mode is the bad one: the wrong call returns a **plausible
-number** rather than an error. A program asking `Length(L)` of a collection gets
-an answer, uses it, and is wrong.
-
-⚠️ **Corrected.** This entry claimed the two coincide for small lists of
-one-digit numbers before diverging. They never coincide: a List of *n* one-digit
-numbers renders as `[1, 2, 3]`, which is `3n` characters, against a count of
-*n* — so `0/2`, `1/3`, `2/6`, `3/9`. The claim was plausible and wrong, and the
-rule is no weaker without it.
-
-The function is right for its intended argument. `Length('abc')` is 3, which is
-what a Pascal programmer expects, and the collection property is right too. Only
-the shared name is wrong.
-
-**Resolved.** [RT-003] refuses `Length` of a collection —
-`Length expects text; use .Length for a collection.` A program that means the
-count says so, and one that means the rendering writes `Length(Str(L))`, which
-is what it was getting by accident. Done.
-
-⚠️ Verified safe against the largest body of Algol-24 that exists: every
-`Length(…)` call in `compiler/*.a24` is on text.
-
-⚠️ [RT-017] closes the other half of the confusion by giving a String the same
-`.Length` property every collection has, so `.Length` becomes the uniform
-spelling for "how many" and `Length(…)` is left meaning only "how long is this
-text".
-
-**D-16 — `Val` always yields a Double, and `Max` never accepts one.** *(refers
-to [RT-009], [RT-010])*
-
-`Val('42')` is `42.0`, not `42`, so text that plainly holds an integer cannot be
-parsed into one — and the result then cannot be passed to `Max`, which refuses
-anything but Integers with `Max expects Integers.` The two built-ins are
-individually defensible and jointly unusable: `Max(Val(A), Val(B))` fails for
-every input.
-
-Given [VAR-004], which refuses `var X : Integer := 1.5;` and even
-`var X : Double := 1;`, a program has no smooth path from parsed text to an
-Integer at all.
-
-**Resolved, both halves.** [RT-009] makes `Val` answer an Integer where the
-text has no point and a Double where it has one, reading the same characters the
-literal rules do [LEX-015], [LEX-020]. [RT-010] lets `Max` take any two numbers,
-promoting as every other numeric operator does [EXP-005] — and `Max` has since
-left the core for `lib/Core`, so what fixed this is library code now.
-
-⚠️ They are **one** defect, DEF-27, rather than two. Either change alone helps,
-but only both together make `Max(Val(A), Val(B))` — which failed for every input
-— work at all.
-
-**D-17 — A type error says only "Type mismatch!"** *(refers to [ERR-006])*
-
-Every mismatch the checker finds produces the same five words, with no file, no
-line, no token and neither of the types involved. In a seven-line program the
-diagnostic is:
-
-```
-Uncaught: Type mismatch!
-```
-
-and nothing else. The parser and resolver, by contrast, print the file, the
-line, the source text and a caret under the offending token [ERR-005] — so the
-machinery for a good diagnostic already exists, is already used two phases
-earlier, and the checker simply does not reach for it.
-
-⚠️ This compounds with [ERR-002]: because a type error stops the program before
-any statement runs, a programmer gets no output to orient by either. The message
-is the only information available, and it carries none.
-
-⚠️ And with [FUN-006]: a parameter's declared type is unenforced, so mismatches
-surface in fewer places than a reader expects — which makes the ones that do
-surface harder to locate, not easier.
-
-**Resolved.** [ERR-006] now requires the three-line excerpt a parse error
-carries [ERR-005] and both type names — `Expected Integer, found String.` The
-token is in hand at every one of the five sites that raise this, so the
-information is discarded rather than absent, and `Console.Error` already
-produces the shape two phases earlier.
-
-⚠️ **Done.** [ERR-006] is implemented: all five sites report through
-`Console.Error` with the offending token and both type names. It was the
-cheapest improvement in this annex and the first taken, because every later
-generation-1 fix produces type errors while it is being debugged.
-
-⚠️ One refinement the implementation forced, recorded rather than quietly made:
-this entry's example put the caret under the offending *value*. A literal
-carries no token, so the caret names the declaration instead — reaching the
-value would mean giving every expression a token, which is a change to
-`Expr.a24` and the parser for a caret the message already makes unnecessary.
-
-**D-18 — `AssertTrue` reports a comparison it did not make.** *(refers to
-[TST-012])*
-
-`AssertTrue(False)` fails with:
-
-```
-Assertion 'left = right' failed.
-```
-
-There is no left and no right. The message belongs to `AssertEqual`, which
-appends `Expected 'E' but got 'A'.` to the same stem, and `AssertTrue` reuses
-the stem and supplies no operands — so the reader is told an equality failed
-when a truth test did, and given nothing about what was actually false.
-
-`Fail(M)` produces `Failed.  M`, with two spaces, which is a third shape again.
-
-**Resolved, and further than recommended.** The phantom stem goes from *every*
-form, not only from `AssertTrue`: `'left = right'` names operands that no
-message ever fills in, and reads like a template left unfinished. [TST-012] now
-specifies `Assertion failed.` followed by two spaces and a clause that carries
-the actual values — `Expected true but got 'V'.` for `AssertTrue`, and
-`Expected 'E' but got 'A'.` for `AssertEqual`. Tracked by DEF-30.
-
-⚠️ The type-naming form was **missing from the table entirely** and is kept: a
-`Char` and a `String` both render as `3`, so a message quoting only the rendered
-values would read `Expected '3' but got '3'.` Both processors already produce
-it. Documenting it was as valuable as fixing the stem.
-
-⚠️ Any change here alters the report, which [TST-008] specifies and which both
-processors must reproduce byte for byte — so it is a change to the observable
-surface and to `bootstrap/algol.c` in the same breath, not a cosmetic edit.
-## Annex E — what could be written in Algol-24 itself *(non-normative)*
-
-The collections and the built-in functions are native today. This annex asked,
-for each, whether it is native because it *must* be or only because it always
-has been — and what one feature would have to be added to unbind it.
-
-⚠️ **Every feature it asked for has landed**, in Generations 5 through 8:
-iteration [TYP-011], a read-only property [CLS-017], subscripting [TYP-010],
-ordering [VAL-014], arithmetic [EXP-020] and element types on insertion
-[VAR-016]. The survey's question is answered, and the answer is that nothing in
-the language pins them.
-
-⚠️ **The intent changed shape, and this annex no longer states it.** It said the
-collections would be **moved** out. Annex H, H-9 now proposes a
-second implementation **beside** the native ones, written in Algol-24 and built
-on `Array`, with the compiler rewritten onto it and the natives retiring only
-once that is proven — so nothing breaks at any step, and a library
-implementation is free to offer a contract the core does not, such as a `Map`
-that does not pay for [COL-007]'s insertion order.
-
-⚠️ **And it is library work rather than language work**, which decides how it is
-tested: `conformance/` and `refusals/` pin the language, so a library written
-*in* the language is unit-tested and documented on its own instead.
-
-The reason is the one below, and it is worth more than the tidiness: anything
-written in Algol-24 rather than in the runtime is one less thing the C back end
-and the interpreter can disagree about — and Annex C ran to thirty-seven
-entries, numbered to C-39, before every one of them was withdrawn.
-
-⚠️ **Three rules did the pinning, and all three are gone.** A class can be
-iterated as of Generation 5 [TYP-011], can expose a read-only property as of
-Generation 6 [CLS-017], and can be subscripted as of Generation 7 [TYP-010] —
-and it can order [VAL-014] and compute [EXP-020] besides. `conformance/0171`
-ends with a `Stack` written in Algol-24 that is subscripted, iterated, ordered
-and answers `Length` without parentheses. **Nothing in the language pins the
-collections to being native any longer.**
-
-⚠️ **And nothing outside the language pins them either**, which was the last
-objection standing. This annex claimed a foreign function interface had to come
-first — that a unit could only be a saving if it could reach what it needed
-without the runtime growing a built-in for every call. It was wrong: what a
-collections unit needs is **storage**, and the storage it needs is `Array`,
-which this annex itself keeps native as "the primitive the others are built on".
-A library implementation asks chapter 16 for nothing, so H-9 waits on nothing at
-all — and the foreign function interface has since landed anyway [FUN-014],
-which settles the objection from the other side too.
-
-⚠️ **This paragraph has now been rewritten in three consecutive staleness
-passes**, each time to remove one more thing from the list. That is worth
-leaving on the record: an annex that argues from what the language *cannot* do
-goes stale exactly as fast as the language improves.
-
-### E.1 The collections
-
-**Array — pinned, and rightly so.**
-
-`Array` is fixed-size, indexed in constant time, and holds arbitrary values.
-Nothing in the language can express that. `Buffer` stores bytes rather than
-values; a linked structure of class instances gives O(n) access; and a class
-cannot be subscripted in any case. It is the one collection that is genuinely
-primitive.
-
-*Recommendation:* keep it native, and treat it as the primitive the others are
-built on rather than as one collection among five.
-
-**Stack — unbound already, in all but syntax.**
-
-A `Stack` is `Push`, `Pop`, `Peek` and a count over a sequence. It can be
-written in Algol-24 today, in full, as a class holding a `List` — and has been:
-`spec/probes/TYP-012-stack-and-set-in-algol24.a24` is a working one, beside a
-`Set` whose membership test is a hand-written scan using no native `Contains`,
-and a `Mod` built from arithmetic alone. All three behave as the built-ins do.
-
-Nothing about it is primitive: no literal claims its name, no subscript is
-needed, and its whole surface is method calls.
-
-There is no visible difference left. `S.Length` reads without parentheses as
-the built-in's does, now that a class may declare a `property` [CLS-017] — which
-was the one thing this entry said it was waiting on.
-
-*Recommendation:* the best first candidate for a library implementation, and it
-waits on nothing — not on the language, and not on H-14 either. Written over an
-`Array`, which stays, rather than over the native `List` it would stand beside:
-a wrapper inherits the very contract an alternative exists to differ from.
-
-**Set — writable today; would want hashing later.**
-
-`Set` needs membership. Over a `List` with a linear scan it can be written
-immediately, and the probe named above does exactly that. A hashed version is
-also expressible: `Ord` yields a character's code point as an Integer —
-`Ord('A')` is 65 — so a string hash can be computed in the language without
-reaching for anything native.
-
-Nothing pins it syntactically. `Set(L)` is an ordinary constructor call, not a
-literal form.
-
-*Recommendation:* movable, and the performance question is separable — ship the
-linear version as a unit, hash it later if it matters.
-
-**List — pinned by its literal, not by its behavior.**
-
-A growable sequence over `Array`, doubling when full, is straightforward
-Algol-24. What pins `List` is syntax: `[1, 2]` produces one, so the language
-itself hands the name out. Subscripting [TYP-010] and `for … in` [TYP-011]
-would also have to be lifted, or every use would read `L.Get(I)`.
-
-*Recommendation:* unbinding this one is worth doing only if user-defined
-subscript and iteration arrive first. Otherwise the unit is strictly worse to
-use than the built-in it replaces.
-
-**Map — pinned by its literal, doubly.**
-
-`[:]` and `[k:v]` produce a Map, so the name is claimed the way `List`'s is,
-and the natural `M[K]` needs [TYP-010] as well. The implementation itself is
-ordinary: two sequences, or `Array` buckets with an `Ord`-based hash.
-
-⚠️ Insertion order is specified behavior, not an accident of the
-implementation, so any replacement must keep it.
-
-*Recommendation:* same as `List`, and after it. The literal is the harder half:
-a language that lets a unit claim `[:]` is a much larger language.
-
-### E.2 The built-in functions
-
-| Native | Could it be written in Algol-24? |
-| --- | --- |
-| `Max`, `Mod` | Yes, today, from arithmetic alone. |
-| `Copy`, `Pos` | Yes, from `Length` and subscripting a String, at a cost in speed. |
-| `Val` | Yes, given `Ord` for digits. |
-| `Ord`, `Char` | No. They convert between a character and its code point, and nothing else reaches that representation. |
-| `Length` | No, for `String`. A user type's own length is [TYP-012]. |
-| `Str` | No. Rendering a `Double` in the specified shortest round-trip form needs the value's bits, which the language cannot see. |
-| `clock`, `TextFile`, `FileExists` | Yes, now. `external` reaches `time`, `fopen` and `stat` directly [FUN-014]. |
-| `Buffer` | Yes, now, over `malloc` and `free` — though `Address` [TYP-017] would have nothing to hand out but a `Pointer` it got from one. |
-| `Write`, `WriteLn` | Yes, now, over `fputs` — but not their rendering, which is `Str`'s [RT-006]. |
-| `ParamCount`, `ParamStr` | No. `argc` and `argv` are the runtime's, and a foreign call cannot ask for them. |
-
-⚠️ **Three of those rows said "No. The operating system is not otherwise
-reachable"** until Generation 8, and the sentence was true when it was written.
-[FUN-014] is what made it false: a program that can declare `fopen` can write a
-file handle of its own. The answers left are the ones where the obstacle is not
-the operating system but this runtime's own state.
-
-### E.3 The one feature that unbinds the most
-
-Of the three pins, **[TYP-012], the missing getter, is the cheapest and buys the
-most**. It is a declaration form rather than a semantic change; it makes `Stack`
-and `Set` writable as units indistinguishable from the built-ins; and it is
-needed by ordinary user classes regardless of whether any collection ever moves.
-
-Subscript [TYP-010] is next, and iteration [TYP-011] after it — those two
-together are what `List` and `Map` wait on, and both are larger changes, because
-each means dispatching a language construct into user code.
-
----
-
-
-
-## Annex F — defects *(non-normative)*
-
-Where the implementation does not do what this specification requires. Each
-entry names the rules it violates, what the implementation does today, and the
-program in `defects/` that reproduces it.
-
-⚠️ A defect's test is a **reverse conformance test**: it records the wrong
-behavior and passes while that behavior persists. It turns **red when the
-defect stops reproducing**, because a fix is as much a change to be noticed as a
-regression — and a suite that is permanently red is a suite nobody reads.
-
-**DEF-34 — `Val` accepts and refuses by `strtod`'s rules, not the language's.**
-*(violates [RT-009])*
-
-[RT-009] says `Val` reads "the same characters the literal rules do". It reads
-what C's `strtod` reads:
-
-| | is | should be |
-| --- | --- | --- |
-| `Val ('0x1F')` | Double `31.0` | Integer `31` [LEX-016] |
-| `Val ('1_000')` | refused | Integer `1000` |
-| `Val (' 42')` | Double `42.0` | refused |
-| `Val ('.5')`, `Val ('5.')` | accepted | refused [LEX-020] |
-| `Val ('+7')` | Double `7.0` | refused |
-
-⚠️ **The fix must not cost precision.** `Val` is the scanner's number parser, so
-whatever it does is what a literal means. An Algol-24 rewrite got every form
-above right and then read `1.0E300` back as `1.0000000000000002E300`, because a
-correctly-rounded decimal-to-binary conversion is a hard numerical problem and
-repeated multiplication is not one. What is wanted is `strtod`'s arithmetic
-behind the language's acceptance test — a check on the text *before* handing it
-over, not a replacement for it.
-
-    defect  DEF-34-val-follows-strtod.a24
-
-**DEF-35 — A type inferred from an initializer is invisible above the declaration.**
-*(violates [VAR-006], [DCL-007])*
-
-[DCL-007] resolves a free name in a subprogram body when the body **runs**, not
-where it is written, so a subprogram may read a module-level `var` or `const`
-declared below it provided the call comes after that declaration. The checker
-does not follow it that far. A declaration whose type is **inferred** is not
-recorded until the checker walks the declaration itself, so a body checked above
-it reduces the name to no type at all — and [VAR-006] then refuses the
-assignment, because a value whose type could not be determined does not satisfy
-a written type:
-
-| | |
-| --- | --- |
-| `Bound := LIMIT;` above `const LIMIT := 7;` | `Expected Integer, found an untyped expression.` |
-| the same file with `const LIMIT : Integer := 7;` | runs, prints `7` |
-
-⚠️ **[VAR-006] already rejects this class of fault.** Its own note records that
-refusing an untyped value at an assignment "refused *correct code*, and the
-wrong trade would have been to punish a program for the checker's blind spot",
-and lists three blind spots that had to close for that reason. This is a fourth
-of the same family: the value has a type, and the checker has simply not reached
-it yet.
-
-⚠️ **It reaches this compiler's own sources.** `ObjFunction.a24` declares
-`EXACT`, `WIDENING` and `ABSORBING` below `Select`, which reads them, and
-`ObjClass.a24` imports them for the same use — so writing the natural annotation
-on that loop, `for var Pass : Integer := EXACT;`, makes `algc` refuse the file it
-was built from. The absence of a type is the only reason it compiles, which is
-the opposite of what a gradual type system should reward.
-
-⚠️ **A `var` behaves the same way as a `const`**, so this is about the order of
-declaration rather than about constants.
-
-    defect  DEF-35-inference-stops-at-a-later-declaration.a24
-
-⚠️ **This annex held thirty-three defects and holds two.** Every other one has
-been fixed and its reproduction removed. Three of them turned out to be the **rule's** fault
-rather than the implementation's, and were closed by changing this document —
-`SRC-005` on Unicode identifiers, `LEX-025` on `Char(0)`, and a blocker recorded
-in a defect entry that named the wrong data structure. The note at the end of
-Annex C keeps that last one, because the lesson is about where a blocker is
-written down rather than about the defect.
-
 ## Annex G — implementation notes *(non-normative)*
 
 Guidance for implementers. Nothing here is a rule; an implementation may reach
@@ -6776,7 +4661,7 @@ keeps the message in `LastError`, and a driver must ask. Two consequences follow
   `compiler/Main.a24` calls `CheckScanned` **twice** — once after scanning for
   the right message, and once after parsing so that modules loaded by `uses` are
   covered — and both calls are load-bearing.
-- ⚠️ **`HadError` and `LastError` are module-level, not per instance.** Two
+- **`HadError` and `LastError` are module-level, not per instance.** Two
   scanners in one process share them, so an error from one is visible to the
   other and a later clean scan does not clear an earlier failure. Nothing in the
   language reaches this — a program cannot construct a `Scanner` — but any tool
@@ -6801,12 +4686,12 @@ never reclaims, so all of it stayed live:
 The interpreted figure still carries the tree-walker's own per-iteration
 allocation, which is unrelated; it is linear in n now, where it was quadratic.
 
-⚠️ **This is an allocation-volume problem, not a reclamation one.** A collector
+**This is an allocation-volume problem, not a reclamation one.** A collector
 would not help: the bytes are allocated whether or not they are later freed, and
 the copying is what makes it quadratic. `Buffer` avoids it by appending in
 place, which is why the compiler's own hot paths use one.
 
-⚠️ **The fix this section proposed does not work, and it is instructive.** It
+**The fix this section proposed does not work, and it is instructive.** It
 said: append in place when the left operand is *the arena's most recent
 allocation* — write at `arena_next`, bump, return the left operand's pointer.
 
@@ -6822,7 +4707,7 @@ that slack; when it runs out, the next copy doubles again. A string built a
 piece at a time is then copied a logarithmic number of times rather than once
 per piece. No collector, no refcounting, no escape analysis.
 
-⚠️ **What makes it unsafe is that a String is a NUL-terminated `char *`.** Any
+**What makes it unsafe is that a String is a NUL-terminated `char *`.** Any
 other value holding that pointer would see the extension, because its length is
 read from the bytes:
 
@@ -6832,13 +4717,13 @@ var B := A;               B aliases it
 var C := A + 'ef';        extending in place would change B
 ```
 
-⚠️ **An explicit length makes it safe**, and for a reason worth stating exactly:
+**An explicit length makes it safe**, and for a reason worth stating exactly:
 `B` holds `{p, 4}` and reads only `[0, 4)`, which the append never touches — it
 writes at `p + 4` and yields `{p, 6}`. The alias is correct because it carries
 its own length rather than looking for a terminator. This is why the two changes
 had to land in that order, and they did.
 
-⚠️ **Capacity is not enough on its own: the test must be IDENTITY.** The left
+**Capacity is not enough on its own: the test must be IDENTITY.** The left
 operand has to *be* the string the reserved block currently holds — pointer
 **and** length together. Checking only that the capacity fits lets two appends
 from one base both succeed, and the second overwrites the first:
@@ -6851,7 +4736,7 @@ leaves `B` reading `xz`. This was found by the compiler's own test suite
 printing corrupted ANSI escapes, because `Console` builds its tags by
 concatenating shared constants — so a shared operand was appended to twice.
 
-⚠️ **The consumers cost less than this section feared.** It expected every
+**The consumers cost less than this section feared.** It expected every
 consumer handing a String's bytes to C to need the length. In practice only the
 value-semantic operations do — concat, output, equality, hashing, `Copy`, `Pos`,
 `Length`, subscript. The twenty-odd places that build a *diagnostic* still want a
@@ -6877,7 +4762,7 @@ uppercase range to act as escape markers:
 | `_` | `V` |
 | any other character | `U` followed by six hexadecimal digits |
 
-⚠️ **The last row is what admits all of Unicode.** `🙂` is U+1F642 and emits as
+**The last row is what admits all of Unicode.** `🙂` is U+1F642 and emits as
 `U01F642`. Nothing has to be classified or excluded, which is why [SRC-005]
 needs no letter table and the language carries none.
 
@@ -6904,29 +4789,29 @@ by a constructor of its own, never by concatenating a prefix by hand:
 | `lc_` | where a labelled `continue` lands — the last thing in the loop's body, so falling off the end runs the C `for` increment |
 | `lg_` | where a `goto` lands [STM-024] |
 
-⚠️ A prefix names a *kind*, so a name that reaches C twice reaches it through
+A prefix names a *kind*, so a name that reaches C twice reaches it through
 two constructors rather than one string built by hand: `d_` goes through
 `Mangle` exactly as `v_` does, or a variable spelled `Gate?` would have a legal
 symbol and an illegal flag.
 
-⚠️ Symbols not derived from a name at all — a hoisted literal, a method's
+Symbols not derived from a name at all — a hoisted literal, a method's
 parameter-type table, a test body, a `try` frame — are numbered rather than
 mangled, and need none of this.
 
-⚠️ **This scheme is injective, and the one it replaced was not.** That one wrote
+**This scheme is injective, and the one it replaced was not.** That one wrote
 `?` as `_q` and passed letters through untouched, so `Ready?` and `Ready_q`
 emitted one symbol between them and `cc` refused the result. Here they are
 `readyQ` and `readyVq`.
 
-⚠️ **The same argument answers the escape's own collision.** An identifier
+**The same argument answers the escape's own collision.** An identifier
 spelled `U01F642` and the character `🙂` would both want that symbol; lowercasing
 separates them into `u01f642` and `U01F642`.
 
-⚠️ The two decisions depend on each other. Lowercasing is only lossless because
+The two decisions depend on each other. Lowercasing is only lossless because
 identifiers are case-insensitive, and the uppercase escape space only exists
 because of the lowercasing. Neither works alone.
 
-⚠️ **`_` is escaped to `V` rather than passed through**, which is what leaves it
+**`_` is escaped to `V` rather than passed through**, which is what leaves it
 free as a separator. A caller joining parts — a method's owner and name, an
 enum's type and member, a private name and its unit — escapes each part and puts
 a raw `_` between them. Escaping the *joined* string instead would put the
@@ -6938,490 +4823,3 @@ separator back into the alphabet the escape uses: `Name__Unit` would give
 ---
 
 ---
-
-## Annex H — planned for later generations *(non-normative)*
-
-Changes intended for the language that are **not defects**. The implementation
-is right about these; the specification describes the language as it now is, and
-each of these will change a rule when it arrives.
-
-⚠️ The distinction matters to the corpus. A defect gets a reverse conformance
-test that passes while the wrong behavior persists. A planned change gets an
-ordinary conformance test or refusal pinning the **current** rule, which turns
-red when the generation lands — deliberately, because that is the moment the
-rule changes and the test should change with it.
-
-**H-1 — Other bases and digit separators.**
-***Landed in Generation 3.*** *(changed [LEX-016])*
-
-Hexadecimal, octal and binary integer literals, and a separator within a run of
-digits. Now covered by `conformance/0006-integer-bases-and-separators.a24`; the
-refusal that pinned the old rule went with the generation.
-
-**H-2 — Exponent notation.**
-***Landed in Generation 3.*** *(changed [LEX-022])*
-
-A double literal with an exponent. Now covered by
-`conformance/0007-exponent-notation.a24`.
-
-⚠️ This one closed a genuine asymmetry rather than only adding a convenience:
-`Str` **prints** a large Double in exponent form — `1.0E300` — and the language
-could not read back what it wrote. Nothing was unreachable, because `Val` parses
-the exponent form, but the round trip went through a built-in rather than
-through the source.
-
-**H-3 — Element types checked on insertion.**
-***Landed in Generation 8.*** *(changed [VAR-016])*
-
-`L.Add ('text')` on a `List of Integer` is refused, and so are the other four
-routes in: `Push`, `Put`, subscript assignment, and the collection literal at a
-declaration.
-
-⚠️ **The entry's own warning was the design.** It said every route had to be
-covered "or the check becomes a fence with a gate in it, which is worse than no
-fence because it invites the declared type to be trusted". Five routes, five
-refusal cases — one apiece, because the check is the type checker's and a
-refused program never runs, so no single case can show two.
-
-⚠️ **Checked where the receiver's type is known, and nowhere else**, at no
-run-time cost — the bargain a property [CLS-017] and `private:` [DCL-015]
-already make. The element type is available only for a plain name, which is the
-same limit *reading* one has: there is nowhere to have written the element type
-of an arbitrary expression.
-
-⚠️ **It checks and does not convert.** `D.Add (2)` into a `List of Double` is
-accepted and stores the Integer. Widening reaches a *written type* [VAR-004],
-and an element is not one.
-
-⚠️ **`conformance/0021` predicted its own change** and said so: "Insertion is
-NOT checked… this is what H-3 would change." It changed it.
-
-**H-4 — A subscript operator a class may declare.**
-***Folded into H-15.*** *(will change [TYP-010])*
-
-Subscripting turned out not to want an operator declaration at all: it is a
-structural protocol, and landed as **H-15** in Generation 7.
-
-⚠️ **The entry is kept for the record, not for a pointer.** It was kept at first
-because [TYP-010] and [EXP-016] said "see Annex H, H-4"; both were rewritten
-when H-15 landed and neither says it now. What it still earns its place for is
-the history — this number was proposed as a *subscript operator*, folded into
-operator overloading as "the same feature in a particular spelling", and finally
-turned out to want no operator at all. A reader meeting the gap between H-3 and
-H-5 should find out that a question was asked and answered differently, rather
-than that a number was skipped.
-
-**H-5 — An iteration protocol a class may implement.**
-***Largely landed in Generation 5.*** *(changed [TYP-011], [CLS-009])*
-
-A class declaring `Elements` taking no arguments is iterable, and always was —
-the interpreter's `ElementsOf` and the runtime's `alg_iterable` both had it, in
-agreement. What was missing was the **rule**, and an unspecified protocol had
-already drifted: an `Elements` of the wrong arity failed differently in the two
-processors, and a `Contains` of the wrong arity answered `1 in B` with **true**
-interpreted while raising compiled — a wrong answer, not merely a wrong message.
-[TYP-011] now states the protocol and both sides check the shape.
-
-⚠️ **What is left is not iteration but its neighbors.** Two questions the
-protocol raises and does not answer:
-
-| | |
-| --- | --- |
-| A class that iterates like a `Map` | A built-in `Map` yields its **keys** [STM-007]. A class can return a list of keys, but has no way to say it is pair-shaped, so `for var K in M` and a user-written map cannot mean the same thing. |
-| `Elements` returning `this` | The result is walked rather than re-asked, which stops the ordinary chain from recursing — but a class whose `Elements` answers itself recurses without bound in both processors. |
-
-⚠️ **Membership has no rule of its own.** `Contains` on a class instance is
-implemented in both processors and specified nowhere: [COL-012] governs the
-*equality* membership uses, not the protocol that lets a class answer it. The
-same paragraph [TYP-011] now carries for `Elements` is owed to `in`.
-
-**H-6 — A read-only property a class may expose.**
-***Landed in Generation 6.*** *(changed [TYP-012]; added [CLS-017], [CLS-018])*
-
-`property Count : Integer; begin Exit Items.Length; end` — a member kind beside
-`function` and `procedure`, read without parentheses, with the read being the
-call. Assignment is refused where the receiver's type is known.
-
-⚠️ **The need was a read-only view, not parentheses.** A field is public —
-readable *and writable* — or private, meaning invisible, so a `Stack` written in
-Algol-24 could not protect its own count while showing it, and was strictly
-worse than the built-in whose `Length` cannot be assigned.
-
-⚠️ **The runtime is told at the DECLARATION, not asked at the call.** Nothing at
-a use site says whether `B.Count` is a field, a method or a property, and the
-receiver's class is not known until run time — so `alg_class_property` marks the
-member when the class is built and `alg_property` reads the mark.
-
-⚠️ **The sigil half was withdrawn before any of this was built.** An earlier
-shape made a bare `B.Length` on a method an error and introduced `@` to replace
-it; that displaced a construct which works and is specified [FUN-011] in order
-to free a spelling.
-
-⚠️ **It found a divergence older than itself** [CLS-018]. Instances were open in
-the interpreter and closed in the compiled back end — Lox's arrangement against
-fixed slots — so `B.Undeclared := 1` was `1` interpreted and refused compiled.
-No case covered it, and a unit test inherited from Lox was holding the
-interpreter's half in place.
-
-**H-7 — Ordering for Strings.**
-***Landed in Generation 6.*** *(changed [VAL-014], [COL-013])*
-
-`'ab' < 'cd'` was the runtime error `Operands must be numbers.`, so a program
-needing to order text compared it character by character — which is what
-`compiler/CEmitter.a24`'s `TextLess` did, a function the compiler wrote for
-itself because the language did not provide the operator. `TextLess` is gone.
-
-⚠️ **One change in the runtime served both processors.** The interpreter's
-`VisitBinary` evaluates `Left < Right` in the host language, so interpreted `<`
-*is* `alg_less` — the arrangement that makes interpreted `Length` and host
-`Length` one function [RT-003]. Teaching the four comparison operators about
-text gave the tree-walker the same ordering in the same commit, with nothing in
-`Interpreter.a24` to change.
-
-⚠️ **It uncovered an older fault than itself.** `Char` ordering compared
-`a.string[0]` — the first **byte** of a UTF-8 encoding — so `'è'` and `'é'`
-shared a lead byte and compared **equal**, while `Ord` answered 232 and 233. The
-language disagreed with itself about which of two characters came first, in both
-processors alike, and no case covered it because [VAL-014] never said how Chars
-order.
-
-⚠️ **And a second ordering nobody had noticed.** `Sort` compared with `strcmp`
-[COL-013] — bytes rather than characters, stopping at an embedded zero a String
-is entitled to hold. It agreed with the new operator only because UTF-8 is
-designed so byte order matches code-point order, which is right by accident.
-Both now go through one function.
-
-**H-8 — Arithmetic operators a program may define.**
-***Landed in Generation 7.*** *(added [EXP-020])*
-
-`+`, `-`, `*`, `/`, `div` and unary `-` on a program's own type, declared
-`operator + (Other : Money) : Money;`.
-
-⚠️ **What is left of an entry that once claimed most of this annex.** It called
-itself "the umbrella over much of Annex H"; H-6's property and H-7's ordering
-landed in Generation 6 without it, and subscripting (H-15) and comparison
-(H-16) landed in Generation 7 as **protocols**. Arithmetic was the only part
-that wanted an operator declaration.
-
-⚠️ **The one place a keyword beat a protocol, after five of them in a row.**
-`Compare`, `Get` and `Put` are not translations of operators — `Compare` yields
-four of them, `Get` and `Put` are two halves of one — while a `Plus` method
-would be a pure synonym for `+`: a name added without a concept. Where the name
-says something the symbol does not, the protocol wins; here it would not.
-
-⚠️ **Adding the keyword broke the compiler's own source**, which is the hazard
-this repository has met before: `Operator` was a local variable in
-`Parser.a24`, sixteen times over, and became unspellable the moment the word
-was reserved. The same collision renamed `Break` to `Broke` and Lox's
-`Expr.Get.object` to `Obj`. The language's word wins and the compiler adapts.
-
-⚠️ **The left operand decides**, as a receiver does everywhere else.
-`Money * 3` is a Money; `3 * Money` is `Operands must be numbers.`
-
-**H-9 — A collections library written in Algol-24.**
-*(after v0.1.0; changes no rule)*
-
-Collections written in Algol-24, **built on `Array`**, added **beside** the
-native ones rather than replacing them. The compiler is then rewritten onto
-them, and the natives retire only in a later generation once it is running on
-the replacements — so nothing breaks at any step.
-
-⚠️ **This entry used to propose moving chapter 14 out, and that was the wrong
-shape.** Moving would break every program that says `Set ()` without a `uses`,
-and force a choice between an import in every file and an implicitly-loaded
-file that would make the language depend on something being on disk. Adding a
-second implementation raises neither question.
-
-⚠️ **The reason is more than tidiness: the core's contract is not the only
-reasonable one.** [COL-007] pins insertion order for `Map` and `Set`, and pays
-for it — `ObjMap` carries entries in insertion order *plus* a side index. A
-library implementation may reasonably choose an unordered map with different
-costs. That makes the library worth having whether or not the natives ever
-retire, which the old framing did not.
-
-⚠️ **Built on `Array`, never as a wrapper.** A wrapper around the native
-collections inherits the very contract the alternative exists to differ from,
-and buys nothing. `Array` is fixed-size, so growth is by doubling and copying —
-the real thing.
-
-⚠️ **`Array` has no consumer today.** The compiler constructs it nowhere, and
-annotates it nowhere; the collection this annex calls "the primitive the others
-are built on" is exercised only by the corpus. The library would be its first
-real use, which is worth knowing before relying on it.
-
-⚠️ **THIS IS LIBRARY WORK, NOT LANGUAGE WORK**, and the difference decides how
-it is tested and where it is written down. `conformance/` and `refusals/` pin
-**the language**; a library written *in* the language does not belong in either.
-It gets **comprehensive unit tests**, one target per collection, and library
-documentation of its own — not rules in this specification.
-
-⚠️ **Nothing in the language is owed for it.** Iteration [TYP-011], a read-only
-property [CLS-017], subscripting [TYP-010], ordering [VAL-014] and arithmetic
-[EXP-020] all landed in Generations 5 through 7, and H-3 closed the element
-types. A collection written in Algol-24 reads as the built-in does.
-
-**H-10 — Varargs from an element type.**
-***Landed in Generation 4.*** *(changed [FUN-005], [RT-001])*
-
-A subprogram whose **last parameter is a `List of T`** may be called with the
-elements written directly, and the call builds the list:
-
-| written | means |
-| --- | --- |
-| `Log ('warn', 1, 2)` | `Log ('warn', [1, 2])` |
-| `Log ('warn')` | `Log ('warn', [])` |
-
-Both columns are legal, and the right-hand one wins where they meet.
-
-⚠️ **No new syntax, and that is the design rather than an economy.** The
-declaration already says `List of T` [VAR-008]; absorption is a *reading* of a
-type that exists, not a marker added to it. It became possible only when element
-types were admitted on parameters — before that a bare `List` carried no element
-type, and the trailing arguments would have had nothing to be checked against.
-
-⚠️ **"Fixed arity beats variadic" is not a rule here, it is the pass order.**
-Selection is already two passes, exact before widening [EXP-014]. Absorption is
-a third, so an exact match always wins and `Log ('warn', [1, 2])` passes the list
-rather than absorbing it into a one-element one. The tiebreak that other
-languages state in prose falls out of machinery this language already has.
-
-⚠️ **The element type replaces the arity check and is stricter than it.**
-`Log ('warn', 1, 2, 'red')` is still an error when the parameter is
-`List of Integer`, because the stray argument fails the element type. What is
-given up is given up only for `List of Any`, which is already the declaration
-that means "anything".
-
-⚠️ **Absorbing zero is what makes `WriteLn` ordinary**, and is the case that
-decided it. `WriteLn` was a native of arity −1 with a hand-written branch on
-`Arguments.Length = 0`; rendering the whole argument list gave `''` for none,
-so the blank line stopped being a special case and `WriteLn ('ABC', 123)` —
-which had not been legal — arrived with it [RT-015]. Requiring at least one
-argument was considered and rejected on that example alone. The empty list is **structural, not a default**:
-absorbing nothing yields `[]` by the same rule that absorbing three yields a
-three-element list, so this is not default arguments under another name.
-
-⚠️ **The cost is one list per call, and this runtime never frees one** — the
-arena has no collector. The mitigation is expressible in the language and
-changes no call site: declare a fixed overload beside the variadic one, and the
-exact pass takes the hot calls without allocating.
-
-    procedure WriteLn (S : String);           // exact pass -- builds nothing
-    procedure WriteLn (Items : List of Any);  // absorption pass
-
-**H-11 — Named arguments.**
-***Landed in Generation 4.*** *(changed [EXP-013])*
-
-An argument may name the parameter it fills — `Log (Level: 'warn', Items: [1])`.
-
-⚠️ **The point is overload selection at compile time.** Selection is at run
-time, from the values actually passed [FUN-013], because a declared type may be
-`Any` and no static rule could reach the right overload from that. That is the
-right default for a gradually typed language and it does not change. What is
-missing is a way for a programmer who *does* know which overload they mean to
-say so, and naming the parameters says it — a name identifies one signature,
-where values only describe something several signatures might accept. Static
-resolution becomes **available**, not mandatory.
-
-⚠️ **`:` rather than `=>`, because the language already has this colon.**
-`[k : v]` is a Map literal [COL-001]: a name on the left, a value on the right,
-parsed by reading an expression and then looking for a colon. A named argument
-means the same thing and parses the same way. `=>` would be a second punctuation
-for a meaning already spelled.
-
-⚠️ **The ambiguity that usually rules `:` out is absent here.** A colon in
-expression position normally collides with a conditional expression's `? :`;
-this language has no conditional expression, because `?` is an identifier mark
-[LEX-008] and `Gate?` is one word. The `:` in `case … of` is a statement's.
-
-⚠️ **Positional arguments first, named ones after.** A positional argument
-following a named one is refused, as is a parameter supplied twice.
-
-⚠️ **Which is also why H-10 needs no rule about the two meeting.** Absorption
-takes trailing *positional* arguments, and positional arguments end exactly
-where naming begins. `Log ('warn', Items: [1, 2])` names the absorbing parameter,
-so nothing absorbs; `Log ('warn', 1, 2, Items: [3])` supplies it twice and is
-caught by a rule named arguments need anyway. The two features share one rule
-set, which is the argument for bringing them in one generation rather than two.
-
-**H-12 — A warning for a call that binds at run time.**
-***Landed in Generation 4.*** *(a diagnostic, not a rule)*
-
-A third severity beside `[INFO]` and `[ERROR]` — **`[WARN]`, in yellow** —
-reporting that a call selects among overloads at run time rather than
-statically. Non-blocking: the program compiles and runs.
-
-    [WARN] Main.a24:12: 'Log' selects among 3 overloads at run time.
-
-⚠️ **It makes a cost visible without forbidding it.** Run-time selection is the
-language's rule and stays so [FUN-013]; H-11 gives a programmer the means to
-avoid it in a particular call. The warning is what connects the two — without it
-the cost is real and invisible, and the remedy has nothing to point at.
-
-⚠️ **It is silent on this compiler**, which is the evidence that it is a scalpel
-and not noise: no top-level name in `compiler/*.a24` is overloaded, so over a
-hundred kilobytes of Algol-24 raise no warning at all.
-
-⚠️ **The corpus has to drop it, from both sides.** This entry predicted that
-standard error would be the answer; it is not, because `Console` writes every
-diagnostic this compiler produces — `[INFO]` and `[ERROR]` included — to
-standard output, and `conform.sh` captures both streams anyway. The real
-difficulty is the one the prediction was reaching for: the front end is shared,
-so a warning appears when an interpreted program *runs* and when a compiled one
-is *emitted*, which are different moments. `render()` therefore filters `[WARN]`
-lines out of both sides before comparing.
-
-⚠️ **Dropped rather than suppressed.** The warning is meant to be seen by
-whoever is compiling; it is only the comparison that must not see it. A warning
-that changed a program's recorded output would be a warning that changed the
-program — and this one changes nothing, which is what *non-blocking* means.
-
-⚠️ **The tag belongs in `Console.a24` beside the other two.** `ANSI_YELLOW` is
-already defined there, and `WARN_TAG` follows `INFO_TAG` and `ERROR_TAG`
-exactly — including the ⚠️ those two carry about their names: `WARN_TAG` rather
-than `WARN`, because names are matched without regard to case [SRC-011] and a
-`procedure Warn` beside it would be the same name.
-
-**H-13 — Character arithmetic, the Pascal way.**
-***Landed in Generation 6.*** *(changed [EXP-008], [RT-001]; added [EXP-019], [RT-020])*
-
-`'z' - 'a'` is 25, `Succ` and `Pred` step an ordinal, and `'a' + 1` is refused.
-Turbo Pascal's model with one departure: TP answers a distance with
-`Ord (X) - Ord (Y)`, which stays available and says the same thing at greater
-length.
-
-⚠️ **Refusing `'a' + 1` was the repair, and the reason to do this.** `Str` is how
-a Char widens to a String — that is why `Line ('{')` must be declared `Any` —
-yet `'a' + 1` and `Str ('a') + 1` both gave `a1`, so in that one place widening
-happened without being asked for and `Str` was decorative. The two differ now.
-
-⚠️ **The C model was declined.** `'a' + 1` yielding `'b'` puts arithmetic on `+`
-and makes the operator mean a step or a join depending on its right operand.
-`Succ` costs one word, says what it does, and leaves `+` meaning one thing.
-
-⚠️ **Breaking in the safer direction**, and the blast radius was measured before
-the change: no `Char + Integer` appears anywhere in `compiler/*.a24`, and the
-expression becomes an **error** rather than quietly computing something else.
-
-⚠️ **An enum member is not stepped** [RT-020]. A member carries its type's name
-and its ordinal rather than a pointer to the type, so there is no way from a
-member to the list it belongs to — the gap is honest rather than chosen.
-
-**H-14 — A foreign function interface.**
-***Stages 1 and 2 landed in Generation 8.***
-*(added [FUN-014], [TYP-017], [INI-008])*
-
-A program declares a C function and calls it — scalars, `String` and `Pointer`,
-with the library named or the running program searched. **SDL is the target**,
-and a graphics library written in Algol-24 over it is the reason the entry
-exists; stage 1 is what a window on screen needs.
-
-⚠️ **The interpreter was never the difficulty**, which the entry once claimed.
-The tree-walker cannot call C, but it runs *inside* `algc`, which is a C program
-— so the marshalling lives in the runtime, the interpreter reaches it through a
-built-in, and a compiled program calls it directly. Neither can drift from the
-other because there is nothing to drift.
-
-⚠️ **libffi, compiled in optionally** [INI-008]. The default build has neither
-libffi nor `dlopen`, so the **bootstrap** still needs a C compiler and nothing
-else — which is what that constraint has always been about. It is the language's
-first configuration, and the corpus runs the default one.
-
-⚠️ **`Pointer` is a type of its own, and renders without its address.** An
-Integer would carry the address faithfully, and that is the objection rather
-than a limitation: a handle should not be arithmetic'd. Printing the address
-would make output depend on where the allocator put something — the
-non-determinism the fixed-point check exists to catch.
-
-⚠️ **Stage 2 needed one property, not a mechanism.** A `Buffer` answers
-`Address` [TYP-017], so a program builds a C struct in bytes it owns and hands
-the address over; `memcpy` writing `ABCD` into a Buffer that held `....` is the
-whole proof. No struct-by-value marshalling, and nothing implicit — passing a
-`Buffer` where a `Pointer` is declared would have taken its address silently.
-
-⚠️ **What remains is stage 3: calling back into Algol-24.** SDL can mostly be
-driven by a polling loop instead, so it may wait indefinitely.
-
-⚠️ **Four keyword collisions in two generations.** `external` broke a field of
-that name in `Stmt.a24`, as `operator` broke a local in `Parser.a24`, and as
-`break` once forced `Broke`. Reserving a word makes it unspellable everywhere,
-and this repository keeps relearning it.
-
-**H-15 — Subscripting through `Get` and `Put`.**
-***Landed in Generation 7.*** *(changed [TYP-010], [EXP-016])*
-
-`B[0]` calls `B.Get (0)` and `B[0] := X` calls `B.Put (0, X)`. The fifth
-structural protocol, needing no member name of its own — `Get` and `Put` are
-what the built-in collections already answer to [COL-003].
-
-⚠️ **It wanted no operator feature at all**, which is the change of mind this
-entry records. It was H-4, folded into operator overloading as "the same feature
-in a particular spelling"; asking what it actually added turned up one thing —
-that it needs **two** members where every other operator needs one — and that
-question answers itself the moment the two are ordinary members of different
-arity.
-
-⚠️ **A class declaring only `Get` is readable and not assignable**, and needs no
-separate way of saying so.
-
-⚠️ **This is what the protocol run was for.** A `Stack` written in Algol-24 is
-now subscripted, iterated [TYP-011], ordered [VAL-014] and answers `Length`
-without parentheses [CLS-017] — the four things Annex E named as pinning the
-collections to being native. `conformance/0171` ends with one.
-
-**H-16 — Ordering through `Compare`.**
-***Landed in Generation 7.*** *(changed [VAL-014])*
-
-A class declaring `Compare (Other) : Integer` orders with `<`, `<=`, `>` and
-`>=`. The fourth structural protocol, needing no declaration keyword and raising
-no precedence question, because `<` already has a precedence.
-
-⚠️ **It cost nothing equality would**, which is why it is settled and H-17 is
-not: ordering touches no hash and no membership, so no second protocol has to
-move with it.
-
-⚠️ **"And `Sort` gets it for free" was wrong**, and the entry said it before it
-was built. `Sort` gets it free *compiled* — the interpreter delegates `Sort` to
-the host's, whose values are `ObjInstance`, this compiler's own class rather
-than the program's, so the host looks for `Compare` there and never finds it.
-Answering compiled while refusing interpreted is the divergence the corpus
-exists to catch, so the runtime's `Sort` does not ask either. Sorting by
-`Compare` wants an interpreter inside `ObjCollection` and is its own work.
-
-⚠️ **The interpreter could not delegate the operators either**, for the same
-reason, and this is the fourth protocol to hit it — `Ord` on an enum member and
-`Stringify` on a `ToString` were the first two. `VisitBinary` replaces the
-operands with the `Compare` result and `0`, so the four comparisons below it run
-unchanged rather than being written a second time.
-
-**H-17 — Equality, and the hash that must come with it.**
-*(will change [VAL-011], [VAL-013])*
-
-A class deciding what `=` means for its instances. Today comparison is by
-**identity** [VAL-011] with no way to say otherwise, so two values that are
-alike are never equal.
-
-⚠️ **The coupling is the whole difficulty, and it is a rule rather than an
-implementation detail.** [VAL-013] states that membership and equality are one
-relation: *if `X = Y` then a collection holding `Y` contains `X`*. A Map and a
-Set bucket by a hash, and an object key hashes by its **address** — so the
-moment two distinct instances compare equal, `A = B` is true while `B in [A]` is
-false, and a specified rule is broken silently.
-
-⚠️ **Which is exactly why Java pairs `equals` with `hashCode`**, and the
-discipline is the argument *for* this feature rather than against it: the two
-must move together, so a language that offers one must offer the other and say
-so. Java cannot enforce the pairing either; what it does is make the obligation
-explicit and famous.
-
-⚠️ **The fixed point is NOT an obstacle, though it first looked like one.**
-`ObjMap`'s index carries a warning that an address-keyed hash deciding iteration
-order would make the fixed-point check fail intermittently — "the worst failure
-mode this project has", and a bug already made once. Reading it again: it
-describes a design that was **rejected**. Entries stay in insertion order and
-nothing iterates the index, which is what makes the index legal. A user-defined
-hash changes which bucket a key lands in and not the order anything is read in,
-so the hazard is already neutralised structurally.
-
-⚠️ **What it does need is both processors**, as ever: an interpreted `Equals`
-and a compiled one, and a hash protocol in each, agreeing exactly. That is the
-real size of the entry.

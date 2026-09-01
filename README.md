@@ -117,7 +117,8 @@ Four harnesses, all of which must pass:
 
 `spec/ALGOL-24.md` is the specification — 280 rules, every one claimed by a case.
 It is the authority, and the implementation is measured against it: where the two
-disagree, Annex F names the defect and carries a program that reproduces it.
+disagree, `spec/DEFECTS.md` names the defect and carries a program that
+reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 

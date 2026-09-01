@@ -21,6 +21,14 @@ set -eu
 cd "$(dirname "$0")/.."
 
 SPEC="spec/ALGOL-24.md"
+
+# ⚠️ The record and the defects left the specification and took their checks
+# with them.  ALGOL-24.md describes the language; HISTORY.md holds the closed
+# divergences, the resolved notes and the planned generations; DEFECTS.md holds
+# the live disagreements.  Each check reads the file its subject now lives in,
+# because a check that stops running is worse than one that fails.
+HISTORY="spec/HISTORY.md"
+DEFECTS="spec/DEFECTS.md"
 COVERAGE=0
 GAPS_REPORT=0
 
@@ -321,7 +329,7 @@ BOTH=$(comm -12 "$WORK/nyi" "$WORK/planned" | tr '\n' ' ')
 [ -n "$BOTH" ] \
     && problem "marked both NOT YET IMPLEMENTED and PLANNED, which cannot both be true: $BOTH"
 
-if [ -s "$WORK/planned" ] && ! grep -q '^## Annex H' "$SPEC"; then
+if [ -s "$WORK/planned" ] && ! grep -q '^## Annex H' "$HISTORY"; then
     problem "rule(s) marked PLANNED but the specification has no Annex H"
 fi
 
@@ -375,7 +383,7 @@ awk -F'\t' '$2=="conformance"||$2=="refusal"||$2=="defect" {print $3}' "$WORK/ci
 # entries were in that state when this check was added: DEF-19 and DEF-30, both
 # describing faults that had been fixed, both reading as open.
 
-grep -oE '^\*\*DEF-[0-9]+[a-z]*' "$SPEC" | sed 's/^\*\*//' | sort -u > "$WORK/annex_defects"
+{ grep -oE '^\*\*DEF-[0-9]+[a-z]*' "$DEFECTS" || true; } | sed 's/^\*\*//' | sort -u > "$WORK/annex_defects"
 
 find defects -maxdepth 1 -name 'DEF-*.a24' 2>/dev/null \
   | sed 's|.*/||; s/^\(DEF-[0-9]*[a-z]*\)-.*/\1/' | sort -u > "$WORK/defect_cases"
@@ -387,7 +395,7 @@ find defects -maxdepth 1 -name 'DEF-*.a24' 2>/dev/null \
 # its own, unlike a defect: the conformance expectation IS the correct answer
 # and the compiled run is the fault.
 
-grep -E '^    gap  ' "$SPEC" | awk '{print $2}' | sort -u > "$WORK/gap_cited"
+{ grep -E '^    gap  ' "$HISTORY" || true; } | awk '{print $2}' | sort -u > "$WORK/gap_cited"
 
 MISSING_GAP=""
 while read -r _case; do
@@ -403,8 +411,8 @@ fi
 # Live entries -- those not marked Withdrawn -- and how many carry a citation.
 # ⚠️ Reported rather than failed: the mapping from Annex C to the cases that
 # demonstrate it is the work of Generation 2, and this counts it down.
-ENTRIES=$(grep -cE '^\*\*C-[0-9]+ —' "$SPEC")
-WITHDRAWN=$(grep -cE '^\*\*\*Withdrawn\.\*\*\*' "$SPEC")
+ENTRIES=$(grep -cE '^\*\*C-[0-9]+ —' "$HISTORY" || true)
+WITHDRAWN=$(grep -cE '^\*\*\*Withdrawn\.\*\*\*' "$HISTORY" || true)
 LIVE=$((ENTRIES - WITHDRAWN))
 CITEDC=$(wc -l < "$WORK/gap_cited" | tr -d ' ')
 
@@ -428,7 +436,7 @@ fi
 # definition, and its prose is worth keeping: it says what the language used to
 # do, which the rule it changed no longer records anywhere.
 
-awk '/^## Annex H/{inH=1} inH' "$SPEC" \
+awk '/^## Annex H/{inH=1} inH' "$HISTORY" \
   | awk '/^\*\*H-[0-9]/{landed=0} /^\*\*\*Landed/{landed=1} !landed' \
   | grep -oE '(conformance|refusals)/[A-Za-z0-9.-]+\.a24' | sort -u > "$WORK/h_pins"
 
@@ -671,7 +679,7 @@ PROD_EXTRA=$(comm -13 "$WORK/prod_chapters" "$WORK/prod_annex" | tr '\n' ' ')
 grep -oE "Builtins\.Define \('[A-Za-z]+'" compiler/Interpreter.a24 \
   | sed "s/.*'\(.*\)'/\1/" | sort -u > "$WORK/bi_source"
 
-awk '/^## Annex B/{on=1} /^## Annex C/{on=0}
+awk '/^## Annex B/{on=1} /^## Annex G/{on=0}
      on && /^\| `/ { gsub(/^\| `|`.*$/, ""); print }' "$SPEC" | sort -u > "$WORK/bi_annex"
 
 BI_MISSING=$(comm -23 "$WORK/bi_source" "$WORK/bi_annex" | tr '\n' ' ')
