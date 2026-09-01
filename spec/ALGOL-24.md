@@ -3913,6 +3913,14 @@ millisecond resolution.
 **[RT-013]**  `ParamStr(0)` is the program's own name and `ParamCount()` does
 not count it, so a program run with no arguments reports zero.
 
+⚠️ **A RESOLVED path, not the bare word a shell passes.** A program found on
+`PATH` is handed `algc` and nothing else, which is a name with nowhere to start
+from — so the runtime asks the operating system where the executable really is
+and answers that. It is still the program's own name; it is just the whole of
+it. Without this, anything wanting a file shipped *beside* the binary cannot
+find one, which is exactly what `--compile` needs when it copies the runtime
+into the emitted directory.
+
     interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_param_count
     conformance  0092-environment-builtins.a24

@@ -1,0 +1,30 @@
+# Goes in the TAP repository, as .github/workflows/publish.yml.
+#
+# On merge, uploads the bottles built by tests.yml to a release of the tap and
+# writes the `bottle do` block back into the formula.  From then on
+# 'brew install algol24' downloads a binary rather than compiling one.
+name: publish bottles
+
+on:
+  pull_request_target:
+    types: [closed]
+
+jobs:
+  publish:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Publish
+        uses: Homebrew/actions/publish-commit-bottles@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull_request: ${{ github.event.pull_request.number }}
+          # ⚠️ The release the bottles live in.  tests.yml's --root-url must
+          # name the same one, or brew will look where nothing was uploaded.
+          tag: bottles

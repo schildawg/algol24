@@ -1,0 +1,57 @@
+# The Homebrew formula for Algol-24.
+#
+# Lives here so it is versioned with the thing it packages; the tap that serves
+# it is a separate repository, github.com/schildawg/homebrew-algol24, whose
+# Formula/algol24.rb is a copy of this file with the url and sha256 for the
+# release being published.
+#
+# ⚠️ NO depends_on, and that is not an oversight.  A --ffi build links against
+# /usr/lib/libffi.dylib -- the system one, shipped with macOS -- so the bottle
+# has no dependencies beyond the operating system.  A Linux formula would need
+# depends_on "libffi".
+class Algol24 < Formula
+  desc "Pascal-flavoured, gradually typed, self-hosting language"
+  homepage "https://github.com/schildawg/algol24"
+  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.1.0.tar.gz"
+  sha256 "REPLACE-WITH-THE-RELEASE-TARBALL-SHA256"
+  license "MIT"
+  head "https://github.com/schildawg/algol24.git", branch: "main"
+
+  def install
+    # Foreign calls are part of the language, so the packaged build has them.
+    # The bootstrap stays buildable with a C compiler and nothing else -- that
+    # is what ./bootstrap/build.sh with no argument is for.
+    system "./bootstrap/build.sh", "--ffi"
+
+    # ⚠️ INTO libexec, WITH THE RUNTIME BESIDE IT.  'algc --compile' copies
+    # algol.c and algol.h into the directory it emits, so that the result
+    # compiles on its own -- and it finds them beside the executable.
+    libexec.install "bootstrap/algc"
+    libexec.install "bootstrap/algol.c", "bootstrap/algol.h"
+
+    # ⚠️ A wrapper rather than a symlink.  The runtime resolves argv[0] to a
+    # real path, so a symlink would work too -- this is belt and braces, and
+    # costs one line.
+    (bin/"algc").write <<~SHELL
+      #!/bin/sh
+      exec "#{libexec}/algc" "$@"
+    SHELL
+
+    doc.install "README.md", "spec/ALGOL-24.md", "spec/LIBRARY.md", "spec/PLAN.md"
+    pkgshare.install "examples"
+  end
+
+  test do
+    assert_match "algc", shell_output("#{bin}/algc --version")
+
+    (testpath/"hello.a24").write "WriteLn ('hello, ' + Str (2 + 2));\n"
+    assert_equal "hello, 4\n", shell_output("#{bin}/algc hello.a24")
+
+    # The emitted directory must build on its own, which is the whole point of
+    # shipping the runtime beside the binary.
+    system bin/"algc", "--compile", "--out=#{testpath}/build", "hello.a24"
+    system ENV.cc, "-std=c11", "-O2", "-o", "#{testpath}/hello",
+           *Dir["#{testpath}/build/*.c"]
+    assert_equal "hello, 4\n", shell_output("#{testpath}/hello")
+  end
+end

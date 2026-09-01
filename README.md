@@ -47,6 +47,9 @@ brew tap schildawg/algol24
 brew install algol24
 ```
 
+The formula and its CI live in `packaging/`; foreign calls are compiled in, and
+on macOS the binary depends on nothing but the operating system.
+
 Or from source — this takes about two seconds:
 
 ```sh

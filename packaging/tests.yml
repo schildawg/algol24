@@ -1,0 +1,42 @@
+# Goes in the TAP repository, as .github/workflows/tests.yml.
+#
+# Builds and tests any formula a pull request touches, on each platform the tap
+# intends to bottle for.  brew test-bot does the work; this only says where.
+name: brew test-bot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-bot:
+    strategy:
+      matrix:
+        os: [macos-15, macos-14, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Cache Homebrew bundle
+        uses: Homebrew/actions/cache-homebrew-bundler-gems@master
+
+      - name: Check out the tap
+        uses: actions/checkout@v4
+
+      - run: brew test-bot --only-cleanup-before
+      - run: brew test-bot --only-setup
+      - run: brew test-bot --only-tap-syntax
+
+      # ⚠️ --root-url points the bottle at this tap's releases.  Without it the
+      # bottle is built for homebrew-core's host and will not be found.
+      - run: brew test-bot --only-formulae --root-url=https://github.com/schildawg/homebrew-algol24/releases/download/bottles
+        if: github.event_name == 'pull_request'
+
+      - name: Keep the bottles
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bottles-${{ matrix.os }}
+          path: '*.bottle.*'

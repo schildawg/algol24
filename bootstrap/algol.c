@@ -7,6 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <unistd.h>
+
+/* For resolving argv[0] to a real path -- see resolve_program. */
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 
 /* ---------------------------------------------------------------- memory --
  *
@@ -2854,10 +2860,52 @@ Value alg_file_exists(Value name) {
 
 static int    argument_count  = 0;
 static char **argument_values = NULL;
+static char  *program_path    = NULL;
+
+/* ⚠️ argv[0] RESOLVED TO A REAL PATH, because bare 'algc' is not one.
+ *
+ * A program invoked through PATH is handed its own name and nothing else --
+ * 'algc', with no directory in it -- so anything that wants to find a file
+ * shipped beside the binary has nowhere to start.  algc's own '--compile'
+ * needs exactly that: it copies the runtime into the emitted directory, and
+ * looked for it beside the executable.  Installed on a PATH, it found nothing
+ * and emitted a directory that would not compile.
+ *
+ * The operating system knows the answer even when argv[0] does not, so ask it
+ * first and fall back to argv[0] untouched.  [RT-013] says ParamStr(0) is "the
+ * program's own name", which an absolute path still is. */
+static char *resolve_program(char *argv0) {
+    char buffer[4096];
+
+#if defined(__APPLE__)
+    uint32_t size = (uint32_t)sizeof buffer;
+    if (_NSGetExecutablePath(buffer, &size) == 0) {
+        char *real = realpath(buffer, NULL);
+        if (real != NULL) return real;
+    }
+#elif defined(__linux__)
+    ssize_t used = readlink("/proc/self/exe", buffer, sizeof buffer - 1);
+    if (used > 0) {
+        buffer[used] = '\0';
+        char *real = realpath(buffer, NULL);
+        if (real != NULL) return real;
+    }
+#endif
+
+    /* Written with a directory in it, so it can be made absolute directly. */
+    if (argv0 != NULL && strchr(argv0, '/') != NULL) {
+        char *real = realpath(argv0, NULL);
+        if (real != NULL) return real;
+    }
+
+    return argv0;
+}
 
 void alg_set_arguments(int argc, char **argv) {
     argument_count  = argc;
     argument_values = argv;
+
+    if (argc > 0) program_path = resolve_program(argv[0]);
 
     /* Emitted main calls this first and always, which makes it the one place
      * guaranteed to run before anything allocates.  atexit rather than a call
@@ -2877,6 +2925,10 @@ Value alg_param_str(Value index) {
     /* Past the end is empty rather than an error, so walking 1..ParamCount is
      * always safe -- Turbo Pascal does the same. */
     if (at < 0 || at >= argument_count) return alg_string("");
+
+    /* Index 0 is the resolved path; the rest are the program's arguments as
+     * they were given. */
+    if (at == 0 && program_path != NULL) return alg_string(program_path);
 
     return alg_string(argument_values[at]);
 }
