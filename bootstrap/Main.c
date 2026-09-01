@@ -28,6 +28,9 @@ static Value f_runtests(Value **cells, Value *args, int32_t count);
 static Value f_run(Value **cells, Value *args, int32_t count);
 static Value f_argumentsfrom(Value **cells, Value *args, int32_t count);
 static Value f_compile(Value **cells, Value *args, int32_t count);
+static Value f_folderof(Value **cells, Value *args, int32_t count);
+static Value f_copyfile(Value **cells, Value *args, int32_t count);
+static Value f_runtimefolder(Value **cells, Value *args, int32_t count);
 static Value f_usage(Value **cells, Value *args, int32_t count);
 static Value f_main(Value **cells, Value *args, int32_t count);
 static Value v_sample;
@@ -43,6 +46,13 @@ static Value fn_argumentsfrom;
 static const char *t_f_argumentsfrom[] = { "First : Integer" };
 static Value fn_compile;
 static const char *t_f_compile[] = { "Source : String", "FileName : String", "WantTests : Boolean", "OutDir : String" };
+static Value v_version;
+static bool d_version;
+static Value fn_folderof;
+static const char *t_f_folderof[] = { "Path : String" };
+static Value fn_copyfile;
+static const char *t_f_copyfile[] = { "FromPath : String", "ToPath : String" };
+static Value fn_runtimefolder;
 static Value fn_usage;
 static Value fn_main;
 
@@ -214,6 +224,111 @@ static Value f_compile(Value **cells, Value *args, int32_t count) {
             }
         }
     }
+    Value v_runtime = f_runtimefolder(NULL, NULL, 0);
+    (void)v_runtime;
+    if (alg_truthy(alg_equal(v_runtime, alg_string("")))) {
+        (void)(alg_writeln(alg_add(alg_add(alg_string("[WARN] algol.c and algol.h were not found, so "), v_outdir), alg_string(" will not compile on its own."))));
+    } else {
+        {
+            (void)(f_copyfile(NULL, (Value[]){alg_add(v_runtime, alg_string("/algol.c")), alg_add(v_outdir, alg_string("/algol.c"))}, 2));
+            (void)(f_copyfile(NULL, (Value[]){alg_add(v_runtime, alg_string("/algol.h")), alg_add(v_outdir, alg_string("/algol.h"))}, 2));
+        }
+    }
+    return alg_nil();
+}
+
+static Value f_folderof(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 1);
+    Value v_path = alg_param(args[0], "String");
+    (void)v_path;
+    Value v_cut = alg_widen(alg_negate(alg_int(1)), "Integer");
+    (void)v_cut;
+    {
+        Value v_i = alg_int(0);
+        (void)v_i;
+        for (; alg_truthy(alg_less(v_i, alg_text_length(v_path))); (v_i = alg_add(v_i, alg_int(1)))) {
+            if (alg_truthy(alg_equal(alg_subscript_get(v_path, v_i), alg_char_value(47)))) {
+                (void)((v_cut = alg_widen(v_i, "Integer")));
+            }
+        }
+    }
+    if (alg_truthy(alg_less(v_cut, alg_int(0)))) {
+        return alg_string("");
+    }
+    return alg_copy(v_path, alg_int(0), v_cut);
+    return alg_nil();
+}
+
+static Value f_copyfile(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 2);
+    volatile Value v_frompath = alg_param(args[0], "String");
+    (void)v_frompath;
+    volatile Value v_topath = alg_param(args[1], "String");
+    (void)v_topath;
+    volatile Value v_source = alg_nil();
+    (void)v_source;
+    volatile Value v_target = alg_nil();
+    (void)v_target;
+    (void)((v_source = alg_widen(alg_text_file(), "TextFile")));
+    (void)(alg_invoke(v_source, "Assign", (Value[]){v_frompath}, 1));
+    {
+        AlgFrame frame_1;
+        alg_push_frame(&frame_1);
+        if (ALG_SETJMP(frame_1.jump) == 0) {
+            {
+                (void)(alg_invoke(v_source, "Reset", NULL, 0));
+            }
+            alg_pop_frame();
+        }
+        else {
+            static const char *names_1[] = {"String"};
+            int32_t which_1 = alg_handler(frame_1.raised, names_1, 1);
+            if (which_1 == 0) {
+                {
+                    volatile Value v_e = frame_1.raised;
+                    (void)v_e;
+                    return alg_bool(false);
+                }
+            }
+            else {
+                alg_raise(frame_1.raised);
+            }
+        }
+    }
+    (void)((v_target = alg_widen(alg_text_file(), "TextFile")));
+    (void)(alg_invoke(v_target, "Assign", (Value[]){v_topath}, 1));
+    (void)(alg_invoke(v_target, "Rewrite", NULL, 0));
+    while (alg_truthy(alg_not(alg_property(v_source, "Eof")))) {
+        (void)(alg_invoke(v_target, "WriteLn", (Value[]){alg_invoke(v_source, "ReadLn", NULL, 0)}, 1));
+    }
+    (void)(alg_invoke(v_source, "Close", NULL, 0));
+    (void)(alg_invoke(v_target, "Close", NULL, 0));
+    return alg_bool(true);
+    return alg_nil();
+}
+
+static Value f_runtimefolder(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 0);
+    Value v_own = alg_nil();
+    (void)v_own;
+    (void)((v_own = alg_widen(f_folderof(NULL, (Value[]){alg_param_str(alg_int(0))}, 1), "String")));
+    if (alg_truthy(alg_not_equal(v_own, alg_string("")))) {
+        {
+            if (alg_truthy(alg_file_exists(alg_add(v_own, alg_string("/algol.h"))))) {
+                return v_own;
+            }
+            if (alg_truthy(alg_file_exists(alg_add(v_own, alg_string("/../share/algol24/algol.h"))))) {
+                return alg_add(v_own, alg_string("/../share/algol24"));
+            }
+        }
+    }
+    if (alg_truthy(alg_file_exists(alg_string("bootstrap/algol.h")))) {
+        return alg_string("bootstrap");
+    }
+    return alg_string("");
     return alg_nil();
 }
 
@@ -227,9 +342,11 @@ static Value f_usage(Value **cells, Value *args, int32_t count) {
     (void)(alg_writeln(alg_string("  algc --test <file.a24>             run its test blocks")));
     (void)(alg_writeln(alg_string("  algc --compile [--out=DIR] <file>  emit C into DIR (default: out)")));
     (void)(alg_writeln(alg_string("  algc --compile --test <file>       emit the tests and a runner")));
+    (void)(alg_writeln(alg_string("  algc --version                     the version")));
     (void)(alg_writeln(alg_string("  algc --help                        this")));
     (void)(alg_writeln(alg_string("")));
-    (void)(alg_writeln(alg_string("The emitted directory is self-contained: cc *.c -o <name>")));
+    (void)(alg_writeln(alg_string("The emitted directory carries the runtime with it, so:")));
+    (void)(alg_writeln(alg_string("  cc -std=c11 -O2 -o <name> <dir>/*.c")));
     return alg_nil();
 }
 
@@ -253,6 +370,12 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(alg_param_str(alg_int(1)), alg_string("-h")))) {
         {
             (void)(f_usage(NULL, NULL, 0));
+            return alg_nil();
+        }
+    }
+    if (alg_truthy(alg_equal(alg_param_str(alg_int(1)), alg_string("--version")))) {
+        {
+            (void)(alg_writeln(alg_add(alg_string("algc "), (alg_declared(d_version, "VERSION"), v_version))));
             return alg_nil();
         }
     }
@@ -329,6 +452,9 @@ void init_Main(void) {
     fn_run = alg_closure("Run", f_run, NULL, 0, 2, t_f_run);
     fn_argumentsfrom = alg_closure("ArgumentsFrom", f_argumentsfrom, NULL, 0, 1, t_f_argumentsfrom);
     fn_compile = alg_closure("Compile", f_compile, NULL, 0, 4, t_f_compile);
+    fn_folderof = alg_closure("FolderOf", f_folderof, NULL, 0, 1, t_f_folderof);
+    fn_copyfile = alg_closure("CopyFile", f_copyfile, NULL, 0, 2, t_f_copyfile);
+    fn_runtimefolder = alg_closure("RuntimeFolder", f_runtimefolder, NULL, 0, 0, NULL);
     fn_usage = alg_closure("Usage", f_usage, NULL, 0, 0, NULL);
     fn_main = alg_closure("Main", f_main, NULL, 0, 0, NULL);
     init_AstPrinter();
@@ -339,6 +465,8 @@ void init_Main(void) {
     init_CEmitter();
     v_sample = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Doughnut;"), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        WriteLn ('Fry until golden!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("class BostonCream(Doughnut);")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        super.Cook();")), alg_char_value(10)), alg_string("        WriteLn ('Pipe full of custard and coat with chocolate!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("BostonCream().Cook();")), alg_char_value(10));
     d_sample = true;
+    v_version = alg_string("0.1.0");
+    d_version = true;
     (void)(f_main(NULL, NULL, 0));
 }
 

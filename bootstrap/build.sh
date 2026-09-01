@@ -21,7 +21,7 @@
 #
 #   ./bootstrap/build.sh
 #   bootstrap/algc --compile --out=DIR compiler/Main.a24
-#   cp DIR/*.c DIR/*.h bootstrap/     # never overwrites algol.c/algol.h
+#   cp DIR/*.c DIR/*.h bootstrap/     # algol.c/algol.h are copies of themselves
 #   ./bootstrap/build.sh              # the new seed builds itself
 
 set -eu

@@ -53,11 +53,13 @@ bootstrap/algc --compile --test --out=DIR <f>   # emit the tests plus a runner
 
 ⚠️ **There is no per-test filter, and no per-file one either.** `--test X.a24` runs every test block reachable from `X.a24`, its imports included — the narrowest thing you can run is a leaf module. `compiler/Token.a24` (2 tests) and `compiler/Scanner.a24` are useful fast loops; `compiler/Main.a24` imports everything.
 
-The emitted directory is *not* self-contained despite what `--help` says: the emitter writes `#include "algol.h"` but never the runtime itself. Copy it in:
+The emitted directory **is** self-contained: `--compile` copies `algol.c` and `algol.h` in beside the generated files, so
 
 ```sh
-cp bootstrap/algol.c bootstrap/algol.h DIR/ && cc -std=c11 -O2 -o DIR/prog DIR/*.c
+cc -std=c11 -O2 -o DIR/prog DIR/*.c
 ```
+
+⚠️ **It did not used to be, and `--help` said it was.** The emitter writes `#include "algol.h"` and never wrote the runtime, so an *installed* `algc` produced a directory that would not compile. `RuntimeFolder` in `Main.a24` looks in three places — beside the binary, `bin/../share/algol24` for a package manager, and `bootstrap/` relative to the working directory — because the language has no way to be told its own install prefix.
 
 ## Known issues
 
@@ -112,7 +114,7 @@ Exit is non-zero on either failure. `--keep` leaves the generations behind (the 
 ./bootstrap/build.sh                                     # stage 1, from the old seed
 mkdir -p /tmp/stage2
 bootstrap/algc --compile --out=/tmp/stage2 compiler/Main.a24
-cp /tmp/stage2/*.c /tmp/stage2/*.h bootstrap/            # never overwrites algol.c/algol.h
+cp /tmp/stage2/*.c /tmp/stage2/*.h bootstrap/            # algol.c/algol.h are copies of themselves
 ./bootstrap/build.sh                                     # stage 2 builds itself
 bootstrap/algc --test compiler/Main.a24
 ```

@@ -251,6 +251,101 @@ begin
         Out.Write (Str (TheFiles.Get (Name)));
         Out.Close();
     end
+
+    // ⚠️ And the runtime, so the directory really is self-contained.  Without
+    // this the emitter's '#include "algol.h"' names a file that is not there.
+    var Runtime := RuntimeFolder ();
+
+    if Runtime = '' then
+        WriteLn ('[WARN] algol.c and algol.h were not found, so ' + OutDir
+               + ' will not compile on its own.');
+    else
+    begin
+        CopyFile (Runtime + '/algol.c', OutDir + '/algol.c');
+        CopyFile (Runtime + '/algol.h', OutDir + '/algol.h');
+    end
+end
+
+
+/// The version this binary reports, and the one a release is tagged with.
+///
+/// ⚠️ Worth having because algc is meant to be INSTALLED.  Without it
+/// 'algc --version' answered 'algc: cannot open --version' -- the flag taken
+/// for a filename, which is the least helpful thing it could have said.
+///
+const VERSION := '0.1.0';
+
+/// The directory part of a path, or '' when there is none.
+function FolderOf (Path : String) : String;
+var
+    Cut : Integer := -1;
+
+begin
+    for var I := 0; I < Length (Path); I := I + 1 do
+        if Path[I] = '/' then Cut := I;
+
+    if Cut < 0 then Exit '';
+
+    Exit Copy (Path, 0, Cut);
+end
+
+/// Copies a file, line by line, which is all a TextFile offers.  False when
+/// the source cannot be opened.
+function CopyFile (FromPath : String, ToPath : String) : Boolean;
+var
+    Source : TextFile;
+    Target : TextFile;
+
+begin
+    Source := TextFile ();
+    Source.Assign (FromPath);
+
+    try Source.Reset (); except on E : String do Exit False; end
+
+    Target := TextFile ();
+    Target.Assign (ToPath);
+    Target.Rewrite ();
+
+    while not Source.Eof do
+        Target.WriteLn (Source.ReadLn ());
+
+    Source.Close ();
+    Target.Close ();
+
+    Exit True;
+end
+
+/// Where algol.c and algol.h are, seen from wherever algc happens to be.
+///
+/// ⚠️ THE EMITTED DIRECTORY WAS NOT SELF-CONTAINED AND --help SAID IT WAS.
+/// The emitter writes '#include "algol.h"' and never the runtime itself, so an
+/// installed algc produced a directory that would not compile:
+/// 'algol.h file not found'.  In the repository the harnesses copied it in by
+/// hand; a user who installed the compiler had no repository to copy from.
+///
+/// ⚠️ Searched rather than compiled in, because the language has no way to be
+/// told its own install prefix.  Three places, and between them they cover
+/// every way algc is run: beside the binary (the repository, where algc sits
+/// in bootstrap/), under a package manager's prefix (bin/../share/algol24),
+/// and bootstrap/ relative to the working directory.
+///
+function RuntimeFolder () : String;
+var
+    Own : String;
+
+begin
+    Own := FolderOf (ParamStr (0));
+
+    if Own <> '' then
+    begin
+        if FileExists (Own + '/algol.h') then Exit Own;
+        if FileExists (Own + '/../share/algol24/algol.h') then
+            Exit Own + '/../share/algol24';
+    end
+
+    if FileExists ('bootstrap/algol.h') then Exit 'bootstrap';
+
+    Exit '';
 end
 
 /// What the compiler answers to '--help'.
@@ -268,9 +363,11 @@ begin
     WriteLn ('  algc --test <file.a24>             run its test blocks');
     WriteLn ('  algc --compile [--out=DIR] <file>  emit C into DIR (default: out)');
     WriteLn ('  algc --compile --test <file>       emit the tests and a runner');
+    WriteLn ('  algc --version                     the version');
     WriteLn ('  algc --help                        this');
     WriteLn ('');
-    WriteLn ('The emitted directory is self-contained: cc *.c -o <name>');
+    WriteLn ('The emitted directory carries the runtime with it, so:');
+    WriteLn ('  cc -std=c11 -O2 -o <name> <dir>/*.c');
 end
 
 procedure Main();
@@ -293,6 +390,12 @@ begin
     if ParamStr(1) = '-h' then
     begin
         Usage();
+        Exit;
+    end
+
+    if ParamStr(1) = '--version' then
+    begin
+        WriteLn ('algc ' + VERSION);
         Exit;
     end
 
