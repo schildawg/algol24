@@ -107,7 +107,7 @@ Four harnesses, all of which must pass:
 
 | | |
 | --- | --- |
-| `./test.sh` | 221 unit tests, inline in the source they cover |
+| `./test.sh` | 220 unit tests, inline in the source they cover |
 | `./conform.sh` | 179 conformance programs and 55 refusals, under **both** processors |
 | `./spec/spec.sh` | every rule in the specification cites something that exists |
 | `./fixedpoint.sh` | the seed matches what the compiler emits, and emits itself unchanged |
@@ -118,11 +118,10 @@ disagree, Annex F names the defect and carries a program that reproduces it.
 
 ## Status
 
-**v0.1.0 — language features complete.** What comes next is a library:
-collections written in Algol-24, and a unified text-and-graphics unit over SDL.
-
-`spec/PLAN.md` records how each generation arrived, including what was wrong on
-paper first.
+**v0.1.0 — the feature-complete alpha release.** The language is done; what
+comes next is a library, written in Algol-24 rather than in the runtime:
+collections, and a unified text-and-graphics unit over SDL. That is the whole of
+what *alpha* means here — nothing in the language is provisional.
 
 ## Licence
 

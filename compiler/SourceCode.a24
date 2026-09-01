@@ -1,28 +1,32 @@
-/// The source, kept by line, so an error can show the line it happened on.
+/// The source being processed, kept by line, so a diagnostic can show the line
+/// it happened on.
+unit SourceCode;
+
+/// Holds one file's text, addressed by line number.
 ///
 /// A singleton because the scanner fills it and the reporter reads it, and
 /// threading it between them would touch every call in between for nothing.
 ///
-/// One file at a time, which is all algc handles until 'uses' arrives at step
-/// 15.  This will have to key by file name when it loads more than one.
-///
-/// ⚠️ A List indexed by line number, not a Map keyed by one.  The keys were
-/// 1, 2, 3, ... in order, which is a List with extra steps -- and that is the
-/// whole justification.  It needs no measurement and it survives Map becoming
-/// fast, which the sentence that stood here did not.
-///
-/// ⚠️ That sentence called this "the single largest consumer of Map lookups in
-/// the whole compiler", at "about 4.5 million comparisons per file".  Measured
-/// afterwards, by instrumenting map_index in two builds: the change is
-/// **0.35%** of the compiler's Map comparisons, and worth no measurable time at
-/// all -- 11.85 s against an unchanged 11.71 s on '--test Main.a24'.  The 30%
-/// that round belonged entirely to the hash index.  The mechanism was right and
-/// the magnitude was invented; a false number in a ⚠️ is worse than none,
-/// because the next person sizes their own work against it.
-///
+/// It holds one file at a time, which is why a diagnostic names the ROOT file
+/// rather than the file the line lives in.  Both processors copy that
+/// deliberately, since their reports are compared line for line.
 object SourceCode;
 var
+    // A List indexed by line number rather than a Map keyed by one: the keys
+    // were 1, 2, 3, ... in order, which is a List with extra steps.
+    //
+    // ⚠️ The sentence that once stood here called this "the single largest
+    // consumer of Map lookups in the whole compiler", at "about 4.5 million
+    // comparisons per file".  Measured afterwards by instrumenting map_index in
+    // two builds, the change is 0.35% of the compiler's Map comparisons and no
+    // measurable time at all.  A false number in a warning is worse than none,
+    // because the next person sizes their own work against it.
+
+    /// The recorded lines.  Position I holds line I + 1, since lines count
+    /// from 1.
     Lines    : List := [];
+
+    /// The name of the file being recorded, as a diagnostic should print it.
     FileName : String := '';
 
 begin
@@ -33,12 +37,11 @@ begin
         FileName := Name;
     end
 
-    /// Records a line.  Position I holds line I + 1, since lines count from 1.
+    /// Records the text of one line.
     ///
-    /// The scanner calls this once per line in increasing order, so this is an
-    /// append -- but it pads rather than relying on that, because a gap would
-    /// otherwise shift every later line by one and misreport them all.
-    ///
+    /// Pads rather than appending.  The scanner calls this once per line in
+    /// increasing order, so an append would do -- but a gap would then shift
+    /// every later line by one and misreport them all.
     procedure Add (LineNumber : Integer, Text : String);
     begin
         if LineNumber < 1 then Exit;
@@ -49,8 +52,12 @@ begin
         else Lines[LineNumber - 1] := Text;
     end
 
-    /// The text of a line, or '' when it was never recorded -- an error on the
-    /// last line of a file with no trailing newline, for instance.
+    /// Gets the text of a line, or '' when that line was never recorded.
+    ///
+    /// A line out of range answers '' rather than raising, because the caller
+    /// is a diagnostic: an error on the last line of a file with no trailing
+    /// newline must still print, and failing to quote the source is not a
+    /// reason to lose the message.
     function Get (LineNumber : Integer) : String;
     begin
         if LineNumber < 1 then Exit '';
@@ -59,6 +66,7 @@ begin
         Exit Str (Lines[LineNumber - 1]);
     end
 
+    /// Gets the name of the file currently recorded.
     function Name () : String;
     begin
         Exit FileName;

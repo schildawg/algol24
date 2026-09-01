@@ -1,32 +1,41 @@
+/// The expression nodes of the syntax tree, and the visitor hook every pass
+/// walks them through.
+unit Expr;
+
 uses Token;
 
 /// The base every expression node inherits from.
-///
-/// ⚠️ 'X as T' is a FIELD here rather than a node of its own.  A cast has no
-/// operand to evaluate on the right and no effect at run time -- it exists to
-/// tell the checker what a programmer knows and it deduced otherwise -- so a
-/// node would be a wrapper that every visitor had to learn to see through.  As
-/// a field, only Reduce ever reads it.
-///
-/// '' means no cast was written.  Nil would do as well, but '' is what the
-/// checker already uses everywhere for "nothing was written here".
-///
 class Expr;
 var
+    /// The type written in an 'X as T', or '' where no cast was written.
+    ///
+    /// A cast is a FIELD here rather than a node of its own.  It has no operand
+    /// to evaluate on the right and no effect at run time -- it exists to tell
+    /// the checker what a programmer knows and it deduced otherwise -- so a node
+    /// would be a wrapper every visitor had to learn to see through.  As a
+    /// field, only Reduce ever reads it.
+    ///
+    /// '' means no cast was written.  Nil would do as well, but '' is what the
+    /// checker already uses everywhere for "nothing was written here".
     Cast : String := '';
 
 begin
 end
 
-/// Binary Expression!
-///
+/// An arithmetic, comparison or equality operation on two operands.
 class BinaryExpr (Expr);
 var
+   /// The left operand.
    Left  : Expr;
+
+   /// The operator token, carried for its kind and its source position.
    Op    : Token;
+
+   /// The right operand.
    Right : Expr;
-   
+
 begin
+    /// Makes a binary expression.
     constructor Init(Left, Op, Right);
     begin
         this.Left := Left;
@@ -34,21 +43,28 @@ begin
         this.Right := Right;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitBinary(this);
     end
 end
 
-/// Logical Expression!
-///
+/// An 'and' or 'or', which is separate from BinaryExpr because it does not
+/// evaluate its right operand unless it has to.
 class LogicalExpr (Expr);
 var
+   /// The left operand, always evaluated.
    Left  : Expr;
+
+   /// The operator token, which decides what short-circuits.
    Op    : Token;
+
+   /// The right operand, evaluated only when the left does not settle it.
    Right : Expr;
-   
+
 begin
+    /// Makes a logical expression.
     constructor Init(Left, Op, Right);
     begin
         this.Left := Left;
@@ -56,44 +72,52 @@ begin
         this.Right := Right;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitLogical(this);
     end
 end
 
-/// Grouping!
-///
+/// A parenthesised expression, kept as a node so the tree records what the
+/// program wrote rather than only what it meant.
 class GroupingExpr (Expr);
 var
+    /// The expression inside the parentheses.
     Expression : Expr;
 
 begin
+    /// Makes a grouping expression.
     constructor Init(Expression : Expr);
     begin
         this.Expression := Expression;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitGrouping(this);
     end
 end
 
-/// Literal Expression!
+/// A collection literal -- [1, 2, 3] and ['a': 1, 'b': 2], and [] and [:] for
+/// the empty ones.
 ///
-/// [1, 2, 3] and ['a':1, 'b':2], and [] and [:] for the empty ones.
-///
-/// One node for both, because they are told apart by a colon after the first
-/// element and nothing else about them differs.  Keys is empty for a List.
-///
+/// One node for both kinds, because they are told apart by a colon after the
+/// first element and nothing else about them differs.
 class CollectionExpr (Expr);
 var
+    /// Whether this literal is a Map rather than a List.
     IsMap  : Boolean;
+
+    /// The keys, in source order, and empty for a List.
     Keys   : List;
+
+    /// The values, in source order, one per key when this is a Map.
     Values : List;
 
 begin
+    /// Makes a collection expression.
     constructor Init (IsMap : Boolean, Keys : List, Values : List);
     begin
         this.IsMap := IsMap;
@@ -101,23 +125,28 @@ begin
         this.Values := Values;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitCollectionExpr (this);
     end
 end
 
-/// A[I] -- reading an element.
-///
-/// Bracket is carried for the error position, the way GetExpr carries Name.
-///
+/// A subscript read -- 'A[I]'.
 class SubscriptExpr (Expr);
 var
+    /// The expression being subscripted.
     Obj     : Expr;
+
+    /// The subscript itself.
     Index   : Expr;
+
+    /// The '[' token, carried for the error position the way GetExpr carries
+    /// Name.
     Bracket : Token;
 
 begin
+    /// Makes a subscript expression.
     constructor Init (Obj : Expr, Index : Expr, Bracket : Token);
     begin
         this.Obj := Obj;
@@ -125,25 +154,33 @@ begin
         this.Bracket := Bracket;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitSubscriptExpr (this);
     end
 end
 
-/// A[I] := V -- writing one.
+/// A subscript write -- 'A[I] := V'.
 ///
 /// A separate node rather than an AssignExpr with a subscript target, because
 /// the target is not a name and nothing about it resolves like one.
-///
 class SetSubscriptExpr (Expr);
 var
+    /// The expression being subscripted.
     Obj     : Expr;
+
+    /// The subscript itself.
     Index   : Expr;
+
+    /// The value to store.
     Value   : Expr;
+
+    /// The '[' token, carried for the error position.
     Bracket : Token;
 
 begin
+    /// Makes a set subscript expression.
     constructor Init (Obj : Expr, Index : Expr, Value : Expr, Bracket : Token);
     begin
         this.Obj := Obj;
@@ -152,115 +189,137 @@ begin
         this.Bracket := Bracket;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitSetSubscriptExpr (this);
     end
 end
 
+/// A literal value written directly in the source.
 class LiteralExpr (Expr);
 var
+    /// The value the scanner already built for the token.
     Value : Expr;
-    
+
 begin
+    /// Makes a literal expression.
     constructor Init(Value : Expr);
     begin
         this.Value := Value;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitLiteral(this);
     end
 end
 
-/// Variable Expression!
-///
+/// A bare name being read.
 class VariableExpr (Expr);
 var
+    /// The name as written, whose lexeme a diagnostic echoes and whose folded
+    /// form is the lookup key.
     Name : Token;
-    
+
 begin
+    /// Makes a variable expression.
     constructor Init(Name : Token);
     begin
         this.Name := Name;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitVariableExpr (this);
     end
 end
 
-/// Assign Expression!
-///
+/// An assignment to a bare name -- 'X := V'.
 class AssignExpr (Expr);
 var
+    /// The name being assigned to.
     Name  : Token;
+
+    /// The value to store.
     Value : Expr;
 
     /// The type written for this variable, filled in by the TypeChecker, or ''
     /// where none was written or none is known.
     ///
-    /// ⚠️ Carried on the NODE because the interpreter has nowhere else to read
-    /// it from: Env stores values, not types.  A declaration, a const, a
-    /// parameter and a return type all have the declaration in hand where the
+    /// Carried on the NODE because the interpreter has nowhere else to read it
+    /// from: an environment stores values, not types.  A declaration, a const,
+    /// a parameter and a return type all have the declaration in hand where the
     /// conversion happens; a plain assignment is the one context that does not,
     /// which is why widening reached it last [VAR-004], [VAR-017].
     Declared : String := '';
-    
+
 begin
+    /// Makes an assign expression.
     constructor Init(Name : Token, Value : Expr);
     begin
         this.Name := Name;
         this.Value := Value;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitAssignExpr (this);
     end
 end
 
-/// Unary Expression!
-///
+/// A prefix operation on one operand -- negation, or 'not'.
 class UnaryExpr (Expr);
 var
+   /// The operator token.
    Op    : Token;
+
+   /// The operand.
    Right : Expr;
 
 begin
+    /// Makes an unary expression.
     constructor Init(Op : Token, Right : Expr);
     begin
         this.Op := Op;
         this.Right := Right;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitUnary(this);
     end
 end
 
-/// Call Expression!
-///
+/// A call, and also a construction, since a class name evaluates to something
+/// callable.
 class CallExpr (Expr);
 var
+    /// The expression being called.
     Callee     : Expr;
+
+    /// The '(' token, carried for the error position and for the line a
+    /// run-time binding warning names.
     Paren      : Token;
+
+    /// The arguments, in the order written.
     Arguments  : List;
 
     /// The parameter each argument names, or '' where it was written
     /// positionally -- 'F (A, Name: B)' gives ['', 'Name'] [EXP-013].
     ///
-    /// ⚠️ Carried BESIDE Arguments rather than inside them, exactly as
-    /// ParamGenerics is carried beside ParamTypes.  An argument is an
-    /// expression and a name is not one, so a name is not something the tree
-    /// can hold in the same slot -- and every visitor that walks Arguments
-    /// keeps walking it unchanged.
+    /// Carried BESIDE Arguments rather than inside them.  An argument is an
+    /// expression and a name is not one, so a name is not something the tree can
+    /// hold in the same slot -- and every visitor that walks Arguments keeps
+    /// walking it unchanged.
     ArgumentNames : List := [];
 
 begin
+    /// Makes a call expression.
     constructor Init(Callee : Expr, Paren : Token, Arguments : List);
     begin
         this.Callee := Callee;
@@ -268,60 +327,73 @@ begin
         this.Arguments := Arguments;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitCall(this);
     end
 end
 
-/// Get Expression!
-///
+/// A property read -- 'A.B'.
 class GetExpr (Expr);
 var
+    /// The receiver, or the expression naming the unit.
     Obj : Expr;
+
+    /// The member being read.
     Name   : Token;
 
     /// The unit this reaches through, or '' for ordinary property access.
     ///
-    /// ⚠️ Written by the Resolver, not the Parser.  'A.B' is the same three
-    /// tokens whether A is a value or a unit, and only scope decides which: a
-    /// local named Console shadows the unit of that name exactly as it shadows
+    /// Written by the Resolver, not the Parser.  'A.B' is the same three tokens
+    /// whether A is a value or a unit, and only scope decides which: a local
+    /// named Console shadows the unit of that name exactly as it shadows
     /// anything else.  The Parser cannot know that; the Resolver is the first
     /// pass that can.
     Unit : String := '';
 
 begin
+    /// Makes a get expression.
     constructor Init(Obj : Expr, Name : Token);
     begin
         this.Obj := Obj;
         this.Name := Name;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitGetExpr(this);
     end
 end
 
-/// Set Expression!
-///
+/// A property write -- 'A.B := C'.
 class SetExpr (Expr);
 var
+    /// The receiver, or the expression naming the unit.
     Obj : Expr;
+
+    /// The member being written.
     Name   : Token;
-    Value  : Expr;  
+
+    /// The value to store.
+    Value  : Expr;
 
     /// The unit this writes through, or '' for ordinary field assignment.
+    ///
     /// Written by the Resolver, exactly as GetExpr.Unit is -- 'A.B := C' is the
     /// same tokens whether A is a value or a unit.
     Unit : String := '';
 
     /// The type declared for this field, filled in by the TypeChecker, or ''
-    /// where none was written or the receiver's type is not known.  A field is
-    /// an assignment context [VAR-017], and this is what lets it widen.
+    /// where none was written or the receiver's type is not known.
+    ///
+    /// A field is an assignment context [VAR-017], and this is what lets it
+    /// widen.
     Declared : String := '';
 
 begin
+    /// Makes a set expression.
     constructor Init(Obj : Expr, Name : Token, Value : Expr);
     begin
         this.Obj := Obj;
@@ -329,69 +401,76 @@ begin
         this.Value := Value;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitSetExpr(this);
     end
 end
 
-/// This Expression!
-///
+/// A 'this', the receiver of the method being run.
 class ThisExpr (Expr);
 var
+    /// The 'this' token, carried for the error position when it appears outside
+    /// a class.
     Keyword : Token;
-    
+
 begin
+    /// Makes a this expression.
     constructor Init(Keyword : Token);
     begin
         this.Keyword := Keyword;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitThisExpr (this);
     end
 end
 
-/// Super Expression!
-///
+/// A 'super.M', calling past an override to the parent's method.
 class SuperExpr (Expr);
 var
+    /// The 'super' token, carried for the error position.
     Keyword : Token;
+
+    /// The method being reached for on the parent.
     Method  : Token;
 
 begin
+    /// Makes a super expression.
     constructor Init(Keyword : Token, Method : Token);
     begin
         this.Keyword := Keyword;
         this.Method := Method;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitSuperExpr (this);
     end
 end
 
-/// Is Expression -- 'X is T', whether a value's runtime type is T or inherits
-/// from it.
-///
-/// The right side is a type NAME rather than an expression, which is why this
-/// is a node of its own rather than a BinaryExpr: there is nothing on that side
-/// to evaluate.  It holds the Token so an error can point at it.
-///
+/// An 'X is T' -- whether a value's run-time type is T or inherits from it.
 class IsExpr (Expr);
 var
+    /// The value being asked about.
     Obj      : Expr;
+
+    /// The type name being asked for.
     TypeName : Token;
 
 begin
+    /// Makes an is expression.
     constructor Init(Obj : Expr, TypeName : Token);
     begin
         this.Obj := Obj;
         this.TypeName := TypeName;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept(Visitor);
     begin
        Exit Visitor.VisitIsExpr (this);

@@ -139,7 +139,12 @@ while IFS="$(printf '\t')" read -r rule key value; do
 
     # ⚠️ A fixed string, not a pattern: a symbol containing regex punctuation
     # would otherwise match by accident or fail to match at all.
-    if [ -n "$symbol" ] && ! grep -qF "$symbol" "$file"; then
+    #
+    # ⚠️ And a WHOLE WORD, not a substring.  [EXP-015] and [EXP-016] cited
+    # 'VisitSubscript' for years; the member is 'VisitSubscriptExpr', and a
+    # substring match found it every time.  A citation that names a member which
+    # has never existed is exactly what this check is for, and it was passing.
+    if [ -n "$symbol" ] && ! grep -qwF "$symbol" "$file"; then
         problem "$rule cites '$symbol', which is not in $file"
         MISSING_SYM=$((MISSING_SYM + 1))
     fi

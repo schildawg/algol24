@@ -21,10 +21,12 @@ never enters into the classification.
 | runs it and is right | `conformance/` | `NAME.out` |
 | runs it and is **wrong** | `defects/` | `NAME.current` |
 
-This follows the generation plan rather than tidiness. The goal of the next
-generation is an interpreter that matches the specification; the goal of the one
-after is a compiler that matches the interpreter. Classifying by the compiler's
-state would mix two generations of work into one suite.
+This was decided by the order the work came in rather than by tidiness. The
+first goal was an interpreter that matches the specification; the next, a
+compiler that matches the interpreter. Classifying by the compiler's state would
+have mixed the two into one suite — and the distinction still earns its keep now
+that both are met, because a case records what the **language** does and the
+compiled half then either agrees with it or fails.
 
 **A divergence is an outcome, not a category.** Every case in `conformance/`
 runs under both processors. One the interpreter gets right and the compiler does

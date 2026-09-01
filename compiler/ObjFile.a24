@@ -1,34 +1,38 @@
-uses Token;
-
-/// A text file handle, in Turbo Pascal's shape.
+/// A text file handle, in Turbo Pascal's shape, as the interpreter sees it.
 ///
 /// Wraps the host's TextFile the way ObjCollection wraps the host's List and
-/// Map: every method delegates, so the failure messages -- 'Reset failed:
-/// cannot open ''name''.' and the rest -- come from the one implementation
-/// rather than from a second copy that would have to be kept in step.
+/// Map: every method delegates, so the failure messages -- 'Reset failed: cannot
+/// open ''name''.' and the rest -- come from the one implementation rather than
+/// from a second copy that would have to be kept in step.
 ///
-/// Turbo Pascal spells these as free procedures over a 'var F: Text'
+/// Turbo Pascal spells these as free procedures over a 'var F : Text'
 /// parameter.  Algol-24 has neither var parameters nor a Text type, so the
 /// handle became the receiver; the names and their meanings are unchanged.
-///
+unit ObjFile;
+
+uses Token;
 
 /// A bound file method: a receiver, a name, and an arity.
 ///
-/// One class rather than one per method, for the same reason CollectionMethod
-/// is one class: the interpreter's calling convention wants something with
-/// Arity and Call, and this is less code than twelve near-identical classes.
-///
+/// One class rather than one per method, for the same reason CollectionMethod is
+/// one class: the interpreter's calling convention wants something with Arity
+/// and Call, and this is less code than twelve near-identical classes.
 class FileMethod;
 var
+    /// The file the method is bound to.
     Receiver : ObjFile;
 
-    /// ⚠️ The TOKEN, not the folded member name.  Dispatch wants the fold
-    /// and the diagnostic wants the spelling the program wrote [SRC-011];
-    /// keeping the token keeps both without a second table.
+    /// The member name, as a TOKEN rather than the folded string.
+    ///
+    /// Dispatch wants the fold and a diagnostic wants the spelling the program
+    /// wrote [SRC-011]; keeping the token keeps both without a second table.
     Name     : Token;
+
+    /// How many arguments the member takes.
     TheArity : Integer;
 
 begin
+    /// Makes a method bound to a file.
     constructor Init (Receiver : ObjFile, Name : Token, TheArity : Integer);
     begin
         this.Receiver := Receiver;
@@ -36,48 +40,60 @@ begin
         this.TheArity := TheArity;
     end
 
+    /// How many arguments the member takes.
     function Arity () : Integer;
     begin
         Exit TheArity;
     end
 
+    /// Invokes the member on its receiver.
     function Call (TheInterpreter, Arguments) : Any;
     begin
         Exit Receiver.Invoke (FoldCase (Str (Name.Lexeme)), Arguments);
     end
 
-    /// ⚠️ Printed as a bound METHOD is [TYP-012], because it is the same kind
-    /// of thing: a member read without being called.  This inherited
-    /// ObjInstance's rendering and printed 'FileMethod instance', naming a class
-    /// that exists only inside algc -- a program has no way to know it, and
-    /// nothing in the language answers to it.
+    /// Prints the member as a bound method is printed [TYP-012].
+    ///
+    /// It is the same kind of thing: a member read without being called.
+    /// This inherited ObjInstance's rendering and printed 'FileMethod instance',
+    /// naming a class that exists only inside algc -- a program has no way to
+    /// know it, and nothing in the language answers to it.
     function ToString () : String;
     begin
         Exit '<fn ' + Str (Name.Lexeme) + '>';
     end
 end
 
+/// A TextFile as a program sees it, delegating to the host's.
 class ObjFile;
 var
     /// The host handle this stands for.
     Handle : Any;
 
 begin
+    /// Makes an unassigned file handle.
     constructor Init ();
     begin
         this.Handle := TextFile();
     end
 
-    /// Property access.  Eof answers directly -- it is a property in Algol-24,
-    /// written without parentheses -- and everything else hands back something
-    /// callable.
+    /// Gets a property.
     ///
+    /// Eof answers directly -- it is a property in Algol-24, written without
+    /// parentheses -- and everything else hands back something callable.
+    ///
+    /// # Raises
+    ///
+    /// 'Undefined property ''X''.' for a name a TextFile does not answer.
+    ///
+    /// # Satisfies
+    ///
+    /// [RT-021]
     function Get (TheName : Token) : Any;
     var
         Member : String;
 
     begin
-        // Folded, and the literals below written folded to match [SRC-011].
         Member := FoldCase (TheName.Lexeme);
 
         if Member = 'eof' then Exit Handle.Eof;
@@ -97,9 +113,20 @@ begin
         raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end
 
-    /// Runs a method by name.  Reached only through FileMethod, and Get is the
-    /// only thing that hands one of those out.
+    /// Calls a method on the host handle.
     ///
+    /// Every one delegates, so the open-and-read rules -- and the six members
+    /// that refuse a file already open -- come from the host rather than from a
+    /// second copy of them here.
+    ///
+    /// # Raises
+    ///
+    /// 'Undefined method ''X''.' for a name a TextFile does not answer, and
+    /// whatever the host raises for a use the rules forbid.
+    ///
+    /// # Satisfies
+    ///
+    /// [RT-016], [RT-024]
     function Invoke (Name : String, Arguments : List) : Any;
     begin
         if Name = 'assign'  then Exit Handle.Assign (Arguments[0]);
@@ -117,7 +144,7 @@ begin
         raise 'Undefined method ''' + Name + '''.';
     end
 
-    /// Printed as the host renders a file handle.
+    /// Prints the file as the language names it.
     function ToString () : String;
     begin
         Exit Str (Handle);

@@ -1,17 +1,32 @@
+/// Scopes: what a name is bound to here, what it means in the scope outside,
+/// and what an imported module contributes in between.
+unit Environment;
+
 uses Token;
 uses TokenType;
 
-/// Environment!
+/// One scope, and the chain of scopes enclosing it.
 ///
+/// A name is searched for in three places, in this order: this scope's own
+/// bindings, then the modules this file said 'uses' for, then the enclosing
+/// scope.  Imports sit in the middle so a local always shadows an imported name
+/// and an imported name always shadows an outer one.
+///
+/// # Satisfies
+///
+/// [FUN-010]
 class Environment;
 var
+    /// This scope's own bindings, keyed by folded name.
     Values    : Map;
+
+    /// The scope outside this one, or Nil at the outermost.
     Enclosing : Environment;
 
-    /// The modules this file said 'uses' for -- searched after its own names and
-    /// before the enclosing scope.
+    /// The modules this file said 'uses' for -- searched after its own names
+    /// and before the enclosing scope.
     ///
-    /// ⚠️ Searched for the owner's OWN bindings only, never through the owner's
+    /// Searched for the owner's OWN bindings only, never through the owner's
     /// imports in turn.  That one rule is what makes 'uses' non-transitive: a
     /// file sees what it asked for, not what its imports asked for.  It is also
     /// why the search cannot cycle -- which it must not, because the real
@@ -29,13 +44,14 @@ var
     /// Bare names that more than one enumeration in this scope binds, mapped to
     /// the enumerations that bind them -- 'First or Second'.
     ///
-    /// ⚠️ An ambiguous name is REMOVED from Values rather than left in it, so
-    /// the hit path stays exactly as fast as it was and the check below lands
-    /// on the miss path, which was already the slow one.  Nil where the
-    /// question has never arisen, which is almost every scope.
+    /// An ambiguous name is REMOVED from Values rather than left in it, so the
+    /// hit path stays exactly as fast as it was and the check lands on the miss
+    /// path, which was already the slow one.  Nil where the question has never
+    /// arisen, which is almost every scope.
     Ambiguous : Map;
 
 begin
+    /// Makes an empty scope with no enclosing one.
     constructor Init ();
     begin
        this.Values := Map();
@@ -47,12 +63,15 @@ begin
     end
 
     /// Records that a bare name now denotes more than one thing here, and takes
-    /// it out of Values so that reading it cannot quietly find one of them.
+    /// it out of Values so reading it cannot quietly find one of them.
     ///
-    /// ⚠️ The name is only refused where it is USED.  Two enumerations sharing a
-    /// member coexist perfectly well [ENU-003]; it is the unresolvable bare use
-    /// that is the error [ENU-011], and the qualified form still works.
+    /// The name is only refused where it is USED.  Two enumerations sharing a
+    /// member coexist perfectly well; it is the unresolvable bare use that is the
+    /// error, and the qualified form still works.
     ///
+    /// # Satisfies
+    ///
+    /// [ENU-011]
     procedure MarkAmbiguous (Name : String, Owners : String);
     begin
         if Ambiguous = Nil then Ambiguous := Map();
@@ -62,13 +81,18 @@ begin
     end
 
     /// Raises for a bare name that more than one imported module exports,
-    /// naming them all.  Walks Imports a second time deliberately: this is the
-    /// error path, and doing it here keeps OwnerOf's loop allocation-free.
+    /// naming them all.
     ///
-    /// ⚠️ Takes the SPELLING as well as the key.  Name is folded [SRC-011] and a
+    /// Walks Imports a second time deliberately: this is the error path, and
+    /// doing it here keeps OwnerOf's loop allocation-free.
+    ///
+    /// Takes the SPELLING as well as the key.  Name is folded [SRC-011] and a
     /// diagnostic must echo what the program wrote, or ''Shared' is ambiguous'
     /// comes back as ''shared' is ambiguous'.
     ///
+    /// # Raises
+    ///
+    /// '''X'' is ambiguous: A or B.' naming every module that exports it.
     procedure RaiseAmbiguousImport (Name : String, Display : String);
     var
         Owners : String;
@@ -98,6 +122,8 @@ begin
 
     /// Whether an importer may see this name.
     ///
+    /// A scope that has never been a module exports everything, since Exports is
+    /// Nil there and the question does not arise.
     function IsExported (Name : String) : Boolean;
     begin
         if Exports = Nil then Exit True;
@@ -105,17 +131,27 @@ begin
         Exit Exports.Contains (FoldCase (Name));
     end
 
-    /// The imported module that owns this name, or Nil.  Deliberately the
-    /// module's own map rather than a lookup on it -- see Imports.
+    /// Gets the imported module that owns this name, or Nil.
     ///
-    /// ⚠️ Two modules exporting one name is not refused where they are
-    /// IMPORTED, only where a bare use cannot be resolved [MOD-013].  Importing
-    /// two modules that happen to share an exported name is fine as long as the
-    /// program says which one it means, and 'Alpha.Shared()' always could.
-    /// This used to refuse the import with advice to mark the name private in
-    /// one of the modules -- advice to edit a module because of what some other
-    /// module, possibly written by someone else, happens to export.
+    /// Answers the module's own environment rather than the value, so the caller
+    /// may read or write through it -- see Imports for why the search does not
+    /// recurse.
     ///
+    /// Two modules exporting one name is not refused where they are IMPORTED,
+    /// only where a bare use cannot be resolved.  Importing two modules that
+    /// happen to share an exported name is fine as long as the program says
+    /// which one it means, and 'Alpha.Shared ()' always could.  This used to
+    /// refuse the import with advice to mark the name private in one of them --
+    /// advice to edit a module because of what some other module, possibly
+    /// written by someone else, happens to export.
+    ///
+    /// # Raises
+    ///
+    /// '''X'' is ambiguous: A or B.' when two imports both export the name.
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-013]
     function OwnerOf (Name : String, Display : String) : Any;
     var
         Found : Environment;
@@ -130,9 +166,6 @@ begin
             if TheModule.Values.Contains (FoldCase (Name)) then
                 if TheModule.IsExported (Name) then
                 begin
-                    // ⚠️ Not a clash with itself: importing one module twice
-                    // leaves the same environment in Imports twice, and one
-                    // module is never ambiguous with itself.
                     if Found <> Nil and TheModule <> Found then
                         RaiseAmbiguousImport (Name, Display);
 
@@ -143,19 +176,23 @@ begin
         Exit Found;
     end
 
-    /// Defines a variable at the local scope.
-    ///
+    /// Defines a name in this scope, replacing any binding it already had.
     procedure Define (Name : String, Value : Any);
     begin
         Values.Put (FoldCase (Name), Value);
     end
 
-    /// Assigns a value to an existing variable.  Walks up the enclosing Environments until it finds the variable defined.
+    /// Assigns to an existing name, searching this scope, then this file's
+    /// imports, then the enclosing scope.
     ///
-    /// # Errors
+    /// It does not define: an assignment to a name nothing has declared is an
+    /// error rather than a new binding.
     ///
-    /// Returns a runtime error if reaches the top-level environment (Enclosing is Nil) and does not find the variable.
+    /// # Raises
     ///
+    /// 'Undefined variable ''X''.' when the search reaches the outermost scope
+    /// without finding the name, and '''X'' is ambiguous: A or B.' when two
+    /// imports both export it.
     procedure Assign (Name : Token, Value : Any);
     begin
         if Values.Contains(FoldCase (Name.Lexeme)) then
@@ -169,9 +206,6 @@ begin
                 raise '''' + Str (Name.Lexeme) + ''' is ambiguous: '
                     + Str (Ambiguous.Get (FoldCase (Name.Lexeme))) + '.';
 
-        // ⚠️ Written where it lives, in the module that declared it.  Defining a
-        // copy here would leave two bindings for one name, and a later read
-        // would find whichever came first while the other went stale.
         var Owner := OwnerOf (FoldCase (Name.Lexeme), Str (Name.Lexeme));
         if Owner <> Nil then
         begin
@@ -179,7 +213,7 @@ begin
             Exit;
         end
 
-        if Enclosing <> Nil then 
+        if Enclosing <> Nil then
         begin
             Enclosing.Assign(Name, Value);
             Exit;
@@ -187,12 +221,25 @@ begin
         raise 'Undefined variable ''' + Name.Lexeme + '''.';
     end
 
-    /// Gets a variable from the local scope, or looks in the enclosing environment.
+    /// Gets a variable, searching the local scope, then this file's imports,
+    /// then the enclosing environment.
     ///
-    /// # Errors
+    /// An import is searched for its OWN bindings only, never through its
+    /// imports in turn, which is what makes 'uses' non-transitive.
     ///
-    /// Returns a runtime error if reaches the top-level environment and does not find the variable.
+    /// The lookup is on the FOLDED name and the diagnostic echoes the lexeme,
+    /// because identifiers are matched without regard to case [SRC-011] while an
+    /// error must show the spelling the program used.
     ///
+    /// # Raises
+    ///
+    /// 'Undefined variable ''X''.' when the search reaches the outermost scope
+    /// without finding the name, and '''X'' is ambiguous: A or B.' when two
+    /// imports both export it.
+    ///
+    /// # Satisfies
+    ///
+    /// [SRC-011]
     function Get (Name : Token) : Any;
     begin
         if Values.Contains( FoldCase (Name.Lexeme)) then
@@ -210,34 +257,30 @@ begin
 
         if Enclosing <> Nil then Exit Enclosing.Get(Name);
 
-        raise 'Undefined variable ''' + Name.Lexeme + '''.'; 
+        raise 'Undefined variable ''' + Name.Lexeme + '''.';
     end
 
-    /// Gets a variable from the local scope, or looks in the enclosing environment.  The parameter ''distance'' is how many
-    /// hops up ancestor environments to reach the correct scope.
+    /// Gets a name a known number of scopes out, without searching.
     ///
+    /// The Resolver worked the distance out, so this is a walk of that many
+    /// links and one lookup rather than a search of every scope on the way.
     function GetAt (Distance : Integer, Name : String) : Any;
     begin
         Exit Ancestor (Distance).Values.Get (FoldCase (Name));
     end
 
-    /// Assigns a value to an existing variable.  The parameter ''distance'' is how many hops up ancestor environments to reach
-    ///  the correct scope.
-    ///
     /// Assigns to a name a known number of scopes out.
     ///
-    /// ⚠️ Keyed by Name.Lexeme, not by Name.  It took the Token itself as the
-    /// key once, so a write landed in Values under a Token while GetAt read
-    /// under a String and never saw it -- an assignment inside a block silently
-    /// did nothing.
-    ///
+    /// Keyed by Name.Lexeme, not by Name.  It took the Token itself as the key
+    /// once, so a write landed in Values under a Token while GetAt read under a
+    /// String and never saw it -- an assignment inside a block silently did
+    /// nothing.
     procedure AssignAt (Distance : Integer, Name : Token, Value : Any);
     begin
         Ancestor (Distance).Values.Put (FoldCase (Name.Lexeme), Value);
     end
 
-    // Hops up the ancestor chain by a ''distance''
-    //
+    /// Walks out a given number of enclosing scopes and answers the one reached.
     function Ancestor (Distance : Integer) : Any;
     var
         Env : Environment;
@@ -282,7 +325,6 @@ begin
     AssertEqual(2.0, Env.Get (TheToken));
     AssertEqual(1.0, Globals.Get (TheToken));
 end
-
 
 // Too often something goes wrong at 3 :)  So we are checking that a variable can be accessed from a scope three
 // levels deep.
@@ -343,7 +385,7 @@ test 'Test Environment Get Not Defined';
 begin
     var Env := Environment();
     var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
-    
+
     try
         Env.Get(TheToken);
     except

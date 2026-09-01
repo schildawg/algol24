@@ -1,63 +1,79 @@
-uses Scanner;
-uses SourceCode;
-uses Token;
-
-/// Formatted output.
+/// Formatted output: the tags, the colours and the report lines both processors
+/// write.
 ///
 /// The shapes are fixed exactly, colour codes included, because an interpreted
 /// report and a compiled one write to the same terminal and should be
 /// indistinguishable.  A comparison may strip the colouring -- assertion carets
 /// cannot be compared yet -- but that is not licence for the codes to differ.
-///
+unit Console;
+
+uses Scanner;
+uses SourceCode;
+uses Token;
+
+/// The rule a header is drawn from, at the width a report line uses.
 const BAR := '------------------------------------------------------------------------';
 
+/// The escape character that opens every colour sequence.
+///
+/// Written as a code point because the language has no backslash escapes:
+/// '#27' is ESC and a backslash form would be two characters.
 const ESC := #27;
 
+/// Returns the terminal to its default colour.
 const ANSI_RESET  := ESC + '[0m';
+
+/// Red, for an error.
 const ANSI_RED    := ESC + '[31m';
+
+/// Green, for a passing test.
 const ANSI_GREEN  := ESC + '[32m';
+
+/// Yellow, for a warning.
 const ANSI_YELLOW := ESC + '[33m';
+
+/// Blue, for an informational tag.
 const ANSI_BLUE   := ESC + '[34m';
+
+/// Cyan, for the name inside a header.
 const ANSI_CYAN   := ESC + '[36m';
+
+/// White, for the brackets a tag sits in.
 const ANSI_WHITE  := ESC + '[37m';
 
 /// The '[INFO] ' tag every report line opens with, colour and trailing space
-///
-/// ⚠️ Named INFO_TAG, not INFO, and ERROR_TAG rather than ERROR, because names
-/// are matched WITHOUT REGARD TO CASE [SRC-011].  The object below has a
-/// 'procedure Info' and a 'procedure Error'; under folded lookup a constant
-/// spelled INFO is the same name as the method Info, which would shadow it
-/// inside the method's own body.
 /// included.
 ///
-/// ⚠️ Here rather than spelled out at each site, because the test runner writes
+/// Named INFO_TAG rather than INFO because names are matched WITHOUT REGARD TO
+/// CASE [SRC-011].  The object below has a 'procedure Info', and under folded
+/// lookup a constant spelled INFO is the same name -- which would shadow the
+/// method inside its own body.
+///
+/// Here rather than spelled out at each site, because the test runner writes
 /// report lines directly instead of going through Info -- it composes a dot
 /// leader whose width is measured on the bare name -- and the C runtime spells
 /// the same bytes a third time.  Two copies of this are unavoidable; three were
 /// not.
-///
 const INFO_TAG := ANSI_WHITE + '[' + ANSI_BLUE + 'INFO' + ANSI_WHITE + '] ' + ANSI_RESET;
 
-/// The '[ERROR] ' tag, on the same terms.
+/// The '[ERROR] ' tag, on the same terms as INFO_TAG.
 ///
-/// ⚠️ Only the first two of Error's three lines use it.  The third spells the
-/// tag out because its ']' sits outside the white run, which is deliberate and
+/// Only the first two of Error's three lines use it.  The third spells the tag
+/// out because its ']' sits outside the white run, which is deliberate and
 /// explained where it is written.
-///
 const ERROR_TAG := ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_WHITE + '] ' + ANSI_RESET;
 
-/// The '[WARN] ' tag, on the same terms.
+/// The '[WARN] ' tag, on the same terms as INFO_TAG.
 ///
-/// ⚠️ WARN_TAG rather than WARN, for the reason INFO_TAG carries: names are
-/// matched WITHOUT REGARD TO CASE [SRC-011], and the object below has a
-/// 'procedure Warn' that a constant spelled WARN would shadow inside its own
-/// body.
-///
+/// WARN_TAG rather than WARN for the reason INFO_TAG carries: the object below
+/// has a 'procedure Warn' that a constant spelled WARN would shadow inside its
+/// own body.
 const WARN_TAG := ANSI_WHITE + '[' + ANSI_YELLOW + 'WARN' + ANSI_WHITE + '] ' + ANSI_RESET;
 
+/// The one place a report line is composed.
 object Console;
 begin
-    /// Repeats a character.  There is no builtin for it.
+    /// Repeats a character.  There is no built-in for it.
     function Repeat (What : Char, Times : Integer) : String;
     var
        Result : String := '';
@@ -69,7 +85,9 @@ begin
         Exit Result;
     end
 
-    /// [INFO] ------------------------------[ Program.a24 ]-----------------------
+    /// Writes a run-wide banner naming the file under test.
+    ///
+    ///     [INFO] ------------------------------[ Program.a24 ]-----------------------
     procedure Header (Name : String);
     var
        Width : Integer;
@@ -82,36 +100,50 @@ begin
         Info (Repeat('-', Width) + '[ ' + ANSI_CYAN + Name + ANSI_RESET + ' ]' + Repeat('-', Width));
     end
 
-    /// [INFO] < Scanner.a24 >
+    /// Writes the heading that groups a file's tests.
+    ///
+    ///     [INFO] < Scanner.a24 >
     procedure Subheader (Name : String);
     begin
         Info ('< ' + ANSI_CYAN + Name + ANSI_RESET + ' >');
     end
 
+    /// Writes one informational line, behind the '[INFO] ' tag.
+    ///
+    /// # Satisfies
+    ///
+    /// [TST-010]
     procedure Info (Text : String);
     begin
         WriteLn (INFO_TAG + Text);
     end
 
-    /// [WARN] Main.a24:12: 'Log' selects among 3 overloads at run time.
+    /// Writes the one warning the compiler raises.
     ///
-    /// ⚠️ NON-BLOCKING, and that is the whole point.  It reports a cost, not a
+    ///     [WARN] Main.a24:12: 'Log' selects among 3 overloads at run time.
+    ///
+    /// NON-BLOCKING, and that is the whole point.  It reports a cost, not a
     /// fault: the program compiles and runs exactly as it would without it.
     /// Run-time selection is the language's rule [FUN-013] and stays so; naming
     /// the parameters [EXP-013] is how a programmer avoids it in a particular
-    /// call, and this is what makes that choice visible.  Without it the cost
-    /// is real and invisible, and the remedy has nothing to point at.
+    /// call, and this is what makes that choice visible.  Without it the cost is
+    /// real and invisible, and the remedy has nothing to point at.
     ///
-    /// ⚠️ Refusal is for what the back end cannot express.  A construct that is
+    /// Refusal is for what the back end cannot express.  A construct that is
     /// legal and merely costly gets a warning instead, which is what keeps the
-    /// twenty 'Unsupported (...)' sites meaning only one thing.
+    /// emitter's 'Unsupported (...)' sites meaning only one thing.
     ///
+    /// # Satisfies
+    ///
+    /// [ERR-010]
     procedure Warn (Text : String);
     begin
         WriteLn (WARN_TAG + Text);
     end
 
-    /// [INFO] Program.a24 ................................. SUCCESS
+    /// Writes a passing test's line, with a dot leader out to the verdict.
+    ///
+    ///     [INFO] Program.a24 ................................. SUCCESS
     procedure Success (Name : String);
     var
        Width : Integer;
@@ -123,7 +155,9 @@ begin
         Info (Name + ' ' + Repeat('.', Width) + ANSI_GREEN + ' SUCCESS' + ANSI_RESET);
     end
 
-    /// [INFO] Program.a24 ................................. FAILED
+    /// Writes a failing test's line, laid out exactly as Success is.
+    ///
+    ///     [INFO] Program.a24 ................................. FAILED
     procedure Fail (Name : String);
     var
        Width : Integer;
@@ -135,45 +169,42 @@ begin
         Info (Name + ' ' + Repeat('.', Width) + ANSI_RED + ' FAILED' + ANSI_RESET);
     end
 
+    /// Writes a line meant for whoever is working on the compiler.
     procedure Debug (Text : String);
     begin
         WriteLn (ANSI_WHITE + '[' + ANSI_YELLOW + 'DEBUG' + ANSI_WHITE + '] ' + ANSI_RESET + Text);
     end
 
-    /// [ERROR] file: message
-    /// [ERROR] 16 ║     AssertTrue(False);
-    /// [ERROR]    ║                ^^^^^^
+    /// Writes a diagnostic as three lines: the message, the source line it
+    /// happened on, and a caret under the token at fault.
+    ///
+    ///     [ERROR] file: message
+    ///     [ERROR] 16 |     AssertTrue(False);
+    ///     [ERROR]    |                ^^^^^^
     ///
     /// The third line's ']' is outside the white run rather than inside it,
     /// which is deliberate: both reports write the same bytes or they do not
     /// match.
     ///
+    /// A test failure does NOT come through here.  It prints exactly one
+    /// '[ERROR]' line, and adding a source line and a caret to it would make the
+    /// interpreted and compiled reports disagree.
+    ///
+    /// # Satisfies
+    ///
+    /// [ERR-005]
     procedure Error (Where : Token, Message : String);
     var
        Text  : String;
        Digits : Integer;
 
     begin
-        // ⚠️ 'as String', not a bare assignment.  A Map's Get is untyped, and
-        // a written type is a claim that has to be earned [VAR-006] -- the cast
-        // is where an untyped value crosses into a typed one, and it is checked
-        // [VAL-007].
+
         Text := SourceCode.Get (Where.LineNumber) as String;
         Digits := Length (Str (Where.LineNumber));
 
         WriteLn (ERROR_TAG + SourceCode.Name() + ': ' + Message);
 
-        // ⚠️ '|', not a box-drawing #9553.
-        //
-        // The C runtime refuses a Char above 127, deliberately: a code point
-        // that high would have to be encoded as UTF-8, and then Length and
-        // subscripting would disagree with the interpreter, which yields a
-        // UTF-16 unit.  It refuses rather than guessing -- and #9553 in algc's
-        // own diagnostics is what made a COMPILED algc unable to compile
-        // anything at all.
-        //
-        // Only [ERROR] lines carry it, and every comparison drops those, so
-        // this costs a prettier caret and nothing else.
         WriteLn (ERROR_TAG + Str(Where.LineNumber) + ' | ' + Text);
 
         WriteLn (ANSI_WHITE + '[' + ANSI_RED + 'ERROR' + ANSI_RESET + '] ' + Repeat(' ', Digits)

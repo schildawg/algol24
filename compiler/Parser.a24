@@ -1,3 +1,7 @@
+/// The parser, which is also the module loader: tokens in, a list of statements
+/// out, with every file a 'uses' clause names parsed inline.
+unit Parser;
+
 uses Console;
 uses Expr;
 uses Interpreter;
@@ -6,35 +10,18 @@ uses Stmt;
 uses Token;
 uses TokenType;
 
-/// Parses a list of tokens, creating a list of statements.
-///
-/// # Example
-/// 
-/// var TheScanner:= Scanner ('3.14');
-/// var TheParser := Parser (TheScanner.ScanTokens());
-///
-/// var Result := TheParser.Primary();
-///
-/// AssertEqual(3.14, Result.Value);
-/// 
-/// Reads a whole file.
+/// Reads a whole file as one string.
 ///
 /// Here rather than in Main.a24 because the Parser is the thing that loads a
 /// module, and Main is loaded after it -- a function there would not be in
 /// scope.  ReadLn drops the terminator, so the lines are rejoined with #10,
-/// which is what the language says a line ends with and what the scanner
-/// counts.
-///
+/// which is what the language says a line ends with and what the scanner counts.
 function ReadWholeFile (Name : String) : String;
 begin
     var F := TextFile();
     F.Assign (Name);
     F.Reset();
 
-    // ⚠️ A Buffer, not 'Result := Result + Line'.  That copies the whole file
-    // so far on every line, so reading an n-byte source costs n^2/2 bytes of
-    // memory that is never reclaimed -- and this compiler's own largest source
-    // is 113 KB.
     var Result := Buffer();
 
     while not F.Eof do
@@ -47,9 +34,13 @@ begin
     Exit Result.Text;
 end
 
+/// Turns one file's tokens into statements, loading the files it imports.
 class Parser;
-var 
+var
+   /// The tokens being parsed.
    Tokens :  List of Token;
+
+   /// The position of the token about to be read.
    Current : Integer;
 
    /// The file these tokens came from, so a 'uses' clause can look for its
@@ -57,78 +48,81 @@ var
    /// '' when the source did not come from a file.
    FileName : String := '';
 
-   /// Every module file already loaded, keyed by resolved path.  SHARED with
-   /// the parsers of the files this one imports -- which is what makes a
-   /// diamond load once and stops a cycle from recursing forever.
+   /// Every module file already loaded, keyed by resolved path.
+   ///
+   /// SHARED with the parsers of the files this one imports -- which is what
+   /// makes a diamond load once and stops a cycle from recursing forever.
    Loaded : Map := [:];
 
    /// Names marked 'private' in this file.
    PrivateNames : List := [];
 
-   /// Whether a 'private:' marker is currently in force, and the names it has
-   /// covered in the class being parsed.
+   /// Whether a 'private:' marker is currently in force.
    ///
-   /// ⚠️ Parser state rather than a parameter, because a marker's reach is
-   /// lexical and crosses the helpers that read declarations -- a var section
-   /// may begin public and turn private halfway down.
+   /// Parser state rather than a parameter, because a marker's reach is lexical
+   /// and crosses the helpers that read declarations -- a var section may begin
+   /// public and turn private halfway down.
    InPrivateSection : Boolean := False;
+
+   /// The names a 'private:' marker has covered in the class being parsed.
    ClassPrivates    : List := [];
 
-   /// How many loops enclose the statement being parsed, so 'break' outside
-   /// one can be rejected where it is written rather than at run time.
+   /// How many loops enclose the statement being parsed, so 'break' outside one
+   /// can be rejected where it is written rather than at run time.
    ///
-   /// ⚠️ Not reset when a function body is entered.  A 'break' inside a
-   /// function declared inside a loop is therefore accepted, and would escape
-   /// the call at run time.  Odd, and deliberate.
+   /// Not reset when a function body is entered.  A 'break' inside a function
+   /// declared inside a loop is therefore accepted, and would escape the call at
+   /// run time.  Odd, and deliberate.
    LoopDepth : Integer := 0;
 
    /// Whether the body being parsed belongs to a 'procedure' rather than a
    /// 'function', so 'Exit E;' can be refused where it means nothing [FUN-003].
    ///
-   /// ⚠️ Saved and restored around a body, not merely set: a function may be
+   /// Saved and restored around a body, not merely set: a function may be
    /// declared inside a procedure, and its 'Exit E' is perfectly legal.
    InProcedure : Boolean := False;
 
    /// ParameterType's second answer.
    ///
-   /// ⚠️ A parameter's element type is wanted beside its type name, and a
-   /// function returns one thing.  A field for one caller is the smaller of the
-   /// two evils; the alternative is re-reading the tokens.
+   /// A parameter's element type is wanted beside its type name, and a function
+   /// returns one thing.  A field for one caller is the smaller of the two
+   /// evils; the alternative is re-reading the tokens.
    LastGeneric : String := '';
 
    /// The label written just before the loop now being parsed, or ''.
    PendingLabel : String := '';
 
-   /// The labels of the loops this statement is inside, innermost last.  ''
-   /// for an unlabelled one, so the depth is right and no name matches it.
+   /// The labels of the loops this statement is inside, innermost last.
+   ///
+   /// '' for an unlabelled one, so the depth is right and no name matches it.
    LoopLabels : List := [];
 
 begin
-    /// Creates a new Parser.
-    ///
+    /// Makes a parser over a file's tokens.
     constructor Init(Tokens : List);
     begin
        this.Tokens := Tokens;
        this.Current := 0;
     end
 
-    /// Parses a list of statements.
-    ///
     /// Consumes an optional 'unit Name;' header and checks it against the file.
     ///
     /// It declares nothing and produces no statement: a unit is named by its
     /// FILE, here as in Turbo Pascal, and the header only writes that name down
-    /// where a reader can see it.  What it buys is the check -- a file renamed
-    /// without its header, or a header copied between files, is caught here
-    /// instead of turning into a qualified name that silently reaches the wrong
-    /// unit.
+    /// where a reader can see it.  What it buys is the check.
     ///
-    /// ⚠️ 'unit' is CONTEXT-SENSITIVE, matched as an identifier the way 'test'
-    /// is, and not added to the keyword table.  Keyword lookup is
-    /// case-insensitive, so promoting a common word makes every existing
-    /// identifier spelled that way a parse error -- which is what happened when
-    /// 'object' became one and cost 252 of them in a single file.
+    /// 'unit' is not a keyword -- it is an ordinary identifier recognised by
+    /// position, so a program may still name a variable after it [LEX-011].
+    /// Recognising it needs three tokens: the word, an identifier, and a
+    /// semicolon.
     ///
+    /// # Raises
+    ///
+    /// 'Unit ''X'' must match its file name ''Y''.' when the two disagree.
+    ///
+    /// # Satisfies
+    ///
+    /// [LEX-011], [MOD-004]
     procedure UnitHeader ();
     begin
         if not Check (TOKEN_IDENTIFIER)                  then Exit;
@@ -141,23 +135,15 @@ begin
 
         var Expected := UnitStem (FileName);
 
-        // The REPL and a scan with no file behind it have nothing to disagree
-        // with.
         if Expected = '' or Expected = 'REPL' then Exit;
 
-        // ⚠️ Through Error, not a bare raise.  Error prints the '[ERROR] file:
-        // message' line with a caret under the offending token, which is what
-        // every other diagnostic in this parser produces and what the reference
-        // documents.  A raise alone reached the top as 'Uncaught:' with no
-        // position at all -- a check that compares the sentence and not the
-        // line around it cannot see the difference.
         if Expected <> Str (Name.Lexeme) then
             raise Error (Name, 'Unit ''' + Str (Name.Lexeme)
                              + ''' must match its file name ''' + Expected + '''.');
     end
 
-    /// The file's stem -- the name a unit answers to.  The Resolver and the
-    /// Interpreter each work this out the same way for the same reason.
+    /// Gets the unit name a path stands for -- its stem, so 'lib/ModA.a24' is
+    /// the unit ModA.
     function UnitStem (Key : String) : String;
     var
         Stem : String;
@@ -178,25 +164,23 @@ begin
         Exit Stem;
     end
 
+    /// Parses the whole file and answers its statements.
+    ///
+    /// The file being parsed is entered in Loaded BEFORE its own 'uses' clauses
+    /// are read.  The root used to be the one file never entered, so a module
+    /// importing the root back -- Parser uses Interpreter, which uses Parser --
+    /// parsed it a second time and the emitter saw two units of one name.
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-014]
     function Parse () : List;
-    var 
+    var
         Statements : List of Stmt;
 
     begin
         Statements := List();
 
-        // ⚠️ The file being parsed is entered in Loaded BEFORE its own 'uses'
-        // clauses are read, so a module that imports it back finds it already
-        // loaded [MOD-014].  A sub-parser's path is put there by UsesStatement
-        // already, which makes this a no-op for every file but the ROOT -- and
-        // the root was the one file it was never done for.  A cycle through the
-        // root parsed the root a SECOND time, and the two copies did not share
-        // their names.
-        //
-        // ⚠️ Identity is the path STRING, as it is throughout Loaded, so the
-        // root's own name and the name a module resolves for it must match
-        // character for character.  ResolveModule answers the working-directory
-        // path, which is what the driver was given.
         if FileName <> '' then Loaded.Put (FileName, True);
 
         UnitHeader ();
@@ -207,8 +191,6 @@ begin
             begin
                 var TheModule := UsesStatement ();
 
-                // Nil when the file was already loaded by an earlier 'uses',
-                // so importing it twice is a no-op rather than a redefinition.
                 if TheModule <> Nil then Statements.Add (TheModule);
             end
             else if Match (TOKEN_PRIVATE) then
@@ -218,20 +200,17 @@ begin
                 Statements.Add (Decl);
             end
             else Statements.Add (Declaration ());
-        end  
+        end
         Exit Statements;
     end
 
-    /// Parses a statement.
+    /// Parses one statement, dispatching on the token it begins with.
     ///
+    /// # Satisfies
+    ///
+    /// [STM-022]
     function Statement () : Stmt;
     begin
-        // ⚠️ Declarations are statements, so 'var' and friends are legal in a
-        // single-statement body -- an if branch, a loop body, a try block --
-        // and not only inside a begin/end.  They used to sit in Declaration()
-        // alone, which meant 'try var X := 1; ... ' would not parse.  Found by
-        // a test that raises a runtime error from a var declared inside the
-        // try.
         if Match (TOKEN_TYPE) then Exit EnumDeclaration ();
         if Match (TOKEN_CLASS) then Exit ClassDeclaration ();
         if Match (TOKEN_OBJECT) then Exit ClassDeclaration ('object');
@@ -240,13 +219,6 @@ begin
         if Match (TOKEN_VAR) then Exit VarDeclaration ();
         if Match (TOKEN_CONST) then Exit ConstDeclaration ();
 
-        // ⚠️ IDENTIFIER then COLON, one token of lookahead -- the third place
-        // this shape is used and the third time it means the same thing: a name
-        // on the left, the thing it names on the right.  The Map literal
-        // [COL-001] and a named argument [EXP-013] are the other two.
-        //
-        // ⚠️ ':=' scans as ONE token [LEX-005], so 'X := 1' cannot be read as a
-        // label on '= 1'.  That is the whole reason a label needs no keyword.
         if Check (TOKEN_IDENTIFIER) and PeekNext().TypeOfToken = TOKEN_COLON then
             Exit LabelStatement ();
 
@@ -265,37 +237,21 @@ begin
         Exit ExpressionStatement ();
     end
 
-    /// Parses an if statement
+    /// Parses 'case E of' ... 'end', desugaring it into a chain of ifs.
     ///
-    /// # Errors
+    /// There is no CaseStmt node.  Each arm becomes an IfStmt testing the
+    /// subject against that arm's values, chained through the else branch, so
+    /// every later pass sees a shape it already understands and nothing had to
+    /// learn a new node.
     ///
-    /// Raises an error if no opening parenthesis after if.
-    /// Raises an error if no closing parenthesis after condition.
+    /// # Raises
     ///
-    // Parses a case statement, desugaring it into an if/else-if chain.
-    //
-    //     case X of
-    //         1:    'one';
-    //         2, 3: 'two or three';
-    //     else
-    //         'other';
-    //     end
-    //
-    // becomes 'if X = 1 then ... else if X = 2 or X = 3 then ... else ...', so
-    // branches are tested in order, and there is no fallthrough and no jump
-    // table.  Nothing downstream learns about 'case': there is no CaseStmt, and
-    // the interpreter and resolver need no change at all.
-    //
-    // Labels are arbitrary expressions rather than constants, and there are no
-    // ranges.  That generality is why a branch takes exactly one statement --
-    // with ';' terminating rather than separating, a second statement cannot be
-    // told from the next branch's label.
-    //
-    // # Errors
-    //
-    // Raises an error if no 'of' after the condition, no ':' after a label, or
-    // no 'end' after an else branch.
-    //
+    /// 'Expect ''of'' after case condition.', 'Expect '':'' after condition.'
+    /// and 'Expected ''end''.'
+    ///
+    /// # Satisfies
+    ///
+    /// [STM-011], [STM-012], [STM-013]
     function CaseStatement () : Stmt;
     var
         Left      : Expr;
@@ -315,7 +271,6 @@ begin
         begin
             Condition := BinaryExpr (Left, Equals (), Expression ());
 
-            // Comma-separated alternatives are just more 'or'.
             while Match (TOKEN_COMMA) do
                 Condition := LogicalExpr (Condition, Either (),
                                           BinaryExpr (Left, Equals (), Expression ()));
@@ -341,34 +296,36 @@ begin
         Exit Top;
     end
 
-    // The '=' and 'or' a desugared case is built from.  Synthetic tokens: they
-    // stand at the position of the label that produced them, so an error inside
-    // a branch still points somewhere real.
-    //
+    /// Consumes the '=' that separates a case arm's value from its body.
     function Equals () : Token;
     begin
         Exit Token (TOKEN_EQUAL, '=', Nil, Previous().LineNumber);
     end
 
+    /// Consumes the ',' that joins two values of one case arm.
     function Either () : Token;
     begin
         Exit Token (TOKEN_OR, 'or', Nil, Previous().LineNumber);
     end
 
-    /// The body of a branch or a loop, where a DECLARATION is refused.
+    /// Parses the body of a branch or a loop, where a DECLARATION is refused.
     ///
-    /// ⚠️ Not merely useless -- actively wrong.  A declaration here escapes into
+    /// Not merely useless -- actively wrong.  A declaration here escapes into
     /// the ENCLOSING scope, so whether the name exists is decided by a runtime
     /// condition: 'if True then var X := 1;' leaves X defined and the same
-    /// program with a false condition leaves it undefined [STM-002].
+    /// program with a false condition leaves it undefined.
     ///
-    /// ⚠️ Declarations stay legal in Statement itself, because a 'try' body is
-    /// a statement and 'try var X := 1; ...' has to parse.  This is the branch
-    /// and loop positions only.
+    /// Declarations stay legal in Statement itself, because a 'try' body is a
+    /// statement and 'try var X := 1; ...' has to parse.  This is the branch and
+    /// loop positions only.
     ///
-    /// ⚠️ The C back end already refused this, so fixing it makes the language,
-    /// the compiler and the interpreter agree -- the one entry in Annex C that
-    /// closes by the LANGUAGE moving rather than the compiler (C-12).
+    /// The C back end already refused this, so the fix made the language, the
+    /// compiler and the interpreter agree -- the one divergence that closed by
+    /// the LANGUAGE moving rather than the compiler.
+    ///
+    /// # Satisfies
+    ///
+    /// [STM-002]
     function BodyStatement () : Stmt;
     begin
         if Check (TOKEN_VAR) or Check (TOKEN_CONST) or Check (TOKEN_TYPE)
@@ -380,15 +337,20 @@ begin
         Exit Statement ();
     end
 
-    /// A collection type name, which may carry an element type [VAR-008].
+    /// Whether a written type name is a collection, and so may carry an element
+    /// type.
     ///
-    /// ⚠️ Every collection, not only List.  'Map of Integer', 'Set of Integer'
-    /// and 'Array of Integer' were each refused with 'Expect '';'' after
-    /// variable declaration.' -- so only a List could say what it held, and
-    /// there was no reason for that but the one name being spelled out here.
+    /// Every collection, not only List.  'Map of Integer', 'Set of Integer' and
+    /// 'Array of Integer' were each refused with 'Expect '';'' after variable
+    /// declaration.' -- so only a List could say what it held, and there was no
+    /// reason for that but the one name being spelled out here.
     ///
-    /// ⚠️ For a Map the element type is the VALUE type, because that is what a
-    /// subscript and a Get yield [VAR-016]; a Map's keys are not constrained.
+    /// For a Map the element type is the VALUE type, because that is what a
+    /// subscript and a Get yield; a Map's keys are not constrained.
+    ///
+    /// # Satisfies
+    ///
+    /// [VAR-008]
     function IsCollectionType (TypeName : String) : Boolean;
     var
         Lowered : String;
@@ -400,6 +362,21 @@ begin
           or Lowered = 'stack' or Lowered = 'array';
     end
 
+    /// Parses 'if C then S', with an optional 'else S'.
+    ///
+    /// No parentheses: the condition is an expression and 'then' is what closes
+    /// it, which is why nothing here has to balance a bracket.
+    ///
+    /// Both branches are a BodyStatement rather than a Statement, so a
+    /// declaration in either is refused.
+    ///
+    /// # Raises
+    ///
+    /// 'Expect ''then'' after if condition.'
+    ///
+    /// # Satisfies
+    ///
+    /// [STM-004]
     function IfStatement () : Stmt;
     var
         Condition  : Expr;
@@ -419,21 +396,29 @@ begin
         Exit IfStmt (Condition, ThenBranch, ElseBranch);
     end
 
-    /// Parses a for statement
+    /// Parses both 'for' forms: the counted one, and 'for X in C do'.
     ///
-    /// # Errors
+    /// The counted form desugars into a block holding the initializer and a
+    /// WhileStmt carrying the step, which is why the loop variable belongs to
+    /// the loop and is not visible after it [DCL-008].  The step rides on the
+    /// node rather than being appended to the body so that 'continue' still runs
+    /// it.
     ///
-    /// Raise an error if no opening parenthesis after for.
-    /// Raise an error if no semicolon after loop condition.
-    /// Raise an error if no closing parenthesis after for clauses.
+    /// # Raises
     ///
+    /// 'Expect variable name.', 'Expect '';'' after loop condition' and
+    /// 'Expect ''do'' after for clauses.'
+    ///
+    /// # Satisfies
+    ///
+    /// [DCL-008], [STM-006]
     function ForStatement () : Stmt;
     var
         Initializer : Stmt;
         Increment   : Expr;
         Condition   : Expr;
         Body        : Stmt;
-        
+
         StmtList    : List of Stmt;
         WhileList   : List of Stmt;
 
@@ -442,22 +427,20 @@ begin
             Initializer := Nil;
         else if Match (TOKEN_VAR) then
         begin
-            // 'for var X in C do' and 'for var I := 0; ...' agree up to the
-            // name, so read it and let the next token decide.
             var Name := Consume (TOKEN_IDENTIFIER, 'Expect variable name.');
 
             if Match (TOKEN_IN) then Exit ForInStatement (Name);
 
             Initializer := VarDeclaration (Name);
         end
-        else 
+        else
             Initializer := ExpressionStatement();
 
         if Not Check (TOKEN_SEMICOLON) then
         begin
            Condition := Expression ();
         end
-        Consume (TOKEN_SEMICOLON, 'Expect '';'' after loop condition'); 
+        Consume (TOKEN_SEMICOLON, 'Expect '';'' after loop condition');
 
         if Not Check (TOKEN_DO) then
         begin
@@ -475,9 +458,6 @@ begin
 
         if Condition = Nil then Condition := LiteralExpr (True);
 
-        // ⚠️ The step is HANDED to the while rather than appended to the body.
-        // Appending it put it after everything 'continue' skips, so the next
-        // iteration never stepped and the loop never ended -- see WhileStmt.
         var Loop := WhileStmt (Condition, Body);
         Loop.Increment := Increment;
         Loop.Label := Named;
@@ -496,13 +476,14 @@ begin
         Exit Body;
     end
 
-    /// Parses a while statement
+    /// Parses 'while C do S'.
     ///
-    /// # Errors
+    /// No parentheses, on the same terms as 'if': 'do' is what closes the
+    /// condition.
     ///
-    /// Raises an error if no opening parenthesis after while.
-    /// Raises an error if no closing parenthesis after condition.
+    /// # Raises
     ///
+    /// 'Expect ''do'' after condition.'
     function WhileStatement () : Stmt;
     var
         Condition : Expr;
@@ -526,19 +507,14 @@ begin
         Exit Loop;
     end
 
-    /// Parses a statement
-    /// 
-    /// # Errors
+    /// Parses 'Exit', with a value from a function and none from a procedure.
     ///
-    /// Raises an error if no semicolon after value.
-    /// 
-    /// Parses a return statement.
+    /// A value is refused inside a procedure, where it would mean nothing --
+    /// which is what InProcedure is carried for.
     ///
+    /// # Raises
     ///
-    /// # Errors
-    ///
-    /// Raises an error if no semicolon after value.
-    ///
+    /// 'Expect '';'' after value.', and a refusal for a value in a procedure.
     function ReturnStatement () : Stmt;
     var
         Keyword : Token;
@@ -549,11 +525,6 @@ begin
 
         if Not Check(TOKEN_SEMICOLON) then
         begin
-            // ⚠️ The word means something, or it means nothing.  Without this a
-            // procedure may return a value and a caller may use it, so
-            // 'procedure' documents intent and constrains nothing -- and no
-            // reader can tell from a declaration whether a call has a result
-            // worth using [FUN-003].
             if InProcedure then
                 raise Error (Keyword, 'A procedure cannot exit a value.');
 
@@ -570,20 +541,23 @@ begin
     /// bare names, so leaving them exported would export the type in all but
     /// spelling.
     ///
-    /// ⚠️ EVERY declaration kind, and the list has to be complete: a kind
-    /// missing here is not a name that fails to be private, it is a name that
-    /// is SILENTLY PUBLIC.  ObjectStmt was missing, so a 'private object' was
-    /// reachable from any importing file -- 'secret' where 'Undefined
-    /// variable' is the correct answer.
+    /// EVERY declaration kind, and the list has to be complete: a kind missing
+    /// here is not a name that fails to be private, it is a name that is
+    /// SILENTLY PUBLIC.  ObjectStmt was missing, so a 'private object' was
+    /// reachable from any importing file -- 'secret' where 'Undefined variable'
+    /// is the correct answer.
     ///
-    /// ⚠️ It had a second symptom that made it worse than a leak.  Because the
+    /// It had a second symptom that made it worse than a leak.  Because the
     /// object never reached PrivateNames, the emitter's export set kept it, so a
     /// private object shadowing an import was refused as 'Two modules exporting
-    /// ''Solo''' -- a message that is false on its face, since that unit does
-    /// not export Solo.  No gate could see either half: comparing output needs
-    /// a test with a private object in it, and comparing emitted C says
-    /// nothing when the program is refused before any C exists.
+    /// ''Solo''' -- a message that is false on its face, since that unit does not
+    /// export Solo.  No gate could see either half: comparing output needs a test
+    /// with a private object in it, and comparing emitted C says nothing when the
+    /// program is refused before any C exists.
     ///
+    /// # Satisfies
+    ///
+    /// [MOD-006]
     procedure RecordPrivate (Decl : Any);
     begin
         if Decl is FunctionStmt or Decl is ClassStmt or Decl is ObjectStmt
@@ -611,18 +585,13 @@ begin
             Exit;
         end
 
-        // ⚠️ And a declaration kind that is not any of these is an ERROR rather
-        // than a silent no-op, which is the other half of the same hole: this
-        // procedure used to fall off the end, so 'private WriteLn(...)' was
-        // accepted and quietly ignored.
         raise Error (Previous(), '''private'' must precede a declaration.');
     end
 
-    /// The directory part of a path, or '' when there is none.
+    /// Gets the directory part of a path, or '' when there is none.
     ///
-    /// String work rather than a path library, because the language has no
-    /// such library -- and this is the whole of what module resolution needs.
-    ///
+    /// String work rather than a path library, because the language has no such
+    /// library -- and this is the whole of what module resolution needs.
     function DirectoryOf (Path : String) : String;
     var
         Cut : Integer := -1;
@@ -636,12 +605,19 @@ begin
         Exit Copy (Path, 0, Cut);
     end
 
-    /// Finds the file for a module.
+    /// Resolves a 'uses' name to a file: beside the importing file first, then
+    /// the working directory.
     ///
-    /// ⚠️ Beside the importing file FIRST, then the working directory.  That
-    /// order is what lets two directories hold two copies of the same file
-    /// names without either reaching the other's.
+    /// Beside the importer first is what lets a program keep its own modules
+    /// next to it without the working directory deciding what it imports.
     ///
+    /// # Raises
+    ///
+    /// A refusal naming the module when neither location has the file.
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-002]
     function ResolveModule (Where : Token, ModuleName : String) : String;
     var
         TheFile : String;
@@ -666,9 +642,23 @@ begin
                           + ''': no ' + TheFile + ' in ' + Searched + '.');
     end
 
-    /// Loads the file named by a 'uses' clause as a module.  Nil when it has
-    /// already been loaded.
+    /// Parses 'uses Name;' and loads the file, answering it as one statement.
     ///
+    /// The file is parsed INLINE, by a sub-parser sharing this one's Loaded map.
+    /// A diamond therefore loads once, and a re-import answers an empty module
+    /// node rather than nothing -- so the second importer still sees the module
+    /// and a cycle terminates instead of recursing.
+    ///
+    /// Circular imports work, which is not an accident of the implementation:
+    /// Parser uses Interpreter and Interpreter uses Parser.
+    ///
+    /// # Raises
+    ///
+    /// Whatever ResolveModule raises when the file cannot be found.
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-001], [MOD-003], [MOD-012]
     function UsesStatement () : Stmt;
     var
         ModuleName : String;
@@ -683,12 +673,6 @@ begin
 
         var Path := ResolveModule (Where, ModuleName);
 
-        // Keyed by the resolved file rather than the written name, so one
-        // module reached two ways loads once.
-        // ⚠️ A file already loaded yields a module node with NO statements
-        // rather than nothing at all.  Loading and visibility are different
-        // questions: the file is read once, but every file that says 'uses' for
-        // it must see it, or the second importer silently gets nothing.
         if Loaded.Contains (Path) then
         begin
             var Seen := ModuleStmt (Where, Nil, List());
@@ -704,8 +688,6 @@ begin
 
         SubParser.FileName := Path;
 
-        // The SAME map, not a copy -- a copy would let a diamond load its
-        // shared dependency twice, once down each arm.
         SubParser.Loaded := Loaded;
 
         var Result := SubParser.Parse();
@@ -722,11 +704,13 @@ begin
     /// The section form goes through DeclarationSection; this is the statement
     /// form, which is what a top-level constant uses.
     ///
-    /// # Errors
+    /// # Raises
     ///
-    /// A constant without a value is an error rather than nil: the whole point
-    /// of the binding is that it cannot be set later.
+    /// 'Expect constant name.' and a refusal for a const without an initializer.
     ///
+    /// # Satisfies
+    ///
+    /// [VAR-012]
     function ConstDeclaration () : Stmt;
     var
         Name : Token;
@@ -759,13 +743,7 @@ begin
         Exit TheVar;
     end
 
-    /// Consumes a 'private:' or 'public:' marker, if one is here.
-    ///
-    /// ⚠️ The COLON is what separates this from the module-level 'private',
-    /// which prefixes a single top-level declaration and has nothing to do
-    /// with classes.  Without the lookahead, 'private function F()' inside a
-    /// class body would read as a section marker.
-    ///
+    /// Consumes a 'private:' or 'public:' marker and records which is in force.
     function MatchVisibility () : Boolean;
     begin
         if Check (TOKEN_PRIVATE) and PeekNext().TypeOfToken = TOKEN_COLON then
@@ -785,20 +763,14 @@ begin
         Exit False;
     end
 
-    /// Whether a declaration section starts here.
-    ///
+    /// Whether what follows opens a 'var' or 'const' section rather than a
+    /// statement.
     function IsDeclarationSection () : Boolean;
     begin
         Exit Check (TOKEN_VAR) or Check (TOKEN_CONST) or Check (TOKEN_TYPE);
     end
 
-    /// Whether the current token ends the section being read.
-    ///
-    /// ⚠️ A section has no terminator of its own -- it runs until something
-    /// that is plainly not another declaration.  So this list has to name
-    /// everything that can follow one, and a member missing from it makes the
-    /// section swallow whatever comes next.
-    ///
+    /// Whether the current section has ended and another begins.
     function IsNextSection () : Boolean;
     begin
         if IsAtEnd () then Exit True;
@@ -809,16 +781,16 @@ begin
           or Check (TOKEN_VAR) or Check (TOKEN_CONST) or Check (TOKEN_TYPE);
     end
 
-    /// A 'var' or 'const' section: one declaration per line, no repeated
-    /// keyword, running until the next section or the body.
+    /// Parses a 'var' or 'const' section: a run of declarations under one
+    /// keyword.
     ///
-    ///     var
-    ///         Source : String;
-    ///         Current, Start, Line : Integer;
+    /// Several names may share one declaration -- 'Current, Start, Line :
+    /// Integer;' -- which becomes a VarGroupStmt rather than N separate ones,
+    /// because the initializer is evaluated once for the whole group.
     ///
-    /// The two differ only in whether an initializer is required and whether
-    /// the names may later be reassigned, so they share this.
+    /// # Satisfies
     ///
+    /// [VAR-009], [VAR-010], [VAR-015]
     function DeclarationSection (IsConstant : Boolean) : List;
     var
         Stmts : List;
@@ -832,14 +804,10 @@ begin
 
         while Not IsNextSection () do
         begin
-            // A marker may stand between two fields of one var section, not
-            // only between sections.  A loop rather than a skip, because the
-            // language has no 'continue' -- and two markers may sit together.
             while MatchVisibility () do
             begin
             end
 
-            // Markers may also run right up to the end of the section.
             if IsNextSection () then break;
 
             var Names := List();
@@ -848,10 +816,6 @@ begin
             while Match (TOKEN_COMMA) do
                 Names.Add (Consume (TOKEN_IDENTIFIER, 'Expect ' + Noun + ' name.'));
 
-            // ⚠️ Recorded HERE rather than by the caller, which sees the
-            // section only once it is fully parsed -- and so would read
-            // whichever marker came last and hide every field in the section
-            // behind it.
             if InPrivateSection then
                 for var I := 0; I < Names.Length; I := I + 1 do
                     ClassPrivates.Add (Str (Names[I].Lexeme));
@@ -874,8 +838,6 @@ begin
 
             Consume (TOKEN_SEMICOLON, 'Expect '';'' after ' + Noun + ' declaration.');
 
-            // One name is an ordinary declaration.  Several sharing an
-            // initializer stay together, so the expression runs once.
             if Names.Length = 1 then
             begin
                 var TheVar := VarStmt (Names[0], Initializer);
@@ -899,21 +861,22 @@ begin
         Exit Stmts;
     end
 
-    /// Reads every declaration section standing before a body, appending them
-    /// to it -- so a function's locals are ordinary statements at the top of
-    /// its own block.
-    ///
+    /// Reads every declaration section of a body, with visibility markers
+    /// allowed.
     procedure ReadDeclarationSections (Body : List);
     begin
         ReadDeclarationSections (Body, False);
     end
 
-    /// The same, with visibility markers allowed between sections.
+    /// Reads every declaration section of a body.
     ///
-    /// ⚠️ Only a class or object header passes True.  A marker in a FUNCTION
-    /// header means nothing, and silently accepting one there would invent
-    /// syntax the language does not have.
+    /// A subprogram's own locals take no visibility marker, which is what the
+    /// second parameter turns off: 'private:' belongs to a class or a unit, not
+    /// to a block of locals nobody outside can name anyway.
     ///
+    /// # Satisfies
+    ///
+    /// [DCL-011], [DCL-012], [VAR-011]
     procedure ReadDeclarationSections (Body : List, AllowVisibility : Boolean);
     begin
         while True do
@@ -946,8 +909,10 @@ begin
         end
     end
 
-    /// Parses the rest of 'for var X in C do ...', the name already read.
+    /// Parses the rest of 'for X in C do S', the name already consumed.
     ///
+    /// The loop variable takes no type: the grammar has no slot for one in this
+    /// form, only in the counted one.
     function ForInStatement (Name : Token) : Stmt;
     var
         Iterable : Expr;
@@ -971,14 +936,15 @@ begin
         Exit Loop;
     end
 
-    /// Parses 'break;'.
+    /// Parses 'break', optionally naming an enclosing loop.
     ///
-    /// # Errors
+    /// Refused where no loop encloses it, and where the label names no
+    /// enclosing loop -- both at the point it is written rather than at run
+    /// time.
     ///
-    /// Raises an error when written outside a loop.  A run-time check would
-    /// have to wait for the branch to be taken, and a 'break' with no loop to
-    /// leave is wrong however the program runs.
+    /// # Satisfies
     ///
+    /// [STM-010]
     function BreakStatement () : Stmt;
     var
         Keyword : Token;
@@ -999,16 +965,11 @@ begin
         Exit Leaving;
     end
 
-    /// Parses 'Outer: Statement'.
+    /// Parses 'Name:' and the statement it labels.
     ///
-    /// ⚠️ The label is copied ONTO the loop as well as wrapping it.  A labelled
-    /// 'continue' is caught by the loop itself -- a wrapper cannot begin
-    /// someone else's next iteration -- so the loop has to know its own name.
-    ///
-    /// ⚠️ PendingLabel rather than an argument, because the loop is parsed by
-    /// one of three functions and each reads it at a different point.  It is
-    /// cleared as it is taken, so a label never reaches a second loop.
-    ///
+    /// A label on a LOOP is copied into the loop as well, because a labelled
+    /// 'continue' has to be caught by the loop itself and a wrapper cannot begin
+    /// someone else's next iteration.
     function LabelStatement () : Stmt;
     var
         Name : Token;
@@ -1021,16 +982,12 @@ begin
 
         var Inner := Statement ();
 
-        // Not a loop, so nothing took it.  It is still a position 'goto' can
-        // name; it simply names no loop for 'break' to leave.
         PendingLabel := '';
 
         Exit LabelStmt (Name, Inner);
     end
 
-    /// Takes the label written before the loop now being parsed, if any, and
-    /// makes it the innermost labelled loop for the length of its body.
-    ///
+    /// Takes the label pending for the loop about to be parsed, clearing it.
     function TakeLabel () : String;
     var
         Taken : String;
@@ -1044,8 +1001,7 @@ begin
         Exit Taken;
     end
 
-    /// Whether a label names a loop this statement is inside.
-    ///
+    /// Whether a label names one of the loops this statement is inside.
     function EnclosingLoop (TheLabel : String) : Boolean;
     begin
         for var I := 0; I < LoopLabels.Length; I := I + 1 do
@@ -1054,14 +1010,13 @@ begin
         Exit False;
     end
 
-    /// The label after 'break' or 'continue', or '' when none was written.
+    /// Reads the optional label after 'break' or 'continue', checking it names
+    /// an enclosing loop.
     ///
-    /// # Errors
+    /// # Raises
     ///
-    /// Raises an error when the label names no enclosing loop.  A jump to a
-    /// loop that does not surround the statement is wrong however the program
-    /// runs, and the parser is where the enclosing loops are known.
-    ///
+    /// A refusal naming the verb when the jump is outside any loop, or names a
+    /// label no enclosing loop has.
     function JumpLabel (Keyword : Token, Verb : String) : String;
     var
         Named : String;
@@ -1077,13 +1032,11 @@ begin
         Exit Named;
     end
 
-    /// Parses 'continue;'.
+    /// Parses 'continue', optionally naming an enclosing loop.
     ///
-    /// # Errors
+    /// # Satisfies
     ///
-    /// Raises an error when written outside a loop, for the reason 'break'
-    /// does: there is no next iteration to begin, however the program runs.
-    ///
+    /// [STM-010]
     function ContinueStatement () : Stmt;
     var
         Keyword : Token;
@@ -1104,12 +1057,7 @@ begin
         Exit Beginning;
     end
 
-    /// The operators a class may define [EXP-020], and nothing else.
-    ///
-    /// ⚠️ A CLOSED LIST, and it has to be.  A new operator would need a
-    /// precedence and an associativity, and [EXP-001] is a fixed table of seven
-    /// levels with nowhere to put one.  These five already have a place in it.
-    ///
+    /// Consumes the symbol an 'operator' declaration is naming.
     function OperatorToken () : Token;
     begin
         if Check (TOKEN_PLUS) or Check (TOKEN_MINUS) or Check (TOKEN_STAR)
@@ -1120,16 +1068,19 @@ begin
 
     /// Parses 'operator + (Other : Money) : Money; begin ... end'.
     ///
-    /// ⚠️ The member's NAME is the operator's lexeme, so '+' is a method called
-    /// '+'.  Nothing downstream needs a new idea: dispatch, mangling [G.3] and
-    /// the class table all treat it as the method it is, and Annex G.3 spells a
-    /// '+' as U00002B without being asked.
+    /// The member's NAME is the operator's lexeme, so '+' is a method called
+    /// '+'.  Nothing downstream needs a new idea: dispatch, mangling and the
+    /// class table all treat it as the method it is, and the mangling spells '+'
+    /// as U00002B without being asked.
     ///
-    /// ⚠️ UNARY AND BINARY ARE TOLD APART BY ARITY, as the two forms of
-    /// subscript are [TYP-010]: 'operator - (Other)' is subtraction and
-    /// 'operator - ()' is negation.  The language already tells arities apart
-    /// everywhere, so neither form needs a word of its own.
+    /// UNARY AND BINARY ARE TOLD APART BY ARITY, as the two forms of subscript
+    /// are: 'operator - (Other)' is subtraction and 'operator - ()' is negation.
+    /// The language already tells arities apart everywhere, so neither form
+    /// needs a word of its own.
     ///
+    /// # Satisfies
+    ///
+    /// [EXP-020]
     function ParseOperator () : Stmt;
     var
         Name   : Token;
@@ -1196,14 +1147,16 @@ begin
 
     /// Parses 'property Count : Integer; begin ... end'.
     ///
-    /// ⚠️ NO PARAMETER LIST, which is the whole syntactic difference.  A
-    /// property is read rather than called, so a parameter would have nowhere
-    /// to arrive from -- and leaving the parentheses off is what makes the
-    /// declaration say that.
+    /// NO PARAMETER LIST, which is the whole syntactic difference.  A property is
+    /// read rather than called, so a parameter would have nowhere to arrive from
+    /// -- and leaving the parentheses off is what makes the declaration say that.
     ///
-    /// ⚠️ It becomes a FunctionStmt of arity 0 with IsProperty set, so
-    /// resolution, checking, binding and emission treat it as the method it is.
+    /// It becomes a FunctionStmt of arity 0 with IsProperty set, so resolution,
+    /// checking, binding and emission treat it as the method it is.
     ///
+    /// # Satisfies
+    ///
+    /// [CLS-017]
     function ParseProperty () : Stmt;
     var
         Name : Token;
@@ -1248,14 +1201,7 @@ begin
         Exit TheProperty;
     end
 
-    /// Parses 'goto Done;'.
-    ///
-    /// ⚠️ The label is NOT checked here.  A forward jump names a label the
-    /// parser has not reached yet, so the check needs a pass that has the whole
-    /// block in hand -- which is the Resolver's [STM-024].  'break' and
-    /// 'continue' are different: a loop they are inside has always been entered
-    /// already, so the parser can answer for them.
-    ///
+    /// Parses 'goto Name;'.
     function GotoStatement () : Stmt;
     var
         Keyword : Token;
@@ -1270,8 +1216,7 @@ begin
         Exit GotoStmt (Keyword, Named);
     end
 
-    /// Parses 'raise Expr;'.
-    ///
+    /// Parses 'raise E;'.
     function RaiseStatement () : Stmt;
     var
         Keyword : Token;
@@ -1285,33 +1230,25 @@ begin
         Exit RaiseStmt (Keyword, Value);
     end
 
-    /// Parses 'try ... except ... end'.
-    ///
-    ///     try
-    ///         Risky();
-    ///     except
-    ///         on E : String do WriteLn(E);
-    ///         on E do WriteLn('anything else');
-    ///     end
+    /// Parses 'try ... except' with its handlers.
     ///
     /// Handlers are collected into a Map keyed by type name, with an untyped
-    /// 'on E do' and any trailing statements both keyed 'default' -- an
-    /// untyped handler IS the catch-all, and keying it by its absent type
-    /// would make it unreachable.
+    /// 'on E do' and any trailing statements both keyed 'default' -- an untyped
+    /// handler IS the catch-all, and keying it by its absent type would make it
+    /// unreachable.
     ///
-    /// ⚠️ There are three ways to catch everything and one to catch nothing:
-    /// an untyped 'on E do', statements after the handlers, or an except block
-    /// with no 'on' handlers at all -- which includes an empty one, where
+    /// There are three ways to catch everything and one to catch nothing: an
+    /// untyped 'on E do', statements after the handlers, or an except block with
+    /// no 'on' handlers at all -- which includes an empty one, where
     /// 'try ... except end' deliberately discards the error.  But when typed
     /// handlers are present and none matches, the value keeps unwinding rather
     /// than being swallowed here.
     ///
-    /// # Errors
+    /// # Raises
     ///
-    /// A repeated handler is an error rather than a silent overwrite: two for
-    /// one type, two untyped ones, or an untyped one beside a trailing block.
-    /// The map would quietly keep the last and that branch would never run.
-    ///
+    /// A refusal for a repeated handler -- two for one type, two untyped ones,
+    /// or an untyped one beside a trailing block.  The map would quietly keep
+    /// the last and that branch would never run.
     function TryStatement () : Stmt;
     var
         Statements  : List;
@@ -1340,8 +1277,6 @@ begin
 
             Variable := Consume (TOKEN_IDENTIFIER, 'Expected variable name.');
 
-            // Kept as a Token rather than a lexeme so a duplicate can be
-            // reported against the type that was written twice.
             TheType := Nil;
             if Match (TOKEN_COLON) then
                 TheType := Consume (TOKEN_IDENTIFIER, 'Expected type.');
@@ -1381,26 +1316,30 @@ begin
         Exit TryStmt (BlockStmt (Statements), Handlers);
     end
 
-    /// Parses a var declaration.
+    /// Parses a 'var' declaration, reading the name first.
     ///
-    /// # Errors
-    /// 
-    /// Raises an error if no variable name.
-    /// Raises an error if no semicolon after variable declaration.
+    /// # Raises
     ///
+    /// 'Expect variable name.'
     function VarDeclaration () : Stmt;
     begin
         Exit VarDeclaration (Consume (TOKEN_IDENTIFIER, 'Expect variable name.'));
     end
 
-    /// The rest of a variable declaration, the name already consumed.
+    /// Parses a 'var' declaration whose name has already been consumed.
     ///
-    /// ⚠️ Split from the above so 'for var X in C' can read the name and let
-    /// the NEXT token decide which kind of loop it is -- the two forms agree
-    /// exactly that far and nowhere after it.  An overload rather than a flag.
+    /// The two forms exist because a counted 'for' has read the name before it
+    /// knows it is looking at a declaration.
     ///
+    /// The written type may be a subrange name, or a collection carrying an
+    /// element type -- 'List of Integer' -- which is recorded for checking and
+    /// never enforced at run time.
+    ///
+    /// # Satisfies
+    ///
+    /// [TYP-002], [VAR-001]
     function VarDeclaration (Name : Token) : Stmt;
-    var 
+    var
        Initializer : Expr;
 
     begin
@@ -1411,9 +1350,6 @@ begin
         begin
             TypeName := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect type name.').Lexeme);
 
-            // ⚠️ 'of' is honoured only after 'List'.  It is
-            // a keyword already -- 'case X of' -- so anywhere else it has to
-            // keep meaning what it meant, and a Map or a Set does not take one.
             if IsCollectionType (TypeName) and Match (TOKEN_OF) then
                 Generic := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
         end
@@ -1421,7 +1357,7 @@ begin
         if Match (TOKEN_ASSIGN) then
         begin
             Initializer := Expression();
-        end 
+        end
 
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after variable declaration.');
 
@@ -1432,16 +1368,11 @@ begin
         Exit TheVar;
     end
 
-    /// Parses an expression statement
-    ///
-    /// # Errors
-    /// 
-    /// Raises an error if no semicolon after expression.
-    ///
+    /// Parses an expression evaluated for its effect, its value discarded.
     function ExpressionStatement () : Stmt;
     var
        TheExpr : Expr;
-    
+
     begin
         TheExpr := Expression();
         Consume(TOKEN_SEMICOLON, 'Expect '';'' after expression.');
@@ -1449,17 +1380,28 @@ begin
         Exit ExpressionStmt (TheExpr);
     end
 
-    // Parse a function statement.
-    //
-    // # Errors
-    //
-    // Raises an error if no function name.
-    // Raises an error if no parenthesis after name.
-    // Raises an error if missing parameter name.
-    // Raises an error if more than 255 parameters.
-    // Raises an error if no closing parenthesis after parameters.
-    // Raises an error if no opening brace before body.
-    // 
+    /// Parses a subprogram declaration -- a function, a procedure, a method or
+    /// a constructor.
+    ///
+    /// One routine for all four, taking the kind as a word, because they differ
+    /// only in what they may return and where they may appear.  InProcedure is
+    /// saved and restored around the body rather than merely set: a function may
+    /// be declared inside a procedure, and its 'Exit E' is perfectly legal.
+    ///
+    /// A declaration carrying an 'external' symbol has NO BODY.  Its statement
+    /// list is empty and nothing walks it; the call goes to the runtime instead,
+    /// which finds the symbol and builds the call.
+    ///
+    /// # Raises
+    ///
+    /// 'Expect ''('' after <kind> name.', 'Expect parameter name.' and
+    /// 'Expect '')'' after parameters.' -- the first composed from Kind, so a
+    /// procedure and a function each name themselves.  Also a refusal for a
+    /// value returned from a procedure.
+    ///
+    /// # Satisfies
+    ///
+    /// [FUN-001], [FUN-003], [FUN-004], [FUN-012], [FUN-014]
     function ParseFunction (Kind : String) : Stmt;
     var
         Name   : Token;
@@ -1484,7 +1426,6 @@ begin
                 if Params.Length >= 255 then
                 begin
                     raise 'Can''t have more than 255 parameters.';
-                    //Error (Peek(), 'Can''t have more than 255 parameters.');
                 end
                 Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));
                 ParamTypes.Add (ParameterType ());
@@ -1498,26 +1439,17 @@ begin
         if Match (TOKEN_COLON) then
             ReturnType := CanonicalType (Consume (TOKEN_IDENTIFIER, 'Expect return type.').Lexeme);
 
-            // ⚠️ A return type is a Type too, so it carries an element type --
-            // 'function Make () : List of Integer' [TYP-002].
             if IsCollectionType (ReturnType) and Match (TOKEN_OF) then
                 ReturnGeneric := Str (Consume (TOKEN_IDENTIFIER, 'Expect generic type.').Lexeme);
 
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after ' + Kind + ' signature.');
 
-        // ⚠️ An EXTERNAL declaration has no body at all [FUN-014].  It names a C
-        // symbol and stops; the call goes to the runtime, which finds the
-        // symbol and builds the call, so there are no statements to walk and
-        // nothing downstream should look for any.
         if Match (TOKEN_EXTERNAL) then
         begin
             var Symbol := Consume (TOKEN_STRING, 'Expect a symbol name after ''external''.');
 
             var InLibrary := '';
 
-            // ⚠️ 'in' rather than a keyword of its own.  The word is already
-            // reserved [LEX-010] and reads correctly here -- the symbol is IN
-            // the library -- so the feature costs one keyword instead of two.
             if Match (TOKEN_IN) then
                 InLibrary := Str (Consume (TOKEN_STRING,
                                   'Expect a library name after ''in''.').Literal);
@@ -1535,17 +1467,11 @@ begin
             Exit Foreign;
         end
 
-        // ⚠️ Locals are read BEFORE 'begin' and prepended to the body, so they
-        // are ordinary statements at the top of the block.  Nothing downstream
-        // needs to know a var section existed.
         Body := List();
         ReadDeclarationSections (Body);
 
         Consume (TOKEN_BEGIN, 'Expect ''begin'' before ' + Kind + ' body.');
 
-        // ⚠️ Saved and restored, not merely set: a function declared inside a
-        // procedure may exit a value, and the enclosing procedure still may not
-        // once its own body resumes.
         var WasInProcedure := InProcedure;
         InProcedure := Kind = 'procedure';
 
@@ -1564,18 +1490,13 @@ begin
 
         Exit TheFunction;
     end
-    
-    // An optional ': Type' after a parameter name, or '' when none was written.
-    //
-    // ⚠️ A parameter takes the SAME Type as a declaration does [TYP-002],
-    // element type and all.  It did not, and 'Items : List of Integer' was
-    // 'Expect '')'' after parameters.' -- a form the grammar in Annex A has
-    // always described, refused by the parser alone.
-    //
-    // ⚠️ The element type is left in LastGeneric rather than returned, because
-    // this answers the TYPE and the caller wants both.  One out-parameter for
-    // one call site beats a second function that re-parses.
-    //
+
+    /// Reads a parameter's written type, leaving any element type in
+    /// LastGeneric.
+    ///
+    /// # Satisfies
+    ///
+    /// [VAR-008]
     function ParameterType () : String;
     begin
         LastGeneric := '';
@@ -1590,10 +1511,7 @@ begin
         Exit TypeName;
     end
 
-    // Parses a block of statements.
-    //
-    // Raises an error if no semicolon after block.
-    // 
+    /// Parses 'begin' ... 'end' and answers the statements between.
     function Block () : List;
     var
        Statements : List of Statement;
@@ -1601,30 +1519,36 @@ begin
     begin
         Statements := List();
 
-        // 'and Not IsAtEnd()', or an unterminated block runs off the end of the
-        // input and reports whatever the next statement rule fails on -- 'Expect
-        // expression!' -- instead of the missing 'end'.
         while Not Check (TOKEN_END) and Not IsAtEnd () do
         begin
             Statements.Add (Declaration ());
-        end 
-        
+        end
+
         Consume (TOKEN_END, 'Expect ''end'' after block.');
         Exit Statements;
     end
 
-    // Parses an assignment.
-    //
-    // # Errors
-    //
-    // Raises an error if invalid assignment target.
-    //
+    /// Parses an assignment, or whatever expression stands where its target
+    /// would be.
+    ///
+    /// The target decides the node: a bare name is an AssignExpr, a property is
+    /// a SetExpr, and a subscript is a SetSubscriptExpr rather than an
+    /// AssignExpr with a subscript target, because that target is not a name and
+    /// nothing about it resolves like one.
+    ///
+    /// # Raises
+    ///
+    /// A refusal for an assignment to something that cannot be assigned to.
+    ///
+    /// # Satisfies
+    ///
+    /// [EXP-017]
     function Assignment () : Expr;
     var
        TheExpr : Expr;
        Equals  : Token;
        Value   : Expr;
-    
+
     begin
         TheExpr := ParseOr ();
 
@@ -1645,8 +1569,7 @@ begin
         Exit TheExpr;
     end
 
-    // Parses an or expression.
-    //
+    /// Parses 'or', which does not evaluate its right operand unless it has to.
     function ParseOr () : Expr;
     var
        TheExpr : Expr;
@@ -1662,12 +1585,12 @@ begin
             Right := ParseAnd ();
             TheExpr := LogicalExpr (TheExpr, Op, Right);
         end
-       
+
         Exit TheExpr;
     end
 
-     // Parses an and expression.
-    //
+    /// Parses 'and', which does not evaluate its right operand unless it has
+    /// to.
     function ParseAnd () : Expr;
     var
        TheExpr : Expr;
@@ -1683,19 +1606,15 @@ begin
             Right := Equality ();
             TheExpr := LogicalExpr (TheExpr, Op, Right);
         end
-       
-        Exit TheExpr;
-    end   
 
-    // Parses an expression.  Calls Equality.
-    /// Parses an expression, and the optional cast that may follow it.
+        Exit TheExpr;
+    end
+
+    /// Parses an expression -- the entry point to the whole precedence chain.
     ///
-    /// ⚠️ The cast is read HERE, above assignment and therefore above 'and'
-    /// and 'or' -- so 'A and B as C' casts the whole conjunction, not B.  That
-    /// is the shape, and the reason 'is' could not be put beside it: 'as'
-    /// consumes nothing after itself, so it cannot be followed by an operator,
-    /// while 'A is Dog and B is Cat' has to parse.
+    /// # Satisfies
     ///
+    /// [EXP-001]
     function Expression() : Expr;
     var
         TheExpr : Expr;
@@ -1706,61 +1625,32 @@ begin
         Exit TheExpr;
     end
 
-    
-    // Parses a declaration.
-    //
+    /// Parses one top-level item: a declaration, a test block, or a statement.
+    ///
+    /// # Satisfies
+    ///
+    /// [TST-001]
     function Declaration();
     begin
-        //try 
             if IsTestBlock () then Exit TestDeclaration ();
 
             Exit Statement ();
-        //except
-        //    on e : String do 
-        //        begin
-        //           Synchronize ();
-        //        end
-        //end
     end
 
-    // Parses an enum declaration: type Colour = (Red, Green, Blue);
-    //
-    // # Errors
-    //
-    // Raises an error if no enum name, no '=', no '(' , no member name, or no
-    // closing parenthesis or semicolon.
-    //
-    // Is the parser looking at a test block?
-    //
-    // 'test' is CONTEXT-SENSITIVE, not a keyword: an identifier spelled 'test'
-    // followed by a string.  Making it a real keyword would stop anything else
-    // being called 'test', and the Lox sources in this file's own tests use it
-    // as a variable name constantly.
-    //
+    /// Whether what follows is a test block.
+    ///
+    /// 'test' is not a keyword -- it is an ordinary identifier recognised by
+    /// position, so this needs the quoted name after it to be sure [LEX-011].
     function IsTestBlock () : Boolean;
     begin
         if not Check (TOKEN_IDENTIFIER) then Exit False;
         if Peek().Lexeme <> 'test' then Exit False;
 
-        // ⚠️ Either quoted form.  A one-character name is a Char and not a
-        // String [LEX-023], so 'test ''X'';' used to be an identifier followed
-        // by a Char and failed with 'Expect '';'' after expression.' -- a
-        // diagnostic naming neither tests nor names [TST-001].
         Exit PeekNext().TypeOfToken = TOKEN_STRING
           or PeekNext().TypeOfToken = TOKEN_CHAR;
     end
 
-    // Parses a test block:
-    //
-    //     test 'Some Name';
-    //     begin
-    //         ...
-    //     end
-    //
-    // It desugars into a FunctionStmt whose NAME TOKEN IS THE STRING LITERAL,
-    // which is also how the runner tells a test from a function: a test's name
-    // token carries a literal and an identifier's does not.
-    //
+    /// Parses 'test ''Name''; begin ... end'.
     function TestDeclaration () : Stmt;
     var
         Name : Token;
@@ -1778,9 +1668,13 @@ begin
         Exit FunctionStmt (Name, List(), Body);
     end
 
-    /// 'type X = ...' declares an enumeration or a subrange, and which is
-    /// decided by the character after the '='.
+    /// Parses 'type X = ...', which declares an enumeration or a subrange.
     ///
+    /// Which of the two is decided by the character after the '='.
+    ///
+    /// # Satisfies
+    ///
+    /// [ENU-001]
     function EnumDeclaration () : Stmt;
     var
         Name    : Token;
@@ -1806,13 +1700,16 @@ begin
         Exit EnumStmt (Name, Members);
     end
 
-    /// 'type Digit = 0 .. 9;' -- a subrange of Integer [TYP-016].
+    /// Parses 'type Digit = 0 .. 9;' -- a subrange of Integer.
     ///
-    /// ⚠️ The bounds are LITERALS, optionally signed, rather than expressions.
-    /// A subrange is hoisted like a class and an enum, so its bounds must be
-    /// known before anything runs -- and an expression would have to be
-    /// evaluated, which needs the declaration to have run already.
+    /// The bounds are LITERALS, optionally signed, rather than expressions.  A
+    /// subrange is hoisted like a class and an enum, so its bounds must be known
+    /// before anything runs -- and an expression would have to be evaluated,
+    /// which needs the declaration to have run already.
     ///
+    /// # Satisfies
+    ///
+    /// [TYP-016]
     function SubrangeDeclaration (Name : Token) : Stmt;
     var
         Low  : Integer;
@@ -1825,9 +1722,6 @@ begin
 
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after subrange declaration.');
 
-        // ⚠️ Refused where it is READ.  An empty subrange admits no value at
-        // all, so every assignment through it would fail and the declaration
-        // is the only place that can say why.
         if Low > High then
             Error (Name, 'A subrange must not be empty: ' + Str (Low)
                        + ' is above ' + Str (High) + '.');
@@ -1835,12 +1729,11 @@ begin
         Exit SubrangeStmt (Name, Low, High);
     end
 
-    /// One bound: an integer literal, optionally preceded by '-'.
+    /// Reads one bound: an integer literal, optionally preceded by '-'.
     ///
-    /// ⚠️ There is no negative literal [LEX-019], so the sign is read here
-    /// rather than being part of the number -- the same rule the rest of the
-    /// language follows, applied where an expression cannot be.
-    ///
+    /// There is no negative literal [LEX-019], so the sign is read here rather
+    /// than being part of the number -- the same rule the rest of the language
+    /// follows, applied where an expression cannot be.
     function SubrangeBound () : Integer;
     var
         Negative : Boolean;
@@ -1855,6 +1748,7 @@ begin
         Exit Bound.Literal as Integer;
     end
 
+    /// Parses a class, naming itself 'class' in its diagnostics.
     function ClassDeclaration ();
     begin
         Exit ClassDeclaration ('class');
@@ -1862,12 +1756,15 @@ begin
 
     /// Parses a class or an object.
     ///
-    /// ⚠️ ONE rule for both, differing only in the noun in its messages and in
+    /// ONE routine for both, differing only in the noun in its messages and in
     /// which node it builds at the end.  An object is a class in every respect
     /// but what its name evaluates to, and two copies of this would be two
     /// places for a class feature to be added and an object feature to be
     /// forgotten.
     ///
+    /// # Satisfies
+    ///
+    /// [CLS-001], [CLS-002], [CLS-015]
     function ClassDeclaration (Kind : String);
     var
         Name       : Token;
@@ -1879,8 +1776,6 @@ begin
         Name := Consume (TOKEN_IDENTIFIER, 'Expect ' + Kind + ' name.');
         Superclass := Nil as VariableExpr;
 
-        // A superclass is named in parentheses -- 'class Dog(Animal);' -- where
-        // Lox wrote 'class Dog < Animal'.
         if Match (TOKEN_LEFT_PAREN) then
         begin
            Consume (TOKEN_IDENTIFIER, 'Expect superclass name.');
@@ -1890,20 +1785,9 @@ begin
 
         Consume (TOKEN_SEMICOLON, 'Expect '';'' after ' + Kind + ' declaration.');
 
-        // ⚠️ The header and the body are separate blocks: a marker runs to the
-        // next one WITHIN the block it is in, so the body starts public again
-        // however the header ended.
         ClassPrivates := List();
         InPrivateSection := False;
 
-        // The declaration sections standing before the body, with visibility
-        // markers allowed between them.
-        //
-        // ⚠️ A comma group is FLATTENED here into one field per name, unlike
-        // in a function body where it stays together.  A field's initializer
-        // runs once per instance in SeedFields anyway, so there is no shared
-        // evaluation to preserve -- and every later stage, from MapType to the
-        // instance's slot list, wants one entry per field.
         Fields := List();
         var Section := List();
         ReadDeclarationSections (Section, True);
@@ -1928,12 +1812,8 @@ begin
 
         Consume (TOKEN_BEGIN, 'Expect ''begin'' before ' + Kind + ' body.');
 
-        // ⚠️ The header and the body are separate blocks, so a marker's reach
-        // stops here: the body starts public again however the header ended.
         InPrivateSection := False;
 
-        // Every member carries its own keyword, unlike Lox where a method is a
-        // bare name.  A constructor is spelled 'constructor', not named 'init'.
         Methods := List();
         while Not Check (TOKEN_END) and Not IsAtEnd () do
         begin
@@ -1943,8 +1823,6 @@ begin
 
             if Check (TOKEN_END) or IsAtEnd () then break;
 
-            // Stmt, not FunctionStmt: ParseFunction is declared to return
-            // the base, and the checker holds it to that.
             var Method : Stmt;
 
             if Match (TOKEN_CONSTRUCTOR) then
@@ -1983,14 +1861,13 @@ begin
         Exit TheClass;
     end
 
-    // Parses an equality (!= ==).  Calls Comparison if no match.
-    //
+    /// Parses '=' and '<>', the loosest-binding of the operators.
     function Equality() : Expr;
-    var 
+    var
        TheExpr  : Expr;
        TheOperator : Token;
        Right    : Expr;
-       
+
     begin
        TheExpr := Comparison();
 
@@ -1999,14 +1876,16 @@ begin
            TheOperator := Previous();
            Right := Comparison();
 
-           TheExpr := BinaryExpr(TheExpr, TheOperator, Right); 
+           TheExpr := BinaryExpr(TheExpr, TheOperator, Right);
        end
 
        Exit TheExpr;
     end
 
-    // Parses a comparison (> >= < <=).  Calls Term if no match.
-    //
+    /// Parses '<', '<=', '>' and '>=', and the 'is' type test.
+    ///
+    /// 'is' sits here rather than beside 'as' because it consumes a type name
+    /// after itself, so 'A is Dog and B is Cat' has to keep parsing.
     function Comparison() : Expr;
     var
         TheExpr : Expr;
@@ -2016,9 +1895,6 @@ begin
     begin
         TheExpr := Term();
 
-        // 'is' sits with the relational operators, so 'A is Dog and B is Cat'
-        // parses -- binding it tighter than 'and' is the whole point of putting
-        // it here rather than beside the unary operators.
         while True do
         begin
             if Match (TOKEN_IS) then
@@ -2026,7 +1902,6 @@ begin
                 TheExpr := IsExpr (TheExpr,
                     Consume (TOKEN_IDENTIFIER, 'Expect type name after ''is''.'));
             end
-            // 'in' sits with the relational operators, as it does in Pascal.
             else if Match (TOKEN_GREATER) or Match (TOKEN_GREATER_EQUAL) or
                     Match (TOKEN_LESS)    or Match (TOKEN_LESS_EQUAL) or
                     Match (TOKEN_IN) then
@@ -2040,8 +1915,11 @@ begin
         Exit TheExpr;
     end
 
-    // Parses a term (- +).  Calls Factor if no match.
-    //
+    /// Parses '+' and '-'.
+    ///
+    /// # Satisfies
+    ///
+    /// [EXP-002]
     function Term() : Expr;
     var
         TheExpr : Expr;
@@ -2050,12 +1928,7 @@ begin
 
     begin
         TheExpr := Factor();
-       
-        // ⚠️ Factor(), not Term().  Recursing into Term made '-' and '+'
-        // RIGHT-associative: 'a - b - c' parsed as 'a - (b - c)', so
-        // '2 - 1 - 1' was 2 rather than 0.  The accumulator loop is what makes
-        // it left-associative, and it only works if the right operand is one
-        // rung down.
+
         while Match (TOKEN_MINUS) or Match (TOKEN_PLUS) do
         begin
             TheOperator := Previous();
@@ -2065,8 +1938,7 @@ begin
         Exit TheExpr;
     end
 
-    // Parses a term expression (/ *).  Calls Unary if no match.
-    //
+    /// Parses '*', '/' and 'div', which bind tighter than '+' and '-'.
     function Factor() : Expr;
     var
         TheExpr  : Expr;
@@ -2075,13 +1947,6 @@ begin
 
     begin
         TheExpr := Unary();
-        // ⚠️ Accumulate and keep going -- this used to Exit on the first
-        // operator, so '20 / 2 / 5' consumed '20 / 2' and left '/ 5' behind,
-        // which the caller reported as a missing ';'.  Repeated '*' or '/' did
-        // not parse at all.
-        // ⚠️ 'div' binds as '*' and '/' do.  It is a different OPERATION,
-        // not a different precedence: 'A + B div C' groups the way
-        // 'A + B / C' does, which is the only grouping a reader expects.
         while Match(TOKEN_SLASH) or Match(TOKEN_STAR) or Match(TOKEN_DIV) do
         begin
             TheOperator := Previous();
@@ -2092,19 +1957,22 @@ begin
         Exit TheExpr;
     end
 
-    // Parses an unary expression (! -).  Calls Primary if no match.
-    //
-    /// ⚠️ 'as' binds HERE, at the unary level, and applies to the operand
-    /// beside it and nothing further: 'A and B as C' is 'A and (B as C)', and
-    /// 'A as Integer > 3' is '(A as Integer) > 3' [EXP-003].
+    /// Parses a prefix '-' or 'not', and the 'as' cast.
+    ///
+    /// 'as' binds HERE, at the unary level, and applies to the operand beside it
+    /// and nothing further: 'A and B as C' is 'A and (B as C)', and
+    /// 'A as Integer > 3' is '(A as Integer) > 3'.
     ///
     /// It used to bind below 'or', in Expression, which had two consequences.
-    /// 'A and B as C' cast the whole conjunction -- an oddity while a cast had
-    /// no runtime effect, and a live fault once it raises [VAL-007].  And
-    /// 'A as Integer > 3' did not parse AT ALL: the cast consumed the
-    /// expression and the comparison had nothing to attach to, giving
-    /// 'Expect '')'' after arguments.'
+    /// 'A and B as C' cast the whole conjunction -- an oddity while a cast had no
+    /// run-time effect, and a live fault once it became a checked conversion,
+    /// since 'False and 5 as Integer' then cast a Boolean and raised.  And
+    /// 'A as Integer > 3' did not parse at all: the cast consumed the expression
+    /// and the comparison had nothing to attach to.
     ///
+    /// # Satisfies
+    ///
+    /// [EXP-003]
     function Unary() : Expr;
     var
        TheOperator : Token;
@@ -2122,8 +1990,6 @@ begin
 
         TheExpr := Call();
 
-        // ⚠️ A field on the expression rather than a node of its own, which is
-        // what lets Evaluate check every cast in one place.
         if Match (TOKEN_AS) then
             TheExpr.Cast := CanonicalType (Consume (TOKEN_IDENTIFIER,
                 'Expect typecast identifier.').Lexeme);
@@ -2131,12 +1997,11 @@ begin
         Exit TheExpr;
     end
 
-    // Parses a List or Map literal, the opening bracket already consumed.
-    //
-    // '[:]' is the empty Map and '[]' the empty List -- without the colon there
-    // would be no way to tell them apart.  Otherwise a colon after the first
-    // element is what decides, and every element after it must have one too.
-    //
+    /// Parses a collection literal -- '[1, 2, 3]', '[''a'': 1]', '[]' and '[:]'.
+    ///
+    /// One node for both kinds, told apart by a colon after the first element.
+    /// '[]' is an empty List and '[:]' an empty Map, which is the only place the
+    /// two empty forms can be distinguished at all.
     function CollectionLiteral () : Expr;
     var
         Keys   : List;
@@ -2182,8 +2047,9 @@ begin
         Exit CollectionExpr (IsMap, Keys, Values);
     end
 
-    // Parses a call expression.
-    //
+    /// Parses a call, a property access and a subscript, left to right.
+    ///
+    /// The loop is what makes 'A.B (1)[2].C' read in the order written.
     function Call () : Expr;
     var
        TheExpr : Expr;
@@ -2191,7 +2057,7 @@ begin
 
     begin
         TheExpr := Primary();
-      
+
         while True do
         begin
             if Match (TOKEN_LEFT_PAREN) then
@@ -2209,19 +2075,18 @@ begin
                     Name := Consume (TOKEN_IDENTIFIER, 'Expect property name after ''.''.');
                     TheExpr := GetExpr (TheExpr, Name);
                 end
-            else  
+            else
                 Break;
         end
         Exit TheExpr;
     end
 
-    // Finishes parsing a call.
-    //
-    // # Errors
-    //
-    // Raises an error if more than 255 arguments.
-    // Raises an error if no closing parenthesis after arguments.
-    //
+    /// Reads the argument list of a call, the '(' already consumed.
+    ///
+    /// # Raises
+    ///
+    /// 'Expect '')'' after arguments.', and a refusal for a positional argument
+    /// following a named one.
     function FinishCall (Callee : Expr) : Expr;
     var
         Arguments : List of Expr;
@@ -2238,7 +2103,6 @@ begin
             while Match (TOKEN_COMMA) do
             begin
                 if Arguments.Length >= 255 then
-                    //Error (Peek(), 'Can''t have more than 255 arguments.');
                     raise 'Can''t have more than 255 arguments.';
 
                 Argument (Arguments, Names);
@@ -2252,18 +2116,11 @@ begin
         Exit TheCall;
     end
 
-    // One argument, positional or naming the parameter it fills [EXP-013].
-    //
-    // ⚠️ IDENTIFIER then COLON, one token of lookahead -- the same shape the
-    // Map literal uses to tell '[k : v]' from '[v]' [COL-001], and the same
-    // meaning: a name on the left, a value on the right.  It is decided BEFORE
-    // parsing rather than after, because a parameter name is not an expression.
-    //
-    // ⚠️ The colon collides with nothing.  A ':' in expression position would
-    // normally meet a conditional expression's '? :', and this language has no
-    // conditional expression because '?' is an identifier mark [LEX-008] and
-    // 'Gate?' is one word.  The ':' in 'case ... of' is a statement's.
-    //
+    /// Reads one argument, and the parameter name it fills when it names one.
+    ///
+    /// The name is collected BESIDE the expression rather than inside it.  An
+    /// argument is an expression and a name is not one, so a name is not
+    /// something the tree can hold in the same slot.
     procedure Argument (Arguments : List, Names : List);
     begin
         if Check (TOKEN_IDENTIFIER) and PeekNext().TypeOfToken = TOKEN_COLON then
@@ -2277,16 +2134,6 @@ begin
             Exit;
         end
 
-        // ⚠️ Positional arguments come FIRST and named ones after -- Python's
-        // rule.  It is also what spares absorption a rule of its own [FUN-005]:
-        // gathering takes trailing POSITIONAL arguments, and positional
-        // arguments end exactly where naming begins.
-        //
-        // ⚠️ The LAST entry is what decides, not whether Names is empty: it
-        // holds '' for every positional argument too, so a length test would
-        // refuse the second positional argument of every call.  Checking the
-        // last one is enough, because this check is what keeps the named
-        // arguments contiguous at the end.
         if Names.Length > 0 and Str (Names[Names.Length - 1]) <> '' then
             raise 'A positional argument cannot follow a named one.';
 
@@ -2294,17 +2141,22 @@ begin
         Arguments.Add (Expression ());
     end
 
-    // Parses a primary expression:  True, False, Nil, Number, String or Grouping.
-    //
-    // # Errors
-    // 
-    // Raises an error if grouping has no closing parenthesis.
-    // Raises an error if no dot after ''super''.
-    // Raises an error if no superclass method name.
-    // Raises an error if no expression matched.
-    //
+    /// Parses the tightest-binding forms: a literal, a name, 'this', 'super', a
+    /// parenthesised expression, and a collection literal.
+    ///
+    /// Where the recursive descent bottoms out, so a token reaching here that
+    /// begins no expression is the parse error the whole chain finally reports.
+    ///
+    /// # Raises
+    ///
+    /// 'Expect expression!' for a token that starts none, and
+    /// 'Expect '')'' after expression.' for an unclosed group.
+    ///
+    /// # Satisfies
+    ///
+    /// [COL-001]
     function Primary() : Expr;
-    var 
+    var
         TheExpr : Expr;
         Keyword : Token;
         Method  : Token;
@@ -2325,9 +2177,9 @@ begin
         if Match (TOKEN_SUPER) then
         begin
            Keyword := Previous();
-           Consume (TOKEN_DOT, 'Expect ''.'' after ''super''.');  
+           Consume (TOKEN_DOT, 'Expect ''.'' after ''super''.');
            Method := Consume (TOKEN_IDENTIFIER, 'Expect superclass method name.');
-           Exit SuperExpr (Keyword, Method);  
+           Exit SuperExpr (Keyword, Method);
         end
 
         if Match (TOKEN_THIS) then Exit ThisExpr (Previous());
@@ -2341,14 +2193,14 @@ begin
         begin
             TheExpr := Expression();
             Consume (TOKEN_RIGHT_PAREN, 'Expect '')'' after expression.');
-        
+
             Exit GroupingExpr (TheExpr);
         end
         raise 'Expect expression!';
     end
 
-    // If token type matches, advances and returns True, otherwise False.
-    //
+    /// Consumes the next token when it is of this kind, and answers whether it
+    /// did.
     function Match(TheType : TokenType) : Boolean;
     begin
         if Check (TheType) then
@@ -2359,19 +2211,7 @@ begin
         Exit False;
     end
 
-    // Returns an error.
-    //
-    // Reports a parse error and returns the message to raise.
-    //
-    // ⚠️ Reporting and raising are SEPARATE: this prints the position and the
-    // caret, and the caller raises the message so the parse unwinds.  Doing
-    // only one of them is how a run ends with no output at all, which has
-    // happened more than once.
-    //
-    // The message alone is returned, without position, because algc's own
-    // tests assert on it and a raised value is all a handler sees.  The
-    // position reaches the reader through Console, not through the string.
-    //
+    /// Reports a parse error against a token and answers it to be raised.
     function Error(TheToken: Token, Message : String) : Any;
     begin
         Console.Error (TheToken, Message);
@@ -2379,37 +2219,30 @@ begin
         Exit Message;
     end
 
-    // If current token matches a type then advance, otherwise throw an error.
-    //
-    // # Errors
-    //
-    // Raises an error if token not matched.
-    //
+    /// Consumes a token of the required kind, or fails with the given message.
+    ///
+    /// # Raises
+    ///
+    /// The message given, against the token actually found.
     function Consume (TypeOfToken : TokenType, Message : String) : Token;
     begin
         if Check (TypeOfToken) then Exit Advance();
 
-        // Previous(), not Peek(): the error belongs on the token before the
-        // missing one -- 'var A := 1' with no ';' points at the 1, not at
-        // whatever begins the next line.
         raise Error (Previous(), Message);
     end
 
-    // Checks if current token matches a type.
-    //
+    /// Whether the next token is of this kind, without consuming it.
     function Check(TheType : TokenType) : Boolean;
     begin
        if IsAtEnd() then Exit False;
-       
+
        Exit Peek().TypeOfToken = TheType;
     end
 
-    /// Whether the next token is a particular identifier.
+    /// Whether the next token is an identifier spelling this word.
     ///
-    /// 'on' is context-sensitive rather than a keyword, exactly as 'test' is,
-    /// so a program may still call a variable 'on'.  Matched without regard to
-    /// case, as the real keywords are.
-    ///
+    /// How the context-sensitive words are recognised, since none of them is a
+    /// keyword [LEX-011].
     function CheckWord (Word : String) : Boolean;
     begin
         if Not Check (TOKEN_IDENTIFIER) then Exit False;
@@ -2417,8 +2250,7 @@ begin
         Exit ToLower (Str (Peek().Lexeme)) = Word;
     end
 
-    // Returns the current token, and moves to next.
-    //
+    /// Consumes the next token and answers it.
     function Advance() : Token;
     begin
        if Not IsAtEnd() then Current := Current + 1;
@@ -2426,25 +2258,19 @@ begin
        Exit Previous();
     end
 
-    // Is at end of source?
-    //
+    /// Whether the parse has reached the EOF token.
     function IsAtEnd() : Boolean;
     begin
        Exit Peek().TypeOfToken = EOF;
     end
 
-    // Gets the current token.
-    //
+    /// Gets the next token without consuming it.
     function Peek() : Token;
     begin
        Exit Tokens[Current];
     end
 
-    // Gets the previous token.
-    //
-    // The token after the current one, for the two-token lookahead a test block
-    // needs.  Clamped at the end rather than running off it.
-    //
+    /// Gets the token after the next one without consuming either.
     function PeekNext() : Token;
     begin
        if Current + 1 >= Tokens.Length then Exit Tokens[Tokens.Length - 1];
@@ -2452,6 +2278,7 @@ begin
        Exit Tokens[Current + 1];
     end
 
+    /// Gets the token most recently consumed.
     function Previous() : Token;
     begin
        Exit Tokens[Current - 1];
@@ -2494,7 +2321,6 @@ begin
     AssertEqual(Nil, Result.Value);
 end
 
-
 // Parsing a number token should return a number literal
 //
 test 'Parse Number';
@@ -2532,40 +2358,40 @@ begin
 end
 
 // When parsing parenthesis, primary should return an error when there is an unmatched closing parenthesis.
-// 
+//
 test 'Parse Parenthesis Error';
 begin
     var TheScanner:= Scanner ('(1');
     var TheParser := Parser (TheScanner.ScanTokens());
 
-    try 
+    try
        TheParser.Primary();
     except
-        on e : String do 
-            begin 
+        on e : String do
+            begin
                AssertEqual ('Expect '')'' after expression.', e);
                Exit;
             end
-    end       
+    end
     Fail('No error raised');
 end
 
 // Should fail if reaches the end and a valid primary expression is not matched.
-// 
+//
 test 'Parse Primary Error';
 begin
     var TheScanner:= Scanner ('-1');
     var TheParser := Parser (TheScanner.ScanTokens());
 
-    try 
+    try
        TheParser.Primary();
     except
-        on e : String do 
-            begin 
+        on e : String do
+            begin
                 AssertEqual ('Expect expression!', e);
                 Exit;
             end
-    end       
+    end
     Fail('No error raised');
 end
 
@@ -2623,7 +2449,6 @@ begin
     AssertEqual(TOKEN_EQUAL, Result.Op.TypeOfToken);
 end
 
-    
 // Parsing / should return a Binary.
 //
 test 'Parse Factor Slash';
@@ -2934,10 +2759,10 @@ begin
     var Result := TheParser.Statement();
 
     AssertEqual('IfStmt', Result.ClassName);
-end  
+end
 
 // Parsing an if statement without an opening paren should return a parse error.
-// 
+//
 test 'Parse If Expect Then';
 begin
     var TheScanner := Scanner ('if true true;');
@@ -2955,9 +2780,6 @@ begin
     Fail('No exception thrown.');
 end
 
-// Parsing an if statement without a closing paren should return a parse error.
-//
-
 // Test parsing a while statement.
 //
 test 'Parse While Statement';
@@ -2968,7 +2790,7 @@ begin
     var Result := TheParser.Statement();
 
     AssertEqual('WhileStmt', Result.ClassName);
-end  
+end
 
 // A while statement missing a left paren should return a parse error.
 //
@@ -2989,9 +2811,6 @@ begin
     Fail('No exception thrown.');
 end
 
-// A while statement missing the right paren should return a parse error.
-//
-
 // A for statement should return an elaborate while statement.
 //
 test 'Parse For Statement';
@@ -3002,7 +2821,7 @@ begin
     var Result := TheParser.Statement();
 
     AssertEqual('BlockStmt', Result.ClassName);
-end  
+end
 
 // For statement missing opening paren should return a parse error.
 //
@@ -3022,9 +2841,6 @@ begin
     end
     Fail('No exception thrown.');
 end
-
-// For statement missing closing paren should return a parse error.
-//
 
 // For statement missing a semicolon after the initializer should return a parse error.
 //
@@ -3055,8 +2871,8 @@ begin
     var Result := TheParser.Statement();
 
     AssertEqual('ExpressionStmt', Result.ClassName);
-end  
-    
+end
+
 // Parsing should accept multiple parenthesis.
 //
 test 'Parse Function Call Multiple Parenthesis';
@@ -3067,7 +2883,7 @@ begin
     var Result := TheParser.Statement();
 
     AssertEqual('ExpressionStmt', Result.ClassName);
-end  
+end
 
 // Should return a parse error if arguments are not followed by a close paren.
 //
@@ -3124,7 +2940,7 @@ begin
     var Result := TheParser.Declaration();
 
     AssertEqual('FunctionStmt', Result.ClassName);
-end  
+end
 
 // Should return a parse error if no opening parenthesis
 //
@@ -3386,7 +3202,6 @@ begin
     end
     Fail('No exception thrown.');
 end
-  
 
 // Tests getters!!
 //
@@ -3407,9 +3222,6 @@ begin
     var TheParser := Parser (TheScanner.ScanTokens());
     TheParser.Statement();
 end
-
-
-// ---------------------------------------------------------------- try/except
 
 // A try block runs to 'except', and the handlers are keyed by type.
 //
@@ -3591,9 +3403,6 @@ begin
     Fail ('No exception raised.');
 end
 
-
-// ------------------------------------------------------------------- break
-
 test 'Parse Break Inside A While';
 begin
     var TheScanner := Scanner ('while True do begin break; end');
@@ -3672,9 +3481,6 @@ begin
     end
     Fail ('No exception raised.');
 end
-
-
-// ------------------------------------------------- declaration sections
 
 test 'Parse A Function Local Var Section';
 begin

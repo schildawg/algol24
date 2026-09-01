@@ -1,22 +1,31 @@
+/// A class at run time: its methods, its parent, and the fields it seeds onto
+/// every instance.
+unit ObjClass;
+
 uses Token;
 uses ObjFunction;
 uses ObjInstance;
 
-/// ObjClass
-///
+/// A class, which is also what a program calls to construct an instance.
 class ObjClass;
 var
+    /// The class name, as the program spelled it.
     Name       : String;
+
+    /// Methods, keyed by folded name.  A name may hold several overloads.
     Methods    : Map;
+
+    /// The parent, or Nil for a class that declares none.
     Superclass : ObjClass;
 
-    /// Declared field names, in the order written.  Seeded onto every instance
-    /// so a field a class declares exists before anything assigns to it.
+    /// Declared field names, in the order written.
+    ///
+    /// Seeded onto every instance so a field a class declares exists before
+    /// anything assigns to it -- which is what makes an instance CLOSED.
     Fields     : List;
 
 begin
-    /// Creates a new instance.
-    ///
+    /// Makes a class from its name, parent, methods and declared fields.
     constructor Init (Name : String, Superclass : ObjClass, Methods : Map, Fields : List);
     begin
        this.Name := Name;
@@ -25,25 +34,19 @@ begin
        this.Fields := Fields;
     end
 
-    /// Finds a method by name alone, for property access -- 'X.M' has no
-    /// arguments yet, so the first of that name is handed back and the call
-    /// site re-selects once it knows them.
+    /// Gets the method of this name taking exactly this many arguments, or Nil.
     ///
-    /// The method of this name taking exactly this many arguments, or Nil.
+    /// How a STRUCTURAL PROTOCOL is recognised, and the reason FindMethod cannot
+    /// do it: that answers the first method of a name whatever its shape.  A
+    /// protocol is a name AND a shape -- 'Elements' taking none, 'Contains'
+    /// taking one, 'ToString' taking none -- and a method of the right name and
+    /// the wrong shape does not implement it.
     ///
-    /// ⚠️ How a STRUCTURAL PROTOCOL is recognised, and the reason FindMethod
-    /// cannot do it: that answers the first method of a name whatever its
-    /// shape.  A protocol is a name AND a shape -- 'Elements' taking no
-    /// arguments, 'Contains' taking one, 'ToString' taking none -- and a method
-    /// of the right name and the wrong shape does not implement it.
-    ///
-    /// ⚠️ Asking FindMethod instead let three protocols accept a method they
-    /// then could not call.  The worst was 'in': '1 in B' on a class declaring
-    /// 'Contains ()' answered TRUE interpreted -- a wrong answer, not an error
-    /// -- while the compiled program raised.  The runtime's has_method had the
-    /// same hole, from the other side: find_method with strict false falls back
-    /// to any method of the name.
-    ///
+    /// Asking FindMethod instead let three protocols accept a method they then
+    /// could not call.  The worst was 'in': '1 in B' on a class declaring
+    /// 'Contains ()' answered TRUE interpreted -- a wrong answer, not an error --
+    /// while the compiled program raised.  The runtime's has_method had the same
+    /// hole from the other side.
     function MethodOfArity (Name : String, TheArity : Integer) : ObjFunction;
     begin
         if Methods.Contains (Name) then
@@ -57,6 +60,14 @@ begin
         if Superclass <> Nil then Exit Superclass.MethodOfArity (Name, TheArity);
     end
 
+    /// Finds a method by name alone, searching up the inheritance chain.
+    ///
+    /// For property access: 'X.M' has no arguments yet, so the first of that
+    /// name is handed back and the call site re-selects once it knows them.
+    ///
+    /// # Satisfies
+    ///
+    /// [CLS-004], [CLS-011]
     function FindMethod (Name : String) : ObjFunction;
     begin
         if Methods.Contains (Name) then
@@ -73,25 +84,14 @@ begin
 
     /// Finds the overload of this name that these arguments fit.
     ///
-    /// ⚠️ A failed match must fall through to the superclass rather than
-    /// return.  Returning would let a class declaring Take(String) hide an
-    /// inherited Take(Integer) entirely, which overloading across a hierarchy
-    /// has to allow.
+    /// Three passes, exact before widening before absorbing, so an exact match
+    /// always wins over one that would have to convert.
     ///
+    /// # Satisfies
+    ///
+    /// [EXP-013], [EXP-014], [FUN-007]
     function FindOverload (Name : String, Arguments : List) : ObjFunction;
     begin
-        // ⚠️ THREE PASSES, and the order is the rule.  An exact match is
-        // preferred [EXP-014]: a Char argument takes a Char overload rather
-        // than widening into a String one, however the two are declared, and
-        // an absorbing signature takes only what neither of the first two
-        // answered.  One pass that admitted widening let declaration order
-        // decide instead.
-        //
-        // ⚠️ Each pass runs over the WHOLE chain before the next begins --
-        // hence the loop below rather than one walk that tries all three at
-        // each class.  An exact match on a parent must beat a widened match on
-        // the child, or adding an overload to a subclass would silently capture
-        // calls the parent was answering exactly.
         for var Pass := EXACT; Pass <= ABSORBING; Pass := Pass + 1 do
         begin
             var Found := Fitting (Name, Arguments, Pass);
@@ -100,8 +100,12 @@ begin
         end
     end
 
-    /// One pass of overload selection, up the whole chain.
+    /// Runs one pass of overload selection, up the whole chain.
     ///
+    /// A failed match must FALL THROUGH to the superclass rather than return.
+    /// Returning would let a class declaring Take (String) hide an inherited
+    /// Take (Integer) entirely, which overloading across a hierarchy has to
+    /// allow.
     function Fitting (Name : String, Arguments : List, Pass : Integer) : ObjFunction;
     begin
         if Methods.Contains (Name) then
@@ -116,18 +120,17 @@ begin
         if Superclass <> Nil then Exit Superclass.Fitting (Name, Arguments, Pass);
     end
 
-    /// Puts every declared field on an instance, walking up the chain so a
-    /// parent's fields are seeded before the child's.
+    /// Puts every declared field onto a new instance, parent's first.
     ///
-    /// ⚠️ An initializer is evaluated HERE, once per instance, which is the
-    /// whole reason it cannot be done where the class is declared.  It used to
-    /// be dropped entirely -- only the names were kept -- so 'var Count :
-    /// Integer := 7;' in a class header gave nil rather than 7, and every
-    /// field started nil however it was written.
+    /// The parent runs first so a subclass redeclaring a name wins, and so an
+    /// inherited field exists whether or not the subclass mentions it.  A field
+    /// with an initializer is evaluated and WIDENED against its declared type
+    /// here, because a declaration is one of the contexts where a value meets a
+    /// written type.
     ///
-    /// A field with no initializer still starts as nil, so reading one before
-    /// a constructor assigns it gives nil rather than 'Undefined property'.
+    /// # Satisfies
     ///
+    /// [CLS-005], [CLS-006]
     procedure SeedFields (Instance : ObjInstance, TheInterpreter : Any);
     begin
         if Superclass <> Nil then Superclass.SeedFields (Instance, TheInterpreter);
@@ -137,23 +140,16 @@ begin
             var Field := Fields[I];
             var Value := Nil;
 
-            // ⚠️ A field's initializer is an assignment context too [VAR-017],
-            // so 'var X : Double := 1;' seeds 1.0 rather than an Integer the
-            // declaration misdescribes.  The declaration is in hand here, which
-            // is why this one needs no help from the checker.
             if Field.Initializer <> Nil then
                 Value := TheInterpreter.Widen (TheInterpreter.Evaluate (Field.Initializer),
                                                Str (Field.TypeName));
 
-            // ⚠️ Folded, to match every read [SRC-011].  Seeded unfolded, a
-            // field declared 'Lines' was invisible to the method that reads
-            // 'Lines' -- ObjInstance.Get folds, and the two have to agree.
             Instance.Fields.Put (FoldCase (Field.Name.Lexeme), Value);
         end
     end
 
-    /// Number of parameters in function signature.
-    ///
+    /// How many arguments constructing an instance takes -- the initializer's
+    /// arity, or zero when the class declares none.
     function Arity () : Integer;
     var
        Initializer : ObjFunction;
@@ -165,15 +161,18 @@ begin
         Exit Initializer.Arity() as Integer;
     end
 
-    /// To String
-    ///
+    /// Prints the class as its bare name.
     function ToString () : String;
     begin
         Exit Name;
     end
 
-    /// Creates an instance of the class.
+    /// Constructs an instance: seed its fields, then run the initializer that
+    /// the arguments select.
     ///
+    /// Selection falls back to FindMethod when no overload fits, so a class with
+    /// a single initializer is reached whatever the arguments look like and the
+    /// arity error comes from the call rather than from selection.
     function Call (TheInterpreter, Arguments) : Any;
     var
        Instance    : ObjInstance;
@@ -182,12 +181,8 @@ begin
     begin
         Instance := ObjInstance (this) as ObjInstance;
 
-        // A declared field exists from the start, so reading one before the
-        // constructor assigns it gives nil rather than 'Undefined property'.
-        // Inherited fields first, so a subclass sees its parent's.
         SeedFields (Instance, TheInterpreter);
 
-        // A constructor overloads like any other method.
         Initializer := FindOverload('init', Arguments);
         if Initializer = Nil then Initializer := FindMethod('init');
 
@@ -196,6 +191,6 @@ begin
             Initializer.Bind(Instance).Call(TheInterpreter, Arguments);
         end
 
-        Exit Instance;     
-    end  
+        Exit Instance;
+    end
 end

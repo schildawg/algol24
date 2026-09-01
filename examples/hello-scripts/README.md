@@ -116,7 +116,7 @@ length of the row data**, which is how Unifont supplies the East Asian width
 table without a second table — 你好 and 한국어 take double cells with nothing
 asked and nothing looked up.
 
-⚠️ **`font.hex` is generated, like `compiler/Unicode.a24` is.** `makefont.py`
+⚠️ **`font.hex` is generated.** `makefont.py`
 rasterises just the codepoints this demo needs out of a system font; it stands
 in for shipping Unifont itself, which covers the whole Basic Multilingual Plane
 in about 1.4 MB. Do not hand-edit a row — regenerate:

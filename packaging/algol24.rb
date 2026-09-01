@@ -37,7 +37,7 @@ class Algol24 < Formula
       exec "#{libexec}/algc" "$@"
     SHELL
 
-    doc.install "README.md", "spec/ALGOL-24.md", "spec/LIBRARY.md", "spec/PLAN.md"
+    doc.install "README.md", "spec/ALGOL-24.md", "spec/LIBRARY.md"
     pkgshare.install "examples"
   end
 

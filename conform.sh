@@ -105,7 +105,7 @@ export LC_ALL
 ESC=$(printf '\033')
 
 # ⚠️ Colour is transliterated rather than stripped: stripping is not injective,
-# so a wrong colour and a right one would compare equal.  See spec/PLAN.md §7.3.
+# so a wrong colour and a right one would compare equal.
 # ⚠️ A [WARN] line is dropped, from BOTH sides.  A warning is a diagnostic
 # ABOUT a program, not output OF it -- and the two processors raise it at
 # different moments precisely because the front end is shared: interpreted it

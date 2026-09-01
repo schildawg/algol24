@@ -1,0 +1,44 @@
+// spec: VAR-006, DCL-007
+//
+// A REVERSE conformance test: it records what the checker does WRONG and passes
+// while the fault persists.  It turns red when the program below starts
+// running, which is the point -- a fix is as much a change to be noticed as a
+// regression.
+//
+// This program is CORRECT.  [DCL-007] resolves a free name in a subprogram body
+// when the body RUNS rather than where it is written, so Report may read a
+// module-level constant declared below it, provided the call happens after that
+// declaration -- and the call is the last line of the file.  Write a type on
+// LIMIT and the program runs and prints 7.
+//
+// Without one it is refused: 'Expected Integer, found an untyped expression.'
+// A declaration whose type is INFERRED is not recorded until the checker walks
+// its declaration, so a body checked ABOVE it sees no type at all, and
+// [VAR-006] -- "a value whose type could not be determined does not satisfy a
+// written type" -- then refuses the assignment.
+//
+// ⚠️ [VAR-006] already names this class of fault and rejects it.  Its own note
+// says refusing an untyped value at an assignment "refused correct code, and
+// the wrong trade would have been to punish a program for the checker's blind
+// spot", and lists three blind spots closed for that reason.  This is a fourth,
+// and the same argument applies to it.
+//
+// ⚠️ It reaches this compiler's own sources.  ObjFunction.a24 declares EXACT,
+// WIDENING and ABSORBING below Select, which reads them -- so writing the
+// natural annotation on that loop, 'for var Pass : Integer := EXACT;', makes
+// algc refuse the file it was built from.  The absence of a type is what keeps
+// it compiling.
+
+procedure Report ();
+var
+    Bound : Integer;
+
+begin
+    Bound := LIMIT;
+
+    WriteLn (Bound);
+end
+
+const LIMIT := 7;
+
+Report ();

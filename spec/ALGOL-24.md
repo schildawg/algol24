@@ -1,35 +1,41 @@
 # The Algol-24 Programming Language Specification
 
-> **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 280 rules. Every rule is **decided** — what the
-> language should do — and every rule is claimed by a case: a program in
-> `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
-> None awaits one.
+> **Algol-24 v0.1.0 — the feature-complete alpha release.** The language is
+> complete, and this document describes it: nineteen chapters and eight annexes,
+> 280 rules. Every rule is **decided** — what the language should do — and every
+> rule is claimed by a case: a program in `conformance/`, a refusal in
+> `refusals/`, or a reproduction in `defects/`. None awaits one.
+>
+> ⚠️ **"Alpha" is about the library, not the language.** Nothing here is
+> provisional or expected to be withdrawn; what v0.1.0 does not yet have is a
+> library written in Algol-24 to stand beside the built-ins, which is why the
+> release is not v1.
 >
 > ⚠️ **This document is the authority, and the implementation is measured
 > against it** [1.1]. Where the two disagree, a defect in Annex F says so and
-> carries a reproduction that passes while the fault persists. **Annex F is
-> empty**: every defect it held has been fixed and `defects/` is empty with it.
-> A rule ahead of the implementation says which of three things it is —
-> `NOT YET IMPLEMENTED`, `PARTLY IMPLEMENTED`, or `PLANNED — a later generation`
-> — and `spec/spec.sh` enforces that each points somewhere.
+> carries a reproduction that passes while the fault persists. Annex F holds
+> **two** entries at this release — DEF-34, on what `Val` accepts, and DEF-35,
+> on a type the checker infers but cannot see above its declaration. A rule ahead of
+> the implementation says which of three things it is — `NOT YET IMPLEMENTED`,
+> `PARTLY IMPLEMENTED`, or `PLANNED — a later generation` — and `spec/spec.sh`
+> enforces that each points somewhere.
 >
-> Annex C records **37 divergences** between the interpreter and the C back end,
-> and **all of them are withdrawn**: `./conform.sh` reports no gap, so every case
-> the interpreter gets right the compiled back end gets right too. Annex D's
-> eighteen advisory notes are all resolved. Annex H holds **seventeen** changes
-> once planned for later generations, of which **fourteen have landed**; what
-> remains is a collections library (H-9), a stage of the foreign function
-> interface (H-14), and equality with the hash that must come with it (H-17).
+> **The two processors agree.** Annex C records **37 divergences** between the
+> interpreter and the C back end, and **all of them are withdrawn**:
+> `./conform.sh` reports no gap, so every case the interpreter gets right the
+> compiled back end gets right too. Annex D's eighteen advisory notes are all
+> resolved. Annex H holds **seventeen** changes once planned for later
+> generations, of which **fourteen have landed**; what remains is a collections
+> library (H-9), a stage of the foreign function interface (H-14), and equality
+> with the hash that must come with it (H-17).
 >
 > ⚠️ **The entries stay after they are withdrawn**, and are worth more than the
 > count. Each carries what was actually wrong, which in a dozen cases is not what
 > the entry first recorded — several name a mistake in their own proposed fix.
 >
-> ⚠️ **From this tag onward the document leads and the implementation follows.**
-> A defect is closed by changing the code; a rule is changed only by deciding to
-> change the language, and the reason is recorded here when it is. See
-> `spec/PLAN.md` for the generations.
+> ⚠️ **The document leads and the implementation follows.** A defect is closed by
+> changing the code; a rule is changed only by deciding to change the language,
+> and the reason is recorded here when it is.
 
 ---
 
@@ -335,11 +341,12 @@ is otherwise insignificant.
 
 ⚠️ Folding is **ASCII-only**. `Straße` and `STRASSE` are different names.
 
-⚠️ **This is a decision, not a gap, and it survived the letter table arriving.**
-`compiler/Unicode.a24` carries the letters because [SRC-005] needs them;
-admitting Unicode *case folding* is a separate change to this rule, not a
-consequence of that one. Full folding maps `ß` to `ss`, which would make those
-two one name — a different language from the one signed off here.
+⚠️ **This is a decision, not a gap.** Admitting Unicode *case folding* would be a
+change to this rule in its own right, and it is not implied by [SRC-005]
+admitting every character above U+007F as a letter — that rule needs no tables
+precisely because it classifies nothing. Full folding maps `ß` to `ss`, which
+would make those two one name — a different language from the one signed off
+here.
 
 ⚠️ Only the *lookup* is folded. A diagnostic quotes the lexeme **as written**, so
 a program declaring `Xyz` and misspelling it `xyZ` is told about `xyZ`.
@@ -1013,6 +1020,7 @@ scoped for exactly this reason and the pattern was copied.
     conformance  0020-any-accepts-every-value.a24
     conformance  0141-inference-carries-a-type.a24
     refusal      0048-assignment-escapes-the-type.a24
+    defect       DEF-35-inference-stops-at-a-later-declaration.a24
 
 **[VAR-007]**  A name may not be declared twice in one scope. The second is
 refused with `'X' is already defined.`
@@ -2327,14 +2335,14 @@ position, counted from zero [SRC-004]. An index outside the value is
 ASCII yielded part of a sequence rather than a character — `'café'[3]` was the
 first half of a two-byte sequence. DEF-01 closed it; it is `é`.
 
-    interpreter  compiler/Interpreter.a24  VisitSubscript
+    interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
     compiler     bootstrap/algol.c         alg_subscript_get
     conformance  0051-string-subscript.a24
 
 **[EXP-016]**  A class instance is subscripted through `Get` and `Put` — see
 [TYP-010].
 
-    interpreter  compiler/Interpreter.a24  VisitSubscript
+    interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
     conformance  0031-instance-is-not-subscriptable.a24
     conformance  0171-a-class-that-subscripts.a24
 
@@ -4803,9 +4811,9 @@ compiler's state:
 | right | `conformance/` or `refusals/`, even if the compiler is wrong |
 | wrong | `defects/`, even if the compiler is right |
 
-This follows the generation plan rather than tidiness. The goal of the first of
-those generations was an interpreter that matches this specification; of the one
-after, a compiler that matches the interpreter. Compiler gaps were therefore
+This was decided by the order the work came in rather than by tidiness. The
+first goal was an interpreter that matches this specification; the next, a
+compiler that matches the interpreter. Compiler gaps were therefore
 **expected** to be red throughout the first, and the count was the progress
 measure for the second. It has reached zero.
 
@@ -5404,8 +5412,8 @@ cast, where it `is` nothing.
 rule and the front end is shared, so both processors already agreed that
 `False and 5 as Integer` is `False`.
 
-The compiled compiler runs its own 221 tests with every cast in its sources now
-checked, and reports identically to the interpreted run — which is the evidence
+The compiled compiler ran its own 221 tests with every cast in its sources
+checked, and reported identically to the interpreted run — which is the evidence
 that the check is the interpreter's and not a stricter one.
 
 **C-20 — Two enumerations binding one member is refused compiled.**
@@ -5507,8 +5515,8 @@ module the test came from. Reproducing a fault is what agreement costs here.
 
 ⚠️ It is why the two processors could disagree about `AssertTrue`'s wording for
 as long as they did: nothing that compares the two reports ever looked at this
-line. Verified after the fix — the whole 221-test suite is now identical line for
-line through both processors.
+line. Verified after the fix — the whole suite, 221 tests at the time, came out
+identical line for line through both processors.
 
 ⚠️ **The last differing line is gone too.** A failing run used to print
 `Uncaught: Tests failed.` interpreted and nothing compiled, because the driver
@@ -5632,8 +5640,7 @@ same way, so this introduced no shape the emitted C did not already have.
 
 ⚠️ **A constant literal keeps the helper it had.** The two forms differ only in
 where the elements are written, and keeping the first leaves the emitted C of
-every existing large table — `compiler/Unicode.a24`'s 659 ranges among them —
-exactly as it was.
+every existing large table exactly as it was.
 
 ⚠️ A Map's keys and values are **interleaved** into one array, key first: two
 arrays would need two parameters and two compound literals for no gain.
@@ -6525,8 +6532,8 @@ ordering [VAL-014], arithmetic [EXP-020] and element types on insertion
 [VAR-016]. The survey's question is answered, and the answer is that nothing in
 the language pins them.
 
-⚠️ **The plan changed shape, and this annex is no longer its statement.** It
-said the intent was to **move** the collections out. Annex H, H-9 now proposes a
+⚠️ **The intent changed shape, and this annex no longer states it.** It said the
+collections would be **moved** out. Annex H, H-9 now proposes a
 second implementation **beside** the native ones, written in Algol-24 and built
 on `Array`, with the compiler rewritten onto it and the natives retiring only
 once that is proven — so nothing breaks at any step, and a library
@@ -6706,8 +6713,44 @@ over, not a replacement for it.
 
     defect  DEF-34-val-follows-strtod.a24
 
-⚠️ **This annex held thirty-three defects and holds one;** the rest every one has been fixed and its reproduction removed, so
-`defects/` is empty with it. Three of them turned out to be the **rule's** fault
+**DEF-35 — A type inferred from an initializer is invisible above the declaration.**
+*(violates [VAR-006], [DCL-007])*
+
+[DCL-007] resolves a free name in a subprogram body when the body **runs**, not
+where it is written, so a subprogram may read a module-level `var` or `const`
+declared below it provided the call comes after that declaration. The checker
+does not follow it that far. A declaration whose type is **inferred** is not
+recorded until the checker walks the declaration itself, so a body checked above
+it reduces the name to no type at all — and [VAR-006] then refuses the
+assignment, because a value whose type could not be determined does not satisfy
+a written type:
+
+| | |
+| --- | --- |
+| `Bound := LIMIT;` above `const LIMIT := 7;` | `Expected Integer, found an untyped expression.` |
+| the same file with `const LIMIT : Integer := 7;` | runs, prints `7` |
+
+⚠️ **[VAR-006] already rejects this class of fault.** Its own note records that
+refusing an untyped value at an assignment "refused *correct code*, and the
+wrong trade would have been to punish a program for the checker's blind spot",
+and lists three blind spots that had to close for that reason. This is a fourth
+of the same family: the value has a type, and the checker has simply not reached
+it yet.
+
+⚠️ **It reaches this compiler's own sources.** `ObjFunction.a24` declares
+`EXACT`, `WIDENING` and `ABSORBING` below `Select`, which reads them, and
+`ObjClass.a24` imports them for the same use — so writing the natural annotation
+on that loop, `for var Pass : Integer := EXACT;`, makes `algc` refuse the file it
+was built from. The absence of a type is the only reason it compiles, which is
+the opposite of what a gradual type system should reward.
+
+⚠️ **A `var` behaves the same way as a `const`**, so this is about the order of
+declaration rather than about constants.
+
+    defect  DEF-35-inference-stops-at-a-later-declaration.a24
+
+⚠️ **This annex held thirty-three defects and holds two.** Every other one has
+been fixed and its reproduction removed. Three of them turned out to be the **rule's** fault
 rather than the implementation's, and were closed by changing this document —
 `SRC-005` on Unicode identifiers, `LEX-025` on `Char(0)`, and a blocker recorded
 in a defect entry that named the wrong data structure. The note at the end of

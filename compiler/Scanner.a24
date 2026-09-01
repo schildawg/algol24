@@ -1,20 +1,35 @@
+/// The scanner: source text in, a list of tokens out.
+///
+/// It records errors rather than raising them, so one bad character does not
+/// cost the diagnostics for the rest of the file.  A driver must ask -- see
+/// HadError.
+unit Scanner;
+
 uses SourceCode;
 uses Token;
 uses TokenType;
 
+/// The decimal digits, whose position in this string is also the digit's value.
 const DIGITS    := '0123456789';
+
+/// The hexadecimal digits, lower case, matched without regard to case.
 const HEXDIGITS := '0123456789abcdef';
+
+/// The binary digits.
 const BINDIGITS := '01';
+
+/// The upper-case letters, position for position with LOWERCASE.
 const UPPERCASE := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/// The lower-case letters, position for position with UPPERCASE.
 const LOWERCASE := 'abcdefghijklmnopqrstuvwxyz';
 
 /// Lower-cases a string.
 ///
-/// Written out because the language has no LowerCase and Ord cannot give a code
-/// point -- it parses its argument as a number, which is what ScanNumber needs.
-/// Pos and Copy are enough: find the letter in one alphabet, take the same
-/// position from the other.
-///
+/// Written out because the language has no LowerCase, and Ord cannot give a
+/// code point here -- it parses its argument as a number, which is what
+/// ScanNumber needs.  Pos and Copy are enough: find the letter in one alphabet
+/// and take the same position from the other.
 function ToLower(Text : String) : String;
 var
    Result : String := '';
@@ -32,23 +47,16 @@ begin
     Exit Result;
 end
 
-/// Reads a run of digits as an Integer.
+/// Reads a run of decimal digits as an Integer.
 ///
-/// ⚠️ This used to say "Ord would be the obvious call and returns a Double",
-/// which is wrong twice over.  Ord answers an INTEGER [RT-007], and what it
-/// answers is a CODE POINT -- 'Ord (''9'')' is 57, not 9 -- so it was never the
-/// call this wants.  The note reads as though it were written while Ord and Val
-/// were being confused with one another.
+/// Pos hands back an Integer, and a digit's position in DIGITS IS its value, so
+/// accumulating that way keeps the whole computation in Integer arithmetic.
 ///
-/// Val is the one that parses text to a number, and it is genuinely unusable
-/// here: it answers an Integer or a Double depending on what it reads
-/// [RT-009], so it reduces to no type at all and 'Exit Val (Text)' cannot fill
-/// a return declared Integer [VAR-006].
-///
-/// Pos hands back an Integer, and a digit's position in '0123456789' IS its
-/// value, so accumulating that way keeps the whole computation in Integer
-/// arithmetic.
-///
+/// Neither obvious built-in will do.  Ord answers a CODE POINT [RT-007], so
+/// 'Ord (''9'')' is 57 rather than 9.  Val does parse text to a number, but it
+/// answers an Integer or a Double depending on what it reads [RT-009], so it
+/// reduces to no type at all and 'Exit Val (Text)' cannot fill a return
+/// declared Integer [VAR-006].
 function ToInteger(Text : String) : Integer;
 var
    Result : Integer := 0;
@@ -60,13 +68,13 @@ begin
     Exit Result;
 end
 
-/// Reads a run of digits in a base as an Integer.  The separator is already
-/// gone by the time this is called.
+/// Reads a run of digits in a base as an Integer.
 ///
-/// ⚠️ Hexadecimal digits are matched WITHOUT REGARD TO CASE [SRC-011], as every
+/// The separators are already gone by the time this is called.
+///
+/// Hexadecimal digits are matched WITHOUT REGARD TO CASE [SRC-011], as every
 /// other name in the language is, so '0xff' and '0xFF' are one literal.  Pos
 /// searches a folded alphabet against a folded character for exactly that.
-///
 function ToRadix(Text : String, Alphabet : String) : Integer;
 var
    Result : Integer := 0;
@@ -79,9 +87,18 @@ begin
     Exit Result;
 end
 
-
-/// Keywords, lower-cased on lookup because Algol-24's are case-insensitive --
-/// 'begin', 'Begin' and 'BEGIN' are one token -- while identifiers are not.
+/// The keywords, mapped to the token each becomes.
+///
+/// Looked up on the LOWER-CASED lexeme, because Algol-24's keywords are
+/// case-insensitive -- 'begin', 'Begin' and 'BEGIN' are one token.
+///
+/// 'unit', 'test' and 'on' are deliberately absent.  They are ordinary
+/// identifiers the grammar recognises by position, so a program may still name
+/// a variable after any of them [LEX-011].
+///
+/// # Satisfies
+///
+/// [LEX-010], [LEX-011], [LEX-014]
 var  Keywords := [
     'and':TOKEN_AND, 'as':TOKEN_AS, 'begin':TOKEN_BEGIN, 'break':TOKEN_BREAK,
     'continue':TOKEN_CONTINUE, 'goto':TOKEN_GOTO,
@@ -102,16 +119,33 @@ var  Keywords := [
     'this':TOKEN_THIS, 'true':TOKEN_TRUE, 'type':TOKEN_TYPE, 'var':TOKEN_VAR,
     'while':TOKEN_WHILE];
 
+/// Whether any scan has recorded an error.
+///
+/// MODULE-level rather than per instance, and set rather than raised, so one
+/// unexpected character does not cost the diagnostics for the rest of the file.
+/// A driver has to ask: Main's CheckScanned is called twice, once after scanning
+/// for the right message and once after parsing so that modules pulled in by
+/// 'uses' are covered too.
+///
+/// # Satisfies
+///
+/// [ERR-004]
 var HadError := False;
+
+/// The most recent error recorded, as the text a driver will print.
 var LastError;
 
-/// Scanner
-///
+/// Turns one file's source text into tokens.
 class Scanner;
-var 
+var
+    /// The source being scanned.
     Source : String;
+
+    /// The tokens produced so far, in order.
     Tokens : List of Token;
 
+    /// Current is the position about to be read, Start the beginning of the
+    /// token being scanned, and Line the line Current sits on.
     Current, Start, Line : Integer;
 
     /// Where the current line begins, so a token's Offset is a column rather
@@ -119,13 +153,9 @@ var
     LineStart : Integer;
 
 begin
-    /// Creates a new Scanner
-    ///
+    /// Makes a scanner over a file's source text.
     constructor Init(Source);
     begin
-        // Str, because a one-character program is a Char rather than a String
-        // and a Char cannot be subscripted.  Scanner('1') is a legitimate call
-        // and used to fail with 'Subscript target should be an ordinal.'
         this.Source  := Str(Source);
         this.Current := 0;
         this.Start   := 0;
@@ -135,8 +165,18 @@ begin
         this.Tokens := List();
     end
 
-    /// Scans Tokens
+    /// Scans the whole source and answers its tokens, ending with EOF.
     ///
+    /// The last line is recorded here rather than by the newline handling,
+    /// because a file need not end with one [SRC-001].
+    ///
+    /// # Examples
+    ///
+    /// See test 'Scan Tokens'.
+    ///
+    /// # Satisfies
+    ///
+    /// [LEX-004], [SRC-001]
     function ScanTokens() : List;
     begin
         while not IsAtEnd() do
@@ -145,31 +185,40 @@ begin
            ScanToken();
         end
 
-        // The last line has no newline to trigger it, so record it here.
         SourceCode.Add (Line, Copy (Source, LineStart, Length(Source) - LineStart));
 
         Tokens.Add(Token(EOF, '', nil, Line));
         exit Tokens;
     end
 
-    // Scan Token
-    //
+    /// Scans one token, dispatching on the character it begins with.
+    ///
+    /// An unexpected character is RECORDED and scanning continues, so a file
+    /// with several bad characters reports the first rather than only ever the
+    /// one that stopped it.
+    ///
+    /// A comment runs to the end of the line or to end of file [LEX-001], and
+    /// '///' is not a distinct form -- it is a comment whose first character
+    /// happens to be '/' [LEX-002].  There are no block comments, so '{' and
+    /// '}' are unexpected characters rather than delimiters [LEX-003].
+    ///
+    /// # Satisfies
+    ///
+    /// [LEX-001], [LEX-002], [LEX-003], [LEX-005], [LEX-006], [LEX-012],
+    /// [LEX-013], [LEX-019], [SRC-000], [SRC-002], [SRC-006], [SRC-007],
+    /// [SRC-008]
     procedure ScanToken();
-    var 
+    var
         C : Char;
 
     begin
-        C := Advance();   
+        C := Advance();
         case C of
             '(' : AddToken(TOKEN_LEFT_PAREN);
             ')' : AddToken(TOKEN_RIGHT_PAREN);
             '[' : AddToken(TOKEN_LEFT_BRACKET);
             ']' : AddToken(TOKEN_RIGHT_BRACKET);
             ',' : AddToken(TOKEN_COMMA);
-            // ⚠️ Maximal munch, and it is what lets a range live beside a
-            // future '...' -- one more dot is one more peek.  '1..9' already
-            // scans as three tokens, because ScanNumber takes a point only when
-            // a DIGIT follows it [LEX-020].
             '.' : if Match('.') then AddToken(TOKEN_DOT_DOT); else AddToken(TOKEN_DOT);
             '-' : AddToken(TOKEN_MINUS);
             '+' : AddToken(TOKEN_PLUS);
@@ -180,26 +229,21 @@ begin
             ':' : if Match('=') then AddToken(TOKEN_ASSIGN); else AddToken(TOKEN_COLON);
             '>' : if Match('=') then AddToken(TOKEN_GREATER_EQUAL); else AddToken(TOKEN_GREATER);
 
-            // '<' opens three tokens: '<>', '<=' and itself.
             '<' :
                 if Match('>') then AddToken(TOKEN_NOT_EQUAL);
                 else if Match('=') then AddToken(TOKEN_LESS_EQUAL);
                 else AddToken(TOKEN_LESS);
 
-            // Comments
             '/':
-                if Match('/') then 
+                if Match('/') then
                    while Peek() <> #10 and not IsAtEnd() do Advance();
-                else 
+                else
                    AddToken(TOKEN_SLASH);
 
-            // Skip whitespace
             #9, #13, ' ' : Exit;
 
             #10 :
                 begin
-                   // Recorded as the newline is passed, which is the only
-                   // moment both ends of the line are known.
                    SourceCode.Add (Line, Copy (Source, LineStart, Current - LineStart - 1));
 
                    Line := Line + 1;
@@ -213,37 +257,36 @@ begin
                 ScanIdentifier();
             else if IsDigit(C) then
                 ScanNumber();
-            else 
+            else
                 begin
                     HadError := True;
                     LastError := '[line ' + Line + '] Error: Unexpected character: ' + C;
                 end
-        end  
+        end
     end
 
-    // Scans an Identifier, or a keyword.
-    //
-    // Keywords match case-insensitively, so 'begin', 'Begin'
-    // and 'BEGIN' are one token.  Identifiers match the same way [SRC-011] --
-    // folding is uniform, as Pascal's is.
-    //
-    // ⚠️ The LEXEME is never folded, here or anywhere.  The token carries the
-    // spelling the program wrote, because every diagnostic quotes it; the fold
-    // happens where a name becomes a lookup KEY, in Token.a24's FoldCase.
-    //
-    // ⚠️ This comment used to read 'Identifiers stay case-sensitive', which was
-    // accurate and misleading at once: it described a known gap as though it
-    // were the design, and a reader would have taken it for the rule.
-    //
+    /// Scans an identifier, or the keyword it turns out to be.
+    ///
+    /// The lexeme is kept as written and the KEYWORD LOOKUP is folded, which is
+    /// the same split Token.FoldCase makes: a diagnostic echoes the spelling the
+    /// program used, and matching ignores case.
+    ///
+    /// # Examples
+    ///
+    /// See test 'Scan Identifier With A Question Mark'.
+    ///
+    /// # Satisfies
+    ///
+    /// [LEX-007], [LEX-009], [SRC-010]
     procedure ScanIdentifier();
-    var 
+    var
        Text        : String;
        TypeOfToken : TokenType;
 
     begin
         while IsAlphaNumeric(Peek()) do Advance();
 
-        Text := Copy(Source, Start, Current - Start);   
+        Text := Copy(Source, Start, Current - Start);
         TypeOfToken := TOKEN_IDENTIFIER;
 
         var Lowered := ToLower(Text);
@@ -252,36 +295,30 @@ begin
             TypeOfToken := Keywords.Get(Lowered) as TokenType;
         end
 
-        AddToken(TypeOfToken);        
+        AddToken(TypeOfToken);
     end
 
-    // Scans a Number
-    //
-    // Scans a Number.
-    //
-    // A fractional part makes it a Double; without one it is an Integer, and
-    // the two are different types.  That is what makes '7 / 2' three rather
-    // than 3.5, because the arithmetic below is the host's.
-    //
     /// Scans a number: decimal, hexadecimal or binary, with an optional
-    /// fractional part, an optional exponent, and separators between digits
-    /// [LEX-015, LEX-016, LEX-022].
+    /// fractional part, an optional exponent, and separators between digits.
     ///
-    /// ⚠️ The DIGITS are collected rather than the span sliced, because a
-    /// separator must not reach the value: '1_000' and '1000' are one literal
-    /// and print alike.  Slicing the source and stripping afterwards would work
-    /// too and would put the rule in two places.
+    /// The DIGITS are collected rather than the span sliced, because a separator
+    /// must not reach the value: '1_000' and '1000' are one literal and print
+    /// alike.  Slicing the source and stripping afterwards would work too, and
+    /// would put the rule in two places.
     ///
+    /// # Examples
+    ///
+    /// See test 'Scan Integer Is Not A Double'.
+    ///
+    /// # Satisfies
+    ///
+    /// [LEX-015], [LEX-016], [LEX-017], [LEX-020], [LEX-021], [LEX-022]
     procedure ScanNumber();
     var
        IsInteger : Boolean;
        Digits    : String;
 
     begin
-        // ⚠️ A base prefix is only a prefix when a digit of that base follows.
-        // '0x' alone is the integer 0 and the identifier 'x', which is what it
-        // was before this rule existed, and 'B := 0' followed by 'b' must not
-        // become a binary literal.
         if Source[Start] = '0' and (Peek() = 'x' or Peek() = 'X') then
             if IsHexDigit(PeekNext()) then
             begin
@@ -303,8 +340,6 @@ begin
 
         Digits := Digits + ScanDigits();
 
-        // A fractional part, which needs a digit on both sides of the point
-        // [LEX-020].
         if Peek() = '.' and IsDigit(PeekNext()) then
         begin
             IsInteger := False;
@@ -313,10 +348,6 @@ begin
             Digits := Digits + '.' + ScanDigits();
         end
 
-        // ⚠️ An exponent makes it a Double whether or not a point did
-        // [LEX-022].  The sign here belongs to the EXPONENT and is not
-        // [LEX-019]'s unary operator, which is why it is consumed rather than
-        // left for the parser.
         if Peek() = 'e' or Peek() = 'E' then
             if IsExponent() then
             begin
@@ -335,13 +366,6 @@ begin
 
         if IsInteger then
         begin
-            // ⚠️ No range to check.  An Integer is unbounded [LEX-018], so a
-            // literal cannot be out of range and ToInteger's own arithmetic --
-            // 'Result * 10 + digit' -- grows to hold whatever was written.
-            // ExceedsInteger compared the digits as TEXT because the
-            // arithmetic that would have computed the value was exactly the
-            // arithmetic that wrapped; nothing wraps now, so the whole
-            // question is gone.
             AddToken(TOKEN_INTEGER, ToInteger(Digits));
         end
         else AddToken(TOKEN_NUMBER, Val(Digits));
@@ -350,11 +374,10 @@ begin
     /// Consumes a run of digits with separators between them, and answers the
     /// digits alone.
     ///
-    /// ⚠️ A separator is consumed only when a DIGIT follows it, so '100_' ends
-    /// the literal at '100' and leaves '_' to start an identifier -- which is
-    /// what '_' does [SRC-005].  The rule is that a separator separates two
-    /// digits, and this is the whole of it.
-    ///
+    /// A separator is consumed only when a DIGIT follows it, so '100_' ends the
+    /// literal at '100' and leaves '_' to start an identifier -- which is what
+    /// '_' does [SRC-005].  The rule is that a separator separates two digits,
+    /// and this is the whole of it.
     function ScanDigits() : String;
     var
         Digits : String;
@@ -376,9 +399,9 @@ begin
         Exit Digits;
     end
 
-    /// The same, for a base whose digits are not decimal.  The prefix has been
-    /// consumed and at least one digit is known to follow.
+    /// The same as ScanDigits, for a base whose digits are not decimal.
     ///
+    /// The prefix has been consumed and at least one digit is known to follow.
     procedure ScanRadix(Alphabet : String);
     var
         Digits : String;
@@ -396,9 +419,6 @@ begin
             else if Peek() = '_' and InAlphabet(Alphabet, PeekNext()) then Advance();
             else
             begin
-                // ⚠️ Built by the same arithmetic every other literal is, so
-                // a hexadecimal or binary literal grows exactly as a decimal
-                // one does -- '0xFFFFFFFFFFFFFFFFFF' is an Integer [LEX-018].
                 AddToken(TOKEN_INTEGER, ToRadix(Digits, Alphabet));
                 Exit;
             end
@@ -406,12 +426,12 @@ begin
     end
 
     /// Whether a character is one of a base's digits, without regard to case.
-    ///
     function InAlphabet(Alphabet : String, C : Char) : Boolean;
     begin
         Exit Pos(Alphabet, ToLower(Str(C))) >= 0;
     end
 
+    /// Whether a character is a hexadecimal digit.
     function IsHexDigit(C : Char) : Boolean;
     begin
         Exit InAlphabet(HEXDIGITS, C);
@@ -419,10 +439,9 @@ begin
 
     /// Whether what follows 'e' is an exponent rather than an identifier.
     ///
-    /// ⚠️ Asked BEFORE consuming the 'e', because '1eight' is the integer 1
+    /// Asked BEFORE consuming the 'e', because '1eight' is the integer 1
     /// followed by the identifier 'eight' and must stay that way.  An exponent
     /// needs a digit, optionally behind one sign.
-    ///
     function IsExponent() : Boolean;
     var
         At : Integer;
@@ -438,23 +457,26 @@ begin
         Exit IsDigit(Source[At]);
     end
 
-    // Scans a String
-    //
-    // Scans a String.
-    //
-    // Single-quoted, and a doubled quote is the only escape there is -- so
-    // 'it''s' is one string holding it's.  The literal is built a character at
-    // a time rather than sliced out of the source, because a doubled quote
-    // makes the lexeme and the value different lengths.
-    //
+    /// Scans a single-quoted string, where a doubled quote is one quote.
+    ///
+    /// A one-character literal is a CHAR rather than a String, and the two are
+    /// never equal, so the length is measured on the SOURCE span: '''' is two
+    /// characters of source between the quotes and one of value, and is a Char.
+    ///
+    /// An unterminated string is reported against the line it OPENED on.
+    ///
+    /// # Examples
+    ///
+    /// See test 'Scan Doubled Quote'.
+    ///
+    /// # Satisfies
+    ///
+    /// [LEX-023], [LEX-027], [LEX-028], [LEX-029], [LEX-030], [LEX-031],
+    /// [SRC-003]
     procedure ScanString();
-    var 
+    var
        Value : String;
 
-       /// ⚠️ The line the string OPENED on, not the line the scan reaches.
-       /// An unterminated string runs to end of file, so reporting where the
-       /// scan stopped names the one place the fault certainly is not -- on a
-       /// large source, hundreds of lines from the stray quote [LEX-031].
        Opened : Integer;
 
     begin
@@ -465,7 +487,6 @@ begin
         begin
             if Peek() = #39 then
             begin
-                // A second quote is an escaped one; anything else ends it.
                 if PeekNext() <> #39 then Break;
 
                 Advance();
@@ -484,35 +505,23 @@ begin
         end
         Advance();
 
-        // A one-character literal is a Char, not a String, and the two are never
-        // equal [LEX-023].
-        //
-        // ⚠️ Measured on the VALUE, not on the source span.  It used to count
-        // 'Current - Start - 2' -- the characters BETWEEN the quotes -- and that
-        // made the same character carry two types depending on how it was
-        // spelled: '''' was a String of one where #39 was a Char, so a quote was
-        // not equal to itself and had an ordinal under one spelling only.  The
-        // doubling is notation for a character, and notation must not change a
-        // type.
-        //
-        // ⚠️ ONE LINE decides two things, which is why they were fixed together.
-        // Length counts CHARACTERS now [SRC-004], so 'é' is a Char rather than a
-        // String of two bytes; and Value holds what the literal DENOTES, so a
-        // doubled quote counts once.  Measuring the span got both wrong.
-        //
-        // ⚠️ This removes the only literal for a one-character String, which is
-        // not a loss: 'var S : String := ''c'';' was already a type mismatch for
-        // every character but the quote, so '''' being writable was an accident
-        // of the measurement rather than a way of writing anything.
-        //
-        // Value[0], not Ord(Value): subscripting a String yields a Char, while
-        // Ord parses its argument as a number and fails on anything else.
         if Length(Value) = 1 then AddToken(TOKEN_CHAR, Value[0]);
         else AddToken(TOKEN_STRING, Value);
     end
 
-    // Scans a Char written by code point: #65 is 'A', #10 is a newline.
-    //
+    /// Scans a character written by code point -- '#65', '#10'.
+    ///
+    /// A Char is a Unicode CODE POINT, not a byte, so the value runs to 10FFFF
+    /// [LEX-025].  'Char (0)' is legal and buildable, which matters because the
+    /// scanner's own end-of-file sentinel is one.
+    ///
+    /// # Examples
+    ///
+    /// See test 'Scan Char By Code Point'.
+    ///
+    /// # Satisfies
+    ///
+    /// [LEX-024], [LEX-025], [LEX-032]
     procedure ScanChar();
     begin
         if not IsDigit(Peek()) then
@@ -526,30 +535,6 @@ begin
 
         var Code := ToInteger(Copy(Source, Start + 1, Current - Start - 1));
 
-        // ⚠️ Checked HERE rather than left to the Char built-in.  ScanChar used
-        // to build the value by calling Char, which raises -- so an
-        // out-of-range '#200' arrived as an uncaught 'Char is limited to
-        // 0..127.' with no line and no caret, unlike every other scan error.
-        // It is a scan error and is now recorded as one [ERR-004].
-        //
-        // ⚠️ A Char is a Unicode CODE POINT [LEX-025], not a byte: 0 .. 10FFFF,
-        // less the surrogates D800 .. DFFF, which encode no character and exist
-        // only to let UTF-16 carry what UTF-8 carries directly.
-        //
-        // ⚠️ '#0' is refused too [LEX-032].  It used to be accepted, and a
-        // String could not hold it: concatenating one truncated the String
-        // there, so Length('a' + Str(#0) + 'b') was 2.  Refusing the literal is
-        // the smaller of the two available fixes and is what keeps a String
-        // safely NUL-terminated.
-        //
-        // ⚠️ Only the LITERAL.  [LEX-025] puts a Char at 0..10FFFF and the
-        // built-in Char(0) stays legal -- which it must, because Peek returns
-        // Char(0) at end of input, and a scanner that cannot name its own
-        // sentinel cannot scan.  Str(Char(0)) still truncates a String; that
-        // residue needs the explicit length DEF-01 describes, not this check.
-        // ⚠️ Two rules, two messages.  '#0' is refused by [LEX-032] while
-        // [LEX-025] puts a Char at 0..10FFFF, so one message covering both
-        // would have to state a range that neither rule gives.
         if Code = 0 then
         begin
             HadError := True;
@@ -568,19 +553,19 @@ begin
         AddToken(TOKEN_CHAR, Char(Code));
     end
 
-    // Does the character match?  
-    //
+    /// Consumes the next character when it is the one expected, and answers
+    /// whether it did.
     function Match(Expected : Char) : Boolean;
     begin
-        if IsAtEnd() then Exit False; 
+        if IsAtEnd() then Exit False;
         if Source[Current] <> Expected then Exit False;
 
         Current := Current + 1;
         Exit True;
     end
 
-    // Returns the current character.
-    //
+    /// Gets the next character without consuming it, or the sentinel at end of
+    /// source.
     function Peek();
     begin
         if IsAtEnd() then exit Char(0);
@@ -588,28 +573,24 @@ begin
         exit Source[Current];
     end
 
-    // Returns the next character.
-    //
+    /// Gets the character after the next one without consuming either.
     function PeekNext() : Char;
     begin
-       // '>=', not '>': at Current + 1 = Length the index is already one past
-       // the last character.  Lox only ever called this from ScanNumber, where
-       // a digit always followed, so the off-by-one was unreachable until
-       // ScanString started using it to spot a doubled quote.
        if Current + 1 >= Length(Source) then exit Char(0);
-       
+
        exit Source[Current + 1];
     end
 
-    // Adds a Token.
-    //
+    /// Adds a token of a category, carrying no literal value.
     procedure AddToken(TypeOfToken : TokenType);
     begin
         AddToken(TypeOfToken, nil);
     end
 
-    // Adds a Token.
-    //
+    /// Adds a token of a category, carrying the value a literal scanned to.
+    ///
+    /// The lexeme is the source span from Start, and the Offset is measured from
+    /// LineStart so a diagnostic can draw its caret at a column.
     procedure AddToken(TypeOfToken : TokenType, Literal : Any);
     var
        Text     : String;
@@ -624,57 +605,50 @@ begin
         Tokens.Add(TheToken);
     end
 
-    // Is at the end?
-    //
+    /// Whether the scan has reached the end of the source.
+    ///
+    /// # Satisfies
+    ///
+    /// [SRC-009]
     function IsAtEnd();
     begin
         Exit Current >= Length(Source);
     end
 
-    // Advance the current character.
-    //
+    /// Consumes the next character and answers it.
     function Advance() : Char;
-    var 
+    var
        ReturnValue : Char;
 
     begin
         ReturnValue := Source[Current];
         Current := Current + 1;
-        
+
         Exit ReturnValue;
     end
 
-    // Is the character alphabetic?
-    //
-    // ⚠️ '?' counts: 'Ready?' is ONE identifier, not 'Ready' followed by a
-    // stray character.  While it did not, and because an unrecognized
-    // character was recorded and never reported, algc dropped the '?' and read
-    // 'Ready' instead of refusing, so the mistake was invisible.
-    //
-    /// A LETTER, which may begin an identifier.
+    /// A letter, for the purpose of starting or continuing an identifier.
     ///
-    /// ⚠️ '?' is not one, and used not to be excluded.  Classing it as a letter
-    /// so that 'Gate?' scans as one word also let it BEGIN an identifier, and
-    /// 'var ? := 7;' declared a variable named '?' -- which fell out of the
-    /// letter class rather than from any decision [SRC-005, LEX-008].
-    /// A letter, for the purpose of starting or continuing an identifier
-    /// [SRC-005].
+    /// EVERY character above 127 counts, and that is the rule rather than an
+    /// approximation of it.  An identifier may hold any Unicode character at all
+    /// -- the mangling escapes whatever C cannot spell as 'U' followed by six
+    /// hexadecimal digits -- so there is nothing to exclude.
     ///
-    /// A letter, for the purpose of starting or continuing an identifier
-    /// [SRC-005].
-    ///
-    /// ⚠️ EVERY character above 127 counts, and that is the rule rather than an
-    /// approximation of it.  An identifier may hold any Unicode character at
-    /// all -- Annex G.3's mangling escapes whatever C cannot spell as 'U'
-    /// followed by six hexadecimal digits, so there is nothing to exclude.
-    ///
-    /// ⚠️ This briefly asked a table of Unicode LETTER categories instead, on
-    /// the reading that [SRC-005] meant letters literally.  It does not: the
+    /// This briefly asked a table of Unicode LETTER categories instead, on the
+    /// reading that [SRC-005] meant letters literally.  It does not: the
     /// restriction excluded '🙂' and '💩', which are identifiers here, and the
     /// table it needed answered a question the language does not ask.
     ///
-    /// ⚠️ ASCII IS ANSWERED FIRST.  This runs once per character of every file
-    /// the compiler reads, itself included, and almost every one is ASCII.
+    /// '?' is not a letter, and used not to be excluded.  Classing it as one so
+    /// that 'Gate?' scans as a single word also let it BEGIN an identifier, and
+    /// 'var ? := 7;' declared a variable named '?'.
+    ///
+    /// ASCII IS ANSWERED FIRST.  This runs once per character of every file the
+    /// compiler reads, itself included, and almost every one is ASCII.
+    ///
+    /// # Satisfies
+    ///
+    /// [SRC-005]
     function IsAlpha(C : Char) : Boolean;
     begin
         if C >= 'a' and C <= 'z' then Exit True;
@@ -686,24 +660,29 @@ begin
 
     /// An identifier MARK: may continue an identifier, may not begin one.
     ///
-    /// ⚠️ 'Gate?' asks and 'Send!' does; neither '?' nor '!' alone is a name.
-    /// A trailing mark reads as punctuation on a word, and a leading one reads
-    /// as an operator the language does not have [SRC-005].
+    /// 'Gate?' asks and 'Send!' does; neither '?' nor '!' alone is a name.  A
+    /// trailing mark reads as punctuation on a word, and a leading one reads as
+    /// an operator the language does not have.
+    ///
+    /// # Satisfies
+    ///
+    /// [LEX-008]
     function IsMark(C : Char) : Boolean;
     begin
         Exit (C = '?') or (C = '!');
     end
 
-    // Is the character alphanumeric, or a mark?  Everything an identifier may
-    // continue with.
-    //
+    /// Whether a character may continue an identifier -- a letter, a decimal
+    /// digit or a mark.
     function IsAlphaNumeric(C : Char) : Boolean;
     begin
         Exit IsAlpha(C) or IsDigit(C) or IsMark(C);
     end
 
-    // Is the character a digit?
-    //
+    /// Whether a character is a decimal digit.
+    ///
+    /// ASCII only, deliberately: a Unicode digit is not an identifier character
+    /// and does not spell a number here either [SRC-005].
     function IsDigit(C : Char) : Boolean;
     begin
        Exit C >= '0' and C <= '9';
@@ -736,7 +715,7 @@ begin
     AssertEqual(EOF, Uut.Tokens[9].TypeOfToken);
 end
 
-// Scans the two character operators, verifying the correct token types are returned.  Also checks that 
+// Scans the two character operators, verifying the correct token types are returned.  Also checks that
 // the individual characters continue to be scanned properly.  Implicitly checks that whitespace is ignored.
 //
 test 'Scan Operators';
@@ -781,7 +760,7 @@ end
 test 'Scan Comment';
 begin
     var Uut := Scanner('// This is a comment.');
-    
+
     Uut.ScanTokens();
 
     AssertEqual(EOF, Uut.Tokens[0].TypeOfToken);
@@ -810,14 +789,14 @@ end
 test 'Scan Newline';
 begin
     var Uut := Scanner('test ' + #10 +  'test2');
-    
+
     Uut.ScanTokens();
 
     AssertEqual(1, Uut.Tokens[0].LineNumber);
     AssertEqual(2, Uut.Tokens[1].LineNumber);
 end
 
-// Test that quotation mark returns a String token type, with a lexeme including the quotation marks, and 
+// Test that quotation mark returns a String token type, with a lexeme including the quotation marks, and
 // the literal value a String object without them.
 //
 test 'Scan String';
@@ -862,9 +841,9 @@ begin
     AssertEqual('', Uut.Tokens[0].Literal);
 end
 
-// If the end of the file is reached without a terminating quotation mark, an error should be sent to 
+// If the end of the file is reached without a terminating quotation mark, an error should be sent to
 // Lox.
-// 
+//
 test 'Scan Unterminated String';
 begin
     var Uut := Scanner(#39 + 'ABC');
@@ -1008,7 +987,7 @@ end
 test 'Scan Number Decimal';
 begin
     var Uut := Scanner('3.14');
-    
+
     Uut.ScanTokens();
 
     var Token := Uut.Tokens[0];
@@ -1093,7 +1072,7 @@ end
 test 'Scan Unexpected String';
 begin
     var Uut := Scanner(Str('%'));
-    
+
     Uut.ScanTokens();
 
     AssertTrue(HadError);

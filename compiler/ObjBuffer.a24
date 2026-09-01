@@ -1,34 +1,41 @@
-uses Token;
-
-/// Growable bytes with an explicit lifetime.
+/// Growable bytes with an explicit lifetime, as the interpreter sees them.
 ///
-/// Wraps the host's Buffer exactly as ObjFile wraps the host's TextFile, and
-/// for the same reason: every member delegates, so the rules that are easy to
-/// get subtly wrong -- Free poisoning, a zero byte having no Text, the bounds
+/// Wraps the host's Buffer exactly as ObjFile wraps the host's TextFile, and for
+/// the same reason: every member delegates, so the rules that are easy to get
+/// subtly wrong -- Free poisoning, a zero byte having no Text, the bounds
 /// message naming an offset and its width -- come from the one implementation
 /// rather than from a second copy that would have to be kept in step.
 ///
-/// ⚠️ There are THREE implementations of Buffer, and this is the one that was
-/// missed. The C runtime, the emitter -- and this, because algc interprets
-/// Algol-24 with no compiled runtime at hand. It stays invisible for as long
-/// as something else is the oracle; the moment algc is its own,
+/// There are THREE implementations of Buffer, and this is the one that was
+/// missed: the C runtime, the emitter, and this -- because algc interprets
+/// Algol-24 with no compiled runtime at hand.  It stays invisible for as long as
+/// something else is the oracle; the moment algc is its own,
 /// 'Undefined variable ''Buffer''.' is what comes back.
+unit ObjBuffer;
+
+uses Token;
 
 /// A bound buffer method: a receiver, a name, and an arity.
 ///
-/// One class rather than one per method, as FileMethod is.
-///
+/// One class rather than one per method, as FileMethod is: the interpreter's
+/// calling convention wants something with Arity and Call, and this is less code
+/// than a dozen near-identical classes.
 class BufferMethod;
 var
+    /// The buffer the method is bound to.
     Receiver : ObjBuffer;
 
-    /// ⚠️ The TOKEN, not the folded member name.  Dispatch wants the fold
-    /// and the diagnostic wants the spelling the program wrote [SRC-011];
-    /// keeping the token keeps both without a second table.
+    /// The member name, as a TOKEN rather than the folded string.
+    ///
+    /// Dispatch wants the fold and a diagnostic wants the spelling the program
+    /// wrote [SRC-011]; keeping the token keeps both without a second table.
     Name     : Token;
+
+    /// How many arguments the member takes.
     TheArity : Integer;
 
 begin
+    /// Makes a method bound to a buffer.
     constructor Init (Receiver : ObjBuffer, Name : Token, TheArity : Integer);
     begin
         this.Receiver := Receiver;
@@ -36,61 +43,71 @@ begin
         this.TheArity := TheArity;
     end
 
+    /// How many arguments the member takes.
     function Arity () : Integer;
     begin
         Exit TheArity;
     end
 
+    /// Invokes the member on its receiver.
     function Call (TheInterpreter, Arguments) : Any;
     begin
         Exit Receiver.Invoke (FoldCase (Str (Name.Lexeme)), Arguments);
     end
 
-    /// ⚠️ Printed as a bound METHOD is [TYP-012], because it is the same kind
-    /// of thing: a member read without being called.  This inherited
-    /// ObjInstance's rendering and printed 'BufferMethod instance', naming a class
-    /// that exists only inside algc -- a program has no way to know it, and
-    /// nothing in the language answers to it.
+    /// Prints the member as a bound method is printed [TYP-012].
+    ///
+    /// It is the same kind of thing: a member read without being called.
+    /// This inherited ObjInstance's rendering and printed 'BufferMethod instance',
+    /// naming a class that exists only inside algc -- a program has no way to
+    /// know it, and nothing in the language answers to it.
     function ToString () : String;
     begin
         Exit '<fn ' + Str (Name.Lexeme) + '>';
     end
 end
 
+/// A Buffer as a program sees it, delegating to the host's.
 class ObjBuffer;
 var
     /// The host buffer this stands for.
     Handle : Any;
 
 begin
-    /// ⚠️ Takes the size rather than defaulting, because the native below has
-    /// to serve Buffer() and Buffer(n) and there is one constructor here.
-    /// Buffer(0) and Buffer() are the same thing to the host.
+    /// Makes a buffer of a given size.
+    ///
+    /// Takes the size rather than defaulting, because the native below has to
+    /// serve both Buffer () and Buffer (n) and there is one constructor here.
+    /// Buffer (0) and Buffer () are the same thing to the host.
     constructor Init (Size : Integer);
     begin
         this.Handle := Buffer (Size);
     end
 
-    /// Property access.  Text, Length and IsEmpty answer directly -- all three
-    /// are properties in Algol-24, written without parentheses -- and
-    /// everything else hands back something callable.
+    /// Gets a property.
     ///
+    /// Text, Length, IsEmpty and Address answer directly -- all four are
+    /// properties, read without parentheses -- and everything else hands back
+    /// something callable.
+    ///
+    /// # Raises
+    ///
+    /// 'Undefined property ''X''.' for a name a Buffer does not answer.
+    ///
+    /// # Satisfies
+    ///
+    /// [RT-021]
     function Get (TheName : Token) : Any;
     var
         Member : String;
 
     begin
-        // Folded, and the literals below written folded to match [SRC-011].
         Member := FoldCase (TheName.Lexeme);
 
         if Member = 'text'    then Exit Handle.Text;
         if Member = 'length'  then Exit Handle.Length;
         if Member = 'isempty' then Exit Handle.IsEmpty;
 
-        // ⚠️ The BYTES' address, so a program can build a C struct in a Buffer
-        // and hand it to a foreign function [FUN-014].  A property rather than
-        // an implicit conversion at the call, so the program says when it means
-        // an address -- the same reason Str is how a Char widens.
         if Member = 'address' then Exit Handle.Address;
 
         if Member = 'append' then Exit BufferMethod (this, TheName, 1);
@@ -102,9 +119,19 @@ begin
         raise 'Undefined property ''' + Str (TheName.Lexeme) + '''.';
     end
 
-    /// Runs a method by name.  Reached only through BufferMethod, and Get is
-    /// the only thing that hands one of those out.
+    /// Calls a method on the host buffer.
     ///
+    /// Every one delegates, so Free's poisoning and Text's refusal of a zero
+    /// byte come from the host rather than from a second copy of the rules.
+    ///
+    /// # Raises
+    ///
+    /// 'Undefined method ''X''.' for a name a Buffer does not answer, and
+    /// whatever the host raises for a use the rules forbid.
+    ///
+    /// # Satisfies
+    ///
+    /// [RT-022], [RT-023]
     function Invoke (Name : String, Arguments : List) : Any;
     begin
         if Name = 'append' then Exit Handle.Append (Arguments[0]);
@@ -116,21 +143,20 @@ begin
         raise 'Undefined method ''' + Name + '''.';
     end
 
-    /// A byte, as an Integer 0..255.  The host bounds-checks and raises, so
-    /// the offset message is written in one place.
-    ///
+    /// Reads the byte at an offset, for 'B[I]'.
     function At (Index : Any) : Any;
     begin
         Exit Handle[Index];
     end
 
+    /// Writes the byte at an offset, for 'B[I] := V', and answers the value.
     function PutAt (Index : Any, Value : Any) : Any;
     begin
         Handle[Index] := Value;
         Exit Value;
     end
 
-    /// Printed the way the host prints one: its size, never its capacity.
+    /// Prints the buffer as the language names it.
     function ToString () : String;
     begin
         Exit Str (Handle);

@@ -1,68 +1,56 @@
+/// A token, and the two normalisations a name passes through before it is
+/// matched: case folding, and resolving a written type to what it stands for.
+unit Token;
+
 uses TokenType;
 
-/// Folds a name to the form it is looked up under.
+/// The upper-case half of the fold table.
 ///
-/// Identifiers are matched WITHOUT REGARD TO CASE [SRC-011], so 'Xyz', 'xyz'
-/// and 'XYZ' are one name.  The lexeme itself is never folded -- a diagnostic
-/// must echo the spelling the program used -- so the fold happens where a name
-/// becomes a KEY and nowhere else.
-///
-/// ⚠️ A named function rather than a bare ToLower at each site, and that is the
-/// whole point: every lookup has to fold the same way as every store, or a name
-/// goes in under one spelling and is searched for under another.  One name for
-/// the rule makes the sites findable and keeps them in step.
-///
+/// Case folding is ASCII-only by decision [SRC-011], so 'I' never folds to a
+/// dotless 'i' and no locale can change what a name matches.
 const FOLD_UPPER := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/// The lower-case half, position for position with FOLD_UPPER.
 const FOLD_LOWER := 'abcdefghijklmnopqrstuvwxyz';
 
-/// The name a written type is compared under.
-///
-/// ⚠️ 'Real' is another spelling of 'Double' [TYP-014], not a type of its own,
-/// so it is replaced HERE -- at the one point a written type becomes something
-/// to compare -- and nothing downstream needs to know the alias exists.  The C
-/// runtime therefore needs no case for it at all, which is what keeps the two
-/// processors agreeing by construction rather than by both remembering.
-///
-/// ⚠️ Beside FoldCase for the same reason FoldCase exists: both normalise a
-/// name before it is matched, and a normalisation applied at some sites and
-/// not others is worse than none.
-///
-/// ⚠️ The canonical spelling wins in a DIAGNOSTIC too, so 'X as Real' on a
-/// String says 'Cannot cast String to Double.'  That is the alias telling the
-/// reader what it is, which is more use than echoing what they wrote.
-///
 /// The predefined subranges [TYP-015], as a name with a low and a high bound.
 ///
-/// ⚠️ A subrange is a CONSTRAINT on an Integer, not a type of its own.  Nothing
-/// is ever "a Byte" at run time -- TypeNameOf still answers 'Integer' -- so a
+/// A subrange is a CONSTRAINT on an Integer, not a type of its own.  Nothing is
+/// ever "a Byte" at run time -- TypeNameOf still answers 'Integer' -- so a
 /// subrange name appears only where a type is WRITTEN, and the bounds are
 /// checked there.
 ///
-/// ⚠️ 'Byte' is 0..255 and 'Short' is 16 bits, which is the modern reading and
-/// not Turbo Pascal's: its ShortInt was 8 bits and its Integer 16.  With
-/// Integer unbounded the widths are no longer representations to match, only
-/// ranges to name, and a reader should be able to say what 'Short' is without
-/// looking it up.
+/// 'Byte' is 0..255 and 'Short' is 16 bits, which is the modern reading and not
+/// Turbo Pascal's, whose ShortInt was 8 bits and Integer 16.  With Integer
+/// unbounded the widths are no longer representations to match, only ranges to
+/// name, and a reader should be able to say what 'Short' is without looking it
+/// up.
 ///
-/// ⚠️ There is no unsigned family.  Unsigned types exist to buy one more bit
+/// There is no unsigned family.  Unsigned types exist to buy one more bit
 /// inside a fixed width and to say "not negative"; an unbounded Integer removes
 /// the first reason and '0 ..' states the second directly.
 ///
-/// ⚠️ A LIST that a program may add to, not a constant, because a program
+/// It is a List a program may add to rather than a constant, because a program
 /// declares subranges of its own -- 'type Digit = 0 .. 9;' [TYP-016].  The
 /// three predefined ones are simply the first entries, so a name a program
 /// wrote and a name the language provides are answered by one lookup.
 ///
-/// ⚠️ Module-level, and filled by the RESOLVER, which runs before the type
-/// checker, the interpreter and the emitter alike.  Every one of them needs to
-/// know a subrange's bounds, and the resolver is the last pass that sees every
-/// declaration before any of them do.
+/// It is filled by the RESOLVER, which runs before the type checker, the
+/// interpreter and the emitter alike.  Every one of them needs a subrange's
+/// bounds, and the resolver is the last pass to see every declaration before
+/// any of them do.
 var SUBRANGE_NAMES := ['byte', 'word', 'short'];
+
+/// The low bound of each subrange, by position in SUBRANGE_NAMES.
 var SUBRANGE_LOWS  := [0, 0, -32768];
+
+/// The high bound of each subrange, by position in SUBRANGE_NAMES.
 var SUBRANGE_HIGHS := [255, 65535, 32767];
 
-/// Records a subrange a program declared.  Re-declaring one replaces its
-/// bounds rather than adding a second entry, so a name has one meaning.
+/// Records a subrange a program declared.
+///
+/// Re-declaring one replaces its bounds rather than adding a second entry, so a
+/// name has one meaning.
 procedure DefineSubrange (Name : Any, Low : Integer, High : Integer);
 var
     At : Integer;
@@ -82,23 +70,25 @@ begin
     SUBRANGE_HIGHS.Add (High);
 end
 
+/// Gets the position of a subrange in the table, or -1 when the name is not
+/// one.
 function SubrangeIndex (Name : Any) : Integer;
 begin
     Exit SUBRANGE_NAMES.IndexOf (FoldCase (Name));
 end
 
+/// Answers whether a written name is a subrange.
 function IsSubrange (Name : Any) : Boolean;
 begin
     Exit SubrangeIndex (Name) >= 0;
 end
 
-/// The type a written name stands for once a subrange is seen through.
+/// Gets the type a written name stands for once a subrange is seen through.
 ///
-/// ⚠️ Distinct from CanonicalType, and the difference is the point: 'Real' IS
+/// Distinct from CanonicalType, and the difference is the point: 'Real' IS
 /// 'Double', so the alias is replaced everywhere; a subrange is an Integer for
-/// every question about TYPE and keeps its own name for the question about
-/// RANGE.  Collapsing the two would lose the bounds.
-///
+/// the purpose of storing a value, while remaining its own name where the
+/// bounds are checked.
 function UnderlyingType (Name : Any) : String;
 begin
     if IsSubrange (Name) then Exit 'Integer';
@@ -106,6 +96,21 @@ begin
     Exit CanonicalType (Name);
 end
 
+/// Gets the name a written type is compared under.
+///
+/// 'Real' is another spelling of 'Double' [TYP-014], not a type of its own, so
+/// it is replaced HERE -- at the one point a written type becomes something to
+/// compare -- and nothing downstream needs to know the alias exists.  The C
+/// runtime therefore needs no case for it at all, which is what keeps the two
+/// processors agreeing by construction rather than by both remembering.
+///
+/// The canonical spelling wins in a DIAGNOSTIC too, so 'X as Real' on a
+/// String says 'Cannot cast String to Double.'  That is the alias telling the
+/// reader what it is, which is more use than echoing what they wrote.
+///
+/// # Satisfies
+///
+/// [TYP-014]
 function CanonicalType (Name : Any) : String;
 begin
     if FoldCase (Name) = 'real' then Exit 'Double';
@@ -113,6 +118,21 @@ begin
     Exit Str (Name);
 end
 
+/// Folds a name to the form it is looked up under.
+///
+/// Identifiers are matched WITHOUT REGARD TO CASE [SRC-011], so 'Xyz', 'xyz'
+/// and 'XYZ' are one name.  The lexeme itself is never folded -- a diagnostic
+/// must echo the spelling the program used -- so the fold happens where a name
+/// becomes a KEY and nowhere else.
+///
+/// A named function rather than a bare fold at each site, and that is the whole
+/// point: every lookup has to fold the same way as every store, or a name
+/// goes in under one spelling and is searched for under another.  One name for
+/// the rule makes the sites findable and keeps them in step.
+///
+/// # Satisfies
+///
+/// [SRC-011]
 function FoldCase (Name : Any) : String;
 var
    Text : String;
@@ -121,19 +141,12 @@ var
 begin
     Text := Str (Name);
 
-    // ⚠️ Scanned for an uppercase letter before anything is built, because
-    // almost every name is already folded or has none, and the common case must
-    // not allocate.  Strings are immutable and '+' copies both operands into an
-    // arena that never reclaims, so a fold that built a new string on every
-    // lookup would retain one per lookup.
     var Needs := False;
     for var I := 0; I < Length (Text); I := I + 1 do
         if Pos (FOLD_UPPER, Str (Text[I])) >= 0 then Needs := True;
 
     if not Needs then Exit Text;
 
-    // A Buffer, not 'Out := Out + C' -- the latter is quadratic in memory that
-    // is never reclaimed.
     Out := Buffer ();
     for var I := 0; I < Length (Text); I := I + 1 do
     begin
@@ -146,22 +159,34 @@ begin
     Exit Out.Text;
 end
 
-/// Token
+/// One token: what the scanner produces and every later pass consumes.
 ///
+/// # Examples
+///
+/// See test 'New Token'.
 class Token;
-var 
+var
+   /// The lexical category.
    TypeOfToken : TokenType;
+
+   /// The source text exactly as the program spelled it.
+   ///
+   /// Never folded.  A diagnostic must echo what was written, so folding
+   /// belongs where a name becomes a key -- see FoldCase -- and not here.
    Lexeme      : String;
+
+   /// The value a literal token carries, or nil for a token that is not one.
    Literal     : Any;
+
+   /// The line the token began on, counting from 1, as a diagnostic prints it.
    LineNumber  : Integer;
 
-   /// Column of the token's first character, counted from the start of its
-   /// line.  Defaulted rather than passed, because 91 call sites construct a
-   /// Token and only the scanner knows a real offset -- the rest are synthetic
-   /// tokens built by the parser or by a test.
+   /// Where the token begins within its line, for the caret a diagnostic draws.
    Offset      : Integer := 0;
 
 begin
+    /// Makes a token of a category, its source text, its literal value and its
+    /// line.
     constructor Init(TypeOfToken : TokenType, Lexeme : String, Literal : Any, LineNumber : Integer);
     begin
         this.TypeOfToken := TypeOfToken;
@@ -170,6 +195,11 @@ begin
         this.LineNumber := LineNumber;
     end
 
+    /// Gets the token as its category, lexeme and literal, separated by spaces.
+    ///
+    /// # Examples
+    ///
+    /// See test 'Token ToString'.
     function ToString() : String;
     begin
        Exit Str(TypeOfToken) +  ' ' + Lexeme + ' ' + Literal;
@@ -179,16 +209,16 @@ end
 test 'New Token';
 begin
     var TheToken := Token(TOKEN_STRING, 'ABC', nil, 1);
-    
+
     AssertEqual(TOKEN_STRING, TheToken.TypeOfToken);
     AssertEqual('ABC', TheToken.Lexeme);
     AssertEqual(nil, TheToken.Literal);
-    AssertEqual(1, TheToken.LineNumber); 
+    AssertEqual(1, TheToken.LineNumber);
 end
 
 test 'Token ToString';
 begin
     var TheToken := Token(TOKEN_STRING, 'ABC', nil, 1);
-    
+
     AssertEqual('TOKEN_STRING ABC nil', TheToken.ToString());
 end

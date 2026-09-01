@@ -1,129 +1,151 @@
+/// The statement nodes of the syntax tree, and the declarations that are
+/// statements too -- a class, an enum, a subprogram, a whole imported file.
+unit Stmt;
+
 uses Expr;
 uses Token;
 
+/// The base every statement node inherits from.
 class Stmt;
 begin
 end
 
-///  Block Statement!
-///
+/// A 'begin' ... 'end' block, which introduces a scope.
 class BlockStmt (Stmt);
 var
+    /// The statements inside, in source order.
     Statements : List of Statement;
 
 begin
+    /// Makes a block statement.
     constructor Init (Statements : List);
     begin
         this.Statements := Statements;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitBlockStmt(this);
-    end   
+    end
 end
 
-/// Expression Statement
-///
+/// An expression evaluated for its effect, its value discarded.
 class ExpressionStmt (Stmt);
 var
+    /// The expression to evaluate.
     Expression : Expr;
 
 begin
+    /// Makes an expression statement.
     constructor Init (Expression : Expr);
     begin
         this.Expression := Expression;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitExpressionStmt(this);
-    end   
+    end
 end
 
-/// Variable Statement!
-//
+/// A single 'var' or 'const' declaration.
 class VarStmt (Stmt);
 var
+    /// The name being declared.
     Name        : Token;
+
+    /// The initializer, or nil where none was written.
     Initializer : Expr;
 
     /// The declared type, or '' when none was written.  The checker is the
     /// first thing that reads it.
     TypeName    : String := '';
 
-    /// Whether the binding is fixed.  A flag rather than a node of its own,
-    /// because 'const' is purely a resolution-time concern -- the interpreter
-    /// never looks at it.
+    /// Whether the binding is fixed.
+    ///
+    /// A flag rather than a node of its own, because 'const' is purely a
+    /// resolution-time concern -- the interpreter never looks at it.
     IsConstant  : Boolean := False;
 
     /// The element type of a 'List of T', or '' when none was written.
     ///
-    /// Recorded for checking and never enforced at run time -- 'List of Token'
+    /// Recorded for checking and never enforced at run time: 'List of Token'
     /// makes Tokens[0] reduce to Token, and does not stop anything else being
     /// added to the list.
     Generic     : String := '';
 
 begin
+    /// Makes a var statement.
     constructor Init (Name : Token, Initializer : Expr);
     begin
         this.Name := Name;
         this.Initializer := Initializer;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitVarStmt(this);
-    end   
+    end
 end
 
-/// Var Group Statement -- several names sharing one declaration.
+/// Several names sharing one declaration.
 ///
 ///     var
 ///         Current, Start, Line : Integer;
 ///
-/// ⚠️ A node rather than N separate VarStmts, because the initializer is
-/// evaluated ONCE for the whole group and every name shares the result.
-/// Desugaring at parse time would run a side-effecting initializer once per
-/// name, which is a different program.
-///
+/// A node rather than N separate VarStmts, because the initializer is evaluated
+/// ONCE for the whole group and every name shares the result.  Desugaring at
+/// parse time would run a side-effecting initializer once per name, which is a
+/// different program.
 class VarGroupStmt (Stmt);
 var
+    /// The names being declared, in source order.
     Names       : List;
+
+    /// The shared initializer, evaluated once, or nil where none was written.
     Initializer : Expr;
 
+    /// The declared type shared by every name, or '' when none was written.
     TypeName    : String  := '';
+
+    /// The shared element type of a 'List of T', or '' when none was written.
     Generic     : String  := '';
+
+    /// Whether the bindings are fixed.
     IsConstant  : Boolean := False;
 
 begin
+    /// Makes a var group statement.
     constructor Init (Names : List, Initializer : Expr);
     begin
         this.Names := Names;
         this.Initializer := Initializer;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitVarGroupStmt (this);
     end
 end
 
-/// If Statement!
-///
+/// An 'if', with an optional 'else'.
 class IfStmt (Stmt);
 var
+    /// The condition, tested for truthiness.
     Condition   : Expr;
 
-    // ⚠️ Stmt, not Expr.  A branch holds a STATEMENT, and declaring it Expr
-    // was simply wrong.  A checker that looks a field up by its bare name
-    // rather than its qualified one finds no global 'ElseBranch' and passes,
-    // which is how this hid; algc's looks up 'IfStmt::ElseBranch', finds the
-    // declared type, and says so.
+    /// The statement to run when the condition holds.
     ThenBranch  : Stmt;
+
+    /// The statement to run otherwise, or nil where no 'else' was written.
     ElseBranch  : Stmt;
 
 begin
+    /// Makes an if statement.
     constructor Init (Condition : Expr, ThenBranch : Stmt, ElseBranch : Stmt);
     begin
         this.Condition := Condition;
@@ -131,25 +153,29 @@ begin
         this.ElseBranch := ElseBranch;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitIfStmt(this);
-    end   
+    end
 end
 
-/// One 'on E : Type do' handler: the variable the raised value binds to, and
-/// the statement to run.
+/// One 'on E : Type do' handler: the name the raised value binds to, and the
+/// statement to run.
 ///
 /// The type itself is not held here -- it is the key the handler sits under in
 /// TryStmt.Handlers, which is what makes a duplicate detectable at parse time
 /// rather than a silent overwrite.
-///
 class ExceptHandler;
 var
+    /// The name the raised value binds to inside the handler.
     Name : String;
+
+    /// The statement to run when this handler is selected.
     Body : Stmt;
 
 begin
+    /// Makes an except handler.
     constructor Init (Name : String, Body : Stmt);
     begin
         this.Name := Name;
@@ -157,25 +183,33 @@ begin
     end
 end
 
-/// Object Statement -- a singleton, declared like a class and reached by name.
+/// A singleton, declared like a class and reached by name.
 ///
 /// The same shape as ClassStmt because an object IS a class in every respect
-/// but one: its name evaluates to the single instance rather than to the
-/// class, so 'Console.WriteLn(...)' needs no construction and no registry.
-///
+/// but one: its name evaluates to the single instance rather than to the class,
+/// so 'Console.WriteLn (...)' needs no construction and no registry.
 class ObjectStmt (Stmt);
 var
+    /// The name being declared.
     Name       : Token;
+
+    /// The parent, or nil where none was written.
     Superclass : VariableExpr;
+
+    /// The methods declared in the body.
     Methods    : List;
+
+    /// The fields declared in the header's var sections.
     Fields     : List;
 
-    /// The names a 'private:' section covered.  Collected here rather than
-    /// flagged on each declaration, because the visibility check is the only
-    /// thing that reads them.
+    /// The names a 'private:' section covered.
+    ///
+    /// Collected here rather than flagged on each declaration, because the
+    /// visibility check is the only thing that reads them.
     PrivateMembers : List := [];
 
 begin
+    /// Makes an object statement.
     constructor Init (Name : Token, Superclass : VariableExpr, Methods : List, Fields : List);
     begin
         this.Name := Name;
@@ -184,53 +218,54 @@ begin
         this.Fields := Fields;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitObjectStmt (this);
     end
 end
 
-/// Module Statement -- one whole file, pulled in by a 'uses' clause.
+/// One whole file, pulled in by a 'uses' clause.
 ///
-/// ⚠️ 'uses' is NOT textual inclusion.  The file becomes a single statement
+/// 'uses' is NOT textual inclusion.  The file becomes a single statement
 /// holding its own declarations, and the interpreter runs those in an
 /// environment of its own before MOVING the exported bindings out into the
 /// importer's.  That is what leaves a private name behind while keeping it
-/// callable from inside the module, since the module's own functions closed
-/// over the environment it is still sitting in.
-///
+/// callable from inside the module, since the module's own functions closed over
+/// the environment it is still sitting in.
 class ModuleStmt (Stmt);
 var
     /// The token of the 'uses' clause that pulled the file in, so a clash
     /// between two modules' exports can point at a real source position.
     Name : Token;
 
+    /// The file's own declarations, to run in the module's environment.
     Statements   : List;
 
-    /// Names marked 'private', collected here rather than flagged on each
-    /// node, because the export step is the only thing that reads them.
+    /// Names marked 'private', collected here rather than flagged on each node,
+    /// because the export step is the only thing that reads them.
     PrivateNames : List;
 
     /// The RESOLVED path this was loaded from.
     ///
-    /// ⚠️ Not Name.Lexeme, which is the 'uses' clause as written -- 'lib/Base'
+    /// Not Name.Lexeme, which is the 'uses' clause as written -- 'lib/Base'
     /// rather than the resolved 'lib/Base.a24'.  The test report groups by file
-    /// and
-    /// has to say what the interpreter says.
+    /// and has to say what the interpreter says.
     FileName : String := '';
 
     /// The name this module answers to when a program qualifies against it --
     /// the file's stem, so 'lib/ModA.a24' is the unit ModA.
     ///
-    /// ⚠️ Worked out ONCE, by the Parser, and carried here.  It used to be
+    /// Worked out ONCE, by the Parser, and carried here.  It used to be
     /// recomputed by the Resolver and the Interpreter as well, and two of those
-    /// three copies wrote the backslash case as '\\' -- which in this language
-    /// is a two-character String, not an escape, so it never equalled a Char and
+    /// three copies wrote the backslash case as '\\' -- which in this language is
+    /// a two-character String, not an escape, so it never equalled a Char and
     /// those two never split on a Windows separator while the third did.  Three
     /// copies of one rule is what that cost.
     UnitName : String := '';
 
 begin
+    /// Makes a module statement.
     constructor Init (Name : Token, Statements : List, PrivateNames : List);
     begin
         this.Name := Name;
@@ -238,195 +273,213 @@ begin
         this.PrivateNames := PrivateNames;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitModuleStmt (this);
     end
 end
 
-/// Break Statement!
+/// A 'break', leaving a loop.
 ///
-/// Carries no value: 'break' leaves a loop and hands nothing back.  It carries
-/// a LABEL, which names which loop -- '' for the innermost.  The Token is kept
-/// so a 'break' outside a loop, or one naming a label no enclosing loop has,
-/// can be reported against itself.
-///
+/// It carries no value and hands nothing back.  It carries a LABEL, naming
+/// which loop, and the Token is kept so a 'break' outside a loop -- or one
+/// naming a label no enclosing loop has -- can be reported against itself.
 class BreakStmt (Stmt);
 var
+    /// The 'break' token, carried for the error position.
     Keyword : Token;
 
     /// The loop named after the keyword, or '' for the innermost one.
     Label   : String := '';
 
 begin
+    /// Makes a break statement.
     constructor Init (Keyword : Token);
     begin
         this.Keyword := Keyword;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitBreakStmt (this);
     end
 end
 
-/// Continue Statement!
+/// A 'continue', beginning a loop's next iteration.
 ///
-/// Carries nothing, on the same terms BreakStmt does: 'continue' begins the
-/// innermost loop's next iteration.  The Token is kept only so a 'continue'
-/// outside a loop can be reported against itself.
-///
+/// Carries nothing, on the same terms BreakStmt does.  The Token is kept only
+/// so a 'continue' outside a loop can be reported against itself.
 class ContinueStmt (Stmt);
 var
+    /// The 'continue' token, carried for the error position.
     Keyword : Token;
 
     /// The loop named after the keyword, or '' for the innermost one.
     Label   : String := '';
 
 begin
+    /// Makes a continue statement.
     constructor Init (Keyword : Token);
     begin
         this.Keyword := Keyword;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitContinueStmt (this);
     end
 end
 
-/// Label Statement -- 'Outer:' before the statement it names.
+/// A label -- 'Outer:' before the statement it names.
 ///
-/// ⚠️ A WRAPPER rather than a flag, because a label marks a POSITION in a block
-/// as well as naming a loop.  'goto' resolves a label by scanning the statement
+/// A WRAPPER rather than a flag, because a label marks a POSITION in a block as
+/// well as naming a loop.  'goto' resolves a label by scanning the statement
 /// list it is in for one of these, which is exactly what makes the rule "the
 /// same block or an enclosing one" fall out: an exception can travel outward
 /// through blocks and there is no way for it to travel inward.
 ///
-/// ⚠️ A label on a LOOP is copied into the loop as well, by the parser.  A
-/// labelled 'continue' has to be caught by the loop itself, and a wrapper
-/// cannot begin someone else's next iteration.
-///
+/// A label on a LOOP is copied into the loop as well, by the parser.  A
+/// labelled 'continue' has to be caught by the loop itself, and a wrapper cannot
+/// begin someone else's next iteration.
 class LabelStmt (Stmt);
 var
+    /// The label as written.
     Name  : Token;
+
+    /// The statement the label names.
     Inner : Stmt;
 
     /// Whether a 'goto' names this label.
     ///
-    /// ⚠️ Set by the RESOLVER, which is the pass that has to pair a goto with
-    /// its label anyway in order to refuse one that names nothing.  The emitter
+    /// Set by the RESOLVER, which is the pass that has to pair a goto with its
+    /// label anyway in order to refuse one that names nothing.  The emitter
     /// reads it so a C label is written only where something jumps to it: a
     /// label reached only by 'break' or 'continue' needs no goto target, and an
     /// unused C label is a warning under -Wall.
     ///
-    /// ⚠️ It cannot be decided the way a loop's targets are.  Those are known by
+    /// It cannot be decided the way a loop's targets are.  Those are known by
     /// the time the loop closes, because the body is emitted first; a FORWARD
     /// goto is emitted after its label, so nothing local can know.
     Targeted : Boolean := False;
 
 begin
+    /// Makes a label statement.
     constructor Init (Name : Token, Inner : Stmt);
     begin
         this.Name := Name;
         this.Inner := Inner;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitLabelStmt (this);
     end
 end
 
-/// Goto Statement -- 'goto Done;'.
+/// A 'goto Done;'.
 ///
-/// ⚠️ It may name a label in the SAME BLOCK or an ENCLOSING one, and jump
-/// either forward or backward.  It may not jump INTO a nested block, and may
-/// not leave the subprogram [STM-024].  That is not a restriction chosen for
-/// this implementation: an exception can travel outward through blocks and has
-/// no way to travel inward, and C is exactly as unwilling -- jumping into a
-/// block skips initializers.
-///
+/// It may name a label in the SAME BLOCK or an ENCLOSING one, and jump either
+/// forward or backward.  It may not jump INTO a nested block, and may not leave
+/// the subprogram [STM-024].  That is not a restriction chosen for this
+/// implementation: an exception can travel outward through blocks and has no way
+/// to travel inward, and C is exactly as unwilling -- jumping into a block skips
+/// initializers.
 class GotoStmt (Stmt);
 var
+    /// The 'goto' token, carried for the error position.
     Keyword : Token;
+
+    /// The label being jumped to.
     Label   : String;
 
 begin
+    /// Makes a goto statement.
     constructor Init (Keyword : Token, Label : String);
     begin
         this.Keyword := Keyword;
         this.Label := Label;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitGotoStmt (this);
     end
 end
 
-/// Try Statement!
-///
-/// Handlers are a Map from type name to ExceptHandler, with the catch-all
-/// under 'default'.  A Map rather than a list because selection is a lookup
-/// per class in the raised value's chain, and because a repeated key is
-/// exactly the duplicate the parser rejects.
-///
+/// A 'try' with its handlers.
 class TryStmt (Stmt);
 var
+    /// The protected statement.
     TryBlock : Stmt;
+
+    /// The handlers, keyed by type name, with the catch-all under 'default'.
+    ///
+    /// A Map rather than a list because selection is a lookup per class in the
+    /// raised value's chain, and because a repeated key is exactly the duplicate
+    /// the parser rejects.
     Handlers : Map;
 
 begin
+    /// Makes a try statement.
     constructor Init (TryBlock : Stmt, Handlers : Map);
     begin
         this.TryBlock := TryBlock;
         this.Handlers := Handlers;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitTryStmt (this);
     end
 end
 
-/// Raise Statement!
-///
+/// A 'raise', throwing a value to the nearest matching handler.
 class RaiseStmt (Stmt);
 var
+    /// The 'raise' token, carried for the error position.
     Keyword : Token;
+
+    /// The value to raise.
     Value   : Expr;
 
 begin
+    /// Makes a raise statement.
     constructor Init (Keyword : Token, Value : Expr);
     begin
         this.Keyword := Keyword;
         this.Value := Value;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitRaiseStmt (this);
     end
 end
 
-/// For-In Statement -- 'for var X in C do ...'.
-///
-/// A node of its own rather than a desugaring, unlike the counted 'for' beside
-/// it, because there is no index to count with: what it walks is whatever the
-/// collection hands back, and a Map hands back keys while a String hands back
-/// Chars.
-///
+/// A 'for X in C do', walking a collection or a String.
 class ForInStmt (Stmt);
 var
+    /// The loop variable, which belongs to the loop and is not visible after it.
     Name     : Token;
+
+    /// The collection or String being walked.
     Iterable : Expr;
+
+    /// The loop body.
     Body     : Stmt;
 
-    /// The name written before this loop, or '' [STM-010].
+    /// The label naming this loop, or '' when none was written.
     Label    : String := '';
 
 begin
+    /// Makes a for in statement.
     constructor Init (Name : Token, Iterable : Expr, Body : Stmt);
     begin
         this.Name := Name;
@@ -434,58 +487,59 @@ begin
         this.Body := Body;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitForInStmt (this);
     end
 end
 
-/// While Statement!
-///
+/// A 'while', and also the counted 'for', which desugars into one.
 class WhileStmt (Stmt);
 var
+    /// The condition, tested before each iteration.
     Condition : Expr;
+
+    /// The loop body.
     Body      : Stmt;
 
-    /// The step of a 'for', or Nil for a plain 'while'.
+    /// The step a counted 'for' runs after each iteration, or nil for a plain
+    /// 'while'.
     ///
-    /// ⚠️ HELD HERE rather than appended to the body, and 'continue' is the
-    /// whole reason.  A 'for' desugars into a while, and while the step sat at
-    /// the end of the body, beginning the next iteration jumped over it -- an
-    /// INFINITE LOOP interpreted, and the same in C, where
-    /// 'while (c) { body; step; }' skips the step exactly as the tree-walker
-    /// does.  With the step held apart, the interpreter runs it after catching
-    /// a Continued and the emitter writes a real C 'for', so both processors
-    /// step for the same reason rather than by two separate arrangements.
+    /// Carried on the node rather than appended to the body, because
+    /// 'continue' must still run it -- appending would skip the step on exactly
+    /// the iterations that take the shortcut.
     Increment : Expr := Nil;
 
-    /// The name written before this loop, or '' [STM-010].
-    ///
-    /// ⚠️ Held by the LOOP and not only by the LabelStmt around it, because a
-    /// labelled 'continue' has to be caught by the loop itself -- a wrapper
-    /// cannot begin someone else's next iteration.  Break could have been done
-    /// either way; continue could not, so both are done here.
+    /// The label naming this loop, or '' when none was written.
     Label     : String := '';
 
 begin
+    /// Makes a while statement.
     constructor Init (Condition : Expr, Body : Stmt);
     begin
         this.Condition := Condition;
         this.Body := Body;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitWhileStmt(this);
-    end   
+    end
 end
 
-/// Function Statement!
-///
+/// A subprogram declaration -- a function, a procedure, a method, a
+/// constructor, an operator or a property.
 class FunctionStmt (Stmt);
 var
+    /// The name being declared.
     Name   : Token;
+
+    /// The parameter names, in order.
     Params : List;
+
+    /// The statements of the body, empty for a foreign declaration.
     Body   : List;
 
     /// The declared return type, or '' when none was written.
@@ -494,18 +548,19 @@ var
     /// Declared parameter types, positionally, '' where none was written.
     ParamTypes : List := [];
 
-    /// ⚠️ Element types, positionally, for the parameters declared with 'of'
-    /// -- 'Items : List of Integer' [VAR-008].  Carried BESIDE ParamTypes
-    /// rather than folded into it, exactly as a var carries Generic beside
-    /// TypeName: the two answer different questions, and the type name is what
-    /// selection and widening compare.
+    /// Element types, positionally, for the parameters declared with 'of' --
+    /// 'Items : List of Integer' [VAR-008].
+    ///
+    /// Carried BESIDE ParamTypes rather than folded into it, exactly as a var
+    /// carries Generic beside TypeName: the two answer different questions, and
+    /// the type name is what selection and widening compare.
     ParamGenerics : List := [];
 
     /// The C symbol this subprogram is, or '' when it has a body [FUN-014].
     ///
-    /// ⚠️ A declaration with a symbol has NO BODY.  Its statements list is
-    /// empty and nothing walks it; the call goes to the runtime instead, which
-    /// finds the symbol and builds the call.
+    /// A declaration with a symbol has NO BODY.  Its statements list is empty
+    /// and nothing walks it; the call goes to the runtime instead, which finds
+    /// the symbol and builds the call.
     Symbol   : String := '';
 
     /// The library the symbol is in, or '' for the running program -- which
@@ -515,17 +570,18 @@ var
     /// Whether this member is a PROPERTY: read without parentheses, and
     /// assigned to by nobody outside the class [TYP-012].
     ///
-    /// ⚠️ A flag on FunctionStmt rather than a node of its own, because a
-    /// property IS a method in every respect but two -- how it is read, and
-    /// that the checker refuses assignment to it.  Resolution, checking,
-    /// binding and emission all want to treat it as the method it is, and a
-    /// second node would have meant teaching each of them a second thing.
+    /// A flag on FunctionStmt rather than a node of its own, because a property
+    /// IS a method in every respect but two -- how it is read, and that the
+    /// checker refuses assignment to it.  Resolution, checking, binding and
+    /// emission all want to treat it as the method it is, and a second node
+    /// would have meant teaching each of them a second thing.
     IsProperty : Boolean := False;
 
-    /// The same for the return type: 'function Make () : List of Integer'.
+    /// The element type of the return, for 'function Make () : List of Integer'.
     ReturnGeneric : String := '';
 
 begin
+    /// Makes a function statement.
     constructor Init (Name : Token, Params : List, Body : List);
     begin
         this.Name := Name;
@@ -533,68 +589,75 @@ begin
         this.Body := Body;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitFunctionStmt(this);
-    end   
+    end
 end
 
-/// Return Statement!
-///
+/// An 'Exit', returning from a subprogram, with a value from a function.
 class ReturnStmt (Stmt);
 var
+    /// The 'Exit' token, carried for the error position.
     Keyword : Token;
-    Value   : Expr; 
+
+    /// The value to return, or nil where none was written.
+    Value   : Expr;
 
 begin
+    /// Makes a return statement.
     constructor Init (Keyword : Token, Value : Expr);
     begin
         this.Keyword := Keyword;
         this.Value := Value;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitReturnStmt(this);
-    end   
+    end
 end
 
-/// Class Statement!
-///
-/// type Colour = (Red, Green, Blue);
-///
+/// An enumeration declaration -- 'type Colour = (Red, Green, Blue);'.
 class EnumStmt (Stmt);
 var
+    /// The type name being declared.
     Name    : Token;
+
+    /// The members, in order, whose positions are their ordinals.
     Members : List;
 
 begin
+    /// Makes an enum statement.
     constructor Init (Name : Token, Members : List);
     begin
         this.Name := Name;
         this.Members := Members;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitEnumStmt(this);
     end
 end
 
-/// 'type Digit = 0 .. 9;' -- a subrange of Integer [TYP-015].
-///
-/// ⚠️ The bounds are TOKENS, not expressions.  A subrange declaration is
-/// hoisted like a class and an enum are, so its bounds have to be known before
-/// anything runs; an expression would need evaluating, and evaluating it would
-/// need the declaration to have run already.
-///
+/// A subrange declaration -- 'type Digit = 0 .. 9;' [TYP-016].
 class SubrangeStmt (Stmt);
 var
+    /// The name being declared.
     Name : Token;
+
+    /// The lowest value the name admits.
     Low  : Integer;
+
+    /// The highest value the name admits.
     High : Integer;
 
 begin
+    /// Makes a subrange statement.
     constructor Init (Name : Token, Low : Integer, High : Integer);
     begin
         this.Name := Name;
@@ -602,28 +665,34 @@ begin
         this.High := High;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitSubrangeStmt(this);
     end
 end
 
+/// A class declaration.
 class ClassStmt (Stmt);
 var
+    /// The class name being declared.
     Name       : Token;
+
+    /// The parent, or nil where none was written.
     Superclass : VariableExpr;
+
+    /// The methods declared in the body.
     Methods    : List;
 
-    /// The 'var' section, as a list of VarStmt.  Lox had no declared fields at
-    /// all; a field appeared the moment something assigned to it.
+    /// The fields declared in the header's var sections.
     Fields     : List;
 
-    /// The names a 'private:' section covered.  Collected here rather than
-    /// flagged on each declaration, because the visibility check is the only
-    /// thing that reads them.
+    /// The names a 'private:' section covered, collected here because the
+    /// visibility check is the only thing that reads them.
     PrivateMembers : List := [];
 
 begin
+    /// Makes a class statement.
     constructor Init (Name : Token, Superclass : VariableExpr, Methods : List, Fields : List);
     begin
         this.Name := Name;
@@ -632,8 +701,9 @@ begin
         this.Fields := Fields;
     end
 
+    /// Dispatches to the visitor method for this node.
     function Accept (Visitor);
     begin
        Exit Visitor.VisitClassStmt(this);
-    end   
+    end
 end

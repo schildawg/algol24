@@ -1,3 +1,11 @@
+/// Callable values, and the machinery that decides which one a call reaches.
+///
+/// Named Obj* to match the C runtime this compiles to -- ObjClass, ObjInstance,
+/// ObjSeq -- and clox, which a later bytecode VM would be modelled on.  So the
+/// tree-walker, the runtime it emits, and any VM that follows all say the same
+/// word for the same thing.
+unit ObjFunction;
+
 uses Environment;
 uses Interpreter;
 uses ObjBuffer;
@@ -8,19 +16,18 @@ uses ObjInstance;
 uses Stmt;
 uses Token;
 
-/// A function value: a declaration plus the environment it closed over.
+/// Gets the run-time type name of a value: 'Integer', 'Double', 'String',
+/// 'Char', 'Boolean', 'nil', or the name of its class.
 ///
-/// Named Obj* to match the C runtime this compiles to -- ObjClass, ObjInstance,
-/// ObjSeq -- and clox, which a later bytecode VM would be modelled on.  So the
-/// tree-walker, the runtime it emits, and any VM that follows all say the same
-/// word for the same thing.
+/// The same answers the C runtime's type_name gives, because overload selection
+/// has to agree across the two back ends.
 ///
-/// Runtime type name of a value: 'Integer', 'Double', 'String', 'Char',
-/// 'Boolean', 'nil', or the name of its class.
+/// A subrange answers 'Integer'.  Nothing is ever "a Byte" at run time -- a
+/// subrange constrains where a type is written, and does not become one.
 ///
-/// The same answers the C runtime's type_name gives, because overload
-/// selection has to agree across the two back ends.
+/// # Satisfies
 ///
+/// [TYP-001], [TYP-003], [TYP-017]
 function TypeNameOf (Value : Any) : String;
 begin
     if Value = Nil then Exit 'nil';
@@ -31,44 +38,24 @@ begin
     if Value is String  then Exit 'String';
     if Value is Char    then Exit 'Char';
 
-    // An interpreted value answers with the type the PROGRAM sees, not with
-    // the wrapper this interpreter happens to hold it in -- 'Dog', 'List' and
-    // 'Colour' rather than ObjInstance, ObjCollection and ObjEnum.  Overload
-    // selection is about the interpreted language's types.
-    //
-    // ⚠️ The collections and enums were missing here, so a parameter
-    // declared ': List' matched no argument at all and overloading on a
-    // collection quietly never selected.  The C runtime's type_name had its
-    // own version of that same hole, naming none of the five.  Two
-    // implementations of one rule, wrong in two different ways.
     if Value is ObjInstance   then Exit Str (Value.Klass.Name);
     if Value is ObjCollection then Exit Value.Kind;
     if Value is ObjEnum       then Exit Value.TypeName;
 
-    // ⚠️ And the two wrappers that are not collections, which the note above
-    // predicted without naming: 'F is TextFile' was false here and true in
-    // both other implementations, because this fell through to NameOfClass
-    // and answered 'ObjFile'.  Buffer would have joined it -- the same rule,
-    // wrong a fourth way.
     if Value is ObjFile       then Exit 'TextFile';
     if Value is ObjBuffer     then Exit 'Buffer';
 
-    // ⚠️ A foreign handle is a HOST value, not a wrapper [FUN-014], so it
-    // reaches here as itself and the host's 'is' answers for it.  Without this
-    // line selection could not match a parameter declared 'Pointer' and every
-    // call taking one was 'No matching signature for function.' -- interpreted
-    // only, since type_name in the runtime already answered.
     if Value is Pointer       then Exit 'Pointer';
 
     Exit NameOfClass (Value);
 end
 
-/// Class name of a value, or '' when it is not an instance.
+/// Gets the class name of a value, or '' when it is not an instance.
 ///
-/// Still a caught failure, because it asks for a name rather than testing one:
-/// 'is' answers "is this a Dog?" and this answers "what is this?".  ClassName
-/// raises on anything that is not an instance -- a number, a String, nil.
-///
+/// A caught failure rather than a test, because it asks for a name rather than
+/// checking one: 'is' answers "is this a Dog?" and this answers "what is this?".
+/// ClassName raises on anything that is not an instance -- a number, a String,
+/// nil.
 function NameOfClass (Obj : Any) : String;
 begin
     try
@@ -78,56 +65,54 @@ begin
     end
 end
 
-/// Whether a value stands where a class of this name is declared.
+/// Several top-level subprograms sharing one name.
 ///
-/// Not replaceable by 'is', and the reason the operator does not make every
-/// type test go away: the name here arrives as a String at run time, while
-/// 'is' needs one written in the source.  This is the dynamic half.
+/// The environment binds one name to one value, which is why two subprograms of
+/// a name used to be refused outright.  This is the value that holds both: the
+/// name binds to the SET, and the call selects from it exactly as a method call
+/// selects from a class's methods.
 ///
-/// Several top-level subprograms sharing one name [FUN-013].
+/// Selection is at RUN TIME, from the values actually passed -- the same rule
+/// methods have always followed.  A declared type may be Any while the value has
+/// a definite type, which no static rule could reach.
 ///
-/// ⚠️ The environment binds one name to one value, which is why two
-/// subprograms of a name used to be refused outright.  This is the value that
-/// holds both: the name binds to the SET, and the call selects from it exactly
-/// as a method call selects from a class's methods.
+/// # Satisfies
 ///
-/// ⚠️ Selection is at RUN TIME, from the values actually passed -- the same
-/// rule methods have always followed [EXP-013].  A declared type may be Any,
-/// and no static rule could reach the right overload from that.
-///
+/// [FUN-013]
 class ObjOverloads;
 var
+    /// The shared name.
     Name       : String;
+
+    /// The subprograms bound under it, in declaration order.
     Candidates : List;
 
 begin
+    /// Makes an empty overload set for a name.
     constructor Init (Name : String);
     begin
         this.Name := Name;
         this.Candidates := List();
     end
 
+    /// Adds a subprogram to the set.
     procedure Add (TheFunction : Any);
     begin
         Candidates.Add (TheFunction);
     end
 
-    /// ⚠️ -1, which means "checks its own" -- the caller's arity check is
-    /// skipped and selection decides, because the candidates differ in arity.
+    /// Answers -1, meaning the arity is not fixed.
+    ///
+    /// A set has no one arity: its candidates may take different numbers of
+    /// arguments, and which is called is decided by Select rather than by a
+    /// count checked beforehand.
     function Arity () : Integer;
     begin
         Exit -1;
     end
 
-    /// ⚠️ THREE PASSES, exact then widening then absorbing, as
-    /// ObjClass.FindOverload does and for the same reason [EXP-014]: one pass
-    /// admitting widening would let declaration order decide which overload a
-    /// Char reaches, and one admitting absorption would let a variadic
-    /// signature take a call a fixed-arity one answers exactly.
-    ///
-    /// ⚠️ The passes are a LOOP BOUND rather than three unrolled walks, so the
-    /// order that is the entire rule is written once and cannot be half
-    /// changed.
+    /// Selects the candidate these arguments fit, exact before widening
+    /// before absorbing, or Nil when none does.
     function Select (Arguments : List) : Any;
     begin
         for var Pass := EXACT; Pass <= ABSORBING; Pass := Pass + 1 do
@@ -137,6 +122,11 @@ begin
         Exit Nil;
     end
 
+    /// Selects a candidate from the arguments and calls it.
+    ///
+    /// # Raises
+    ///
+    /// 'No matching signature for function.' when no candidate fits.
     function Call (TheInterpreter, Arguments) : Any;
     var
         Chosen : Any;
@@ -148,47 +138,51 @@ begin
         Exit Chosen.Call (TheInterpreter, Arguments);
     end
 
+    /// Prints the subprogram as '<fn Name>'.
     function ToString () : String;
     begin
         Exit '<fn ' + Name + '>';
     end
 end
 
-/// A bound member of a number -- '5.ToString' without the call.
+/// A member read on a number -- '5.ToString ()'.
 ///
-/// ⚠️ The fourth of these wrappers, beside CollectionMethod, BufferMethod and
-/// FileMethod.  A number's members come from the runtime rather than from a
-/// class, so there is no method to bind and the name and arity are carried
-/// instead -- which is what the C runtime's ObjBuiltinBound does with one
-/// struct for all four.
+/// Numbers answer members the way C# has them, not the way Java does: Integer
+/// is a type with members rather than a primitive a box wraps.  There is no
+/// second type to confuse with the first, and no identity to go wrong.
 ///
-/// ⚠️ It lives here rather than in an ObjNumber of its own because a number is
-/// not wrapped: it is a host value, and this is only the callable it hands back.
+/// # Satisfies
 ///
+/// [RT-019]
 class NumberMethod;
 var
+    /// The number the member was read on.
     Receiver : Any;
+
+    /// The member name, kept as a token for the diagnostic.
     Name     : Token;
 
 begin
+    /// Makes a member bound to a number.
     constructor Init (Receiver : Any, Name : Token);
     begin
         this.Receiver := Receiver;
         this.Name := Name;
     end
 
+    /// Answers 0: the only member a number has takes no arguments.
     function Arity () : Integer;
     begin
         Exit 0;
     end
 
+    /// Calls the member, which is ToString and answers the number as text.
     function Call (TheInterpreter, Arguments) : Any;
     begin
         Exit Str (Receiver);
     end
 
-    /// Printed as a bound method is [TYP-012], like every other member read
-    /// without being called.
+    /// Prints the subprogram as '<fn Name>'.
     function ToString () : String;
     begin
         Exit '<fn ' + Str (Name.Lexeme) + '>';
@@ -198,19 +192,15 @@ end
 /// Whether two declarations claim the same signature, and are therefore a
 /// duplicate rather than an overload.
 ///
-/// ⚠️ The PARAMETER types alone.  A return type does not distinguish an
-/// overload -- selection happens from the arguments, and two subprograms
-/// differing only in what they return could never be told apart at a call.
-///
+/// Compared on the UNDERLYING type, so two subprograms differing only in a
+/// subrange -- Byte against Integer -- are the same signature.  A range does not
+/// distinguish an overload, for the reason a return type does not: selection
+/// happens from the arguments, and two subprograms a call could never tell apart
+/// are a duplicate.
 function SameSignature (Left : Any, Right : Any) : Boolean;
 begin
     if Left.Params.Length <> Right.Params.Length then Exit False;
 
-    // ⚠️ Compared THROUGH a subrange, so 'Take (B : Byte)' and
-    // 'Take (I : Integer)' claim the SAME signature and are a duplicate rather
-    // than an overload [FUN-013].  A call could never tell them apart -- which
-    // is the argument this rule already makes about return types -- and the
-    // range is checked when the argument arrives instead.
     for var I := 0; I < Left.Params.Length; I := I + 1 do
         if UnderlyingType (Left.ParamTypes[I]) <> UnderlyingType (Right.ParamTypes[I]) then
             Exit False;
@@ -218,25 +208,7 @@ begin
     Exit True;
 end
 
-/// Whether a value of type Actual may be passed where Declared is written.
-///
-/// ⚠️ A parameter is an ASSIGNMENT CONTEXT [VAR-017], so the same two widenings
-/// that hold at a declaration hold here: an Integer where a Double is written,
-/// and a Char where a String is.  The value is converted on the way in by
-/// ObjFunction.Call, so the parameter holds the wider type rather than one the
-/// declaration misdescribes.
-///
-/// ⚠️ Selection had to learn this at the same moment top-level subprograms
-/// started being matched on their signatures.  Without it 'F (1)' into
-/// 'X : Double' -- correct, and printing 1.0 -- became
-/// 'No matching signature for function.'
-///
-/// Whether any argument named the parameter it fills [EXP-013].
-///
-/// ⚠️ Asked FIRST everywhere, because nothing is named in the overwhelming
-/// majority of calls and that case must cost nothing.  A call with no names is
-/// handed back its own argument list, untouched and unallocated.
-///
+/// Whether any argument at a call site named the parameter it fills.
 function AnyNamed (Names : List) : Boolean;
 begin
     for var I := 0; I < Names.Length; I := I + 1 do
@@ -245,18 +217,19 @@ begin
     Exit False;
 end
 
-/// The three passes of overload selection, in the order they run [EXP-014].
-///
-/// ⚠️ The ORDER IS THE RULE, and there is no other.  "A fixed-arity signature
-/// beats an absorbing one" is a sentence other languages have to write into
-/// their specifications; here ABSORBING simply never runs when EXACT or
-/// WIDENING found something.  That is why 'Log (''warn'', [1, 2])' passes the
-/// list rather than gathering it into a second one holding it.
-///
+/// The first selection pass: every argument matches its parameter's type
+/// exactly.
 const EXACT     := 0;
+
+/// The second pass: an argument may widen to reach its parameter.
 const WIDENING  := 1;
+
+/// The third pass: a variadic parameter may gather what is left over.
 const ABSORBING := 2;
 
+/// Whether a value of one type reaches a parameter of another by widening.
+///
+/// Two widenings only: Integer to Double, and Char to String.
 function Widens (Actual : String, Declared : String) : Boolean;
 begin
     if Declared = 'Double' and Actual = 'Integer' then Exit True;
@@ -265,6 +238,11 @@ begin
     Exit False;
 end
 
+/// Whether a value stands where a class of this name is declared.
+///
+/// Not replaceable by 'is', and the reason that operator does not make every
+/// type test go away: the name here arrives as a String at run time, while 'is'
+/// needs one written in the source.  This is the dynamic half.
 function InheritsFrom (Value : Any, TheName : String) : Boolean;
 var
     Klass : ObjClass;
@@ -272,16 +250,9 @@ var
 begin
     if not (Value is ObjInstance) then Exit False;
 
-    // 'as', because Value is declared Any and a member of it reduces to
-    // nothing -- a written type has to be earned [VAR-006].
     Klass := Value.Klass as ObjClass;
     while Klass <> Nil do
     begin
-        // ⚠️ Folded [SRC-011].  SatisfiesType folds its DIRECT match and this
-        // compared exactly, so 'Puppy() is Dog' was true and 'Puppy() is dog'
-        // was false -- one operator disagreeing with itself about case, and the
-        // C runtime folded both.  Found by conformance/0135, which exercises the
-        // folded spelling for exactly this reason.
         if FoldCase (Klass.Name) = FoldCase (TheName) then Exit True;
 
         Klass := Klass.Superclass;
@@ -290,21 +261,33 @@ begin
     Exit False;
 end
 
+/// A function value: a declaration plus the environment it closed over.
+///
+/// # Satisfies
+///
+/// [FUN-009], [FUN-011]
 class ObjFunction;
 var
+    /// The declaration this was made from -- its parameters, types and body.
     Declaration   : FunctionStmt;
+
+    /// The environment the declaration was written in, which is what makes this
+    /// a closure rather than a plain subprogram.
     Closure       : Environment;
+
+    /// Whether this is a constructor, which answers 'this' rather than its
+    /// body's value.
     IsInitializer : Boolean;
 
-    /// The class this is a method of, and the instance it was bound to, so a
-    /// call site can re-select an overload once it knows the argument types.
-    /// Nil for a plain function.
+    /// The class that declared this method, or Nil for a top-level subprogram.
     Owner : ObjClass    := Nil;
+
+    /// The receiver this method is bound to, or Nil when it is unbound.
     Bound : ObjInstance := Nil;
 
 begin
-    /// Creates a new instance.
-    ///
+    /// Makes a function value from a declaration and the environment it closed
+    /// over.
     constructor Init (Declaration : FunctionStmt, Closure : Environment, IsInitializer : Boolean);
     begin
        this.Closure := Closure;
@@ -312,8 +295,10 @@ begin
        this.IsInitializer := IsInitializer;
     end
 
-    /// Binds this method to an instance.
+    /// Binds this method to a receiver, answering a copy closed over 'this'.
     ///
+    /// A new environment holding 'this' rather than mutation, so the same
+    /// method may be bound to many receivers at once.
     function Bind (Instance : ObjInstance) : ObjFunction;
     var
         Env : Environment;
@@ -330,20 +315,12 @@ begin
         Exit Result;
     end
 
-    /// Whether one argument stands where a parameter of this type is declared.
+    /// Whether one argument fits one declared parameter type.
     ///
-    /// ⚠️ Lifted out of Fits so that ABSORPTION asks the same question of a
-    /// gathered argument that selection asks of a positional one.  Two copies
-    /// would be two chances for an element type to start disagreeing with the
-    /// parameter type it is an element type of.
-    ///
+    /// An undeclared parameter accepts anything, which is what makes the type
+    /// system gradual rather than optional.
     function FitsAt (Argument : Any, Declared : String, Widening : Boolean) : Boolean;
     begin
-        // ⚠️ Seen through, so selection IGNORES a subrange's bounds [FUN-013]:
-        // 'Take (B : Byte)' accepts whatever 'Take (I : Integer)' accepts.
-        // Consulting the bounds here would send 'Take (200)' and 'Take (300)'
-        // to different subprograms, and would let ADDING an overload steal
-        // calls from one that was already there.
         var Wanted := UnderlyingType (Declared);
 
         if Wanted = '' or Wanted = 'Any' then Exit True;
@@ -356,23 +333,7 @@ begin
         Exit Widening and Widens (Actual, Wanted);
     end
 
-    /// Whether these arguments fit this signature.
-    ///
-    /// The rule is the C runtime's signature_matches, and the two have to stay
-    /// identical: 'Any' compatible in both directions, nil inhabiting every
-    /// type, a subclass standing where its parent is declared, and every
-    /// parameter checked against the argument in its own position.
-    ///
-    /// ⚠️ 'Widening' is what separates the first two passes of selection.  An
-    /// exact match is PREFERRED [EXP-014], so a Char argument takes a Char
-    /// overload rather than a String one however they are ordered -- and
-    /// admitting the widening in a single pass made declaration order decide,
-    /// which conformance/0050 caught immediately.
-    ///
-    /// Inheritance is not widening: a Dog fits an Animal parameter in both
-    /// passes, because that is the argument being what the parameter asks for
-    /// rather than being converted into it.
-    ///
+    /// Whether every argument fits its parameter, with widening allowed or not.
     function Fits (Arguments : List, Widening : Boolean) : Boolean;
     begin
         if Arity () <> Arguments.Length then Exit False;
@@ -384,13 +345,7 @@ begin
         Exit True;
     end
 
-    /// Whether the last parameter may gather trailing arguments [FUN-005].
-    ///
-    /// ⚠️ An ELEMENT TYPE is what makes a parameter absorbing, so a bare 'List'
-    /// does not absorb.  There would be nothing to check the gathered arguments
-    /// against -- and it leaves 'List' as the spelling for a parameter that
-    /// wants the list itself and nothing else.
-    ///
+    /// Whether the last parameter gathers the arguments left over.
     function Variadic () : Boolean;
     var
         Last : Integer;
@@ -407,14 +362,17 @@ begin
          and Str (Declaration.ParamGenerics[Last]) <> '';
     end
 
-    /// Whether these arguments fit by gathering the trailing ones [FUN-005].
+    /// Whether these arguments fit by gathering the trailing ones.
     ///
-    /// ⚠️ The element type replaces the arity check, and is STRICTER than it.
+    /// The element type replaces the arity check, and is STRICTER than it.
     /// 'Log (''warn'', 1, 2, ''red'')' is still an error against
     /// 'List of Integer', because the stray argument fails the element type.
     /// What absorption gives up is given up only for 'List of Any', which is
     /// already the declaration that means anything.
     ///
+    /// # Satisfies
+    ///
+    /// [FUN-005]
     function Absorbs (Arguments : List) : Boolean;
     var
         Fixed   : Integer;
@@ -426,7 +384,6 @@ begin
         Fixed := Arity () - 1;
         if Arguments.Length < Fixed then Exit False;
 
-        // The parameters before the absorbing one are ordinary ones.
         for var I := 0; I < Fixed; I := I + 1 do
             if not FitsAt (Arguments[I], Str (Declaration.ParamTypes[I]), True) then
                 Exit False;
@@ -439,27 +396,8 @@ begin
         Exit True;
     end
 
-    /// The arguments with the trailing ones gathered into a List [FUN-005].
-    ///
-    /// ⚠️ Asks the earlier passes again rather than trusting its caller, so a
-    /// call that fits WITHOUT gathering is left alone [EXP-014].  Call is the
-    /// one place every route into a subprogram passes through -- an overload
-    /// set, a method found up a chain, a plain name -- and reshaping here is
-    /// what spares all three from knowing that absorption exists.
-    ///
-    /// ⚠️ Gathering NOTHING yields the empty list, which is what makes
-    /// 'WriteLn ()' an ordinary call rather than a special case.  The list is
-    /// STRUCTURAL and not a default: gathering none gives [] by the same rule
-    /// that gathering three gives a list of three.
-    ///
-    /// ⚠️ TWO KINDS OF LIST MEET HERE, and confusing them is the first thing
-    /// this got wrong.  The argument vector is a HOST list -- this compiler's
-    /// own -- while an element of it is an INTERPRETED value, so the gathered
-    /// arguments have to arrive as an ObjCollection and not as a second host
-    /// list.  A host list bound to a parameter reaches the program as something
-    /// with no properties at all, and 'Items.Length' inside the body fails with
-    /// 'Only instances have properties.'
-    ///
+    /// Gathers the trailing arguments into one collection for a variadic
+    /// parameter, answering the argument list the call will actually use.
     function Absorb (Arguments : List) : List;
     var
         Gathered : List;
@@ -483,11 +421,7 @@ begin
         Exit Gathered;
     end
 
-    /// The position of the parameter of this name, or -1 [EXP-013].
-    ///
-    /// ⚠️ Folded [SRC-011].  A parameter is a name like any other, so
-    /// 'F (level: 1)' and 'F (Level: 1)' fill the same one.
-    ///
+    /// Gets the position of a named parameter, or -1 when there is none.
     function ParameterAt (TheName : String) : Integer;
     begin
         for var I := 0; I < Declaration.Params.Length; I := I + 1 do
@@ -497,19 +431,18 @@ begin
         Exit -1;
     end
 
-    /// The arguments in declaration order, or Nil when the names do not fit
-    /// this signature [EXP-013].
+    /// Puts named arguments into declaration order, or answers Nil when the
+    /// names do not fit this signature.
     ///
-    /// ⚠️ Nil rather than an error, because with an overload set a name that
-    /// fits no candidate here may fit the next one.  Selection asks each
-    /// candidate and the CALL reports the failure, which is the same division
-    /// Fits already follows.
+    /// Nil rather than an error, because with an overload set a name that fits
+    /// no candidate here may fit the next one.  Selection asks each candidate
+    /// and the CALL reports the failure, which is the same division Fits already
+    /// follows.
     ///
-    /// ⚠️ Naming the absorbing parameter turns absorption OFF, and needs no
-    /// rule to do it [FUN-005]: an arrangement fills every slot exactly once,
-    /// so the arranged list has precisely the declared arity and the exact pass
-    /// takes it before absorption is ever reached.
-    ///
+    /// Naming the absorbing parameter turns absorption OFF, and needs no rule to
+    /// do it: an arrangement fills every slot exactly once, so the arranged list
+    /// has precisely the declared arity and the exact pass takes it before
+    /// absorption is ever reached.
     function Arrange (Arguments : List, Names : List) : List;
     var
         Slots  : List;
@@ -532,9 +465,6 @@ begin
             var TheName := '';
             if I < Names.Length then TheName := Str (Names[I]);
 
-            // ⚠️ A positional argument goes to slot I, and that is correct only
-            // because positional arguments come FIRST [EXP-013] -- they fill
-            // 0..k-1 in order, and naming begins after them.
             var At := I;
             if TheName <> '' then At := ParameterAt (TheName);
 
@@ -551,8 +481,7 @@ begin
         Exit Slots;
     end
 
-    /// Whether this subprogram answers the call on the given pass [EXP-014].
-    ///
+    /// Whether this candidate is chosen on a given pass of selection.
     function Selects (Arguments : List, Pass : Integer) : Boolean;
     begin
         if Pass = ABSORBING then Exit Absorbs (Arguments);
@@ -560,24 +489,30 @@ begin
         Exit Fits (Arguments, Pass = WIDENING);
     end
 
-    /// Number of parameters in function signature.
-    ///
+    /// How many parameters this subprogram declares.
     function Arity () : Integer;
     begin
         if Declaration.Params = Nil then Exit 0;
-        
+
         Exit Declaration.Params.Length;
     end
 
-    /// To String
-    ///
+    /// Prints the subprogram as '<fn Name>'.
     function ToString () : String;
     begin
         Exit '<fn ' + Declaration.Name.Lexeme + '>';
     end
 
-    /// Runs the function.
+    /// Calls the subprogram: bind the parameters in a fresh environment, run the
+    /// body, and answer what it returned.
     ///
+    /// A constructor answers 'this' rather than its body's value, which is what
+    /// makes 'Point (1, 2)' evaluate to the instance.
+    ///
+    /// # Raises
+    ///
+    /// An arity failure when the arguments do not fill the parameters, and
+    /// whatever the body itself raises.
     function Call (TheInterpreter, Arguments) : Any;
     var
         Env   : Environment;
@@ -587,23 +522,14 @@ begin
         Env := Environment();
         Env.Enclosing := Closure;
 
-        // ⚠️ Absorption happens HERE, at the one gate every call goes through,
-        // rather than at each of the three places that select a callee.
         Arguments := Absorb (Arguments);
 
-        // ⚠️ An EXTERNAL declaration has no body to run [FUN-014].  The call
-        // goes to the runtime, which finds the symbol and builds it -- the same
-        // alg_foreign a compiled program reaches directly, so one
-        // implementation serves both processors.
         if Declaration.Symbol <> '' then
             Exit Foreign (Declaration.Symbol, Declaration.Library,
                           Declaration.ParamTypes, Declaration.ReturnType, Arguments);
 
         for var I := 0; I < Declaration.Params.Length; I := I + 1 do
         begin
-            // ⚠️ A parameter is an assignment context [VAR-017], so an argument
-            // widens on the way in and the parameter holds the wider type --
-            // 'F (1)' into 'X : Double' binds 1.0, not 1.
             var Declared := '';
             if I < Declaration.ParamTypes.Length then
                 Declared := Str (Declaration.ParamTypes[I]);
@@ -611,20 +537,18 @@ begin
             Env.Define (Declaration.Params[I].Lexeme,
                         TheInterpreter.Widen (Arguments[I], Declared));
         end
-        
-        try 
+
+        try
            TheInterpreter.ExecuteBlock (Declaration.Body, Env);
         except
             on e : Return do
                 begin
                     if IsInitializer then Exit Closure.GetAt (0, 'this');
 
-                    // ⚠️ A declared return type is an assignment context too, so
-                    // 'Exit 1' from a function declared ': Double' yields 1.0.
                     Exit TheInterpreter.Widen (e.Value, Str (Declaration.ReturnType));
                 end
         end
 
         if IsInitializer then Exit Closure.GetAt(0, 'this');
-    end   
+    end
 end

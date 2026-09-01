@@ -1,3 +1,10 @@
+/// The type checker, which is GRADUAL: an unknown type answers '' and that is
+/// normal rather than an error.
+///
+/// A rule bites only where a type was written down.  Writing none stays entirely
+/// permissive -- 'var A := M.Get (1);' is ordinary and unremarkable.
+unit TypeChecker;
+
 uses Console;
 uses Interpreter;
 uses Parser;
@@ -8,53 +15,59 @@ uses TokenType;
 
 /// A scoped symbol-to-type map.
 ///
-/// Parents and inferred types are flat rather than scoped, because classes are
-/// declared at the top level and never go out of scope, so nothing is gained by
-/// scoping them.
-///
 /// An absent symbol answers '' rather than raising: not knowing a type is the
 /// normal case in a gradually typed language, not an error.
-///
 class TypeLookup;
 var
+    /// The scopes now open, innermost last.
     Scopes   : List := [];
+
+    /// Types declared at the top level, where there is no scope to push.
     Types    : Map  := [:];
 
     /// Class name to the class it inherits from.
+    ///
+    /// Flat rather than scoped, because classes are declared at the top level
+    /// and never go out of scope, so scoping them would gain nothing.
     Parents  : Map  := [:];
 
     /// Deduced types, for a name declared without one.
     ///
-    /// ⚠️ SCOPED, for the same reason Generics is, and it was a flat Map until
+    /// SCOPED, for the same reason Generics is, and it was a flat Map until
     /// Reduce started consulting it.  While only one helper read it, a stale
     /// entry could only lose checking; the moment an ordinary variable's type
     /// comes from here, a leftover 'String' from another function's C makes a
-    /// correct program fail to check -- the one kind of wrong answer that is
-    /// not harmless.
+    /// correct program fail to check -- the one kind of wrong answer that is not
+    /// harmless.
     Inferred : TypeLookup := Nil;
 
-    /// Every name that denotes a type, FOLDED [SRC-011].  A type name must
-    /// denote a declared type [TYP-013], and this is what 'is' checks its
+    /// Every name that denotes a type, FOLDED [SRC-011].
+    ///
+    /// A type name must denote a declared type, and this is what 'is' checks its
     /// right-hand side against.
     ///
-    /// ⚠️ A set of its own rather than a test on Types.  Types maps a name to
-    /// its type and a class registers itself under its own name, so
-    /// 'GetType(N) = N' nearly works -- and answers true for 'var Dog : Dog;'
-    /// too, which is a variable rather than a type.  Three lines of
-    /// registration cost less than reasoning about that.
+    /// A set of its own rather than a test on Types.  Types maps a name to its
+    /// type and a class registers itself under its own name, so 'GetType (N) = N'
+    /// nearly works -- and answers true for 'var Dog : Dog;' too, which is a
+    /// variable rather than a type.  Three lines of registration cost less than
+    /// reasoning about that.
     ///
-    /// ⚠️ NOT program-wide by accident: MapType walks into every ModuleStmt, so
-    /// a type declared in any loaded file is registered before any expression
-    /// is reduced, and declaration order across files does not matter.
+    /// NOT program-wide by accident: MapType walks into every ModuleStmt, so a
+    /// type declared in any loaded file is registered before any expression is
+    /// reduced, and declaration order across files does not matter.
+    ///
+    /// # Satisfies
+    ///
+    /// [TYP-013]
     DeclaredTypes : Set := Set();
 
     /// Declared element types -- 'List of Token' -- keyed by variable name.
     ///
-    /// ⚠️ A TypeLookup of its own rather than a flat Map beside Parents and
-    /// Inferred, because both have to be SCOPED.  A stale element type is
-    /// the one kind of wrong answer that is not harmless: '' and 'Any' mean
-    /// "not known" and can only lose checking, while a leftover 'Token' from
-    /// another function's L makes a correct program fail to check.
+    /// A TypeLookup of its own rather than a flat Map beside Parents, because
+    /// this has to be SCOPED.  A stale element type is the one kind of wrong
+    /// answer that is not harmless: '' and 'Any' mean "not known" and can only
+    /// lose checking, while a leftover 'Token' from another function's L makes a
+    /// correct program fail to check.
     Generics : TypeLookup := Nil;
 
     /// Whose body is being checked, so a bare method call can be resolved.
@@ -62,13 +75,14 @@ var
     CurrentClassName : String := '';
 
 begin
+    /// Records a symbol's type in the innermost scope.
     procedure SetType (Symbol : String, TheType : String);
     begin
         if Scopes.IsEmpty then Types.Put (Symbol, TheType);
         else Scopes[Scopes.Length - 1].Put (Symbol, TheType);
     end
 
-    /// The type of a symbol, innermost scope first, or '' when unknown.
+    /// Gets the type of a symbol, innermost scope first, or '' when unknown.
     function GetType (Symbol : String) : String;
     begin
         for var I := Scopes.Length - 1; I >= 0; I := I - 1 do
@@ -79,6 +93,7 @@ begin
         Exit '';
     end
 
+    /// Opens a scope, and the matching scope of Generics and Inferred.
     procedure BeginScope ();
     begin
         Scopes.Add ([:]);
@@ -87,6 +102,7 @@ begin
         if Inferred <> Nil then Inferred.BeginScope ();
     end
 
+    /// Closes the innermost scope, discarding what it recorded.
     procedure EndScope ();
     begin
         Scopes.RemoveAt (Scopes.Length - 1);
@@ -102,89 +118,66 @@ end
 /// so the order they are written in does not matter, and then the bodies are
 /// checked.
 ///
-/// ⚠️ **'Any' means "not known" and is compatible in BOTH directions.**  That
-/// rule is easy to break one caller at a time, so there is exactly one helper
-/// -- Assignable -- and every check goes through it.  Add a caller rather than
+/// 'Any' means "not known" and is compatible in BOTH directions.  That rule is
+/// easy to break one caller at a time, so there is exactly one helper --
+/// Assignable -- and every check goes through it.  Add a caller rather than
 /// another copy.
 ///
 /// Reduction lives here rather than on the Expr nodes.  Nothing depends on the
-/// placement -- reduce is called from the
-/// checker and from nowhere else -- and one dispatch is easier to keep correct
-/// than fifteen methods spread across a file of node declarations.
-///
+/// placement -- Reduce is called from the checker and from nowhere else -- and
+/// one dispatch is easier to keep correct than fifteen methods spread across a
+/// file of node declarations.
 class TypeChecker;
 var
+    /// The symbol table: types, parents, deduced types and element types.
     Lookup : TypeLookup;
 
-    /// The return type of the function being checked, so an 'Exit' can be
+    /// The return type of the subprogram being checked, so an 'Exit' can be
     /// measured against it.  '' outside one, which makes every Exit acceptable.
     CurrentReturn : String := '';
 
     /// Class name to the list of members a 'private:' section covered.
     PrivateMembers : Map := [:];
 
-    /// Class name to the list of members declared 'property' [TYP-012].
+    /// Class name to the list of members declared 'property'.
     ///
-    /// ⚠️ Kept so that ASSIGNMENT to one can be refused where the receiver's
-    /// type is known.  Reading is the runtime's business -- it knows the class
-    /// -- but assignment is the only thing a read-only member forbids, and the
-    /// checker is the only pass that can say so without a run-time cost.
+    /// Kept so that ASSIGNMENT to one can be refused where the receiver's type
+    /// is known.  Reading is the runtime's business -- it knows the class -- but
+    /// assignment is the only thing a read-only member forbids, and the checker
+    /// is the only pass that can say so without a run-time cost.
     PropertyMembers : Map := [:];
 
     /// The built-ins' return types, kept apart from Lookup and never written to
     /// again.
     ///
-    /// ⚠️ A user declaration of the same name OVERWRITES the entry in Lookup --
-    /// which is right, since the bare name now means the declaration -- and it is
-    /// exactly why 'System.Mod' cannot read its type from there.  A file
-    /// declaring 'function Mod : String' made 'var N : Integer := System.Mod(7, 3)'
-    /// a type mismatch, while the call itself was correctly the built-in in both
-    /// back ends.  Qualification says where to LOOK, so the type has to come from
-    /// the same place the value does.
+    /// A user declaration of the same name OVERWRITES the entry in Lookup --
+    /// which is right, since the bare name now means the declaration -- and it
+    /// is exactly why a qualified 'System.Mod' cannot read its type from there.
+    ///
+    /// # Satisfies
+    ///
+    /// [RT-010]
     BuiltinTypes : Map := [:];
 
-    /// How many top-level subprograms each folded name has, so a call can say
-    /// when it will select among them at run time [FUN-013].
-    ///
-    /// ⚠️ Filled in the DECLARING pass, not while checking, because a call may
-    /// be written above the second declaration of the name it calls -- counting
-    /// as the checker walked would warn about some calls and not others
-    /// depending on where they sat in the file.
+    /// Top-level name to how many subprograms share it, which is what decides
+    /// whether a call binds at run time.
     Overloads : Map := [:];
 
-    /// Signatures already counted, so a declaration is counted ONCE.
-    ///
-    /// ⚠️ Counting visits rather than declarations was wrong twice over, and
-    /// the warning itself is what found it: 'SetProgramArguments' is declared
-    /// exactly once, in Interpreter.a24, and was reported as three overloads
-    /// because the declaring pass reaches one module's statements once per
-    /// route into it.  Keying on the SIGNATURE fixes that, and is what the
-    /// count should have been anyway -- two declarations of one signature are a
-    /// duplicate, not an overload [FUN-013].
+    /// Every signature already declared, so a duplicate can be refused.
     Signatures : Set := [];
 
-    /// Calls already warned about, keyed by line and name.
-    ///
-    /// ⚠️ Reduce may reach one expression more than once, and a warning printed
-    /// twice reads as two problems.
+    /// Call sites already warned about, keyed by line and name, so one call
+    /// warns once.
     Warned : Set := [];
 
 begin
+    /// Makes a checker with the built-ins' types already known.
     constructor Init ();
     begin
         this.Lookup := TypeLookup();
         this.Lookup.Generics := TypeLookup();
         this.Lookup.Inferred := TypeLookup();
 
-        // ⚠️ The built-in collections' members, whose types nothing else can
-        // see: ObjCollection dispatches by hand rather than through a method
-        // table, so there is no declaration for the checker to read.  Without
-        // these, every 'Scopes.Length' on a declared Stack reduced to nothing
-        // and 'var I : Integer := Scopes.Length - 1' was a type mismatch.
-        //
-        // Only the members whose result is knowable regardless of what the
-        // collection HOLDS are listed.  Get, Pop, Peek and the rest yield an
-        // element, which is the generic's business, so they stay unregistered.
         for var Kind in ['List', 'Map', 'Set', 'Stack', 'Array'] do
         begin
             Lookup.SetType (Kind + '::Length',   'Integer');
@@ -199,32 +192,18 @@ begin
         Lookup.SetType ('Map::Values', 'List');
         Lookup.SetType ('Set::ToList', 'List');
 
-        // TextFile is not a collection, but it reaches the checker the same
-        // way: a handle dispatching by hand, with nothing to read a type from.
         Lookup.SetType ('TextFile::ReadLn', 'String');
         Lookup.SetType ('TextFile::Eof',    'Boolean');
 
-        // Nor is a Buffer, and Text is the one worth knowing: it is how a
-        // compiler gets its output back, and reducing it to nothing would let
-        // it be assigned anywhere.
         Lookup.SetType ('Buffer::Text',    'String');
         Lookup.SetType ('Buffer::Length',  'Integer');
         Lookup.SetType ('Buffer::IsEmpty', 'Boolean');
         Lookup.SetType ('Buffer::GetInt',  'Integer');
 
-        // The builtins, so a call to one reduces to something better than ''.
-        //
-        // ⚠️ Registered TWICE on purpose: into Lookup, where a user declaration
-        // may later overwrite the entry, and into BuiltinTypes, which nothing
-        // writes to again.  'System.X' reads the second.
         Lookup.SetType ('Length', 'Integer');
         Lookup.SetType ('Pos',    'Integer');
         Lookup.SetType ('Copy',   'String');
         Lookup.SetType ('Str',    'String');
-        // ⚠️ The constructors, each returning its own kind.  Only Array was
-        // here, so 'var S : Stack := Stack()' was a mismatch -- and with the
-        // variable then untyped, every 'S.Length' after it reduced to nothing
-        // too.  One missing return type poisons everything downstream of it.
         Lookup.SetType ('Array',  'Array');
         Lookup.SetType ('List',   'List');
         Lookup.SetType ('Map',    'Map');
@@ -237,31 +216,15 @@ begin
         Lookup.SetType ('ParamCount', 'Integer');
         Lookup.SetType ('ParamStr',   'String');
 
-        // Both write and yield nothing.
         Lookup.SetType ('Write',   'Nil');
         Lookup.SetType ('WriteLn', 'Nil');
 
         Lookup.SetType ('Ord',  'Integer');
-        // ⚠️ 'Val' has NO static return type, and saying one is a lie in both
-        // directions: it answers an Integer or a Double according to the TEXT
-        // it is given [RT-009], which no static rule can see.  It used to be
-        // declared Double, so 'var I : Integer := Val (''42'');' was refused
-        // although it works.
-        //
-        // ⚠️ 'Max' was the other of that pair and is GONE -- removed in
-        // Generation 9 rather than moved, because nothing called it and Turbo
-        // Pascal never had it.  Reducing its promoting type from its arguments
-        // was a special case in Reduce, and it went with it.
         Lookup.SetType ('Char', 'Char');
         Lookup.SetType ('Mod',  'Integer');
 
         Lookup.SetType ('clock',  'Double');
 
-        // ⚠️ The rest of the built-ins' return types, which were never
-        // registered.  Without them 'Copy (...)' reduced to no type at all, so
-        // 'var S : String := Copy (T, 0, 1);' was refused -- a correct program
-        // turned away for the checker's ignorance rather than for anything it
-        // did.  That is most of what DEF-09's untyped half was about.
         Lookup.SetType ('Copy',    'String');
         Lookup.SetType ('Str',     'String');
         Lookup.SetType ('ParamStr', 'String');
@@ -277,9 +240,6 @@ begin
                          'Val', 'Char', 'Mod', 'clock'] do
             BuiltinTypes.Put (Name, Lookup.GetType (Name));
 
-        // ⚠️ The names 'is' answers for without anything declaring them --
-        // TypeNameOf's answers, the five collection kinds, and 'Any', which
-        // names something even though 'X is Any' is always false [VAL-005].
         for var Name in ['Any', 'Boolean', 'Integer', 'Double', 'String', 'Char',
                          'List', 'Set', 'Stack', 'Array', 'Map',
                          'TextFile', 'Buffer', 'Pointer',
@@ -287,12 +247,11 @@ begin
             Lookup.DeclaredTypes.Add (FoldCase (Name));
     end
 
-    /// The class that hid this member, walking UP from the given type, or ''
+    /// Gets the class that hid a member, walking the inheritance chain, or ''
     /// when nothing did.
     ///
-    /// ⚠️ Up the chain, so a subclass cannot reach what its parent hid -- what
-    /// a parent hid stays hidden, and there is no 'protected'.
-    ///
+    /// A subclass does not reach what its parent hid, so the search reports
+    /// which ancestor made the member private.
     function HiddenBy (TheType : String, Member : String) : String;
     var
         At   : String;
@@ -316,27 +275,7 @@ begin
         Exit '';
     end
 
-    /// Rejects a private member reached from outside the class that declared
-    /// it.
-    ///
-    /// ⚠️ Enforced HERE rather than at run time, so both back ends get it from
-    /// the one front end they share -- neither an instance nor the C runtime's
-    /// alg_property knows who is asking.
-    ///
-    /// It catches what it can type.  A receiver that reduces to '' or 'Any' is
-    /// not caught and the access goes through, which is the same bargain
-    /// gradual typing makes everywhere else -- and 'this' is deliberately such
-    /// a receiver, which is what keeps a class's own code free of the rule.
-    ///
-    /// The type of a receiver being dotted into.
-    ///
-    /// ⚠️ A VariableExpr reduces from the DECLARED types only, so the ordinary
-    /// 'var C := Counter()' reduces to nothing -- which would leave every
-    /// member of the language's most common receiver untypeable, and put every
-    /// private one out of reach of the visibility rule.  The DEDUCED type is
-    /// consulted here rather than inside Reduce, which the whole checker runs
-    /// on and which widening is its own change.
-    ///
+    /// Gets the type of the thing to the left of a dot, or '' when unknown.
     function TypeOfReceiver (Obj : Any) : String;
     var
         TheType : String;
@@ -353,8 +292,7 @@ begin
         Exit TheType;
     end
 
-    /// The names a class declares as properties [TYP-012].
-    ///
+    /// Gets the members a class declared with 'property'.
     function PropertiesOf (TheStmt : Any) : List;
     var
         Found : List;
@@ -369,12 +307,8 @@ begin
         Exit Found;
     end
 
-    /// The class declaring this member as a property, or '' -- walking the
-    /// chain, because an inherited property is still read-only.
-    ///
-    /// ⚠️ The same walk HiddenBy makes, and guarded the same way: a 'Seen' set,
-    /// because a cycle in Parents would otherwise loop forever.
-    ///
+    /// Gets the class that declared a member as a property, walking the chain,
+    /// or '' when none did.
     function DeclaresProperty (TheType : String, Member : String) : String;
     var
         At   : String;
@@ -398,12 +332,12 @@ begin
         Exit '';
     end
 
-    /// The element type a receiver was declared with, or ''.
+    /// Gets the declared element type of a collection, or '' when none was
+    /// written.
     ///
-    /// ⚠️ Available only for a plain NAME, which is the same limit reading one
-    /// has [VAR-016]: there is nowhere to have written the element type of an
-    /// arbitrary expression, so an insertion through one is unchecked.
-    ///
+    /// Available only for a plain NAME: there is nowhere to have written the
+    /// element type of an arbitrary expression, so an insertion through one is
+    /// unchecked.
     function ElementOf (Obj : Any) : String;
     begin
         if ClassNameOf (Obj) <> 'VariableExpr' then Exit '';
@@ -411,8 +345,26 @@ begin
         Exit Lookup.Generics.GetType (Str (Obj.Name.Lexeme));
     end
 
-    /// Refuses a value the declared element type does not admit [VAR-016].
+    /// Refuses a value that does not fit a collection's declared element type.
     ///
+    /// EVERY route in is covered, and there are five: Add, Push, Put, subscript
+    /// assignment, and the collection literal at a declaration.  A check
+    /// covering some of them would be worse than none -- a fence with a gate in
+    /// it invites the declared type to be trusted, and a type trusted in four
+    /// places and not the fifth is more dangerous than one trusted nowhere.
+    ///
+    /// It CHECKS and does not convert.  'D.Add (2)' into a 'List of Double' is
+    /// accepted because an Integer widens to a Double, and the element stored is
+    /// the Integer 2: widening happens where a value reaches a written type, and
+    /// an element is not one.
+    ///
+    /// # Raises
+    ///
+    /// 'Expected T, found U.' against the token that inserted the value.
+    ///
+    /// # Satisfies
+    ///
+    /// [VAR-016]
     procedure CheckElement (Element : String, Actual : String, Where : Token);
     begin
         if Element = '' or Element = 'Any' then Exit;
@@ -422,17 +374,11 @@ begin
             raise Mismatch (Where, Element, Actual);
     end
 
-    /// The argument an insertion route puts INTO the collection, or -1.
+    /// Gets which argument of an inserting member carries the element, or -1
+    /// for a member that inserts nothing.
     ///
-    /// ⚠️ EVERY ROUTE, and that is the whole difficulty of this rule: a check
-    /// covering some of them is a fence with a gate in it, which is worse than
-    /// no fence because it invites the declared type to be trusted.  The five
-    /// are 'Add', 'Push', 'Put', subscript assignment and the literal.
-    ///
-    /// ⚠️ 'Put' inserts its SECOND argument.  A 'Map of T' declares the type of
-    /// what is stored, which is what 'M[K]' reads back [VAR-016]; the key is
-    /// not constrained.
-    ///
+    /// 'Put' constrains its SECOND argument: a 'Map of T' declares the type of
+    /// what is stored, and the key is not constrained.
     function InsertedAt (Member : String) : Integer;
     var
         Folded : String;
@@ -447,9 +393,11 @@ begin
         Exit -1;
     end
 
-    /// Checks every element of a collection LITERAL against a declared element
-    /// type -- the route that is easiest to forget, because nothing is called.
+    /// Checks every element of a collection literal against a declared element
+    /// type.
     ///
+    /// The literal at a declaration is the fifth route in, and the only one that
+    /// is not a member call.
     procedure CheckLiteral (Element : String, Initializer : Any, Where : Token);
     begin
         if Element = '' or Element = 'Any' then Exit;
@@ -460,6 +408,19 @@ begin
             CheckElement (Element, Reduce (Initializer.Values[I]), Where);
     end
 
+    /// Refuses a read of a member a class marked private.
+    ///
+    /// Checked where the receiver's type is KNOWN, and nowhere else -- the same
+    /// bargain the element types make.  Privacy belongs to the class rather than
+    /// to the object, so a method may reach another instance's private members.
+    ///
+    /// # Raises
+    ///
+    /// A refusal naming the member and the class that hid it.
+    ///
+    /// # Satisfies
+    ///
+    /// [DCL-013], [DCL-014], [DCL-015]
     procedure CheckVisibility (Obj : Any, Member : Token);
     var
         TheType : String;
@@ -474,20 +435,28 @@ begin
         raise '''' + Member.Lexeme + ''' is private to ' + Owner + '.';
     end
 
-    /// Whether a value of type Actual may stand where Expected is declared.
+    /// Whether a value of one type may reach a written type.
     ///
-    /// Same type, or one that inherits from it, with 'Any' matching either way
-    /// and nil inhabiting everything.
+    /// THE ONE GATE.  Every type check in the language goes through this, because
+    /// the rule it enforces -- that 'Any' means "not known" and is compatible in
+    /// both directions -- is easy to break one caller at a time.  Add a caller
+    /// rather than another copy.
     ///
-    /// ⚠️ A SUBRANGE is seen through here [TYP-015].  It constrains an Integer
-    /// and is not a type of its own, so 'Byte' accepts exactly what 'Integer'
-    /// accepts as far as TYPE goes -- the bounds are a run-time question and are
-    /// checked where the value arrives, not where the checker reads the name.
+    /// It widens: an Integer reaches a Double and a Char reaches a String, at
+    /// every one of the six contexts where a value meets a written type.  It does
+    /// not narrow.
     ///
-    /// ⚠️ Which is also why two subprograms differing only in a parameter's
-    /// range claim the same signature and are a duplicate [FUN-013]: nothing
-    /// here can tell them apart, and neither could a call.
+    /// A value whose type could not be determined at all does NOT satisfy a
+    /// written type; the conversion must be written, and 'as' is how to write it.
+    /// That is the strict half of the gradual bargain, and it depends on the
+    /// checker actually knowing the types it could know -- see DEF-35, where a
+    /// declaration below its use is not yet recorded and a correct program is
+    /// refused.
     ///
+    /// # Satisfies
+    ///
+    /// [FUN-008], [TYP-004], [TYP-006], [VAL-001], [VAL-002], [VAR-003],
+    /// [VAR-004], [VAR-005], [VAR-006], [VAR-017], [VAR-018]
     function Assignable (Expected : String, Actual : String) : Boolean;
     var
         Parent : String;
@@ -501,19 +470,9 @@ begin
         if Actual = 'Nil' then Exit True;
         if Expected = Actual then Exit True;
 
-        // ⚠️ The two WIDENING pairs [VAR-004].  The operators already do both --
-        // '1 + 1.5' is 2.5 and '''a'' + ''bc''' is abc -- so refusing them
-        // where a type is WRITTEN made a declared type mean something narrower
-        // than '+' does.  That inconsistency was the defect; the widening
-        // itself is settled behaviour everywhere else.
-        //
-        // ⚠️ One direction only.  Narrowing stays refused [VAR-018]: the value
-        // does not fit, and choosing how to lose the fraction is not a decision
-        // a declaration should make silently.
         if Expected = 'Double' and Actual = 'Integer' then Exit True;
         if Expected = 'String' and Actual = 'Char'    then Exit True;
 
-        // Walk up the chain: a Dog stands where an Animal is declared.
         Parent := Str (Lookup.Parents.Get (Actual));
         while Parent <> '' and Parent <> 'nil' do
         begin
@@ -525,17 +484,13 @@ begin
         Exit False;
     end
 
-    /// Reports a type error the way a parse error is reported, and yields the
-    /// message so the caller can raise it -- the shape 'Parser.Error' uses.
+    /// Builds the message a type failure reports.
     ///
-    /// ⚠️ Every one of the five sites that raises a mismatch has the offending
-    /// token in hand.  The old message discarded it and said 'Type mismatch!',
-    /// which named no file, no line, no token and neither type, and said the
-    /// same five words for every mismatch the checker could find.  The
-    /// information was thrown away rather than missing [ERR-006].
+    /// One place, so every mismatch in the language reads the same way.
     ///
-    /// ⚠️ An expression the checker could not type at all reduces to '', which
-    /// is not a type name and must not be printed as one.
+    /// # Satisfies
+    ///
+    /// [ERR-006]
     function Mismatch (Where : Token, Expected : String, Actual : String) : String;
     var
         Found   : String;
@@ -552,7 +507,9 @@ begin
         Exit Message;
     end
 
-    /// Checks a whole program.
+    /// Checks a whole program: map every declaration, then check every body.
+    ///
+    /// Two passes, so the order declarations are written in does not matter.
     procedure Resolve (Statements : List);
     begin
         for var I := 0; I < Statements.Length; I := I + 1 do
@@ -562,8 +519,10 @@ begin
             Check (Statements[I]);
     end
 
-    /// Records what a declaration introduces, before anything is checked, so a
-    /// class used above where it is declared still resolves.
+    /// Records what a declaration declares, before any body is checked.
+    ///
+    /// Walks into every ModuleStmt, so a type declared in any loaded file is
+    /// registered before any expression is reduced.
     procedure MapType (TheStmt : Any);
     var
         Kind : String;
@@ -581,8 +540,6 @@ begin
             if TheStmt.Superclass <> Nil then
                 Lookup.Parents.Put (TheStmt.Name.Lexeme, TheStmt.Superclass.Name.Lexeme);
 
-            // A field's declared type, and a method's return type, keyed under
-            // the class -- 'Point::X'.
             for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
             begin
                 Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Fields[I].Name.Lexeme,
@@ -597,9 +554,6 @@ begin
                                 TheStmt.Methods[I].ReturnType);
         end
 
-        // An object's name reduces to its own type, exactly as a class's does
-        // -- the difference between them is what the name evaluates to at run
-        // time, which the checker never asks.
         if Kind = 'ObjectStmt' then
         begin
             PrivateMembers.Put (Str (TheStmt.Name.Lexeme), TheStmt.PrivateMembers);
@@ -627,8 +581,6 @@ begin
         begin
             var Folded := FoldCase (Str (TheStmt.Name.Lexeme));
 
-            // The PARAMETER types alone, which is what tells an overload from a
-            // duplicate -- a return type cannot distinguish one [FUN-013].
             var Signature := Folded + '/' + Str (TheStmt.Params.Length);
             for var I := 0; I < TheStmt.ParamTypes.Length; I := I + 1 do
                 Signature := Signature + '/' + FoldCase (Str (TheStmt.ParamTypes[I]));
@@ -645,15 +597,9 @@ begin
 
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.ReturnType);
 
-            // ⚠️ The RETURN's element type too, so 'Make ().Get (0)' types as
-            // the element rather than reducing to nothing [VAR-016].
             Lookup.Generics.SetType (Str (TheStmt.Name.Lexeme), TheStmt.ReturnGeneric);
         end
 
-        // ⚠️ Registered as a declared type, and NOT given a type of its own:
-        // Assignable sees through it to Integer [TYP-015], so 'Digit' accepts
-        // what 'Integer' accepts and the bounds are checked where the value
-        // arrives.
         if Kind = 'SubrangeStmt' then
             Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
 
@@ -666,11 +612,6 @@ begin
             begin
                 Lookup.SetType (TheStmt.Members[I].Lexeme, TheStmt.Name.Lexeme);
 
-                // ⚠️ The QUALIFIED form too, so 'Color.Red' types as Color
-                // rather than reducing to nothing.  Registering only the bare
-                // name made 'var C : Color := Color.Red' a type mismatch while
-                // 'var C : Color := Red' was fine -- the two spellings of one
-                // value disagreeing about their own type.
                 Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Members[I].Lexeme,
                                 TheStmt.Name.Lexeme);
             end
@@ -689,16 +630,13 @@ begin
                 Lookup.Generics.SetType (Str (TheStmt.Names[I].Lexeme), TheStmt.Generic);
             end
 
-        // A module's declarations were top-level ones before 'uses' grew
-        // scopes, and the checker still needs their types registered in the
-        // first pass so declaration order ACROSS FILES does not matter.
         if Kind = 'ModuleStmt' then
             if TheStmt.Statements <> Nil then
                 for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
                     MapType (TheStmt.Statements[I]);
     end
 
-    /// Checks one statement.
+    /// Checks one statement, and the expressions inside it.
     procedure Check (TheStmt : Any);
     var
         Kind : String;
@@ -711,10 +649,6 @@ begin
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.TypeName);
             Lookup.Generics.SetType (Str (TheStmt.Name.Lexeme), TheStmt.Generic);
 
-            // ⚠️ The DEDUCED type, recorded for a declaration that wrote none.
-            // Without it the ordinary 'var C := Counter()' has no type at all
-            // and every private member of the language's most common receiver
-            // is out of reach of the visibility rule.
             if TheStmt.Initializer <> Nil and TheStmt.TypeName = '' then
                 Lookup.Inferred.SetType (Str (TheStmt.Name.Lexeme), Reduce (TheStmt.Initializer));
 
@@ -724,20 +658,6 @@ begin
             begin
                 var Actual := Reduce (TheStmt.Initializer);
 
-                // ⚠️ Stricter about 'Any' than Assignable is: a type was
-                // written here, and 'Any' is a value that declared it does not
-                // know one [VAR-006].  Crossing from there into a written type
-                // is what 'as' is for, and it is checked [VAL-007].
-                //
-                // ⚠️ And stricter about '' -- an expression the checker could
-                // not type at all -- which an ASSIGNMENT is not.  That
-                // asymmetry is deliberate for now and is not a principle: the
-                // compiler's own sources contain 'Result := Result + C' where C
-                // is a local the checker never typed, so refusing '' at an
-                // assignment refuses a correct program.  A declaration is rare
-                // enough not to hit it, and the strictness here is what four
-                // tests of element-type scoping use to observe the checker at
-                // all.  Resolving it wants better inference, not a looser rule.
                 if TheStmt.TypeName <> 'Any' then
                     if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
                         raise Mismatch (TheStmt.Name, TheStmt.TypeName, Actual);
@@ -745,8 +665,6 @@ begin
             Exit;
         end
 
-        // Every name in the group takes the one declared type, and the one
-        // initializer is checked against it once.
         if Kind = 'VarGroupStmt' then
         begin
             for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
@@ -790,8 +708,6 @@ begin
             Exit;
         end
 
-        // 'List of T' gives the loop variable an element type; anything else
-        // leaves it unknown.
         if Kind = 'ForInStmt' then
         begin
             Reduce (TheStmt.Iterable);
@@ -814,16 +730,10 @@ begin
             Reduce (TheStmt.Condition);
             Check (TheStmt.Body);
 
-            // The step is the loop's now, not the body's, so it is checked here
-            // -- it used to be an ordinary statement inside the body [STM-010].
             if TheStmt.Increment <> Nil then Reduce (TheStmt.Increment);
             Exit;
         end
 
-        // ⚠️ A label must be SEEN THROUGH, not ignored.  This dispatches on the
-        // statement's kind, so an unhandled one is walked past in silence --
-        // which would have left the whole body of every labelled loop
-        // unchecked.
         if Kind = 'LabelStmt' then
         begin
             Check (TheStmt.Inner);
@@ -842,16 +752,6 @@ begin
             Exit;
         end
 
-        // ⚠️ Both bodies are walked even though neither is type-checked as a
-        // unit, or an expression appearing only inside a try -- or only inside
-        // a 'raise' -- would never be visited at all.  That is the gap any
-        // statement leaves by reducing without walking: reducing nothing
-        // checks nothing.
-        //
-        // The handler variable is deliberately left untyped.  A typed handler
-        // knows its class, but binding that here would need a scope the
-        // Resolver does not push, and 'Any' is the honest answer for an
-        // untyped one.
         if Kind = 'TryStmt' then
         begin
             Check (TheStmt.TryBlock);
@@ -863,27 +763,8 @@ begin
             Exit;
         end
 
-        // 'break' has no type and contains no expression, so there is nothing
-        // to reduce -- but it still has to be named here or it falls off the
-        // end of the chain silently, which is only harmless by accident.
         if Kind = 'BreakStmt' then Exit;
 
-        // ⚠️ A module's body is checked in a scope of its OWN, opening with the
-        // built-in types restored.  The first pass maps every file's
-        // declarations into one lookup, so a top-level 'function Length : String'
-        // in the importing file overwrote the built-in's entry for the whole
-        // program -- and a module that never imported it, calling the real
-        // Length, was rejected as a type mismatch.
-        //
-        // Reasserting the built-ins here and then re-mapping the module's own
-        // statements on top gives each file the chain it actually has: built-ins
-        // underneath, its own declarations and its own imports over them, and
-        // nothing from a file that merely imported IT.
-        //
-        // This does not make the checker module-aware in general -- two modules'
-        // declarations still share the outer scope, and a name from a file this
-        // one never imported still resolves.  It closes the case that rejects
-        // correct programs.
         if Kind = 'ModuleStmt' then
         begin
             if TheStmt.Statements = Nil then Exit;
@@ -920,11 +801,6 @@ begin
             var Enclosing := Lookup.CurrentClassName;
             Lookup.CurrentClassName := TheStmt.Name.Lexeme;
 
-            // ⚠️ The fields under their BARE names, in a scope around the
-            // methods.  Fields are reachable unqualified inside a method --
-            // 'Env', not 'this.Env' -- and without this every such reference
-            // reduced to nothing, so 'var Previous : Environment := Env' was a
-            // mismatch.
             Lookup.BeginScope();
 
             for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
@@ -945,41 +821,30 @@ begin
         end
     end
 
+    /// Checks a subprogram body against its declared parameter and return
+    /// types.
+    ///
+    /// CurrentReturn is saved and restored around the body, because a
+    /// subprogram may be declared inside another.
     procedure CheckFunction (TheFunction : Any);
     var
         Enclosing : String;
 
     begin
         Enclosing := CurrentReturn;
-        // 'as', because TheFunction is untyped here and a member of it reduces
-        // to nothing -- the same rule this file now enforces [VAR-006].
         CurrentReturn := TheFunction.ReturnType as String;
 
         Lookup.BeginScope();
 
-        // ⚠️ A parameter's declared type has to be REGISTERED or every body
-        // reduces its own parameters to nothing.  That gap was found while
-        // building per-class visibility.
         for var I := 0; I < TheFunction.Params.Length; I := I + 1 do
         begin
             Lookup.SetType (TheFunction.Params[I].Lexeme, Str (TheFunction.ParamTypes[I]));
 
-            // ⚠️ And its ELEMENT type, or 'Items : List of Integer' would parse
-            // and mean nothing -- a declaration the reader is invited to trust
-            // and the checker ignores.  [VAR-016] makes it a source of types
-            // for reads, and a parameter is where reads happen.
             if I < TheFunction.ParamGenerics.Length then
                 Lookup.Generics.SetType (Str (TheFunction.Params[I].Lexeme),
                                          Str (TheFunction.ParamGenerics[I]));
         end
 
-        // ⚠️ A NESTED declaration shadows the name outside it, and that
-        // includes a builtin's registered return type.  Without this a
-        // 'function Set' declared in a body left every call to it reducing to
-        // the BUILTIN's 'Set', so returning its result from a function declared
-        // ': String' was reported as a mismatch on a program that is perfectly
-        // well typed -- a front-end error, and the kind no output comparison
-        // can see because the program never runs.
         for var I := 0; I < TheFunction.Body.Length; I := I + 1 do
             if ClassNameOf (TheFunction.Body[I]) = 'FunctionStmt' then
                 Lookup.SetType (TheFunction.Body[I].Name.Lexeme,
@@ -992,28 +857,23 @@ begin
         CurrentReturn := Enclosing;
     end
 
-    /// The type of an expression, or '' when it cannot be worked out.
+    /// Warns that a call will select among overloads at run time.
     ///
-    /// '' and 'Any' both mean "not known"; nothing may be rejected for being
-    /// either.
+    /// It reports a COST, not a fault: the program compiles and runs exactly as
+    /// it would without the warning.
     ///
-    /// Reports a call that will select among overloads at RUN TIME.
+    /// It fires on whether the NAME is overloaded, and never consults the
+    /// argument types -- because run-time selection is the language's rule and
+    /// no static rule could replace it.  So inference cannot remove a warning;
+    /// only naming the parameters can, since a name identifies one signature
+    /// where values only describe something several signatures might accept.
     ///
-    /// ⚠️ NON-BLOCKING [H-12].  Run-time selection is the language's rule
-    /// [FUN-013] and stays so -- in a gradually typed language a declared type
-    /// may be 'Any' and no static rule could reach the right overload from
-    /// that.  What this reports is a cost, and naming the parameters [EXP-013]
-    /// is how a programmer avoids it in a particular call.  Without the warning
-    /// the cost is real and invisible, and the remedy has nothing to point at.
+    /// Warned keys on line and name, so one call warns once however many times
+    /// the checker reaches it.
     ///
-    /// ⚠️ Silent on this compiler, which is what makes it a scalpel and not
-    /// noise: no top-level name in compiler/*.a24 is overloaded, so over a
-    /// hundred kilobytes of Algol-24 raise none at all.
+    /// # Satisfies
     ///
-    /// ⚠️ TOP-LEVEL subprograms only.  A method's class is not known until the
-    /// receiver is, so every method call would warn -- and a warning that fires
-    /// everywhere reports nothing.
-    ///
+    /// [ERR-010]
     procedure WarnIfDynamic (TheExpr : Any);
     var
         Folded : String;
@@ -1023,9 +883,6 @@ begin
     begin
         if ClassNameOf (TheExpr.Callee) <> 'VariableExpr' then Exit;
 
-        // ⚠️ A NAMED argument decides the signature at compile time [EXP-013],
-        // which is the whole reason the two features are one generation: this
-        // is the warning, and that is the answer to it.
         for var I := 0; I < TheExpr.ArgumentNames.Length; I := I + 1 do
             if Str (TheExpr.ArgumentNames[I]) <> '' then Exit;
 
@@ -1044,6 +901,27 @@ begin
                     + Str (Seen) + ' overloads at run time.');
     end
 
+    /// Reduces an expression to the type it yields, or '' when that is not
+    /// known.
+    ///
+    /// '' is the ordinary answer rather than a failure: this is a gradual
+    /// checker, and most expressions in most programs have no written type.
+    ///
+    /// A written cast wins outright -- 'X as T' reduces to T without consulting
+    /// anything, which is how a programmer tells the checker what it could not
+    /// work out.
+    ///
+    /// Three blind spots had to close before an assignment could be checked as
+    /// strictly as a declaration, and each was found by tightening the check and
+    /// seeing what this compiler's own sources tripped on: a variable declared
+    /// without a type did not carry its deduced type into an expression; a bare
+    /// name inside a method that is really a field had none, since a field is
+    /// registered under 'Class::Field'; and a Buffer held in a variable declared
+    /// 'Any' gave its Text no type.
+    ///
+    /// # Satisfies
+    ///
+    /// [VAR-016]
     function Reduce (TheExpr : Any) : String;
     var
         Kind : String;
@@ -1051,13 +929,6 @@ begin
     begin
         if TheExpr = Nil then Exit '';
 
-        // ⚠️ A cast wins outright and stops the search.  That is the whole
-        // point of it: the programmer is overriding what would have been
-        // deduced, so deducing anyway and then comparing would defeat it.
-        //
-        // Purely a compile-time annotation -- nothing is checked at run time,
-        // so casting to a wrong type fails later at the point of use rather
-        // than at the cast.
         if TheExpr.Cast <> '' then Exit TheExpr.Cast;
 
         Kind := ClassNameOf (TheExpr);
@@ -1069,18 +940,6 @@ begin
             var Written := Lookup.GetType (TheExpr.Name.Lexeme);
             if Written <> '' then Exit Written;
 
-            // ⚠️ A bare name inside a method may be a FIELD -- an implicit
-            // 'this.Field' -- and a field's type is registered under
-            // 'Class::Field', so looking for it bare found nothing.  That was
-            // the checker's largest blind spot: Scanner's own
-            // 'ReturnValue := Source[Current]' reduced to nothing, because
-            // 'Source' did, though it is declared String on the class.
-            //
-            // ⚠️ Up the inheritance chain, because a field declared on a parent
-            // is reached bare from a subclass's methods exactly as its own is.
-            //
-            // ⚠️ AFTER the scoped lookup above, so a local of the same name
-            // still shadows the field, as it does at run time.
             if Lookup.CurrentClassName <> '' then
             begin
                 var Owner := Str (Lookup.CurrentClassName);
@@ -1095,11 +954,6 @@ begin
                 end
             end
 
-            // ⚠️ A variable declared WITHOUT a type still has one, and this is
-            // where it enters an expression.  'var C := Copy (T, I, 1);'
-            // recorded String for C and 'Result + C' still reduced to nothing,
-            // which is what forced an assignment to accept an untyped value
-            // [VAR-006] -- refusing it would have refused correct code.
             Exit Lookup.Inferred.GetType (Str (TheExpr.Name.Lexeme));
         end
 
@@ -1110,25 +964,10 @@ begin
             Exit Reduce (TheExpr.Right);
         end
 
-        // A type test is Boolean whatever it tests, but the left side still
-        // has to be reduced or an expression appearing only inside an 'is'
-        // would never be checked at all.
         if Kind = 'IsExpr' then
         begin
             Reduce (TheExpr.Obj);
 
-            // ⚠️ A type name must DENOTE a declared type [TYP-013].  This used
-            // to be unchecked, so '1 is Integr' was quietly false and the
-            // branch it guarded never ran -- while the same undefined name used
-            // as a VALUE is 'Undefined variable', which made 'is' uniquely
-            // permissive about its right-hand side.
-            //
-            // ⚠️ Folded, because 'is' folds at run time: SatisfiesType lowers
-            // both sides, so '1 is dog' finds class Dog and refusing it here
-            // would refuse a program that runs.
-            // ⚠️ Canonicalised, not registered.  'Real' is another spelling of
-            // 'Double' [TYP-014] rather than a type of its own, so adding it to
-            // DeclaredTypes would say the opposite -- that two types exist.
             if not Lookup.DeclaredTypes.Contains
                        (FoldCase (CanonicalType (TheExpr.TypeName.Lexeme))) then
             begin
@@ -1143,8 +982,6 @@ begin
 
         if Kind = 'BinaryExpr' then Exit ReduceBinary (TheExpr);
 
-        // 'and' and 'or' yield an operand, so the left one's type is as good a
-        // guess as there is.
         if Kind = 'LogicalExpr' then Exit Reduce (TheExpr.Left);
 
         if Kind = 'AssignExpr' then
@@ -1152,23 +989,10 @@ begin
             var Declared := Lookup.GetType (TheExpr.Name.Lexeme);
             var Actual   := Reduce (TheExpr.Value);
 
-            // ⚠️ The same strictness a DECLARATION applies [VAR-006].  Without
-            // it 'var I : Integer := A' was refused while 'var I : Integer;'
-            // then 'I := A' was accepted -- the same value reaching the same
-            // variable one line later, with nothing checking it.  A written
-            // type is a claim, and 'as' is how a value earns it [VAL-007].
-            // ⚠️ Three guards, and each earns its place.  '' on the LEFT is an
-            // untyped variable, which accepts anything.  'Any' on the left is a
-            // variable that declared it does not know [VAR-006], and accepts
-            // anything too.  '' on the RIGHT is the CHECKER's ignorance rather
-            // than the programmer's -- see the note on Reduce -- and refusing
-            // it would punish a correct program for a blind spot.
             if Declared <> '' and Declared <> 'Any' then
                 if Actual = '' or Actual = 'Any' or not Assignable (Declared, Actual) then
                     raise Mismatch (TheExpr.Name, Declared, Actual);
 
-            // ⚠️ Handed to the interpreter on the node, which is the only way it
-            // can widen here -- Env stores values, not types [VAR-017].
             TheExpr.Declared := Declared;
 
             Exit Declared;
@@ -1183,10 +1007,6 @@ begin
 
             WarnIfDynamic (TheExpr);
 
-            // ⚠️ An element type constrains what may be PUT IN [VAR-016], not
-            // only what comes out.  Checked where the receiver's declared type
-            // is known and nowhere else, which is the same bargain every other
-            // rule in this checker makes.
             if ClassNameOf (TheExpr.Callee) = 'GetExpr' then
             begin
                 var At := InsertedAt (Str (TheExpr.Callee.Name.Lexeme));
@@ -1196,20 +1016,11 @@ begin
                                   TheExpr.Callee.Name);
             end
 
-            // Calling a class constructs one, so the type is the class itself.
             Exit Reduce (TheExpr.Callee);
         end
 
         if Kind = 'GetExpr' then
         begin
-            // A unit-qualified name is the name itself -- 'System.Copy' has the
-            // type 'Copy' has, since qualification only says where to look.
-            // There is no receiver here and so no class whose 'private:'
-            // sections could be violated; a unit's own visibility is the export
-            // set, which the Interpreter checks.
-            // ⚠️ System reads the BUILT-IN table, not Lookup: a program that
-            // declares its own Mod has overwritten Lookup's entry, and that
-            // declaration is precisely what this form is written to reach past.
             if TheExpr.Unit = 'System' then
             begin
                 if BuiltinTypes.Contains (Str (TheExpr.Name.Lexeme)) then
@@ -1230,8 +1041,6 @@ begin
 
         if Kind = 'SetExpr' then
         begin
-            // A unit qualifier is not a value; there is no class here whose
-            // 'private:' sections could be violated.
             if TheExpr.Unit <> '' then Exit Reduce (TheExpr.Value);
 
             CheckVisibility (TheExpr.Obj, TheExpr.Name);
@@ -1239,21 +1048,11 @@ begin
             var Owner  := TypeOfReceiver (TheExpr.Obj);
             var Actual := Reduce (TheExpr.Value);
 
-            // ⚠️ AFTER CheckVisibility, which must keep seeing 'this' untyped.
-            // A field written through 'this' still has a declared type, and
-            // this is where it is found so the value can widen into it.
             if Owner = '' and TheExpr.Obj is ThisExpr then
                 Owner := Str (Lookup.CurrentClassName);
 
             if Owner <> '' and Owner <> 'Any' then
             begin
-                // ⚠️ WHERE THE TYPE IS KNOWN, and nowhere else [TYP-012].  A
-                // property is read-only, so assigning to one is wrong rather
-                // than merely inadvisable -- the same shape as assigning to a
-                // constant.  Through an untyped receiver nothing is reported,
-                // exactly as 'private:' is silent there [DCL-015]: the checker
-                // has no class to ask, and a run-time check would put a cost on
-                // the most frequent operation a program performs (D-9).
                 var Declaring := DeclaresProperty (Owner, Str (TheExpr.Name.Lexeme));
 
                 if Declaring <> '' then
@@ -1262,31 +1061,16 @@ begin
 
                 var Declared := Lookup.GetType (Owner + '::' + TheExpr.Name.Lexeme);
 
-                // ⚠️ A field is an assignment context like any other [VAR-017].
                 if Declared <> '' and Declared <> 'Any' and Actual <> '' then
                     if Actual = 'Any' or not Assignable (Declared, Actual) then
                         raise Mismatch (TheExpr.Name, Declared, Actual);
 
-                // Handed to the interpreter on the node, so the field holds the
-                // wider type rather than one its declaration misdescribes.
                 TheExpr.Declared := Declared;
             end
 
             Exit Actual;
         end
 
-        // ⚠️ 'this' reduces to NOTHING, not to the enclosing class.
-        //
-        // Leaving it untyped is deliberate: it is what keeps a class's own code
-        // free of the visibility rule, since a private member reached through
-        // an untyped receiver is never caught.  Reducing it to the class name
-        // made algc stricter than the language, and every 'this.Private'
-        // inside a subclass became an error the language allows.
-        // ⚠️ 'this' is DELIBERATELY untyped, and typing it here breaks a rule
-        // this file tests for: an untyped receiver is what keeps a class's own
-        // code -- and a subclass's -- outside the private-member check.  The
-        // SetExpr arm takes the class name for itself, after CheckVisibility
-        // has had its untyped receiver.
         if Kind = 'ThisExpr' then Exit '';
 
         if Kind = 'CollectionExpr' then
@@ -1299,19 +1083,13 @@ begin
             Exit 'List';
         end
 
-        // A subscript yields an element, and there are exactly two ways to
-        // know what kind.
         if Kind = 'SubscriptExpr' then
         begin
             var Owner := Reduce (TheExpr.Obj);
             Reduce (TheExpr.Index);
 
-            // Subscripting text yields a Char, never a one-character String.
             if IsTextType (Owner) then Exit 'Char';
 
-            // Otherwise only a declared 'List of T' knows, and only when the
-            // thing subscripted is a plain name -- there is nowhere to have
-            // written the element type of an arbitrary expression.
             if ClassNameOf (TheExpr.Obj) = 'VariableExpr' then
                 Exit Lookup.Generics.GetType (Str (TheExpr.Obj.Name.Lexeme));
 
@@ -1325,8 +1103,6 @@ begin
 
             var Stored := Reduce (TheExpr.Value);
 
-            // The fourth route in [VAR-016]: 'L[0] := V' puts V in as surely as
-            // 'L.Add (V)' does.
             CheckElement (ElementOf (TheExpr.Obj), Stored, TheExpr.Bracket);
 
             Exit Stored;
@@ -1335,8 +1111,10 @@ begin
         Exit '';
     end
 
-    /// Binary operators: comparisons are Boolean, '+' over text is a String,
-    /// and mixed Integer and Double promotes.
+    /// Reduces a binary operation to the type it yields.
+    ///
+    /// Arithmetic promotes: an Integer meeting a Double gives a Double.  A
+    /// comparison gives a Boolean whatever it compared.
     function ReduceBinary (TheExpr : Any) : String;
     var
         Left  : String;
@@ -1370,17 +1148,13 @@ begin
         Exit '';
     end
 
+    /// Whether a type is String or Char, the two that '+' joins as text.
     function IsTextType (TheType : String) : Boolean;
     begin
         Exit TheType = 'String' or TheType = 'Char';
     end
 
-    /// The type of a literal value.
-    ///
-    /// ⚠️ Nil is 'Nil' rather than '', and that is deliberate: '' means "not
-    /// known" and would make every nil assignable to nothing in particular,
-    /// where Assignable has a rule for Nil specifically.
-    ///
+    /// Gets the type of a literal value already built by the scanner.
     function TypeOfValue (Value : Any) : String;
     begin
         if Value = Nil then Exit 'Nil';
@@ -1394,8 +1168,7 @@ begin
         Exit ClassNameOf (Value);
     end
 
-    /// Class name of a value, or '' when it is not an instance.  The same
-    /// caught-failure type test the interpreter uses; Algol-24 has no 'is'.
+    /// Gets the node's class name, for dispatching on the kind of expression.
     function ClassNameOf (Obj : Any) : String;
     begin
         try
@@ -1406,14 +1179,10 @@ begin
     end
 end
 
-
-// ------------------------------------------------------------- generics
-
-/// Runs the checker over source, and answers whether it rejected it.
+/// Whether the checker refuses a program, for the tests below.
 ///
-/// The checker's whole observable behaviour is "does this raise", so every
-/// test below is one call to this.
-///
+/// It answers a Boolean rather than letting the failure escape, so a test can
+/// assert that a program is refused without the refusal ending the run.
 function Rejects (Source : String) : Boolean;
 begin
     var TheScanner := Scanner (Source);
@@ -1509,9 +1278,6 @@ begin
         'begin function First() : String; begin Exit Tokens[0]; end end'));
 end
 
-
-// ------------------------------------------------------------------- casts
-
 // ⚠️ A cast wins outright and stops the search.  That is the point of it: the
 // programmer is overriding what would have been deduced, so deducing anyway
 // and then comparing would defeat it.
@@ -1577,9 +1343,7 @@ begin
     Fail ('No exception raised.');
 end
 
-// ------------------------------------------------------- private: / public:
-
-/// A class with one private field and one private method, for the tests below.
+/// A class with a private field, as source text, for the visibility tests.
 const HIDER :=
     'class Counter;'                                     + #10 +
     'private:'                                           + #10 +
@@ -1737,8 +1501,6 @@ test 'Module Private Is Not A Section Marker';
 begin
     AssertTrue (not Rejects ('private var Hidden := 1;' + #10 + 'begin WriteLn (Hidden); end'));
 end
-
-// -------------------------------------------------------------- enum types
 
 /// ⚠️ Both spellings of one member type as the enum.
 ///

@@ -1,6 +1,5 @@
 /* Generated from Algol-24.  Do not edit. */
 #include "Main.h"
-#include "AstPrinter.h"
 #include "Token.h"
 #include "TokenType.h"
 #include "Expr.h"
@@ -457,7 +456,8 @@ void init_Main(void) {
     fn_runtimefolder = alg_closure("RuntimeFolder", f_runtimefolder, NULL, 0, 0, NULL);
     fn_usage = alg_closure("Usage", f_usage, NULL, 0, 0, NULL);
     fn_main = alg_closure("Main", f_main, NULL, 0, 0, NULL);
-    init_AstPrinter();
+    init_Token();
+    init_Expr();
     init_Stmt();
     init_Environment();
     init_ObjFunction();

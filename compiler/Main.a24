@@ -1,4 +1,17 @@
-uses AstPrinter;
+/// The driver: reads the command line and wires the one front end to whichever
+/// back end was asked for.
+///
+///     Scanner -> Parser -> Resolver -> TypeChecker -> Interpreter
+///                                                  -> CEmitter
+///
+/// Run, RunTests and Compile deliberately share that front end.  A program that
+/// fails to parse or type-check must fail identically whichever back end is
+/// asked for, or the two stop describing one language.
+///
+/// The 'uses' order matters: a module's functions close over the environment its
+/// file was loaded in, so TypeChecker must come after Parser for its test blocks
+/// to reach the parser.
+unit Main;
 
 uses Token;
 uses TokenType;
@@ -20,17 +33,13 @@ uses Console;
 uses Scanner;
 uses Parser;
 
-// ⚠️ After Parser, not before it.  A module's functions close over the
-// environment its own file was loaded in, so TypeChecker's test blocks can
-// only reach Scanner and Parser if those are already loaded -- and driving the
-// checker over real source is the only way to test it.
 uses TypeChecker;
 
 uses Resolver;
 uses Interpreter;
 uses CEmitter;
 
-/// The sample run when no file is named, so a bare `algc` still shows
+/// The sample run when no file is named, so a bare 'algc' still shows
 /// something.
 const SAMPLE :=
     'class Doughnut;'                                                   + #10 +
@@ -56,17 +65,12 @@ const SAMPLE :=
 ///
 /// ReadLn drops the terminator, so the lines are rejoined with #10 -- which is
 /// what the language says a line ends with, and what the scanner counts.
-///
 function ReadSource(Name : String) : String;
 begin
     var F := TextFile();
     F.Assign(Name);
     F.Reset();
 
-    // ⚠️ A Buffer, not 'Result := Result + Line'.  That copies the whole file
-    // so far on every line, so reading an n-byte source costs n^2/2 bytes of
-    // memory that is never reclaimed -- and this compiler's own largest source
-    // is 113 KB.
     var Result := Buffer();
 
     while not F.Eof do
@@ -81,25 +85,33 @@ end
 
 /// Fails the run if anything scanned badly.
 ///
-/// ⚠️ A scan error is RECORDED rather than thrown: Scanner sets HadError and
+/// A scan error is RECORDED rather than thrown: the Scanner sets HadError and
 /// keeps the message, so every driver has to ask.  While none did,
-/// 'var A @ := 1;' scanned to a token stream with the '@' silently dropped,
-/// and algc ran and compiled a program it should have refused, with nothing
-/// able to see it.
+/// 'var A @ := 1;' scanned to a token stream with the '@' silently dropped, and
+/// algc ran and compiled a program it should have refused, with nothing able to
+/// see it.
 ///
-/// ⚠️ Called TWICE, and the two are not redundant.  After ScanTokens gets the
+/// Called TWICE, and the two are not redundant.  After ScanTokens gets the
 /// MESSAGE right: a damaged token stream often fails to parse, and the parse
-/// error raises first, so 'WriteLn(''unterminated' was reported as 'Expect
-/// expression!' and '1.' as 'Expect property name after ''.''' while the
-/// scanner knew exactly what was wrong.  After Parse gets the COVERAGE:
-/// HadError belongs to the Scanner MODULE rather than to an instance, so it is
-/// one flag for the whole run, and the scanner a 'uses' clause builds for an
-/// imported module sets the same one -- which the first call cannot see.
+/// error raises first, so an unterminated string was reported as
+/// 'Expect expression!' while the scanner knew exactly what was wrong.  After
+/// Parse gets the COVERAGE: HadError belongs to the Scanner MODULE rather than
+/// to an instance, so it is one flag for the whole run, and the scanner a 'uses'
+/// clause builds for an imported module sets the same one -- which the first
+/// call cannot see.
 ///
-/// The language has no Halt, so this raises, as the --test failure path does:
-/// interpreted it is reported and exits 70, and compiled it is 'Uncaught:'
-/// and 70.
+/// It RAISES rather than halting, because a scan error is a diagnostic with a
+/// message to print.  The test-failure path halts instead, which is a different
+/// thing: there the report has already been printed and an exit status is all
+/// that is left to choose.
 ///
+/// # Raises
+///
+/// The scanner's own message, unchanged.
+///
+/// # Satisfies
+///
+/// [INI-006]
 procedure CheckScanned ();
 begin
     if HadError then raise Str (LastError);
@@ -108,8 +120,7 @@ end
 /// Scans, parses and resolves, then runs the test blocks instead of the
 /// program.  The main block is never executed.
 ///
-/// Returns the number of failures, so the caller can exit non-zero.
-///
+/// Answers the number of failures, so the caller can exit non-zero.
 function RunTests(Source : String, FileName : String) : Integer;
 var
    TheScanner     : Scanner;
@@ -126,8 +137,6 @@ begin
     TheParser := Parser(TheScanner.ScanTokens());
     CheckScanned ();
 
-    // So a 'uses' clause can look for its module beside THIS file before
-    // falling back to the working directory.
     TheParser.FileName := FileName;
 
     Stmts := TheParser.Parse();
@@ -143,8 +152,14 @@ begin
     Exit TheInterpreter.RunTests(Stmts, FileName);
 end
 
-/// Scans, parses, resolves and interprets one program.
+/// Scans, parses, resolves, type-checks and interprets one program.
 ///
+/// An uncaught value is reported and ends the run: a program that fails is a
+/// diagnostic and an exit status, not a trace.
+///
+/// # Satisfies
+///
+/// [ERR-001], [ERR-002], [ERR-008], [INI-001]
 procedure Run(Source : String, FileName : String);
 var
    TheScanner     : Scanner;
@@ -179,18 +194,15 @@ begin
     TheInterpreter.Interpret(Stmts);
 end
 
-/// Entry point.
-///
-///   algc                    -- runs the sample above
-///   algc <file>             -- runs that file
-///   algc --test <file>      -- runs that file's test blocks
-///
 /// Collects the interpreted program's own arguments, starting with its name.
 ///
-/// ⚠️ From index First onward, so what the program sees is what it would see
-/// run directly.  'algc --test Files.a24' has to give that suite ParamCount()
-/// = 0 and ParamStr(0) = 'Files.a24', not algc's own two arguments.
+/// From index First onward, so what the program sees is what it would see run
+/// directly.  'algc --test Files.a24' has to give that suite ParamCount () = 0
+/// and ParamStr (0) = 'Files.a24', not algc's own two arguments.
 ///
+/// # Satisfies
+///
+/// [INI-007]
 function ArgumentsFrom (First : Integer) : List;
 var
     Result : List := [];
@@ -204,11 +216,16 @@ end
 
 /// Scans, parses, resolves and type-checks, then emits C instead of running.
 ///
-/// ⚠️ The same front end as Run, deliberately.  The emitter is one more
-/// consumer of the statements the interpreter already gets -- a program that
-/// fails to parse or check must fail identically whichever back end is asked
-/// for, or the two stop describing one language.
+/// The same front end as Run, deliberately: a program that fails to parse or
+/// type-check must fail identically whichever back end is asked for, or the two
+/// stop describing one language.
 ///
+/// The runtime is copied in beside the emitted files, so the directory is
+/// self-contained and 'cc -std=c11 -O2 -o prog DIR/*.c' is the whole build.
+///
+/// # Raises
+///
+/// Whatever the emitter refuses by name.
 procedure Compile (Source : String, FileName : String, WantTests : Boolean,
                    OutDir : String);
 var
@@ -237,9 +254,6 @@ begin
 
     if WantTests then TheEmitter.WithTests();
 
-    // ⚠️ One C file per SOURCE file now, so this writes a set rather than
-    // printing one.  The directory has to exist: the language has no way to
-    // create one, and the harnesses that call this already make it.
     var TheFiles := TheEmitter.Emit (Stmts, TheEmitter.UnitNameOf (FileName));
 
     for var Name in TheFiles.Keys() do
@@ -252,8 +266,6 @@ begin
         Out.Close();
     end
 
-    // ⚠️ And the runtime, so the directory really is self-contained.  Without
-    // this the emitter's '#include "algol.h"' names a file that is not there.
     var Runtime := RuntimeFolder ();
 
     if Runtime = '' then
@@ -266,16 +278,10 @@ begin
     end
 end
 
-
-/// The version this binary reports, and the one a release is tagged with.
-///
-/// ⚠️ Worth having because algc is meant to be INSTALLED.  Without it
-/// 'algc --version' answered 'algc: cannot open --version' -- the flag taken
-/// for a filename, which is the least helpful thing it could have said.
-///
+/// The release this compiler reports for '--version'.
 const VERSION := '0.1.0';
 
-/// The directory part of a path, or '' when there is none.
+/// Gets the directory part of a path, or '' when there is none.
 function FolderOf (Path : String) : String;
 var
     Cut : Integer := -1;
@@ -289,8 +295,7 @@ begin
     Exit Copy (Path, 0, Cut);
 end
 
-/// Copies a file, line by line, which is all a TextFile offers.  False when
-/// the source cannot be opened.
+/// Copies one file, answering whether it worked.
 function CopyFile (FromPath : String, ToPath : String) : Boolean;
 var
     Source : TextFile;
@@ -315,20 +320,16 @@ begin
     Exit True;
 end
 
-/// Where algol.c and algol.h are, seen from wherever algc happens to be.
+/// Finds the runtime to copy beside emitted C.
 ///
-/// ⚠️ THE EMITTED DIRECTORY WAS NOT SELF-CONTAINED AND --help SAID IT WAS.
-/// The emitter writes '#include "algol.h"' and never the runtime itself, so an
-/// installed algc produced a directory that would not compile:
-/// 'algol.h file not found'.  In the repository the harnesses copied it in by
-/// hand; a user who installed the compiler had no repository to copy from.
+/// Three places, in order: beside the binary, then 'bin/../share/algol24' for a
+/// package manager, then 'bootstrap/' relative to the working directory.  The
+/// language has no way to be told its own install prefix, so the search is the
+/// answer.
 ///
-/// ⚠️ Searched rather than compiled in, because the language has no way to be
-/// told its own install prefix.  Three places, and between them they cover
-/// every way algc is run: beside the binary (the repository, where algc sits
-/// in bootstrap/), under a package manager's prefix (bin/../share/algol24),
-/// and bootstrap/ relative to the working directory.
-///
+/// Without this an INSTALLED algc emitted a directory that would not compile:
+/// the emitter writes an include for the runtime and never wrote the runtime,
+/// while '--help' said the output was self-contained.
 function RuntimeFolder () : String;
 var
     Own : String;
@@ -348,12 +349,7 @@ begin
     Exit '';
 end
 
-/// What the compiler answers to '--help'.
-///
-/// ⚠️ Worth having because algc is meant to be INSTALLED -- a tool a package
-/// manager puts on someone's PATH, met with no repository around it and no
-/// README to hand.
-///
+/// Prints how to invoke the compiler.
 procedure Usage();
 begin
     WriteLn ('algc -- the Algol-24 compiler.');
@@ -370,6 +366,19 @@ begin
     WriteLn ('  cc -std=c11 -O2 -o <name> <dir>/*.c');
 end
 
+/// The entry point: reads the arguments and chooses a driver.
+///
+///   algc                          -- runs the sample
+///   algc <file>                   -- runs that file
+///   algc --test <file>            -- runs that file's test blocks
+///   algc --compile --out=DIR <f>  -- emits C into DIR
+///
+/// A failing test run exits 70 through Halt rather than raising, so a failing
+/// suite prints the report and nothing else -- through either processor.
+///
+/// # Satisfies
+///
+/// [ERR-009], [INI-005], [STM-021]
 procedure Main();
 var
     Name : String;
@@ -401,7 +410,6 @@ begin
 
     if ParamStr(1) = '--compile' then
     begin
-        // 'algc --compile [--test] [--out=DIR] <file>'.
         var WantTests := False;
         var OutDir    := 'out';
 
@@ -439,12 +447,6 @@ begin
 
         SetProgramArguments (ArgumentsFrom (2));
 
-        // ⚠️ Halt, not 'raise'.  A failure has to reach the exit code, and this
-        // used to raise 'Tests failed.' because the language had no way to
-        // choose a status -- which printed 'Uncaught: Tests failed.' after the
-        // report [RT-018].  The compiled form of the same suite returns 70 from
-        // main and prints nothing, so the two processors disagreed by exactly
-        // that line, and it was the last line they disagreed on.
         if RunTests(ReadSource(Name), Name) > 0 then Halt (70);
 
         Exit;
