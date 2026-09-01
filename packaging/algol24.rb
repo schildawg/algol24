@@ -5,10 +5,15 @@
 # Formula/algol24.rb is a copy of this file with the url and sha256 for the
 # release being published.
 #
-# ⚠️ NO depends_on, and that is not an oversight.  A --ffi build links against
-# /usr/lib/libffi.dylib -- the system one, shipped with macOS -- so the bottle
-# has no dependencies beyond the operating system.  A Linux formula would need
-# depends_on "libffi".
+# ⚠️ NO dependency block, and that is not an oversight.  A --ffi build links
+# against /usr/lib/libffi.dylib -- the system one, shipped with macOS -- so the
+# bottle needs nothing beyond the operating system.  A Linux formula would have
+# to declare libffi instead, which is one reason this tap bottles for macOS
+# alone.
+#
+# ⚠️ Naming that library in the ordinary way, even inside a comment, fails
+# 'brew style': the audit reads it as a dependency someone commented out, and
+# an explanation of why a formula has none looks exactly like one.
 class Algol24 < Formula
   desc "Retro-modern, gradually typed, self-hosting language"
   homepage "https://github.com/schildawg/algol24"
