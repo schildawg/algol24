@@ -58,6 +58,13 @@ executable rather than the source, not because compiling is slow.
    as a side effect. Merging by hand takes the formula *without* its bottles,
    and the block then needs a second pull request to add.
 
+⚠️ **The branch must contain no merge commit.** `pr-pull` replays a pull
+request by **cherry-picking** each of its commits onto `main`, and a cherry-pick
+cannot replay a merge: it stops at `is a merge but no -m option was given` after
+having already committed the ones before it. So bring a branch up to date by
+rebasing it, never by merging `main` into it. One commit per formula change is
+the convention and avoids the question entirely.
+
 ⚠️ **`VERSION` and the tag can drift, and nothing catches it.** The one thing in
 this repository that is checked by nobody. Worth a line in `spec/spec.sh` when
 releases become routine.
