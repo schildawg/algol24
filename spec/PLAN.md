@@ -295,6 +295,66 @@ into Algol-24, which SDL can mostly do without; H-9 is library work after the
 tag; H-17 — equality and the hash that must come with it — is undecided. The
 language features are complete.
 
+## ✅ Generation 9 is complete — v0.1.0, language features complete
+
+**A foreign call that costs what it should, twenty-nine wrapper classes made
+one, and four built-ins that left the core and came back.** 221 tests, 179
+conformance cases, 55 refusals, 280 rules, no gap in either processor, the
+fixed point holding.
+
+⚠️ **The moves are the finding, and they mostly failed.** `Max`, `Mod`, `Succ`,
+`Pred` and `Ord` were moved into a unit written in Algol-24; all of them worked
+and all but one came back. What each attempt hit is worth more than the moving
+would have been:
+
+- **`Length` depends on identity, which the FFI cannot carry.** Its speed comes
+  from a cache keyed on the *string pointer*; a `const char *` loses the length
+  and the key together. Even a free foreign call would not fix it. Measured at
+  **392 million calls** in one test run.
+- **`Char` has no route out.** Building a character in Algol-24 means assembling
+  bytes in a `Buffer` and reading them back, and a Buffer refuses `Text` when it
+  holds a zero byte [RT-022] — so `Char (0)` would be unbuildable, and [RT-008]
+  makes it legal because the scanner's own sentinel is one.
+- **`Val` IS the scanner's number parser.** `Scanner.a24` reads every numeric
+  literal with it, so what `Val` does is what a literal means. The Algol-24
+  rewrite got every acceptance case right and then read `1.0E300` back as
+  `1.0000000000000002E300`.
+- **`Max` had no callers at all**, which is why it was *removed* rather than
+  moved. Every mention in `compiler/*.a24` was a comment.
+
+⚠️ **So the built-in set is not arbitrary after all.** That was the premise —
+`Max` and `Mod` in the core while `Min` and `Abs` were not — and it did not
+survive contact. What is left is what four attempts to leave it could not
+improve on, and `System` is simply the language's own.
+
+⚠️ **`dlsym` was 98% of a foreign call.** It ran on every call with nothing
+memoized: 1.025 µs of a 1.11 µs total, against `ffi_prep_cif` at 0.006 and
+`ffi_call` at 0.015. Cached, a foreign call is 0.15 µs — 7.4× better, on every
+call SDL makes.
+
+⚠️ **The FFI is fine for SDL and fatal per pixel**, which is the same fact from
+both ends. An 800 × 600 animation spends **0.003%** of its frame in foreign-call
+overhead; a pie chart calling `atan2` per pixel spends 26 ms. The boundary is
+how *often*, not how much.
+
+⚠️ **Three defects were found by tooling built for something else.** The
+equivalence harness for `Succ`/`Pred` could not print a `Char (0)`, which
+surfaced a live divergence in `Write`. Collapsing the wrapper classes exposed
+`Str (Length)` answering `LengthNative instance`. Walking Turbo Pascal's
+`Assign` — an entry with *nothing to record* — found that [RT-024] never said
+six members refuse an already-open file.
+
+⚠️ **Annex F is not empty, for the first time since Generation 1.** DEF-34:
+`Val` follows `strtod`'s acceptance rather than the language's literal rules, so
+`'0x1F'` answers a Double where a hex literal is an Integer. Recorded rather
+than carried silently, with the precision requirement any fix must keep.
+
+⚠️ **A stale emitted unit bit twice.** `bootstrap/System.c` and
+`bootstrap/Core.c` each survived their source being renamed or deleted; the
+first failed the link on a duplicate symbol and the second failed
+`fixedpoint.sh`. Copying a generation into `bootstrap/` does not remove what is
+no longer generated, and nothing warns.
+
 ## 0. The road to v1
 
 | | | Ends when |
