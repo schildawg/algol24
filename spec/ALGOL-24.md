@@ -9253,32 +9253,7 @@ The import used to be refused with `'Clash' is already defined; mark it
 private in one of the modules.` — advice to edit a module because of what some
 other module, possibly written by someone else, happens to export.
 
-##### conformance/0124-modules-may-share-exported-names.a24
-
-```algol24
-uses 'modules/Alpha';
-uses 'modules/Beta';
-
-WriteLn (Alpha.Shared ());
-WriteLn (Beta.Shared ());
-
-// Bare, and exported by only one module each.
-WriteLn (OnlyAlpha ());
-WriteLn (OnlyBeta ());
-
-// Bare 'Shared' is the error, and it is the LAST thing that happens.
-WriteLn (Shared ());
-```
-
-```console
-$ algc conformance/0124-modules-may-share-exported-names.a24
-Uncaught: 'Shared' is ambiguous: Alpha or Beta.
-from Alpha
-from Beta
-only in Alpha
-only in Beta
-exit: 70
-```
+    conformance  0124-modules-may-share-exported-names.a24
 
 **[MOD-013]**  A **bare** name exported by more than one imported module is
 ambiguous, and using it is refused with
@@ -9303,7 +9278,32 @@ only place the ambiguity is real. Importing one module twice is not a clash with
 itself: the same environment appearing twice in the import list is still one
 module.
 
-    conformance  0124-modules-may-share-exported-names.a24
+##### conformance/0124-modules-may-share-exported-names.a24
+
+```algol24
+uses 'modules/Alpha';
+uses 'modules/Beta';
+
+WriteLn (Alpha.Shared ());
+WriteLn (Beta.Shared ());
+
+// Bare, and exported by only one module each [MOD-008].
+WriteLn (OnlyAlpha ());
+WriteLn (OnlyBeta ());
+
+// Bare 'Shared' is the error, and it is the LAST thing that happens.
+WriteLn (Shared ());
+```
+
+```console
+$ algc conformance/0124-modules-may-share-exported-names.a24
+Uncaught: 'Shared' is ambiguous: Alpha or Beta.
+from Alpha
+from Beta
+only in Alpha
+only in Beta
+exit: 70
+```
 
 ### 15.3 Visibility
 
@@ -10870,6 +10870,11 @@ what a program may link against.
 **resolve**, **check**, **run**. The first four complete over the whole program
 — its imports included — before any statement is executed.
 
+    conformance  0097-error-phases.a24
+
+**[ERR-002]**  An error in any of the first four phases means **no statement
+runs at all**. A program cannot produce output and then fail to compile.
+
 ##### conformance/0097-error-phases.a24
 
 ```algol24
@@ -10888,10 +10893,6 @@ Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
-**[ERR-002]**  An error in any of the first four phases means **no statement
-runs at all**. A program cannot produce output and then fail to compile.
-
-    conformance  0097-error-phases.a24
     refusal      0008-declared-type-constrains.a24
 
 **[ERR-003]**  A runtime error occurs during execution. Statements before it
