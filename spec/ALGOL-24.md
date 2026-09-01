@@ -5580,7 +5580,7 @@ except
     on e : String do WriteLn (e);
 end
 
-// EXP-011: a call checks arity.
+// And uncaught, which is how the failure ends a program.
 WriteLn (One (1, 2));
 ```
 
@@ -8093,7 +8093,6 @@ to another declared later in the file.
 ##### conformance/0069-objects.a24
 
 ```algol24
-// CLS-015: an object is a class with exactly one instance, reached by the name.
 object Config;
 var Name : String := 'config';
 begin
