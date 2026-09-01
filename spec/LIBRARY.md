@@ -504,6 +504,8 @@ entry in Annex F with a reproduction — the survey found it, it does not wait o
 the survey.
 
 **Q7 — a library function cannot ask whether a value is an enum member.**
+*(Raised while `Ord` was briefly a library function; it is a built-in again, so
+this now bears on H-9 rather than on `Ord`.)*
 `Ord` accepts one, because a member carries `Ordinal` [ENU-010]. Nothing else in
 the language answers that property — an Integer, a `Char`, `nil`, an instance
 and a `List` were all checked and every one raises — so the test is sound. But
@@ -520,7 +522,20 @@ anywhere else. The fix belongs to the language — either `is Enum`, or admittin
 `Compare` and `Get`/`Put` — and it is the first thing the library has wanted
 that the core does not offer.
 
-**Q6 — the core's numeric set is arbitrary, and `math` makes that visible.**
+**Q6 — ANSWERED, and the answer was to remove rather than move.** `Max` and
+`Mod` were the evidence that the core's numeric set was arbitrary — `Min` and
+`Abs` did not exist beside them. Asking *where they were used* settled it:
+`Max` had **no call sites at all** (every mention in the compiler was a
+comment), and Turbo Pascal never had either as a function. `Max` was removed in
+Generation 9 [RT-010]; `Mod` stays, with one call site in the emitter's hex
+mangling.
+
+⚠️ **Turbo Pascal does have `mod` — as an OPERATOR**, `a mod b`, beside
+`a div b`. So the capability is Pascal's and only the spelling as a function is
+not. Whether `Mod` should become an operator beside `div` is open; it is a
+language addition rather than a library question.
+
+**Q6 (original) — the core's numeric set is arbitrary, and `math` makes that visible.**
 `Max` [RT-010] and `Mod` [RT-011] are built-ins; `Min` and `Abs` do not exist at
 all:
 

@@ -7,7 +7,6 @@
 // then it raised.  Each step removed a way to be surprised; this one removes
 // the surprise itself.
 
-uses 'lib/Core';        // Mod, Succ and Pred are library functions now
 
 WriteLn (2147483647 + 1);
 WriteLn (9223372036854775807 + 1);

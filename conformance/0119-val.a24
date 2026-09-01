@@ -1,0 +1,17 @@
+// spec: RT-009
+//
+// Val answers an Integer where the text is one, and a Double where it is not.
+//
+// ⚠️ This case used to pair Val with Max, because each was defensible alone --
+// Val always yielding a Double, Max taking Integers only -- and together they
+// left 'Max (Val (A), Val (B))' failing for EVERY input.  Max was removed in
+// Generation 9 [RT-010]; what it proved about Val stands on its own.
+
+
+WriteLn (Val ('42'));
+WriteLn (Val ('42') is Integer);
+WriteLn (Val ('-7'));
+WriteLn (Val ('1.5'));
+WriteLn (Val ('1.5') is Double);
+
+

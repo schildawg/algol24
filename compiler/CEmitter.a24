@@ -3,7 +3,6 @@ uses ObjFunction;
 uses Stmt;
 uses TokenType;
 uses Token;
-uses 'lib/Core';
 
 /// ⚠️ Beyond this many elements a collection literal is HOISTED into a helper
 /// function instead of being emitted as nested calls.  Each keep-call is a
@@ -3680,7 +3679,6 @@ begin
         if Key = 'Succ/1'    then Exit 'alg_succ';
         if Key = 'Pred/1'    then Exit 'alg_pred';
         if Key = 'Foreign/5' then Exit 'alg_foreign_call';
-        if Key = 'Max/2'     then Exit 'alg_max';
         if Key = 'Mod/2'     then Exit 'alg_mod';
         if Key = 'clock/0'   then Exit 'alg_clock';
         if Key = 'Halt/1'    then Exit 'alg_halt';
@@ -4046,7 +4044,7 @@ begin
         // While they came first, 'class Buffer' meant two different things:
         // interpreted the declaration won, compiled 'alg_buffer()' did, and the
         // program died on 'Undefined property' pointing at the method rather
-        // than at the name.  The same held for a top-level function named 'Max'
+        // than at the name.  The same held for a top-level function named 'Mod'
         // and for every other builtin and constructor name.
         //
         // ⚠️ Declared is NOT the right set here -- it holds every function
@@ -4457,8 +4455,8 @@ begin
     /// A unit-qualified name READ rather than called -- 'Vals.Answer'.
     ///
     /// ⚠️ System has none of these.  A built-in is a C function and the back end
-    /// has no closure to stand for one, so 'System.Max' as a value is refused
-    /// where 'System.Max(1, 2)' is fine.  The interpreter can hand back the
+    /// has no closure to stand for one, so 'System.Mod' as a value is refused
+    /// where 'System.Mod(7, 3)' is fine.  The interpreter can hand back the
     /// native, which is a divergence and a deliberate one: emitting a wrapper
     /// per built-in to close it would cost the whole table for a form nothing
     /// writes.

@@ -1,0 +1,11 @@
+// spec: RT-010
+//
+// Max was a built-in and is not one now.  It was removed in Generation 9
+// rather than moved to a library, because nothing called it: every mention of
+// it in the compiler's own source was a comment.
+//
+// ⚠️ A removal needs a case as much as an addition does.  Without one, nothing
+// would notice a Max quietly coming back -- and the rule it left behind is a
+// tombstone, which cites this.
+
+WriteLn (Max (1, 2));

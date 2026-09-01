@@ -5,7 +5,6 @@ uses Scanner;
 uses SourceCode;
 uses Token;
 uses TokenType;
-uses 'lib/Core';
 
 /// A scoped symbol-to-type map.
 ///
@@ -137,8 +136,8 @@ var
     ///
     /// ⚠️ A user declaration of the same name OVERWRITES the entry in Lookup --
     /// which is right, since the bare name now means the declaration -- and it is
-    /// exactly why 'System.Max' cannot read its type from there.  A file
-    /// declaring 'function Max : String' made 'var N : Integer := System.Max(1, 2)'
+    /// exactly why 'System.Mod' cannot read its type from there.  A file
+    /// declaring 'function Mod : String' made 'var N : Integer := System.Mod(7, 3)'
     /// a type mismatch, while the call itself was correctly the built-in in both
     /// back ends.  Qualification says where to LOOK, so the type has to come from
     /// the same place the value does.
@@ -243,15 +242,16 @@ begin
         Lookup.SetType ('WriteLn', 'Nil');
 
         Lookup.SetType ('Ord',  'Integer');
-        // ⚠️ 'Val' and 'Max' have NO static return type, and saying one is a
-        // lie in both directions.  Val answers an Integer or a Double according
-        // to the TEXT it is given [RT-009], which no static rule can see; it
-        // used to be declared Double, so 'var I : Integer := Val (''42'');' was
-        // refused although it works.  Max promotes [RT-010]; it used to be
-        // declared Integer, so 'var M : Integer := Max (3.5, 2);' was ACCEPTED
-        // and left a Double in an Integer -- a declared type violated silently,
-        // which is the worse direction.  Max is reduced from its arguments
-        // below instead.
+        // ⚠️ 'Val' has NO static return type, and saying one is a lie in both
+        // directions: it answers an Integer or a Double according to the TEXT
+        // it is given [RT-009], which no static rule can see.  It used to be
+        // declared Double, so 'var I : Integer := Val (''42'');' was refused
+        // although it works.
+        //
+        // ⚠️ 'Max' was the other of that pair and is GONE -- removed in
+        // Generation 9 rather than moved, because nothing called it and Turbo
+        // Pascal never had it.  Reducing its promoting type from its arguments
+        // was a special case in Reduce, and it went with it.
         Lookup.SetType ('Char', 'Char');
         Lookup.SetType ('Mod',  'Integer');
 
@@ -274,7 +274,7 @@ begin
         for var Name in ['Length', 'Pos', 'Copy', 'Str', 'Array', 'List', 'Map',
                          'Set', 'Stack', 'Buffer', 'TextFile', 'FileExists',
                          'ParamCount', 'ParamStr', 'Write', 'WriteLn', 'Ord',
-                         'Val', 'Char', 'Max', 'Mod', 'clock'] do
+                         'Val', 'Char', 'Mod', 'clock'] do
             BuiltinTypes.Put (Name, Lookup.GetType (Name));
 
         // ⚠️ The names 'is' answers for without anything declaring them --
@@ -1196,21 +1196,6 @@ begin
                                   TheExpr.Callee.Name);
             end
 
-            // ⚠️ 'Max' promotes, so its type comes from its ARGUMENTS rather
-            // than from a table [RT-010].  Declaring it Integer let a Double
-            // land in an Integer-declared variable with nothing said.
-            if ClassNameOf (TheExpr.Callee) = 'VariableExpr' then
-                if Str (TheExpr.Callee.Name.Lexeme) = 'Max' and ArgTypes.Length = 2 then
-                begin
-                    if Str (ArgTypes[0]) = 'Double' or Str (ArgTypes[1]) = 'Double' then
-                        Exit 'Double';
-
-                    if Str (ArgTypes[0]) = 'Integer' and Str (ArgTypes[1]) = 'Integer' then
-                        Exit 'Integer';
-
-                    Exit '';
-                end
-
             // Calling a class constructs one, so the type is the class itself.
             Exit Reduce (TheExpr.Callee);
         end
@@ -1223,7 +1208,7 @@ begin
             // sections could be violated; a unit's own visibility is the export
             // set, which the Interpreter checks.
             // ⚠️ System reads the BUILT-IN table, not Lookup: a program that
-            // declares its own Max has overwritten Lookup's entry, and that
+            // declares its own Mod has overwritten Lookup's entry, and that
             // declaration is precisely what this form is written to reach past.
             if TheExpr.Unit = 'System' then
             begin

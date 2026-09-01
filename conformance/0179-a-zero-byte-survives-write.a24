@@ -4,7 +4,6 @@
 // sentinel is one -- so everything that carries a character has to carry it,
 // including the way out.
 
-uses 'lib/Core';        // Ord is a library function now
 
 var Z := Char (0);
 

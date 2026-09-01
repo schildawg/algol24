@@ -3,7 +3,6 @@
 #include "SourceCode.h"
 #include "Token.h"
 #include "TokenType.h"
-#include "Core.h"
 
 Value f_tolower(Value **cells, Value *args, int32_t count);
 Value f_tointeger(Value **cells, Value *args, int32_t count);
@@ -626,7 +625,7 @@ static Value m_scanner_isalpha_1_char(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_equal(v_c, alg_char_value(95)))) {
         return alg_bool(true);
     }
-    return alg_greater(f_ord(NULL, (Value[]){v_c}, 1), alg_int(127));
+    return alg_greater(alg_ord(v_c), alg_int(127));
     return alg_nil();
 }
 
@@ -690,7 +689,6 @@ void init_Scanner(void) {
     alg_class_method(k_scanner, "IsAlphaNumeric", m_scanner_isalphanumeric_1_char, 1, t_scanner_isalphanumeric_1_char);
     alg_class_method(k_scanner, "IsDigit", m_scanner_isdigit_1_char, 1, t_scanner_isdigit_1_char);
     init_SourceCode();
-    init_Core();
     v_digits = alg_string("0123456789");
     d_digits = true;
     v_hexdigits = alg_string("0123456789abcdef");

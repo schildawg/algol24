@@ -3,7 +3,6 @@
 // System is the unit of the built-in functions.  No file imports it and every
 // file may qualify against it.
 
-uses 'lib/Core';        // Ord is a library function now
 
 WriteLn (System.Copy ('abcdef', 0, 3));
 WriteLn (System.Length ('abc'));

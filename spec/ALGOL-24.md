@@ -3801,30 +3801,12 @@ it a defect in the implementation rather than a limit worth writing down.
     conformance  0177-a-buffers-lifetime.a24
     conformance  0178-a-text-files-state.a24
 
-**[RT-007]**  ***Moved to `lib/Core` in Generation 9.*** `Ord(C)` answered the
-code point of one character as an Integer. It is an ordinary function written in
-Algol-24 now, decoding UTF-8 over a `Buffer`'s bytes.
+**[RT-007]**  `Ord(C)` answers the code point of a single character, as an
+**Integer**. Anything longer is `Ord failed: 'ab' has no ordinal.`
 
-⚠️ **An enum member answers it, and finding that out is the interesting part.**
-A member carries its zero-based position as `Ordinal` [ENU-010] and nothing else
-in the language does — an Integer, a Char, `nil`, an instance and a `List` were
-all checked and every one raises. But **there is no `is Enum`**, so a library
-function cannot ask the question directly and has to try the property and catch
-the failure. That is a gap in the language rather than in the unit; `LIBRARY.md`
-records it as Q7.
-
-⚠️ **A `Char`, never a one-character `String`.** `Ord (Copy ('abc', 1, 1))`
-fails where `Ord ('b')` works, because a literal of one character *is* a `Char`
-and a `Copy` of one is not [LEX-026]. An equivalence check across nineteen
-values found that; reading this rule did not say it.
-
-⚠️ **`Char` did NOT move with it**, and could not. Building a character in
-Algol-24 means assembling bytes in a `Buffer` and reading them back as text —
-and a Buffer refuses to hand back `Text` when it holds a zero byte [RT-022],
-which would make `Char (0)` unbuildable. [RT-008] makes `Char (0)` legal and the
-scanner's own sentinel is one.
-
-    library  lib/Core.a24  Ord
+    interpreter  compiler/Interpreter.a24  Native
+    compiler     bootstrap/algol.c         alg_ord
+    conformance  0089-text-builtins.a24
 
 **[RT-008]**  `Char(N)` answers the character with code point `N`, over the
 range of [LEX-025] — 0 … 10FFFF, excluding the surrogates. `Ord` and `Char` are
@@ -3885,44 +3867,39 @@ directions: it refused `var I : Integer := Val ('42');`, which works.
 
     interpreter  compiler/Interpreter.a24  ParsedNumber
     compiler     bootstrap/algol.c         alg_val
-    conformance  0119-val-and-max.a24
+    conformance  0119-val.a24
     defect       DEF-34-val-follows-strtod.a24
 
-**[RT-010]**  ***Moved to `lib/Core` in Generation 9.*** `Max(A, B)` was a
-built-in. It is an ordinary function written in Algol-24 now, documented in
-`spec/LIBRARY.md`, and a program reaches it with `uses 'lib/Core';`.
+**[RT-010]**  ***Removed in Generation 9.*** `Max(A, B)` was a built-in
+answering the greater of two numbers. It is not in the language and is not in a
+library either: **nothing called it**, and Turbo Pascal never had it.
 
-⚠️ **A TOMBSTONE, and the number is why.** Identifiers are permanent, and three
-entries name this one as the rule that *fixed* a past defect — C-30 and D-16
-below. Deleting it would leave them citing nothing, so the rule keeps its number
-and says where its subject went. What it no longer does is describe the
-language: `Max` is not in it.
+⚠️ **A tombstone for a removal, and the number is why.** Identifiers are
+permanent, and C-30 and D-16 name this one as the rule that *fixed* a past
+defect. Deleting it would leave them citing nothing.
 
-⚠️ **It cites the unit, not a conformance program**, and `spec/spec.sh` enforces
-that shape. Library code is pinned by unit tests and never by the corpus —
-`conformance/` and `refusals/` test the language — so demanding a case here
-would be asking for the one kind of evidence a library must not have.
+⚠️ **It was found by asking where it was used.** Every mention of `Max` in
+`compiler/*.a24` was a **comment** — which is why a profile of a full test suite
+and a full compile counted zero calls. There was nothing to call.
 
-⚠️ **Measured before it moved, not after.** `Max` is called **zero** times by
-the whole test suite and by a complete compile of the compiler, which is what
-made it the first to go. `Length` in the same measurement was 392 million.
+⚠️ **Removing it deleted a special case rather than moving one.** `Max`
+promoted, so its type came from its arguments rather than from a table, and
+`TypeChecker.Reduce` carried a branch for exactly that. `Val` is now the only
+built-in with no static return type.
 
-    library  lib/Core.a24  Max
+⚠️ **A removal needs a case as much as an addition does**, or nothing would
+notice `Max` quietly coming back.
 
-**[RT-011]**  ***Moved to `lib/Core` in Generation 9.*** `Mod(A, B)` answered
-the remainder, whose sign follows the dividend. It is an ordinary function
-written in Algol-24 now, and a program reaches it with `uses 'lib/Core';`.
+    interpreter  compiler/TypeChecker.a24  BuiltinTypes
+    refusal      0178-max-was-removed.a24
 
-⚠️ **`div` stays in the language and `Mod` does not**, which is the line this
-move draws: `div` is an **operator** [EXP-018] and an operator cannot be written
-in a unit, while `Mod` was only ever a function. `A - (A div B) * B` is the
-whole of it, and truncation toward zero is exactly what gives the remainder the
-dividend's sign.
+**[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
+dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
+zero.`
 
-⚠️ **Zero calls in a full test suite and a full compile**, measured before it
-moved.
-
-    library  lib/Core.a24  Mod
+    interpreter  compiler/Interpreter.a24  Native
+    compiler     bootstrap/algol.c         alg_mod
+    conformance  0091-numeric-builtins.a24
 
 **[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
 millisecond resolution.
@@ -3995,20 +3972,23 @@ for an Integer past the machine's width.
     compiler     bootstrap/algol.c         number_method
     conformance  0156-number-members.a24
 
-**[RT-020]**  ***Moved to `lib/Core` in Generation 9.*** `Succ(X)` and
-`Pred(X)` stepped an ordinal — an Integer by one, a `Char` by one code point.
-They are ordinary functions written in Algol-24 now, over `Ord` and `Char`.
+**[RT-020]**  `Succ(X)` and `Pred(X)` step an ordinal. A `Char` moves one code
+point, an `Integer` moves one. `Succ ('a')` is `'b'` and `Pred (5)` is `4`.
 
-⚠️ **The two failures stayed two sentences**, which is what an equivalence check
-across fifteen inputs was for: a value with no ordinal at all is
-`Succ failed: 'Red' has no ordinal.`, while a `Char` at the end of the range is
-`Pred failed: '' has no ordinal beyond it.` — the ordinal exists and the next
-one does not, and that is a different thing to say.
+Anything else is `Succ failed: 'X' has no ordinal.`, and a Char at the end of
+the code-point range is `Succ failed: 'X' has no ordinal beyond it.`
 
-⚠️ **An enum member is still not stepped.** It answers `Ordinal` [ENU-010]; it
-never answered `Succ`.
+⚠️ **An enum member is not stepped, and the gap is honest rather than chosen.**
+Stepping one is the most Pascal use of `Succ` there is, but a member carries its
+type's *name* and its ordinal rather than a pointer to the type, so there is no
+way from a member to the list it belongs to. That link is a change of its own.
 
-    library  lib/Core.a24  Stepped
+⚠️ **An Integer has no end to check** because it is unbounded [LEX-018]; a Char
+does, stopping at U+10FFFF.
+
+    interpreter  compiler/Interpreter.a24  Native
+    compiler     bootstrap/algol.c         alg_succ
+    conformance  0167-character-arithmetic.a24
 
 **[RT-018]**  `Halt(N)` ends the program at once with status `N`. Nothing after
 it runs, and no enclosing `except` sees it — it is not an exception.
@@ -4759,6 +4739,10 @@ checks this list against the names the interpreter actually registers.
 | `Map` | [COL-002] | An empty Map |
 | `Set` | [COL-002] | An empty Set, or a Set of a collection's values |
 | `Stack` | [COL-002] | An empty Stack |
+| `Ord` | [RT-007] | The code point of one character, as an Integer |
+| `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
+| `Pred` | [RT-020] | The previous ordinal, on the same terms |
+| `Mod` | [RT-011] | The remainder, its sign following the dividend |
 | `Char` | [RT-008] | The character with a code point, 0 … 10FFFF, surrogates excluded |
 | `Copy` | [RT-004] | A substring, from a zero-based start, length clamped |
 | `Length` | [RT-003] | ⚠️ The length of the argument's **text**, not a count |

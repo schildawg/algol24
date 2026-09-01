@@ -10,7 +10,6 @@
 // refusals/0037.  Char(0) is legal [LEX-025], and must be: the scanner's own
 // end-of-input sentinel is Char(0).
 
-uses 'lib/Core';        // Ord is a library function now
 
 var S := 'a' + Str (Char (0)) + 'b';
 

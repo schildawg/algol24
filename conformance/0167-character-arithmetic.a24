@@ -8,7 +8,6 @@
 // Ord (X) - Ord (Y), which stays available.  'z' - 'a' is the departure.
 
 // The distance between two Chars, as an Integer.
-uses 'lib/Core';        // Mod, Succ and Pred are library functions now
 
 WriteLn ('z' - 'a');
 WriteLn ('a' - 'z');
