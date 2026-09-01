@@ -5331,7 +5331,55 @@ static ffi_type *foreign_type(const char *declared) {
 /* ⚠️ dlsym before dlopen, so a symbol already in the process is found without
  * naming a library at all -- which is what makes 'external ''strlen'';' work
  * with no library clause. */
-static void *foreign_symbol(const char *symbol, const char *library) {
+/* ⚠️ RESOLVED ONCE, because dlsym was 98% of what a foreign call cost.
+ * Measured on this machine at 200,000 calls apiece:
+ *
+ *     dlsym            1.025 us      ffi_call         0.015 us
+ *     ffi_prep_cif     0.006 us      strlen direct    0.002 us
+ *
+ * -- so a call through alg_foreign cost 1.1 us against 0.005 for a built-in,
+ * and better than 90% of that was asking the dynamic linker a question whose
+ * answer had not changed.  The cost was also FLAT in argument count, which is
+ * what said the marshalling was not to blame.
+ *
+ * ⚠️ Only the SYMBOL is cached, not the prepared cif.  ffi_prep_cif is six
+ * nanoseconds and lives on the stack; caching it would mean keying on the
+ * whole signature to save a rounding error.
+ *
+ * ⚠️ The keys are COPIED into the arena rather than kept by pointer.  A
+ * compiled program passes string literals and could be trusted, but the
+ * interpreter passes what as_text hands back -- and an in-place append in
+ * concat can overwrite the terminator a shorter alias was relying on, which
+ * would leave a stored key reading past its end. */
+
+#define FOREIGN_CACHE_SLOTS 256
+
+typedef struct {
+    const char *symbol;
+    const char *library;
+    void       *fn;
+} ForeignEntry;
+
+static ForeignEntry foreign_cache[FOREIGN_CACHE_SLOTS];
+static int32_t      foreign_cached = 0;
+
+static uint32_t foreign_hash(const char *symbol, const char *library) {
+    /* Case-SENSITIVE, unlike every other name in this runtime: Algol-24 folds
+     * case [SRC-011] but a C symbol does not, and 'strlen' is not 'StrLen'. */
+    uint32_t hash = hash_bytes(2166136261u, symbol, strlen(symbol));
+
+    return hash_bytes(hash, library, strlen(library));
+}
+
+static const char *foreign_key(const char *text) {
+    size_t size = strlen(text) + 1;
+    char  *copy = arena_alloc(size);
+
+    memcpy(copy, text, size);
+    return copy;
+}
+
+static void *foreign_resolve(const char *symbol, const char *library) {
     if (library == NULL || library[0] == '\0') {
         void *found = dlsym(RTLD_DEFAULT, symbol);
 
@@ -5365,6 +5413,43 @@ static void *foreign_symbol(const char *symbol, const char *library) {
         builder_append(&b, library);
         builder_append(&b, "'.");
         alg_error(b.text);
+    }
+    return found;
+}
+
+static void *foreign_symbol(const char *symbol, const char *library) {
+    if (library == NULL) library = "";
+
+    uint32_t slot = foreign_hash(symbol, library) % FOREIGN_CACHE_SLOTS;
+
+    /* Open addressing, and nothing is ever removed -- so an empty slot means
+     * the symbol is not here, and the scan can stop at the first one. */
+    for (int32_t probe = 0; probe < FOREIGN_CACHE_SLOTS; probe++) {
+        ForeignEntry *entry = &foreign_cache[(slot + probe) % FOREIGN_CACHE_SLOTS];
+
+        if (entry->fn == NULL) break;
+        if (strcmp(entry->symbol, symbol) == 0 && strcmp(entry->library, library) == 0)
+            return entry->fn;
+    }
+
+    void *found = foreign_resolve(symbol, library);
+
+    /* ⚠️ A full table is not an error.  It stops taking entries and every
+     * further call pays what every call used to pay -- slower, never wrong.
+     * A program declaring more than 256 distinct foreign symbols should raise
+     * the number rather than meet a failure. */
+    if (foreign_cached < FOREIGN_CACHE_SLOTS) {
+        for (int32_t probe = 0; probe < FOREIGN_CACHE_SLOTS; probe++) {
+            ForeignEntry *entry = &foreign_cache[(slot + probe) % FOREIGN_CACHE_SLOTS];
+
+            if (entry->fn == NULL) {
+                entry->symbol  = foreign_key(symbol);
+                entry->library = foreign_key(library);
+                entry->fn      = found;
+                foreign_cached++;
+                break;
+            }
+        }
     }
     return found;
 }
