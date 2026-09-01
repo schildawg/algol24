@@ -1,0 +1,31 @@
+// spec: RT-009
+//
+// A REVERSE conformance test: it records what Val does WRONG and passes while
+// the fault persists.  It turns red when Val starts following the literal
+// rules, which is the point -- a fix is as much a change to be noticed as a
+// regression.
+//
+// [RT-009] says Val reads "the same characters the literal rules do".  It reads
+// what C's strtod reads.
+
+// Hexadecimal is an Integer as a literal [LEX-016] and a Double through Val.
+WriteLn (0x1F);                     // 31
+WriteLn (Val ('0x1F'));             // 31.0  -- should be 31
+WriteLn (Val ('0x1F') is Integer);  // false -- should be true
+
+// A digit separator is permitted in a literal and refused by Val.
+WriteLn (1_000);
+try WriteLn (Val ('1_000')); except on E : String do WriteLn (E); end
+
+// And three forms no literal spells are accepted anyway.
+WriteLn (Val (' 42'));              // leading space
+WriteLn (Val ('.5'));               // no digit before the point [LEX-020]
+WriteLn (Val ('5.'));               // no digit after it
+WriteLn (Val ('+7'));               // a leading plus
+
+// ⚠️ The precision that must survive the fix.  Val is the scanner's own number
+// parser -- Scanner.a24 reads every numeric literal with Val -- so whatever it
+// does is what a literal means.  An Algol-24 rewrite got the acceptance right
+// and read this back as 1.0000000000000002E300.
+var Big := 1.0E300;
+WriteLn (Val (Str (Big)) = Big);    // true, and must stay true

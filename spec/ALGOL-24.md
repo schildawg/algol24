@@ -3856,6 +3856,26 @@ characters the literal rules do [LEX-015], [LEX-020]. Failure is `Val failed:
 ⚠️ Text that is neither — `'1e5'`, which no literal rule spells [LEX-022] — is
 a Double, since only an integer literal yields an Integer.
 
+⚠️ **NOT YET IMPLEMENTED.** See DEF-34. `Val` delegates to C's `strtod`, whose
+idea of a number is not this language's, so five forms disagree with the rule
+above: `'0x1F'` answers a Double where a hex literal is an Integer [LEX-016],
+`'1_000'` is refused where a separator is permitted, and `' 42'`, `'.5'`, `'5.'`
+and `'+7'` are all accepted where no literal spells them.
+
+⚠️ **AND `Val` IS THE SCANNER'S OWN NUMBER PARSER**, which is why the fix is not
+where it looks. `Scanner.a24` reads every numeric literal with
+`AddToken (TOKEN_NUMBER, Val (Digits))`, so whatever `Val` does *is* what a
+literal means — the rule and the scanner cannot drift apart, because they are
+one function. It also makes "compare `Val ('0x1F')` with the literal `0x1F`" a
+**circular** test, which is the trap this rule sets for anyone fixing it.
+
+⚠️ **Rewriting it in Algol-24 was tried and withdrawn.** The literal forms came
+out right, but the exponent did not: repeated multiplication and even
+exponentiation by squaring drift, so `1.0E300` read back as
+`1.0000000000000002E300`. A correctly-rounded decimal-to-binary conversion is a
+hard numerical problem that `strtod` already solves, and getting the *acceptance*
+right is not worth losing the *precision*.
+
 ⚠️ **`Val` therefore has no static type**, and a checker cannot give it one: the
 answer depends on the *content* of the text, not on its type. A typed
 declaration needs a cast — `var D : Double := Val (S) as Double;` — which is
@@ -3866,6 +3886,7 @@ directions: it refused `var I : Integer := Val ('42');`, which works.
     interpreter  compiler/Interpreter.a24  ParsedNumber
     compiler     bootstrap/algol.c         alg_val
     conformance  0119-val-and-max.a24
+    defect       DEF-34-val-follows-strtod.a24
 
 **[RT-010]**  ***Moved to `lib/Core` in Generation 9.*** `Max(A, B)` was a
 built-in. It is an ordinary function written in Algol-24 now, documented in
@@ -6669,8 +6690,31 @@ behaviour and passes while that behaviour persists. It turns **red when the
 defect stops reproducing**, because a fix is as much a change to be noticed as a
 regression — and a suite that is permanently red is a suite nobody reads.
 
-⚠️ **This annex is empty, and that is a result rather than an absence.** It held
-thirty-three defects; every one has been fixed and its reproduction removed, so
+**DEF-34 — `Val` accepts and refuses by `strtod`'s rules, not the language's.**
+*(violates [RT-009])*
+
+[RT-009] says `Val` reads "the same characters the literal rules do". It reads
+what C's `strtod` reads:
+
+| | is | should be |
+| --- | --- | --- |
+| `Val ('0x1F')` | Double `31.0` | Integer `31` [LEX-016] |
+| `Val ('1_000')` | refused | Integer `1000` |
+| `Val (' 42')` | Double `42.0` | refused |
+| `Val ('.5')`, `Val ('5.')` | accepted | refused [LEX-020] |
+| `Val ('+7')` | Double `7.0` | refused |
+
+⚠️ **The fix must not cost precision.** `Val` is the scanner's number parser, so
+whatever it does is what a literal means. An Algol-24 rewrite got every form
+above right and then read `1.0E300` back as `1.0000000000000002E300`, because a
+correctly-rounded decimal-to-binary conversion is a hard numerical problem and
+repeated multiplication is not one. What is wanted is `strtod`'s arithmetic
+behind the language's acceptance test — a check on the text *before* handing it
+over, not a replacement for it.
+
+    defect  DEF-34-val-follows-strtod.a24
+
+⚠️ **This annex held thirty-three defects and holds one;** the rest every one has been fixed and its reproduction removed, so
 `defects/` is empty with it. Three of them turned out to be the **rule's** fault
 rather than the implementation's, and were closed by changing this document —
 `SRC-005` on Unicode identifiers, `LEX-025` on `Char(0)`, and a blocker recorded

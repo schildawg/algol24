@@ -139,3 +139,10 @@ begin
     B.Free ();
     Exit Code;
 end
+
+test 'Max promotes, which it once did not';
+begin
+    AssertEqual (3.5, Max (3.5, 2));
+    AssertEqual (3.5, Max (2, 3.5));
+    AssertEqual (7,   Max (3, 7));
+end
