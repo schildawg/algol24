@@ -179,7 +179,7 @@ var 日本 := 4;
 var Ωμέγα := 5;
 WriteLn (日本 + Ωμέγα);
 
-// ⚠️ Including an emoji, which may also LEAD a name -- only a digit and the
+// Including an emoji, which may also LEAD a name -- only a digit and the
 // marks '?' and '!' may not [LEX-007].
 var 🙂 := 'happy';
 var 💩 := 'oops';
@@ -190,7 +190,7 @@ WriteLn (🙂 + ' ' + 💩);
 var ٠x := 6;
 WriteLn (٠x);
 
-// ⚠️ Folding is ASCII-only [SRC-011], so these are two names, not one.
+// Folding is ASCII-only [SRC-011], so these are two names, not one.
 var Straße := 'ok';
 WriteLn (Straße);
 ```
@@ -225,7 +225,7 @@ WriteLn (Ord (S[1]));
 WriteLn (S = 'a' + Str (Char (0)) + 'b');
 WriteLn (Copy (S, 1, 2) = Str (Char (0)) + 'b');
 
-// ⚠️ And so does the hash, or a Map would not find a key it holds.
+// And so does the hash, or a Map would not find a key it holds.
 var M := [S : 'held'];
 WriteLn (M.Contains ('a' + Str (Char (0)) + 'b'));
 
@@ -364,12 +364,12 @@ var 日本   := 4;
 var Ωμέγα := 8;
 WriteLn (café + Straße + 日本 + Ωμέγα);
 
-// ⚠️ An emoji may LEAD a name; only a digit and the marks may not [LEX-007].
+// An emoji may LEAD a name; only a digit and the marks may not [LEX-007].
 var 🙂 := 'happy';
 var 💩 := 'oops';
 WriteLn (🙂 + ' ' + 💩);
 
-// ⚠️ A Unicode DIGIT is an ordinary identifier character.  Only ASCII 0-9 are
+// A Unicode DIGIT is an ordinary identifier character.  Only ASCII 0-9 are
 // digits to the number scanner, so this can never start a numeric literal.
 var ٠x := 16;
 WriteLn (٠x);
@@ -380,7 +380,7 @@ var Gate!  := 64;
 var Ready_Set := 128;
 WriteLn (Gate? + Gate! + Ready_Set);
 
-// ⚠️ THE COLLISIONS THE OLD SCHEME GOT WRONG, which is what makes this case
+// THE COLLISIONS THE OLD SCHEME GOT WRONG, which is what makes this case
 // worth having.  It wrote '?' as '_q' and passed letters through untouched, so
 // these two emitted ONE symbol between them and cc refused the result.  They
 // are 'readyQ' and 'readyVq' now.
@@ -388,7 +388,7 @@ var Ready?  := 'from the mark';
 var Ready_q := 'from the letters';
 WriteLn (Ready? + ' / ' + Ready_q);
 
-// ⚠️ And the collision the NEW scheme has to avoid in turn: an identifier
+// And the collision the NEW scheme has to avoid in turn: an identifier
 // spelled like an escape.  Lowercasing is what separates them -- 'u01f642'
 // against 'U01F642' -- which is why case-insensitivity [SRC-011] and the escape
 // space depend on each other.
@@ -616,13 +616,13 @@ WriteLn (b.value);
 function Greet (Who : String); begin Exit 'hi ' + Who; end
 WriteLn (GREET ('you'));
 
-// An enumeration and its members.  ⚠️ The member still PRINTS as it was
+// An enumeration and its members.  The member still PRINTS as it was
 // declared -- only the lookup folds.
 type Colour = (Red, Green);
 WriteLn (COLOUR.red);
 WriteLn (GREEN);
 
-// ⚠️ A built-in member folds too, and this is the half the interpreter used to
+// A built-in member folds too, and this is the half the interpreter used to
 // get wrong: 'L.add' was 'Undefined property' interpreted and worked compiled,
 // so a program written against the compiler failed everywhere interpreted.
 var L := [1];
@@ -858,7 +858,7 @@ var Ready?Set := 8;
 
 WriteLn (Gate? + _under + a1b2 + Ready?Set);
 
-// ⚠️ The '!' mark is NOT exercised here.  LEX-007 admits it and the scanner
+// The '!' mark is NOT exercised here.  LEX-007 admits it and the scanner
 // does not, so a program using it is refused -- that half of the rule is
 // tracked by DEF-03 and cannot be a commitment the implementation meets.
 ```
@@ -1089,7 +1089,7 @@ WriteLn (2-1);
 WriteLn (2147483647);
 WriteLn (1234567890);
 
-// ⚠️ Because there is no negative literal, '-2147483648' is unary minus applied
+// Because there is no negative literal, '-2147483648' is unary minus applied
 // to 2147483648 -- which LEX-033 refuses.  The most negative Integer therefore
 // cannot be written as a literal, and this is how it is reached instead.
 WriteLn (-2147483647 - 1);
@@ -1147,7 +1147,7 @@ WriteLn (0xFF);
 WriteLn (0b1010);
 WriteLn (1_000_000);
 
-// ⚠️ The prefix and the hexadecimal digits fold [SRC-011], as every other name
+// The prefix and the hexadecimal digits fold [SRC-011], as every other name
 // in the language does.
 WriteLn (0xff = 0XFF);
 WriteLn (0B1010 = 0b1010);
@@ -1161,7 +1161,7 @@ WriteLn (1_000 = 1000);
 WriteLn (0x10 = 16);
 WriteLn (0b1010 is Integer);
 
-// ⚠️ '0x' is a prefix only when a digit of that base follows it.  A variable
+// '0x' is a prefix only when a digit of that base follows it.  A variable
 // named 'x' after a zero is still two things.
 var x := 5;
 WriteLn (0 + x);
@@ -1250,7 +1250,7 @@ WriteLn (2147483647 + 1);
 WriteLn (9223372036854775807 + 1);
 WriteLn (9223372036854775807 * 9223372036854775807);
 
-// ⚠️ It DEMOTES.  A result that fits is an ordinary Integer again, so one value
+// It DEMOTES.  A result that fits is an ordinary Integer again, so one value
 // never has two representations and '=' , hashing and Map keys agree.
 var Huge := 9223372036854775807 * 9223372036854775807;
 
@@ -1270,7 +1270,7 @@ end
 WriteLn (Fact (25));
 WriteLn (Fact (30) / Fact (29));
 
-// ⚠️ There is still no negative literal [LEX-019], so a large negative value is
+// There is still no negative literal [LEX-019], so a large negative value is
 // the unary operator applied to a large positive one -- which now works.
 WriteLn (-9223372036854775808);
 WriteLn (0 - Huge < 0);
@@ -1317,14 +1317,14 @@ WriteLn (46340 * 46340);
 WriteLn (2147483647 / 1);
 WriteLn (-(-2147483647));
 
-// ⚠️ This was once the ONLY way to write the most negative 32-bit Integer,
+// This was once the ONLY way to write the most negative 32-bit Integer,
 // because a literal could not exceed 2147483647 and there is no negative
 // literal [LEX-019].  It is now an ordinary subtraction of two ordinary
 // numbers, and '-2147483648' is writable directly.
 WriteLn (-2147483647 - 1);
 WriteLn (-2147483648);
 
-// ⚠️ A Double is NOT unbounded, and that asymmetry is deliberate: it follows
+// A Double is NOT unbounded, and that asymmetry is deliberate: it follows
 // IEEE 754, so 1.0 / 0 is Infinity [EXP-006] rather than an error, and a mixed
 // expression is Double arithmetic.  conformance/0047 pins the division.
 WriteLn (1.0 / 0 > 0);
@@ -1432,18 +1432,18 @@ WriteLn (2e+3);
 // Either case, as every other name in the language folds [SRC-011].
 WriteLn (1E5 = 1e5);
 
-// ⚠️ The round trip through the source, which is the point of the rule.
+// The round trip through the source, which is the point of the rule.
 var Big := 1.0E300;
 WriteLn (Str (Big));
 WriteLn (Val (Str (Big)) = Big);
 
-// ⚠️ The sign belongs to the EXPONENT.  [LEX-019] still holds -- there is no
+// The sign belongs to the EXPONENT.  [LEX-019] still holds -- there is no
 // negative literal -- so the '-' in front is the unary operator and the one
 // inside is not.
 WriteLn (-1e2);
 WriteLn (1e-2);
 
-// ⚠️ 'e' followed by anything but an exponent is still an identifier, so this
+// 'e' followed by anything but an exponent is still an identifier, so this
 // is a number and a name, not a malformed literal.
 var eight := 8;
 WriteLn (1 + eight);
@@ -1585,7 +1585,7 @@ WriteLn ('it''s');
 WriteLn (Length (''));
 WriteLn ('' is String);
 
-// ⚠️ '''' is NOT exercised here.  LEX-029 makes it the Char holding a quote and
+// '''' is NOT exercised here.  LEX-029 makes it the Char holding a quote and
 // the implementation makes it a String of length one, so it is DEF-32's and
 // cannot be a commitment this case pins.
 
@@ -1761,7 +1761,7 @@ WriteLn (D);
 var L : List of Integer := [1, 2, 3];
 WriteLn (L.Length);
 
-// ⚠️ Only the List form is exercised.  VAR-008 admits 'Map of', 'Set of' and
+// Only the List form is exercised.  VAR-008 admits 'Map of', 'Set of' and
 // 'Array of' too, and the parser refuses all three -- that half is DEF-11 and
 // cannot be a commitment the implementation meets.
 ```
@@ -2042,7 +2042,7 @@ var Y := 1;
 Y := 'text';
 WriteLn (Y);
 
-// ⚠️ The other direction -- Any into a written type, which VAR-006 refuses --
+// The other direction -- Any into a written type, which VAR-006 refuses --
 // is exercised by refusals/0013 for the declaration.  The assignment form is
 // wrongly accepted today and is DEF-09.
 ```
@@ -2066,7 +2066,7 @@ var Result : String := '';
 Result := Result + C;
 WriteLn (Result);
 
-// ⚠️ A bare name inside a method may be a FIELD -- an implicit 'this.Field' --
+// A bare name inside a method may be a FIELD -- an implicit 'this.Field' --
 // and a field's type is registered under 'Class::Field'.  Looking for it bare
 // found nothing, which was the checker's largest blind spot.
 class Reader;
@@ -2196,7 +2196,7 @@ WriteLn (M.Length);
 WriteLn (S.Length);
 WriteLn (A.Length);
 
-// ⚠️ For a Map the element type is the VALUE type, because that is what a
+// For a Map the element type is the VALUE type, because that is what a
 // subscript and a Get yield.  A Map's keys are not constrained.
 var V : String := M[1];
 WriteLn (V);
@@ -2255,7 +2255,7 @@ end
 
 WriteLn (Count (Set (['a', 'b'])));
 
-// ⚠️ It is a source of types for READS and no constraint on writes [VAR-016],
+// It is a source of types for READS and no constraint on writes [VAR-016],
 // exactly as it is on a var -- so a parameter's element type is what makes the
 // loop variable below an Integer rather than nothing.
 function Widths (Items : List of String) : Integer;
@@ -2332,14 +2332,14 @@ begin
     WriteLn (Doubled);
 end
 
-// ⚠️ Insertion IS checked now, and this case predicted its own change: it used
+// Insertion IS checked now, and this case predicted its own change: it used
 // to end 'L.Add (''not an integer'')' with a note saying that is what H-3 would
 // alter.  It altered it -- see 0173, which covers the five routes.
 L.Add (30);
 WriteLn (L.Length);
 WriteLn (L[2]);
 
-// ⚠️ A BARE 'List' is still unconstrained.  The element type is what does the
+// A BARE 'List' is still unconstrained.  The element type is what does the
 // constraining, so declaring none declares no constraint -- which is why this
 // rule reads as being about the annotation rather than about collections.
 var Loose : List := [1];
@@ -2374,14 +2374,14 @@ WriteLn (L);
 WriteLn (M);
 WriteLn (S.Length);
 
-// ⚠️ It CHECKS and does not CONVERT.  An Integer widens to a Double [VAR-004]
+// It CHECKS and does not CONVERT.  An Integer widens to a Double [VAR-004]
 // so the insertion is accepted, and what is stored is the Integer -- widening
 // happens where a value reaches a written type, and an element is not one.
 var D : List of Double := [1.0];
 D.Add (2);
 WriteLn (D);
 
-// ⚠️ 'Put' constrains its SECOND argument.  A 'Map of T' declares the type of
+// 'Put' constrains its SECOND argument.  A 'Map of T' declares the type of
 // what is stored, which is what 'M[K]' reads back; the key is not constrained.
 M.Put ('any key at all', 1);
 WriteLn (M.Length);
@@ -2540,7 +2540,7 @@ VarSection = "var" { identifier { "," identifier } [ ":" Type ] [ ":=" Expressio
 function F ();
 var
     A, B : Integer;          // VAR-010: several names share one declaration
-    Tail : String := 'ok';   // ⚠️ 'ok', not 'o' -- a one-character literal is a
+    Tail : String := 'ok';   // 'ok', not 'o' -- a one-character literal is a
 const                        //    Char and would not satisfy String [LEX-023]
     K := 10;                 // VAR-015: const opens a section on the same terms
 
@@ -2812,12 +2812,12 @@ var B : Byte := 200;
 WriteLn (B);
 WriteLn (B is Byte);
 
-// ⚠️ It is an Integer, and stays one.  Nothing is ever 'a Byte' -- a subrange
+// It is an Integer, and stays one.  Nothing is ever 'a Byte' -- a subrange
 // constrains a value where a type is written, and TYP-001 is unchanged.
 WriteLn (B is Integer);
 WriteLn (B + 1 is Integer);
 
-// ⚠️ 'is' on a subrange is a RANGE TEST, which is the program asking
+// 'is' on a subrange is a RANGE TEST, which is the program asking
 // explicitly.  What the language may not do is dispatch on a value silently.
 WriteLn (0 is Byte);
 WriteLn (255 is Byte);
@@ -2930,7 +2930,7 @@ var D : Digit := 7;
 WriteLn (D);
 WriteLn (D is Digit);
 
-// ⚠️ It is an Integer, and stays one.  A subrange constrains a value where a
+// It is an Integer, and stays one.  A subrange constrains a value where a
 // type is written; nothing is ever 'a Digit' [TYP-001].
 WriteLn (D is Integer);
 WriteLn (D + 1 is Integer);
@@ -2940,7 +2940,7 @@ WriteLn (9 is Digit);
 WriteLn (10 is Digit);
 WriteLn (-1 is Digit);
 
-// ⚠️ The sign is read by the DECLARATION, because there is no negative
+// The sign is read by the DECLARATION, because there is no negative
 // literal [LEX-019].
 WriteLn (-273 is Celsius);
 WriteLn (-274 is Celsius);
@@ -3031,7 +3031,7 @@ WriteLn (X);
 WriteLn (X is Real);
 WriteLn (X is Double);
 
-// ⚠️ One type, so widening reaches it exactly as it reaches the other
+// One type, so widening reaches it exactly as it reaches the other
 // spelling [VAR-004].
 var Y : Real := 1;
 WriteLn (Y);
@@ -3046,7 +3046,7 @@ WriteLn (Twice (2.5));
 var Z : Any := 1.5;
 WriteLn (Z as Real);
 
-// ⚠️ The CANONICAL spelling is what a diagnostic names, which is the alias
+// The CANONICAL spelling is what a diagnostic names, which is the alias
 // telling the reader what it is.
 var Bad : Any := 'text';
 try
@@ -3231,7 +3231,7 @@ WriteLn (TextFile () is TextFile);
 WriteLn (Red is Colour);
 WriteLn (Reg is Reg);
 
-// ⚠️ Matched WITHOUT REGARD TO CASE, because 'is' folds at run time [SRC-011].
+// Matched WITHOUT REGARD TO CASE, because 'is' folds at run time [SRC-011].
 // The check has to fold too, or it would refuse a program that runs.
 WriteLn (Puppy () is dog);
 ```
@@ -3394,7 +3394,7 @@ WriteLn (R.Length);
 R[1] := 99;
 WriteLn (R[1]);
 
-// ⚠️ THE TWO FORMS ARE TWO MEMBERS of different arity, so a class declaring
+// THE TWO FORMS ARE TWO MEMBERS of different arity, so a class declaring
 // only 'Get' is readable and not assignable -- which needs no separate way of
 // saying so.
 class ReadOnly;
@@ -3429,7 +3429,7 @@ except
     on e : String do WriteLn (e);
 end
 
-// ⚠️ And this is what the whole protocol run was for: a Stack written in
+// And this is what the whole protocol run was for: a Stack written in
 // Algol-24 that reads like the built-in it would replace -- subscripted,
 // iterated, ordered, and answering Length without parentheses.
 class Stack;
@@ -3565,7 +3565,7 @@ end
 for var X in Bag () do Write (Str (X) + ' ');
 WriteLn ();
 
-// ⚠️ The result is WALKED, not re-asked, so Elements may hand back another
+// The result is WALKED, not re-asked, so Elements may hand back another
 // instance that also declares Elements and the chain resolves.  That is what
 // stops a List whose Elements returns a List from recursing forever.
 class Inner;
@@ -3583,7 +3583,7 @@ end
 for var Y in Outer () do Write (Str (Y) + ' ');
 WriteLn ();
 
-// ⚠️ A PROTOCOL IS A NAME AND A SHAPE.  'Elements' taking an argument does not
+// A PROTOCOL IS A NAME AND A SHAPE.  'Elements' taking an argument does not
 // implement this one, so the class is simply not iterable -- and says so with
 // the ordinary message rather than with a complaint about signatures.
 class WrongShape;
@@ -3621,7 +3621,7 @@ end
 
 WriteLn (Str (BadToString ()));
 
-// ⚠️ Snapshotted like any other walk [STM-009]: Elements answers a whole
+// Snapshotted like any other walk [STM-009]: Elements answers a whole
 // collection, so the loop has its elements before the first pass runs.
 class Growing;
 var Items : List;
@@ -3768,7 +3768,7 @@ var P : Animal := Dog ();
 WriteLn (P is Dog);
 WriteLn (P is Animal);
 
-// ⚠️ The widening clause of VAL-001 is NOT exercised here: it is not
+// The widening clause of VAL-001 is NOT exercised here: it is not
 // implemented, and DEF-10 tracks it.  The narrowing half of VAL-002 is
 // refusals/0014.
 ```
@@ -3952,7 +3952,7 @@ Show ('empty map ', [:]);
 Show ('enum ord 1', On);
 
 // So this is the only spelling that tests emptiness.
-// ⚠️ Length(S), not S.Length: a String has no .Length property interpreted,
+// Length(S), not S.Length: a String has no .Length property interpreted,
 // though it has one compiled -- see C-9.
 var S := '';
 WriteLn (Length (S) = 0);
@@ -4102,14 +4102,14 @@ WriteLn (Keys.Contains (1.0));
 var S := Set ([1]);
 WriteLn (S.Contains (1.0));
 
-// ⚠️ The hash is the real work, not the comparison.  A Map keyed 1 and then
+// The hash is the real work, not the comparison.  A Map keyed 1 and then
 // Put under 1.0 holds ONE key, because both reach the same slot.
 var M := [1 : 'one'];
 M.Put (1.0, 'again');
 WriteLn (M.Length);
 WriteLn (M.Get (1));
 
-// ⚠️ -0.0 and 0.0 and 0 are one key.  They were three while the comparison was
+// -0.0 and 0.0 and 0 are one key.  They were three while the comparison was
 // a memcmp, and the runtime said so in a comment that this rule made stale.
 var Z := Set ();
 Z.Add (0.0);
@@ -4203,7 +4203,7 @@ WriteLn ('' < 'a');
 WriteLn ('ab' < 'abc');
 WriteLn ('abc' > 'ab');
 
-// ⚠️ A Char and a String compare as TEXT.  The two are still never equal
+// A Char and a String compare as TEXT.  The two are still never equal
 // [VAL-009], but they sit in one order.
 WriteLn ('a' < 'ab');
 WriteLn ('ab' > 'a');
@@ -4212,14 +4212,14 @@ WriteLn (Str ('a') < 'b');
 // By code point, so case is not folded: 'Z' is 90 and 'a' is 97.
 WriteLn ('Z' < 'a');
 
-// ⚠️ CODE POINTS, NOT BYTES.  'è' and 'é' are C3 A8 and C3 A9 in UTF-8: they
+// CODE POINTS, NOT BYTES.  'è' and 'é' are C3 A8 and C3 A9 in UTF-8: they
 // share a lead byte and used to compare EQUAL, while Ord answered 232 and 233 --
 // the language disagreeing with itself about which came first.
 WriteLn (Ord ('è'), ' ', Ord ('é'));
 WriteLn ('è' < 'é');
 WriteLn ('é' <= 'è');
 
-// ⚠️ Sort uses this same ordering [COL-013], not a second one that agrees.
+// Sort uses this same ordering [COL-013], not a second one that agrees.
 var Names := ['pear', 'Apple', 'banana', 'apple'];
 Names.Sort ();
 WriteLn (Names);
@@ -4277,7 +4277,7 @@ var B := Money (200);
 WriteLn (A < B, ' ', A > B, ' ', A <= B, ' ', A >= B);
 WriteLn (A < A, ' ', A <= A, ' ', A >= A);
 
-// ⚠️ EQUALITY IS UNTOUCHED and stays identity [VAL-011].  Ordering needs no
+// EQUALITY IS UNTOUCHED and stays identity [VAL-011].  Ordering needs no
 // hash and no membership, which is exactly why it is settled where equality is
 // not: '=' is coupled to 'in' by [VAL-013], and a second protocol would have to
 // move with it.
@@ -4285,7 +4285,7 @@ WriteLn (Money (100) = Money (100));
 WriteLn (A = A);
 WriteLn (Money (100) in [A]);
 
-// ⚠️ Sort does NOT ask Compare, and the asymmetry is forced rather than chosen:
+// Sort does NOT ask Compare, and the asymmetry is forced rather than chosen:
 // the interpreter delegates Sort to the host's, whose values are the compiler's
 // own instances and not the program's.  Answering compiled while refusing
 // interpreted is the divergence this corpus exists to catch.
@@ -4304,7 +4304,7 @@ end
 
 try WriteLn (Plain () < Plain ()); except on e : String do WriteLn (e); end
 
-// ⚠️ A protocol is a name AND a shape: 'Compare' taking no argument is not it.
+// A protocol is a name AND a shape: 'Compare' taking no argument is not it.
 class WrongShape;
 begin
     constructor Init (); begin end
@@ -4524,7 +4524,7 @@ begin
     function Speak (); begin Exit 'woof'; end
 end
 
-// ⚠️ A class may INHERIT from one written below it, which is the case that
+// A class may INHERIT from one written below it, which is the case that
 // makes hoisting more than binding a name: the parent is bound as an empty
 // shell and FILLED IN where its declaration stands, so the child holds the
 // finished class because it is the same object.
@@ -4542,7 +4542,7 @@ end
 WriteLn (Puppy () is Hound);
 WriteLn (Puppy ().Speak ());
 
-// ⚠️ A VARIABLE is not hoisted: its initializer runs in order, and a name read
+// A VARIABLE is not hoisted: its initializer runs in order, and a name read
 // before that has no value to give -- see refusals/0033.
 var Ready := 'declared in order';
 WriteLn (Ready);
@@ -5064,7 +5064,7 @@ var A : Any := 5;
 WriteLn (A as Integer > 3);
 WriteLn (A as Integer + 1);
 
-// ⚠️ The line that distinguishes the two readings now that a cast is checked.
+// The line that distinguishes the two readings now that a cast is checked.
 // 'and' yields its LEFT operand when that is falsey, so the old reading was
 // '(False and 5) as Integer' -- a Boolean cast to Integer, which raises.  The
 // new one casts 5, which is already an Integer, and the conjunction is False.
@@ -5208,7 +5208,7 @@ WriteLn (1 + 8 div 2);
 // It grows with the Integer it divides [LEX-018].
 WriteLn (9223372036854775807 * 2 div 2);
 
-// ⚠️ A Double is REFUSED rather than truncated -- the bargain Mod makes.  '/'
+// A Double is REFUSED rather than truncated -- the bargain Mod makes.  '/'
 // would quietly do real division instead, which is the ambiguity div exists to
 // remove.
 try
@@ -5283,7 +5283,7 @@ WriteLn (Succ ('a'), ' ', Pred ('b'));
 WriteLn (Succ (5), ' ', Pred (5));
 WriteLn (Succ ('è'));
 
-// ⚠️ A CHAR MIXED WITH A NUMBER IS REFUSED.  A Char is an ordinal, so 'a' + 1
+// A CHAR MIXED WITH A NUMBER IS REFUSED.  A Char is an ordinal, so 'a' + 1
 // reads two ways -- step the character, or join it to the text '1' -- and
 // rather than pick one silently the language makes the program say which.
 try WriteLn ('a' + 1); except on e : String do WriteLn (e); end
@@ -5294,7 +5294,7 @@ try WriteLn ('a' - 1); except on e : String do WriteLn (e); end
 WriteLn (Str ('a') + 1);
 WriteLn (Succ ('a'));
 
-// ⚠️ A STRING mixed with a number still concatenates.  A String is not an
+// A STRING mixed with a number still concatenates.  A String is not an
 // ordinal, so it has only one reading and nothing to disambiguate.
 WriteLn ('ab' + 1);
 WriteLn (1 + 'ab');
@@ -5400,7 +5400,7 @@ begin
     operator * (N : Integer)   : Money;   begin Exit Money (Cents * N); end
     operator div (N : Integer) : Money;   begin Exit Money (Cents div N); end
 
-    // ⚠️ UNARY, told apart from subtraction by ARITY -- as the two forms of
+    // UNARY, told apart from subtraction by ARITY -- as the two forms of
     // subscript are.  The language tells arities apart everywhere, so neither
     // form needs a word of its own.
     operator - ()              : Money;   begin Exit Money (-Cents); end
@@ -5421,7 +5421,7 @@ WriteLn (-A);
 // an instance like any other.
 WriteLn ((A + B) - A);
 
-// ⚠️ THE LEFT OPERAND DECIDES, as a receiver does everywhere else in this
+// THE LEFT OPERAND DECIDES, as a receiver does everywhere else in this
 // language.  An operator is a member, and a member is reached through the value
 // on its left.
 try
@@ -5612,10 +5612,10 @@ except
     on e : String do WriteLn (e);
 end
 
-// ⚠️ Two built-ins take nothing OR one value -- Set and Buffer [RT-001] -- so
+// Two built-ins take nothing OR one value -- Set and Buffer [RT-001] -- so
 // 'expected' is not always a single number.
 //
-// ⚠️ And Write and WriteLn take ANY number of values, so neither of these is a
+// And Write and WriteLn take ANY number of values, so neither of these is a
 // wrong call at all: no argument is the newline on its own, and several are
 // run together with nothing between them.  This is the one place a built-in's
 // count is never wrong.
@@ -5739,7 +5739,7 @@ var F := Log;
 
 F (Message: 'held', Level: 'warn');
 
-// ⚠️ Naming the absorbing parameter turns absorption OFF, and needs no rule to
+// Naming the absorbing parameter turns absorption OFF, and needs no rule to
 // do it [FUN-005]: an arrangement fills every slot exactly once, so the
 // arranged call has precisely the declared arity and the exact pass takes it
 // before absorption is ever reached.
@@ -5766,7 +5766,7 @@ except
     on e : String do WriteLn (e);
 end
 
-// ⚠️ A BUILT-IN has no named parameters.  Its parameters are not declared in
+// A BUILT-IN has no named parameters.  Its parameters are not declared in
 // this language at all -- they exist only as a count -- so there is no name to
 // write [RT-001].
 try
@@ -5832,7 +5832,7 @@ WriteLn (X.Take ('ab'));
 WriteLn (X.Take ('a'));
 WriteLn (X.Take (1, 2));
 
-// ⚠️ Selection is at RUN TIME, from the value actually passed.  A's declared
+// Selection is at RUN TIME, from the value actually passed.  A's declared
 // type is Any; no static rule could reach the Integer overload from that.
 var A : Any := 1;
 WriteLn (X.Take (A));
@@ -5892,7 +5892,7 @@ than being converted into it.
 function G (N : Integer); begin Exit 'integer ' + Str (N); end
 WriteLn (G (7));
 
-// ⚠️ A parameter is an assignment context [VAR-017], so an argument WIDENS into
+// A parameter is an assignment context [VAR-017], so an argument WIDENS into
 // it: an Integer where a Double is written, a Char where a String is.  The
 // parameter holds the wider type, so this prints 1.0 rather than 1.
 function D (X : Double); begin Exit X; end
@@ -5909,7 +5909,7 @@ begin
 end
 WriteLn (N ().Only ('a'));
 
-// ⚠️ An EXACT match is preferred over a widened one [EXP-014], whatever order
+// An EXACT match is preferred over a widened one [EXP-014], whatever order
 // the overloads are declared in.  Selection makes two passes for this: one
 // admitting no widening, then one admitting it.
 class M;
@@ -6317,7 +6317,7 @@ begin
 end
 WriteLn ();
 
-// ⚠️ Leaving a 'try' by continuing must pop the runtime's frame, exactly as
+// Leaving a 'try' by continuing must pop the runtime's frame, exactly as
 // breaking does.  A frame left behind points at a C frame that has returned,
 // and the next raise jumps into dead stack -- so the raise after this loop is
 // the part of the case that matters.
@@ -6392,7 +6392,7 @@ begin
 end
 WriteLn ();
 
-// ⚠️ A labelled jump leaves every 'try' opened inside the loop it names, not
+// A labelled jump leaves every 'try' opened inside the loop it names, not
 // merely the innermost one -- so the runtime's frame stack has to be unwound
 // by more than one frame at a time.  The raise at the end is what proves it.
 Deep:
@@ -6838,7 +6838,7 @@ WriteLn ('never either');
 Done:
 WriteLn (' done');
 
-// ⚠️ A jump out of a 'try' must LEAVE ITS FRAME.  The runtime's frame stack is
+// A jump out of a 'try' must LEAVE ITS FRAME.  The runtime's frame stack is
 // explicit, and a frame left behind points at a C frame that has returned -- so
 // the raise at the end of this case is what proves the pops happened.  Without
 // them the compiled program ran the inner handler and printed a line the
@@ -7007,7 +7007,7 @@ end
 Early (True);
 Early (False);
 
-// ⚠️ A function declared INSIDE a procedure may still exit a value -- the
+// A function declared INSIDE a procedure may still exit a value -- the
 // restriction is saved and restored around a body, not merely set.
 procedure Outer ();
 begin
@@ -7110,16 +7110,16 @@ end
 
 WriteLn (Total ('a', 1, 2, 3));
 
-// ⚠️ Gathering NOTHING yields the empty list. It is STRUCTURAL and not a
+// Gathering NOTHING yields the empty list. It is STRUCTURAL and not a
 // default: absorbing none gives [] by the same rule that absorbing three gives
 // a list of three.
 WriteLn (Total ('a'));
 
-// ⚠️ An exact match is preferred [EXP-014], so the list is passed rather than
+// An exact match is preferred [EXP-014], so the list is passed rather than
 // gathered into a second list holding it.
 WriteLn (Total ('a', [1, 2, 3]));
 
-// ⚠️ An ELEMENT TYPE is what makes a parameter absorbing, so a bare 'List' does
+// An ELEMENT TYPE is what makes a parameter absorbing, so a bare 'List' does
 // not absorb -- there would be nothing to check the gathered arguments against,
 // and it leaves 'List' as the spelling for a parameter that wants the list
 // itself and nothing else.
@@ -7136,7 +7136,7 @@ except
     on e : String do WriteLn (e);
 end
 
-// ⚠️ The element type REPLACES the arity check and is stricter than it: the
+// The element type REPLACES the arity check and is stricter than it: the
 // stray argument is refused because it is not an Integer, not because there
 // are too many.
 try
@@ -7411,7 +7411,7 @@ WriteLn (Take ('ab'));
 WriteLn (Take ('a'));
 WriteLn (Take (1, 2));
 
-// ⚠️ Selection is at RUN TIME, from the value actually passed.  A's declared
+// Selection is at RUN TIME, from the value actually passed.  A's declared
 // type is Any; no static rule could reach the Integer overload from that.
 var A : Any := 1;
 WriteLn (Take (A));
@@ -7590,7 +7590,7 @@ except
     on e : String do WriteLn (e);
 end
 
-// ⚠️ 'Pointer' is a type whether or not a Pointer can be obtained.  It denotes
+// 'Pointer' is a type whether or not a Pointer can be obtained.  It denotes
 // a declared type [TYP-013], so it may be written on a declaration and tested
 // with 'is' -- and nothing that is not a foreign handle is one.
 var P : Pointer;
@@ -7604,7 +7604,7 @@ except
     on e : String do WriteLn (e);
 end
 
-// ⚠️ A Buffer answers Address, and THAT needs no foreign call to observe: a
+// A Buffer answers Address, and THAT needs no foreign call to observe: a
 // program builds a region of memory here, and only handing it to C requires a
 // build that can [INI-008].
 var B := Buffer ();
@@ -8233,7 +8233,7 @@ end
 WriteLn (Plain ().Size);
 WriteLn (Plain ().Size ());
 
-// ⚠️ Through an UNTYPED receiver the checker has no class to ask, so the
+// Through an UNTYPED receiver the checker has no class to ask, so the
 // assignment is not refused there -- it reaches the instance, which is closed
 // [CLS-018] and answers for itself.
 try
@@ -8425,7 +8425,7 @@ WriteLn (First.A = Second.A);
 WriteLn (B);
 WriteLn (C);
 
-// ⚠️ Bare 'A' is the error, and it is the LAST thing that happens: everything
+// Bare 'A' is the error, and it is the LAST thing that happens: everything
 // above ran.  A name is refused where it cannot be resolved, not where it was
 // declared.
 WriteLn (A);
@@ -8578,7 +8578,7 @@ Report ('On    ', On);
 Report ('No    ', No);
 Report ('Yes   ', Yes);
 
-// ⚠️ The discipline: the position is part of the declaration's meaning.  These
+// The discipline: the position is part of the declaration's meaning.  These
 // two enumerations differ only in the order of their members, and every
 // condition written over them differs with it.
 type Forward  = (Zero, One);
@@ -8620,7 +8620,7 @@ WriteLn (GREEN.Ordinal);
 WriteLn (BLUE.Ordinal);
 WriteLn (RED.Ordinal is Integer);
 
-// ⚠️ The position GOVERNS behavior: truthiness reads it, so the first member
+// The position GOVERNS behavior: truthiness reads it, so the first member
 // of every enumeration is falsey [ENU-009].  A program could once discover
 // that only by testing a member for truth.
 if RED then WriteLn ('RED truthy'); else WriteLn ('RED falsey');
@@ -9270,7 +9270,7 @@ WriteLn (Beta.Shared ());
 WriteLn (OnlyAlpha ());
 WriteLn (OnlyBeta ());
 
-// ⚠️ Bare 'Shared' is the error, and it is the LAST thing that happens.
+// Bare 'Shared' is the error, and it is the LAST thing that happens.
 WriteLn (Shared ());
 ```
 
@@ -9354,7 +9354,7 @@ it and every file may qualify against it: `System.Copy('abcdef', 0, 3)`.
 WriteLn (System.Copy ('abcdef', 0, 3));
 WriteLn (System.Length ('abc'));
 
-// ⚠️ THE QUALIFIER NAMES WHAT IS STILL BUILT IN, AND ONLY THAT.  Max, Mod,
+// THE QUALIFIER NAMES WHAT IS STILL BUILT IN, AND ONLY THAT.  Max, Mod,
 // Succ, Pred and Ord were all reachable here and are library functions now, so
 // System.Max and System.Ord no longer resolve.  Copy and Length remain, which
 // is why they are the two this case uses.
@@ -9476,7 +9476,7 @@ WriteLn ('ABC', 123);
 // many cannot disagree.
 WriteLn ('a', 'b', 'c', 1, 2.5, True, Nil);
 
-// ⚠️ Text concatenation and not addition: this writes '12', not '3'.
+// Text concatenation and not addition: this writes '12', not '3'.
 WriteLn (1, 2);
 
 Write ('no');
@@ -9520,7 +9520,7 @@ WriteLn (Length (ParamStr (0)) > 0);
 Write ('written');
 WriteLn ('');
 
-// ⚠️ Halt is exercised by conformance/0134 rather than here: calling it would
+// Halt is exercised by conformance/0134 rather than here: calling it would
 // end this program before the rest of the list was reached, and there is no way
 // to ask whether it answers without calling it.
 ```
@@ -9947,7 +9947,7 @@ WriteLn ('  first  = ' + Str (Ord (Sandwiched[0])));
 WriteLn ('  middle = ' + Str (Ord (Sandwiched[1])));
 WriteLn ('  last   = ' + Str (Ord (Sandwiched[2])));
 
-// ⚠️ AND IT SURVIVES Write [RT-015], which is the half that used to differ.
+// AND IT SURVIVES Write [RT-015], which is the half that used to differ.
 // The interpreter joined Write's values through a Buffer, and a Buffer refuses
 // to hand back Text when it holds a zero byte [RT-022] -- so this raised
 // interpreted and printed the byte compiled.
@@ -10263,7 +10263,7 @@ WriteLn (5.ToString () is String);
 WriteLn (1.5.ToString ());
 WriteLn ((0 - 42).ToString ());
 
-// ⚠️ ONE rendering, so the two spellings cannot disagree -- including past the
+// ONE rendering, so the two spellings cannot disagree -- including past the
 // machine's width [LEX-018].
 WriteLn ((9223372036854775807 * 2).ToString ());
 WriteLn ((9223372036854775807 * 2).ToString () = Str (9223372036854775807 * 2));
@@ -10272,7 +10272,7 @@ WriteLn (1.5.ToString () = Str (1.5));
 // It folds like every other member name [SRC-011].
 WriteLn (5.tostring ());
 
-// ⚠️ And it reads WITHOUT being called, like every other member [COL-005].
+// And it reads WITHOUT being called, like every other member [COL-005].
 var T := 7.ToString;
 WriteLn (T ());
 WriteLn (T);
@@ -10347,7 +10347,7 @@ process exit status is; that is the operating system's rule, not this language's
 ```algol24
 WriteLn ('before');
 
-// ⚠️ Buffered output is flushed first.  stdout is block-buffered when it is not
+// Buffered output is flushed first.  stdout is block-buffered when it is not
 // a terminal, so the line above would be lost without that -- and a conformance
 // run pipes its output, so this case would fail rather than the fault hiding.
 Halt (3);
@@ -10697,7 +10697,7 @@ begin
     WriteLn ('3, from a block in place');
 end
 
-// ⚠️ A counted for is a block too [STM-006], so this is deferred compiled for
+// A counted for is a block too [STM-006], so this is deferred compiled for
 // the same reason -- and it is the case that matters, because a bare block at
 // the top level is rare and a counted loop is ordinary code.
 for var I := 1; I <= 2; I := I + 1 do WriteLn ('3.' + Str (I) + ', from a loop in place');
@@ -11450,7 +11450,7 @@ begin
     AssertEqual (5, 4);
 end
 
-// ⚠️ The types are named only when the renderings MATCH, which is the case that
+// The types are named only when the renderings MATCH, which is the case that
 // otherwise reads as nonsense: a Char and a String both render as 'a' and are
 // never equal, so the message would read 'Expected ''a'' but got ''a''.'
 test 'AssertEqual names the types when the renderings match';
