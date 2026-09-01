@@ -1,0 +1,37 @@
+// spec: RT-008, RT-015
+//
+// Char(0) is a legal character [RT-008] -- the scanner's own end-of-input
+// sentinel is one -- so everything that carries a character has to carry it,
+// including the way out.
+
+var Z := Char (0);
+
+// It has an ordinal, and it is one character long.
+WriteLn ('Ord      = ' + Str (Ord (Z)));
+WriteLn ('Length   = ' + Str (Length (Str (Z))));
+
+// A String holds it, because a String carries its own length rather than
+// stopping at a terminator.
+var Sandwiched := 'a' + Str (Z) + 'b';
+WriteLn ('in a String = ' + Str (Length (Sandwiched)));
+WriteLn ('  first  = ' + Str (Ord (Sandwiched[0])));
+WriteLn ('  middle = ' + Str (Ord (Sandwiched[1])));
+WriteLn ('  last   = ' + Str (Ord (Sandwiched[2])));
+
+// ⚠️ AND IT SURVIVES Write [RT-015], which is the half that used to differ.
+// The interpreter joined Write's values through a Buffer, and a Buffer refuses
+// to hand back Text when it holds a zero byte [RT-022] -- so this raised
+// interpreted and printed the byte compiled.
+Write (Sandwiched);
+WriteLn ('');
+
+// The many-value form of Write goes the same way, since it is the same join.
+Write ('x', Z, 'y');
+WriteLn ('');
+
+// A Buffer still refuses, and should: that rule is about the Buffer, not about
+// the character.
+var B := Buffer ();
+B.Append (Z);
+WriteLn ('a Buffer holds it: ' + Str (B.Length));
+try WriteLn (B.Text); except on E : String do WriteLn ('  but ' + E); end

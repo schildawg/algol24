@@ -3815,9 +3815,17 @@ inverse across it.
 ⚠️ `Char(0)` is legal here, and only the **literal** `#0` is refused
 [LEX-032] — the scanner's own end-of-input sentinel is `Char(0)`.
 
+⚠️ **And everything that carries a character has to carry it, including the way
+out.** `Write (Char (0))` raised interpreted and printed the byte compiled,
+because the interpreter joined `Write`'s values through a `Buffer` and a Buffer
+refuses to hand back `Text` when it holds a zero byte [RT-022]. A String carries
+its own length and holds one perfectly well; it was the Buffer in the middle
+that could not.
+
     interpreter  compiler/Interpreter.a24  Native
     compiler     bootstrap/algol.c         alg_char
     conformance  0128-text-is-characters.a24
+    conformance  0179-a-zero-byte-survives-write.a24
     refusal      0038-char-out-of-range.a24
 
 ### 16.3 Numeric
@@ -3912,6 +3920,7 @@ on its own.
     compiler     bootstrap/algol.c         alg_writeln
     conformance  0093-write-and-writeln.a24
     conformance  0159-write-takes-any-number-of-values.a24
+    conformance  0179-a-zero-byte-survives-write.a24
 
 **[RT-016]**  `ReadLn` on a `TextFile` splits on the same rule as the scanner
 [SRC-006], [SRC-007]: a line ends at `#10`, which is **not** returned; a `#13`

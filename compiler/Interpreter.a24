@@ -54,17 +54,29 @@ end
 /// Stringify too, so the rendering cannot differ between the one-value form and
 /// the many.
 ///
+/// ⚠️ JOINED WITH '+', NOT THROUGH A BUFFER, and the difference is a zero byte.
+/// A Buffer refuses to hand back Text when it holds one [RT-022], so
+/// 'Write (Char (0))' raised interpreted where the compiled form printed the
+/// byte -- a divergence in a legal program, since [RT-008] makes 'Char (0)'
+/// legal and the scanner's own end-of-input sentinel is one.  A String carries
+/// its own length and can hold a zero byte perfectly well; it was the Buffer in
+/// the middle that could not.
+///
+/// ⚠️ '+' is not the quadratic trap it looks like.  Concatenation appends in
+/// place into room reserved in advance [G.2], so joining is linear -- and Write
+/// takes a handful of values, not thousands.
+///
 function Rendered (TheInterpreter : Any, Arguments : List) : String;
 var
-    Line : Buffer;
+    Line : String;
 
 begin
-    Line := Buffer ();
+    Line := '';
 
     for var I := 0; I < Arguments.Length; I := I + 1 do
-        Line.Append (Stringify (TheInterpreter, Arguments[I]));
+        Line := Line + Stringify (TheInterpreter, Arguments[I]);
 
-    Exit Line.Text;
+    Exit Line;
 end
 
 /// Renders a value as text.

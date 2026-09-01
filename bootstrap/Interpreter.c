@@ -199,15 +199,15 @@ Value f_rendered(Value **cells, Value *args, int32_t count) {
     (void)v_arguments;
     Value v_line = alg_nil();
     (void)v_line;
-    (void)((v_line = alg_widen(alg_buffer(alg_int(0)), "Buffer")));
+    (void)((v_line = alg_widen(alg_string(""), "String")));
     {
         Value v_i = alg_int(0);
         (void)v_i;
         for (; alg_truthy(alg_less(v_i, alg_property(v_arguments, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(v_line, "Append", (Value[]){f_stringify(NULL, (Value[]){v_theinterpreter, alg_subscript_get(v_arguments, v_i)}, 2)}, 1));
+            (void)((v_line = alg_widen(alg_add(v_line, f_stringify(NULL, (Value[]){v_theinterpreter, alg_subscript_get(v_arguments, v_i)}, 2)), "String")));
         }
     }
-    return alg_property(v_line, "Text");
+    return v_line;
     return alg_nil();
 }
 
