@@ -1,6 +1,0 @@
-// spec: STM-021
-//
-
-WriteLn ('before');
-
-raise 'boom';

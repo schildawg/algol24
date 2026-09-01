@@ -1,6 +1,0 @@
-// spec: ERR-004
-//
-
-WriteLn ('never reached');
-
-@

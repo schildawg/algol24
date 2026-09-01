@@ -1,8 +1,0 @@
-Integer: 42
-String: text
-base caught derived
-derived, base written first
-derived, derived written first
-catch-all
-caught: Division by zero.
-exit: 0

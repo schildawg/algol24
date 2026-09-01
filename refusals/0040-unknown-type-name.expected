@@ -1,5 +1,0 @@
-Uncaught: Unknown type 'Nonexistent'.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0040-unknown-type-name.a24: Unknown type 'Nonexistent'.
-[WHITE][[RED]ERROR[WHITE]] [RESET]13 | WriteLn (1 is Nonexistent);
-[WHITE][[RED]ERROR[RESET]]    |[RED]               ^^^^^^^^^^^[RESET]
-exit: 70

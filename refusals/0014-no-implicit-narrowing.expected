@@ -1,5 +1,0 @@
-Uncaught: Expected Integer, found Double.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0014-no-implicit-narrowing.a24: Expected Integer, found Double.
-[WHITE][[RED]ERROR[WHITE]] [RESET]6 | var X : Integer := 1.5;
-[WHITE][[RED]ERROR[RESET]]   |[RED]     ^[RESET]
-exit: 70

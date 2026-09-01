@@ -1,5 +1,0 @@
-Uncaught: A constant must be given a value.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0011-const-must-be-given-a-value.a24: A constant must be given a value.
-[WHITE][[RED]ERROR[WHITE]] [RESET]6 | const C : Integer;
-[WHITE][[RED]ERROR[RESET]]   |[RED]       ^[RESET]
-exit: 70

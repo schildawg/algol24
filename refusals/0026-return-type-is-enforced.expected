@@ -1,5 +1,0 @@
-Uncaught: Expected Integer, found String.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0026-return-type-is-enforced.a24: Expected Integer, found String.
-[WHITE][[RED]ERROR[WHITE]] [RESET]7 |     Exit 'a string';
-[WHITE][[RED]ERROR[RESET]]   |[RED]     ^^^^[RESET]
-exit: 70

@@ -1,7 +1,0 @@
-// spec: ERR-001, ERR-002
-//
-
-WriteLn ('this line is never reached');
-WriteLn ('nor this one');
-
-var X : Integer := 'text';

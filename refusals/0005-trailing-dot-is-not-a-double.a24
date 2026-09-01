@@ -1,7 +1,0 @@
-// spec: LEX-021
-//
-// '1.' is not a double literal.  A double needs a digit on both sides of the
-// point, so this is the integer 1 followed by the '.' operator, and the '.'
-// then wants a property name.
-
-WriteLn (1.);

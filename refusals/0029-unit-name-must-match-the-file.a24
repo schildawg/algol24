@@ -1,7 +1,0 @@
-// spec: MOD-004
-//
-// Mismatch.a24 opens with 'unit Wrong;'.
-
-uses 'conformance/modules/Mismatch';
-
-WriteLn (W ());

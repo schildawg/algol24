@@ -24,3 +24,19 @@ spec/ALGOL-24.pdf
 
 # macOS
 .DS_Store
+
+# The conformance corpus is GENERATED from the specification.
+#
+# ⚠️ Every case lives in spec/ALGOL-24.md, printed under the rule it pins as its
+# program and the shell output it produces.  ./conform.sh writes these files out
+# and runs them, so editing one here edits a build artifact and the next run
+# overwrites it.  Change the case in the specification.
+#
+# The module fixtures a case imports are NOT generated and stay tracked.
+conformance/*.a24
+conformance/*.out
+conformance/*.args
+refusals/*.a24
+refusals/*.expected
+refusals/*.args
+!conformance/modules/

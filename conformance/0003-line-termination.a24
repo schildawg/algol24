@@ -1,7 +1,0 @@
-// spec: SRC-006, SRC-008
-//
-
-// #10 ends a line; space and #9 separate tokens and mean nothing else.
-var	A	:=	1;
-var   B   :=   2;
-WriteLn (A + B);

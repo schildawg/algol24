@@ -1,5 +1,5 @@
 Uncaught: Expected Integer, found an untyped expression.
-[WHITE][[RED]ERROR[WHITE]] [RESET]defects/DEF-35-inference-stops-at-a-later-declaration.a24: Expected Integer, found an untyped expression.
-[WHITE][[RED]ERROR[WHITE]] [RESET]37 |     Bound := LIMIT;
-[WHITE][[RED]ERROR[RESET]]    |[RED]     ^^^^^[RESET]
+[ERROR] defects/DEF-35-inference-stops-at-a-later-declaration.a24: Expected Integer, found an untyped expression.
+[ERROR] 37 |     Bound := LIMIT;
+[ERROR]    |     ^^^^^
 exit: 70

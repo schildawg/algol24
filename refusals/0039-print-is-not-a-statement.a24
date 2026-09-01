@@ -1,6 +1,0 @@
-// spec: STM-022
-//
-// There is no print statement.  'print 123;' is two expressions with nothing
-// between them, and is refused as such.
-
-print 123;

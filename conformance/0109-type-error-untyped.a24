@@ -1,8 +1,0 @@
-// spec: ERR-006
-//
-// The second form: an expression the checker could not type at all reduces to
-// no type, which is not a type name and must not be printed as one.
-
-function G (); begin Exit 1; end
-
-var Y : Integer := G ();

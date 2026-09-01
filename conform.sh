@@ -66,6 +66,10 @@ ALGC="bootstrap/algc"
 # not part of that description, but it still has to be checked against what the
 # compiler actually does.
 SPEC="spec/HISTORY.md"
+
+# The language specification, which is also the corpus: every case is printed
+# under the rule it pins, as its program and the shell output it produces.
+SPECLANG="spec/ALGOL-24.md"
 RECORD=0
 COMPILED=1
 
@@ -108,6 +112,13 @@ export LC_ALL
 
 ESC=$(printf '\033')
 
+# ⚠️ A zero byte cannot travel in a printed block, and one case prints one on
+# purpose [RT-008].  It is shown as caret notation and converted back here.
+# Routed through BEL because it is the one control byte no expectation holds --
+# writing the escape straight into a sed pattern made sed read '\001' as a
+# back-reference followed by '01', which turned '0.0015' into '0.^@5'.
+BEL=$(printf '\007')
+
 # ⚠️ Color is transliterated rather than stripped: stripping is not injective,
 # so a wrong color and a right one would compare equal.
 # ⚠️ A [WARN] line is dropped, from BOTH sides.  A warning is a diagnostic
@@ -122,11 +133,21 @@ ESC=$(printf '\033')
 # a warning that changed a program's recorded output would be a warning that
 # changed the program.
 render() {
+    sed -e "s/${ESC}\\[[0-9;]*m//g" \
+      | { grep -av '^\[WARN\]' || true; } \
+      | tr '\000' "$BEL" | sed "s/${BEL}/^@/g"
+}
+
+# The full-fidelity form, used only to compare the two PROCESSORS to each other.
+# The printed blocks in the specification are color-stripped so they read as
+# terminal output; stripping is not injective, so a wrong color and a right one
+# would compare equal there.  This keeps that check, between the two runs.
+render_full() {
     sed -e "s/${ESC}\\[0m/[RESET]/g"  -e "s/${ESC}\\[31m/[RED]/g" \
         -e "s/${ESC}\\[32m/[GREEN]/g" -e "s/${ESC}\\[33m/[YELLOW]/g" \
         -e "s/${ESC}\\[34m/[BLUE]/g"  -e "s/${ESC}\\[36m/[CYAN]/g" \
         -e "s/${ESC}\\[37m/[WHITE]/g" -e "s/${ESC}\\[\\([0-9;]*\\)m/[ESC:\\1]/g" \
-      | { grep -v '\[YELLOW\]WARN\[WHITE\]\]' || true; }
+      | { grep -av '\[YELLOW\]WARN\[WHITE\]\]' || true; }
 }
 
 PASS=0; FAIL=0; GAPS=0; RECORDED=0
@@ -138,16 +159,23 @@ run_case() {
     _src=$1
     _want_compiled=$2
 
-    # ⚠️ A case may ask to be run differently. '// run: --test' makes this a
-    # test run, which chapter 19 needs: the report is the thing being pinned,
-    # and an ordinary run would execute the program and skip the tests
-    # entirely. Same directive spec/probes/record.sh uses.
-    _args=$(sed -n 's|^// run: ||p' "$_src" | head -1)
+    # ⚠️ A case may ask to be run differently. '--test' makes this a test run,
+    # which chapter 19 needs: the report is the thing being pinned, and an
+    # ordinary run would execute the program and skip the tests entirely.
+    #
+    # ⚠️ It arrives in a SIDECAR rather than in the program.  The specification
+    # shows the command it was run with -- '$ algc --test NAME' -- and a
+    # directive written back into the file would shift every line number by one.
+    _args=""
+    [ -f "${_src%.a24}.args" ] && _args=$(cat "${_src%.a24}.args")
+    # a probe under spec/ still carries the old inline form
+    [ -n "$_args" ] || _args=$(sed -n 's|^// run: ||p' "$_src" | head -1)
 
     _status=0
     # shellcheck disable=SC2086
     "$ALGC" $_args "$_src" > "$WORK/raw" 2>&1 || _status=$?
-    { render < "$WORK/raw"; echo "exit: $_status"; } > "$WORK/interpreted"
+    { render      < "$WORK/raw"; echo "exit: $_status"; } > "$WORK/interpreted"
+    { render_full < "$WORK/raw"; echo "exit: $_status"; } > "$WORK/interpreted_full"
 
     COMPILED_RAN=0
     [ "$COMPILED" -eq 1 ] && [ "$_want_compiled" -eq 1 ] || return 0
@@ -166,7 +194,8 @@ run_case() {
         # refusal corpus compares equal here, as it should.  An added
         # "(refused to emit)" line made all twenty-three of them look like
         # divergences.
-        { render < "$WORK/emit"; echo "exit: $_emit"; } > "$WORK/compiled"
+        { render      < "$WORK/emit"; echo "exit: $_emit"; } > "$WORK/compiled"
+        { render_full < "$WORK/emit"; echo "exit: $_emit"; } > "$WORK/compiled_full"
         COMPILED_RAN=1
         return 0
     fi
@@ -179,7 +208,8 @@ run_case() {
     fi
     _status=0
     "$WORK/out/prog" > "$WORK/raw" 2>&1 || _status=$?
-    { render < "$WORK/raw"; echo "exit: $_status"; } > "$WORK/compiled"
+    { render      < "$WORK/raw"; echo "exit: $_status"; } > "$WORK/compiled"
+    { render_full < "$WORK/raw"; echo "exit: $_status"; } > "$WORK/compiled_full"
     COMPILED_RAN=1
 }
 
@@ -252,6 +282,68 @@ check() {
         echo "$_name.a24" >> "$WORK/gapnames"
     fi
 }
+
+# ------------------------------------------------------------------ corpus --
+#
+# ⚠️ conformance/ and refusals/ are GENERATED from the specification and are
+# git-ignored.  Editing a file there edits a build artifact: the case lives in
+# spec/ALGOL-24.md, under the rule it pins, and this writes it back out so it
+# can be run.  That is what stops a case and the rule it demonstrates drifting
+# apart -- they are the same text.
+#
+# ⚠️ Run arguments travel in a SIDECAR rather than in the file.  A '// run:'
+# line inside the program would shift every line number by one, and eleven
+# expectations quote a line number in their output.
+extract_corpus() {
+    rm -f conformance/*.a24 conformance/*.out conformance/*.args \
+          refusals/*.a24 refusals/*.expected refusals/*.args 2>/dev/null || true
+    mkdir -p conformance refusals
+
+    awk '
+    function close_all() { if (prog != "") close(prog); if (want != "") close(want) }
+    /^##### (conformance|refusals)\// {
+        close_all()
+        path = $2
+        n = split(path, bits, "/")
+        dir = bits[1]; name = bits[2]
+        prog = dir "/" name
+        want = dir "/" name
+        sub(/\.a24$/, (dir == "conformance" ? ".out" : ".expected"), want)
+        args = dir "/" name; sub(/\.a24$/, ".args", args)
+        state = "await"
+        printf "" > prog
+        body = ""
+        next
+    }
+    state == "await" && /^```algol24$/ { state = "prog"; next }
+    state == "prog"  && /^```$/        { state = "awaitc"; next }
+    state == "prog"                    { print $0 > prog; next }
+    state == "awaitc" && /^```console$/ { state = "cmd"; next }
+    state == "cmd" {
+        # "$ algc [args] name" -- everything between algc and the file name
+        line = $0
+        sub(/^\$ algc */, "", line)
+        sub(/[^ ]*$/, "", line)
+        gsub(/ +$/, "", line)
+        if (line != "") print line > args
+        state = "out"; body = ""; code = "0"
+        next
+    }
+    state == "out" && /^```$/ {
+        printf "%s", body > want
+        print "exit: " code > want
+        close_all(); state = ""
+        next
+    }
+    state == "out" {
+        if ($0 ~ /^exit: [0-9]+$/) { code = substr($0, 7) }
+        else { body = body $0 "\n" }
+        next
+    }
+    ' "$SPECLANG"
+}
+
+extract_corpus
 
 for dir_kind in "conformance:out:conformance" "refusals:expected:refusal" "defects:current:defect"; do
     dir=${dir_kind%%:*}; rest=${dir_kind#*:}; ext=${rest%%:*}; kind=${rest#*:}

@@ -1,7 +1,0 @@
-[WHITE][[BLUE]INFO[WHITE]] [RESET]Running 2 tests...
-[WHITE][[BLUE]INFO[WHITE]] [RESET]< [CYAN]conformance/0107-assert-equal-comparison.a24[RESET] >
-[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: AssertEqual holds a Char unequal to a String ........... [ [GREEN]PASS[RESET] ]
-[WHITE][[BLUE]INFO[WHITE]] [RESET]Test: AssertEqual promotes numerically ....................... [ [GREEN]PASS[RESET] ]
-[WHITE][[BLUE]INFO[WHITE]] [RESET]
-[WHITE][[BLUE]INFO[WHITE]] [RESET][GREEN]All 2 tests passed.[RESET]
-exit: 0

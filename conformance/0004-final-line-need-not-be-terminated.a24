@@ -1,5 +1,0 @@
-// spec: SRC-009
-//
-
-WriteLn ('first');
-WriteLn ('last, with no terminator after it');

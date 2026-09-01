@@ -114,6 +114,15 @@ awk '
         print rule "\t" key "\t" line
         next
     }
+    # A case printed under a rule IS the citation for that rule.  It is read
+    # before the heading rule below, which would otherwise clear the rule this
+    # case belongs to -- '#####' begins with '#'.
+    /^##### (conformance|refusals)\// {
+        if (rule == "") next
+        split($2, bits, "/")
+        print rule "\t" (bits[1] == "conformance" ? "conformance" : "refusal") "\t" bits[2]
+        next
+    }
     # ⚠️ Closed by a HEADING, not by any unindented line.  A rule statement
     # wraps, and its continuation starts at column zero -- closing on that
     # dropped the trailer of every rule whose text ran past one line, which was
@@ -158,9 +167,30 @@ while IFS="$(printf '\t')" read -r rule key value; do
     fi
 done < "$WORK/cites"
 
-CITED_FILES=$(awk -F'\t' '$2=="interpreter"||$2=="compiler"' "$WORK/cites" | wc -l | tr -d ' ')
-[ "$MISSING_FILE" -eq 0 ] && [ "$MISSING_SYM" -eq 0 ] \
-    && echo "  $CITED_FILES file citation(s) resolve"
+# ⚠️ The specification no longer names its implementation.  It used to carry an
+# "interpreter compiler/X.a24 Member" line per rule; the code carries the link
+# now, as a "# Satisfies" section on the declaration that implements the rule.
+# This checks that direction: every rule the code claims must exist.
+awk '
+    /^[ \t]*\/\/\/[ \t]*# Satisfies[ \t]*$/ { insat = 1; next }
+    /^[ \t]*\/\/\/[ \t]*#/ { insat = 0; next }
+    !/^[ \t]*\/\/\// { insat = 0; next }
+    insat {
+        while (match($0, /\[[A-Z]+-[0-9]+\]/)) {
+            print substr($0, RSTART + 1, RLENGTH - 2)
+            $0 = substr($0, RSTART + RLENGTH)
+        }
+    }' compiler/*.a24 | sort -u > "$WORK/claimed"
+
+CLAIM_BAD=""
+while read -r _r; do
+    [ -n "$_r" ] || continue
+    grep -q "^\*\*\[$_r\]\*\*" "$SPEC" || CLAIM_BAD="$CLAIM_BAD $_r"
+done < "$WORK/claimed"
+
+[ -n "$CLAIM_BAD" ] && problem "compiler/*.a24 claims rule(s) that do not exist:$CLAIM_BAD"
+[ -z "$CLAIM_BAD" ] \
+    && echo "  $(wc -l < "$WORK/claimed" | tr -d ' ') rule(s) claimed by a # Satisfies section in the code"
 
 # ------------------------------------------------------------------- tests --
 #
@@ -373,8 +403,12 @@ fi
 find conformance refusals defects -maxdepth 1 -name '*.a24' 2>/dev/null \
   | sed 's|.*/||' | sort -u > "$WORK/cases_on_disk"
 
-awk -F'\t' '$2=="conformance"||$2=="refusal"||$2=="defect" {print $3}' "$WORK/cites" \
-  | grep -v '^TBD$' | sort -u > "$WORK/cases_cited"
+{ awk -F'\t' '$2=="conformance"||$2=="refusal"||$2=="defect" {print $3}' "$WORK/cites"
+  # ⚠️ A case printed under its rule IS its citation.  The trailer survives only
+  # where a second rule points at a case whose body lives elsewhere.
+  sed -n 's|^##### conformance/||p; s|^##### refusals/||p' "$SPEC"
+  sed -n 's|^    defect  *||p' "$DEFECTS"
+} | grep -v '^TBD$' | sort -u > "$WORK/cases_cited"
 
 # ⚠️ Every Annex F ENTRY must have a reproduction, which is a third direction and
 # was missing.  The two checks above ask whether a cited file exists and whether
@@ -498,13 +532,27 @@ sed -n '/var  Keywords := \[/,/TOKEN_WHILE\];/p' compiler/Scanner.a24 \
 # every specified removal as a discrepancy, which is exactly the noise that gets
 # a checker switched off.
 
-awk '/\*\*\[LEX-010\]\*\*/{f=1; next}
+awk '     # ⚠️ A printed case is documentation, not structure.  Its program and its
+     # shell output are fenced, so a scan counting fences or reading grammar
+     # must step over the whole block.
+     /^##### (conformance|refusals)\// { skipcase = 1; next }
+     skipcase && /^```console/ { inconsole = 1; next }
+     skipcase && inconsole && /^```$/ { skipcase = 0; inconsole = 0; next }
+     skipcase { next }
+     /\*\*\[LEX-010\]\*\*/{f=1; next}
      f && /^\*\*\[LEX-011\]\*\*/{exit}
      f && /^```$/ { c++; next }
      f && c % 2 == 1 { print }' "$SPEC" \
   | tr -s ' \n' '\n' | grep -vE '^$' | sort -u > "$WORK/kw_spec"
 
-awk '/\*\*\[LEX-010\]\*\*/{f=1; next}
+awk '     # ⚠️ A printed case is documentation, not structure.  Its program and its
+     # shell output are fenced, so a scan counting fences or reading grammar
+     # must step over the whole block.
+     /^##### (conformance|refusals)\// { skipcase = 1; next }
+     skipcase && /^```console/ { inconsole = 1; next }
+     skipcase && inconsole && /^```$/ { skipcase = 0; inconsole = 0; next }
+     skipcase { next }
+     /\*\*\[LEX-010\]\*\*/{f=1; next}
      f && /^```$/ { c++; if (c == 2) exit; next }
      f && c == 1  { print }' "$SPEC" \
   | tr -s ' \n' '\n' | grep -vE '^$' | sort -u > "$WORK/kw_norm"
@@ -653,14 +701,21 @@ fi
 # both directions are compared: a production stated in a chapter and missing
 # from the annex, and one in the annex that no chapter defines.
 
-awk '/^## 3\. Source code/{on=1} /^## Annex/{on=0}
-     on && /^```$/ {f = !f; next}
+awk '     # ⚠️ A printed case is documentation, not structure.  Its program and its
+     # shell output are fenced, so a scan counting fences or reading grammar
+     # must step over the whole block.
+     /^##### (conformance|refusals)\// { skipcase = 1; next }
+     skipcase && /^```console/ { inconsole = 1; next }
+     skipcase && inconsole && /^```$/ { skipcase = 0; inconsole = 0; next }
+     skipcase { next }
+     /^## 3\. Source code/{on=1} /^## Annex/{on=0}
+     on && /^```/ {f = !f; next}
      on && f && /^[A-Za-z_][A-Za-z_0-9]*[ \t]*=/ {
          sub(/[ \t]*=.*/, ""); print
      }' "$SPEC" | sort -u > "$WORK/prod_chapters"
 
 awk '/^## Annex A/{on=1} /^## Annex B/{on=0}
-     on && /^```$/ {f = !f; next}
+     on && /^```/ {f = !f; next}
      on && f && /^[A-Za-z_][A-Za-z_0-9]*[ \t]*=/ {
          sub(/[ \t]*=.*/, ""); print
      }' "$SPEC" | sort -u > "$WORK/prod_annex"

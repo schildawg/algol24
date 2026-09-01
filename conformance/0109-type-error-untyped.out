@@ -1,5 +1,0 @@
-Uncaught: Expected Integer, found an untyped expression.
-[WHITE][[RED]ERROR[WHITE]] [RESET]conformance/0109-type-error-untyped.a24: Expected Integer, found an untyped expression.
-[WHITE][[RED]ERROR[WHITE]] [RESET]8 | var Y : Integer := G ();
-[WHITE][[RED]ERROR[RESET]]   |[RED]     ^[RESET]
-exit: 70

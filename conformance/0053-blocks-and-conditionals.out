@@ -1,6 +1,0 @@
-integer 1 is truthy
-integer 0 is falsey
-a String is truthy
-nil is falsey
-inner-else
-exit: 0

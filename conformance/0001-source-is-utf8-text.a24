@@ -1,6 +1,0 @@
-// spec: SRC-001, SRC-003
-//
-
-// Any byte is permitted inside a comment or a literal: café, naïve, 日本語.
-WriteLn ('café');
-WriteLn ('日本語');

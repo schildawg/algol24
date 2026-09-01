@@ -1,9 +1,0 @@
-List : 3 1 2 
-Set  : 3 1 2 
-Map  : 3 1 2 
-Map  : 3 1 2 
-changed
-Map  : 3 1 2 9 
-Keys : 3 1 2 9 
-Vals : changed a b new 
-exit: 0

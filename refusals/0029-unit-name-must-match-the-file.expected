@@ -1,5 +1,0 @@
-Uncaught: Unit 'Wrong' must match its file name 'Mismatch'.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0029-unit-name-must-match-the-file.a24: Unit 'Wrong' must match its file name 'Mismatch'.
-[WHITE][[RED]ERROR[WHITE]] [RESET]4 | unit Wrong;
-[WHITE][[RED]ERROR[RESET]]   |[RED]      ^^^^^[RESET]
-exit: 70

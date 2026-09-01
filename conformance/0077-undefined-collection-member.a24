@@ -1,9 +1,0 @@
-// spec: COL-005
-//
-// A member a kind does not have.  A Stack has no Get.
-
-var K := Stack ();
-K.Push (1);
-WriteLn (K.Peek ());
-
-WriteLn (K.Get (0));

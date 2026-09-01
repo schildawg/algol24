@@ -1,6 +1,0 @@
-// spec: INI-006
-//
-
-WriteLn ('this program raises');
-
-raise 'boom';

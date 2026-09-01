@@ -1,6 +1,0 @@
-// spec: RT-002
-//
-// AssertTrue, AssertEqual and Fail are registered only while --test is
-// running, so outside one the name is simply not there.
-
-AssertTrue (True);

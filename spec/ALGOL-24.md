@@ -59,8 +59,6 @@ Every normative statement carries an immutable identifier and its evidence:
 **[SRC-000]**  An example rule, stating one thing that a single test can prove
 or disprove.
 
-    interpreter  compiler/Scanner.a24  ScanToken
-    compiler     bootstrap/algol.c     alg_error
     unit         Scan A Whole Program
     conformance  TBD
 
@@ -148,11 +146,102 @@ everything that builds a diagnostic; only the value-semantic operations —
 concat, output, equality, hashing, `Copy`, `Pos`, `Length`, subscript — consult
 the length.
 
-    interpreter  compiler/Scanner.a24  ScanTokens
-    compiler     bootstrap/algol.c     alg_length
     unit         Scan A Whole Program
-    conformance  0128-text-is-characters.a24
-    conformance  0131-a-string-holds-a-zero-character.a24
+
+##### conformance/0128-text-is-characters.a24
+
+```algol24
+var S := 'café';
+
+WriteLn (Length (S));
+WriteLn (S[3]);
+WriteLn (Copy (S, 1, 3));
+WriteLn (Pos (S, 'é'));
+WriteLn (Ord (S[3]));
+
+// A Char is a Unicode code point, and Char and Ord are inverses across the
+// whole range [LEX-025].
+WriteLn (Char (233));
+WriteLn (Ord (Char (233)) = 233);
+WriteLn (Length (Str (Char (233))));
+
+// A one-character literal is a Char however many BYTES it takes [LEX-023].
+WriteLn ('é' is Char);
+
+// ANY Unicode character may appear in an identifier [SRC-005], where the
+// scanner used to refuse every non-ASCII byte outright [SRC-002].
+var café := 3;
+WriteLn (café);
+
+// Any script, and no category test -- there is nothing above U+007F that is
+// excluded, so the language needs no Unicode tables.
+var 日本 := 4;
+var Ωμέγα := 5;
+WriteLn (日本 + Ωμέγα);
+
+// ⚠️ Including an emoji, which may also LEAD a name -- only a digit and the
+// marks '?' and '!' may not [LEX-007].
+var 🙂 := 'happy';
+var 💩 := 'oops';
+WriteLn (🙂 + ' ' + 💩);
+
+// A Unicode DIGIT is an ordinary identifier character too.  Only ASCII 0-9 are
+// digits to the number scanner, so this can never start a numeric literal.
+var ٠x := 6;
+WriteLn (٠x);
+
+// ⚠️ Folding is ASCII-only [SRC-011], so these are two names, not one.
+var Straße := 'ok';
+WriteLn (Straße);
+```
+
+```console
+$ algc conformance/0128-text-is-characters.a24
+4
+é
+afé
+3
+233
+é
+true
+1
+true
+3
+9
+happy oops
+6
+ok
+```
+
+##### conformance/0131-a-string-holds-a-zero-character.a24
+
+```algol24
+var S := 'a' + Str (Char (0)) + 'b';
+
+WriteLn (Length (S));
+WriteLn (Ord (S[1]));
+
+// Equality compares the bytes it has, rather than stopping at the zero.
+WriteLn (S = 'a' + Str (Char (0)) + 'b');
+WriteLn (Copy (S, 1, 2) = Str (Char (0)) + 'b');
+
+// ⚠️ And so does the hash, or a Map would not find a key it holds.
+var M := [S : 'held'];
+WriteLn (M.Contains ('a' + Str (Char (0)) + 'b'));
+
+// Characters are still characters [SRC-004].
+WriteLn (Length ('café'));
+```
+
+```console
+$ algc conformance/0131-a-string-holds-a-zero-character.a24
+3
+0
+true
+true
+true
+4
+```
 
 **[SRC-002]**  Outside comments, string literals and character literals, every
 character must be one the scanner recognizes — a letter [SRC-005], a digit, or
@@ -162,18 +251,40 @@ an operator or item of punctuation [LEX-012]. Any other is an error reading
 The scanner used to refuse every non-ASCII byte outright, so no Unicode
 character could appear in a program at all outside a comment or a literal.
 
-    interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Unrecognized Character Is Recorded
-    refusal      0001-unexpected-character.a24
+
+##### refusals/0001-unexpected-character.a24
+
+```algol24
+// '$' is not a character the scanner recognizes.
+var A := 1;
+$
+```
+
+```console
+$ algc refusals/0001-unexpected-character.a24
+Uncaught: [line 3] Error: Unexpected character: $
+exit: 70
+```
 
 **[SRC-003]**  Inside a comment, a string literal or a character literal, any
 byte is permitted and is carried through unchanged. A program may therefore
 hold text in any encoding, and the language will neither interpret nor validate
 it.
 
-    interpreter  compiler/Scanner.a24  ScanString
-    compiler     bootstrap/algol.c     alg_string
-    conformance  0001-source-is-utf8-text.a24
+##### conformance/0001-source-is-utf8-text.a24
+
+```algol24
+// Any byte is permitted inside a comment or a literal: café, naïve, 日本語.
+WriteLn ('café');
+WriteLn ('日本語');
+```
+
+```console
+$ algc conformance/0001-source-is-utf8-text.a24
+café
+日本語
+```
 
 **[SRC-004]**  `Length` of a String is its count of **characters**, and
 subscripting a String yields the character at that position. `Length('café')` is
@@ -189,8 +300,6 @@ read — quadratic, and nothing had noticed. Caching a string's character count
 by pointer removed that: measured over three runs of `./test.sh`, 20.1 s against
 21.2 s before.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_length
     conformance  0128-text-is-characters.a24
 
 **[SRC-002] and [SRC-003] together mean an identifier is ASCII while a
@@ -229,12 +338,78 @@ literal, but it may appear in a name.
 `decimal_digit` and `identifier_mark` are still ASCII, and a digit or a mark
 may not **lead** [LEX-007]. A character above U+007F may.
 
-    interpreter  compiler/Scanner.a24  IsAlpha
-    compiler     compiler/CEmitter.a24  Escaped
     unit         Scan Identifier With A Question Mark
-    conformance  0002-letters-and-digits.a24
+
+##### conformance/0002-letters-and-digits.a24
+
+```algol24
+var Gate? := 1;
+var _under := 2;
+var a1b2 := 3;
+WriteLn (Gate? + _under + a1b2);
+```
+
+```console
+$ algc conformance/0002-letters-and-digits.a24
+6
+```
     conformance  0128-text-is-characters.a24
-    conformance  0139-unicode-identifiers.a24
+
+##### conformance/0139-unicode-identifiers.a24
+
+```algol24
+var café  := 1;
+var Straße := 2;
+var 日本   := 4;
+var Ωμέγα := 8;
+WriteLn (café + Straße + 日本 + Ωμέγα);
+
+// ⚠️ An emoji may LEAD a name; only a digit and the marks may not [LEX-007].
+var 🙂 := 'happy';
+var 💩 := 'oops';
+WriteLn (🙂 + ' ' + 💩);
+
+// ⚠️ A Unicode DIGIT is an ordinary identifier character.  Only ASCII 0-9 are
+// digits to the number scanner, so this can never start a numeric literal.
+var ٠x := 16;
+WriteLn (٠x);
+
+// The marks, which are ASCII and trail only.
+var Gate?  := 32;
+var Gate!  := 64;
+var Ready_Set := 128;
+WriteLn (Gate? + Gate! + Ready_Set);
+
+// ⚠️ THE COLLISIONS THE OLD SCHEME GOT WRONG, which is what makes this case
+// worth having.  It wrote '?' as '_q' and passed letters through untouched, so
+// these two emitted ONE symbol between them and cc refused the result.  They
+// are 'readyQ' and 'readyVq' now.
+var Ready?  := 'from the mark';
+var Ready_q := 'from the letters';
+WriteLn (Ready? + ' / ' + Ready_q);
+
+// ⚠️ And the collision the NEW scheme has to avoid in turn: an identifier
+// spelled like an escape.  Lowercasing is what separates them -- 'u01f642'
+// against 'U01F642' -- which is why case-insensitivity [SRC-011] and the escape
+// space depend on each other.
+var U01F642 := 'spelled out';
+WriteLn (U01F642 + ' / ' + 🙂);
+
+// Folding is ASCII-only [SRC-011], so these stay two names.
+var STRASSE := 256;
+WriteLn (Straße + STRASSE);
+```
+
+```console
+$ algc conformance/0139-unicode-identifiers.a24
+15
+happy oops
+16
+224
+from the mark / from the letters
+spelled out / happy
+258
+```
 
 **An identifier mark is not a letter.** `?` and `!` may appear *within* an
 identifier but may not begin one [LEX-007], so `Gate?` and `Gate!` are each a
@@ -254,11 +429,36 @@ The two cases below are a **pair**, and neither proves the rule alone: they
 are the same program with different line endings, and the rule is that they
 report identically.
 
-    interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Newline
     unit         Scan Comment Ends At Newline
-    conformance  0006-line-endings-lf.a24
-    conformance  0006-line-endings-crlf.a24
+
+##### conformance/0006-line-endings-lf.a24
+
+```algol24
+var A := 1;
+var B := 2;
+$
+```
+
+```console
+$ algc conformance/0006-line-endings-lf.a24
+Uncaught: [line 3] Error: Unexpected character: $
+exit: 70
+```
+
+##### conformance/0006-line-endings-crlf.a24
+
+```algol24
+var A := 1;
+var B := 2;
+$
+```
+
+```console
+$ algc conformance/0006-line-endings-crlf.a24
+Uncaught: [line 3] Error: Unexpected character: $
+exit: 70
+```
 
 **[SRC-007]**  Any **other** `#13` is not a terminator. In source it is
 whitespace [SRC-008]; in data it is ordinary text that `ReadLn` returns
@@ -282,9 +482,25 @@ at the cost of changing how `ReadLn` splits data — so a program reading text
 with embedded `#13` bytes that are not line endings would start dividing it
 differently.
 
-    interpreter  compiler/Scanner.a24  ScanToken
-    conformance  0007-carriage-return-only.a24
-    conformance  0009-comment-swallows-a-cr-only-file.a24
+##### conformance/0007-carriage-return-only.a24
+
+```algol24
+
+```
+
+```console
+$ algc conformance/0007-carriage-return-only.a24
+```
+
+##### conformance/0009-comment-swallows-a-cr-only-file.a24
+
+```algol24
+
+```
+
+```console
+$ algc conformance/0009-comment-swallows-a-cr-only-file.a24
+```
 
 > A file with CRLF endings and the same file with LF endings report identical
 > line numbers. A lone `#13` between two statements separates them as any other
@@ -293,22 +509,62 @@ differently.
 **[SRC-008]**  Whitespace is the space, `#9` and `#13`. It separates tokens and
 is otherwise insignificant.
 
-    interpreter  compiler/Scanner.a24  ScanToken
-    conformance  0003-line-termination.a24
+##### conformance/0003-line-termination.a24
+
+```algol24
+// #10 ends a line; space and #9 separate tokens and mean nothing else.
+var	A	:=	1;
+var   B   :=   2;
+WriteLn (A + B);
+```
+
+```console
+$ algc conformance/0003-line-termination.a24
+3
+```
 
 **[SRC-009]**  The final line of a file need not be terminated.
 
-    interpreter  compiler/Scanner.a24  IsAtEnd
-    conformance  0004-final-line-need-not-be-terminated.a24
+##### conformance/0004-final-line-need-not-be-terminated.a24
+
+```algol24
+WriteLn ('first');
+WriteLn ('last, with no terminator after it');
+```
+
+```console
+$ algc conformance/0004-final-line-need-not-be-terminated.a24
+first
+last, with no terminator after it
+```
 
 ### 3.4 Case
 
 **[SRC-010]**  Keywords are matched case-insensitively. `begin`, `Begin` and
 `BEGIN` are the same keyword.
 
-    interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Keywords
-    conformance  0005-keywords-are-case-insensitive.a24
+
+##### conformance/0005-keywords-are-case-insensitive.a24
+
+```algol24
+BEGIN
+    WriteLn ('upper');
+END
+Begin
+    WriteLn ('mixed');
+End
+begin
+    WriteLn ('lower');
+end
+```
+
+```console
+$ algc conformance/0005-keywords-are-case-insensitive.a24
+upper
+mixed
+lower
+```
 
 **[SRC-011]**  Identifiers are matched **case-insensitively**, as keywords are.
 `Xyz` and `xyz` are one name, and declaring both in one scope is a duplicate
@@ -336,10 +592,71 @@ messages echo the key: a program writing `Shared` was told about `shared`, a
 unit spelled `Deep` was reported as `deep`. A message names the occurrence the
 program wrote.
 
-    interpreter  compiler/Token.a24        FoldCase
-    interpreter  compiler/Environment.a24  Get
-    conformance  0126-identifiers-are-case-insensitive.a24
-    refusal      0036-case-insensitive-duplicate.a24
+##### conformance/0126-identifiers-are-case-insensitive.a24
+
+```algol24
+// A variable.
+var Total := 0;
+TOTAL := total + 5;
+WriteLn (ToTaL);
+
+// A field and a method, including the implicit 'this' path inside a method.
+class Box;
+var Value : Integer;
+begin
+    constructor Init (V : Integer); begin this.VALUE := V; end
+    function Doubled (); begin Exit value * 2; end
+end
+
+var B := Box (21);
+WriteLn (B.DOUBLED ());
+WriteLn (b.value);
+
+// A function.
+function Greet (Who : String); begin Exit 'hi ' + Who; end
+WriteLn (GREET ('you'));
+
+// An enumeration and its members.  ⚠️ The member still PRINTS as it was
+// declared -- only the lookup folds.
+type Colour = (Red, Green);
+WriteLn (COLOUR.red);
+WriteLn (GREEN);
+
+// ⚠️ A built-in member folds too, and this is the half the interpreter used to
+// get wrong: 'L.add' was 'Undefined property' interpreted and worked compiled,
+// so a program written against the compiler failed everywhere interpreted.
+var L := [1];
+L.add (2);
+WriteLn (L.LENGTH);
+
+var S := 'hi';
+WriteLn (S.Length);
+```
+
+```console
+$ algc conformance/0126-identifiers-are-case-insensitive.a24
+5
+42
+21
+hi you
+Red
+Green
+2
+2
+```
+
+##### refusals/0036-case-insensitive-duplicate.a24
+
+```algol24
+var Xyz := 1;
+var xyz := 2;
+```
+
+```console
+$ algc refusals/0036-case-insensitive-duplicate.a24
+Uncaught: 'xyz' is already defined.
+exit: 70
+```
 
 **Folding is uniform**, as Pascal's is: a name is a name whether it is a
 keyword, a variable, a field, a method or a type [VAL-006]. A program may not
@@ -359,15 +676,31 @@ matched. See [MOD-002].
 **[LEX-001]**  A comment begins with `//` and runs to the end of the line, or to
 the end of the file if no `#10` follows. It is discarded and forms no token.
 
-    interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Comment
     unit         Scan Comment Ends At Newline
-    conformance  0011-comments.a24
+
+##### conformance/0011-comments.a24
+
+```algol24
+// A comment runs to the end of the line.
+WriteLn ('one');   // and may follow code on the same line
+/// LEX-002: three slashes are not a distinct form.  The scanner sees '//'
+/// followed by a comment whose first character is '/'.
+WriteLn ('two');
+//WriteLn ('never');
+WriteLn ('three');
+```
+
+```console
+$ algc conformance/0011-comments.a24
+one
+two
+three
+```
 
 **[LEX-002]**  `///` is not a distinct form. The scanner sees `//` followed by a
 comment whose first character is `/`, and treats it as any other comment.
 
-    interpreter  compiler/Scanner.a24  ScanToken
     conformance  0011-comments.a24
 
 > The project writes documentation comments as `///` by convention, and tools
@@ -378,8 +711,18 @@ comment whose first character is `/`, and treats it as any other comment.
 [SRC-002]; the parenthesis form scans as a `(` followed by a `*`, which is not
 a prefix operator, and fails with `Expect expression!`.
 
-    interpreter  compiler/Scanner.a24  ScanToken
-    refusal      0002-block-comment-braces.a24
+##### refusals/0002-block-comment-braces.a24
+
+```algol24
+{ this is not a comment }
+WriteLn ('never reached');
+```
+
+```console
+$ algc refusals/0002-block-comment-braces.a24
+Uncaught: [line 1] Error: Unexpected character: }
+exit: 70
+```
 
 ### 4.2 Tokens
 
@@ -387,25 +730,104 @@ a prefix operator, and fails with `Expect expression!`.
 or item of punctuation. Whitespace and comments separate tokens and are
 otherwise discarded.
 
-    interpreter  compiler/Scanner.a24  ScanTokens
     unit         Scan Tokens
-    conformance  0017-tokens-and-separation.a24
+
+##### conformance/0017-tokens-and-separation.a24
+
+```algol24
+// Whitespace and comments SEPARATE tokens and are otherwise discarded, so the
+// same expression written densely and written spaciously is one token stream.
+var Dense := 1+2*3;
+var Loose :=   1    // a comment between two tokens
+    +
+    2  *  3 ;
+
+WriteLn (Dense);
+WriteLn (Loose);
+WriteLn (Dense = Loose);
+```
+
+```console
+$ algc conformance/0017-tokens-and-separation.a24
+7
+7
+true
+```
 
 **[LEX-005]**  Where a shorter and a longer token both match, the longer is
 taken. `<` followed by `>` is one `<>`; `<` followed by anything else is a `<`
 on its own.
 
-    interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Less Is Not Greedy
-    conformance  0012-operators.a24
+
+##### conformance/0012-operators.a24
+
+```algol24
+// LEX-012: the operators and punctuation.
+WriteLn (5 + 3);
+WriteLn (5 - 3);
+WriteLn (5 * 3);
+WriteLn (15 / 3);
+
+// LEX-013: '=' compares, ':=' assigns, '<>' is inequality.  There is no '=='.
+var A := 5;
+WriteLn (A = 5);
+WriteLn (A <> 5);
+
+// LEX-005: the longer token wins.  '<=' is one token, and '<' followed by
+// something that is not '>' or '=' is a '<' on its own.
+WriteLn (3 <= 3);
+WriteLn (3 <  4);
+WriteLn (3 >= 3);
+WriteLn (3 >  2);
+
+// LEX-014: the word operators.
+WriteLn (True and True);
+WriteLn (True or False);
+WriteLn (not False);
+WriteLn (5 is Integer);
+WriteLn ('a' in ['a', 'b']);
+```
+
+```console
+$ algc conformance/0012-operators.a24
+8
+2
+15
+5
+true
+false
+true
+true
+true
+true
+true
+true
+true
+true
+true
+```
 
 > `<<><=<` scans as `<`, `<>`, `<=`, `<` — four tokens.
 
 **[LEX-006]**  There is no automatic semicolon insertion. A line ending is
 whitespace and never stands in for a `;`.
 
-    interpreter  compiler/Scanner.a24  ScanToken
-    refusal      0004-no-semicolon-insertion.a24
+##### refusals/0004-no-semicolon-insertion.a24
+
+```algol24
+WriteLn (1)
+WriteLn (2)
+```
+
+```console
+$ algc refusals/0004-no-semicolon-insertion.a24
+Uncaught: Expect ';' after expression.
+[ERROR] refusals/0004-no-semicolon-insertion.a24: Expect ';' after expression.
+[ERROR] 1 | WriteLn (1)
+[ERROR]   |           ^
+exit: 70
+```
 
 ### 4.3 Identifiers
 
@@ -420,19 +842,70 @@ identifier = letter { letter | decimal_digit | identifier_mark } .
 `Gate?`, `Send!`, `_under` and `a1b2` are identifiers. `Ready?Set` is one
 identifier too: a mark does not end a word.
 
-    interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Identifier
     unit         Scan Identifier With A Question Mark
-    conformance  0010-identifier-forms.a24
-    conformance  0120-identifier-marks.a24
+
+##### conformance/0010-identifier-forms.a24
+
+```algol24
+// A letter, then letters, digits and identifier marks in any mixture.
+var Gate?  := 1;
+var _under := 2;
+var a1b2   := 4;
+
+// A mark does not end a word: Ready?Set is ONE identifier, not three tokens.
+var Ready?Set := 8;
+
+WriteLn (Gate? + _under + a1b2 + Ready?Set);
+
+// ⚠️ The '!' mark is NOT exercised here.  LEX-007 admits it and the scanner
+// does not, so a program using it is refused -- that half of the rule is
+// tracked by DEF-03 and cannot be a commitment the implementation meets.
+```
+
+```console
+$ algc conformance/0010-identifier-forms.a24
+15
+```
+
+##### conformance/0120-identifier-marks.a24
+
+```algol24
+var Gate?     := 1;
+var Send!     := 2;
+var _under    := 4;
+var a1b2      := 8;
+var Ready?Set := 16;
+
+WriteLn (Gate? + Send! + _under + a1b2 + Ready?Set);
+
+// A mark does not end a word, and either may appear more than once.
+var Both?!    := 32;
+WriteLn (Both?!);
+```
+
+```console
+$ algc conformance/0120-identifier-marks.a24
+31
+32
+```
 
 **[LEX-008]**  An identifier mark may not **begin** an identifier. `?` and `!`
 alone are not identifiers, and neither are `?abc` and `!abc`: the mark is
 refused as an unexpected character [SRC-002], because nothing else in the
 language claims it.
 
-    interpreter  compiler/Scanner.a24  IsMark
-    refusal      0032-a-mark-may-not-begin-an-identifier.a24
+##### refusals/0032-a-mark-may-not-begin-an-identifier.a24
+
+```algol24
+var ? := 7;
+```
+
+```console
+$ algc refusals/0032-a-mark-may-not-begin-an-identifier.a24
+Uncaught: [line 1] Error: Unexpected character: ?
+exit: 70
+```
 
 > The rule exists so that `Gate?` can be one word without `?` also becoming a
 > name. A trailing mark reads as punctuation on a word; a leading one reads as
@@ -442,9 +915,22 @@ language claims it.
 case, because the keyword is recognized first. `var begin := 7;` and
 `var BEGIN := 7;` are both refused with `Expect variable name.`
 
-    interpreter  compiler/Scanner.a24  ScanIdentifier
     unit         Scan Keywords
-    refusal      0003-keyword-is-not-a-name.a24
+
+##### refusals/0003-keyword-is-not-a-name.a24
+
+```algol24
+var begin := 7;
+```
+
+```console
+$ algc refusals/0003-keyword-is-not-a-name.a24
+Uncaught: Expect variable name.
+[ERROR] refusals/0003-keyword-is-not-a-name.a24: Expect variable name.
+[ERROR] 1 | var begin := 7;
+[ERROR]   | ^^^
+exit: 70
+```
 
 ### 4.4 Keywords
 
@@ -468,19 +954,65 @@ may be declared as a name.
 [STM-022]. Neither was part of the language, and `var print := 7;` was refused
 with `Expect variable name.`
 
-    interpreter  compiler/Scanner.a24  Keywords
     unit         Scan Keywords
-    conformance  0133-print-is-an-ordinary-name.a24
+
+##### conformance/0133-print-is-an-ordinary-name.a24
+
+```algol24
+var print := 7;
+WriteLn (print);
+
+print := print + 1;
+WriteLn (print);
+
+class Printer;
+var print : Integer;
+begin
+end
+
+var P := Printer ();
+P.print := 3;
+WriteLn (P.print);
+
+function Emit (print : String);
+begin
+    Exit 'got ' + print;
+end
+
+WriteLn (Emit ('it'));
+```
+
+```console
+$ algc conformance/0133-print-is-an-ordinary-name.a24
+7
+8
+3
+got it
+```
 
 **[LEX-011]**  `unit`, `test` and `on` are **not** keywords. They are ordinary
 identifiers that the grammar recognizes by position — `unit` opening a file,
 `test` before a block's quoted name, `on` introducing a handler — and each may
 be used as a variable name.
 
-    interpreter  compiler/Scanner.a24  Keywords
-    interpreter  compiler/Parser.a24   UnitHeader
     unit         Parse On Is Not A Keyword
-    conformance  0018-context-sensitive-words.a24
+
+##### conformance/0018-context-sensitive-words.a24
+
+```algol24
+// 'unit', 'test' and 'on' are not keywords.  The grammar recognizes them by
+// position, and each may be used as an ordinary name.
+var unit := 1;
+var test := 2;
+var on   := 4;
+
+WriteLn (unit + test + on);
+```
+
+```console
+$ algc conformance/0018-context-sensitive-words.a24
+7
+```
 
 > `var test := 7;` is a valid declaration, and so are the `unit` and `on`
 > forms. Verified in all three.
@@ -495,7 +1027,6 @@ be used as a variable name.
 <    <=   >    >=   <>
 ```
 
-    interpreter  compiler/Scanner.a24  ScanToken
     unit         Scan Operators
     conformance  0012-operators.a24
 
@@ -503,8 +1034,6 @@ be used as a variable name.
 There is no `==`, no `!=` and no `!` operator: negation is `not`, and `!` is an
 identifier mark [SRC-005] rather than punctuation.
 
-    interpreter  compiler/Scanner.a24   ScanToken
-    interpreter  compiler/TokenType.a24 TOKEN_ASSIGN
     unit         Scan Operators
     conformance  0012-operators.a24
 
@@ -514,7 +1043,6 @@ identifier mark [SRC-005] rather than punctuation.
 **[LEX-014]**  `and`, `or`, `not`, `in`, `is` and `as` are operators spelled as
 keywords rather than punctuation, and are subject to [SRC-010].
 
-    interpreter  compiler/Scanner.a24  Keywords
     unit         Scan Keywords
     conformance  0012-operators.a24
 
@@ -539,10 +1067,44 @@ The base prefix and the hexadecimal digits are matched **without regard to
 case**, as every other name in the language is [SRC-011]: `0XFF`, `0xff` and
 `0xFF` are one literal.
 
-    interpreter  compiler/Scanner.a24  ScanNumber
     unit         Scan Number
     unit         Scan Integer Is Not A Double
-    conformance  0013-integer-literals.a24
+
+##### conformance/0013-integer-literals.a24
+
+```algol24
+// LEX-015: a run of decimal digits.
+WriteLn (42);
+
+// LEX-017: leading zeros are permitted and carry no meaning -- 007 is seven,
+// not an octal.
+WriteLn (007);
+
+// LEX-019: there is no negative literal.  A leading '-' is the unary operator,
+// which is why '2-1' is a subtraction rather than two adjacent expressions.
+WriteLn (-5);
+WriteLn (2-1);
+
+// LEX-033: the largest Integer literal, and the largest that is accepted.
+WriteLn (2147483647);
+WriteLn (1234567890);
+
+// ⚠️ Because there is no negative literal, '-2147483648' is unary minus applied
+// to 2147483648 -- which LEX-033 refuses.  The most negative Integer therefore
+// cannot be written as a literal, and this is how it is reached instead.
+WriteLn (-2147483647 - 1);
+```
+
+```console
+$ algc conformance/0013-integer-literals.a24
+42
+7
+-5
+1
+2147483647
+1234567890
+-2147483648
+```
 
 **[LEX-016]**  There are three bases — decimal, hexadecimal `0x` and binary
 `0b` — and a digit separator `_`. A separator **separates two digits** and
@@ -578,14 +1140,67 @@ binary form, not for modernity.
 **A separator does not survive into the value**, so `1_000` and `1000` are
 the same literal and print alike.
 
-    interpreter  compiler/Scanner.a24  ScanNumber
-    conformance  0006-integer-bases-and-separators.a24
-    refusal      0151-a-separator-must-separate-digits.a24
+##### conformance/0006-integer-bases-and-separators.a24
+
+```algol24
+WriteLn (0xFF);
+WriteLn (0b1010);
+WriteLn (1_000_000);
+
+// ⚠️ The prefix and the hexadecimal digits fold [SRC-011], as every other name
+// in the language does.
+WriteLn (0xff = 0XFF);
+WriteLn (0B1010 = 0b1010);
+
+// A separator may stand between any two digits, in any base.
+WriteLn (0xFF_FF);
+WriteLn (0b1010_1010);
+WriteLn (1_0_0);
+
+WriteLn (1_000 = 1000);
+WriteLn (0x10 = 16);
+WriteLn (0b1010 is Integer);
+
+// ⚠️ '0x' is a prefix only when a digit of that base follows it.  A variable
+// named 'x' after a zero is still two things.
+var x := 5;
+WriteLn (0 + x);
+```
+
+```console
+$ algc conformance/0006-integer-bases-and-separators.a24
+255
+10
+1000000
+true
+true
+65535
+170
+100
+true
+true
+true
+5
+```
+
+##### refusals/0151-a-separator-must-separate-digits.a24
+
+```algol24
+WriteLn (100_);
+```
+
+```console
+$ algc refusals/0151-a-separator-must-separate-digits.a24
+Uncaught: Expect ')' after arguments.
+[ERROR] refusals/0151-a-separator-must-separate-digits.a24: Expect ')' after arguments.
+[ERROR] 1 | WriteLn (100_);
+[ERROR]   |          ^^^
+exit: 70
+```
 
 **[LEX-017]**  Leading zeros are permitted and carry no meaning. `007` is the
 integer 7, not an octal.
 
-    interpreter  compiler/Scanner.a24  ScanNumber
     conformance  0013-integer-literals.a24
 
 **[LEX-018]**  An Integer is **unbounded**. Arithmetic never overflows: a result
@@ -628,16 +1243,111 @@ answers it. A subscript, a `Buffer` offset, a code point and an exit status all
 need a number C can hold, so each asks for one and gets a diagnostic naming the
 value rather than a truncation.
 
-    interpreter  compiler/Interpreter.a24  VisitBinary
-    compiler     bootstrap/algol.c         alg_add
-    conformance  0041-integers-grow.a24
-    conformance  0136-integer-range.a24
+##### conformance/0041-integers-grow.a24
+
+```algol24
+WriteLn (2147483647 + 1);
+WriteLn (9223372036854775807 + 1);
+WriteLn (9223372036854775807 * 9223372036854775807);
+
+// ⚠️ It DEMOTES.  A result that fits is an ordinary Integer again, so one value
+// never has two representations and '=' , hashing and Map keys agree.
+var Huge := 9223372036854775807 * 9223372036854775807;
+
+WriteLn (Huge / 9223372036854775807 = 9223372036854775807);
+WriteLn ((9223372036854775807 + 1) - 1 = 9223372036854775807);
+WriteLn (Huge / Huge);
+WriteLn (Huge / Huge is Integer);
+
+// Factorials are the ordinary reason to want this.
+function Fact (N);
+begin
+    var R := 1;
+    for var I := 1; I <= N; I := I + 1 do R := R * I;
+    Exit R;
+end
+
+WriteLn (Fact (25));
+WriteLn (Fact (30) / Fact (29));
+
+// ⚠️ There is still no negative literal [LEX-019], so a large negative value is
+// the unary operator applied to a large positive one -- which now works.
+WriteLn (-9223372036854775808);
+WriteLn (0 - Huge < 0);
+
+// Truncation toward zero, both signs [EXP-004], and a remainder that takes the
+// sign of the dividend.
+WriteLn (Huge / 1000000000000000000000);
+WriteLn ((0 - Huge) / 1000000000000000000000);
+WriteLn (Mod (Huge, 1000000000000000000000));
+WriteLn (Mod (0 - Huge, 1000000000000000000000));
+
+// It is an Integer, by every question the language can ask.
+WriteLn (Huge is Integer);
+WriteLn (Val (Str (Huge)) = Huge);
+```
+
+```console
+$ algc conformance/0041-integers-grow.a24
+2147483648
+9223372036854775808
+85070591730234615847396907784232501249
+true
+true
+1
+true
+15511210043330985984000000
+30
+-9223372036854775808
+true
+85070591730234615
+-85070591730234615
+847396907784232501249
+-847396907784232501249
+true
+true
+```
+
+##### conformance/0136-integer-range.a24
+
+```algol24
+WriteLn (2147483646 + 1);
+WriteLn (-2147483647 - 1);
+WriteLn (46340 * 46340);
+WriteLn (2147483647 / 1);
+WriteLn (-(-2147483647));
+
+// ⚠️ This was once the ONLY way to write the most negative 32-bit Integer,
+// because a literal could not exceed 2147483647 and there is no negative
+// literal [LEX-019].  It is now an ordinary subtraction of two ordinary
+// numbers, and '-2147483648' is writable directly.
+WriteLn (-2147483647 - 1);
+WriteLn (-2147483648);
+
+// ⚠️ A Double is NOT unbounded, and that asymmetry is deliberate: it follows
+// IEEE 754, so 1.0 / 0 is Infinity [EXP-006] rather than an error, and a mixed
+// expression is Double arithmetic.  conformance/0047 pins the division.
+WriteLn (1.0 / 0 > 0);
+WriteLn (2147483647 + 1.0);
+```
+
+```console
+$ algc conformance/0136-integer-range.a24
+2147483647
+-2147483648
+2147395600
+2147483647
+2147483647
+-2147483648
+-2147483648
+true
+2.147483648E9
+```
 
 **[LEX-019]**  There is no negative literal. A leading `-` is the unary
 operator applied to a non-negative literal, which is why `2-1` is a
 subtraction rather than two adjacent expressions.
 
-    interpreter  compiler/Scanner.a24  ScanToken
     conformance  0013-integer-literals.a24
 
 ### 4.7 Double literals
@@ -649,17 +1359,44 @@ of the point, or an exponent [LEX-022] in place of the point.
 double_lit = decimal_lit "." decimal_lit [ exponent ] | decimal_lit exponent .
 ```
 
-    interpreter  compiler/Scanner.a24  ScanNumber
     unit         Scan Number Decimal
-    conformance  0014-double-literals.a24
+
+##### conformance/0014-double-literals.a24
+
+```algol24
+// A double literal needs at least one digit on BOTH sides of the point.
+WriteLn (1.5);
+WriteLn (1.0);
+WriteLn (0.25);
+```
+
+```console
+$ algc conformance/0014-double-literals.a24
+1.5
+1.0
+0.25
+```
 
 **[LEX-021]**  `1.` is therefore not a double. It is the integer `1` followed
 by the `.` operator, and a program containing it fails with `Expect property
 name after '.'.` Likewise `.5` is not a literal at all.
 
-    interpreter  compiler/Scanner.a24  ScanNumber
     unit         Scan Integer Then Dot
-    refusal      0005-trailing-dot-is-not-a-double.a24
+
+##### refusals/0005-trailing-dot-is-not-a-double.a24
+
+```algol24
+WriteLn (1.);
+```
+
+```console
+$ algc refusals/0005-trailing-dot-is-not-a-double.a24
+Uncaught: Expect property name after '.'.
+[ERROR] refusals/0005-trailing-dot-is-not-a-double.a24: Expect property name after '.'.
+[ERROR] 1 | WriteLn (1.);
+[ERROR]   |           ^
+exit: 70
+```
 
 **[LEX-022]**  A literal may carry an exponent, and one that does is a Double
 whether or not it has a point.
@@ -684,8 +1421,47 @@ program the way the program wrote it out.
 holds: there is no negative literal, and `-1e5` is the unary operator applied to
 one. The `-` inside `1e-5` is part of the exponent and is not that operator.
 
-    interpreter  compiler/Scanner.a24  ScanNumber
-    conformance  0007-exponent-notation.a24
+##### conformance/0007-exponent-notation.a24
+
+```algol24
+WriteLn (1e5);
+WriteLn (1e5 is Double);
+WriteLn (1.5e-3);
+WriteLn (2e+3);
+
+// Either case, as every other name in the language folds [SRC-011].
+WriteLn (1E5 = 1e5);
+
+// ⚠️ The round trip through the source, which is the point of the rule.
+var Big := 1.0E300;
+WriteLn (Str (Big));
+WriteLn (Val (Str (Big)) = Big);
+
+// ⚠️ The sign belongs to the EXPONENT.  [LEX-019] still holds -- there is no
+// negative literal -- so the '-' in front is the unary operator and the one
+// inside is not.
+WriteLn (-1e2);
+WriteLn (1e-2);
+
+// ⚠️ 'e' followed by anything but an exponent is still an identifier, so this
+// is a number and a name, not a malformed literal.
+var eight := 8;
+WriteLn (1 + eight);
+```
+
+```console
+$ algc conformance/0007-exponent-notation.a24
+100000.0
+true
+0.0015
+2000.0
+true
+1.0E300
+true
+-100.0
+0.01
+9
+```
 
 ### 4.8 Character literals
 
@@ -711,7 +1487,6 @@ Ord ('''')     →  Ord failed: ''' has no ordinal.
 measured it in *bytes* — so `''''` was a String and `'é'` a String of length 2.
 One line decided both, which is why they were corrected together.
 
-    interpreter  compiler/Scanner.a24  ScanString
     unit         Scan One Character Is A Char
     conformance  0128-text-is-characters.a24
 
@@ -729,10 +1504,34 @@ char_lit = "'" ( source_character_other_than_quote | "''" ) "'"
 with a quote — and are not meant to be. [LEX-023] decides between them by
 counting the characters the literal denotes.
 
-    interpreter  compiler/Scanner.a24  ScanChar
     unit         Scan Char By Code Point
     unit         Scan Char Without Digits
-    conformance  0015-char-literals.a24
+
+##### conformance/0015-char-literals.a24
+
+```algol24
+// LEX-024: '#' followed by decimal digits is the character with that code
+// point.
+WriteLn (#65);
+WriteLn (#65 is Char);
+Write   ('a');
+Write   (#10);
+
+// LEX-026: a Char and a String are never equal, however alike they look.
+// Both sides of the first comparison are Chars.  Copy yields a String of
+// length one, which the Char 'a' is not.
+WriteLn ('a' = 'a');
+WriteLn (Copy ('abc', 0, 1) = 'a');
+```
+
+```console
+$ algc conformance/0015-char-literals.a24
+A
+true
+a
+true
+false
+```
 
 **[LEX-025]**  A Char is a Unicode code point: 0 … 10FFFF, excluding the
 surrogate range D800 … DFFF, which encodes no character. A `#` literal outside
@@ -744,17 +1543,23 @@ possibly several bytes — and `alg_char_value` is the single place that encodes
 it, so the two processors agree by construction rather than by both being
 restricted to what a byte can hold.
 
-    interpreter  compiler/Scanner.a24  ScanChar
-    compiler     bootstrap/algol.c     alg_char
-    refusal      0038-char-out-of-range.a24
+##### refusals/0038-char-out-of-range.a24
+
+```algol24
+WriteLn (#1114112);
+```
+
+```console
+$ algc refusals/0038-char-out-of-range.a24
+Uncaught: [line 1] Error: Char is limited to 0..10FFFF, excluding D800..DFFF: #1114112
+exit: 70
+```
 
 **[LEX-026]**  A Char and a String are never equal, however alike they look.
 `'a' = 'a'` is true because both sides are Chars; `Copy('abc', 0, 1) = 'a'` is
 **false**, because `Copy` yields a String of length one and the Char `'a'` is
 not it.
 
-    interpreter  compiler/Interpreter.a24  IsEqual
-    compiler     bootstrap/algol.c         equals
     conformance  0015-char-literals.a24
 
 ### 4.9 String literals
@@ -766,16 +1571,48 @@ is written twice.
 string_lit = "'" { source_character_other_than_quote | "''" } "'" .
 ```
 
-    interpreter  compiler/Scanner.a24  ScanString
     unit         Scan String
     unit         Scan Doubled Quote
-    conformance  0016-string-literals.a24
+
+##### conformance/0016-string-literals.a24
+
+```algol24
+// LEX-027: single quotes, and a quote within is written twice.
+WriteLn ('it''s');
+
+// LEX-029: '' is the empty String -- zero characters, and there is no empty
+// Char.
+WriteLn (Length (''));
+WriteLn ('' is String);
+
+// ⚠️ '''' is NOT exercised here.  LEX-029 makes it the Char holding a quote and
+// the implementation makes it a String of length one, so it is DEF-32's and
+// cannot be a commitment this case pins.
+
+// LEX-028: no backslash escapes.  This is four characters and the one at
+// index 1 is the backslash itself.
+WriteLn (Length ('a\nb'));
+WriteLn ('a\nb'[1]);
+
+// LEX-030: a literal may span lines, and the line feed is part of the value.
+WriteLn (Length ('one
+two'));
+```
+
+```console
+$ algc conformance/0016-string-literals.a24
+it's
+0
+true
+4
+\
+7
+```
 
 **[LEX-028]**  There are no backslash escapes. `'a\nb'` is four characters, and
 its element at index 1 is the backslash itself. A line feed is written `#10` and
 concatenated.
 
-    interpreter  compiler/Scanner.a24  ScanString
     conformance  0016-string-literals.a24
 
 **[LEX-029]**  `''` is the empty String — zero characters, and there is no
@@ -796,16 +1633,36 @@ measurement rather than a way of writing anything. Once a Char widens to a
 String at an assignment context [VAR-004], `var S : String := 'a';` is how one
 is written, and it works for every character alike.
 
-    interpreter  compiler/Scanner.a24  ScanString
     unit         Scan Empty String
     unit         Scan An Escaped Quote Is A Char
     conformance  0016-string-literals.a24
-    conformance  0130-a-doubled-quote-is-a-char.a24
+
+##### conformance/0130-a-doubled-quote-is-a-char.a24
+
+```algol24
+WriteLn ('''' is Char);
+WriteLn (#39 is Char);
+WriteLn ('''' = #39);
+WriteLn (Ord (''''));
+
+// '' is the empty String, and there is no empty Char [LEX-029].
+WriteLn ('' is String);
+WriteLn (Length (''));
+```
+
+```console
+$ algc conformance/0130-a-doubled-quote-is-a-char.a24
+true
+true
+true
+39
+true
+0
+```
 
 **[LEX-030]**  A string literal may span lines. The line feed is part of its
 value and advances the line count, so `'one` ⏎ `two'` is seven characters.
 
-    interpreter  compiler/Scanner.a24  ScanString
     conformance  0016-string-literals.a24
 
 **[LEX-031]**  A string that reaches the end of the file unclosed is an error
@@ -816,9 +1673,27 @@ A quote closes the string before it. A file with several stray quotes
 therefore reports the last *unpaired* one, which is the string that actually
 runs to the end.
 
-    interpreter  compiler/Scanner.a24  ScanString
     unit         Scan Unterminated String
-    conformance  0110-unterminated-string-line.a24
+
+##### conformance/0110-unterminated-string-line.a24
+
+```algol24
+var A := 1;
+var B := 2;
+
+WriteLn ('oops);
+
+var C := 3;
+var D := 4;
+var E := 5;
+var F := 6;
+```
+
+```console
+$ algc conformance/0110-unterminated-string-line.a24
+Uncaught: [line 4] Error: Unterminated string.
+exit: 70
+```
 
 **[LEX-032]**  `#0` is not a Char. A code point of 0 is refused exactly as an
 out-of-range one is [LEX-025], when the program is read.
@@ -831,9 +1706,17 @@ cannot scan.
 `Str(Char(0))` no longer truncates: a String carries its own length
 [SRC-001], so `Length('a' + Str(Char(0)) + 'b')` is 3.
 
-    interpreter  compiler/Scanner.a24  ScanChar
-    compiler     bootstrap/algol.c     alg_char
-    refusal      0037-nul-char-literal.a24
+##### refusals/0037-nul-char-literal.a24
+
+```algol24
+WriteLn (#0 is Char);
+```
+
+```console
+$ algc refusals/0037-nul-char-literal.a24
+Uncaught: [line 1] Error: '#0' is not a Char.
+exit: 70
+```
     conformance  0131-a-string-holds-a-zero-character.a24
 
 > Refusing `#0` is the smaller of the two available fixes and matches the range
@@ -857,23 +1740,95 @@ VarDecl = "var" identifier [ ":" Type ] [ ":=" Expression ] ";" .
 Type    = identifier [ "of" identifier ] .
 ```
 
-    interpreter  compiler/Parser.a24  VarDeclaration
     unit         Parse Var Statement
     unit         Parse Var Expect Semicolon
-    conformance  0019-declaration-forms.a24
+
+##### conformance/0019-declaration-forms.a24
+
+```algol24
+// VAR-001: a type and an initializer are each optional.
+var A;
+var B := 1;
+var C : Integer;
+var D : Integer := 2;
+
+WriteLn (A);
+WriteLn (B);
+WriteLn (C);
+WriteLn (D);
+
+// VAR-008: a collection may carry an element type.
+var L : List of Integer := [1, 2, 3];
+WriteLn (L.Length);
+
+// ⚠️ Only the List form is exercised.  VAR-008 admits 'Map of', 'Set of' and
+// 'Array of' too, and the parser refuses all three -- that half is DEF-11 and
+// cannot be a commitment the implementation meets.
+```
+
+```console
+$ algc conformance/0019-declaration-forms.a24
+nil
+1
+nil
+2
+3
+```
 
 **[VAR-002]**  A variable declared without an initializer holds `nil`, whatever
 its declared type. **There is no zero value**: an uninitialized `Integer` is
 `nil`, not `0`.
 
-    interpreter  compiler/Interpreter.a24  VisitVarStmt
-    conformance  0022-no-zero-value.a24
+##### conformance/0022-no-zero-value.a24
+
+```algol24
+// VAR-002: a variable declared without an initializer holds nil, whatever its
+// declared type.  There is no zero value -- an uninitialized Integer is nil,
+// not 0.
+var N : Integer;
+var S : String;
+var B : Boolean;
+
+WriteLn (N);
+WriteLn (S);
+WriteLn (B);
+WriteLn (N = nil);
+
+// VAR-005: nil satisfies every declared type, which is what makes the above
+// consistent rather than a special case.
+var Explicit : Integer := nil;
+WriteLn (Explicit = nil);
+```
+
+```console
+$ algc conformance/0022-no-zero-value.a24
+nil
+nil
+nil
+true
+true
+```
 
 **[VAR-003]**  A declared type constrains the initializer and every later
 assignment. A violation is the error `Type mismatch!`
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    refusal      0008-declared-type-constrains.a24
+##### refusals/0008-declared-type-constrains.a24
+
+```algol24
+WriteLn ('this line never runs');
+
+var X : Integer := 1;
+X := 'text';
+```
+
+```console
+$ algc refusals/0008-declared-type-constrains.a24
+Uncaught: Expected Integer, found String.
+[ERROR] refusals/0008-declared-type-constrains.a24: Expected Integer, found String.
+[ERROR] 4 | X := 'text';
+[ERROR]   | ^
+exit: 70
+```
 
 **[VAR-004]**  A value **widens** to reach a written type, and is converted at
 the point it arrives. There are two widening pairs:
@@ -890,9 +1845,84 @@ A plain assignment and a field reached this **last**, and `D := 1` used to
 leave `D` holding an Integer — a declaration describing something the variable
 did not hold.
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  0025-operators-widen.a24
-    conformance  0140-widening-at-every-context.a24
+##### conformance/0025-operators-widen.a24
+
+```algol24
+// Integer widens to Double.
+WriteLn (1 + 1.5);
+
+// Char widens to String, in either position.
+WriteLn ('a' + 'bc');
+WriteLn ('ab' + 'c');
+
+// And two Chars concatenate to a String of two characters rather than staying
+// Chars or summing their code points.
+WriteLn ('a' + 'b');
+WriteLn (Length ('a' + 'b'));
+WriteLn (('a' + 'b') is String);
+```
+
+```console
+$ algc conformance/0025-operators-widen.a24
+2.5
+abc
+abc
+ab
+2
+true
+```
+
+##### conformance/0140-widening-at-every-context.a24
+
+```algol24
+// A declaration and a const.
+var A : Double := 1;
+const C : Double := 2;
+WriteLn (A);
+WriteLn (C);
+
+// A plain assignment, which used to leave an Integer in a Double.
+var B : Double := 0.0;
+B := 1;
+WriteLn (B);
+
+// A parameter and a declared return type.
+function F (X : Double) : Double; begin Exit X; end
+WriteLn (F (1));
+
+// A field, through a constructor and through an initializer.
+class K;
+var Field : Double;
+var Seeded : Double := 3;
+begin
+    constructor Init (); begin this.Field := 1; end
+end
+
+var Instance := K ();
+WriteLn (Instance.Field);
+WriteLn (Instance.Seeded);
+
+// And from outside the class.
+Instance.Field := 4;
+WriteLn (Instance.Field);
+
+// Char widens to String at the same six contexts.
+var S : String := 'a';
+S := 'b';
+WriteLn (S + '!');
+```
+
+```console
+$ algc conformance/0140-widening-at-every-context.a24
+1.0
+2.0
+1.0
+1.0
+1.0
+3.0
+4.0
+b!
+```
 
 **[VAR-017]**  Widening applies wherever a value meets a written type — the six
 **assignment contexts**, and nowhere else:
@@ -923,8 +1953,6 @@ the checker's own tests catch.
 target type*, and an `=` supplies none — it would have to invent one, and
 "convert when the sides differ" is the rule that makes `=` unpredictable.
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    interpreter  compiler/Interpreter.a24  VisitAssignExpr
     conformance  0140-widening-at-every-context.a24
 
 **[VAR-018]**  Narrowing is refused in every one of those contexts.
@@ -932,14 +1960,24 @@ target type*, and an `=` supplies none — it would have to invent one, and
 how to lose the fraction is not a decision a declaration should make silently.
 `var C : Char := 'ab';` is refused for the same reason.
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    refusal      0014-no-implicit-narrowing.a24
+##### refusals/0014-no-implicit-narrowing.a24
+
+```algol24
+var X : Integer := 1.5;
+```
+
+```console
+$ algc refusals/0014-no-implicit-narrowing.a24
+Uncaught: Expected Integer, found Double.
+[ERROR] refusals/0014-no-implicit-narrowing.a24: Expected Integer, found Double.
+[ERROR] 1 | var X : Integer := 1.5;
+[ERROR]   |     ^
+exit: 70
+```
 
 **[VAR-005]**  `nil` satisfies every declared type, so `var X : Integer := nil;`
 is accepted.
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    compiler     bootstrap/algol.c         alg_is
     conformance  0022-no-zero-value.a24
 
 **[VAR-006]**  `Any` is the declared type meaning *not known*. A variable
@@ -984,10 +2022,128 @@ leftover `String` from another function's `C` makes a correct program fail to
 check — the one kind of wrong answer that is not harmless. `Generics` was made
 scoped for exactly this reason and the pattern was copied.
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  0020-any-accepts-every-value.a24
-    conformance  0141-inference-carries-a-type.a24
-    refusal      0048-assignment-escapes-the-type.a24
+##### conformance/0020-any-accepts-every-value.a24
+
+```algol24
+// A variable declared Any accepts every value, and accepts a different kind of
+// value later.
+var X : Any := 1;
+WriteLn (X);
+
+X := 'text';
+WriteLn (X);
+
+X := [1, 2];
+WriteLn (X.Length);
+
+// Writing no type at all is permissive in the same way.  The rule in VAR-006
+// bites only where a type WAS written down.
+var Y := 1;
+Y := 'text';
+WriteLn (Y);
+
+// ⚠️ The other direction -- Any into a written type, which VAR-006 refuses --
+// is exercised by refusals/0013 for the declaration.  The assignment form is
+// wrongly accepted today and is DEF-09.
+```
+
+```console
+$ algc conformance/0020-any-accepts-every-value.a24
+1
+text
+2
+text
+```
+
+##### conformance/0141-inference-carries-a-type.a24
+
+```algol24
+// A variable declared WITHOUT a type carries its deduced type into later
+// expressions.  This is what used to reduce to nothing.
+var Text := 'abcdef';
+var C := Copy (Text, 1, 1);
+var Result : String := '';
+Result := Result + C;
+WriteLn (Result);
+
+// ⚠️ A bare name inside a method may be a FIELD -- an implicit 'this.Field' --
+// and a field's type is registered under 'Class::Field'.  Looking for it bare
+// found nothing, which was the checker's largest blind spot.
+class Reader;
+var Source : String;
+var At : Integer;
+begin
+    constructor Init (S : String); begin this.Source := S; this.At := 0; end
+
+    function Next () : Char;
+    var
+        Ch : Char;
+    begin
+        Ch := Source[At];
+        At := At + 1;
+        Exit Ch;
+    end
+end
+
+var R := Reader ('hi');
+WriteLn (R.Next ());
+WriteLn (R.Next ());
+
+// A field declared on a PARENT is reached bare from a subclass's methods.
+class Base;
+var Tag : String := 'from the parent';
+begin
+    constructor Init (); begin end
+end
+
+class Derived (Base);
+begin
+    constructor Init (); begin end
+    function Read () : String;
+    var
+        T : String;
+    begin
+        T := Tag;
+        Exit T;
+    end
+end
+
+WriteLn (Derived ().Read ());
+
+// Writing no type stays permissive: an untyped variable accepts anything.
+var Anything := Untyped ();
+Anything := 5;
+WriteLn (Anything);
+
+function Untyped (); begin Exit 'x'; end
+```
+
+```console
+$ algc conformance/0141-inference-carries-a-type.a24
+b
+h
+i
+from the parent
+5
+```
+
+##### refusals/0048-assignment-escapes-the-type.a24
+
+```algol24
+function Untyped (); begin Exit 'xy'; end
+
+var S : String;
+S := Untyped ();
+```
+
+```console
+$ algc refusals/0048-assignment-escapes-the-type.a24
+Uncaught: Expected String, found an untyped expression.
+[ERROR] refusals/0048-assignment-escapes-the-type.a24: Expected String, found an untyped expression.
+[ERROR] 4 | S := Untyped ();
+[ERROR]   | ^
+exit: 70
+```
     defect       DEF-35-inference-stops-at-a-later-declaration.a24
 
 **[VAR-007]**  A name may not be declared twice in one scope. The second is
@@ -997,9 +2153,20 @@ refused with `'X' is already defined.`
 differ: they are overloads [FUN-013], selected between at the call. Two with the
 *same* signature are a duplicate like any other name.
 
-    interpreter  compiler/Resolver.a24  CheckDuplicates
     unit         Resolve Duplicate Variable
-    refusal      0009-no-redeclaration.a24
+
+##### refusals/0009-no-redeclaration.a24
+
+```algol24
+var X := 1;
+var X := 2;
+```
+
+```console
+$ algc refusals/0009-no-redeclaration.a24
+Uncaught: 'X' is already defined.
+exit: 70
+```
 
 **[VAR-008]**  A collection may carry an element type, written `of`:
 `var L : List of Integer := [];`. Every collection type accepts one — `List`,
@@ -1014,11 +2181,104 @@ two did not parse: `Items : List of Integer` was `Expect ')' after parameters.`
 and a return type stopped at the collection's name. Annex A's grammar has
 described both since it was written, and only the parser disagreed.
 
-    interpreter  compiler/Parser.a24  IsCollectionType
-    interpreter  compiler/Parser.a24  ParameterType
     conformance  0019-declaration-forms.a24
-    conformance  0121-element-type-on-every-collection.a24
-    conformance  0157-element-types-on-parameters.a24
+
+##### conformance/0121-element-type-on-every-collection.a24
+
+```algol24
+var L : List of Integer  := [1, 2];
+var M : Map of String    := [1 : 'one'];
+var S : Set of Integer   := Set ();
+var A : Array of Integer := Array (2);
+
+WriteLn (L.Length);
+WriteLn (M.Length);
+WriteLn (S.Length);
+WriteLn (A.Length);
+
+// ⚠️ For a Map the element type is the VALUE type, because that is what a
+// subscript and a Get yield.  A Map's keys are not constrained.
+var V : String := M[1];
+WriteLn (V);
+
+// And it still flows to a read on a List.
+var First : Integer := L[0];
+WriteLn (First);
+```
+
+```console
+$ algc conformance/0121-element-type-on-every-collection.a24
+2
+1
+0
+2
+one
+1
+```
+
+##### conformance/0157-element-types-on-parameters.a24
+
+```algol24
+function Total (Items : List of Integer) : Integer;
+begin
+    var Sum := 0;
+
+    for var I in Items do Sum := Sum + I;
+
+    Exit Sum;
+end
+
+WriteLn (Total ([1, 2, 3]));
+
+// A return type carries one too, and it flows to reads from the call.
+function Names () : List of String;
+begin
+    Exit ['alpha', 'beta'];
+end
+
+WriteLn (Names ().Get (1));
+WriteLn (Names ().Get (1).Length);
+
+// Every collection type accepts one [VAR-008].  For a Map it is the VALUE
+// type, since that is what Get yields.
+function Look (M : Map of Integer) : Integer;
+begin
+    Exit M.Get ('k');
+end
+
+WriteLn (Look (['k' : 5]));
+
+function Count (S : Set of String) : Integer;
+begin
+    Exit S.Length;
+end
+
+WriteLn (Count (Set (['a', 'b'])));
+
+// ⚠️ It is a source of types for READS and no constraint on writes [VAR-016],
+// exactly as it is on a var -- so a parameter's element type is what makes the
+// loop variable below an Integer rather than nothing.
+function Widths (Items : List of String) : Integer;
+begin
+    var Total := 0;
+
+    for var S in Items do Total := Total + S.Length;
+
+    Exit Total;
+end
+
+WriteLn (Widths (['ab', 'cde']));
+```
+
+```console
+$ algc conformance/0157-element-types-on-parameters.a24
+6
+beta
+4
+5
+2
+5
+```
 
 **[VAR-016]**  An element type is a **source of types for reads and a
 constraint on writes.** Given `var L : List of Integer`:
@@ -1055,16 +2315,211 @@ accepted because an Integer widens to a Double [VAR-004], and the element
 stored is the Integer `2`. Widening happens where a value reaches a *written
 type*, and an element is not one.
 
-    interpreter  compiler/TypeChecker.a24  CheckElement
-    conformance  0021-element-types-flow-to-reads.a24
-    conformance  0173-element-types-on-insertion.a24
-    refusal      0173-element-type-on-add.a24
-    refusal      0174-element-type-on-subscript.a24
-    refusal      0175-element-type-on-put.a24
-    refusal      0176-element-type-on-push.a24
-    refusal      0177-element-type-on-literal.a24
+##### conformance/0021-element-types-flow-to-reads.a24
 
-    interpreter  compiler/TypeChecker.a24  Reduce
+```algol24
+var L : List of Integer := [10, 20];
+
+// A subscript has the element type, and a loop variable takes it too.  Both
+// are visible here only as the absence of a complaint: were the element type
+// not flowing, neither line would type-check against Integer.
+var First : Integer := L[0];
+WriteLn (First);
+
+for var X in L do
+begin
+    var Doubled : Integer := X * 2;
+    WriteLn (Doubled);
+end
+
+// ⚠️ Insertion IS checked now, and this case predicted its own change: it used
+// to end 'L.Add (''not an integer'')' with a note saying that is what H-3 would
+// alter.  It altered it -- see 0173, which covers the five routes.
+L.Add (30);
+WriteLn (L.Length);
+WriteLn (L[2]);
+
+// ⚠️ A BARE 'List' is still unconstrained.  The element type is what does the
+// constraining, so declaring none declares no constraint -- which is why this
+// rule reads as being about the annotation rather than about collections.
+var Loose : List := [1];
+Loose.Add ('anything');
+WriteLn (Loose);
+```
+
+```console
+$ algc conformance/0021-element-types-flow-to-reads.a24
+10
+20
+40
+3
+30
+[1, anything]
+```
+
+##### conformance/0173-element-types-on-insertion.a24
+
+```algol24
+var L : List  of Integer := [1, 2];
+var M : Map   of Integer := [:];
+var S : Stack of Integer := Stack ();
+
+// Correct insertions, by every route.
+L.Add (3);
+L[0] := 9;
+M.Put ('key', 7);
+S.Push (4);
+
+WriteLn (L);
+WriteLn (M);
+WriteLn (S.Length);
+
+// ⚠️ It CHECKS and does not CONVERT.  An Integer widens to a Double [VAR-004]
+// so the insertion is accepted, and what is stored is the Integer -- widening
+// happens where a value reaches a written type, and an element is not one.
+var D : List of Double := [1.0];
+D.Add (2);
+WriteLn (D);
+
+// ⚠️ 'Put' constrains its SECOND argument.  A 'Map of T' declares the type of
+// what is stored, which is what 'M[K]' reads back; the key is not constrained.
+M.Put ('any key at all', 1);
+WriteLn (M.Length);
+
+// nil inhabits every type [VAR-005].
+L.Add (Nil);
+WriteLn (L);
+
+// A bare 'List' is unconstrained: the element type does the constraining, so
+// declaring none declares no constraint.
+var Loose : List := [1];
+Loose.Add ('anything');
+WriteLn (Loose);
+
+// So is a receiver with no declared type -- there is nowhere to have written an
+// element type, which is the same limit reading one has.
+var Inferred := [1];
+Inferred.Add ('anything');
+WriteLn (Inferred);
+```
+
+```console
+$ algc conformance/0173-element-types-on-insertion.a24
+[9, 2, 3]
+[key:7]
+1
+[1.0, 2]
+2
+[9, 2, 3, nil]
+[1, anything]
+[1, anything]
+```
+
+##### refusals/0173-element-type-on-add.a24
+
+```algol24
+var L : List  of Integer := [1, 2];
+var M : Map   of Integer := [:];
+var S : Stack of Integer := Stack ();
+
+WriteLn ('never reached');
+
+L.Add ('text');
+```
+
+```console
+$ algc refusals/0173-element-type-on-add.a24
+Uncaught: Expected Integer, found String.
+[ERROR] refusals/0173-element-type-on-add.a24: Expected Integer, found String.
+[ERROR] 7 | L.Add ('text');
+[ERROR]   |   ^^^
+exit: 70
+```
+
+##### refusals/0174-element-type-on-subscript.a24
+
+```algol24
+var L : List  of Integer := [1, 2];
+var M : Map   of Integer := [:];
+var S : Stack of Integer := Stack ();
+
+WriteLn ('never reached');
+
+L[0] := 'text';
+```
+
+```console
+$ algc refusals/0174-element-type-on-subscript.a24
+Uncaught: Expected Integer, found String.
+[ERROR] refusals/0174-element-type-on-subscript.a24: Expected Integer, found String.
+[ERROR] 7 | L[0] := 'text';
+[ERROR]   |  ^
+exit: 70
+```
+
+##### refusals/0175-element-type-on-put.a24
+
+```algol24
+var L : List  of Integer := [1, 2];
+var M : Map   of Integer := [:];
+var S : Stack of Integer := Stack ();
+
+WriteLn ('never reached');
+
+M.Put ('k', 'text');
+```
+
+```console
+$ algc refusals/0175-element-type-on-put.a24
+Uncaught: Expected Integer, found String.
+[ERROR] refusals/0175-element-type-on-put.a24: Expected Integer, found String.
+[ERROR] 7 | M.Put ('k', 'text');
+[ERROR]   |   ^^^
+exit: 70
+```
+
+##### refusals/0176-element-type-on-push.a24
+
+```algol24
+var L : List  of Integer := [1, 2];
+var M : Map   of Integer := [:];
+var S : Stack of Integer := Stack ();
+
+WriteLn ('never reached');
+
+S.Push ('text');
+```
+
+```console
+$ algc refusals/0176-element-type-on-push.a24
+Uncaught: Expected Integer, found String.
+[ERROR] refusals/0176-element-type-on-push.a24: Expected Integer, found String.
+[ERROR] 7 | S.Push ('text');
+[ERROR]   |   ^^^^
+exit: 70
+```
+
+##### refusals/0177-element-type-on-literal.a24
+
+```algol24
+var L : List  of Integer := [1, 2];
+var M : Map   of Integer := [:];
+var S : Stack of Integer := Stack ();
+
+WriteLn ('never reached');
+
+var Bad : List of Integer := ['text'];
+```
+
+```console
+$ algc refusals/0177-element-type-on-literal.a24
+Uncaught: Expected Integer, found String.
+[ERROR] refusals/0177-element-type-on-literal.a24: Expected Integer, found String.
+[ERROR] 7 | var Bad : List of Integer := ['text'];
+[ERROR]   |     ^^^
+exit: 70
+```
+
     conformance  0021-element-types-flow-to-reads.a24
 
 ### 5.2 Sections
@@ -1077,14 +2532,36 @@ next section marker or by `begin`.
 VarSection = "var" { identifier { "," identifier } [ ":" Type ] [ ":=" Expression ] ";" } .
 ```
 
-    interpreter  compiler/Parser.a24  DeclarationSection
     unit         Parse A Function Local Var Section
-    conformance  0023-sections.a24
+
+##### conformance/0023-sections.a24
+
+```algol24
+function F ();
+var
+    A, B : Integer;          // VAR-010: several names share one declaration
+    Tail : String := 'ok';   // ⚠️ 'ok', not 'o' -- a one-character literal is a
+const                        //    Char and would not satisfy String [LEX-023]
+    K := 10;                 // VAR-015: const opens a section on the same terms
+
+begin
+    A := 1;
+    B := 2;
+
+    Exit Str (A + B + K) + Tail;
+end
+
+WriteLn (F ());
+```
+
+```console
+$ algc conformance/0023-sections.a24
+13ok
+```
 
 **[VAR-010]**  Within a section several names may share one declaration:
 `A, B : Integer;` declares both.
 
-    interpreter  compiler/Parser.a24  DeclarationSection
     unit         Parse A Comma Group Stays A Group
     unit         Parse A Single Name Is Not A Group
     conformance  0023-sections.a24
@@ -1103,8 +2580,18 @@ being run, so a mistaken section on a path never taken is now silent. This is
 the price of a label needing no keyword, and it is the only place in the
 language where the two forms collide.
 
-    interpreter  compiler/Parser.a24  ReadDeclarationSections
-    refusal      0010-no-section-at-top-level.a24
+##### refusals/0010-no-section-at-top-level.a24
+
+```algol24
+var A : Integer;
+    B : String;
+```
+
+```console
+$ algc refusals/0010-no-section-at-top-level.a24
+Uncaught: Undefined variable 'String'.
+exit: 70
+```
 
 ### 5.3 Constants
 
@@ -1116,15 +2603,38 @@ value.`
 ConstDecl = "const" identifier [ ":" Type ] ":=" Expression ";" .
 ```
 
-    interpreter  compiler/Parser.a24  ConstDeclaration
     unit         Parse A Constant Must Be Given A Value
-    refusal      0011-const-must-be-given-a-value.a24
+
+##### refusals/0011-const-must-be-given-a-value.a24
+
+```algol24
+const C : Integer;
+```
+
+```console
+$ algc refusals/0011-const-must-be-given-a-value.a24
+Uncaught: A constant must be given a value.
+[ERROR] refusals/0011-const-must-be-given-a-value.a24: A constant must be given a value.
+[ERROR] 1 | const C : Integer;
+[ERROR]   |       ^
+exit: 70
+```
 
 **[VAR-013]**  A constant may not be assigned to. The attempt is refused with
 `Can't assign to constant 'C'.`
 
-    interpreter  compiler/Resolver.a24  VisitAssignExpr
-    refusal      0012-const-is-not-assignable.a24
+##### refusals/0012-const-is-not-assignable.a24
+
+```algol24
+const C := 1;
+C := 2;
+```
+
+```console
+$ algc refusals/0012-const-is-not-assignable.a24
+Uncaught: Can't assign to constant 'C'.
+exit: 70
+```
 
 **[VAR-014]**  A constant's initializer is an **ordinary expression evaluated
 at run time**, not a constant expression. `const C := 1 + 2;` is legal, and so
@@ -1134,13 +2644,37 @@ is `const C := V;` where `V` is a variable — the constant takes whatever value
 `const` therefore means *this binding may not be reassigned*, not *this value is
 known before the program runs*.
 
-    interpreter  compiler/Interpreter.a24  VisitVarStmt
-    conformance  0024-const-is-a-runtime-expression.a24
+##### conformance/0024-const-is-a-runtime-expression.a24
+
+```algol24
+// A constant's initializer is an ordinary expression evaluated when the
+// declaration runs, not a constant expression.
+const Computed := 1 + 2;
+WriteLn (Computed);
+
+// And it may read a variable, so a constant's value need not be known before
+// the program runs.  'const' means the BINDING may not be reassigned -- not
+// that the value is known in advance.
+var V := 9;
+const FromVariable := V;
+WriteLn (FromVariable);
+
+// Changing V afterwards does not change the constant: it took the value V held
+// at that moment.
+V := 100;
+WriteLn (FromVariable);
+```
+
+```console
+$ algc conformance/0024-const-is-a-runtime-expression.a24
+3
+9
+9
+```
 
 **[VAR-015]**  `const` may open a section on the same terms as `var`, and the
 two may appear together in one header.
 
-    interpreter  compiler/Parser.a24  DeclarationSection
     unit         Parse A Const Section
     unit         Parse Var And Const Sections Together
     conformance  0023-sections.a24
@@ -1166,9 +2700,63 @@ two may appear together in one header.
 cannot make one without calling C [TYP-017] and a conformance case must run in
 the default build. `0026` therefore names every row but that one.
 
-    interpreter  compiler/ObjFunction.a24  TypeNameOf
-    compiler     bootstrap/algol.c         alg_is
-    conformance  0026-the-runtime-types.a24
+##### conformance/0026-the-runtime-types.a24
+
+```algol24
+class Dog; begin end
+type Color = (Red, Green);
+
+// TYP-001: every runtime type answers 'is' to its own name.
+WriteLn (1        is Integer);
+WriteLn (1.5      is Double);
+WriteLn ('ab'     is String);
+WriteLn ('a'      is Char);
+WriteLn (True     is Boolean);
+WriteLn (Dog ()   is Dog);
+WriteLn (Red      is Color);
+WriteLn (List ()  is List);
+WriteLn (Set ()   is Set);
+WriteLn (Stack () is Stack);
+WriteLn (Array(2) is Array);
+WriteLn (Map ()   is Map);
+WriteLn (Buffer() is Buffer);
+WriteLn (TextFile() is TextFile);
+
+// 'Any' is a declaration, never a runtime type.
+WriteLn (1 is Any);
+
+// TYP-003: a one-character value is a Char, and stays one.  Widening moves a
+// Char into a String at an assignment context [VAR-017]; 'is' is not one, and
+// asks what the value IS rather than what it could become.
+WriteLn ('s' is String);
+WriteLn ('s' is Char);
+
+// TYP-002: the one compound form is a collection with an element type.
+var L : List of Integer := [1];
+WriteLn (L.Length);
+```
+
+```console
+$ algc conformance/0026-the-runtime-types.a24
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+false
+false
+true
+1
+```
 
 **[TYP-015]**  `Byte`, `Word` and `Short` are **subranges** of `Integer`, not
 types of their own. Each names a low and a high bound:
@@ -1216,9 +2804,85 @@ declared `Expr`. A *range* check cannot fire on
 that shape: it applies only when the declared name is a subrange and the value
 is already an Integer.
 
-    interpreter  compiler/Interpreter.a24  InSubrange
-    compiler     bootstrap/algol.c         in_subrange
-    conformance  0153-subranges.a24
+##### conformance/0153-subranges.a24
+
+```algol24
+var B : Byte := 200;
+
+WriteLn (B);
+WriteLn (B is Byte);
+
+// ⚠️ It is an Integer, and stays one.  Nothing is ever 'a Byte' -- a subrange
+// constrains a value where a type is written, and TYP-001 is unchanged.
+WriteLn (B is Integer);
+WriteLn (B + 1 is Integer);
+
+// ⚠️ 'is' on a subrange is a RANGE TEST, which is the program asking
+// explicitly.  What the language may not do is dispatch on a value silently.
+WriteLn (0 is Byte);
+WriteLn (255 is Byte);
+WriteLn (256 is Byte);
+WriteLn (-1 is Byte);
+WriteLn (32767 is Short);
+WriteLn (-32768 is Short);
+WriteLn (65535 is Word);
+
+// Only an Integer is ever within one.
+WriteLn (1.5 is Byte);
+WriteLn ('a' is Byte);
+
+// The bounds are checked at the assignment contexts [VAR-017].
+try
+    var Bad : Byte := 300;
+except
+    on e : String do WriteLn (e);
+end
+
+var C : Byte := 1;
+C := 250;
+WriteLn (C);
+
+try
+    C := 999;
+except
+    on e : String do WriteLn (e);
+end
+
+procedure Pixel (R : Byte, G : Byte);
+begin
+    WriteLn (Str (R) + ',' + Str (G));
+end
+
+Pixel (10, 20);
+
+try
+    Pixel (10, 300);
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0153-subranges.a24
+200
+true
+true
+true
+true
+true
+false
+false
+true
+true
+true
+false
+false
+300 is not in Byte.
+250
+999 is not in Byte.
+10,20
+300 is not in Byte.
+```
 
 **[TYP-016]**  A program declares a subrange of its own with `type`, giving a
 low and a high bound.
@@ -1255,9 +2919,78 @@ that can say why.
 character after the `=`: a `(` begins an enumeration [ENU-001], anything else a
 subrange. Both bind a name that denotes a type and neither binds a value.
 
-    interpreter  compiler/Parser.a24    SubrangeDeclaration
-    interpreter  compiler/Resolver.a24  VisitSubrangeStmt
-    conformance  0154-declared-subranges.a24
+##### conformance/0154-declared-subranges.a24
+
+```algol24
+type Digit   = 0 .. 9;
+type Celsius = -273 .. 1000;
+
+var D : Digit := 7;
+
+WriteLn (D);
+WriteLn (D is Digit);
+
+// ⚠️ It is an Integer, and stays one.  A subrange constrains a value where a
+// type is written; nothing is ever 'a Digit' [TYP-001].
+WriteLn (D is Integer);
+WriteLn (D + 1 is Integer);
+
+WriteLn (0 is Digit);
+WriteLn (9 is Digit);
+WriteLn (10 is Digit);
+WriteLn (-1 is Digit);
+
+// ⚠️ The sign is read by the DECLARATION, because there is no negative
+// literal [LEX-019].
+WriteLn (-273 is Celsius);
+WriteLn (-274 is Celsius);
+WriteLn (1000 is Celsius);
+
+// The bounds are checked at the assignment contexts [VAR-017].
+try
+    var Bad : Digit := 10;
+except
+    on e : String do WriteLn (e);
+end
+
+procedure Show (N : Digit);
+begin
+    WriteLn ('digit ' + Str (N));
+end
+
+Show (3);
+
+try
+    Show (42);
+except
+    on e : String do WriteLn (e);
+end
+
+// A declared subrange and a predefined one are the same kind of thing.
+var B : Byte := 200;
+WriteLn (B is Byte);
+WriteLn (B is Digit);
+```
+
+```console
+$ algc conformance/0154-declared-subranges.a24
+7
+true
+true
+true
+true
+true
+false
+false
+true
+false
+true
+10 is not in Digit.
+digit 3
+42 is not in Digit.
+true
+false
+```
 
 **[TYP-014]**  `Real` is another spelling of `Double`. It is not a second type:
 `X is Real` and `X is Double` answer alike, a parameter declared either accepts
@@ -1289,8 +3022,58 @@ exists — the C runtime has no case for it at all. `is` is canonicalised at its
 two use sites rather than at the parser, because it carries a token where the
 others carry a string.
 
-    interpreter  compiler/Token.a24  CanonicalType
-    conformance  0152-real-is-double.a24
+##### conformance/0152-real-is-double.a24
+
+```algol24
+var X : Real := 1.5;
+
+WriteLn (X);
+WriteLn (X is Real);
+WriteLn (X is Double);
+
+// ⚠️ One type, so widening reaches it exactly as it reaches the other
+// spelling [VAR-004].
+var Y : Real := 1;
+WriteLn (Y);
+WriteLn (Y is Double);
+
+// A parameter declared either way accepts the same arguments.
+function Twice (R : Real); begin Exit R * 2; end
+
+WriteLn (Twice (3));
+WriteLn (Twice (2.5));
+
+var Z : Any := 1.5;
+WriteLn (Z as Real);
+
+// ⚠️ The CANONICAL spelling is what a diagnostic names, which is the alias
+// telling the reader what it is.
+var Bad : Any := 'text';
+try
+    WriteLn (Bad as Real);
+except
+    on e : String do WriteLn (e);
+end
+
+// It folds like every other name [SRC-011].
+WriteLn (1.5 is real);
+WriteLn (1.5 is REAL);
+```
+
+```console
+$ algc conformance/0152-real-is-double.a24
+1.5
+true
+true
+1.0
+true
+6.0
+5.0
+1.5
+Cannot cast String to Double.
+true
+true
+```
 
 **[TYP-002]**  A type is written as an identifier. The only compound form is a
 collection type with an element type, written `of` — `List of Integer`,
@@ -1300,7 +3083,6 @@ collection type with an element type, written `of` — `List of Integer`,
 Type = identifier [ "of" identifier ] .
 ```
 
-    interpreter  compiler/Parser.a24  VarDeclaration
     conformance  0026-the-runtime-types.a24
 
 **[TYP-003]**  `Char` and `String` are distinct types, and a one-character
@@ -1311,7 +3093,6 @@ a written type [VAR-004], but `is` asks what a value *is*, not what it could
 become, and a type test is not one of the six assignment contexts [VAR-017]. A
 Char that has widened is a String and answers so; the Char it came from is not.
 
-    interpreter  compiler/ObjFunction.a24  TypeNameOf
     conformance  0026-the-runtime-types.a24
 
 ### 6.2 Any
@@ -1321,9 +3102,23 @@ variable declared `Any` accepts every value; a value of type `Any` does not
 satisfy a written type without a cast [VAR-006]. No value ever reports `Any` as
 its runtime type, so `X is Any` is false for every `X` [VAL-005].
 
-    interpreter  compiler/TypeChecker.a24  Assignable
     conformance  0020-any-accepts-every-value.a24
-    refusal      0013-any-does-not-satisfy-a-written-type.a24
+
+##### refusals/0013-any-does-not-satisfy-a-written-type.a24
+
+```algol24
+var A : Any := 1;
+var I : Integer := A;
+```
+
+```console
+$ algc refusals/0013-any-does-not-satisfy-a-written-type.a24
+Uncaught: Expected Integer, found Any.
+[ERROR] refusals/0013-any-does-not-satisfy-a-written-type.a24: Expected Integer, found Any.
+[ERROR] 2 | var I : Integer := A;
+[ERROR]   |     ^
+exit: 70
+```
 
 > The asymmetry is the point of [VAR-006]: `Any` is where a type is not known,
 > and a written type is a claim that it is. Moving from the first to the second
@@ -1334,15 +3129,42 @@ its runtime type, so `X is Any` is false for every `X` [VAL-005].
 **[TYP-005]**  `nil` is of no type at all. `nil is T` is **false** for every `T`,
 including the type `nil` was declared as.
 
-    interpreter  compiler/Interpreter.a24  VisitIsExpr
-    compiler     bootstrap/algol.c         alg_is
-    conformance  0027-nil-has-no-type.a24
+##### conformance/0027-nil-has-no-type.a24
+
+```algol24
+// TYP-005: nil is of no type at all -- not even the one it was declared as,
+// and not Any.
+var X : Integer := nil;
+WriteLn (X is Integer);
+WriteLn (nil is Any);
+WriteLn (X = nil);
+
+// TYP-006: yet nil satisfies every declared type for assignment.  A value that
+// is not there has no type to check.
+var S : String := nil;
+var D : Dog    := nil;
+var L : List   := nil;
+WriteLn (S);
+WriteLn (D);
+WriteLn (L);
+
+class Dog; begin end
+```
+
+```console
+$ algc conformance/0027-nil-has-no-type.a24
+false
+false
+true
+nil
+nil
+nil
+```
 
 **[TYP-006]**  `nil` nonetheless satisfies every declared type for the purpose
 of assignment — see [VAR-005]. A value that is not there has no type to check,
 and is accepted everywhere.
 
-    interpreter  compiler/TypeChecker.a24  Assignable
     conformance  0027-nil-has-no-type.a24
 
 **[TYP-013]**  A type name must denote a declared type. A name that denotes
@@ -1367,9 +3189,73 @@ names **exactly** while `SatisfiesType` folded its direct match, so
 disagreeing with itself about case, and the C runtime folding both. Fixed with
 this rule.
 
-    interpreter  compiler/TypeChecker.a24  DeclaredTypes
-    refusal      0040-unknown-type-name.a24
-    conformance  0135-type-names-that-denote.a24
+##### refusals/0040-unknown-type-name.a24
+
+```algol24
+WriteLn (1 is Nonexistent);
+```
+
+```console
+$ algc refusals/0040-unknown-type-name.a24
+Uncaught: Unknown type 'Nonexistent'.
+[ERROR] refusals/0040-unknown-type-name.a24: Unknown type 'Nonexistent'.
+[ERROR] 1 | WriteLn (1 is Nonexistent);
+[ERROR]   |               ^^^^^^^^^^^
+exit: 70
+```
+
+##### conformance/0135-type-names-that-denote.a24
+
+```algol24
+class Dog; begin end
+class Puppy (Dog); begin end
+type Colour = (Red, Green);
+object Reg; begin end
+
+WriteLn (Puppy () is Dog);
+WriteLn (1 is Integer);
+WriteLn (1.5 is Double);
+WriteLn ('ab' is String);
+WriteLn ('a' is Char);
+WriteLn (True is Boolean);
+WriteLn (1 is Any);
+
+WriteLn ([1] is List);
+WriteLn (Set () is Set);
+WriteLn (Stack () is Stack);
+WriteLn (Array (1) is Array);
+WriteLn ([1 : 2] is Map);
+WriteLn (Buffer () is Buffer);
+WriteLn (TextFile () is TextFile);
+
+WriteLn (Red is Colour);
+WriteLn (Reg is Reg);
+
+// ⚠️ Matched WITHOUT REGARD TO CASE, because 'is' folds at run time [SRC-011].
+// The check has to fold too, or it would refuse a program that runs.
+WriteLn (Puppy () is dog);
+```
+
+```console
+$ algc conformance/0135-type-names-that-denote.a24
+true
+true
+true
+true
+true
+true
+false
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+```
 
 > This is not a gradual-typing case. Gradual typing concerns a *value* whose
 > type is not known, which is ordinary; a type *name* is written by the
@@ -1380,22 +3266,80 @@ this rule.
 **[TYP-007]**  The five collection types are distinguished by their kind, and
 each answers `is` to its own name only. A `List` is not a `Set`.
 
-    interpreter  compiler/ObjCollection.a24  Kind
-    conformance  0028-collection-types-are-distinct.a24
+##### conformance/0028-collection-types-are-distinct.a24
+
+```algol24
+var L := List ();
+WriteLn (L is List);
+WriteLn (L is Set);
+WriteLn (L is Stack);
+WriteLn (L is Array);
+WriteLn (L is Map);
+
+var S := Set ();
+WriteLn (S is Set);
+WriteLn (S is List);
+```
+
+```console
+$ algc conformance/0028-collection-types-are-distinct.a24
+true
+false
+false
+false
+false
+true
+false
+```
 
 **[TYP-008]**  `Array` is fixed in size. Its elements begin as `nil`, it is
 indexed from zero, and an index outside its bounds is the runtime error
 `Index N out of range 0..M.` It does not grow on assignment.
 
-    interpreter  compiler/ObjCollection.a24  At
-    compiler     bootstrap/algol.c           alg_subscript_set
-    conformance  0029-array-is-fixed.a24
+##### conformance/0029-array-is-fixed.a24
+
+```algol24
+var A := Array (3);
+
+// Elements begin as nil, and it is indexed from zero.
+WriteLn (A[0]);
+WriteLn (A.Length);
+
+A[2] := 'x';
+WriteLn (A[2]);
+
+// It does not grow on assignment, and an index outside its bounds raises.
+A[5] := 'y';
+WriteLn ('never reached');
+```
+
+```console
+$ algc conformance/0029-array-is-fixed.a24
+Uncaught: Index 5 out of range 0..2.
+nil
+3
+x
+exit: 70
+```
 
 **[TYP-009]**  A collection is **not** a class instance. It has no `ClassName`,
 and asking for one is the error `Undefined property 'ClassName'.`
 
-    interpreter  compiler/ObjCollection.a24  Get
-    conformance  0030-collections-have-no-classname.a24
+##### conformance/0030-collections-have-no-classname.a24
+
+```algol24
+class Dog; begin end
+WriteLn (Dog ().ClassName);
+
+WriteLn (List ().ClassName);
+```
+
+```console
+$ algc conformance/0030-collections-have-no-classname.a24
+Uncaught: Undefined property 'ClassName'.
+Dog
+exit: 70
+```
 
 ### 6.5 What a class type cannot do
 
@@ -1425,10 +3369,129 @@ tells arities apart everywhere else, so nothing has to pair a getter with a
 setter syntactically. A class declaring only `Get` is readable and not
 assignable, which needs no separate way of saying so.
 
-    interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
-    compiler     bootstrap/algol.c         alg_subscript_get
-    conformance  0171-a-class-that-subscripts.a24
-    conformance  0031-instance-is-not-subscriptable.a24
+##### conformance/0171-a-class-that-subscripts.a24
+
+```algol24
+class Row;
+var
+private:
+    Cells : List;
+
+begin
+    constructor Init (); begin this.Cells := [10, 20, 30]; end
+
+    function  Get (I : Integer) : Any;    begin Exit Cells[I]; end
+    procedure Put (I : Integer, V : Any); begin Cells[I] := V; end
+
+    property  Length : Integer;           begin Exit Cells.Length; end
+end
+
+var R := Row ();
+
+WriteLn (R[0], ' ', R[1], ' ', R[2]);
+WriteLn (R.Length);
+
+R[1] := 99;
+WriteLn (R[1]);
+
+// ⚠️ THE TWO FORMS ARE TWO MEMBERS of different arity, so a class declaring
+// only 'Get' is readable and not assignable -- which needs no separate way of
+// saying so.
+class ReadOnly;
+var
+private:
+    Cells : List;
+
+begin
+    constructor Init ();              begin this.Cells := [1, 2]; end
+    function Get (I : Integer) : Any; begin Exit Cells[I]; end
+end
+
+var O := ReadOnly ();
+WriteLn (O[0]);
+
+try
+    O[0] := 5;
+except
+    on e : String do WriteLn (e);
+end
+
+// A protocol is a NAME and a shape: 'Get' of two arguments is not this one.
+class WrongShape;
+begin
+    constructor Init (); begin end
+    function Get (I : Integer, J : Integer) : Any; begin Exit 0; end
+end
+
+try
+    WriteLn (WrongShape ()[0]);
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ And this is what the whole protocol run was for: a Stack written in
+// Algol-24 that reads like the built-in it would replace -- subscripted,
+// iterated, ordered, and answering Length without parentheses.
+class Stack;
+var
+private:
+    Items : List;
+
+begin
+    constructor Init ();                  begin this.Items := []; end
+    procedure Push (V : Any);             begin Items.Add (V); end
+
+    function  Get (I : Integer) : Any;    begin Exit Items[I]; end
+    function  Elements () : List;         begin Exit Items; end
+    property  Length  : Integer;          begin Exit Items.Length; end
+    property  IsEmpty : Boolean;          begin Exit Items.Length = 0; end
+end
+
+var S := Stack ();
+S.Push (10);
+S.Push (20);
+S.Push (30);
+
+WriteLn (S.Length, ' ', S.IsEmpty, ' ', S[1]);
+
+for var X in S do Write (Str (X) + ' ');
+WriteLn ();
+```
+
+```console
+$ algc conformance/0171-a-class-that-subscripts.a24
+10 20 30
+3
+99
+1
+Subscript target should be an ordinal.
+Subscript target should be an ordinal.
+3 false 20
+10 20 30 
+```
+
+##### conformance/0031-instance-is-not-subscriptable.a24
+
+```algol24
+class Box;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [10, 20]; end
+    function At (I); begin Exit this.Items[I]; end
+end
+
+var B := Box ();
+WriteLn (B.At (0));
+
+WriteLn (B[0]);
+```
+
+```console
+$ algc conformance/0031-instance-is-not-subscriptable.a24
+Uncaught: Subscript target should be an ordinal.
+10
+exit: 70
+```
 
 **[TYP-011]**  A class instance is iterable when its class declares an
 `Elements` method **taking no arguments**; `for var X in B do` then walks what
@@ -1467,10 +3530,124 @@ stops a `List` whose `Elements` returns a `List` from recursing forever.
 whole collection, so the loop has its elements before the first pass runs; a
 lazy protocol would be a different feature and would take that guarantee away.
 
-    interpreter  compiler/Interpreter.a24  ElementsOf
-    compiler     bootstrap/algol.c         alg_iterable
-    conformance  0032-instance-is-not-iterable.a24
-    conformance  0165-a-class-that-iterates.a24
+##### conformance/0032-instance-is-not-iterable.a24
+
+```algol24
+class Bag;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [1, 2]; end
+end
+
+var B := Bag ();
+WriteLn (B.Items.Length);
+
+for var X in B do WriteLn (X);
+```
+
+```console
+$ algc conformance/0032-instance-is-not-iterable.a24
+Uncaught: Can only iterate a collection or a String.
+2
+exit: 70
+```
+
+##### conformance/0165-a-class-that-iterates.a24
+
+```algol24
+class Bag;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [10, 20, 30]; end
+    function Elements (); begin Exit Items; end
+end
+
+for var X in Bag () do Write (Str (X) + ' ');
+WriteLn ();
+
+// ⚠️ The result is WALKED, not re-asked, so Elements may hand back another
+// instance that also declares Elements and the chain resolves.  That is what
+// stops a List whose Elements returns a List from recursing forever.
+class Inner;
+begin
+    constructor Init (); begin end
+    function Elements (); begin Exit ['a', 'b']; end
+end
+
+class Outer;
+begin
+    constructor Init (); begin end
+    function Elements (); begin Exit Inner (); end
+end
+
+for var Y in Outer () do Write (Str (Y) + ' ');
+WriteLn ();
+
+// ⚠️ A PROTOCOL IS A NAME AND A SHAPE.  'Elements' taking an argument does not
+// implement this one, so the class is simply not iterable -- and says so with
+// the ordinary message rather than with a complaint about signatures.
+class WrongShape;
+begin
+    constructor Init (); begin end
+    function Elements (N : Integer); begin Exit [1]; end
+end
+
+try
+    for var Z in WrongShape () do WriteLn (Z);
+except
+    on e : String do WriteLn (e);
+end
+
+// The same rule on the other two protocols.  'Contains ()' does not implement
+// membership, and answering it TRUE was a wrong answer rather than an error.
+class BadContains;
+begin
+    constructor Init (); begin end
+    function Contains (); begin Exit True; end
+end
+
+try
+    WriteLn (1 in BadContains ());
+except
+    on e : String do WriteLn (e);
+end
+
+// And 'ToString (N)' does not implement stringification, so the default stands.
+class BadToString;
+begin
+    constructor Init (); begin end
+    function ToString (N : Integer); begin Exit 'never'; end
+end
+
+WriteLn (Str (BadToString ()));
+
+// ⚠️ Snapshotted like any other walk [STM-009]: Elements answers a whole
+// collection, so the loop has its elements before the first pass runs.
+class Growing;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [1, 2]; end
+    function Elements (); begin Exit Items; end
+end
+
+var G := Growing ();
+for var W in G do
+begin
+    Write (Str (W) + ' ');
+    G.Items.Add (99);
+end
+WriteLn ();
+```
+
+```console
+$ algc conformance/0165-a-class-that-iterates.a24
+10 20 30 
+a b 
+Can only iterate a collection or a String.
+Right operand of 'in' must be a collection or a String.
+BadToString instance
+1 2 
+```
 
 **[TYP-012]**  A class exposes a **field** without parentheses and a **method**
 with them: a method named `Length` read as `B.Length` yields the function
@@ -1491,9 +3668,68 @@ The spelling is the one the program wrote — a built-in member has no declarati
 to take a canonical one from, where a method prints the name its declaration
 used.
 
-    interpreter  compiler/ObjInstance.a24  Get
-    conformance  0033-no-computed-property.a24
-    conformance  0149-a-built-in-member-as-a-value.a24
+##### conformance/0033-no-computed-property.a24
+
+```algol24
+class Box;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := [1, 2, 3]; end
+    function Length (); begin Exit this.Items.Length; end
+end
+
+var B := Box ();
+
+// With parentheses, the method runs.
+WriteLn (B.Length ());
+
+// Without them, the method itself is the value.
+WriteLn (B.Length);
+
+// A collection's Length, by contrast, is a count and needs no parentheses --
+// which is exactly the asymmetry a class cannot reproduce.
+WriteLn (B.Items.Length);
+```
+
+```console
+$ algc conformance/0033-no-computed-property.a24
+3
+<fn Length>
+3
+```
+
+##### conformance/0149-a-built-in-member-as-a-value.a24
+
+```algol24
+var L := [3, 1, 2];
+
+WriteLn (L.Sort);
+WriteLn (L.SORT);
+WriteLn (L.Add);
+
+// The other two receivers whose members come from the runtime rather than
+// from a class.
+var B := Buffer (4);
+WriteLn (B.Append);
+
+var F := TextFile ();
+WriteLn (F.WriteLn);
+
+// And it is callable, which is the point of reading one.
+var Sort := L.Sort;
+Sort ();
+WriteLn (L[0]);
+```
+
+```console
+$ algc conformance/0149-a-built-in-member-as-a-value.a24
+<fn Sort>
+<fn SORT>
+<fn Add>
+<fn Append>
+<fn WriteLn>
+1
+```
 
 ---
 
@@ -1509,8 +3745,42 @@ type [VAR-004].
 A value *of* type `Any` is not assignable to a written type; only the reverse
 holds [VAR-006].
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    conformance  0034-assignability.a24
+##### conformance/0034-assignability.a24
+
+```algol24
+class Animal; begin end
+class Dog (Animal); begin end
+
+// Same type.
+var I : Integer := 1;
+WriteLn (I);
+
+// The DECLARATION is Any -- every value satisfies it.
+var A : Any := Dog ();
+WriteLn (A is Dog);
+
+// nil satisfies every declared type.
+var N : Dog := nil;
+WriteLn (N = nil);
+
+// A subclass stands where its parent is declared, upward only.
+var P : Animal := Dog ();
+WriteLn (P is Dog);
+WriteLn (P is Animal);
+
+// ⚠️ The widening clause of VAL-001 is NOT exercised here: it is not
+// implemented, and DEF-10 tracks it.  The narrowing half of VAL-002 is
+// refusals/0014.
+```
+
+```console
+$ algc conformance/0034-assignability.a24
+1
+true
+true
+true
+true
+```
     conformance  0140-widening-at-every-context.a24
 
 **[VAL-002]**  Nothing else converts. The widenings are exactly the two of
@@ -1518,7 +3788,6 @@ holds [VAR-006].
 assignment contexts of [VAR-017]. There is no narrowing, no conversion between a
 number and a String, and no user-defined conversion.
 
-    interpreter  compiler/TypeChecker.a24  Assignable
     conformance  0034-assignability.a24
     refusal      0014-no-implicit-narrowing.a24
 
@@ -1528,15 +3797,50 @@ number and a String, and no user-defined conversion.
 class inheriting from `T`. Inheritance is followed upward only: a `Dog` is an
 `Animal`, and an `Animal` is not a `Dog`.
 
-    interpreter  compiler/Interpreter.a24  VisitIsExpr
-    compiler     bootstrap/algol.c         alg_is
-    conformance  0035-type-tests.a24
+##### conformance/0035-type-tests.a24
+
+```algol24
+class Animal; begin end
+class Dog (Animal); begin end
+
+// VAL-003: inheritance is followed UPWARD only.
+WriteLn (Dog () is Dog);
+WriteLn (Dog () is Animal);
+WriteLn (Animal () is Dog);
+
+// VAL-004: nil has no type to test -- not even the one it was declared as.
+var N : Dog := nil;
+WriteLn (N is Dog);
+WriteLn (nil is Integer);
+
+// VAL-005: Any is a declaration, never a runtime type -- but it is a legal
+// name to write, unlike a name that denotes nothing [TYP-013].
+WriteLn (1 is Any);
+WriteLn (nil is Any);
+
+// VAL-006: the type name folds case, as every name does [SRC-011].
+WriteLn (1 is integer);
+WriteLn (1 is INTEGER);
+WriteLn (Dog () is dog);
+```
+
+```console
+$ algc conformance/0035-type-tests.a24
+true
+true
+false
+false
+false
+false
+false
+true
+true
+true
+```
 
 **[VAL-004]**  `nil is T` is **false** for every `T`. A value that is not there
 has no type to test.
 
-    interpreter  compiler/Interpreter.a24  VisitIsExpr
-    compiler     bootstrap/algol.c         alg_is
     conformance  0035-type-tests.a24
 
 **[VAL-005]**  `X is Any` is **false** for every `X`. `Any` is a declaration,
@@ -1545,14 +3849,12 @@ never a runtime type.
 `Any` is nonetheless a legal type name in `is` [TYP-013]. It denotes
 something; it just never matches.
 
-    interpreter  compiler/Interpreter.a24  VisitIsExpr
     conformance  0035-type-tests.a24
 
 **[VAL-006]**  The type name in `is` is matched case-insensitively, so
 `1 is integer` is true. This is [SRC-011] applied to a type name and is not a
 special case.
 
-    interpreter  compiler/Interpreter.a24  VisitIsExpr
     conformance  0035-type-tests.a24
 
 ### 7.3 Casts
@@ -1574,8 +3876,37 @@ The test is the one `is` uses [VAL-003] — the value's own type, or a class it
 inherits from — and deliberately the same code, so `X as T` and `X is T` cannot
 come to disagree about what `T` means.
 
-    interpreter  compiler/Interpreter.a24  SatisfiesType
-    conformance  0117-as-is-checked.a24
+##### conformance/0117-as-is-checked.a24
+
+```algol24
+var Good : Any := 1;
+WriteLn (Good as Integer);
+WriteLn ((Good as Integer) + 1);
+
+// A class hierarchy: a cast to a base class succeeds, by the rule 'is' uses.
+class Animal; begin end
+class Dog (Animal); begin end
+var D : Any := Dog ();
+WriteLn (D as Animal is Dog);
+
+// nil satisfies every type [VAR-005] and therefore passes every cast.
+var Nothing : Any := nil;
+WriteLn (Nothing as Integer);
+
+// And a cast that does not hold raises.
+var Bad : Any := 'text';
+WriteLn (Bad as Integer);
+```
+
+```console
+$ algc conformance/0117-as-is-checked.a24
+Uncaught: Cannot cast String to Integer.
+1
+2
+true
+nil
+exit: 70
+```
 
 ### 7.4 Truthiness
 
@@ -1589,21 +3920,107 @@ Truthiness is **independent of a value's contents**. A collection is a thing,
 and a thing is there; `if not S then` therefore does not test emptiness, and
 `if S.Length = 0 then` is the only spelling that does.
 
-    interpreter  compiler/Interpreter.a24  IsTruthy
-    compiler     bootstrap/algol.c         alg_truthy
     unit         Execute Logical Truthy
     unit         Evaluate Unary Bang Nil
-    conformance  0036-truthiness.a24
+
+##### conformance/0036-truthiness.a24
+
+```algol24
+type Flag = (Off, On);
+
+procedure Show (Label, V);
+begin
+    if V then WriteLn (Label + ' truthy');
+    else WriteLn (Label + ' falsey');
+end
+
+// Falsey: nil, False, the Integer 0, and an enum member of ordinal 0.
+Show ('nil       ', nil);
+Show ('False     ', False);
+Show ('0         ', 0);
+Show ('enum ord 0', Off);
+
+// Everything else is truthy -- including every empty thing, because
+// truthiness is independent of a value's contents.
+Show ('True      ', True);
+Show ('1         ', 1);
+Show ('0.0       ', 0.0);
+Show ('empty str ', '');
+Show ('a Char    ', 'a');
+Show ('empty list', []);
+Show ('empty map ', [:]);
+Show ('enum ord 1', On);
+
+// So this is the only spelling that tests emptiness.
+// ⚠️ Length(S), not S.Length: a String has no .Length property interpreted,
+// though it has one compiled -- see C-9.
+var S := '';
+WriteLn (Length (S) = 0);
+```
+
+```console
+$ algc conformance/0036-truthiness.a24
+nil        falsey
+False      falsey
+0          falsey
+enum ord 0 falsey
+True       truthy
+1          truthy
+0.0        truthy
+empty str  truthy
+a Char     truthy
+empty list truthy
+empty map  truthy
+enum ord 1 truthy
+true
+```
 
 ### 7.5 Equality
 
 **[VAL-009]**  `=` and `<>` promote numerically. `1 = 1.0` is true, and so is
 `0 = 0.0`.
 
-    interpreter  compiler/Interpreter.a24  IsEqual
-    compiler     bootstrap/algol.c         equals
     unit         Evaluate Binary Equal Equal
-    conformance  0037-equality.a24
+
+##### conformance/0037-equality.a24
+
+```algol24
+// VAL-009: '=' and '<>' promote numerically.
+WriteLn (1 = 1.0);
+WriteLn (0 = 0.0);
+WriteLn (1 <> 1.0);
+
+// VAL-010: a Char is never equal to a String.  Both sides of the first are
+// Chars, which is why it is true; Copy yields a String of length one.
+WriteLn ('a' = 'a');
+WriteLn (Copy ('abc', 0, 1) = 'a');
+
+// VAL-012: nil equals nil.
+WriteLn (nil = nil);
+
+// VAL-011: collections and instances compare by IDENTITY, not contents.
+WriteLn ([1, 2] = [1, 2]);
+
+var L := [1, 2];
+var M := L;
+WriteLn (L = M);
+
+class Dog; begin end
+WriteLn (Dog () = Dog ());
+```
+
+```console
+$ algc conformance/0037-equality.a24
+true
+true
+false
+true
+false
+true
+false
+true
+false
+```
 
 **[VAL-010]**  A `Char` is never equal to a `String` — see [LEX-026]. `'a'` and
 `Copy('abc', 0, 1)` are not equal.
@@ -1620,7 +4037,6 @@ because both sides are Chars; it is only reached when one side came from `Copy`,
 `Str` or a subscript. The complaint worth acting on is how easily a
 one-character String is produced by accident, not how `=` treats one.
 
-    interpreter  compiler/Interpreter.a24  IsEqual
     conformance  0037-equality.a24
 
 **[VAL-011]**  Class instances, collections and enumeration members compare by
@@ -1641,13 +4057,10 @@ declaring `Compare` orders with `<` and its three companions, because ordering
 touches no hash and no membership — which is exactly why it was settled while
 equality was not.
 
-    interpreter  compiler/Interpreter.a24  IsEqual
-    compiler     bootstrap/algol.c         equals
     conformance  0037-equality.a24
 
 **[VAL-012]**  `nil = nil` is true.
 
-    interpreter  compiler/Interpreter.a24  IsEqual
     unit         Evaluate Binary Bang Equal Nil
     conformance  0037-equality.a24
 
@@ -1675,9 +4088,52 @@ One implementation, not two: `ObjCollection` delegates to the host's own
 `Contains`, so the interpreter's membership *is* the runtime's and the two
 cannot disagree.
 
-    interpreter  compiler/ObjCollection.a24  Invoke
-    compiler     bootstrap/algol.c           strict_equals
-    conformance  0127-membership-follows-equality.a24
+##### conformance/0127-membership-follows-equality.a24
+
+```algol24
+WriteLn (1 = 1.0);
+
+WriteLn (1 in [1.0]);
+WriteLn (1.0 in [1]);
+
+var Keys := [1 : 'one'];
+WriteLn (Keys.Contains (1.0));
+
+var S := Set ([1]);
+WriteLn (S.Contains (1.0));
+
+// ⚠️ The hash is the real work, not the comparison.  A Map keyed 1 and then
+// Put under 1.0 holds ONE key, because both reach the same slot.
+var M := [1 : 'one'];
+M.Put (1.0, 'again');
+WriteLn (M.Length);
+WriteLn (M.Get (1));
+
+// ⚠️ -0.0 and 0.0 and 0 are one key.  They were three while the comparison was
+// a memcmp, and the runtime said so in a comment that this rule made stale.
+var Z := Set ();
+Z.Add (0.0);
+Z.Add (-0.0);
+Z.Add (0);
+WriteLn (Z.Length);
+
+// Collections still compare by IDENTITY -- two Lists of the same contents are
+// not equal, so membership does not find one by the other.
+WriteLn ([1] in [[1]]);
+```
+
+```console
+$ algc conformance/0127-membership-follows-equality.a24
+true
+true
+true
+true
+true
+1
+again
+1
+false
+```
 
 ### 7.7 Ordering
 
@@ -1726,12 +4182,159 @@ that happens to agree. It compared with `strcmp`, which stops at an embedded
 zero a String is entitled to hold and which orders bytes rather than
 characters.
 
-    interpreter  compiler/Interpreter.a24  VisitBinary
-    compiler     bootstrap/algol.c         text_order
-    compiler     bootstrap/algol.c         method_order
     unit         Evaluate Binary Greater Left Not Number
-    conformance  0166-text-is-ordered.a24
-    conformance  0170-a-class-that-orders.a24
+
+##### conformance/0166-text-is-ordered.a24
+
+```algol24
+// Numbers and Chars still order as they did.
+
+WriteLn (1 < 2);
+WriteLn (1.5 >= 1.5);
+WriteLn ('a' < 'b');
+
+// Strings now do.
+WriteLn ('ab' < 'cd');
+WriteLn ('cd' < 'ab');
+WriteLn ('ab' <= 'ab');
+WriteLn ('' < 'a');
+
+// A prefix sorts before what extends it.
+WriteLn ('ab' < 'abc');
+WriteLn ('abc' > 'ab');
+
+// ⚠️ A Char and a String compare as TEXT.  The two are still never equal
+// [VAL-009], but they sit in one order.
+WriteLn ('a' < 'ab');
+WriteLn ('ab' > 'a');
+WriteLn (Str ('a') < 'b');
+
+// By code point, so case is not folded: 'Z' is 90 and 'a' is 97.
+WriteLn ('Z' < 'a');
+
+// ⚠️ CODE POINTS, NOT BYTES.  'è' and 'é' are C3 A8 and C3 A9 in UTF-8: they
+// share a lead byte and used to compare EQUAL, while Ord answered 232 and 233 --
+// the language disagreeing with itself about which came first.
+WriteLn (Ord ('è'), ' ', Ord ('é'));
+WriteLn ('è' < 'é');
+WriteLn ('é' <= 'è');
+
+// ⚠️ Sort uses this same ordering [COL-013], not a second one that agrees.
+var Names := ['pear', 'Apple', 'banana', 'apple'];
+Names.Sort ();
+WriteLn (Names);
+
+var Accents := ['é', 'e', 'è', 'z'];
+Accents.Sort ();
+WriteLn (Accents);
+
+// Mixing text with numbers is still refused.
+try
+    WriteLn ('ab' < 1);
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0166-text-is-ordered.a24
+true
+true
+true
+true
+false
+true
+true
+true
+true
+true
+true
+true
+true
+232 233
+true
+false
+[Apple, apple, banana, pear]
+[e, z, è, é]
+Operands must be numbers.
+```
+
+##### conformance/0170-a-class-that-orders.a24
+
+```algol24
+class Money;
+var Cents : Integer;
+begin
+    constructor Init (C : Integer); begin this.Cents := C; end
+
+    function Compare (Other : Money) : Integer; begin Exit Cents - Other.Cents; end
+    function ToString () : String;              begin Exit Str (Cents); end
+end
+
+var A := Money (100);
+var B := Money (200);
+
+WriteLn (A < B, ' ', A > B, ' ', A <= B, ' ', A >= B);
+WriteLn (A < A, ' ', A <= A, ' ', A >= A);
+
+// ⚠️ EQUALITY IS UNTOUCHED and stays identity [VAL-011].  Ordering needs no
+// hash and no membership, which is exactly why it is settled where equality is
+// not: '=' is coupled to 'in' by [VAL-013], and a second protocol would have to
+// move with it.
+WriteLn (Money (100) = Money (100));
+WriteLn (A = A);
+WriteLn (Money (100) in [A]);
+
+// ⚠️ Sort does NOT ask Compare, and the asymmetry is forced rather than chosen:
+// the interpreter delegates Sort to the host's, whose values are the compiler's
+// own instances and not the program's.  Answering compiled while refusing
+// interpreted is the divergence this corpus exists to catch.
+var L := [Money (300), Money (100)];
+try
+    L.Sort ();
+except
+    on e : String do WriteLn (e);
+end
+
+// A class without Compare does not order.
+class Plain;
+begin
+    constructor Init (); begin end
+end
+
+try WriteLn (Plain () < Plain ()); except on e : String do WriteLn (e); end
+
+// ⚠️ A protocol is a name AND a shape: 'Compare' taking no argument is not it.
+class WrongShape;
+begin
+    constructor Init (); begin end
+    function Compare () : Integer; begin Exit 0; end
+end
+
+try WriteLn (WrongShape () < WrongShape ()); except on e : String do WriteLn (e); end
+
+// Compare must answer a number.
+class BadAnswer;
+begin
+    constructor Init (); begin end
+    function Compare (Other : Any) : Any; begin Exit 'soon'; end
+end
+
+try WriteLn (BadAnswer () < BadAnswer ()); except on e : String do WriteLn (e); end
+```
+
+```console
+$ algc conformance/0170-a-class-that-orders.a24
+true false true false
+false true true
+false
+true
+false
+Can only sort numbers against numbers, or text against text.
+Operands must be numbers.
+Operands must be numbers.
+Compare must answer an Integer.
+```
 
 > Ordering text used to mean comparing it character by character, which is what
 > `compiler/CEmitter.a24`'s `TextLess` did — a function the compiler wrote for
@@ -1747,12 +4350,41 @@ characters.
 declared inside it is not visible after it: reading one is `Undefined variable
 'X'.`
 
-    interpreter  compiler/Resolver.a24  BeginScope
-    conformance  0039-blocks-and-scope.a24
+##### conformance/0039-blocks-and-scope.a24
+
+```algol24
+var Outer := 1;
+
+begin
+    // DCL-002: a block sees every name of the scopes enclosing it.
+    WriteLn (Outer);
+
+    var Inner := 2;
+    WriteLn (Inner);
+end
+
+// DCL-008: a loop variable belongs to the loop, in both forms.
+for var I := 0; I < 2; I := I + 1 do WriteLn (I);
+for var E in [7] do WriteLn (E);
+
+// DCL-001: a name declared inside a block is not visible after it.  This is a
+// RUNTIME error, which is why the lines above have already printed.
+WriteLn (Inner);
+```
+
+```console
+$ algc conformance/0039-blocks-and-scope.a24
+Uncaught: Undefined variable 'Inner'.
+1
+2
+0
+1
+7
+exit: 70
+```
 
 **[DCL-002]**  A block sees every name of the scopes enclosing it.
 
-    interpreter  compiler/Resolver.a24  ResolveLocal
     unit         Resolve One Hop
     unit         Resolve Two Hops
     conformance  0039-blocks-and-scope.a24
@@ -1762,14 +4394,58 @@ declared inside it is not visible after it: reading one is `Undefined variable
 **[DCL-003]**  A declaration shadows an outer one of the same name for the rest
 of its scope. The outer binding is untouched and reappears when the scope ends.
 
-    interpreter  compiler/Resolver.a24  Declare
     unit         Resolve Same Level
-    conformance  0040-shadowing.a24
+
+##### conformance/0040-shadowing.a24
+
+```algol24
+procedure ShadowsAVar ();
+var X : Integer := 1;
+begin
+    begin
+        // DCL-003: the inner declaration shadows the outer for the rest of its
+        // scope.  The outer binding is untouched.
+        var X := 2;
+        WriteLn (X);
+
+        X := 3;
+        WriteLn (X);
+    end
+
+    WriteLn (X);
+end
+
+procedure ShadowsAConst ();
+const K := 10;
+begin
+    begin
+        // DCL-004: a var may shadow a const.  The inner name is an ordinary
+        // variable and may be assigned.
+        var K := 20;
+        K := 30;
+        WriteLn (K);
+    end
+
+    // The outer constant is unaffected.
+    WriteLn (K);
+end
+
+ShadowsAVar ();
+ShadowsAConst ();
+```
+
+```console
+$ algc conformance/0040-shadowing.a24
+2
+3
+1
+30
+10
+```
 
 **[DCL-004]**  A `var` may shadow a `const`. The inner name is an ordinary
 variable and may be assigned; the outer constant is unaffected.
 
-    interpreter  compiler/Resolver.a24  DeclareBinding
     conformance  0040-shadowing.a24
 
 ### 8.3 Declaration and use
@@ -1778,9 +4454,24 @@ variable and may be assigned; the outer constant is unaffected.
 inside a block is refused with `Can't read local variable in its own
 initializer.`, even where an outer `X` exists.
 
-    interpreter  compiler/Resolver.a24  ResolveLocal
     unit         Resolve Local Variable Is Own Initializer
-    refusal      0015-own-initializer.a24
+
+##### refusals/0015-own-initializer.a24
+
+```algol24
+var X := 1;
+
+begin
+    var X := X;
+    WriteLn (X);
+end
+```
+
+```console
+$ algc refusals/0015-own-initializer.a24
+Uncaught: Can't read local variable in its own initializer.
+exit: 70
+```
 
 **[DCL-006]**  A **function or class** declared at the top level of a file is
 visible throughout that file, wherever it is written. A call may precede the
@@ -1813,11 +4504,138 @@ Hoisting made an inheritance **cycle** reachable for the first time — a class
 could not previously be declared above its parent at all — so [CLS-013]'s check
 grew from a self-reference to a cycle.
 
-    interpreter  compiler/Interpreter.a24  Hoist
-    conformance  0122-functions-are-hoisted.a24
-    conformance  0146-inherit-across-a-module.a24
-    conformance  0147-inherit-before-the-import.a24
-    refusal      0046-inherit-from-a-non-class.a24
+##### conformance/0122-functions-are-hoisted.a24
+
+```algol24
+WriteLn (Greet ());
+WriteLn (Total (2, 3));
+
+function Greet ();          begin Exit 'called from above'; end
+function Total (A, B);      begin Exit A + B; end
+
+// A class written below is usable above it.
+var D := Dog ();
+WriteLn (D is Dog);
+WriteLn (D.Speak ());
+
+class Dog;
+begin
+    constructor Init (); begin end
+    function Speak (); begin Exit 'woof'; end
+end
+
+// ⚠️ A class may INHERIT from one written below it, which is the case that
+// makes hoisting more than binding a name: the parent is bound as an empty
+// shell and FILLED IN where its declaration stands, so the child holds the
+// finished class because it is the same object.
+class Puppy (Hound);
+begin
+    constructor Init (); begin end
+end
+
+class Hound;
+begin
+    constructor Init (); begin end
+    function Speak (); begin Exit 'bay'; end
+end
+
+WriteLn (Puppy () is Hound);
+WriteLn (Puppy ().Speak ());
+
+// ⚠️ A VARIABLE is not hoisted: its initializer runs in order, and a name read
+// before that has no value to give -- see refusals/0033.
+var Ready := 'declared in order';
+WriteLn (Ready);
+```
+
+```console
+$ algc conformance/0122-functions-are-hoisted.a24
+called from above
+5
+true
+woof
+true
+bay
+declared in order
+```
+
+##### conformance/0146-inherit-across-a-module.a24
+
+```algol24
+uses 'modules/Shape';
+
+WriteLn ('root, after the import');
+
+class Circle (Shape);
+begin
+    constructor Init (); begin end
+end
+
+WriteLn (Circle ().Name ());
+WriteLn (Circle () is Shape);
+
+// A class of this file may still be inherited from either side of its own
+// declaration, which is what hoisting is for.
+class Puppy (Hound);
+begin
+    constructor Init (); begin end
+end
+
+class Hound;
+begin
+    constructor Init (); begin end
+    function Name (); begin Exit 'hound'; end
+end
+
+WriteLn (Puppy ().Name ());
+```
+
+```console
+$ algc conformance/0146-inherit-across-a-module.a24
+  Shape body
+root, after the import
+shape
+true
+hound
+```
+
+##### conformance/0147-inherit-before-the-import.a24
+
+```algol24
+WriteLn ('root, before the import');
+
+class Circle (Shape);
+begin
+    constructor Init (); begin end
+end
+
+uses 'modules/Shape';
+
+WriteLn (Circle ().Name ());
+```
+
+```console
+$ algc conformance/0147-inherit-before-the-import.a24
+Uncaught: Undefined variable 'Shape'.
+root, before the import
+exit: 70
+```
+
+##### refusals/0046-inherit-from-a-non-class.a24
+
+```algol24
+var X := 1;
+
+class C (X);
+begin
+end
+```
+
+```console
+$ algc refusals/0046-inherit-from-a-non-class.a24
+Uncaught: 'X' is not a class.
+exit: 70
+```
 
 **[DCL-016]**  A **variable or constant** is not visible before its declaration
 has run. Its initializer is an expression evaluated in order [VAR-014], and a
@@ -1829,16 +4647,93 @@ effects belong at the point it is written. Hoisting the first is what lets a
 file be read top-down; hoisting the second would silently substitute `nil` for a
 value that does not exist yet.
 
-    interpreter  compiler/Interpreter.a24  VisitVarStmt
-    conformance  0044-variables-are-not-hoisted.a24
-    refusal      0033-a-variable-is-not-hoisted.a24
+##### conformance/0044-variables-are-not-hoisted.a24
+
+```algol24
+var Ready := 'declared';
+WriteLn (Ready);
+
+// A function IS visible above its declaration, and so is a class -- and a
+// function called from up here reads the variables that exist WHEN IT RUNS,
+// not the ones that existed where it was written.
+WriteLn (Ahead ());
+WriteLn (Thing ().ClassName);
+
+function Ahead (); begin Exit Ready; end
+class Thing; begin end
+
+// Writing to a name does not bind it either: a variable is bound by its
+// declaration, so this is the same error a read gets.
+try
+    Absent := 5;
+except
+    on e : String do WriteLn (e);
+end
+
+var Absent := 1;
+
+// A variable is not visible before its declaration has run.  Its initializer
+// is an expression evaluated in order, and a name read before that has no
+// value to give -- so this is an error, not nil.
+WriteLn (Later);
+
+var Later := 7;
+```
+
+```console
+$ algc conformance/0044-variables-are-not-hoisted.a24
+Uncaught: Undefined variable 'Later'.
+declared
+declared
+Thing
+Undefined variable 'Absent'.
+exit: 70
+```
+
+##### refusals/0033-a-variable-is-not-hoisted.a24
+
+```algol24
+WriteLn (Later);
+
+var Later := 7;
+```
+
+```console
+$ algc refusals/0033-a-variable-is-not-hoisted.a24
+Uncaught: Undefined variable 'Later'.
+exit: 70
+```
 
 **[DCL-007]**  A free name in a function body is resolved **when the body runs**,
 not where it is written. Two functions may therefore call each other, provided
 neither is called before both declarations have run.
 
-    interpreter  compiler/Interpreter.a24  LookupVariable
-    conformance  0041-mutual-recursion.a24
+##### conformance/0041-mutual-recursion.a24
+
+```algol24
+function IsEven (N);
+begin
+    if N = 0 then Exit True;
+    Exit IsOdd (N - 1);
+end
+
+function IsOdd (N);
+begin
+    if N = 0 then Exit False;
+    Exit IsEven (N - 1);
+end
+
+WriteLn (IsEven (4));
+WriteLn (IsEven (7));
+WriteLn (IsOdd (7));
+```
+
+```console
+$ algc conformance/0041-mutual-recursion.a24
+true
+false
+true
+```
 
 > This is why mutual recursion works even under the current implementation,
 > where [DCL-006] does not: the *call* inside a body is resolved late, so only a
@@ -1853,8 +4748,6 @@ For the counted form this follows from [DCL-001] rather than being a rule of its
 own: `for` **desugars into a block** holding the initializer and a `while`, so
 the variable is scoped because it is inside a block.
 
-    interpreter  compiler/Parser.a24    ForStatement
-    interpreter  compiler/Resolver.a24  VisitForInStmt
     unit         Parse For Statement
     conformance  0039-blocks-and-scope.a24
 
@@ -1863,17 +4756,51 @@ the variable is scoped because it is inside a block.
 **[DCL-009]**  `this` outside a class is refused with `Can't use 'this' outside a
 class.`
 
-    interpreter  compiler/Resolver.a24  VisitThisExpr
     unit         This Is Never Caught
-    refusal      0016-this-outside-a-class.a24
+
+##### refusals/0016-this-outside-a-class.a24
+
+```algol24
+
+```
+
+```console
+$ algc refusals/0016-this-outside-a-class.a24
+```
 
 **[DCL-010]**  `super` outside a class is refused with `Can't use 'super'
 outside a class.`, and inside a class having no superclass with `Can't use
 'super' in a class with no superclass.`
 
-    interpreter  compiler/Resolver.a24  VisitSuperExpr
-    refusal      0017-super-outside-a-class.a24
-    refusal      0018-super-with-no-superclass.a24
+##### refusals/0017-super-outside-a-class.a24
+
+```algol24
+
+```
+
+```console
+$ algc refusals/0017-super-outside-a-class.a24
+```
+
+##### refusals/0018-super-with-no-superclass.a24
+
+```algol24
+class Lonely;
+begin
+    procedure Attempt ();
+    begin
+        super.Something ();
+    end
+end
+
+Lonely ().Attempt ();
+```
+
+```console
+$ algc refusals/0018-super-with-no-superclass.a24
+Uncaught: Can't use 'super' in a class with no superclass.
+exit: 70
+```
 
 ### 8.6 Visibility
 
@@ -1881,23 +4808,90 @@ outside a class.`, and inside a class having no superclass with `Can't use
 object, each governing the members that follow it. A member declared under no
 marker is public.
 
-    interpreter  compiler/Parser.a24  ReadDeclarationSections
     unit         A Public Member Is Reachable From Outside
     unit         A Private Field Is Not Readable From Outside
-    conformance  0042-visibility.a24
-    refusal      0019-private-through-a-typed-receiver.a24
+
+##### conformance/0042-visibility.a24
+
+```algol24
+class Counter;
+private:
+var Count : Integer;
+public:
+var Name : String;
+
+begin
+    constructor Init (N);
+    begin
+        this.Count := 0;
+        this.Name  := N;
+    end
+
+    // DCL-012: the body starts public however the header ended.  The header
+    // above closed under 'public:', and this method is reachable regardless.
+    procedure Bump (); begin this.Count := this.Count + 1; end
+
+    function Value (); begin Exit this.Count; end
+
+    // DCL-013: privacy belongs to the CLASS, not to the object -- a method may
+    // reach the private members of another instance of its own class.
+    function Total (Other : Counter);
+    begin
+        Exit this.Count + Other.Count;
+    end
+end
+
+var A := Counter ('a');
+var B := Counter ('b');
+
+A.Bump ();
+A.Bump ();
+B.Bump ();
+
+// DCL-011: a public member is reachable from outside.
+WriteLn (A.Name);
+WriteLn (A.Value ());
+
+WriteLn (A.Total (B));
+```
+
+```console
+$ algc conformance/0042-visibility.a24
+a
+2
+3
+```
+
+##### refusals/0019-private-through-a-typed-receiver.a24
+
+```algol24
+class Counter;
+private:
+var Count : Integer;
+public:
+begin
+    constructor Init (); begin this.Count := 0; end
+end
+
+var C : Counter := Counter ();
+WriteLn (C.Count);
+```
+
+```console
+$ algc refusals/0019-private-through-a-typed-receiver.a24
+Uncaught: 'Count' is private to Counter.
+exit: 70
+```
 
 **[DCL-012]**  The body starts public however the header ended. A `private:` in
 the header does not carry across `begin`.
 
-    interpreter  compiler/Parser.a24  ReadDeclarationSections
     unit         The Body Starts Public However The Header Ended
     conformance  0042-visibility.a24
 
 **[DCL-013]**  Privacy belongs to the **class**, not to the object. A method may
 reach the private members of another instance of its own class.
 
-    interpreter  compiler/TypeChecker.a24  CheckVisibility
     unit         Another Instance Of The Same Class Reaches Its Privates
     conformance  0042-visibility.a24
 
@@ -1905,9 +4899,32 @@ reach the private members of another instance of its own class.
 private member through a receiver declared as the parent is refused with
 `'N' is private to P.`
 
-    interpreter  compiler/TypeChecker.a24  CheckVisibility
     unit         A Subclass Does Not Reach What Its Parent Hid
-    refusal      0020-subclass-does-not-reach-what-a-parent-hid.a24
+
+##### refusals/0020-subclass-does-not-reach-what-a-parent-hid.a24
+
+```algol24
+class Parent;
+private:
+var Secret : Integer;
+public:
+begin
+    constructor Init (); begin this.Secret := 1; end
+end
+
+class Child (Parent);
+begin
+    function Peek (P : Parent); begin Exit P.Secret; end
+end
+
+WriteLn (Child ().Peek (Parent ()));
+```
+
+```console
+$ algc refusals/0020-subclass-does-not-reach-what-a-parent-hid.a24
+Uncaught: 'Secret' is private to Parent.
+exit: 70
+```
 
 **[DCL-015]**  **`private:` is advisory.** It is checked **statically, and
 only where the receiver's type is known**. Reached through a receiver declared
@@ -1935,9 +4952,34 @@ gradually typed language, not an accident.
 access is not one of the assignment contexts [VAR-017], so nothing obliges a
 receiver to be narrowed before it is read through.
 
-    interpreter  compiler/TypeChecker.a24  CheckVisibility
     unit         A Private Member Is Caught Through A Declared Receiver
-    conformance  0043-visibility-is-advisory.a24
+
+##### conformance/0043-visibility-is-advisory.a24
+
+```algol24
+class Counter;
+private:
+var Count : Integer;
+public:
+begin
+    constructor Init (); begin this.Count := 5; end
+end
+
+// Through a receiver declared Any, the static check cannot see the type, and
+// the private field is readable...
+var C : Any := Counter ();
+WriteLn (C.Count);
+
+// ... and writable.
+C.Count := 99;
+WriteLn (C.Count);
+```
+
+```console
+$ algc conformance/0043-visibility-is-advisory.a24
+5
+99
+```
 
 ---
 
@@ -1959,10 +5001,40 @@ receiver to be narrowed before it is read through.
 | 8 | `or` |
 | 9 | `:=` |
 
-    interpreter  compiler/Parser.a24  Expression
     unit         Parse Term Plus
     unit         Parse Factor Star
-    conformance  0045-precedence.a24
+
+##### conformance/0045-precedence.a24
+
+```algol24
+WriteLn (1 + 2 * 3);           // * over +
+WriteLn ((1 + 2) * 3);         // parentheses override
+WriteLn (-2 * 3);              // unary over *
+WriteLn (1 + 1 = 2);           // + over =
+WriteLn (1 < 2 = True);        // < over =
+WriteLn (not True and False);  // not over and
+WriteLn (True or False and False);   // and over or
+WriteLn (False and True or True);    // and over or, the other way
+
+// EXP-002: one level is left-associative.  Right-associative, these would be
+// 11 and 18.
+WriteLn (10 - 2 - 3);
+WriteLn (12 / 2 / 3);
+```
+
+```console
+$ algc conformance/0045-precedence.a24
+7
+9
+-6
+true
+true
+false
+true
+true
+5
+2
+```
 
 > `1 + 2 * 3` is 7, `-2 * 3` is -6, `not True and False` is false,
 > `True or False and False` is true, and `False = False and False` is false.
@@ -1971,7 +5043,6 @@ receiver to be narrowed before it is read through.
 **[EXP-002]**  Binary operators of one level are left-associative:
 `10 - 2 - 3` is 5 and `12 / 2 / 3` is 2.
 
-    interpreter  compiler/Parser.a24  Term
     conformance  0045-precedence.a24
 
 **[EXP-003]**  `as` binds **tightly**, at the level of unary `-` and `not`. It
@@ -1983,23 +5054,75 @@ The binding stopped being cosmetic when `as` became a checked conversion
 `(False and 5) as Integer` — a Boolean cast to Integer, which raises. It is now
 `False and (5 as Integer)`, which is `False`.
 
-    interpreter  compiler/Parser.a24  Unary
-    conformance  0118-as-binds-tightly.a24
+##### conformance/0118-as-binds-tightly.a24
+
+```algol24
+var A : Any := 5;
+
+// Under the old precedence this did not parse at all: the cast consumed the
+// expression and the comparison had nothing to attach to.
+WriteLn (A as Integer > 3);
+WriteLn (A as Integer + 1);
+
+// ⚠️ The line that distinguishes the two readings now that a cast is checked.
+// 'and' yields its LEFT operand when that is falsey, so the old reading was
+// '(False and 5) as Integer' -- a Boolean cast to Integer, which raises.  The
+// new one casts 5, which is already an Integer, and the conjunction is False.
+WriteLn (False and 5 as Integer);
+
+// And the ordinary case: the cast applies to B, not to the conjunction.
+WriteLn (True and A as Integer);
+```
+
+```console
+$ algc conformance/0118-as-binds-tightly.a24
+true
+6
+false
+5
+```
 
 ### 9.2 Arithmetic
 
 **[EXP-004]**  Integer arithmetic yields an Integer, **including `/`**, which
 divides and truncates toward zero: `7 / 2` is 3 and `-7 / 2` is -3.
 
-    interpreter  compiler/Interpreter.a24  VisitBinary
-    compiler     bootstrap/algol.c         alg_divide
     unit         Evaluate Binary Slash
-    conformance  0046-arithmetic.a24
+
+##### conformance/0046-arithmetic.a24
+
+```algol24
+// EXP-004: Integer arithmetic yields an Integer, INCLUDING '/', which
+// truncates toward zero rather than flooring.
+WriteLn (7 / 2);
+WriteLn (-7 / 2);
+WriteLn (7 * 2);
+WriteLn (7 - 2);
+
+// EXP-005: a Double on either side promotes the operation and the result.
+WriteLn (7.0 / 2);
+WriteLn (7 / 2.0);
+WriteLn (1 + 2.0);
+WriteLn (2.0 * 3);
+WriteLn ((1 + 2.0) is Double);
+```
+
+```console
+$ algc conformance/0046-arithmetic.a24
+3
+-3
+14
+5
+3.5
+3.5
+3.0
+6.0
+true
+```
 
 **[EXP-005]**  A Double on either side promotes the operation and the result:
 `7.0 / 2` and `7 / 2.0` are both 3.5, and `1 + 2.0` is `3.0`.
 
-    interpreter  compiler/Interpreter.a24  VisitBinary
     unit         Evaluate Binary Plus Mixed
     conformance  0046-arithmetic.a24
 
@@ -2014,9 +5137,25 @@ other. This is specified rather than merely tolerated: each behavior is right
 for its own type. IEEE 754 defines the Double case and there is no integer
 infinity to return for the other.
 
-    interpreter  compiler/Interpreter.a24  VisitBinary
-    compiler     bootstrap/algol.c         alg_divide
-    conformance  0047-division-by-zero.a24
+##### conformance/0047-division-by-zero.a24
+
+```algol24
+WriteLn (1.0 / 0);
+WriteLn (-1.0 / 0);
+WriteLn (0.0 / 0);
+
+// Integer division by zero is.  The asymmetry is specified, not tolerated.
+WriteLn (1 / 0);
+```
+
+```console
+$ algc conformance/0047-division-by-zero.a24
+Uncaught: Division by zero.
+Infinity
+-Infinity
+NaN
+exit: 70
+```
 
 **[EXP-007]**  Integer arithmetic never overflows: a result too large for the
 machine's width grows to hold it [LEX-018].
@@ -2031,7 +5170,6 @@ between those.
 `2147483647 + 1.0` is `2.147483648E9` — the Integer promotes to a Double and the
 exactness goes with it.
 
-    compiler     bootstrap/algol.c  alg_add
     conformance  0041-integers-grow.a24
     conformance  0136-integer-range.a24
 
@@ -2057,9 +5195,51 @@ performing silently.
 It binds as `*` and `/` do — a different operation, not a different
 precedence, so `A + B div C` groups the way `A + B / C` does.
 
-    interpreter  compiler/Interpreter.a24  IntegerDivide
-    compiler     bootstrap/algol.c         alg_div_int
-    conformance  0155-integer-division.a24
+##### conformance/0155-integer-division.a24
+
+```algol24
+WriteLn (7 div 2);
+WriteLn (-7 div 2);
+WriteLn (7 div 2 is Integer);
+
+// It binds as '*' and '/' do, so this groups as 'A + (B div C)'.
+WriteLn (1 + 8 div 2);
+
+// It grows with the Integer it divides [LEX-018].
+WriteLn (9223372036854775807 * 2 div 2);
+
+// ⚠️ A Double is REFUSED rather than truncated -- the bargain Mod makes.  '/'
+// would quietly do real division instead, which is the ambiguity div exists to
+// remove.
+try
+    WriteLn (7.0 div 2);
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (7 div 0);
+except
+    on e : String do WriteLn (e);
+end
+
+// '/' is unchanged, and still means both things.
+WriteLn (7 / 2);
+WriteLn (7.0 / 2);
+```
+
+```console
+$ algc conformance/0155-integer-division.a24
+3
+-3
+true
+5
+9223372036854775807
+div expects Integers.
+Division by zero.
+3
+3.5
+```
 
 **[EXP-008]**  `+` concatenates when **either** operand is text, converting the
 other. `'ab' + 1` is `ab1`, `1 + 'ab'` is `1ab`, and `'a' + 'b'` — two Chars — is
@@ -2083,11 +5263,70 @@ in an expression was never that rule being applied.
 **A String mixed with a number still concatenates.** A String is not an
 ordinal, so `'ab' + 1` has only one reading and nothing to disambiguate.
 
-    interpreter  compiler/Interpreter.a24  VisitBinary
-    compiler     bootstrap/algol.c         alg_add
     unit         Evaluate Binary Plus String
     conformance  0025-operators-widen.a24
-    conformance  0167-character-arithmetic.a24
+
+##### conformance/0167-character-arithmetic.a24
+
+```algol24
+// The distance between two Chars, as an Integer.
+
+WriteLn ('z' - 'a');
+WriteLn ('a' - 'z');
+WriteLn ('a' - 'a');
+
+// Code points, so this is the same 232 and 233 that Ord answers.
+WriteLn ('é' - 'è');
+
+// Stepping, on a Char and on an Integer.
+WriteLn (Succ ('a'), ' ', Pred ('b'));
+WriteLn (Succ (5), ' ', Pred (5));
+WriteLn (Succ ('è'));
+
+// ⚠️ A CHAR MIXED WITH A NUMBER IS REFUSED.  A Char is an ordinal, so 'a' + 1
+// reads two ways -- step the character, or join it to the text '1' -- and
+// rather than pick one silently the language makes the program say which.
+try WriteLn ('a' + 1); except on e : String do WriteLn (e); end
+try WriteLn (1 + 'a'); except on e : String do WriteLn (e); end
+try WriteLn ('a' - 1); except on e : String do WriteLn (e); end
+
+// Str is how a Char widens, and now it means something: these two differ.
+WriteLn (Str ('a') + 1);
+WriteLn (Succ ('a'));
+
+// ⚠️ A STRING mixed with a number still concatenates.  A String is not an
+// ordinal, so it has only one reading and nothing to disambiguate.
+WriteLn ('ab' + 1);
+WriteLn (1 + 'ab');
+
+// And two Chars still concatenate, which is what Turbo Pascal does.
+WriteLn ('a' + 'b');
+
+// Anything that is not an ordinal has no Succ.
+try WriteLn (Succ (True));  except on e : String do WriteLn (e); end
+try WriteLn (Succ ('ab'));  except on e : String do WriteLn (e); end
+```
+
+```console
+$ algc conformance/0167-character-arithmetic.a24
+25
+-25
+0
+1
+b a
+6 4
+é
+A Char and a number cannot be added; use Succ or Str.
+A Char and a number cannot be added; use Succ or Str.
+A Char and a number cannot be subtracted; use Pred.
+a1
+b
+ab1
+1ab
+ab
+Succ failed: 'true' has no ordinal.
+Succ failed: 'ab' has no ordinal.
+```
 
 **[EXP-019]**  `-` on **two Chars** answers the Integer distance between their
 code points: `'z' - 'a'` is 25.
@@ -2100,8 +5339,6 @@ two ways: subtracting two ordinals is a distance and nothing else. Stepping is
 answers a distance with `Ord (X) - Ord (Y)`, which stays available and says the
 same thing at greater length.
 
-    interpreter  compiler/Interpreter.a24  VisitBinary
-    compiler     bootstrap/algol.c         alg_subtract
     conformance  0167-character-arithmetic.a24
 
 **[EXP-020]**  A class may define `+`, `-`, `*`, `/` and `div` for its own
@@ -2150,25 +5387,142 @@ assignment is a location.
 **`Mod` is a function and `div` is an operator** [RT-011], so a class may
 define `div` and never `mod`. The asymmetry predates this rule.
 
-    interpreter  compiler/Parser.a24  ParseOperator
-    compiler     bootstrap/algol.c    apply_operator
-    conformance  0172-a-class-that-computes.a24
-    refusal      0172-an-operator-not-on-the-list.a24
+##### conformance/0172-a-class-that-computes.a24
+
+```algol24
+class Money;
+var Cents : Integer;
+begin
+    constructor Init (C : Integer); begin this.Cents := C; end
+
+    operator + (Other : Money) : Money;   begin Exit Money (Cents + Other.Cents); end
+    operator - (Other : Money) : Money;   begin Exit Money (Cents - Other.Cents); end
+    operator * (N : Integer)   : Money;   begin Exit Money (Cents * N); end
+    operator div (N : Integer) : Money;   begin Exit Money (Cents div N); end
+
+    // ⚠️ UNARY, told apart from subtraction by ARITY -- as the two forms of
+    // subscript are.  The language tells arities apart everywhere, so neither
+    // form needs a word of its own.
+    operator - ()              : Money;   begin Exit Money (-Cents); end
+
+    function ToString () : String;        begin Exit Str (Cents); end
+end
+
+var A := Money (100);
+var B := Money (250);
+
+WriteLn (A + B);
+WriteLn (B - A);
+WriteLn (A * 3);
+WriteLn (B div 5);
+WriteLn (-A);
+
+// It composes with the other protocols: an operator answering an instance is
+// an instance like any other.
+WriteLn ((A + B) - A);
+
+// ⚠️ THE LEFT OPERAND DECIDES, as a receiver does everywhere else in this
+// language.  An operator is a member, and a member is reached through the value
+// on its left.
+try
+    WriteLn (3 * A);
+except
+    on e : String do WriteLn (e);
+end
+
+// A class defining no operator is unchanged.
+class Plain;
+begin
+    constructor Init (); begin end
+end
+
+try
+    WriteLn (Plain () + Plain ());
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0172-a-class-that-computes.a24
+350
+150
+300
+50
+-100
+250
+Operands must be numbers.
+Operands must be two numbers, or two strings.
+```
+
+##### refusals/0172-an-operator-not-on-the-list.a24
+
+```algol24
+class Pair;
+var Left, Right : Integer;
+
+begin
+    constructor Init (L : Integer, R : Integer); begin this.Left := L; this.Right := R; end
+
+    operator = (Other : Pair) : Boolean; begin Exit Left = Other.Left; end
+end
+```
+
+```console
+$ algc refusals/0172-an-operator-not-on-the-list.a24
+Uncaught: An operator must be one of + - * / div.
+[ERROR] refusals/0172-an-operator-not-on-the-list.a24: An operator must be one of + - * / div.
+[ERROR] 7 |     operator = (Other : Pair) : Boolean; begin Exit Left = Other.Left; end
+[ERROR]   |              ^
+exit: 70
+```
 
 ### 9.4 Logical operators
 
 **[EXP-009]**  `and` and `or` **short-circuit**. The right operand is evaluated
 only when the left does not decide the result.
 
-    interpreter  compiler/Interpreter.a24  VisitLogical
     unit         Execute Logical And
     unit         Execute Logical Or
-    conformance  0048-logical-operators.a24
+
+##### conformance/0048-logical-operators.a24
+
+```algol24
+var Ran := 0;
+
+function Boom ();
+begin
+    Ran := Ran + 1;
+    Exit True;
+end
+
+// EXP-009: the right operand is evaluated only when the left does not decide.
+Ran := 0;  var A := False and Boom ();  WriteLn (Ran);
+Ran := 0;  var B := True  or  Boom ();  WriteLn (Ran);
+Ran := 0;  var C := True  and Boom ();  WriteLn (Ran);
+Ran := 0;  var D := False or  Boom ();  WriteLn (Ran);
+
+// EXP-010: both test truthiness rather than requiring a Boolean, and yield an
+// OPERAND rather than a Boolean.
+WriteLn (0 or 'text');
+WriteLn ('text' and 7);
+WriteLn (nil or 'fallback');
+```
+
+```console
+$ algc conformance/0048-logical-operators.a24
+0
+0
+1
+1
+text
+7
+fallback
+```
 
 **[EXP-010]**  Both operators test truthiness [VAL-008] rather than requiring a
 Boolean.
 
-    interpreter  compiler/Interpreter.a24  IsTruthy
     unit         Execute Logical Truthy
     conformance  0048-logical-operators.a24
 
@@ -2184,15 +5538,111 @@ would send the reader to look at the wrong thing, since what refused the call
 was the element type. `Write` and `WriteLn` take any number of values [RT-001]
 and so can never fail this way at all.
 
-    interpreter  compiler/Interpreter.a24  VisitCall
     unit         Call Wrong Number Of Arguments
-    conformance  0049-call-failures.a24
-    conformance  0145-a-builtin-with-the-wrong-arity.a24
+
+##### conformance/0049-call-failures.a24
+
+```algol24
+function One (A); begin Exit A; end
+
+WriteLn (One (1));
+
+// Too FEW is a failure too, and the more dangerous one: the missing argument
+// has to be diagnosed rather than read from wherever the call left off.
+try
+    WriteLn (One ());
+except
+    on e : String do WriteLn (e);
+end
+
+class Box;
+begin
+    constructor Init (A); begin end
+    function Only (A); begin Exit A; end
+end
+
+try
+    WriteLn (Box (1).Only (1, 2));
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (Box (1).Only ());
+except
+    on e : String do WriteLn (e);
+end
+
+// Construction reports the counts, like any other call with one signature.
+try
+    WriteLn (Box (1, 2));
+except
+    on e : String do WriteLn (e);
+end
+
+// EXP-011: a call checks arity.
+WriteLn (One (1, 2));
+```
+
+```console
+$ algc conformance/0049-call-failures.a24
+Uncaught: Expected 1 arguments but got 2.
+1
+Expected 1 arguments but got 0.
+No matching signature for function.
+No matching signature for function.
+Expected 1 arguments but got 2.
+exit: 70
+```
+
+##### conformance/0145-a-builtin-with-the-wrong-arity.a24
+
+```algol24
+WriteLn (Length ('abc'));
+
+try
+    WriteLn (Length ('a', 'b'));
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (Ord ());
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ Two built-ins take nothing OR one value -- Set and Buffer [RT-001] -- so
+// 'expected' is not always a single number.
+//
+// ⚠️ And Write and WriteLn take ANY number of values, so neither of these is a
+// wrong call at all: no argument is the newline on its own, and several are
+// run together with nothing between them.  This is the one place a built-in's
+// count is never wrong.
+WriteLn ();
+WriteLn ('a', 'b');
+
+// A name nothing declares is the other failure, for contrast.
+try
+    WriteLn (Nonexistent (1));
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0145-a-builtin-with-the-wrong-arity.a24
+3
+Expected 1 arguments but got 2.
+Expected 1 arguments but got 0.
+
+ab
+Undefined variable 'Nonexistent'.
+```
 
 **[EXP-012]**  Calling something that is neither a function nor a class is
 `Can only call functions and classes.`
 
-    interpreter  compiler/Interpreter.a24  VisitCall
     unit         Call Non Function
     conformance  0049-call-failures.a24
 
@@ -2236,13 +5686,175 @@ mark [LEX-008] and `Gate?` is one word.
 this language at all — they exist only as a count [RT-001] — so there is no name
 to write, and `WriteLn (V: 'abc')` is *A built-in has no named parameters.*
 
-    interpreter  compiler/Interpreter.a24  Arranged
-    conformance  0160-named-arguments.a24
-    refusal      0160-a-positional-argument-after-a-named-one.a24
+##### conformance/0160-named-arguments.a24
 
-    interpreter  compiler/ObjClass.a24  FindOverload
-    compiler     bootstrap/algol.c      alg_invoke
-    conformance  0050-overload-selection.a24
+```algol24
+procedure Log (Level : String, Message : String);
+begin
+    WriteLn (Level + ': ' + Message);
+end
+
+Log ('warn', 'disk');
+Log (Level: 'warn', Message: 'disk');
+
+// The order at the call site is free; the order that matters is the
+// declaration's.
+Log (Message: 'disk', Level: 'warn');
+
+// Positional first, named after.
+Log ('warn', Message: 'disk');
+
+// A name folds like every other name [SRC-011].
+Log (level: 'warn', MESSAGE: 'disk');
+
+// Two subprograms of one name, told apart by the names alone.
+procedure Note (Level : String, Message : String); begin WriteLn ('two'); end
+procedure Note (Code : Integer);                   begin WriteLn ('one'); end
+
+Note (Code: 7);
+Note (Level: 'warn', Message: 'x');
+
+// Constructing an instance is a call to the constructor, so its parameters are
+// named the same way [CLS-002].
+class Dog;
+begin
+    constructor Init (Name : String, Age : Integer);
+    begin
+        WriteLn (Name + ' is ' + Str (Age));
+    end
+
+    procedure Fetch (What : String, Times : Integer);
+    begin
+        WriteLn (What + ' x' + Str (Times));
+    end
+end
+
+var D := Dog (Age: 3, Name: 'Rex');
+
+// And a method, whose class is not known until the receiver is.
+D.Fetch (Times: 2, What: 'ball');
+
+// A subprogram held in a variable keeps its parameter names.
+var F := Log;
+
+F (Message: 'held', Level: 'warn');
+
+// ⚠️ Naming the absorbing parameter turns absorption OFF, and needs no rule to
+// do it [FUN-005]: an arrangement fills every slot exactly once, so the
+// arranged call has precisely the declared arity and the exact pass takes it
+// before absorption is ever reached.
+procedure Take (Label : String, Items : List of Integer);
+begin
+    WriteLn (Label + ' ' + Str (Items.Length));
+end
+
+Take ('a', 1, 2, 3);
+Take ('a', Items: [1, 2, 3]);
+Take (Items: [1], Label: 'a');
+
+// A name no parameter has.
+try
+    Log (Levl: 'warn', Message: 'x');
+except
+    on e : String do WriteLn (e);
+end
+
+// A parameter supplied twice.
+try
+    Log (Level: 'a', Level: 'b');
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ A BUILT-IN has no named parameters.  Its parameters are not declared in
+// this language at all -- they exist only as a count -- so there is no name to
+// write [RT-001].
+try
+    WriteLn (V: 'abc');
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0160-named-arguments.a24
+warn: disk
+warn: disk
+warn: disk
+warn: disk
+warn: disk
+one
+two
+Rex is 3
+ball x2
+warn: held
+a 3
+a 3
+a 1
+No matching signature for function.
+No matching signature for function.
+A built-in has no named parameters.
+```
+
+##### refusals/0160-a-positional-argument-after-a-named-one.a24
+
+```algol24
+procedure Log (Level : String, Message : String);
+begin
+    WriteLn (Level + ': ' + Message);
+end
+
+Log (Level: 'warn', 'disk');
+```
+
+```console
+$ algc refusals/0160-a-positional-argument-after-a-named-one.a24
+Uncaught: A positional argument cannot follow a named one.
+exit: 70
+```
+
+##### conformance/0050-overload-selection.a24
+
+```algol24
+class M;
+begin
+    function Take (I : Integer);          begin Exit 'integer';      end
+    function Take (S : String);           begin Exit 'string';       end
+    function Take (C : Char);             begin Exit 'char';         end
+    function Take (A : Integer, B : Integer); begin Exit 'two integers'; end
+end
+
+var X := M ();
+
+// EXP-013: selection is on the WHOLE signature -- count and each type.
+WriteLn (X.Take (1));
+WriteLn (X.Take ('ab'));
+WriteLn (X.Take ('a'));
+WriteLn (X.Take (1, 2));
+
+// ⚠️ Selection is at RUN TIME, from the value actually passed.  A's declared
+// type is Any; no static rule could reach the Integer overload from that.
+var A : Any := 1;
+WriteLn (X.Take (A));
+
+var B : Any := 'ab';
+WriteLn (X.Take (B));
+
+// EXP-014: an exact match is preferred.  'a' is a Char and takes the Char
+// overload rather than widening to the String one.
+WriteLn (X.Take ('a'));
+```
+
+```console
+$ algc conformance/0050-overload-selection.a24
+integer
+string
+char
+two integers
+integer
+string
+char
+```
 
 **[EXP-014]**  An overload is chosen by preferring an **exact match** on every
 argument; failing that, one reachable by widening [VAR-004], since a parameter
@@ -2272,9 +5884,60 @@ exactly.
 passes, because that is the argument being what the parameter asks for rather
 than being converted into it.
 
-    interpreter  compiler/ObjClass.a24  FindOverload
     conformance  0050-overload-selection.a24
-    conformance  0137-parameters-match-on-signature.a24
+
+##### conformance/0137-parameters-match-on-signature.a24
+
+```algol24
+function G (N : Integer); begin Exit 'integer ' + Str (N); end
+WriteLn (G (7));
+
+// ⚠️ A parameter is an assignment context [VAR-017], so an argument WIDENS into
+// it: an Integer where a Double is written, a Char where a String is.  The
+// parameter holds the wider type, so this prints 1.0 rather than 1.
+function D (X : Double); begin Exit X; end
+WriteLn (D (1));
+
+function S (T : String); begin Exit T + '!'; end
+WriteLn (S ('a'));
+
+// The same two widenings at a method, which is where they were already
+// admitted at the declaration and refused at the call.
+class N;
+begin
+    function Only (T : String); begin Exit 'string only'; end
+end
+WriteLn (N ().Only ('a'));
+
+// ⚠️ An EXACT match is preferred over a widened one [EXP-014], whatever order
+// the overloads are declared in.  Selection makes two passes for this: one
+// admitting no widening, then one admitting it.
+class M;
+begin
+    function Take (T : String); begin Exit 'string'; end
+    function Take (C : Char);   begin Exit 'char';   end
+end
+WriteLn (M ().Take ('a'));
+WriteLn (M ().Take ('ab'));
+
+// Inheritance is not widening -- a subclass fits its parent's type in both
+// passes, because that is the argument being what the parameter asks for.
+class Animal; begin end
+class Dog (Animal); begin end
+function Feed (A : Animal); begin Exit 'fed'; end
+WriteLn (Feed (Dog ()));
+```
+
+```console
+$ algc conformance/0137-parameters-match-on-signature.a24
+integer 7
+1.0
+a!
+string only
+char
+string
+fed
+```
 
 ### 9.6 Subscripting
 
@@ -2282,14 +5945,47 @@ than being converted into it.
 position, counted from zero [SRC-004]. An index outside the value is
 `Index N out of range 0..M.`
 
-    interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
-    compiler     bootstrap/algol.c         alg_subscript_get
-    conformance  0051-string-subscript.a24
+##### conformance/0051-string-subscript.a24
+
+```algol24
+var S := 'abc';
+
+WriteLn (S[0]);
+WriteLn (S[2]);
+WriteLn (S[0] is Char);
+
+var T := 'café';
+
+WriteLn (T[3]);
+WriteLn (T[3] is Char);
+WriteLn (Length (T));
+
+// The bound is in characters too, so the last index is 3 and not 4.
+try
+    WriteLn (T[4]);
+except
+    on e : String do WriteLn (e);
+end
+
+WriteLn (S[9]);
+```
+
+```console
+$ algc conformance/0051-string-subscript.a24
+Uncaught: Index 9 out of range 0..2.
+a
+c
+true
+é
+true
+4
+Index 4 out of range 0..3.
+exit: 70
+```
 
 **[EXP-016]**  A class instance is subscripted through `Get` and `Put` — see
 [TYP-010].
 
-    interpreter  compiler/Interpreter.a24  VisitSubscriptExpr
     conformance  0031-instance-is-not-subscriptable.a24
     conformance  0171-a-class-that-subscripts.a24
 
@@ -2298,9 +5994,32 @@ position, counted from zero [SRC-004]. An index outside the value is
 **[EXP-017]**  Assignment is an **expression**, and its value is the value
 assigned: `X := (Y := 1)` leaves both at 1.
 
-    interpreter  compiler/Parser.a24  Assignment
     unit         Resolve Assignment
-    conformance  0052-assignment-is-an-expression.a24
+
+##### conformance/0052-assignment-is-an-expression.a24
+
+```algol24
+var X := 0;
+var Y := 0;
+
+X := (Y := 1);
+
+WriteLn (X);
+WriteLn (Y);
+
+// So it may appear where a value is wanted.
+var Z := 0;
+WriteLn ((Z := 5) + 1);
+WriteLn (Z);
+```
+
+```console
+$ algc conformance/0052-assignment-is-an-expression.a24
+1
+1
+6
+5
+```
 
 ---
 
@@ -2310,9 +6029,36 @@ assigned: `X := (Y := 1)` leaves both at 1.
 
 **[STM-001]**  A block is `begin` … `end` and may be empty.
 
-    interpreter  compiler/Interpreter.a24  VisitBlockStmt
     unit         Execute Block Statement
-    conformance  0053-blocks-and-conditionals.a24
+
+##### conformance/0053-blocks-and-conditionals.a24
+
+```algol24
+// STM-001: a block may be empty.
+begin
+end
+
+// STM-003: the condition is tested for TRUTHINESS, not required to be Boolean.
+if 1 then WriteLn ('integer 1 is truthy');
+if 0 then WriteLn ('not reached'); else WriteLn ('integer 0 is falsey');
+if 'text' then WriteLn ('a String is truthy');
+if nil then WriteLn ('not reached'); else WriteLn ('nil is falsey');
+
+// STM-004: an else binds to the NEAREST unmatched if.  Were it bound to the
+// outer one, nothing would print here.
+if True then
+    if False then WriteLn ('not reached');
+    else WriteLn ('inner-else');
+```
+
+```console
+$ algc conformance/0053-blocks-and-conditionals.a24
+integer 1 is truthy
+integer 0 is falsey
+a String is truthy
+nil is falsey
+inner-else
+```
 
 **[STM-002]**  A declaration may **not** stand as the body of a branch or a
 loop. `if C then var X := 1;` is refused; the declaration must be inside a block.
@@ -2324,8 +6070,20 @@ loop body never entered behaved the same way.
 A declaration stays legal as a `try` body, which is a statement rather than a
 branch: `try var X := 1; …` has to parse.
 
-    interpreter  compiler/Parser.a24  BodyStatement
-    refusal      0034-declaration-as-an-unbraced-body.a24
+##### refusals/0034-declaration-as-an-unbraced-body.a24
+
+```algol24
+if True then var X := 1;
+```
+
+```console
+$ algc refusals/0034-declaration-as-an-unbraced-body.a24
+Uncaught: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
+[ERROR] refusals/0034-declaration-as-an-unbraced-body.a24: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
+[ERROR] 1 | if True then var X := 1;
+[ERROR]   |              ^^^
+exit: 70
+```
 
 ### 10.2 Conditionals
 
@@ -2333,7 +6091,6 @@ branch: `try var X := 1; …` has to parse.
 tested for truthiness [VAL-008], not required to be a Boolean. A missing `then`
 is `Expect 'then' after if condition.`
 
-    interpreter  compiler/Interpreter.a24  VisitIfStmt
     unit         Execute If Statement
     unit         Execute Else Statement
     unit         Parse If Expect Then
@@ -2341,7 +6098,6 @@ is `Expect 'then' after if condition.`
 
 **[STM-004]**  An `else` binds to the **nearest** unmatched `if`.
 
-    interpreter  compiler/Parser.a24  IfStatement
     conformance  0053-blocks-and-conditionals.a24
 
 ### 10.3 Loops
@@ -2349,10 +6105,67 @@ is `Expect 'then' after if condition.`
 **[STM-005]**  `while Cond do S`. A missing `do` is `Expect 'do' after
 condition.`
 
-    interpreter  compiler/Interpreter.a24  VisitWhileStmt
     unit         Execute While Loop
     unit         Parse While Expect Do
-    conformance  0054-loops.a24
+
+##### conformance/0054-loops.a24
+
+```algol24
+// STM-005: while.
+var N := 0;
+while N < 3 do
+begin
+    Write (N);
+    N := N + 1;
+end
+WriteLn ('');
+
+// STM-006: the counted form.
+for var I := 0; I < 3; I := I + 1 do Write (I);
+WriteLn ('');
+
+// STM-007: for..in over a collection, a String, and a Map.
+for var E in [7, 8] do Write (E);
+WriteLn ('');
+
+for var C in 'abc' do Write (C);
+WriteLn ('');
+
+// Over a Map it yields each KEY, not each value.
+for var K in [1 : 'one', 2 : 'two'] do Write (K);
+WriteLn ('');
+
+// STM-010: break leaves the innermost enclosing loop.
+for var I := 0; I < 10; I := I + 1 do
+begin
+    if I = 3 then break;
+    Write (I);
+end
+WriteLn ('');
+
+// The INNERMOST one -- the outer loop keeps going.
+for var I := 0; I < 3; I := I + 1 do
+begin
+    for var J := 0; J < 10; J := J + 1 do
+    begin
+        if J = 1 then break;
+        Write (J);
+    end
+    Write ('|');
+end
+WriteLn ('');
+```
+
+```console
+$ algc conformance/0054-loops.a24
+012
+012
+78
+abc
+12
+012
+0|0|0|
+```
 
 **[STM-006]**  The counted form is `for Init ; Cond ; Step do S`, and it
 **desugars into a block** holding the initializer and a `while` — which is why
@@ -2362,30 +6175,65 @@ its variable is scoped [DCL-008].
 is the reason [STM-010]: with the step written at the end of the body, beginning
 the next iteration jumped over it and the loop never ended.
 
-    interpreter  compiler/Parser.a24  ForStatement
     unit         Execute For Loop
     unit         Parse For Statement
     conformance  0054-loops.a24
-    conformance  0142-two-counted-loops-share-a-name.a24
+
+##### conformance/0142-two-counted-loops-share-a-name.a24
+
+```algol24
+for var I := 0; I < 2; I := I + 1 do Write (I);
+WriteLn ('');
+
+for var I := 0; I < 3; I := I + 1 do Write (I);
+WriteLn ('');
+
+// And the name is gone once the loop is over [DCL-008].
+var I := 'not the loop variable';
+WriteLn (I);
+```
+
+```console
+$ algc conformance/0142-two-counted-loops-share-a-name.a24
+01
+012
+not the loop variable
+```
 
 **[STM-007]**  `for var X in C do S` walks a collection or a String. Over a
 String it yields each `Char`; over a `Map` it yields each **key**.
 
-    interpreter  compiler/Interpreter.a24  VisitForInStmt
     conformance  0054-loops.a24
 
 **[STM-008]**  Iterating anything else is `Can only iterate a collection or a
 String.` — see [TYP-011], which is where a class says it is iterable.
 
-    interpreter  compiler/Interpreter.a24  VisitForInStmt
     conformance  0032-instance-is-not-iterable.a24
 
 **[STM-009]**  The collection is **snapshotted** when the loop begins.
 Adding to it inside the loop does not lengthen the walk.
 
-    interpreter  compiler/Interpreter.a24  VisitForInStmt
-    compiler     bootstrap/algol.c         alg_iterable
-    conformance  0055-loop-snapshot.a24
+##### conformance/0055-loop-snapshot.a24
+
+```algol24
+var L := [1, 2, 3];
+
+for var E in L do
+begin
+    Write (E);
+    L.Add (E + 10);
+end
+WriteLn ('');
+
+// The additions did happen -- the walk simply did not see them.
+WriteLn (L.Length);
+```
+
+```console
+$ algc conformance/0055-loop-snapshot.a24
+123
+6
+```
 
 **[STM-010]**  `break` leaves the innermost enclosing loop, and `continue`
 begins its next iteration. Outside a loop either is refused **where it is
@@ -2429,16 +6277,212 @@ over it and the loop never ended — in both processors, since
 tree-walker does. The step is now held by the loop itself, so the interpreter
 runs it after catching a `continue` and the C back end writes a real `for`.
 
-    interpreter  compiler/Parser.a24  BreakStatement
-    interpreter  compiler/Parser.a24  ContinueStatement
     unit         Parse Break Inside A While
     unit         Parse Break Outside A Loop
     conformance  0054-loops.a24
-    conformance  0161-continue.a24
-    conformance  0162-labelled-break-and-continue.a24
-    refusal      0021-break-outside-a-loop.a24
-    refusal      0161-continue-outside-a-loop.a24
-    refusal      0162-a-label-no-enclosing-loop-has.a24
+
+##### conformance/0161-continue.a24
+
+```algol24
+for var I := 0; I < 5; I := I + 1 do
+begin
+    if I = 2 then continue;
+    Write (Str (I));
+end
+WriteLn ();
+
+// while: the programmer steps, so continue is their problem
+var J := 0;
+while J < 5 do
+begin
+    J := J + 1;
+    if J = 3 then continue;
+    Write (Str (J));
+end
+WriteLn ();
+
+// for ... in
+for var C in ['a', 'b', 'c'] do
+begin
+    if C = 'b' then continue;
+    Write (Str (C));
+end
+WriteLn ();
+
+// break still leaves
+for var K := 0; K < 5; K := K + 1 do
+begin
+    if K = 2 then break;
+    Write (Str (K));
+end
+WriteLn ();
+
+// ⚠️ Leaving a 'try' by continuing must pop the runtime's frame, exactly as
+// breaking does.  A frame left behind points at a C frame that has returned,
+// and the next raise jumps into dead stack -- so the raise after this loop is
+// the part of the case that matters.
+for var N := 0; N < 6; N := N + 1 do
+begin
+    try
+        if N = 2 then continue;
+        if N = 4 then break;
+        Write (Str (N));
+    except
+        on e : String do WriteLn ('caught ' + e);
+    end
+end
+WriteLn ();
+
+try
+    raise 'the frame stack is still sound';
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0161-continue.a24
+0134
+1245
+ac
+01
+013
+the frame stack is still sound
+```
+
+##### conformance/0162-labelled-break-and-continue.a24
+
+```algol24
+Outer:
+for var I := 0; I < 3; I := I + 1 do
+begin
+    for var J := 0; J < 3; J := J + 1 do
+    begin
+        if J = 1 then continue Outer;
+        if I = 2 then break Outer;
+        Write (Str (I) + Str (J) + ' ');
+    end
+
+    // Never reached: continuing the outer loop skips the rest of ITS body.
+    Write ('| ');
+end
+WriteLn ();
+
+// Unlabelled still means the innermost loop.
+for var I := 0; I < 2; I := I + 1 do
+begin
+    for var J := 0; J < 3; J := J + 1 do
+    begin
+        if J = 1 then break;
+        Write (Str (I) + Str (J) + ' ');
+    end
+end
+WriteLn ();
+
+// A label on a 'for ... in', named without regard to case [SRC-011].
+Rows:
+for var R in ['a', 'b', 'c'] do
+begin
+    for var C in [1, 2] do
+    begin
+        if C = 2 then continue rows;
+        Write (Str (R) + Str (C) + ' ');
+    end
+    Write ('never ');
+end
+WriteLn ();
+
+// ⚠️ A labelled jump leaves every 'try' opened inside the loop it names, not
+// merely the innermost one -- so the runtime's frame stack has to be unwound
+// by more than one frame at a time.  The raise at the end is what proves it.
+Deep:
+for var I := 0; I < 3; I := I + 1 do
+begin
+    try
+        for var J := 0; J < 3; J := J + 1 do
+        begin
+            try
+                if I = 1 and J = 1 then break Deep;
+                if J = 2 then continue Deep;
+                Write (Str (I) + Str (J) + ' ');
+            except
+                on e : String do WriteLn ('inner ' + e);
+            end
+        end
+    except
+        on e : String do WriteLn ('outer ' + e);
+    end
+end
+WriteLn ();
+
+try
+    raise 'the frame stack is still sound';
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0162-labelled-break-and-continue.a24
+00 10 
+00 10 
+a1 b1 c1 
+00 01 10 
+the frame stack is still sound
+```
+
+##### refusals/0021-break-outside-a-loop.a24
+
+```algol24
+WriteLn ('never runs');
+
+break;
+```
+
+```console
+$ algc refusals/0021-break-outside-a-loop.a24
+Uncaught: Must be inside a loop to use 'break'.
+[ERROR] refusals/0021-break-outside-a-loop.a24: Must be inside a loop to use 'break'.
+[ERROR] 3 | break;
+[ERROR]   | ^^^^^
+exit: 70
+```
+
+##### refusals/0161-continue-outside-a-loop.a24
+
+```algol24
+WriteLn ('reached');
+
+continue;
+```
+
+```console
+$ algc refusals/0161-continue-outside-a-loop.a24
+Uncaught: Must be inside a loop to use 'continue'.
+[ERROR] refusals/0161-continue-outside-a-loop.a24: Must be inside a loop to use 'continue'.
+[ERROR] 3 | continue;
+[ERROR]   | ^^^^^^^^
+exit: 70
+```
+
+##### refusals/0162-a-label-no-enclosing-loop-has.a24
+
+```algol24
+Outer:
+for var I := 0; I < 3; I := I + 1 do
+begin
+    break Inner;
+end
+```
+
+```console
+$ algc refusals/0162-a-label-no-enclosing-loop-has.a24
+Uncaught: No enclosing loop is labelled 'Inner'.
+[ERROR] refusals/0162-a-label-no-enclosing-loop-has.a24: No enclosing loop is labelled 'Inner'.
+[ERROR] 4 |     break Inner;
+[ERROR]   |     ^^^^^
+exit: 70
+```
 
 ### 10.4 Case
 
@@ -2450,8 +6494,52 @@ CaseStmt = "case" Expression "of" { Arm } [ "else" Statement ] "end" .
 Arm      = Expression { "," Expression } ":" Statement .
 ```
 
-    interpreter  compiler/Parser.a24  CaseStatement
-    conformance  0056-case.a24
+##### conformance/0056-case.a24
+
+```algol24
+procedure Classify (V);
+begin
+    case V of
+        1      : WriteLn ('one');
+        2, 3   : WriteLn ('two or three');
+    else
+        WriteLn ('other');
+    end
+end
+
+Classify (1);
+Classify (2);
+Classify (3);
+Classify (9);
+
+// STM-012: arms compare with '=' [VAL-009], which promotes -- so a Double
+// matches an Integer arm of the same value.
+Classify (1.0);
+
+// STM-013: no arm and no else means nothing happens, and execution continues.
+procedure NoElse (V);
+begin
+    case V of
+        1 : WriteLn ('matched one');
+    end
+    WriteLn ('continued');
+end
+
+NoElse (1);
+NoElse (2);
+```
+
+```console
+$ algc conformance/0056-case.a24
+one
+two or three
+two or three
+other
+one
+matched one
+continued
+continued
+```
 
 **[STM-012]**  `case` **desugars into an if/else-if chain**. There is no case
 statement downstream of the parser, and two consequences follow from that rather
@@ -2461,13 +6549,11 @@ than from any rule of their own:
   same value — `1.0` matches the arm `1`.
 - There is no fall-through. At most one arm runs.
 
-    interpreter  compiler/Parser.a24  CaseStatement
     conformance  0056-case.a24
 
 **[STM-013]**  When no arm matches and there is no `else`, nothing happens and
 execution continues after the `end`.
 
-    interpreter  compiler/Parser.a24  CaseStatement
     conformance  0056-case.a24
 
 ### 10.5 Exit
@@ -2475,30 +6561,115 @@ execution continues after the `end`.
 **[STM-014]**  `Exit` returns from the enclosing function or procedure, with a
 value in a function and bare in a procedure. Statements after it do not run.
 
-    interpreter  compiler/Interpreter.a24  VisitReturnStmt
-    conformance  0057-exit.a24
+##### conformance/0057-exit.a24
+
+```algol24
+// With a value in a function.
+function Answer ();
+begin
+    Exit 7;
+    WriteLn ('not reached');
+end
+
+WriteLn (Answer ());
+
+// Bare in a procedure.
+procedure Early (Stop);
+begin
+    WriteLn ('before');
+    if Stop then Exit;
+    WriteLn ('after');
+end
+
+Early (True);
+Early (False);
+```
+
+```console
+$ algc conformance/0057-exit.a24
+7
+before
+before
+after
+```
 
 **[STM-015]**  `Exit` at the top level is refused with `Can't return from
 top-level code.`
 
-    interpreter  compiler/Resolver.a24  VisitReturnStmt
     unit         Invalid Return
-    refusal      0022-exit-at-top-level.a24
+
+##### refusals/0022-exit-at-top-level.a24
+
+```algol24
+
+```
+
+```console
+$ algc refusals/0022-exit-at-top-level.a24
+```
 
 ### 10.6 Exceptions
 
 **[STM-016]**  `raise E` carries **any value** — a String, an Integer, a class
 instance, anything.
 
-    interpreter  compiler/Interpreter.a24  VisitRaiseStmt
     unit         Parse Raise
-    conformance  0058-exceptions.a24
+
+##### conformance/0058-exceptions.a24
+
+```algol24
+class Base; begin end
+class Derived (Base); begin end
+
+// STM-016: raise carries any value.
+try raise 42;      except on e : Integer do WriteLn ('Integer: ' + Str (e)); end
+try raise 'text';  except on e : String  do WriteLn ('String: ' + e);        end
+
+// STM-017: a handler for a base class catches a derived value.
+try raise Derived (); except on e : Base do WriteLn ('base caught derived'); end
+
+// STM-018: the MOST DERIVED handler runs, however the handlers are ordered.
+try
+    raise Derived ();
+except
+    on e : Base    do WriteLn ('wrong: base');
+    on e : Derived do WriteLn ('derived, base written first');
+end
+
+try
+    raise Derived ();
+except
+    on e : Derived do WriteLn ('derived, derived written first');
+    on e : Base    do WriteLn ('wrong: base');
+end
+
+// STM-019: a handler without 'on' is the catch-all.
+try raise 1.5; except WriteLn ('catch-all'); end
+
+// STM-020: a runtime error raised by the language is catchable AS A STRING,
+// carrying the diagnostic as its value.
+try
+    WriteLn (1 / 0);
+except
+    on e : String do WriteLn ('caught: ' + e);
+end
+```
+
+```console
+$ algc conformance/0058-exceptions.a24
+Integer: 42
+String: text
+base caught derived
+derived, base written first
+derived, derived written first
+catch-all
+caught: Division by zero.
+```
 
 **[STM-017]**  A handler is written `on e : T do S` and matches on the runtime
 type name of the raised value. A handler for a base class catches a derived
 value.
 
-    interpreter  compiler/Interpreter.a24  VisitTryStmt
     unit         Parse Try With A Typed Handler
     conformance  0058-exceptions.a24
 
@@ -2511,20 +6682,36 @@ exactly one handler and there is never a tie to break by position. The
 commonest bug in a first-match language — a base handler written above a derived
 one, quietly swallowing everything — cannot be written here.
 
-    interpreter  compiler/Interpreter.a24  VisitTryStmt
-    compiler     bootstrap/algol.c         alg_handler
     conformance  0058-exceptions.a24
 
 **[STM-023]**  Two handlers for the same type on one `try` are refused with
 `Duplicate handler for 'T'.`
 
-    interpreter  compiler/Interpreter.a24  VisitTryStmt
-    refusal      0023-duplicate-handler.a24
+##### refusals/0023-duplicate-handler.a24
+
+```algol24
+class Base; begin end
+
+try
+    raise Base ();
+except
+    on e : Base do WriteLn ('first');
+    on e : Base do WriteLn ('second');
+end
+```
+
+```console
+$ algc refusals/0023-duplicate-handler.a24
+Uncaught: Duplicate handler for 'Base'.
+[ERROR] refusals/0023-duplicate-handler.a24: Duplicate handler for 'Base'.
+[ERROR] 7 |     on e : Base do WriteLn ('second');
+[ERROR]   |            ^^^^
+exit: 70
+```
 
 **[STM-019]**  A handler written without `on` is the catch-all and matches any
 raised value.
 
-    interpreter  compiler/Interpreter.a24  VisitTryStmt
     unit         Parse Untyped Handler Is The Catch All
     unit         Parse Empty Except Is The Catch All
     conformance  0058-exceptions.a24
@@ -2533,16 +6720,25 @@ raised value.
 String**, carrying the diagnostic as its value: dividing by zero inside a `try`
 is caught by `on e : String` with `e` equal to `Division by zero.`
 
-    interpreter  compiler/Interpreter.a24  VisitTryStmt
-    compiler     bootstrap/algol.c         alg_error
     conformance  0058-exceptions.a24
 
 **[STM-021]**  A value raised and never caught ends the program, printing
 `Uncaught: ` followed by the value, and exits with status **70**.
 
-    interpreter  compiler/Main.a24  Main
-    compiler     bootstrap/algol.c  alg_raise
-    conformance  0059-uncaught-exits-70.a24
+##### conformance/0059-uncaught-exits-70.a24
+
+```algol24
+WriteLn ('before');
+
+raise 'boom';
+```
+
+```console
+$ algc conformance/0059-uncaught-exits-70.a24
+Uncaught: boom
+before
+exit: 70
+```
 
 ### 10.7 print
 
@@ -2558,9 +6754,22 @@ first test while interpreted it printed nothing. That behavior went with the
 statement, and nothing replaces it: output during a test run is suppressed for
 every built-in alike.
 
-    interpreter  compiler/Parser.a24  Statement
     conformance  0133-print-is-an-ordinary-name.a24
-    refusal      0039-print-is-not-a-statement.a24
+
+##### refusals/0039-print-is-not-a-statement.a24
+
+```algol24
+print 123;
+```
+
+```console
+$ algc refusals/0039-print-is-not-a-statement.a24
+Uncaught: Expect ';' after expression.
+[ERROR] refusals/0039-print-is-not-a-statement.a24: Expect ';' after expression.
+[ERROR] 1 | print 123;
+[ERROR]   | ^^^^^
+exit: 70
+```
 
 > This rule is stated in chapter 10 rather than being deleted, because a rule
 > ID is permanent: [STM-022] has been cited, and a reader who follows the
@@ -2600,10 +6809,115 @@ top-level label popped nothing at first, and the compiled program ran a handler
 the interpreter never reached — the two processors disagreeing about a program,
 which is the one thing the C back end exists not to do.
 
-    interpreter  compiler/Resolver.a24  VisitGotoStmt
-    conformance  0163-goto.a24
-    refusal      0163-goto-into-a-nested-block.a24
-    refusal      0164-goto-out-of-a-subprogram.a24
+##### conformance/0163-goto.a24
+
+```algol24
+// Forward, same block.
+WriteLn ('a');
+goto Skip;
+WriteLn ('never');
+Skip:
+WriteLn ('b');
+
+// Backward -- a loop written by hand.
+var N := 0;
+Again:
+N := N + 1;
+Write (Str (N));
+if N < 4 then goto Again;
+WriteLn ();
+
+// Outward: out of a loop and out of an if, to a label in the enclosing block.
+for var I := 0; I < 5; I := I + 1 do
+begin
+    if I = 2 then goto Done;
+    Write (Str (I));
+end
+WriteLn ('never either');
+
+Done:
+WriteLn (' done');
+
+// ⚠️ A jump out of a 'try' must LEAVE ITS FRAME.  The runtime's frame stack is
+// explicit, and a frame left behind points at a C frame that has returned -- so
+// the raise at the end of this case is what proves the pops happened.  Without
+// them the compiled program ran the inner handler and printed a line the
+// interpreter never printed.
+try
+    try
+        goto Out;
+    except
+        on e : String do WriteLn ('inner');
+    end
+except
+    on e : String do WriteLn ('outer');
+end
+
+WriteLn ('never a third time');
+
+Out:
+WriteLn ('out');
+
+try
+    raise 'the frame stack is still sound';
+except
+    on e : String do WriteLn (e);
+end
+
+// A label is a name, so it folds [SRC-011].
+goto FINISH;
+WriteLn ('never a fourth time');
+Finish:
+WriteLn ('finish');
+```
+
+```console
+$ algc conformance/0163-goto.a24
+a
+b
+1234
+01 done
+out
+the frame stack is still sound
+finish
+```
+
+##### refusals/0163-goto-into-a-nested-block.a24
+
+```algol24
+goto Inside;
+
+begin
+    Inside:
+    WriteLn ('unreachable');
+end
+```
+
+```console
+$ algc refusals/0163-goto-into-a-nested-block.a24
+Uncaught: No label 'Inside' is in scope.
+exit: 70
+```
+
+##### refusals/0164-goto-out-of-a-subprogram.a24
+
+```algol24
+Home:
+WriteLn ('at home');
+
+procedure Wander ();
+begin
+    goto Home;
+end
+
+Wander ();
+```
+
+```console
+$ algc refusals/0164-goto-out-of-a-subprogram.a24
+Uncaught: No label 'Home' is in scope.
+exit: 70
+```
 
 ---
 
@@ -2620,14 +6934,50 @@ FunDecl  = ( "function" | "procedure" ) identifier "(" [ Params ] ")"
 Params   = identifier [ ":" Type ] { "," identifier [ ":" Type ] } .
 ```
 
-    interpreter  compiler/Parser.a24  ParseFunction
     unit         Parse Function
     unit         Parse Function No Open Parenthesis
-    conformance  0060-subprogram-declarations.a24
+
+##### conformance/0060-subprogram-declarations.a24
+
+```algol24
+// FUN-001: parameters may be typed or untyped, and a return type is optional.
+function Bare (A);                     begin Exit A;     end
+function Typed (A : Integer);          begin Exit A;     end
+function Returns (A) : Integer;        begin Exit A;     end
+function Both (A : Integer) : Integer; begin Exit A;     end
+function None ();                      begin Exit 0;     end
+procedure Proc (A);                    begin WriteLn (A); end
+
+WriteLn (Bare (1));
+WriteLn (Typed (2));
+WriteLn (Returns (3));
+WriteLn (Both (4));
+WriteLn (None ());
+Proc (5);
+
+// FUN-002: a subprogram that returns without a value yields nil -- whether it
+// falls off the end or exits bare.
+function NoExit (); begin end
+WriteLn (NoExit ());
+
+procedure BareExit (); begin Exit; end
+WriteLn (BareExit ());
+```
+
+```console
+$ algc conformance/0060-subprogram-declarations.a24
+1
+2
+3
+4
+0
+5
+nil
+nil
+```
 
 **[FUN-002]**  A subprogram that returns without a value yields `nil`.
 
-    interpreter  compiler/Interpreter.a24  VisitReturnStmt
     conformance  0060-subprogram-declarations.a24
 
 **[FUN-003]**  A **procedure** may not `Exit` a value. `Exit E;` inside one is
@@ -2644,16 +6994,77 @@ is a comment, and a reader cannot tell from a declaration whether a call has a
 result worth using — which the C back end must also decide, and which every
 caller must otherwise guard.
 
-    interpreter  compiler/Parser.a24  ParseFunction
-    conformance  0111-procedure-cannot-exit-a-value.a24
-    refusal      0031-procedure-cannot-exit-a-value.a24
+##### conformance/0111-procedure-cannot-exit-a-value.a24
+
+```algol24
+procedure Early (Stop);
+begin
+    WriteLn ('before');
+    if Stop then Exit;
+    WriteLn ('after');
+end
+
+Early (True);
+Early (False);
+
+// ⚠️ A function declared INSIDE a procedure may still exit a value -- the
+// restriction is saved and restored around a body, not merely set.
+procedure Outer ();
+begin
+    function Inner (); begin Exit 7; end
+    WriteLn (Inner ());
+end
+
+Outer ();
+```
+
+```console
+$ algc conformance/0111-procedure-cannot-exit-a-value.a24
+before
+before
+after
+7
+```
+
+##### refusals/0031-procedure-cannot-exit-a-value.a24
+
+```algol24
+procedure P ();
+begin
+    Exit 7;
+end
+
+WriteLn (P ());
+```
+
+```console
+$ algc refusals/0031-procedure-cannot-exit-a-value.a24
+Uncaught: A procedure cannot exit a value.
+[ERROR] refusals/0031-procedure-cannot-exit-a-value.a24: A procedure cannot exit a value.
+[ERROR] 3 |     Exit 7;
+[ERROR]   |     ^^^^
+exit: 70
+```
 
 **[FUN-004]**  A declaration may not have more than 255 parameters:
 `Can't have more than 255 parameters.`
 
-    interpreter  compiler/Parser.a24  ParseFunction
     unit         Parse Function More Than 255 Parameters
-    refusal      0024-too-many-parameters.a24
+
+##### refusals/0024-too-many-parameters.a24
+
+```algol24
+function Wide (P0, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20, P21, P22, P23, P24, P25, P26, P27, P28, P29, P30, P31, P32, P33, P34, P35, P36, P37, P38, P39, P40, P41, P42, P43, P44, P45, P46, P47, P48, P49, P50, P51, P52, P53, P54, P55, P56, P57, P58, P59, P60, P61, P62, P63, P64, P65, P66, P67, P68, P69, P70, P71, P72, P73, P74, P75, P76, P77, P78, P79, P80, P81, P82, P83, P84, P85, P86, P87, P88, P89, P90, P91, P92, P93, P94, P95, P96, P97, P98, P99, P100, P101, P102, P103, P104, P105, P106, P107, P108, P109, P110, P111, P112, P113, P114, P115, P116, P117, P118, P119, P120, P121, P122, P123, P124, P125, P126, P127, P128, P129, P130, P131, P132, P133, P134, P135, P136, P137, P138, P139, P140, P141, P142, P143, P144, P145, P146, P147, P148, P149, P150, P151, P152, P153, P154, P155, P156, P157, P158, P159, P160, P161, P162, P163, P164, P165, P166, P167, P168, P169, P170, P171, P172, P173, P174, P175, P176, P177, P178, P179, P180, P181, P182, P183, P184, P185, P186, P187, P188, P189, P190, P191, P192, P193, P194, P195, P196, P197, P198, P199, P200, P201, P202, P203, P204, P205, P206, P207, P208, P209, P210, P211, P212, P213, P214, P215, P216, P217, P218, P219, P220, P221, P222, P223, P224, P225, P226, P227, P228, P229, P230, P231, P232, P233, P234, P235, P236, P237, P238, P239, P240, P241, P242, P243, P244, P245, P246, P247, P248, P249, P250, P251, P252, P253, P254, P255);
+begin
+    Exit P0;
+end
+```
+
+```console
+$ algc refusals/0024-too-many-parameters.a24
+Uncaught: Can't have more than 255 parameters.
+exit: 70
+```
 
 ### 11.2 Parameters and results
 
@@ -2682,9 +7093,110 @@ type that exists, not a marker added to it. It became possible only when
 element types were admitted on parameters — before that a bare `List` carried
 no element type.
 
-    interpreter  compiler/ObjFunction.a24  Absorbs
     conformance  0049-call-failures.a24
-    conformance  0158-varargs-from-an-element-type.a24
+
+##### conformance/0158-varargs-from-an-element-type.a24
+
+```algol24
+function Total (Label : String, Items : List of Integer) : Integer;
+var
+    Sum : Integer := 0;
+
+begin
+    for var I := 0; I < Items.Length; I := I + 1 do Sum := Sum + Items[I];
+
+    Exit Sum;
+end
+
+WriteLn (Total ('a', 1, 2, 3));
+
+// ⚠️ Gathering NOTHING yields the empty list. It is STRUCTURAL and not a
+// default: absorbing none gives [] by the same rule that absorbing three gives
+// a list of three.
+WriteLn (Total ('a'));
+
+// ⚠️ An exact match is preferred [EXP-014], so the list is passed rather than
+// gathered into a second list holding it.
+WriteLn (Total ('a', [1, 2, 3]));
+
+// ⚠️ An ELEMENT TYPE is what makes a parameter absorbing, so a bare 'List' does
+// not absorb -- there would be nothing to check the gathered arguments against,
+// and it leaves 'List' as the spelling for a parameter that wants the list
+// itself and nothing else.
+procedure Bare (Items : List);
+begin
+    WriteLn (Items.Length);
+end
+
+Bare ([4, 5]);
+
+try
+    Bare (4, 5);
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ The element type REPLACES the arity check and is stricter than it: the
+// stray argument is refused because it is not an Integer, not because there
+// are too many.
+try
+    WriteLn (Total ('a', 1, 2, 'red'));
+except
+    on e : String do WriteLn (e);
+end
+
+// A fixed-arity signature beats an absorbing one. That is not a rule of its
+// own -- it is the pass order [EXP-014], since absorption is the third pass and
+// never runs when either of the first two found something.
+procedure Pick (A : Integer, B : Integer);
+begin
+    WriteLn ('fixed');
+end
+
+procedure Pick (Ns : List of Integer);
+begin
+    WriteLn ('gathered ' + Str (Ns.Length));
+end
+
+Pick (1, 2);
+Pick (1, 2, 3);
+Pick ([9]);
+Pick ();
+
+// And a method absorbs on the same terms, selected up the whole class chain.
+class Logger;
+begin
+    constructor Init (); begin end
+
+    procedure Log (Level : String, Items : List of Integer);
+    begin
+        WriteLn (Level + ' ' + Str (Items.Length));
+    end
+end
+
+var L := Logger ();
+
+L.Log ('warn', 1, 2);
+L.Log ('warn', [1, 2]);
+L.Log ('warn');
+```
+
+```console
+$ algc conformance/0158-varargs-from-an-element-type.a24
+6
+0
+6
+2
+Expected 1 arguments but got 2.
+No matching signature for function.
+fixed
+gathered 3
+gathered 1
+gathered 0
+warn 2
+warn 2
+warn 0
+```
 
 **[FUN-006]**  A subprogram's declared parameter types are enforced on every
 call, whether it is a top-level subprogram or a method. A parameter is an
@@ -2700,22 +7212,65 @@ A **native** is still matched on arity alone, and correctly: its parameters
 are not declared in this language, so it has a signature only in the sense of a
 count.
 
-    interpreter  compiler/Interpreter.a24  VisitCall
     conformance  0137-parameters-match-on-signature.a24
-    refusal      0042-top-level-parameter-type.a24
+
+##### refusals/0042-top-level-parameter-type.a24
+
+```algol24
+function G (N : Integer); begin Exit N; end
+
+WriteLn (G ('a string'));
+```
+
+```console
+$ algc refusals/0042-top-level-parameter-type.a24
+Uncaught: No matching signature for function.
+exit: 70
+```
 
 **[FUN-007]**  A **method's** parameter types **are** enforced, because a method
 goes through overload selection [EXP-013]. Passing a String where `Integer` is
 declared is `No matching signature for function.`
 
-    interpreter  compiler/ObjClass.a24  FindOverload
-    refusal      0025-method-parameter-type-is-enforced.a24
+##### refusals/0025-method-parameter-type-is-enforced.a24
+
+```algol24
+class M;
+begin
+    function Take (N : Integer); begin Exit N; end
+end
+
+WriteLn (M ().Take ('a string'));
+```
+
+```console
+$ algc refusals/0025-method-parameter-type-is-enforced.a24
+Uncaught: No matching signature for function.
+exit: 70
+```
 
 **[FUN-008]**  A declared **return** type **is** enforced. `Exit` of a value
 that does not fit is `Type mismatch!`
 
-    interpreter  compiler/TypeChecker.a24  Assignable
-    refusal      0026-return-type-is-enforced.a24
+##### refusals/0026-return-type-is-enforced.a24
+
+```algol24
+function F () : Integer;
+begin
+    Exit 'a string';
+end
+
+WriteLn (F ());
+```
+
+```console
+$ algc refusals/0026-return-type-is-enforced.a24
+Uncaught: Expected Integer, found String.
+[ERROR] refusals/0026-return-type-is-enforced.a24: Expected Integer, found String.
+[ERROR] 3 |     Exit 'a string';
+[ERROR]   |     ^^^^
+exit: 70
+```
 
 ### 11.3 Closures
 
@@ -2724,15 +7279,47 @@ reference**, and the capture outlives the call that created it. A function
 returning a nested one hands back something that keeps reading and writing the
 same variable.
 
-    interpreter  compiler/ObjFunction.a24  ObjFunction
-    compiler     bootstrap/algol.c         alg_cell
-    conformance  0061-closures.a24
+##### conformance/0061-closures.a24
+
+```algol24
+function MakeCounter ();
+var Count : Integer := 0;
+begin
+    function Next ();
+    begin
+        // FUN-009: the enclosing variable is captured BY REFERENCE, and the
+        // capture outlives the call that created it.
+        Count := Count + 1;
+        Exit Count;
+    end
+
+    Exit Next;
+end
+
+var A := MakeCounter ();
+WriteLn (A ());
+WriteLn (A ());
+WriteLn (A ());
+
+// FUN-010: each call to the enclosing subprogram creates a FRESH set of
+// captured variables.  Two counters do not share a count.
+var B := MakeCounter ();
+WriteLn (B ());
+WriteLn (A ());
+```
+
+```console
+$ algc conformance/0061-closures.a24
+1
+2
+3
+1
+4
+```
 
 **[FUN-010]**  Each call to the enclosing subprogram creates a **fresh** set of
 captured variables. Two counters made the same way do not share a count.
 
-    interpreter  compiler/Environment.a24  Environment
-    compiler     bootstrap/algol.c         alg_closure
     conformance  0061-closures.a24
 
 ### 11.4 Subprograms as values
@@ -2741,10 +7328,39 @@ captured variables. Two counters made the same way do not share a count.
 assigned to a variable, passed as an argument, stored in a collection, and
 called from wherever it comes to rest.
 
-    interpreter  compiler/ObjFunction.a24  ObjFunction
-    compiler     bootstrap/algol.c         alg_call
     unit         Interpret Local Function
-    conformance  0062-subprograms-as-values.a24
+
+##### conformance/0062-subprograms-as-values.a24
+
+```algol24
+function Double (N); begin Exit N * 2; end
+function Triple (N); begin Exit N * 3; end
+
+// Assigned to a variable and called from there.
+var F := Double;
+WriteLn (F (5));
+
+// Passed as an argument.
+function Apply (G, N); begin Exit G (N); end
+WriteLn (Apply (Triple, 5));
+
+// Stored in a collection and called from where it came to rest.
+var Ops := [Double, Triple];
+WriteLn (Ops[0] (7));
+WriteLn (Ops[1] (7));
+
+var ByName := ['double' : Double];
+WriteLn (ByName.Get ('double') (9));
+```
+
+```console
+$ algc conformance/0062-subprograms-as-values.a24
+10
+15
+14
+21
+18
+```
 
 ### 11.5 Nesting
 
@@ -2782,16 +7398,129 @@ Nothing in this specification ever restricted overloading to methods.
 restriction lived in two of this document's own notes and in a comment in
 `compiler/Resolver.a24`, none of which was a rule.
 
-    interpreter  compiler/ObjFunction.a24  ObjOverloads
-    interpreter  compiler/Resolver.a24     SignatureOf
-    conformance  0138-top-level-overloading.a24
-    refusal      0043-same-signature-twice.a24
+##### conformance/0138-top-level-overloading.a24
+
+```algol24
+function Take (I : Integer);              begin Exit 'integer'; end
+function Take (S : String);               begin Exit 'string';  end
+function Take (C : Char);                 begin Exit 'char';    end
+function Take (A : Integer, B : Integer); begin Exit 'two';     end
+
+WriteLn (Take (1));
+WriteLn (Take ('ab'));
+WriteLn (Take ('a'));
+WriteLn (Take (1, 2));
+
+// ⚠️ Selection is at RUN TIME, from the value actually passed.  A's declared
+// type is Any; no static rule could reach the Integer overload from that.
+var A : Any := 1;
+WriteLn (Take (A));
+
+var B : Any := 'ab';
+WriteLn (Take (B));
+
+// An exact match is preferred over a widened one [EXP-014], so the Char
+// argument takes the Char overload rather than the String one.
+WriteLn (Take ('a'));
+```
+
+```console
+$ algc conformance/0138-top-level-overloading.a24
+integer
+string
+char
+two
+integer
+string
+char
+```
+
+##### refusals/0043-same-signature-twice.a24
+
+```algol24
+function F (N : Integer); begin Exit 1; end
+function F (M : Integer); begin Exit 2; end
+```
+
+```console
+$ algc refusals/0043-same-signature-twice.a24
+Uncaught: 'F' is already defined.
+exit: 70
+```
 
 **[FUN-012]**  Subprograms may be declared inside subprograms, to any depth.
 
-    interpreter  compiler/Parser.a24  ParseFunction
-    conformance  0063-nesting.a24
-    conformance  0148-a-function-inside-a-method.a24
+##### conformance/0063-nesting.a24
+
+```algol24
+function Outer ();
+begin
+    function Middle ();
+    begin
+        function Inner ();
+        begin
+            Exit 3;
+        end
+
+        Exit Inner () + 20;
+    end
+
+    Exit Middle () + 100;
+end
+
+WriteLn (Outer ());
+```
+
+```console
+$ algc conformance/0063-nesting.a24
+123
+```
+
+##### conformance/0148-a-function-inside-a-method.a24
+
+```algol24
+class Box;
+var
+    N : Integer := 5;
+
+begin
+    function Twice ();
+    begin
+        function Helper ();
+        begin
+            Exit N * 2;
+        end
+
+        Exit Helper ();
+    end
+
+    function Bump (By : Integer);
+    begin
+        function Add (X);
+        begin
+            this.N := this.N + X;
+            Exit this.N;
+        end
+
+        Exit Add (By);
+    end
+end
+
+var B := Box ();
+
+WriteLn (B.Twice ());
+WriteLn (B.Bump (3));
+WriteLn (B.N);
+WriteLn (B.Twice ());
+```
+
+```console
+$ algc conformance/0148-a-function-inside-a-method.a24
+10
+8
+8
+16
+```
 
 **[FUN-014]**  A subprogram may name a **C function** instead of having a body.
 It is written `external` and a symbol, optionally saying which library the
@@ -2835,9 +7564,72 @@ costs one new keyword instead of two.
 arguments.` The limit is the marshalling buffers' and is not a language
 principle; it is stated so that a program meets a message rather than a crash.
 
-    interpreter  compiler/Parser.a24  ParseFunction
-    compiler     bootstrap/algol.c    alg_foreign
-    conformance  0174-a-foreign-call.a24
+##### conformance/0174-a-foreign-call.a24
+
+```algol24
+function TextLength (S : String) : Integer;       external 'strlen';
+function Power (X : Double, Y : Double) : Double; external 'pow' in 'libm';
+function Allocate (Size : Integer) : Pointer;     external 'malloc';
+procedure Release (P : Pointer);                  external 'free';
+
+// A declaration is legal whether or not the build can honor it, and so is
+// reading one as a value [FUN-011].
+var F := TextLength;
+WriteLn (F <> Nil);
+
+// The call is where the configuration is felt [INI-008].
+try
+    WriteLn (TextLength ('hello'));
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (Power (2.0, 10.0));
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ 'Pointer' is a type whether or not a Pointer can be obtained.  It denotes
+// a declared type [TYP-013], so it may be written on a declaration and tested
+// with 'is' -- and nothing that is not a foreign handle is one.
+var P : Pointer;
+WriteLn (P = Nil);
+WriteLn (1 is Pointer);
+WriteLn ('text' is Pointer);
+
+try
+    Release (Allocate (64));
+except
+    on e : String do WriteLn (e);
+end
+
+// ⚠️ A Buffer answers Address, and THAT needs no foreign call to observe: a
+// program builds a region of memory here, and only handing it to C requires a
+// build that can [INI-008].
+var B := Buffer ();
+B.Append ('....');
+
+WriteLn (B.Address is Pointer);
+WriteLn (B.Address = B.Address);
+WriteLn (B.Address);
+WriteLn (B.Text);
+```
+
+```console
+$ algc conformance/0174-a-foreign-call.a24
+true
+Foreign calls are not available in this build: 'strlen' cannot be reached.
+Foreign calls are not available in this build: 'pow' cannot be reached.
+true
+false
+false
+Foreign calls are not available in this build: 'malloc' cannot be reached.
+true
+true
+<pointer>
+....
+```
 
 **[TYP-017]**  A `Pointer` is an **opaque foreign handle**. It comes from a
 foreign call and goes back to one, and the language does nothing else with it:
@@ -2877,8 +7669,6 @@ arithmetic'd or compared as a number. An Integer would carry the address
 faithfully — an Integer is unbounded [LEX-018] — and that is the objection, not
 a limitation.
 
-    interpreter  compiler/ObjFunction.a24  TypeNameOf
-    compiler     bootstrap/algol.c         alg_pointer
     conformance  0174-a-foreign-call.a24
 
 ---
@@ -2895,43 +7685,118 @@ ClassDecl = "class" identifier [ "(" identifier ")" ] ";"
             [ Sections ] "begin" { Member } "end" .
 ```
 
-    interpreter  compiler/Parser.a24  ClassDeclaration
     unit         Parse Class Declaration
     unit         Parse Class No Begin
-    conformance  0064-class-declaration-and-fields.a24
+
+##### conformance/0064-class-declaration-and-fields.a24
+
+```algol24
+class Base;
+private:
+var Hidden : Integer := 1;
+public:
+var Shown  : String  := 'shown';
+var Items  : List    := [];
+var Bare;
+
+begin
+    constructor Init (); begin end
+    function Peek (); begin Exit this.Hidden; end
+end
+
+var A := Base ();
+var B := Base ();
+
+// CLS-002: fields come from the header, methods from the body, and visibility
+// markers apply to both.
+WriteLn (A.Shown);
+WriteLn (A.Peek ());
+
+// CLS-006: a field with no initializer begins as nil.
+WriteLn (A.Bare);
+
+// CLS-005: a field's initializer is evaluated ONCE PER INSTANCE.  Two
+// instances hold two different Lists -- were the initializer shared, both
+// would report 1.
+A.Items.Add (1);
+WriteLn (Str (A.Items.Length) + ' ' + Str (B.Items.Length));
+
+// CLS-001: the superclass clause is optional, and so is the header.
+class Minimal;
+begin
+    constructor Init (); begin end
+end
+WriteLn (Minimal () is Minimal);
+```
+
+```console
+$ algc conformance/0064-class-declaration-and-fields.a24
+shown
+1
+nil
+1 0
+true
+```
 
 **[CLS-002]**  Fields are declared in `var` sections of the header [VAR-009];
 methods in the body. Visibility markers apply to both [DCL-011].
 
-    interpreter  compiler/Parser.a24  ClassDeclaration
     conformance  0064-class-declaration-and-fields.a24
 
 ### 12.2 Construction
 
 **[CLS-003]**  An instance is made by **calling the class**: `Point(3, 4)`.
 
-    interpreter  compiler/Interpreter.a24  VisitCall
-    compiler     bootstrap/algol.c         alg_new
-    conformance  0065-construction.a24
+##### conformance/0065-construction.a24
+
+```algol24
+class Point;
+var X, Y : Integer;
+begin
+    constructor Init (X, Y);
+    begin
+        this.X := X;
+        this.Y := Y;
+    end
+end
+
+// CLS-003: an instance is made by CALLING THE CLASS.
+var P := Point (3, 4);
+WriteLn (Str (P.X) + ',' + Str (P.Y));
+
+// CLS-004: a class with no constructor takes no arguments.
+class Bare;
+begin
+    function Hello (); begin Exit 'hello'; end
+end
+WriteLn (Bare ().Hello ());
+
+// And construction checks the constructor's arity.
+WriteLn (Bare (1, 2));
+```
+
+```console
+$ algc conformance/0065-construction.a24
+Uncaught: Expected 0 arguments but got 2.
+3,4
+hello
+exit: 70
+```
 
 **[CLS-004]**  A constructor is a member named `constructor Init`. Construction
 checks its arity, and a class with no constructor takes no arguments —
 `C(1, 2)` on such a class is `Expected 0 arguments but got 2.`
 
-    interpreter  compiler/ObjClass.a24  FindMethod
     conformance  0065-construction.a24
 
 **[CLS-005]**  A field's initializer is evaluated **once per instance**, at
 construction. Two instances of a class whose field is `List := []` hold two
 different Lists.
 
-    interpreter  compiler/ObjClass.a24  SeedFields
-    compiler     bootstrap/algol.c      alg_class_field
     conformance  0064-class-declaration-and-fields.a24
 
 **[CLS-006]**  A field with no initializer begins as `nil` [VAR-002].
 
-    interpreter  compiler/ObjClass.a24  SeedFields
     conformance  0064-class-declaration-and-fields.a24
 
 ### 12.3 Members
@@ -2940,16 +7805,65 @@ different Lists.
 them. A `property` is read without them too, and its read is the call
 [CLS-017].
 
-    interpreter  compiler/ObjInstance.a24  Get
     unit         Call Setters And Getters
-    conformance  0066-members.a24
+
+##### conformance/0066-members.a24
+
+```algol24
+class Thing;
+var Field : String := 'field';
+begin
+    constructor Init (); begin end
+    function Method (); begin Exit 'method'; end
+end
+
+var T := Thing ();
+
+// CLS-007: a field is read without parentheses, a method called with them.
+WriteLn (T.Field);
+WriteLn (T.Method ());
+
+// CLS-008: every instance answers ClassName.
+WriteLn (T.ClassName);
+
+// And it answers AHEAD of its fields: the name belongs to the language, so a
+// field of that name cannot take it.
+class Shadow;
+var ClassName : String := 'field value';
+begin
+    constructor Init (); begin end
+end
+WriteLn (Shadow ().ClassName);
+
+// CLS-009: with no ToString, an instance renders as its class name and
+// ' instance'.
+WriteLn (Str (Thing ()));
+
+// With one, the class decides.
+class Pretty;
+begin
+    constructor Init (); begin end
+    function ToString (); begin Exit 'I am pretty'; end
+end
+WriteLn (Str (Pretty ()));
+WriteLn (Pretty ());
+```
+
+```console
+$ algc conformance/0066-members.a24
+field
+method
+Thing
+Shadow
+Thing instance
+I am pretty
+I am pretty
+```
 
 **[CLS-008]**  Every instance answers `ClassName`, and does so **ahead of its
 fields**: the name belongs to the language, so a field of that name cannot take
 it.
 
-    interpreter  compiler/ObjInstance.a24  Get
-    compiler     bootstrap/algol.c         alg_property
     conformance  0066-members.a24
 
 **[CLS-009]**  A class declaring `ToString()` — **taking no arguments** —
@@ -2961,24 +7875,80 @@ written [RT-015]. With none, an instance renders as its class name followed by
 `ToString` taking an argument does not implement this one and the default
 rendering stands, rather than the call being attempted and failing.
 
-    interpreter  compiler/Interpreter.a24  Stringify
     conformance  0066-members.a24
     conformance  0165-a-class-that-iterates.a24
 
 **[CLS-010]**  Reading or calling a member the class does not have is
 `Undefined property 'X'.`
 
-    interpreter  compiler/ObjInstance.a24  Get
     unit         Call Undefined Getter
-    conformance  0067-undefined-property.a24
+
+##### conformance/0067-undefined-property.a24
+
+```algol24
+class Thing;
+begin
+    constructor Init (); begin end
+end
+
+WriteLn (Thing ().Nope);
+```
+
+```console
+$ algc conformance/0067-undefined-property.a24
+Uncaught: Undefined property 'Nope'.
+exit: 70
+```
 
 ### 12.4 Inheritance
 
 **[CLS-011]**  `class D (B)` makes `D` inherit `B`'s fields and methods. A
 method of the same name overrides the inherited one.
 
-    interpreter  compiler/ObjClass.a24  FindMethod
-    conformance  0068-inheritance.a24
+##### conformance/0068-inheritance.a24
+
+```algol24
+class A;
+begin
+    constructor Init (); begin end
+    function Who ();     begin Exit 'A'; end
+    function Shared ();  begin Exit 'from A'; end
+end
+
+class B (A);
+begin
+    // CLS-011: a method of the same name overrides the inherited one.
+    function Who ();       begin Exit 'B'; end
+    function CallSuper (); begin Exit super.Who (); end
+end
+
+class C (B);
+begin
+    function Who (); begin Exit 'C'; end
+end
+
+// CLS-011: inherited methods are reachable, and overrides win.
+WriteLn (B ().Shared ());
+WriteLn (A ().Who ());
+WriteLn (B ().Who ());
+WriteLn (C ().Who ());
+
+// CLS-012: super binds to the class that DECLARED the calling method, not to
+// the runtime class.  CallSuper is declared in B, so super is A -- and it is
+// still A when the receiver is a C.
+WriteLn (B ().CallSuper ());
+WriteLn (C ().CallSuper ());
+```
+
+```console
+$ algc conformance/0068-inheritance.a24
+from A
+A
+B
+C
+A
+A
+```
 
 **[CLS-012]**  `super.M()` calls the version above the class that declared the
 calling method, not above the runtime class.
@@ -2992,18 +7962,71 @@ receiver**, exactly as `B.M` binds the receiver's own [CLS-011], and the search
 starts in the same place. It is the only way a program can hold the
 implementation an override replaced.
 
-    interpreter  compiler/Interpreter.a24  VisitSuperExpr
-    compiler     bootstrap/algol.c         alg_invoke_from
-    compiler     bootstrap/algol.c         alg_bound_from
     conformance  0068-inheritance.a24
-    conformance  0150-super-as-a-value.a24
+
+##### conformance/0150-super-as-a-value.a24
+
+```algol24
+class Animal;
+begin
+    constructor Init (); begin end
+    function Speak (); begin Exit 'animal'; end
+    function Name  (); begin Exit 'Animal'; end
+end
+
+class Dog (Animal);
+begin
+    constructor Init (); begin end
+    function Speak (); begin Exit 'woof'; end
+
+    function Both ();
+    begin
+        var Parent := super.Speak;
+
+        Exit Parent () + ' and ' + Speak ();
+    end
+
+    function Held ();
+    begin
+        var M := super.Name;
+
+        Exit M;
+    end
+end
+
+var D := Dog ();
+
+WriteLn (D.Both ());
+
+// It survives being returned, so the binding is on the value and not on the
+// method that made it.
+WriteLn (D.Held () ());
+
+// And it prints as a bound method does [TYP-012].
+WriteLn (D.Held ());
+```
+
+```console
+$ algc conformance/0150-super-as-a-value.a24
+animal and woof
+Animal
+<fn Name>
+```
 
 **[CLS-013]**  A class may not inherit from itself: `A class can't inherit from
 itself.`
 
-    interpreter  compiler/Resolver.a24  VisitClassStmt
     unit         Inherit From Self
-    refusal      0027-inherit-from-self.a24
+
+##### refusals/0027-inherit-from-self.a24
+
+```algol24
+
+```
+
+```console
+$ algc refusals/0027-inherit-from-self.a24
+```
 
 **[CLS-014]**  A superclass must be a class, and is checked **where it is
 declared** rather than where an instance is later built. Naming something that
@@ -3023,11 +8046,41 @@ silently until classes were hoisted [DCL-006], leaving a superclass chain with
 no end for method lookup to walk. It is refused with the same sentence the
 direct case gives, because it is the same fault reached the long way round.
 
-    interpreter  compiler/Interpreter.a24  VisitClassStmt
-    interpreter  compiler/Resolver.a24     CheckInheritance
     unit         Inherit Not A Class
-    conformance  0112-inherit-from-a-non-class.a24
-    refusal      0047-inheritance-cycle.a24
+
+##### conformance/0112-inherit-from-a-non-class.a24
+
+```algol24
+var X := 1;
+
+class C (X);
+begin
+end
+```
+
+```console
+$ algc conformance/0112-inherit-from-a-non-class.a24
+Uncaught: 'X' is not a class.
+exit: 70
+```
+
+##### refusals/0047-inheritance-cycle.a24
+
+```algol24
+class A (B);
+begin
+end
+
+class B (A);
+begin
+end
+```
+
+```console
+$ algc refusals/0047-inheritance-cycle.a24
+Uncaught: A class can't inherit from itself.
+exit: 70
+```
 
 ### 12.5 Objects
 
@@ -3035,16 +8088,63 @@ direct case gives, because it is the same fault reached the long way round.
 by the name itself. The instance is built on first use, so an object may refer
 to another declared later in the file.
 
-    interpreter  compiler/Parser.a24  ClassDeclaration
-    compiler     bootstrap/algol.c    alg_singleton
     unit         An Object Takes Visibility Sections
-    conformance  0069-objects.a24
+
+##### conformance/0069-objects.a24
+
+```algol24
+// CLS-015: an object is a class with exactly one instance, reached by the name.
+object Config;
+var Name : String := 'config';
+begin
+    function Ask (); begin Exit Later.Value (); end
+end
+
+// The instance is built on FIRST USE, so an object may refer to another
+// declared below it.
+object Later;
+begin
+    function Value (); begin Exit 'from Later'; end
+end
+
+WriteLn (Config.Name);
+WriteLn (Config.Ask ());
+
+// Exactly one instance: two references are the same object.
+var A := Config;
+var B := Config;
+WriteLn (A = B);
+```
+
+```console
+$ algc conformance/0069-objects.a24
+config
+from Later
+true
+```
 
 **[CLS-016]**  An object is not callable. `Config()` is `Can only call functions
 and classes.`
 
-    interpreter  compiler/Interpreter.a24  VisitCall
-    conformance  0070-object-is-not-callable.a24
+##### conformance/0070-object-is-not-callable.a24
+
+```algol24
+object Config;
+begin
+    function Value (); begin Exit 1; end
+end
+
+WriteLn (Config.Value ());
+
+WriteLn (Config ());
+```
+
+```console
+$ algc conformance/0070-object-is-not-callable.a24
+Uncaught: Can only call functions and classes.
+1
+exit: 70
+```
 
 **[CLS-017]**  A `property` is a member of a class read **without parentheses**,
 whose read is the call. It takes no parameters and may declare a return type.
@@ -3084,16 +8184,151 @@ worth buying a boundary the rest of the language does not have.
 declaration has none. Leaving the parentheses off is what says the member is
 read rather than called.
 
-    interpreter  compiler/Parser.a24       ParseProperty
-    compiler     bootstrap/algol.c         alg_class_property
-    conformance  0168-a-read-only-property.a24
-    refusal      0168-assigning-to-a-property.a24
+##### conformance/0168-a-read-only-property.a24
+
+```algol24
+class Stack;
+var
+private:
+    Items : List;
+
+begin
+    constructor Init ();      begin this.Items := []; end
+    procedure Push (V : Any); begin Items.Add (V); end
+
+    property Count   : Integer; begin Exit Items.Length; end
+    property IsEmpty : Boolean; begin Exit Items.Length = 0; end
+end
+
+var S := Stack ();
+WriteLn (S.Count, ' ', S.IsEmpty);
+
+S.Push (10);
+S.Push (20);
+WriteLn (S.Count, ' ', S.IsEmpty);
+
+// A property reduces to its declared type, so this is an Integer context.
+var N : Integer := S.Count;
+WriteLn (N + 1);
+
+// An inherited property is still a property.
+class Deque (Stack);
+begin
+    constructor Init (); begin super.Init (); end
+end
+
+var D : Deque := Deque ();
+WriteLn (D.Count);
+D.Push (1);
+WriteLn (D.Count);
+
+// A method still reads as the method it is [TYP-012] -- only a property is
+// called by being read.
+class Plain;
+begin
+    constructor Init (); begin end
+    function Size (); begin Exit 7; end
+end
+
+WriteLn (Plain ().Size);
+WriteLn (Plain ().Size ());
+
+// ⚠️ Through an UNTYPED receiver the checker has no class to ask, so the
+// assignment is not refused there -- it reaches the instance, which is closed
+// [CLS-018] and answers for itself.
+try
+    var A : Any := Stack ();
+    A.Count := 99;
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0168-a-read-only-property.a24
+0 true
+2 false
+3
+0
+1
+<fn Size>
+7
+Undefined property 'Count'.
+```
+
+##### refusals/0168-assigning-to-a-property.a24
+
+```algol24
+class Stack;
+var
+private:
+    Items : List;
+
+begin
+    constructor Init ();       begin this.Items := []; end
+    property Count : Integer;  begin Exit Items.Length; end
+end
+
+var S : Stack := Stack ();
+
+WriteLn (S.Count);
+
+S.Count := 99;
+```
+
+```console
+$ algc refusals/0168-assigning-to-a-property.a24
+Uncaught: 'Count' is a property of Stack and cannot be assigned.
+exit: 70
+```
 
 **[CLS-018]**  An instance is **closed**: assignment reaches only a field the
 class declared. `B.Undeclared := 1` is `Undefined property 'Undeclared'.`
 
-    interpreter  compiler/ObjInstance.a24  Set
-    conformance  0169-an-instance-is-closed.a24
+##### conformance/0169-an-instance-is-closed.a24
+
+```algol24
+class Box;
+var Items : List;
+begin
+    constructor Init (); begin this.Items := []; end
+end
+
+var B : Any := Box ();
+
+// A declared field is assignable.
+B.Items := [1, 2];
+WriteLn (B.Items.Length);
+
+// One the class does not declare is not.
+try
+    B.Undeclared := 1;
+except
+    on e : String do WriteLn (e);
+end
+
+// And assigning over a METHOD is refused on the same terms -- a method is not a
+// field either.
+class WithMethod;
+begin
+    constructor Init (); begin end
+    function Size (); begin Exit 7; end
+end
+
+try
+    var W : Any := WithMethod ();
+    W.Size := 1;
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0169-an-instance-is-closed.a24
+2
+Undefined property 'Undeclared'.
+Undefined property 'Size'.
+```
 
 ---
 
@@ -3110,15 +8345,59 @@ SubrangeDecl = "type" identifier "=" bound ".." bound ";" .
 bound = [ "-" ] integer_lit .
 ```
 
-    interpreter  compiler/Parser.a24  EnumDeclaration
-    conformance  0071-enumerations.a24
+##### conformance/0071-enumerations.a24
+
+```algol24
+type Colour = (RED, GREEN, BLUE);
+type Fruit  = (APPLE, PEAR);
+
+// ENU-002: each member binds as a BARE NAME and is also reachable qualified.
+// Both spellings denote the same interned object.
+WriteLn (RED);
+WriteLn (Colour.RED);
+WriteLn (RED = Colour.RED);
+
+// ENU-007: a member renders as its bare name.
+WriteLn (Str (BLUE));
+
+// ENU-006: 'is' is true for the member's own type and false for every other.
+WriteLn (RED is Colour);
+WriteLn (RED is Fruit);
+WriteLn (APPLE is Fruit);
+
+// ENU-005: members compare by IDENTITY.  A member is never equal to a member
+// of another enumeration, whatever they are called, and not to its own name as
+// text.
+WriteLn (RED = GREEN);
+WriteLn (RED = APPLE);
+WriteLn (RED = 'RED');
+
+// ENU-001: the members are named in order, and the declaration is the only
+// place that order appears.
+var Seen := '';
+for var C in [RED, GREEN, BLUE] do Seen := Seen + Str (C) + ' ';
+WriteLn (Seen);
+```
+
+```console
+$ algc conformance/0071-enumerations.a24
+RED
+RED
+true
+BLUE
+true
+false
+true
+false
+false
+false
+RED GREEN BLUE 
+```
 
 **[ENU-002]**  Each member is bound as a **bare name** in the enclosing scope and
 is also reachable qualified as `Type.Member`. Both spellings denote the **same
 interned object**, so `RED = Color.RED` is true.
 
-    interpreter  compiler/ObjEnum.a24  ObjEnumType
-    compiler     bootstrap/algol.c     alg_enum_member
     unit         Both Spellings Of An Enum Member Type As The Enum
     conformance  0071-enumerations.a24
 
@@ -3130,9 +8409,38 @@ The declaration used to be refused with `'A' is already defined.`, so adding
 a member to one enumeration could break an unrelated one elsewhere in the
 program — and `First.A`, which is unambiguous, never got a chance to help.
 
-    interpreter  compiler/Interpreter.a24  VisitEnumStmt
-    interpreter  compiler/Resolver.a24     CheckDuplicates
-    conformance  0123-enumerations-may-share-member-names.a24
+##### conformance/0123-enumerations-may-share-member-names.a24
+
+```algol24
+type First  = (A, B);
+type Second = (A, C);
+
+// Qualified: unambiguous, and they are different members of different types.
+WriteLn (First.A);
+WriteLn (Second.A);
+WriteLn (First.A = Second.A);
+
+// Bare, and bound by only one enumeration each.  A shared name does not make
+// its neighbors ambiguous.
+WriteLn (B);
+WriteLn (C);
+
+// ⚠️ Bare 'A' is the error, and it is the LAST thing that happens: everything
+// above ran.  A name is refused where it cannot be resolved, not where it was
+// declared.
+WriteLn (A);
+```
+
+```console
+$ algc conformance/0123-enumerations-may-share-member-names.a24
+Uncaught: 'A' is ambiguous: First or Second.
+A
+A
+false
+B
+C
+exit: 70
+```
 
 **[ENU-011]**  A **bare** member name bound by more than one enumeration in
 scope is ambiguous, and using it is refused with
@@ -3151,34 +8459,44 @@ in it holding one of the two, so a bare read cannot quietly find one. The
 qualified form is unaffected: it reaches the member through the enumeration
 rather than through that binding.
 
-    interpreter  compiler/Environment.a24  MarkAmbiguous
     conformance  0123-enumerations-may-share-member-names.a24
 
 **[ENU-004]**  Naming a member the type does not have is `Undefined enum member
 'X'.`
 
-    interpreter  compiler/ObjEnum.a24  ObjEnumType
-    conformance  0072-unknown-enum-member.a24
+##### conformance/0072-unknown-enum-member.a24
+
+```algol24
+type Colour = (RED, GREEN);
+
+WriteLn (Colour.RED);
+
+WriteLn (Colour.Nope);
+```
+
+```console
+$ algc conformance/0072-unknown-enum-member.a24
+Uncaught: Undefined enum member 'Nope'.
+RED
+exit: 70
+```
 
 ### 13.2 Values
 
 **[ENU-005]**  Members compare by **identity** [VAL-011]. A member of one
 enumeration is never equal to a member of another, whatever they are called.
 
-    interpreter  compiler/Interpreter.a24  IsEqual
     unit         An Enum Member Does Not Satisfy Another Enum
     conformance  0071-enumerations.a24
 
 **[ENU-006]**  `M is T` is true for the member's own type and false for every
 other.
 
-    interpreter  compiler/Interpreter.a24  VisitIsExpr
     unit         An Enum Type Name Types As Itself
     conformance  0071-enumerations.a24
 
 **[ENU-007]**  A member renders as its bare name: `Str(RED)` is `RED`.
 
-    interpreter  compiler/ObjEnum.a24  ToString
     conformance  0071-enumerations.a24
 
 **[ENU-008]**  Members are **not ordered**. `RED < GREEN` is `Operands must be
@@ -3189,8 +8507,24 @@ left alone deliberately: `<` on two members would have to mean position, and
 position is exactly the property [ENU-009] shows to be a trap when it acts
 implicitly.
 
-    interpreter  compiler/Interpreter.a24  VisitBinary
-    conformance  0073-enum-members-are-not-ordered.a24
+##### conformance/0073-enum-members-are-not-ordered.a24
+
+```algol24
+type Colour = (RED, GREEN, BLUE);
+
+WriteLn (RED = RED);
+WriteLn (RED <> GREEN);
+
+WriteLn (RED < GREEN);
+```
+
+```console
+$ algc conformance/0073-enum-members-are-not-ordered.a24
+Uncaught: Operands must be numbers.
+true
+true
+exit: 70
+```
 
 ### 13.3 The ordinal
 
@@ -3217,9 +8551,55 @@ readable [ENU-010], so nothing here is hidden.
 This compiler's own enumerations already follow the convention: `FUN_NONE`
 and `CLASS_NONE` are the first members of `FunctionType` and `ClassType`.
 
-    interpreter  compiler/Interpreter.a24  IsTruthy
-    compiler     bootstrap/algol.c         alg_truthy
-    conformance  0074-enum-truthiness.a24
+##### conformance/0074-enum-truthiness.a24
+
+```algol24
+type Colour = (RED, GREEN, BLUE);
+
+// The first member is falsey; every later member is truthy.
+if RED   then WriteLn ('RED truthy');   else WriteLn ('RED falsey');
+if GREEN then WriteLn ('GREEN truthy'); else WriteLn ('GREEN falsey');
+if BLUE  then WriteLn ('BLUE truthy');  else WriteLn ('BLUE falsey');
+
+// Which is the point of the rule: a program may declare its own two-valued
+// types and use them directly in a condition, with no comparison and no
+// conversion.
+type Flag   = (Off, On);
+type Answer = (No, Yes);
+
+procedure Report (Label, V);
+begin
+    if V then WriteLn (Label + ' is on');
+    else WriteLn (Label + ' is off');
+end
+
+Report ('Off   ', Off);
+Report ('On    ', On);
+Report ('No    ', No);
+Report ('Yes   ', Yes);
+
+// ⚠️ The discipline: the position is part of the declaration's meaning.  These
+// two enumerations differ only in the order of their members, and every
+// condition written over them differs with it.
+type Forward  = (Zero, One);
+type Backward = (One2, Zero2);
+
+Report ('Zero  ', Zero);
+Report ('Zero2 ', Zero2);
+```
+
+```console
+$ algc conformance/0074-enum-truthiness.a24
+RED falsey
+GREEN truthy
+BLUE truthy
+Off    is off
+On     is on
+No     is off
+Yes    is on
+Zero   is off
+Zero2  is on
+```
 
 **[ENU-010]**  A member answers `Ordinal`, its **zero-based position** in the
 declaration. `RED.Ordinal` is 0 and `BLUE.Ordinal` is 2. It answers no other
@@ -3230,8 +8610,37 @@ array by one, or to write one out and read it back. It also governs truthiness
 [ENU-009], and a program could once discover that only by testing a member for
 truth.
 
-    interpreter  compiler/ObjEnum.a24  Get
-    conformance  0113-enum-ordinal.a24
+##### conformance/0113-enum-ordinal.a24
+
+```algol24
+type Colour = (RED, GREEN, BLUE);
+
+WriteLn (RED.Ordinal);
+WriteLn (GREEN.Ordinal);
+WriteLn (BLUE.Ordinal);
+WriteLn (RED.Ordinal is Integer);
+
+// ⚠️ The position GOVERNS behavior: truthiness reads it, so the first member
+// of every enumeration is falsey [ENU-009].  A program could once discover
+// that only by testing a member for truth.
+if RED then WriteLn ('RED truthy'); else WriteLn ('RED falsey');
+WriteLn (RED.Ordinal = 0);
+
+// It is also what a program needs to put members in an order, which they do
+// not have themselves [ENU-008].
+WriteLn (RED.Ordinal < BLUE.Ordinal);
+```
+
+```console
+$ algc conformance/0113-enum-ordinal.a24
+0
+1
+2
+true
+RED falsey
+true
+true
+```
 
 ---
 
@@ -3266,16 +8675,74 @@ implementation with the same obligation.
 **[COL-001]**  A bracketed list of values is a `List`, and `[]` is an empty one.
 A bracketed list of `key : value` pairs is a `Map`, and `[:]` is an empty one.
 
-    interpreter  compiler/Parser.a24  Primary
-    conformance  0075-collection-construction.a24
-    conformance  0143-a-large-computed-literal.a24
+##### conformance/0075-collection-construction.a24
+
+```algol24
+// COL-001: a bracketed list of values is a List; of key : value pairs, a Map.
+var L := [1, 2, 3];
+var M := [1 : 'one', 2 : 'two'];
+WriteLn (L is List);
+WriteLn (M is Map);
+WriteLn (L.Length);
+WriteLn (M.Length);
+
+// And the empty forms are distinguished by the colon.
+WriteLn ([] is List);
+WriteLn ([:] is Map);
+WriteLn ([].Length);
+WriteLn ([:].Length);
+
+// COL-002: the constructors.
+WriteLn (List () is List);
+WriteLn (Set () is Set);
+WriteLn (Stack () is Stack);
+WriteLn (Map () is Map);
+WriteLn (Array (3) is Array);
+WriteLn (Array (3).Length);
+
+// Set(L) builds a Set from a collection, keeping each value once.
+WriteLn (Set ([1, 1, 2]).Length);
+```
+
+```console
+$ algc conformance/0075-collection-construction.a24
+true
+true
+3
+2
+true
+true
+0
+0
+true
+true
+true
+true
+true
+3
+2
+```
+
+##### conformance/0143-a-large-computed-literal.a24
+
+```algol24
+var N := 7;
+var Big := [N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N];
+
+WriteLn (Big.Length);
+WriteLn (Big[0] + Big[149]);
+```
+
+```console
+$ algc conformance/0143-a-large-computed-literal.a24
+150
+14
+```
 
 **[COL-002]**  `List()`, `Set()`, `Stack()` and `Map()` construct empty
 collections, `Set(L)` builds a Set from a collection, and `Array(N)` an Array of
 `N` elements.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_array
     conformance  0075-collection-construction.a24
 
 ### 14.2 Members
@@ -3302,8 +8769,63 @@ This table is checked against the interpreter by `spec/spec.sh`, which asks
 transcribed into a specification and checked by nobody is the most rot-prone
 thing this document can hold.
 
-    interpreter  compiler/ObjCollection.a24  Get
-    conformance  0076-collection-members.a24
+##### conformance/0076-collection-members.a24
+
+```algol24
+var L := [3, 1, 2];
+WriteLn (Str (L.Length) + ' ' + Str (L.IsEmpty) + ' ' + Str (L.Contains (1)));
+WriteLn (L.Get (0));
+L.Add (9);      WriteLn (L.Length);
+L.Insert (0, 0); WriteLn (L.Get (0));
+WriteLn (L.IndexOf (9));
+L.RemoveAt (0); WriteLn (L.Get (0));
+
+var S := Set ();
+S.Add (1); S.Add (2);
+WriteLn (Str (S.Length) + ' ' + Str (S.Contains (1)));
+WriteLn (S.ToList () is List);
+S.Remove (1);   WriteLn (S.Length);
+
+var K := Stack ();
+K.Push (1); K.Push (2);
+WriteLn (Str (K.Peek ()) + ' ' + Str (K.Pop ()) + ' ' + Str (K.Length));
+
+var A := Array (3);
+A.Set (0, 'x'); WriteLn (A.Get (0));
+A.Fill ('y');   WriteLn (Str (A.Get (0)) + Str (A.Get (2)));
+
+var M := Map ();
+M.Put (1, 'one');
+WriteLn (Str (M.Get (1)) + ' ' + Str (M.Contains (1)));
+WriteLn (Str (M.Keys ().Length) + ' ' + Str (M.Values ().Length));
+M.Remove (1);   WriteLn (M.Length);
+
+// COL-004: a List has no Remove.  Removing a value means saying WHICH one,
+// because a List may hold the same value more than once.
+var Dup := [7, 8, 7];
+Dup.RemoveAt (Dup.IndexOf (7));
+WriteLn (Str (Dup.Length) + ' ' + Str (Dup.Get (0)) + Str (Dup.Get (1)));
+```
+
+```console
+$ algc conformance/0076-collection-members.a24
+3 false true
+3
+4
+0
+4
+3
+2 true
+true
+1
+2 2 1
+x
+yy
+one true
+1 1
+0
+2 87
+```
 
 **[COL-004]**  A `List` has **no `Remove`**. Removing a value from a List
 means finding it with `IndexOf` and passing that to `RemoveAt`, while a `Set` and
@@ -3315,7 +8837,6 @@ first, the last, or all of them — while a Set holds each value once and a Map
 each key once, so for those it has exactly one. Making a program write `IndexOf`
 and `RemoveAt` is making it say which it meant.
 
-    interpreter  compiler/ObjCollection.a24  Get
     conformance  0076-collection-members.a24
 
 **[COL-005]**  A member a kind does not have is `Undefined property 'X'.`
@@ -3326,9 +8847,50 @@ only way to ask whether a kind has a member without arranging arguments for it,
 which is how `spec/members.a24` — the source [COL-003]'s matrix is checked
 against — probes for one.
 
-    interpreter  compiler/ObjCollection.a24  Get
-    conformance  0077-undefined-collection-member.a24
-    conformance  0144-a-collection-member-without-the-call.a24
+##### conformance/0077-undefined-collection-member.a24
+
+```algol24
+var K := Stack ();
+K.Push (1);
+WriteLn (K.Peek ());
+
+WriteLn (K.Get (0));
+```
+
+```console
+$ algc conformance/0077-undefined-collection-member.a24
+Uncaught: Undefined property 'Get'.
+1
+exit: 70
+```
+
+##### conformance/0144-a-collection-member-without-the-call.a24
+
+```algol24
+var L := [3, 1, 2];
+
+var Sort := L.Sort;
+Sort ();
+WriteLn (L[0]);
+
+var Add := L.Add;
+Add (9);
+WriteLn (L.Length);
+
+// A member the kind does not have is refused on this path too [COL-005].
+try
+    var Nope := L.Push;
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0144-a-collection-member-without-the-call.a24
+1
+4
+Undefined property 'Push'.
+```
 
 **[COL-006]**  A collection member's name is matched **case-insensitively**,
 as every name in the language is [SRC-011]. `L.Add(2)` and `L.add(2)` are the
@@ -3339,7 +8901,6 @@ written **folded**, and the incoming member is folded to meet them. The
 diagnostic still quotes the member as the program wrote it: `L.Zap` is
 `Undefined property 'Zap'.`, not `'zap'`.
 
-    interpreter  compiler/ObjCollection.a24  Get
     conformance  0126-identifiers-are-case-insensitive.a24
 
 ### 14.3 Order
@@ -3348,22 +8909,61 @@ diagnostic still quotes the member as the program wrote it: `L.Zap` is
 `Set` and `Map`. This is specified rather than left to the representation,
 because both processors must produce the same output.
 
-    interpreter  compiler/ObjCollection.a24  Items
-    compiler     bootstrap/algol.c           alg_iterable
-    conformance  0078-collection-order.a24
+##### conformance/0078-collection-order.a24
+
+```algol24
+// COL-007: every collection iterates in INSERTION order, including Set and
+// Map.  Inserted 3, 1, 2 -- so 3, 1, 2 comes back, not 1, 2, 3.
+var L := [3, 1, 2];
+var S := Set ([3, 1, 2]);
+var M := [3 : 'c', 1 : 'a', 2 : 'b'];
+
+procedure Walk (Label, C);
+begin
+    Write (Label);
+    for var E in C do Write (Str (E) + ' ');
+    WriteLn ('');
+end
+
+Walk ('List : ', L);
+Walk ('Set  : ', S);
+Walk ('Map  : ', M);
+
+// COL-008: re-assigning an existing key keeps its ORIGINAL position.
+M.Put (3, 'changed');
+Walk ('Map  : ', M);
+WriteLn (M.Get (3));
+
+// A key not present goes to the end.
+M.Put (9, 'new');
+Walk ('Map  : ', M);
+
+// COL-009: Keys() and Values() answer in that same order, element for element.
+Walk ('Keys : ', M.Keys ());
+Walk ('Vals : ', M.Values ());
+```
+
+```console
+$ algc conformance/0078-collection-order.a24
+List : 3 1 2 
+Set  : 3 1 2 
+Map  : 3 1 2 
+Map  : 3 1 2 
+changed
+Map  : 3 1 2 9 
+Keys : 3 1 2 9 
+Vals : changed a b new 
+```
 
 **[COL-008]**  Re-assigning an existing Map key keeps the key's **original
 position**. `Put` on a key already present replaces the value and does not move
 it to the end.
 
-    interpreter  compiler/ObjCollection.a24  Invoke
-    compiler     bootstrap/algol.c           alg_put
     conformance  0078-collection-order.a24
 
 **[COL-009]**  `Keys()` and `Values()` answer in that same order, so the two
 correspond element for element.
 
-    interpreter  compiler/ObjCollection.a24  Invoke
     conformance  0078-collection-order.a24
 
 ### 14.4 Behavior
@@ -3371,8 +8971,39 @@ correspond element for element.
 **[COL-010]**  A `Set` holds each value once. Adding a value it already has
 leaves its length unchanged.
 
-    interpreter  compiler/ObjCollection.a24  Invoke
-    conformance  0079-collection-behavior.a24
+##### conformance/0079-collection-behavior.a24
+
+```algol24
+// COL-010: a Set holds each value once.
+var S := Set ([1, 1, 2]);
+WriteLn (S.Length);
+S.Add (2);
+WriteLn (S.Length);
+S.Add (3);
+WriteLn (S.Length);
+
+// COL-011: Remove answers DIFFERENT KINDS OF THING by kind.
+// A Map returns the value removed, and nil when the key was absent.
+var M := [1 : 'one'];
+WriteLn (M.Remove (1));
+WriteLn (M.Remove (99));
+
+// A Set returns whether there was anything to remove.
+var T := Set ([1]);
+WriteLn (T.Remove (1));
+WriteLn (T.Remove (99));
+```
+
+```console
+$ algc conformance/0079-collection-behavior.a24
+2
+2
+3
+one
+nil
+true
+false
+```
 
 **[COL-011]**  `Remove` answers **different kinds of thing** by kind. A `Map`
 returns the value removed, and `nil` when the key was absent. A `Set` returns
@@ -3382,8 +9013,6 @@ Each answer is the useful one for its kind — a Map's removed value is worth
 having, and a Set has nothing to hand back but whether it did anything — but the
 two cannot be used interchangeably, and nothing in the call says which is coming.
 
-    interpreter  compiler/ObjCollection.a24  Invoke
-    compiler     bootstrap/algol.c           alg_remove
     conformance  0079-collection-behavior.a24
 
 **[COL-012]**  Membership — `Contains`, `in`, and Map key lookup — uses the
@@ -3394,8 +9023,6 @@ A collection still compares by **identity**, and that is unchanged: two Lists
 of the same contents are not equal, so `[1] in [[1]]` is false. Promotion is
 between the numeric types, not a structural comparison.
 
-    interpreter  compiler/ObjCollection.a24  Invoke
-    compiler     bootstrap/algol.c           strict_equals
     conformance  0127-membership-follows-equality.a24
 
 **[COL-013]**  `Sort` orders in place and is **stable**. It orders numbers
@@ -3407,23 +9034,89 @@ a second one that happens to agree. Comparing bytes would stop at an embedded
 zero a String is entitled to hold, and matches only because UTF-8 is designed so
 byte order follows code-point order.
 
-    interpreter  compiler/ObjCollection.a24  Invoke
-    compiler     bootstrap/algol.c           alg_sort
-    conformance  0080-sort.a24
+##### conformance/0080-sort.a24
+
+```algol24
+// Sort orders in place -- the List itself is changed, and nothing is returned
+// that has to be caught.
+var N := [3, 1, 2];
+N.Sort ();
+for var E in N do Write (Str (E) + ' ');
+WriteLn ('');
+
+// It orders text against text as well as numbers against numbers.
+var T := ['pear', 'apple', 'fig'];
+T.Sort ();
+for var E in T do Write (E + ' ');
+WriteLn ('');
+
+// An Array sorts too.
+var A := Array (3);
+A.Set (0, 3); A.Set (1, 1); A.Set (2, 2);
+A.Sort ();
+WriteLn (Str (A.Get (0)) + Str (A.Get (1)) + Str (A.Get (2)));
+
+// Mixing them is refused.
+var Mixed := [1, 'text'];
+Mixed.Sort ();
+```
+
+```console
+$ algc conformance/0080-sort.a24
+Uncaught: Can only sort numbers against numbers, or text against text.
+1 2 3 
+apple fig pear 
+123
+exit: 70
+```
     conformance  0166-text-is-ordered.a24
 
 **[COL-014]**  Subscripting reads by position for a `List` and an `Array` and by
 key for a `Map`. A `Set` has no positions and is refused with `Subscript target
 should be an ordinal.`
 
-    interpreter  compiler/ObjCollection.a24  At
-    compiler     bootstrap/algol.c           alg_subscript_get
-    conformance  0081-subscripting-by-kind.a24
+##### conformance/0081-subscripting-by-kind.a24
+
+```algol24
+// By POSITION for a List and an Array.
+var L := [10, 20, 30];
+WriteLn (L[1]);
+
+var A := Array (2);
+A[0] := 'x';
+WriteLn (A[0]);
+
+// By KEY for a Map -- the subscript is the key, not a position.
+var M := [7 : 'seven'];
+WriteLn (M[7]);
+
+// A String is subscriptable and not assignable, and says so -- a different
+// complaint from the one a target without a subscript path gets.
+try
+    var T := 'abc';
+    T[0] := 'x';
+except
+    on e : String do WriteLn (e);
+end
+
+// A Set has no positions.
+var S := Set ([1, 2]);
+WriteLn (S[0]);
+```
+
+```console
+$ algc conformance/0081-subscripting-by-kind.a24
+Uncaught: Subscript target should be an ordinal.
+20
+x
+seven
+Strings are immutable.
+exit: 70
+```
 
 **[COL-015]**  An `Array` is fixed in size and does not grow on assignment — see
 [TYP-008].
 
-    interpreter  compiler/ObjCollection.a24  At
     conformance  0029-array-is-fixed.a24
 
 ---
@@ -3439,8 +9132,32 @@ that name with `.a24` appended; a quoted string is a path.
 UsesStmt = "uses" ( identifier | string_lit ) ";" .
 ```
 
-    interpreter  compiler/Parser.a24  UsesStatement
-    conformance  0082-module-import.a24
+##### conformance/0082-module-import.a24
+
+```algol24
+// MOD-001: a quoted string is a path, resolved beside this file first.
+uses 'modules/Alpha';
+
+// MOD-005: a module exports its top-level declarations...
+WriteLn (OnlyAlpha ());
+
+// MOD-010: ...and an exported name may be qualified by its unit.  The
+// qualifier is resolved statically as a unit, not evaluated as a value.
+WriteLn (Alpha.OnlyAlpha ());
+WriteLn (Alpha.Shared ());
+
+// MOD-006: 'private' at the top level of a module hides a single declaration.
+// Alpha's Hidden is not reachable here -- see 0084 for the diagnostic.
+WriteLn (OnlyAlpha () = Alpha.OnlyAlpha ());
+```
+
+```console
+$ algc conformance/0082-module-import.a24
+only in Alpha
+only in Alpha
+from Alpha
+true
+```
 
 **[MOD-002]**  A module name is the one place [SRC-011] does **not** reach.
 It names a file, and the filesystem decides how that name is matched — case-
@@ -3456,43 +9173,82 @@ in the working directory. Two directories may therefore hold files of one name
 without either reaching the other's. Failure is `Could not find module 'X': no
 X.a24 in …`
 
-    interpreter  compiler/Parser.a24  ResolveModule
     conformance  0082-module-import.a24
 
 **[MOD-003]**  A module is loaded and executed **once**, keyed by its resolved
 path, however many files import it. A second import of the same file sees the
 names without re-running the body.
 
-    interpreter  compiler/Parser.a24  UsesStatement
-    conformance  0083-module-runs-once.a24
+##### conformance/0083-module-runs-once.a24
+
+```algol24
+uses 'modules/Counted';
+uses 'modules/AlsoUsesCounted';
+
+WriteLn (CountedName ());
+WriteLn (Reach ());
+```
+
+```console
+$ algc conformance/0083-module-runs-once.a24
+Counted body ran
+from Counted
+from Counted
+```
 
 **[MOD-004]**  A file may open with `unit N;`. If present, `N` must match the
 file's own name: `Unit 'Wrong' must match its file name 'Mismatch'.`
 
-    interpreter  compiler/Parser.a24  UnitHeader
-    refusal      0029-unit-name-must-match-the-file.a24
+##### refusals/0029-unit-name-must-match-the-file.a24
+
+```algol24
+uses 'conformance/modules/Mismatch';
+
+WriteLn (W ());
+```
+
+```console
+$ algc refusals/0029-unit-name-must-match-the-file.a24
+Uncaught: Unit 'Wrong' must match its file name 'Mismatch'.
+[ERROR] refusals/0029-unit-name-must-match-the-file.a24: Unit 'Wrong' must match its file name 'Mismatch'.
+[ERROR] 4 | unit Wrong;
+[ERROR]   |      ^^^^^
+exit: 70
+```
 
 ### 15.2 Exports
 
 **[MOD-005]**  A module exports its top-level declarations, except those marked
 `private`.
 
-    interpreter  compiler/Interpreter.a24  VisitModuleStmt
     conformance  0082-module-import.a24
 
 **[MOD-006]**  At the top level of a module, `private` precedes a **single
 declaration** and hides it. It is not a section marker there, unlike inside a
 class [DCL-011].
 
-    interpreter  compiler/Parser.a24  RecordPrivate
     unit         Module Private Is Not A Section Marker
     conformance  0082-module-import.a24
 
 **[MOD-007]**  A private name is invisible to an importer both bare and
 qualified. Qualified, it is `Undefined name 'Hidden' in unit 'Mid'.`
 
-    interpreter  compiler/Interpreter.a24  Qualified
-    conformance  0084-module-private.a24
+##### conformance/0084-module-private.a24
+
+```algol24
+uses 'modules/Alpha';
+
+WriteLn (Alpha.OnlyAlpha ());
+
+WriteLn (Alpha.Hidden ());
+```
+
+```console
+$ algc conformance/0084-module-private.a24
+Uncaught: Undefined name 'Hidden' in unit 'Alpha'.
+only in Alpha
+exit: 70
+```
 
 **[MOD-008]**  Two imported modules **may** export one name. Importing both is
 accepted, and neither module is affected by the other.
@@ -3501,8 +9257,32 @@ The import used to be refused with `'Clash' is already defined; mark it
 private in one of the modules.` — advice to edit a module because of what some
 other module, possibly written by someone else, happens to export.
 
-    interpreter  compiler/Interpreter.a24  VisitModuleStmt
-    conformance  0124-modules-may-share-exported-names.a24
+##### conformance/0124-modules-may-share-exported-names.a24
+
+```algol24
+uses 'modules/Alpha';
+uses 'modules/Beta';
+
+WriteLn (Alpha.Shared ());
+WriteLn (Beta.Shared ());
+
+// Bare, and exported by only one module each.
+WriteLn (OnlyAlpha ());
+WriteLn (OnlyBeta ());
+
+// ⚠️ Bare 'Shared' is the error, and it is the LAST thing that happens.
+WriteLn (Shared ());
+```
+
+```console
+$ algc conformance/0124-modules-may-share-exported-names.a24
+Uncaught: 'Shared' is ambiguous: Alpha or Beta.
+from Alpha
+from Beta
+only in Alpha
+only in Beta
+exit: 70
+```
 
 **[MOD-013]**  A **bare** name exported by more than one imported module is
 ambiguous, and using it is refused with
@@ -3527,7 +9307,6 @@ only place the ambiguity is real. Importing one module twice is not a clash with
 itself: the same environment appearing twice in the import list is still one
 module.
 
-    interpreter  compiler/Environment.a24  OwnerOf
     conformance  0124-modules-may-share-exported-names.a24
 
 ### 15.3 Visibility
@@ -3540,21 +9319,56 @@ not. The diagnostic names the unit that would export it:
 Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
 ```
 
-    interpreter  compiler/Interpreter.a24  LookupVariable
-    conformance  0085-uses-is-not-transitive.a24
+##### conformance/0085-uses-is-not-transitive.a24
+
+```algol24
+uses 'modules/Mid';
+
+WriteLn (MidName ());
+WriteLn (MidReachesDeep ());
+
+// The diagnostic names the unit that would export it.
+WriteLn (DeepName ());
+```
+
+```console
+$ algc conformance/0085-uses-is-not-transitive.a24
+Uncaught: Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
+from Mid
+from Deep
+exit: 70
+```
 
 **[MOD-010]**  An exported name may be qualified by its unit — `Mid.MidName()` —
 and the qualifier is resolved statically as a unit rather than evaluated as a
 value.
 
-    interpreter  compiler/Interpreter.a24  Qualified
     conformance  0082-module-import.a24
 
 **[MOD-011]**  `System` is the unit of the built-in functions. No file imports
 it and every file may qualify against it: `System.Copy('abcdef', 0, 3)`.
 
-    interpreter  compiler/Resolver.a24  Units
-    conformance  0086-system-unit.a24
+##### conformance/0086-system-unit.a24
+
+```algol24
+WriteLn (System.Copy ('abcdef', 0, 3));
+WriteLn (System.Length ('abc'));
+
+// ⚠️ THE QUALIFIER NAMES WHAT IS STILL BUILT IN, AND ONLY THAT.  Max, Mod,
+// Succ, Pred and Ord were all reachable here and are library functions now, so
+// System.Max and System.Ord no longer resolve.  Copy and Length remain, which
+// is why they are the two this case uses.
+
+// The bare spellings are the same functions.
+WriteLn (System.Copy ('abcdef', 0, 3) = Copy ('abcdef', 0, 3));
+```
+
+```console
+$ algc conformance/0086-system-unit.a24
+abc
+3
+true
+```
 
 ### 15.4 Cycles
 
@@ -3565,8 +9379,20 @@ second import finds the entry already made rather than descending again.
 
 Cycles of three and more behave the same way.
 
-    interpreter  compiler/Parser.a24  UsesStatement
-    conformance  0087-cycles-between-modules-work.a24
+##### conformance/0087-cycles-between-modules-work.a24
+
+```algol24
+uses 'modules/CycA';
+
+WriteLn (AName ());
+WriteLn (CycA.AName ());
+```
+
+```console
+$ algc conformance/0087-cycles-between-modules-work.a24
+from CycA
+from CycA
+```
 
 **[MOD-014]**  A cycle **through the root file** — a module importing the file
 that is being run — works as [MOD-012] does. The root is a module in its own
@@ -3589,9 +9415,21 @@ undefined. Compiled, the duplicate refused with `Two modules named 'X' is not
 supported by the C back end yet.`, which was the only known case of a valid
 program having no compiled form.
 
-    interpreter  compiler/Parser.a24       Parse
-    interpreter  compiler/Interpreter.a24  RegisterRoot
-    conformance  0125-a-cycle-through-the-root.a24
+##### conformance/0125-a-cycle-through-the-root.a24
+
+```algol24
+uses 'modules/BackRef';
+
+WriteLn ('root body ran');
+
+WriteLn (ModName ());
+```
+
+```console
+$ algc conformance/0125-a-cycle-through-the-root.a24
+root body ran
+from the module
+```
 
 ---
 
@@ -3625,17 +9463,107 @@ renders them [RT-019] and run together with nothing between them — so
 than `3`. `WriteLn ()` is the newline on its own, which is the same rule and not
 a second form: rendering no values gives the empty string.
 
-    interpreter  compiler/Interpreter.a24  Rendered
     conformance  0145-a-builtin-with-the-wrong-arity.a24
-    conformance  0159-write-takes-any-number-of-values.a24
-    conformance  0088-builtins.a24
+
+##### conformance/0159-write-takes-any-number-of-values.a24
+
+```algol24
+WriteLn ();
+WriteLn ('ABC');
+WriteLn ('ABC', 123);
+
+// Every kind of value renders as Str renders it, so the one-value form and the
+// many cannot disagree.
+WriteLn ('a', 'b', 'c', 1, 2.5, True, Nil);
+
+// ⚠️ Text concatenation and not addition: this writes '12', not '3'.
+WriteLn (1, 2);
+
+Write ('no');
+Write ('newline', ' here');
+WriteLn ();
+```
+
+```console
+$ algc conformance/0159-write-takes-any-number-of-values.a24
+
+ABC
+ABC123
+abc12.5truenil
+12
+nonewline here
+```
+
+##### conformance/0088-builtins.a24
+
+```algol24
+WriteLn (Length ('abc'));
+WriteLn (Copy ('abcdef', 0, 3));
+WriteLn (Pos ('abcdef', 'cd'));
+WriteLn (Str (42));
+WriteLn (Ord ('A'));
+WriteLn (Char (65));
+WriteLn (Val ('1.5'));
+WriteLn (Mod (7, 3));
+WriteLn (clock () is Double);
+
+WriteLn (List () is List);
+WriteLn (Set () is Set);
+WriteLn (Stack () is Stack);
+WriteLn (Array (1) is Array);
+WriteLn (Map () is Map);
+WriteLn (Buffer () is Buffer);
+WriteLn (TextFile () is TextFile);
+WriteLn (FileExists ('no-such-file-anywhere') = False);
+WriteLn (ParamCount ());
+WriteLn (Length (ParamStr (0)) > 0);
+Write ('written');
+WriteLn ('');
+
+// ⚠️ Halt is exercised by conformance/0134 rather than here: calling it would
+// end this program before the rest of the list was reached, and there is no way
+// to ask whether it answers without calling it.
+```
+
+```console
+$ algc conformance/0088-builtins.a24
+3
+abc
+2
+42
+65
+A
+1.5
+1
+true
+true
+true
+true
+true
+true
+true
+true
+true
+0
+true
+written
+```
 
 **[RT-002]**  The remaining three — `AssertTrue`, `AssertEqual` and `Fail` — are
 registered **only while `--test` is running** [see 19]. Calling one outside a
 test run is `Undefined variable 'AssertTrue'.`
 
-    interpreter  compiler/Interpreter.a24  RunTests
-    refusal      0030-assert-outside-a-test-run.a24
+##### refusals/0030-assert-outside-a-test-run.a24
+
+```algol24
+AssertTrue (True);
+```
+
+```console
+$ algc refusals/0030-assert-outside-a-test-run.a24
+Uncaught: Undefined variable 'AssertTrue'.
+exit: 70
+```
 
 ### 16.2 Text
 
@@ -3652,31 +9580,102 @@ never equal, since a List of *n* one-digit numbers renders as `3n` characters.
 A program that means the rendering writes `Length(Str(L))`, which is what it
 was getting by accident.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_text_length
-    conformance  0115-length-refuses-a-collection.a24
+##### conformance/0115-length-refuses-a-collection.a24
+
+```algol24
+WriteLn (Length ('abc'));
+WriteLn (Length ('a'));
+WriteLn ([10, 20, 30].Length);
+
+WriteLn (Length ([10, 20, 30]));
+```
+
+```console
+$ algc conformance/0115-length-refuses-a-collection.a24
+Uncaught: Length expects text; use .Length for a collection.
+3
+1
+3
+exit: 70
+```
 
 **[RT-017]**  A `String` answers `Length` as a **property**, its count of
 characters: `'abc'.Length` is 3. This is the same count `Length('abc')` gives,
 and the same spelling every collection uses [COL-003].
 
-    interpreter  compiler/Interpreter.a24  VisitGetExpr
-    compiler     bootstrap/algol.c         alg_property
-    conformance  0114-string-length-property.a24
+##### conformance/0114-string-length-property.a24
+
+```algol24
+var S := 'abc';
+
+WriteLn (S.Length);
+WriteLn (Length (S));
+WriteLn (S.Length = Length (S));
+WriteLn (''.Length);
+
+// A String was already iterable and subscriptable; not answering for its own
+// length was the odd one out.
+WriteLn (S[0]);
+for var C in S do Write (C);
+WriteLn ('');
+
+// A collection answers the same way.
+WriteLn ([1, 2, 3].Length);
+```
+
+```console
+$ algc conformance/0114-string-length-property.a24
+3
+3
+true
+0
+a
+abc
+3
+```
 
 **[RT-004]**  `Copy(Text, Begin, Length)` takes a substring, counting from zero.
 The length is clamped to what remains, so `Copy('abcdef', 3, 99)` is `def`. A
 start outside the text is `Copy failed: Start -2 out of range 0..6.`
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_copy
-    conformance  0089-text-builtins.a24
+##### conformance/0089-text-builtins.a24
+
+```algol24
+// RT-004: Copy counts from zero, and the length is CLAMPED to what remains.
+
+WriteLn (Copy ('abcdef', 0, 3));
+WriteLn (Copy ('abcdef', 3, 3));
+WriteLn (Copy ('abcdef', 3, 99));
+WriteLn (Copy ('abcdef', 6, 1));
+
+// RT-005: Pos is zero-based, and -1 when absent.
+WriteLn (Pos ('abcdef', 'a'));
+WriteLn (Pos ('abcdef', 'cd'));
+WriteLn (Pos ('abcdef', 'z'));
+
+// RT-007: Ord answers a code point as an Integer.
+WriteLn (Ord ('A'));
+WriteLn (Ord ('A') is Integer);
+WriteLn (Ord (' '));
+```
+
+```console
+$ algc conformance/0089-text-builtins.a24
+abc
+def
+def
+
+0
+2
+-1
+65
+true
+32
+```
 
 **[RT-005]**  `Pos(Text, Part)` answers the zero-based index of `Part` within
 `Text`, or **-1** when it is absent.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_pos
     conformance  0089-text-builtins.a24
 
 **[RT-006]**  `Str(V)` renders any value: an Integer bare, a Double always with
@@ -3690,17 +9689,229 @@ form.` — a message naming an internal tag, to a program that has no way to kno
 what a kind 14 is. The Buffer beside it had always rendered, which is what made
 it a defect in the implementation rather than a limit worth writing down.
 
-    interpreter  compiler/Interpreter.a24  Stringify
-    compiler     bootstrap/algol.c         alg_str
-    conformance  0090-str.a24
-    conformance  0177-a-buffers-lifetime.a24
-    conformance  0178-a-text-files-state.a24
+##### conformance/0090-str.a24
+
+```algol24
+WriteLn (Str (42));
+WriteLn (Str (1.0));
+WriteLn (Str (1.5));
+WriteLn (Str (True));
+WriteLn (Str (False));
+WriteLn (Str (nil));
+WriteLn (Str ('text'));
+WriteLn (Str ('c'));
+WriteLn (Str ([10, 20, 30]));
+WriteLn (Str ([1 : 2]));
+WriteLn (Str ([]));
+
+class Plain; begin constructor Init (); begin end end
+WriteLn (Str (Plain ()));
+
+class Pretty;
+begin
+    constructor Init (); begin end
+    function ToString (); begin Exit 'rendered by ToString'; end
+end
+WriteLn (Str (Pretty ()));
+
+type Colour = (RED, GREEN);
+WriteLn (Str (RED));
+```
+
+```console
+$ algc conformance/0090-str.a24
+42
+1.0
+1.5
+true
+false
+nil
+text
+c
+[10, 20, 30]
+[1:2]
+[]
+Plain instance
+rendered by ToString
+RED
+```
+
+##### conformance/0177-a-buffers-lifetime.a24
+
+```algol24
+procedure Show (What : String, Value : Any);
+begin
+    WriteLn (What + ' = ' + Str (Value));
+end
+
+// Construction.  Buffer(N) is N zero bytes, which is not empty.
+var E := Buffer ();
+Show ('Buffer () Length', E.Length);
+Show ('Buffer () IsEmpty', E.IsEmpty);
+
+var N := Buffer (4);
+Show ('Buffer (4) Length', N.Length);
+Show ('Buffer (4) IsEmpty', N.IsEmpty);
+Show ('Buffer (4) first and last', Str (N[0]) + ', ' + Str (N[3]));
+
+try var Bad := Buffer (-1); except on X : String do WriteLn ('  Buffer (-1): ' + X); end
+
+// Resize truncates, or extends with zero bytes.
+var R := Buffer ();
+R.Append ('AB');
+R.Resize (4);
+Show ('grown to 4', Str (R[0]) + ', ' + Str (R[1]) + ', ' + Str (R[2]) + ', ' + Str (R[3]));
+R.Resize (1);
+Show ('cut to 1', R.Text);
+try R.Resize (-1); except on X : String do WriteLn ('  Resize (-1): ' + X); end
+
+// Str is the size, never the contents and never the capacity.
+var S := Buffer ();
+S.Append ('a longer run of bytes');
+Show ('Str of a Buffer', S);
+
+// Free, and what a freed Buffer answers.
+S.Free ();
+Show ('Str once freed', S);
+
+try WriteLn (S.Length);     except on X : String do WriteLn ('  Length: ' + X); end
+try WriteLn (S.Text);       except on X : String do WriteLn ('  Text: ' + X); end
+try S.Append ('x');         except on X : String do WriteLn ('  Append: ' + X); end
+try S.Resize (2);           except on X : String do WriteLn ('  Resize: ' + X); end
+try WriteLn (S[0]);         except on X : String do WriteLn ('  subscript: ' + X); end
+
+// Free is the exception: a second one is a no-op, so a handler may release on
+// the way out without knowing how far the program got.
+S.Free ();
+WriteLn ('a second Free is a no-op');
+```
+
+```console
+$ algc conformance/0177-a-buffers-lifetime.a24
+Buffer () Length = 0
+Buffer () IsEmpty = true
+Buffer (4) Length = 4
+Buffer (4) IsEmpty = false
+Buffer (4) first and last = 0, 0
+  Buffer (-1): A Buffer's size cannot be negative.
+grown to 4 = 65, 66, 0, 0
+cut to 1 = A
+  Resize (-1): A Buffer's size cannot be negative.
+Str of a Buffer = Buffer(21)
+Str once freed = Buffer(freed)
+  Length: That Buffer has been freed.
+  Text: That Buffer has been freed.
+  Append: That Buffer has been freed.
+  Resize: That Buffer has been freed.
+  subscript: That Buffer has been freed.
+a second Free is a no-op
+```
+
+##### conformance/0178-a-text-files-state.a24
+
+```algol24
+// Nothing works before an Assign, except Close.
+var F := TextFile ();
+
+try F.Reset ();          except on X : String do WriteLn (X); end
+try F.Rewrite ();        except on X : String do WriteLn (X); end
+try F.Append ();         except on X : String do WriteLn (X); end
+try F.Erase ();          except on X : String do WriteLn (X); end
+try F.Rename ('t-b.txt'); except on X : String do WriteLn (X); end
+
+// ... and nothing reads or writes before an open.
+try WriteLn (F.Eof);     except on X : String do WriteLn (X); end
+try WriteLn (F.ReadLn ()); except on X : String do WriteLn (X); end
+try F.Write ('x');       except on X : String do WriteLn (X); end
+try F.WriteLn ('x');     except on X : String do WriteLn (X); end
+try F.Flush ();          except on X : String do WriteLn (X); end
+
+F.Close ();
+WriteLn ('Close before an open is not an error');
+
+// A name must be a String.
+try F.Assign (1); except on X : String do WriteLn (X); end
+
+// Rewrite opens for writing.  A direction is exclusive: reading members fail.
+F.Assign ('t-state.txt');
+WriteLn ('assigned: ' + Str (F));
+
+F.Rewrite ();
+F.WriteLn ('one');
+F.Write ('two');
+F.Flush ();
+
+WriteLn ('Eof while writing = ' + Str (F.Eof));
+try WriteLn (F.ReadLn ()); except on X : String do WriteLn (X); end
+
+// The refusals run the other way too: everything that opens, names, deletes or
+// renames the file wants it closed first.
+try F.Assign ('t-other.txt'); except on X : String do WriteLn (X); end
+try F.Reset ();               except on X : String do WriteLn (X); end
+try F.Rewrite ();             except on X : String do WriteLn (X); end
+try F.Append ();              except on X : String do WriteLn (X); end
+try F.Erase ();               except on X : String do WriteLn (X); end
+try F.Rename ('t-other.txt'); except on X : String do WriteLn (X); end
+
+F.Close ();
+
+// Reset opens for reading, and now the writing members are the ones that fail.
+F.Reset ();
+try F.Write ('x'); except on X : String do WriteLn (X); end
+
+WriteLn ('read: ' + F.ReadLn ());
+WriteLn ('read: ' + F.ReadLn ());
+WriteLn ('Eof after the last line = ' + Str (F.Eof));
+try WriteLn (F.ReadLn ()); except on X : String do WriteLn (X); end
+F.Close ();
+
+// Rename moves the file and renames the handle with it.
+F.Rename ('t-renamed.txt');
+WriteLn ('t-state.txt exists = '   + Str (FileExists ('t-state.txt')));
+WriteLn ('t-renamed.txt exists = ' + Str (FileExists ('t-renamed.txt')));
+WriteLn ('the handle now = ' + Str (F));
+
+F.Erase ();
+WriteLn ('after Erase = ' + Str (FileExists ('t-renamed.txt')));
+```
+
+```console
+$ algc conformance/0178-a-text-files-state.a24
+Reset failed: no file has been assigned.
+Rewrite failed: no file has been assigned.
+Append failed: no file has been assigned.
+Erase failed: no file has been assigned.
+Rename failed: no file has been assigned.
+Eof failed: the file is not open for reading.
+ReadLn failed: the file is not open for reading.
+Write failed: the file is not open for writing.
+WriteLn failed: the file is not open for writing.
+Flush failed: the file is not open for writing.
+Close before an open is not an error
+A file name must be a String.
+assigned: TextFile('t-state.txt')
+Eof while writing = true
+ReadLn failed: the file is not open for reading.
+Assign failed: the file is already open.
+Reset failed: the file is already open.
+Rewrite failed: the file is already open.
+Append failed: the file is already open.
+Erase failed: the file is already open.
+Rename failed: the file is already open.
+Write failed: the file is not open for writing.
+read: one
+read: two
+Eof after the last line = true
+ReadLn failed: at end of file.
+t-state.txt exists = false
+t-renamed.txt exists = true
+the handle now = TextFile('t-renamed.txt')
+after Erase = false
+```
 
 **[RT-007]**  `Ord(C)` answers the code point of a single character, as an
 **Integer**. Anything longer is `Ord failed: 'ab' has no ordinal.`
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_ord
     conformance  0089-text-builtins.a24
 
 **[RT-008]**  `Char(N)` answers the character with code point `N`, over the
@@ -3717,10 +9928,57 @@ refuses to hand back `Text` when it holds a zero byte [RT-022]. A String carries
 its own length and holds one perfectly well; it was the Buffer in the middle
 that could not.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_char
     conformance  0128-text-is-characters.a24
-    conformance  0179-a-zero-byte-survives-write.a24
+
+##### conformance/0179-a-zero-byte-survives-write.a24
+
+```algol24
+var Z := Char (0);
+
+// It has an ordinal, and it is one character long.
+WriteLn ('Ord      = ' + Str (Ord (Z)));
+WriteLn ('Length   = ' + Str (Length (Str (Z))));
+
+// A String holds it, because a String carries its own length rather than
+// stopping at a terminator.
+var Sandwiched := 'a' + Str (Z) + 'b';
+WriteLn ('in a String = ' + Str (Length (Sandwiched)));
+WriteLn ('  first  = ' + Str (Ord (Sandwiched[0])));
+WriteLn ('  middle = ' + Str (Ord (Sandwiched[1])));
+WriteLn ('  last   = ' + Str (Ord (Sandwiched[2])));
+
+// ⚠️ AND IT SURVIVES Write [RT-015], which is the half that used to differ.
+// The interpreter joined Write's values through a Buffer, and a Buffer refuses
+// to hand back Text when it holds a zero byte [RT-022] -- so this raised
+// interpreted and printed the byte compiled.
+Write (Sandwiched);
+WriteLn ('');
+
+// The many-value form of Write goes the same way, since it is the same join.
+Write ('x', Z, 'y');
+WriteLn ('');
+
+// A Buffer still refuses, and should: that rule is about the Buffer, not about
+// the character.
+var B := Buffer ();
+B.Append (Z);
+WriteLn ('a Buffer holds it: ' + Str (B.Length));
+try WriteLn (B.Text); except on E : String do WriteLn ('  but ' + E); end
+```
+
+```console
+$ algc conformance/0179-a-zero-byte-survives-write.a24
+Ord      = 0
+Length   = 1
+in a String = 3
+  first  = 97
+  middle = 0
+  last   = 98
+a^@b
+x^@y
+a Buffer holds it: 1
+  but A Buffer holding a zero byte has no Text.
+```
     refusal      0038-char-out-of-range.a24
 
 ### 16.3 Numeric
@@ -3761,9 +10019,24 @@ checked [VAL-007] and fails loudly when the text held the other kind. Declaring
 `Val` to be Double, as this implementation once did, is a lie in both
 directions: it refused `var I : Integer := Val ('42');`, which works.
 
-    interpreter  compiler/Interpreter.a24  ParsedNumber
-    compiler     bootstrap/algol.c         alg_val
-    conformance  0119-val.a24
+##### conformance/0119-val.a24
+
+```algol24
+WriteLn (Val ('42'));
+WriteLn (Val ('42') is Integer);
+WriteLn (Val ('-7'));
+WriteLn (Val ('1.5'));
+WriteLn (Val ('1.5') is Double);
+```
+
+```console
+$ algc conformance/0119-val.a24
+42
+true
+-7
+1.5
+true
+```
     defect       DEF-34-val-follows-strtod.a24
 
 **[RT-010]**  ***Removed.*** `Max(A, B)` was a built-in
@@ -3778,22 +10051,50 @@ built-in with no static return type.
 **A removal needs a case as much as an addition does**, or nothing would
 notice `Max` quietly coming back.
 
-    interpreter  compiler/TypeChecker.a24  BuiltinTypes
-    refusal      0178-max-was-removed.a24
+##### refusals/0178-max-was-removed.a24
+
+```algol24
+WriteLn (Max (1, 2));
+```
+
+```console
+$ algc refusals/0178-max-was-removed.a24
+Uncaught: Undefined variable 'Max'.
+exit: 70
+```
 
 **[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
 dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
 zero.`
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_mod
-    conformance  0091-numeric-builtins.a24
+##### conformance/0091-numeric-builtins.a24
+
+```algol24
+// RT-011: Mod's sign follows the DIVIDEND.
+
+WriteLn (Mod (7, 3));
+WriteLn (Mod (-7, 3));
+WriteLn (Mod (7, -3));
+WriteLn (Mod (6, 3));
+
+// RT-012: clock() is a Double.
+WriteLn (clock () is Double);
+WriteLn (clock () > 0.0);
+```
+
+```console
+$ algc conformance/0091-numeric-builtins.a24
+1
+-1
+1
+0
+true
+true
+```
 
 **[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
 millisecond resolution.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_clock
     conformance  0091-numeric-builtins.a24
 
 ### 16.4 Environment
@@ -3809,14 +10110,29 @@ it. Without this, anything wanting a file shipped *beside* the binary cannot
 find one, which is exactly what `--compile` needs when it copies the runtime
 into the emitted directory.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_param_count
-    conformance  0092-environment-builtins.a24
+##### conformance/0092-environment-builtins.a24
+
+```algol24
+// RT-013: ParamStr(0) is the program's own name, and ParamCount does not count
+// it -- so a program run with no arguments reports zero.
+WriteLn (ParamCount ());
+WriteLn (Length (ParamStr (0)) > 0);
+
+// RT-014: FileExists.
+WriteLn (FileExists ('conformance/0092-environment-builtins.a24'));
+WriteLn (FileExists ('no-such-file-anywhere.a24'));
+```
+
+```console
+$ algc conformance/0092-environment-builtins.a24
+0
+true
+true
+false
+```
 
 **[RT-014]**  `FileExists(Name)` answers whether the named file exists.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_file_exists
     conformance  0092-environment-builtins.a24
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
@@ -3827,10 +10143,35 @@ They take **any number of values** [RT-001], run together with nothing between
 them, so `WriteLn ('ABC', 123)` writes `ABC123` and `WriteLn ()` is the newline
 on its own.
 
-    interpreter  compiler/Interpreter.a24  Rendered
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_writeln
-    conformance  0093-write-and-writeln.a24
+##### conformance/0093-write-and-writeln.a24
+
+```algol24
+Write ('a');
+Write ('b');
+WriteLn ('c');
+
+WriteLn (42);
+WriteLn (1.5);
+WriteLn (True);
+WriteLn (nil);
+WriteLn ([1, 2]);
+
+// An empty WriteLn is just the newline.
+WriteLn ('');
+WriteLn ('after the blank line');
+```
+
+```console
+$ algc conformance/0093-write-and-writeln.a24
+abc
+42
+1.5
+true
+nil
+[1, 2]
+
+after the blank line
+```
     conformance  0159-write-takes-any-number-of-values.a24
     conformance  0179-a-zero-byte-survives-write.a24
 
@@ -3842,9 +10183,59 @@ returned as part of the line.
 A file whose only line endings are `#13` is therefore read as a single line
 containing those bytes.
 
-    interpreter  compiler/ObjFile.a24  Invoke
-    compiler     bootstrap/algol.c     file_read_line
-    conformance  0008-readln-line-rule.a24
+##### conformance/0008-readln-line-rule.a24
+
+```algol24
+procedure Write3 (Name : String, Body : String);
+var
+    F : TextFile;
+begin
+    F := TextFile();
+    F.Assign (Name);
+    F.Rewrite();
+    F.Write (Body);
+    F.Close();
+end
+
+procedure Show (Name : String);
+var
+    F : TextFile;
+    N : Integer := 0;
+begin
+    F := TextFile();
+    F.Assign (Name);
+    F.Reset();
+    while not F.Eof do
+    begin
+        var L := F.ReadLn();
+        N := N + 1;
+        WriteLn ('  line ' + Str(N) + ' length ' + Str(Length(L)));
+    end
+    F.Close();
+    F.Assign (Name);
+    F.Erase();
+end
+
+Write3 ('t-lf.txt',   'alpha' + #10 + 'beta' + #10);
+Write3 ('t-crlf.txt', 'alpha' + #13 + #10 + 'beta' + #13 + #10);
+Write3 ('t-cr.txt',   'alpha' + #13 + 'beta' + #13);
+
+WriteLn ('LF:');   Show ('t-lf.txt');
+WriteLn ('CRLF:'); Show ('t-crlf.txt');
+WriteLn ('CR:');   Show ('t-cr.txt');
+```
+
+```console
+$ algc conformance/0008-readln-line-rule.a24
+LF:
+  line 1 length 5
+  line 2 length 4
+CRLF:
+  line 1 length 5
+  line 2 length 4
+CR:
+  line 1 length 10
+```
 
 **[RT-019]**  A number answers `ToString`, which is `Str` by another spelling.
 `5.ToString ()` is `'5'`.
@@ -3864,9 +10255,57 @@ for an Integer past the machine's width.
 `var T := 7.ToString;` binds something callable and prints `<fn ToString>`
 [TYP-012].
 
-    interpreter  compiler/ObjFunction.a24  NumberMethod
-    compiler     bootstrap/algol.c         number_method
-    conformance  0156-number-members.a24
+##### conformance/0156-number-members.a24
+
+```algol24
+WriteLn (5.ToString ());
+WriteLn (5.ToString () is String);
+WriteLn (1.5.ToString ());
+WriteLn ((0 - 42).ToString ());
+
+// ⚠️ ONE rendering, so the two spellings cannot disagree -- including past the
+// machine's width [LEX-018].
+WriteLn ((9223372036854775807 * 2).ToString ());
+WriteLn ((9223372036854775807 * 2).ToString () = Str (9223372036854775807 * 2));
+WriteLn (1.5.ToString () = Str (1.5));
+
+// It folds like every other member name [SRC-011].
+WriteLn (5.tostring ());
+
+// ⚠️ And it reads WITHOUT being called, like every other member [COL-005].
+var T := 7.ToString;
+WriteLn (T ());
+WriteLn (T);
+
+// A member a number does not have is refused, by either spelling.
+try
+    WriteLn (5.Nope ());
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (5.Nope);
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0156-number-members.a24
+5
+true
+1.5
+-42
+18446744073709551614
+true
+true
+5
+7
+<fn ToString>
+Undefined property 'Nope'.
+Undefined property 'Nope'.
+```
 
 **[RT-020]**  `Succ(X)` and `Pred(X)` step an ordinal. A `Char` moves one code
 point, an `Integer` moves one. `Succ ('a')` is `'b'` and `Pred (5)` is `4`.
@@ -3882,8 +10321,6 @@ way from a member to the list it belongs to. That link is a change of its own.
 **An Integer has no end to check** because it is unbounded [LEX-018]; a Char
 does, stopping at U+10FFFF.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_succ
     conformance  0167-character-arithmetic.a24
 
 **[RT-018]**  `Halt(N)` ends the program at once with status `N`. Nothing after
@@ -3905,9 +10342,24 @@ piped.
 The status is what the program passes. The host takes it modulo 256, as every
 process exit status is; that is the operating system's rule, not this language's.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_halt
-    conformance  0134-halt.a24
+##### conformance/0134-halt.a24
+
+```algol24
+WriteLn ('before');
+
+// ⚠️ Buffered output is flushed first.  stdout is block-buffered when it is not
+// a terminal, so the line above would be lost without that -- and a conformance
+// run pipes its output, so this case would fail rather than the fault hiding.
+Halt (3);
+
+WriteLn ('after');
+```
+
+```console
+$ algc conformance/0134-halt.a24
+before
+exit: 3
+```
 
 ### 16.5 Resources
 
@@ -3944,10 +10396,106 @@ processors try the file's members and the Buffer's *before* the collections'.
 [RT-006]: a Buffer as its size and a file as its name, spelled out in [RT-023]
 and [RT-024].
 
-    interpreter  compiler/ObjBuffer.a24  Get
-    interpreter  compiler/ObjFile.a24    Get
-    compiler     bootstrap/algol.c       alg_property
-    conformance  0175-resource-members.a24
+##### conformance/0175-resource-members.a24
+
+```algol24
+procedure Has (Kind : String, Name : String, Present : Boolean);
+begin
+    if Present then WriteLn (Kind + '.' + Name);
+    else            WriteLn (Kind + '.' + Name + ' -- no');
+end
+
+var B := Buffer ();
+var F := TextFile ();
+
+// A Buffer's four properties and five methods.
+Has ('Buffer', 'Length',  B.Length  = 0);
+Has ('Buffer', 'IsEmpty', B.IsEmpty);
+Has ('Buffer', 'Text',    B.Text = '');
+Has ('Buffer', 'Address', B.Address is Pointer);
+Has ('Buffer', 'Append',  Str (B.Append) = '<fn Append>');
+Has ('Buffer', 'PutInt',  Str (B.PutInt) = '<fn PutInt>');
+Has ('Buffer', 'GetInt',  Str (B.GetInt) = '<fn GetInt>');
+Has ('Buffer', 'Resize',  Str (B.Resize) = '<fn Resize>');
+Has ('Buffer', 'Free',    Str (B.Free)   = '<fn Free>');
+
+// A TextFile's one property and eleven methods.  Eof needs the file open, so
+// it is asked for after a Rewrite rather than here.
+Has ('TextFile', 'Assign',  Str (F.Assign)  = '<fn Assign>');
+Has ('TextFile', 'Reset',   Str (F.Reset)   = '<fn Reset>');
+Has ('TextFile', 'Rewrite', Str (F.Rewrite) = '<fn Rewrite>');
+Has ('TextFile', 'Append',  Str (F.Append)  = '<fn Append>');
+Has ('TextFile', 'ReadLn',  Str (F.ReadLn)  = '<fn ReadLn>');
+Has ('TextFile', 'Write',   Str (F.Write)   = '<fn Write>');
+Has ('TextFile', 'WriteLn', Str (F.WriteLn) = '<fn WriteLn>');
+Has ('TextFile', 'Flush',   Str (F.Flush)   = '<fn Flush>');
+Has ('TextFile', 'Close',   Str (F.Close)   = '<fn Close>');
+Has ('TextFile', 'Erase',   Str (F.Erase)   = '<fn Erase>');
+Has ('TextFile', 'Rename',  Str (F.Rename)  = '<fn Rename>');
+
+F.Assign ('t-members.txt');
+F.Rewrite ();
+Has ('TextFile', 'Eof', F.Eof);
+F.Close ();
+F.Erase ();
+
+// Neither is a collection, and neither is an instance.
+procedure Absent (What : String);
+begin
+    WriteLn ('  ' + What);
+end
+
+try WriteLn (B.Contains);  except on E : String do Absent ('Buffer.Contains: '   + E); end
+try WriteLn (F.Length);    except on E : String do Absent ('TextFile.Length: '   + E); end
+try WriteLn (B.ClassName); except on E : String do Absent ('Buffer.ClassName: '  + E); end
+try WriteLn (F.Eof);       except on E : String do Absent ('TextFile.Eof shut: ' + E); end
+
+// Append is the one name both answer to, and only the receiver says which is
+// meant: a Buffer's takes a value, a file's takes nothing.
+var C := Buffer ();
+C.Append ('bytes');
+WriteLn ('Buffer.Append (X) -> ' + C.Text);
+
+var G := TextFile ();
+G.Assign ('t-append.txt');
+G.Rewrite (); G.WriteLn ('first'); G.Close ();
+G.Append ();  G.WriteLn ('second'); G.Close ();
+G.Reset ();
+WriteLn ('TextFile.Append () -> ' + G.ReadLn () + ', ' + G.ReadLn ());
+G.Close ();
+G.Erase ();
+```
+
+```console
+$ algc conformance/0175-resource-members.a24
+Buffer.Length
+Buffer.IsEmpty
+Buffer.Text
+Buffer.Address
+Buffer.Append
+Buffer.PutInt
+Buffer.GetInt
+Buffer.Resize
+Buffer.Free
+TextFile.Assign
+TextFile.Reset
+TextFile.Rewrite
+TextFile.Append
+TextFile.ReadLn
+TextFile.Write
+TextFile.WriteLn
+TextFile.Flush
+TextFile.Close
+TextFile.Erase
+TextFile.Rename
+TextFile.Eof
+  Buffer.Contains: Undefined property 'Contains'.
+  TextFile.Length: Undefined property 'Length'.
+  Buffer.ClassName: Undefined property 'ClassName'.
+  TextFile.Eof shut: Eof failed: the file is not open for reading.
+Buffer.Append (X) -> bytes
+TextFile.Append () -> first, second
+```
 
 **[RT-022]**  A `Buffer` holds **bytes**, and `Length` counts them rather than
 characters: appending `'é'` makes it 2.
@@ -3981,9 +10529,82 @@ got there.
 **`Text` is the way to ask for the contents, and it is explicit.** A Buffer
 is bytes, which may not be text at all; `Str` gives its size [RT-023].
 
-    interpreter  compiler/ObjBuffer.a24  Invoke
-    compiler     bootstrap/algol.c       buffer_method
-    conformance  0176-a-buffers-bytes.a24
+##### conformance/0176-a-buffers-bytes.a24
+
+```algol24
+procedure Show (What : String, Value : Any);
+begin
+    WriteLn (What + ' = ' + Str (Value));
+end
+
+// Length is bytes.  'é' is one character and two bytes.
+var B := Buffer ();
+B.Append ('é');
+Show ('Length of one e-acute', B.Length);
+Show ('  its bytes', Str (B[0]) + ', ' + Str (B[1]));
+
+// Append takes the text form of any value [RT-006].
+var A := Buffer ();
+A.Append ('n=');
+A.Append (1);
+A.Append (2.5);
+A.Append (True);
+A.Append ([1, 2]);
+Show ('Append renders', A.Text);
+
+// ... and measures with the value's own length, so a zero byte goes in.
+var Z := Buffer ();
+Z.Append (Char (0));
+Show ('Append Char(0) Length', Z.Length);
+Show ('  the byte', Z[0]);
+
+// A zero byte has no text form, though.
+try WriteLn (Z.Text); except on E : String do WriteLn ('  Text: ' + E); end
+
+// The two forms of subscript.
+var S := Buffer ();
+S.Append ('AB');
+Show ('S[0]', S[0]);
+S[0] := 67;
+Show ('after S[0] := 67', S.Text);
+
+try S[0] := 256; except on E : String do WriteLn ('  256: ' + E); end
+try S[0] := -1;  except on E : String do WriteLn ('  -1: '  + E); end
+
+// An Integer is four bytes, signed and little-endian.
+var I := Buffer ();
+I.Append ('....');
+I.PutInt (0, 1);
+Show ('PutInt 1 bytes', Str (I[0]) + ', ' + Str (I[1]) + ', ' + Str (I[2]) + ', ' + Str (I[3]));
+I.PutInt (0, -1);
+Show ('PutInt -1 round trip', I.GetInt (0));
+
+// The offset message names the last offset a value of that width may start at:
+// Length - 1 for a byte, Length - 4 for an Integer.
+var E4 := Buffer ();
+try WriteLn (E4[0]);      except on E : String do WriteLn ('  empty, a byte: ' + E); end
+try WriteLn (I.GetInt (1)); except on E : String do WriteLn ('  four bytes, an Integer at 1: ' + E); end
+try WriteLn (I[9]);       except on E : String do WriteLn ('  four bytes, a byte at 9: ' + E); end
+```
+
+```console
+$ algc conformance/0176-a-buffers-bytes.a24
+Length of one e-acute = 2
+  its bytes = 195, 169
+Append renders = n=12.5true[1, 2]
+Append Char(0) Length = 1
+  the byte = 0
+  Text: A Buffer holding a zero byte has no Text.
+S[0] = 65
+after S[0] := 67 = CB
+  256: A byte must be in 0..255.
+  -1: A byte must be in 0..255.
+PutInt 1 bytes = 1, 0, 0, 0
+PutInt -1 round trip = -1
+  empty, a byte: Offset 0 out of range 0..-1.
+  four bytes, an Integer at 1: Offset 1 out of range 0..0.
+  four bytes, a byte at 9: Offset 9 out of range 0..3.
+```
 
 **[RT-023]**  A `Buffer` has an **explicit lifetime**. `Buffer ()` is empty and
 `Buffer (N)` is `N` zero bytes; a negative size is `A Buffer's size cannot be
@@ -4008,8 +10629,6 @@ catch. Contents are left out for a plainer reason: a compiler's Buffer holds
 **An address does not outlive the bytes** [TYP-017]. `Resize` may move them
 and `Free` ends them.
 
-    interpreter  compiler/ObjBuffer.a24  Invoke
-    compiler     bootstrap/algol.c       buffer_method
     conformance  0177-a-buffers-lifetime.a24
 
 **[RT-024]**  A `TextFile` is opened in one of three ways, and every member says
@@ -4054,8 +10673,6 @@ there is one sentence pattern rather than eleven.
 What `ReadLn` treats as a line is [RT-016], which is the scanner's rule
 [SRC-006] rather than a second one.
 
-    interpreter  compiler/ObjFile.a24  Invoke
-    compiler     bootstrap/algol.c     file_method
     conformance  0178-a-text-files-state.a24
 
 ---
@@ -4068,8 +10685,41 @@ What `ReadLn` treats as a line is [RT-016], which is the scanner's rule
 the order they are written, and there is no distinguished entry point — no
 `main`, and no statement that begins execution.
 
-    interpreter  compiler/Main.a24  Run
-    conformance  0094-program-order.a24
+##### conformance/0094-program-order.a24
+
+```algol24
+WriteLn ('1');
+
+var X := 2;
+WriteLn (X);
+
+begin
+    WriteLn ('3, from a block in place');
+end
+
+// ⚠️ A counted for is a block too [STM-006], so this is deferred compiled for
+// the same reason -- and it is the case that matters, because a bare block at
+// the top level is rare and a counted loop is ordinary code.
+for var I := 1; I <= 2; I := I + 1 do WriteLn ('3.' + Str (I) + ', from a loop in place');
+
+procedure P (); begin WriteLn ('5, when called'); end
+
+WriteLn ('4');
+P ();
+WriteLn ('6');
+```
+
+```console
+$ algc conformance/0094-program-order.a24
+1
+2
+3, from a block in place
+3.1, from a loop in place
+3.2, from a loop in place
+4
+5, when called
+6
+```
 
 **[INI-002]**  A **variable or constant** takes effect when its statement is
 reached, so a name is undefined above its declaration [DCL-016]. A **function or
@@ -4078,7 +10728,6 @@ class** is visible throughout the file wherever it is written [DCL-006].
 A **variable** is still bound when its statement runs, and only a function or
 a class is hoisted — `refusals/0033` pins the difference.
 
-    interpreter  compiler/Interpreter.a24  Interpret
     conformance  0122-functions-are-hoisted.a24
 
 ### 17.2 Module initialization
@@ -4095,13 +10744,42 @@ uses Gamma;                  →    Gamma body
 WriteLn ('3 root');          →  3 root
 ```
 
-    interpreter  compiler/Interpreter.a24  VisitModuleStmt
-    conformance  0095-module-init-order.a24
+##### conformance/0095-module-init-order.a24
+
+```algol24
+// INI-003: a uses loads and runs its module AT THE POINT IT APPEARS, so root
+// statements between two uses clauses run between the two module bodies.
+WriteLn ('1 root');
+
+uses 'modules/Alpha2';
+
+WriteLn ('2 root');
+
+uses 'modules/Gamma';
+
+WriteLn ('3 root');
+
+// INI-004: a module's imports are initialized before it, so its own body may
+// use anything it imported -- and Alpha2 is not run a second time [MOD-003].
+uses 'modules/UsesAlpha2';
+
+WriteLn (Reach ());
+```
+
+```console
+$ algc conformance/0095-module-init-order.a24
+1 root
+  Alpha body
+2 root
+  Gamma body
+3 root
+  UsesAlpha2 body, after its import
+alpha
+```
 
 **[INI-004]**  A module is initialized once [MOD-003], and its imports are
 initialized before it, so a module's own body may use anything it imported.
 
-    interpreter  compiler/Interpreter.a24  VisitModuleStmt
     conformance  0095-module-init-order.a24
 
 **This follows from [INI-003] rather than needing its own mechanism**: a
@@ -4127,16 +10805,26 @@ algc: cannot open /no/such/file.a24
 It used to print that line and exit **0**, so the driver reported a failure and
 reported success at the same time.
 
-    interpreter  compiler/Main.a24  Main
     conformance  0094-program-order.a24
 
 **[INI-006]**  Every failure the language reports exits with status **70** —
 an uncaught `raise` [STM-021], and equally a scan, parse, resolution or type
 error, which are reported before any statement runs.
 
-    interpreter  compiler/Main.a24  CheckScanned
-    compiler     bootstrap/algol.c  alg_error
-    conformance  0096-exit-status.a24
+##### conformance/0096-exit-status.a24
+
+```algol24
+WriteLn ('this program raises');
+
+raise 'boom';
+```
+
+```console
+$ algc conformance/0096-exit-status.a24
+Uncaught: boom
+this program raises
+exit: 70
+```
 
 > **One status for every kind of failure** is deliberate rather than
 > unconsidered. A caller wanting to tell a compile error from a runtime one
@@ -4150,8 +10838,6 @@ error, which are reported before any statement runs.
 `ParamStr` [RT-013]. `ParamStr(0)` is the program's own name, and arguments
 follow from index 1.
 
-    interpreter  compiler/Main.a24    ArgumentsFrom
-    compiler     bootstrap/algol.c    alg_set_arguments
     conformance  0092-environment-builtins.a24
 
 **[INI-008]**  A foreign call [FUN-014] is available only in a build that has
@@ -4176,7 +10862,6 @@ difference between them.
 and nothing else — a claim about how `algc` is obtained from nothing, not about
 what a program may link against.
 
-    compiler     bootstrap/algol.c  alg_foreign
     conformance  0174-a-foreign-call.a24
 
 ---
@@ -4189,21 +10874,52 @@ what a program may link against.
 **resolve**, **check**, **run**. The first four complete over the whole program
 — its imports included — before any statement is executed.
 
-    interpreter  compiler/Main.a24  Run
-    conformance  0097-error-phases.a24
+##### conformance/0097-error-phases.a24
+
+```algol24
+WriteLn ('this line is never reached');
+WriteLn ('nor this one');
+
+var X : Integer := 'text';
+```
+
+```console
+$ algc conformance/0097-error-phases.a24
+Uncaught: Expected Integer, found String.
+[ERROR] conformance/0097-error-phases.a24: Expected Integer, found String.
+[ERROR] 4 | var X : Integer := 'text';
+[ERROR]   |     ^
+exit: 70
+```
 
 **[ERR-002]**  An error in any of the first four phases means **no statement
 runs at all**. A program cannot produce output and then fail to compile.
 
-    interpreter  compiler/Main.a24  Run
     conformance  0097-error-phases.a24
     refusal      0008-declared-type-constrains.a24
 
 **[ERR-003]**  A runtime error occurs during execution. Statements before it
 have run and their output stands.
 
-    interpreter  compiler/Interpreter.a24  Interpret
-    conformance  0098-runtime-errors-follow-output.a24
+##### conformance/0098-runtime-errors-follow-output.a24
+
+```algol24
+WriteLn ('this line runs');
+WriteLn ('and so does this one');
+
+var L := [1, 2];
+WriteLn (L[9]);
+
+WriteLn ('never reached');
+```
+
+```console
+$ algc conformance/0098-runtime-errors-follow-output.a24
+Uncaught: Index 9 out of range 0..1.
+this line runs
+and so does this one
+exit: 70
+```
 
 ### 18.2 Diagnostics
 
@@ -4222,9 +10938,21 @@ mandates a mechanism forbids a better one; what matters is that the error is
 reported in the shape above and that no statement runs. The mechanism, and the
 hazard that comes with it, are recorded in Annex G, G.1.
 
-    interpreter  compiler/Scanner.a24  HadError
     unit         Scan Unrecognized Character Is Recorded
-    conformance  0099-scan-error-shape.a24
+
+##### conformance/0099-scan-error-shape.a24
+
+```algol24
+WriteLn ('never reached');
+
+@
+```
+
+```console
+$ algc conformance/0099-scan-error-shape.a24
+Uncaught: [line 3] Error: Unexpected character: @
+exit: 70
+```
 
 **[ERR-005]**  A **parse** or **resolution** error prints the message and a
 three-line excerpt naming the file, the line, and the offending token:
@@ -4236,8 +10964,20 @@ Uncaught: Expect variable name.
 [ERROR]   | ^^^
 ```
 
-    interpreter  compiler/Console.a24  Error
-    conformance  0100-parse-error-shape.a24
+##### conformance/0100-parse-error-shape.a24
+
+```algol24
+var := 1;
+```
+
+```console
+$ algc conformance/0100-parse-error-shape.a24
+Uncaught: Expect variable name.
+[ERROR] conformance/0100-parse-error-shape.a24: Expect variable name.
+[ERROR] 1 | var := 1;
+[ERROR]   | ^^^
+exit: 70
+```
 
 **[ERR-006]**  A **type** error carries the same three-line excerpt a parse
 error does [ERR-005], and names both types:
@@ -4265,23 +11005,80 @@ both types, which is what the caret would otherwise have to convey.
 statement runs, so there is no output to orient by either. The message is the
 only information available, which is why it has to carry some.
 
-    interpreter  compiler/TypeChecker.a24  Mismatch
-    conformance  0108-type-error-shape.a24
-    conformance  0109-type-error-untyped.a24
+##### conformance/0108-type-error-shape.a24
+
+```algol24
+var Count : Integer := 'text';
+```
+
+```console
+$ algc conformance/0108-type-error-shape.a24
+Uncaught: Expected Integer, found String.
+[ERROR] conformance/0108-type-error-shape.a24: Expected Integer, found String.
+[ERROR] 1 | var Count : Integer := 'text';
+[ERROR]   |     ^^^^^
+exit: 70
+```
+
+##### conformance/0109-type-error-untyped.a24
+
+```algol24
+function G (); begin Exit 1; end
+
+var Y : Integer := G ();
+```
+
+```console
+$ algc conformance/0109-type-error-untyped.a24
+Uncaught: Expected Integer, found an untyped expression.
+[ERROR] conformance/0109-type-error-untyped.a24: Expected Integer, found an untyped expression.
+[ERROR] 3 | var Y : Integer := G ();
+[ERROR]   |     ^
+exit: 70
+```
 
 ### 18.3 Catching
 
 **[ERR-007]**  Only **runtime** errors are catchable, and they are caught as a
 String carrying the diagnostic [STM-020].
 
-    interpreter  compiler/Interpreter.a24  VisitTryStmt
-    conformance  0101-catching.a24
+##### conformance/0101-catching.a24
+
+```algol24
+// ERR-007: only RUNTIME errors are catchable, as a String carrying the
+// diagnostic.
+try
+    WriteLn (1 / 0);
+except
+    on e : String do WriteLn ('caught: ' + e);
+end
+
+try
+    var L := [1];
+    WriteLn (L[9]);
+except
+    on e : String do WriteLn ('caught: ' + e);
+end
+
+// ERR-008: a try around a compile-phase error catches nothing, because those
+// phases complete before the try is reached.  The nearest thing this file can
+// show is that the handler is entered only for runtime faults -- a mistyped
+// declaration inside the try would stop the whole program, so it has its own
+// case in refusals/0008.
+WriteLn ('reached the end');
+```
+
+```console
+$ algc conformance/0101-catching.a24
+caught: Division by zero.
+caught: Index 9 out of range 0..0.
+reached the end
+```
 
 **[ERR-008]**  A `try` around a scan, parse, resolution or type error catches
 nothing, because those phases complete before the `try` is reached. Wrapping a
 mistyped declaration in a handler does not suppress it.
 
-    interpreter  compiler/Main.a24  Run
     conformance  0101-catching.a24
 
 ### 18.4 Status
@@ -4292,7 +11089,6 @@ it [INI-006].
 A failure that never reaches a phase at all — a file that cannot be read — is
 still a failure and must not exit 0 [INI-005].
 
-    interpreter  compiler/Main.a24  Main
     conformance  0096-exit-status.a24
 
 ### 18.4 Warnings
@@ -4335,8 +11131,6 @@ compiling, and only the comparison must not see it.
 overloaded, so `algc` compiling itself raises none at all — which is the
 evidence that it is a scalpel rather than noise.
 
-    interpreter  compiler/TypeChecker.a24  WarnIfDynamic
-    interpreter  compiler/Console.a24      Warn
     conformance  0158-varargs-from-an-element-type.a24
 
 ---
@@ -4363,14 +11157,55 @@ follows it, so a variable may still be called `test`.
 an ordinary thing to write. `'X'` is a Char rather than a String [LEX-023], and
 that distinction belongs to values rather than to a declaration naming itself.
 
-    interpreter  compiler/Parser.a24  Declaration
-    conformance  0102-test-declaration.a24
-    conformance  0116-one-character-test-name.a24
+##### conformance/0102-test-declaration.a24
+
+```algol24
+test 'This block does not run';
+begin
+    WriteLn ('a test body ran, which it must not have');
+end
+
+// 'test' is not a keyword [LEX-011] -- it is recognized here by the quoted
+// name that follows it, so a variable may still be called 'test'.
+var test := 7;
+WriteLn (test);
+
+WriteLn ('the program ran');
+```
+
+```console
+$ algc conformance/0102-test-declaration.a24
+7
+the program ran
+```
+
+##### conformance/0116-one-character-test-name.a24
+
+```algol24
+test 'X';
+begin
+    AssertTrue (True);
+end
+
+test 'A longer name';
+begin
+    AssertTrue (True);
+end
+```
+
+```console
+$ algc --test conformance/0116-one-character-test-name.a24
+[INFO] Running 2 tests...
+[INFO] < conformance/0116-one-character-test-name.a24 >
+[INFO] Test: A longer name .......................................... [ PASS ]
+[INFO] Test: X ...................................................... [ PASS ]
+[INFO] 
+[INFO] All 2 tests passed.
+```
 
 **[TST-002]**  A test block is a declaration and does not run when the program
 runs.
 
-    interpreter  compiler/Interpreter.a24  HoistTests
     conformance  0102-test-declaration.a24
 
 ### 19.2 Running
@@ -4379,35 +11214,127 @@ runs.
 The top-level statements do not run — only the declarations they would have
 created.
 
-    interpreter  compiler/Interpreter.a24  RunTests
-    conformance  0103-a-test-run.a24
+##### conformance/0103-a-test-run.a24
+
+```algol24
+WriteLn ('a top-level statement, which must not run');
+
+function Helper (); begin Exit 7; end
+
+test 'A declaration is still available';
+begin
+    AssertEqual (7, Helper ());
+end
+
+test 'Output from a test body is swallowed';
+begin
+    WriteLn ('this must not appear in the report');
+    AssertTrue (True);
+end
+
+// TST-011: every test passed, so the summary says so and the run exits 0.
+```
+
+```console
+$ algc --test conformance/0103-a-test-run.a24
+[INFO] Running 2 tests...
+[INFO] < conformance/0103-a-test-run.a24 >
+[INFO] Test: A declaration is still available ....................... [ PASS ]
+[INFO] Test: Output from a test body is swallowed ................... [ PASS ]
+[INFO] 
+[INFO] All 2 tests passed.
+```
 
 **[TST-004]**  Tests are collected from the root file and from every module it
 reaches, each file contributing once however many ways it is reached.
 
-    interpreter  compiler/Interpreter.a24  HoistTests
-    conformance  0104-test-collection-and-order.a24
+##### conformance/0104-test-collection-and-order.a24
+
+```algol24
+uses 'modules/Tested';
+
+test 'Zebra is reported last';
+begin
+    AssertTrue (True);
+end
+
+test 'Alpha is reported first';
+begin
+    AssertTrue (True);
+end
+
+test 'Middle is reported between them';
+begin
+    AssertTrue (True);
+end
+```
+
+```console
+$ algc --test conformance/0104-test-collection-and-order.a24
+[INFO] Running 4 tests...
+[INFO] < conformance/modules/Tested.a24 >
+[INFO] Test: A test in an imported module ........................... [ PASS ]
+[INFO] 
+[INFO] < conformance/0104-test-collection-and-order.a24 >
+[INFO] Test: Alpha is reported first ................................ [ PASS ]
+[INFO] Test: Middle is reported between them ........................ [ PASS ]
+[INFO] Test: Zebra is reported last ................................. [ PASS ]
+[INFO] 
+[INFO] All 4 tests passed.
+```
 
 **[TST-005]**  Tests are reported **sorted by name within a file**, and files in
 the order their first test was met — which for `uses` is load order. Source
 order within a file is not preserved.
 
-    interpreter  compiler/Interpreter.a24  RunTests
     conformance  0104-test-collection-and-order.a24
 
 **[TST-006]**  A program's own `Write` and `WriteLn` output is **swallowed**
 during a test run, so it cannot interleave with the report.
 
-    interpreter  compiler/Interpreter.a24  SuppressOutput
-    compiler     bootstrap/algol.c         alg_test_begin
     conformance  0103-a-test-run.a24
 
 **[TST-007]**  A value raised inside a test body and not caught makes that test
 **fail**; it does not end the run, and later tests still execute.
 
-    interpreter  compiler/Interpreter.a24  RunTests
-    compiler     bootstrap/algol.c         alg_test_run
-    conformance  0105-report-format.a24
+##### conformance/0105-report-format.a24
+
+```algol24
+test 'A raise is a failure, not an abort';
+begin
+    raise 'thrown';
+end
+
+test 'B still runs after the failure above';
+begin
+    AssertTrue (True);
+end
+
+test 'C fails on an assertion';
+begin
+    AssertEqual (5, 4);
+end
+
+test 'D still runs after that one too';
+begin
+    AssertTrue (True);
+end
+```
+
+```console
+$ algc --test conformance/0105-report-format.a24
+[INFO] Running 4 tests...
+[INFO] < conformance/0105-report-format.a24 >
+[INFO] Test: A raise is a failure, not an abort ..................... [ FAIL ]
+[ERROR] conformance/0105-report-format.a24: thrown
+[INFO] Test: B still runs after the failure above ................... [ PASS ]
+[INFO] Test: C fails on an assertion ................................ [ FAIL ]
+[ERROR] conformance/0105-report-format.a24: Assertion failed.  Expected '5' but got '4'.
+[INFO] Test: D still runs after that one too ........................ [ PASS ]
+[INFO] 
+[INFO] 2 of 4 tests failed.
+exit: 70
+```
 
 ### 19.3 The report
 
@@ -4425,16 +11352,46 @@ during a test run, so it cannot interleave with the report.
 A file's block is opened by its `< file >` line, and a blank `[INFO] ` line
 separates files and precedes the summary.
 
-    interpreter  compiler/Interpreter.a24  Report
-    compiler     bootstrap/algol.c         alg_test_run
     conformance  0105-report-format.a24
 
 **[TST-009]**  The dot leader is `55 - Length(name)` dots, clamped to a minimum
 of one, so a name longer than the banner still produces a well-formed line.
 
-    interpreter  compiler/Interpreter.a24  Report
-    compiler     bootstrap/algol.c         alg_test_run
-    conformance  0106-dot-leader.a24
+##### conformance/0106-dot-leader.a24
+
+```algol24
+test 'Xy';
+begin
+    AssertTrue (True);
+end
+
+test 'A name of exactly forty characters here!';
+begin
+    AssertTrue (True);
+end
+
+test 'A name of exactly fifty-four characters, padded out ok';
+begin
+    AssertTrue (True);
+end
+
+test 'A name far longer than the banner allows, which must still produce a well-formed line';
+begin
+    AssertTrue (True);
+end
+```
+
+```console
+$ algc --test conformance/0106-dot-leader.a24
+[INFO] Running 4 tests...
+[INFO] < conformance/0106-dot-leader.a24 >
+[INFO] Test: A name far longer than the banner allows, which must still produce a well-formed line . [ PASS ]
+[INFO] Test: A name of exactly fifty-four characters, padded out ok . [ PASS ]
+[INFO] Test: A name of exactly forty characters here! ............... [ PASS ]
+[INFO] Test: Xy ..................................................... [ PASS ]
+[INFO] 
+[INFO] All 4 tests passed.
+```
 
 **[TST-010]**  The report is colored, and the colors are part of it: the
 `[INFO]` tag white and blue, `[ERROR]` white and red, the file name cyan, `PASS`
@@ -4444,15 +11401,11 @@ The escapes are emitted **unconditionally**, whether or not the output is a
 terminal — the language has no way to ask — so anything reading a report strips
 or transliterates them.
 
-    interpreter  compiler/Console.a24  INFO
-    compiler     bootstrap/algol.c     INFO_TAG
     conformance  0105-report-format.a24
 
 **[TST-011]**  The summary is `All N tests passed.` or `N of M tests failed.`,
 and the run exits **0** when every test passed and **70** when any failed.
 
-    interpreter  compiler/Interpreter.a24  RunTests
-    compiler     bootstrap/algol.c         alg_test_summary
     conformance  0103-a-test-run.a24
 
 ### 19.4 Assertions
@@ -4484,15 +11437,79 @@ comparison drops the `[ERROR]` lines an assertion failure prints, so the one
 message a programmer reads most often was outside everything that checks the two
 against each other.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_assert_equal
-    conformance  0132-assertion-messages.a24
+##### conformance/0132-assertion-messages.a24
+
+```algol24
+test 'AssertTrue names the value that was false';
+begin
+    AssertTrue (False);
+end
+
+test 'AssertEqual names both values';
+begin
+    AssertEqual (5, 4);
+end
+
+// ⚠️ The types are named only when the renderings MATCH, which is the case that
+// otherwise reads as nonsense: a Char and a String both render as 'a' and are
+// never equal, so the message would read 'Expected ''a'' but got ''a''.'
+test 'AssertEqual names the types when the renderings match';
+begin
+    AssertEqual ('a', Copy ('abc', 0, 1));
+end
+
+test 'Fail carries its message';
+begin
+    Fail ('deliberate');
+end
+```
+
+```console
+$ algc --test conformance/0132-assertion-messages.a24
+[INFO] Running 4 tests...
+[INFO] < conformance/0132-assertion-messages.a24 >
+[INFO] Test: AssertEqual names both values .......................... [ FAIL ]
+[ERROR] conformance/0132-assertion-messages.a24: Assertion failed.  Expected '5' but got '4'.
+[INFO] Test: AssertEqual names the types when the renderings match .. [ FAIL ]
+[ERROR] conformance/0132-assertion-messages.a24: Assertion failed.  Expected Char 'a' but got String 'a'.
+[INFO] Test: AssertTrue names the value that was false .............. [ FAIL ]
+[ERROR] conformance/0132-assertion-messages.a24: Assertion failed.  Expected true but got 'false'.
+[INFO] Test: Fail carries its message ............................... [ FAIL ]
+[ERROR] conformance/0132-assertion-messages.a24: Failed.  deliberate
+[INFO] 
+[INFO] 4 of 4 tests failed.
+exit: 70
+```
 
 **[TST-013]**  `AssertEqual` compares with `=` [VAL-009], so it promotes
 numerically and holds a `Char` unequal to a `String` [LEX-026].
 
-    interpreter  compiler/Interpreter.a24  Native
-    conformance  0107-assert-equal-comparison.a24
+##### conformance/0107-assert-equal-comparison.a24
+
+```algol24
+test 'AssertEqual promotes numerically';
+begin
+    AssertEqual (1, 1.0);
+    AssertEqual (0, 0.0);
+end
+
+test 'AssertEqual holds a Char unequal to a String';
+begin
+    // Both render as 'a', and they are not equal -- which is why the failure
+    // message names the types [TST-012].
+    AssertTrue (not ('a' = Copy ('abc', 0, 1)));
+end
+```
+
+```console
+$ algc --test conformance/0107-assert-equal-comparison.a24
+[INFO] Running 2 tests...
+[INFO] < conformance/0107-assert-equal-comparison.a24 >
+[INFO] Test: AssertEqual holds a Char unequal to a String ........... [ PASS ]
+[INFO] Test: AssertEqual promotes numerically ....................... [ PASS ]
+[INFO] 
+[INFO] All 2 tests passed.
+```
 
 ### 19.5 Compiled runs
 
@@ -4509,8 +11526,6 @@ This rule previously stated only that the compiled report differs, which said
 nothing about what an implementation must **do**. The requirement is agreement,
 and it is now met.
 
-    interpreter  compiler/Interpreter.a24  Report
-    compiler     bootstrap/algol.c         alg_test_run
     conformance  0105-report-format.a24
 
 ---
@@ -4817,8 +11832,6 @@ enum's type and member, a private name and its unit — escapes each part and pu
 a raw `_` between them. Escaping the *joined* string instead would put the
 separator back into the alphabet the escape uses: `Name__Unit` would give
 `nameVVunit`, which an identifier spelled `NameVVUnit` also gives.
-
-
 
 ---
 

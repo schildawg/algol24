@@ -1,8 +1,0 @@
-// spec: LEX-008
-//
-// A leading mark is refused as an unexpected character, because nothing else
-// in the language claims it.  'var ? := 7;' used to declare a variable named
-// '?', which fell out of '?' being classed as a LETTER rather than from any
-// decision.
-
-var ? := 7;

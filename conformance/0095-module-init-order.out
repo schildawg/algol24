@@ -1,8 +1,0 @@
-1 root
-  Alpha body
-2 root
-  Gamma body
-3 root
-  UsesAlpha2 body, after its import
-alpha
-exit: 0

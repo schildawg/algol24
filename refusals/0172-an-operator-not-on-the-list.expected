@@ -1,5 +1,0 @@
-Uncaught: An operator must be one of + - * / div.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0172-an-operator-not-on-the-list.a24: An operator must be one of + - * / div.
-[WHITE][[RED]ERROR[WHITE]] [RESET]17 |     operator = (Other : Pair) : Boolean; begin Exit Left = Other.Left; end
-[WHITE][[RED]ERROR[RESET]]    |[RED]              ^[RESET]
-exit: 70

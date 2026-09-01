@@ -1,8 +1,0 @@
-// spec: CLS-010
-
-class Thing;
-begin
-    constructor Init (); begin end
-end
-
-WriteLn (Thing ().Nope);

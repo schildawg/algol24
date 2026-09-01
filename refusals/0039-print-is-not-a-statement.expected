@@ -1,5 +1,0 @@
-Uncaught: Expect ';' after expression.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0039-print-is-not-a-statement.a24: Expect ';' after expression.
-[WHITE][[RED]ERROR[WHITE]] [RESET]6 | print 123;
-[WHITE][[RED]ERROR[RESET]]   |[RED] ^^^^^[RESET]
-exit: 70

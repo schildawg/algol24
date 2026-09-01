@@ -1,5 +1,0 @@
-Uncaught: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0034-declaration-as-an-unbraced-body.a24: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
-[WHITE][[RED]ERROR[WHITE]] [RESET]11 | if True then var X := 1;
-[WHITE][[RED]ERROR[RESET]]    |[RED]              ^^^[RESET]
-exit: 70

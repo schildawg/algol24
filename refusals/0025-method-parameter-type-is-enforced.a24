@@ -1,8 +1,0 @@
-// spec: FUN-007
-
-class M;
-begin
-    function Take (N : Integer); begin Exit N; end
-end
-
-WriteLn (M ().Take ('a string'));

@@ -1,9 +1,0 @@
-// spec: MOD-007
-//
-// A private name is invisible to an importer both bare and qualified.
-
-uses 'modules/Alpha';
-
-WriteLn (Alpha.OnlyAlpha ());
-
-WriteLn (Alpha.Hidden ());

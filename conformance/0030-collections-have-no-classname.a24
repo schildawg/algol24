@@ -1,6 +1,0 @@
-// spec: TYP-009
-
-class Dog; begin end
-WriteLn (Dog ().ClassName);
-
-WriteLn (List ().ClassName);

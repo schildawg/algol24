@@ -1,5 +1,0 @@
-Uncaught: Expected Integer, found String.
-[WHITE][[RED]ERROR[WHITE]] [RESET]refusals/0008-declared-type-constrains.a24: Expected Integer, found String.
-[WHITE][[RED]ERROR[WHITE]] [RESET]10 | X := 'text';
-[WHITE][[RED]ERROR[RESET]]    |[RED] ^[RESET]
-exit: 70

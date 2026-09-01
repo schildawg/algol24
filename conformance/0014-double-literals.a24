@@ -1,7 +1,0 @@
-// spec: LEX-020
-//
-
-// A double literal needs at least one digit on BOTH sides of the point.
-WriteLn (1.5);
-WriteLn (1.0);
-WriteLn (0.25);

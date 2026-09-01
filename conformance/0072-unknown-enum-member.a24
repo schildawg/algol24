@@ -1,7 +1,0 @@
-// spec: ENU-004
-
-type Colour = (RED, GREEN);
-
-WriteLn (Colour.RED);
-
-WriteLn (Colour.Nope);
