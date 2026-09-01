@@ -2,6 +2,12 @@
 #
 # Builds and tests any formula a pull request touches, on each platform the tap
 # intends to bottle for.  brew test-bot does the work; this only says where.
+#
+# ⚠️ macOS ONLY, and the formula is why.  It carries no depends_on because a
+# --ffi build links against /usr/lib/libffi.dylib, the one macOS ships.  Linux
+# has no such guarantee, so a Linux leg would need depends_on "libffi" in the
+# formula before it could bottle anything usable.  Adding that platform is a
+# decision to test, not one to smuggle in with a release.
 name: brew test-bot
 
 on:
@@ -13,7 +19,7 @@ jobs:
   test-bot:
     strategy:
       matrix:
-        os: [macos-15, macos-14, ubuntu-24.04]
+        os: [macos-15, macos-14]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Homebrew
