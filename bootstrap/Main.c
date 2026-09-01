@@ -465,7 +465,7 @@ void init_Main(void) {
     init_CEmitter();
     v_sample = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Doughnut;"), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        WriteLn ('Fry until golden!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("class BostonCream(Doughnut);")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        super.Cook();")), alg_char_value(10)), alg_string("        WriteLn ('Pipe full of custard and coat with chocolate!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("BostonCream().Cook();")), alg_char_value(10));
     d_sample = true;
-    v_version = alg_string("0.1.0");
+    v_version = alg_string("0.1.1");
     d_version = true;
     (void)(f_main(NULL, NULL, 0));
 }

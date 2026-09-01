@@ -279,7 +279,7 @@ begin
 end
 
 /// The release this compiler reports for '--version'.
-const VERSION := '0.1.0';
+const VERSION := '0.1.1';
 
 /// Gets the directory part of a path, or '' when there is none.
 function FolderOf (Path : String) : String;
