@@ -7,8 +7,15 @@ requires: a repo named `homebrew-<tap>`, with formulae in `Formula/`.
 
 ```sh
 brew tap schildawg/algol24
+brew trust schildawg/algol24
 brew install algol24
 ```
+
+⚠️ **`brew trust` is not optional and the install fails without it.** Homebrew
+refuses to load a formula from an untrusted third-party tap —
+`Refusing to load formula schildawg/algol24/algol24 from untrusted tap` — so a
+reader who copies two lines instead of three gets an error rather than a
+compiler. The gate is on the tap, not the formula, so it is answered once.
 
 ## Why a tap rather than homebrew-core
 

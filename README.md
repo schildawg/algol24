@@ -47,6 +47,7 @@ is a checked-in copy of its own output.
 
 ```sh
 brew tap schildawg/algol24
+brew trust schildawg/algol24
 brew install algol24
 ```
 
