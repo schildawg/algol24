@@ -54,6 +54,11 @@ class Algol24 < Formula
 
     # The emitted directory must build on its own, which is the whole point of
     # shipping the runtime beside the binary.
+    #
+    # ⚠️ --out names a directory that must ALREADY EXIST.  algc does not create
+    # it and exits 70 when it cannot write, so the mkpath is part of the test
+    # rather than tidiness.
+    (testpath/"build").mkpath
     system bin/"algc", "--compile", "--out=#{testpath}/build", "hello.a24"
     system ENV.cc, "-std=c11", "-O2", "-o", "#{testpath}/hello",
            *Dir["#{testpath}/build/*.c"]
