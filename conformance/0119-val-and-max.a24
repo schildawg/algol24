@@ -7,6 +7,8 @@
 // Val always yielding a Double, Max taking Integers only -- and together they
 // left 'Max (Val (A), Val (B))' failing for EVERY input.
 
+uses 'lib/System';      // Max is a library function now
+
 WriteLn (Val ('42'));
 WriteLn (Val ('42') is Integer);
 WriteLn (Val ('-7'));

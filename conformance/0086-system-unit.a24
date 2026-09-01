@@ -5,7 +5,11 @@
 
 WriteLn (System.Copy ('abcdef', 0, 3));
 WriteLn (System.Length ('abc'));
-WriteLn (System.Max (2, 7));
+WriteLn (System.Ord ('A'));
+
+// ⚠️ Max USED to be one of these and is a library function now, so it is no
+// longer reachable as System.Max -- which is the point of the qualifier: it
+// names the built-ins, and only those.
 
 // The bare spellings are the same functions.
 WriteLn (System.Copy ('abcdef', 0, 3) = Copy ('abcdef', 0, 3));

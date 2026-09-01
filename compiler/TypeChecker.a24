@@ -5,6 +5,7 @@ uses Scanner;
 uses SourceCode;
 uses Token;
 uses TokenType;
+uses 'lib/System';
 
 /// A scoped symbol-to-type map.
 ///

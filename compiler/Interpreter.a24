@@ -14,6 +14,7 @@ uses Scanner;
 uses Stmt;
 uses Token;
 uses TokenType;
+uses 'lib/System';
 
 /// The interpreted program's own arguments -- NOT algc's.
 ///
@@ -286,23 +287,6 @@ begin
             'Val'  : Exit ParsedNumber (Str (Arguments[0]));
             'Char' : Exit Char (Arguments[0]);
 
-            // ⚠️ Any two NUMBERS, promoting as every other numeric operator
-            // does [EXP-005].  It took Integers only, which with Val always
-            // yielding a Double left 'Max(Val(A), Val(B))' failing for every
-            // input [RT-010].
-            'Max' : begin
-                        var A := Arguments[0];
-                        var B := Arguments[1];
-
-                        if not ((A is Integer or A is Double)
-                            and (B is Integer or B is Double)) then
-                            raise 'Max expects numbers.';
-
-                        if A > B then Exit A;
-
-                        Exit B;
-                    end
-
             'Mod'        : Exit Mod (Arguments[0], Arguments[1]);
             'TextFile'   : Exit ObjFile ();
             'FileExists' : Exit FileExists (Str (Arguments[0]));
@@ -513,7 +497,6 @@ begin
         Builtins.Define ('Pred', Native ('Pred', 1));
         Builtins.Define ('Val', Native ('Val', 1));
         Builtins.Define ('Char', Native ('Char', 1));
-        Builtins.Define ('Max', Native ('Max', 2));
         Builtins.Define ('Mod', Native ('Mod', 2));
 
         Builtins.Define ('Write', Native ('Write', -1));

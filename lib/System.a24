@@ -1,0 +1,24 @@
+/// System -- what the core need not provide.
+///
+/// ⚠️ Moved OUT of the language, not added to it.  Each of these was a built-in
+/// with a rule of its own; they are ordinary Algol-24 here, and the core is
+/// smaller for it.  Nothing in the language could not be written in the
+/// language -- that was the claim, and this is where it is paid.
+
+/// The greater of two numbers, promoting as arithmetic does.
+function Max (A, B);
+begin
+    if not ((A is Integer or A is Double) and (B is Integer or B is Double)) then
+        raise 'Max expects numbers.';
+
+    if A > B then Exit A;
+
+    Exit B;
+end
+
+test 'Max takes the greater';
+begin
+    AssertEqual (7, Max (3, 7));
+    AssertEqual (7, Max (7, 3));
+    AssertEqual (3, Max (3, 3));
+end

@@ -1,7 +1,7 @@
 # The Algol-24 Programming Language Specification
 
 > **Status: the specification is read, corrected and signed off.** Nineteen
-> chapters and eight annexes, 280 rules. Every rule is **decided** — what the
+> chapters and eight annexes, 279 rules. Every rule is **decided** — what the
 > language should do — and every rule is claimed by a case: a program in
 > `conformance/`, a refusal in `refusals/`, or a reproduction in `defects/`.
 > None awaits one.
@@ -3841,26 +3841,6 @@ directions: it refused `var I : Integer := Val ('42');`, which works.
     compiler     bootstrap/algol.c         alg_val
     conformance  0119-val-and-max.a24
 
-**[RT-010]**  `Max(A, B)` takes any two numbers and promotes as every other
-numeric operator does [EXP-005], so `Max(3.5, 2)` is `3.5`.
-
-Anything that is not a number is `Max expects numbers.`
-
-⚠️ **`Max`'s type comes from its arguments**, not from a table: two Integers give
-an Integer and anything with a Double gives a Double. Declaring it Integer, as
-this implementation once did, let `var M : Integer := Max (3.5, 2);` be accepted
-and leave a **Double in an Integer** — a declared type violated with nothing
-said, which is worse than refusing a correct program.
-
-⚠️ **[RT-009] and [RT-010] were one defect, not two.** Individually each was
-defensible; together they left `Max(Val(A), Val(B))` failing for **every**
-input, so text holding two numbers could not be compared without going outside
-both built-ins.
-
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_max
-    conformance  0119-val-and-max.a24
-
 **[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
 dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
 zero.`
@@ -4691,7 +4671,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The twenty-nine built-in names, with the rule specifying each. `spec/spec.sh`
+The twenty-eight built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list against the names the interpreter actually registers.
 
 | Name | Rule | Summary |
@@ -4716,7 +4696,6 @@ checks this list against the names the interpreter actually registers.
 | `Pos` | [RT-005] | A zero-based index, or -1 when absent |
 | `Str` | [RT-006] | Any value rendered as text |
 | `Val` | [RT-009] | A number parsed from text — an **Integer** without a point, a Double with one |
-| `Max` | [RT-010] | The greater of two numbers, promoting as arithmetic does |
 | `Mod` | [RT-011] | The remainder, its sign following the dividend |
 | `clock` | [RT-012] | Seconds since the epoch, as a Double |
 | `FileExists` | [RT-014] | Whether a named file exists |
@@ -5631,7 +5610,7 @@ in front of it. It is `Strings are immutable.` on both sides now.
 
 **C-30 — `Max` and `Val` answer differently compiled.**
 ***Withdrawn.***
-*(refers to [RT-010], [RT-011])*
+*(refers to `Max` — a library function now — and [RT-011])*
 
 | | Interpreted | Compiled |
 | --- | --- | --- |
@@ -6380,7 +6359,7 @@ spelling for "how many" and `Length(…)` is left meaning only "how long is this
 text".
 
 **D-16 — `Val` always yields a Double, and `Max` never accepts one.** *(refers
-to [RT-009], [RT-010])*
+to [RT-009], and to `Max` — a library function now)*
 
 `Val('42')` is `42.0`, not `42`, so text that plainly holds an integer cannot be
 parsed into one — and the result then cannot be passed to `Max`, which refuses
@@ -6394,8 +6373,9 @@ Integer at all.
 
 **Resolved, both halves.** [RT-009] makes `Val` answer an Integer where the
 text has no point and a Double where it has one, reading the same characters the
-literal rules do [LEX-015], [LEX-020]. [RT-010] lets `Max` take any two numbers,
-promoting as every other numeric operator does [EXP-005].
+literal rules do [LEX-015], [LEX-020]. `Max` takes any two numbers, promoting as every
+other numeric operator does [EXP-005] — and it left the core for `lib/System`
+afterwards, so what fixed it is now library code.
 
 ⚠️ They are **one** defect, DEF-27, rather than two. Either change alone helps,
 but only both together make `Max(Val(A), Val(B))` — which failed for every input

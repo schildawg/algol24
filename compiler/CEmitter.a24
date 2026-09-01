@@ -3,6 +3,7 @@ uses ObjFunction;
 uses Stmt;
 uses TokenType;
 uses Token;
+uses 'lib/System';
 
 /// ⚠️ Beyond this many elements a collection literal is HOISTED into a helper
 /// function instead of being emitted as nested calls.  Each keep-call is a
