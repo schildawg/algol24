@@ -168,8 +168,8 @@ WriteLn (Length (Str (Char (233))));
 // A one-character literal is a Char however many BYTES it takes [LEX-023].
 WriteLn ('é' is Char);
 
-// ANY Unicode character may appear in an identifier [SRC-005], where the
-// scanner used to refuse every non-ASCII byte outright [SRC-002].
+// ANY Unicode character may appear in an identifier [SRC-005], and the
+// scanner admits every byte above 127 without classifying it [SRC-002].
 var café := 3;
 WriteLn (café);
 
@@ -380,10 +380,10 @@ var Gate!  := 64;
 var Ready_Set := 128;
 WriteLn (Gate? + Gate! + Ready_Set);
 
-// THE COLLISIONS THE OLD SCHEME GOT WRONG, which is what makes this case
-// worth having.  It wrote '?' as '_q' and passed letters through untouched, so
-// these two emitted ONE symbol between them and cc refused the result.  They
-// are 'readyQ' and 'readyVq' now.
+// TWO NAMES THAT MUST NOT COLLIDE, which is why these two.  A mangling that
+// wrote '?' as '_q' and passed letters through untouched would emit ONE symbol
+// for both, and cc would refuse the result.  Escaping is injective: they are
+// 'readyQ' and 'readyVq'.
 var Ready?  := 'from the mark';
 var Ready_q := 'from the letters';
 WriteLn (Ready? + ' / ' + Ready_q);
@@ -622,9 +622,9 @@ type Colour = (Red, Green);
 WriteLn (COLOUR.red);
 WriteLn (GREEN);
 
-// A built-in member folds too, and this is the half the interpreter used to
-// get wrong: 'L.add' was 'Undefined property' interpreted and worked compiled,
-// so a program written against the compiler failed everywhere interpreted.
+// A built-in member folds too, and this is the half that is easy to miss:
+// were 'L.add' to answer 'Undefined property' in one processor and work in the
+// other, a program written against either would fail against the other.
 var L := [1];
 L.add (2);
 WriteLn (L.LENGTH);
@@ -1326,7 +1326,7 @@ WriteLn (-2147483648);
 
 // A Double is NOT unbounded, and that asymmetry is deliberate: it follows
 // IEEE 754, so 1.0 / 0 is Infinity [EXP-006] rather than an error, and a mixed
-// expression is Double arithmetic.  conformance/0047 pins the division.
+// expression is Double arithmetic.  Integer division by zero is [EXP-006].
 WriteLn (1.0 / 0 > 0);
 WriteLn (2147483647 + 1.0);
 ```
@@ -1587,7 +1587,7 @@ WriteLn ('' is String);
 
 // '''' is NOT exercised here.  LEX-029 makes it the Char holding a quote and
 // the implementation makes it a String of length one, so it is DEF-32's and
-// cannot be a commitment this case pins.
+// is not a commitment this program makes.
 
 // LEX-028: no backslash escapes.  This is four characters and the one at
 // index 1 is the backslash itself.
@@ -1881,7 +1881,7 @@ const C : Double := 2;
 WriteLn (A);
 WriteLn (C);
 
-// A plain assignment, which used to leave an Integer in a Double.
+// A plain assignment, which is the context widening reached last.
 var B : Double := 0.0;
 B := 1;
 WriteLn (B);
@@ -2042,9 +2042,9 @@ var Y := 1;
 Y := 'text';
 WriteLn (Y);
 
-// The other direction -- Any into a written type, which VAR-006 refuses --
-// is exercised by refusals/0013 for the declaration.  The assignment form is
-// wrongly accepted today and is DEF-09.
+// The other direction -- Any into a written type -- is refused by [VAR-006]
+// at a declaration.  The assignment form is wrongly accepted today, which is
+// what DEF-09 records.
 ```
 
 ```console
@@ -2059,7 +2059,7 @@ text
 
 ```algol24
 // A variable declared WITHOUT a type carries its deduced type into later
-// expressions.  This is what used to reduce to nothing.
+// expressions, rather than reducing to no type at all.
 var Text := 'abcdef';
 var C := Copy (Text, 1, 1);
 var Result : String := '';
@@ -2332,9 +2332,9 @@ begin
     WriteLn (Doubled);
 end
 
-// Insertion IS checked now, and this case predicted its own change: it used
-// to end 'L.Add (''not an integer'')' with a note saying that is what H-3 would
-// alter.  It altered it -- see 0173, which covers the five routes.
+// Insertion IS checked: an element that does not fit the declared type is
+// refused at every route in, and a read carries the element type back out.
+// [VAR-016] states the whole rule.
 L.Add (30);
 WriteLn (L.Length);
 WriteLn (L[2]);
@@ -3769,8 +3769,8 @@ WriteLn (P is Dog);
 WriteLn (P is Animal);
 
 // The widening clause of VAL-001 is NOT exercised here: it is not
-// implemented, and DEF-10 tracks it.  The narrowing half of VAL-002 is
-// refusals/0014.
+// implemented, and DEF-10 tracks it.  The narrowing half of [VAL-002] is
+// refused rather than truncated.
 ```
 
 ```console
@@ -4213,8 +4213,8 @@ WriteLn (Str ('a') < 'b');
 WriteLn ('Z' < 'a');
 
 // CODE POINTS, NOT BYTES.  'è' and 'é' are C3 A8 and C3 A9 in UTF-8: they
-// share a lead byte and used to compare EQUAL, while Ord answered 232 and 233 --
-// the language disagreeing with itself about which came first.
+// share a lead byte, so comparing bytes would call them EQUAL while Ord
+// answers 232 and 233 -- the language disagreeing with itself about order.
 WriteLn (Ord ('è'), ' ', Ord ('é'));
 WriteLn ('è' < 'é');
 WriteLn ('é' <= 'è');
@@ -4543,7 +4543,7 @@ WriteLn (Puppy () is Hound);
 WriteLn (Puppy ().Speak ());
 
 // A VARIABLE is not hoisted: its initializer runs in order, and a name read
-// before that has no value to give -- see refusals/0033.
+// before that has no value to give, and is an error rather than nil.
 var Ready := 'declared in order';
 WriteLn (Ready);
 ```
@@ -6840,9 +6840,9 @@ WriteLn (' done');
 
 // A jump out of a 'try' must LEAVE ITS FRAME.  The runtime's frame stack is
 // explicit, and a frame left behind points at a C frame that has returned -- so
-// the raise at the end of this case is what proves the pops happened.  Without
-// them the compiled program ran the inner handler and printed a line the
-// interpreter never printed.
+// the raise at the end is what proves the pops happened.  Without them a
+// compiled program runs the inner handler and prints a line the interpreter
+// never prints.
 try
     try
         goto Out;
@@ -9356,8 +9356,8 @@ WriteLn (System.Length ('abc'));
 
 // THE QUALIFIER NAMES WHAT IS STILL BUILT IN, AND ONLY THAT.  Max, Mod,
 // Succ, Pred and Ord were all reachable here and are library functions now, so
-// System.Max and System.Ord no longer resolve.  Copy and Length remain, which
-// is why they are the two this case uses.
+// System.Max and System.Ord do not resolve.  Copy and Length remain, which is
+// why the qualifier is shown with those two.
 
 // The bare spellings are the same functions.
 WriteLn (System.Copy ('abcdef', 0, 3) = Copy ('abcdef', 0, 3));
@@ -9520,9 +9520,9 @@ WriteLn (Length (ParamStr (0)) > 0);
 Write ('written');
 WriteLn ('');
 
-// Halt is exercised by conformance/0134 rather than here: calling it would
-// end this program before the rest of the list was reached, and there is no way
-// to ask whether it answers without calling it.
+// Halt is shown under [RT-018] rather than here: calling it would end this
+// program before the rest of the list was reached, and there is no way to ask
+// whether it answers without calling it.
 ```
 
 ```console
@@ -9947,10 +9947,10 @@ WriteLn ('  first  = ' + Str (Ord (Sandwiched[0])));
 WriteLn ('  middle = ' + Str (Ord (Sandwiched[1])));
 WriteLn ('  last   = ' + Str (Ord (Sandwiched[2])));
 
-// AND IT SURVIVES Write [RT-015], which is the half that used to differ.
-// The interpreter joined Write's values through a Buffer, and a Buffer refuses
-// to hand back Text when it holds a zero byte [RT-022] -- so this raised
-// interpreted and printed the byte compiled.
+// AND IT SURVIVES Write [RT-015], which is the half that is easy to lose.
+// Joining Write's values through a Buffer would not do: a Buffer refuses to
+// hand back Text when it holds a zero byte [RT-022], so the byte has to travel
+// as a String, which carries its own length.
 Write (Sandwiched);
 WriteLn ('');
 
@@ -10348,8 +10348,8 @@ process exit status is; that is the operating system's rule, not this language's
 WriteLn ('before');
 
 // Buffered output is flushed first.  stdout is block-buffered when it is not
-// a terminal, so the line above would be lost without that -- and a conformance
-// run pipes its output, so this case would fail rather than the fault hiding.
+// a terminal, so the line above would be lost without that -- and the output
+// here is piped, so the fault would show rather than hide.
 Halt (3);
 
 WriteLn ('after');
@@ -11063,8 +11063,8 @@ end
 // ERR-008: a try around a compile-phase error catches nothing, because those
 // phases complete before the try is reached.  The nearest thing this file can
 // show is that the handler is entered only for runtime faults -- a mistyped
-// declaration inside the try would stop the whole program, so it has its own
-// case in refusals/0008.
+// declaration inside the try would stop the whole program, which [STM-017]
+// states and a refusal of its own shows.
 WriteLn ('reached the end');
 ```
 
