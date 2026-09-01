@@ -77,3 +77,65 @@ function Pred (X);
 begin
     Exit Stepped (X, -1, 'Pred');
 end
+
+/// The code point of one character, as an Integer.
+///
+/// ⚠️ An Integer and a Boolean answer too, and are not characters: an ordinal
+/// is what `Ord` asks for, and an Integer already is one while a Boolean is
+/// `1` or `0`.  Anything else -- a Double, nil, or text that is not exactly one
+/// character -- is `Ord failed: 'X' has no ordinal.`
+///
+/// ⚠️ Decoded from UTF-8 by hand, over a Buffer's bytes, because there is no
+/// other way for Algol-24 to see the bytes of a character.  A continuation byte
+/// has its top two bits set to 10; the lead byte says how many follow.
+function Ord (X) : Integer;
+var
+    B : Buffer;
+
+begin
+    if X is Integer then Exit X;
+
+    if X is Boolean then
+    begin
+        if X then Exit 1;
+        Exit 0;
+    end
+
+    // ⚠️ AN ENUM MEMBER ANSWERS TOO, and asking is the only way to find out.
+    // A member carries its zero-based position as `Ordinal` [ENU-010] and
+    // nothing else in the language does -- an Integer, a Char, nil, an instance
+    // and a List were all checked, and every one of them raises.  There is no
+    // `is Enum`, so a library function has no way to ask the question directly;
+    // see LIBRARY.md, Q7.
+    try Exit X.Ordinal; except end
+
+    // ⚠️ A Char, never a one-character String, and the built-in was stricter
+    // than it looked: 'Ord (Copy (''abc'', 1, 1))' fails where 'Ord (''b'')'
+    // works, because a literal of one character IS a Char and a Copy of one is
+    // not [LEX-026].  An equivalence check found this; reading the rule did not.
+    if not (X is Char) then
+        raise 'Ord failed: ''' + Str (X) + ''' has no ordinal.';
+
+    B := Buffer ();
+    B.Append (X);
+
+    var Lead := B[0];
+    if Lead < 128 then
+    begin
+        B.Free ();
+        Exit Lead;
+    end
+
+    var Code  := 0;
+    var Extra := 0;
+
+    if Lead < 224      then begin Code := Mod (Lead, 32); Extra := 1; end
+    else if Lead < 240 then begin Code := Mod (Lead, 16); Extra := 2; end
+    else                    begin Code := Mod (Lead, 8);  Extra := 3; end
+
+    for var I := 1; I <= Extra; I := I + 1 do
+        Code := Code * 64 + Mod (B[I], 64);
+
+    B.Free ();
+    Exit Code;
+end

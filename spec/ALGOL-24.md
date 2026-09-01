@@ -3801,12 +3801,30 @@ it a defect in the implementation rather than a limit worth writing down.
     conformance  0177-a-buffers-lifetime.a24
     conformance  0178-a-text-files-state.a24
 
-**[RT-007]**  `Ord(C)` answers the code point of a single character, as an
-**Integer**. Anything longer is `Ord failed: 'ab' has no ordinal.`
+**[RT-007]**  ***Moved to `lib/Core` in Generation 9.*** `Ord(C)` answered the
+code point of one character as an Integer. It is an ordinary function written in
+Algol-24 now, decoding UTF-8 over a `Buffer`'s bytes.
 
-    interpreter  compiler/Interpreter.a24  Native
-    compiler     bootstrap/algol.c         alg_ord
-    conformance  0089-text-builtins.a24
+⚠️ **An enum member answers it, and finding that out is the interesting part.**
+A member carries its zero-based position as `Ordinal` [ENU-010] and nothing else
+in the language does — an Integer, a Char, `nil`, an instance and a `List` were
+all checked and every one raises. But **there is no `is Enum`**, so a library
+function cannot ask the question directly and has to try the property and catch
+the failure. That is a gap in the language rather than in the unit; `LIBRARY.md`
+records it as Q7.
+
+⚠️ **A `Char`, never a one-character `String`.** `Ord (Copy ('abc', 1, 1))`
+fails where `Ord ('b')` works, because a literal of one character *is* a `Char`
+and a `Copy` of one is not [LEX-026]. An equivalence check across nineteen
+values found that; reading this rule did not say it.
+
+⚠️ **`Char` did NOT move with it**, and could not. Building a character in
+Algol-24 means assembling bytes in a `Buffer` and reading them back as text —
+and a Buffer refuses to hand back `Text` when it holds a zero byte [RT-022],
+which would make `Char (0)` unbuildable. [RT-008] makes `Char (0)` legal and the
+scanner's own sentinel is one.
+
+    library  lib/Core.a24  Ord
 
 **[RT-008]**  `Char(N)` answers the character with code point `N`, over the
 range of [LEX-025] — 0 … 10FFFF, excluding the surrogates. `Ord` and `Char` are
@@ -4705,7 +4723,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The twenty-five built-in names, with the rule specifying each. `spec/spec.sh`
+The twenty-four built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list against the names the interpreter actually registers.
 
 | Name | Rule | Summary |
@@ -4723,7 +4741,6 @@ checks this list against the names the interpreter actually registers.
 | `Char` | [RT-008] | The character with a code point, 0 … 10FFFF, surrogates excluded |
 | `Copy` | [RT-004] | A substring, from a zero-based start, length clamped |
 | `Length` | [RT-003] | ⚠️ The length of the argument's **text**, not a count |
-| `Ord` | [RT-007] | The code point of one character, as an Integer |
 | `Foreign` | [FUN-014] | ⚠️ The FFI's own plumbing. `external` is the spelling a program uses; this is what it becomes, and it exists because the tree-walker can reach C no other way |
 | `Pos` | [RT-005] | A zero-based index, or -1 when absent |
 | `Str` | [RT-006] | Any value rendered as text |

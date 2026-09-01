@@ -6,6 +6,8 @@
 // ⚠️ These used to count BYTES, so Length('café') was 5 and 'café'[3] was the
 // first half of a two-byte sequence.
 
+uses 'lib/Core';        // Ord is a library function now
+
 var S := 'café';
 
 WriteLn (Length (S));

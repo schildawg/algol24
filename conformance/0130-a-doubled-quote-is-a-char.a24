@@ -8,6 +8,8 @@
 // two types depending on how it was spelled -- so a quote was not equal to
 // itself, and had an ordinal under one spelling only.
 
+uses 'lib/Core';        // Ord is a library function now
+
 WriteLn ('''' is Char);
 WriteLn (#39 is Char);
 WriteLn ('''' = #39);

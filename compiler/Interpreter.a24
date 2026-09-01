@@ -285,15 +285,6 @@ begin
                                       Arguments[3], Arguments[4]);
 
 
-            // ⚠️ An interpreted enum member is an ObjEnum, not a host one, so
-            // the host's Ord cannot see its ordinal -- the same reason
-            // Stringify has to call an interpreted ToString itself.
-            'Ord' : begin
-                        if Arguments[0] is ObjEnum then Exit Arguments[0].Ordinal;
-
-                        Exit Ord (Arguments[0]);
-                    end
-
             'Val'  : Exit ParsedNumber (Str (Arguments[0]));
             'Char' : Exit Char (Arguments[0]);
 
@@ -500,7 +491,6 @@ begin
         Builtins.Define ('Stack', Native ('Stack', 0));
 
         Builtins.Define ('Halt', Native ('Halt', 1));
-        Builtins.Define ('Ord', Native ('Ord', 1));
         Builtins.Define ('Foreign', Native ('Foreign', 5));
         Builtins.Define ('Val', Native ('Val', 1));
         Builtins.Define ('Char', Native ('Char', 1));

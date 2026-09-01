@@ -552,7 +552,7 @@ static Value m_cemitter_escaped_1_string(Value v_this, Value *args, int32_t coun
                         (void)(alg_invoke(v_result, "Append", (Value[]){alg_str(v_c)}, 1));
                     } else {
                         if (alg_truthy((or_2 = alg_greater_equal(v_c, alg_char_value(65)), !alg_truthy(or_2) ? or_2 : alg_less_equal(v_c, alg_char_value(90))))) {
-                            (void)(alg_invoke(v_result, "Append", (Value[]){alg_char(alg_add(alg_ord(v_c), alg_int(32)))}, 1));
+                            (void)(alg_invoke(v_result, "Append", (Value[]){alg_char(alg_add(f_ord(NULL, (Value[]){v_c}, 1), alg_int(32)))}, 1));
                         } else {
                             if (alg_truthy(alg_equal(v_c, alg_char_value(63)))) {
                                 (void)(alg_invoke(v_result, "Append", (Value[]){alg_char_value(81)}, 1));
@@ -563,7 +563,7 @@ static Value m_cemitter_escaped_1_string(Value v_this, Value *args, int32_t coun
                                     if (alg_truthy(alg_equal(v_c, alg_char_value(95)))) {
                                         (void)(alg_invoke(v_result, "Append", (Value[]){alg_char_value(86)}, 1));
                                     } else {
-                                        (void)(alg_invoke(v_result, "Append", (Value[]){alg_add(alg_char_value(85), alg_invoke(v_this, "HexOf", (Value[]){alg_ord(v_c)}, 1))}, 1));
+                                        (void)(alg_invoke(v_result, "Append", (Value[]){alg_add(alg_char_value(85), alg_invoke(v_this, "HexOf", (Value[]){f_ord(NULL, (Value[]){v_c}, 1)}, 1))}, 1));
                                     }
                                 }
                             }
@@ -1426,7 +1426,7 @@ static Value m_cemitter_upper_1_string(Value v_this, Value *args, int32_t count)
                 (void)v_c;
                 if (alg_truthy(alg_greater_equal(v_c, alg_char_value(97)))) {
                     if (alg_truthy(alg_less_equal(v_c, alg_char_value(122)))) {
-                        (void)((v_c = alg_char(alg_subtract(alg_ord(v_c), alg_int(32)))));
+                        (void)((v_c = alg_char(alg_subtract(f_ord(NULL, (Value[]){v_c}, 1), alg_int(32)))));
                     }
                 }
                 (void)((v_result = alg_widen(alg_add(v_result, v_c), "String")));
@@ -3003,7 +3003,7 @@ static Value m_cemitter_visitliteral_1_literalexpr(Value v_this, Value *args, in
         return alg_add(alg_add(alg_string("alg_string("), f_quotec(NULL, (Value[]){alg_str(v_value)}, 1)), alg_char_value(41));
     }
     if (alg_truthy(alg_is(v_value, "Char"))) {
-        return alg_add(alg_add(alg_string("alg_char_value("), alg_str(alg_ord(v_value))), alg_char_value(41));
+        return alg_add(alg_add(alg_string("alg_char_value("), alg_str(f_ord(NULL, (Value[]){v_value}, 1))), alg_char_value(41));
     }
     (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_string("A literal of type "), f_typenameof(NULL, (Value[]){v_value}, 1))}, 1));
     return alg_nil();

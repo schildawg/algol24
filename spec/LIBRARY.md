@@ -503,6 +503,23 @@ overload it has not chosen.
 entry in Annex F with a reproduction — the survey found it, it does not wait on
 the survey.
 
+**Q7 — a library function cannot ask whether a value is an enum member.**
+`Ord` accepts one, because a member carries `Ordinal` [ENU-010]. Nothing else in
+the language answers that property — an Integer, a `Char`, `nil`, an instance
+and a `List` were all checked and every one raises — so the test is sound. But
+there is no `is Enum`, so the only way to run it is to read the property and
+catch the failure:
+
+```
+try Exit X.Ordinal; except end
+```
+
+Using an exception as a type test is not what this language reads like
+anywhere else. The fix belongs to the language — either `is Enum`, or admitting
+`Ordinal` as a structural protocol beside `Contains`, `ToString`, `Elements`,
+`Compare` and `Get`/`Put` — and it is the first thing the library has wanted
+that the core does not offer.
+
 **Q6 — the core's numeric set is arbitrary, and `math` makes that visible.**
 `Max` [RT-010] and `Mod` [RT-011] are built-ins; `Min` and `Abs` do not exist at
 all:

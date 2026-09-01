@@ -1,6 +1,7 @@
 uses SourceCode;
 uses Token;
 uses TokenType;
+uses 'lib/Core';
 
 const DIGITS    := '0123456789';
 const HEXDIGITS := '0123456789abcdef';

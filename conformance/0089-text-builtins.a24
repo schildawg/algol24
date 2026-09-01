@@ -2,6 +2,8 @@
 //
 
 // RT-004: Copy counts from zero, and the length is CLAMPED to what remains.
+uses 'lib/Core';        // Ord is a library function now
+
 WriteLn (Copy ('abcdef', 0, 3));
 WriteLn (Copy ('abcdef', 3, 3));
 WriteLn (Copy ('abcdef', 3, 99));

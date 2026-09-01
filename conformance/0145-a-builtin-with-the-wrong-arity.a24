@@ -7,6 +7,8 @@
 // a wrong call to a real built-in, not a reference to something undeclared,
 // and the two failures read quite differently to whoever has to fix the line.
 
+uses 'lib/Core';        // Ord is a library function now
+
 WriteLn (Length ('abc'));
 
 try

@@ -8,6 +8,8 @@
 // it lands."  It landed.
 
 // Numbers and Chars still order as they did.
+uses 'lib/Core';        // Ord is a library function now
+
 WriteLn (1 < 2);
 WriteLn (1.5 >= 1.5);
 WriteLn ('a' < 'b');
