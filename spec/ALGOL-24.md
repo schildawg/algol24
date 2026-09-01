@@ -848,23 +848,22 @@ identifier too: a mark does not end a word.
 ##### conformance/0010-identifier-forms.a24
 
 ```algol24
-// A letter, then letters, digits and identifier marks in any mixture.
+// A letter, then letters, digits and identifier marks in any mixture.  Both
+// marks are ordinary identifier characters, so these are four names.
 var Gate?  := 1;
-var _under := 2;
-var a1b2   := 4;
+var Send!  := 2;
+var _under := 4;
+var a1b2   := 8;
 
 // A mark does not end a word: Ready?Set is ONE identifier, not three tokens.
-var Ready?Set := 8;
+var Ready?Set := 16;
 
-WriteLn (Gate? + _under + a1b2 + Ready?Set);
-
-// The '!' mark is not exercised here.  LEX-007 admits it on the same terms
-// as '?'.
+WriteLn (Gate? + Send! + _under + a1b2 + Ready?Set);
 ```
 
 ```console
 $ algc conformance/0010-identifier-forms.a24
-15
+31
 ```
 
 ##### conformance/0120-identifier-marks.a24
@@ -3761,8 +3760,12 @@ var P : Animal := Dog ();
 WriteLn (P is Dog);
 WriteLn (P is Animal);
 
-// The widening clause of VAL-001 is not exercised here.  The narrowing half
+// And a value that widens to the declared type [VAR-004].  The narrowing half
 // of [VAL-002] is refused rather than truncated.
+var W : Double := 1;
+var T : String := 'a';
+WriteLn (W);
+WriteLn (T);
 ```
 
 ```console
@@ -3772,6 +3775,8 @@ true
 true
 true
 true
+1.0
+a
 ```
     conformance  0140-widening-at-every-context.a24
 
