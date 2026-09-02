@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -2081,6 +2082,57 @@ Value alg_cast(Value v, const char *name) {
 
     alg_error(message);
     return alg_nil();
+}
+
+/* The four directory built-ins [RT-026]. Each reports through file_error, so a
+   directory that cannot be made reads like a file that cannot be opened.
+   None of them takes a mode or a recursive flag: MkDir makes ONE directory and
+   RmDir removes an empty one, which is what the names say and what keeps RmDir
+   from being able to take a tree with it. */
+Value alg_mkdir(Value name) {
+    const char *path = file_name_argument(name);
+
+    /* 0777 masked by the process umask, as the shell's mkdir does -- so the
+       directory lands with whatever permissions the user's environment says,
+       rather than with something this runtime picked. */
+    if (mkdir(path, 0777) != 0) file_error("MkDir", "cannot create ", path);
+
+    return alg_nil();
+}
+
+Value alg_rmdir(Value name) {
+    const char *path = file_name_argument(name);
+
+    if (rmdir(path) != 0) file_error("RmDir", "cannot remove ", path);
+
+    return alg_nil();
+}
+
+Value alg_chdir(Value name) {
+    const char *path = file_name_argument(name);
+
+    if (chdir(path) != 0) file_error("ChDir", "cannot change to ", path);
+
+    return alg_nil();
+}
+
+/* Takes nothing. Turbo Pascal's GetDir selects a drive, and this runs where
+   there are none -- an argument that could never change the answer would only
+   read as though it might. */
+Value alg_getdir(void) {
+    char here[4096];
+
+    if (getcwd(here, sizeof here) == NULL)
+        alg_error("GetDir failed: cannot read the working directory.");
+
+    /* Copied into the arena, because alg_string keeps the POINTER it is handed
+       and not the bytes -- and 'here' is gone the moment this returns. */
+    size_t size   = strlen(here) + 1;
+    char  *result = arena_alloc(size);
+
+    memcpy(result, here, size);
+
+    return alg_string_n(result, (int32_t)(size - 1));
 }
 
 Value alg_file_exists(Value name) {

@@ -2984,6 +2984,10 @@ begin
         end
 
         if Key = 'FileExists/1' then Exit 'alg_file_exists';
+        if Key = 'MkDir/1'      then Exit 'alg_mkdir';
+        if Key = 'RmDir/1'      then Exit 'alg_rmdir';
+        if Key = 'ChDir/1'      then Exit 'alg_chdir';
+        if Key = 'GetDir/0'     then Exit 'alg_getdir';
         if Key = 'ParamCount/0' then Exit 'alg_param_count';
         if Key = 'ParamStr/1'   then Exit 'alg_param_str';
 

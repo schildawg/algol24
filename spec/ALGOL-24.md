@@ -9433,7 +9433,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty names are built in. Twenty-seven are always
+**[RT-001]**  Thirty-four names are built in. Thirty-one are always
 available:
 
 ```
@@ -9443,6 +9443,7 @@ Succ    Pred  Foreign
 Mod     clock
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
+MkDir   RmDir ChDir GetDir
 ParamCount    ParamStr
 Write   WriteLn    Halt
 ```
@@ -10328,6 +10329,79 @@ false
 **[RT-014]**  `FileExists(Name)` answers whether the named file exists.
 
     conformance  0092-environment-builtins.a24
+
+**[RT-026]**  Four built-ins reach the **directory** the program runs in.
+`MkDir(Dir)` makes one, `RmDir(Dir)` removes one, `ChDir(Dir)` moves the
+program to one, and `GetDir()` answers where it is, as an **absolute** path.
+The first three answer `nil`, as `Write` does; only `GetDir` reports.
+
+**Each does exactly what its name says, and nothing on the way.** `MkDir` makes
+**one** directory — it is not `mkdir -p`, so a missing parent is a failure
+rather than something to create — and `RmDir` removes an **empty** one, so it
+can never take a tree with it. Neither takes a mode nor a recursive flag,
+because a name that promised one thing and did another would be the hazard, not
+the missing convenience.
+
+**A failure raises**, in the voice a file that cannot be opened uses [RT-024] —
+`MkDir failed: cannot create 'x'.`, `RmDir failed: cannot remove 'x'.`,
+`ChDir failed: cannot change to 'x'.` — and names what it was given. None of
+them answers a status code to be checked or ignored.
+
+**`GetDir` takes nothing.** Turbo Pascal's selects a drive, and this language
+runs where there are none; an argument that could never change the answer would
+only read as though it might.
+
+##### conformance/0183-directories.a24
+
+```algol24
+// A directory this case makes, moves into, and removes again, so it leaves
+// nothing behind. GetDir answers an ABSOLUTE path, which differs on every
+// machine, so what is printed is a relationship between two answers and never
+// a path -- and no message below quotes one either.
+var Here := GetDir ();
+
+MkDir ('scratch-0183');
+ChDir ('scratch-0183');
+WriteLn (GetDir () = Here + '/scratch-0183');
+
+ChDir (Here);
+WriteLn (GetDir () = Here);
+
+// Each says what failed and names what it was given, in the voice a file that
+// cannot be opened uses [RT-024]. Making one that is already there fails
+// rather than passing quietly.
+try MkDir ('scratch-0183'); except on E : String do WriteLn (E); end
+
+// MkDir makes ONE directory. It is not 'mkdir -p', so a missing parent is a
+// failure rather than something to create on the way.
+try MkDir ('scratch-0183/absent/deeper'); except on E : String do WriteLn (E); end
+
+// RmDir removes an EMPTY directory only, so it can never take a tree with it.
+MkDir ('scratch-0183/inner');
+try RmDir ('scratch-0183'); except on E : String do WriteLn (E); end
+
+RmDir ('scratch-0183/inner');
+RmDir ('scratch-0183');
+
+// Gone: moving into it now fails the way moving anywhere absent does.
+try ChDir ('scratch-0183'); except on E : String do WriteLn (E); end
+try RmDir ('scratch-0183'); except on E : String do WriteLn (E); end
+
+// Nothing moved: the case ends where it started.
+WriteLn (GetDir () = Here);
+```
+
+```console
+$ algc conformance/0183-directories.a24
+true
+true
+MkDir failed: cannot create 'scratch-0183'.
+MkDir failed: cannot create 'scratch-0183/absent/deeper'.
+RmDir failed: cannot remove 'scratch-0183'.
+ChDir failed: cannot change to 'scratch-0183'.
+RmDir failed: cannot remove 'scratch-0183'.
+true
+```
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
 output, `WriteLn` following them with `#10` — always that byte, never the host's
@@ -11814,7 +11888,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty built-in names, with the rule specifying each. `spec/spec.sh`
+The thirty-four built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list against the names the interpreter actually registers.
 
 | Name | Rule | Summary |
@@ -11844,6 +11918,10 @@ checks this list against the names the interpreter actually registers.
 | `Val` | [RT-009] | A number parsed from text — an **Integer** without a point, a Double with one |
 | `clock` | [RT-012] | Seconds since the epoch, as a Double |
 | `FileExists` | [RT-014] | Whether a named file exists |
+| `MkDir` | [RT-026] | Makes one directory; a missing parent is a failure |
+| `RmDir` | [RT-026] | Removes an empty directory, never a tree |
+| `ChDir` | [RT-026] | Moves the program to another directory |
+| `GetDir` | [RT-026] | Where the program is, as an absolute path |
 | `TextFile` | [RT-024] | A text file handle |
 | `ParamCount` | [RT-013] | The argument count, not counting the program |
 | `ParamStr` | [RT-013] | An argument by index; 0 is the program |

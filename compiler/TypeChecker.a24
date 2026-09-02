@@ -219,6 +219,12 @@ begin
         Lookup.SetType ('Write',   'Nil');
         Lookup.SetType ('WriteLn', 'Nil');
 
+        // The three that act answer Nil, as Write does; only GetDir reports.
+        Lookup.SetType ('MkDir',  'Nil');
+        Lookup.SetType ('RmDir',  'Nil');
+        Lookup.SetType ('ChDir',  'Nil');
+        Lookup.SetType ('GetDir', 'String');
+
         Lookup.SetType ('Ord',  'Integer');
         Lookup.SetType ('Char', 'Char');
         Lookup.SetType ('Mod',  'Integer');
@@ -242,7 +248,8 @@ begin
         for var Name in ['Length', 'Pos', 'Copy', 'Str', 'Array', 'List', 'Map',
                          'Set', 'Stack', 'Buffer', 'TextFile', 'FileExists',
                          'ParamCount', 'ParamStr', 'Write', 'WriteLn', 'Ord',
-                         'Val', 'Char', 'Mod', 'clock', 'ToUpper', 'ToLower'] do
+                         'Val', 'Char', 'Mod', 'clock', 'ToUpper', 'ToLower',
+                         'MkDir', 'RmDir', 'ChDir', 'GetDir'] do
             BuiltinTypes.Put (Name, Lookup.GetType (Name));
 
         for var Name in ['Any', 'Boolean', 'Integer', 'Double', 'String', 'Char',

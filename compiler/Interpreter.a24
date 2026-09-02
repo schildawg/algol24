@@ -202,7 +202,7 @@ begin
     ///
     /// [COL-002], [RT-003], [RT-004], [RT-005], [RT-007], [RT-008], [RT-011],
     /// [RT-012], [RT-013], [RT-014], [RT-015], [RT-018], [RT-020], [RT-025],
-    /// [SRC-004], [TST-012], [TST-013]
+    /// [RT-026], [SRC-004], [TST-012], [TST-013]
     function Call (TheInterpreter, Arguments) : Any;
     begin
         case Name of
@@ -303,6 +303,11 @@ begin
             'Mod'        : Exit Mod (Arguments[0], Arguments[1]);
             'TextFile'   : Exit ObjFile ();
             'FileExists' : Exit FileExists (Str (Arguments[0]));
+
+            'MkDir'  : Exit MkDir (Str (Arguments[0]));
+            'RmDir'  : Exit RmDir (Str (Arguments[0]));
+            'ChDir'  : Exit ChDir (Str (Arguments[0]));
+            'GetDir' : Exit GetDir ();
 
             'Buffer' : begin
                            if Arguments.Length > 1 then
@@ -486,6 +491,10 @@ begin
         Builtins.Define ('Buffer', Native ('Buffer', -1));
         Builtins.Define ('TextFile', Native ('TextFile', 0));
         Builtins.Define ('FileExists', Native ('FileExists', 1));
+        Builtins.Define ('MkDir', Native ('MkDir', 1));
+        Builtins.Define ('RmDir', Native ('RmDir', 1));
+        Builtins.Define ('ChDir', Native ('ChDir', 1));
+        Builtins.Define ('GetDir', Native ('GetDir', 0));
         Builtins.Define ('ParamCount', Native ('ParamCount', 0));
         Builtins.Define ('ParamStr', Native ('ParamStr', 1));
     end

@@ -227,6 +227,14 @@ Value alg_mod(Value a, Value b);
 Value alg_text_file(void);
 Value alg_file_exists(Value name);
 
+/* Directories.  MkDir makes one, RmDir removes an empty one, ChDir moves the
+   process, and GetDir answers where it is -- taking nothing, because the drive
+   Turbo Pascal selects does not exist here. */
+Value alg_mkdir(Value name);
+Value alg_rmdir(Value name);
+Value alg_chdir(Value name);
+Value alg_getdir(void);
+
 void alg_arity(int32_t got, int32_t expected);
 
 void alg_declared(bool defined, const char *name);
