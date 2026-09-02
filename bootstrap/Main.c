@@ -32,8 +32,6 @@ static Value f_copyfile(Value **cells, Value *args, int32_t count);
 static Value f_runtimefolder(Value **cells, Value *args, int32_t count);
 static Value f_usage(Value **cells, Value *args, int32_t count);
 static Value f_main(Value **cells, Value *args, int32_t count);
-static Value v_sample;
-static bool d_sample;
 static Value fn_readsource;
 static const char *t_f_readsource[] = { "Name : String" };
 static Value fn_checkscanned;
@@ -356,7 +354,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
     (void)v_name;
     if (alg_truthy(alg_equal(alg_param_count(), alg_int(0)))) {
         {
-            (void)(f_run(NULL, (Value[]){(alg_declared(d_sample, "SAMPLE"), v_sample), alg_string("<sample>")}, 2));
+            (void)(f_usage(NULL, NULL, 0));
             return alg_nil();
         }
     }
@@ -463,8 +461,6 @@ void init_Main(void) {
     init_ObjFunction();
     init_TypeChecker();
     init_CEmitter();
-    v_sample = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Doughnut;"), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        WriteLn ('Fry until golden!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("class BostonCream(Doughnut);")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Cook();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        super.Cook();")), alg_char_value(10)), alg_string("        WriteLn ('Pipe full of custard and coat with chocolate!');")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10)), alg_string("")), alg_char_value(10)), alg_string("BostonCream().Cook();")), alg_char_value(10));
-    d_sample = true;
     v_version = alg_string("0.1.1");
     d_version = true;
     (void)(f_main(NULL, NULL, 0));

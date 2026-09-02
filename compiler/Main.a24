@@ -39,28 +39,6 @@ uses Resolver;
 uses Interpreter;
 uses CEmitter;
 
-/// The sample run when no file is named, so a bare 'algc' still shows
-/// something.
-const SAMPLE :=
-    'class Doughnut;'                                                   + #10 +
-    'begin'                                                             + #10 +
-    '    procedure Cook();'                                             + #10 +
-    '    begin'                                                         + #10 +
-    '        WriteLn (''Fry until golden!'');'                         + #10 +
-    '    end'                                                           + #10 +
-    'end'                                                               + #10 +
-    ''                                                                  + #10 +
-    'class BostonCream(Doughnut);'                                      + #10 +
-    'begin'                                                             + #10 +
-    '    procedure Cook();'                                             + #10 +
-    '    begin'                                                         + #10 +
-    '        super.Cook();'                                             + #10 +
-    '        WriteLn (''Pipe full of custard and coat with chocolate!'');' + #10 +
-    '    end'                                                           + #10 +
-    'end'                                                               + #10 +
-    ''                                                                  + #10 +
-    'BostonCream().Cook();'                                             + #10;
-
 /// Reads a whole file.
 ///
 /// ReadLn drops the terminator, so the lines are rejoined with #10 -- which is
@@ -368,7 +346,7 @@ end
 
 /// The entry point: reads the arguments and chooses a driver.
 ///
-///   algc                          -- runs the sample
+///   algc                          -- prints the usage
 ///   algc <file>                   -- runs that file
 ///   algc --test <file>            -- runs that file's test blocks
 ///   algc --compile --out=DIR <f>  -- emits C into DIR
@@ -384,9 +362,13 @@ var
     Name : String;
 
 begin
+    // A bare 'algc' says how to invoke it.  It used to run a built-in sample
+    // program instead, which reads as the compiler having done something to a
+    // file that was never named -- surprising in a terminal, and more so
+    // straight after an install.
     if ParamCount() = 0 then
     begin
-        Run(SAMPLE, '<sample>');
+        Usage();
         Exit;
     end
 
