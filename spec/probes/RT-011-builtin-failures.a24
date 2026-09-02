@@ -4,7 +4,7 @@
 // DOES; nothing here asserts what it should do.
 
 try
-    WriteLn (Mod(7, 0));
+    WriteLn (7 mod 0);
 except
     on e : String do WriteLn (e);
 end

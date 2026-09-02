@@ -80,5 +80,5 @@ function MyMod (A : Integer, B : Integer) : Integer;
 begin
     Exit A - (A / B) * B;
 end
-WriteLn ('7 mod 3    : ' + Str (MyMod (7, 3)) + '  native: ' + Str (Mod (7, 3)));
-WriteLn ('9 mod 3    : ' + Str (MyMod (9, 3)) + '  native: ' + Str (Mod (9, 3)));
+WriteLn ('7 mod 3    : ' + Str (MyMod (7, 3)) + '  native: ' + Str (7 mod 3));
+WriteLn ('9 mod 3    : ' + Str (MyMod (9, 3)) + '  native: ' + Str (9 mod 3));

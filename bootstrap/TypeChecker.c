@@ -58,6 +58,7 @@ static Value or_41;
 static Value or_42;
 static Value or_43;
 static Value or_44;
+static Value or_45;
 static const char *t_typechecker_hiddenby_2_string_string[] = { "TheType : String", "Member : String" };
 static const char *t_typechecker_typeofreceiver_1[] = { "Obj : Any" };
 static const char *t_typechecker_propertiesof_1[] = { "TheStmt : Any" };
@@ -217,7 +218,6 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("GetDir"), alg_string("String")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Ord"), alg_string("Integer")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Char"), alg_string("Char")}, 2));
-    (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Mod"), alg_string("Integer")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("clock"), alg_string("Double")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Copy"), alg_string("String")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("Str"), alg_string("String")}, 2));
@@ -228,7 +228,7 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("ParamCount"), alg_string("Integer")}, 2));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_string("FileExists"), alg_string("Boolean")}, 2));
     {
-        Value loop_1 = alg_iterable(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("Length")), alg_string("Pos")), alg_string("Copy")), alg_string("Str")), alg_string("Array")), alg_string("List")), alg_string("Map")), alg_string("Set")), alg_string("Stack")), alg_string("Buffer")), alg_string("TextFile")), alg_string("FileExists")), alg_string("ParamCount")), alg_string("ParamStr")), alg_string("Write")), alg_string("WriteLn")), alg_string("Ord")), alg_string("Val")), alg_string("Char")), alg_string("Mod")), alg_string("clock")), alg_string("ToUpper")), alg_string("ToLower")), alg_string("MkDir")), alg_string("RmDir")), alg_string("ChDir")), alg_string("GetDir")));
+        Value loop_1 = alg_iterable(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("Length")), alg_string("Pos")), alg_string("Copy")), alg_string("Str")), alg_string("Array")), alg_string("List")), alg_string("Map")), alg_string("Set")), alg_string("Stack")), alg_string("Buffer")), alg_string("TextFile")), alg_string("FileExists")), alg_string("ParamCount")), alg_string("ParamStr")), alg_string("Write")), alg_string("WriteLn")), alg_string("Ord")), alg_string("Val")), alg_string("Char")), alg_string("clock")), alg_string("ToUpper")), alg_string("ToLower")), alg_string("MkDir")), alg_string("RmDir")), alg_string("ChDir")), alg_string("GetDir")));
         for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
             Value v_name = alg_iterable_at(loop_1, at_1);
             (void)v_name;
@@ -1240,7 +1240,13 @@ static Value m_typechecker_reducebinary_1(Value v_this, Value *args, int32_t cou
     if (alg_truthy((or_42 = alg_equal(v_op, e_tokentype_tokenVplus), !alg_truthy(or_42) ? or_42 : ((or_41 = alg_invoke(v_this, "IsTextType", (Value[]){v_left}, 1), alg_truthy(or_41) ? or_41 : alg_invoke(v_this, "IsTextType", (Value[]){v_right}, 1)))))) {
         return alg_string("String");
     }
-    if (alg_truthy((or_43 = alg_equal(v_left, alg_string("Double")), alg_truthy(or_43) ? or_43 : alg_equal(v_right, alg_string("Double"))))) {
+    if (alg_truthy(alg_equal(v_op, e_tokentype_tokenVslash))) {
+        return alg_string("Double");
+    }
+    if (alg_truthy((or_43 = alg_equal(v_op, e_tokentype_tokenVdiv), alg_truthy(or_43) ? or_43 : alg_equal(v_op, e_tokentype_tokenVmod)))) {
+        return alg_string("Integer");
+    }
+    if (alg_truthy((or_44 = alg_equal(v_left, alg_string("Double")), alg_truthy(or_44) ? or_44 : alg_equal(v_right, alg_string("Double"))))) {
         return alg_string("Double");
     }
     if (alg_truthy(alg_equal(v_left, v_right))) {
@@ -1254,7 +1260,7 @@ static Value m_typechecker_istexttype_1_string(Value v_this, Value *args, int32_
     (void)v_this; (void)args; (void)count;
     Value v_thetype = alg_widen(args[0], "String");
     (void)v_thetype;
-    return (or_44 = alg_equal(v_thetype, alg_string("String")), alg_truthy(or_44) ? or_44 : alg_equal(v_thetype, alg_string("Char")));
+    return (or_45 = alg_equal(v_thetype, alg_string("String")), alg_truthy(or_45) ? or_45 : alg_equal(v_thetype, alg_string("Char")));
     return alg_nil();
 }
 

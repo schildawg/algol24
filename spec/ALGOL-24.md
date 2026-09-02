@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.1.2.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.1.3.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -783,7 +783,10 @@ WriteLn (3 <  4);
 WriteLn (3 >= 3);
 WriteLn (3 >  2);
 
-// LEX-014: the word operators.
+// LEX-014: the word operators.  'div' and 'mod' are among them, because '/'
+// is real division [EXP-004] and they are how the Integer pair is asked for.
+WriteLn (15 div 4);
+WriteLn (15 mod 4);
 WriteLn (True and True);
 WriteLn (True or False);
 WriteLn (not False);
@@ -796,13 +799,15 @@ $ algc conformance/0012-operators.a24
 8
 2
 15
-5
+5.0
 true
 false
 true
 true
 true
 true
+3
+3
 true
 true
 true
@@ -934,14 +939,14 @@ exit: 70
 
 ### 4.4 Keywords
 
-**[LEX-010]**  The following 43 words are keywords and are matched
+**[LEX-010]**  The following 44 words are keywords and are matched
 case-insensitively per [SRC-010]:
 
 ```
 and     as       begin   break     case    class    const   constructor
 continue         div     do        else    end      except  exit
 external         false   for       function         goto    if
-in      is       nil     not       object  of       operator
+in      is       mod     nil       not     object   of      operator
 or      private  procedure         property         public  raise
 super   then     this    true      try     type     uses
 var     while
@@ -950,9 +955,9 @@ var     while
 No other word is a keyword. Every word not in this list is an identifier and
 may be declared as a name.
 
-`print` used to be registered as a thirty-eighth, introducing a statement
-[STM-022]. Neither was part of the language, and `var print := 7;` was refused
-with `Expect variable name.`
+`print` used to be registered in this list, introducing a statement [STM-022].
+Neither was part of the language, and `var print := 7;` was refused with
+`Expect variable name.`
 
     unit         Scan Keywords
 
@@ -1040,8 +1045,14 @@ identifier mark [SRC-005] rather than punctuation.
 > Because `!` never begins a token [LEX-008], `A!=B` is unambiguous: it is the
 > identifier `A!` compared with `B`. There is no `!=` for it to be mistaken for.
 
-**[LEX-014]**  `and`, `or`, `not`, `in`, `is` and `as` are operators spelled as
-keywords rather than punctuation, and are subject to [SRC-010].
+**[LEX-014]**  `and`, `or`, `not`, `in`, `is`, `as`, `div` and `mod` are
+operators spelled as keywords rather than punctuation, and are subject to
+[SRC-010].
+
+`div` and `mod` are words for the reason the logical operators are: they are
+operations, not punctuation, and Pascal has always spelled them so. It is also
+what leaves `/` free to mean one thing — real division [EXP-004] — instead of
+two.
 
     unit         Scan Keywords
     conformance  0012-operators.a24
@@ -1254,10 +1265,10 @@ WriteLn (9223372036854775807 * 9223372036854775807);
 // never has two representations and '=' , hashing and Map keys agree.
 var Huge := 9223372036854775807 * 9223372036854775807;
 
-WriteLn (Huge / 9223372036854775807 = 9223372036854775807);
+WriteLn (Huge div 9223372036854775807 = 9223372036854775807);
 WriteLn ((9223372036854775807 + 1) - 1 = 9223372036854775807);
-WriteLn (Huge / Huge);
-WriteLn (Huge / Huge is Integer);
+WriteLn (Huge div Huge);
+WriteLn (Huge div Huge is Integer);
 
 // Factorials are the ordinary reason to want this.
 function Fact (N);
@@ -1268,19 +1279,20 @@ begin
 end
 
 WriteLn (Fact (25));
-WriteLn (Fact (30) / Fact (29));
+WriteLn (Fact (30) div Fact (29));
 
 // There is still no negative literal [LEX-019], so a large negative value is
 // the unary operator applied to a large positive one -- which now works.
 WriteLn (-9223372036854775808);
 WriteLn (0 - Huge < 0);
 
-// Truncation toward zero, both signs [EXP-004], and a remainder that takes the
-// sign of the dividend.
-WriteLn (Huge / 1000000000000000000000);
-WriteLn ((0 - Huge) / 1000000000000000000000);
-WriteLn (Mod (Huge, 1000000000000000000000));
-WriteLn (Mod (0 - Huge, 1000000000000000000000));
+// 'div' truncates toward zero, both signs [EXP-018], and 'mod' takes the sign
+// of the dividend [EXP-021].  '/' is real division and would lose the exactness
+// this case is about.
+WriteLn (Huge div 1000000000000000000000);
+WriteLn ((0 - Huge) div 1000000000000000000000);
+WriteLn (Huge mod 1000000000000000000000);
+WriteLn ((0 - Huge) mod 1000000000000000000000);
 
 // It is an Integer, by every question the language can ask.
 WriteLn (Huge is Integer);
@@ -1314,7 +1326,7 @@ true
 WriteLn (2147483646 + 1);
 WriteLn (-2147483647 - 1);
 WriteLn (46340 * 46340);
-WriteLn (2147483647 / 1);
+WriteLn (2147483647 div 1);
 WriteLn (-(-2147483647));
 
 // This was once the ONLY way to write the most negative 32-bit Integer,
@@ -1325,8 +1337,8 @@ WriteLn (-2147483647 - 1);
 WriteLn (-2147483648);
 
 // A Double is NOT unbounded, and that asymmetry is deliberate: it follows
-// IEEE 754, so 1.0 / 0 is Infinity [EXP-006] rather than an error, and a mixed
-// expression is Double arithmetic.  Integer division by zero is [EXP-006].
+// IEEE 754, so 1 / 0 is Infinity [EXP-006] rather than an error, and a mixed
+// expression is Double arithmetic.  'div' by zero is the fault [EXP-018].
 WriteLn (1.0 / 0 > 0);
 WriteLn (2147483647 + 1.0);
 ```
@@ -5032,7 +5044,7 @@ false
 true
 true
 5
-2
+2.0
 ```
 
 > `1 + 2 * 3` is 7, `-2 * 3` is -6, `not True and False` is false,
@@ -5083,20 +5095,42 @@ false
 
 ### 9.2 Arithmetic
 
-**[EXP-004]**  Integer arithmetic yields an Integer, **including `/`**, which
-divides and truncates toward zero: `7 / 2` is 3 and `-7 / 2` is -3.
+**[EXP-004]**  Integer arithmetic yields an Integer — **except `/`**, which is
+real division and always answers a Double: `7 / 2` is 3.5, `-7 / 2` is -3.5,
+and `4 / 2` is `2.0` rather than `2`.
+
+**`/` means one thing.** It used to mean two — truncating division on two
+Integers and real division as soon as a Double reached it — so `X / Y` could
+not be read where `X` was declared `Any`, and an edit far from the division
+could silently change which operation it was. A symbol whose meaning depends on
+the run-time types of its operands is the one thing arithmetic cannot afford to
+have.
+
+**Truncation did not go anywhere; it got a name.** `div` [EXP-018] and `mod`
+[EXP-021] are the Integer pair, they refuse a Double rather than converting
+it, and they are the only operators that raise on a zero divisor. A program
+that means integer division now says so.
 
     unit         Evaluate Binary Slash
 
 ##### conformance/0046-arithmetic.a24
 
 ```algol24
-// EXP-004: Integer arithmetic yields an Integer, INCLUDING '/', which
-// truncates toward zero rather than flooring.
-WriteLn (7 / 2);
-WriteLn (-7 / 2);
+// EXP-004: Integer arithmetic yields an Integer -- EXCEPT '/', which is real
+// division and answers a Double however it is reached.
 WriteLn (7 * 2);
 WriteLn (7 - 2);
+WriteLn (7 / 2);
+WriteLn (-7 / 2);
+
+// It divides exactly, so a result with no fraction is a Double all the same.
+WriteLn (4 / 2);
+WriteLn (4 / 2 is Double);
+
+// 'div' and 'mod' are how a program asks for the Integer pair [EXP-018],
+// [EXP-021].
+WriteLn (7 div 2);
+WriteLn (7 mod 2);
 
 // EXP-005: a Double on either side promotes the operation and the result.
 WriteLn (7.0 / 2);
@@ -5108,10 +5142,14 @@ WriteLn ((1 + 2.0) is Double);
 
 ```console
 $ algc conformance/0046-arithmetic.a24
-3
--3
 14
 5
+3.5
+-3.5
+2.0
+true
+3
+1
 3.5
 3.5
 3.0
@@ -5125,35 +5163,57 @@ true
     unit         Evaluate Binary Plus Mixed
     conformance  0046-arithmetic.a24
 
-**[EXP-006]**  Integer division by zero is the runtime error `Division by
-zero.` **Double division by zero is not an error**: it yields `Infinity`,
-`-Infinity` or `NaN`, and the program continues.
+**[EXP-006]**  **Division by zero is not an error for `/`.** It yields
+`Infinity`, `-Infinity` or `NaN`, and the program continues. `div` and `mod`
+raise `Division by zero.`
 
-Whether dividing by zero is a fault or a value therefore depends on which
-type reached the operator, and [EXP-005] promotes an Integer whenever it meets a
-Double — so an edit far from the division can move it from one category to the
-other. This is specified rather than merely tolerated: each behavior is right
-for its own type. IEEE 754 defines the Double case and there is no integer
-infinity to return for the other.
+Which of the two happens is decided by the **operator**, not by the types that
+reached it. `/` is real division [EXP-004], so IEEE 754 answers it and there is
+nothing to fault; `div` and `mod` take Integers only, and there is no integer
+infinity for them to return.
+
+This used to depend on the operands instead — `1 / 0` raised where `1.0 / 0`
+did not — so [EXP-005] promoting an Integer the moment it met a Double could
+move a division from one category to the other from far away. The rule now
+reads off the symbol, which is the thing the programmer wrote.
 
 ##### conformance/0047-division-by-zero.a24
 
 ```algol24
+// '/' is real division [EXP-004], so a zero divisor is a value rather than a
+// fault -- and it does not matter which types reached it.
 WriteLn (1.0 / 0);
 WriteLn (-1.0 / 0);
 WriteLn (0.0 / 0);
-
-// Integer division by zero is.  The asymmetry is specified, not tolerated.
 WriteLn (1 / 0);
+WriteLn (-1 / 0);
+WriteLn (0 / 0);
+
+// 'div' and 'mod' are the ones that raise, because they are the ones whose
+// operands really are Integers.
+try
+    WriteLn (1 div 0);
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (1 mod 0);
+except
+    on e : String do WriteLn (e);
+end
 ```
 
 ```console
 $ algc conformance/0047-division-by-zero.a24
-Uncaught: Division by zero.
 Infinity
 -Infinity
 NaN
-exit: 70
+Infinity
+-Infinity
+NaN
+Division by zero.
+Division by zero.
 ```
 
 **[EXP-007]**  Integer arithmetic never overflows: a result too large for the
@@ -5172,24 +5232,20 @@ exactness goes with it.
     conformance  0041-integers-grow.a24
     conformance  0136-integer-range.a24
 
-**[EXP-018]**  `A div B` is integer division, said deliberately. It truncates
-toward zero as `/` does on two Integers, and **refuses** anything that is not an
-Integer.
+**[EXP-018]**  `A div B` is integer division. It truncates toward zero —
+`7 div 2` is 3 and `-7 div 2` is -3 — and **refuses** anything that is not an
+Integer, with `div expects Integers.` A zero divisor is `Division by zero.`
 
-**It says which division was meant.** `/` is integer division on two Integers
-and real division as soon as a Double reaches it [EXP-004], [EXP-005] — so
-`X / Y` cannot be read where `X` is declared `Any`, and an edit far from the
-division can change which operation it is. `div` always truncates.
+**It is the only spelling of truncation.** `/` is real division whatever it
+divides [EXP-004], so a program that wants a quotient without a fraction has to
+say `div`, and a reader who sees `div` knows what was meant without knowing the
+types.
 
-**`/` is unchanged**, deliberately. Making it always real would be more
-predictable, and is a migration through every division in the tree — `algc`'s
-own included. `div` gives the programmer the option of saying plainly which was
-meant, and breaks nothing.
+**Refusing a Double rather than truncating it.** A programmer writing `div` has
+said the operands are Integers; if they are not, that is a mistake worth
+reporting rather than a conversion worth performing silently.
 
-**Refusing a Double rather than truncating it** is the bargain `Mod` already
-makes. A programmer writing `div` has said the operands are Integers; if they
-are not, that is a mistake worth reporting rather than a conversion worth
-performing silently.
+**It grows with what it divides**, since an Integer is unbounded [LEX-018].
 
 It binds as `*` and `/` do — a different operation, not a different
 precedence, so `A + B div C` groups the way `A + B / C` does.
@@ -5207,9 +5263,8 @@ WriteLn (1 + 8 div 2);
 // It grows with the Integer it divides [LEX-018].
 WriteLn (9223372036854775807 * 2 div 2);
 
-// A Double is REFUSED rather than truncated -- the bargain Mod makes.  '/'
-// would quietly do real division instead, which is the ambiguity div exists to
-// remove.
+// A Double is REFUSED rather than truncated.  A programmer writing 'div' has
+// said the operands are Integers, so a Double is a mistake worth reporting.
 try
     WriteLn (7.0 div 2);
 except
@@ -5222,7 +5277,8 @@ except
     on e : String do WriteLn (e);
 end
 
-// '/' is unchanged, and still means both things.
+// '/' is real division [EXP-004], which is what leaves 'div' the one spelling
+// of truncation.
 WriteLn (7 / 2);
 WriteLn (7.0 / 2);
 ```
@@ -5236,8 +5292,85 @@ true
 9223372036854775807
 div expects Integers.
 Division by zero.
-3
 3.5
+3.5
+```
+
+**[EXP-021]**  `A mod B` is the remainder of `A div B`, and **its sign follows
+the dividend**: `-7 mod 3` is -1 and `7 mod -3` is 1. It refuses anything that
+is not an Integer, with `mod expects Integers.`, and a zero divisor is
+`Division by zero.`
+
+**It is `div`'s partner and takes `div`'s terms**, deliberately. The two are
+one operation read two ways — `A = (A div B) * B + (A mod B)` holds for every
+pair of Integers — so a rule the quotient obeys and the remainder does not
+would be a rule about spelling rather than about arithmetic.
+
+**The sign follows the dividend because the truncation does.** `div` truncates
+toward zero [EXP-018], which fixes the remainder's sign; a `mod` that answered
+a non-negative result would be describing a *flooring* division this language
+does not have.
+
+**It was a function until it was an operator.** `Mod(A, B)` was a built-in
+[RT-011], which left `div` spelled as an operator and its partner spelled as a
+call — an asymmetry with no argument behind it, since Turbo Pascal had `mod` as
+an operator all along. The built-in was removed rather than kept beside the
+operator, because two spellings of one operation is the thing the asymmetry was
+already costing.
+
+    unit         Evaluate Binary Mod
+
+##### conformance/0185-integer-remainder.a24
+
+```algol24
+WriteLn (7 mod 3);
+WriteLn (6 mod 3);
+WriteLn (7 mod 3 is Integer);
+
+// THE SIGN FOLLOWS THE DIVIDEND, which is what truncating toward zero makes
+// it [EXP-018].
+WriteLn (-7 mod 3);
+WriteLn (7 mod -3);
+WriteLn (-7 mod -3);
+
+// It binds as '*' and 'div' do, so this groups as 'A + (B mod C)'.
+WriteLn (1 + 8 mod 3);
+
+// It grows with the Integer it divides [LEX-018].
+WriteLn (9223372036854775807 * 2 mod 1000);
+
+// 'div' and 'mod' are one operation read two ways.
+var A := 17;
+var B := 5;
+WriteLn (A = (A div B) * B + (A mod B));
+
+// A Double is REFUSED rather than truncated, on 'div's terms.
+try
+    WriteLn (7.0 mod 2);
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (7 mod 0);
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0185-integer-remainder.a24
+1
+0
+true
+-1
+1
+-1
+3
+614
+true
+mod expects Integers.
+Division by zero.
 ```
 
 **[EXP-008]**  `+` concatenates when **either** operand is text, converting the
@@ -5341,8 +5474,8 @@ same thing at greater length.
     conformance  0167-character-arithmetic.a24
 
 **[EXP-020]**  A class may define `+`, `-`, `*`, `/` and `div` for its own
-instances, and unary `-`. The member is named for the operator, and takes one
-argument — or **none**, which is what makes it the unary form.
+instances, and unary `-`, and `mod`. The member is named for the operator, and
+takes one argument — or **none**, which is what makes it the unary form.
 
 ```
 class Money;
@@ -5358,8 +5491,8 @@ end
 
 **A closed list, and it has to be.** A new operator would need a precedence
 and an associativity, and [EXP-001] is a fixed table of seven levels with
-nowhere to put one. These five already have a place in it. `operator =` is
-refused with `An operator must be one of + - * / div.`
+nowhere to put one. These six already have a place in it. `operator =` is
+refused with `An operator must be one of + - * / div mod.`
 
 **The LEFT operand decides**, as a receiver does everywhere else in this
 language: `Money * 3` is a Money and `3 * Money` is `Operands must be numbers.`
@@ -5383,8 +5516,10 @@ language-wide property rather than defining its own behavior. `:=` is outside
 the mechanism entirely: dispatch is on values [FUN-013], and the left of an
 assignment is a location.
 
-**`Mod` is a function and `div` is an operator** [RT-011], so a class may
-define `div` and never `mod`. The asymmetry predates this rule.
+**`div` and `mod` are both here**, and that is newer than this rule. `Mod` was
+once a built-in function [RT-011] while `div` was an operator, so a class could
+define one and never the other. Making `mod` an operator [EXP-021] closed the
+gap, and a class that defines `div` can now define its partner.
 
 ##### conformance/0172-a-class-that-computes.a24
 
@@ -5398,6 +5533,7 @@ begin
     operator - (Other : Money) : Money;   begin Exit Money (Cents - Other.Cents); end
     operator * (N : Integer)   : Money;   begin Exit Money (Cents * N); end
     operator div (N : Integer) : Money;   begin Exit Money (Cents div N); end
+    operator mod (N : Integer) : Money;   begin Exit Money (Cents mod N); end
 
     // UNARY, told apart from subtraction by ARITY -- as the two forms of
     // subscript are.  The language tells arities apart everywhere, so neither
@@ -5414,6 +5550,7 @@ WriteLn (A + B);
 WriteLn (B - A);
 WriteLn (A * 3);
 WriteLn (B div 5);
+WriteLn (B mod 7);
 WriteLn (-A);
 
 // It composes with the other protocols: an operator answering an instance is
@@ -5448,6 +5585,7 @@ $ algc conformance/0172-a-class-that-computes.a24
 150
 300
 50
+5
 -100
 250
 Operands must be numbers.
@@ -5469,8 +5607,8 @@ end
 
 ```console
 $ algc refusals/0172-an-operator-not-on-the-list.a24
-Uncaught: An operator must be one of + - * / div.
-[ERROR] refusals/0172-an-operator-not-on-the-list.a24: An operator must be one of + - * / div.
+Uncaught: An operator must be one of + - * / div mod.
+[ERROR] refusals/0172-an-operator-not-on-the-list.a24: An operator must be one of + - * / div mod.
 [ERROR] 7 |     operator = (Other : Pair) : Boolean; begin Exit Left = Other.Left; end
 [ERROR]   |              ^
 exit: 70
@@ -6682,7 +6820,7 @@ try raise 1.5; except WriteLn ('catch-all'); end
 // STM-020: a runtime error raised by the language is catchable AS A STRING,
 // carrying the diagnostic as its value.
 try
-    WriteLn (1 / 0);
+    WriteLn (1 div 0);
 except
     on e : String do WriteLn ('caught: ' + e);
 end
@@ -9386,10 +9524,10 @@ it and every file may qualify against it: `System.Copy('abcdef', 0, 3)`.
 WriteLn (System.Copy ('abcdef', 0, 3));
 WriteLn (System.Length ('abc'));
 
-// THE QUALIFIER NAMES WHAT IS STILL BUILT IN, AND ONLY THAT.  Max, Mod,
-// Succ, Pred and Ord were all reachable here and are library functions now, so
-// System.Max and System.Ord do not resolve.  Copy and Length remain, which is
-// why the qualifier is shown with those two.
+// THE QUALIFIER NAMES WHAT IS STILL BUILT IN, AND ONLY THAT.  Max was removed
+// [RT-010] and Mod became an operator [RT-011], so System.Max and System.Mod do
+// not resolve.  Copy and Length remain, which is why the qualifier is shown
+// with those two.
 
 // The bare spellings are the same functions.
 WriteLn (System.Copy ('abcdef', 0, 3) = Copy ('abcdef', 0, 3));
@@ -9469,14 +9607,14 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-four names are built in. Thirty-one are always
+**[RT-001]**  Thirty-three names are built in. Thirty are always
 available:
 
 ```
 Length  Copy  Pos   Str        Ord   Char  Val
 ToUpper ToLower
 Succ    Pred  Foreign
-Mod     clock
+clock
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
@@ -9538,7 +9676,6 @@ WriteLn (Str (42));
 WriteLn (Ord ('A'));
 WriteLn (Char (65));
 WriteLn (Val ('1.5'));
-WriteLn (Mod (7, 3));
 WriteLn (clock () is Double);
 
 WriteLn (List () is List);
@@ -9568,7 +9705,6 @@ abc
 65
 A
 1.5
-1
 true
 true
 true
@@ -10294,20 +10430,40 @@ Uncaught: Undefined variable 'Max'.
 exit: 70
 ```
 
-**[RT-011]**  `Mod(A, B)` answers the remainder, whose sign follows the
-dividend: `Mod(-7, 3)` is `-1`. A zero divisor is `Mod failed: Division by
-zero.`
+**[RT-011]**  ***Removed.*** `Mod(A, B)` was a built-in answering the
+remainder. The operation did not leave the language: it is the `mod` **operator**
+[EXP-021], which is what Turbo Pascal always spelled it as.
+
+**It became an operator to stop being the odd one out.** `div` was an operator
+and `Mod` was a call, so `A div B` and `Mod (A, B)` wrote one arithmetic two
+ways, and a class could define `div` and never its partner [EXP-020]. Neither
+half of that had a reason behind it.
+
+**The built-in was removed rather than kept beside the operator.** Keeping both
+would leave the language with two spellings of one operation, which is the cost
+the asymmetry was already imposing — and `mod` is now a keyword [LEX-010], so
+the name is not available to be a function anyway.
+
+**A removal needs a case as much as an addition does**, as [RT-010] found.
+
+##### refusals/0179-mod-was-removed.a24
+
+```algol24
+WriteLn (Mod (7, 3));
+```
+
+```console
+$ algc refusals/0179-mod-was-removed.a24
+Uncaught: Expect expression!
+exit: 70
+```
+
+**[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
+millisecond resolution.
 
 ##### conformance/0091-numeric-builtins.a24
 
 ```algol24
-// RT-011: Mod's sign follows the DIVIDEND.
-
-WriteLn (Mod (7, 3));
-WriteLn (Mod (-7, 3));
-WriteLn (Mod (7, -3));
-WriteLn (Mod (6, 3));
-
 // RT-012: clock() is a Double.
 WriteLn (clock () is Double);
 WriteLn (clock () > 0.0);
@@ -10315,18 +10471,9 @@ WriteLn (clock () > 0.0);
 
 ```console
 $ algc conformance/0091-numeric-builtins.a24
-1
--1
-1
-0
 true
 true
 ```
-
-**[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
-millisecond resolution.
-
-    conformance  0091-numeric-builtins.a24
 
 ### 16.4 Environment
 
@@ -11353,7 +11500,7 @@ String carrying the diagnostic [STM-020].
 // ERR-007: only RUNTIME errors are catchable, as a String carrying the
 // diagnostic.
 try
-    WriteLn (1 / 0);
+    WriteLn (1 div 0);
 except
     on e : String do WriteLn ('caught: ' + e);
 end
@@ -11924,8 +12071,9 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-four built-in names, with the rule specifying each. `spec/spec.sh`
-checks this list against the names the interpreter actually registers.
+The thirty-three built-in names, with the rule specifying each. `spec/spec.sh`
+checks this list — and the count in this sentence — against the names the
+interpreter actually registers.
 
 | Name | Rule | Summary |
 | --- | --- | --- |
@@ -11942,7 +12090,6 @@ checks this list against the names the interpreter actually registers.
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
 | `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
 | `Pred` | [RT-020] | The previous ordinal, on the same terms |
-| `Mod` | [RT-011] | The remainder, its sign following the dividend |
 | `Char` | [RT-008] | The character with a code point, 0 … 10FFFF, surrogates excluded |
 | `Copy` | [RT-004] | A substring, from a zero-based start, length clamped |
 | `Length` | [RT-003] | The length of the argument's **text**, not a count |

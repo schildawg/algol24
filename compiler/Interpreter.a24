@@ -300,7 +300,6 @@ begin
             'Val'  : Exit ParsedNumber (Str (Arguments[0]));
             'Char' : Exit Char (Arguments[0]);
 
-            'Mod'        : Exit Mod (Arguments[0], Arguments[1]);
             'TextFile'   : Exit ObjFile ();
             'FileExists' : Exit FileExists (Str (Arguments[0]));
 
@@ -480,7 +479,6 @@ begin
         Builtins.Define ('Ord', Native ('Ord', 1));
         Builtins.Define ('Succ', Native ('Succ', 1));
         Builtins.Define ('Pred', Native ('Pred', 1));
-        Builtins.Define ('Mod', Native ('Mod', 2));
         Builtins.Define ('Foreign', Native ('Foreign', 5));
         Builtins.Define ('Val', Native ('Val', 1));
         Builtins.Define ('Char', Native ('Char', 1));
@@ -1132,14 +1130,33 @@ begin
 
         if Right = 0 then raise 'Division by zero.';
 
-        Exit Left / Right;
+        Exit Left div Right;
+    end
+
+    /// Answers the remainder of two integers, its sign following the dividend.
+    ///
+    /// # Raises
+    ///
+    /// A division-by-zero failure.
+    ///
+    /// # Satisfies
+    ///
+    /// [EXP-021]
+    function Remainder (Left : Any, Right : Any) : Integer;
+    begin
+        if not (Left is Integer) or not (Right is Integer) then
+            raise 'mod expects Integers.';
+
+        if Right = 0 then raise 'Division by zero.';
+
+        Exit Left mod Right;
     end
 
     /// Whether an operator token is an arithmetic one.
     function Arithmetic (Op : Any) : Boolean;
     begin
         Exit Op = TOKEN_PLUS or Op = TOKEN_MINUS or Op = TOKEN_STAR
-          or Op = TOKEN_SLASH or Op = TOKEN_DIV;
+          or Op = TOKEN_SLASH or Op = TOKEN_DIV or Op = TOKEN_MOD;
     end
 
     /// Whether an operator token is an ordering comparison.
@@ -1212,6 +1229,7 @@ begin
            TOKEN_SLASH : Exit Left / Right;
 
            TOKEN_DIV : Exit IntegerDivide (Left, Right);
+           TOKEN_MOD : Exit Remainder (Left, Right);
            TOKEN_STAR  : Exit Left * Right;
         end
     end
@@ -2616,6 +2634,79 @@ begin
        on e : String do
            begin
                AssertEqual ('Operands must be numbers.', e);
+               Exit;
+           end
+    end
+    Fail('No error raised');
+end
+
+// Slash is REAL division, so two Integers still answer a Double.
+//
+test 'Evaluate Binary Slash Two Integers';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var Slash := Token(TOKEN_SLASH, '/', Nil, 1);
+    var TheExpr := BinaryExpr(LiteralExpr(7), Slash, LiteralExpr(2));
+
+    // Act
+    var Value := TheInterpreter.Evaluate(TheExpr);
+
+    // Assert
+    AssertEqual(3.5, Value);
+end
+
+// Mod binary expression should return the remainder, its sign following the
+// dividend.
+//
+test 'Evaluate Binary Mod';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheMod := Token(TOKEN_MOD, 'mod', Nil, 1);
+
+    AssertEqual(1,  TheInterpreter.Evaluate(BinaryExpr(LiteralExpr(7), TheMod, LiteralExpr(3))));
+    AssertEqual(-1, TheInterpreter.Evaluate(BinaryExpr(LiteralExpr(-7), TheMod, LiteralExpr(3))));
+    AssertEqual(1,  TheInterpreter.Evaluate(BinaryExpr(LiteralExpr(7), TheMod, LiteralExpr(-3))));
+    AssertEqual(0,  TheInterpreter.Evaluate(BinaryExpr(LiteralExpr(6), TheMod, LiteralExpr(3))));
+end
+
+// Mod refuses a Double rather than truncating it, on div's terms.
+//
+test 'Evaluate Binary Mod Not An Integer';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheMod := Token(TOKEN_MOD, 'mod', Nil, 1);
+    var TheExpr := BinaryExpr(LiteralExpr(7.0), TheMod, LiteralExpr(2));
+
+    try
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do
+           begin
+               AssertEqual ('mod expects Integers.', e);
+               Exit;
+           end
+    end
+    Fail('No error raised');
+end
+
+// A zero divisor is a fault for mod, as it is for div.
+//
+test 'Evaluate Binary Mod By Zero';
+begin
+    var TheInterpreter : Interpreter := Interpreter();
+
+    var TheMod := Token(TOKEN_MOD, 'mod', Nil, 1);
+    var TheExpr := BinaryExpr(LiteralExpr(7), TheMod, LiteralExpr(0));
+
+    try
+        TheInterpreter.Evaluate(TheExpr);
+    except
+       on e : String do
+           begin
+               AssertEqual ('Division by zero.', e);
                Exit;
            end
     end

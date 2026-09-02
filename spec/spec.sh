@@ -623,6 +623,16 @@ else
     [ -n "$KW_EXTRA" ]   && problem "LEX-010 lists word(s) the scanner does not: $KW_EXTRA"
     [ -z "$KW_MISSING" ] && [ -z "$KW_EXTRA" ] \
         && echo "  LEX-010 keywords match Scanner.a24 ($(wc -l < "$WORK/kw_norm" | tr -d ' ') in the language, $(( $(wc -l < "$WORK/kw_spec" | tr -d ' ') - $(wc -l < "$WORK/kw_norm" | tr -d ' ') )) registered in error)"
+
+    # ⚠️ The list was checked and the number introducing it was not, which is
+    # the gap Annex B fell into.  A count in prose is a claim like any other.
+    KW_SAID=$(sed -n 's/^\*\*\[LEX-010\]\*\*  The following \([0-9]*\) words are keywords.*/\1/p' "$SPEC")
+    KW_HAVE=$(wc -l < "$WORK/kw_norm" | tr -d ' ')
+    if [ "$KW_SAID" = "$KW_HAVE" ]; then
+        echo "  LEX-010 says $KW_SAID words, and lists $KW_HAVE"
+    else
+        problem "LEX-010 says $KW_SAID words over a list of $KW_HAVE"
+    fi
 fi
 
 # ⚠️ The editor's grammar is a SECOND transcription of the keyword list, and
@@ -799,6 +809,67 @@ BI_EXTRA=$(comm -13 "$WORK/bi_source" "$WORK/bi_annex" | tr '\n' ' ')
 [ -n "$BI_EXTRA" ]   && problem "Annex B lists name(s) the interpreter does not register: $BI_EXTRA"
 [ -z "$BI_MISSING" ] && [ -z "$BI_EXTRA" ] \
     && echo "  Annex B matches Interpreter.a24 ($(wc -l < "$WORK/bi_source" | tr -d ' ') built-ins)"
+
+# ⚠️ THE TABLE WAS CHECKED AND THE SENTENCE ABOVE IT WAS NOT, which is how
+# Annex B came to say "thirty-four built-in names" over a table of thirty-three.
+# Removing 'Mod' from the table was caught by the comm above; the prose was
+# nobody's job.  A spelled-out count is still a claim, so it is checked here.
+#
+# ⚠️ RT-001's fenced list is the OTHER copy of this set, and it holds the thirty
+# names available outside a test run -- the three TST-012 assertions are
+# [RT-002]'s.  Nothing compared it to the interpreter before, so it could have
+# drifted in either direction without a harness noticing.
+words_to_number() {
+    awk -v w="$1" 'BEGIN {
+        split("twenty 20 thirty 30 forty 40 fifty 50 sixty 60 " \
+              "seventy 70 eighty 80 ninety 90", t, " ")
+        split("one 1 two 2 three 3 four 4 five 5 six 6 " \
+              "seven 7 eight 8 nine 9", u, " ")
+        for (i = 1; i in t; i += 2) tens[t[i]]  = t[i + 1]
+        for (i = 1; i in u; i += 2) units[u[i]] = u[i + 1]
+
+        n = split(tolower(w), part, "-")
+        if (!(part[1] in tens)) { print "?"; exit }
+        total = tens[part[1]]
+        if (n > 1) { if (!(part[2] in units)) { print "?"; exit }
+                     total += units[part[2]] }
+        print total
+    }'
+}
+
+BI_TOTAL=$(wc -l < "$WORK/bi_source" | tr -d ' ')
+
+# The always-available set is every registration that is not a TST-012
+# assertion, which is exactly what RT-001 undertakes to list.
+grep -vxE 'AssertTrue|AssertEqual|Fail' "$WORK/bi_source" > "$WORK/bi_always"
+BI_ALWAYS=$(wc -l < "$WORK/bi_always" | tr -d ' ')
+
+awk '/^\*\*\[RT-001\]\*\*/ {on = 1}
+     on && /^```/ {f = !f; if (!f && seen) exit; if (f) seen = 1; next}
+     on && f {for (i = 1; i <= NF; i++) print $i}' "$SPEC" \
+  | sort -u > "$WORK/bi_rt001"
+
+RT_MISSING=$(comm -23 "$WORK/bi_always" "$WORK/bi_rt001" | tr '\n' ' ')
+RT_EXTRA=$(comm -13 "$WORK/bi_always" "$WORK/bi_rt001" | tr '\n' ' ')
+[ -n "$RT_MISSING" ] && problem "RT-001 omits built-in(s) available outside a test run: $RT_MISSING"
+[ -n "$RT_EXTRA" ]   && problem "RT-001 lists name(s) that are not always available: $RT_EXTRA"
+[ -z "$RT_MISSING" ] && [ -z "$RT_EXTRA" ] \
+    && echo "  RT-001 lists the always-available built-ins ($BI_ALWAYS of $BI_TOTAL)"
+
+# The three spelled-out counts, each against the number it claims to be.
+ANNEXB_SAID=$(words_to_number "$(sed -n 's/^The \([a-z-]*\) built-in names,.*/\1/p' "$SPEC")")
+RT001_TOTAL=$(words_to_number "$(sed -n 's/^\*\*\[RT-001\]\*\*  \([A-Za-z-]*\) names are built in\..*/\1/p' "$SPEC")")
+RT001_ALWAYS=$(words_to_number "$(sed -n 's/^\*\*\[RT-001\]\*\*.*built in\. \([A-Za-z-]*\) are always$/\1/p' "$SPEC")")
+
+COUNTS_OK=1
+[ "$ANNEXB_SAID"  = "$BI_TOTAL" ] \
+    || { problem "Annex B says $ANNEXB_SAID built-in names over a table of $BI_TOTAL"; COUNTS_OK=0; }
+[ "$RT001_TOTAL"  = "$BI_TOTAL" ] \
+    || { problem "RT-001 says $RT001_TOTAL names are built in; the interpreter registers $BI_TOTAL"; COUNTS_OK=0; }
+[ "$RT001_ALWAYS" = "$BI_ALWAYS" ] \
+    || { problem "RT-001 says $RT001_ALWAYS are always available; the list holds $BI_ALWAYS"; COUNTS_OK=0; }
+[ "$COUNTS_OK" -eq 1 ] \
+    && echo "  the spelled-out built-in counts match ($BI_TOTAL, $BI_ALWAYS always)"
 
 # ---------------------------------------------------------------- coverage --
 

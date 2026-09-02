@@ -539,8 +539,8 @@ begin
 
         for var I := 0; I < 6; I := I + 1 do
         begin
-            Result := Copy ('0123456789ABCDEF', Mod (Left, 16), 1) + Result;
-            Left := Left / 16;
+            Result := Copy ('0123456789ABCDEF', Left mod 16, 1) + Result;
+            Left := Left div 16;
         end
 
         Exit Result;
@@ -2824,6 +2824,7 @@ begin
             TOKEN_STAR          : Call := 'alg_multiply';
             TOKEN_SLASH         : Call := 'alg_divide';
             TOKEN_DIV           : Call := 'alg_div_int';
+            TOKEN_MOD           : Call := 'alg_mod';
             TOKEN_GREATER       : Call := 'alg_greater';
             TOKEN_GREATER_EQUAL : Call := 'alg_greater_equal';
             TOKEN_LESS          : Call := 'alg_less';
@@ -2962,7 +2963,6 @@ begin
         if Key = 'Succ/1'    then Exit 'alg_succ';
         if Key = 'Pred/1'    then Exit 'alg_pred';
         if Key = 'Foreign/5' then Exit 'alg_foreign_call';
-        if Key = 'Mod/2'     then Exit 'alg_mod';
         if Key = 'clock/0'   then Exit 'alg_clock';
         if Key = 'Halt/1'    then Exit 'alg_halt';
 

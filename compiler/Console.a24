@@ -94,7 +94,7 @@ begin
 
     begin
         Width := Length(BAR) - 4 - Length(Name);
-        Width := Width / 2;
+        Width := Width div 2;
         if Width < 0 then Width := 0;
 
         Info (Repeat('-', Width) + '[ ' + ANSI_CYAN + Name + ANSI_RESET + ' ]' + Repeat('-', Width));

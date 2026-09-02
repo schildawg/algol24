@@ -3171,11 +3171,21 @@ Value alg_multiply(Value a, Value b) {
     return alg_int(result);
 }
 
+/* '/' is real division whatever it divides, so two Integers still answer a
+   Double and a zero divisor answers Infinity rather than raising.  'div' and
+   'mod' below are the Integer pair, and they are the ones that raise. */
 Value alg_divide(Value a, Value b) {
     if (defines_operator(a, "/")) return apply_operator(a, "/", b);
 
     if (!is_number(a) || !is_number(b)) alg_error("Operands must be numbers.");
-    if (is_double_arithmetic(a, b)) return alg_double(as_double(a) / as_double(b));
+
+    return alg_double(as_double(a) / as_double(b));
+}
+
+Value alg_div_int(Value a, Value b) {
+    if (defines_operator(a, "div")) return apply_operator(a, "div", b);
+
+    if (!is_integer(a) || !is_integer(b)) alg_error("div expects Integers.");
 
     if (is_bigint(a) || is_bigint(b)) {
         ObjBigInt *x = as_big(a);
@@ -3197,14 +3207,6 @@ Value alg_divide(Value a, Value b) {
         return big_value(big_negate_of(as_big(a)));
 
     return alg_int(a.integer / b.integer);
-}
-
-Value alg_div_int(Value a, Value b) {
-    if (defines_operator(a, "div")) return apply_operator(a, "div", b);
-
-    if (!is_integer(a) || !is_integer(b)) alg_error("div expects Integers.");
-
-    return alg_divide(a, b);
 }
 
 Value alg_negate(Value a) {
@@ -4253,15 +4255,15 @@ Value alg_max(Value a, Value b) {
 }
 
 Value alg_mod(Value a, Value b) {
+    if (defines_operator(a, "mod")) return apply_operator(a, "mod", b);
 
-    if (!is_integer(a)) alg_error("Mod expects Integers.");
-    if (!is_integer(b)) alg_error("Mod expects Integers.");
+    if (!is_integer(a) || !is_integer(b)) alg_error("mod expects Integers.");
 
     if (is_bigint(a) || is_bigint(b)) {
         ObjBigInt *x = as_big(a);
         ObjBigInt *y = as_big(b);
 
-        if (y->count == 0) alg_error("Mod failed: Division by zero.");
+        if (y->count == 0) alg_error("Division by zero.");
 
         ObjBigInt *quotient;
         ObjBigInt *remainder;
@@ -4274,7 +4276,7 @@ Value alg_mod(Value a, Value b) {
     int64_t left  = a.integer;
     int64_t right = b.integer;
 
-    if (right == 0) alg_error("Mod failed: Division by zero.");
+    if (right == 0) alg_error("Division by zero.");
 
     if (left == INT64_MIN && right == -1) return alg_int(0);
 

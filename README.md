@@ -126,10 +126,15 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.1.2.** The language has been feature-complete since v0.1.0 and is done; what
+**v0.1.3.** The language has been feature-complete since v0.1.0 and is done; what
 comes next is a library, written in Algol-24 rather than in the runtime:
 collections, and a unified text-and-graphics unit over SDL. That is the whole of
 what *alpha* means here — nothing in the language is provisional.
+
+v0.1.3 is the exception to that steadiness and the only release so far that
+changes what an existing program means: **`/` is real division** and always
+answers a Double, `mod` joins `div` as an operator, and the `Mod` built-in is
+gone. A program doing integer division through `/` must say `div`.
 
 ## Licence
 

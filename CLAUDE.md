@@ -15,7 +15,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.1.2.** The language has been feature-complete since v0.1.0 and is done.
+**v0.1.3.** The language has been feature-complete since v0.1.0 and is done.
 What it does not have is a library written in Algol-24, which is the whole of
 what *alpha* means here; nothing in the language is provisional.
 
@@ -267,6 +267,10 @@ inline. Language points that bite when editing:
   newline, `#27` is ESC.
 - A one-character literal is a **Char**, never a String, and the two are never
   equal. `Str(…)` is how you widen.
+- `/` is **real division** and always answers a Double, so `7 / 2` is 3.5 and
+  `4 / 2` is `2.0`. `div` and `mod` are the Integer pair: both refuse a Double
+  rather than truncating it, and both are the only things that raise on a zero
+  divisor — `7 / 0` is `Infinity`. There is no `Mod` built-in.
 - Truthiness is not Lox's: `nil`, `False`, the Integer `0`, and an enum member
   with ordinal 0 are falsey; `0.0`, `''` and any Char are truthy.
 - `?` and `!` are identifier characters (`Gate?` is one word).

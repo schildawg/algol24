@@ -5,8 +5,8 @@
 > and written down.
 >
 > ⚠️ **This document exists so that `ALGOL-24.md` does not have to grow.** The
-> language specification describes **the language** — 280 rules, every one
-> claimed by a case in `conformance/`, `refusals/` or `defects/`. A library
+> language specification describes **the language** — every rule of it claimed
+> by a case in `conformance/`, `refusals/` or `defects/`. A library
 > written *in* Algol-24 is not the language, and putting it there would blur the
 > one boundary the corpus depends on. Nothing here is a rule, nothing here is
 > numbered `XXX-000`, and `spec/spec.sh` does not read this file.
@@ -63,8 +63,9 @@ routine because it exists is how a library becomes a museum.
 
 ## 3. What the language already provides
 
-Not to be re-walked. These are the twenty-nine built-ins of Annex B and the
-members of the two resources; each names the rule that specifies it.
+Not to be re-walked. These are the built-ins of Annex B and the members of the
+two resources; each names the rule that specifies it. Annex B is the index and
+`spec/spec.sh` counts it, which is why no number is written here.
 
 | Turbo Pascal | Algol-24 | Rule |
 | --- | --- | --- |
@@ -527,13 +528,18 @@ that the core does not offer.
 `Abs` did not exist beside them. Asking *where they were used* settled it:
 `Max` had **no call sites at all** (every mention in the compiler was a
 comment), and Turbo Pascal never had either as a function. `Max` was removed in
-Generation 9 [RT-010]; `Mod` stays, with one call site in the emitter's hex
-mangling.
+Generation 9 [RT-010].
 
-⚠️ **Turbo Pascal does have `mod` — as an OPERATOR**, `a mod b`, beside
-`a div b`. So the capability is Pascal's and only the spelling as a function is
-not. Whether `Mod` should become an operator beside `div` is open; it is a
-language addition rather than a library question.
+**`Mod` is gone too, and neither did it move here.** Turbo Pascal has `mod` as
+an OPERATOR, `a mod b`, beside `a div b` — so the capability was always
+Pascal's and only the spelling as a function was not. It became the `mod`
+operator [EXP-021] and the built-in was removed [RT-011], which is a language
+change and not a library one; `math` never sees it. The emitter's hex mangling,
+the one call site, now reads `Left mod 16`.
+
+The seam this question found therefore closed from the language's side. `math`
+is left holding `Abs`, `Min` and the rest — the things Turbo Pascal really did
+spell as functions — and nothing that is an operator anywhere else.
 
 **Q6 (original) — the core's numeric set is arbitrary, and `math` makes that visible.**
 `Max` [RT-010] and `Mod` [RT-011] are built-ins; `Min` and `Abs` do not exist at
@@ -556,6 +562,9 @@ that is a language change, not a library one** — it removes built-ins, changes
 Annex B and breaks every program that uses them unqualified, so it belongs to a
 generation rather than to this survey. Recorded here because `math` is where the
 seam shows.
+
+*(Both left the core in the end, and neither arrived here: `Max` was removed
+outright and `Mod` became an operator. See the answer above.)*
 
 **Q5 — ANSWERED: `graph` carries drawing state**, settled by the Graph list
 asking for `SetColor`, `SetBkColor`, `SetFillStyle`, `SetLineStyle`,

@@ -266,12 +266,12 @@ begin
     if Cover <= 0   then Exit Ground;
 
     var GR := Ground div 65536;
-    var GG := Mod (Ground div 256, 256);
-    var GB := Mod (Ground, 256);
+    var GG := Ground div 256 mod 256;
+    var GB := Ground mod 256;
 
     var IR := Ink div 65536;
-    var IG := Mod (Ink div 256, 256);
-    var IB := Mod (Ink, 256);
+    var IG := Ink div 256 mod 256;
+    var IB := Ink mod 256;
 
     var R := GR + (IR - GR) * Cover div 255;
     var G := GG + (IG - GG) * Cover div 255;
@@ -317,7 +317,7 @@ begin
                 // RRGGBBAA: the pixel brings its own color, and only the
                 // alpha decides how much of it lands.
                 var Pixel := Row[C];
-                var Alpha := Mod (Pixel, 256);
+                var Alpha := Pixel mod 256;
 
                 if Alpha > 0 then
                 begin
@@ -371,7 +371,7 @@ begin
                     K := K + 1;
                 end
 
-                if Mod (Row div Place, 2) = 1 then
+                if Row div Place mod 2 = 1 then
                     Box (X + C * Scale, Y + R * Scale, Scale, Scale, Color);
             end
 

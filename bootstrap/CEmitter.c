@@ -522,7 +522,7 @@ static Value m_cemitter_hexof_1_integer(Value v_this, Value *args, int32_t count
         for (; alg_truthy(alg_less(v_i, alg_int(6))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
                 (void)((v_result = alg_widen(alg_add(alg_copy(alg_string("0123456789ABCDEF"), alg_mod(v_left, alg_int(16)), alg_int(1)), v_result), "String")));
-                (void)((v_left = alg_widen(alg_divide(v_left, alg_int(16)), "Integer")));
+                (void)((v_left = alg_widen(alg_div_int(v_left, alg_int(16)), "Integer")));
             }
         }
     }
@@ -3240,26 +3240,30 @@ static Value m_cemitter_visitbinary_1_binaryexpr(Value v_this, Value *args, int3
                     if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVdiv))) {
                         (void)((v_call = alg_widen(alg_string("alg_div_int"), "String")));
                     } else {
-                        if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVgreater))) {
-                            (void)((v_call = alg_widen(alg_string("alg_greater"), "String")));
+                        if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVmod))) {
+                            (void)((v_call = alg_widen(alg_string("alg_mod"), "String")));
                         } else {
-                            if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVgreaterVequal))) {
-                                (void)((v_call = alg_widen(alg_string("alg_greater_equal"), "String")));
+                            if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVgreater))) {
+                                (void)((v_call = alg_widen(alg_string("alg_greater"), "String")));
                             } else {
-                                if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVless))) {
-                                    (void)((v_call = alg_widen(alg_string("alg_less"), "String")));
+                                if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVgreaterVequal))) {
+                                    (void)((v_call = alg_widen(alg_string("alg_greater_equal"), "String")));
                                 } else {
-                                    if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVlessVequal))) {
-                                        (void)((v_call = alg_widen(alg_string("alg_less_equal"), "String")));
+                                    if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVless))) {
+                                        (void)((v_call = alg_widen(alg_string("alg_less"), "String")));
                                     } else {
-                                        if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVequal))) {
-                                            (void)((v_call = alg_widen(alg_string("alg_equal"), "String")));
+                                        if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVlessVequal))) {
+                                            (void)((v_call = alg_widen(alg_string("alg_less_equal"), "String")));
                                         } else {
-                                            if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVnotVequal))) {
-                                                (void)((v_call = alg_widen(alg_string("alg_not_equal"), "String")));
+                                            if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVequal))) {
+                                                (void)((v_call = alg_widen(alg_string("alg_equal"), "String")));
                                             } else {
-                                                if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVin))) {
-                                                    (void)((v_call = alg_widen(alg_string("alg_in"), "String")));
+                                                if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVnotVequal))) {
+                                                    (void)((v_call = alg_widen(alg_string("alg_not_equal"), "String")));
+                                                } else {
+                                                    if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVin))) {
+                                                        (void)((v_call = alg_widen(alg_string("alg_in"), "String")));
+                                                    }
                                                 }
                                             }
                                         }
@@ -3468,9 +3472,6 @@ static Value m_cemitter_builtin_2_string_integer(Value v_this, Value *args, int3
     }
     if (alg_truthy(alg_equal(v_key, alg_string("Foreign/5")))) {
         return alg_string("alg_foreign_call");
-    }
-    if (alg_truthy(alg_equal(v_key, alg_string("Mod/2")))) {
-        return alg_string("alg_mod");
     }
     if (alg_truthy(alg_equal(v_key, alg_string("clock/0")))) {
         return alg_string("alg_clock");

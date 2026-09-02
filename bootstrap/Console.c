@@ -71,7 +71,7 @@ static Value m_console_header_1_string(Value v_this, Value *args, int32_t count)
     Value v_width = alg_nil();
     (void)v_width;
     (void)((v_width = alg_widen(alg_subtract(alg_subtract(alg_text_length((alg_declared(d_bar, "BAR"), v_bar)), alg_int(4)), alg_text_length(v_name)), "Integer")));
-    (void)((v_width = alg_widen(alg_divide(v_width, alg_int(2)), "Integer")));
+    (void)((v_width = alg_widen(alg_div_int(v_width, alg_int(2)), "Integer")));
     if (alg_truthy(alg_less(v_width, alg_int(0)))) {
         (void)((v_width = alg_widen(alg_int(0), "Integer")));
     }

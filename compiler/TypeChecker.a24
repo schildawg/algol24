@@ -152,7 +152,7 @@ var
     ///
     /// A user declaration of the same name OVERWRITES the entry in Lookup --
     /// which is right, since the bare name now means the declaration -- and it
-    /// is exactly why a qualified 'System.Mod' cannot read its type from there.
+    /// is exactly why a qualified 'System.Ord' cannot read its type from there.
     ///
     /// # Satisfies
     ///
@@ -227,7 +227,6 @@ begin
 
         Lookup.SetType ('Ord',  'Integer');
         Lookup.SetType ('Char', 'Char');
-        Lookup.SetType ('Mod',  'Integer');
 
         Lookup.SetType ('clock',  'Double');
 
@@ -248,7 +247,7 @@ begin
         for var Name in ['Length', 'Pos', 'Copy', 'Str', 'Array', 'List', 'Map',
                          'Set', 'Stack', 'Buffer', 'TextFile', 'FileExists',
                          'ParamCount', 'ParamStr', 'Write', 'WriteLn', 'Ord',
-                         'Val', 'Char', 'Mod', 'clock', 'ToUpper', 'ToLower',
+                         'Val', 'Char', 'clock', 'ToUpper', 'ToLower',
                          'MkDir', 'RmDir', 'ChDir', 'GetDir'] do
             BuiltinTypes.Put (Name, Lookup.GetType (Name));
 
@@ -1152,6 +1151,11 @@ begin
         if Op = TOKEN_IN then Exit 'Boolean';
 
         if Op = TOKEN_PLUS and (IsTextType (Left) or IsTextType (Right)) then Exit 'String';
+
+        // '/' is real division whatever it divides, so two Integers still give
+        // a Double [EXP-004].  'div' and 'mod' are the Integer pair.
+        if Op = TOKEN_SLASH then Exit 'Double';
+        if Op = TOKEN_DIV or Op = TOKEN_MOD then Exit 'Integer';
 
         if Left = 'Double' or Right = 'Double' then Exit 'Double';
         if Left = Right then Exit Left;

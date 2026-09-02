@@ -1061,9 +1061,9 @@ begin
     function OperatorToken () : Token;
     begin
         if Check (TOKEN_PLUS) or Check (TOKEN_MINUS) or Check (TOKEN_STAR)
-        or Check (TOKEN_SLASH) or Check (TOKEN_DIV) then Exit Advance ();
+        or Check (TOKEN_SLASH) or Check (TOKEN_DIV) or Check (TOKEN_MOD) then Exit Advance ();
 
-        raise Error (Peek (), 'An operator must be one of + - * / div.');
+        raise Error (Peek (), 'An operator must be one of + - * / div mod.');
     end
 
     /// Parses 'operator + (Other : Money) : Money; begin ... end'.
@@ -1937,7 +1937,7 @@ begin
         Exit TheExpr;
     end
 
-    /// Parses '*', '/' and 'div', which bind tighter than '+' and '-'.
+    /// Parses '*', '/', 'div' and 'mod', which bind tighter than '+' and '-'.
     function Factor() : Expr;
     var
         TheExpr  : Expr;
@@ -1946,7 +1946,8 @@ begin
 
     begin
         TheExpr := Unary();
-        while Match(TOKEN_SLASH) or Match(TOKEN_STAR) or Match(TOKEN_DIV) do
+        while Match(TOKEN_SLASH) or Match(TOKEN_STAR) or Match(TOKEN_DIV)
+           or Match(TOKEN_MOD) do
         begin
             TheOperator := Previous();
             Right := Unary();
