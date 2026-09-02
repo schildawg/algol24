@@ -15,11 +15,11 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.1.0 — the feature-complete alpha release.** The language is done. What
-v0.1.0 does not have is a library written in Algol-24, which is the whole of
+**v0.1.2.** The language has been feature-complete since v0.1.0 and is done.
+What it does not have is a library written in Algol-24, which is the whole of
 what *alpha* means here; nothing in the language is provisional.
 
-- `spec/ALGOL-24.md` — **the authority.** 280 rules, every one claimed by a case.
+- `spec/ALGOL-24.md` — **the authority.** Every rule is claimed by a case.
   The implementation is measured against it: where the two disagree,
   `spec/DEFECTS.md` names the defect and carries a program that reproduces it,
   and `spec/HISTORY.md` holds the closed divergences and settled questions.
@@ -51,7 +51,7 @@ Run, test, and compile (from the repository root, so `uses` resolves):
 ```sh
 bootstrap/algc <file.a24>                       # run a program
 bootstrap/algc --test <file.a24>                # run its test blocks
-bootstrap/algc --test compiler/Main.a24         # the whole compiler suite (220 tests)
+bootstrap/algc --test compiler/Main.a24         # the whole compiler suite
 bootstrap/algc --compile --out=DIR <file.a24>   # emit C into DIR (must already exist)
 bootstrap/algc --compile --test --out=DIR <f>   # emit the tests plus a runner
 ```
@@ -77,12 +77,16 @@ useful fast loop; `compiler/Main.a24` imports everything.
 All five must pass. They are the definition of done.
 
 ```sh
-./test.sh          # 220 unit tests, inline in the source they cover
-./conform.sh       # 236 cases, under BOTH processors
+./test.sh          # the unit tests, inline in the source they cover
+./conform.sh       # the corpus, under BOTH processors
 ./spec/spec.sh     # every rule cites something that exists
 ./fixedpoint.sh    # the seed matches what the compiler emits, and emits itself
 ./docs.sh          # every unit is documented per spec/DOCUMENTATION.md
 ```
+
+Each prints its own totals. **Do not copy those totals into this file or the
+README**: every count written down here has gone stale, and a number in prose is
+a claim nothing checks.
 
 ⚠️ **A compiler gap is a failure, not a report.** Every case in `conformance/`
 and `refusals/` must pass under the interpreter *and* the compiled back end.

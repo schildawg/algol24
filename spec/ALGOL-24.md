@@ -1,9 +1,11 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.1.0.** Nineteen chapters and three annexes, 280 rules. Every
-> rule is decided — what the language should do — and every rule is claimed by a
-> case: a program in `conformance/`, a refusal in `refusals/`, or a reproduction
-> in `defects/`.
+> **Algol-24 v0.1.2.** Nineteen chapters and three annexes. Every rule is
+> decided — what the language should do — and every rule is claimed by a case: a
+> program in `conformance/`, a refusal in `refusals/`, or a reproduction in
+> `defects/`. `spec/spec.sh` prints how many there are and checks that each
+> citation resolves; a count written here would only be a second copy to keep in
+> step.
 >
 > This document describes the language and nothing else. Where the
 > implementation disagrees with it, `spec/DEFECTS.md` records the difference and

@@ -107,23 +107,26 @@ Everything in the picture is drawn by the Algol-24 program.
 
 ## How it is checked
 
-Four harnesses, all of which must pass:
+Five harnesses, all of which must pass:
 
 | | |
 | --- | --- |
-| `./test.sh` | 220 unit tests, inline in the source they cover |
-| `./conform.sh` | 179 conformance programs and 55 refusals, under **both** processors |
+| `./test.sh` | the unit tests, inline in the source they cover |
+| `./conform.sh` | the conformance programs and the refusals, under **both** processors |
 | `./spec/spec.sh` | every rule in the specification cites something that exists |
 | `./fixedpoint.sh` | the seed matches what the compiler emits, and emits itself unchanged |
+| `./docs.sh` | every unit is documented, per `spec/DOCUMENTATION.md` |
 
-`spec/ALGOL-24.md` is the specification — 280 rules, every one claimed by a case.
-It is the authority, and the implementation is measured against it: where the two
-disagree, `spec/DEFECTS.md` names the defect and carries a program that
+Each prints its own totals, which is why none are quoted here.
+
+`spec/ALGOL-24.md` is the specification, and every rule in it is claimed by a
+case. It is the authority, and the implementation is measured against it: where
+the two disagree, `spec/DEFECTS.md` names the defect and carries a program that
 reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.1.0 — the feature-complete alpha release.** The language is done; what
+**v0.1.2.** The language has been feature-complete since v0.1.0 and is done; what
 comes next is a library, written in Algol-24 rather than in the runtime:
 collections, and a unified text-and-graphics unit over SDL. That is the whole of
 what *alpha* means here — nothing in the language is provisional.
