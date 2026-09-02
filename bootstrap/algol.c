@@ -3816,15 +3816,31 @@ Value alg_copy(Value text, Value begin, Value length) {
    Folding byte by byte is safe for UTF-8 because every byte of a multi-byte
    sequence is >= 0x80 and no fold reaches that far, so a sequence is copied
    through untouched rather than corrupted a byte at a time. */
-static Value folded(Value text, const char *what, bool upper) {
-    const char *from   = as_string(text, what);
-    char       *result = arena_alloc((size_t)text.length + 1);
+static bool folds(unsigned char c, bool upper) {
+    return upper ? (c >= 'a' && c <= 'z') : (c >= 'A' && c <= 'Z');
+}
 
-    for (int32_t i = 0; i < text.length; i++) {
+static Value folded(Value text, const char *what, bool upper) {
+    const char *from = as_string(text, what);
+
+    int32_t first = 0;
+    while (first < text.length && !folds((unsigned char)from[first], upper)) first++;
+
+    /* Text with nothing to fold is answered as ITSELF, not as a copy of
+       itself. FoldCase in compiler/Token.a24 runs this on every identifier
+       that becomes a key, and the arena never frees -- so a copy per lookup
+       is a cost that accumulates for the whole run rather than one that is
+       paid and reclaimed. */
+    if (first == text.length) return text;
+
+    char *result = arena_alloc((size_t)text.length + 1);
+
+    memcpy(result, from, (size_t)first);
+
+    for (int32_t i = first; i < text.length; i++) {
         unsigned char c = (unsigned char)from[i];
 
-        if (upper) { if (c >= 'a' && c <= 'z') c -= 32; }
-        else       { if (c >= 'A' && c <= 'Z') c += 32; }
+        if (folds(c, upper)) c = upper ? (unsigned char)(c - 32) : (unsigned char)(c + 32);
 
         result[i] = (char)c;
     }

@@ -4,15 +4,6 @@ unit Token;
 
 uses TokenType;
 
-/// The upper-case half of the fold table.
-///
-/// Case folding is ASCII-only by decision [SRC-011], so 'I' never folds to a
-/// dotless 'i' and no locale can change what a name matches.
-const FOLD_UPPER := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
-/// The lower-case half, position for position with FOLD_UPPER.
-const FOLD_LOWER := 'abcdefghijklmnopqrstuvwxyz';
-
 /// The predefined subranges [TYP-015], as a name with a low and a high bound.
 ///
 /// A subrange is a CONSTRAINT on an Integer, not a type of its own.  Nothing is
@@ -130,33 +121,21 @@ end
 /// goes in under one spelling and is searched for under another.  One name for
 /// the rule makes the sites findable and keeps them in step.
 ///
+/// The fold is ASCII-only by decision [SRC-011], so 'I' never folds to a
+/// dotless 'i' and no locale can change what a name matches.  It was written
+/// out here over a pair of alphabet constants until the language grew ToLower
+/// [RT-025], which folds over exactly that range.
+///
 /// # Satisfies
 ///
 /// [SRC-011]
 function FoldCase (Name : Any) : String;
-var
-   Text : String;
-   Out  : Buffer;
-
 begin
-    Text := Str (Name);
-
-    var Needs := False;
-    for var I := 0; I < Length (Text); I := I + 1 do
-        if Pos (FOLD_UPPER, Str (Text[I])) >= 0 then Needs := True;
-
-    if not Needs then Exit Text;
-
-    Out := Buffer ();
-    for var I := 0; I < Length (Text); I := I + 1 do
-    begin
-        var At := Pos (FOLD_UPPER, Str (Text[I]));
-
-        if At >= 0 then Out.Append (Copy (FOLD_LOWER, At, 1));
-        else Out.Append (Str (Text[I]));
-    end
-
-    Exit Out.Text;
+    // 'as String' because ToLower answers whichever of Char and String it was
+    // given [RT-025], so it reduces to no type at all and cannot fill a return
+    // declared String [VAR-006].  Str has already made this one a String; the
+    // cast says so rather than rendering it a second time.
+    Exit ToLower (Str (Name)) as String;
 end
 
 /// One token: what the scanner produces and every later pass consumes.

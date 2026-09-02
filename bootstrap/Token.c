@@ -8,10 +8,6 @@ Value f_issubrange(Value **cells, Value *args, int32_t count);
 Value f_underlyingtype(Value **cells, Value *args, int32_t count);
 Value f_canonicaltype(Value **cells, Value *args, int32_t count);
 Value f_foldcase(Value **cells, Value *args, int32_t count);
-Value v_foldVupper;
-bool d_foldVupper;
-Value v_foldVlower;
-bool d_foldVlower;
 Value v_subrangeVnames;
 bool d_subrangeVnames;
 Value v_subrangeVlows;
@@ -105,42 +101,7 @@ Value f_foldcase(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 1);
     Value v_name = args[0];
     (void)v_name;
-    Value v_text = alg_nil();
-    (void)v_text;
-    Value v_out = alg_nil();
-    (void)v_out;
-    (void)((v_text = alg_widen(alg_str(v_name), "String")));
-    Value v_needs = alg_bool(false);
-    (void)v_needs;
-    {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
-            if (alg_truthy(alg_greater_equal(alg_pos((alg_declared(d_foldVupper, "FOLD_UPPER"), v_foldVupper), alg_str(alg_subscript_get(v_text, v_i))), alg_int(0)))) {
-                (void)((v_needs = alg_bool(true)));
-            }
-        }
-    }
-    if (alg_truthy(alg_not(v_needs))) {
-        return v_text;
-    }
-    (void)((v_out = alg_widen(alg_buffer(alg_int(0)), "Buffer")));
-    {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
-            {
-                Value v_at = alg_pos((alg_declared(d_foldVupper, "FOLD_UPPER"), v_foldVupper), alg_str(alg_subscript_get(v_text, v_i)));
-                (void)v_at;
-                if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
-                    (void)(alg_invoke(v_out, "Append", (Value[]){alg_copy((alg_declared(d_foldVlower, "FOLD_LOWER"), v_foldVlower), v_at, alg_int(1))}, 1));
-                } else {
-                    (void)(alg_invoke(v_out, "Append", (Value[]){alg_str(alg_subscript_get(v_text, v_i))}, 1));
-                }
-            }
-        }
-    }
-    return alg_property(v_out, "Text");
+    return alg_cast(alg_to_lower(alg_str(v_name)), "String");
     return alg_nil();
 }
 
@@ -194,10 +155,6 @@ void init_Token(void) {
     alg_class_method(k_token, "Init", m_token_init_4_tokentype_string_integer, 4, t_token_init_4_tokentype_string_integer);
     alg_class_method(k_token, "ToString", m_token_tostring_0, 0, NULL);
     init_TokenType();
-    v_foldVupper = alg_string("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-    d_foldVupper = true;
-    v_foldVlower = alg_string("abcdefghijklmnopqrstuvwxyz");
-    d_foldVlower = true;
     v_subrangeVnames = alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_string("byte")), alg_string("word")), alg_string("short"));
     d_subrangeVnames = true;
     v_subrangeVlows = alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_int(0)), alg_int(0)), alg_negate(alg_int(32768)));
