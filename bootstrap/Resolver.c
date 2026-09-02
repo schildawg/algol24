@@ -110,12 +110,11 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
     Value v_statements = alg_widen(args[0], "List");
     (void)v_statements;
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_0 = alg_iterable(v_statements);
+        for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {
+            Value v_thestmt = alg_iterable_at(loop_0, at_0);
+            (void)v_thestmt;
             {
-                Value v_thestmt = alg_subscript_get(v_statements, v_i);
-                (void)v_thestmt;
                 if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
                     (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
                 }
@@ -127,10 +126,11 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
                 }
                 if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                     {
-                        Value v_j = alg_int(0);
-                        (void)v_j;
-                        for (; alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Names"), "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
-                            (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme")}, 1)}, 1));
+                        Value loop_1 = alg_iterable(alg_property(v_thestmt, "Names"));
+                        for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
+                            Value v_thename = alg_iterable_at(loop_1, at_1);
+                            (void)v_thename;
+                            (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_thename, "Lexeme")}, 1)}, 1));
                         }
                     }
                 }
@@ -211,18 +211,19 @@ static Value m_resolver_visitclassstmt_1_classstmt(Value v_this, Value *args, in
     (void)(alg_invoke(v_this, "BeginScope", NULL, 0));
     (void)(alg_invoke(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Put", (Value[]){alg_string("this"), alg_bool(true)}, 2));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Methods"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_2 = alg_iterable(alg_property(v_stmt, "Methods"));
+        for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
+            Value v_method = alg_iterable_at(loop_2, at_2);
+            (void)v_method;
             {
                 Value v_declaration = e_functiontype_funVfunction;
                 (void)v_declaration;
-                if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(alg_property(v_stmt, "Methods"), v_i), "Name"), "Lexeme")}, 1), alg_string("init")))) {
+                if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(alg_property(v_method, "Name"), "Lexeme")}, 1), alg_string("init")))) {
                     {
                         (void)((v_declaration = e_functiontype_funVinitializer));
                     }
                 }
-                (void)(alg_invoke(v_this, "ResolveFunction", (Value[]){alg_subscript_get(alg_property(v_stmt, "Methods"), v_i), v_declaration}, 2));
+                (void)(alg_invoke(v_this, "ResolveFunction", (Value[]){v_method, v_declaration}, 2));
             }
         }
     }
@@ -259,12 +260,13 @@ static Value m_resolver_visitenumstmt_1_enumstmt(Value v_this, Value *args, int3
     (void)(alg_invoke(v_this, "Declare", (Value[]){alg_property(v_stmt, "Name")}, 1));
     (void)(alg_invoke(v_this, "Define", (Value[]){alg_property(v_stmt, "Name")}, 1));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Members"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_3 = alg_iterable(alg_property(v_stmt, "Members"));
+        for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
+            Value v_member = alg_iterable_at(loop_3, at_3);
+            (void)v_member;
             {
-                (void)(alg_invoke(v_this, "Declare", (Value[]){alg_subscript_get(alg_property(v_stmt, "Members"), v_i)}, 1));
-                (void)(alg_invoke(v_this, "Define", (Value[]){alg_subscript_get(alg_property(v_stmt, "Members"), v_i)}, 1));
+                (void)(alg_invoke(v_this, "Declare", (Value[]){v_member}, 1));
+                (void)(alg_invoke(v_this, "Define", (Value[]){v_member}, 1));
             }
         }
     }
@@ -300,10 +302,11 @@ static Value m_resolver_visittrystmt_1_trystmt(Value v_this, Value *args, int32_
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_stmt, "TryBlock")}, 1));
     (void)((v_keys = alg_widen(alg_invoke(alg_property(v_stmt, "Handlers"), "Keys", NULL, 0), "List")));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_keys, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(alg_invoke(alg_property(v_stmt, "Handlers"), "Get", (Value[]){alg_subscript_get(v_keys, v_i)}, 1), "Body")}, 1));
+        Value loop_4 = alg_iterable(v_keys);
+        for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
+            Value v_key = alg_iterable_at(loop_4, at_4);
+            (void)v_key;
+            (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(alg_invoke(alg_property(v_stmt, "Handlers"), "Get", (Value[]){v_key}, 1), "Body")}, 1));
         }
     }
     return alg_nil();
@@ -433,20 +436,22 @@ static Value m_resolver_visitvargroupstmt_1_vargroupstmt(Value v_this, Value *ar
     Value v_stmt = alg_widen(args[0], "VarGroupStmt");
     (void)v_stmt;
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Names"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(v_this, "DeclareBinding", (Value[]){alg_subscript_get(alg_property(v_stmt, "Names"), v_i), alg_property(v_stmt, "IsConstant")}, 2));
+        Value loop_5 = alg_iterable(alg_property(v_stmt, "Names"));
+        for (int32_t at_5 = 0; at_5 < alg_iterable_count(loop_5); at_5++) {
+            Value v_name = alg_iterable_at(loop_5, at_5);
+            (void)v_name;
+            (void)(alg_invoke(v_this, "DeclareBinding", (Value[]){v_name, alg_property(v_stmt, "IsConstant")}, 2));
         }
     }
     if (alg_truthy(alg_not_equal(alg_property(v_stmt, "Initializer"), alg_nil()))) {
         (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_stmt, "Initializer")}, 1));
     }
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_stmt, "Names"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(v_this, "Define", (Value[]){alg_subscript_get(alg_property(v_stmt, "Names"), v_i)}, 1));
+        Value loop_6 = alg_iterable(alg_property(v_stmt, "Names"));
+        for (int32_t at_6 = 0; at_6 < alg_iterable_count(loop_6); at_6++) {
+            Value v_thename = alg_iterable_at(loop_6, at_6);
+            (void)v_thename;
+            (void)(alg_invoke(v_this, "Define", (Value[]){v_thename}, 1));
         }
     }
     return alg_nil();
@@ -496,11 +501,12 @@ static Value m_resolver_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
     (void)v_theexpr;
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_theexpr, "Callee")}, 1));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Arguments"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_7 = alg_iterable(alg_property(v_theexpr, "Arguments"));
+        for (int32_t at_7 = 0; at_7 < alg_iterable_count(loop_7); at_7++) {
+            Value v_argument = alg_iterable_at(loop_7, at_7);
+            (void)v_argument;
             {
-                (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Arguments"), v_i)}, 1));
+                (void)(alg_invoke(v_this, "Resolve", (Value[]){v_argument}, 1));
             }
         }
     }
@@ -605,17 +611,19 @@ static Value m_resolver_visitcollectionexpr_1_collectionexpr(Value v_this, Value
     Value v_theexpr = alg_widen(args[0], "CollectionExpr");
     (void)v_theexpr;
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Keys"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Keys"), v_i)}, 1));
+        Value loop_8 = alg_iterable(alg_property(v_theexpr, "Keys"));
+        for (int32_t at_8 = 0; at_8 < alg_iterable_count(loop_8); at_8++) {
+            Value v_key = alg_iterable_at(loop_8, at_8);
+            (void)v_key;
+            (void)(alg_invoke(v_this, "Resolve", (Value[]){v_key}, 1));
         }
     }
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Values"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Values"), v_i)}, 1));
+        Value loop_9 = alg_iterable(alg_property(v_theexpr, "Values"));
+        for (int32_t at_9 = 0; at_9 < alg_iterable_count(loop_9); at_9++) {
+            Value v_value = alg_iterable_at(loop_9, at_9);
+            (void)v_value;
+            (void)(alg_invoke(v_this, "Resolve", (Value[]){v_value}, 1));
         }
     }
     return alg_nil();
@@ -655,12 +663,11 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
     (void)((v_memberowner = alg_widen(alg_map(), "Map")));
     (void)((v_signatures = alg_widen(alg_map(), "Map")));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_10 = alg_iterable(v_statements);
+        for (int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
+            Value v_thestmt = alg_iterable_at(loop_10, at_10);
+            (void)v_thestmt;
             {
-                Value v_thestmt = alg_subscript_get(v_statements, v_i);
-                (void)v_thestmt;
                 if (alg_truthy(alg_is(v_thestmt, "ModuleStmt"))) {
                     {
                         if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil()))) {
@@ -688,10 +695,11 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                 Value v_taken = alg_invoke(v_signatures, "Get", (Value[]){v_fnname}, 1);
                                 (void)v_taken;
                                 {
-                                    Value v_j = alg_int(0);
-                                    (void)v_j;
-                                    for (; alg_truthy(alg_less(v_j, alg_property(v_taken, "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
-                                        if (alg_truthy(alg_equal(alg_str(alg_subscript_get(v_taken, v_j)), v_signature))) {
+                                    Value loop_11 = alg_iterable(v_taken);
+                                    for (int32_t at_11 = 0; at_11 < alg_iterable_count(loop_11); at_11++) {
+                                        Value v_item = alg_iterable_at(loop_11, at_11);
+                                        (void)v_item;
+                                        if (alg_truthy(alg_equal(alg_str(v_item), v_signature))) {
                                             alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
                                         }
                                     }
@@ -716,13 +724,14 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                 Value v_owner = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
                                 (void)v_owner;
                                 {
-                                    Value v_j = alg_int(0);
-                                    (void)v_j;
-                                    for (; alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Members"), "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
+                                    Value loop_12 = alg_iterable(alg_property(v_thestmt, "Members"));
+                                    for (int32_t at_12 = 0; at_12 < alg_iterable_count(loop_12); at_12++) {
+                                        Value v_themember = alg_iterable_at(loop_12, at_12);
+                                        (void)v_themember;
                                         {
-                                            Value v_member = f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Members"), v_j), "Lexeme")}, 1);
+                                            Value v_member = f_foldcase(NULL, (Value[]){alg_property(v_themember, "Lexeme")}, 1);
                                             (void)v_member;
-                                            Value v_aswritten = alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Members"), v_j), "Lexeme"));
+                                            Value v_aswritten = alg_str(alg_property(v_themember, "Lexeme"));
                                             (void)v_aswritten;
                                             if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_member}, 1))) {
                                                 alg_raise(alg_add(alg_add(alg_char_value(39), v_aswritten), alg_string("' is already defined.")));
@@ -742,20 +751,21 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                         }
                         if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                             {
-                                Value v_j = alg_int(0);
-                                (void)v_j;
-                                for (; alg_truthy(alg_less(v_j, alg_property(alg_property(v_thestmt, "Names"), "Length"))); (v_j = alg_add(v_j, alg_int(1)))) {
+                                Value loop_13 = alg_iterable(alg_property(v_thestmt, "Names"));
+                                for (int32_t at_13 = 0; at_13 < alg_iterable_count(loop_13); at_13++) {
+                                    Value v_eachname = alg_iterable_at(loop_13, at_13);
+                                    (void)v_eachname;
                                     {
-                                        Value v_each = f_foldcase(NULL, (Value[]){alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme")}, 1);
+                                        Value v_each = f_foldcase(NULL, (Value[]){alg_property(v_eachname, "Lexeme")}, 1);
                                         (void)v_each;
                                         if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_each}, 1))) {
-                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
+                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(v_eachname, "Lexeme"))), alg_string("' is already defined.")));
                                         }
                                         if (alg_truthy(alg_invoke(v_memberowner, "Contains", (Value[]){v_each}, 1))) {
-                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
+                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(v_eachname, "Lexeme"))), alg_string("' is already defined.")));
                                         }
                                         if (alg_truthy(alg_invoke(v_signatures, "Contains", (Value[]){v_each}, 1))) {
-                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_subscript_get(alg_property(v_thestmt, "Names"), v_j), "Lexeme"))), alg_string("' is already defined.")));
+                                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(v_eachname, "Lexeme"))), alg_string("' is already defined.")));
                                         }
                                         (void)(alg_invoke(v_seen, "Add", (Value[]){v_each}, 1));
                                     }
@@ -817,20 +827,21 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
     (void)v_parent;
     (void)((v_parent = alg_widen(alg_map(), "Map")));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "ClassStmt"))) {
-                if (alg_truthy(alg_not_equal(alg_property(alg_subscript_get(v_statements, v_i), "Superclass"), alg_nil()))) {
-                    (void)(alg_invoke(v_parent, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme")}, 1), f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Superclass"), "Name"), "Lexeme")}, 1)}, 2));
+        Value loop_14 = alg_iterable(v_statements);
+        for (int32_t at_14 = 0; at_14 < alg_iterable_count(loop_14); at_14++) {
+            Value v_statement = alg_iterable_at(loop_14, at_14);
+            (void)v_statement;
+            if (alg_truthy(alg_is(v_statement, "ClassStmt"))) {
+                if (alg_truthy(alg_not_equal(alg_property(v_statement, "Superclass"), alg_nil()))) {
+                    (void)(alg_invoke(v_parent, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_statement, "Name"), "Lexeme")}, 1), f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_property(v_statement, "Superclass"), "Name"), "Lexeme")}, 1)}, 2));
                 }
             }
         }
     }
     {
-        Value loop_0 = alg_iterable(alg_invoke(v_parent, "Keys", NULL, 0));
-        for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {
-            Value v_name = alg_iterable_at(loop_0, at_0);
+        Value loop_15 = alg_iterable(alg_invoke(v_parent, "Keys", NULL, 0));
+        for (int32_t at_15 = 0; at_15 < alg_iterable_count(loop_15); at_15++) {
+            Value v_name = alg_iterable_at(loop_15, at_15);
             (void)v_name;
             {
                 Value v_seen = alg_set();
@@ -866,11 +877,12 @@ static Value m_resolver_resolveall_1_list(Value v_this, Value *args, int32_t cou
     }
     (void)(alg_invoke(v_this, "PushLabels", (Value[]){v_statements}, 1));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_16 = alg_iterable(v_statements);
+        for (int32_t at_16 = 0; at_16 < alg_iterable_count(loop_16); at_16++) {
+            Value v_statement = alg_iterable_at(loop_16, at_16);
+            (void)v_statement;
             {
-                (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
+                (void)(alg_invoke(v_this, "Resolve", (Value[]){v_statement}, 1));
             }
         }
     }
@@ -886,11 +898,12 @@ static Value m_resolver_pushlabels_1_list(Value v_this, Value *args, int32_t cou
     (void)v_found;
     (void)((v_found = alg_widen(alg_list(), "List")));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            if (alg_truthy(alg_is(alg_subscript_get(v_statements, v_i), "LabelStmt"))) {
-                (void)(alg_invoke(v_found, "Add", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
+        Value loop_17 = alg_iterable(v_statements);
+        for (int32_t at_17 = 0; at_17 < alg_iterable_count(loop_17); at_17++) {
+            Value v_statement = alg_iterable_at(loop_17, at_17);
+            (void)v_statement;
+            if (alg_truthy(alg_is(v_statement, "LabelStmt"))) {
+                (void)(alg_invoke(v_found, "Add", (Value[]){v_statement}, 1));
             }
         }
     }
@@ -916,11 +929,12 @@ static Value m_resolver_findlabel_1_string(Value v_this, Value *args, int32_t co
                 Value v_scope = alg_subscript_get(alg_property(v_this, "LabelScopes"), v_s);
                 (void)v_scope;
                 {
-                    Value v_i = alg_int(0);
-                    (void)v_i;
-                    for (; alg_truthy(alg_less(v_i, alg_property(v_scope, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-                        if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(v_scope, v_i), "Name"), "Lexeme"))}, 1), f_foldcase(NULL, (Value[]){v_named}, 1)))) {
-                            return alg_subscript_get(v_scope, v_i);
+                    Value loop_18 = alg_iterable(v_scope);
+                    for (int32_t at_18 = 0; at_18 < alg_iterable_count(loop_18); at_18++) {
+                        Value v_each = alg_iterable_at(loop_18, at_18);
+                        (void)v_each;
+                        if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(v_each, "Name"), "Lexeme"))}, 1), f_foldcase(NULL, (Value[]){v_named}, 1)))) {
+                            return v_each;
                         }
                     }
                 }
@@ -965,12 +979,11 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
     (void)(alg_set_property(v_this, "CurrentFunction", alg_widen(alg_cast(v_typeoffunction, "FunctionType"), "FunctionType")));
     (void)(alg_invoke(v_this, "BeginScope", NULL, 0));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_19 = alg_iterable(alg_property(v_thefunction, "Params"));
+        for (int32_t at_19 = 0; at_19 < alg_iterable_count(loop_19); at_19++) {
+            Value v_param = alg_iterable_at(loop_19, at_19);
+            (void)v_param;
             {
-                Value v_param = alg_subscript_get(alg_property(v_thefunction, "Params"), v_i);
-                (void)v_param;
                 (void)(alg_invoke(v_this, "Declare", (Value[]){v_param}, 1));
                 (void)(alg_invoke(v_this, "Define", (Value[]){v_param}, 1));
             }

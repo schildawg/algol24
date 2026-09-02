@@ -102,9 +102,9 @@ begin
         Owners := '';
         Seen := Set();
 
-        for var I := 0; I < Imports.Length; I := I + 1 do
+        for var Import in Imports do
         begin
-            var TheModule := Imports[I] as Environment;
+            var TheModule := Import as Environment;
 
             if TheModule.Values.Contains (FoldCase (Name)) then
                 if TheModule.IsExported (Name) then
@@ -159,9 +159,9 @@ begin
     begin
         Found := Nil;
 
-        for var I := 0; I < Imports.Length; I := I + 1 do
+        for var Import in Imports do
         begin
-            var TheModule := Imports[I] as Environment;
+            var TheModule := Import as Environment;
 
             if TheModule.Values.Contains (FoldCase (Name)) then
                 if TheModule.IsExported (Name) then

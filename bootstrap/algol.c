@@ -122,6 +122,7 @@ static int32_t utf8_count(const char *text, int32_t bytes);
 static int32_t utf8_offset(const char *text, int32_t bytes, int32_t index);
 static int32_t utf8_chars_in(const char *text, int32_t bytes);
 static int32_t utf8_decode(const char *at);
+static int     utf8_span(unsigned char lead);
 static int     text_order(Value a, Value b);
 static int     method_order(Value a, Value b);
 static int utf8_encode(int32_t code, char *out);
@@ -1173,9 +1174,14 @@ Value alg_iterable(Value v) {
         return snapshot;
     }
     if (is_text(v)) {
-        for (const char *p = v.string; *p != '\0'; p++) {
-            seq_append((ObjSeq *)snapshot.obj, alg_char_value((unsigned char)*p));
-        }
+        /* By CHARACTER, not by byte. Walking bytes made 'for var C in ''café'''
+           visit five elements compiled where the interpreter visits four, and
+           handed the body the halves of a character rather than the character.
+           Bounded by v.length rather than by a NUL, because a String may hold
+           a zero byte [RT-008]. */
+        for (int32_t at = 0; at < v.length; at += utf8_span((unsigned char)v.string[at]))
+            seq_append((ObjSeq *)snapshot.obj, alg_char_value(utf8_decode(v.string + at)));
+
         return snapshot;
     }
 

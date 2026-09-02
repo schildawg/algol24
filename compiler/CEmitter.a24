@@ -624,9 +624,8 @@ begin
         Own := List();
         Imports := List();
 
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is ModuleStmt then
             begin
@@ -723,8 +722,8 @@ begin
         Symbol := FunctionName (Name) + '_' + Str (TheStmt.Params.Length);
 
         var Types := DeclaredTypes (TheStmt);
-        for var I := 0; I < Types.Length; I := I + 1 do
-            if Types[I] <> 'Any' then Symbol := Symbol + '_' + Escaped (Str (Types[I]));
+        for var TheType in Types do
+            if TheType <> 'Any' then Symbol := Symbol + '_' + Escaped (Str (TheType));
 
         Exit Symbol;
     end
@@ -801,9 +800,8 @@ begin
     /// each declaration gets.
     procedure CollectFunctions (Statements : List);
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is FunctionStmt then
             begin
@@ -833,9 +831,9 @@ begin
                 EnumTypes.Add (Str (TheStmt.Name.Lexeme));
                 Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
 
-                for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                for var TheMember in TheStmt.Members do
                 begin
-                    var Member := Str (TheStmt.Members[J].Lexeme);
+                    var Member := Str (TheMember.Lexeme);
 
                     if EnumMembers.Contains (Member) then
                         if Str (EnumMembers.Get (Member)) <> Str (TheStmt.Name.Lexeme) then
@@ -855,9 +853,8 @@ begin
     /// first: a reference may precede its declaration.
     procedure CollectGlobals (Statements : List);
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is VarStmt then
             begin
@@ -866,11 +863,11 @@ begin
             end
 
             if TheStmt is VarGroupStmt then
-                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                for var TheName in TheStmt.Names do
                 begin
-                    Globals.Add (Str (TheStmt.Names[J].Lexeme));
-                    Canonical.Put (FoldCase (TheStmt.Names[J].Lexeme),
-                                   Str (TheStmt.Names[J].Lexeme));
+                    Globals.Add (Str (TheName.Lexeme));
+                    Canonical.Put (FoldCase (TheName.Lexeme),
+                                   Str (TheName.Lexeme));
                 end
 
             if TheStmt is FunctionStmt and not IsTest (TheStmt) then
@@ -923,31 +920,31 @@ begin
         CollectUnits (Statements, Stem, List(), Units, SourceFile);
 
         var Seen := Set();
-        for var U := 0; U < Units.Length; U := U + 1 do
+        for var TheUnit in Units do
         begin
-            if Seen.Contains (Str (Units[U].Name)) then
-                Unsupported ('Two modules named ''' + Str (Units[U].Name) + '''');
+            if Seen.Contains (Str (TheUnit.Name)) then
+                Unsupported ('Two modules named ''' + Str (TheUnit.Name) + '''');
 
-            Seen.Add (Str (Units[U].Name));
+            Seen.Add (Str (TheUnit.Name));
         end
 
-        for var U := 0; U < Units.Length; U := U + 1 do
-            CollectFunctions (Units[U].Statements);
+        for var TheUnit in Units do
+            CollectFunctions (TheUnit.Statements);
 
-        for var U := 0; U < Units.Length; U := U + 1 do
+        for var TheUnit in Units do
         begin
             TopLevel := Set();
             Overloaded := Set();
 
-            CollectGlobals (Units[U].Statements);
+            CollectGlobals (TheUnit.Statements);
 
-            OverloadsIn.Put (Str (Units[U].Name), Overloaded);
+            OverloadsIn.Put (Str (TheUnit.Name), Overloaded);
         end
 
-        for var U := 0; U < Units.Length; U := U + 1 do
+        for var TheUnit in Units do
         begin
             var Exported := Set();
-            var Own := Units[U].Statements;
+            var Own := TheUnit.Statements;
 
             for var I := 0; I < Own.Length; I := I + 1 do
             begin
@@ -964,26 +961,26 @@ begin
                 begin
                     Exported.Add (Str (TheStmt.Name.Lexeme));
 
-                    for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
-                        Exported.Add (Str (TheStmt.Members[J].Lexeme));
+                    for var Member in TheStmt.Members do
+                        Exported.Add (Str (Member.Lexeme));
                 end
 
                 if TheStmt is VarGroupStmt then
-                    for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
-                        Exported.Add (Str (TheStmt.Names[J].Lexeme));
+                    for var EachName in TheStmt.Names do
+                        Exported.Add (Str (EachName.Lexeme));
             end
 
             var Everything := Set();
             for var I := 0; I < Exported.ToList().Length; I := I + 1 do
                 Everything.Add (Exported.ToList()[I]);
 
-            UnitAll.Put (Str (Units[U].Name), Everything);
+            UnitAll.Put (Str (TheUnit.Name), Everything);
 
-            var Hidden := Units[U].PrivateNames;
+            var Hidden := TheUnit.PrivateNames;
             for var I := 0; I < Hidden.Length; I := I + 1 do
                 Exported.Remove (Str (Hidden[I]));
 
-            UnitExports.Put (Str (Units[U].Name), Exported);
+            UnitExports.Put (Str (TheUnit.Name), Exported);
         end
 
         var ExportedBy := Map();
@@ -1021,9 +1018,9 @@ begin
             SetsBuilt := Set();
 
             OwnClasses := Set();
-            for var I := 0; I < Unit.Statements.Length; I := I + 1 do
-                if Unit.Statements[I] is ClassStmt or Unit.Statements[I] is ObjectStmt then
-                    OwnClasses.Add (FoldCase (Unit.Statements[I].Name.Lexeme));
+            for var Statement in Unit.Statements do
+                if Statement is ClassStmt or Statement is ObjectStmt then
+                    OwnClasses.Add (FoldCase (Statement.Name.Lexeme));
             MainBody := Buffer();
             Header := '';
             Target := 'main';
@@ -1048,10 +1045,10 @@ begin
 
             AmbiguousImports := Map();
 
-            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
-                if UnitExports.Contains (Str (Unit.Imports[I])) then
+            for var Import in Unit.Imports do
+                if UnitExports.Contains (Str (Import)) then
                 begin
-                    var From := Str (Unit.Imports[I]);
+                    var From := Str (Import);
                     var Seen := (UnitExports.Get (From) as Set).ToList();
 
                     for var J := 0; J < Seen.Length; J := J + 1 do
@@ -1072,8 +1069,8 @@ begin
             if UnitAll.Contains (Str (Unit.Name)) then
             begin
                 var Declares := (UnitAll.Get (Str (Unit.Name)) as Set).ToList();
-                for var I := 0; I < Declares.Length; I := I + 1 do
-                    AmbiguousImports.Remove (Str (Declares[I]));
+                for var Declare in Declares do
+                    AmbiguousImports.Remove (Str (Declare));
             end
 
             var Mine := ExportedNames (Unit);
@@ -1109,17 +1106,16 @@ begin
                     ShadowNames.Add (Own[I]);
             end
 
-            for var I := 0; I < Unit.Imports.Length; I := I + 1 do
-                if UnitExports.Contains (Str (Unit.Imports[I])) then
+            for var TheImport in Unit.Imports do
+                if UnitExports.Contains (Str (TheImport)) then
                 begin
-                    var Seen := (UnitExports.Get (Str (Unit.Imports[I])) as Set).ToList();
+                    var Seen := (UnitExports.Get (Str (TheImport)) as Set).ToList();
                     for var J := 0; J < Seen.Length; J := J + 1 do
                         ShadowNames.Add (Seen[J]);
                 end
 
-            for var I := 0; I < Unit.Statements.Length; I := I + 1 do
+            for var TheStmt in Unit.Statements do
             begin
-                var TheStmt := Unit.Statements[I];
 
                 if TheStmt is FunctionStmt and not IsTest (TheStmt) then
                 begin
@@ -1134,9 +1130,8 @@ begin
 
             PushLabels (Unit.Statements);
 
-            for var I := 0; I < Unit.Statements.Length; I := I + 1 do
+            for var TheStmt in Unit.Statements do
             begin
-                var TheStmt := Unit.Statements[I];
 
                 if RunsWhenTesting (TheStmt) or not (EmitTests and IsMain) then
                 begin
@@ -1209,8 +1204,8 @@ begin
         Text := '/* Generated from Algol-24.  Do not edit. */' + #10;
         Text := Text + '#include "' + Str (Unit.Name) + '.h"' + #10;
 
-        for var I := 0; I < Unit.Imports.Length; I := I + 1 do
-            Text := Text + '#include "' + Str (Unit.Imports[I]) + '.h"' + #10;
+        for var Import in Unit.Imports do
+            Text := Text + '#include "' + Str (Import) + '.h"' + #10;
 
         Text := Text + #10;
 
@@ -1271,24 +1266,24 @@ begin
         Files : List;
 
     begin
-        for var I := 0; I < TestSymbols.Length; I := I + 1 do
-            Declarations.Append ('Value ' + Str (TestSymbols[I])
+        for var TestSymbol in TestSymbols do
+            Declarations.Append ('Value ' + Str (TestSymbol)
                           + '(Value **cells, Value *args, int32_t count);' + #10);
 
         MainBody.Append ('    alg_test_begin(' + Str (Tests.Length) + ', '
                   + QuoteC (SourceFile) + ');' + #10);
 
         Files := List();
-        for var I := 0; I < TestFiles.Length; I := I + 1 do
-            if not Files.Contains (TestFiles[I]) then Files.Add (TestFiles[I]);
+        for var TestFile in TestFiles do
+            if not Files.Contains (TestFile) then Files.Add (TestFile);
 
-        for var F := 0; F < Files.Length; F := F + 1 do
+        for var File in Files do
         begin
-            MainBody.Append ('    alg_test_file(' + QuoteC (Str (Files[F])) + ');' + #10);
+            MainBody.Append ('    alg_test_file(' + QuoteC (Str (File)) + ');' + #10);
 
             var Ordered := List();
             for var I := 0; I < Tests.Length; I := I + 1 do
-                if TestFiles[I] = Files[F] then Ordered.Add (I);
+                if TestFiles[I] = File then Ordered.Add (I);
 
             for var A := 0; A < Ordered.Length; A := A + 1 do
                 for var B := A + 1; B < Ordered.Length; B := B + 1 do
@@ -1300,10 +1295,10 @@ begin
                         Ordered[B] := Swap;
                     end
 
-            for var A := 0; A < Ordered.Length; A := A + 1 do
+            for var Each in Ordered do
                 MainBody.Append ('    alg_test_run('
-                          + QuoteC (Str (Tests[Ordered[A]].Name.Literal)) + ', '
-                          + Str (TestSymbols[Ordered[A]]) + ');' + #10);
+                          + QuoteC (Str (Tests[Each].Name.Literal)) + ', '
+                          + Str (TestSymbols[Each]) + ');' + #10);
 
             MainBody.Append ('    alg_test_end_file();' + #10);
         end
@@ -1378,8 +1373,8 @@ begin
 
         PushLabels (TheStmt.Body);
 
-        for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
-            Execute (TheStmt.Body[I]);
+        for var Each in TheStmt.Body do
+            Execute (Each);
 
         PopLabels ();
 
@@ -1418,9 +1413,8 @@ begin
     /// Whether a body declares a subprogram inside itself.
     function DeclaresNested (Statements : List) : Boolean;
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is FunctionStmt then Exit True;
 
@@ -1441,8 +1435,8 @@ begin
                 if DeclaresNested ([TheStmt.TryBlock]) then Exit True;
 
                 var Handlers := TheStmt.Handlers.Values();
-                for var J := 0; J < Handlers.Length; J := J + 1 do
-                    if DeclaresNested ([Handlers[J].Body]) then Exit True;
+                for var Handler in Handlers do
+                    if DeclaresNested ([Handler.Body]) then Exit True;
             end
         end
 
@@ -1458,15 +1452,14 @@ begin
     /// Collects every name a statement list binds directly.
     procedure CollectBindings (Statements : List, Names : List);
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is VarStmt then AddOnce (Names, Str (TheStmt.Name.Lexeme));
 
             if TheStmt is VarGroupStmt then
-                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
-                    AddOnce (Names, Str (TheStmt.Names[J].Lexeme));
+                for var TheName in TheStmt.Names do
+                    AddOnce (Names, Str (TheName.Lexeme));
 
             if TheStmt is ForInStmt then
             begin
@@ -1490,10 +1483,10 @@ begin
                 CollectBindings ([TheStmt.TryBlock], Names);
 
                 var Handlers := TheStmt.Handlers.Values();
-                for var J := 0; J < Handlers.Length; J := J + 1 do
+                for var Handler in Handlers do
                 begin
-                    AddOnce (Names, Str (Handlers[J].Name));
-                    CollectBindings ([Handlers[J].Body], Names);
+                    AddOnce (Names, Str (Handler.Name));
+                    CollectBindings ([Handler.Body], Names);
                 end
             end
         end
@@ -1507,8 +1500,8 @@ begin
     begin
         Names := List();
 
-        for var I := 0; I < TheStmt.Params.Length; I := I + 1 do
-            AddOnce (Names, Str (TheStmt.Params[I].Lexeme));
+        for var Param in TheStmt.Params do
+            AddOnce (Names, Str (Param.Lexeme));
 
         CollectBindings (TheStmt.Body, Names);
         Exit Names;
@@ -1563,7 +1556,7 @@ begin
 
     begin
         Names := Given.Keys();
-        for var I := 0; I < Own.Length; I := I + 1 do AddOnce (Names, Str (Own[I]));
+        for var Each in Own do AddOnce (Names, Str (Each));
 
         Exit Names;
     end
@@ -1617,9 +1610,8 @@ begin
     /// volatile, so this is not a nicety.
     function ContainsTry (Statements : List) : Boolean;
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is TryStmt then Exit True;
 
@@ -1698,9 +1690,8 @@ begin
     /// loop would all read the last value.
     procedure HoistCells (Statements : List);
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is VarStmt and Boxed.Contains (Str (TheStmt.Name.Lexeme)) then
             begin
@@ -1709,11 +1700,11 @@ begin
             end
 
             if TheStmt is VarGroupStmt then
-                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
-                    if Boxed.Contains (Str (TheStmt.Names[J].Lexeme)) then
+                for var TheName in TheStmt.Names do
+                    if Boxed.Contains (Str (TheName.Lexeme)) then
                     begin
-                        Locals.Add (Str (TheStmt.Names[J].Lexeme));
-                        DeclareCell (Str (TheStmt.Names[J].Lexeme), 'alg_nil()');
+                        Locals.Add (Str (TheName.Lexeme));
+                        DeclareCell (Str (TheName.Lexeme), 'alg_nil()');
                     end
         end
     end
@@ -1818,9 +1809,9 @@ begin
                 + '_' + Str (TheMethod.Params.Length);
 
         var Types := DeclaredTypes (TheMethod);
-        for var I := 0; I < Types.Length; I := I + 1 do
-            if Types[I] <> 'Any' then
-                Symbol := Symbol + '_' + Escaped (Str (Types[I]));
+        for var TheType in Types do
+            if TheType <> 'Any' then
+                Symbol := Symbol + '_' + Escaped (Str (TheType));
 
         Exit Symbol;
     end
@@ -1835,8 +1826,8 @@ begin
     begin
         Names := Set();
 
-        for var I := 0; I < Own.Length; I := I + 1 do
-            Names.Add (FoldCase (Own[I].Name.Lexeme));
+        for var Each in Own do
+            Names.Add (FoldCase (Each.Name.Lexeme));
 
         At := SuperName;
         while At <> '' do
@@ -1848,8 +1839,8 @@ begin
             var Inherited := Ancestor.Methods;
             if Fields then Inherited := Ancestor.Fields;
 
-            for var I := 0; I < Inherited.Length; I := I + 1 do
-                Names.Add (FoldCase (Inherited[I].Name.Lexeme));
+            for var Item in Inherited do
+                Names.Add (FoldCase (Item.Name.Lexeme));
 
             At := '';
             if Ancestor.Superclass <> Nil then At := Str (Ancestor.Superclass.Name.Lexeme);
@@ -1933,8 +1924,8 @@ begin
 
         PushLabels (TheMethod.Body);
 
-        for var I := 0; I < TheMethod.Body.Length; I := I + 1 do
-            Execute (TheMethod.Body[I]);
+        for var Each in TheMethod.Body do
+            Execute (Each);
 
         PopLabels ();
 
@@ -1996,25 +1987,25 @@ begin
         VisibleMethods := NamesVisible (SuperName, Methods, False);
 
         var DeclaresId := False;
-        for var I := 0; I < Fields.Length; I := I + 1 do
-            if Str (Fields[I].Name.Lexeme) = 'Id' then DeclaresId := True;
+        for var Field in Fields do
+            if Str (Field.Name.Lexeme) = 'Id' then DeclaresId := True;
 
         var AddId := IsObject and not DeclaresId;
         if AddId then VisibleFields.Add (FoldCase ('Id'));
 
         Applied := '';
-        for var I := 0; I < Fields.Length; I := I + 1 do
+        for var TheField in Fields do
         begin
             var Value := 'alg_nil()';
-            if Fields[I].Initializer <> Nil then
+            if TheField.Initializer <> Nil then
             begin
-                Value := Evaluate (Fields[I].Initializer);
+                Value := Evaluate (TheField.Initializer);
 
-                Value := BoundValue (Fields[I].TypeName, Value);
+                Value := BoundValue (TheField.TypeName, Value);
             end
 
             Applied := Applied + '    alg_set_property(v_this, '
-                     + QuoteC (Str (Fields[I].Name.Lexeme)) + ', ' + Value + ');' + #10;
+                     + QuoteC (Str (TheField.Name.Lexeme)) + ', ' + Value + ');' + #10;
         end
 
         if AddId then
@@ -2029,8 +2020,8 @@ begin
         Functions.Append (Applied);
         Functions.Append ('    return alg_nil();' + #10 + '}' + #10 + #10);
 
-        for var I := 0; I < Methods.Length; I := I + 1 do
-            EmitMethod (Name, Methods[I]);
+        for var Method in Methods do
+            EmitMethod (Name, Method);
 
         CurrentClass := EnclosingClass;
         VisibleFields := EnclosingFields;
@@ -2054,18 +2045,17 @@ begin
                  + ClassHandle (SuperName) + ');');
         end
 
-        for var I := 0; I < Fields.Length; I := I + 1 do
+        for var EachField in Fields do
             Built (Hoisted, 'alg_class_field(' + Handle + ', '
-                 + QuoteC (Str (Fields[I].Name.Lexeme)) + ');');
+                 + QuoteC (Str (EachField.Name.Lexeme)) + ');');
 
         if AddId then
             Built (Hoisted, 'alg_class_field(' + Handle + ', "Id");');
 
         Built (Hoisted, 'alg_class_initializer(' + Handle + ', ' + Initializer + ');');
 
-        for var I := 0; I < Methods.Length; I := I + 1 do
+        for var TheMethod in Methods do
         begin
-            var TheMethod := Methods[I];
             var Types := ParameterTable (TheMethod);
 
             var Table := 'NULL';
@@ -2170,9 +2160,9 @@ begin
     begin
         Here := Map();
 
-        for var I := 0; I < Statements.Length; I := I + 1 do
-            if Statements[I] is LabelStmt then
-                Here.Put (FoldCase (Str (Statements[I].Name.Lexeme)), TryDepth);
+        for var Statement in Statements do
+            if Statement is LabelStmt then
+                Here.Put (FoldCase (Str (Statement.Name.Lexeme)), TryDepth);
 
         LabelDepths.Add (Here);
     end
@@ -2233,8 +2223,8 @@ begin
         HoistCells (TheStmt.Statements);
         PushLabels (TheStmt.Statements);
 
-        for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
-            Execute (TheStmt.Statements[I]);
+        for var Statement in TheStmt.Statements do
+            Execute (Statement);
 
         PopLabels ();
 
@@ -2528,8 +2518,8 @@ begin
         HoistCells (TheStmt.Body);
         PushLabels (TheStmt.Body);
 
-        for var I := 0; I < TheStmt.Body.Length; I := I + 1 do
-            Execute (TheStmt.Body[I]);
+        for var Each in TheStmt.Body do
+            Execute (Each);
 
         PopLabels ();
 
@@ -2725,9 +2715,9 @@ begin
     begin
         Units := UnitExports.Keys();
 
-        for var I := 0; I < Units.Length; I := I + 1 do
-            if (UnitExports.Get (Units[I]) as Set).Contains (Name) then
-                Exit 'Undefined variable ''' + Name + '''. Unit ''' + Str (Units[I])
+        for var TheUnit in Units do
+            if (UnitExports.Get (TheUnit) as Set).Contains (Name) then
+                Exit 'Undefined variable ''' + Name + '''. Unit ''' + Str (TheUnit)
                    + ''' exports it; this file has no ''uses'' for it.';
 
         Exit 'Undefined variable ''' + Name + '''.';
@@ -3012,8 +3002,8 @@ begin
     /// Whether any argument at a call site named the parameter it fills.
     function AnyNamed (Names : List) : Boolean;
     begin
-        for var I := 0; I < Names.Length; I := I + 1 do
-            if Str (Names[I]) <> '' then Exit True;
+        for var Name in Names do
+            if Str (Name) <> '' then Exit True;
 
         Exit False;
     end
@@ -3094,9 +3084,8 @@ begin
     begin
         Names := List();
 
-        for var I := 0; I < Unit.Statements.Length; I := I + 1 do
+        for var TheStmt in Unit.Statements do
         begin
-            var TheStmt := Unit.Statements[I];
 
             if TheStmt is FunctionStmt and not IsTest (TheStmt) then
                 Names.Add (Str (TheStmt.Name.Lexeme));
@@ -3109,13 +3098,13 @@ begin
             begin
                 Names.Add (Str (TheStmt.Name.Lexeme));
 
-                for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
-                    Names.Add (Str (TheStmt.Members[J].Lexeme));
+                for var Member in TheStmt.Members do
+                    Names.Add (Str (Member.Lexeme));
             end
 
             if TheStmt is VarGroupStmt then
-                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
-                    Names.Add (Str (TheStmt.Names[J].Lexeme));
+                for var TheName in TheStmt.Names do
+                    Names.Add (Str (TheName.Lexeme));
         end
 
         Exit Names;
@@ -3193,8 +3182,8 @@ begin
             if CurrentClass = '' then Unsupported ('''super'' outside a class');
 
             var Emitted := List();
-            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
-                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+            for var Argument in TheExpr.Arguments do
+                Emitted.Add (Evaluate (Argument));
 
             Exit 'alg_invoke_from(' + ClassHandle (CurrentClass) + ', ' + ThisRef () + ', '
                + QuoteC (Str (TheExpr.Callee.Method.Lexeme)) + ', '
@@ -3204,8 +3193,8 @@ begin
         if TheExpr.Callee is GetExpr and TheExpr.Callee.Unit <> '' then
         begin
             var Emitted := List();
-            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
-                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+            for var TheArgument in TheExpr.Arguments do
+                Emitted.Add (Evaluate (TheArgument));
 
             var Text := '';
             for var I := 0; I < Emitted.Length; I := I + 1 do
@@ -3224,8 +3213,8 @@ begin
             var Receiver := Evaluate (TheExpr.Callee.Obj);
 
             var Emitted := List();
-            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
-                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+            for var EachArgument in TheExpr.Arguments do
+                Emitted.Add (Evaluate (EachArgument));
 
             Exit Invoking (Receiver, Str (TheExpr.Callee.Name.Lexeme), Emitted,
                            TheExpr.ArgumentNames);
@@ -3234,8 +3223,8 @@ begin
         if not (TheExpr.Callee is VariableExpr) then
         begin
             var Emitted := List();
-            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
-                Emitted.Add (Evaluate (TheExpr.Arguments[I]));
+            for var Item in TheExpr.Arguments do
+                Emitted.Add (Evaluate (Item));
 
             Exit Calling (Evaluate (TheExpr.Callee), Emitted, TheExpr.ArgumentNames);
         end
@@ -3382,12 +3371,12 @@ begin
     /// Whether every element of a collection literal is itself a literal.
     function AllLiterals (TheExpr : CollectionExpr) : Boolean;
     begin
-        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
-            if not (TheExpr.Values[I] is LiteralExpr) then Exit False;
+        for var Value in TheExpr.Values do
+            if not (Value is LiteralExpr) then Exit False;
 
         if TheExpr.IsMap then
-            for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
-                if not (TheExpr.Keys[I] is LiteralExpr) then Exit False;
+            for var Key in TheExpr.Keys do
+                if not (Key is LiteralExpr) then Exit False;
 
         Exit True;
     end
@@ -3418,8 +3407,8 @@ begin
 
         Built := 'alg_list()';
 
-        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
-            Built := 'alg_list_keep(' + Built + ', ' + Evaluate (TheExpr.Values[I]) + ')';
+        for var Value in TheExpr.Values do
+            Built := 'alg_list_keep(' + Built + ', ' + Evaluate (Value) + ')';
 
         Exit Built;
     end
@@ -3452,9 +3441,9 @@ begin
         begin
             Functions.Append ('    Value it = alg_list();' + #10);
 
-            for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
+            for var TheValue in TheExpr.Values do
                 Functions.Append ('    it = alg_list_keep(it, '
-                          + Evaluate (TheExpr.Values[I]) + ');' + #10);
+                          + Evaluate (TheValue) + ');' + #10);
         end
 
         Functions.Append ('    return it;' + #10 + '}' + #10 + #10);
@@ -3667,14 +3656,14 @@ begin
         Setup.Append ('    ' + TheType + ' = alg_enum_type('
                + QuoteC (Str (TheStmt.Name.Lexeme)) + ');' + #10);
 
-        for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
+        for var Member in TheStmt.Members do
         begin
-            var Symbol := EnumMemberName (Str (EnumMembers.Get (Str (TheStmt.Members[I].Lexeme))),
-                                          Str (TheStmt.Members[I].Lexeme));
+            var Symbol := EnumMemberName (Str (EnumMembers.Get (Str (Member.Lexeme))),
+                                          Str (Member.Lexeme));
 
-            DeclareValue (Symbol, Str (TheStmt.Members[I].Lexeme));
+            DeclareValue (Symbol, Str (Member.Lexeme));
             Setup.Append ('    ' + Symbol + ' = alg_enum_member(' + TheType
-                   + ', ' + QuoteC (Str (TheStmt.Members[I].Lexeme)) + ');' + #10);
+                   + ', ' + QuoteC (Str (Member.Lexeme)) + ');' + #10);
         end
     end
 
@@ -3701,10 +3690,10 @@ begin
         CatchAll := Nil;
 
         Keys := TheStmt.Handlers.Keys();
-        for var I := 0; I < Keys.Length; I := I + 1 do
+        for var Key in Keys do
         begin
-            if Keys[I] = 'default' then CatchAll := TheStmt.Handlers.Get (Keys[I]);
-            else Handlers.Add (Keys[I]);
+            if Key = 'default' then CatchAll := TheStmt.Handlers.Get (Key);
+            else Handlers.Add (Key);
         end
 
         Line ('{');
@@ -3946,9 +3935,9 @@ begin
         end
         else Line (Local () + Shared + ' = ' + Value + ';');
 
-        for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
+        for var TheName in TheStmt.Names do
         begin
-            var Name := Str (TheStmt.Names[I].Lexeme);
+            var Name := Str (TheName.Lexeme);
 
             if AtTopLevel then
             begin

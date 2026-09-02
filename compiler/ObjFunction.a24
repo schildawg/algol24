@@ -116,8 +116,8 @@ begin
     function Select (Arguments : List) : Any;
     begin
         for var Pass := EXACT; Pass <= ABSORBING; Pass := Pass + 1 do
-            for var I := 0; I < Candidates.Length; I := I + 1 do
-                if Candidates[I].Selects (Arguments, Pass) then Exit Candidates[I];
+            for var TheCandidate in Candidates do
+                if TheCandidate.Selects (Arguments, Pass) then Exit TheCandidate;
 
         Exit Nil;
     end
@@ -211,8 +211,8 @@ end
 /// Whether any argument at a call site named the parameter it fills.
 function AnyNamed (Names : List) : Boolean;
 begin
-    for var I := 0; I < Names.Length; I := I + 1 do
-        if Str (Names[I]) <> '' then Exit True;
+    for var Name in Names do
+        if Str (Name) <> '' then Exit True;
 
     Exit False;
 end
@@ -475,8 +475,8 @@ begin
             Filled[At] := True;
         end
 
-        for var I := 0; I < Filled.Length; I := I + 1 do
-            if not Filled[I] then Exit Nil;
+        for var Each in Filled do
+            if not Each then Exit Nil;
 
         Exit Slots;
     end

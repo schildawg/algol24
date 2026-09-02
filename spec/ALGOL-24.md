@@ -6202,6 +6202,40 @@ String it yields each `Char`; over a `Map` it yields each **key**.
 
     conformance  0054-loops.a24
 
+**Each `Char`, not each byte.** A String is counted in characters everywhere
+else — `Length` [RT-003], subscripting [EXP-015] — and iterating it agrees:
+`'café'` yields four, the last of them `é`. Walking bytes instead would hand
+the body the halves of a character, which is not a value the language has.
+
+##### conformance/0184-iterating-text-yields-characters.a24
+
+```algol24
+var Word := 'café';
+
+// Four characters, not five bytes -- the same count Length gives.
+var Seen := 0;
+for var C in Word do Seen := Seen + 1;
+
+WriteLn (Seen, ' ', Length (Word), ' ', Seen = Length (Word));
+
+// And each one is the whole character, so it comes back out as it went in.
+var Again := '';
+for var C in Word do Again := Again + Str (C);
+
+WriteLn (Again, ' ', Again = Word);
+
+// Every element is a Char [TYP-003], including the multi-byte one.
+for var C in Word do Write (C is Char, ' ');
+WriteLn ('');
+```
+
+```console
+$ algc conformance/0184-iterating-text-yields-characters.a24
+4 4 true
+café true
+true true true true 
+```
+
 **[STM-008]**  Iterating anything else is `Can only iterate a collection or a
 String.` — see [TYP-011], which is where a class says it is iterable.
 

@@ -312,9 +312,9 @@ begin
     begin
         Found := List();
 
-        for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
-            if TheStmt.Methods[I].IsProperty then
-                Found.Add (Str (TheStmt.Methods[I].Name.Lexeme));
+        for var Method in TheStmt.Methods do
+            if Method.IsProperty then
+                Found.Add (Str (Method.Name.Lexeme));
 
         Exit Found;
     end
@@ -416,8 +416,8 @@ begin
         if Initializer = Nil then Exit;
         if ClassNameOf (Initializer) <> 'CollectionExpr' then Exit;
 
-        for var I := 0; I < Initializer.Values.Length; I := I + 1 do
-            CheckElement (Element, Reduce (Initializer.Values[I]), Where);
+        for var Value in Initializer.Values do
+            CheckElement (Element, Reduce (Value), Where);
     end
 
     /// Refuses a read of a member a class marked private.
@@ -524,11 +524,11 @@ begin
     /// Two passes, so the order declarations are written in does not matter.
     procedure Resolve (Statements : List);
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
-            MapType (Statements[I]);
+        for var Statement in Statements do
+            MapType (Statement);
 
-        for var I := 0; I < Statements.Length; I := I + 1 do
-            Check (Statements[I]);
+        for var TheStatement in Statements do
+            Check (TheStatement);
     end
 
     /// Records what a declaration declares, before any body is checked.
@@ -552,18 +552,18 @@ begin
             if TheStmt.Superclass <> Nil then
                 Lookup.Parents.Put (TheStmt.Name.Lexeme, TheStmt.Superclass.Name.Lexeme);
 
-            for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
+            for var Field in TheStmt.Fields do
             begin
-                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Fields[I].Name.Lexeme,
-                                TheStmt.Fields[I].TypeName);
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + Field.Name.Lexeme,
+                                Field.TypeName);
 
-                Lookup.Generics.SetType (Str (TheStmt.Fields[I].Name.Lexeme),
-                                         TheStmt.Fields[I].Generic);
+                Lookup.Generics.SetType (Str (Field.Name.Lexeme),
+                                         Field.Generic);
             end
 
-            for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
-                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Methods[I].Name.Lexeme,
-                                TheStmt.Methods[I].ReturnType);
+            for var Method in TheStmt.Methods do
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + Method.Name.Lexeme,
+                                Method.ReturnType);
         end
 
         if Kind = 'ObjectStmt' then
@@ -575,18 +575,18 @@ begin
             if TheStmt.Superclass <> Nil then
                 Lookup.Parents.Put (TheStmt.Name.Lexeme, TheStmt.Superclass.Name.Lexeme);
 
-            for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
+            for var TheField in TheStmt.Fields do
             begin
-                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Fields[I].Name.Lexeme,
-                                TheStmt.Fields[I].TypeName);
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheField.Name.Lexeme,
+                                TheField.TypeName);
 
-                Lookup.Generics.SetType (Str (TheStmt.Fields[I].Name.Lexeme),
-                                         TheStmt.Fields[I].Generic);
+                Lookup.Generics.SetType (Str (TheField.Name.Lexeme),
+                                         TheField.Generic);
             end
 
-            for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
-                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Methods[I].Name.Lexeme,
-                                TheStmt.Methods[I].ReturnType);
+            for var TheMethod in TheStmt.Methods do
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheMethod.Name.Lexeme,
+                                TheMethod.ReturnType);
         end
 
         if Kind = 'FunctionStmt' then
@@ -594,8 +594,8 @@ begin
             var Folded := FoldCase (Str (TheStmt.Name.Lexeme));
 
             var Signature := Folded + '/' + Str (TheStmt.Params.Length);
-            for var I := 0; I < TheStmt.ParamTypes.Length; I := I + 1 do
-                Signature := Signature + '/' + FoldCase (Str (TheStmt.ParamTypes[I]));
+            for var ParamType in TheStmt.ParamTypes do
+                Signature := Signature + '/' + FoldCase (Str (ParamType));
 
             if not Signatures.Contains (Signature) then
             begin
@@ -620,11 +620,11 @@ begin
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
             Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
 
-            for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
+            for var Member in TheStmt.Members do
             begin
-                Lookup.SetType (TheStmt.Members[I].Lexeme, TheStmt.Name.Lexeme);
+                Lookup.SetType (Member.Lexeme, TheStmt.Name.Lexeme);
 
-                Lookup.SetType (TheStmt.Name.Lexeme + '::' + TheStmt.Members[I].Lexeme,
+                Lookup.SetType (TheStmt.Name.Lexeme + '::' + Member.Lexeme,
                                 TheStmt.Name.Lexeme);
             end
         end
@@ -636,16 +636,16 @@ begin
         end
 
         if Kind = 'VarGroupStmt' then
-            for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
+            for var TheName in TheStmt.Names do
             begin
-                Lookup.SetType (TheStmt.Names[I].Lexeme, TheStmt.TypeName);
-                Lookup.Generics.SetType (Str (TheStmt.Names[I].Lexeme), TheStmt.Generic);
+                Lookup.SetType (TheName.Lexeme, TheStmt.TypeName);
+                Lookup.Generics.SetType (Str (TheName.Lexeme), TheStmt.Generic);
             end
 
         if Kind = 'ModuleStmt' then
             if TheStmt.Statements <> Nil then
-                for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
-                    MapType (TheStmt.Statements[I]);
+                for var TheStatement in TheStmt.Statements do
+                    MapType (TheStatement);
     end
 
     /// Checks one statement, and the expressions inside it.
@@ -679,10 +679,10 @@ begin
 
         if Kind = 'VarGroupStmt' then
         begin
-            for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
+            for var TheName in TheStmt.Names do
             begin
-                Lookup.SetType (TheStmt.Names[I].Lexeme, TheStmt.TypeName);
-                Lookup.Generics.SetType (Str (TheStmt.Names[I].Lexeme), TheStmt.Generic);
+                Lookup.SetType (TheName.Lexeme, TheStmt.TypeName);
+                Lookup.Generics.SetType (Str (TheName.Lexeme), TheStmt.Generic);
             end
 
             if TheStmt.Initializer <> Nil and TheStmt.TypeName <> '' then
@@ -705,8 +705,8 @@ begin
         if Kind = 'BlockStmt' then
         begin
             Lookup.BeginScope();
-            for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
-                Check (TheStmt.Statements[I]);
+            for var Statement in TheStmt.Statements do
+                Check (Statement);
 
             Lookup.EndScope();
             Exit;
@@ -769,8 +769,8 @@ begin
             Check (TheStmt.TryBlock);
 
             var Keys := TheStmt.Handlers.Keys();
-            for var I := 0; I < Keys.Length; I := I + 1 do
-                Check (TheStmt.Handlers.Get (Keys[I]).Body);
+            for var Key in Keys do
+                Check (TheStmt.Handlers.Get (Key).Body);
 
             Exit;
         end
@@ -786,11 +786,11 @@ begin
             for var Name in BuiltinTypes do
                 Lookup.SetType (Name, Str (BuiltinTypes.Get (Name)));
 
-            for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
-                MapType (TheStmt.Statements[I]);
+            for var TheStatement in TheStmt.Statements do
+                MapType (TheStatement);
 
-            for var I := 0; I < TheStmt.Statements.Length; I := I + 1 do
-                Check (TheStmt.Statements[I]);
+            for var EachStatement in TheStmt.Statements do
+                Check (EachStatement);
 
             Lookup.EndScope();
             Exit;
@@ -815,16 +815,15 @@ begin
 
             Lookup.BeginScope();
 
-            for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
+            for var Field in TheStmt.Fields do
             begin
-                var Field := TheStmt.Fields[I];
 
                 Lookup.SetType (Field.Name.Lexeme, Field.TypeName);
                 Lookup.Generics.SetType (Str (Field.Name.Lexeme), Field.Generic);
             end
 
-            for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
-                CheckFunction (TheStmt.Methods[I]);
+            for var Method in TheStmt.Methods do
+                CheckFunction (Method);
 
             Lookup.EndScope();
 
@@ -857,13 +856,13 @@ begin
                                          Str (TheFunction.ParamGenerics[I]));
         end
 
-        for var I := 0; I < TheFunction.Body.Length; I := I + 1 do
-            if ClassNameOf (TheFunction.Body[I]) = 'FunctionStmt' then
-                Lookup.SetType (TheFunction.Body[I].Name.Lexeme,
-                                TheFunction.Body[I].ReturnType);
+        for var Statement in TheFunction.Body do
+            if ClassNameOf (Statement) = 'FunctionStmt' then
+                Lookup.SetType (Statement.Name.Lexeme,
+                                Statement.ReturnType);
 
-        for var I := 0; I < TheFunction.Body.Length; I := I + 1 do
-            Check (TheFunction.Body[I]);
+        for var Statement in TheFunction.Body do
+            Check (Statement);
 
         Lookup.EndScope();
         CurrentReturn := Enclosing;
@@ -895,8 +894,8 @@ begin
     begin
         if ClassNameOf (TheExpr.Callee) <> 'VariableExpr' then Exit;
 
-        for var I := 0; I < TheExpr.ArgumentNames.Length; I := I + 1 do
-            if Str (TheExpr.ArgumentNames[I]) <> '' then Exit;
+        for var ArgumentName in TheExpr.ArgumentNames do
+            if Str (ArgumentName) <> '' then Exit;
 
         Folded := FoldCase (Str (TheExpr.Callee.Name.Lexeme));
         if not Overloads.Contains (Folded) then Exit;
@@ -1014,8 +1013,8 @@ begin
         begin
             var ArgTypes := List ();
 
-            for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
-                ArgTypes.Add (Reduce (TheExpr.Arguments[I]));
+            for var Argument in TheExpr.Arguments do
+                ArgTypes.Add (Reduce (Argument));
 
             WarnIfDynamic (TheExpr);
 
@@ -1087,8 +1086,8 @@ begin
 
         if Kind = 'CollectionExpr' then
         begin
-            for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
-                Reduce (TheExpr.Values[I]);
+            for var TheValue in TheExpr.Values do
+                Reduce (TheValue);
 
             if TheExpr.IsMap then Exit 'Map';
 

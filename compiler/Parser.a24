@@ -569,8 +569,8 @@ begin
 
         if Decl is VarGroupStmt then
         begin
-            for var I := 0; I < Decl.Names.Length; I := I + 1 do
-                PrivateNames.Add (Str (Decl.Names[I].Lexeme));
+            for var TheName in Decl.Names do
+                PrivateNames.Add (Str (TheName.Lexeme));
 
             Exit;
         end
@@ -579,8 +579,8 @@ begin
         begin
             PrivateNames.Add (Str (Decl.Name.Lexeme));
 
-            for var I := 0; I < Decl.Members.Length; I := I + 1 do
-                PrivateNames.Add (Str (Decl.Members[I].Lexeme));
+            for var Member in Decl.Members do
+                PrivateNames.Add (Str (Member.Lexeme));
 
             Exit;
         end
@@ -817,8 +817,8 @@ begin
                 Names.Add (Consume (TOKEN_IDENTIFIER, 'Expect ' + Noun + ' name.'));
 
             if InPrivateSection then
-                for var I := 0; I < Names.Length; I := I + 1 do
-                    ClassPrivates.Add (Str (Names[I].Lexeme));
+                for var TheName in Names do
+                    ClassPrivates.Add (Str (TheName.Lexeme));
 
             var TypeName := '';
             var Generic  := '';
@@ -891,14 +891,14 @@ begin
             if Match (TOKEN_VAR) then
             begin
                 var Section := DeclarationSection (False);
-                for var I := 0; I < Section.Length; I := I + 1 do
-                    Body.Add (Section[I]);
+                for var Declaration in Section do
+                    Body.Add (Declaration);
             end
             else if Match (TOKEN_CONST) then
             begin
                 var Section := DeclarationSection (True);
-                for var I := 0; I < Section.Length; I := I + 1 do
-                    Body.Add (Section[I]);
+                for var Declaration in Section do
+                    Body.Add (Declaration);
             end
             else
             begin
@@ -1004,8 +1004,8 @@ begin
     /// Whether a label names one of the loops this statement is inside.
     function EnclosingLoop (TheLabel : String) : Boolean;
     begin
-        for var I := 0; I < LoopLabels.Length; I := I + 1 do
-            if FoldCase (Str (LoopLabels[I])) = FoldCase (TheLabel) then Exit True;
+        for var LoopLabel in LoopLabels do
+            if FoldCase (Str (LoopLabel)) = FoldCase (TheLabel) then Exit True;
 
         Exit False;
     end
@@ -1133,8 +1133,8 @@ begin
 
         InProcedure := WasInProcedure;
 
-        for var I := 0; I < Rest.Length; I := I + 1 do
-            Body.Add (Rest[I]);
+        for var Each in Rest do
+            Body.Add (Each);
 
         var TheOperator := FunctionStmt (Name, Params, Body);
         TheOperator.ReturnType    := ReturnType;
@@ -1190,8 +1190,8 @@ begin
 
         InProcedure := WasInProcedure;
 
-        for var I := 0; I < Rest.Length; I := I + 1 do
-            Body.Add (Rest[I]);
+        for var Each in Rest do
+            Body.Add (Each);
 
         var TheProperty := FunctionStmt (Name, List(), Body);
         TheProperty.ReturnType    := ReturnType;
@@ -1479,8 +1479,8 @@ begin
 
         InProcedure := WasInProcedure;
 
-        for var I := 0; I < Rest.Length; I := I + 1 do
-            Body.Add (Rest[I]);
+        for var Each in Rest do
+            Body.Add (Each);
 
         var TheFunction := FunctionStmt (Name, Params, Body);
         TheFunction.ReturnType := ReturnType;
@@ -1792,15 +1792,14 @@ begin
         var Section := List();
         ReadDeclarationSections (Section, True);
 
-        for var I := 0; I < Section.Length; I := I + 1 do
+        for var Each in Section do
         begin
-            var Each := Section[I];
 
             if Each is VarGroupStmt then
             begin
-                for var J := 0; J < Each.Names.Length; J := J + 1 do
+                for var TheName in Each.Names do
                 begin
-                    var Field := VarStmt (Each.Names[J], Each.Initializer);
+                    var Field := VarStmt (TheName, Each.Initializer);
                     Field.TypeName := Each.TypeName;
                     Field.Generic := Each.Generic;
 

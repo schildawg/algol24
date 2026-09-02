@@ -65,11 +65,12 @@ static Value m_environment_raiseambiguousimport_2_string_string(Value v_this, Va
     (void)((v_owners = alg_widen(alg_string(""), "String")));
     (void)((v_seen = alg_widen(alg_set(), "Set")));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Imports"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_0 = alg_iterable(alg_property(v_this, "Imports"));
+        for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {
+            Value v_import = alg_iterable_at(loop_0, at_0);
+            (void)v_import;
             {
-                Value v_themodule = alg_cast(alg_subscript_get(alg_property(v_this, "Imports"), v_i), "Environment");
+                Value v_themodule = alg_cast(v_import, "Environment");
                 (void)v_themodule;
                 if (alg_truthy(alg_invoke(alg_property(v_themodule, "Values"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
                     if (alg_truthy(alg_invoke(v_themodule, "IsExported", (Value[]){v_name}, 1))) {
@@ -113,11 +114,12 @@ static Value m_environment_ownerof_2_string_string(Value v_this, Value *args, in
     (void)v_found;
     (void)((v_found = alg_widen(alg_nil(), "Environment")));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Imports"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+        Value loop_1 = alg_iterable(alg_property(v_this, "Imports"));
+        for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
+            Value v_import = alg_iterable_at(loop_1, at_1);
+            (void)v_import;
             {
-                Value v_themodule = alg_cast(alg_subscript_get(alg_property(v_this, "Imports"), v_i), "Environment");
+                Value v_themodule = alg_cast(v_import, "Environment");
                 (void)v_themodule;
                 if (alg_truthy(alg_invoke(alg_property(v_themodule, "Values"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
                     if (alg_truthy(alg_invoke(v_themodule, "IsExported", (Value[]){v_name}, 1))) {

@@ -180,11 +180,12 @@ static Value m_objoverloads_select_1_list(Value v_this, Value *args, int32_t cou
         (void)v_pass;
         for (; alg_truthy(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))); (v_pass = alg_add(v_pass, alg_int(1)))) {
             {
-                Value v_i = alg_int(0);
-                (void)v_i;
-                for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Candidates"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-                    if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Candidates"), v_i), "Selects", (Value[]){v_arguments, v_pass}, 2))) {
-                        return alg_subscript_get(alg_property(v_this, "Candidates"), v_i);
+                Value loop_2 = alg_iterable(alg_property(v_this, "Candidates"));
+                for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
+                    Value v_thecandidate = alg_iterable_at(loop_2, at_2);
+                    (void)v_thecandidate;
+                    if (alg_truthy(alg_invoke(v_thecandidate, "Selects", (Value[]){v_arguments, v_pass}, 2))) {
+                        return v_thecandidate;
                     }
                 }
             }
@@ -285,10 +286,11 @@ Value f_anynamed(Value **cells, Value *args, int32_t count) {
     Value v_names = alg_param(args[0], "List");
     (void)v_names;
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_names, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            if (alg_truthy(alg_not_equal(alg_str(alg_subscript_get(v_names, v_i)), alg_string("")))) {
+        Value loop_3 = alg_iterable(v_names);
+        for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
+            Value v_name = alg_iterable_at(loop_3, at_3);
+            (void)v_name;
+            if (alg_truthy(alg_not_equal(alg_str(v_name), alg_string("")))) {
                 return alg_bool(true);
             }
         }
@@ -587,10 +589,11 @@ static Value m_objfunction_arrange_2_list_list(Value v_this, Value *args, int32_
         }
     }
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_filled, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            if (alg_truthy(alg_not(alg_subscript_get(v_filled, v_i)))) {
+        Value loop_4 = alg_iterable(v_filled);
+        for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
+            Value v_each = alg_iterable_at(loop_4, at_4);
+            (void)v_each;
+            if (alg_truthy(alg_not(v_each))) {
                 return alg_nil();
             }
         }
@@ -658,20 +661,20 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
         }
     }
     {
-        AlgFrame frame_2;
-        alg_push_frame(&frame_2);
-        if (ALG_SETJMP(frame_2.jump) == 0) {
+        AlgFrame frame_5;
+        alg_push_frame(&frame_5);
+        if (ALG_SETJMP(frame_5.jump) == 0) {
             {
                 (void)(alg_invoke(v_theinterpreter, "ExecuteBlock", (Value[]){alg_property(alg_property(v_this, "Declaration"), "Body"), v_env}, 2));
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_2[] = {"Return"};
-            int32_t which_2 = alg_handler(frame_2.raised, names_2, 1);
-            if (which_2 == 0) {
+            static const char *names_5[] = {"Return"};
+            int32_t which_5 = alg_handler(frame_5.raised, names_5, 1);
+            if (which_5 == 0) {
                 {
-                    volatile Value v_e = frame_2.raised;
+                    volatile Value v_e = frame_5.raised;
                     (void)v_e;
                     {
                         if (alg_truthy(alg_property(v_this, "IsInitializer"))) {
@@ -682,7 +685,7 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
                 }
             }
             else {
-                alg_raise(frame_2.raised);
+                alg_raise(frame_5.raised);
             }
         }
     }

@@ -53,8 +53,8 @@ begin
         begin
             var Found := Methods.Get (Name);
 
-            for var I := 0; I < Found.Length; I := I + 1 do
-                if Found[I].Arity () = TheArity then Exit Found[I] as ObjFunction;
+            for var Each in Found do
+                if Each.Arity () = TheArity then Exit Each as ObjFunction;
         end
 
         if Superclass <> Nil then Exit Superclass.MethodOfArity (Name, TheArity);
@@ -112,9 +112,9 @@ begin
         begin
             var Candidates := Methods.Get (Name);
 
-            for var I := 0; I < Candidates.Length; I := I + 1 do
-                if Candidates[I].Selects (Arguments, Pass) then
-                    Exit Candidates[I] as ObjFunction;
+            for var Candidate in Candidates do
+                if Candidate.Selects (Arguments, Pass) then
+                    Exit Candidate as ObjFunction;
         end
 
         if Superclass <> Nil then Exit Superclass.Fitting (Name, Arguments, Pass);

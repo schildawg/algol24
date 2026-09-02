@@ -85,8 +85,8 @@ var
 begin
     Line := '';
 
-    for var I := 0; I < Arguments.Length; I := I + 1 do
-        Line := Line + Stringify (TheInterpreter, Arguments[I]);
+    for var Argument in Arguments do
+        Line := Line + Stringify (TheInterpreter, Argument);
 
     Exit Line;
 end
@@ -261,8 +261,8 @@ begin
                                 raise 'Set expects (List) but got ('
                                     + TypeNameOf (From) + ').';
 
-                            for var I := 0; I < From.Items.Length; I := I + 1 do
-                                TheSet.Invoke ('add', [From.Items[I]]);
+                            for var Item in From.Items do
+                                TheSet.Invoke ('add', [Item]);
                         end
 
                         Exit TheSet;
@@ -635,9 +635,8 @@ begin
                           File : String, Files : List, ByFile : Map, Hoisted : Set,
                           Collect : Boolean);
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is ModuleStmt then
             begin
@@ -733,13 +732,13 @@ begin
         Failed := 0;
 
         var Ordered := List();
-        for var F := 0; F < Files.Length; F := F + 1 do
+        for var File in Files do
         begin
-            var Group := ByFile.Get (Files[F]) as List;
+            var Group := ByFile.Get (File) as List;
             Group.Sort();
 
-            Ordered.Add (Files[F]);
-            for var J := 0; J < Group.Length; J := J + 1 do Ordered.Add (Group[J]);
+            Ordered.Add (File);
+            for var Each in Group do Ordered.Add (Each);
         end
 
         for var I := 0; I < Ordered.Length; I := I + 1 do
@@ -900,8 +899,8 @@ begin
         end
 
         Result := ObjCollection ('List');
-        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
-            Result.Items.Add (Evaluate (TheExpr.Values[I]));
+        for var Value in TheExpr.Values do
+            Result.Items.Add (Evaluate (Value));
 
         Exit Result;
     end
@@ -1101,9 +1100,9 @@ begin
 
         var Units := UnitsByName.Keys();
 
-        for var I := 0; I < Units.Length; I := I + 1 do
+        for var TheUnit in Units do
         begin
-            var ModuleEnv := UnitsByName.Get (Units[I]) as Environment;
+            var ModuleEnv := UnitsByName.Get (TheUnit) as Environment;
 
             if ModuleEnv.Exports <> Nil and ModuleEnv.Exports.Contains (FoldCase (Name.Lexeme)) then
                 Exit Str (Message) + ' Unit ''' + Str (ModuleEnv.UnitName)
@@ -1238,9 +1237,9 @@ begin
 
         if Callee is ObjOverloads then
         begin
-            for var I := 0; I < Callee.Candidates.Length; I := I + 1 do
+            for var Candidate in Callee.Candidates do
             begin
-                var Fitted := Callee.Candidates[I].Arrange (Arguments, Names);
+                var Fitted := Candidate.Arrange (Arguments, Names);
 
                 if Fitted <> Nil then Exit Fitted;
             end
@@ -1288,9 +1287,9 @@ begin
         Callee := Evaluate (TheExpr.Callee);
 
         Arguments := List();
-        for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+        for var Argument in TheExpr.Arguments do
         begin
-            Arguments.Add (Evaluate (TheExpr.Arguments[I]));
+            Arguments.Add (Evaluate (Argument));
         end
 
         Arguments := Arranged (Callee, Arguments, TheExpr.ArgumentNames);
@@ -1697,9 +1696,8 @@ begin
         end
 
         Methods := Map();
-        for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
+        for var Method in TheStmt.Methods do
         begin
-            var Method := TheStmt.Methods[I];
 
             TheFunction := ObjFunction (Method, Env, FoldCase (Method.Name.Lexeme) = 'init');
 
@@ -1722,8 +1720,8 @@ begin
         else Klass := ObjClass (TheStmt.Name.Lexeme, Superclass, Methods, TheStmt.Fields) as ObjClass;
 
         for var Name in Methods.Keys() do
-            for var I := 0; I < Methods.Get(Name).Length; I := I + 1 do
-                Methods.Get(Name)[I].Owner := Klass;
+            for var Each in Methods.Get(Name) do
+                Each.Owner := Klass;
 
         if Superclass <> Nil then
         begin
@@ -1744,8 +1742,8 @@ begin
 
     begin
         var HasId := False;
-        for var I := 0; I < TheStmt.Fields.Length; I := I + 1 do
-            if FoldCase (TheStmt.Fields[I].Name.Lexeme) = 'id' then HasId := True;
+        for var Field in TheStmt.Fields do
+            if FoldCase (Field.Name.Lexeme) = 'id' then HasId := True;
 
         if not HasId then
         begin
@@ -1786,9 +1784,9 @@ begin
     begin
         TheType := ObjEnumType (TheStmt.Name.Lexeme);
 
-        for var I := 0; I < TheStmt.Members.Length; I := I + 1 do
+        for var TheMember in TheStmt.Members do
         begin
-            var MemberName := Str (TheStmt.Members[I].Lexeme);
+            var MemberName := Str (TheMember.Lexeme);
             var Member := TheType.Add (MemberName);
 
             var Clash := Env.Values.Contains (FoldCase (MemberName));
@@ -1841,8 +1839,8 @@ begin
                 Overloads.Add (Existing);
             end
 
-            for var I := 0; I < Overloads.Candidates.Length; I := I + 1 do
-                if SameSignature (Overloads.Candidates[I].Declaration, TheStmt) then
+            for var Candidate in Overloads.Candidates do
+                if SameSignature (Candidate.Declaration, TheStmt) then
                     raise '''' + Str (TheStmt.Name.Lexeme) + ''' is already defined.';
 
             Overloads.Add (TheFunction);
@@ -1955,8 +1953,8 @@ begin
         begin
             if Target.Kind = 'Map' then Exit Target.Pairs.Keys();
 
-            for var I := 0; I < Target.Items.Length; I := I + 1 do
-                Result.Add (Target.Items[I]);
+            for var Item in Target.Items do
+                Result.Add (Item);
 
             Exit Result;
         end
@@ -1995,11 +1993,11 @@ begin
         Elements := ElementsOf (TheStmt.Name, Evaluate (TheStmt.Iterable));
 
         try
-            for var I := 0; I < Elements.Length; I := I + 1 do
+            for var Element in Elements do
             begin
                 var Scope := Environment();
                 Scope.Enclosing := Env;
-                Scope.Define (TheStmt.Name.Lexeme, Elements[I]);
+                Scope.Define (TheStmt.Name.Lexeme, Element);
 
                 try
                     ExecuteBlock ([TheStmt.Body], Scope);
@@ -2082,21 +2080,20 @@ begin
         Exported := List();
 
         var Hidden := Set();
-        for var I := 0; I < TheStmt.PrivateNames.Length; I := I + 1 do
-            Hidden.Add (FoldCase (TheStmt.PrivateNames[I]));
+        for var PrivateName in TheStmt.PrivateNames do
+            Hidden.Add (FoldCase (PrivateName));
 
         var Names := ModuleEnv.Values.Keys();
-        for var I := 0; I < Names.Length; I := I + 1 do
+        for var TheName in Names do
         begin
-            var TheName := Names[I];
 
             if not Hidden.Contains (TheName) then
                 Exported.Add (TheName);
         end
 
         ModuleEnv.Exports := Set();
-        for var I := 0; I < Exported.Length; I := I + 1 do
-            ModuleEnv.Exports.Add (Exported[I]);
+        for var Each in Exported do
+            ModuleEnv.Exports.Add (Each);
 
         Importer.Imports.Add (ModuleEnv);
         UnitsByName.Put (FoldCase (TheStmt.UnitName), ModuleEnv);
@@ -2224,8 +2221,8 @@ begin
         if TheStmt.Initializer <> Nil then
             Value := Evaluate (TheStmt.Initializer);
 
-        for var I := 0; I < TheStmt.Names.Length; I := I + 1 do
-            Env.Define (TheStmt.Names[I].Lexeme, Value);
+        for var TheName in TheStmt.Names do
+            Env.Define (TheName.Lexeme, Value);
     end
 
     /// Assigns to a name, widening the value to the type declared for it.

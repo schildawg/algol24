@@ -116,17 +116,16 @@ begin
     /// meant.
     procedure CollectDottable (Statements : List);
     begin
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is ObjectStmt then Dottable.Add (FoldCase (TheStmt.Name.Lexeme));
             if TheStmt is EnumStmt   then Dottable.Add (FoldCase (TheStmt.Name.Lexeme));
             if TheStmt is VarStmt    then Dottable.Add (FoldCase (TheStmt.Name.Lexeme));
 
             if TheStmt is VarGroupStmt then
-                for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
-                    Dottable.Add (FoldCase (TheStmt.Names[J].Lexeme));
+                for var TheName in TheStmt.Names do
+                    Dottable.Add (FoldCase (TheName.Lexeme));
 
             if TheStmt is ModuleStmt and TheStmt.Statements <> Nil then
                 CollectDottable (TheStmt.Statements);
@@ -212,14 +211,14 @@ begin
         BeginScope();
         Scopes.Peek().Put ('this', true);
 
-        for var I := 0; I < Stmt.Methods.Length; I := I + 1 do
+        for var Method in Stmt.Methods do
         begin
             var Declaration := FUN_FUNCTION;
-            if FoldCase (Stmt.Methods[I].Name.Lexeme) = 'init' then
+            if FoldCase (Method.Name.Lexeme) = 'init' then
             begin
                 Declaration := FUN_INITIALIZER;
             end
-            ResolveFunction (Stmt.Methods[I], Declaration);
+            ResolveFunction (Method, Declaration);
         end
 
         EndScope();
@@ -259,10 +258,10 @@ begin
         Declare (Stmt.Name);
         Define (Stmt.Name);
 
-        for var I := 0; I < Stmt.Members.Length; I := I + 1 do
+        for var Member in Stmt.Members do
         begin
-            Declare (Stmt.Members[I]);
-            Define (Stmt.Members[I]);
+            Declare (Member);
+            Define (Member);
         end
     end
 
@@ -293,8 +292,8 @@ begin
         Resolve (Stmt.TryBlock);
 
         Keys := Stmt.Handlers.Keys();
-        for var I := 0; I < Keys.Length; I := I + 1 do
-            Resolve (Stmt.Handlers.Get (Keys[I]).Body);
+        for var Key in Keys do
+            Resolve (Stmt.Handlers.Get (Key).Body);
     end
 
     /// Resolves an imported file's statements with that file's unit set.
@@ -428,13 +427,13 @@ begin
     /// Resolves a group declaration, binding every name to the one initializer.
     procedure VisitVarGroupStmt (Stmt : VarGroupStmt);
     begin
-        for var I := 0; I < Stmt.Names.Length; I := I + 1 do
-            DeclareBinding (Stmt.Names[I], Stmt.IsConstant);
+        for var Name in Stmt.Names do
+            DeclareBinding (Name, Stmt.IsConstant);
 
         if Stmt.Initializer <> Nil then Resolve (Stmt.Initializer);
 
-        for var I := 0; I < Stmt.Names.Length; I := I + 1 do
-            Define (Stmt.Names[I]);
+        for var TheName in Stmt.Names do
+            Define (TheName);
     end
 
     /// Resolves an assignment, refusing one to a constant.
@@ -479,9 +478,9 @@ begin
     procedure VisitCall (TheExpr : CallExpr);
     begin
         Resolve (TheExpr.Callee);
-        for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+        for var Argument in TheExpr.Arguments do
         begin
-            Resolve(TheExpr.Arguments[I]);
+            Resolve(Argument);
         end
     end
 
@@ -584,11 +583,11 @@ begin
     /// Resolves every key and value of a collection literal.
     procedure VisitCollectionExpr (TheExpr : CollectionExpr);
     begin
-        for var I := 0; I < TheExpr.Keys.Length; I := I + 1 do
-            Resolve (TheExpr.Keys[I]);
+        for var Key in TheExpr.Keys do
+            Resolve (Key);
 
-        for var I := 0; I < TheExpr.Values.Length; I := I + 1 do
-            Resolve (TheExpr.Values[I]);
+        for var Value in TheExpr.Values do
+            Resolve (Value);
     end
 
     /// Resolves a literal, which binds nothing.
@@ -630,9 +629,8 @@ begin
         MemberOwner := Map();
         Signatures := Map();
 
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var TheStmt in Statements do
         begin
-            var TheStmt := Statements[I];
 
             if TheStmt is ModuleStmt then
             begin
@@ -656,8 +654,8 @@ begin
                         Signatures.Put (FnName, List());
 
                     var Taken := Signatures.Get (FnName);
-                    for var J := 0; J < Taken.Length; J := J + 1 do
-                        if Str (Taken[J]) = Signature then
+                    for var Item in Taken do
+                        if Str (Item) = Signature then
                             raise '''' + Str (TheStmt.Name.Lexeme)
                                 + ''' is already defined.';
 
@@ -674,10 +672,10 @@ begin
                 begin
                     var Owner := FoldCase (TheStmt.Name.Lexeme);
 
-                    for var J := 0; J < TheStmt.Members.Length; J := J + 1 do
+                    for var TheMember in TheStmt.Members do
                     begin
-                        var Member  := FoldCase (TheStmt.Members[J].Lexeme);
-                        var AsWritten := Str (TheStmt.Members[J].Lexeme);
+                        var Member  := FoldCase (TheMember.Lexeme);
+                        var AsWritten := Str (TheMember.Lexeme);
 
                         if Seen.Contains (Member) then
                             raise '''' + AsWritten + ''' is already defined.';
@@ -694,18 +692,18 @@ begin
                 end
 
                 if TheStmt is VarGroupStmt then
-                    for var J := 0; J < TheStmt.Names.Length; J := J + 1 do
+                    for var EachName in TheStmt.Names do
                     begin
-                        var Each := FoldCase (TheStmt.Names[J].Lexeme);
+                        var Each := FoldCase (EachName.Lexeme);
 
                         if Seen.Contains (Each) then
-                            raise '''' + Str (TheStmt.Names[J].Lexeme) + ''' is already defined.';
+                            raise '''' + Str (EachName.Lexeme) + ''' is already defined.';
 
                         if MemberOwner.Contains (Each) then
-                            raise '''' + Str (TheStmt.Names[J].Lexeme) + ''' is already defined.';
+                            raise '''' + Str (EachName.Lexeme) + ''' is already defined.';
 
                         if Signatures.Contains (Each) then
-                            raise '''' + Str (TheStmt.Names[J].Lexeme) + ''' is already defined.';
+                            raise '''' + Str (EachName.Lexeme) + ''' is already defined.';
 
                         Seen.Add (Each);
                     end
@@ -772,11 +770,11 @@ begin
     begin
         Parent := Map();
 
-        for var I := 0; I < Statements.Length; I := I + 1 do
-            if Statements[I] is ClassStmt then
-                if Statements[I].Superclass <> Nil then
-                    Parent.Put (FoldCase (Statements[I].Name.Lexeme),
-                                FoldCase (Statements[I].Superclass.Name.Lexeme));
+        for var Statement in Statements do
+            if Statement is ClassStmt then
+                if Statement.Superclass <> Nil then
+                    Parent.Put (FoldCase (Statement.Name.Lexeme),
+                                FoldCase (Statement.Superclass.Name.Lexeme));
 
         for var Name in Parent.Keys() do
         begin
@@ -810,9 +808,9 @@ begin
 
         PushLabels (Statements);
 
-        for var I := 0; I < Statements.Length; I := I + 1 do
+        for var Statement in Statements do
         begin
-            Resolve(Statements[I]);
+            Resolve(Statement);
         end
 
         PopLabels ();
@@ -826,8 +824,8 @@ begin
     begin
         Found := List();
 
-        for var I := 0; I < Statements.Length; I := I + 1 do
-            if Statements[I] is LabelStmt then Found.Add (Statements[I]);
+        for var Statement in Statements do
+            if Statement is LabelStmt then Found.Add (Statement);
 
         LabelScopes.Add (Found);
     end
@@ -845,9 +843,9 @@ begin
         begin
             var Scope := LabelScopes[S];
 
-            for var I := 0; I < Scope.Length; I := I + 1 do
-                if FoldCase (Str (Scope[I].Name.Lexeme)) = FoldCase (Named) then
-                    Exit Scope[I];
+            for var Each in Scope do
+                if FoldCase (Str (Each.Name.Lexeme)) = FoldCase (Named) then
+                    Exit Each;
         end
 
         Exit Nil;
@@ -899,9 +897,8 @@ begin
         CurrentFunction := TypeOfFunction as FunctionType;
 
         BeginScope ();
-        for var I := 0; I < TheFunction.Params.Length; I := I + 1 do
+        for var Param in TheFunction.Params do
         begin
-            var Param  := TheFunction.Params[I];
             Declare (Param);
             Define (Param);
         end

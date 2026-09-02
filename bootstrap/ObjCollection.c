@@ -202,10 +202,11 @@ static Value m_objcollection_aslist_1_list(Value v_this, Value *args, int32_t co
     (void)v_result;
     (void)((v_result = alg_widen(alg_new(k_objcollection, (Value[]){alg_string("List")}, 1), "ObjCollection")));
     {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_property(v_from, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)(alg_invoke(alg_property(v_result, "Items"), "Add", (Value[]){alg_subscript_get(v_from, v_i)}, 1));
+        Value loop_0 = alg_iterable(v_from);
+        for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {
+            Value v_each = alg_iterable_at(loop_0, at_0);
+            (void)v_each;
+            (void)(alg_invoke(alg_property(v_result, "Items"), "Add", (Value[]){v_each}, 1));
         }
     }
     return v_result;

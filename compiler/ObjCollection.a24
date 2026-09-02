@@ -185,8 +185,8 @@ begin
     begin
         Result := ObjCollection ('List');
 
-        for var I := 0; I < From.Length; I := I + 1 do
-            Result.Items.Add (From[I]);
+        for var Each in From do
+            Result.Items.Add (Each);
 
         Exit Result;
     end
@@ -262,6 +262,9 @@ begin
 
         if Name = 'fill' then
         begin
+            // Counted, and it has to be: this STORES through the subscript,
+            // and 'for in' binds a copy of each element rather than a place to
+            // put one.
             for var I := 0; I < Items.Length; I := I + 1 do
                 Items[I] := Arguments[0];
 

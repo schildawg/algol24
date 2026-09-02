@@ -50,11 +50,12 @@ static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args
             Value v_found = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1);
             (void)v_found;
             {
-                Value v_i = alg_int(0);
-                (void)v_i;
-                for (; alg_truthy(alg_less(v_i, alg_property(v_found, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-                    if (alg_truthy(alg_equal(alg_invoke(alg_subscript_get(v_found, v_i), "Arity", NULL, 0), v_thearity))) {
-                        return alg_cast(alg_subscript_get(v_found, v_i), "ObjFunction");
+                Value loop_0 = alg_iterable(v_found);
+                for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {
+                    Value v_each = alg_iterable_at(loop_0, at_0);
+                    (void)v_each;
+                    if (alg_truthy(alg_equal(alg_invoke(v_each, "Arity", NULL, 0), v_thearity))) {
+                        return alg_cast(v_each, "ObjFunction");
                     }
                 }
             }
@@ -122,11 +123,12 @@ static Value m_objclass_fitting_3_string_list_integer(Value v_this, Value *args,
             Value v_candidates = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1);
             (void)v_candidates;
             {
-                Value v_i = alg_int(0);
-                (void)v_i;
-                for (; alg_truthy(alg_less(v_i, alg_property(v_candidates, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-                    if (alg_truthy(alg_invoke(alg_subscript_get(v_candidates, v_i), "Selects", (Value[]){v_arguments, v_pass}, 2))) {
-                        return alg_cast(alg_subscript_get(v_candidates, v_i), "ObjFunction");
+                Value loop_1 = alg_iterable(v_candidates);
+                for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
+                    Value v_candidate = alg_iterable_at(loop_1, at_1);
+                    (void)v_candidate;
+                    if (alg_truthy(alg_invoke(v_candidate, "Selects", (Value[]){v_arguments, v_pass}, 2))) {
+                        return alg_cast(v_candidate, "ObjFunction");
                     }
                 }
             }
