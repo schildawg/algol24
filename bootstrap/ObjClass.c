@@ -196,7 +196,7 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_instance;
     Value v_initializer = alg_nil();
     (void)v_initializer;
-    (void)((v_instance = alg_widen(alg_cast(alg_new(k_objinstance, (Value[]){v_this}, 1), "ObjInstance"), "ObjInstance")));
+    (void)((v_instance = alg_widen(alg_new(k_objinstance, (Value[]){v_this}, 1), "ObjInstance")));
     (void)(alg_invoke(v_this, "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2));
     (void)((v_initializer = alg_widen(alg_invoke(v_this, "FindOverload", (Value[]){alg_string("init"), v_arguments}, 2), "ObjFunction")));
     if (alg_truthy(alg_equal(v_initializer, alg_nil()))) {

@@ -243,7 +243,7 @@ static Value m_environment_ancestor_1_integer(Value v_this, Value *args, int32_t
         (void)v_i;
         for (; alg_truthy(alg_less(v_i, v_distance)); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                (void)((v_env = alg_widen(alg_cast(alg_property(v_env, "Enclosing"), "Environment"), "Environment")));
+                (void)((v_env = alg_widen(alg_property(v_env, "Enclosing"), "Environment")));
             }
         }
     }

@@ -976,7 +976,7 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
     Value v_enclosingfunction = alg_nil();
     (void)v_enclosingfunction;
     (void)((v_enclosingfunction = alg_widen(alg_property(v_this, "CurrentFunction"), "FunctionType")));
-    (void)(alg_set_property(v_this, "CurrentFunction", alg_widen(alg_cast(v_typeoffunction, "FunctionType"), "FunctionType")));
+    (void)(alg_set_property(v_this, "CurrentFunction", alg_widen(v_typeoffunction, "FunctionType")));
     (void)(alg_invoke(v_this, "BeginScope", NULL, 0));
     {
         Value loop_19 = alg_iterable(alg_property(v_thefunction, "Params"));

@@ -179,7 +179,7 @@ begin
        Initializer : ObjFunction;
 
     begin
-        Instance := ObjInstance (this) as ObjInstance;
+        Instance := ObjInstance (this);
 
         SeedFields (Instance, TheInterpreter);
 

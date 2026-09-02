@@ -289,7 +289,7 @@ begin
         Env := this as Environment;
         for var I := 0; I < Distance; I := I + 1 do
         begin
-           Env := Env.Enclosing as Environment;
+           Env := Env.Enclosing;
         end
         Exit Env;
     end
@@ -317,7 +317,7 @@ begin
     Globals.Define ('test', 1.0);
 
     var Env := Environment();
-    Env.Enclosing := Globals as Environment;
+    Env.Enclosing := Globals;
     Env.Define ('test', 2.0);
 
     var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
@@ -334,10 +334,10 @@ begin
     Globals.Define ('test', 1.0);
 
     var Env := Environment();
-    Env.Enclosing := Globals as Environment;
+    Env.Enclosing := Globals;
 
     var InnerEnv := Environment();
-    InnerEnv.Enclosing := Env as Environment;
+    InnerEnv.Enclosing := Env;
 
     var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
 
@@ -352,7 +352,7 @@ begin
     Globals.Define ('test', 1.0);
 
     var Env := Environment();
-    Env.Enclosing := Globals as Environment;
+    Env.Enclosing := Globals;
 
     var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
 
@@ -404,10 +404,10 @@ begin
     Globals.Define ('test', 1.0);
 
     var Env := Environment();
-    Env.Enclosing := Globals as Environment;
+    Env.Enclosing := Globals;
     Env.Define ('test', 2.0);
     var InnerEnv := Environment();
-    InnerEnv.Enclosing := Env as Environment;
+    InnerEnv.Enclosing := Env;
 
 
     AssertEqual(1.0, InnerEnv.GetAt (2, 'test'));
@@ -420,10 +420,10 @@ begin
     Globals.Define ('test', 1.0);
 
     var Env := Environment();
-    Env.Enclosing := Globals as Environment;
+    Env.Enclosing := Globals;
 
     var InnerEnv := Environment();
-    InnerEnv.Enclosing := Env as Environment;
+    InnerEnv.Enclosing := Env;
 
     var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
     InnerEnv.AssignAt (2, TheToken, 5.0);
@@ -442,7 +442,7 @@ test 'Assign At Then Get At';
 begin
     var Outer := Environment();
     var Inner := Environment();
-    Inner.Enclosing := Outer as Environment;
+    Inner.Enclosing := Outer;
 
     // Names of more than one character: a one-character literal is a Char, not
     // a String, and Define declares a String.

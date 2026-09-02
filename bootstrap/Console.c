@@ -149,7 +149,7 @@ static Value m_console_error_2_token_string(Value v_this, Value *args, int32_t c
     (void)v_text;
     Value v_digits = alg_nil();
     (void)v_digits;
-    (void)((v_text = alg_widen(alg_cast(alg_invoke(alg_singleton(k_sourcecode), "Get", (Value[]){alg_property(v_where, "LineNumber")}, 1), "String"), "String")));
+    (void)((v_text = alg_widen(alg_invoke(alg_singleton(k_sourcecode), "Get", (Value[]){alg_property(v_where, "LineNumber")}, 1), "String")));
     (void)((v_digits = alg_widen(alg_text_length(alg_str(alg_property(v_where, "LineNumber"))), "Integer")));
     (void)(alg_writeln(alg_add(alg_add(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), alg_invoke(alg_singleton(k_sourcecode), "Name", NULL, 0)), alg_string(": ")), v_message)));
     (void)(alg_writeln(alg_add(alg_add(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), alg_str(alg_property(v_where, "LineNumber"))), alg_string(" | ")), v_text)));

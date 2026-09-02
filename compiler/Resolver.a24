@@ -894,7 +894,7 @@ begin
 
     begin
         EnclosingFunction := CurrentFunction;
-        CurrentFunction := TypeOfFunction as FunctionType;
+        CurrentFunction := TypeOfFunction;
 
         BeginScope ();
         for var Param in TheFunction.Params do

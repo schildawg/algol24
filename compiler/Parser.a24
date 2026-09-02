@@ -2915,7 +2915,7 @@ begin
     text := text + '300);';
 
     var TheScanner := Scanner (text);
-    var TheParser := Parser (TheScanner.ScanTokens() as List);
+    var TheParser := Parser (TheScanner.ScanTokens());
 
     try
         TheParser.Statement();

@@ -1717,7 +1717,7 @@ begin
             Klass.Methods    := Methods;
             Klass.Fields     := TheStmt.Fields;
         end
-        else Klass := ObjClass (TheStmt.Name.Lexeme, Superclass, Methods, TheStmt.Fields) as ObjClass;
+        else Klass := ObjClass (TheStmt.Name.Lexeme, Superclass, Methods, TheStmt.Fields);
 
         for var Name in Methods.Keys() do
             for var Each in Methods.Get(Name) do
@@ -1725,7 +1725,7 @@ begin
 
         if Superclass <> Nil then
         begin
-            Env := Env.Enclosing as Environment;
+            Env := Env.Enclosing;
         end
 
         Env.Assign (TheStmt.Name, Klass);

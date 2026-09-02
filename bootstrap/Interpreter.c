@@ -2118,7 +2118,7 @@ static Value m_interpreter_visitclassstmt_1_classstmt(Value v_this, Value *args,
             (void)(alg_set_property(v_klass, "Fields", alg_widen(alg_property(v_thestmt, "Fields"), "List")));
         }
     } else {
-        (void)((v_klass = alg_widen(alg_cast(alg_new(k_objclass, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), v_superclass, v_methods, alg_property(v_thestmt, "Fields")}, 4), "ObjClass"), "ObjClass")));
+        (void)((v_klass = alg_widen(alg_new(k_objclass, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), v_superclass, v_methods, alg_property(v_thestmt, "Fields")}, 4), "ObjClass")));
     }
     {
         Value loop_26 = alg_iterable(alg_invoke(v_methods, "Keys", NULL, 0));
@@ -2137,7 +2137,7 @@ static Value m_interpreter_visitclassstmt_1_classstmt(Value v_this, Value *args,
     }
     if (alg_truthy(alg_not_equal(v_superclass, alg_nil()))) {
         {
-            (void)(alg_set_property(v_this, "Env", alg_widen(alg_cast(alg_property(alg_property(v_this, "Env"), "Enclosing"), "Environment"), "Environment")));
+            (void)(alg_set_property(v_this, "Env", alg_widen(alg_property(alg_property(v_this, "Env"), "Enclosing"), "Environment")));
         }
     }
     (void)(alg_invoke(alg_property(v_this, "Env"), "Assign", (Value[]){alg_property(v_thestmt, "Name"), v_klass}, 2));

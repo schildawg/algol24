@@ -200,7 +200,7 @@ begin
 
     begin
 
-        Text := SourceCode.Get (Where.LineNumber) as String;
+        Text := SourceCode.Get (Where.LineNumber);
         Digits := Length (Str (Where.LineNumber));
 
         WriteLn (ERROR_TAG + SourceCode.Name() + ': ' + Message);
