@@ -9597,7 +9597,10 @@ exit: 70
 
 **[RT-017]**  A `String` answers `Length` as a **property**, its count of
 characters: `'abc'.Length` is 3. This is the same count `Length('abc')` gives,
-and the same spelling every collection uses [COL-003].
+and the same spelling every collection uses [COL-003]. It is the **only** member
+a `String` has — there are no string methods, and `IsEmpty` is a collection's
+[COL-003], not text's. A `Char` has no members at all, because a one-character
+literal is a `Char` and not a short `String` [TYP-003].
 
 ##### conformance/0114-string-length-property.a24
 
@@ -9628,6 +9631,45 @@ true
 a
 abc
 3
+```
+
+##### conformance/0180-a-strings-only-member.a24
+
+```algol24
+// Length is the ONE member a String has. It is a property, and there is no
+// second one: a String is not an object with an interface, and asking it for
+// one says so.
+
+var S := 'hello';
+
+WriteLn (S.Length);
+
+try WriteLn (S.IsEmpty);    except on E : String do WriteLn (E); end
+try WriteLn (S.ToUpper ()); except on E : String do WriteLn (E); end
+
+// A one-character literal is a Char, and a Char is not a short String: it has
+// no properties at all, so it answers the other message.
+try WriteLn ('x'.Length);   except on E : String do WriteLn (E); end
+
+// A number answers ToString the same way, and nothing else.
+WriteLn ((5).ToString ());
+try WriteLn ((5).Length);   except on E : String do WriteLn (E); end
+
+// Only a collection answers both [COL-003].
+WriteLn ([1, 2].Length, ' ', [1, 2].IsEmpty);
+try WriteLn (Nil.IsEmpty);  except on E : String do WriteLn (E); end
+```
+
+```console
+$ algc conformance/0180-a-strings-only-member.a24
+5
+Undefined property 'IsEmpty'.
+Undefined property 'ToUpper'.
+Only instances have properties.
+5
+Undefined property 'Length'.
+2 false
+Only instances have properties.
 ```
 
 **[RT-004]**  `Copy(Text, Begin, Length)` takes a substring, counting from zero.

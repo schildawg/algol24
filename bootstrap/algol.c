@@ -2219,13 +2219,28 @@ Value alg_property(Value receiver, const char *name) {
         undefined("enum member", name);
     }
 
-    if (alg_stricmp(name, "Length") == 0)  return alg_length(receiver);
-    if (alg_stricmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
+    /* A String answers 'Length' and nothing else [RT-017]. A Char answers
+       nothing at all: a one-character literal is a Char and never a String, so
+       it falls through to the message below rather than borrowing a String's
+       one property. */
+    if (receiver.type == VAL_STRING) {
+        if (alg_stricmp(name, "Length") == 0) return alg_length(receiver);
+
+        undefined("property", name);
+    }
+
+    /* Only a collection answers both [COL-003]. Asking any other value is a
+       question about a property it does not have, not a complaint about
+       'Length' in particular -- so it goes through the same two messages every
+       other receiver uses. */
+    if (is_sequence(receiver) || is_obj(receiver, OBJ_MAP)) {
+        if (alg_stricmp(name, "Length") == 0)  return alg_length(receiver);
+        if (alg_stricmp(name, "IsEmpty") == 0) return alg_is_empty(receiver);
+
+        return builtin_member(receiver, name);
+    }
 
     if (is_number(receiver)) return builtin_member(receiver, name);
-
-    if (is_sequence(receiver) || is_obj(receiver, OBJ_MAP))
-        return builtin_member(receiver, name);
 
     alg_error("Only instances have properties.");
     return alg_nil();
@@ -2413,6 +2428,11 @@ Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
 
         return invoke_found(method, receiver, args, count);
     }
+
+    /* A String has no methods at all, only the 'Length' property, so a call
+       through one is an undefined property and says so -- the same message
+       reading it would give. */
+    if (receiver.type == VAL_STRING) undefined("property", name);
 
     Value result;
     if (number_method(receiver, name, args, count, &result)) return result;
