@@ -368,9 +368,8 @@ static Value m_parser_iscollectiontype_1_string(Value v_this, Value *args, int32
     (void)v_this; (void)args; (void)count;
     Value v_typename = alg_widen(args[0], "String");
     (void)v_typename;
-    Value v_lowered = alg_nil();
+    Value v_lowered = alg_to_lower(v_typename);
     (void)v_lowered;
-    (void)((v_lowered = alg_widen(f_tolower(NULL, (Value[]){v_typename}, 1), "String")));
     return (or_14 = (or_13 = (or_12 = (or_11 = alg_equal(v_lowered, alg_string("list")), alg_truthy(or_11) ? or_11 : alg_equal(v_lowered, alg_string("map"))), alg_truthy(or_12) ? or_12 : alg_equal(v_lowered, alg_string("set"))), alg_truthy(or_13) ? or_13 : alg_equal(v_lowered, alg_string("stack"))), alg_truthy(or_14) ? or_14 : alg_equal(v_lowered, alg_string("array")));
     return alg_nil();
 }
@@ -2024,7 +2023,7 @@ static Value m_parser_checkword_1_string(Value v_this, Value *args, int32_t coun
     if (alg_truthy(alg_not(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVidentifier}, 1)))) {
         return alg_bool(false);
     }
-    return alg_equal(f_tolower(NULL, (Value[]){alg_str(alg_property(alg_invoke(v_this, "Peek", NULL, 0), "Lexeme"))}, 1), v_word);
+    return alg_equal(alg_to_lower(alg_str(alg_property(alg_invoke(v_this, "Peek", NULL, 0), "Lexeme"))), v_word);
     return alg_nil();
 }
 

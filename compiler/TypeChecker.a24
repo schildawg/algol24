@@ -234,10 +234,15 @@ begin
         Lookup.SetType ('ParamCount', 'Integer');
         Lookup.SetType ('FileExists', 'Boolean');
 
+        // ToUpper, ToLower and Val are listed WITHOUT a SetType above, so each
+        // reduces to no type at all.  That is deliberate: Val answers an
+        // Integer or a Double [RT-009], and the other two answer whichever of
+        // Char and String they were given [RT-025].  Naming one of the two
+        // would refuse the other.
         for var Name in ['Length', 'Pos', 'Copy', 'Str', 'Array', 'List', 'Map',
                          'Set', 'Stack', 'Buffer', 'TextFile', 'FileExists',
                          'ParamCount', 'ParamStr', 'Write', 'WriteLn', 'Ord',
-                         'Val', 'Char', 'Mod', 'clock'] do
+                         'Val', 'Char', 'Mod', 'clock', 'ToUpper', 'ToLower'] do
             BuiltinTypes.Put (Name, Lookup.GetType (Name));
 
         for var Name in ['Any', 'Boolean', 'Integer', 'Double', 'String', 'Char',

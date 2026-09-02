@@ -3415,6 +3415,12 @@ static Value m_cemitter_builtin_2_string_integer(Value v_this, Value *args, int3
     if (alg_truthy(alg_equal(v_key, alg_string("Pos/2")))) {
         return alg_string("alg_pos");
     }
+    if (alg_truthy(alg_equal(v_key, alg_string("ToUpper/1")))) {
+        return alg_string("alg_to_upper");
+    }
+    if (alg_truthy(alg_equal(v_key, alg_string("ToLower/1")))) {
+        return alg_string("alg_to_lower");
+    }
     if (alg_truthy(alg_equal(v_key, alg_string("Char/1")))) {
         return alg_string("alg_char");
     }

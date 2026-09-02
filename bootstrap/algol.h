@@ -204,6 +204,11 @@ void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **type
 
 Value alg_copy(Value text, Value begin, Value length);
 Value alg_pos(Value text, Value part);
+
+/* ASCII-only, and type-preserving: a Char folds to a Char, a String to a
+   String.  Both refuse anything that is not text. */
+Value alg_to_upper(Value text);
+Value alg_to_lower(Value text);
 Value alg_char(Value code);
 Value alg_ord(Value v);
 Value alg_val(Value v);

@@ -9433,13 +9433,14 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Twenty-nine names are built in. Twenty-six are always
+**[RT-001]**  Thirty names are built in. Twenty-seven are always
 available:
 
 ```
 Length  Copy  Pos   Str        Ord   Char  Val
+ToUpper ToLower
 Succ    Pred  Foreign
-Max     Mod   clock
+Mod     clock
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 ParamCount    ParamStr
@@ -9715,6 +9716,68 @@ true
 `Text`, or **-1** when it is absent.
 
     conformance  0089-text-builtins.a24
+
+**[RT-025]**  `ToUpper(T)` and `ToLower(T)` fold the case of text. They answer
+**whichever of `Char` and `String` they were given** — case is not a reason to
+widen, and `Str` is how widening is asked for [TYP-003] — and they take nothing
+else, so `ToUpper(42)` is `ToUpper expects text.` rather than `42`.
+
+**The fold is ASCII, `A`–`Z` against `a`–`z`, and stops there.** `ToUpper('café')`
+is `CAFé`. This is the same reach every other case comparison in the language
+has: identifiers fold case-insensitively [SRC-011] over the same range, and
+Annex G.3 lowercases an identifier over the same range before escaping it. A
+built-in that folded further would be the one thing in the language that
+disagreed with the rest of it about what case means.
+
+Text outside the range is **unchanged, not damaged**. Folding runs over bytes,
+and every byte of a multi-byte character is `80` or above, which no fold
+reaches — so a character the fold does not know is copied through whole.
+
+##### conformance/0181-folding-case.a24
+
+```algol24
+WriteLn (ToUpper ('hello'));
+WriteLn (ToLower ('WORLD'));
+WriteLn (ToUpper ('Mixed Case 42!'));
+
+// The fold is ASCII and stops there. Every byte of a multi-byte character is
+// outside the range that folds, so the character survives rather than being
+// mangled a byte at a time -- it simply does not change.
+WriteLn (ToUpper ('café'));
+WriteLn (Length (ToUpper ('café')));
+
+// A Char folds to a Char, because case is not a reason to widen [TYP-003].
+WriteLn (ToUpper ('a') is Char);
+WriteLn (ToUpper ('a') = 'A');
+WriteLn (ToUpper ('a') = Str ('A'));
+
+// A String of one character stays a String, on the same rule.
+WriteLn (ToUpper (Str ('a')) is String);
+
+// Neither takes anything but text -- unlike Length, which measures whatever
+// Str renders [RT-003].
+try WriteLn (ToUpper (42));   except on E : String do WriteLn (E); end
+try WriteLn (ToLower ([1]));  except on E : String do WriteLn (E); end
+
+// The empty string folds to itself.
+WriteLn ('[' + ToUpper ('') + ']');
+```
+
+```console
+$ algc conformance/0181-folding-case.a24
+HELLO
+world
+MIXED CASE 42!
+CAFé
+4
+true
+true
+false
+true
+ToUpper expects text.
+ToLower expects text.
+[]
+```
 
 **[RT-006]**  `Str(V)` renders any value: an Integer bare, a Double always with
 a point (`1.0`), a Boolean lowercase (`true`), `nil` as `nil`, a List as
@@ -11658,7 +11721,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The twenty-four built-in names, with the rule specifying each. `spec/spec.sh`
+The thirty built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list against the names the interpreter actually registers.
 
 | Name | Rule | Summary |
@@ -11682,6 +11745,8 @@ checks this list against the names the interpreter actually registers.
 | `Length` | [RT-003] | The length of the argument's **text**, not a count |
 | `Foreign` | [FUN-014] | The FFI's own plumbing. `external` is the spelling a program uses; this is what it becomes, and it exists because the tree-walker can reach C no other way |
 | `Pos` | [RT-005] | A zero-based index, or -1 when absent |
+| `ToUpper` | [RT-025] | Text folded up, ASCII only; a Char stays a Char |
+| `ToLower` | [RT-025] | Text folded down, on the same terms |
 | `Str` | [RT-006] | Any value rendered as text |
 | `Val` | [RT-009] | A number parsed from text — an **Integer** without a point, a Double with one |
 | `clock` | [RT-012] | Seconds since the epoch, as a Double |

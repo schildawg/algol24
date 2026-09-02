@@ -4,7 +4,6 @@
 #include "Token.h"
 #include "TokenType.h"
 
-Value f_tolower(Value **cells, Value *args, int32_t count);
 Value f_tointeger(Value **cells, Value *args, int32_t count);
 Value f_toradix(Value **cells, Value *args, int32_t count);
 Value v_digits;
@@ -13,12 +12,6 @@ Value v_hexdigits;
 bool d_hexdigits;
 Value v_bindigits;
 bool d_bindigits;
-Value v_uppercase;
-bool d_uppercase;
-Value v_lowercase;
-bool d_lowercase;
-Value fn_tolower;
-static const char *t_f_tolower[] = { "Text : String" };
 Value fn_tointeger;
 static const char *t_f_tointeger[] = { "Text : String" };
 Value fn_toradix;
@@ -64,34 +57,6 @@ static const char *t_scanner_ismark_1_char[] = { "C : Char" };
 static const char *t_scanner_isalphanumeric_1_char[] = { "C : Char" };
 static const char *t_scanner_isdigit_1_char[] = { "C : Char" };
 
-Value f_tolower(Value **cells, Value *args, int32_t count) {
-    (void)cells; (void)args; (void)count;
-    alg_arity(count, 1);
-    Value v_text = alg_param(args[0], "String");
-    (void)v_text;
-    Value v_result = alg_widen(alg_string(""), "String");
-    (void)v_result;
-    {
-        Value v_i = alg_int(0);
-        (void)v_i;
-        for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
-            {
-                Value v_c = alg_copy(v_text, v_i, alg_int(1));
-                (void)v_c;
-                Value v_at = alg_pos((alg_declared(d_uppercase, "UPPERCASE"), v_uppercase), v_c);
-                (void)v_at;
-                if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
-                    (void)((v_result = alg_widen(alg_add(v_result, alg_copy((alg_declared(d_lowercase, "LOWERCASE"), v_lowercase), v_at, alg_int(1))), "String")));
-                } else {
-                    (void)((v_result = alg_widen(alg_add(v_result, v_c), "String")));
-                }
-            }
-        }
-    }
-    return v_result;
-    return alg_nil();
-}
-
 Value f_tointeger(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
     alg_arity(count, 1);
@@ -123,7 +88,7 @@ Value f_toradix(Value **cells, Value *args, int32_t count) {
         Value v_i = alg_int(0);
         (void)v_i;
         for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
-            (void)((v_result = alg_widen(alg_add(alg_multiply(v_result, alg_text_length(v_alphabet)), alg_pos(v_alphabet, f_tolower(NULL, (Value[]){alg_copy(v_text, v_i, alg_int(1))}, 1))), "Integer")));
+            (void)((v_result = alg_widen(alg_add(alg_multiply(v_result, alg_text_length(v_alphabet)), alg_pos(v_alphabet, alg_to_lower(alg_copy(v_text, v_i, alg_int(1))))), "Integer")));
         }
     }
     return v_result;
@@ -306,7 +271,7 @@ static Value m_scanner_scanidentifier_0(Value v_this, Value *args, int32_t count
     }
     (void)((v_text = alg_widen(alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "Start"), alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start"))), "String")));
     (void)((v_typeoftoken = alg_widen(e_tokentype_tokenVidentifier, "TokenType")));
-    Value v_lowered = f_tolower(NULL, (Value[]){v_text}, 1);
+    Value v_lowered = alg_to_lower(v_text);
     (void)v_lowered;
     if (alg_truthy(alg_invoke((alg_declared(d_keywords, "Keywords"), v_keywords), "Contains", (Value[]){v_lowered}, 1))) {
         {
@@ -437,7 +402,7 @@ static Value m_scanner_inalphabet_2_string_char(Value v_this, Value *args, int32
     (void)v_alphabet;
     Value v_c = alg_widen(args[1], "Char");
     (void)v_c;
-    return alg_greater_equal(alg_pos(v_alphabet, f_tolower(NULL, (Value[]){alg_str(v_c)}, 1)), alg_int(0));
+    return alg_greater_equal(alg_pos(v_alphabet, alg_to_lower(alg_str(v_c))), alg_int(0));
     return alg_nil();
 }
 
@@ -655,7 +620,6 @@ static Value m_scanner_isdigit_1_char(Value v_this, Value *args, int32_t count) 
 
 void init_Scanner(void) {
     k_scanner = alg_class("Scanner", alg_nil());
-    fn_tolower = alg_closure("ToLower", f_tolower, NULL, 0, 1, t_f_tolower);
     fn_tointeger = alg_closure("ToInteger", f_tointeger, NULL, 0, 1, t_f_tointeger);
     fn_toradix = alg_closure("ToRadix", f_toradix, NULL, 0, 2, t_f_toradix);
     alg_class_field(k_scanner, "Source");
@@ -695,10 +659,6 @@ void init_Scanner(void) {
     d_hexdigits = true;
     v_bindigits = alg_string("01");
     d_bindigits = true;
-    v_uppercase = alg_string("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-    d_uppercase = true;
-    v_lowercase = alg_string("abcdefghijklmnopqrstuvwxyz");
-    d_lowercase = true;
     v_keywords = alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map(), alg_string("and"), e_tokentype_tokenVand), alg_string("as"), e_tokentype_tokenVas), alg_string("begin"), e_tokentype_tokenVbegin), alg_string("break"), e_tokentype_tokenVbreak), alg_string("continue"), e_tokentype_tokenVcontinue), alg_string("goto"), e_tokentype_tokenVgoto), alg_string("case"), e_tokentype_tokenVcase), alg_string("class"), e_tokentype_tokenVclass), alg_string("const"), e_tokentype_tokenVconst), alg_string("constructor"), e_tokentype_tokenVconstructor), alg_string("div"), e_tokentype_tokenVdiv), alg_string("do"), e_tokentype_tokenVdo), alg_string("else"), e_tokentype_tokenVelse), alg_string("end"), e_tokentype_tokenVend), alg_string("except"), e_tokentype_tokenVexcept), alg_string("exit"), e_tokentype_tokenVexit), alg_string("false"), e_tokentype_tokenVfalse), alg_string("for"), e_tokentype_tokenVfor), alg_string("function"), e_tokentype_tokenVfunction), alg_string("if"), e_tokentype_tokenVif), alg_string("in"), e_tokentype_tokenVin), alg_string("is"), e_tokentype_tokenVis), alg_string("nil"), e_tokentype_tokenVnil), alg_string("not"), e_tokentype_tokenVnot), alg_string("object"), e_tokentype_tokenVobject), alg_string("of"), e_tokentype_tokenVof), alg_string("or"), e_tokentype_tokenVor), alg_string("private"), e_tokentype_tokenVprivate), alg_string("procedure"), e_tokentype_tokenVprocedure), alg_string("property"), e_tokentype_tokenVproperty), alg_string("operator"), e_tokentype_tokenVoperator), alg_string("external"), e_tokentype_tokenVexternal), alg_string("public"), e_tokentype_tokenVpublic), alg_string("raise"), e_tokentype_tokenVraise), alg_string("super"), e_tokentype_tokenVsuper), alg_string("uses"), e_tokentype_tokenVuses), alg_string("then"), e_tokentype_tokenVthen), alg_string("try"), e_tokentype_tokenVtry), alg_string("this"), e_tokentype_tokenVthis), alg_string("true"), e_tokentype_tokenVtrue), alg_string("type"), e_tokentype_tokenVtype), alg_string("var"), e_tokentype_tokenVvar), alg_string("while"), e_tokentype_tokenVwhile);
     d_keywords = true;
     v_haderror = alg_bool(false);

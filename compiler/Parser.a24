@@ -352,11 +352,11 @@ begin
     ///
     /// [VAR-008]
     function IsCollectionType (TypeName : String) : Boolean;
-    var
-        Lowered : String;
-
     begin
-        Lowered := ToLower (TypeName);
+        // Inferred rather than declared String: ToLower answers whichever of
+        // Char and String it was given [RT-025], so it reduces to no type at
+        // all and cannot fill a declared one [VAR-006].
+        var Lowered := ToLower (TypeName);
 
         Exit Lowered = 'list'  or Lowered = 'map'   or Lowered = 'set'
           or Lowered = 'stack' or Lowered = 'array';

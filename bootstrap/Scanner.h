@@ -4,7 +4,6 @@
 
 #include "algol.h"
 
-Value f_tolower(Value **cells, Value *args, int32_t count);
 Value f_tointeger(Value **cells, Value *args, int32_t count);
 Value f_toradix(Value **cells, Value *args, int32_t count);
 extern Value v_digits;
@@ -13,11 +12,6 @@ extern Value v_hexdigits;
 extern bool d_hexdigits;
 extern Value v_bindigits;
 extern bool d_bindigits;
-extern Value v_uppercase;
-extern bool d_uppercase;
-extern Value v_lowercase;
-extern bool d_lowercase;
-extern Value fn_tolower;
 extern Value fn_tointeger;
 extern Value fn_toradix;
 extern Value v_keywords;

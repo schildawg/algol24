@@ -18,34 +18,10 @@ const HEXDIGITS := '0123456789abcdef';
 /// The binary digits.
 const BINDIGITS := '01';
 
-/// The upper-case letters, position for position with LOWERCASE.
-const UPPERCASE := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
-/// The lower-case letters, position for position with UPPERCASE.
-const LOWERCASE := 'abcdefghijklmnopqrstuvwxyz';
-
-/// Lower-cases a string.
-///
-/// Written out because the language has no LowerCase, and Ord cannot give a
-/// code point here -- it parses its argument as a number, which is what
-/// ScanNumber needs.  Pos and Copy are enough: find the letter in one alphabet
-/// and take the same position from the other.
-function ToLower(Text : String) : String;
-var
-   Result : String := '';
-
-begin
-    for var I := 0; I < Length(Text); I := I + 1 do
-    begin
-        var C  := Copy(Text, I, 1);
-        var At := Pos(UPPERCASE, C);
-
-        if At >= 0 then Result := Result + Copy(LOWERCASE, At, 1);
-        else Result := Result + C;
-    end
-
-    Exit Result;
-end
+// ToLower was written out here, over a pair of 26-letter alphabet constants,
+// because the language had no such built-in.  It has one now [RT-025], with
+// the same ASCII-only fold, so the calls below reach the built-in and the hand
+// -rolled copy is gone.
 
 /// Reads a run of decimal digits as an Integer.
 ///

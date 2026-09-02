@@ -3751,6 +3751,37 @@ Value alg_copy(Value text, Value begin, Value length) {
     return alg_string_n(result, taken);
 }
 
+/* ToUpper and ToLower fold the ASCII letters and nothing else [RT-025]. That
+   is not a shortcut taken here: every case comparison in the language stops at
+   A-Z already -- alg_stricmp, hash_folded, and the Annex G.3 mangling that
+   lowercases an identifier before escaping it.
+   Folding byte by byte is safe for UTF-8 because every byte of a multi-byte
+   sequence is >= 0x80 and no fold reaches that far, so a sequence is copied
+   through untouched rather than corrupted a byte at a time. */
+static Value folded(Value text, const char *what, bool upper) {
+    const char *from   = as_string(text, what);
+    char       *result = arena_alloc((size_t)text.length + 1);
+
+    for (int32_t i = 0; i < text.length; i++) {
+        unsigned char c = (unsigned char)from[i];
+
+        if (upper) { if (c >= 'a' && c <= 'z') c -= 32; }
+        else       { if (c >= 'A' && c <= 'Z') c += 32; }
+
+        result[i] = (char)c;
+    }
+    result[text.length] = '\0';
+
+    /* A Char folds to a Char. Case is not a reason to widen, and Str is how
+       widening is asked for [TYP-003]. */
+    Value v = alg_string_n(result, text.length);
+    v.type  = text.type;
+    return v;
+}
+
+Value alg_to_upper(Value text) { return folded(text, "ToUpper expects text.", true); }
+Value alg_to_lower(Value text) { return folded(text, "ToLower expects text.", false); }
+
 Value alg_pos(Value text, Value part) {
     const char *haystack = as_string(text, "Pos expects a String.");
     const char *needle   = as_string(part, "Pos expects a String.");

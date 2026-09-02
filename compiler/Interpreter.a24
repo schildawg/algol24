@@ -201,8 +201,8 @@ begin
     /// # Satisfies
     ///
     /// [COL-002], [RT-003], [RT-004], [RT-005], [RT-007], [RT-008], [RT-011],
-    /// [RT-012], [RT-013], [RT-014], [RT-015], [RT-018], [RT-020], [SRC-004],
-    /// [TST-012], [TST-013]
+    /// [RT-012], [RT-013], [RT-014], [RT-015], [RT-018], [RT-020], [RT-025],
+    /// [SRC-004], [TST-012], [TST-013]
     function Call (TheInterpreter, Arguments) : Any;
     begin
         case Name of
@@ -217,6 +217,13 @@ begin
 
             'Copy' : Exit Copy (Str (Arguments[0]), Arguments[1], Arguments[2]);
             'Pos'  : Exit Pos (Str (Arguments[0]), Str (Arguments[1]));
+
+            // Not Str'd on the way in, unlike Length and Pos above.  Those
+            // measure a RENDERING and answer an Integer, so widening the
+            // argument costs nothing; these answer text, and folding a Char
+            // through Str would hand back a String [TYP-003].
+            'ToUpper' : Exit ToUpper (Arguments[0]);
+            'ToLower' : Exit ToLower (Arguments[0]);
             'Str'  : Exit Stringify (TheInterpreter, Arguments[0]);
 
             'Array' : begin
@@ -440,6 +447,8 @@ begin
         Builtins.Define ('Length', Native ('Length', 1));
         Builtins.Define ('Copy', Native ('Copy', 3));
         Builtins.Define ('Pos', Native ('Pos', 2));
+        Builtins.Define ('ToUpper', Native ('ToUpper', 1));
+        Builtins.Define ('ToLower', Native ('ToLower', 1));
         Builtins.Define ('Str', Native ('Str', 1));
         Builtins.Define ('Array', Native ('Array', 1));
         Builtins.Define ('List', Native ('List', 0));
