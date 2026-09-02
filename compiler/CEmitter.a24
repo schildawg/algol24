@@ -2963,6 +2963,7 @@ begin
         if Key = 'Length/1'  then Exit 'alg_text_length';
         if Key = 'Copy/3'    then Exit 'alg_copy';
         if Key = 'Pos/2'     then Exit 'alg_pos';
+        if Key = 'Pos/3'     then Exit 'alg_pos_from';
         if Key = 'ToUpper/1' then Exit 'alg_to_upper';
         if Key = 'ToLower/1' then Exit 'alg_to_lower';
         if Key = 'Char/1'    then Exit 'alg_char';

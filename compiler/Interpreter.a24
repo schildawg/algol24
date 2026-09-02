@@ -216,7 +216,17 @@ begin
                        end
 
             'Copy' : Exit Copy (Str (Arguments[0]), Arguments[1], Arguments[2]);
-            'Pos'  : Exit Pos (Str (Arguments[0]), Str (Arguments[1]));
+            'Pos' : begin
+                        if Arguments.Length < 2 or Arguments.Length > 3 then
+                            raise 'Expected 2 or 3 arguments but got '
+                                + Str (Arguments.Length) + '.';
+
+                        if Arguments.Length = 2 then
+                            Exit Pos (Str (Arguments[0]), Str (Arguments[1]));
+
+                        Exit Pos (Str (Arguments[0]), Str (Arguments[1]),
+                                  Arguments[2]);
+                    end
 
             // Not Str'd on the way in, unlike Length and Pos above.  Those
             // measure a RENDERING and answer an Integer, so widening the
@@ -446,7 +456,12 @@ begin
 
         Builtins.Define ('Length', Native ('Length', 1));
         Builtins.Define ('Copy', Native ('Copy', 3));
-        Builtins.Define ('Pos', Native ('Pos', 2));
+        // Variadic, and checked in its own arm, because Pos takes 2 or 3
+        // [RT-005] -- the way Set and Buffer take 0 or 1.  It is NOT an
+        // overload in the sense [FUN-013] means: one native answers to the
+        // name, so no call to Pos selects among anything at run time and none
+        // of them raises the [WARN] an overloaded name would [ERR-010].
+        Builtins.Define ('Pos', Native ('Pos', -1));
         Builtins.Define ('ToUpper', Native ('ToUpper', 1));
         Builtins.Define ('ToLower', Native ('ToLower', 1));
         Builtins.Define ('Str', Native ('Str', 1));

@@ -3723,6 +3723,12 @@ static int32_t as_integer(Value v, const char *what) {
 }
 
 Value alg_copy(Value text, Value begin, Value length) {
+    /* Rendered first, as the interpreter's arm does with Str: Copy measures
+       TEXT, and text is what any value has [RT-003]. Without this,
+       'Copy (42, 0, 1)' answered 4 interpreted and refused compiled, and the
+       byte length read here belonged to whatever the value really was. */
+    text = alg_str(text);
+
     const char *from  = as_string(text, "Copy expects a String.");
     int32_t     start = as_integer(begin, "Copy expects an Integer start.");
     int32_t     count = as_integer(length, "Copy expects an Integer length.");
@@ -3782,15 +3788,42 @@ static Value folded(Value text, const char *what, bool upper) {
 Value alg_to_upper(Value text) { return folded(text, "ToUpper expects text.", true); }
 Value alg_to_lower(Value text) { return folded(text, "ToLower expects text.", false); }
 
-Value alg_pos(Value text, Value part) {
+/* Both spellings of Pos share this, so the two-argument form cannot drift from
+   the three-argument one: searching from zero IS the ordinary search. */
+static Value position_from(Value text, Value part, int32_t at) {
+    text = alg_str(text);
+    part = alg_str(part);
+
     const char *haystack = as_string(text, "Pos expects a String.");
     const char *needle   = as_string(part, "Pos expects a String.");
 
-    const char *found = strstr(haystack, needle);
+    int32_t size = utf8_count(haystack, text.length);
+
+    /* Checked the way Copy checks its start, rather than clamped, because a
+       start outside the text is a mistake in the caller's arithmetic and
+       answering -1 would hide it among the ordinary not-found answers. */
+    if (at < 0 || at > size) {
+        char message[80];
+        snprintf(message, sizeof message, "Pos failed: Start %d out of range 0..%d.", at, size);
+        alg_error(message);
+    }
+
+    const char *found = strstr(haystack + utf8_offset(haystack, text.length, at), needle);
 
     if (found == NULL) return alg_int(-1);
 
+    /* Counted from the START of the haystack, not from 'at'. The answer is an
+       index into the text, so it can be handed straight back as the next
+       search's start. */
     return alg_int(utf8_chars_in(haystack, (int32_t)(found - haystack)));
+}
+
+Value alg_pos(Value text, Value part) {
+    return position_from(text, part, 0);
+}
+
+Value alg_pos_from(Value text, Value part, Value start) {
+    return position_from(text, part, as_integer(start, "Pos expects an Integer start."));
 }
 
 Value alg_char(Value code) {

@@ -9717,6 +9717,99 @@ true
 
     conformance  0089-text-builtins.a24
 
+**`Pos(Text, Part, Start)` searches from `Start` instead of from the
+beginning**, and answers an index into **the whole text** rather than an offset
+from `Start`. That is what lets the answer be handed straight back as the next
+search's start, which is the scanning loop the third argument exists for:
+
+```algol24
+var At := Pos (S, ',');
+while At >= 0 do
+begin
+    ...
+    At := Pos (S, ',', At + 1);
+end
+```
+
+`Start` counts **characters**, as every index in the language does, and is
+**checked rather than clamped** — outside `0 … Length(Text)` it is
+`Pos failed: Start 7 out of range 0..6.`, the message `Copy` gives for the same
+mistake [RT-004]. Clamping would answer -1, which is the one answer that must
+keep meaning *absent*; a start the caller computed wrongly would then be
+indistinguishable from a part that is not there.
+
+**This is not an overload in the sense [FUN-013] means.** One built-in answers
+to the name and accepts two arguments or three, the way `Set` and `Buffer`
+accept none or one [RT-001] — so no call to `Pos` selects among signatures at
+run time, and none raises the `[WARN]` an overloaded name would [ERR-010].
+
+**Both `Pos` and `Copy` render what they are given**, as `Length` does
+[RT-003]: `Pos(42, '2')` is 1 and `Copy(42, 0, 1)` is `4`. Text is what any
+value has, and a built-in that measures text takes any value.
+
+##### conformance/0182-pos-from-a-start.a24
+
+```algol24
+var S := 'a,b,,c';
+
+// The answer is an index into the WHOLE text, not an offset from Start, so it
+// can be handed straight back as the next search's start.
+WriteLn (Pos (S, ','));
+WriteLn (Pos (S, ',', 0));
+WriteLn (Pos (S, ',', 2));
+WriteLn (Pos (S, ',', 4));
+
+// Which is what makes the scanning loop the obvious one to write.
+var At := Pos (S, ',');
+while At >= 0 do
+begin
+    Write (At, ' ');
+    At := Pos (S, ',', At + 1);
+end
+WriteLn ('');
+
+// Absent from Start onwards is absent, on the same terms as the two-argument
+// form [RT-005].
+WriteLn (Pos (S, ',', 6));
+WriteLn (Pos (S, 'z', 0));
+
+// Start counts CHARACTERS, not bytes, as every index in the language does.
+WriteLn (Pos ('café au lait', 'a', 4));
+
+// A start outside the text is refused rather than answered -1, the way Copy
+// refuses one [RT-004] -- it is a mistake in the caller's arithmetic, and -1
+// would hide it among the ordinary absent answers.
+try WriteLn (Pos (S, ',', 7));  except on E : String do WriteLn (E); end
+try WriteLn (Pos (S, ',', -1)); except on E : String do WriteLn (E); end
+
+// Two or three, and nothing else.
+try WriteLn (Pos (S));          except on E : String do WriteLn (E); end
+try WriteLn (Pos (S, ',', 0, 0)); except on E : String do WriteLn (E); end
+
+// Pos renders what it is given, as Length does [RT-003] and as Copy does
+// beside it: text is what any value has.
+WriteLn (Pos (42, '2'));
+WriteLn (Copy (42, 0, 1));
+```
+
+```console
+$ algc conformance/0182-pos-from-a-start.a24
+1
+1
+3
+4
+1 3 4 
+-1
+-1
+5
+Pos failed: Start 7 out of range 0..6.
+Pos failed: Start -1 out of range 0..6.
+Expected 2 or 3 arguments but got 1.
+Expected 2 or 3 arguments but got 4.
+1
+4
+```
+
 **[RT-025]**  `ToUpper(T)` and `ToLower(T)` fold the case of text. They answer
 **whichever of `Char` and `String` they were given** — case is not a reason to
 widen, and `Str` is how widening is asked for [TYP-003] — and they take nothing
@@ -11744,7 +11837,7 @@ checks this list against the names the interpreter actually registers.
 | `Copy` | [RT-004] | A substring, from a zero-based start, length clamped |
 | `Length` | [RT-003] | The length of the argument's **text**, not a count |
 | `Foreign` | [FUN-014] | The FFI's own plumbing. `external` is the spelling a program uses; this is what it becomes, and it exists because the tree-walker can reach C no other way |
-| `Pos` | [RT-005] | A zero-based index, or -1 when absent |
+| `Pos` | [RT-005] | A zero-based index, or -1 when absent; from a start index when given one |
 | `ToUpper` | [RT-025] | Text folded up, ASCII only; a Char stays a Char |
 | `ToLower` | [RT-025] | Text folded down, on the same terms |
 | `Str` | [RT-006] | Any value rendered as text |

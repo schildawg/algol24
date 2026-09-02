@@ -205,6 +205,10 @@ void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **type
 Value alg_copy(Value text, Value begin, Value length);
 Value alg_pos(Value text, Value part);
 
+/* Pos from a starting index. The answer is still an index into the whole
+   text, so it can be fed back in as the next search's start. */
+Value alg_pos_from(Value text, Value part, Value start);
+
 /* ASCII-only, and type-preserving: a Char folds to a Char, a String to a
    String.  Both refuse anything that is not text. */
 Value alg_to_upper(Value text);
