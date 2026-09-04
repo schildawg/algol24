@@ -61,6 +61,7 @@ static const char *t_resolver_visitliteral_1_literalexpr[] = { "TheExpr : Litera
 static const char *t_resolver_visitvariableexpr_1_variableexpr[] = { "TheExpr : VariableExpr" };
 static const char *t_resolver_checkduplicates_1_list[] = { "Statements : List" };
 static const char *t_resolver_signatureof_1[] = { "TheStmt : Any" };
+static const char *t_resolver_checkmethodduplicates_1_list[] = { "Methods : List" };
 static const char *t_resolver_checkinheritance_1_list[] = { "Statements : List" };
 static const char *t_resolver_resolveall_1_list[] = { "Statements : List" };
 static const char *t_resolver_pushlabels_1_list[] = { "Statements : List" };
@@ -716,6 +717,12 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                         if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
                             (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
                         }
+                        if (alg_truthy(alg_is(v_thestmt, "ClassStmt"))) {
+                            (void)(alg_invoke(v_this, "CheckMethodDuplicates", (Value[]){alg_property(v_thestmt, "Methods")}, 1));
+                        }
+                        if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
+                            (void)(alg_invoke(v_this, "CheckMethodDuplicates", (Value[]){alg_property(v_thestmt, "Methods")}, 1));
+                        }
                         if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
                             (void)((v_written = alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))));
                         }
@@ -819,6 +826,45 @@ static Value m_resolver_signatureof_1(Value v_this, Value *args, int32_t count) 
     return alg_nil();
 }
 
+static Value m_resolver_checkmethodduplicates_1_list(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_methods = alg_widen(args[0], "List");
+    (void)v_methods;
+    Value v_signatures = alg_nil();
+    (void)v_signatures;
+    (void)((v_signatures = alg_widen(alg_map(), "Map")));
+    {
+        Value loop_14 = alg_iterable(v_methods);
+        for (int32_t at_14 = 0; at_14 < alg_iterable_count(loop_14); at_14++) {
+            Value v_method = alg_iterable_at(loop_14, at_14);
+            (void)v_method;
+            {
+                Value v_fnname = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_method, "Name"), "Lexeme")}, 1);
+                (void)v_fnname;
+                Value v_signature = alg_invoke(v_this, "SignatureOf", (Value[]){v_method}, 1);
+                (void)v_signature;
+                if (alg_truthy(alg_not(alg_invoke(v_signatures, "Contains", (Value[]){v_fnname}, 1)))) {
+                    (void)(alg_invoke(v_signatures, "Put", (Value[]){v_fnname, alg_list()}, 2));
+                }
+                Value v_taken = alg_invoke(v_signatures, "Get", (Value[]){v_fnname}, 1);
+                (void)v_taken;
+                {
+                    Value loop_15 = alg_iterable(v_taken);
+                    for (int32_t at_15 = 0; at_15 < alg_iterable_count(loop_15); at_15++) {
+                        Value v_item = alg_iterable_at(loop_15, at_15);
+                        (void)v_item;
+                        if (alg_truthy(alg_equal(alg_str(v_item), v_signature))) {
+                            alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_method, "Name"), "Lexeme"))), alg_string("' is already defined.")));
+                        }
+                    }
+                }
+                (void)(alg_invoke(v_taken, "Add", (Value[]){v_signature}, 1));
+            }
+        }
+    }
+    return alg_nil();
+}
+
 static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_statements = alg_widen(args[0], "List");
@@ -827,9 +873,9 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
     (void)v_parent;
     (void)((v_parent = alg_widen(alg_map(), "Map")));
     {
-        Value loop_14 = alg_iterable(v_statements);
-        for (int32_t at_14 = 0; at_14 < alg_iterable_count(loop_14); at_14++) {
-            Value v_statement = alg_iterable_at(loop_14, at_14);
+        Value loop_16 = alg_iterable(v_statements);
+        for (int32_t at_16 = 0; at_16 < alg_iterable_count(loop_16); at_16++) {
+            Value v_statement = alg_iterable_at(loop_16, at_16);
             (void)v_statement;
             if (alg_truthy(alg_is(v_statement, "ClassStmt"))) {
                 if (alg_truthy(alg_not_equal(alg_property(v_statement, "Superclass"), alg_nil()))) {
@@ -839,9 +885,9 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
         }
     }
     {
-        Value loop_15 = alg_iterable(alg_invoke(v_parent, "Keys", NULL, 0));
-        for (int32_t at_15 = 0; at_15 < alg_iterable_count(loop_15); at_15++) {
-            Value v_name = alg_iterable_at(loop_15, at_15);
+        Value loop_17 = alg_iterable(alg_invoke(v_parent, "Keys", NULL, 0));
+        for (int32_t at_17 = 0; at_17 < alg_iterable_count(loop_17); at_17++) {
+            Value v_name = alg_iterable_at(loop_17, at_17);
             (void)v_name;
             {
                 Value v_seen = alg_set();
@@ -877,9 +923,9 @@ static Value m_resolver_resolveall_1_list(Value v_this, Value *args, int32_t cou
     }
     (void)(alg_invoke(v_this, "PushLabels", (Value[]){v_statements}, 1));
     {
-        Value loop_16 = alg_iterable(v_statements);
-        for (int32_t at_16 = 0; at_16 < alg_iterable_count(loop_16); at_16++) {
-            Value v_statement = alg_iterable_at(loop_16, at_16);
+        Value loop_18 = alg_iterable(v_statements);
+        for (int32_t at_18 = 0; at_18 < alg_iterable_count(loop_18); at_18++) {
+            Value v_statement = alg_iterable_at(loop_18, at_18);
             (void)v_statement;
             {
                 (void)(alg_invoke(v_this, "Resolve", (Value[]){v_statement}, 1));
@@ -898,9 +944,9 @@ static Value m_resolver_pushlabels_1_list(Value v_this, Value *args, int32_t cou
     (void)v_found;
     (void)((v_found = alg_widen(alg_list(), "List")));
     {
-        Value loop_17 = alg_iterable(v_statements);
-        for (int32_t at_17 = 0; at_17 < alg_iterable_count(loop_17); at_17++) {
-            Value v_statement = alg_iterable_at(loop_17, at_17);
+        Value loop_19 = alg_iterable(v_statements);
+        for (int32_t at_19 = 0; at_19 < alg_iterable_count(loop_19); at_19++) {
+            Value v_statement = alg_iterable_at(loop_19, at_19);
             (void)v_statement;
             if (alg_truthy(alg_is(v_statement, "LabelStmt"))) {
                 (void)(alg_invoke(v_found, "Add", (Value[]){v_statement}, 1));
@@ -929,9 +975,9 @@ static Value m_resolver_findlabel_1_string(Value v_this, Value *args, int32_t co
                 Value v_scope = alg_subscript_get(alg_property(v_this, "LabelScopes"), v_s);
                 (void)v_scope;
                 {
-                    Value loop_18 = alg_iterable(v_scope);
-                    for (int32_t at_18 = 0; at_18 < alg_iterable_count(loop_18); at_18++) {
-                        Value v_each = alg_iterable_at(loop_18, at_18);
+                    Value loop_20 = alg_iterable(v_scope);
+                    for (int32_t at_20 = 0; at_20 < alg_iterable_count(loop_20); at_20++) {
+                        Value v_each = alg_iterable_at(loop_20, at_20);
                         (void)v_each;
                         if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(v_each, "Name"), "Lexeme"))}, 1), f_foldcase(NULL, (Value[]){v_named}, 1)))) {
                             return v_each;
@@ -979,9 +1025,9 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
     (void)(alg_set_property(v_this, "CurrentFunction", alg_widen(v_typeoffunction, "FunctionType")));
     (void)(alg_invoke(v_this, "BeginScope", NULL, 0));
     {
-        Value loop_19 = alg_iterable(alg_property(v_thefunction, "Params"));
-        for (int32_t at_19 = 0; at_19 < alg_iterable_count(loop_19); at_19++) {
-            Value v_param = alg_iterable_at(loop_19, at_19);
+        Value loop_21 = alg_iterable(alg_property(v_thefunction, "Params"));
+        for (int32_t at_21 = 0; at_21 < alg_iterable_count(loop_21); at_21++) {
+            Value v_param = alg_iterable_at(loop_21, at_21);
             (void)v_param;
             {
                 (void)(alg_invoke(v_this, "Declare", (Value[]){v_param}, 1));
@@ -1168,6 +1214,7 @@ void init_Resolver(void) {
     alg_class_method(k_resolver, "VisitVariableExpr", m_resolver_visitvariableexpr_1_variableexpr, 1, t_resolver_visitvariableexpr_1_variableexpr);
     alg_class_method(k_resolver, "CheckDuplicates", m_resolver_checkduplicates_1_list, 1, t_resolver_checkduplicates_1_list);
     alg_class_method(k_resolver, "SignatureOf", m_resolver_signatureof_1, 1, t_resolver_signatureof_1);
+    alg_class_method(k_resolver, "CheckMethodDuplicates", m_resolver_checkmethodduplicates_1_list, 1, t_resolver_checkmethodduplicates_1_list);
     alg_class_method(k_resolver, "CheckInheritance", m_resolver_checkinheritance_1_list, 1, t_resolver_checkinheritance_1_list);
     alg_class_method(k_resolver, "ResolveAll", m_resolver_resolveall_1_list, 1, t_resolver_resolveall_1_list);
     alg_class_method(k_resolver, "PushLabels", m_resolver_pushlabels_1_list, 1, t_resolver_pushlabels_1_list);

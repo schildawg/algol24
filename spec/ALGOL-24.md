@@ -7553,6 +7553,13 @@ only in what they return could never be told apart at a call. Neither do the
 parameter names: `Take (A : Integer)` and `Take (B : Integer)` are one
 signature, not two.
 
+**A class body is held to the same rule**, which the first sentence above
+already implies: a method overloads on the whole signature, so two methods of
+one name and signature are a duplicate there too. Nothing could ever select the
+second — the first would win every call while the second went on reading as live
+code. Overriding an **inherited** method of the same signature is untouched;
+that is a subclass saying which body it means, not two bodies competing in one.
+
 **That is not contradicted by named arguments** [EXP-013], and the
 distinction is worth keeping straight. Names cannot make two identical
 signatures into an overload set; what they do is let a *call* say which of
@@ -7616,6 +7623,22 @@ function F (M : Integer); begin Exit 2; end
 ```console
 $ algc refusals/0043-same-signature-twice.a24
 Uncaught: 'F' is already defined.
+exit: 70
+```
+
+##### refusals/0186-duplicate-method-signature.a24
+
+```algol24
+class C;
+begin
+    procedure Twin (A : Integer, B : Integer); begin end
+    procedure Twin (X : Integer, Y : Integer); begin end
+end
+```
+
+```console
+$ algc refusals/0186-duplicate-method-signature.a24
+Uncaught: 'Twin' is already defined.
 exit: 70
 ```
 

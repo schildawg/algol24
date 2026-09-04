@@ -666,6 +666,9 @@ begin
                 if TheStmt is ObjectStmt then TheName := FoldCase (TheStmt.Name.Lexeme);
                 if TheStmt is VarStmt    then TheName := FoldCase (TheStmt.Name.Lexeme);
 
+                if TheStmt is ClassStmt  then CheckMethodDuplicates (TheStmt.Methods);
+                if TheStmt is ObjectStmt then CheckMethodDuplicates (TheStmt.Methods);
+
                 if TheName <> '' then Written := Str (TheStmt.Name.Lexeme);
 
                 if TheStmt is EnumStmt then
@@ -749,6 +752,47 @@ begin
         end
 
         Exit Text;
+    end
+
+    /// Refuses two methods of one name and signature in a single class body.
+    ///
+    /// A duplicate is not an overload: nothing could ever select the second, so
+    /// the first would win every call and the second would never be mentioned
+    /// again.  Top-level subprograms are already refused this way, and a method
+    /// overloads on the same terms they do [FUN-013].
+    ///
+    /// Only the class's OWN body is examined, because overriding an inherited
+    /// method of the same signature is the ordinary thing a subclass does.
+    ///
+    /// # Raises
+    ///
+    /// A refusal naming the redeclared method.
+    ///
+    /// # Satisfies
+    ///
+    /// [FUN-013]
+    procedure CheckMethodDuplicates (Methods : List);
+    var
+        Signatures : Map;
+
+    begin
+        Signatures := Map();
+
+        for var Method in Methods do
+        begin
+            var FnName := FoldCase (Method.Name.Lexeme);
+            var Signature := SignatureOf (Method);
+
+            if not Signatures.Contains (FnName) then
+                Signatures.Put (FnName, List());
+
+            var Taken := Signatures.Get (FnName);
+            for var Item in Taken do
+                if Str (Item) = Signature then
+                    raise '''' + Str (Method.Name.Lexeme) + ''' is already defined.';
+
+            Taken.Add (Signature);
+        end
     end
 
     /// Refuses a class whose declared parent is not a class.
@@ -1326,6 +1370,55 @@ begin
             end
     end
     Fail('No exception thrown.');
+end
+
+// Two methods of one name and signature are a duplicate, not an overload, and
+// the resolver refuses the class rather than letting the first quietly win.
+//
+test 'Duplicate Method Signature';
+begin
+    var TheScanner := Scanner ('
+ class C; begin
+ procedure Twin (A : Integer, B : Integer); begin end
+ procedure Twin (X : Integer, Y : Integer); begin end
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheResolver.ResolveAll(Statements);
+    except
+       on e : String do
+            begin
+               AssertEqual('''Twin'' is already defined.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Differing signatures are a genuine overload and stay accepted, which is what
+// keeps the refusal above from reaching past duplicates.
+//
+test 'Method Overload Is Not A Duplicate';
+begin
+    var TheScanner := Scanner ('
+ class C; begin
+ procedure Twin (A : Integer); begin end
+ procedure Twin (X : Integer, Y : Integer); begin end
+ end
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+
+    TheResolver.ResolveAll(Statements);
 end
 
 // The resolver should report an error to Lox if a class tries to inherit from itself.
