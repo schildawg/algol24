@@ -351,6 +351,19 @@ var
     /// Replaced per unit.
     ShadowNames  : Set;
 
+    /// Which argument counts those declarations actually took, keyed 'Length/2'
+    /// and '~' plus the fixed count for a gathering one, as 'Log/~1'.
+    ///
+    /// A subprogram takes over only the counts it declares and the built-in
+    /// keeps the rest [RT-027], so shadowing a name is no longer the whole
+    /// answer.  A name declared as anything OTHER than a subprogram -- a class,
+    /// an object, a variable, an enumeration -- takes the name entire, and is
+    /// recorded in ShadowWhole instead.  Replaced per unit, beside ShadowNames.
+    ShadowArities : Set;
+
+    /// The names taken over entire, by a declaration that is not a subprogram.
+    ShadowWhole  : Set;
+
     /// Folded name to the spelling the declaration used [SRC-011].
     ///
     /// Names are matched WITHOUT REGARD TO CASE, and every set this emitter
@@ -872,7 +885,12 @@ begin
 
             if TheStmt is FunctionStmt and not IsTest (TheStmt) then
             begin
-                if TopLevel.Contains (Str (TheStmt.Name.Lexeme)) or Variadic (TheStmt) then
+                // A name a built-in also answers to is an overload set even with
+                // one declaration, so that the counts the declaration DID take
+                // are selected on types the way the tree-walker selects them
+                // [RT-027].  The counts it did not take never reach the set.
+                if TopLevel.Contains (Str (TheStmt.Name.Lexeme)) or Variadic (TheStmt)
+                        or BuiltinCounts (Str (TheStmt.Name.Lexeme)).Length > 0 then
                     Overloaded.Add (Str (TheStmt.Name.Lexeme));
 
                 TopLevel.Add (Str (TheStmt.Name.Lexeme));
@@ -1113,6 +1131,19 @@ begin
                     for var J := 0; J < Seen.Length; J := J + 1 do
                         ShadowNames.Add (Seen[J]);
                 end
+
+            // Which counts those same declarations took, walked from the
+            // statements rather than from the name sets above, since a name is
+            // all those carry.
+            ShadowArities := Set();
+            ShadowWhole   := Set();
+
+            CollectShadowArities (Unit.Statements, List());
+
+            for var TheImport in Unit.Imports do
+                for var Other in Units do
+                    if Str (Other.Name) = Str (TheImport) then
+                        CollectShadowArities (Other.Statements, Other.PrivateNames);
 
             for var TheStmt in Unit.Statements do
             begin
@@ -1783,6 +1814,62 @@ begin
         end
 
         Exit Written;
+    end
+
+    /// Records which argument counts a unit's declarations take over.
+    ///
+    /// Hidden names are skipped, because a private declaration does not reach
+    /// the file importing it and so takes nothing over there.
+    procedure CollectShadowArities (Statements : List, Hidden : List);
+    begin
+        for var TheStmt in Statements do
+        begin
+            var Named := TheStmt is FunctionStmt or TheStmt is ClassStmt
+                      or TheStmt is ObjectStmt   or TheStmt is VarStmt
+                      or TheStmt is EnumStmt;
+
+            if not Named then continue;
+
+            var TheName := Str (TheStmt.Name.Lexeme);
+            var Private? := False;
+
+            for var Each in Hidden do
+                if FoldCase (Str (Each)) = FoldCase (TheName) then Private? := True;
+
+            if Private? then continue;
+
+            if not (TheStmt is FunctionStmt) then
+            begin
+                ShadowWhole.Add (TheName);
+
+                continue;
+            end
+
+            if IsTest (TheStmt) then continue;
+
+            if Variadic (TheStmt) then
+                ShadowArities.Add (TheName + '/~' + Str (TheStmt.Params.Length - 1));
+            else
+                ShadowArities.Add (TheName + '/' + Str (TheStmt.Params.Length));
+        end
+    end
+
+    /// Whether a declaration takes this name over at this argument count.
+    ///
+    /// A subprogram takes over only the counts it declares, so a built-in of the
+    /// same name still answers the others [RT-027].  Anything that is not a
+    /// subprogram takes the name entire.
+    function TakesOver (Name : String, Count : Integer) : Boolean;
+    begin
+        if not ShadowNames.Contains (Name) then Exit False;
+        if ShadowWhole.Contains (Name)     then Exit True;
+
+        if ShadowArities.Contains (Name + '/' + Str (Count)) then Exit True;
+
+        for var Fixed := 0; Fixed <= Count; Fixed := Fixed + 1 do
+            if ShadowArities.Contains (Name + '/~' + Str (Fixed)) then Exit True;
+
+        Exit False;
     end
 
     /// Whether a subprogram's last parameter gathers what is left over.
@@ -3246,7 +3333,9 @@ begin
         if Locals.Contains (Name) or Captured.Contains (Name) or Boxed.Contains (Name) then
             Exit Calling (Read (Name), Arguments, TheExpr.ArgumentNames);
 
-        var Shadowed := ShadowNames.Contains (Name);
+        // Not 'is this name declared' but 'is it declared at THIS count', since
+        // a subprogram takes over only the counts it declares [RT-027].
+        var Shadowed := TakesOver (Name, Arguments.Length);
 
         if not Shadowed and AnyNamed (TheExpr.ArgumentNames)
                         and BuiltinCounts (Name).Length > 0 then
@@ -3272,6 +3361,14 @@ begin
             var TheConstructor := ConstructorFor (Name, Arguments, Joined);
             if TheConstructor <> '' then Exit TheConstructor;
         end
+
+        // Neither the declarations nor the built-in take this count, and a name
+        // they share behaves as one overload set -- so the failure belongs to
+        // the set rather than to whichever candidate was reached first.
+        if Declared.Contains (Name) and not Shadowed
+                                    and BuiltinCounts (Name).Length > 0 then
+            Exit '(alg_error(' + QuoteC ('No matching signature for function.')
+               + '), alg_nil())';
 
         if Classes.Contains (Name) then
             Exit Constructing (ClassHandle (Name), Arguments, TheExpr.ArgumentNames);

@@ -695,7 +695,7 @@ begin
     ///
     /// # Satisfies
     ///
-    /// [RT-002], [TST-003], [TST-005], [TST-007], [TST-011]
+    /// [RT-027], [TST-003], [TST-005], [TST-007], [TST-011]
     function RunTests (Statements : List, FileName : String) : Integer;
     var
         Tests  : List;
@@ -1833,6 +1833,10 @@ begin
     ///
     /// A second declaration of a name binds an overload SET rather than
     /// replacing the first, since the environment binds one name to one value.
+    ///
+    /// A declaration of a BUILT-IN's name binds a set too, with the built-in
+    /// kept as the set's fallback: the declaration takes over the argument
+    /// counts it declares and the built-in keeps the rest [RT-027].
     procedure VisitFunctionStmt (TheStmt : FunctionStmt);
     var
         TheFunction : ObjFunction;
@@ -1841,6 +1845,18 @@ begin
         TheFunction := ObjFunction (TheStmt, Env, False);
 
         var Key := FoldCase (TheStmt.Name.Lexeme);
+
+        if not Env.Values.Contains (Key) and Builtins.Values.Contains (Key) then
+        begin
+            var Shadowing := ObjOverloads (Str (TheStmt.Name.Lexeme));
+
+            Shadowing.Add (TheFunction);
+            Shadowing.Fallback := Builtins.Values.Get (Key);
+
+            Env.Define (TheStmt.Name.Lexeme, Shadowing);
+
+            Exit;
+        end
 
         if Env.Values.Contains (Key) then
         begin
@@ -3657,4 +3673,47 @@ begin
             end
     end
     Fail('No exception thrown.');
+end
+
+// A declaration takes over the argument counts it declares, and the built-in of
+// that name keeps the rest [RT-027].
+//
+test 'Declaring A Built-in Name Keeps The Other Counts';
+begin
+    var TheScanner := Scanner ('
+ function Length (A : Integer, B : Integer) : Integer; begin Exit A + B; end
+ var Declared := Length (3, 4);
+ var BuiltIn  := Length (''abc'');
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    TheInterpreter.Interpret (TheParser.Parse());
+
+    AssertEqual (7, TheInterpreter.Globals.Values.Get ('declared'));
+    AssertEqual (3, TheInterpreter.Globals.Values.Get ('builtin'));
+end
+
+// A count the declaration took is taken ENTIRELY: arguments that do not fit it
+// are a failure rather than a reason to reach past it to the built-in.
+//
+test 'A Declared Count Is Not Shared With The Built-in';
+begin
+    var TheScanner := Scanner ('
+ function Length (A : Integer, B : Integer) : Integer; begin Exit A + B; end
+ var Wrong := Length (1, 2, 3);
+');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    try
+        TheInterpreter.Interpret (TheParser.Parse());
+    except
+       on e : String do
+            begin
+               AssertEqual ('No matching signature for function.', Str (e));
+               Exit;
+            end
+    end
+    Fail ('No exception thrown.');
 end

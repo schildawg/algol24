@@ -91,6 +91,7 @@ static Value or_45;
 static Value or_46;
 static Value or_47;
 static Value or_48;
+static Value or_49;
 static const char *t_interpreter_hoist_1_list[] = { "Statements : List" };
 static const char *t_interpreter_hoistedclass_1_string[] = { "Name : String" };
 static const char *t_interpreter_interpret_1_list[] = { "Statements : List" };
@@ -2254,11 +2255,21 @@ static Value m_interpreter_visitfunctionstmt_1_functionstmt(Value v_this, Value 
     (void)((v_thefunction = alg_widen(alg_new(k_objfunction, (Value[]){v_thestmt, alg_property(v_this, "Env"), alg_bool(false)}, 3), "ObjFunction")));
     Value v_key = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
     (void)v_key;
+    if (alg_truthy((or_47 = alg_not(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Contains", (Value[]){v_key}, 1)), !alg_truthy(or_47) ? or_47 : alg_invoke(alg_property(alg_property(v_this, "Builtins"), "Values"), "Contains", (Value[]){v_key}, 1)))) {
+        {
+            Value v_shadowing = alg_new(k_objoverloads, (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1);
+            (void)v_shadowing;
+            (void)(alg_invoke(v_shadowing, "Add", (Value[]){v_thefunction}, 1));
+            (void)(alg_set_property(v_shadowing, "Fallback", alg_invoke(alg_property(alg_property(v_this, "Builtins"), "Values"), "Get", (Value[]){v_key}, 1)));
+            (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), v_shadowing}, 2));
+            return alg_nil();
+        }
+    }
     if (alg_truthy(alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Contains", (Value[]){v_key}, 1))) {
         {
             Value v_existing = alg_invoke(alg_property(alg_property(v_this, "Env"), "Values"), "Get", (Value[]){v_key}, 1);
             (void)v_existing;
-            if (alg_truthy((or_47 = alg_not((alg_is(v_existing, "ObjFunction"))), !alg_truthy(or_47) ? or_47 : alg_not((alg_is(v_existing, "ObjOverloads")))))) {
+            if (alg_truthy((or_48 = alg_not((alg_is(v_existing, "ObjFunction"))), !alg_truthy(or_48) ? or_48 : alg_not((alg_is(v_existing, "ObjOverloads")))))) {
                 alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
             }
             Value v_overloads = v_existing;
@@ -2718,7 +2729,7 @@ static Value m_interpreter_handle_3_trystmt(Value v_this, Value *args, int32_t c
     Value v_handler = alg_nil();
     (void)v_handler;
     (void)((v_handler = alg_widen(alg_invoke(v_this, "FindHandler", (Value[]){alg_property(v_thestmt, "Handlers"), v_value}, 2), "ExceptHandler")));
-    if (alg_truthy((or_48 = alg_equal(v_handler, alg_nil()), !alg_truthy(or_48) ? or_48 : alg_invoke(alg_property(v_thestmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
+    if (alg_truthy((or_49 = alg_equal(v_handler, alg_nil()), !alg_truthy(or_49) ? or_49 : alg_invoke(alg_property(v_thestmt, "Handlers"), "Contains", (Value[]){alg_string("default")}, 1)))) {
         (void)((v_handler = alg_widen(alg_cast(alg_invoke(alg_property(v_thestmt, "Handlers"), "Get", (Value[]){alg_string("default")}, 1), "ExceptHandler"), "ExceptHandler")));
     }
     if (alg_truthy(alg_equal(v_handler, alg_nil()))) {

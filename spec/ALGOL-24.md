@@ -9652,6 +9652,12 @@ A built-in is called like any other subprogram, so a call to one checks its
 argument count [EXP-011] and reports it the same way — the name existing is what
 separates that failure from a reference to something undeclared.
 
+**A built-in's name is not reserved**, and a program may declare a subprogram
+with one. It does not overload the built-in on signature the way two
+declarations overload each other [FUN-013]: a built-in has no declared parameter
+types to select on, so the declaration takes the argument counts it declares and
+the built-in keeps the rest [RT-027].
+
 **`Write` and `WriteLn` take any number of values**, rendered as `Str`
 renders them [RT-019] and run together with nothing between them — so
 `WriteLn ('ABC', 123)` writes `ABC123`, and `WriteLn (1, 2)` writes `12` rather
@@ -11148,6 +11154,76 @@ What `ReadLn` treats as a line is [RT-016], which is the scanner's rule
 [SRC-006] rather than a second one.
 
     conformance  0178-a-text-files-state.a24
+
+**[RT-027]**  A subprogram may be declared with a **built-in's name**. It takes
+over the **argument counts it declares**, and the built-in keeps the rest.
+
+```
+function Length (A : Integer, B : Integer) : Integer; begin Exit A + B; end
+
+Length (3, 4);      // the declaration's, which took two
+Length ('abc');     // the built-in's, which still has one
+```
+
+**The count is all a built-in can be selected on**, and this rule follows from
+that rather than choosing it. A built-in's parameters are not declared in this
+language at all — they exist only as a count [RT-001], which is the same fact
+that leaves it no named parameters [EXP-013]. There are no declared types for a
+selection pass to match, so a built-in cannot be a candidate the way a
+subprogram is, and the only question it can answer is how many arguments it
+takes.
+
+**A declared count is taken over entirely.** Where a declaration claims a count,
+the built-in is not reached at that count even for arguments the declaration does
+not fit — that is *No matching signature for function.* [EXP-014] and not a
+reason to fall through. Otherwise a wrong call would silently reach a different
+subprogram than the one written, which is the failure this rule exists to avoid.
+
+**Anything that is not a subprogram takes the name entire.** A class, an object,
+a variable or an enumeration of a built-in's name replaces it, because none of
+them has an argument count to share the name by.
+
+**The qualified spelling always reaches the built-in** [MOD-011]. `System.Length`
+is the built-in whatever has been declared, which is what makes taking a name
+over safe: nothing is put out of reach.
+
+##### conformance/0187-declaring-a-builtins-name.a24
+
+```algol24
+function Length (A : Integer, B : Integer) : Integer;
+begin
+    Exit A + B;
+end
+
+// The declaration took two arguments; the built-in still answers to one.
+WriteLn (Length (3, 4));
+WriteLn (Length ('abc'));
+
+// And is still reachable under its qualifier whatever was declared.
+WriteLn (System.Length ('abcd'));
+
+// A gathering declaration takes its fixed count and every greater one
+// [FUN-005], so the built-in keeps the counts below it.
+procedure WriteLn (Tag : String, Level : Integer, Rest : List of String);
+begin
+    System.Write (Tag);
+    System.Write (Str (Level));
+    for var Each in Rest do System.Write (Str (Each));
+    System.WriteLn ();
+end
+
+WriteLn ('n=', 1, 'a', 'b');
+WriteLn ('plain');
+```
+
+```console
+$ algc conformance/0187-declaring-a-builtins-name.a24
+7
+3
+4
+n=1ab
+plain
+```
 
 ---
 

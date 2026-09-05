@@ -21,8 +21,12 @@ static const char *t_f_typenameof[] = { "Value : Any" };
 Value fn_nameofclass;
 static const char *t_f_nameofclass[] = { "Obj : Any" };
 Value k_objoverloads;
+static Value or_0;
+static Value or_1;
+static Value or_2;
 static const char *t_objoverloads_init_1_string[] = { "Name : String" };
 static const char *t_objoverloads_add_1[] = { "TheFunction : Any" };
+static const char *t_objoverloads_declares_1_integer[] = { "Count : Integer" };
 static const char *t_objoverloads_select_1_list[] = { "Arguments : List" };
 static const char *t_objoverloads_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value k_numbermethod;
@@ -38,19 +42,19 @@ Value v_widening;
 bool d_widening;
 Value v_absorbing;
 bool d_absorbing;
-static Value or_0;
-static Value or_1;
+static Value or_3;
+static Value or_4;
 Value fn_widens;
 static const char *t_f_widens[] = { "Actual : String", "Declared : String" };
 Value fn_inheritsfrom;
 static const char *t_f_inheritsfrom[] = { "Value : Any", "TheName : String" };
 Value k_objfunction;
-static Value or_2;
-static Value or_3;
-static Value or_4;
 static Value or_5;
 static Value or_6;
 static Value or_7;
+static Value or_8;
+static Value or_9;
+static Value or_10;
 static const char *t_objfunction_init_3_functionstmt_environment_boolean[] = { "Declaration : FunctionStmt", "Closure : Environment", "IsInitializer : Boolean" };
 static const char *t_objfunction_bind_1_objinstance[] = { "Instance : ObjInstance" };
 static const char *t_objfunction_fitsat_3_string_boolean[] = { "Argument : Any", "Declared : String", "Widening : Boolean" };
@@ -145,6 +149,7 @@ static Value i_objoverloads(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Candidates", alg_nil());
+    alg_set_property(v_this, "Fallback", alg_nil());
     return alg_nil();
 }
 
@@ -154,6 +159,7 @@ static Value m_objoverloads_init_1_string(Value v_this, Value *args, int32_t cou
     (void)v_name;
     (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
     (void)(alg_set_property(v_this, "Candidates", alg_widen(alg_list(), "List")));
+    (void)(alg_set_property(v_this, "Fallback", alg_nil()));
     return alg_nil();
 }
 
@@ -171,6 +177,29 @@ static Value m_objoverloads_arity_0(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value m_objoverloads_declares_1_integer(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_count = alg_widen(args[0], "Integer");
+    (void)v_count;
+    {
+        Value loop_2 = alg_iterable(alg_property(v_this, "Candidates"));
+        for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
+            Value v_thecandidate = alg_iterable_at(loop_2, at_2);
+            (void)v_thecandidate;
+            {
+                if (alg_truthy(alg_equal(alg_invoke(v_thecandidate, "Arity", NULL, 0), v_count))) {
+                    return alg_bool(true);
+                }
+                if (alg_truthy((or_0 = alg_invoke(v_thecandidate, "Variadic", NULL, 0), !alg_truthy(or_0) ? or_0 : alg_greater_equal(v_count, alg_subtract(alg_invoke(v_thecandidate, "Arity", NULL, 0), alg_int(1)))))) {
+                    return alg_bool(true);
+                }
+            }
+        }
+    }
+    return alg_bool(false);
+    return alg_nil();
+}
+
 static Value m_objoverloads_select_1_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_arguments = alg_widen(args[0], "List");
@@ -180,15 +209,20 @@ static Value m_objoverloads_select_1_list(Value v_this, Value *args, int32_t cou
         (void)v_pass;
         for (; alg_truthy(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))); (v_pass = alg_add(v_pass, alg_int(1)))) {
             {
-                Value loop_2 = alg_iterable(alg_property(v_this, "Candidates"));
-                for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
-                    Value v_thecandidate = alg_iterable_at(loop_2, at_2);
+                Value loop_3 = alg_iterable(alg_property(v_this, "Candidates"));
+                for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
+                    Value v_thecandidate = alg_iterable_at(loop_3, at_3);
                     (void)v_thecandidate;
                     if (alg_truthy(alg_invoke(v_thecandidate, "Selects", (Value[]){v_arguments, v_pass}, 2))) {
                         return v_thecandidate;
                     }
                 }
             }
+        }
+    }
+    if (alg_truthy((or_1 = alg_not_equal(alg_property(v_this, "Fallback"), alg_nil()), !alg_truthy(or_1) ? or_1 : alg_not(alg_invoke(v_this, "Declares", (Value[]){alg_property(v_arguments, "Length")}, 1))))) {
+        if (alg_truthy((or_2 = alg_equal(alg_invoke(alg_property(v_this, "Fallback"), "Arity", NULL, 0), alg_negate(alg_int(1))), alg_truthy(or_2) ? or_2 : alg_equal(alg_invoke(alg_property(v_this, "Fallback"), "Arity", NULL, 0), alg_property(v_arguments, "Length"))))) {
+            return alg_property(v_this, "Fallback");
         }
     }
     return alg_nil();
@@ -286,9 +320,9 @@ Value f_anynamed(Value **cells, Value *args, int32_t count) {
     Value v_names = alg_param(args[0], "List");
     (void)v_names;
     {
-        Value loop_3 = alg_iterable(v_names);
-        for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
-            Value v_name = alg_iterable_at(loop_3, at_3);
+        Value loop_4 = alg_iterable(v_names);
+        for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
+            Value v_name = alg_iterable_at(loop_4, at_4);
             (void)v_name;
             if (alg_truthy(alg_not_equal(alg_str(v_name), alg_string("")))) {
                 return alg_bool(true);
@@ -306,10 +340,10 @@ Value f_widens(Value **cells, Value *args, int32_t count) {
     (void)v_actual;
     Value v_declared = alg_param(args[1], "String");
     (void)v_declared;
-    if (alg_truthy((or_0 = alg_equal(v_declared, alg_string("Double")), !alg_truthy(or_0) ? or_0 : alg_equal(v_actual, alg_string("Integer"))))) {
+    if (alg_truthy((or_3 = alg_equal(v_declared, alg_string("Double")), !alg_truthy(or_3) ? or_3 : alg_equal(v_actual, alg_string("Integer"))))) {
         return alg_bool(true);
     }
-    if (alg_truthy((or_1 = alg_equal(v_declared, alg_string("String")), !alg_truthy(or_1) ? or_1 : alg_equal(v_actual, alg_string("Char"))))) {
+    if (alg_truthy((or_4 = alg_equal(v_declared, alg_string("String")), !alg_truthy(or_4) ? or_4 : alg_equal(v_actual, alg_string("Char"))))) {
         return alg_bool(true);
     }
     return alg_bool(false);
@@ -392,18 +426,18 @@ static Value m_objfunction_fitsat_3_string_boolean(Value v_this, Value *args, in
     (void)v_widening;
     Value v_wanted = f_underlyingtype(NULL, (Value[]){v_declared}, 1);
     (void)v_wanted;
-    if (alg_truthy((or_2 = alg_equal(v_wanted, alg_string("")), alg_truthy(or_2) ? or_2 : alg_equal(v_wanted, alg_string("Any"))))) {
+    if (alg_truthy((or_5 = alg_equal(v_wanted, alg_string("")), alg_truthy(or_5) ? or_5 : alg_equal(v_wanted, alg_string("Any"))))) {
         return alg_bool(true);
     }
     Value v_actual = f_typenameof(NULL, (Value[]){v_argument}, 1);
     (void)v_actual;
-    if (alg_truthy((or_4 = (or_3 = alg_equal(v_actual, alg_string("nil")), alg_truthy(or_3) ? or_3 : alg_equal(v_actual, alg_string("Any"))), alg_truthy(or_4) ? or_4 : alg_equal(v_actual, v_wanted)))) {
+    if (alg_truthy((or_7 = (or_6 = alg_equal(v_actual, alg_string("nil")), alg_truthy(or_6) ? or_6 : alg_equal(v_actual, alg_string("Any"))), alg_truthy(or_7) ? or_7 : alg_equal(v_actual, v_wanted)))) {
         return alg_bool(true);
     }
     if (alg_truthy(f_inheritsfrom(NULL, (Value[]){v_argument, v_wanted}, 2))) {
         return alg_bool(true);
     }
-    return (or_5 = v_widening, !alg_truthy(or_5) ? or_5 : f_widens(NULL, (Value[]){v_actual, v_wanted}, 2));
+    return (or_8 = v_widening, !alg_truthy(or_8) ? or_8 : f_widens(NULL, (Value[]){v_actual, v_wanted}, 2));
     return alg_nil();
 }
 
@@ -443,7 +477,7 @@ static Value m_objfunction_variadic_0(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_greater_equal(v_last, alg_property(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), "Length")))) {
         return alg_bool(false);
     }
-    return (or_6 = alg_equal(alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_last)), alg_string("List")), !alg_truthy(or_6) ? or_6 : alg_not_equal(alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), v_last)), alg_string("")));
+    return (or_9 = alg_equal(alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_last)), alg_string("List")), !alg_truthy(or_9) ? or_9 : alg_not_equal(alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), v_last)), alg_string("")));
     return alg_nil();
 }
 
@@ -577,7 +611,7 @@ static Value m_objfunction_arrange_2_list_list(Value v_this, Value *args, int32_
                 if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
                     (void)((v_at = alg_invoke(v_this, "ParameterAt", (Value[]){v_thename}, 1)));
                 }
-                if (alg_truthy((or_7 = alg_less(v_at, alg_int(0)), alg_truthy(or_7) ? or_7 : alg_greater_equal(v_at, alg_property(v_slots, "Length"))))) {
+                if (alg_truthy((or_10 = alg_less(v_at, alg_int(0)), alg_truthy(or_10) ? or_10 : alg_greater_equal(v_at, alg_property(v_slots, "Length"))))) {
                     return alg_nil();
                 }
                 if (alg_truthy(alg_subscript_get(v_filled, v_at))) {
@@ -589,9 +623,9 @@ static Value m_objfunction_arrange_2_list_list(Value v_this, Value *args, int32_
         }
     }
     {
-        Value loop_4 = alg_iterable(v_filled);
-        for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
-            Value v_each = alg_iterable_at(loop_4, at_4);
+        Value loop_5 = alg_iterable(v_filled);
+        for (int32_t at_5 = 0; at_5 < alg_iterable_count(loop_5); at_5++) {
+            Value v_each = alg_iterable_at(loop_5, at_5);
             (void)v_each;
             if (alg_truthy(alg_not(v_each))) {
                 return alg_nil();
@@ -661,20 +695,20 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
         }
     }
     {
-        AlgFrame frame_5;
-        alg_push_frame(&frame_5);
-        if (ALG_SETJMP(frame_5.jump) == 0) {
+        AlgFrame frame_6;
+        alg_push_frame(&frame_6);
+        if (ALG_SETJMP(frame_6.jump) == 0) {
             {
                 (void)(alg_invoke(v_theinterpreter, "ExecuteBlock", (Value[]){alg_property(alg_property(v_this, "Declaration"), "Body"), v_env}, 2));
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_5[] = {"Return"};
-            int32_t which_5 = alg_handler(frame_5.raised, names_5, 1);
-            if (which_5 == 0) {
+            static const char *names_6[] = {"Return"};
+            int32_t which_6 = alg_handler(frame_6.raised, names_6, 1);
+            if (which_6 == 0) {
                 {
-                    volatile Value v_e = frame_5.raised;
+                    volatile Value v_e = frame_6.raised;
                     (void)v_e;
                     {
                         if (alg_truthy(alg_property(v_this, "IsInitializer"))) {
@@ -685,7 +719,7 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
                 }
             }
             else {
-                alg_raise(frame_5.raised);
+                alg_raise(frame_6.raised);
             }
         }
     }
@@ -703,10 +737,12 @@ void init_ObjFunction(void) {
     fn_nameofclass = alg_closure("NameOfClass", f_nameofclass, NULL, 0, 1, t_f_nameofclass);
     alg_class_field(k_objoverloads, "Name");
     alg_class_field(k_objoverloads, "Candidates");
+    alg_class_field(k_objoverloads, "Fallback");
     alg_class_initializer(k_objoverloads, i_objoverloads);
     alg_class_method(k_objoverloads, "Init", m_objoverloads_init_1_string, 1, t_objoverloads_init_1_string);
     alg_class_method(k_objoverloads, "Add", m_objoverloads_add_1, 1, t_objoverloads_add_1);
     alg_class_method(k_objoverloads, "Arity", m_objoverloads_arity_0, 0, NULL);
+    alg_class_method(k_objoverloads, "Declares", m_objoverloads_declares_1_integer, 1, t_objoverloads_declares_1_integer);
     alg_class_method(k_objoverloads, "Select", m_objoverloads_select_1_list, 1, t_objoverloads_select_1_list);
     alg_class_method(k_objoverloads, "Call", m_objoverloads_call_2, 2, t_objoverloads_call_2);
     alg_class_method(k_objoverloads, "ToString", m_objoverloads_tostring_0, 0, NULL);

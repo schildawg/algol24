@@ -87,12 +87,22 @@ var
     /// The subprograms bound under it, in declaration order.
     Candidates : List;
 
+    /// The built-in of this name, or nil where the name has none.
+    ///
+    /// Held apart from the candidates rather than among them, because it is not
+    /// selected on the same terms: a built-in's parameters are not declared in
+    /// this language at all and exist only as a count [RT-001], so there are no
+    /// types for a pass to match and it can answer only to the argument counts
+    /// no declaration took.
+    Fallback   : Any;
+
 begin
     /// Makes an empty overload set for a name.
     constructor Init (Name : String);
     begin
         this.Name := Name;
         this.Candidates := List();
+        this.Fallback := Nil;
     end
 
     /// Adds a subprogram to the set.
@@ -111,13 +121,39 @@ begin
         Exit -1;
     end
 
+    /// Whether any declared candidate takes this many arguments.
+    ///
+    /// Asked of the COUNT alone, because that is all a built-in can be selected
+    /// on: a declaration takes over the argument counts it declares and the
+    /// built-in keeps the rest.
+    function Declares (Count : Integer) : Boolean;
+    begin
+        for var TheCandidate in Candidates do
+        begin
+            if TheCandidate.Arity () = Count then Exit True;
+
+            if TheCandidate.Variadic () and Count >= TheCandidate.Arity () - 1 then Exit True;
+        end
+
+        Exit False;
+    end
+
     /// Selects the candidate these arguments fit, exact before widening
     /// before absorbing, or Nil when none does.
+    ///
+    /// A built-in of the same name answers last and only to a count no
+    /// declaration took [RT-027].  So a declared signature always wins the
+    /// counts it declares -- including when the argument types do not fit it,
+    /// which is a failure rather than a reason to reach past it.
     function Select (Arguments : List) : Any;
     begin
         for var Pass := EXACT; Pass <= ABSORBING; Pass := Pass + 1 do
             for var TheCandidate in Candidates do
                 if TheCandidate.Selects (Arguments, Pass) then Exit TheCandidate;
+
+        if Fallback <> Nil and not Declares (Arguments.Length) then
+            if Fallback.Arity () = -1 or Fallback.Arity () = Arguments.Length then
+                Exit Fallback;
 
         Exit Nil;
     end
