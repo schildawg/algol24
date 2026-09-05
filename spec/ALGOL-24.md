@@ -11577,8 +11577,26 @@ One warning is raised. A call that will select among overloads **at run time**
 [FUN-013] says so:
 
 ```
-[WARN] spec/warning.a24:17: 'Log' selects among 3 overloads at run time.
+[WARN] spec/warning.a24:17: 'Log' selects among 2 overloads at run time.
 ```
+
+**The count is what this call could reach, not what the name has.** Three
+subprograms are declared as `Log`; the call passes one argument, and only two of
+them take one. Reporting three would name a candidate the call could never have
+selected.
+
+**It is not raised where the argument COUNT decides the call.** Arity is not a
+type and settles nothing about a value, which is exactly why it can be read
+early: a call written with one argument cannot reach a two-argument overload
+however gradual the types are, and both counts are known before the program
+runs. Where one signature is left, the call binds as surely as an unoverloaded
+name does and there is no cost to report. A **gathering** parameter [FUN-005]
+answers to its fixed count and every greater one, so it is a candidate at each
+of them.
+
+This narrows the warning without weakening it. Where several signatures take
+the count written, every one of them still warns, because from there only the
+argument *types* could tell them apart and no static rule may read those.
 
 **The wording is checked against what is printed**, by `spec/spec.sh` running
 `spec/warning.a24` — the treatment the keyword table, Annex B and [COL-003]'s

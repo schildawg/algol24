@@ -163,6 +163,20 @@ var
     /// whether a call binds at run time.
     Overloads : Map := [:];
 
+    /// Name and argument count to how many subprograms take exactly that many.
+    ///
+    /// Keyed 'log/2', and read beside Overloads rather than instead of it:
+    /// sharing a name is what makes selection dynamic, and taking the same
+    /// number of arguments is what leaves anything to select.
+    Arities : Map := [:];
+
+    /// Name to the fixed count of each of its GATHERING subprograms, each of
+    /// which takes that many arguments or any greater number [FUN-005].
+    ///
+    /// Held apart from Arities because one entry stands for a range of counts
+    /// rather than a single one.
+    Variadics : Map := [:];
+
     /// Every signature already declared, so a duplicate can be refused.
     Signatures : Set := [];
 
@@ -604,6 +618,7 @@ begin
                 if Overloads.Contains (Folded) then Seen := Overloads.Get (Folded) as Integer;
 
                 Overloads.Put (Folded, Seen + 1);
+                RecordArity (TheStmt, Folded);
             end
 
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.ReturnType);
@@ -867,6 +882,64 @@ begin
         CurrentReturn := Enclosing;
     end
 
+    /// Records how many arguments one declaration of an overloaded name takes.
+    ///
+    /// A GATHERING subprogram is recorded apart, by the count it takes before
+    /// the absorbing parameter, because it answers to that count and every
+    /// greater one [FUN-005].
+    procedure RecordArity (TheStmt : Any, Folded : String);
+    begin
+        var Count := TheStmt.Params.Length;
+        var Gathers := False;
+
+        if Count > 0 then
+            Gathers := Str (TheStmt.ParamTypes[Count - 1]) = 'List'
+                   and Str (TheStmt.ParamGenerics[Count - 1]) <> '';
+
+        if Gathers then
+        begin
+            if not Variadics.Contains (Folded) then Variadics.Put (Folded, List());
+
+            Variadics.Get (Folded).Add (Count - 1);
+            Exit;
+        end
+
+        var Key := Folded + '/' + Str (Count);
+        var Taken := 0;
+
+        if Arities.Contains (Key) then Taken := Arities.Get (Key) as Integer;
+
+        Arities.Put (Key, Taken + 1);
+    end
+
+    /// Counts the subprograms of one name that could take this many arguments.
+    ///
+    /// Arity is not a type.  A call written with one argument cannot reach a
+    /// two-argument overload, and both counts are known before the program
+    /// runs -- so where this answers one, the call has nothing left to select
+    /// between and binds as surely as an unoverloaded name does.
+    ///
+    /// # Satisfies
+    ///
+    /// [ERR-010]
+    function CandidatesFor (Folded : String, Count : Integer) : Integer;
+    var
+        Total : Integer;
+        Key   : String;
+
+    begin
+        Total := 0;
+        Key   := Folded + '/' + Str (Count);
+
+        if Arities.Contains (Key) then Total := Arities.Get (Key) as Integer;
+
+        if Variadics.Contains (Folded) then
+            for var Fixed in Variadics.Get (Folded) do
+                if Count >= (Fixed as Integer) then Total := Total + 1;
+
+        Exit Total;
+    end
+
     /// Warns that a call will select among overloads at run time.
     ///
     /// It reports a COST, not a fault: the program compiles and runs exactly as
@@ -877,6 +950,13 @@ begin
     /// no static rule could replace it.  So inference cannot remove a warning;
     /// only naming the parameters can, since a name identifies one signature
     /// where values only describe something several signatures might accept.
+    ///
+    /// It does consult the argument COUNT, which is not a type and settles
+    /// nothing about a value: a call written with one argument cannot reach a
+    /// two-argument overload however gradual the types are.  This narrows the
+    /// warning without weakening it -- where several overloads take the count
+    /// written, every one of them still warns, and the number reported is the
+    /// number a reader could actually be selecting between.
     ///
     /// Warned keys on line and name, so one call warns once however many times
     /// the checker reaches it.
@@ -900,6 +980,9 @@ begin
         if not Overloads.Contains (Folded) then Exit;
 
         Seen := Overloads.Get (Folded) as Integer;
+        if Seen < 2 then Exit;
+
+        Seen := CandidatesFor (Folded, TheExpr.Arguments.Length);
         if Seen < 2 then Exit;
 
         Key := Str (TheExpr.Paren.LineNumber) + ':' + Folded;
@@ -1210,6 +1293,69 @@ begin
     end
 
     Exit False;
+end
+
+/// How many overloads of a name could take a given argument count, for the
+/// tests below.
+///
+/// The source declares subprograms and calls none of them, so the count is
+/// read without [ERR-010]'s warning being raised into the test report.
+function Candidates (Source : String, Name : String, Count : Integer) : Integer;
+begin
+    var TheScanner := Scanner (Source);
+    var TheParser  := Parser (TheScanner.ScanTokens());
+    var TheChecker := TypeChecker();
+
+    TheChecker.Resolve (TheParser.Parse());
+
+    Exit TheChecker.CandidatesFor (FoldCase (Name), Count);
+end
+
+// Where the arities differ, each count leaves one signature and the call has
+// nothing to select between.
+//
+test 'An Argument Count May Leave One Overload';
+begin
+    var Source := 'procedure Bump (By : Integer); begin end'          + #10 +
+                  'procedure Bump (T : String, By : Integer); begin end';
+
+    AssertEqual (1, Candidates (Source, 'Bump', 1));
+    AssertEqual (1, Candidates (Source, 'Bump', 2));
+end
+
+// Where they do not, only the argument types could tell the signatures apart,
+// and the warning stands.
+//
+test 'An Argument Count May Leave Several Overloads';
+begin
+    var Source := 'procedure Log (Level : String); begin end'                  + #10 +
+                  'procedure Log (Level : String, Message : String); begin end' + #10 +
+                  'procedure Log (Code : Integer); begin end';
+
+    AssertEqual (2, Candidates (Source, 'Log', 1));
+    AssertEqual (1, Candidates (Source, 'Log', 2));
+end
+
+// A gathering parameter answers to its fixed count and every greater one, so it
+// is a candidate at each of them [FUN-005].
+//
+test 'A Gathering Overload Is A Candidate At Every Count It Takes';
+begin
+    var Source := 'procedure P (Items : List of Integer); begin end' + #10 +
+                  'procedure P (A : String, B : String); begin end';
+
+    AssertEqual (1, Candidates (Source, 'P', 0));
+    AssertEqual (1, Candidates (Source, 'P', 1));
+    AssertEqual (2, Candidates (Source, 'P', 2));
+    AssertEqual (1, Candidates (Source, 'P', 3));
+end
+
+// A name declared once is not an overload set at any count.
+//
+test 'A Lone Subprogram Is One Candidate';
+begin
+    AssertEqual (1, Candidates ('procedure Solo (A : Integer); begin end', 'Solo', 1));
+    AssertEqual (0, Candidates ('procedure Solo (A : Integer); begin end', 'Solo', 2));
 end
 
 // 'List of T' makes a subscript over it reduce to T.

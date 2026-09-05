@@ -9,6 +9,7 @@
 #include "TokenType.h"
 
 Value f_rejects(Value **cells, Value *args, int32_t count);
+Value f_candidates(Value **cells, Value *args, int32_t count);
 Value k_typelookup;
 static const char *t_typelookup_settype_2_string_string[] = { "Symbol : String", "TheType : String" };
 static const char *t_typelookup_gettype_1_string[] = { "Symbol : String" };
@@ -59,6 +60,7 @@ static Value or_42;
 static Value or_43;
 static Value or_44;
 static Value or_45;
+static Value or_46;
 static const char *t_typechecker_hiddenby_2_string_string[] = { "TheType : String", "Member : String" };
 static const char *t_typechecker_typeofreceiver_1[] = { "Obj : Any" };
 static const char *t_typechecker_propertiesof_1[] = { "TheStmt : Any" };
@@ -74,6 +76,8 @@ static const char *t_typechecker_resolve_1_list[] = { "Statements : List" };
 static const char *t_typechecker_maptype_1[] = { "TheStmt : Any" };
 static const char *t_typechecker_check_1[] = { "TheStmt : Any" };
 static const char *t_typechecker_checkfunction_1[] = { "TheFunction : Any" };
+static const char *t_typechecker_recordarity_2_string[] = { "TheStmt : Any", "Folded : String" };
+static const char *t_typechecker_candidatesfor_2_string_integer[] = { "Folded : String", "Count : Integer" };
 static const char *t_typechecker_warnifdynamic_1[] = { "TheExpr : Any" };
 static const char *t_typechecker_reduce_1[] = { "TheExpr : Any" };
 static const char *t_typechecker_reducebinary_1[] = { "TheExpr : Any" };
@@ -82,6 +86,8 @@ static const char *t_typechecker_typeofvalue_1[] = { "Value : Any" };
 static const char *t_typechecker_classnameof_1[] = { "Obj : Any" };
 Value fn_rejects;
 static const char *t_f_rejects[] = { "Source : String" };
+Value fn_candidates;
+static const char *t_f_candidates[] = { "Source : String", "Name : String", "Count : Integer" };
 Value v_hider;
 bool d_hider;
 
@@ -163,6 +169,8 @@ static Value i_typechecker(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "PropertyMembers", alg_widen(alg_map(), "Map"));
     alg_set_property(v_this, "BuiltinTypes", alg_widen(alg_map(), "Map"));
     alg_set_property(v_this, "Overloads", alg_widen(alg_map(), "Map"));
+    alg_set_property(v_this, "Arities", alg_widen(alg_map(), "Map"));
+    alg_set_property(v_this, "Variadics", alg_widen(alg_map(), "Map"));
     alg_set_property(v_this, "Signatures", alg_widen(alg_list(), "Set"));
     alg_set_property(v_this, "Warned", alg_widen(alg_list(), "Set"));
     return alg_nil();
@@ -619,6 +627,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                         (void)((v_seen = alg_cast(alg_invoke(alg_property(v_this, "Overloads"), "Get", (Value[]){v_folded}, 1), "Integer")));
                     }
                     (void)(alg_invoke(alg_property(v_this, "Overloads"), "Put", (Value[]){v_folded, alg_add(v_seen, alg_int(1))}, 2));
+                    (void)(alg_invoke(v_this, "RecordArity", (Value[]){v_thestmt, v_folded}, 2));
                 }
             }
             (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme"), alg_property(v_thestmt, "ReturnType")}, 2));
@@ -953,6 +962,70 @@ static Value m_typechecker_checkfunction_1(Value v_this, Value *args, int32_t co
     return alg_nil();
 }
 
+static Value m_typechecker_recordarity_2_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_thestmt = args[0];
+    (void)v_thestmt;
+    Value v_folded = alg_widen(args[1], "String");
+    (void)v_folded;
+    Value v_count = alg_property(alg_property(v_thestmt, "Params"), "Length");
+    (void)v_count;
+    Value v_gathers = alg_bool(false);
+    (void)v_gathers;
+    if (alg_truthy(alg_greater(v_count, alg_int(0)))) {
+        (void)((v_gathers = (or_23 = alg_equal(alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), alg_subtract(v_count, alg_int(1)))), alg_string("List")), !alg_truthy(or_23) ? or_23 : alg_not_equal(alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamGenerics"), alg_subtract(v_count, alg_int(1)))), alg_string("")))));
+    }
+    if (alg_truthy(v_gathers)) {
+        {
+            if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Variadics"), "Contains", (Value[]){v_folded}, 1)))) {
+                (void)(alg_invoke(alg_property(v_this, "Variadics"), "Put", (Value[]){v_folded, alg_list()}, 2));
+            }
+            (void)(alg_invoke(alg_invoke(alg_property(v_this, "Variadics"), "Get", (Value[]){v_folded}, 1), "Add", (Value[]){alg_subtract(v_count, alg_int(1))}, 1));
+            return alg_nil();
+        }
+    }
+    Value v_key = alg_add(alg_add(v_folded, alg_char_value(47)), alg_str(v_count));
+    (void)v_key;
+    Value v_taken = alg_int(0);
+    (void)v_taken;
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Arities"), "Contains", (Value[]){v_key}, 1))) {
+        (void)((v_taken = alg_cast(alg_invoke(alg_property(v_this, "Arities"), "Get", (Value[]){v_key}, 1), "Integer")));
+    }
+    (void)(alg_invoke(alg_property(v_this, "Arities"), "Put", (Value[]){v_key, alg_add(v_taken, alg_int(1))}, 2));
+    return alg_nil();
+}
+
+static Value m_typechecker_candidatesfor_2_string_integer(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_folded = alg_widen(args[0], "String");
+    (void)v_folded;
+    Value v_count = alg_widen(args[1], "Integer");
+    (void)v_count;
+    Value v_total = alg_nil();
+    (void)v_total;
+    Value v_key = alg_nil();
+    (void)v_key;
+    (void)((v_total = alg_widen(alg_int(0), "Integer")));
+    (void)((v_key = alg_widen(alg_add(alg_add(v_folded, alg_char_value(47)), alg_str(v_count)), "String")));
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Arities"), "Contains", (Value[]){v_key}, 1))) {
+        (void)((v_total = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Arities"), "Get", (Value[]){v_key}, 1), "Integer"), "Integer")));
+    }
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Variadics"), "Contains", (Value[]){v_folded}, 1))) {
+        {
+            Value loop_25 = alg_iterable(alg_invoke(alg_property(v_this, "Variadics"), "Get", (Value[]){v_folded}, 1));
+            for (int32_t at_25 = 0; at_25 < alg_iterable_count(loop_25); at_25++) {
+                Value v_fixed = alg_iterable_at(loop_25, at_25);
+                (void)v_fixed;
+                if (alg_truthy(alg_greater_equal(v_count, (alg_cast(v_fixed, "Integer"))))) {
+                    (void)((v_total = alg_widen(alg_add(v_total, alg_int(1)), "Integer")));
+                }
+            }
+        }
+    }
+    return v_total;
+    return alg_nil();
+}
+
 static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_theexpr = args[0];
@@ -967,9 +1040,9 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
         return alg_nil();
     }
     {
-        Value loop_25 = alg_iterable(alg_property(v_theexpr, "ArgumentNames"));
-        for (int32_t at_25 = 0; at_25 < alg_iterable_count(loop_25); at_25++) {
-            Value v_argumentname = alg_iterable_at(loop_25, at_25);
+        Value loop_26 = alg_iterable(alg_property(v_theexpr, "ArgumentNames"));
+        for (int32_t at_26 = 0; at_26 < alg_iterable_count(loop_26); at_26++) {
+            Value v_argumentname = alg_iterable_at(loop_26, at_26);
             (void)v_argumentname;
             if (alg_truthy(alg_not_equal(alg_str(v_argumentname), alg_string("")))) {
                 return alg_nil();
@@ -981,6 +1054,10 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
         return alg_nil();
     }
     (void)((v_seen = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "Overloads"), "Get", (Value[]){v_folded}, 1), "Integer"), "Integer")));
+    if (alg_truthy(alg_less(v_seen, alg_int(2)))) {
+        return alg_nil();
+    }
+    (void)((v_seen = alg_widen(alg_invoke(v_this, "CandidatesFor", (Value[]){v_folded, alg_property(alg_property(v_theexpr, "Arguments"), "Length")}, 2), "Integer")));
     if (alg_truthy(alg_less(v_seen, alg_int(2)))) {
         return alg_nil();
     }
@@ -1076,8 +1153,8 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
             (void)v_declared;
             Value v_actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Value")}, 1);
             (void)v_actual;
-            if (alg_truthy((or_23 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_23) ? or_23 : alg_not_equal(v_declared, alg_string("Any"))))) {
-                if (alg_truthy((or_25 = (or_24 = alg_equal(v_actual, alg_string("")), alg_truthy(or_24) ? or_24 : alg_equal(v_actual, alg_string("Any"))), alg_truthy(or_25) ? or_25 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_declared, v_actual}, 2))))) {
+            if (alg_truthy((or_24 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_24) ? or_24 : alg_not_equal(v_declared, alg_string("Any"))))) {
+                if (alg_truthy((or_26 = (or_25 = alg_equal(v_actual, alg_string("")), alg_truthy(or_25) ? or_25 : alg_equal(v_actual, alg_string("Any"))), alg_truthy(or_26) ? or_26 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_declared, v_actual}, 2))))) {
                     alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_theexpr, "Name"), v_declared, v_actual}, 3));
                 }
             }
@@ -1090,9 +1167,9 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
             Value v_argtypes = alg_list();
             (void)v_argtypes;
             {
-                Value loop_26 = alg_iterable(alg_property(v_theexpr, "Arguments"));
-                for (int32_t at_26 = 0; at_26 < alg_iterable_count(loop_26); at_26++) {
-                    Value v_argument = alg_iterable_at(loop_26, at_26);
+                Value loop_27 = alg_iterable(alg_property(v_theexpr, "Arguments"));
+                for (int32_t at_27 = 0; at_27 < alg_iterable_count(loop_27); at_27++) {
+                    Value v_argument = alg_iterable_at(loop_27, at_27);
                     (void)v_argument;
                     (void)(alg_invoke(v_argtypes, "Add", (Value[]){alg_invoke(v_this, "Reduce", (Value[]){v_argument}, 1)}, 1));
                 }
@@ -1102,7 +1179,7 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
                 {
                     Value v_at = alg_invoke(v_this, "InsertedAt", (Value[]){alg_str(alg_property(alg_property(alg_property(v_theexpr, "Callee"), "Name"), "Lexeme"))}, 1);
                     (void)v_at;
-                    if (alg_truthy((or_26 = alg_greater_equal(v_at, alg_int(0)), !alg_truthy(or_26) ? or_26 : alg_less(v_at, alg_property(v_argtypes, "Length"))))) {
+                    if (alg_truthy((or_27 = alg_greater_equal(v_at, alg_int(0)), !alg_truthy(or_27) ? or_27 : alg_less(v_at, alg_property(v_argtypes, "Length"))))) {
                         (void)(alg_invoke(v_this, "CheckElement", (Value[]){alg_invoke(v_this, "ElementOf", (Value[]){alg_property(alg_property(v_theexpr, "Callee"), "Obj")}, 1), alg_str(alg_subscript_get(v_argtypes, v_at)), alg_property(alg_property(v_theexpr, "Callee"), "Name")}, 3));
                     }
                 }
@@ -1126,7 +1203,7 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
             (void)(alg_invoke(v_this, "CheckVisibility", (Value[]){alg_property(v_theexpr, "Obj"), alg_property(v_theexpr, "Name")}, 2));
             Value v_owner = alg_invoke(v_this, "TypeOfReceiver", (Value[]){alg_property(v_theexpr, "Obj")}, 1);
             (void)v_owner;
-            if (alg_truthy((or_27 = alg_equal(v_owner, alg_string("")), alg_truthy(or_27) ? or_27 : alg_equal(v_owner, alg_string("Any"))))) {
+            if (alg_truthy((or_28 = alg_equal(v_owner, alg_string("")), alg_truthy(or_28) ? or_28 : alg_equal(v_owner, alg_string("Any"))))) {
                 return alg_string("");
             }
             return alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_owner, alg_string("::")), alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1);
@@ -1142,10 +1219,10 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
             (void)v_owner;
             Value v_actual = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Value")}, 1);
             (void)v_actual;
-            if (alg_truthy((or_28 = alg_equal(v_owner, alg_string("")), !alg_truthy(or_28) ? or_28 : alg_is(alg_property(v_theexpr, "Obj"), "ThisExpr")))) {
+            if (alg_truthy((or_29 = alg_equal(v_owner, alg_string("")), !alg_truthy(or_29) ? or_29 : alg_is(alg_property(v_theexpr, "Obj"), "ThisExpr")))) {
                 (void)((v_owner = alg_str(alg_property(alg_property(v_this, "Lookup"), "CurrentClassName"))));
             }
-            if (alg_truthy((or_29 = alg_not_equal(v_owner, alg_string("")), !alg_truthy(or_29) ? or_29 : alg_not_equal(v_owner, alg_string("Any"))))) {
+            if (alg_truthy((or_30 = alg_not_equal(v_owner, alg_string("")), !alg_truthy(or_30) ? or_30 : alg_not_equal(v_owner, alg_string("Any"))))) {
                 {
                     Value v_declaring = alg_invoke(v_this, "DeclaresProperty", (Value[]){v_owner, alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 2);
                     (void)v_declaring;
@@ -1154,8 +1231,8 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
                     }
                     Value v_declared = alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_owner, alg_string("::")), alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))}, 1);
                     (void)v_declared;
-                    if (alg_truthy((or_31 = (or_30 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_30) ? or_30 : alg_not_equal(v_declared, alg_string("Any"))), !alg_truthy(or_31) ? or_31 : alg_not_equal(v_actual, alg_string(""))))) {
-                        if (alg_truthy((or_32 = alg_equal(v_actual, alg_string("Any")), alg_truthy(or_32) ? or_32 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_declared, v_actual}, 2))))) {
+                    if (alg_truthy((or_32 = (or_31 = alg_not_equal(v_declared, alg_string("")), !alg_truthy(or_31) ? or_31 : alg_not_equal(v_declared, alg_string("Any"))), !alg_truthy(or_32) ? or_32 : alg_not_equal(v_actual, alg_string(""))))) {
+                        if (alg_truthy((or_33 = alg_equal(v_actual, alg_string("Any")), alg_truthy(or_33) ? or_33 : alg_not(alg_invoke(v_this, "Assignable", (Value[]){v_declared, v_actual}, 2))))) {
                             alg_raise(alg_invoke(v_this, "Mismatch", (Value[]){alg_property(v_theexpr, "Name"), v_declared, v_actual}, 3));
                         }
                     }
@@ -1171,9 +1248,9 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_kind, alg_string("CollectionExpr")))) {
         {
             {
-                Value loop_27 = alg_iterable(alg_property(v_theexpr, "Values"));
-                for (int32_t at_27 = 0; at_27 < alg_iterable_count(loop_27); at_27++) {
-                    Value v_thevalue = alg_iterable_at(loop_27, at_27);
+                Value loop_28 = alg_iterable(alg_property(v_theexpr, "Values"));
+                for (int32_t at_28 = 0; at_28 < alg_iterable_count(loop_28); at_28++) {
+                    Value v_thevalue = alg_iterable_at(loop_28, at_28);
                     (void)v_thevalue;
                     (void)(alg_invoke(v_this, "Reduce", (Value[]){v_thevalue}, 1));
                 }
@@ -1222,7 +1299,7 @@ static Value m_typechecker_reducebinary_1(Value v_this, Value *args, int32_t cou
     (void)v_right;
     Value v_op = alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken");
     (void)v_op;
-    if (alg_truthy((or_37 = (or_36 = (or_35 = (or_34 = (or_33 = alg_equal(v_op, e_tokentype_tokenVgreater), alg_truthy(or_33) ? or_33 : alg_equal(v_op, e_tokentype_tokenVgreaterVequal)), alg_truthy(or_34) ? or_34 : alg_equal(v_op, e_tokentype_tokenVless)), alg_truthy(or_35) ? or_35 : alg_equal(v_op, e_tokentype_tokenVlessVequal)), alg_truthy(or_36) ? or_36 : alg_equal(v_op, e_tokentype_tokenVequal)), alg_truthy(or_37) ? or_37 : alg_equal(v_op, e_tokentype_tokenVnotVequal)))) {
+    if (alg_truthy((or_38 = (or_37 = (or_36 = (or_35 = (or_34 = alg_equal(v_op, e_tokentype_tokenVgreater), alg_truthy(or_34) ? or_34 : alg_equal(v_op, e_tokentype_tokenVgreaterVequal)), alg_truthy(or_35) ? or_35 : alg_equal(v_op, e_tokentype_tokenVless)), alg_truthy(or_36) ? or_36 : alg_equal(v_op, e_tokentype_tokenVlessVequal)), alg_truthy(or_37) ? or_37 : alg_equal(v_op, e_tokentype_tokenVequal)), alg_truthy(or_38) ? or_38 : alg_equal(v_op, e_tokentype_tokenVnotVequal)))) {
         {
             (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1));
             (void)(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1));
@@ -1231,22 +1308,22 @@ static Value m_typechecker_reducebinary_1(Value v_this, Value *args, int32_t cou
     }
     (void)((v_left = alg_widen(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1), "String")));
     (void)((v_right = alg_widen(alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1), "String")));
-    if (alg_truthy((or_40 = (or_39 = (or_38 = alg_equal(v_left, alg_string("")), alg_truthy(or_38) ? or_38 : alg_equal(v_right, alg_string(""))), alg_truthy(or_39) ? or_39 : alg_equal(v_left, alg_string("Any"))), alg_truthy(or_40) ? or_40 : alg_equal(v_right, alg_string("Any"))))) {
+    if (alg_truthy((or_41 = (or_40 = (or_39 = alg_equal(v_left, alg_string("")), alg_truthy(or_39) ? or_39 : alg_equal(v_right, alg_string(""))), alg_truthy(or_40) ? or_40 : alg_equal(v_left, alg_string("Any"))), alg_truthy(or_41) ? or_41 : alg_equal(v_right, alg_string("Any"))))) {
         return alg_string("");
     }
     if (alg_truthy(alg_equal(v_op, e_tokentype_tokenVin))) {
         return alg_string("Boolean");
     }
-    if (alg_truthy((or_42 = alg_equal(v_op, e_tokentype_tokenVplus), !alg_truthy(or_42) ? or_42 : ((or_41 = alg_invoke(v_this, "IsTextType", (Value[]){v_left}, 1), alg_truthy(or_41) ? or_41 : alg_invoke(v_this, "IsTextType", (Value[]){v_right}, 1)))))) {
+    if (alg_truthy((or_43 = alg_equal(v_op, e_tokentype_tokenVplus), !alg_truthy(or_43) ? or_43 : ((or_42 = alg_invoke(v_this, "IsTextType", (Value[]){v_left}, 1), alg_truthy(or_42) ? or_42 : alg_invoke(v_this, "IsTextType", (Value[]){v_right}, 1)))))) {
         return alg_string("String");
     }
     if (alg_truthy(alg_equal(v_op, e_tokentype_tokenVslash))) {
         return alg_string("Double");
     }
-    if (alg_truthy((or_43 = alg_equal(v_op, e_tokentype_tokenVdiv), alg_truthy(or_43) ? or_43 : alg_equal(v_op, e_tokentype_tokenVmod)))) {
+    if (alg_truthy((or_44 = alg_equal(v_op, e_tokentype_tokenVdiv), alg_truthy(or_44) ? or_44 : alg_equal(v_op, e_tokentype_tokenVmod)))) {
         return alg_string("Integer");
     }
-    if (alg_truthy((or_44 = alg_equal(v_left, alg_string("Double")), alg_truthy(or_44) ? or_44 : alg_equal(v_right, alg_string("Double"))))) {
+    if (alg_truthy((or_45 = alg_equal(v_left, alg_string("Double")), alg_truthy(or_45) ? or_45 : alg_equal(v_right, alg_string("Double"))))) {
         return alg_string("Double");
     }
     if (alg_truthy(alg_equal(v_left, v_right))) {
@@ -1260,7 +1337,7 @@ static Value m_typechecker_istexttype_1_string(Value v_this, Value *args, int32_
     (void)v_this; (void)args; (void)count;
     Value v_thetype = alg_widen(args[0], "String");
     (void)v_thetype;
-    return (or_45 = alg_equal(v_thetype, alg_string("String")), alg_truthy(or_45) ? or_45 : alg_equal(v_thetype, alg_string("Char")));
+    return (or_46 = alg_equal(v_thetype, alg_string("String")), alg_truthy(or_46) ? or_46 : alg_equal(v_thetype, alg_string("Char")));
     return alg_nil();
 }
 
@@ -1295,28 +1372,28 @@ static Value m_typechecker_classnameof_1(Value v_this, Value *args, int32_t coun
     volatile Value v_obj = args[0];
     (void)v_obj;
     {
-        AlgFrame frame_28;
-        alg_push_frame(&frame_28);
-        if (ALG_SETJMP(frame_28.jump) == 0) {
+        AlgFrame frame_29;
+        alg_push_frame(&frame_29);
+        if (ALG_SETJMP(frame_29.jump) == 0) {
             {
-                volatile Value ret_29 = alg_property(v_obj, "ClassName");
+                volatile Value ret_30 = alg_property(v_obj, "ClassName");
                 alg_pop_frame();
-                return ret_29;
+                return ret_30;
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_28[] = {"String"};
-            int32_t which_28 = alg_handler(frame_28.raised, names_28, 1);
-            if (which_28 == 0) {
+            static const char *names_29[] = {"String"};
+            int32_t which_29 = alg_handler(frame_29.raised, names_29, 1);
+            if (which_29 == 0) {
                 {
-                    volatile Value v_e = frame_28.raised;
+                    volatile Value v_e = frame_29.raised;
                     (void)v_e;
                     return alg_string("");
                 }
             }
             else {
-                alg_raise(frame_28.raised);
+                alg_raise(frame_29.raised);
             }
         }
     }
@@ -1333,30 +1410,50 @@ Value f_rejects(Value **cells, Value *args, int32_t count) {
     volatile Value v_theparser = alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1);
     (void)v_theparser;
     {
-        AlgFrame frame_30;
-        alg_push_frame(&frame_30);
-        if (ALG_SETJMP(frame_30.jump) == 0) {
+        AlgFrame frame_31;
+        alg_push_frame(&frame_31);
+        if (ALG_SETJMP(frame_31.jump) == 0) {
             {
                 (void)(alg_invoke(alg_new(k_typechecker, NULL, 0), "Resolve", (Value[]){alg_invoke(v_theparser, "Parse", NULL, 0)}, 1));
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_30[] = {"String"};
-            int32_t which_30 = alg_handler(frame_30.raised, names_30, 1);
-            if (which_30 == 0) {
+            static const char *names_31[] = {"String"};
+            int32_t which_31 = alg_handler(frame_31.raised, names_31, 1);
+            if (which_31 == 0) {
                 {
-                    volatile Value v_e = frame_30.raised;
+                    volatile Value v_e = frame_31.raised;
                     (void)v_e;
                     return alg_bool(true);
                 }
             }
             else {
-                alg_raise(frame_30.raised);
+                alg_raise(frame_31.raised);
             }
         }
     }
     return alg_bool(false);
+    return alg_nil();
+}
+
+Value f_candidates(Value **cells, Value *args, int32_t count) {
+    (void)cells; (void)args; (void)count;
+    alg_arity(count, 3);
+    Value v_source = alg_param(args[0], "String");
+    (void)v_source;
+    Value v_name = alg_param(args[1], "String");
+    (void)v_name;
+    Value v_count = alg_param(args[2], "Integer");
+    (void)v_count;
+    Value v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1);
+    (void)v_thescanner;
+    Value v_theparser = alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1);
+    (void)v_theparser;
+    Value v_thechecker = alg_new(k_typechecker, NULL, 0);
+    (void)v_thechecker;
+    (void)(alg_invoke(v_thechecker, "Resolve", (Value[]){alg_invoke(v_theparser, "Parse", NULL, 0)}, 1));
+    return alg_invoke(v_thechecker, "CandidatesFor", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1), v_count}, 2);
     return alg_nil();
 }
 
@@ -1381,6 +1478,8 @@ void init_TypeChecker(void) {
     alg_class_field(k_typechecker, "PropertyMembers");
     alg_class_field(k_typechecker, "BuiltinTypes");
     alg_class_field(k_typechecker, "Overloads");
+    alg_class_field(k_typechecker, "Arities");
+    alg_class_field(k_typechecker, "Variadics");
     alg_class_field(k_typechecker, "Signatures");
     alg_class_field(k_typechecker, "Warned");
     alg_class_initializer(k_typechecker, i_typechecker);
@@ -1400,6 +1499,8 @@ void init_TypeChecker(void) {
     alg_class_method(k_typechecker, "MapType", m_typechecker_maptype_1, 1, t_typechecker_maptype_1);
     alg_class_method(k_typechecker, "Check", m_typechecker_check_1, 1, t_typechecker_check_1);
     alg_class_method(k_typechecker, "CheckFunction", m_typechecker_checkfunction_1, 1, t_typechecker_checkfunction_1);
+    alg_class_method(k_typechecker, "RecordArity", m_typechecker_recordarity_2_string, 2, t_typechecker_recordarity_2_string);
+    alg_class_method(k_typechecker, "CandidatesFor", m_typechecker_candidatesfor_2_string_integer, 2, t_typechecker_candidatesfor_2_string_integer);
     alg_class_method(k_typechecker, "WarnIfDynamic", m_typechecker_warnifdynamic_1, 1, t_typechecker_warnifdynamic_1);
     alg_class_method(k_typechecker, "Reduce", m_typechecker_reduce_1, 1, t_typechecker_reduce_1);
     alg_class_method(k_typechecker, "ReduceBinary", m_typechecker_reducebinary_1, 1, t_typechecker_reducebinary_1);
@@ -1407,6 +1508,7 @@ void init_TypeChecker(void) {
     alg_class_method(k_typechecker, "TypeOfValue", m_typechecker_typeofvalue_1, 1, t_typechecker_typeofvalue_1);
     alg_class_method(k_typechecker, "ClassNameOf", m_typechecker_classnameof_1, 1, t_typechecker_classnameof_1);
     fn_rejects = alg_closure("Rejects", f_rejects, NULL, 0, 1, t_f_rejects);
+    fn_candidates = alg_closure("Candidates", f_candidates, NULL, 0, 3, t_f_candidates);
     v_hider = alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("class Counter;"), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    var Count : Integer := 0;")), alg_char_value(10)), alg_string("begin")), alg_char_value(10)), alg_string("    procedure Bump();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("        Count := Count + 1;")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("private:")), alg_char_value(10)), alg_string("    procedure Advance();")), alg_char_value(10)), alg_string("    begin")), alg_char_value(10)), alg_string("    end")), alg_char_value(10)), alg_string("end")), alg_char_value(10));
     d_hider = true;
 }

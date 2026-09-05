@@ -15,3 +15,9 @@ procedure Log (Level : String, Message : String); begin end
 procedure Log (Code : Integer);                   begin end
 
 Log ('warn');
+
+// Two arguments, and only one signature takes two.  The count decides the call,
+// nothing is left to select at run time, and nothing is warned about -- which is
+// checked as surely as the line above, because spec.sh compares EVERY [WARN]
+// line this file raises against the one [ERR-010] states.
+Log ('warn', 'disk');
