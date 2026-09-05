@@ -15,7 +15,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.1.3.** The language has been feature-complete since v0.1.0 and is done.
+**v0.1.4.** The language has been feature-complete since v0.1.0 and is done.
 What it does not have is a library written in Algol-24, which is the whole of
 what *alpha* means here; nothing in the language is provisional.
 

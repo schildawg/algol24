@@ -126,15 +126,30 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.1.3.** The language has been feature-complete since v0.1.0 and is done; what
+**v0.1.4.** The language has been feature-complete since v0.1.0 and is done; what
 comes next is a library, written in Algol-24 rather than in the runtime:
 collections, and a unified text-and-graphics unit over SDL. That is the whole of
 what *alpha* means here — nothing in the language is provisional.
 
-v0.1.3 is the exception to that steadiness and the only release so far that
-changes what an existing program means: **`/` is real division** and always
-answers a Double, `mod` joins `div` as an operator, and the `Mod` built-in is
-gone. A program doing integer division through `/` must say `div`.
+v0.1.4 is the first release driven by *writing* that library rather than by
+reading the specification, and it accepts more than it did:
+
+- **A built-in's name may be declared over.** A subprogram takes the argument
+  counts it declares and the built-in keeps the rest, so `Length (A, B)` beside
+  `Length ('abc')` now works where the declaration used to replace the built-in
+  outright.
+- **The run-time-selection warning reads the argument count.** A call that only
+  one signature can take binds statically and says nothing, which is what makes
+  a Pascal-style `Print (Window, 'text')` beside `Print ('text')` shippable.
+- **Two methods of one signature are refused** instead of silently running the
+  first and leaving the second unreachable. This is the one thing that can
+  refuse a program that used to run — though such a program was already calling
+  a body it did not mean.
+
+v0.1.3 remains the only release that changes what a *working* program means:
+**`/` is real division** and always answers a Double, `mod` joins `div` as an
+operator, and the `Mod` built-in is gone. A program doing integer division
+through `/` must say `div`.
 
 ## Licence
 
