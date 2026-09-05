@@ -2018,10 +2018,12 @@ and seeing what the compiler's own sources tripped on:
 | a bare name inside a method that is a **field** — an implicit `this.Field` — had no type, since a field is registered under `Class::Field` | look it up as a field, walking the inheritance chain, after the scoped lookup so a local still shadows |
 | a `Buffer` held in a variable declared `Any` gave `.Text` no type | declare the variable `Buffer`; the emitter's own four buffers were `Any` |
 
-**Five sites in the compiler genuinely could not be typed**, and each was
-given the `as` this rule prescribes — a member of an untyped parameter, a
-subscript of one. That is the rule working as intended rather than a concession
-to it: the conversion is written where the checker cannot see the type.
+**What was left could genuinely not be typed**, and each site was given the `as`
+this rule prescribes — a member of an untyped parameter, a subscript of one.
+That is the rule working as intended rather than a concession to it: the
+conversion is written where the checker cannot see the type. How many such sites
+there are is not written down, because it changes whenever the sources do and
+nothing here would notice.
 
 **Scoping `Inferred` was not optional.** While one helper read it a stale
 entry could only lose checking; once an ordinary variable's type comes from it, a
@@ -12369,7 +12371,7 @@ by a constructor of its own, never by concatenating a prefix by hand:
 | `c_` | a **cell**: a variable a nested function captured, which lives on the heap |
 | `f_` | a subprogram |
 | `fn_` | its closure, so the name can be used as a value [FUN-011] |
-| `o_` | the set of subprograms sharing one name — or a lone **variadic** one, whose C symbol takes a fixed count and so cannot answer an absorbing call [FUN-013], [FUN-005] |
+| `o_` | the set of subprograms sharing one name — or a lone one that still needs selecting: a **variadic**, whose C symbol takes a fixed count and so cannot answer an absorbing call, or one declared with a **built-in's name**, whose counts are selected on types as any set's are [FUN-013], [FUN-005], [RT-027] |
 | `k_` | a class or an object |
 | `i_` | its field initializer |
 | `m_` | a method, with its signature |

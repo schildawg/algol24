@@ -441,12 +441,19 @@ That is exactly what named arguments and [ERR-010]'s warning were added for, and
 it makes the named form the *preferred* spelling rather than merely a readable
 one.
 
-⚠️ **A user-defined `WriteLn` REPLACES the built-in; it does not extend it.**
-Declaring one and calling `WriteLn ('x')` gives `Expected 3 arguments but got
-1.` So `graph` must supply the whole set — but that is wanted rather than
-suffered: in a graphics program `WriteLn` should reach the window, not standard
-output. The variadic base case reproduces [RT-015] exactly with a
-`List of Any` parameter [FUN-005], including `WriteLn ()` for a bare newline.
+⚠️ **A user-defined `WriteLn` takes only the argument counts it declares**
+[RT-027]. Declaring `WriteLn (S, X, Y)` leaves `WriteLn ('x')` and `WriteLn ()`
+reaching the **built-in**, which writes to standard output — so a graphics
+program that declares only the placed form has a `WriteLn` that goes to the
+window at three arguments and to the terminal at one, which is the worst of both
+and would be found at run time rather than at the declaration.
+
+So `graph` must still supply the whole set, and now for a sharper reason than
+before: not because a declaration replaces the built-in, but because it does
+**not**, and every count left undeclared silently keeps the old destination. A
+variadic `WriteLn (Values : List of Any)` reproduces [RT-015] with a
+`List of Any` parameter [FUN-005] and takes every count from zero upward, which
+is the one declaration that leaves nothing behind.
 
 Two things left open by it:
 
@@ -501,7 +508,7 @@ consistently and a cast could resolve. Instead the checker commits to one
 overload it has not chosen.
 
 ⚠️ **This one belongs to the language, not the library**, and wants a defect
-entry in Annex F with a reproduction — the survey found it, it does not wait on
+entry in `spec/DEFECTS.md` with a reproduction — the survey found it, it does not wait on
 the survey.
 
 **Q7 — a library function cannot ask whether a value is an enum member.**

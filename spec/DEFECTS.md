@@ -18,15 +18,6 @@ share the fault says nothing about whether the interpreter still has it.
 
 ---
 
-Where the implementation does not do what this specification requires. Each
-entry names the rules it violates, what the implementation does today, and the
-program in `defects/` that reproduces it.
-
-⚠️ A defect's test is a **reverse conformance test**: it records the wrong
-behavior and passes while that behavior persists. It turns **red when the
-defect stops reproducing**, because a fix is as much a change to be noticed as a
-regression — and a suite that is permanently red is a suite nobody reads.
-
 **DEF-34 — `Val` accepts and refuses by `strtod`'s rules, not the language's.**
 *(violates [RT-009])*
 
