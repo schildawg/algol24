@@ -24,6 +24,17 @@
         "pascal"
     ],
     "contributes": {
+        "configuration": {
+            "title": "Algol-24",
+            "properties": {
+                "algol24.compilerPath": {
+                    "type": "string",
+                    "default": "",
+                    "scope": "machine-overridable",
+                    "markdownDescription": "Path to the `algc` compiler. Leave empty to look for `bootstrap/algc` in the workspace and then for `algc` on `PATH`. May contain `${workspaceFolder}`, and may start with `~`."
+                }
+            }
+        },
         "languages": [
             {
                 "id": "algol24",

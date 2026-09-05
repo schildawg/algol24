@@ -100,19 +100,29 @@ from a Pascal grammar, because the two differ in ways that show:
 `extension.js` contributes a `TestController`, so `test` blocks appear in the
 Testing view with a run button in the gutter beside each one. Two profiles:
 
-- **Interpreted** (the default) — `bootstrap/algc --test <file>`, run from the
-  repository root.
-- **Compiled** — the same four steps `algc --help` describes, into a temporary
-  directory: emit C, copy `algol.c` and `algol.h` in beside it, `cc`, run the
-  binary from the file's own directory.
+- **Interpreted** (the default) — `algc --test <file>`, run from the workspace
+  root.
+- **Compiled** — into a temporary directory: emit C, `cc`, run the binary from
+  the file's own directory.
 
 ⚠️ The two working directories are not interchangeable: a suite that touches
 files can tell the difference, so each half uses the one that matches how it
 would be run by hand.
 
-⚠️ The emitted directory is **not** self-contained, despite what `--help` says.
-The emitter writes `#include "algol.h"` and never the runtime, so the copy step
-is required rather than a convenience.
+## Which compiler it runs
+
+Three places are tried, most explicit first:
+
+1. the **`algol24.compilerPath`** setting, which may contain
+   `${workspaceFolder}` and may start with `~`;
+2. **`bootstrap/algc`** in the workspace, which is the compiler repository's own
+   layout;
+3. **`algc` on `PATH`**, which is where a package manager puts it.
+
+The workspace copy is kept ahead of `PATH` so that working *on* the compiler
+runs the one just built rather than the one installed. Nothing else assumes this
+repository's shape, which is what lets the extension run in a project that only
+*uses* Algol-24.
 
 ⚠️ **Discovery is per test; running is per file.** The language has no per-test
 filter, so asking for one test runs every test its file can reach, and the

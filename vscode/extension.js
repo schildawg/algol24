@@ -57,6 +57,73 @@ function rootOf(uri) {
     return folder ? folder.uri.fsPath : undefined;
 }
 
+/** An executable file at this path, or undefined. */
+function executable(candidate) {
+    try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return fs.statSync(candidate).isFile() ? candidate : undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+
+/** The first executable called 'algc' on PATH, or undefined. */
+function onPath() {
+    const names = process.platform === 'win32' ? ['algc.exe', 'algc.cmd', 'algc'] : ['algc'];
+
+    for (const entry of (process.env.PATH || '').split(path.delimiter)) {
+        if (!entry) continue;
+
+        for (const name of names) {
+            const found = executable(path.join(entry, name));
+            if (found) return found;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * The compiler to use for a workspace folder, or undefined when there is none.
+ *
+ * Three places, most explicit first:
+ *
+ *   1. the 'algol24.compilerPath' setting, which may say '${workspaceFolder}'
+ *      or start with '~';
+ *   2. 'bootstrap/algc' in the workspace, which is the compiler repository's
+ *      own layout and is where a freshly built compiler lands;
+ *   3. 'algc' on PATH, which is where a package manager puts it.
+ *
+ * The second used to be the only one, which is why the extension worked in the
+ * compiler's own repository and nowhere else. It is kept, and kept ahead of
+ * PATH, so that working ON the compiler still runs the copy just built rather
+ * than the one installed.
+ */
+function compilerFor(root) {
+    const setting = vscode.workspace.getConfiguration('algol24').get('compilerPath');
+
+    if (setting) {
+        let written = String(setting).replace('${workspaceFolder}', root || '');
+
+        if (written.startsWith('~')) written = path.join(os.homedir(), written.slice(1));
+
+        return executable(path.resolve(root || '', written));
+    }
+
+    if (root) {
+        const local = executable(path.join(root, 'bootstrap', 'algc'));
+        if (local) return local;
+    }
+
+    return onPath();
+}
+
+/** What to tell someone when no compiler was found. */
+const NO_COMPILER =
+    'No Algol-24 compiler found. Put algc on PATH, build one at '
+  + 'bootstrap/algc in this workspace, or set algol24.compilerPath.';
+
 function activate(context) {
     const controller = vscode.tests.createTestController('algol24', 'Algol-24');
     context.subscriptions.push(controller);
@@ -170,11 +237,11 @@ function activate(context) {
      * Emits, builds and returns a path to a binary, or the output of whichever
      * step failed.
      *
-     * The four steps the compiler's own '--help' describes: emit C into a
-     * temporary directory, copy the runtime in beside it, build, run.  ⚠️ The
-     * emitted directory is NOT self-contained despite what '--help' says -- the
-     * emitter writes '#include "algol.h"' and never the runtime itself, so the
-     * copy is required.
+     * Three steps: emit C into a temporary directory, build, run.  '--compile'
+     * copies algol.c and algol.h in beside the generated files itself, so the
+     * emitted directory is self-contained and there is nothing to fetch.  This
+     * used to copy the runtime out of the workspace's own bootstrap/, which was
+     * redundant here and impossible in a workspace that has no bootstrap/.
      *
      * ⚠️ A failing step returns ITS OWN output rather than continuing.  A back
      * end refusal -- 'A call to Copy is not supported by the C back end yet.'
@@ -182,16 +249,12 @@ function activate(context) {
      *
      * The caller owns the returned directory and must remove it.
      */
-    async function build(root, file, extra, token) {
-        const algc = path.join(root, 'bootstrap', 'algc');
+    async function build(algc, root, file, extra, token) {
         const out = fs.mkdtempSync(path.join(os.tmpdir(), 'algol24-vscode-'));
 
         const emitted = await run(
             algc, ['--compile', ...extra, '--out=' + out, file], root, token);
         if (emitted.status !== 0) return { out, failure: emitted };
-
-        for (const name of ['algol.c', 'algol.h'])
-            fs.copyFileSync(path.join(root, 'bootstrap', name), path.join(out, name));
 
         const binary = path.join(out, 'program');
         const sources = fs.readdirSync(out)
@@ -213,12 +276,10 @@ function activate(context) {
      * the repository root and its COMPILED binary runs from the suite's own
      * directory, because a suite that touches files can tell the difference.
      */
-    async function spawnRun(root, file, compiled, token) {
-        const algc = path.join(root, 'bootstrap', 'algc');
-
+    async function spawnRun(algc, root, file, compiled, token) {
         if (!compiled) return run(algc, ['--test', file], root, token);
 
-        const { out, binary, failure } = await build(root, file, ['--test'], token);
+        const { out, binary, failure } = await build(algc, root, file, ['--test'], token);
 
         try {
             if (failure) return failure;
@@ -299,16 +360,17 @@ function activate(context) {
                     continue;
                 }
 
-                if (!fs.existsSync(path.join(root, 'bootstrap', 'algc'))) {
-                    for (const test of tests) run.errored(test, new vscode.TestMessage(
-                        'No compiler at ' + path.join(root, 'bootstrap', 'algc')
-                        + ' -- run ./bootstrap/build.sh first.'));
+                const algc = compilerFor(root);
+                if (!algc) {
+                    for (const test of tests)
+                        run.errored(test, new vscode.TestMessage(NO_COMPILER));
                     continue;
                 }
 
                 for (const test of tests) run.started(test);
 
-                const { text, status } = await spawnRun(root, file.uri.fsPath, compiled, token);
+                const { text, status } = await spawnRun(
+                    algc, root, file.uri.fsPath, compiled, token);
 
                 // ⚠️ Appended WITH its escapes.  The Test Results panel is a
                 // terminal and renders ANSI, so this is where the colour the
@@ -445,10 +507,9 @@ function activate(context) {
             return;
         }
 
-        const algc = path.join(root, 'bootstrap', 'algc');
-        if (!fs.existsSync(algc)) {
-            vscode.window.showErrorMessage(
-                'Algol-24: no compiler at ' + algc + ' -- run ./bootstrap/build.sh first.');
+        const algc = compilerFor(root);
+        if (!algc) {
+            vscode.window.showErrorMessage('Algol-24: ' + NO_COMPILER);
             return;
         }
 
@@ -456,18 +517,23 @@ function activate(context) {
 
         const relative = path.relative(root, file) || path.basename(file);
 
+        // The echoed line names the compiler actually being used, which is the
+        // only place the choice between a workspace build, an installed one and
+        // a configured one is visible.
+        const shown = algc.startsWith(root + path.sep) ? path.relative(root, algc) : algc;
+
         if (mode !== 'compiled') {
-            write('\x1b[36m$ bootstrap/algc ' + relative + '\x1b[0m\n');
+            write('\x1b[36m$ ' + shown + ' ' + relative + '\x1b[0m\n');
             const status = await stream(algc, [file], root);
             write(exitLine(status));
         }
 
         if (mode !== 'interpreted') {
-            write('\x1b[36m$ bootstrap/algc --compile ' + relative
+            write('\x1b[36m$ ' + shown + ' --compile ' + relative
                 + '  &&  cc  &&  run\x1b[0m\n');
 
             const token = { onCancellationRequested: listener => { cancel = listener; } };
-            const { out, binary, failure } = await build(root, file, [], token);
+            const { out, binary, failure } = await build(algc, root, file, [], token);
 
             try {
                 if (failure) {
