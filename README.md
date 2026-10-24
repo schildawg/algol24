@@ -136,19 +136,36 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.1.4, plus extension functions.** The language was feature-complete from
-v0.1.0 and deliberately closed; what comes next is a library, written in
-Algol-24 rather than in the runtime: collections, and a unified
-text-and-graphics unit over SDL. That is the whole of what *alpha* means here —
-nothing in the language is provisional.
+**v0.1.5.** The language was feature-complete from v0.1.0 and deliberately
+closed; what comes next is a library, written in Algol-24 rather than in the
+runtime: collections, and a unified text-and-graphics unit over SDL. That is the
+whole of what *alpha* means here — nothing in the language is provisional.
 
-It has been opened once since, and once only. **Extension functions** were asked
-for by the library project, which had measured the alternatives: growing the core
-one verb at a time, or a rich wrapper over `String` whose seam answered `13` for
-the length of a five-character string. Neither is what a language should make
-people choose between, and a unit of free functions that composes is. The
-proposal, its five open questions and how each was settled are in
-`spec/ALGOL-24.md` under [FUN-015], [FUN-016], [EXP-022] and [MOD-015].
+It has been opened once since, and once only. v0.1.5 adds **extension
+functions**, asked for by the library project, which had measured the
+alternatives: growing the core one verb at a time, or a rich wrapper over
+`String` whose seam answered `13` for the length of a five-character string.
+Neither is what a language should make people choose between, and a unit of free
+functions that composes is. The proposal, its five open questions and how each
+was settled are in `spec/ALGOL-24.md` under [FUN-015], [FUN-016], [EXP-022] and
+[MOD-015].
+
+The rest of v0.1.5 is the runtime, and came from a game rather than from the
+specification:
+
+- **A sequence reuses the block it outgrew, and a Char stops allocating.** The
+  arena never frees, so everything a program walks away from it keeps for the
+  life of the process — and those two sites were walking away from most of it. A
+  program that builds a twenty-element list and walks a forty-three character
+  string twenty thousand times went from **32.0 MB of peak resident memory to
+  11.5 MB** compiled. What it is for is a program that stays open all evening.
+- **The runtime compiles for Windows.** `mkdir`, the program's own path,
+  `dlopen` and `dlsym`, and the clock, each in Windows' words behind the POSIX
+  names. Checked with mingw-w64; the foreign-call half still wants a mingw
+  `libffi`.
+- **A call to an imported overloaded name compiles.** It named a symbol the
+  declaring unit never emits, so the generated C did not build at all, while
+  interpreted the same program had always been right. Recorded as C-40.
 
 v0.1.4 was the first release driven by *writing* that library rather than by
 reading the specification, and it accepts more than it did:

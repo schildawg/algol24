@@ -16,9 +16,8 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.1.4, plus extension functions.** The language was feature-complete from
-v0.1.0 and deliberately closed. It has been opened once since, for **extension
-functions** [FUN-015]: a top-level subprogram marked `extension` may *also* be
+**v0.1.5.** The language was feature-complete from v0.1.0 and deliberately
+closed. It has been opened once since, for **extension functions** [FUN-015]: a top-level subprogram marked `extension` may *also* be
 called with method syntax on its first parameter, so `S.Trim ()` and `Trim (S)`
 are one call. The library project asked for it — see
 `algol24-library/PROPOSAL-EXTENSION-FUNCTIONS.md` — because the other shapes a
