@@ -5,19 +5,35 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 ## What this is
 
 Algol-24 (`.a24`) is a **retro-modern** language: classic Pascal syntax over
-unbounded integers, full Unicode, gradual types, closures and a foreign function
-interface. Its compiler — `algc` — is written in Algol-24 and compiles itself.
-There is no JDK, no Maven, no make: a C compiler is the only dependency, because
-the only way into the language is a checked-in copy of its own output.
+unbounded integers, full Unicode, gradual types, closures, extension functions
+and a foreign function interface. Its compiler — `algc` — is written in Algol-24
+and compiles itself. There is no JDK, no Maven, no make: a C compiler is the
+only dependency, because the only way into the language is a checked-in copy of
+its own output.
 
 ⚠️ **Do not describe it as "Pascal-flavored".** That sells it as a derivative of
 an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.1.4.** The language has been feature-complete since v0.1.0 and is done.
-What it does not have is a library written in Algol-24, which is the whole of
-what *alpha* means here; nothing in the language is provisional.
+**v0.1.4, plus extension functions.** The language was feature-complete from
+v0.1.0 and deliberately closed. It has been opened once since, for **extension
+functions** [FUN-015]: a top-level subprogram marked `extension` may *also* be
+called with method syntax on its first parameter, so `S.Trim ()` and `Trim (S)`
+are one call. The library project asked for it — see
+`algol24-library/PROPOSAL-EXTENSION-FUNCTIONS.md` — because the other shapes a
+`strings` unit could take were a swelling core or a wrapper class with a
+Groovy seam, and this is what makes a unit of free functions compose.
+
+What the language still does not have is a library written in Algol-24, which is
+the whole of what *alpha* means here; nothing in the language is provisional.
+
+⚠️ **An extension is permission, not a new kind of declaration.** It is an
+ordinary top-level subprogram whose first parameter has a written type, and
+every later pass treats it as one: a member of the name always wins at a call
+[EXP-022], visibility is the file's own `uses` list and nothing wider
+[MOD-015], and `extension` is a context-sensitive identifier rather than a
+keyword [LEX-011].
 
 - `spec/ALGOL-24.md` — **the authority.** Every rule is claimed by a case.
   The implementation is measured against it: where the two disagree,
@@ -283,6 +299,11 @@ inline. Language points that bite when editing:
   for its test blocks to reach the parser.
 - ⚠️ The `for var X in C do` form has **no slot for a type**. Only the counted
   `for var I : Integer := 0; …` form accepts one.
+- An **extension** is declared `extension function F (Receiver : T, …)` at the
+  top level only, and the receiver's type must be written: an untyped one would
+  be a member of everything. It is refused on a method, a constructor, a
+  property and a nested subprogram. Both spellings always work, so a plain
+  function may gain or lose the word without breaking a call site.
 
 If you add a token to `compiler/TokenType.a24` and register it in `Scanner.a24`'s
 `Keywords`, mirror it into `vscode/syntaxes/algol24.tmLanguage.json` —
@@ -307,4 +328,6 @@ from.
 that.** [EXP-013] requires it: the type system is gradual, so an argument's
 declared type may be `Any` while its value has a definite type. The `[WARN]` a
 call raises is decided by whether the *name* is overloaded, never by argument
-types — **named arguments** are the only thing that removes it.
+types — **named arguments** are the only thing that removes it. Both spellings
+of an extension call raise it alike, the receiver counting as the argument it
+is, because they are one call [FUN-016].

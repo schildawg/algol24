@@ -3,8 +3,9 @@
 **Legacy meets the future. Strength meets beauty. Power wrapped in simplicity.**
 
 Algol-24 is a retro-modern language: classic Pascal syntax over unbounded
-integers, full Unicode, gradual types, closures and a foreign function
-interface. Its compiler is written in Algol-24 and compiles itself.
+integers, full Unicode, gradual types, closures, extension functions and a
+foreign function interface. Its compiler is written in Algol-24 and compiles
+itself.
 
 ```pascal
 type Color = (Red, Green, Blue);
@@ -96,6 +97,13 @@ Modules, including circular ones. Five collections and two resources.
 wrapping. **Unicode throughout** — Unicode source, Unicode identifiers, and text
 measured in characters rather than bytes, so `Length ('你好')` is 2.
 
+**Extension functions** — a top-level subprogram marked `extension` may *also*
+be called with method syntax on its first parameter, so `Trim (S)` and
+`S.Trim ()` are one call and a unit of free functions composes left to right:
+`Line.Trimmed ().Shortened (12).Upper ()`. A member of the name always wins, so
+no call that compiles today can change meaning, and what a value responds to is
+decided by the calling file's own `uses` clauses rather than globally.
+
 Varargs and named arguments, with a `[WARN]` when a call will bind at run time.
 `break`, `continue`, labels and `goto`. Operators a class may define — arithmetic,
 comparison through `Compare`, subscripting through `Get` and `Put`. A foreign
@@ -126,12 +134,21 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.1.4.** The language has been feature-complete since v0.1.0 and is done; what
-comes next is a library, written in Algol-24 rather than in the runtime:
-collections, and a unified text-and-graphics unit over SDL. That is the whole of
-what *alpha* means here — nothing in the language is provisional.
+**v0.1.4, plus extension functions.** The language was feature-complete from
+v0.1.0 and deliberately closed; what comes next is a library, written in
+Algol-24 rather than in the runtime: collections, and a unified
+text-and-graphics unit over SDL. That is the whole of what *alpha* means here —
+nothing in the language is provisional.
 
-v0.1.4 is the first release driven by *writing* that library rather than by
+It has been opened once since, and once only. **Extension functions** were asked
+for by the library project, which had measured the alternatives: growing the core
+one verb at a time, or a rich wrapper over `String` whose seam answered `13` for
+the length of a five-character string. Neither is what a language should make
+people choose between, and a unit of free functions that composes is. The
+proposal, its five open questions and how each was settled are in
+`spec/ALGOL-24.md` under [FUN-015], [FUN-016], [EXP-022] and [MOD-015].
+
+v0.1.4 was the first release driven by *writing* that library rather than by
 reading the specification, and it accepts more than it did:
 
 - **A built-in's name may be declared over.** A subprogram takes the argument
