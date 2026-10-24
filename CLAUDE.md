@@ -35,6 +35,11 @@ every later pass treats it as one: a member of the name always wins at a call
 [MOD-015], and `extension` is a context-sensitive identifier rather than a
 keyword [LEX-011].
 
+⚠️ **There are two `[WARN]`s now**, both in `ERR-010` and both checked against
+what `algc` prints by `spec/spec.sh` running `spec/warning.a24`. A warning
+raised and not quoted there fails the run, so adding a third means editing the
+rule, the fixture and nothing else.
+
 - `spec/ALGOL-24.md` — **the authority.** Every rule is claimed by a case.
   The implementation is measured against it: where the two disagree,
   `spec/DEFECTS.md` names the defect and carries a program that reproduces it,

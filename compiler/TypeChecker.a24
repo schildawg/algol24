@@ -147,6 +147,15 @@ var
     /// is the only pass that can say so without a run-time cost.
     PropertyMembers : Map := [:];
 
+    /// Every member each class declares, fields and methods together, by name.
+    ///
+    /// Beside PropertyMembers and asked the one question [EXP-022] asks -- is a
+    /// member of this name there at all -- so it holds names without arities or
+    /// types.  What it is for is the warning a shadowed extension raises
+    /// [ERR-010]: the checker is the only pass that knows the receiver's
+    /// written type and the visible extensions at once.
+    Members : Map := [:];
+
     /// The built-ins' return types, kept apart from Lookup and never written to
     /// again.
     ///
@@ -330,6 +339,60 @@ begin
                 Found.Add (Str (Method.Name.Lexeme));
 
         Exit Found;
+    end
+
+    /// Gets every member a class declares, fields and methods alike.
+    function MembersOf (TheStmt : Any) : List;
+    var
+        Found : List;
+
+    begin
+        Found := List();
+
+        for var Field in TheStmt.Fields do
+        begin
+            Found.Add (Str (Field.Name.Lexeme));
+        end
+
+        for var Method in TheStmt.Methods do
+        begin
+            Found.Add (Str (Method.Name.Lexeme));
+        end
+
+        Exit Found;
+    end
+
+    /// Gets the class that declares a member of this name, walking the chain, or
+    /// '' when none does.
+    ///
+    /// Folded on both sides, because a call site need not spell a member the way
+    /// its declaration does [SRC-011].
+    function DeclaresMember (TheType : String, Member : String) : String;
+    var
+        At   : String;
+        Seen : List;
+
+    begin
+        At := TheType;
+        Seen := List();
+
+        while At <> '' and At <> 'Any' and not Seen.Contains (At) do
+        begin
+            Seen.Add (At);
+
+            if Members.Contains (At) then
+            begin
+                for var Each in Members.Get (At) do
+                begin
+                    if FoldCase (Str (Each)) = FoldCase (Member) then Exit At;
+                end
+            end
+
+            At := Str (Lookup.Parents.Get (At));
+            if At = 'nil' then At := '';
+        end
+
+        Exit '';
     end
 
     /// Gets the class that declared a member as a property, walking the chain,
@@ -559,6 +622,7 @@ begin
         begin
             PrivateMembers.Put (Str (TheStmt.Name.Lexeme), TheStmt.PrivateMembers);
             PropertyMembers.Put (Str (TheStmt.Name.Lexeme), PropertiesOf (TheStmt));
+            Members.Put (Str (TheStmt.Name.Lexeme), MembersOf (TheStmt));
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
             Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
 
@@ -582,6 +646,7 @@ begin
         if Kind = 'ObjectStmt' then
         begin
             PrivateMembers.Put (Str (TheStmt.Name.Lexeme), TheStmt.PrivateMembers);
+            Members.Put (Str (TheStmt.Name.Lexeme), MembersOf (TheStmt));
             Lookup.SetType (TheStmt.Name.Lexeme, TheStmt.Name.Lexeme);
             Lookup.DeclaredTypes.Add (FoldCase (TheStmt.Name.Lexeme));
 
@@ -1011,6 +1076,43 @@ begin
                     + Str (Seen) + ' overloads at run time.');
     end
 
+    /// Warns where a member hides a visible extension of its name.
+    ///
+    /// [EXP-022] gives the member the call, which is what keeps every program
+    /// that compiles today meaning what it did.  It is also the one way an
+    /// extension can be taken away silently -- the class declares a member of
+    /// that name in some later version, and every call site quietly changes
+    /// meaning -- so the cost is reported where it is incurred [ERR-010].
+    ///
+    /// Only where the receiver's type is WRITTEN, since otherwise there is
+    /// nothing to compare, and only for a class or an object: a member cannot
+    /// be added to a built-in type, so nothing there can be taken over.
+    ///
+    /// # Satisfies
+    ///
+    /// [ERR-010]
+    procedure WarnIfShadowed (TheExpr : Any, Owner : String);
+    var
+        Declaring : String;
+        Key       : String;
+
+    begin
+        if Str (TheExpr.Extension) = '' then Exit;
+
+        Declaring := DeclaresMember (Owner, Str (TheExpr.Name.Lexeme));
+        if Declaring = '' then Exit;
+
+        Key := Str (TheExpr.Name.LineNumber) + ':member:'
+             + FoldCase (Str (TheExpr.Name.Lexeme));
+
+        if Warned.Contains (Key) then Exit;
+        Warned.Add (Key);
+
+        Console.Warn (SourceCode.Name() + ':' + Str (TheExpr.Name.LineNumber) + ': '''
+                    + Str (TheExpr.Name.Lexeme) + ''' is a member of ' + Declaring
+                    + ', so the extension of that name is not reached.');
+    end
+
     /// Reduces an expression to the type it yields, or '' when that is not
     /// known.
     ///
@@ -1145,6 +1247,8 @@ begin
 
             var Owner := TypeOfReceiver (TheExpr.Obj);
             if Owner = '' or Owner = 'Any' then Exit '';
+
+            WarnIfShadowed (TheExpr, Owner);
 
             Exit Lookup.GetType (Owner + '::' + TheExpr.Name.Lexeme);
         end
@@ -1715,4 +1819,42 @@ begin
     AssertTrue (not Rejects (
         'type Color = (Red, Green);' + #10 +
         'var C : Color := Color.Red;'));
+end
+
+// DeclaresMember answers the question [EXP-022] asks of a receiver -- is a
+// member of this name there at all -- and answers it up the chain and without
+// regard to case, since a call site need not spell a member as its declaration
+// does.
+//
+test 'Declares Member Walks The Chain';
+begin
+    var TheScanner := Scanner ('
+ class Shape;
+ var
+     Sides : Integer := 0;
+ begin
+     function Area () : Integer; begin Exit 0; end
+ end
+
+ class Square (Shape);
+ begin
+     function Perimeter () : Integer; begin Exit 4; end
+ end
+');
+    var TheParser  := Parser (TheScanner.ScanTokens());
+    var TheChecker := TypeChecker ();
+
+    TheChecker.Resolve (TheParser.Parse());
+
+    // Its own method, its own field, and one inherited.
+    AssertEqual ('Square', TheChecker.DeclaresMember ('Square', 'Perimeter'));
+    AssertEqual ('Shape',  TheChecker.DeclaresMember ('Square', 'Area'));
+    AssertEqual ('Shape',  TheChecker.DeclaresMember ('Square', 'Sides'));
+
+    // Case carries no information [SRC-011].
+    AssertEqual ('Square', TheChecker.DeclaresMember ('Square', 'PERIMETER'));
+
+    // A name no class in the chain declares, and a type that is not a class.
+    AssertEqual ('', TheChecker.DeclaresMember ('Square', 'Nonesuch'));
+    AssertEqual ('', TheChecker.DeclaresMember ('String', 'Length'));
 end

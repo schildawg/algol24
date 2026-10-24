@@ -6093,6 +6093,11 @@ fed
 that: every `x.f (…)` that compiles today resolves to a member, so step 2 is
 reached only where the program was an error.
 
+**A member that hides a visible extension is warned about** [ERR-010]. Step 1 is
+also the one way an extension can be taken away silently -- by the class
+declaring a member of that name in some later version -- so every call site the
+new member captures says so.
+
 **A member wins by NAME, not by signature.** A receiver carrying an `f` of some
 other arity still takes step 1, and the call then fails on its arity rather
 than falling through to an extension. A miscounted argument list must report
@@ -12179,8 +12184,8 @@ still a failure and must not exit 0 [INI-005].
 **non-blocking**: the program compiles and runs exactly as it would without it,
 and its exit status is unaffected [ERR-009].
 
-One warning is raised. A call that will select among overloads **at run time**
-[FUN-013] says so:
+**Two warnings are raised.** The first: a call that will select among overloads
+**at run time** [FUN-013] says so.
 
 ```
 [WARN] spec/warning.a24:17: 'Log' selects among 2 overloads at run time.
@@ -12204,12 +12209,36 @@ This narrows the warning without weakening it. Where several signatures take
 the count written, every one of them still warns, because from there only the
 argument *types* could tell them apart and no static rule may read those.
 
-**The wording is checked against what is printed**, by `spec/spec.sh` running
-`spec/warning.a24` — the treatment the keyword table, Annex B and [COL-003]'s
+**Both wordings are checked against what is printed**, by `spec/spec.sh` running
+`spec/warning.a24` and comparing **every** `[WARN]` line it raises against the
+lines quoted here, in order — the treatment the keyword table, Annex B and [COL-003]'s
 matrix already get, and for the same reason. A message quoted in a specification
 and checked by nobody is the most rot-prone thing this document can hold.
 
-**Both spellings of an extension call report it alike** [FUN-016]. `Same (X)`
+**The second: a member hides a visible extension of its name** [EXP-022].
+
+```
+[WARN] spec/warning.a24:41: 'Size' is a member of Box, so the extension of that name is not reached.
+```
+
+Step 1 gives the member the call, which is what keeps every program that
+compiles today meaning exactly what it did. It is also the one way an extension
+can be taken away **silently**: the class declares a member of that name in some
+later version, and every call site reaching the extension quietly changes
+meaning. No opt-in scheme prevents that — opting in does not stop a class from
+gaining members — so the answer is to report it where it is incurred, which is
+every call site the new member captures.
+
+**Only where the receiver's type is written**, since otherwise there is nothing
+to compare: a gradual type says nothing about the value it will hold. **And only
+for a class or an object**, because a member cannot be added to a built-in type
+and so can never take anything over there.
+
+The remedy is to say which was meant. The prefix spelling reaches the extension
+past the member — `Size (B)` is not a method call and never consults one — and
+renaming either is the other way out.
+
+**Both spellings of an extension call report the first alike** [FUN-016]. `Same (X)`
 and `X.Same ()` are one call, so the choice of spelling cannot change the
 diagnostic; the receiver counts as the argument it is, so the count the warning
 is decided on is one more than was written [EXP-022].
@@ -12231,10 +12260,11 @@ comparing them would report a divergence where the two processors agree
 completely. Dropped rather than suppressed: it is meant to be seen by whoever is
 compiling, and only the comparison must not see it.
 
-**It is silent on this compiler.** No top-level name in `compiler/*.a24` is
-overloaded, so `algc` compiling itself raises none at all — which is the
-evidence that it is a scalpel rather than noise.
+**Both are silent on this compiler.** No top-level name in `compiler/*.a24` is
+overloaded and it declares no extensions, so `algc` compiling itself raises none
+at all — which is the evidence that they are scalpels rather than noise.
 
+    unit         Declares Member Walks The Chain
     conformance  0158-varargs-from-an-element-type.a24
 
 ---

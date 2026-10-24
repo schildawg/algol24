@@ -102,7 +102,9 @@ be called with method syntax on its first parameter, so `Trim (S)` and
 `S.Trim ()` are one call and a unit of free functions composes left to right:
 `Line.Trimmed ().Shortened (12).Upper ()`. A member of the name always wins, so
 no call that compiles today can change meaning, and what a value responds to is
-decided by the calling file's own `uses` clauses rather than globally.
+decided by the calling file's own `uses` clauses rather than globally. Where a
+member *does* hide an extension you can see, a `[WARN]` says which class took
+it — the one way an extension could otherwise be removed silently.
 
 Varargs and named arguments, with a `[WARN]` when a call will bind at run time.
 `break`, `continue`, labels and `goto`. Operators a class may define — arithmetic,

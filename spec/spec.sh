@@ -733,8 +733,11 @@ fi
 
 # ⚠️ [ERR-010]'s warning is quoted in the document, and a message quoted and
 # checked by nobody is exactly what the three checks above exist to prevent.
-# spec/warning.a24 provokes it and the line is compared with the one the rule
-# shows -- file, line number and wording together.
+# spec/warning.a24 provokes them and EVERY line it raises is compared with the
+# ones the rule shows -- file, line number and wording together, in order.  The
+# scan stops at the next rule, so only what ERR-010 itself quotes counts; a
+# warning raised and not quoted fails the run, which is what keeps the rule's
+# count of them honest.
 #
 # ⚠️ The corpus CANNOT do this.  conform.sh drops [WARN] from both sides by
 # design, because the front end is shared and the two processors raise the
@@ -746,8 +749,9 @@ if [ -x bootstrap/algc ]; then
       | sed "s/$(printf '\033')\\[[0-9;]*m//g" \
       | grep '^\[WARN\]' > "$WORK/warn_actual" || true
 
-    awk '/\*\*\[ERR-010\]\*\*/{f=1}
-         f && /^\[WARN\] /{print; exit}' "$SPEC" > "$WORK/warn_spec"
+    awk '/\*\*\[ERR-010\]\*\*/{f=1; next}
+         f && /^\*\*\[[A-Z]+-[0-9]+\]\*\*/{exit}
+         f && /^\[WARN\] /{print}' "$SPEC" > "$WORK/warn_spec"
 
     if [ ! -s "$WORK/warn_actual" ]; then
         problem "ERR-010 quotes a warning that spec/warning.a24 does not raise"
@@ -758,7 +762,7 @@ if [ -x bootstrap/algc ]; then
       stated: $(cat "$WORK/warn_spec")
       raised: $(cat "$WORK/warn_actual")"
     else
-        echo "  ERR-010 matches the warning algc raises"
+        echo "  ERR-010 matches the $(wc -l < "$WORK/warn_actual" | tr -d ' ') warning(s) algc raises"
     fi
 fi
 

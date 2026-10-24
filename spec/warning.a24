@@ -21,3 +21,25 @@ Log ('warn');
 // checked as surely as the line above, because spec.sh compares EVERY [WARN]
 // line this file raises against the one [ERR-010] states.
 Log ('warn', 'disk');
+
+// The second warning: a member of the name hides a visible extension, so the
+// member takes the call [EXP-022] and the extension is not reached.  A class
+// declaring a member in some later version is the one way an extension can be
+// taken away silently, which is why the cost is reported where it is incurred.
+//
+// ⚠️ NOTHING ABOVE THIS MAY MOVE either -- the second [WARN] line [ERR-010]
+// states carries its line number as surely as the first.
+extension function Size (L : List) : Integer; begin Exit L.Length; end
+
+class Box;
+begin
+    function Size () : Integer; begin Exit 7; end
+end
+
+var B : Box := Box ();
+
+WriteLn (B.Size ());
+
+// The extension IS reached here, and nothing is warned about: a List has no
+// member of that name.
+WriteLn ([1, 2].Size ());
