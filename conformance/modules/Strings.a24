@@ -1,0 +1,34 @@
+// A fixture for chapters 11 and 15, not a conformance case.
+//
+// Exports two extensions and keeps a third private, so that an importer can
+// reach the first two by method syntax and cannot reach the third at all.
+
+unit Strings;
+
+extension function Upper (S : String) : String;
+begin
+    Exit ToUpper (S);
+end
+
+extension function Repeated (S : String, Times : Integer) : String;
+begin
+    var Text : String := '';
+
+    for var I : Integer := 0; I < Times; I := I + 1 do
+        Text := Text + S;
+
+    Exit Text;
+end
+
+// Reaches its own private extension by method syntax, which is visible here
+// and nowhere else.
+function Shouted (S : String) : String;
+begin
+    Exit S.Upper ().Banged ();
+end
+
+private
+extension function Banged (S : String) : String;
+begin
+    Exit S + '!';
+end

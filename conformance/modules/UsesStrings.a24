@@ -1,0 +1,13 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Imports Strings for its own use, so that an importer of THIS unit can be
+// shown not to inherit what method syntax reaches here.
+
+unit UsesStrings;
+
+uses 'Strings';
+
+function Shoutier (S : String) : String;
+begin
+    Exit S.Upper () + '!!';
+end

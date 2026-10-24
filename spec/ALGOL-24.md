@@ -995,9 +995,10 @@ $ algc conformance/0133-print-is-an-ordinary-name.a24
 got it
 ```
 
-**[LEX-011]**  `unit`, `test` and `on` are **not** keywords. They are ordinary
-identifiers that the grammar recognizes by position — `unit` opening a file,
-`test` before a block's quoted name, `on` introducing a handler — and each may
+**[LEX-011]**  `unit`, `test`, `on` and `extension` are **not** keywords. They
+are ordinary identifiers that the grammar recognizes by position — `unit`
+opening a file, `test` before a block's quoted name, `on` introducing a
+handler, `extension` before `function` or `procedure` [FUN-015] — and each may
 be used as a variable name.
 
     unit         Parse On Is Not A Keyword
@@ -1005,22 +1006,23 @@ be used as a variable name.
 ##### conformance/0018-context-sensitive-words.a24
 
 ```algol24
-// 'unit', 'test' and 'on' are not keywords.  The grammar recognizes them by
-// position, and each may be used as an ordinary name.
+// 'unit', 'test', 'on' and 'extension' are not keywords.  The grammar
+// recognizes them by position, and each may be used as an ordinary name.
 var unit := 1;
 var test := 2;
 var on   := 4;
+var extension := 8;
 
-WriteLn (unit + test + on);
+WriteLn (unit + test + on + extension);
 ```
 
 ```console
 $ algc conformance/0018-context-sensitive-words.a24
-7
+15
 ```
 
-> `var test := 7;` is a valid declaration, and so are the `unit` and `on`
-> forms. Verified in all three.
+> `var test := 7;` is a valid declaration, and so are the `unit`, `on` and
+> `extension` forms. Verified in all four.
 
 ### 4.5 Operators and punctuation
 
@@ -6078,6 +6080,135 @@ string
 fed
 ```
 
+**[EXP-022]**  Where `x.f (…)` is written and `x` is not a unit qualifier
+[MOD-010], the call is resolved in this order:
+
+1. If the receiver has a **member** named `f`, that member is called, exactly
+   as it is today.
+2. Otherwise, if an **extension** named `f` is visible in the file being
+   compiled [FUN-015], [MOD-015], the call means `f (x, …)`.
+3. Otherwise it is the error it was before — `Undefined property 'f'.`
+
+**Nothing already written can change meaning**, and step 1 is what secures
+that: every `x.f (…)` that compiles today resolves to a member, so step 2 is
+reached only where the program was an error.
+
+**A member wins by NAME, not by signature.** A receiver carrying an `f` of some
+other arity still takes step 1, and the call then fails on its arity rather
+than falling through to an extension. A miscounted argument list must report
+what it is; quietly reaching a different subprogram instead is the one outcome
+worth designing against.
+
+**The receiver is evaluated once**, whichever step answers. `Next ().Trim ()`
+calls `Next` once.
+
+**Selection among several extensions of one name is unchanged** [EXP-013].
+After the rewrite the call is an ordinary call, so the overload set selects on
+the whole signature at run time with the receiver as the first argument.
+
+**Without parentheses, `x.f` is a value rather than a call.** Where `f` is a
+visible extension, `x.f` answers that subprogram bound to that receiver, which
+is what reading a method off an instance already does [FUN-011]. A `property`
+is the one member read without a call [TYP-012], and an extension is never a
+property [FUN-015].
+
+A subprogram **not** marked `extension` is never reachable by method syntax,
+however well its first parameter would fit.
+
+##### conformance/0190-extension-resolution.a24
+
+```algol24
+// EXP-022 step 1: a MEMBER wins.  Box declares its own Size, so the extension
+// of that name is not reached through one.
+extension function Size (L : List) : Integer;
+begin
+    Exit L.Length * 100;
+end
+
+class Box;
+begin
+    function Size () : Integer;
+    begin
+        Exit 7;
+    end
+end
+
+WriteLn (Box ().Size ());
+
+// Step 2: no member of that name, and the extension is visible here.
+WriteLn ([1, 2].Size ());
+
+// The receiver is evaluated ONCE, whichever step answers.
+var Calls : Integer := 0;
+
+function Counted () : List;
+begin
+    Calls := Calls + 1;
+
+    Exit [1, 2, 3];
+end
+
+WriteLn (Counted ().Size ());
+WriteLn (Calls);
+
+// Selection among several extensions of a name is unchanged: the call is an
+// ordinary call once rewritten, and the receiver is its first argument.
+extension function Joined (L : List) : String;
+begin
+    Exit L.Joined ('-');
+end
+
+extension function Joined (L : List, By : String) : String;
+var
+    Text : String := '';
+
+begin
+    for var I : Integer := 0; I < L.Length; I := I + 1 do
+    begin
+        if I > 0 then Text := Text + By;
+
+        Text := Text + Str (L[I]);
+    end
+
+    Exit Text;
+end
+
+WriteLn ([1, 2, 3].Joined ());
+WriteLn ([1, 2, 3].Joined ('+'));
+
+// Chaining reads outward-in, which is the whole reason for the feature.
+extension function Trimmed (S : String) : String;
+begin
+    if Length (S) = 0 then Exit S;
+    if S[0] <> ' '    then Exit S;
+
+    Exit Copy (S, 1, Length (S)).Trimmed ();
+end
+
+extension function Shouted (S : String) : String;
+begin
+    Exit ToUpper (S) + '!';
+end
+
+WriteLn ('   quiet'.Trimmed ().Shouted ());
+
+// Without parentheses it is a value, not a call [FUN-011].
+var F := [4, 5].Size;
+WriteLn (F ());
+```
+
+```console
+$ algc conformance/0190-extension-resolution.a24
+7
+200
+300
+1
+1-2-3
+1+2+3
+QUIET!
+200
+```
+
 ### 9.6 Subscripting
 
 **[EXP-015]**  Subscripting a String yields the `Char` at that **character**
@@ -7867,6 +7998,169 @@ a limitation.
 
     conformance  0174-a-foreign-call.a24
 
+### 11.6 Extensions
+
+**[FUN-015]**  A top-level subprogram may be marked `extension`, which permits
+it to be called with **method syntax on its first parameter**.
+
+```
+ExtDecl  = "extension" FunDecl .
+```
+
+`extension` means exactly one thing, and it is permission rather than a new
+kind of declaration: the subprogram is an ordinary top-level subprogram in
+every other respect. It is not a keyword either — it is an ordinary identifier
+recognized by its position before `function` or `procedure` [LEX-011], so a
+program may still name a variable after it.
+
+The first parameter is the **receiver**, and it must have a **written type**.
+An untyped receiver is refused: a gradual type says nothing about the value a
+parameter will hold, so an extension declared on one would be a member of
+everything at once, and no diagnostic could then name what the call was reached
+through. A declaration taking no parameters at all is refused for the same
+reason — there is nothing there to be the receiver.
+
+The receiver's type may be any type that can be written. Nothing distinguishes
+one from another, because nothing about the permission depends on what the
+receiver is.
+
+**Only at the top level.** `extension` is refused on a method, on a
+constructor, and on a subprogram declared inside another. A method is already
+reached by method syntax and has nothing to gain; a nested subprogram is not
+visible anywhere a receiver could carry it. A `property` cannot be an extension
+either — a property is the one member read without a call [TYP-012], and an
+extension is always a call [EXP-022].
+
+**A foreign declaration may be an extension** [FUN-014]. The permission is
+about the call, and a declaration naming a C symbol instead of carrying a body
+takes it on the same terms.
+
+##### conformance/0188-extension-declarations.a24
+
+```algol24
+// FUN-015: 'extension' permits method syntax on the first parameter, and the
+// subprogram is an ordinary top-level one in every other respect.
+extension function Doubled (N : Integer) : Integer;
+begin
+    Exit N * 2;
+end
+
+extension procedure Shout (S : String);
+begin
+    WriteLn (S + '!');
+end
+
+var N : Integer := 21;
+var Word : String := 'ready';
+
+WriteLn (N.Doubled ());
+Word.Shout ();
+
+// The receiver's type may be any type that can be written.
+type Color = (Red, Green, Blue);
+
+class Box;
+var
+    Held : Integer := 4;
+begin
+end
+
+extension function Second (L : List) : Any;
+begin
+    Exit L[1];
+end
+
+extension function Twice (C : Char) : String;
+begin
+    Exit Str (C) + Str (C);
+end
+
+extension function Named (K : Color) : String;
+begin
+    Exit 'colour ' + Str (K);
+end
+
+extension function Twofold (B : Box) : Integer;
+begin
+    Exit B.Held * 2;
+end
+
+var Items : List := [10, 20, 30];
+var Mark : Char := 'x';
+
+WriteLn (Items.Second ());
+WriteLn (Mark.Twice ());
+WriteLn (Green.Named ());
+WriteLn (Box ().Twofold ());
+
+// 'extension' is not a keyword, so it is still an ordinary name [LEX-011].
+var extension : Integer := 9;
+WriteLn (extension);
+```
+
+```console
+$ algc conformance/0188-extension-declarations.a24
+42
+ready!
+20
+xx
+colour Green
+8
+9
+```
+
+**[FUN-016]**  **Both spellings, always.** `Trim (S)` and `S.Trim ()` are the
+same call, and either may be written wherever the extension is visible
+[MOD-015].
+
+This follows from what the declaration says rather than being a concession to
+it. The receiver is a parameter, written out in the signature, so a form that
+refused to pass it positionally would contradict the line that declares it. A
+language whose receiver is not a parameter can refuse the prefix form; this one
+has no such thing to refuse.
+
+Three consequences are worth having. **Units read alike**: a unit of free
+functions does not change shape because one of them gained the permission.
+**Migration is free**: a subprogram may gain or lose `extension` without
+breaking a call site. **Nothing new is exposed**: prefix calling was always
+available to every top-level subprogram, and the permission governs method
+syntax, which is the only new part.
+
+##### conformance/0189-extension-both-spellings.a24
+
+```algol24
+// FUN-016: the two spellings are one call.
+extension function Shortened (S : String, To : Integer) : String;
+begin
+    if Length (S) <= To then Exit S;
+
+    Exit Copy (S, 0, To) + '...';
+end
+
+var Long : String := 'specification';
+
+WriteLn (Shortened (Long, 4));
+WriteLn (Long.Shortened (4));
+WriteLn (Shortened (Long, 4) = Long.Shortened (4));
+
+// Migration is free: the prefix form never depended on the permission, so a
+// subprogram that has not got it reads exactly the same way.
+function Bracketed (S : String) : String;
+begin
+    Exit '[' + S + ']';
+end
+
+WriteLn (Bracketed (Long));
+```
+
+```console
+$ algc conformance/0189-extension-both-spellings.a24
+spec...
+spec...
+true
+[specification]
+```
+
 ---
 
 ## 12. Classes and objects
@@ -9531,6 +9825,74 @@ $ algc conformance/0085-uses-is-not-transitive.a24
 Uncaught: Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
 from Mid
 from Deep
+exit: 70
+```
+
+**[MOD-015]**  An extension [FUN-015] is found only among those **visible in
+the file being compiled** — declared in it, or exported by a module that file
+imports. Visibility is the non-transitive rule names already follow [MOD-009]:
+a unit that imports `strings` for its own use does not give *its* importers
+`S.Trim ()`.
+
+So `S.Trim ()` compiles in a file whose own `uses` clause reaches the unit
+declaring it, and nowhere else. That is what makes the permission local rather
+than global: what a value responds to is decided by the importing file's own
+list, printed at the top of that file, and no module can reach into another's.
+
+A `private` extension [MOD-006] is visible in its own file alone, since a
+private name is not exported at all [MOD-007].
+
+##### conformance/0191-extension-visibility.a24
+
+```algol24
+// MOD-015: the extensions visible here are the ones this file's own import
+// exports.
+uses 'modules/Strings';
+
+var Word : String := 'algol';
+
+WriteLn (Word.Upper ());
+WriteLn (Upper (Word));
+WriteLn (Word.Repeated (3));
+
+// Strings reaches its own PRIVATE extension by method syntax, which is
+// visible in that file and in no other.
+WriteLn (Shouted (Word));
+```
+
+```console
+$ algc conformance/0191-extension-visibility.a24
+ALGOL
+ALGOL
+algolalgolalgol
+ALGOL!
+```
+
+##### refusals/0192-extension-visibility-is-not-transitive.a24
+
+```algol24
+// MOD-015: UsesStrings imports Strings and can reach 'Upper' by method syntax.
+// This file imports UsesStrings and not Strings, so it cannot -- exactly as it
+// cannot see the bare name either [MOD-009].
+//
+// The path is spelled from the working directory because a module is looked
+// for beside the IMPORTING file first [MOD-002], and this one lives in
+// refusals/ rather than beside the fixtures.
+uses 'conformance/modules/UsesStrings';
+
+var Word : String := 'algol';
+
+// What UsesStrings exports does work, and it reaches Strings on its own behalf.
+WriteLn (Shoutier (Word));
+
+// What UsesStrings merely imports does not come through.
+WriteLn (Word.Upper ());
+```
+
+```console
+$ algc refusals/0192-extension-visibility-is-not-transitive.a24
+ALGOL!!
+Uncaught: Undefined property 'Upper'.
 exit: 70
 ```
 
@@ -12149,6 +12511,7 @@ VarSection = "var" { identifier { "," identifier } [ ":" Type ]
 FunDecl    = ( "function" | "procedure" ) identifier "(" [ Params ] ")"
              [ ":" Type ] ";" [ Sections ] Block .
 Params     = identifier [ ":" Type ] { "," identifier [ ":" Type ] } .
+ExtDecl    = "extension" FunDecl .
 
 ClassDecl  = "class" identifier [ "(" identifier ")" ] ";"
              [ Sections ] "begin" { Member } "end" .
