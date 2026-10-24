@@ -12,6 +12,10 @@
 #include <mach-o/dyld.h>
 #endif
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 #define ARENA_CHUNK (1024 * 1024)
 
 typedef struct ArenaChunk {
@@ -2101,7 +2105,11 @@ Value alg_mkdir(Value name) {
     /* 0777 masked by the process umask, as the shell's mkdir does -- so the
        directory lands with whatever permissions the user's environment says,
        rather than with something this runtime picked. */
+#if defined(_WIN32)
+    if (mkdir(path) != 0) file_error("MkDir", "cannot create ", path);
+#else
     if (mkdir(path, 0777) != 0) file_error("MkDir", "cannot create ", path);
+#endif
 
     return alg_nil();
 }
@@ -2171,12 +2179,25 @@ static char *resolve_program(char *argv0) {
         char *real = realpath(buffer, NULL);
         if (real != NULL) return real;
     }
+#elif defined(_WIN32)
+    DWORD used = GetModuleFileNameA(NULL, buffer, (DWORD)sizeof buffer);
+    if (used > 0 && used < sizeof buffer) {
+        char *full = _fullpath(NULL, buffer, 0);
+        if (full != NULL) return full;
+    }
 #endif
 
+#if defined(_WIN32)
+    if (argv0 != NULL && (strchr(argv0, '/') != NULL || strchr(argv0, '\\') != NULL)) {
+        char *full = _fullpath(NULL, argv0, 0);
+        if (full != NULL) return full;
+    }
+#else
     if (argv0 != NULL && strchr(argv0, '/') != NULL) {
         char *real = realpath(argv0, NULL);
         if (real != NULL) return real;
     }
+#endif
 
     return argv0;
 }
@@ -4008,7 +4029,44 @@ Value alg_pred(Value v) { return stepped(v, -1, "Pred"); }
 #include <ffi.h>
 #endif
 
+#if defined(_WIN32)
+
+/* Windows does the same three things under different names, so they are given
+ * the POSIX ones and the rest of this file does not have to know. A handle is
+ * never closed here, matching dlopen's use below: a library a program has
+ * bound to stays bound for as long as it runs. */
+#define RTLD_LAZY    0
+#define RTLD_DEFAULT NULL
+
+static void *dlopen(const char *library, int mode) {
+    (void)mode;
+    return (void *)LoadLibraryA(library);
+}
+
+static void *dlsym(void *handle, const char *symbol) {
+    HMODULE module = (HMODULE)handle;
+
+    /* A null handle means "whatever is already loaded". POSIX has one
+     * namespace to search; Windows has a module list, and walking it needs
+     * psapi. The program itself and the C runtime are where a symbol asked
+     * for without a library will be, so those two are asked and no library
+     * is added to the link for the sake of the rest. */
+    if (module == NULL) {
+        FARPROC found = GetProcAddress(GetModuleHandleA(NULL), symbol);
+
+        if (found == NULL) {
+            HMODULE crt = GetModuleHandleA("msvcrt.dll");
+            if (crt != NULL) found = GetProcAddress(crt, symbol);
+        }
+        return (void *)found;
+    }
+
+    return (void *)GetProcAddress(module, symbol);
+}
+
+#else
 #include <dlfcn.h>
+#endif
 
 static ffi_type *foreign_type(const char *declared) {
     char base[64];
@@ -4237,10 +4295,25 @@ Value alg_foreign_call(Value symbol, Value library, Value types, Value returns, 
 }
 
 Value alg_clock(void) {
+#if defined(_WIN32)
+    /* A hundred-nanosecond count since 1601, which is the only clock Windows
+     * offers without asking for a library. Shifted to the Unix epoch so that
+     * the answer means the same thing on every platform. */
+    FILETIME       stamp;
+    ULARGE_INTEGER packed;
+
+    GetSystemTimeAsFileTime(&stamp);
+    packed.LowPart  = stamp.dwLowDateTime;
+    packed.HighPart = stamp.dwHighDateTime;
+
+    long long millis = (long long)(packed.QuadPart / 10000ULL)
+                     - 11644473600000LL;
+#else
     struct timeval now;
     gettimeofday(&now, NULL);
 
     long long millis = (long long)now.tv_sec * 1000 + now.tv_usec / 1000;
+#endif
 
     return alg_double((double)millis / 1000.0);
 }
