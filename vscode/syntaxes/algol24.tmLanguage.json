@@ -14,6 +14,7 @@
         { "include": "#unit" },
         { "include": "#uses" },
         { "include": "#declaration-name" },
+        { "include": "#extension" },
         { "include": "#test-block" },
         { "include": "#handler" },
         { "include": "#keyword" },
@@ -100,6 +101,14 @@
             "captures": {
                 "1": { "name": "keyword.control.import.algol24" },
                 "2": { "name": "entity.name.namespace.algol24" }
+            }
+        },
+
+        "extension": {
+            "comment": "'extension' is a context-sensitive identifier too: colored only before 'function' or 'procedure', so a variable of that name is left alone.",
+            "match": "(?i:\\b(extension)\\b)(?=\\s+(?i:function|procedure)\\b)",
+            "captures": {
+                "1": { "name": "keyword.other.extension.algol24" }
             }
         },
 

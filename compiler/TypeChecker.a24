@@ -969,9 +969,26 @@ begin
         Folded : String;
         Seen   : Integer;
         Key    : String;
+        Count  : Integer;
 
     begin
-        if ClassNameOf (TheExpr.Callee) <> 'VariableExpr' then Exit;
+        // 'as Integer' because TheExpr is Any here, so its argument list has no
+        // type the checker can see -- the same reason Seen is cast below.
+        Count := TheExpr.Arguments.Length as Integer;
+
+        if ClassNameOf (TheExpr.Callee) = 'GetExpr' then
+        begin
+            // The method spelling of an extension call is the same call as the
+            // prefix one [FUN-016], so it reports the same cost -- it used to
+            // report none, which made the choice of spelling change the
+            // diagnostic.  The receiver is an argument, which is why the count
+            // is one more than was written [EXP-022].
+            if Str (TheExpr.Callee.Extension) = '' then Exit;
+            if TheExpr.Callee.Unit <> ''           then Exit;
+
+            Count := Count + 1;
+        end
+        else if ClassNameOf (TheExpr.Callee) <> 'VariableExpr' then Exit;
 
         for var ArgumentName in TheExpr.ArgumentNames do
             if Str (ArgumentName) <> '' then Exit;
@@ -982,7 +999,7 @@ begin
         Seen := Overloads.Get (Folded) as Integer;
         if Seen < 2 then Exit;
 
-        Seen := CandidatesFor (Folded, TheExpr.Arguments.Length);
+        Seen := CandidatesFor (Folded, Count);
         if Seen < 2 then Exit;
 
         Key := Str (TheExpr.Paren.LineNumber) + ':' + Folded;

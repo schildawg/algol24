@@ -68,9 +68,9 @@ end
 /// Looked up on the LOWER-CASED lexeme, because Algol-24's keywords are
 /// case-insensitive -- 'begin', 'Begin' and 'BEGIN' are one token.
 ///
-/// 'unit', 'test' and 'on' are deliberately absent.  They are ordinary
-/// identifiers the grammar recognizes by position, so a program may still name
-/// a variable after any of them [LEX-011].
+/// 'unit', 'test', 'on' and 'extension' are deliberately absent.  They are
+/// ordinary identifiers the grammar recognizes by position, so a program may
+/// still name a variable after any of them [LEX-011].
 ///
 /// # Satisfies
 ///

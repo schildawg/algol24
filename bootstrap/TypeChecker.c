@@ -1036,8 +1036,23 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
     (void)v_seen;
     Value v_key = alg_nil();
     (void)v_key;
-    if (alg_truthy(alg_not_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_property(v_theexpr, "Callee")}, 1), alg_string("VariableExpr")))) {
-        return alg_nil();
+    Value v_count = alg_nil();
+    (void)v_count;
+    (void)((v_count = alg_widen(alg_cast(alg_property(alg_property(v_theexpr, "Arguments"), "Length"), "Integer"), "Integer")));
+    if (alg_truthy(alg_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_property(v_theexpr, "Callee")}, 1), alg_string("GetExpr")))) {
+        {
+            if (alg_truthy(alg_equal(alg_str(alg_property(alg_property(v_theexpr, "Callee"), "Extension")), alg_string("")))) {
+                return alg_nil();
+            }
+            if (alg_truthy(alg_not_equal(alg_property(alg_property(v_theexpr, "Callee"), "Unit"), alg_string("")))) {
+                return alg_nil();
+            }
+            (void)((v_count = alg_widen(alg_add(v_count, alg_int(1)), "Integer")));
+        }
+    } else {
+        if (alg_truthy(alg_not_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_property(v_theexpr, "Callee")}, 1), alg_string("VariableExpr")))) {
+            return alg_nil();
+        }
     }
     {
         Value loop_26 = alg_iterable(alg_property(v_theexpr, "ArgumentNames"));
@@ -1057,7 +1072,7 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
     if (alg_truthy(alg_less(v_seen, alg_int(2)))) {
         return alg_nil();
     }
-    (void)((v_seen = alg_widen(alg_invoke(v_this, "CandidatesFor", (Value[]){v_folded, alg_property(alg_property(v_theexpr, "Arguments"), "Length")}, 2), "Integer")));
+    (void)((v_seen = alg_widen(alg_invoke(v_this, "CandidatesFor", (Value[]){v_folded, v_count}, 2), "Integer")));
     if (alg_truthy(alg_less(v_seen, alg_int(2)))) {
         return alg_nil();
     }

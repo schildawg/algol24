@@ -12176,6 +12176,11 @@ argument *types* could tell them apart and no static rule may read those.
 matrix already get, and for the same reason. A message quoted in a specification
 and checked by nobody is the most rot-prone thing this document can hold.
 
+**Both spellings of an extension call report it alike** [FUN-016]. `Same (X)`
+and `X.Same ()` are one call, so the choice of spelling cannot change the
+diagnostic; the receiver counts as the argument it is, so the count the warning
+is decided on is one more than was written [EXP-022].
+
 **It is not raised where a named argument decides the call** [EXP-013].
 Naming the parameters identifies one signature, so nothing is left to select at
 run time — the warning and its remedy arrived together, and a warning whose
