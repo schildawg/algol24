@@ -41,6 +41,8 @@ typedef enum {
 
     OBJ_BUILTIN_BOUND,
 
+    OBJ_EXTENSION,
+
     OBJ_OVERLOADS,
 
     OBJ_BIGINT,
@@ -179,6 +181,31 @@ Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count);
 Value alg_bound_from(Value klass, Value receiver, const char *name);
 
 Value alg_invoke_from(Value klass, Value receiver, const char *name, Value *args, int32_t count);
+
+/* Extension functions [FUN-015].  A call written 'x.f (...)' where 'f' is not a
+   member of x may mean 'f (x, ...)', and which it means is decided HERE rather
+   than at emit time, because the checker is gradual and a receiver's type is
+   often unknown until it holds a value [EXP-022].
+
+   The emitter passes the extension as the value its name evaluates to -- a
+   closure, or the overload set where the name is overloaded -- so selection
+   among several of one name is the selection alg_call already does, with the
+   receiver as the first argument.
+
+   alg_responds asks by NAME and not by signature, which is what the rule
+   requires: a receiver carrying an 'f' of another arity still takes the member,
+   and the call then fails on its arity rather than quietly reaching past it. */
+bool  alg_responds(Value receiver, const char *name);
+Value alg_extension(Value receiver, Value target);
+
+Value alg_invoke_or(Value receiver, const char *name, Value *args, int32_t count,
+                    Value extension);
+Value alg_invoke_or_named(Value receiver, const char *name, Value *args, int32_t count,
+                          const char **names, Value extension);
+
+/* 'x.f' with no call after it, which answers the extension bound to x -- the
+   same thing reading a method off an instance answers [FUN-011]. */
+Value alg_property_or(Value receiver, const char *name, Value extension);
 
 typedef Value (*AlgFunction)(Value **cells, Value *args, int32_t count);
 

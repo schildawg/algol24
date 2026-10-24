@@ -3145,6 +3145,81 @@ begin
            + ArgumentArray (Emitted) + ', ' + NameArray (Names) + ')';
     end
 
+    /// Emits a call that is a member or an extension, decided at run time.
+    ///
+    /// Which it is cannot be decided here: the checker is gradual, so a
+    /// receiver's type is often unknown until it holds a value, and the
+    /// interpreter decides it from the value [EXP-022].  So both are emitted
+    /// and the runtime asks.
+    ///
+    /// The receiver is one C argument, which is what evaluates it once however
+    /// the call resolves.
+    ///
+    /// # Satisfies
+    ///
+    /// [EXP-022]
+    function InvokingOr (Receiver : String, TheName : String, Emitted : List,
+                         Names : List, Extension : String) : String;
+    begin
+        if not AnyNamed (Names) then
+            Exit 'alg_invoke_or(' + Receiver + ', ' + QuoteC (TheName) + ', '
+               + ArgumentArray (Emitted) + ', ' + Extension + ')';
+
+        Exit 'alg_invoke_or_named(' + Receiver + ', ' + QuoteC (TheName) + ', '
+           + ArgumentArray (Emitted) + ', ' + NameArray (Names) + ', '
+           + Extension + ')';
+    end
+
+    /// Whether the unit that declared a name overloads it.
+    ///
+    /// Asked case-insensitively on both the unit and the name, since neither
+    /// carries case [SRC-011] and the call site may spell either differently
+    /// from the declaration.
+    function OverloadedElsewhere (Unit : String, Name : String) : Boolean;
+    var
+        Theirs : Set;
+
+    begin
+        for var Key in OverloadsIn.Keys () do
+        begin
+            if FoldCase (Str (Key)) <> FoldCase (Unit) then continue;
+
+            Theirs := OverloadsIn.Get (Key) as Set;
+
+            for var Each in Theirs.ToList () do
+                if FoldCase (Str (Each)) = FoldCase (Name) then Exit True;
+        end
+
+        Exit False;
+    end
+
+    /// The symbol an extension's name evaluates to.
+    ///
+    /// Overloading is recorded PER UNIT, and the set in force is the one for the
+    /// unit being emitted -- so an extension declared elsewhere is asked of its
+    /// own unit's set, or the call would name a plain closure where an overload
+    /// set is what exists.  The symbol still goes through Mangle either way, so
+    /// a shared name gets the same rename a bare use of it would.
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-015]
+    function ExtensionValue (TheExpr : GetExpr) : String;
+    var
+        Name : String;
+        Unit : String;
+
+    begin
+        Name := Str (TheExpr.Extension);
+        Unit := Str (TheExpr.ExtensionUnit);
+
+        if Unit = '' then Exit SubprogramValue (Name);
+
+        if OverloadedElsewhere (Unit, Name) then Exit SetName (Name);
+
+        Exit HandleName (Name);
+    end
+
     /// Builds the compound literal a call passes its arguments in.
     function ArgumentArray (Arguments : List) : String;
     var
@@ -3302,6 +3377,10 @@ begin
             var Emitted := List();
             for var EachArgument in TheExpr.Arguments do
                 Emitted.Add (Evaluate (EachArgument));
+
+            if Str (TheExpr.Callee.Extension) <> '' then
+                Exit InvokingOr (Receiver, Str (TheExpr.Callee.Name.Lexeme), Emitted,
+                                 TheExpr.ArgumentNames, ExtensionValue (TheExpr.Callee));
 
             Exit Invoking (Receiver, Str (TheExpr.Callee.Name.Lexeme), Emitted,
                            TheExpr.ArgumentNames);
@@ -3652,10 +3731,19 @@ begin
     end
 
     /// Emits a property read, on a receiver or through a unit.
+    ///
+    /// A name that could reach an extension reads through alg_property_or,
+    /// which answers the extension bound to the receiver where the receiver has
+    /// no member of that name -- the value form of [EXP-022].
     function VisitGetExpr (TheExpr : GetExpr) : String;
     begin
         if TheExpr.Unit <> '' then
             Exit UnitValue (Str (TheExpr.Unit), Str (TheExpr.Name.Lexeme));
+
+        if Str (TheExpr.Extension) <> '' then
+            Exit 'alg_property_or(' + Evaluate (TheExpr.Obj) + ', '
+               + QuoteC (Str (TheExpr.Name.Lexeme)) + ', '
+               + ExtensionValue (TheExpr) + ')';
 
         Exit 'alg_property(' + Evaluate (TheExpr.Obj) + ', '
            + QuoteC (Str (TheExpr.Name.Lexeme)) + ')';

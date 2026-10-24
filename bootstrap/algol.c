@@ -2532,6 +2532,107 @@ static const Member *member_of(Value receiver, const char *name) {
     }
 }
 
+/* Whether a receiver answers a member of this name, asked by NAME alone.
+
+   [EXP-022] decides a call that way: a receiver carrying an 'f' of some other
+   arity still takes the member, so a miscounted argument list reports its arity
+   instead of quietly reaching an extension instead.  member_of is therefore
+   asked for the row and not for its arity.
+
+   An instance is asked of its CLASS -- the methods in its chain and the fields
+   the chain declares -- rather than by reading the member, because reading a
+   property runs the program's own code and a question must not do that.  The
+   interpreter's Responds is the same function, arrived at for the same reason;
+   the two are compared by the corpus running every case under both. */
+bool alg_responds(Value receiver, const char *name) {
+    if (is_obj(receiver, OBJ_INSTANCE)) {
+        ObjInstance *instance = (ObjInstance *)receiver.obj;
+
+        if (alg_stricmp(name, "ClassName") == 0) return true;
+
+        for (ObjClass *at = instance->klass; at != NULL; at = at->super) {
+            for (int32_t i = 0; i < at->method_count; i++)
+                if (alg_stricmp(at->methods[i].name, name) == 0) return true;
+
+            for (int32_t i = 0; i < at->field_count; i++)
+                if (alg_stricmp(at->fields[i], name) == 0) return true;
+        }
+
+        return false;
+    }
+
+    /* A String has the one property and no methods at all. */
+    if (receiver.type == VAL_STRING) return alg_stricmp(name, "Length") == 0;
+
+    if (receiver.type != VAL_OBJ && !is_number(receiver)) return false;
+
+    return member_of(receiver, name) != NULL;
+}
+
+typedef struct {
+    Obj obj;
+
+    Value receiver;
+    Value target;
+} ObjExtension;
+
+Value alg_extension(Value receiver, Value target) {
+    ObjExtension *bound = arena_alloc(sizeof(ObjExtension));
+
+    bound->obj.type = OBJ_EXTENSION;
+    bound->receiver = receiver;
+    bound->target   = target;
+
+    return object((Obj *)bound);
+}
+
+/* The receiver in front, and the arguments after it.
+
+   One array, built here, so that the receiver expression is evaluated once
+   however many arguments follow [EXP-022] -- it arrives as a Value and cannot
+   be evaluated again. */
+static Value *with_receiver(Value receiver, Value *args, int32_t count) {
+    Value *all = arena_alloc((size_t)(count + 1) * sizeof(Value));
+
+    all[0] = receiver;
+    for (int32_t i = 0; i < count; i++) all[i + 1] = args[i];
+
+    return all;
+}
+
+static const char **with_no_name(const char **names, int32_t count) {
+    const char **all = arena_alloc((size_t)(count + 1) * sizeof(const char *));
+
+    all[0] = "";
+    for (int32_t i = 0; i < count; i++) all[i + 1] = names[i];
+
+    return all;
+}
+
+Value alg_invoke_or(Value receiver, const char *name, Value *args, int32_t count,
+                    Value extension) {
+
+    if (alg_responds(receiver, name)) return alg_invoke(receiver, name, args, count);
+
+    return alg_call(extension, with_receiver(receiver, args, count), count + 1);
+}
+
+Value alg_invoke_or_named(Value receiver, const char *name, Value *args, int32_t count,
+                          const char **names, Value extension) {
+
+    if (alg_responds(receiver, name))
+        return alg_invoke_named(receiver, name, args, count, names);
+
+    return alg_call_named(extension, with_receiver(receiver, args, count), count + 1,
+                          with_no_name(names, count));
+}
+
+Value alg_property_or(Value receiver, const char *name, Value extension) {
+    if (alg_responds(receiver, name)) return alg_property(receiver, name);
+
+    return alg_extension(receiver, extension);
+}
+
 static bool number_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
     (void)args;
     (void)count;
@@ -2788,6 +2889,16 @@ Value alg_call(Value callee, Value *args, int32_t count) {
 
         alg_arity(count, bound->arity);
         return alg_invoke(bound->receiver, bound->name, args, count);
+    }
+
+    /* An extension call is an ordinary call with the receiver in front, so it
+       is taken apart here and everything below applies to it unchanged --
+       including selecting among several of one name. */
+    if (is_obj(callee, OBJ_EXTENSION)) {
+        ObjExtension *bound = (ObjExtension *)callee.obj;
+
+        return alg_call(bound->target, with_receiver(bound->receiver, args, count),
+                        count + 1);
     }
 
     if (!is_obj(callee, OBJ_CLOSURE)) alg_error("Can only call functions and classes.");
@@ -3741,6 +3852,11 @@ static const char *as_text(Value v) {
                 builder_append(&b, ">");
                 return b.text;
             }
+
+            /* As the subprogram it is bound to, which is what the interpreter
+               answers: the receiver is not part of how it prints. */
+            if (v.obj->type == OBJ_EXTENSION)
+                return as_text(((ObjExtension *)v.obj)->target);
 
             if (v.obj->type == OBJ_INSTANCE) {
                 ObjClass *klass = ((ObjInstance *)v.obj)->klass;
