@@ -60,6 +60,22 @@ begin
         if Superclass <> Nil then Exit Superclass.MethodOfArity (Name, TheArity);
     end
 
+    /// Whether this class or one above it declares a field of this name.
+    ///
+    /// Asked of the CLASS rather than of an instance's map, so that a singleton
+    /// -- whose instance is not built until something reads it -- can be asked
+    /// the question without being built [EXP-022].  An instance is closed, so
+    /// what the class declares is what it has.
+    function DeclaresField (Name : String) : Boolean;
+    begin
+        for var Field in Fields do
+            if FoldCase (Field.Name.Lexeme) = Name then Exit True;
+
+        if Superclass <> Nil then Exit Superclass.DeclaresField (Name);
+
+        Exit False;
+    end
+
     /// Finds a method by name alone, searching up the inheritance chain.
     ///
     /// For property access: 'X.M' has no arguments yet, so the first of that

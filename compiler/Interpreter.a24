@@ -1310,7 +1310,29 @@ begin
             Arguments.Add (Evaluate (Argument));
         end
 
-        Arguments := Arranged (Callee, Arguments, TheExpr.ArgumentNames);
+        var Names := TheExpr.ArgumentNames;
+
+        // An extension call IS an ordinary call with the receiver in front, and
+        // taking it apart here rather than inside the extension is what holds
+        // it to everything below: named arguments are arranged against the
+        // whole parameter list, the overload set selects on the whole
+        // signature, and a wrong count is reported against the subprogram's own
+        // arity [EXP-022].
+        if Callee is ObjExtension then
+        begin
+            Arguments.Insert (0, Callee.Receiver);
+
+            var Padded := List();
+            Padded.Add ('');
+
+            for var Each in Names do
+                Padded.Add (Each);
+
+            Names  := Padded;
+            Callee := Callee.Target;
+        end
+
+        Arguments := Arranged (Callee, Arguments, Names);
 
         if not IsCallable (Callee) then
         begin
@@ -1406,6 +1428,74 @@ begin
         Exit ModuleEnv.Values.Get (FoldCase (Name.Lexeme));
     end
 
+    /// Whether a receiver answers a member of this name.
+    ///
+    /// By NAME and not by signature, which is what [EXP-022] asks for: a
+    /// receiver carrying an 'f' of some other arity still takes the member, and
+    /// the call then fails on its arity rather than quietly reaching an
+    /// extension instead.
+    ///
+    /// An instance is asked DIRECTLY, of its class, because reading a property
+    /// runs the program's own code and a question must not do that -- and
+    /// asking the class rather than the instance is what lets a singleton
+    /// answer without being built.
+    ///
+    /// Everything else is asked by TRYING, because there the chain Get walks is
+    /// the only table there is and a second copy of it would be a second thing
+    /// to keep in step.  That is sound exactly here: a built-in member answers
+    /// a count or a bound method, so reading one cannot run a program's code,
+    /// and the only raise is the one at the end.
+    ///
+    /// # Satisfies
+    ///
+    /// [EXP-022]
+    function Responds (Obj : Any, Name : Token) : Boolean;
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (Name.Lexeme);
+
+        if Obj is String then Exit Folded = 'length';
+
+        if Obj is Integer or Obj is Double then Exit Folded = 'tostring';
+
+        if Obj is ObjInstance then
+            Exit Folded = 'classname'
+              or Obj.Klass.DeclaresField (Folded)
+              or Obj.Klass.FindMethod (Folded) <> Nil;
+
+        if not (Obj is ObjEnumType or Obj is ObjEnum
+             or Obj is ObjCollection or Obj is ObjFile
+             or Obj is ObjBuffer) then Exit False;
+
+        try
+            Obj.Get (Name);
+        except
+            on e : String do Exit False;
+        end
+
+        Exit True;
+    end
+
+    /// The subprogram a GetExpr's recorded extension names.
+    ///
+    /// Through its UNIT where the Resolver recorded one, which is what keeps
+    /// two modules' extensions of a name apart, and through the environment for
+    /// a file's own -- a private one included, since no unit exports it
+    /// [MOD-007].
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-015]
+    function ExtensionNamed (TheExpr : GetExpr) : Any;
+    begin
+        if TheExpr.ExtensionUnit <> '' then
+            Exit Qualified (Str (TheExpr.ExtensionUnit), TheExpr.Name);
+
+        Exit Env.Get (TheExpr.Name);
+    end
+
     /// Evaluates a property read, on a receiver or through a unit.
     ///
     /// # Satisfies
@@ -1419,6 +1509,14 @@ begin
         if TheExpr.Unit <> '' then Exit Qualified (TheExpr.Unit, TheExpr.Name);
 
         Obj := Evaluate (TheExpr.Obj);
+
+        // Step 2 of [EXP-022].  The member is asked for first and wins where it
+        // is there, so no reading that works today can change meaning; what is
+        // answered here is the subprogram bound to this receiver, which the
+        // call then takes apart -- or which stands as a value where no call
+        // follows [FUN-011].
+        if TheExpr.Extension <> '' and not Responds (Obj, TheExpr.Name) then
+            Exit ObjExtension (Obj, ExtensionNamed (TheExpr));
 
         if Obj is String then
         begin
@@ -3716,4 +3814,66 @@ begin
             end
     end
     Fail ('No exception thrown.');
+end
+
+// Responds asks the built-in receivers by TRYING, because the chain each Get
+// walks is the only table there is.  This is what pins the two together: for
+// every member name any kind has, and one no kind has, the two agree.
+//
+test 'Responds Agrees With Get';
+begin
+    var TheInterpreter := Interpreter();
+
+    var Receivers := [ObjCollection ('List'), ObjCollection ('Array'),
+                      ObjCollection ('Map'),  ObjCollection ('Set'),
+                      ObjCollection ('Stack'), ObjBuffer (8)];
+
+    var Names := ['Length', 'IsEmpty', 'Contains', 'Get', 'Add', 'Insert',
+                  'RemoveAt', 'IndexOf', 'Sort', 'Clear', 'Set', 'Fill',
+                  'Put', 'Remove', 'Keys', 'Values', 'ToList', 'Push', 'Pop',
+                  'Peek', 'Append', 'Resize', 'Free', 'Text', 'Nonesuch'];
+
+    for var Receiver in Receivers do
+    begin
+        for var TheName in Names do
+        begin
+            var Tok := Token (TOKEN_IDENTIFIER, Str (TheName), Nil, 1);
+
+            var Found := True;
+
+            try
+                Receiver.Get (Tok);
+            except
+                on e : String do Found := False;
+            end
+
+            AssertEqual (Found, TheInterpreter.Responds (Receiver, Tok));
+        end
+    end
+end
+
+// A member wins by NAME and not by signature [EXP-022], so a receiver carrying
+// one of another arity still answers the question.
+//
+test 'Responds Answers By Name And Not By Arity';
+begin
+    var TheInterpreter := Interpreter();
+
+    var Two := Token (TOKEN_IDENTIFIER, 'Insert', Nil, 1);
+
+    // List.Insert takes two arguments.  The question is whether the name is
+    // there at all, which it is.
+    AssertTrue (TheInterpreter.Responds (ObjCollection ('List'), Two));
+
+    // A Set has no Insert.
+    AssertTrue (not TheInterpreter.Responds (ObjCollection ('Set'), Two));
+
+    // The primitives answer their one member each, and nothing else.
+    AssertTrue (TheInterpreter.Responds ('abc', Token (TOKEN_IDENTIFIER, 'Length', Nil, 1)));
+    AssertTrue (not TheInterpreter.Responds ('abc', Token (TOKEN_IDENTIFIER, 'Upper', Nil, 1)));
+    AssertTrue (TheInterpreter.Responds (7, Token (TOKEN_IDENTIFIER, 'ToString', Nil, 1)));
+    AssertTrue (not TheInterpreter.Responds (7, Token (TOKEN_IDENTIFIER, 'Doubled', Nil, 1)));
+
+    // A Char is not a String, and has no members at all.
+    AssertTrue (not TheInterpreter.Responds ('a', Token (TOKEN_IDENTIFIER, 'Length', Nil, 1)));
 end

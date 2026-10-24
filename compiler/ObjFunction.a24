@@ -225,6 +225,68 @@ begin
     end
 end
 
+/// An extension bound to the receiver it was reached through -- 'S.Trim'.
+///
+/// It carries the receiver rather than prepending it here, because the CALL is
+/// where the checks belong: arranging named arguments, selecting among
+/// overloads and reporting a wrong count all happen there, and an extension
+/// call is held to every one of them exactly as the prefix spelling is
+/// [FUN-016].  So a GetExpr answers this and the call takes it apart again.
+///
+/// # Satisfies
+///
+/// [EXP-022]
+class ObjExtension;
+var
+    /// The receiver, evaluated ONCE by the GetExpr that answered this.
+    Receiver : Any;
+
+    /// The subprogram, or the set of subprograms of that name.
+    Target   : Any;
+
+begin
+    /// Makes an extension bound to a receiver.
+    constructor Init (Receiver : Any, Target : Any);
+    begin
+        this.Receiver := Receiver;
+        this.Target := Target;
+    end
+
+    /// Answers the target's arity less the receiver, or -1 where the target has
+    /// no one arity.
+    function Arity () : Integer;
+    begin
+        if Target.Arity () < 0 then Exit -1;
+
+        Exit Target.Arity () - 1;
+    end
+
+    /// Calls the subprogram with the receiver in front.
+    ///
+    /// Reached where something calls this value without a call expression
+    /// around it -- a bound extension passed as a subprogram and called from
+    /// where it came to rest [FUN-011].
+    function Call (TheInterpreter, Arguments) : Any;
+    var
+        All : List;
+
+    begin
+        All := List();
+        All.Add (Receiver);
+
+        for var Argument in Arguments do
+            All.Add (Argument);
+
+        Exit Target.Call (TheInterpreter, All);
+    end
+
+    /// Prints it as the subprogram it is.
+    function ToString () : String;
+    begin
+        Exit Target.ToString ();
+    end
+end
+
 /// Whether two declarations claim the same signature, and are therefore a
 /// duplicate rather than an overload.
 ///

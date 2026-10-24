@@ -9973,9 +9973,10 @@ private name is not exported at all [MOD-007].
 ##### conformance/0191-extension-visibility.a24
 
 ```algol24
-// MOD-015: the extensions visible here are the ones this file's own import
-// exports.
+// MOD-015: the extensions visible here are the ones this file's own imports
+// export.
 uses 'modules/Strings';
+uses 'modules/UsesStrings';
 
 var Word : String := 'algol';
 
@@ -9986,6 +9987,10 @@ WriteLn (Word.Repeated (3));
 // Strings reaches its own PRIVATE extension by method syntax, which is
 // visible in that file and in no other.
 WriteLn (Shouted (Word));
+
+// UsesStrings reaches Strings on its own behalf, in its own file.  What it
+// does NOT do is pass that reach on -- see refusals/0192.
+WriteLn (Shoutier (Word));
 ```
 
 ```console
@@ -9994,6 +9999,7 @@ ALGOL
 ALGOL
 algolalgolalgol
 ALGOL!
+ALGOL!!
 ```
 
 ##### refusals/0192-extension-visibility-is-not-transitive.a24
@@ -10006,20 +10012,19 @@ ALGOL!
 // The path is spelled from the working directory because a module is looked
 // for beside the IMPORTING file first [MOD-002], and this one lives in
 // refusals/ rather than beside the fixtures.
+//
+// That UsesStrings itself reaches 'Upper' is shown in
+// conformance/0191-extension-visibility.a24; what it cannot do is hand that
+// reach to its own importer.
 uses 'conformance/modules/UsesStrings';
 
 var Word : String := 'algol';
 
-// What UsesStrings exports does work, and it reaches Strings on its own behalf.
-WriteLn (Shoutier (Word));
-
-// What UsesStrings merely imports does not come through.
 WriteLn (Word.Upper ());
 ```
 
 ```console
 $ algc refusals/0192-extension-visibility-is-not-transitive.a24
-ALGOL!!
 Uncaught: Undefined property 'Upper'.
 exit: 70
 ```

@@ -367,6 +367,8 @@ static Value i_getexpr(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Unit", alg_widen(alg_string(""), "String"));
+    alg_set_property(v_this, "Extension", alg_widen(alg_string(""), "String"));
+    alg_set_property(v_this, "ExtensionUnit", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
 
@@ -591,6 +593,8 @@ void init_Expr(void) {
     alg_class_field(k_getexpr, "Obj");
     alg_class_field(k_getexpr, "Name");
     alg_class_field(k_getexpr, "Unit");
+    alg_class_field(k_getexpr, "Extension");
+    alg_class_field(k_getexpr, "ExtensionUnit");
     alg_class_initializer(k_getexpr, i_getexpr);
     alg_class_method(k_getexpr, "Init", m_getexpr_init_2_expr_token, 2, t_getexpr_init_2_expr_token);
     alg_class_method(k_getexpr, "Accept", m_getexpr_accept_1, 1, t_getexpr_accept_1);

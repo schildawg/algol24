@@ -74,6 +74,36 @@ var
    /// the name.  Eighteen of algc's units are exactly that shape.
    Dottable : Set;
 
+   /// The extensions visible in the file being resolved, each mapped to the
+   /// unit that declared it -- '' for this file's own.
+   ///
+   /// Saved and REPLACED around a module exactly as Units is, and that is what
+   /// makes the permission non-transitive [MOD-015]: a file reaches what it
+   /// imported and not what its imports imported.  The stored unit does double
+   /// duty, since an entry carrying one was itself inherited and so is not
+   /// handed on again.
+   ///
+   /// # Satisfies
+   ///
+   /// [MOD-015]
+   Extensions : Map;
+
+   /// What each unit exports, by unit name, so that a RE-import can hand over
+   /// the same thing the first one did.
+   ///
+   /// A second import of one file answers an EMPTY module node -- the Parser
+   /// loads a file once -- and the importer must still see what that file
+   /// exports.  For names the shared environment arranges it; an extension is
+   /// visible per file rather than through the environment, so the record has
+   /// to be kept here.  Found by the corpus: a file importing both 'Strings'
+   /// and a unit that itself imports 'Strings' left the second one unable to
+   /// reach what it had imported.
+   ///
+   /// # Satisfies
+   ///
+   /// [MOD-015]
+   Exported : Map;
+
    /// Set once the pre-pass has run, since ResolveAll is both the entry point
    /// and the recursive step.
    Collected : Boolean := False;
@@ -100,6 +130,85 @@ begin
         this.Units := Set();
         this.Units.Add ('system');
         this.Dottable := Set();
+        this.Extensions := Map();
+        this.Exported := Map();
+    end
+
+    /// Records the extensions a statement list's own top level declares.
+    ///
+    /// The top level only, and deliberately not through a module: a module's
+    /// contribution is handed over once its own statements are resolved, on the
+    /// terms MOD-015 sets.  Running before the body is what lets a call stand
+    /// above the declaration it reaches.
+    ///
+    /// # Satisfies
+    ///
+    /// [FUN-015]
+    procedure CollectExtensions (Statements : List, Unit : String);
+    begin
+        for var TheStmt in Statements do
+        begin
+            if not (TheStmt is FunctionStmt) then continue;
+
+            if TheStmt.IsExtension then
+                Extensions.Put (FoldCase (TheStmt.Name.Lexeme), Unit);
+        end
+    end
+
+    /// The extensions a module exports, as a map of folded name to its unit.
+    ///
+    /// Its own ONLY.  An entry carrying a unit name was itself inherited, and
+    /// handing those on is the transitivity MOD-015 refuses; a private one
+    /// stays behind, because a private name is not exported at all [MOD-007].
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-015]
+    function OwnExtensions (Inner : Map, Stmt : ModuleStmt, Unit : String) : Map;
+    var
+        Hidden : Set;
+        Result : Map;
+
+    begin
+        Hidden := Set();
+        for var TheName in Stmt.PrivateNames do
+            Hidden.Add (FoldCase (TheName));
+
+        Result := Map();
+
+        for var Key in Inner.Keys () do
+        begin
+            if Str (Inner.Get (Key)) <> '' then continue;
+            if Hidden.Contains (Key)       then continue;
+
+            Result.Put (Key, Unit);
+        end
+
+        Exit Result;
+    end
+
+    /// Gives the file being resolved what a unit it imported exports.
+    ///
+    /// Reached from both import paths -- the one that resolves the file and the
+    /// one that finds it already loaded -- which is what makes a second
+    /// importer see the same thing the first did.  A cycle is the exception: a
+    /// module importing the file that is importing it gets an empty node before
+    /// anything has been recorded, and sees nothing by method syntax.
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-015]
+    procedure AdoptExtensions (Unit : String);
+    var
+        Theirs : Map;
+
+    begin
+        if not Exported.Contains (Unit) then Exit;
+
+        Theirs := Exported.Get (Unit) as Map;
+
+        for var Key in Theirs.Keys () do
+            Extensions.Put (Key, Str (Theirs.Get (Key)));
     end
 
     /// Fills Dottable before anything is resolved.
@@ -296,19 +405,37 @@ begin
             Resolve (Stmt.Handlers.Get (Key).Body);
     end
 
-    /// Resolves an imported file's statements with that file's unit set.
+    /// Resolves an imported file's statements with that file's own unit set and
+    /// its own extensions.
     ///
     /// Units is SAVED and REPLACED around the module rather than added to,
     /// which is what keeps qualification non-transitive: a file may qualify
     /// against what it imported, and not against what its imports imported.
+    /// Extensions follows it exactly, for the same reason and to the same end
+    /// [MOD-015].
+    ///
+    /// A re-import answers an empty module node, and such a node adds the unit
+    /// without handing anything over: the first import already gave the
+    /// importer what that file declares.
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-015]
     procedure VisitModuleStmt (Stmt : ModuleStmt);
     var
         Enclosing : Set;
+        Outer     : Map;
+        Inner     : Map;
+        Unit      : String;
 
     begin
+        Unit := FoldCase (Stmt.UnitName);
+
         if Stmt.Statements = Nil then
         begin
-            Units.Add (FoldCase (Stmt.UnitName));
+            Units.Add (Unit);
+            AdoptExtensions (Unit);
+
             Exit;
         end
 
@@ -316,10 +443,20 @@ begin
         Units := Set();
         Units.Add ('system');
 
+        Outer := Extensions;
+        Extensions := Map();
+        CollectExtensions (Stmt.Statements, '');
+
         ResolveAll (Stmt.Statements);
 
+        Inner := Extensions;
+
         Units := Enclosing;
-        Units.Add (FoldCase (Stmt.UnitName));
+        Units.Add (Unit);
+
+        Extensions := Outer;
+        Exported.Put (Unit, OwnExtensions (Inner, Stmt, Unit));
+        AdoptExtensions (Unit);
     end
 
     /// Resolves 'for X in C do', with the loop variable in a scope of its own.
@@ -484,17 +621,39 @@ begin
         end
     end
 
-    /// Resolves a property read, deciding whether the left of the dot is a unit
-    /// qualifier or a receiver.
+    /// Resolves a property read, deciding what the left of the dot is and what
+    /// the name could reach.
     ///
-    /// The Parser could not decide it -- see IsUnitQualifier.
+    /// A unit qualifier or a receiver, and an extension or not: the Parser
+    /// could decide neither -- see IsUnitQualifier, and MOD-015 for the
+    /// second.  A qualified name is not a receiver and takes no annotation:
+    /// 'strings.Trim (S)' is already the call it looks like.
+    ///
+    /// Recording what is VISIBLE is all this does.  Whether the extension is
+    /// what gets called is decided at the call, where a member of the name
+    /// still wins [EXP-022].
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-015]
     procedure VisitGetExpr (TheExpr : GetExpr);
+    var
+        Folded : String;
+
     begin
         if IsUnitQualifier (TheExpr.Obj) then
         begin
             TheExpr.Unit := Str (TheExpr.Obj.Name.Lexeme);
 
             Exit;
+        end
+
+        Folded := FoldCase (TheExpr.Name.Lexeme);
+
+        if Extensions.Contains (Folded) then
+        begin
+            TheExpr.Extension     := Str (TheExpr.Name.Lexeme);
+            TheExpr.ExtensionUnit := Str (Extensions.Get (Folded));
         end
 
         Resolve(TheExpr.Obj);
@@ -846,6 +1005,7 @@ begin
         begin
             Collected := True;
             CollectDottable (Statements);
+            CollectExtensions (Statements, '');
             CheckDuplicates (Statements);
             CheckInheritance (Statements);
         end

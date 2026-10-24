@@ -352,6 +352,22 @@ var
     /// pass that can.
     Unit : String := '';
 
+    /// The extension this name could reach, or '' where it is not one.
+    ///
+    /// Written by the Resolver for the same reason Unit is: whether a name is a
+    /// visible extension is a question about the importing file's own 'uses'
+    /// clauses [MOD-015], which the Parser cannot answer.  It says COULD
+    /// because a member of the name still wins at the call [EXP-022]; this
+    /// records what there is to fall back to.
+    Extension : String := '';
+
+    /// The unit the extension was declared in, or '' for this file's own.
+    ///
+    /// Carried beside the name because the C back end needs it: the symbol a
+    /// name evaluates to depends on whether it is overloaded, and that is
+    /// recorded per unit.
+    ExtensionUnit : String := '';
+
 begin
     /// Makes a get expression.
     constructor Init(Obj : Expr, Name : Token);

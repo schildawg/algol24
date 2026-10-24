@@ -32,6 +32,9 @@ static const char *t_objoverloads_call_2[] = { "TheInterpreter : Any", "Argument
 Value k_numbermethod;
 static const char *t_numbermethod_init_2_token[] = { "Receiver : Any", "Name : Token" };
 static const char *t_numbermethod_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
+Value k_objextension;
+static const char *t_objextension_init_2[] = { "Receiver : Any", "Target : Any" };
+static const char *t_objextension_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 Value fn_samesignature;
 static const char *t_f_samesignature[] = { "Left : Any", "Right : Any" };
 Value fn_anynamed;
@@ -291,6 +294,61 @@ static Value m_numbermethod_tostring_0(Value v_this, Value *args, int32_t count)
     return alg_nil();
 }
 
+static Value i_objextension(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    alg_set_property(v_this, "Receiver", alg_nil());
+    alg_set_property(v_this, "Target", alg_nil());
+    return alg_nil();
+}
+
+static Value m_objextension_init_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_receiver = args[0];
+    (void)v_receiver;
+    Value v_target = args[1];
+    (void)v_target;
+    (void)(alg_set_property(v_this, "Receiver", v_receiver));
+    (void)(alg_set_property(v_this, "Target", v_target));
+    return alg_nil();
+}
+
+static Value m_objextension_arity_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    if (alg_truthy(alg_less(alg_invoke(alg_property(v_this, "Target"), "Arity", NULL, 0), alg_int(0)))) {
+        return alg_negate(alg_int(1));
+    }
+    return alg_subtract(alg_invoke(alg_property(v_this, "Target"), "Arity", NULL, 0), alg_int(1));
+    return alg_nil();
+}
+
+static Value m_objextension_call_2(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_theinterpreter = args[0];
+    (void)v_theinterpreter;
+    Value v_arguments = args[1];
+    (void)v_arguments;
+    Value v_all = alg_nil();
+    (void)v_all;
+    (void)((v_all = alg_widen(alg_list(), "List")));
+    (void)(alg_invoke(v_all, "Add", (Value[]){alg_property(v_this, "Receiver")}, 1));
+    {
+        Value loop_4 = alg_iterable(v_arguments);
+        for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
+            Value v_argument = alg_iterable_at(loop_4, at_4);
+            (void)v_argument;
+            (void)(alg_invoke(v_all, "Add", (Value[]){v_argument}, 1));
+        }
+    }
+    return alg_invoke(alg_property(v_this, "Target"), "Call", (Value[]){v_theinterpreter, v_all}, 2);
+    return alg_nil();
+}
+
+static Value m_objextension_tostring_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    return alg_invoke(alg_property(v_this, "Target"), "ToString", NULL, 0);
+    return alg_nil();
+}
+
 Value f_samesignature(Value **cells, Value *args, int32_t count) {
     (void)cells; (void)args; (void)count;
     alg_arity(count, 2);
@@ -320,9 +378,9 @@ Value f_anynamed(Value **cells, Value *args, int32_t count) {
     Value v_names = alg_param(args[0], "List");
     (void)v_names;
     {
-        Value loop_4 = alg_iterable(v_names);
-        for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
-            Value v_name = alg_iterable_at(loop_4, at_4);
+        Value loop_5 = alg_iterable(v_names);
+        for (int32_t at_5 = 0; at_5 < alg_iterable_count(loop_5); at_5++) {
+            Value v_name = alg_iterable_at(loop_5, at_5);
             (void)v_name;
             if (alg_truthy(alg_not_equal(alg_str(v_name), alg_string("")))) {
                 return alg_bool(true);
@@ -623,9 +681,9 @@ static Value m_objfunction_arrange_2_list_list(Value v_this, Value *args, int32_
         }
     }
     {
-        Value loop_5 = alg_iterable(v_filled);
-        for (int32_t at_5 = 0; at_5 < alg_iterable_count(loop_5); at_5++) {
-            Value v_each = alg_iterable_at(loop_5, at_5);
+        Value loop_6 = alg_iterable(v_filled);
+        for (int32_t at_6 = 0; at_6 < alg_iterable_count(loop_6); at_6++) {
+            Value v_each = alg_iterable_at(loop_6, at_6);
             (void)v_each;
             if (alg_truthy(alg_not(v_each))) {
                 return alg_nil();
@@ -695,20 +753,20 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
         }
     }
     {
-        AlgFrame frame_6;
-        alg_push_frame(&frame_6);
-        if (ALG_SETJMP(frame_6.jump) == 0) {
+        AlgFrame frame_7;
+        alg_push_frame(&frame_7);
+        if (ALG_SETJMP(frame_7.jump) == 0) {
             {
                 (void)(alg_invoke(v_theinterpreter, "ExecuteBlock", (Value[]){alg_property(alg_property(v_this, "Declaration"), "Body"), v_env}, 2));
             }
             alg_pop_frame();
         }
         else {
-            static const char *names_6[] = {"Return"};
-            int32_t which_6 = alg_handler(frame_6.raised, names_6, 1);
-            if (which_6 == 0) {
+            static const char *names_7[] = {"Return"};
+            int32_t which_7 = alg_handler(frame_7.raised, names_7, 1);
+            if (which_7 == 0) {
                 {
-                    volatile Value v_e = frame_6.raised;
+                    volatile Value v_e = frame_7.raised;
                     (void)v_e;
                     {
                         if (alg_truthy(alg_property(v_this, "IsInitializer"))) {
@@ -719,7 +777,7 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
                 }
             }
             else {
-                alg_raise(frame_6.raised);
+                alg_raise(frame_7.raised);
             }
         }
     }
@@ -732,6 +790,7 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
 void init_ObjFunction(void) {
     k_objoverloads = alg_class("ObjOverloads", alg_nil());
     k_numbermethod = alg_class("NumberMethod", alg_nil());
+    k_objextension = alg_class("ObjExtension", alg_nil());
     k_objfunction = alg_class("ObjFunction", alg_nil());
     fn_typenameof = alg_closure("TypeNameOf", f_typenameof, NULL, 0, 1, t_f_typenameof);
     fn_nameofclass = alg_closure("NameOfClass", f_nameofclass, NULL, 0, 1, t_f_nameofclass);
@@ -753,6 +812,13 @@ void init_ObjFunction(void) {
     alg_class_method(k_numbermethod, "Arity", m_numbermethod_arity_0, 0, NULL);
     alg_class_method(k_numbermethod, "Call", m_numbermethod_call_2, 2, t_numbermethod_call_2);
     alg_class_method(k_numbermethod, "ToString", m_numbermethod_tostring_0, 0, NULL);
+    alg_class_field(k_objextension, "Receiver");
+    alg_class_field(k_objextension, "Target");
+    alg_class_initializer(k_objextension, i_objextension);
+    alg_class_method(k_objextension, "Init", m_objextension_init_2, 2, t_objextension_init_2);
+    alg_class_method(k_objextension, "Arity", m_objextension_arity_0, 0, NULL);
+    alg_class_method(k_objextension, "Call", m_objextension_call_2, 2, t_objextension_call_2);
+    alg_class_method(k_objextension, "ToString", m_objextension_tostring_0, 0, NULL);
     fn_samesignature = alg_closure("SameSignature", f_samesignature, NULL, 0, 2, t_f_samesignature);
     fn_anynamed = alg_closure("AnyNamed", f_anynamed, NULL, 0, 1, t_f_anynamed);
     fn_widens = alg_closure("Widens", f_widens, NULL, 0, 2, t_f_widens);

@@ -7,6 +7,7 @@
 Value k_objclass;
 static const char *t_objclass_init_4_string_objclass_map_list[] = { "Name : String", "Superclass : ObjClass", "Methods : Map", "Fields : List" };
 static const char *t_objclass_methodofarity_2_string_integer[] = { "Name : String", "TheArity : Integer" };
+static const char *t_objclass_declaresfield_1_string[] = { "Name : String" };
 static const char *t_objclass_findmethod_1_string[] = { "Name : String" };
 static const char *t_objclass_findoverload_2_string_list[] = { "Name : String", "Arguments : List" };
 static const char *t_objclass_fitting_3_string_list_integer[] = { "Name : String", "Arguments : List", "Pass : Integer" };
@@ -67,6 +68,27 @@ static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args
     return alg_nil();
 }
 
+static Value m_objclass_declaresfield_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_name = alg_widen(args[0], "String");
+    (void)v_name;
+    {
+        Value loop_1 = alg_iterable(alg_property(v_this, "Fields"));
+        for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
+            Value v_field = alg_iterable_at(loop_1, at_1);
+            (void)v_field;
+            if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(alg_property(v_field, "Name"), "Lexeme")}, 1), v_name))) {
+                return alg_bool(true);
+            }
+        }
+    }
+    if (alg_truthy(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil()))) {
+        return alg_invoke(alg_property(v_this, "Superclass"), "DeclaresField", (Value[]){v_name}, 1);
+    }
+    return alg_bool(false);
+    return alg_nil();
+}
+
 static Value m_objclass_findmethod_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_name = alg_widen(args[0], "String");
@@ -123,9 +145,9 @@ static Value m_objclass_fitting_3_string_list_integer(Value v_this, Value *args,
             Value v_candidates = alg_invoke(alg_property(v_this, "Methods"), "Get", (Value[]){v_name}, 1);
             (void)v_candidates;
             {
-                Value loop_1 = alg_iterable(v_candidates);
-                for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
-                    Value v_candidate = alg_iterable_at(loop_1, at_1);
+                Value loop_2 = alg_iterable(v_candidates);
+                for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
+                    Value v_candidate = alg_iterable_at(loop_2, at_2);
                     (void)v_candidate;
                     if (alg_truthy(alg_invoke(v_candidate, "Selects", (Value[]){v_arguments, v_pass}, 2))) {
                         return alg_cast(v_candidate, "ObjFunction");
@@ -220,6 +242,7 @@ void init_ObjClass(void) {
     alg_class_initializer(k_objclass, i_objclass);
     alg_class_method(k_objclass, "Init", m_objclass_init_4_string_objclass_map_list, 4, t_objclass_init_4_string_objclass_map_list);
     alg_class_method(k_objclass, "MethodOfArity", m_objclass_methodofarity_2_string_integer, 2, t_objclass_methodofarity_2_string_integer);
+    alg_class_method(k_objclass, "DeclaresField", m_objclass_declaresfield_1_string, 1, t_objclass_declaresfield_1_string);
     alg_class_method(k_objclass, "FindMethod", m_objclass_findmethod_1_string, 1, t_objclass_findmethod_1_string);
     alg_class_method(k_objclass, "FindOverload", m_objclass_findoverload_2_string_list, 2, t_objclass_findoverload_2_string_list);
     alg_class_method(k_objclass, "Fitting", m_objclass_fitting_3_string_list_integer, 3, t_objclass_fitting_3_string_list_integer);

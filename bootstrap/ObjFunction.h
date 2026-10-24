@@ -14,6 +14,7 @@ extern Value fn_typenameof;
 extern Value fn_nameofclass;
 extern Value k_objoverloads;
 extern Value k_numbermethod;
+extern Value k_objextension;
 extern Value fn_samesignature;
 extern Value fn_anynamed;
 extern Value v_exact;
