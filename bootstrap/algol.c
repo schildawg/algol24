@@ -36,9 +36,15 @@ static void close_open_files(void);
 
 static void free_all_buffers(void);
 
+static void seq_forget_spares(void);
+
 static void alg_shutdown(void) {
     close_open_files();
     free_all_buffers();
+
+    /* The spare sequence blocks live in the arena and are about to go with it,
+       so the list of them has to be dropped in the same breath. */
+    seq_forget_spares();
 
     while (arena_chunks != NULL) {
         ArenaChunk *previous = arena_chunks->previous;
@@ -602,12 +608,91 @@ static ObjSeq *as_sequence(Value v, const char *what) {
     return (ObjSeq *)v.obj;
 }
 
+/* Blocks a sequence has outgrown, kept by size so that the next sequence to
+   grow can be given one instead of taking fresh ground.
+
+   Growing used to be: allocate double, copy across, and walk away from the
+   old block -- which in an arena means keeping it for the life of the
+   process. A list of twenty built by appending therefore cost capacity
+   8 + 16 + 32, of which the 8 and the 16 were immortal rubbish. A program
+   that rebuilds its lists every frame leaks the whole staircase every frame,
+   and that was two thirds of all the memory one game was losing.
+
+   Recycling is safe here in a way that a general `Free` could never be, and
+   the reason is worth stating: an `items` block never leaves its ObjSeq.
+   Every reader in this file indexes it and copies a Value out; the pointer
+   itself is assigned nowhere but in this function. So once the copy below has
+   run, the old block is unreachable by construction rather than by promise,
+   and nothing anywhere can be holding a pointer into it.
+
+   The free list is threaded through the blocks themselves -- a spare block is
+   at least eight Values, so its first Value's union carries the link -- which
+   keeps the bookkeeping from needing any allocation of its own.
+
+   Capacities are always 8 doubled some number of times, so the size class is
+   just how many times. */
+#define SEQ_CLASSES 28
+
+static Value *seq_spares[SEQ_CLASSES];
+
+static int seq_class(int32_t capacity) {
+    int     band = 0;
+    int32_t size  = 8;
+
+    while (size < capacity && band < SEQ_CLASSES - 1) { size *= 2; band++; }
+
+    return size == capacity ? band : -1;
+}
+
+static void seq_recycle(Value *block, int32_t capacity) {
+    int band = seq_class(capacity);
+    if (band < 0) return;
+
+    block[0].pointer = seq_spares[band];
+    seq_spares[band] = block;
+}
+
+static Value *seq_spare(int32_t capacity) {
+    int band = seq_class(capacity);
+    if (band < 0 || seq_spares[band] == NULL) return NULL;
+
+    Value *block = seq_spares[band];
+    seq_spares[band] = (Value *)block[0].pointer;
+    return block;
+}
+
+static void seq_forget_spares(void) {
+    for (int band = 0; band < SEQ_CLASSES; band++) seq_spares[band] = NULL;
+}
+
 static void seq_append(ObjSeq *seq, Value item) {
     if (seq->count == seq->capacity) {
         int32_t capacity = seq->capacity < 8 ? 8 : seq->capacity * 2;
-        Value  *items    = arena_alloc((size_t)capacity * sizeof(Value));
+        size_t  had      = (size_t)seq->capacity * sizeof(Value);
+        size_t  wants    = (size_t)capacity * sizeof(Value);
+
+        /* If this block is the last thing the arena handed out, it can be made
+           longer where it stands: no copy, and nothing left behind. The same
+           bargain `concat` strikes when a string is extended in place. */
+        if (seq->items != NULL
+            && (char *)seq->items + had == arena_next
+            && wants - had <= arena_left) {
+
+            arena_next += wants - had;
+            arena_left -= wants - had;
+
+            seq->capacity = capacity;
+            seq->items[seq->count++] = item;
+            return;
+        }
+
+        Value *items = seq_spare(capacity);
+        if (items == NULL) items = arena_alloc(wants);
 
         if (seq->count > 0) memcpy(items, seq->items, (size_t)seq->count * sizeof(Value));
+
+        /* After the copy, never before: the old block is read above. */
+        if (seq->items != NULL) seq_recycle(seq->items, seq->capacity);
 
         seq->items    = items;
         seq->capacity = capacity;
@@ -2922,18 +3007,51 @@ Value alg_string_n(const char *s, int32_t n) {
 
 Value alg_string(const char *s)  { return alg_string_n(s, (int32_t)strlen(s)); }
 
+/* The hundred and twenty-eight one-character strings, made once by the
+   compiler rather than two bytes at a time forever.
+
+   A Char is a degenerate String -- `is_text` answers true for both, and every
+   reader goes through `v.string` -- so a Char has to point at NUL-terminated
+   bytes. Nothing says those bytes have to be fresh ones. Two Chars are
+   compared with `memcmp` on their bytes and never by the identity of the
+   pointer, so every 'a' in a program sharing one pointer cannot be told from
+   every 'a' having its own.
+
+   This matters because walking a string is the commonest thing a program does
+   and it used to allocate per character: drawing one screen of a game took
+   two and a quarter thousand of these a frame, better than three quarters of
+   every allocation the process made, none of which the arena ever gave back.
+
+   Non-ASCII still allocates. It is rare, the span varies, and correctness
+   there is worth more than the two bytes. */
+#define ALG_ONE8(n) {(char)(n),0},   {(char)(n)+1,0}, {(char)(n)+2,0}, {(char)(n)+3,0}, \
+                    {(char)(n)+4,0}, {(char)(n)+5,0}, {(char)(n)+6,0}, {(char)(n)+7,0}
+
+static const char ascii_one[128][2] = {
+    ALG_ONE8(0),   ALG_ONE8(8),   ALG_ONE8(16),  ALG_ONE8(24),
+    ALG_ONE8(32),  ALG_ONE8(40),  ALG_ONE8(48),  ALG_ONE8(56),
+    ALG_ONE8(64),  ALG_ONE8(72),  ALG_ONE8(80),  ALG_ONE8(88),
+    ALG_ONE8(96),  ALG_ONE8(104), ALG_ONE8(112), ALG_ONE8(120)
+};
+
+#undef ALG_ONE8
+
 Value alg_char_value(int32_t code) {
 
-    char *one;
-    int   span;
+    Value v;
+    v.type = VAL_CHAR;
 
-    if (code < 0x80) { one = arena_alloc(2); one[0] = (char)code; span = 1; }
-    else             { one = arena_alloc(5); span = utf8_encode(code, one); }
+    if (code >= 0 && code < 0x80) {
+        v.length = 1;
+        v.string = ascii_one[code];
+        return v;
+    }
+
+    char *one = arena_alloc(5);
+    int   span = utf8_encode(code, one);
 
     one[span] = '\0';
 
-    Value v;
-    v.type   = VAL_CHAR;
     v.length = span;
     v.string = one;
     return v;
