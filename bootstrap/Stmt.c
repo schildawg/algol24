@@ -510,6 +510,7 @@ static Value i_functionstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Symbol", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Library", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "IsProperty", alg_widen(alg_bool(false), "Boolean"));
+    alg_set_property(v_this, "IsExtension", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "ReturnGeneric", alg_widen(alg_string(""), "String"));
     return alg_nil();
 }
@@ -797,6 +798,7 @@ void init_Stmt(void) {
     alg_class_field(k_functionstmt, "Symbol");
     alg_class_field(k_functionstmt, "Library");
     alg_class_field(k_functionstmt, "IsProperty");
+    alg_class_field(k_functionstmt, "IsExtension");
     alg_class_field(k_functionstmt, "ReturnGeneric");
     alg_class_initializer(k_functionstmt, i_functionstmt);
     alg_class_method(k_functionstmt, "Init", m_functionstmt_init_3_token_list_list, 3, t_functionstmt_init_3_token_list_list);

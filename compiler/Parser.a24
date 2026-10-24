@@ -82,6 +82,14 @@ var
    /// declared inside a procedure, and its 'Exit E' is perfectly legal.
    InProcedure : Boolean := False;
 
+   /// How many subprogram bodies enclose what is being parsed.
+   ///
+   /// Zero means the top level, which is the only place 'extension' is allowed
+   /// [FUN-015].  A count rather than a flag because the nesting has no limit
+   /// [FUN-012], and raised around a BODY rather than a signature: a parameter
+   /// list is not a place a declaration can appear.
+   SubprogramDepth : Integer := 0;
+
    /// ParameterType's second answer.
    ///
    /// A parameter's element type is wanted beside its type name, and a function
@@ -214,8 +222,9 @@ begin
         if Match (TOKEN_TYPE) then Exit EnumDeclaration ();
         if Match (TOKEN_CLASS) then Exit ClassDeclaration ();
         if Match (TOKEN_OBJECT) then Exit ClassDeclaration ('object');
-        if Match (TOKEN_FUNCTION) then Exit ParseFunction ('function');
-        if Match (TOKEN_PROCEDURE) then Exit ParseFunction ('procedure');
+        if IsExtensionDeclaration () then Exit ExtensionDeclaration ();
+        if Match (TOKEN_FUNCTION) then Exit ParseFunction ('function', False);
+        if Match (TOKEN_PROCEDURE) then Exit ParseFunction ('procedure', False);
         if Match (TOKEN_VAR) then Exit VarDeclaration ();
         if Match (TOKEN_CONST) then Exit ConstDeclaration ();
 
@@ -1129,8 +1138,11 @@ begin
         var WasInProcedure := InProcedure;
         InProcedure := False;
 
+        SubprogramDepth := SubprogramDepth + 1;
+
         var Rest := Block ();
 
+        SubprogramDepth := SubprogramDepth - 1;
         InProcedure := WasInProcedure;
 
         for var Each in Rest do
@@ -1186,8 +1198,11 @@ begin
         var WasInProcedure := InProcedure;
         InProcedure := False;
 
+        SubprogramDepth := SubprogramDepth + 1;
+
         var Rest := Block ();
 
+        SubprogramDepth := SubprogramDepth - 1;
         InProcedure := WasInProcedure;
 
         for var Each in Rest do
@@ -1380,6 +1395,52 @@ begin
         Exit ExpressionStmt (TheExpr);
     end
 
+    /// Whether what follows is an extension declaration.
+    ///
+    /// 'extension' is not a keyword.  It is an ordinary identifier the grammar
+    /// recognizes by its position before 'function' or 'procedure' [LEX-011],
+    /// and deciding on the NEXT token is what keeps it one: 'var extension :=
+    /// 8;' declares a variable, and 'extension function F (S : String);'
+    /// declares an extension, in the same file if a program likes.
+    function IsExtensionDeclaration () : Boolean;
+    begin
+        if not CheckWord ('extension') then Exit False;
+
+        Exit PeekNext ().TypeOfToken = TOKEN_FUNCTION
+          or PeekNext ().TypeOfToken = TOKEN_PROCEDURE;
+    end
+
+    /// Parses 'extension function ...' or 'extension procedure ...'.
+    ///
+    /// The word is consumed and the rest is an ordinary declaration, which is
+    /// the whole of what the feature is: permission to be called with method
+    /// syntax, and nothing else about the subprogram changes.
+    ///
+    /// # Raises
+    ///
+    /// '''extension'' applies only to a top-level subprogram.' inside another
+    /// subprogram's body.
+    ///
+    /// # Satisfies
+    ///
+    /// [FUN-015]
+    function ExtensionDeclaration () : Stmt;
+    var
+        Word : Token;
+
+    begin
+        Word := Advance ();
+
+        if SubprogramDepth > 0 then
+            raise Error (Word, '''extension'' applies only to a top-level subprogram.');
+
+        if Match (TOKEN_PROCEDURE) then Exit ParseFunction ('procedure', True);
+
+        Advance ();
+
+        Exit ParseFunction ('function', True);
+    end
+
     /// Parses a subprogram declaration -- a function, a procedure, a method or
     /// a constructor.
     ///
@@ -1397,12 +1458,14 @@ begin
     /// 'Expect ''('' after <kind> name.', 'Expect parameter name.' and
     /// 'Expect '')'' after parameters.' -- the first composed from Kind, so a
     /// procedure and a function each name themselves.  Also a refusal for a
-    /// value returned from a procedure.
+    /// value returned from a procedure, and, of an extension,
+    /// 'An extension must declare a receiver.' and
+    /// 'An extension''s receiver must have a written type.'
     ///
     /// # Satisfies
     ///
     /// [FUN-001], [FUN-003], [FUN-004], [FUN-012], [FUN-014]
-    function ParseFunction (Kind : String) : Stmt;
+    function ParseFunction (Kind : String, IsExtension : Boolean) : Stmt;
     var
         Name   : Token;
         Params : List of Token;
@@ -1434,6 +1497,20 @@ begin
         end
         Consume (TOKEN_RIGHT_PAREN, 'Expect '')'' after parameters.');
 
+        // The receiver is the first parameter, and it must be written down.  An
+        // untyped one says nothing about the value it will hold, so an
+        // extension declared on one would be a member of everything at once
+        // [FUN-015].
+        if IsExtension then
+        begin
+            if Params.Length = 0 then
+                raise Error (Name, 'An extension must declare a receiver.');
+
+            if Str (ParamTypes[0]) = '' then
+                raise Error (Params[0],
+                    'An extension''s receiver must have a written type.');
+        end
+
         var ReturnType := '';
         var ReturnGeneric := '';
         if Match (TOKEN_COLON) then
@@ -1463,6 +1540,7 @@ begin
             Foreign.ParamGenerics := ParamGenerics;
             Foreign.Symbol      := Str (Symbol.Literal);
             Foreign.Library       := InLibrary;
+            Foreign.IsExtension   := IsExtension;
 
             Exit Foreign;
         end
@@ -1475,8 +1553,11 @@ begin
         var WasInProcedure := InProcedure;
         InProcedure := Kind = 'procedure';
 
+        SubprogramDepth := SubprogramDepth + 1;
+
         var Rest := Block ();
 
+        SubprogramDepth := SubprogramDepth - 1;
         InProcedure := WasInProcedure;
 
         for var Each in Rest do
@@ -1487,6 +1568,7 @@ begin
         TheFunction.ReturnGeneric := ReturnGeneric;
         TheFunction.ParamTypes := ParamTypes;
         TheFunction.ParamGenerics := ParamGenerics;
+        TheFunction.IsExtension := IsExtension;
 
         Exit TheFunction;
     end
@@ -1824,10 +1906,18 @@ begin
 
             var Method : Stmt;
 
+            // A member is reached by method syntax already, so the permission
+            // has nothing to add and is refused rather than ignored.  Any
+            // 'extension' here is wrong whatever follows it, 'property'
+            // included [FUN-015].
+            if CheckWord ('extension') then
+                raise Error (Peek (),
+                    '''extension'' applies only to a top-level subprogram.');
+
             if Match (TOKEN_CONSTRUCTOR) then
-                Method := ParseFunction ('constructor');
+                Method := ParseFunction ('constructor', False);
             else if Match (TOKEN_PROCEDURE) then
-                Method := ParseFunction ('procedure');
+                Method := ParseFunction ('procedure', False);
             else if Match (TOKEN_PROPERTY) then
                 Method := ParseProperty ();
             else if Match (TOKEN_OPERATOR) then
@@ -1836,7 +1926,7 @@ begin
             begin
                 Consume (TOKEN_FUNCTION,
                     'Expect ''function'', ''procedure'' or ''constructor'' in class body.');
-                Method := ParseFunction ('method');
+                Method := ParseFunction ('method', False);
             end
 
             if InPrivateSection then ClassPrivates.Add (Str (Method.Name.Lexeme));
@@ -3592,4 +3682,120 @@ begin
     AssertEqual (2, Result.Fields.Length);
     AssertTrue (Result.Fields[0] is VarStmt);
     AssertEqual ('Integer', Result.Fields[1].TypeName);
+end
+
+// 'extension' is context-sensitive like 'unit', 'test' and 'on': recognized by
+// its position before 'function' or 'procedure', and an ordinary name
+// everywhere else [LEX-011].
+//
+test 'Parse An Extension Function';
+begin
+    var TheScanner := Scanner ('extension function Upper (S : String) : String; begin Exit S; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertTrue (Result is FunctionStmt);
+    AssertTrue (Result.IsExtension);
+    AssertEqual ('Upper', Result.Name.Lexeme);
+    AssertEqual ('String', Result.ParamTypes[0]);
+end
+
+test 'Parse An Extension Procedure';
+begin
+    var TheScanner := Scanner ('extension procedure Shout (S : String); begin WriteLn (S); end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertTrue (Result.IsExtension);
+    AssertEqual ('Shout', Result.Name.Lexeme);
+end
+
+test 'Parse A Subprogram Without The Word Is Not An Extension';
+begin
+    var TheScanner := Scanner ('function Upper (S : String) : String; begin Exit S; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertTrue (not Result.IsExtension);
+end
+
+test 'Parse Extension Is Not A Keyword';
+begin
+    var TheScanner := Scanner ('var extension := 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual ('extension', Result.Name.Lexeme);
+end
+
+test 'Parse An Extension Needs A Typed Receiver';
+begin
+    var TheScanner := Scanner ('extension function Upper (S) : String; begin Exit S; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual ('An extension''s receiver must have a written type.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+test 'Parse An Extension Needs A Receiver';
+begin
+    var TheScanner := Scanner ('extension function Nothing () : String; begin Exit ''x''; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual ('An extension must declare a receiver.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+test 'Parse An Extension Only At The Top Level';
+begin
+    var TheScanner := Scanner ('function Outer (); begin extension function F (N : Integer); begin Exit N; end Exit 1; end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual ('''extension'' applies only to a top-level subprogram.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
+end
+
+test 'Parse An Extension Is Refused In A Class Body';
+begin
+    var TheScanner := Scanner ('class Box; begin extension function Size () : Integer; begin Exit 7; end end');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual ('''extension'' applies only to a top-level subprogram.', e);
+                Exit;
+            end
+    end
+    Fail ('No exception raised.');
 end

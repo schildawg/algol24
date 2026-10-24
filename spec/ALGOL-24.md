@@ -8035,6 +8035,12 @@ extension is always a call [EXP-022].
 about the call, and a declaration naming a C symbol instead of carrying a body
 takes it on the same terms.
 
+    unit         Parse An Extension Function
+    unit         Parse An Extension Needs A Typed Receiver
+    unit         Parse An Extension Needs A Receiver
+    unit         Parse An Extension Only At The Top Level
+    unit         Parse An Extension Is Refused In A Class Body
+
 ##### conformance/0188-extension-declarations.a24
 
 ```algol24
@@ -8107,6 +8113,128 @@ xx
 colour Green
 8
 9
+```
+
+##### refusals/0193-extension-receiver-untyped.a24
+
+```algol24
+// FUN-015: the receiver must have a written type.  An untyped parameter says
+// nothing about the value it will hold, so an extension declared on one would
+// be a member of everything at once.
+extension function Upper (S) : String;
+begin
+    Exit ToUpper (S);
+end
+
+WriteLn (Upper ('algol'));
+```
+
+```console
+$ algc refusals/0193-extension-receiver-untyped.a24
+Uncaught: An extension's receiver must have a written type.
+[ERROR] refusals/0193-extension-receiver-untyped.a24: An extension's receiver must have a written type.
+[ERROR] 4 | extension function Upper (S) : String;
+[ERROR]   |                           ^
+exit: 70
+```
+
+##### refusals/0194-extension-without-a-receiver.a24
+
+```algol24
+// FUN-015: there must be a first parameter to be the receiver.
+extension function Nothing () : String;
+begin
+    Exit 'nothing';
+end
+
+WriteLn (Nothing ());
+```
+
+```console
+$ algc refusals/0194-extension-without-a-receiver.a24
+Uncaught: An extension must declare a receiver.
+[ERROR] refusals/0194-extension-without-a-receiver.a24: An extension must declare a receiver.
+[ERROR] 2 | extension function Nothing () : String;
+[ERROR]   |                    ^^^^^^^
+exit: 70
+```
+
+##### refusals/0195-extension-on-a-method.a24
+
+```algol24
+// FUN-015: a member is reached by method syntax already, so the permission has
+// nothing to add to one.
+class Box;
+begin
+    extension function Size () : Integer;
+    begin
+        Exit 7;
+    end
+end
+
+WriteLn (Box ().Size ());
+```
+
+```console
+$ algc refusals/0195-extension-on-a-method.a24
+Uncaught: 'extension' applies only to a top-level subprogram.
+[ERROR] refusals/0195-extension-on-a-method.a24: 'extension' applies only to a top-level subprogram.
+[ERROR] 5 |     extension function Size () : Integer;
+[ERROR]   |     ^^^^^^^^^
+exit: 70
+```
+
+##### refusals/0196-extension-inside-a-subprogram.a24
+
+```algol24
+// FUN-015: top level only.  A nested subprogram is not visible anywhere a
+// receiver could carry it.
+function Outer () : Integer;
+begin
+    extension function Doubled (N : Integer) : Integer;
+    begin
+        Exit N * 2;
+    end
+
+    Exit 21.Doubled ();
+end
+
+WriteLn (Outer ());
+```
+
+```console
+$ algc refusals/0196-extension-inside-a-subprogram.a24
+Uncaught: 'extension' applies only to a top-level subprogram.
+[ERROR] refusals/0196-extension-inside-a-subprogram.a24: 'extension' applies only to a top-level subprogram.
+[ERROR] 5 |     extension function Doubled (N : Integer) : Integer;
+[ERROR]   |     ^^^^^^^^^
+exit: 70
+```
+
+##### refusals/0197-extension-property.a24
+
+```algol24
+// FUN-015: a property is the one member read without a call, and an extension
+// is always a call -- so the two cannot be combined.  The word is refused in a
+// class body whatever follows it.
+class Box;
+begin
+    extension property Size : Integer;
+    begin
+        Exit 7;
+    end
+end
+
+WriteLn (Box ().Size);
+```
+
+```console
+$ algc refusals/0197-extension-property.a24
+Uncaught: 'extension' applies only to a top-level subprogram.
+[ERROR] refusals/0197-extension-property.a24: 'extension' applies only to a top-level subprogram.
+[ERROR] 6 |     extension property Size : Integer;
+[ERROR]   |     ^^^^^^^^^
+exit: 70
 ```
 
 **[FUN-016]**  **Both spellings, always.** `Trim (S)` and `S.Trim ()` are the

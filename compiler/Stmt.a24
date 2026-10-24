@@ -577,6 +577,15 @@ var
     /// would have meant teaching each of them a second thing.
     IsProperty : Boolean := False;
 
+    /// Whether this subprogram may also be called with method syntax on its
+    /// first parameter [FUN-015].
+    ///
+    /// A flag beside IsProperty, and for the reason given there: an extension
+    /// IS a top-level subprogram in every respect but how a call to it may be
+    /// written, so resolution, checking, binding and emission each want the
+    /// thing they already understand rather than a second one.
+    IsExtension : Boolean := False;
+
     /// The element type of the return, for 'function Make () : List of Integer'.
     ReturnGeneric : String := '';
 

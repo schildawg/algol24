@@ -76,6 +76,7 @@ static Value or_60;
 static Value or_61;
 static Value or_62;
 static Value or_63;
+static Value or_64;
 static const char *t_parser_init_1_list[] = { "Tokens : List" };
 static const char *t_parser_unitstem_1_string[] = { "Key : String" };
 static const char *t_parser_iscollectiontype_1_string[] = { "TypeName : String" };
@@ -89,7 +90,7 @@ static const char *t_parser_forinstatement_1_token[] = { "Name : Token" };
 static const char *t_parser_enclosingloop_1_string[] = { "TheLabel : String" };
 static const char *t_parser_jumplabel_2_token_string[] = { "Keyword : Token", "Verb : String" };
 static const char *t_parser_vardeclaration_1_token[] = { "Name : Token" };
-static const char *t_parser_parsefunction_1_string[] = { "Kind : String" };
+static const char *t_parser_parsefunction_2_string_boolean[] = { "Kind : String", "IsExtension : Boolean" };
 static const char *t_parser_subrangedeclaration_1_token[] = { "Name : Token" };
 static const char *t_parser_classdeclaration_1_string[] = { "Kind : String" };
 static const char *t_parser_finishcall_1_expr[] = { "Callee : Expr" };
@@ -133,6 +134,7 @@ static Value i_parser(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "ClassPrivates", alg_widen(alg_list(), "List"));
     alg_set_property(v_this, "LoopDepth", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "InProcedure", alg_widen(alg_bool(false), "Boolean"));
+    alg_set_property(v_this, "SubprogramDepth", alg_widen(alg_int(0), "Integer"));
     alg_set_property(v_this, "LastGeneric", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "PendingLabel", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "LoopLabels", alg_widen(alg_list(), "List"));
@@ -248,11 +250,14 @@ static Value m_parser_statement_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVobject}, 1))) {
         return alg_invoke(v_this, "ClassDeclaration", (Value[]){alg_string("object")}, 1);
     }
+    if (alg_truthy(alg_invoke(v_this, "IsExtensionDeclaration", NULL, 0))) {
+        return alg_invoke(v_this, "ExtensionDeclaration", NULL, 0);
+    }
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVfunction}, 1))) {
-        return alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("function")}, 1);
+        return alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("function"), alg_bool(false)}, 2);
     }
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVprocedure}, 1))) {
-        return alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("procedure")}, 1);
+        return alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("procedure"), alg_bool(false)}, 2);
     }
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVvar}, 1))) {
         return alg_invoke(v_this, "VarDeclaration", NULL, 0);
@@ -1037,8 +1042,10 @@ static Value m_parser_parseoperator_0(Value v_this, Value *args, int32_t count) 
     Value v_wasinprocedure = alg_property(v_this, "InProcedure");
     (void)v_wasinprocedure;
     (void)(alg_set_property(v_this, "InProcedure", alg_widen(alg_bool(false), "Boolean")));
+    (void)(alg_set_property(v_this, "SubprogramDepth", alg_widen(alg_add(alg_property(v_this, "SubprogramDepth"), alg_int(1)), "Integer")));
     Value v_rest = alg_invoke(v_this, "Block", NULL, 0);
     (void)v_rest;
+    (void)(alg_set_property(v_this, "SubprogramDepth", alg_widen(alg_subtract(alg_property(v_this, "SubprogramDepth"), alg_int(1)), "Integer")));
     (void)(alg_set_property(v_this, "InProcedure", alg_widen(v_wasinprocedure, "Boolean")));
     {
         Value loop_6 = alg_iterable(v_rest);
@@ -1084,8 +1091,10 @@ static Value m_parser_parseproperty_0(Value v_this, Value *args, int32_t count) 
     Value v_wasinprocedure = alg_property(v_this, "InProcedure");
     (void)v_wasinprocedure;
     (void)(alg_set_property(v_this, "InProcedure", alg_widen(alg_bool(false), "Boolean")));
+    (void)(alg_set_property(v_this, "SubprogramDepth", alg_widen(alg_add(alg_property(v_this, "SubprogramDepth"), alg_int(1)), "Integer")));
     Value v_rest = alg_invoke(v_this, "Block", NULL, 0);
     (void)v_rest;
+    (void)(alg_set_property(v_this, "SubprogramDepth", alg_widen(alg_subtract(alg_property(v_this, "SubprogramDepth"), alg_int(1)), "Integer")));
     (void)(alg_set_property(v_this, "InProcedure", alg_widen(v_wasinprocedure, "Boolean")));
     {
         Value loop_7 = alg_iterable(v_rest);
@@ -1245,10 +1254,37 @@ static Value m_parser_expressionstatement_0(Value v_this, Value *args, int32_t c
     return alg_nil();
 }
 
-static Value m_parser_parsefunction_1_string(Value v_this, Value *args, int32_t count) {
+static Value m_parser_isextensiondeclaration_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    if (alg_truthy(alg_not(alg_invoke(v_this, "CheckWord", (Value[]){alg_string("extension")}, 1)))) {
+        return alg_bool(false);
+    }
+    return (or_43 = alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVfunction), alg_truthy(or_43) ? or_43 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVprocedure));
+    return alg_nil();
+}
+
+static Value m_parser_extensiondeclaration_0(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_word = alg_nil();
+    (void)v_word;
+    (void)((v_word = alg_widen(alg_invoke(v_this, "Advance", NULL, 0), "Token")));
+    if (alg_truthy(alg_greater(alg_property(v_this, "SubprogramDepth"), alg_int(0)))) {
+        alg_raise(alg_invoke(v_this, "Error", (Value[]){v_word, alg_string("'extension' applies only to a top-level subprogram.")}, 2));
+    }
+    if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVprocedure}, 1))) {
+        return alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("procedure"), alg_bool(true)}, 2);
+    }
+    (void)(alg_invoke(v_this, "Advance", NULL, 0));
+    return alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("function"), alg_bool(true)}, 2);
+    return alg_nil();
+}
+
+static Value m_parser_parsefunction_2_string_boolean(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_kind = alg_widen(args[0], "String");
     (void)v_kind;
+    Value v_isextension = alg_widen(args[1], "Boolean");
+    (void)v_isextension;
     Value v_name = alg_nil();
     (void)v_name;
     Value v_params = alg_nil();
@@ -1282,6 +1318,16 @@ static Value m_parser_parsefunction_1_string(Value v_this, Value *args, int32_t 
         }
     }
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVrightVparen, alg_string("Expect ')' after parameters.")}, 2));
+    if (alg_truthy(v_isextension)) {
+        {
+            if (alg_truthy(alg_equal(alg_property(v_params, "Length"), alg_int(0)))) {
+                alg_raise(alg_invoke(v_this, "Error", (Value[]){v_name, alg_string("An extension must declare a receiver.")}, 2));
+            }
+            if (alg_truthy(alg_equal(alg_str(alg_subscript_get(v_paramtypes, alg_int(0))), alg_string("")))) {
+                alg_raise(alg_invoke(v_this, "Error", (Value[]){alg_subscript_get(v_params, alg_int(0)), alg_string("An extension's receiver must have a written type.")}, 2));
+            }
+        }
+    }
     Value v_returntype = alg_string("");
     (void)v_returntype;
     Value v_returngeneric = alg_string("");
@@ -1289,7 +1335,7 @@ static Value m_parser_parsefunction_1_string(Value v_this, Value *args, int32_t 
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVcolon}, 1))) {
         (void)((v_returntype = f_canonicaltype(NULL, (Value[]){alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect return type.")}, 2), "Lexeme")}, 1)));
     }
-    if (alg_truthy((or_43 = alg_invoke(v_this, "IsCollectionType", (Value[]){v_returntype}, 1), !alg_truthy(or_43) ? or_43 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVof}, 1)))) {
+    if (alg_truthy((or_44 = alg_invoke(v_this, "IsCollectionType", (Value[]){v_returntype}, 1), !alg_truthy(or_44) ? or_44 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVof}, 1)))) {
         (void)((v_returngeneric = alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect generic type.")}, 2), "Lexeme"))));
     }
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVsemicolon, alg_add(alg_add(alg_string("Expect ';' after "), v_kind), alg_string(" signature."))}, 2));
@@ -1311,6 +1357,7 @@ static Value m_parser_parsefunction_1_string(Value v_this, Value *args, int32_t 
             (void)(alg_set_property(v_foreign, "ParamGenerics", alg_widen(v_paramgenerics, "List")));
             (void)(alg_set_property(v_foreign, "Symbol", alg_widen(alg_str(alg_property(v_symbol, "Literal")), "String")));
             (void)(alg_set_property(v_foreign, "Library", alg_widen(v_inlibrary, "String")));
+            (void)(alg_set_property(v_foreign, "IsExtension", alg_widen(v_isextension, "Boolean")));
             return v_foreign;
         }
     }
@@ -1320,8 +1367,10 @@ static Value m_parser_parsefunction_1_string(Value v_this, Value *args, int32_t 
     Value v_wasinprocedure = alg_property(v_this, "InProcedure");
     (void)v_wasinprocedure;
     (void)(alg_set_property(v_this, "InProcedure", alg_widen(alg_equal(v_kind, alg_string("procedure")), "Boolean")));
+    (void)(alg_set_property(v_this, "SubprogramDepth", alg_widen(alg_add(alg_property(v_this, "SubprogramDepth"), alg_int(1)), "Integer")));
     Value v_rest = alg_invoke(v_this, "Block", NULL, 0);
     (void)v_rest;
+    (void)(alg_set_property(v_this, "SubprogramDepth", alg_widen(alg_subtract(alg_property(v_this, "SubprogramDepth"), alg_int(1)), "Integer")));
     (void)(alg_set_property(v_this, "InProcedure", alg_widen(v_wasinprocedure, "Boolean")));
     {
         Value loop_8 = alg_iterable(v_rest);
@@ -1337,6 +1386,7 @@ static Value m_parser_parsefunction_1_string(Value v_this, Value *args, int32_t 
     (void)(alg_set_property(v_thefunction, "ReturnGeneric", alg_widen(v_returngeneric, "String")));
     (void)(alg_set_property(v_thefunction, "ParamTypes", alg_widen(v_paramtypes, "List")));
     (void)(alg_set_property(v_thefunction, "ParamGenerics", alg_widen(v_paramgenerics, "List")));
+    (void)(alg_set_property(v_thefunction, "IsExtension", alg_widen(v_isextension, "Boolean")));
     return v_thefunction;
     return alg_nil();
 }
@@ -1349,7 +1399,7 @@ static Value m_parser_parametertype_0(Value v_this, Value *args, int32_t count) 
     }
     Value v_typename = f_canonicaltype(NULL, (Value[]){alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name.")}, 2), "Lexeme")}, 1);
     (void)v_typename;
-    if (alg_truthy((or_44 = alg_invoke(v_this, "IsCollectionType", (Value[]){v_typename}, 1), !alg_truthy(or_44) ? or_44 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVof}, 1)))) {
+    if (alg_truthy((or_45 = alg_invoke(v_this, "IsCollectionType", (Value[]){v_typename}, 1), !alg_truthy(or_45) ? or_45 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVof}, 1)))) {
         (void)(alg_set_property(v_this, "LastGeneric", alg_widen(alg_str(alg_property(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect generic type.")}, 2), "Lexeme")), "String")));
     }
     return v_typename;
@@ -1361,7 +1411,7 @@ static Value m_parser_block_0(Value v_this, Value *args, int32_t count) {
     Value v_statements = alg_nil();
     (void)v_statements;
     (void)((v_statements = alg_widen(alg_list(), "List")));
-    while (alg_truthy((or_45 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVend}, 1)), !alg_truthy(or_45) ? or_45 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
+    while (alg_truthy((or_46 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVend}, 1)), !alg_truthy(or_46) ? or_46 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
         {
             (void)(alg_invoke(v_statements, "Add", (Value[]){alg_invoke(v_this, "Declaration", NULL, 0)}, 1));
         }
@@ -1468,7 +1518,7 @@ static Value m_parser_istestblock_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_not_equal(alg_property(alg_invoke(v_this, "Peek", NULL, 0), "Lexeme"), alg_string("test")))) {
         return alg_bool(false);
     }
-    return (or_46 = alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVstring), alg_truthy(or_46) ? or_46 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVchar));
+    return (or_47 = alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVstring), alg_truthy(or_47) ? or_47 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVchar));
     return alg_nil();
 }
 
@@ -1613,22 +1663,25 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVbegin, alg_add(alg_add(alg_string("Expect 'begin' before "), v_kind), alg_string(" body."))}, 2));
     (void)(alg_set_property(v_this, "InPrivateSection", alg_widen(alg_bool(false), "Boolean")));
     (void)((v_methods = alg_widen(alg_list(), "List")));
-    while (alg_truthy((or_47 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVend}, 1)), !alg_truthy(or_47) ? or_47 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
+    while (alg_truthy((or_48 = alg_not(alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVend}, 1)), !alg_truthy(or_48) ? or_48 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
         {
             while (alg_truthy(alg_invoke(v_this, "MatchVisibility", NULL, 0))) {
                 {
                 }
             }
-            if (alg_truthy((or_48 = alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVend}, 1), alg_truthy(or_48) ? or_48 : alg_invoke(v_this, "IsAtEnd", NULL, 0)))) {
+            if (alg_truthy((or_49 = alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVend}, 1), alg_truthy(or_49) ? or_49 : alg_invoke(v_this, "IsAtEnd", NULL, 0)))) {
                 break;
             }
             Value v_method = alg_nil();
             (void)v_method;
+            if (alg_truthy(alg_invoke(v_this, "CheckWord", (Value[]){alg_string("extension")}, 1))) {
+                alg_raise(alg_invoke(v_this, "Error", (Value[]){alg_invoke(v_this, "Peek", NULL, 0), alg_string("'extension' applies only to a top-level subprogram.")}, 2));
+            }
             if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVconstructor}, 1))) {
-                (void)((v_method = alg_widen(alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("constructor")}, 1), "Stmt")));
+                (void)((v_method = alg_widen(alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("constructor"), alg_bool(false)}, 2), "Stmt")));
             } else {
                 if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVprocedure}, 1))) {
-                    (void)((v_method = alg_widen(alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("procedure")}, 1), "Stmt")));
+                    (void)((v_method = alg_widen(alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("procedure"), alg_bool(false)}, 2), "Stmt")));
                 } else {
                     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVproperty}, 1))) {
                         (void)((v_method = alg_widen(alg_invoke(v_this, "ParseProperty", NULL, 0), "Stmt")));
@@ -1638,7 +1691,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
                         } else {
                             {
                                 (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVfunction, alg_string("Expect 'function', 'procedure' or 'constructor' in class body.")}, 2));
-                                (void)((v_method = alg_widen(alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("method")}, 1), "Stmt")));
+                                (void)((v_method = alg_widen(alg_invoke(v_this, "ParseFunction", (Value[]){alg_string("method"), alg_bool(false)}, 2), "Stmt")));
                             }
                         }
                     }
@@ -1675,7 +1728,7 @@ static Value m_parser_equality_0(Value v_this, Value *args, int32_t count) {
     Value v_right = alg_nil();
     (void)v_right;
     (void)((v_theexpr = alg_widen(alg_invoke(v_this, "Comparison", NULL, 0), "Expr")));
-    while (alg_truthy((or_49 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnotVequal}, 1), alg_truthy(or_49) ? or_49 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVequal}, 1)))) {
+    while (alg_truthy((or_50 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnotVequal}, 1), alg_truthy(or_50) ? or_50 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVequal}, 1)))) {
         {
             (void)((v_theoperator = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
             (void)((v_right = alg_widen(alg_invoke(v_this, "Comparison", NULL, 0), "Expr")));
@@ -1702,7 +1755,7 @@ static Value m_parser_comparison_0(Value v_this, Value *args, int32_t count) {
                     (void)((v_theexpr = alg_widen(alg_new(k_isexpr, (Value[]){v_theexpr, alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect type name after 'is'.")}, 2)}, 2), "Expr")));
                 }
             } else {
-                if (alg_truthy((or_53 = (or_52 = (or_51 = (or_50 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVgreater}, 1), alg_truthy(or_50) ? or_50 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVgreaterVequal}, 1)), alg_truthy(or_51) ? or_51 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVless}, 1)), alg_truthy(or_52) ? or_52 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVlessVequal}, 1)), alg_truthy(or_53) ? or_53 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVin}, 1)))) {
+                if (alg_truthy((or_54 = (or_53 = (or_52 = (or_51 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVgreater}, 1), alg_truthy(or_51) ? or_51 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVgreaterVequal}, 1)), alg_truthy(or_52) ? or_52 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVless}, 1)), alg_truthy(or_53) ? or_53 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVlessVequal}, 1)), alg_truthy(or_54) ? or_54 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVin}, 1)))) {
                     {
                         (void)((v_theoperator = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
                         (void)((v_right = alg_widen(alg_invoke(v_this, "Term", NULL, 0), "Expr")));
@@ -1727,7 +1780,7 @@ static Value m_parser_term_0(Value v_this, Value *args, int32_t count) {
     Value v_right = alg_nil();
     (void)v_right;
     (void)((v_theexpr = alg_widen(alg_invoke(v_this, "Factor", NULL, 0), "Expr")));
-    while (alg_truthy((or_54 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVminus}, 1), alg_truthy(or_54) ? or_54 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVplus}, 1)))) {
+    while (alg_truthy((or_55 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVminus}, 1), alg_truthy(or_55) ? or_55 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVplus}, 1)))) {
         {
             (void)((v_theoperator = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
             (void)((v_right = alg_widen(alg_invoke(v_this, "Factor", NULL, 0), "Expr")));
@@ -1747,7 +1800,7 @@ static Value m_parser_factor_0(Value v_this, Value *args, int32_t count) {
     Value v_right = alg_nil();
     (void)v_right;
     (void)((v_theexpr = alg_widen(alg_invoke(v_this, "Unary", NULL, 0), "Expr")));
-    while (alg_truthy((or_57 = (or_56 = (or_55 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVslash}, 1), alg_truthy(or_55) ? or_55 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstar}, 1)), alg_truthy(or_56) ? or_56 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVdiv}, 1)), alg_truthy(or_57) ? or_57 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVmod}, 1)))) {
+    while (alg_truthy((or_58 = (or_57 = (or_56 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVslash}, 1), alg_truthy(or_56) ? or_56 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstar}, 1)), alg_truthy(or_57) ? or_57 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVdiv}, 1)), alg_truthy(or_58) ? or_58 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVmod}, 1)))) {
         {
             (void)((v_theoperator = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
             (void)((v_right = alg_widen(alg_invoke(v_this, "Unary", NULL, 0), "Expr")));
@@ -1766,7 +1819,7 @@ static Value m_parser_unary_0(Value v_this, Value *args, int32_t count) {
     (void)v_right;
     Value v_theexpr = alg_nil();
     (void)v_theexpr;
-    if (alg_truthy((or_58 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnot}, 1), alg_truthy(or_58) ? or_58 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVminus}, 1)))) {
+    if (alg_truthy((or_59 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnot}, 1), alg_truthy(or_59) ? or_59 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVminus}, 1)))) {
         {
             (void)((v_theoperator = alg_widen(alg_invoke(v_this, "Previous", NULL, 0), "Token")));
             (void)((v_right = alg_widen(alg_invoke(v_this, "Unary", NULL, 0), "Expr")));
@@ -1908,7 +1961,7 @@ static Value m_parser_argument_2_list_list(Value v_this, Value *args, int32_t co
     (void)v_arguments;
     Value v_names = alg_widen(args[1], "List");
     (void)v_names;
-    if (alg_truthy((or_59 = alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVidentifier}, 1), !alg_truthy(or_59) ? or_59 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVcolon)))) {
+    if (alg_truthy((or_60 = alg_invoke(v_this, "Check", (Value[]){e_tokentype_tokenVidentifier}, 1), !alg_truthy(or_60) ? or_60 : alg_equal(alg_property(alg_invoke(v_this, "PeekNext", NULL, 0), "TypeOfToken"), e_tokentype_tokenVcolon)))) {
         {
             Value v_thename = alg_str(alg_property(alg_invoke(v_this, "Advance", NULL, 0), "Lexeme"));
             (void)v_thename;
@@ -1918,7 +1971,7 @@ static Value m_parser_argument_2_list_list(Value v_this, Value *args, int32_t co
             return alg_nil();
         }
     }
-    if (alg_truthy((or_60 = alg_greater(alg_property(v_names, "Length"), alg_int(0)), !alg_truthy(or_60) ? or_60 : alg_not_equal(alg_str(alg_subscript_get(v_names, alg_subtract(alg_property(v_names, "Length"), alg_int(1)))), alg_string(""))))) {
+    if (alg_truthy((or_61 = alg_greater(alg_property(v_names, "Length"), alg_int(0)), !alg_truthy(or_61) ? or_61 : alg_not_equal(alg_str(alg_subscript_get(v_names, alg_subtract(alg_property(v_names, "Length"), alg_int(1)))), alg_string(""))))) {
         alg_raise(alg_string("A positional argument cannot follow a named one."));
     }
     (void)(alg_invoke(v_names, "Add", (Value[]){alg_string("")}, 1));
@@ -1946,7 +1999,7 @@ static Value m_parser_primary_0(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVleftVbracket}, 1))) {
         return alg_invoke(v_this, "CollectionLiteral", NULL, 0);
     }
-    if (alg_truthy((or_63 = (or_62 = (or_61 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVinteger}, 1), alg_truthy(or_61) ? or_61 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnumber}, 1)), alg_truthy(or_62) ? or_62 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstring}, 1)), alg_truthy(or_63) ? or_63 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVchar}, 1)))) {
+    if (alg_truthy((or_64 = (or_63 = (or_62 = alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVinteger}, 1), alg_truthy(or_62) ? or_62 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVnumber}, 1)), alg_truthy(or_63) ? or_63 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVstring}, 1)), alg_truthy(or_64) ? or_64 : alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVchar}, 1)))) {
         {
             return alg_new(k_literalexpr, (Value[]){alg_property(alg_invoke(v_this, "Previous", NULL, 0), "Literal")}, 1);
         }
@@ -2086,6 +2139,7 @@ void init_Parser(void) {
     alg_class_field(k_parser, "ClassPrivates");
     alg_class_field(k_parser, "LoopDepth");
     alg_class_field(k_parser, "InProcedure");
+    alg_class_field(k_parser, "SubprogramDepth");
     alg_class_field(k_parser, "LastGeneric");
     alg_class_field(k_parser, "PendingLabel");
     alg_class_field(k_parser, "LoopLabels");
@@ -2131,7 +2185,9 @@ void init_Parser(void) {
     alg_class_method(k_parser, "VarDeclaration", m_parser_vardeclaration_0, 0, NULL);
     alg_class_method(k_parser, "VarDeclaration", m_parser_vardeclaration_1_token, 1, t_parser_vardeclaration_1_token);
     alg_class_method(k_parser, "ExpressionStatement", m_parser_expressionstatement_0, 0, NULL);
-    alg_class_method(k_parser, "ParseFunction", m_parser_parsefunction_1_string, 1, t_parser_parsefunction_1_string);
+    alg_class_method(k_parser, "IsExtensionDeclaration", m_parser_isextensiondeclaration_0, 0, NULL);
+    alg_class_method(k_parser, "ExtensionDeclaration", m_parser_extensiondeclaration_0, 0, NULL);
+    alg_class_method(k_parser, "ParseFunction", m_parser_parsefunction_2_string_boolean, 2, t_parser_parsefunction_2_string_boolean);
     alg_class_method(k_parser, "ParameterType", m_parser_parametertype_0, 0, NULL);
     alg_class_method(k_parser, "Block", m_parser_block_0, 0, NULL);
     alg_class_method(k_parser, "Assignment", m_parser_assignment_0, 0, NULL);
