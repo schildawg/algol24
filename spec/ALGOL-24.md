@@ -7746,6 +7746,39 @@ string
 char
 ```
 
+##### conformance/0198-overloads-through-an-import.a24
+
+```algol24
+// FUN-013: an overload set is selected from wherever the name is visible, an
+// import included [MOD-005].  The declaring unit emits the set and one symbol
+// per signature beside it, so a call from another unit has to name the set --
+// see Annex C's C-40, where it named a symbol that was never emitted and the
+// generated C did not compile.
+uses 'modules/Overloads';
+
+WriteLn (Same (1));
+WriteLn (Same ('ab'));
+WriteLn (Same (1, 2));
+
+// Selection is at RUN TIME, from the value actually passed, through an import
+// exactly as within a file.
+var Held : Any := 'ab';
+WriteLn (Same (Held));
+
+// And as a value, called from where it came to rest [FUN-011].
+var F := Same;
+WriteLn (F (7));
+```
+
+```console
+$ algc conformance/0198-overloads-through-an-import.a24
+integer
+string
+two
+string
+integer
+```
+
 ##### refusals/0043-same-signature-twice.a24
 
 ```algol24

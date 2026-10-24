@@ -305,6 +305,14 @@ var
     /// Names already renamed, so a rename is applied once.
     Renamed      : Set;
 
+    /// Which unit each name this unit imports was declared in.
+    ///
+    /// The per-unit ImportOwner, kept where the statements can reach it.
+    /// Overloading is recorded per unit, so a CALL to an imported name has to
+    /// ask that name's own unit whether it is a set -- see IsOverloadSet and
+    /// Annex C's C-40.
+    ImportedFrom : Map;
+
     /// Bare names more than one imported module exports, mapped to those
     /// modules, so a use of one can be refused by name.
     AmbiguousImports : Map;
@@ -435,6 +443,7 @@ begin
         this.AmbiguousMembers := Map();
         this.AmbiguousImports := Map();
         this.Renamed := Set();
+        this.ImportedFrom := Map();
         this.Overloaded := Set();
         this.OverloadsIn := Map();
         this.Tables := Set();
@@ -710,11 +719,32 @@ begin
         Exit Mangle ('o_', Name);
     end
 
+    /// Whether a name is an overload set where it was DECLARED.
+    ///
+    /// Overloading is recorded per unit and the set in force belongs to the unit
+    /// being emitted, so an imported name must be asked of its own unit.  Asking
+    /// the wrong one named a plain 'f_' symbol the declaring unit never emitted
+    /// -- it emits a set and one symbol per signature -- and the generated C did
+    /// not compile [C-40].
+    function IsOverloadSet (Name : String) : Boolean;
+    begin
+        if Overloaded.Contains (Name) then Exit True;
+
+        for var Key in ImportedFrom.Keys () do
+        begin
+            if FoldCase (Str (Key)) <> FoldCase (Name) then continue;
+
+            Exit OverloadedElsewhere (Str (ImportedFrom.Get (Key)), Name);
+        end
+
+        Exit False;
+    end
+
     /// Gets the symbol a name evaluates to when used as a value -- the overload
     /// set where there is one, otherwise the closure.
     function SubprogramValue (Name : String) : String;
     begin
-        if Overloaded.Contains (Name) then Exit SetName (Name);
+        if IsOverloadSet (Name) then Exit SetName (Name);
 
         Exit HandleName (Name);
     end
@@ -1104,6 +1134,8 @@ begin
                     if not Unit.PrivateNames.Contains (TheName) then
                         Renames.Put (TheName, Str (Unit.Name));
             end
+
+            ImportedFrom := ImportOwner;
 
             var Reached := ImportOwner.Keys();
             for var I := 0; I < Reached.Length; I := I + 1 do
@@ -3468,7 +3500,7 @@ begin
         if Declared.Contains (Name) and not ShadowNames.Contains (Name) then
             Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
 
-        if Declared.Contains (Name) and Overloaded.Contains (Name) then
+        if Declared.Contains (Name) and IsOverloadSet (Name) then
             Exit Calling (SetName (Name), Arguments, TheExpr.ArgumentNames);
 
         if Declared.Contains (Name) then

@@ -130,6 +130,7 @@ static const char *t_cemitter_declaredflag_1_string[] = { "Name : String" };
 static const char *t_cemitter_functionname_1_string[] = { "Name : String" };
 static const char *t_cemitter_handlename_1_string[] = { "Name : String" };
 static const char *t_cemitter_setname_1_string[] = { "Name : String" };
+static const char *t_cemitter_isoverloadset_1_string[] = { "Name : String" };
 static const char *t_cemitter_subprogramvalue_1_string[] = { "Name : String" };
 static const char *t_cemitter_functionsymbol_1[] = { "TheStmt : Any" };
 static const char *t_cemitter_prototype_1[] = { "TheStmt : Any" };
@@ -379,6 +380,7 @@ static Value i_cemitter(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Tables", alg_nil());
     alg_set_property(v_this, "SetsBuilt", alg_nil());
     alg_set_property(v_this, "Renamed", alg_nil());
+    alg_set_property(v_this, "ImportedFrom", alg_nil());
     alg_set_property(v_this, "AmbiguousImports", alg_nil());
     alg_set_property(v_this, "AmbiguousMembers", alg_nil());
     alg_set_property(v_this, "Boxed", alg_nil());
@@ -424,6 +426,7 @@ static Value m_cemitter_init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_set_property(v_this, "AmbiguousMembers", alg_widen(alg_map(), "Map")));
     (void)(alg_set_property(v_this, "AmbiguousImports", alg_widen(alg_map(), "Map")));
     (void)(alg_set_property(v_this, "Renamed", alg_widen(alg_set(), "Set")));
+    (void)(alg_set_property(v_this, "ImportedFrom", alg_widen(alg_map(), "Map")));
     (void)(alg_set_property(v_this, "Overloaded", alg_widen(alg_set(), "Set")));
     (void)(alg_set_property(v_this, "OverloadsIn", alg_widen(alg_map(), "Map")));
     (void)(alg_set_property(v_this, "Tables", alg_widen(alg_set(), "Set")));
@@ -725,11 +728,35 @@ static Value m_cemitter_setname_1_string(Value v_this, Value *args, int32_t coun
     return alg_nil();
 }
 
-static Value m_cemitter_subprogramvalue_1_string(Value v_this, Value *args, int32_t count) {
+static Value m_cemitter_isoverloadset_1_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     if (alg_truthy(alg_invoke(alg_property(v_this, "Overloaded"), "Contains", (Value[]){v_name}, 1))) {
+        return alg_bool(true);
+    }
+    {
+        Value loop_1 = alg_iterable(alg_invoke(alg_property(v_this, "ImportedFrom"), "Keys", NULL, 0));
+        for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
+            Value v_key = alg_iterable_at(loop_1, at_1);
+            (void)v_key;
+            {
+                if (alg_truthy(alg_not_equal(f_foldcase(NULL, (Value[]){alg_str(v_key)}, 1), f_foldcase(NULL, (Value[]){v_name}, 1)))) {
+                    continue;
+                }
+                return alg_invoke(v_this, "OverloadedElsewhere", (Value[]){alg_str(alg_invoke(alg_property(v_this, "ImportedFrom"), "Get", (Value[]){v_key}, 1)), v_name}, 2);
+            }
+        }
+    }
+    return alg_bool(false);
+    return alg_nil();
+}
+
+static Value m_cemitter_subprogramvalue_1_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_name = alg_widen(args[0], "String");
+    (void)v_name;
+    if (alg_truthy(alg_invoke(v_this, "IsOverloadSet", (Value[]){v_name}, 1))) {
         return alg_invoke(v_this, "SetName", (Value[]){v_name}, 1);
     }
     return alg_invoke(v_this, "HandleName", (Value[]){v_name}, 1);
@@ -751,9 +778,9 @@ static Value m_cemitter_functionsymbol_1(Value v_this, Value *args, int32_t coun
     Value v_types = alg_invoke(v_this, "DeclaredTypes", (Value[]){v_thestmt}, 1);
     (void)v_types;
     {
-        Value loop_1 = alg_iterable(v_types);
-        for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
-            Value v_thetype = alg_iterable_at(loop_1, at_1);
+        Value loop_2 = alg_iterable(v_types);
+        for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
+            Value v_thetype = alg_iterable_at(loop_2, at_2);
             (void)v_thetype;
             if (alg_truthy(alg_not_equal(v_thetype, alg_string("Any")))) {
                 (void)((v_symbol = alg_widen(alg_add(alg_add(v_symbol, alg_char_value(95)), alg_invoke(v_this, "Escaped", (Value[]){alg_str(v_thetype)}, 1)), "String")));
@@ -845,9 +872,9 @@ static Value m_cemitter_collectfunctions_1_list(Value v_this, Value *args, int32
     Value v_statements = alg_widen(args[0], "List");
     (void)v_statements;
     {
-        Value loop_2 = alg_iterable(v_statements);
-        for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
-            Value v_thestmt = alg_iterable_at(loop_2, at_2);
+        Value loop_3 = alg_iterable(v_statements);
+        for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
+            Value v_thestmt = alg_iterable_at(loop_3, at_3);
             (void)v_thestmt;
             {
                 if (alg_truthy(alg_is(v_thestmt, "FunctionStmt"))) {
@@ -878,9 +905,9 @@ static Value m_cemitter_collectfunctions_1_list(Value v_this, Value *args, int32
                         (void)(alg_invoke(alg_property(v_this, "EnumTypes"), "Add", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1));
                         (void)(alg_invoke(alg_property(v_this, "Canonical"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 2));
                         {
-                            Value loop_3 = alg_iterable(alg_property(v_thestmt, "Members"));
-                            for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
-                                Value v_themember = alg_iterable_at(loop_3, at_3);
+                            Value loop_4 = alg_iterable(alg_property(v_thestmt, "Members"));
+                            for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
+                                Value v_themember = alg_iterable_at(loop_4, at_4);
                                 (void)v_themember;
                                 {
                                     Value v_member = alg_str(alg_property(v_themember, "Lexeme"));
@@ -911,9 +938,9 @@ static Value m_cemitter_collectglobals_1_list(Value v_this, Value *args, int32_t
     Value v_statements = alg_widen(args[0], "List");
     (void)v_statements;
     {
-        Value loop_4 = alg_iterable(v_statements);
-        for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
-            Value v_thestmt = alg_iterable_at(loop_4, at_4);
+        Value loop_5 = alg_iterable(v_statements);
+        for (int32_t at_5 = 0; at_5 < alg_iterable_count(loop_5); at_5++) {
+            Value v_thestmt = alg_iterable_at(loop_5, at_5);
             (void)v_thestmt;
             {
                 if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
@@ -924,9 +951,9 @@ static Value m_cemitter_collectglobals_1_list(Value v_this, Value *args, int32_t
                 }
                 if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                     {
-                        Value loop_5 = alg_iterable(alg_property(v_thestmt, "Names"));
-                        for (int32_t at_5 = 0; at_5 < alg_iterable_count(loop_5); at_5++) {
-                            Value v_thename = alg_iterable_at(loop_5, at_5);
+                        Value loop_6 = alg_iterable(alg_property(v_thestmt, "Names"));
+                        for (int32_t at_6 = 0; at_6 < alg_iterable_count(loop_6); at_6++) {
+                            Value v_thename = alg_iterable_at(loop_6, at_6);
                             (void)v_thename;
                             {
                                 (void)(alg_invoke(alg_property(v_this, "Globals"), "Add", (Value[]){alg_str(alg_property(v_thename, "Lexeme"))}, 1));
@@ -982,9 +1009,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
     Value v_seen = alg_set();
     (void)v_seen;
     {
-        Value loop_6 = alg_iterable(v_units);
-        for (int32_t at_6 = 0; at_6 < alg_iterable_count(loop_6); at_6++) {
-            Value v_theunit = alg_iterable_at(loop_6, at_6);
+        Value loop_7 = alg_iterable(v_units);
+        for (int32_t at_7 = 0; at_7 < alg_iterable_count(loop_7); at_7++) {
+            Value v_theunit = alg_iterable_at(loop_7, at_7);
             (void)v_theunit;
             {
                 if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){alg_str(alg_property(v_theunit, "Name"))}, 1))) {
@@ -995,17 +1022,17 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
         }
     }
     {
-        Value loop_7 = alg_iterable(v_units);
-        for (int32_t at_7 = 0; at_7 < alg_iterable_count(loop_7); at_7++) {
-            Value v_theunit = alg_iterable_at(loop_7, at_7);
+        Value loop_8 = alg_iterable(v_units);
+        for (int32_t at_8 = 0; at_8 < alg_iterable_count(loop_8); at_8++) {
+            Value v_theunit = alg_iterable_at(loop_8, at_8);
             (void)v_theunit;
             (void)(alg_invoke(v_this, "CollectFunctions", (Value[]){alg_property(v_theunit, "Statements")}, 1));
         }
     }
     {
-        Value loop_8 = alg_iterable(v_units);
-        for (int32_t at_8 = 0; at_8 < alg_iterable_count(loop_8); at_8++) {
-            Value v_theunit = alg_iterable_at(loop_8, at_8);
+        Value loop_9 = alg_iterable(v_units);
+        for (int32_t at_9 = 0; at_9 < alg_iterable_count(loop_9); at_9++) {
+            Value v_theunit = alg_iterable_at(loop_9, at_9);
             (void)v_theunit;
             {
                 (void)(alg_set_property(v_this, "TopLevel", alg_widen(alg_set(), "Set")));
@@ -1016,9 +1043,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
         }
     }
     {
-        Value loop_9 = alg_iterable(v_units);
-        for (int32_t at_9 = 0; at_9 < alg_iterable_count(loop_9); at_9++) {
-            Value v_theunit = alg_iterable_at(loop_9, at_9);
+        Value loop_10 = alg_iterable(v_units);
+        for (int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
+            Value v_theunit = alg_iterable_at(loop_10, at_10);
             (void)v_theunit;
             {
                 Value v_exported = alg_set();
@@ -1048,9 +1075,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                                 {
                                     (void)(alg_invoke(v_exported, "Add", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1));
                                     {
-                                        Value loop_10 = alg_iterable(alg_property(v_thestmt, "Members"));
-                                        for (int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
-                                            Value v_member = alg_iterable_at(loop_10, at_10);
+                                        Value loop_11 = alg_iterable(alg_property(v_thestmt, "Members"));
+                                        for (int32_t at_11 = 0; at_11 < alg_iterable_count(loop_11); at_11++) {
+                                            Value v_member = alg_iterable_at(loop_11, at_11);
                                             (void)v_member;
                                             (void)(alg_invoke(v_exported, "Add", (Value[]){alg_str(alg_property(v_member, "Lexeme"))}, 1));
                                         }
@@ -1059,9 +1086,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                             }
                             if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                                 {
-                                    Value loop_11 = alg_iterable(alg_property(v_thestmt, "Names"));
-                                    for (int32_t at_11 = 0; at_11 < alg_iterable_count(loop_11); at_11++) {
-                                        Value v_eachname = alg_iterable_at(loop_11, at_11);
+                                    Value loop_12 = alg_iterable(alg_property(v_thestmt, "Names"));
+                                    for (int32_t at_12 = 0; at_12 < alg_iterable_count(loop_12); at_12++) {
+                                        Value v_eachname = alg_iterable_at(loop_12, at_12);
                                         (void)v_eachname;
                                         (void)(alg_invoke(v_exported, "Add", (Value[]){alg_str(alg_property(v_eachname, "Lexeme"))}, 1));
                                     }
@@ -1145,9 +1172,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                 (void)(alg_set_property(v_this, "SetsBuilt", alg_widen(alg_set(), "Set")));
                 (void)(alg_set_property(v_this, "OwnClasses", alg_widen(alg_set(), "Set")));
                 {
-                    Value loop_12 = alg_iterable(alg_property(v_unit, "Statements"));
-                    for (int32_t at_12 = 0; at_12 < alg_iterable_count(loop_12); at_12++) {
-                        Value v_statement = alg_iterable_at(loop_12, at_12);
+                    Value loop_13 = alg_iterable(alg_property(v_unit, "Statements"));
+                    for (int32_t at_13 = 0; at_13 < alg_iterable_count(loop_13); at_13++) {
+                        Value v_statement = alg_iterable_at(loop_13, at_13);
                         (void)v_statement;
                         if (alg_truthy((or_19 = alg_is(v_statement, "ClassStmt"), alg_truthy(or_19) ? or_19 : alg_is(v_statement, "ObjectStmt")))) {
                             (void)(alg_invoke(alg_property(v_this, "OwnClasses"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_statement, "Name"), "Lexeme")}, 1)}, 1));
@@ -1176,9 +1203,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                 (void)v_importowner;
                 (void)(alg_set_property(v_this, "AmbiguousImports", alg_widen(alg_map(), "Map")));
                 {
-                    Value loop_13 = alg_iterable(alg_property(v_unit, "Imports"));
-                    for (int32_t at_13 = 0; at_13 < alg_iterable_count(loop_13); at_13++) {
-                        Value v_import = alg_iterable_at(loop_13, at_13);
+                    Value loop_14 = alg_iterable(alg_property(v_unit, "Imports"));
+                    for (int32_t at_14 = 0; at_14 < alg_iterable_count(loop_14); at_14++) {
+                        Value v_import = alg_iterable_at(loop_14, at_14);
                         (void)v_import;
                         if (alg_truthy(alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){alg_str(v_import)}, 1))) {
                             {
@@ -1215,9 +1242,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                         Value v_declares = alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitAll"), "Get", (Value[]){alg_str(alg_property(v_unit, "Name"))}, 1), "Set")), "ToList", NULL, 0);
                         (void)v_declares;
                         {
-                            Value loop_14 = alg_iterable(v_declares);
-                            for (int32_t at_14 = 0; at_14 < alg_iterable_count(loop_14); at_14++) {
-                                Value v_declare = alg_iterable_at(loop_14, at_14);
+                            Value loop_15 = alg_iterable(v_declares);
+                            for (int32_t at_15 = 0; at_15 < alg_iterable_count(loop_15); at_15++) {
+                                Value v_declare = alg_iterable_at(loop_15, at_15);
                                 (void)v_declare;
                                 (void)(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Remove", (Value[]){alg_str(v_declare)}, 1));
                             }
@@ -1246,6 +1273,7 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                         }
                     }
                 }
+                (void)(alg_set_property(v_this, "ImportedFrom", alg_widen(v_importowner, "Map")));
                 Value v_reached = alg_invoke(v_importowner, "Keys", NULL, 0);
                 (void)v_reached;
                 {
@@ -1278,9 +1306,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                     }
                 }
                 {
-                    Value loop_15 = alg_iterable(alg_property(v_unit, "Imports"));
-                    for (int32_t at_15 = 0; at_15 < alg_iterable_count(loop_15); at_15++) {
-                        Value v_theimport = alg_iterable_at(loop_15, at_15);
+                    Value loop_16 = alg_iterable(alg_property(v_unit, "Imports"));
+                    for (int32_t at_16 = 0; at_16 < alg_iterable_count(loop_16); at_16++) {
+                        Value v_theimport = alg_iterable_at(loop_16, at_16);
                         (void)v_theimport;
                         if (alg_truthy(alg_invoke(alg_property(v_this, "UnitExports"), "Contains", (Value[]){alg_str(v_theimport)}, 1))) {
                             {
@@ -1301,14 +1329,14 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                 (void)(alg_set_property(v_this, "ShadowWhole", alg_widen(alg_set(), "Set")));
                 (void)(alg_invoke(v_this, "CollectShadowArities", (Value[]){alg_property(v_unit, "Statements"), alg_list()}, 2));
                 {
-                    Value loop_16 = alg_iterable(alg_property(v_unit, "Imports"));
-                    for (int32_t at_16 = 0; at_16 < alg_iterable_count(loop_16); at_16++) {
-                        Value v_theimport = alg_iterable_at(loop_16, at_16);
+                    Value loop_17 = alg_iterable(alg_property(v_unit, "Imports"));
+                    for (int32_t at_17 = 0; at_17 < alg_iterable_count(loop_17); at_17++) {
+                        Value v_theimport = alg_iterable_at(loop_17, at_17);
                         (void)v_theimport;
                         {
-                            Value loop_17 = alg_iterable(v_units);
-                            for (int32_t at_17 = 0; at_17 < alg_iterable_count(loop_17); at_17++) {
-                                Value v_other = alg_iterable_at(loop_17, at_17);
+                            Value loop_18 = alg_iterable(v_units);
+                            for (int32_t at_18 = 0; at_18 < alg_iterable_count(loop_18); at_18++) {
+                                Value v_other = alg_iterable_at(loop_18, at_18);
                                 (void)v_other;
                                 if (alg_truthy(alg_equal(alg_str(alg_property(v_other, "Name")), alg_str(v_theimport)))) {
                                     (void)(alg_invoke(v_this, "CollectShadowArities", (Value[]){alg_property(v_other, "Statements"), alg_property(v_other, "PrivateNames")}, 2));
@@ -1318,9 +1346,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                     }
                 }
                 {
-                    Value loop_18 = alg_iterable(alg_property(v_unit, "Statements"));
-                    for (int32_t at_18 = 0; at_18 < alg_iterable_count(loop_18); at_18++) {
-                        Value v_thestmt = alg_iterable_at(loop_18, at_18);
+                    Value loop_19 = alg_iterable(alg_property(v_unit, "Statements"));
+                    for (int32_t at_19 = 0; at_19 < alg_iterable_count(loop_19); at_19++) {
+                        Value v_thestmt = alg_iterable_at(loop_19, at_19);
                         (void)v_thestmt;
                         {
                             if (alg_truthy((or_22 = alg_is(v_thestmt, "FunctionStmt"), !alg_truthy(or_22) ? or_22 : alg_not(alg_invoke(v_this, "IsTest", (Value[]){v_thestmt}, 1))))) {
@@ -1337,9 +1365,9 @@ static Value m_cemitter_emit_2_list_string(Value v_this, Value *args, int32_t co
                 (void)(alg_set_property(v_this, "AtTopLevel", alg_widen(alg_bool(true), "Boolean")));
                 (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_unit, "Statements")}, 1));
                 {
-                    Value loop_19 = alg_iterable(alg_property(v_unit, "Statements"));
-                    for (int32_t at_19 = 0; at_19 < alg_iterable_count(loop_19); at_19++) {
-                        Value v_thestmt = alg_iterable_at(loop_19, at_19);
+                    Value loop_20 = alg_iterable(alg_property(v_unit, "Statements"));
+                    for (int32_t at_20 = 0; at_20 < alg_iterable_count(loop_20); at_20++) {
+                        Value v_thestmt = alg_iterable_at(loop_20, at_20);
                         (void)v_thestmt;
                         {
                             if (alg_truthy((or_24 = alg_invoke(v_this, "RunsWhenTesting", (Value[]){v_thestmt}, 1), alg_truthy(or_24) ? or_24 : alg_not(((or_23 = alg_property(v_this, "EmitTests"), !alg_truthy(or_23) ? or_23 : v_ismain)))))) {
@@ -1420,9 +1448,9 @@ static Value m_cemitter_unitsource_4_list_boolean_string(Value v_this, Value *ar
     (void)((v_text = alg_widen(alg_add(alg_string("/* Generated from Algol-24.  Do not edit. */"), alg_char_value(10)), "String")));
     (void)((v_text = alg_widen(alg_add(alg_add(alg_add(alg_add(v_text, alg_string("#include \"")), alg_str(alg_property(v_unit, "Name"))), alg_string(".h\"")), alg_char_value(10)), "String")));
     {
-        Value loop_20 = alg_iterable(alg_property(v_unit, "Imports"));
-        for (int32_t at_20 = 0; at_20 < alg_iterable_count(loop_20); at_20++) {
-            Value v_import = alg_iterable_at(loop_20, at_20);
+        Value loop_21 = alg_iterable(alg_property(v_unit, "Imports"));
+        for (int32_t at_21 = 0; at_21 < alg_iterable_count(loop_21); at_21++) {
+            Value v_import = alg_iterable_at(loop_21, at_21);
             (void)v_import;
             (void)((v_text = alg_widen(alg_add(alg_add(alg_add(alg_add(v_text, alg_string("#include \"")), alg_str(v_import)), alg_string(".h\"")), alg_char_value(10)), "String")));
         }
@@ -1484,9 +1512,9 @@ static Value m_cemitter_emittestrunner_0(Value v_this, Value *args, int32_t coun
     Value v_files = alg_nil();
     (void)v_files;
     {
-        Value loop_21 = alg_iterable(alg_property(v_this, "TestSymbols"));
-        for (int32_t at_21 = 0; at_21 < alg_iterable_count(loop_21); at_21++) {
-            Value v_testsymbol = alg_iterable_at(loop_21, at_21);
+        Value loop_22 = alg_iterable(alg_property(v_this, "TestSymbols"));
+        for (int32_t at_22 = 0; at_22 < alg_iterable_count(loop_22); at_22++) {
+            Value v_testsymbol = alg_iterable_at(loop_22, at_22);
             (void)v_testsymbol;
             (void)(alg_invoke(alg_property(v_this, "Declarations"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_string("Value "), alg_str(v_testsymbol)), alg_string("(Value **cells, Value *args, int32_t count);")), alg_char_value(10))}, 1));
         }
@@ -1494,9 +1522,9 @@ static Value m_cemitter_emittestrunner_0(Value v_this, Value *args, int32_t coun
     (void)(alg_invoke(alg_property(v_this, "MainBody"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    alg_test_begin("), alg_str(alg_property(alg_property(v_this, "Tests"), "Length"))), alg_string(", ")), f_quotec(NULL, (Value[]){alg_property(v_this, "SourceFile")}, 1)), alg_string(");")), alg_char_value(10))}, 1));
     (void)((v_files = alg_widen(alg_list(), "List")));
     {
-        Value loop_22 = alg_iterable(alg_property(v_this, "TestFiles"));
-        for (int32_t at_22 = 0; at_22 < alg_iterable_count(loop_22); at_22++) {
-            Value v_testfile = alg_iterable_at(loop_22, at_22);
+        Value loop_23 = alg_iterable(alg_property(v_this, "TestFiles"));
+        for (int32_t at_23 = 0; at_23 < alg_iterable_count(loop_23); at_23++) {
+            Value v_testfile = alg_iterable_at(loop_23, at_23);
             (void)v_testfile;
             if (alg_truthy(alg_not(alg_invoke(v_files, "Contains", (Value[]){v_testfile}, 1)))) {
                 (void)(alg_invoke(v_files, "Add", (Value[]){v_testfile}, 1));
@@ -1504,9 +1532,9 @@ static Value m_cemitter_emittestrunner_0(Value v_this, Value *args, int32_t coun
         }
     }
     {
-        Value loop_23 = alg_iterable(v_files);
-        for (int32_t at_23 = 0; at_23 < alg_iterable_count(loop_23); at_23++) {
-            Value v_file = alg_iterable_at(loop_23, at_23);
+        Value loop_24 = alg_iterable(v_files);
+        for (int32_t at_24 = 0; at_24 < alg_iterable_count(loop_24); at_24++) {
+            Value v_file = alg_iterable_at(loop_24, at_24);
             (void)v_file;
             {
                 (void)(alg_invoke(alg_property(v_this, "MainBody"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_string("    alg_test_file("), f_quotec(NULL, (Value[]){alg_str(v_file)}, 1)), alg_string(");")), alg_char_value(10))}, 1));
@@ -1542,9 +1570,9 @@ static Value m_cemitter_emittestrunner_0(Value v_this, Value *args, int32_t coun
                     }
                 }
                 {
-                    Value loop_24 = alg_iterable(v_ordered);
-                    for (int32_t at_24 = 0; at_24 < alg_iterable_count(loop_24); at_24++) {
-                        Value v_each = alg_iterable_at(loop_24, at_24);
+                    Value loop_25 = alg_iterable(v_ordered);
+                    for (int32_t at_25 = 0; at_25 < alg_iterable_count(loop_25); at_25++) {
+                        Value v_each = alg_iterable_at(loop_25, at_25);
                         (void)v_each;
                         (void)(alg_invoke(alg_property(v_this, "MainBody"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    alg_test_run("), f_quotec(NULL, (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(alg_property(v_this, "Tests"), v_each), "Name"), "Literal"))}, 1)), alg_string(", ")), alg_str(alg_subscript_get(alg_property(v_this, "TestSymbols"), v_each))), alg_string(");")), alg_char_value(10))}, 1));
                     }
@@ -1626,9 +1654,9 @@ static Value m_cemitter_emittest_1(Value v_this, Value *args, int32_t count) {
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_thestmt, "Body")}, 1));
     (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_thestmt, "Body")}, 1));
     {
-        Value loop_25 = alg_iterable(alg_property(v_thestmt, "Body"));
-        for (int32_t at_25 = 0; at_25 < alg_iterable_count(loop_25); at_25++) {
-            Value v_each = alg_iterable_at(loop_25, at_25);
+        Value loop_26 = alg_iterable(alg_property(v_thestmt, "Body"));
+        for (int32_t at_26 = 0; at_26 < alg_iterable_count(loop_26); at_26++) {
+            Value v_each = alg_iterable_at(loop_26, at_26);
             (void)v_each;
             (void)(alg_invoke(v_this, "Execute", (Value[]){v_each}, 1));
         }
@@ -1670,9 +1698,9 @@ static Value m_cemitter_declaresnested_1_list(Value v_this, Value *args, int32_t
     Value v_statements = alg_widen(args[0], "List");
     (void)v_statements;
     {
-        Value loop_26 = alg_iterable(v_statements);
-        for (int32_t at_26 = 0; at_26 < alg_iterable_count(loop_26); at_26++) {
-            Value v_thestmt = alg_iterable_at(loop_26, at_26);
+        Value loop_27 = alg_iterable(v_statements);
+        for (int32_t at_27 = 0; at_27 < alg_iterable_count(loop_27); at_27++) {
+            Value v_thestmt = alg_iterable_at(loop_27, at_27);
             (void)v_thestmt;
             {
                 if (alg_truthy(alg_is(v_thestmt, "FunctionStmt"))) {
@@ -1705,9 +1733,9 @@ static Value m_cemitter_declaresnested_1_list(Value v_this, Value *args, int32_t
                         Value v_handlers = alg_invoke(alg_property(v_thestmt, "Handlers"), "Values", NULL, 0);
                         (void)v_handlers;
                         {
-                            Value loop_27 = alg_iterable(v_handlers);
-                            for (int32_t at_27 = 0; at_27 < alg_iterable_count(loop_27); at_27++) {
-                                Value v_handler = alg_iterable_at(loop_27, at_27);
+                            Value loop_28 = alg_iterable(v_handlers);
+                            for (int32_t at_28 = 0; at_28 < alg_iterable_count(loop_28); at_28++) {
+                                Value v_handler = alg_iterable_at(loop_28, at_28);
                                 (void)v_handler;
                                 if (alg_truthy(alg_invoke(v_this, "DeclaresNested", (Value[]){alg_list_keep(alg_list(), alg_property(v_handler, "Body"))}, 1))) {
                                     return alg_bool(true);
@@ -1742,9 +1770,9 @@ static Value m_cemitter_collectbindings_2_list_list(Value v_this, Value *args, i
     Value v_names = alg_widen(args[1], "List");
     (void)v_names;
     {
-        Value loop_28 = alg_iterable(v_statements);
-        for (int32_t at_28 = 0; at_28 < alg_iterable_count(loop_28); at_28++) {
-            Value v_thestmt = alg_iterable_at(loop_28, at_28);
+        Value loop_29 = alg_iterable(v_statements);
+        for (int32_t at_29 = 0; at_29 < alg_iterable_count(loop_29); at_29++) {
+            Value v_thestmt = alg_iterable_at(loop_29, at_29);
             (void)v_thestmt;
             {
                 if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
@@ -1752,9 +1780,9 @@ static Value m_cemitter_collectbindings_2_list_list(Value v_this, Value *args, i
                 }
                 if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                     {
-                        Value loop_29 = alg_iterable(alg_property(v_thestmt, "Names"));
-                        for (int32_t at_29 = 0; at_29 < alg_iterable_count(loop_29); at_29++) {
-                            Value v_thename = alg_iterable_at(loop_29, at_29);
+                        Value loop_30 = alg_iterable(alg_property(v_thestmt, "Names"));
+                        for (int32_t at_30 = 0; at_30 < alg_iterable_count(loop_30); at_30++) {
+                            Value v_thename = alg_iterable_at(loop_30, at_30);
                             (void)v_thename;
                             (void)(alg_invoke(v_this, "AddOnce", (Value[]){v_names, alg_str(alg_property(v_thename, "Lexeme"))}, 2));
                         }
@@ -1786,9 +1814,9 @@ static Value m_cemitter_collectbindings_2_list_list(Value v_this, Value *args, i
                         Value v_handlers = alg_invoke(alg_property(v_thestmt, "Handlers"), "Values", NULL, 0);
                         (void)v_handlers;
                         {
-                            Value loop_30 = alg_iterable(v_handlers);
-                            for (int32_t at_30 = 0; at_30 < alg_iterable_count(loop_30); at_30++) {
-                                Value v_handler = alg_iterable_at(loop_30, at_30);
+                            Value loop_31 = alg_iterable(v_handlers);
+                            for (int32_t at_31 = 0; at_31 < alg_iterable_count(loop_31); at_31++) {
+                                Value v_handler = alg_iterable_at(loop_31, at_31);
                                 (void)v_handler;
                                 {
                                     (void)(alg_invoke(v_this, "AddOnce", (Value[]){v_names, alg_str(alg_property(v_handler, "Name"))}, 2));
@@ -1812,9 +1840,9 @@ static Value m_cemitter_boundnames_1(Value v_this, Value *args, int32_t count) {
     (void)v_names;
     (void)((v_names = alg_widen(alg_list(), "List")));
     {
-        Value loop_31 = alg_iterable(alg_property(v_thestmt, "Params"));
-        for (int32_t at_31 = 0; at_31 < alg_iterable_count(loop_31); at_31++) {
-            Value v_param = alg_iterable_at(loop_31, at_31);
+        Value loop_32 = alg_iterable(alg_property(v_thestmt, "Params"));
+        for (int32_t at_32 = 0; at_32 < alg_iterable_count(loop_32); at_32++) {
+            Value v_param = alg_iterable_at(loop_32, at_32);
             (void)v_param;
             (void)(alg_invoke(v_this, "AddOnce", (Value[]){v_names, alg_str(alg_property(v_param, "Lexeme"))}, 2));
         }
@@ -1876,9 +1904,9 @@ static Value m_cemitter_visiblecells_2_map_list(Value v_this, Value *args, int32
     (void)v_names;
     (void)((v_names = alg_widen(alg_invoke(v_given, "Keys", NULL, 0), "List")));
     {
-        Value loop_32 = alg_iterable(v_own);
-        for (int32_t at_32 = 0; at_32 < alg_iterable_count(loop_32); at_32++) {
-            Value v_each = alg_iterable_at(loop_32, at_32);
+        Value loop_33 = alg_iterable(v_own);
+        for (int32_t at_33 = 0; at_33 < alg_iterable_count(loop_33); at_33++) {
+            Value v_each = alg_iterable_at(loop_33, at_33);
             (void)v_each;
             (void)(alg_invoke(v_this, "AddOnce", (Value[]){v_names, alg_str(v_each)}, 2));
         }
@@ -1938,9 +1966,9 @@ static Value m_cemitter_containstry_1_list(Value v_this, Value *args, int32_t co
     Value v_statements = alg_widen(args[0], "List");
     (void)v_statements;
     {
-        Value loop_33 = alg_iterable(v_statements);
-        for (int32_t at_33 = 0; at_33 < alg_iterable_count(loop_33); at_33++) {
-            Value v_thestmt = alg_iterable_at(loop_33, at_33);
+        Value loop_34 = alg_iterable(v_statements);
+        for (int32_t at_34 = 0; at_34 < alg_iterable_count(loop_34); at_34++) {
+            Value v_thestmt = alg_iterable_at(loop_34, at_34);
             (void)v_thestmt;
             {
                 if (alg_truthy(alg_is(v_thestmt, "TryStmt"))) {
@@ -2033,9 +2061,9 @@ static Value m_cemitter_hoistcells_1_list(Value v_this, Value *args, int32_t cou
     Value v_statements = alg_widen(args[0], "List");
     (void)v_statements;
     {
-        Value loop_34 = alg_iterable(v_statements);
-        for (int32_t at_34 = 0; at_34 < alg_iterable_count(loop_34); at_34++) {
-            Value v_thestmt = alg_iterable_at(loop_34, at_34);
+        Value loop_35 = alg_iterable(v_statements);
+        for (int32_t at_35 = 0; at_35 < alg_iterable_count(loop_35); at_35++) {
+            Value v_thestmt = alg_iterable_at(loop_35, at_35);
             (void)v_thestmt;
             {
                 if (alg_truthy((or_34 = alg_is(v_thestmt, "VarStmt"), !alg_truthy(or_34) ? or_34 : alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1)))) {
@@ -2046,9 +2074,9 @@ static Value m_cemitter_hoistcells_1_list(Value v_this, Value *args, int32_t cou
                 }
                 if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                     {
-                        Value loop_35 = alg_iterable(alg_property(v_thestmt, "Names"));
-                        for (int32_t at_35 = 0; at_35 < alg_iterable_count(loop_35); at_35++) {
-                            Value v_thename = alg_iterable_at(loop_35, at_35);
+                        Value loop_36 = alg_iterable(alg_property(v_thestmt, "Names"));
+                        for (int32_t at_36 = 0; at_36 < alg_iterable_count(loop_36); at_36++) {
+                            Value v_thename = alg_iterable_at(loop_36, at_36);
                             (void)v_thename;
                             if (alg_truthy(alg_invoke(alg_property(v_this, "Boxed"), "Contains", (Value[]){alg_str(alg_property(v_thename, "Lexeme"))}, 1))) {
                                 {
@@ -2157,9 +2185,9 @@ static Value m_cemitter_collectshadowarities_2_list_list(Value v_this, Value *ar
     Value v_hidden = alg_widen(args[1], "List");
     (void)v_hidden;
     {
-        Value loop_36 = alg_iterable(v_statements);
-        for (int32_t at_36 = 0; at_36 < alg_iterable_count(loop_36); at_36++) {
-            Value v_thestmt = alg_iterable_at(loop_36, at_36);
+        Value loop_37 = alg_iterable(v_statements);
+        for (int32_t at_37 = 0; at_37 < alg_iterable_count(loop_37); at_37++) {
+            Value v_thestmt = alg_iterable_at(loop_37, at_37);
             (void)v_thestmt;
             {
                 Value v_named = (or_38 = (or_37 = (or_36 = (or_35 = alg_is(v_thestmt, "FunctionStmt"), alg_truthy(or_35) ? or_35 : alg_is(v_thestmt, "ClassStmt")), alg_truthy(or_36) ? or_36 : alg_is(v_thestmt, "ObjectStmt")), alg_truthy(or_37) ? or_37 : alg_is(v_thestmt, "VarStmt")), alg_truthy(or_38) ? or_38 : alg_is(v_thestmt, "EnumStmt"));
@@ -2172,9 +2200,9 @@ static Value m_cemitter_collectshadowarities_2_list_list(Value v_this, Value *ar
                 Value v_privateQ = alg_bool(false);
                 (void)v_privateQ;
                 {
-                    Value loop_37 = alg_iterable(v_hidden);
-                    for (int32_t at_37 = 0; at_37 < alg_iterable_count(loop_37); at_37++) {
-                        Value v_each = alg_iterable_at(loop_37, at_37);
+                    Value loop_38 = alg_iterable(v_hidden);
+                    for (int32_t at_38 = 0; at_38 < alg_iterable_count(loop_38); at_38++) {
+                        Value v_each = alg_iterable_at(loop_38, at_38);
                         (void)v_each;
                         if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(v_each)}, 1), f_foldcase(NULL, (Value[]){v_thename}, 1)))) {
                             (void)((v_privateQ = alg_bool(true)));
@@ -2263,9 +2291,9 @@ static Value m_cemitter_methodsymbol_2_string(Value v_this, Value *args, int32_t
     Value v_types = alg_invoke(v_this, "DeclaredTypes", (Value[]){v_themethod}, 1);
     (void)v_types;
     {
-        Value loop_38 = alg_iterable(v_types);
-        for (int32_t at_38 = 0; at_38 < alg_iterable_count(loop_38); at_38++) {
-            Value v_thetype = alg_iterable_at(loop_38, at_38);
+        Value loop_39 = alg_iterable(v_types);
+        for (int32_t at_39 = 0; at_39 < alg_iterable_count(loop_39); at_39++) {
+            Value v_thetype = alg_iterable_at(loop_39, at_39);
             (void)v_thetype;
             if (alg_truthy(alg_not_equal(v_thetype, alg_string("Any")))) {
                 (void)((v_symbol = alg_widen(alg_add(alg_add(v_symbol, alg_char_value(95)), alg_invoke(v_this, "Escaped", (Value[]){alg_str(v_thetype)}, 1)), "String")));
@@ -2290,9 +2318,9 @@ static Value m_cemitter_namesvisible_3_string_list_boolean(Value v_this, Value *
     (void)v_at;
     (void)((v_names = alg_widen(alg_set(), "Set")));
     {
-        Value loop_39 = alg_iterable(v_own);
-        for (int32_t at_39 = 0; at_39 < alg_iterable_count(loop_39); at_39++) {
-            Value v_each = alg_iterable_at(loop_39, at_39);
+        Value loop_40 = alg_iterable(v_own);
+        for (int32_t at_40 = 0; at_40 < alg_iterable_count(loop_40); at_40++) {
+            Value v_each = alg_iterable_at(loop_40, at_40);
             (void)v_each;
             (void)(alg_invoke(v_names, "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_each, "Name"), "Lexeme")}, 1)}, 1));
         }
@@ -2311,9 +2339,9 @@ static Value m_cemitter_namesvisible_3_string_list_boolean(Value v_this, Value *
                 (void)((v_inherited = alg_property(v_ancestor, "Fields")));
             }
             {
-                Value loop_40 = alg_iterable(v_inherited);
-                for (int32_t at_40 = 0; at_40 < alg_iterable_count(loop_40); at_40++) {
-                    Value v_item = alg_iterable_at(loop_40, at_40);
+                Value loop_41 = alg_iterable(v_inherited);
+                for (int32_t at_41 = 0; at_41 < alg_iterable_count(loop_41); at_41++) {
+                    Value v_item = alg_iterable_at(loop_41, at_41);
                     (void)v_item;
                     (void)(alg_invoke(v_names, "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_item, "Name"), "Lexeme")}, 1)}, 1));
                 }
@@ -2412,9 +2440,9 @@ static Value m_cemitter_emitmethod_2_string(Value v_this, Value *args, int32_t c
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_themethod, "Body")}, 1));
     (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_themethod, "Body")}, 1));
     {
-        Value loop_41 = alg_iterable(alg_property(v_themethod, "Body"));
-        for (int32_t at_41 = 0; at_41 < alg_iterable_count(loop_41); at_41++) {
-            Value v_each = alg_iterable_at(loop_41, at_41);
+        Value loop_42 = alg_iterable(alg_property(v_themethod, "Body"));
+        for (int32_t at_42 = 0; at_42 < alg_iterable_count(loop_42); at_42++) {
+            Value v_each = alg_iterable_at(loop_42, at_42);
             (void)v_each;
             (void)(alg_invoke(v_this, "Execute", (Value[]){v_each}, 1));
         }
@@ -2482,9 +2510,9 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
     Value v_declaresid = alg_bool(false);
     (void)v_declaresid;
     {
-        Value loop_42 = alg_iterable(v_fields);
-        for (int32_t at_42 = 0; at_42 < alg_iterable_count(loop_42); at_42++) {
-            Value v_field = alg_iterable_at(loop_42, at_42);
+        Value loop_43 = alg_iterable(v_fields);
+        for (int32_t at_43 = 0; at_43 < alg_iterable_count(loop_43); at_43++) {
+            Value v_field = alg_iterable_at(loop_43, at_43);
             (void)v_field;
             if (alg_truthy(alg_equal(alg_str(alg_property(alg_property(v_field, "Name"), "Lexeme")), alg_string("Id")))) {
                 (void)((v_declaresid = alg_bool(true)));
@@ -2498,9 +2526,9 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
     }
     (void)((v_applied = alg_widen(alg_string(""), "String")));
     {
-        Value loop_43 = alg_iterable(v_fields);
-        for (int32_t at_43 = 0; at_43 < alg_iterable_count(loop_43); at_43++) {
-            Value v_thefield = alg_iterable_at(loop_43, at_43);
+        Value loop_44 = alg_iterable(v_fields);
+        for (int32_t at_44 = 0; at_44 < alg_iterable_count(loop_44); at_44++) {
+            Value v_thefield = alg_iterable_at(loop_44, at_44);
             (void)v_thefield;
             {
                 Value v_value = alg_string("alg_nil()");
@@ -2524,9 +2552,9 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
     (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){v_applied}, 1));
     (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_string("    return alg_nil();"), alg_char_value(10)), alg_char_value(125)), alg_char_value(10)), alg_char_value(10))}, 1));
     {
-        Value loop_44 = alg_iterable(v_methods);
-        for (int32_t at_44 = 0; at_44 < alg_iterable_count(loop_44); at_44++) {
-            Value v_method = alg_iterable_at(loop_44, at_44);
+        Value loop_45 = alg_iterable(v_methods);
+        for (int32_t at_45 = 0; at_45 < alg_iterable_count(loop_45); at_45++) {
+            Value v_method = alg_iterable_at(loop_45, at_45);
             (void)v_method;
             (void)(alg_invoke(v_this, "EmitMethod", (Value[]){v_name, v_method}, 2));
         }
@@ -2549,9 +2577,9 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
         }
     }
     {
-        Value loop_45 = alg_iterable(v_fields);
-        for (int32_t at_45 = 0; at_45 < alg_iterable_count(loop_45); at_45++) {
-            Value v_eachfield = alg_iterable_at(loop_45, at_45);
+        Value loop_46 = alg_iterable(v_fields);
+        for (int32_t at_46 = 0; at_46 < alg_iterable_count(loop_46); at_46++) {
+            Value v_eachfield = alg_iterable_at(loop_46, at_46);
             (void)v_eachfield;
             (void)(alg_invoke(v_this, "Built", (Value[]){v_hoisted, alg_add(alg_add(alg_add(alg_add(alg_string("alg_class_field("), v_handle), alg_string(", ")), f_quotec(NULL, (Value[]){alg_str(alg_property(alg_property(v_eachfield, "Name"), "Lexeme"))}, 1)), alg_string(");"))}, 2));
         }
@@ -2561,9 +2589,9 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
     }
     (void)(alg_invoke(v_this, "Built", (Value[]){v_hoisted, alg_add(alg_add(alg_add(alg_add(alg_string("alg_class_initializer("), v_handle), alg_string(", ")), v_initializer), alg_string(");"))}, 2));
     {
-        Value loop_46 = alg_iterable(v_methods);
-        for (int32_t at_46 = 0; at_46 < alg_iterable_count(loop_46); at_46++) {
-            Value v_themethod = alg_iterable_at(loop_46, at_46);
+        Value loop_47 = alg_iterable(v_methods);
+        for (int32_t at_47 = 0; at_47 < alg_iterable_count(loop_47); at_47++) {
+            Value v_themethod = alg_iterable_at(loop_47, at_47);
             (void)v_themethod;
             {
                 Value v_types = alg_invoke(v_this, "ParameterTable", (Value[]){v_themethod}, 1);
@@ -2673,9 +2701,9 @@ static Value m_cemitter_pushlabels_1_list(Value v_this, Value *args, int32_t cou
     (void)v_here;
     (void)((v_here = alg_widen(alg_map(), "Map")));
     {
-        Value loop_47 = alg_iterable(v_statements);
-        for (int32_t at_47 = 0; at_47 < alg_iterable_count(loop_47); at_47++) {
-            Value v_statement = alg_iterable_at(loop_47, at_47);
+        Value loop_48 = alg_iterable(v_statements);
+        for (int32_t at_48 = 0; at_48 < alg_iterable_count(loop_48); at_48++) {
+            Value v_statement = alg_iterable_at(loop_48, at_48);
             (void)v_statement;
             if (alg_truthy(alg_is(v_statement, "LabelStmt"))) {
                 (void)(alg_invoke(v_here, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(v_statement, "Name"), "Lexeme"))}, 1), alg_property(v_this, "TryDepth")}, 2));
@@ -2743,9 +2771,9 @@ static Value m_cemitter_visitblockstmt_1_blockstmt(Value v_this, Value *args, in
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
     (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
     {
-        Value loop_48 = alg_iterable(alg_property(v_thestmt, "Statements"));
-        for (int32_t at_48 = 0; at_48 < alg_iterable_count(loop_48); at_48++) {
-            Value v_statement = alg_iterable_at(loop_48, at_48);
+        Value loop_49 = alg_iterable(alg_property(v_thestmt, "Statements"));
+        for (int32_t at_49 = 0; at_49 < alg_iterable_count(loop_49); at_49++) {
+            Value v_statement = alg_iterable_at(loop_49, at_49);
             (void)v_statement;
             (void)(alg_invoke(v_this, "Execute", (Value[]){v_statement}, 1));
         }
@@ -3020,9 +3048,9 @@ static Value m_cemitter_visitfunctionstmt_1_functionstmt(Value v_this, Value *ar
     (void)(alg_invoke(v_this, "HoistCells", (Value[]){alg_property(v_thestmt, "Body")}, 1));
     (void)(alg_invoke(v_this, "PushLabels", (Value[]){alg_property(v_thestmt, "Body")}, 1));
     {
-        Value loop_49 = alg_iterable(alg_property(v_thestmt, "Body"));
-        for (int32_t at_49 = 0; at_49 < alg_iterable_count(loop_49); at_49++) {
-            Value v_each = alg_iterable_at(loop_49, at_49);
+        Value loop_50 = alg_iterable(alg_property(v_thestmt, "Body"));
+        for (int32_t at_50 = 0; at_50 < alg_iterable_count(loop_50); at_50++) {
+            Value v_each = alg_iterable_at(loop_50, at_50);
             (void)v_each;
             (void)(alg_invoke(v_this, "Execute", (Value[]){v_each}, 1));
         }
@@ -3217,9 +3245,9 @@ static Value m_cemitter_missingname_1_string(Value v_this, Value *args, int32_t 
     (void)v_units;
     (void)((v_units = alg_widen(alg_invoke(alg_property(v_this, "UnitExports"), "Keys", NULL, 0), "List")));
     {
-        Value loop_50 = alg_iterable(v_units);
-        for (int32_t at_50 = 0; at_50 < alg_iterable_count(loop_50); at_50++) {
-            Value v_theunit = alg_iterable_at(loop_50, at_50);
+        Value loop_51 = alg_iterable(v_units);
+        for (int32_t at_51 = 0; at_51 < alg_iterable_count(loop_51); at_51++) {
+            Value v_theunit = alg_iterable_at(loop_51, at_51);
             (void)v_theunit;
             if (alg_truthy(alg_invoke((alg_cast(alg_invoke(alg_property(v_this, "UnitExports"), "Get", (Value[]){v_theunit}, 1), "Set")), "Contains", (Value[]){v_name}, 1))) {
                 return alg_add(alg_add(alg_add(alg_add(alg_string("Undefined variable '"), v_name), alg_string("'. Unit '")), alg_str(v_theunit)), alg_string("' exports it; this file has no 'uses' for it."));
@@ -3656,9 +3684,9 @@ static Value m_cemitter_anynamed_1_list(Value v_this, Value *args, int32_t count
     Value v_names = alg_widen(args[0], "List");
     (void)v_names;
     {
-        Value loop_51 = alg_iterable(v_names);
-        for (int32_t at_51 = 0; at_51 < alg_iterable_count(loop_51); at_51++) {
-            Value v_name = alg_iterable_at(loop_51, at_51);
+        Value loop_52 = alg_iterable(v_names);
+        for (int32_t at_52 = 0; at_52 < alg_iterable_count(loop_52); at_52++) {
+            Value v_name = alg_iterable_at(loop_52, at_52);
             (void)v_name;
             if (alg_truthy(alg_not_equal(alg_str(v_name), alg_string("")))) {
                 return alg_bool(true);
@@ -3769,9 +3797,9 @@ static Value m_cemitter_overloadedelsewhere_2_string_string(Value v_this, Value 
     Value v_theirs = alg_nil();
     (void)v_theirs;
     {
-        Value loop_52 = alg_iterable(alg_invoke(alg_property(v_this, "OverloadsIn"), "Keys", NULL, 0));
-        for (int32_t at_52 = 0; at_52 < alg_iterable_count(loop_52); at_52++) {
-            Value v_key = alg_iterable_at(loop_52, at_52);
+        Value loop_53 = alg_iterable(alg_invoke(alg_property(v_this, "OverloadsIn"), "Keys", NULL, 0));
+        for (int32_t at_53 = 0; at_53 < alg_iterable_count(loop_53); at_53++) {
+            Value v_key = alg_iterable_at(loop_53, at_53);
             (void)v_key;
             {
                 if (alg_truthy(alg_not_equal(f_foldcase(NULL, (Value[]){alg_str(v_key)}, 1), f_foldcase(NULL, (Value[]){v_unit}, 1)))) {
@@ -3779,9 +3807,9 @@ static Value m_cemitter_overloadedelsewhere_2_string_string(Value v_this, Value 
                 }
                 (void)((v_theirs = alg_widen(alg_cast(alg_invoke(alg_property(v_this, "OverloadsIn"), "Get", (Value[]){v_key}, 1), "Set"), "Set")));
                 {
-                    Value loop_53 = alg_iterable(alg_invoke(v_theirs, "ToList", NULL, 0));
-                    for (int32_t at_53 = 0; at_53 < alg_iterable_count(loop_53); at_53++) {
-                        Value v_each = alg_iterable_at(loop_53, at_53);
+                    Value loop_54 = alg_iterable(alg_invoke(v_theirs, "ToList", NULL, 0));
+                    for (int32_t at_54 = 0; at_54 < alg_iterable_count(loop_54); at_54++) {
+                        Value v_each = alg_iterable_at(loop_54, at_54);
                         (void)v_each;
                         if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(v_each)}, 1), f_foldcase(NULL, (Value[]){v_name}, 1)))) {
                             return alg_bool(true);
@@ -3848,9 +3876,9 @@ static Value m_cemitter_exportednames_1_emitunit(Value v_this, Value *args, int3
     (void)v_names;
     (void)((v_names = alg_widen(alg_list(), "List")));
     {
-        Value loop_54 = alg_iterable(alg_property(v_unit, "Statements"));
-        for (int32_t at_54 = 0; at_54 < alg_iterable_count(loop_54); at_54++) {
-            Value v_thestmt = alg_iterable_at(loop_54, at_54);
+        Value loop_55 = alg_iterable(alg_property(v_unit, "Statements"));
+        for (int32_t at_55 = 0; at_55 < alg_iterable_count(loop_55); at_55++) {
+            Value v_thestmt = alg_iterable_at(loop_55, at_55);
             (void)v_thestmt;
             {
                 if (alg_truthy((or_58 = alg_is(v_thestmt, "FunctionStmt"), !alg_truthy(or_58) ? or_58 : alg_not(alg_invoke(v_this, "IsTest", (Value[]){v_thestmt}, 1))))) {
@@ -3869,9 +3897,9 @@ static Value m_cemitter_exportednames_1_emitunit(Value v_this, Value *args, int3
                     {
                         (void)(alg_invoke(v_names, "Add", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1));
                         {
-                            Value loop_55 = alg_iterable(alg_property(v_thestmt, "Members"));
-                            for (int32_t at_55 = 0; at_55 < alg_iterable_count(loop_55); at_55++) {
-                                Value v_member = alg_iterable_at(loop_55, at_55);
+                            Value loop_56 = alg_iterable(alg_property(v_thestmt, "Members"));
+                            for (int32_t at_56 = 0; at_56 < alg_iterable_count(loop_56); at_56++) {
+                                Value v_member = alg_iterable_at(loop_56, at_56);
                                 (void)v_member;
                                 (void)(alg_invoke(v_names, "Add", (Value[]){alg_str(alg_property(v_member, "Lexeme"))}, 1));
                             }
@@ -3880,9 +3908,9 @@ static Value m_cemitter_exportednames_1_emitunit(Value v_this, Value *args, int3
                 }
                 if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                     {
-                        Value loop_56 = alg_iterable(alg_property(v_thestmt, "Names"));
-                        for (int32_t at_56 = 0; at_56 < alg_iterable_count(loop_56); at_56++) {
-                            Value v_thename = alg_iterable_at(loop_56, at_56);
+                        Value loop_57 = alg_iterable(alg_property(v_thestmt, "Names"));
+                        for (int32_t at_57 = 0; at_57 < alg_iterable_count(loop_57); at_57++) {
+                            Value v_thename = alg_iterable_at(loop_57, at_57);
                             (void)v_thename;
                             (void)(alg_invoke(v_names, "Add", (Value[]){alg_str(alg_property(v_thename, "Lexeme"))}, 1));
                         }
@@ -4013,9 +4041,9 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
             Value v_emitted = alg_list();
             (void)v_emitted;
             {
-                Value loop_57 = alg_iterable(alg_property(v_theexpr, "Arguments"));
-                for (int32_t at_57 = 0; at_57 < alg_iterable_count(loop_57); at_57++) {
-                    Value v_argument = alg_iterable_at(loop_57, at_57);
+                Value loop_58 = alg_iterable(alg_property(v_theexpr, "Arguments"));
+                for (int32_t at_58 = 0; at_58 < alg_iterable_count(loop_58); at_58++) {
+                    Value v_argument = alg_iterable_at(loop_58, at_58);
                     (void)v_argument;
                     (void)(alg_invoke(v_emitted, "Add", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){v_argument}, 1)}, 1));
                 }
@@ -4028,9 +4056,9 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
             Value v_emitted = alg_list();
             (void)v_emitted;
             {
-                Value loop_58 = alg_iterable(alg_property(v_theexpr, "Arguments"));
-                for (int32_t at_58 = 0; at_58 < alg_iterable_count(loop_58); at_58++) {
-                    Value v_theargument = alg_iterable_at(loop_58, at_58);
+                Value loop_59 = alg_iterable(alg_property(v_theexpr, "Arguments"));
+                for (int32_t at_59 = 0; at_59 < alg_iterable_count(loop_59); at_59++) {
+                    Value v_theargument = alg_iterable_at(loop_59, at_59);
                     (void)v_theargument;
                     (void)(alg_invoke(v_emitted, "Add", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){v_theargument}, 1)}, 1));
                 }
@@ -4059,9 +4087,9 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
             Value v_emitted = alg_list();
             (void)v_emitted;
             {
-                Value loop_59 = alg_iterable(alg_property(v_theexpr, "Arguments"));
-                for (int32_t at_59 = 0; at_59 < alg_iterable_count(loop_59); at_59++) {
-                    Value v_eachargument = alg_iterable_at(loop_59, at_59);
+                Value loop_60 = alg_iterable(alg_property(v_theexpr, "Arguments"));
+                for (int32_t at_60 = 0; at_60 < alg_iterable_count(loop_60); at_60++) {
+                    Value v_eachargument = alg_iterable_at(loop_60, at_60);
                     (void)v_eachargument;
                     (void)(alg_invoke(v_emitted, "Add", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){v_eachargument}, 1)}, 1));
                 }
@@ -4077,9 +4105,9 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
             Value v_emitted = alg_list();
             (void)v_emitted;
             {
-                Value loop_60 = alg_iterable(alg_property(v_theexpr, "Arguments"));
-                for (int32_t at_60 = 0; at_60 < alg_iterable_count(loop_60); at_60++) {
-                    Value v_item = alg_iterable_at(loop_60, at_60);
+                Value loop_61 = alg_iterable(alg_property(v_theexpr, "Arguments"));
+                for (int32_t at_61 = 0; at_61 < alg_iterable_count(loop_61); at_61++) {
+                    Value v_item = alg_iterable_at(loop_61, at_61);
                     (void)v_item;
                     (void)(alg_invoke(v_emitted, "Add", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){v_item}, 1)}, 1));
                 }
@@ -4163,7 +4191,7 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
     if (alg_truthy((or_81 = alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1), !alg_truthy(or_81) ? or_81 : alg_not(alg_invoke(alg_property(v_this, "ShadowNames"), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "MissingName", (Value[]){v_name}, 1)}, 1)), alg_string("), alg_nil())"));
     }
-    if (alg_truthy((or_82 = alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1), !alg_truthy(or_82) ? or_82 : alg_invoke(alg_property(v_this, "Overloaded"), "Contains", (Value[]){v_name}, 1)))) {
+    if (alg_truthy((or_82 = alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1), !alg_truthy(or_82) ? or_82 : alg_invoke(v_this, "IsOverloadSet", (Value[]){v_name}, 1)))) {
         return alg_invoke(v_this, "Calling", (Value[]){alg_invoke(v_this, "SetName", (Value[]){v_name}, 1), v_arguments, alg_property(v_theexpr, "ArgumentNames")}, 3);
     }
     if (alg_truthy(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))) {
@@ -4246,9 +4274,9 @@ static Value m_cemitter_allliterals_1_collectionexpr(Value v_this, Value *args, 
     Value v_theexpr = alg_widen(args[0], "CollectionExpr");
     (void)v_theexpr;
     {
-        Value loop_61 = alg_iterable(alg_property(v_theexpr, "Values"));
-        for (int32_t at_61 = 0; at_61 < alg_iterable_count(loop_61); at_61++) {
-            Value v_value = alg_iterable_at(loop_61, at_61);
+        Value loop_62 = alg_iterable(alg_property(v_theexpr, "Values"));
+        for (int32_t at_62 = 0; at_62 < alg_iterable_count(loop_62); at_62++) {
+            Value v_value = alg_iterable_at(loop_62, at_62);
             (void)v_value;
             if (alg_truthy(alg_not((alg_is(v_value, "LiteralExpr"))))) {
                 return alg_bool(false);
@@ -4257,9 +4285,9 @@ static Value m_cemitter_allliterals_1_collectionexpr(Value v_this, Value *args, 
     }
     if (alg_truthy(alg_property(v_theexpr, "IsMap"))) {
         {
-            Value loop_62 = alg_iterable(alg_property(v_theexpr, "Keys"));
-            for (int32_t at_62 = 0; at_62 < alg_iterable_count(loop_62); at_62++) {
-                Value v_key = alg_iterable_at(loop_62, at_62);
+            Value loop_63 = alg_iterable(alg_property(v_theexpr, "Keys"));
+            for (int32_t at_63 = 0; at_63 < alg_iterable_count(loop_63); at_63++) {
+                Value v_key = alg_iterable_at(loop_63, at_63);
                 (void)v_key;
                 if (alg_truthy(alg_not((alg_is(v_key, "LiteralExpr"))))) {
                     return alg_bool(false);
@@ -4300,9 +4328,9 @@ static Value m_cemitter_visitcollectionexpr_1_collectionexpr(Value v_this, Value
     }
     (void)((v_built = alg_widen(alg_string("alg_list()"), "String")));
     {
-        Value loop_63 = alg_iterable(alg_property(v_theexpr, "Values"));
-        for (int32_t at_63 = 0; at_63 < alg_iterable_count(loop_63); at_63++) {
-            Value v_value = alg_iterable_at(loop_63, at_63);
+        Value loop_64 = alg_iterable(alg_property(v_theexpr, "Values"));
+        for (int32_t at_64 = 0; at_64 < alg_iterable_count(loop_64); at_64++) {
+            Value v_value = alg_iterable_at(loop_64, at_64);
             (void)v_value;
             (void)((v_built = alg_widen(alg_add(alg_add(alg_add(alg_add(alg_string("alg_list_keep("), v_built), alg_string(", ")), alg_invoke(v_this, "Evaluate", (Value[]){v_value}, 1)), alg_char_value(41)), "String")));
         }
@@ -4336,9 +4364,9 @@ static Value m_cemitter_hoistedcollection_1_collectionexpr(Value v_this, Value *
         {
             (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_string("    Value it = alg_list();"), alg_char_value(10))}, 1));
             {
-                Value loop_64 = alg_iterable(alg_property(v_theexpr, "Values"));
-                for (int32_t at_64 = 0; at_64 < alg_iterable_count(loop_64); at_64++) {
-                    Value v_thevalue = alg_iterable_at(loop_64, at_64);
+                Value loop_65 = alg_iterable(alg_property(v_theexpr, "Values"));
+                for (int32_t at_65 = 0; at_65 < alg_iterable_count(loop_65); at_65++) {
+                    Value v_thevalue = alg_iterable_at(loop_65, at_65);
                     (void)v_thevalue;
                     (void)(alg_invoke(alg_property(v_this, "Functions"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_string("    it = alg_list_keep(it, "), alg_invoke(v_this, "Evaluate", (Value[]){v_thevalue}, 1)), alg_string(");")), alg_char_value(10))}, 1));
                 }
@@ -4585,9 +4613,9 @@ static Value m_cemitter_visitenumstmt_1_enumstmt(Value v_this, Value *args, int3
     (void)(alg_invoke(v_this, "DeclareValue", (Value[]){v_thetype, alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 2));
     (void)(alg_invoke(alg_property(v_this, "Setup"), "Append", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("    "), v_thetype), alg_string(" = alg_enum_type(")), f_quotec(NULL, (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1)), alg_string(");")), alg_char_value(10))}, 1));
     {
-        Value loop_65 = alg_iterable(alg_property(v_thestmt, "Members"));
-        for (int32_t at_65 = 0; at_65 < alg_iterable_count(loop_65); at_65++) {
-            Value v_member = alg_iterable_at(loop_65, at_65);
+        Value loop_66 = alg_iterable(alg_property(v_thestmt, "Members"));
+        for (int32_t at_66 = 0; at_66 < alg_iterable_count(loop_66); at_66++) {
+            Value v_member = alg_iterable_at(loop_66, at_66);
             (void)v_member;
             {
                 Value v_symbol = alg_invoke(v_this, "EnumMemberName", (Value[]){alg_str(alg_invoke(alg_property(v_this, "EnumMembers"), "Get", (Value[]){alg_str(alg_property(v_member, "Lexeme"))}, 1)), alg_str(alg_property(v_member, "Lexeme"))}, 2);
@@ -4621,9 +4649,9 @@ static Value m_cemitter_visittrystmt_1_trystmt(Value v_this, Value *args, int32_
     (void)((v_catchall = alg_nil()));
     (void)((v_keys = alg_widen(alg_invoke(alg_property(v_thestmt, "Handlers"), "Keys", NULL, 0), "List")));
     {
-        Value loop_66 = alg_iterable(v_keys);
-        for (int32_t at_66 = 0; at_66 < alg_iterable_count(loop_66); at_66++) {
-            Value v_key = alg_iterable_at(loop_66, at_66);
+        Value loop_67 = alg_iterable(v_keys);
+        for (int32_t at_67 = 0; at_67 < alg_iterable_count(loop_67); at_67++) {
+            Value v_key = alg_iterable_at(loop_67, at_67);
             (void)v_key;
             {
                 if (alg_truthy(alg_equal(v_key, alg_string("default")))) {
@@ -4895,9 +4923,9 @@ static Value m_cemitter_visitvargroupstmt_1_vargroupstmt(Value v_this, Value *ar
         (void)(alg_invoke(v_this, "Line", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_invoke(v_this, "Local", NULL, 0), v_shared), alg_string(" = ")), v_value), alg_char_value(59))}, 1));
     }
     {
-        Value loop_67 = alg_iterable(alg_property(v_thestmt, "Names"));
-        for (int32_t at_67 = 0; at_67 < alg_iterable_count(loop_67); at_67++) {
-            Value v_thename = alg_iterable_at(loop_67, at_67);
+        Value loop_68 = alg_iterable(alg_property(v_thestmt, "Names"));
+        for (int32_t at_68 = 0; at_68 < alg_iterable_count(loop_68); at_68++) {
+            Value v_thename = alg_iterable_at(loop_68, at_68);
             (void)v_thename;
             {
                 Value v_name = alg_str(alg_property(v_thename, "Lexeme"));
@@ -4986,6 +5014,7 @@ void init_CEmitter(void) {
     alg_class_field(k_cemitter, "Tables");
     alg_class_field(k_cemitter, "SetsBuilt");
     alg_class_field(k_cemitter, "Renamed");
+    alg_class_field(k_cemitter, "ImportedFrom");
     alg_class_field(k_cemitter, "AmbiguousImports");
     alg_class_field(k_cemitter, "AmbiguousMembers");
     alg_class_field(k_cemitter, "Boxed");
@@ -5033,6 +5062,7 @@ void init_CEmitter(void) {
     alg_class_method(k_cemitter, "FunctionName", m_cemitter_functionname_1_string, 1, t_cemitter_functionname_1_string);
     alg_class_method(k_cemitter, "HandleName", m_cemitter_handlename_1_string, 1, t_cemitter_handlename_1_string);
     alg_class_method(k_cemitter, "SetName", m_cemitter_setname_1_string, 1, t_cemitter_setname_1_string);
+    alg_class_method(k_cemitter, "IsOverloadSet", m_cemitter_isoverloadset_1_string, 1, t_cemitter_isoverloadset_1_string);
     alg_class_method(k_cemitter, "SubprogramValue", m_cemitter_subprogramvalue_1_string, 1, t_cemitter_subprogramvalue_1_string);
     alg_class_method(k_cemitter, "FunctionSymbol", m_cemitter_functionsymbol_1, 1, t_cemitter_functionsymbol_1);
     alg_class_method(k_cemitter, "Prototype", m_cemitter_prototype_1, 1, t_cemitter_prototype_1);

@@ -1229,6 +1229,43 @@ holds `super.M` as a value.
 > from the start — exactly like any other comment. It deserves the same
 > re-checking as a `⚠️` before it is trusted a second time.
 
+**C-40 — A call to an imported overloaded name does not compile.**
+***Withdrawn.***
+*(refers to [FUN-013], [MOD-005])*
+
+```
+root.c:10:24: error: call to undeclared function 'f_same'
+```
+
+A unit exporting `Same (N : Integer)` and `Same (S : String)` runs correctly
+interpreted; a file importing it and calling `Same (1)` emitted a call to
+`f_same`, which is a symbol nothing ever defines. The declaring unit emits
+`o_same` — the set — and one function per signature beside it, `f_same_1_integer`
+and `f_same_1_string`. The plain name is not among them, so the generated C did
+not compile at all.
+
+⚠️ **The silent kind would have been worse, and this was nearly it.** A call to
+an undeclared function is a C error under C99, so the build stops; the same
+mistake in a language that had kept implicit declarations would have produced a
+program that linked and jumped somewhere.
+
+⚠️ **Overloading is recorded PER UNIT, and the set in force belongs to the unit
+being emitted.** `Overloaded` is filled by `CollectGlobals` from one unit's own
+statements, so a name declared elsewhere was simply absent from it and the
+emitter concluded the name was not overloaded. `IsOverloadSet` now asks the
+name's own unit, found through `ImportedFrom` — the per-unit import table, which
+had to be promoted from a local to a field to be reachable from the call path at
+all.
+
+⚠️ **Found while fixing something else.** The same per-unit reasoning was needed
+for an extension declared in another unit [MOD-015], and writing that raised the
+question of what the ordinary bare call did. It had been wrong since top-level
+overloading landed; nothing in `compiler/*.a24` imports an overloaded name, so
+the compiler never compiled the shape, and no case covered it. It reproduces
+identically on v0.1.4.
+
+    conformance  0198-overloads-through-an-import.a24
+
 ---
 
 ## Annex D — advisory notes *(non-normative)*

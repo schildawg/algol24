@@ -1,0 +1,11 @@
+// A fixture for chapter 11, not a conformance case.
+//
+// Exports one name under three signatures, so that an importer can be shown
+// selecting among them -- which needs the SET this unit emits, rather than the
+// one symbol per signature it emits beside it.
+
+unit Overloads;
+
+function Same (N : Integer) : String;              begin Exit 'integer'; end
+function Same (S : String)  : String;              begin Exit 'string';  end
+function Same (A : Integer, B : Integer) : String; begin Exit 'two';     end
