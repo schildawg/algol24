@@ -158,22 +158,6 @@ end
 /// That delegation is the point rather than a shortcut: interpreted 'Length' IS
 /// host 'Length', so the two implementations of the language cannot disagree
 /// about what a built-in does.
-/// The largest shift count a machine word can hold.
-///
-/// Not a width creeping back into the model: a count of two to the sixty-third
-/// asks for an exabyte of bits and can never be satisfied, so refusing it beats
-/// running out of memory slowly [EXP-024].  The C runtime refuses the same
-/// thing, by asking whether the count outgrew a word rather than by comparing.
-///
-/// ⚠️ ABOVE the class that reads it, which DEF-35 requires of a constant whose
-/// type is inferred: declared below its use it would have no type there, and a
-/// correct program would be refused.
-///
-/// # Satisfies
-///
-/// [EXP-024]
-const WORD_MAX := 9223372036854775807;
-
 class Native;
 var
     /// The built-in's name, which is what Call dispatches on.
@@ -923,7 +907,7 @@ begin
                         if Invert <> Nil then Exit Invert.Bind (Right).Call (this, List());
                     end
 
-                    Exit Complement (Right);
+                    Exit ~Right;
                 end
         end
     end
@@ -1211,201 +1195,6 @@ begin
           or Op = TOKEN_SHIFT_LEFT or Op = TOKEN_SHIFT_RIGHT;
     end
 
-    /// Refuses an operand a bitwise operator cannot take, naming the operator.
-    procedure BothIntegers (Spelling : String, Left : Any, Right : Any);
-    begin
-        if not (Left is Integer) or not (Right is Integer) then
-            raise Spelling + ' expects Integers.';
-    end
-
-    /// The low bit of an Integer, for a negative value as well.
-    ///
-    /// 'mod' follows the dividend's sign [EXP-021], so -7 mod 2 is -1 rather
-    /// than 1; the second fold is what makes this the BIT rather than the
-    /// remainder.
-    function LowBit (X : Integer) : Integer;
-    begin
-        Exit ((X mod 2) + 2) mod 2;
-    end
-
-    /// An Integer halved and FLOORED, which is one step of an arithmetic shift.
-    ///
-    /// 'div' truncates toward zero [EXP-021] and this floors, so the low bit is
-    /// taken off first: -7 gives -4 rather than -3.
-    function HalvedDown (X : Integer) : Integer;
-    begin
-        Exit (X - LowBit (X)) div 2;
-    end
-
-    /// Two raised to a non-negative power.
-    function Power2 (N : Integer) : Integer;
-    var
-        Result : Integer;
-
-    begin
-        Result := 1;
-        for var I : Integer := 0; I < N; I := I + 1 do
-            Result := Result * 2;
-
-        Exit Result;
-    end
-
-    /// Combines two bits under one of the three binary operations.
-    function BitOf (Which : TokenType, A : Integer, B : Integer) : Integer;
-    begin
-        if Which = TOKEN_AMPERSAND then
-        begin
-            if A = 1 and B = 1 then Exit 1;
-
-            Exit 0;
-        end
-
-        if Which = TOKEN_PIPE then
-        begin
-            if A = 1 or B = 1 then Exit 1;
-
-            Exit 0;
-        end
-
-        if A = B then Exit 0;
-
-        Exit 1;
-    end
-
-    /// Combines the bits of two Integers, of any size.
-    ///
-    /// Two's complement extended infinitely to the left [EXP-023], and this is
-    /// where that model earns its keep: the loop runs until BOTH operands have
-    /// reached the state their remaining bits repeat forever -- 0 for a
-    /// non-negative value and -1 for a negative one -- and the tail then
-    /// contributes either nothing or an infinite run of ones, which is what
-    /// subtracting the place value means.  No width is named anywhere.
-    ///
-    /// ⚠️ ARITHMETIC RATHER THAN THE OPERATORS THEMSELVES, and that is a
-    /// bootstrap constraint rather than a choice.  A file in compiler/ cannot
-    /// contain '&' until the compiler that compiles it can lex one, so this is
-    /// what the generation introducing them has to be written in.  Once the
-    /// seed knows the symbols these become 'Exit Left & Right' and reach the
-    /// host's own operation, as IntegerDivide and Remainder already do.
-    ///
-    /// # Raises
-    ///
-    /// '<op> expects Integers.' for an operand that is not an Integer.
-    ///
-    /// # Satisfies
-    ///
-    /// [EXP-023]
-    function Combined (Which : TokenType, Spelling : String,
-                       Left : Any, Right : Any) : Integer;
-    var
-        Result : Integer;
-        Place  : Integer;
-        A      : Integer;
-        B      : Integer;
-
-    begin
-        BothIntegers (Spelling, Left, Right);
-
-        Result := 0;
-        Place  := 1;
-
-        // 'as Integer' because the operands arrive as Any and a value whose
-        // type the checker could not determine does not satisfy a written one
-        // [VAR-006].  BothIntegers above is what makes the cast sound.
-        A := Left as Integer;
-        B := Right as Integer;
-
-        while not ((A = 0 or A = -1) and (B = 0 or B = -1)) do
-        begin
-            if BitOf (Which, LowBit (A), LowBit (B)) = 1 then
-                Result := Result + Place;
-
-            A     := HalvedDown (A);
-            B     := HalvedDown (B);
-            Place := Place * 2;
-        end
-
-        // Every remaining bit of each operand is now the same bit forever, so
-        // the rest of the answer is one of two things: nothing, or ones all the
-        // way up -- and ones from this place up is exactly minus this place.
-        var Tail := 0;
-        if A = -1 then Tail := 1;
-
-        var Other := 0;
-        if B = -1 then Other := 1;
-
-        if BitOf (Which, Tail, Other) = 1 then Result := Result - Place;
-
-        Exit Result;
-    end
-
-    /// The complement of an Integer, which needs no loop at all.
-    ///
-    /// Inverting every bit of a two's complement value and inverting its
-    /// infinite leading run is the same as negating and stepping down once, for
-    /// a value of any size.
-    ///
-    /// # Satisfies
-    ///
-    /// [EXP-023]
-    function Complement (Right : Any) : Integer;
-    begin
-        if not (Right is Integer) then raise '~ expects an Integer.';
-
-        Exit -(Right as Integer) - 1;
-    end
-
-    /// An Integer shifted left, which grows rather than wrapping [EXP-007].
-    ///
-    /// # Satisfies
-    ///
-    /// [EXP-024]
-    function ShiftedLeft (Left : Any, Right : Any) : Integer;
-    var
-        Value : Integer;
-        Count : Integer;
-
-    begin
-        BothIntegers ('<<', Left, Right);
-
-        Value := Left as Integer;
-        Count := Right as Integer;
-
-        if Count < 0 then raise 'A shift count cannot be negative.';
-        if Count > WORD_MAX then raise 'A shift count must fit a machine word.';
-
-        Exit Value * Power2 (Count);
-    end
-
-    /// An Integer shifted right, ARITHMETICALLY: it floors where 'div'
-    /// truncates, so -7 >> 1 is -4 and -7 div 2 is -3 [EXP-024].
-    ///
-    /// # Satisfies
-    ///
-    /// [EXP-024]
-    function ShiftedRight (Left : Any, Right : Any) : Integer;
-    var
-        Value : Integer;
-        Count : Integer;
-        Step  : Integer;
-
-    begin
-        BothIntegers ('>>', Left, Right);
-
-        Value := Left as Integer;
-        Count := Right as Integer;
-
-        if Count < 0 then raise 'A shift count cannot be negative.';
-        if Count > WORD_MAX then raise 'A shift count must fit a machine word.';
-
-        Step := Power2 (Count);
-
-        if Value >= 0 then Exit Value div Step;
-
-        // Floored, which for a negative value means biasing before dividing.
-        Exit (Value - (Step - 1)) div Step;
-    end
-
     /// Whether an operator token is an arithmetic one.
     function Arithmetic (Op : Any) : Boolean;
     begin
@@ -1487,12 +1276,12 @@ begin
            TOKEN_MOD : Exit Remainder (Left, Right);
            TOKEN_STAR  : Exit Left * Right;
 
-           TOKEN_AMPERSAND : Exit Combined (TOKEN_AMPERSAND, '&', Left, Right);
-           TOKEN_PIPE      : Exit Combined (TOKEN_PIPE,      '|', Left, Right);
-           TOKEN_CARET     : Exit Combined (TOKEN_CARET,     '^', Left, Right);
+           TOKEN_AMPERSAND : Exit Left & Right;
+           TOKEN_PIPE      : Exit Left | Right;
+           TOKEN_CARET     : Exit Left ^ Right;
 
-           TOKEN_SHIFT_LEFT  : Exit ShiftedLeft  (Left, Right);
-           TOKEN_SHIFT_RIGHT : Exit ShiftedRight (Left, Right);
+           TOKEN_SHIFT_LEFT  : Exit Left << Right;
+           TOKEN_SHIFT_RIGHT : Exit Left >> Right;
         end
     end
 
