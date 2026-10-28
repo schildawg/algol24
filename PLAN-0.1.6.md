@@ -198,7 +198,7 @@ at the same three environment failures it had before this release began.
 
 ---
 
-## 4. Bitwise operators
+## 4. Bitwise operators — **done**
 
 Six, on Integer operands, over the unbounded Integer the language already has:
 **`&`** and, **`|`** or, **`^`** exclusive or, **`~`** complement, **`<<`**
@@ -317,17 +317,61 @@ quotes, in order — so the harness takes it without a change. Case
 
 ### Operator overloading
 
-[EXP-020]'s list is closed "because a new operator would need a precedence and
+[EXP-020]'s list was closed "because a new operator would need a precedence and
 an associativity, and [EXP-001] is a fixed table … with nowhere to put one".
-Item 4 puts six somewhere, so the objection dissolves and the same work carries
-both: a class may define `&`, `|`, `^`, `<<`, `>>` and unary `~` for its own
-instances, on the terms every other operator already has — the left operand
-decides, and arity tells unary from binary.
+Item 4 put six somewhere, so the objection dissolved and the same work carried
+both: a class may define `&`, `|`, `^`, `<<`, `>>` and unary `~`, on the terms
+every other operator already has — the left operand decides, and arity tells
+unary from binary. The rule now says the list is closed *by* [EXP-001] rather
+than closed at six, which is what it always meant.
 
-`~` is the interesting one: it is unary, so `operator ~ ()` with no parameter,
-exactly as `operator - ()` is negation. Unlike `not`, `~` claims nothing
-language-wide — there is no `[VAL-008]` for bit patterns — so the argument that
-keeps `not` off the list does not reach it.
+`~` is the interesting one, and the contrast with `not` is why it is allowed:
+`not` tests truthiness, which [VAL-008] defines for every value, so a type
+overloading it lies about a language-wide property — while `~` claims nothing
+language-wide, there being no truthiness for bit patterns.
+
+### What landed, and in what order
+
+Three commits, because the middle one could not be written until the first had
+been seeded.
+
+1. **The specification**, with four cases failing because the operators did not
+   exist. [EXP-023] and [EXP-024] in a new section 9.3 — which filled a hole,
+   chapter 9 having run 9.1, 9.2, 9.4 for some time.
+2. **The six operators**, lexed, parsed, interpreted and emitted. The
+   interpreter's implementation had to be written in *arithmetic*: a file in
+   `compiler/` cannot contain `&` until the compiler compiling it can lex one.
+3. **The simplification**, once the seed could lex them: the arms became
+   `Exit Left & Right` and reach the host's own operation, which deleted the
+   only copy of the two's complement walk that was not in C. Six insertions
+   against two hundred and seventeen deletions.
+
+⚠️ **One refusal was added that no proposal asked for**: a shift count must fit
+a machine word. Not a width creeping back in — a count of two to the
+sixty-third asks for an exabyte of bits and can never be satisfied, so refusing
+it beats running out of memory slowly. [EXP-024] and case 0201 carry it.
+
+⚠️ **One existing test had to be rewritten**, and it is the only place these
+operators changed how anything already lexed. `Scan Less Is Not Greedy` scanned
+`'<<'` and expected two tokens; it is one token now. No *working* program could
+have contained it — `<` `<` was `Expect expression!` whatever followed — so
+nothing in any of the three codebases was affected.
+
+### The third warning, measured twice
+
+[ERR-010] now states three warnings and `spec/spec.sh` checks all three against
+what the fixture raises, in order. The claim that this one arrives on new code
+rather than on anything already written was measured in both of its forms:
+
+| | dynamic probe | the warning as shipped |
+| --- | --- | --- |
+| `compiler/` | 0 | 0 |
+| `algol24-library` | 0 | 0 |
+| `shroom-slots` | 0 | 0 |
+
+The first column is a compiler instrumented to report Integer operands at run
+time, over 1,774 tests. The second is the static warning itself, over the same
+suites — all of which still pass.
 
 ---
 

@@ -83,6 +83,7 @@ static const char *t_typechecker_checkfunction_1[] = { "TheFunction : Any" };
 static const char *t_typechecker_recordarity_2_string[] = { "TheStmt : Any", "Folded : String" };
 static const char *t_typechecker_candidatesfor_2_string_integer[] = { "Folded : String", "Count : Integer" };
 static const char *t_typechecker_warnifdynamic_1[] = { "TheExpr : Any" };
+static const char *t_typechecker_warnifbitwisemeant_2_token_string[] = { "Op : Token", "TheType : String" };
 static const char *t_typechecker_warnifshadowed_2_string[] = { "TheExpr : Any", "Owner : String" };
 static const char *t_typechecker_reduce_1[] = { "TheExpr : Any" };
 static const char *t_typechecker_reducebinary_1[] = { "TheExpr : Any" };
@@ -1165,6 +1166,26 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
     return alg_nil();
 }
 
+static Value m_typechecker_warnifbitwisemeant_2_token_string(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    Value v_op = alg_widen(args[0], "Token");
+    (void)v_op;
+    Value v_thetype = alg_widen(args[1], "String");
+    (void)v_thetype;
+    Value v_key = alg_nil();
+    (void)v_key;
+    if (alg_truthy(alg_not_equal(v_thetype, alg_string("Integer")))) {
+        return alg_nil();
+    }
+    (void)((v_key = alg_widen(alg_add(alg_add(alg_str(alg_property(v_op, "LineNumber")), alg_string(":bits:")), f_foldcase(NULL, (Value[]){alg_str(alg_property(v_op, "Lexeme"))}, 1)), "String")));
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Warned"), "Contains", (Value[]){v_key}, 1))) {
+        return alg_nil();
+    }
+    (void)(alg_invoke(alg_property(v_this, "Warned"), "Add", (Value[]){v_key}, 1));
+    (void)(alg_invoke(alg_singleton(k_console), "Warn", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(alg_singleton(k_sourcecode), "Name", NULL, 0), alg_char_value(58)), alg_str(alg_property(v_op, "LineNumber"))), alg_string(": an operand of '")), alg_str(alg_property(v_op, "Lexeme"))), alg_string("' is an Integer, where '&', '|' and '~' ")), alg_string("are the bitwise operators."))}, 1));
+    return alg_nil();
+}
+
 static Value m_typechecker_warnifshadowed_2_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_theexpr = args[0];
@@ -1243,7 +1264,10 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_kind, alg_string("UnaryExpr")))) {
         {
             if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVnot))) {
-                return alg_string("Boolean");
+                {
+                    (void)(alg_invoke(v_this, "WarnIfBitwiseMeant", (Value[]){alg_property(v_theexpr, "Op"), alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1)}, 2));
+                    return alg_string("Boolean");
+                }
             }
             return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1);
         }
@@ -1266,7 +1290,13 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
         return alg_invoke(v_this, "ReduceBinary", (Value[]){v_theexpr}, 1);
     }
     if (alg_truthy(alg_equal(v_kind, alg_string("LogicalExpr")))) {
-        return alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1);
+        {
+            Value v_side = alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Left")}, 1);
+            (void)v_side;
+            (void)(alg_invoke(v_this, "WarnIfBitwiseMeant", (Value[]){alg_property(v_theexpr, "Op"), v_side}, 2));
+            (void)(alg_invoke(v_this, "WarnIfBitwiseMeant", (Value[]){alg_property(v_theexpr, "Op"), alg_invoke(v_this, "Reduce", (Value[]){alg_property(v_theexpr, "Right")}, 1)}, 2));
+            return v_side;
+        }
     }
     if (alg_truthy(alg_equal(v_kind, alg_string("AssignExpr")))) {
         {
@@ -1627,6 +1657,7 @@ void init_TypeChecker(void) {
     alg_class_method(k_typechecker, "RecordArity", m_typechecker_recordarity_2_string, 2, t_typechecker_recordarity_2_string);
     alg_class_method(k_typechecker, "CandidatesFor", m_typechecker_candidatesfor_2_string_integer, 2, t_typechecker_candidatesfor_2_string_integer);
     alg_class_method(k_typechecker, "WarnIfDynamic", m_typechecker_warnifdynamic_1, 1, t_typechecker_warnifdynamic_1);
+    alg_class_method(k_typechecker, "WarnIfBitwiseMeant", m_typechecker_warnifbitwisemeant_2_token_string, 2, t_typechecker_warnifbitwisemeant_2_token_string);
     alg_class_method(k_typechecker, "WarnIfShadowed", m_typechecker_warnifshadowed_2_string, 2, t_typechecker_warnifshadowed_2_string);
     alg_class_method(k_typechecker, "Reduce", m_typechecker_reduce_1, 1, t_typechecker_reduce_1);
     alg_class_method(k_typechecker, "ReduceBinary", m_typechecker_reducebinary_1, 1, t_typechecker_reducebinary_1);

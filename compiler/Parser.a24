@@ -1072,7 +1072,15 @@ begin
         if Check (TOKEN_PLUS) or Check (TOKEN_MINUS) or Check (TOKEN_STAR)
         or Check (TOKEN_SLASH) or Check (TOKEN_DIV) or Check (TOKEN_MOD) then Exit Advance ();
 
-        raise Error (Peek (), 'An operator must be one of + - * / div mod.');
+        // The bitwise six, which the list could not hold while [EXP-001] had
+        // nowhere to put their precedence [EXP-020].  '~' is the unary one, so
+        // it is told from the rest by arity, as '-' already is.
+        if Check (TOKEN_AMPERSAND) or Check (TOKEN_PIPE) or Check (TOKEN_CARET)
+        or Check (TOKEN_TILDE) or Check (TOKEN_SHIFT_LEFT)
+        or Check (TOKEN_SHIFT_RIGHT) then Exit Advance ();
+
+        raise Error (Peek (),
+            'An operator must be one of + - * / div mod & | ^ ~ << >>.');
     end
 
     /// Parses 'operator + (Other : Money) : Money; begin ... end'.

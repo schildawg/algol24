@@ -5542,8 +5542,9 @@ same thing at greater length.
 
     conformance  0167-character-arithmetic.a24
 
-**[EXP-020]**  A class may define `+`, `-`, `*`, `/` and `div` for its own
-instances, and unary `-`, and `mod`. The member is named for the operator, and
+**[EXP-020]**  A class may define `+`, `-`, `*`, `/`, `div` and `mod` for its
+own instances, and the bitwise `&`, `|`, `^`, `<<` and `>>`, and the unary `-`
+and `~`. The member is named for the operator, and
 takes one argument — or **none**, which is what makes it the unary form.
 
 ```
@@ -5558,10 +5559,18 @@ begin
 end
 ```
 
-**A closed list, and it has to be.** A new operator would need a precedence
-and an associativity, and [EXP-001] is a fixed table of twelve levels with
-nowhere to put one. These six already have a place in it. `operator =` is
-refused with `An operator must be one of + - * / div mod.`
+**A closed list, and the thing that closes it is [EXP-001].** An operator a
+class may define has to have a precedence and an associativity, so the list is
+exactly the operators the table already places — twelve of them now. It said
+six until the bitwise operators arrived [EXP-023], [EXP-024]: the argument was
+never that six was the right number but that the table had nowhere to put a
+seventh, and adding three levels to it is what let the list grow. `operator =`
+is still refused, with
+`An operator must be one of + - * / div mod & | ^ ~ << >>.`
+
+**`~` is the second unary one**, so `operator ~ ()` takes no parameter exactly
+as `operator - ()` takes none, and arity is what tells them from their binary
+namesakes.
 
 **The LEFT operand decides**, as a receiver does everywhere else in this
 language: `Money * 3` is a Money and `3 * Money` is `Operands must be numbers.`
@@ -5579,9 +5588,11 @@ one — while a `Plus` method would be a pure synonym for `+`, a name added
 without a concept. Where the name says something the symbol does not, the
 protocol wins; here it would not.
 
-**`not` and `:=` are not on the list.** `not` tests truthiness, which
-[VAL-008] defines for every value, so a type overloading it lies about a
-language-wide property rather than defining its own behavior. `:=` is outside
+**`not` and `:=` are not on the list, and `~` being on it is the contrast.**
+`not` tests truthiness, which [VAL-008] defines for every value, so a type
+overloading it lies about a language-wide property rather than defining its own
+behavior. `~` claims nothing language-wide — there is no truthiness for bit
+patterns — so the objection that keeps `not` off does not reach it. `:=` is outside
 the mechanism entirely: dispatch is on values [FUN-013], and the left of an
 assignment is a location.
 
@@ -5626,6 +5637,36 @@ WriteLn (-A);
 // an instance like any other.
 WriteLn ((A + B) - A);
 
+// The bitwise five and the unary '~', which the list could not hold while
+// [EXP-001] had nowhere to put their precedence [EXP-023], [EXP-024].
+class Flags;
+var Bits : Integer;
+begin
+    constructor Init (B : Integer); begin this.Bits := B; end
+
+    operator &  (Other : Flags) : Flags; begin Exit Flags (Bits & Other.Bits); end
+    operator |  (Other : Flags) : Flags; begin Exit Flags (Bits | Other.Bits); end
+    operator ^  (Other : Flags) : Flags; begin Exit Flags (Bits ^ Other.Bits); end
+    operator << (By : Integer)  : Flags; begin Exit Flags (Bits << By); end
+    operator >> (By : Integer)  : Flags; begin Exit Flags (Bits >> By); end
+
+    // Unary, and told from nothing: '~' has no binary form to be confused
+    // with, unlike '-'.
+    operator ~  ()              : Flags; begin Exit Flags (~Bits); end
+
+    function ToString () : String;       begin Exit 'Flags(' + Str (Bits) + ')'; end
+end
+
+var Twelve := Flags (12);
+var Ten    := Flags (10);
+
+WriteLn (Twelve & Ten);
+WriteLn (Twelve | Ten);
+WriteLn (Twelve ^ Ten);
+WriteLn (Twelve << 2);
+WriteLn (Twelve >> 2);
+WriteLn (~Twelve);
+
 // THE LEFT OPERAND DECIDES, as a receiver does everywhere else in this
 // language.  An operator is a member, and a member is reached through the value
 // on its left.
@@ -5657,6 +5698,12 @@ $ algc conformance/0172-a-class-that-computes.a24
 5
 -100
 250
+Flags(8)
+Flags(14)
+Flags(6)
+Flags(48)
+Flags(3)
+Flags(-13)
 Operands must be numbers.
 Operands must be two numbers, or two strings.
 ```
@@ -5676,8 +5723,8 @@ end
 
 ```console
 $ algc refusals/0172-an-operator-not-on-the-list.a24
-Uncaught: An operator must be one of + - * / div mod.
-[ERROR] refusals/0172-an-operator-not-on-the-list.a24: An operator must be one of + - * / div mod.
+Uncaught: An operator must be one of + - * / div mod & | ^ ~ << >>.
+[ERROR] refusals/0172-an-operator-not-on-the-list.a24: An operator must be one of + - * / div mod & | ^ ~ << >>.
 [ERROR] 7 |     operator = (Other : Pair) : Boolean; begin Exit Left = Other.Left; end
 [ERROR]   |              ^
 exit: 70
@@ -12682,8 +12729,8 @@ still a failure and must not exit 0 [INI-005].
 **non-blocking**: the program compiles and runs exactly as it would without it,
 and its exit status is unaffected [ERR-009].
 
-**Two warnings are raised.** The first: a call that will select among overloads
-**at run time** [FUN-013] says so.
+**Three warnings are raised.** The first: a call that will select among
+overloads **at run time** [FUN-013] says so.
 
 ```
 [WARN] spec/warning.a24:17: 'Log' selects among 2 overloads at run time.
@@ -12707,7 +12754,7 @@ This narrows the warning without weakening it. Where several signatures take
 the count written, every one of them still warns, because from there only the
 argument *types* could tell them apart and no static rule may read those.
 
-**Both wordings are checked against what is printed**, by `spec/spec.sh` running
+**Every wording is checked against what is printed**, by `spec/spec.sh` running
 `spec/warning.a24` and comparing **every** `[WARN]` line it raises against the
 lines quoted here, in order — the treatment the keyword table, Annex B and [COL-003]'s
 matrix already get, and for the same reason. A message quoted in a specification
@@ -12736,6 +12783,29 @@ The remedy is to say which was meant. The prefix spelling reaches the extension
 past the member — `Size (B)` is not a method call and never consults one — and
 renaming either is the other way out.
 
+**The third: an operand of `and`, `or` or `not` is an Integer** [EXP-023].
+
+```
+[WARN] spec/warning.a24:57: an operand of 'and' is an Integer, where '&', '|' and '~' are the bitwise operators.
+```
+
+`and`, `or` and `not` test truthiness and yield an *operand* [EXP-010]; `&`,
+`|` and `~` combine bits. A reader arriving from Pascal — where `and` on
+integers **is** bitwise — writes the first and means the second, and gets a
+plausible wrong number with nothing to say so: `6 and 3` is `3` where `6 & 3`
+is `2`.
+
+**Only where the type is known**, which is all that can be said statically. An
+operand whose type is `Any` may hold anything, and truthiness is defined for
+every value [VAL-008], so there is nothing wrong to report.
+
+**It was measured before it was written.** A compiler instrumented to report
+every Integer operand of these three at run time saw none across 1,774 tests in
+three codebases — this compiler, the library and the other large user — and
+fired only on the two corpus cases that use them deliberately. So the warning
+arrives on new code rather than on anything already written, which is what
+makes it a scalpel rather than a migration.
+
 **Both spellings of an extension call report the first alike** [FUN-016]. `Same (X)`
 and `X.Same ()` are one call, so the choice of spelling cannot change the
 diagnostic; the receiver counts as the argument it is, so the count the warning
@@ -12758,9 +12828,10 @@ comparing them would report a divergence where the two processors agree
 completely. Dropped rather than suppressed: it is meant to be seen by whoever is
 compiling, and only the comparison must not see it.
 
-**Both are silent on this compiler.** No top-level name in `compiler/*.a24` is
-overloaded and it declares no extensions, so `algc` compiling itself raises none
-at all — which is the evidence that they are scalpels rather than noise.
+**All three are silent on this compiler.** No top-level name in
+`compiler/*.a24` is overloaded, it declares no extensions, and nothing in it
+applies `and`, `or` or `not` to an Integer — so `algc` compiling itself raises
+none at all, which is the evidence that they are scalpels rather than noise.
 
     unit         Declares Member Walks The Chain
     conformance  0158-varargs-from-an-element-type.a24

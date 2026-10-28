@@ -43,3 +43,15 @@ WriteLn (B.Size ());
 // The extension IS reached here, and nothing is warned about: a List has no
 // member of that name.
 WriteLn ([1, 2].Size ());
+
+// The third warning: 'and' tests truthiness and yields an OPERAND [EXP-010]
+// where '&' combines bits [EXP-023].  A reader arriving from Pascal -- where
+// 'and' on integers is bitwise -- writes the first and means the second, and
+// gets a plausible wrong number: this prints 3 where '&' would give 2.
+//
+// ⚠️ NOTHING ABOVE THIS MAY MOVE either.  The third [WARN] line [ERR-010]
+// states carries its line number as surely as the first two.
+var Mask : Integer := 6;
+var Bits : Integer := 3;
+
+WriteLn (Mask and Bits);

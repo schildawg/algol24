@@ -1076,6 +1076,42 @@ begin
                     + Str (Seen) + ' overloads at run time.');
     end
 
+    /// Warns where an operand of a truthiness operator is an Integer.
+    ///
+    /// 'and', 'or' and 'not' test truthiness and yield an operand [EXP-010];
+    /// '&', '|' and '~' combine bits [EXP-023].  A reader arriving from Pascal
+    /// -- where 'and' on integers IS bitwise -- writes the first and means the
+    /// second, and gets a plausible wrong number with nothing to say so: '6 and
+    /// 3' is 3 where '6 & 3' is 2.
+    ///
+    /// Only where the type is KNOWN, which is the whole of what can be said
+    /// statically: an operand whose type is Any may hold anything, and
+    /// truthiness is defined for every value [VAL-008] so there is nothing
+    /// wrong to report.  Measured before it was written -- nothing in this
+    /// compiler, the library or the other large user applies these to an
+    /// Integer at all -- so the warning fires on new code rather than on
+    /// anything already written.
+    ///
+    /// # Satisfies
+    ///
+    /// [ERR-010]
+    procedure WarnIfBitwiseMeant (Op : Token, TheType : String);
+    var
+        Key : String;
+
+    begin
+        if TheType <> 'Integer' then Exit;
+
+        Key := Str (Op.LineNumber) + ':bits:' + FoldCase (Str (Op.Lexeme));
+
+        if Warned.Contains (Key) then Exit;
+        Warned.Add (Key);
+
+        Console.Warn (SourceCode.Name() + ':' + Str (Op.LineNumber) + ': an operand of '''
+                    + Str (Op.Lexeme) + ''' is an Integer, where ''&'', ''|'' and ''~'' '
+                    + 'are the bitwise operators.');
+    end
+
     /// Warns where a member hides a visible extension of its name.
     ///
     /// [EXP-022] gives the member the call, which is what keeps every program
@@ -1171,7 +1207,12 @@ begin
 
         if Kind = 'UnaryExpr' then
         begin
-            if TheExpr.Op.TypeOfToken = TOKEN_NOT then Exit 'Boolean';
+            if TheExpr.Op.TypeOfToken = TOKEN_NOT then
+            begin
+                WarnIfBitwiseMeant (TheExpr.Op, Reduce (TheExpr.Right));
+
+                Exit 'Boolean';
+            end
 
             Exit Reduce (TheExpr.Right);
         end
@@ -1194,7 +1235,17 @@ begin
 
         if Kind = 'BinaryExpr' then Exit ReduceBinary (TheExpr);
 
-        if Kind = 'LogicalExpr' then Exit Reduce (TheExpr.Left);
+        if Kind = 'LogicalExpr' then
+        begin
+            var Side := Reduce (TheExpr.Left);
+
+            WarnIfBitwiseMeant (TheExpr.Op, Side);
+            WarnIfBitwiseMeant (TheExpr.Op, Reduce (TheExpr.Right));
+
+            // The left is the answer, because 'and' and 'or' yield an OPERAND
+            // rather than a Boolean [EXP-010].
+            Exit Side;
+        end
 
         if Kind = 'AssignExpr' then
         begin

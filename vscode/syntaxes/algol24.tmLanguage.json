@@ -225,6 +225,11 @@
                     "match": ":="
                 },
                 {
+                    "comment": "Before the comparisons, so '<<' is one token rather than two '<'s -- the longest match wins [LEX-005].",
+                    "name": "keyword.operator.bitwise.algol24",
+                    "match": "<<|>>|&|\\||\\^|~"
+                },
+                {
                     "name": "keyword.operator.comparison.algol24",
                     "match": "<>|<=|>=|=|<|>"
                 },
