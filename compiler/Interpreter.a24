@@ -202,7 +202,7 @@ begin
     ///
     /// [COL-002], [RT-003], [RT-004], [RT-005], [RT-007], [RT-008], [RT-011],
     /// [RT-012], [RT-013], [RT-014], [RT-015], [RT-018], [RT-020], [RT-025],
-    /// [RT-026], [SRC-004], [TST-012], [TST-013]
+    /// [RT-026], [RT-028], [SRC-004], [TST-012], [TST-013]
     function Call (TheInterpreter, Arguments) : Any;
     begin
         case Name of
@@ -234,7 +234,25 @@ begin
             // through Str would hand back a String [TYP-003].
             'ToUpper' : Exit ToUpper (Arguments[0]);
             'ToLower' : Exit ToLower (Arguments[0]);
-            'Str'  : Exit Stringify (TheInterpreter, Arguments[0]);
+            'Str'  : begin
+                         if Arguments.Length < 1 or Arguments.Length > 3 then
+                             raise 'Expected 1, 2 or 3 arguments but got '
+                                 + Str (Arguments.Length) + '.';
+
+                         // One argument renders any value, which for an
+                         // instance means calling its ToString through the
+                         // interpreter -- so that form cannot go to the host.
+                         if Arguments.Length = 1 then
+                             Exit Stringify (TheInterpreter, Arguments[0]);
+
+                         // The other two take a number and answer text, so they
+                         // hand straight to the host and the fixed-decimal
+                         // rendering is decided in one place [RT-028].
+                         if Arguments.Length = 2 then
+                             Exit Str (Arguments[0], Arguments[1]);
+
+                         Exit Str (Arguments[0], Arguments[1], Arguments[2]);
+                     end
 
             'Array' : begin
                           var TheArray := ObjCollection ('Array');
@@ -468,7 +486,9 @@ begin
         Builtins.Define ('Pos', Native ('Pos', -1));
         Builtins.Define ('ToUpper', Native ('ToUpper', 1));
         Builtins.Define ('ToLower', Native ('ToLower', 1));
-        Builtins.Define ('Str', Native ('Str', 1));
+        // Variadic for the reason Pos is: one native answering three counts
+        // [RT-028], not an overload [FUN-013].
+        Builtins.Define ('Str', Native ('Str', -1));
         Builtins.Define ('Array', Native ('Array', 1));
         Builtins.Define ('List', Native ('List', 0));
         Builtins.Define ('Map', Native ('Map', 0));

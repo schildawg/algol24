@@ -2987,7 +2987,16 @@ begin
         Expected := '';
         for var I := 0; I < Counts.Length; I := I + 1 do
         begin
-            if I > 0 then Expected := Expected + ' or ';
+            // Commas up to the last, which takes 'or' -- so two counts read
+            // '2 or 3' as they always have, and three read '1, 2 or 3' rather
+            // than '1 or 2 or 3'.  Nothing had three counts until Str took a
+            // precision [RT-028], and the interpreter's own arm words it this
+            // way; the corpus caught the two processors disagreeing.
+            if I > 0 then
+            begin
+                if I = Counts.Length - 1 then Expected := Expected + ' or ';
+                else                          Expected := Expected + ', ';
+            end
 
             Expected := Expected + Str (Counts[I]);
         end
@@ -3070,6 +3079,8 @@ begin
         if Key = 'WriteLn/0' then Exit 'alg_writeln_blank';
         if Key = 'Write/1'   then Exit 'alg_write';
         if Key = 'Str/1'     then Exit 'alg_str';
+        if Key = 'Str/2'     then Exit 'alg_str_fixed';
+        if Key = 'Str/3'     then Exit 'alg_str_padded';
         if Key = 'Length/1'  then Exit 'alg_text_length';
         if Key = 'Copy/3'    then Exit 'alg_copy';
         if Key = 'Pos/2'     then Exit 'alg_pos';

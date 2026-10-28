@@ -4709,6 +4709,88 @@ void alg_halt(Value status) {
     exit(code);
 }
 
+/* Str with a precision [RT-028].
+
+   ⚠️ ONE implementation, reached by both processors.  The interpreter's Str arm
+   hands its two and three argument forms straight here, and the emitter maps
+   'Str/2' and 'Str/3' to the two entry points below -- so the fixed-decimal
+   rendering is decided once.  A second renderer written in Algol-24 would be
+   the two-renderer problem the proposal that asked for this objects to, arrived
+   at from the other direction.
+
+   ⚠️ snprintf RATHER THAN ARITHMETIC, and that is the whole correctness
+   argument.  '%.*f' converts from the binary value, so 2.675 -- which is held
+   as 2.6749999999999998 -- renders as 2.67 because the midpoint is above it.
+   Rounding the value first ('Round (X * 100) / 100') answers 2.68, because the
+   product is 267.50000000000006; surgery on Str's own output cannot do it at
+   all, because the digit that decides has already been discarded.
+
+   Ties go to even, which is the default rounding mode and what IEEE 754 does
+   for arithmetic.  Nothing here changes the mode. */
+static Value str_fixed(Value v, Value width, Value decimals) {
+    int32_t places = as_integer(decimals, "Decimals must be an Integer.");
+    int32_t field  = as_integer(width, "A width must be an Integer.");
+
+    /* An Integer is already exact and has no precision to ask for, and two
+       arguments meaning a precision for one type and a width for another is
+       the ambiguity [ERR-010] warns about. */
+    if (v.type != VAL_DOUBLE) alg_error("Str with decimals takes a Double.");
+
+    if (places < 0) alg_error("Decimals cannot be negative.");
+    if (field  < 0) alg_error("A width cannot be negative.");
+
+    /* ⚠️ NOTHING HERE MAY POINT AT THIS FRAME.  alg_string_n BORROWS the bytes
+       -- it stores the pointer and does not copy -- so every branch below
+       answers either a string literal, which has static storage, or arena
+       memory, which outlives the call.  A stack buffer was the first thing
+       written here and it survived the interpreted path by luck while the
+       compiled one printed rubbish; the two-processor comparison is what caught
+       it. */
+    const char *source;
+    int         length;
+
+    const char *word = NULL;
+
+    if (isnan(v.number))      word = "NaN";
+    else if (isinf(v.number)) word = v.number < 0 ? "-Infinity" : "Infinity";
+
+    if (word != NULL) {
+        source = word;
+        length = (int)strlen(word);
+    }
+    else {
+        /* Asked for the length first, because a fixed rendering of 1.0E300 is
+           three hundred digits and not truncating it is the point of the form. */
+        length = snprintf(NULL, 0, "%.*f", (int)places, v.number);
+        if (length < 0) alg_error("Str could not render that number.");
+
+        char *rendered = arena_alloc((size_t)length + 1);
+        snprintf(rendered, (size_t)length + 1, "%.*f", (int)places, v.number);
+
+        source = rendered;
+    }
+
+    if (length >= field) return alg_string_n(source, length);
+
+    /* Right-aligned, and the field never wins: breaking a column is cosmetic
+       where truncating a number is a lie. */
+    char *padded = arena_alloc((size_t)field + 1);
+
+    memset(padded, ' ', (size_t)field - (size_t)length);
+    memcpy(padded + field - length, source, (size_t)length);
+    padded[field] = '\0';
+
+    return alg_string_n(padded, field);
+}
+
+Value alg_str_fixed(Value v, Value decimals) {
+    return str_fixed(v, alg_int(0), decimals);
+}
+
+Value alg_str_padded(Value v, Value width, Value decimals) {
+    return str_fixed(v, width, decimals);
+}
+
 Value alg_str(Value v) {
     int32_t     length;
     const char *text = as_text_len(v, &length);

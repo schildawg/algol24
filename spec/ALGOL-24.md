@@ -10630,6 +10630,10 @@ a point (`1.0`), a Boolean lowercase (`true`), `nil` as `nil`, a List as
 `[10, 20, 30]`, a Map as `[1:2]`, an instance by its `ToString` [CLS-009], and
 the two resources as `Buffer(4)` [RT-023] and `TextFile('name')` [RT-024].
 
+**A precision is a different form of the same built-in** [RT-028]:
+`Str (X, Decimals)` renders a Double with exactly that many places. One
+argument stays what it is — the shortest form that round-trips.
+
 **Any value means any value, and a `TextFile` was the one that was not.**
 It had no case at all and answered `A value of object kind 14 has no text
 form.` — a message naming an internal tag, to a program that has no way to know
@@ -11776,6 +11780,128 @@ What `ReadLn` treats as a line is [RT-016], which is the scanner's rule
 [SRC-006] rather than a second one.
 
     conformance  0178-a-text-files-state.a24
+
+**[RT-028]**  `Str` takes a **precision** as well. `Str (X, Decimals)` renders
+a Double with exactly that many places, and `Str (X, Width, Decimals)` does the
+same right-aligned in `Width`. One native answering three counts, as `Pos`
+answers two [RT-005], rather than an overload [FUN-013].
+
+| | |
+| --- | --- |
+| `Str (1.5, 3)` | `1.500` |
+| `Str (2.5, 0)` | `2` |
+| `Str (1.0E16, 2)` | `10000000000000000.00` |
+| `Str (1234.5, 10, 2)` | `'   1234.50'` |
+
+**Exactly that many places, and never exponent form.** That is the whole point
+of the form. A fixed-decimal rendering of `1.0E16` is seventeen digits and a
+fraction, which is long and correct; one that answered `1.0E` would be useless.
+A caller who wants the short round-tripping form already has one-argument `Str`
+[RT-006].
+
+**A trailing zero survives, because it is text.** `Str (1.5, 3)` is `1.500`,
+and that is the half arithmetic cannot do: `1.500` is not a Double distinct
+from `1.5`, so no amount of rounding before rendering can produce it.
+
+**Correctly rounded from the VALUE, not from a rendering of it.**
+`Str (2.675, 2)` is `2.67`, because 2.675 is held as 2.6749999999999998 and the
+midpoint is above the value. Text surgery on `'2.675'` cannot know that — the
+digit that would say so has already been discarded — and `Round (X * 100) / 100`
+cannot either, because the multiplication introduces an error of its own.
+
+**A true tie goes to the even neighbour.** `Str (0.125, 2)` is `0.12` and
+`Str (0.375, 2)` is `0.38`; both are exactly representable, so both are real
+ties. Ties to even is what IEEE 754 does for every arithmetic result, and what
+does not accumulate a bias over a column of them. A formatter rounding half away
+from zero would disagree with the arithmetic that produced its argument.
+
+**`Decimals` of zero yields no point.** `Str (2.5, 0)` is `2`, not `2.`
+
+**`Width` right-aligns with spaces and never truncates.** A result wider than
+`Width` overflows the field instead: breaking a column is a cosmetic fault and
+truncating a number is a lie.
+
+**`NaN` and the infinities render as the words** one-argument `Str` gives them —
+`NaN`, `Infinity`, `-Infinity` — padded to `Width`, and never as digits. A
+negative zero keeps its sign, as it does with one argument: `Str (-0.0, 2)` is
+`-0.00`.
+
+**A Double, not an Integer.** `Str (5, 2)` is refused with `Str with decimals
+takes a Double.` Two arguments would otherwise mean a precision for one type and
+a width for another — one arity meaning different things by argument type, which
+is what [ERR-010] exists to warn about. An Integer is already exact and has no
+precision to ask for.
+
+A negative `Decimals` is `Decimals cannot be negative.`, and a negative `Width`
+is `A width cannot be negative.`
+
+##### conformance/0199-str-with-a-precision.a24
+
+```algol24
+// RT-028: exactly that many places, and never exponent form.
+WriteLn (Str (1.5, 3));
+WriteLn (Str (2.5, 0));
+WriteLn (Str (1.0E16, 2));
+
+// Correctly rounded from the VALUE.  2.675 is held as 2.6749999999999998, so
+// two places is 2.67 -- which surgery on the text '2.675' cannot know, and
+// which Round (X * 100) / 100 gets wrong the other way.
+WriteLn (Str (2.675, 2));
+WriteLn (Str (1.005, 2));
+WriteLn (Str (8.835, 2));
+WriteLn (Str (0.00001234, 2));
+
+// A true tie goes to the even neighbour.  Both of these are exactly
+// representable, so both are real ties.
+WriteLn (Str (0.125, 2));
+WriteLn (Str (0.375, 2));
+
+// Width right-aligns, and overflows rather than truncating.
+WriteLn ('[' + Str (1234.5, 10, 2) + ']');
+WriteLn ('[' + Str (1234.5, 4, 2) + ']');
+WriteLn ('[' + Str (1.5, 8, 0) + ']');
+
+// The specials render as the words, padded.
+WriteLn ('[' + Str (0.0 / 0.0, 6, 2) + ']');
+WriteLn ('[' + Str (1.0 / 0.0, 10, 2) + ']');
+WriteLn ('[' + Str (-1.0 / 0.0, 2, 2) + ']');
+
+// A negative zero keeps its sign, as it does with one argument.
+WriteLn (Str (-0.0, 2));
+
+// One argument is untouched: the shortest form that round-trips.
+WriteLn (Str (2.675));
+
+try WriteLn (Str (5, 2));       except on E : String do WriteLn ('  an Integer: ' + E); end
+try WriteLn (Str (1.5, -1));    except on E : String do WriteLn ('  decimals: ' + E); end
+try WriteLn (Str (1.5, -1, 2)); except on E : String do WriteLn ('  width: ' + E); end
+try WriteLn (Str (1.5, 2, 3, 4)); except on E : String do WriteLn ('  four: ' + E); end
+```
+
+```console
+$ algc conformance/0199-str-with-a-precision.a24
+1.500
+2
+10000000000000000.00
+2.67
+1.00
+8.84
+0.00
+0.12
+0.38
+[   1234.50]
+[1234.50]
+[       2]
+[   NaN]
+[  Infinity]
+[-Infinity]
+-0.00
+2.675
+  an Integer: Str with decimals takes a Double.
+  decimals: Decimals cannot be negative.
+  width: A width cannot be negative.
+  four: Expected 1, 2 or 3 arguments but got 4.
+```
 
 **[RT-027]**  A subprogram may be declared with a **built-in's name**. It takes
 over the **argument counts it declares**, and the built-in keeps the rest.

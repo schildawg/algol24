@@ -229,6 +229,12 @@ Value alg_foreign_call(Value symbol, Value library, Value types, Value returns, 
 Value   alg_overloads(const char *name);
 void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **types);
 
+/* Str with a precision [RT-028]: exactly that many decimal places, never
+   exponent form, correctly rounded from the binary value.  alg_str_padded
+   right-aligns the result in a field it never truncates. */
+Value alg_str_fixed(Value v, Value decimals);
+Value alg_str_padded(Value v, Value width, Value decimals);
+
 Value alg_copy(Value text, Value begin, Value length);
 Value alg_pos(Value text, Value part);
 

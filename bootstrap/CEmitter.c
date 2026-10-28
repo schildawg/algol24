@@ -3477,7 +3477,13 @@ static Value m_cemitter_countsmessage_2_list_integer(Value v_this, Value *args, 
         for (; alg_truthy(alg_less(v_i, alg_property(v_counts, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
                 if (alg_truthy(alg_greater(v_i, alg_int(0)))) {
-                    (void)((v_expected = alg_widen(alg_add(v_expected, alg_string(" or ")), "String")));
+                    {
+                        if (alg_truthy(alg_equal(v_i, alg_subtract(alg_property(v_counts, "Length"), alg_int(1))))) {
+                            (void)((v_expected = alg_widen(alg_add(v_expected, alg_string(" or ")), "String")));
+                        } else {
+                            (void)((v_expected = alg_widen(alg_add(v_expected, alg_string(", ")), "String")));
+                        }
+                    }
                 }
                 (void)((v_expected = alg_widen(alg_add(v_expected, alg_str(alg_subscript_get(v_counts, v_i))), "String")));
             }
@@ -3580,6 +3586,12 @@ static Value m_cemitter_builtin_2_string_integer(Value v_this, Value *args, int3
     }
     if (alg_truthy(alg_equal(v_key, alg_string("Str/1")))) {
         return alg_string("alg_str");
+    }
+    if (alg_truthy(alg_equal(v_key, alg_string("Str/2")))) {
+        return alg_string("alg_str_fixed");
+    }
+    if (alg_truthy(alg_equal(v_key, alg_string("Str/3")))) {
+        return alg_string("alg_str_padded");
     }
     if (alg_truthy(alg_equal(v_key, alg_string("Length/1")))) {
         return alg_string("alg_text_length");

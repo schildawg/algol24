@@ -117,7 +117,7 @@ byte-identically through both, `-0.0`, `NaN`, `Infinity`, `1.0E300` and
 
 ---
 
-## 3. `Str (X, Decimals)` and `Str (X, Width, Decimals)`
+## 3. `Str (X, Decimals)` and `Str (X, Width, Decimals)` — **done**
 
 Accepted as proposed. The proposal's argument is that a library cannot do this
 correctly and measured why: text surgery on `Str`'s output gets a wrong digit
@@ -143,6 +143,58 @@ Algol-24 would be the two-renderer problem the proposal objects to, arrived at
 from the other direction.
 
 Arity settles all three forms statically, so no call site warns [ERR-010].
+
+**What landed.** [RT-028], with `Str` registered variadic and answering three
+counts — one native, as `Pos` answers two [RT-005], rather than an overload. The
+one-argument form is untouched and still goes through `Stringify`, because
+rendering an instance means calling its `ToString` through the interpreter; the
+other two take a number and answer text, so they hand straight to the host.
+`conformance/0199-str-with-a-precision.a24` pins all of it under both
+processors, and every expected value in it was computed before it was run.
+
+⚠️ **One correction to the proposal.** Its table gives `Str (1.0E16, 2)` as
+`10000000000000002.00`. The answer is `10000000000000000.00`: 10¹⁶ is
+5¹⁶ × 2¹⁶ and 5¹⁶ fits in 53 bits, so it is exactly representable. Worth
+telling the library, since the row was offered as a measurement.
+
+Measured against the helper the proposal quotes from `shroom-slots`, on the six
+values it names:
+
+| | `Fixed (X, 2)` | `Str (X, 2)` |
+| --- | --- | --- |
+| `8.835` | `8.83` | **`8.84`** |
+| `0.00001234` | `1.23` | **`0.00`** |
+| `1.0E16` | `1.0E` | **`10000000000000000.00`** |
+
+The other three agree. That is the three-of-six the proposal reported, closed.
+
+### Two things this item cost, and both were found by the harnesses
+
+⚠️ **`alg_string_n` BORROWS its bytes.** It stores the pointer and does not
+copy, so the first version of `str_fixed` — which rendered into a stack buffer
+and returned it — handed back a pointer into a dead frame. It survived the
+interpreted path by luck and printed rubbish compiled. Every branch now answers
+either a string literal, which has static storage, or arena memory. **The
+two-processor comparison is the only reason this was caught**, and it is the
+clearest argument yet for the rule that every case runs under both.
+
+⚠️ **Two reseeds, which is exactly the hazard CLAUDE.md names.** Generation 1
+is the new emitter's source compiled by the *old* emitter's rules, and the old
+rules did not know `Str/2` — so generation 1's `Interpreter.c` held
+`alg_error("Expected 1 arguments but got 2.")` where generation 2 holds
+`alg_str_fixed(...)`. Generation 3 matched generation 2. Iterating until two
+consecutive generations agree is what the reseed has to do whenever the change
+adds something the emitter itself uses.
+
+⚠️ **And the corpus caught the two processors wording one message differently.**
+Three accepted counts had never existed before, so `CountsMessage` had never
+had to join more than two: it said `1 or 2 or 3` where the interpreter's arm
+said `1, 2 or 3`. Fixed in the emitter's shared builder, which now puts commas
+up to the last — so `2 or 3` reads as it always has and nothing else changes.
+
+Regression-checked beyond the corpus, because `Str` is used everywhere and its
+arity changed: `shroom-slots` passes all 724 of its tests, and the library is
+at the same three environment failures it had before this release began.
 
 ---
 
