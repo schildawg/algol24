@@ -777,11 +777,20 @@ WriteLn (A = 5);
 WriteLn (A <> 5);
 
 // LEX-005: the longer token wins.  '<=' is one token, and '<' followed by
-// something that is not '>' or '=' is a '<' on its own.
+// something that is not '>', '=' or '<' is a '<' on its own.
 WriteLn (3 <= 3);
 WriteLn (3 <  4);
 WriteLn (3 >= 3);
 WriteLn (3 >  2);
+
+// LEX-012: the bitwise symbols, which the longer-token rule also reaches --
+// '<<' is one token where '<' '<' would be two [EXP-024].
+WriteLn (6 & 3);
+WriteLn (6 | 3);
+WriteLn (6 ^ 3);
+WriteLn (~6);
+WriteLn (1 << 4);
+WriteLn (256 >> 4);
 
 // LEX-014: the word operators.  'div' and 'mod' are among them, because '/'
 // is real division [EXP-004] and they are how the Integer pair is asked for.
@@ -806,6 +815,12 @@ true
 true
 true
 true
+2
+7
+5
+-7
+16
+16
 3
 3
 true
@@ -1032,6 +1047,7 @@ $ algc conformance/0018-context-sensitive-words.a24
 (    )    [    ]    ,    .    ;    :
 +    -    *    /    =    :=
 <    <=   >    >=   <>
+&    |    ^    ~    <<   >>
 ```
 
     unit         Scan Operators
@@ -5007,14 +5023,30 @@ $ algc conformance/0043-visibility-is-advisory.a24
 | | Operators |
 | --- | --- |
 | 1 | `f(…)` call · `a[i]` subscript · `a.b` property |
-| 2 | `-` unary · `not` · `as` |
-| 3 | `*` · `/` · `div` · `mod` |
+| 2 | `-` unary · `~` · `not` · `as` |
+| 3 | `*` · `/` · `div` · `mod` · `<<` · `>>` |
 | 4 | `+` · `-` |
-| 5 | `<` · `<=` · `>` · `>=` · `in` · `is` |
-| 6 | `=` · `<>` |
-| 7 | `and` |
-| 8 | `or` |
-| 9 | `:=` |
+| 5 | `&` |
+| 6 | `^` |
+| 7 | `\|` |
+| 8 | `<` · `<=` · `>` · `>=` · `in` · `is` |
+| 9 | `=` · `<>` |
+| 10 | `and` |
+| 11 | `or` |
+| 12 | `:=` |
+
+**The bitwise three sit between arithmetic and comparison** [EXP-023], so
+`Flags & Mask = 0` means `(Flags & Mask) = 0`. C binds `&` looser than `==`,
+which is widely held to be a mistake and carries a warning in every modern C;
+putting them here is what avoids inheriting it. `&` over `^` over `|` keeps the
+part of C's ordering nobody disputes.
+
+**The shifts sit with the multiplicatives, which is a departure** from C and
+from Python, where they bind below `+` and `-`. The reason is that `1 << N - 1`
+is a mask in practice: tight shifts give `(1 << N) - 1`, where the looser
+reading gives `1 << (N - 1)` and is almost never what was meant. They share the
+level rather than taking one of their own, so `8 >> 1 * 2` is `(8 >> 1) * 2`,
+left to right as [EXP-002] has it.
 
     unit         Parse Term Plus
     unit         Parse Factor Star
@@ -5030,6 +5062,14 @@ WriteLn (1 < 2 = True);        // < over =
 WriteLn (not True and False);  // not over and
 WriteLn (True or False and False);   // and over or
 WriteLn (False and True or True);    // and over or, the other way
+
+// The bitwise three bind tighter than a comparison and looser than arithmetic,
+// and '&' over '^' over '|' [EXP-023].
+WriteLn (1 | 2 & 3);           // & over |
+WriteLn (6 ^ 3 & 1);           // & over ^
+WriteLn (7 & 3 = 3);           // & over =, which is the C mistake avoided
+WriteLn (1 << 2 + 1);          // << over +, so a mask reads as one
+WriteLn (~0 & 5);              // unary ~ over &
 
 // 'div' and 'mod' are on the level '*' and '/' are on, which this table did
 // not say until it was measured.  Tighter than '+', and sharing the level
@@ -5055,6 +5095,11 @@ true
 false
 true
 true
+3
+7
+true
+5
+5
 5
 8
 4
@@ -5070,6 +5115,10 @@ true
 > `1 + 8 div 2` is 5 rather than 4, and `8 div 2 * 2` is 8 rather than 2 — so
 > `div` binds tighter than `+` and shares a level with `*` rather than taking
 > one above it. `mod` answers the same way on both counts.
+>
+> `1 | 2 & 3` is 3 rather than 1, `6 ^ 3 & 1` is 7 rather than 1, `7 & 3 = 3` is
+> true rather than `7 & False`, `1 << 2 + 1` is 5 rather than 8, and `~0 & 5` is
+> 5 rather than `~(0 & 5)` which would be -1. Each distinguishes its pair.
 
 **[EXP-002]**  Binary operators of one level are left-associative:
 `10 - 2 - 3` is 5 and `12 / 2 / 3` is 2.
@@ -5510,7 +5559,7 @@ end
 ```
 
 **A closed list, and it has to be.** A new operator would need a precedence
-and an associativity, and [EXP-001] is a fixed table of nine levels with
+and an associativity, and [EXP-001] is a fixed table of twelve levels with
 nowhere to put one. These six already have a place in it. `operator =` is
 refused with `An operator must be one of + - * / div mod.`
 
@@ -5632,6 +5681,233 @@ Uncaught: An operator must be one of + - * / div mod.
 [ERROR] 7 |     operator = (Other : Pair) : Boolean; begin Exit Left = Other.Left; end
 [ERROR]   |              ^
 exit: 70
+```
+
+### 9.3 Bitwise operators
+
+**[EXP-023]**  `&`, `|`, `^` and `~` combine the **bits** of Integers — and,
+or, exclusive or, and complement. The binary three take two Integers and `~`
+takes one.
+
+| | |
+| --- | --- |
+| `6 & 3` | `2` |
+| `6 \| 3` | `7` |
+| `6 ^ 3` | `5` |
+| `~6` | `-7` |
+
+**Every Integer is two's complement extended infinitely to the left.** A
+non-negative value has infinitely many leading zeros and a negative one
+infinitely many leading ones, so every operation is **total and closed** and no
+width is named anywhere:
+
+| | | |
+| --- | --- | --- |
+| `~0` | `-1` | every bit set |
+| `~(-1)` | `0` | |
+| `-1 & 5` | `5` | `-1` is all ones, so it selects everything |
+| `-2 \| 1` | `-1` | |
+| `-1 ^ -1` | `0` | |
+
+**This is the part only the language can get right**, and it is why these are
+operators rather than a library's business. A routine obliged to pick a width
+is correct for values that fit it and silently wrong for values that do not,
+with nothing in its declaration able to say which — a thirty-two bit exclusive
+or of two Integers is exactly right for a pixel and exactly wrong for a
+factorial. An Integer here has no width to overflow [EXP-007], so there is
+nothing to pick.
+
+**A Double is refused, not reinterpreted.** `1.5 & 2` is `& expects
+Integers.`, and a Boolean is refused on the same terms: `True & True` is not a
+shorter `and`. What a Double's bits are is a separate question and not one
+these operators answer.
+
+**`and`, `or` and `not` are untouched** [EXP-010], and the reason they were not
+reused is worth stating. They test truthiness, yield an *operand*, and
+short-circuit; these combine bits and must evaluate both sides. One spelling
+for both would make short-circuiting depend on a value's run-time type — the
+same expression evaluating its right operand on one call and not on the next,
+for reasons no diagnostic could sit on. Writing `and` where `&` was meant
+raises a warning instead [ERR-010].
+
+##### conformance/0200-bitwise-operators.a24
+
+```algol24
+// EXP-023: and, or, exclusive or, complement.
+WriteLn (6 & 3);
+WriteLn (6 | 3);
+WriteLn (6 ^ 3);
+WriteLn (~6);
+
+// Two's complement extended infinitely to the left, so every operation is
+// total and no width is named anywhere.
+WriteLn (~0);
+WriteLn (~(-1));
+WriteLn (-1 & 5);
+WriteLn (-2 | 1);
+WriteLn (-1 ^ -1);
+WriteLn (-8 & -3);
+WriteLn (~(~42));
+
+// An Integer is unbounded [EXP-007], and the bits of one that outgrew the
+// machine's width are reached the same way.
+var Wide : Integer := 1 << 70;
+
+WriteLn (Wide);
+WriteLn (Wide & 1);
+WriteLn (Wide | 1);
+WriteLn (Wide >> 70);
+WriteLn (~Wide);
+WriteLn ((Wide - 1) & 255);
+
+// Packing and unpacking, which is what the operators are for.
+var R : Integer := 255;
+var G : Integer := 128;
+var B : Integer := 64;
+var Tint : Integer := (R << 16) | (G << 8) | B;
+
+WriteLn (Tint);
+WriteLn ((Tint >> 16) & 255);
+WriteLn ((Tint >> 8) & 255);
+WriteLn (Tint & 255);
+
+// Clearing bits, which needs the complement.
+WriteLn (Tint & ~255);
+
+// A Double is refused rather than reinterpreted, and so is a Boolean.
+try WriteLn (1.5 & 2);    except on E : String do WriteLn ('  a Double: ' + E); end
+try WriteLn (True & True); except on E : String do WriteLn ('  a Boolean: ' + E); end
+try WriteLn (~1.5);       except on E : String do WriteLn ('  complement: ' + E); end
+```
+
+```console
+$ algc conformance/0200-bitwise-operators.a24
+2
+7
+5
+-7
+-1
+0
+5
+-1
+0
+-8
+42
+1180591620717411303424
+0
+1180591620717411303425
+1
+-1180591620717411303425
+255
+16744512
+255
+128
+64
+16744448
+  a Double: & expects Integers.
+  a Boolean: & expects Integers.
+  complement: ~ expects an Integer.
+```
+
+**[EXP-024]**  `<<` and `>>` shift an Integer's bits left and right. The left
+operand is the value, the right is the **count**, and the count must be a
+non-negative Integer.
+
+| | |
+| --- | --- |
+| `1 << 4` | `16` |
+| `256 >> 4` | `16` |
+| `1 << 70` | `1180591620717411303424` |
+| `-7 >> 1` | `-4` |
+
+**A left shift grows rather than wrapping**, which is not a special case for
+these operators but [EXP-007] applied: a result too large for the machine's
+width grows to hold it. `1 << 64` is not zero and `1 << 70` is an ordinary
+Integer. Anyone arriving from C should read that twice.
+
+**A right shift is ARITHMETIC, and is not division by a power of two.** `div`
+truncates toward zero where a shift floors, so the two disagree on a negative
+value whose shifted-out bits are not all zero:
+
+| | |
+| --- | --- |
+| `-7 >> 1` | `-4`, the floor |
+| `-7 div 2` | `-3`, truncated toward zero [EXP-021] |
+
+They agree whenever the bits shifted out are zero, which is what makes the
+difference easy to miss. Specifying `>>` as the two's-complement shift is what
+makes it the inverse of `<<` for a value with room, and what makes it agree
+with the infinite sign extension [EXP-023] describes: shifting `-1` right by
+any count is `-1`.
+
+**A negative count is refused**, with `A shift count cannot be negative.` A
+count that arrived by subtraction and went negative is a bug a program wants to
+hear about rather than a shift the other way.
+
+**The count has no upper limit.** Shifting left by a large one makes a large
+Integer; shifting right past the top of a value answers `0` for a non-negative
+one and `-1` for a negative one, because that is what the leading bits are.
+
+##### conformance/0201-shifts.a24
+
+```algol24
+// EXP-024: the value on the left, the count on the right.
+WriteLn (1 << 4);
+WriteLn (256 >> 4);
+WriteLn (0 << 9);
+WriteLn (5 << 0);
+
+// A left shift grows rather than wrapping: [EXP-007], not a special case.
+WriteLn (1 << 63);
+WriteLn (1 << 64);
+WriteLn (1 << 70);
+
+// A right shift is ARITHMETIC and floors, where div truncates toward zero.
+WriteLn (-7 >> 1);
+WriteLn (-7 div 2);
+WriteLn (-1 >> 1);
+WriteLn (-1 >> 99);
+WriteLn (7 >> 99);
+
+// They agree whenever the bits shifted out are zero, which is what makes the
+// difference easy to miss.
+WriteLn (-8 >> 1);
+WriteLn (-8 div 2);
+
+// The inverse of a shift, for a value with room.
+WriteLn ((12345 << 11) >> 11);
+
+// A mask, which is why the shifts bind tighter than '+' [EXP-001].
+WriteLn ((1 << 8) - 1);
+
+try WriteLn (1 << -1);   except on E : String do WriteLn ('  left: ' + E); end
+try WriteLn (1 >> -1);   except on E : String do WriteLn ('  right: ' + E); end
+try WriteLn (1 << 1.5);  except on E : String do WriteLn ('  a Double count: ' + E); end
+try WriteLn (1.5 >> 1);  except on E : String do WriteLn ('  a Double value: ' + E); end
+```
+
+```console
+$ algc conformance/0201-shifts.a24
+16
+16
+0
+5
+9223372036854775808
+18446744073709551616
+1180591620717411303424
+-4
+-3
+-1
+-1
+0
+-4
+-4
+12345
+255
+  left: A shift count cannot be negative.
+  right: A shift count cannot be negative.
+  a Double count: << expects Integers.
+  a Double value: >> expects Integers.
 ```
 
 ### 9.4 Logical operators
