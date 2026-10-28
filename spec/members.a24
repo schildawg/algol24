@@ -10,6 +10,13 @@
 // ⚠️ It prints the resources' pairs as well as the collections', and spec.sh
 // tells the two apart by the kinds each table names in its own header row.
 // One source, two tables.
+//
+// ⚠️ A NAME ADDED TO 'Resources' NEEDS AN ARM IN BOTH 'case' BLOCKS, even the
+// one where it will raise.  A case with no matching arm falls through without
+// raising, so the name reads as a member the kind HAS -- which is how adding
+// PutWord, GetWord, PutDouble and GetDouble to the Buffer block alone made the
+// probe claim all four for TextFile.  spec.sh caught it; the arm that raises is
+// what makes the absence an answer rather than a silence.
 
 var Kinds := ['List', 'Set', 'Stack', 'Array', 'Map'];
 
@@ -79,7 +86,8 @@ end
 // the collections and only one with each other.
 
 var Resources := ['Length', 'IsEmpty', 'Text', 'Address', 'Append', 'PutInt',
-                  'GetInt', 'Resize', 'Free', 'Eof', 'Assign', 'Reset',
+                  'GetInt', 'PutWord', 'GetWord', 'PutDouble', 'GetDouble',
+                  'Resize', 'Free', 'Eof', 'Assign', 'Reset',
                   'Rewrite', 'ReadLn', 'Write', 'WriteLn', 'Flush', 'Close',
                   'Erase', 'Rename'];
 
@@ -105,6 +113,10 @@ begin
             'Append'  : Ignored := B.Append;
             'PutInt'  : Ignored := B.PutInt;
             'GetInt'  : Ignored := B.GetInt;
+            'PutWord'   : Ignored := B.PutWord;
+            'GetWord'   : Ignored := B.GetWord;
+            'PutDouble' : Ignored := B.PutDouble;
+            'GetDouble' : Ignored := B.GetDouble;
             'Resize'  : Ignored := B.Resize;
             'Free'    : Ignored := B.Free;
             'Eof'     : Ignored := B.Eof;
@@ -134,6 +146,10 @@ begin
             'Append'  : Ignored := Probe.Append;
             'PutInt'  : Ignored := Probe.PutInt;
             'GetInt'  : Ignored := Probe.GetInt;
+            'PutWord'   : Ignored := Probe.PutWord;
+            'GetWord'   : Ignored := Probe.GetWord;
+            'PutDouble' : Ignored := Probe.PutDouble;
+            'GetDouble' : Ignored := Probe.GetDouble;
             'Resize'  : Ignored := Probe.Resize;
             'Free'    : Ignored := Probe.Free;
             'Eof'     : Ignored := Probe.Eof;

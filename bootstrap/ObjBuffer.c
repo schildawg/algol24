@@ -98,6 +98,18 @@ static Value m_objbuffer_get_1_token(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(v_member, alg_string("getint")))) {
         return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
     }
+    if (alg_truthy(alg_equal(v_member, alg_string("putword")))) {
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(2)}, 3);
+    }
+    if (alg_truthy(alg_equal(v_member, alg_string("getword")))) {
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
+    }
+    if (alg_truthy(alg_equal(v_member, alg_string("putdouble")))) {
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(2)}, 3);
+    }
+    if (alg_truthy(alg_equal(v_member, alg_string("getdouble")))) {
+        return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
+    }
     if (alg_truthy(alg_equal(v_member, alg_string("resize")))) {
         return alg_new(k_buffermethod, (Value[]){v_this, v_thename, alg_int(1)}, 3);
     }
@@ -122,6 +134,18 @@ static Value m_objbuffer_invoke_2_string_list(Value v_this, Value *args, int32_t
     }
     if (alg_truthy(alg_equal(v_name, alg_string("getint")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "GetInt", (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1);
+    }
+    if (alg_truthy(alg_equal(v_name, alg_string("putword")))) {
+        return alg_invoke(alg_property(v_this, "Handle"), "PutWord", (Value[]){alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1))}, 2);
+    }
+    if (alg_truthy(alg_equal(v_name, alg_string("getword")))) {
+        return alg_invoke(alg_property(v_this, "Handle"), "GetWord", (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1);
+    }
+    if (alg_truthy(alg_equal(v_name, alg_string("putdouble")))) {
+        return alg_invoke(alg_property(v_this, "Handle"), "PutDouble", (Value[]){alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1))}, 2);
+    }
+    if (alg_truthy(alg_equal(v_name, alg_string("getdouble")))) {
+        return alg_invoke(alg_property(v_this, "Handle"), "GetDouble", (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1);
     }
     if (alg_truthy(alg_equal(v_name, alg_string("resize")))) {
         return alg_invoke(alg_property(v_this, "Handle"), "Resize", (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1);

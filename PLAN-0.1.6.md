@@ -54,7 +54,7 @@ claim is pinned by the corpus rather than by this document.
 
 ---
 
-## 2. `Buffer.PutDouble`, in the core
+## 2. `Buffer.PutDouble`, in the core — **done**
 
 `Buffer` has `PutInt`/`GetInt` and nothing for a Double, so a record holding a
 price has no encoding in pure Algol-24. The library needs it for `RecordFile`.
@@ -73,14 +73,47 @@ What lands:
 | --- | --- |
 | `PutDouble (At, X)` | eight bytes, IEEE 754, little-endian — `PutInt`'s byte order, measured |
 | `GetDouble (At)` | the same eight bytes back |
-| `GetWord (At)` | four bytes **unsigned**, to retire the fixup below |
+| `PutWord (At, N)` | four bytes **unsigned**, 0 … 4294967295 |
+| `GetWord (At)` | the same four bytes read unsigned, retiring the fixup below |
 
 `GetWord` is not in any proposal; it answers the bitwise proposal's open
 question 5. `if X < 0 then X := X + 4294967296` — undoing `GetInt`'s sign — is
 duplicated in `crt` and `graph` today, and an unsigned reader retires both sites
 independently of the operators.
 
+⚠️ **`PutWord` is the one addition beyond what was asked for**, and the reason
+is the asymmetry it avoids: with a reader and no writer, writing an unsigned
+word means `PutInt (At, X - 4294967296)` — the inverse of the fixup being
+retired. The specification already records fixing exactly this shape of gap
+once, when `mod` became an operator so that a class defining `div` could define
+its partner [EXP-020].
+
 Unaligned offsets are accepted, as `PutInt`'s are.
+
+**What landed.** [RT-022] carries the two new rows and says four things the
+rule had not had to say before: the byte order is written down rather than
+inherited, so a record crosses machines; the offset message names `Length - 8`
+for a Double; `PutDouble` widens an Integer [VAL-001]; and eight bytes is IEEE
+754 binary64, which is the one place this specification names a representation
+— because a record format is a promise to something outside the program.
+[RT-021]'s matrix gains a row, and `spec/spec.sh` now checks 25 pairs against
+the interpreter rather than 21.
+
+⚠️ **The member probe had a hazard, and the harness found it.** `spec/members.a24`
+asks each kind for each name inside a `case`, and a `case` with no matching arm
+falls through *without raising* — so a name added to the Buffer block alone read
+as a member `TextFile` has. spec.sh reported all four as omitted from the matrix
+for TextFile. The arm that raises is what makes an absence an answer rather than
+a silence, and the hazard is now written down in the probe for the next name.
+
+Covered by `conformance/0175-resource-members.a24` and
+`conformance/0176-a-buffers-bytes.a24` under both processors, which is how
+`PutInt` is covered too — there is no unit test for any Buffer member, because
+`ObjBuffer` delegates every one of them to the host and the corpus is what
+proves the two processors agree. A record of the shape `RecordFile` wants —
+an Integer id, a Double price and a packed colour word — round-trips
+byte-identically through both, `-0.0`, `NaN`, `Infinity`, `1.0E300` and
+`1.0E-300` included.
 
 ---
 

@@ -113,6 +113,12 @@ begin
         if Member = 'append' then Exit BufferMethod (this, TheName, 1);
         if Member = 'putint' then Exit BufferMethod (this, TheName, 2);
         if Member = 'getint' then Exit BufferMethod (this, TheName, 1);
+
+        if Member = 'putword'   then Exit BufferMethod (this, TheName, 2);
+        if Member = 'getword'   then Exit BufferMethod (this, TheName, 1);
+        if Member = 'putdouble' then Exit BufferMethod (this, TheName, 2);
+        if Member = 'getdouble' then Exit BufferMethod (this, TheName, 1);
+
         if Member = 'resize' then Exit BufferMethod (this, TheName, 1);
         if Member = 'free'   then Exit BufferMethod (this, TheName, 0);
 
@@ -137,6 +143,12 @@ begin
         if Name = 'append' then Exit Handle.Append (Arguments[0]);
         if Name = 'putint' then Exit Handle.PutInt (Arguments[0], Arguments[1]);
         if Name = 'getint' then Exit Handle.GetInt (Arguments[0]);
+
+        if Name = 'putword'   then Exit Handle.PutWord (Arguments[0], Arguments[1]);
+        if Name = 'getword'   then Exit Handle.GetWord (Arguments[0]);
+        if Name = 'putdouble' then Exit Handle.PutDouble (Arguments[0], Arguments[1]);
+        if Name = 'getdouble' then Exit Handle.GetDouble (Arguments[0]);
+
         if Name = 'resize' then Exit Handle.Resize (Arguments[0]);
         if Name = 'free'   then Exit Handle.Free ();
 

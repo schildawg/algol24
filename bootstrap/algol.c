@@ -2423,6 +2423,56 @@ Value alg_set_property(Value receiver, const char *name, Value value) {
     return value;
 }
 
+/* The same four bytes as buffer_get_int, read unsigned.
+
+   A packed colour or a flag word is written as unsigned and had to be read back
+   by hand -- 'if X < 0 then X := X + 4294967296' -- which is a fixup a program
+   should not have to know. */
+static uint32_t buffer_get_word(ObjBuffer *buffer, size_t at) {
+    return (uint32_t)(unsigned char)buffer->bytes[at]
+         | (uint32_t)(unsigned char)buffer->bytes[at + 1] <<  8
+         | (uint32_t)(unsigned char)buffer->bytes[at + 2] << 16
+         | (uint32_t)(unsigned char)buffer->bytes[at + 3] << 24;
+}
+
+static uint32_t as_word(Value v) {
+    if (v.type != VAL_INT || v.integer < 0 || v.integer > 4294967295LL)
+        alg_error("A word must be in 0..4294967295.");
+
+    return (uint32_t)v.integer;
+}
+
+/* Eight bytes of IEEE 754 binary64, least significant first.
+
+   The byte order is WRITTEN rather than inherited: memcpy lifts the bits in the
+   machine's own order and the loop lays them out little-endian whatever that
+   order was, so a buffer written on one machine and read on another agrees.
+   That is the whole point of putting a record in one, and it is why this does
+   not memcpy the eight bytes straight out.
+
+   memcpy rather than a union or a cast through double*, because that is the one
+   spelling with no aliasing question in it; every compiler this runtime is
+   built with turns it into the move it is. */
+static void buffer_put_double(ObjBuffer *buffer, size_t at, double value) {
+    uint64_t bits;
+    memcpy(&bits, &value, sizeof bits);
+
+    for (int i = 0; i < 8; i++)
+        buffer->bytes[at + i] = (char)((bits >> (8 * i)) & 0xFFu);
+}
+
+static double buffer_get_double(ObjBuffer *buffer, size_t at) {
+    uint64_t bits = 0;
+
+    for (int i = 0; i < 8; i++)
+        bits |= (uint64_t)(unsigned char)buffer->bytes[at + i] << (8 * i);
+
+    double value;
+    memcpy(&value, &bits, sizeof value);
+
+    return value;
+}
+
 static bool buffer_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
     if (!is_obj(receiver, OBJ_BUFFER)) return false;
     (void)count;
@@ -2465,6 +2515,44 @@ static bool buffer_method(Value receiver, const char *name, Value *args, int32_t
         *result = alg_int(buffer_get_int(buffer, buffer_offset(buffer, args[0], 4)));
         return true;
     }
+    if (alg_stricmp(name, "PutWord") == 0) {
+        ObjBuffer *buffer = as_buffer(receiver, "PutWord");
+        size_t     at     = buffer_offset(buffer, args[0], 4);
+
+        /* Through the signed writer, because the bytes are the same bytes. */
+        buffer_put_int(buffer, at, (int32_t)as_word(args[1]));
+
+        *result = alg_nil();
+        return true;
+    }
+    if (alg_stricmp(name, "GetWord") == 0) {
+        ObjBuffer *buffer = as_buffer(receiver, "GetWord");
+
+        /* Into an int64, which always holds it -- and an Integer is unbounded
+           anyway, so nothing here has to be narrowed. */
+        *result = alg_int((int64_t)buffer_get_word(buffer,
+                                                   buffer_offset(buffer, args[0], 4)));
+        return true;
+    }
+    if (alg_stricmp(name, "PutDouble") == 0) {
+        ObjBuffer *buffer = as_buffer(receiver, "PutDouble");
+        size_t     at     = buffer_offset(buffer, args[0], 8);
+
+        if (!is_number(args[1])) alg_error("PutDouble takes a Double.");
+
+        /* as_double widens an Integer, as every other context does. */
+        buffer_put_double(buffer, at, as_double(args[1]));
+
+        *result = alg_nil();
+        return true;
+    }
+    if (alg_stricmp(name, "GetDouble") == 0) {
+        ObjBuffer *buffer = as_buffer(receiver, "GetDouble");
+
+        *result = alg_double(buffer_get_double(buffer,
+                                               buffer_offset(buffer, args[0], 8)));
+        return true;
+    }
     if (alg_stricmp(name, "Resize") == 0) {
         ObjBuffer *buffer = as_buffer(receiver, "Resize");
 
@@ -2498,6 +2586,8 @@ static const Member *member_of(Value receiver, const char *name) {
                                     {"Clear", 0}, {NULL, 0} };
 
     static const Member buffer[] = { {"Append", 1}, {"PutInt", 2}, {"GetInt", 1},
+                                     {"PutWord", 2}, {"GetWord", 1},
+                                     {"PutDouble", 2}, {"GetDouble", 1},
                                      {"Resize", 1}, {"Free", 0}, {NULL, 0} };
     static const Member file[]   = { {"Assign", 1}, {"Reset", 0}, {"Rewrite", 0},
                                      {"Append", 0}, {"ReadLn", 0}, {"Write", 1},

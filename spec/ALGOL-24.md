@@ -11403,6 +11403,7 @@ is a collection — neither answers `Contains`, and only a `Buffer` answers
 | --- | :-: | :-: |
 | `Length` `IsEmpty` `Text` `Address` | ● | |
 | `PutInt` `GetInt` `Resize` `Free` | ● | |
+| `PutWord` `GetWord` `PutDouble` `GetDouble` | ● | |
 | `Append` | ● | ● |
 | `Eof` `Assign` `Reset` `Rewrite` | | ● |
 | `ReadLn` `Write` `WriteLn` `Flush` | | ● |
@@ -11439,7 +11440,7 @@ end
 var B := Buffer ();
 var F := TextFile ();
 
-// A Buffer's four properties and five methods.
+// A Buffer's four properties and nine methods.
 Has ('Buffer', 'Length',  B.Length  = 0);
 Has ('Buffer', 'IsEmpty', B.IsEmpty);
 Has ('Buffer', 'Text',    B.Text = '');
@@ -11449,6 +11450,10 @@ Has ('Buffer', 'PutInt',  Str (B.PutInt) = '<fn PutInt>');
 Has ('Buffer', 'GetInt',  Str (B.GetInt) = '<fn GetInt>');
 Has ('Buffer', 'Resize',  Str (B.Resize) = '<fn Resize>');
 Has ('Buffer', 'Free',    Str (B.Free)   = '<fn Free>');
+Has ('Buffer', 'PutWord',   Str (B.PutWord)   = '<fn PutWord>');
+Has ('Buffer', 'GetWord',   Str (B.GetWord)   = '<fn GetWord>');
+Has ('Buffer', 'PutDouble', Str (B.PutDouble) = '<fn PutDouble>');
+Has ('Buffer', 'GetDouble', Str (B.GetDouble) = '<fn GetDouble>');
 
 // A TextFile's one property and eleven methods.  Eof needs the file open, so
 // it is asked for after a Rewrite rather than here.
@@ -11508,6 +11513,10 @@ Buffer.PutInt
 Buffer.GetInt
 Buffer.Resize
 Buffer.Free
+Buffer.PutWord
+Buffer.GetWord
+Buffer.PutDouble
+Buffer.GetDouble
 TextFile.Assign
 TextFile.Reset
 TextFile.Rewrite
@@ -11537,15 +11546,43 @@ characters: appending `'é'` makes it 2.
 | `B[I] := N` | writes one; outside that range, `A byte must be in 0..255.` |
 | `Append (X)` | appends the bytes of `Str(X)` [RT-006] |
 | `PutInt (At, N)` `GetInt (At)` | a signed four-byte little-endian Integer |
+| `PutWord (At, N)` `GetWord (At)` | those four bytes **unsigned**, 0 … 4294967295 |
+| `PutDouble (At, X)` `GetDouble (At)` | an eight-byte little-endian IEEE 754 Double |
 | `Text` | the bytes as a String |
 
 An offset outside the buffer is `Offset I out of range 0..N.`, where `N` is the
-**last offset a value of that width may start at** — `Length - 1` for a byte and
-`Length - 4` for an Integer. An empty Buffer therefore says `0..-1`, and a
-four-byte one asked for an Integer at 1 says `0..0`.
+**last offset a value of that width may start at** — `Length - 1` for a byte,
+`Length - 4` for an Integer or a word, and `Length - 8` for a Double. An empty
+Buffer therefore says `0..-1`, and a four-byte one asked for an Integer at 1
+says `0..0`.
 
 `Text` on a Buffer holding a zero byte is `A Buffer holding a zero byte has no
 Text.`
+
+**The byte order is written down rather than inherited.** Every one of these
+accessors lays out least significant byte first whatever the machine does, so a
+buffer written on one and read on another agrees — which is the whole point of
+putting a record in one. Nothing here reads the host's endianness, and a
+program cannot ask what it is.
+
+**`PutWord` and `GetWord` are the same four bytes as `PutInt` and `GetInt`,
+read the other way.** A word outside 0 … 4294967295 is
+`A word must be in 0..4294967295.`, and a signed Integer outside
+−2147483648 … 2147483647 is what `PutInt` has always refused. The pair exists
+because a value written as unsigned had to be read back by hand:
+`if X < 0 then X := X + 4294967296` was the fixup, and it was duplicated
+wherever a program read a packed colour or a flag word.
+
+**`PutDouble` takes an Integer too**, widening it as every other context does
+[VAL-001] — `PutDouble (0, 1)` writes `1.0`. `GetDouble` always answers a
+Double, so a round trip through eight bytes is exact for every value a Double
+can hold, `NaN` and the infinities included.
+
+**Eight bytes is IEEE 754 binary64**, which is what a `Double` is [TYP-005].
+This is the one place the specification names a representation, and it does so
+because a record format is a promise to something outside the program — a file,
+a socket, another language — and a promise about bytes cannot be kept in the
+abstract.
 
 **The message names the width by naming the last legal offset**, rather than
 by stating it. `0..0` on a four-byte buffer says everything `0..3, minus three
@@ -11610,12 +11647,36 @@ Show ('PutInt 1 bytes', Str (I[0]) + ', ' + Str (I[1]) + ', ' + Str (I[2]) + ', 
 I.PutInt (0, -1);
 Show ('PutInt -1 round trip', I.GetInt (0));
 
+// A word is those same four bytes, read unsigned.
+var W := Buffer (4);
+W.PutWord (0, 4294967295);
+Show ('PutWord max bytes', Str (W[0]) + ', ' + Str (W[1]) + ', ' + Str (W[2]) + ', ' + Str (W[3]));
+Show ('GetWord', W.GetWord (0));
+Show ('GetInt of those bytes', W.GetInt (0));
+try W.PutWord (0, 4294967296); except on E : String do WriteLn ('  a word too large: ' + E); end
+try W.PutWord (0, -1);         except on E : String do WriteLn ('  a word below zero: ' + E); end
+
+// A Double is eight bytes, IEEE 754, least significant first.  1.0 is
+// 0x3FF0000000000000, so the last two bytes written are 240 and 63.
+var D := Buffer (8);
+D.PutDouble (0, 1.0);
+Show ('PutDouble 1.0 bytes', Str (D[0]) + ', ' + Str (D[6]) + ', ' + Str (D[7]));
+D.PutDouble (0, -0.1);
+Show ('PutDouble -0.1 round trip', D.GetDouble (0));
+
+// An Integer widens, as it does everywhere a Double is wanted.
+D.PutDouble (0, 12);
+Show ('an Integer widens', D.GetDouble (0));
+
 // The offset message names the last offset a value of that width may start at:
-// Length - 1 for a byte, Length - 4 for an Integer.
+// Length - 1 for a byte, Length - 4 for an Integer or a word, Length - 8 for a
+// Double.
 var E4 := Buffer ();
 try WriteLn (E4[0]);      except on E : String do WriteLn ('  empty, a byte: ' + E); end
 try WriteLn (I.GetInt (1)); except on E : String do WriteLn ('  four bytes, an Integer at 1: ' + E); end
 try WriteLn (I[9]);       except on E : String do WriteLn ('  four bytes, a byte at 9: ' + E); end
+try WriteLn (D.GetDouble (1)); except on E : String do WriteLn ('  eight bytes, a Double at 1: ' + E); end
+try WriteLn (I.GetDouble (0)); except on E : String do WriteLn ('  four bytes, a Double at 0: ' + E); end
 ```
 
 ```console
@@ -11632,9 +11693,19 @@ after S[0] := 67 = CB
   -1: A byte must be in 0..255.
 PutInt 1 bytes = 1, 0, 0, 0
 PutInt -1 round trip = -1
+PutWord max bytes = 255, 255, 255, 255
+GetWord = 4294967295
+GetInt of those bytes = -1
+  a word too large: A word must be in 0..4294967295.
+  a word below zero: A word must be in 0..4294967295.
+PutDouble 1.0 bytes = 0, 240, 63
+PutDouble -0.1 round trip = -0.1
+an Integer widens = 12.0
   empty, a byte: Offset 0 out of range 0..-1.
   four bytes, an Integer at 1: Offset 1 out of range 0..0.
   four bytes, a byte at 9: Offset 9 out of range 0..3.
+  eight bytes, a Double at 1: Offset 1 out of range 0..0.
+  four bytes, a Double at 0: Offset 0 out of range 0..-4.
 ```
 
 **[RT-023]**  A `Buffer` has an **explicit lifetime**. `Buffer ()` is empty and
