@@ -5008,7 +5008,7 @@ $ algc conformance/0043-visibility-is-advisory.a24
 | --- | --- |
 | 1 | `f(…)` call · `a[i]` subscript · `a.b` property |
 | 2 | `-` unary · `not` · `as` |
-| 3 | `*` · `/` |
+| 3 | `*` · `/` · `div` · `mod` |
 | 4 | `+` · `-` |
 | 5 | `<` · `<=` · `>` · `>=` · `in` · `is` |
 | 6 | `=` · `<>` |
@@ -5031,6 +5031,14 @@ WriteLn (not True and False);  // not over and
 WriteLn (True or False and False);   // and over or
 WriteLn (False and True or True);    // and over or, the other way
 
+// 'div' and 'mod' are on the level '*' and '/' are on, which this table did
+// not say until it was measured.  Tighter than '+', and sharing the level
+// rather than taking one of their own.
+WriteLn (1 + 8 div 2);
+WriteLn (8 div 2 * 2);
+WriteLn (1 + 7 mod 4);
+WriteLn (2 * 7 mod 4);
+
 // EXP-002: one level is left-associative.  Right-associative, these would be
 // 11 and 18.
 WriteLn (10 - 2 - 3);
@@ -5048,12 +5056,20 @@ false
 true
 true
 5
+8
+4
+2
+5
 2.0
 ```
 
 > `1 + 2 * 3` is 7, `-2 * 3` is -6, `not True and False` is false,
 > `True or False and False` is true, and `False = False and False` is false.
 > Each distinguishes its pair. Verified.
+>
+> `1 + 8 div 2` is 5 rather than 4, and `8 div 2 * 2` is 8 rather than 2 — so
+> `div` binds tighter than `+` and shares a level with `*` rather than taking
+> one above it. `mod` answers the same way on both counts.
 
 **[EXP-002]**  Binary operators of one level are left-associative:
 `10 - 2 - 3` is 5 and `12 / 2 / 3` is 2.
@@ -5494,7 +5510,7 @@ end
 ```
 
 **A closed list, and it has to be.** A new operator would need a precedence
-and an associativity, and [EXP-001] is a fixed table of seven levels with
+and an associativity, and [EXP-001] is a fixed table of nine levels with
 nowhere to put one. These six already have a place in it. `operator =` is
 refused with `An operator must be one of + - * / div mod.`
 
