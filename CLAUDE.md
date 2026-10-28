@@ -16,16 +16,22 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.1.5.** The language was feature-complete from v0.1.0 and deliberately
-closed. It has been opened once since, for **extension functions** [FUN-015]: a top-level subprogram marked `extension` may *also* be
-called with method syntax on its first parameter, so `S.Trim ()` and `Trim (S)`
-are one call. The library project asked for it — see
-`algol24-library/PROPOSAL-EXTENSION-FUNCTIONS.md` — because the other shapes a
-`strings` unit could take were a swelling core or a wrapper class with a
-Groovy seam, and this is what makes a unit of free functions compose.
+**v0.1.6.** The language is **stable, not closed**: it changes only on measured
+demand from a project using it, and the measurement goes in the proposal. That
+is the whole policy, and it replaces the sentence this file used to carry about
+the language being done — which had to be rewritten at every release that
+disproved it.
 
 What the language still does not have is a library written in Algol-24, which is
 the whole of what *alpha* means here; nothing in the language is provisional.
+
+Opened twice so far, both times by `algol24-library` as a user:
+
+- **Extension functions** in v0.1.5 [FUN-015]. A top-level subprogram marked
+  `extension` may *also* be called with method syntax on its first parameter, so
+  `S.Trim ()` and `Trim (S)` are one call.
+- **Bitwise operators, a precision for `Str`, and wider `Buffer` accessors** in
+  v0.1.6 [EXP-023], [EXP-024], [RT-028], [RT-022].
 
 ⚠️ **An extension is permission, not a new kind of declaration.** It is an
 ordinary top-level subprogram whose first parameter has a written type, and
@@ -34,10 +40,11 @@ every later pass treats it as one: a member of the name always wins at a call
 [MOD-015], and `extension` is a context-sensitive identifier rather than a
 keyword [LEX-011].
 
-⚠️ **There are two `[WARN]`s now**, both in `ERR-010` and both checked against
-what `algc` prints by `spec/spec.sh` running `spec/warning.a24`. A warning
-raised and not quoted there fails the run, so adding a third means editing the
-rule, the fixture and nothing else.
+⚠️ **There are three `[WARN]`s**, all in `ERR-010` and all checked against what
+`algc` prints by `spec/spec.sh` running `spec/warning.a24` — the lines compared
+**in order**. A warning raised and not quoted there fails the run, so adding a
+fourth means editing the rule, the fixture and nothing else. Nothing in
+`compiler/*.a24` raises any of the three.
 
 - `spec/ALGOL-24.md` — **the authority.** Every rule is claimed by a case.
   The implementation is measured against it: where the two disagree,
@@ -308,10 +315,34 @@ inline. Language points that bite when editing:
   be a member of everything. It is refused on a method, a constructor, a
   property and a nested subprogram. Both spellings always work, so a plain
   function may gain or lose the word without breaking a call site.
+- ⚠️ **`and` is not bitwise and never was.** It tests truthiness and yields an
+  *operand* [EXP-010], so `6 and 3` is 3 where `6 & 3` is 2 — the Pascal
+  reader's trap, and now a `[WARN]` where an operand's type is Integer. `&`,
+  `|`, `^`, `~`, `<<` and `>>` are the bitwise six [EXP-023], over an Integer
+  that is two's complement extended infinitely to the left, so `~0` is -1 and
+  `1 << 70` grows.
+- ⚠️ **`>>` is not `div`.** It floors where `div` truncates toward zero, so
+  `-7 >> 1` is -4 and `-7 div 2` is -3 [EXP-024]. They agree whenever the
+  shifted-out bits are zero, which is what makes the difference easy to miss.
+- `Str (X, Decimals)` renders a Double with exactly that many places and never
+  in exponent form, and `Str (X, Width, Decimals)` right-aligns it [RT-028].
+  Correctly rounded from the value, so `Str (2.675, 2)` is 2.67; text surgery
+  on `Str (X)` cannot get that right and the arithmetic cannot either.
 
 If you add a token to `compiler/TokenType.a24` and register it in `Scanner.a24`'s
 `Keywords`, mirror it into `vscode/syntaxes/algol24.tmLanguage.json` —
 `spec/spec.sh` checks that every keyword appears in the editor grammar.
+
+⚠️ **A token that is a SYMBOL is not checked**, because that check reads the
+keyword table. The six bitwise symbols still went into the grammar, and a new
+one should too — for the reader rather than for the harness. Match it *before*
+the comparison rule if it starts with `<` or `>`, or `<<` colours as two `<`s.
+
+⚠️ **A new operator cannot be used in `compiler/*.a24` until the seed lexes
+it.** The generation that introduces one has to be written without it — the
+bitwise operators were implemented in `div`/`mod` arithmetic first and rewritten
+to use themselves after the reseed. Expect two commits, and expect
+`fixedpoint.sh` to need more than one generation.
 
 ## Known issues
 

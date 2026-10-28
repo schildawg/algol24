@@ -3,9 +3,9 @@
 **Legacy meets the future. Strength meets beauty. Power wrapped in simplicity.**
 
 Algol-24 is a retro-modern language: classic Pascal syntax over unbounded
-integers, full Unicode, gradual types, closures, extension functions and a
-foreign function interface. Its compiler is written in Algol-24 and compiles
-itself.
+integers, full Unicode, gradual types, closures, extension functions, bitwise
+operators and a foreign function interface. Its compiler is written in Algol-24
+and compiles itself.
 
 ```pascal
 type Color = (Red, Green, Blue);
@@ -136,21 +136,45 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.1.5.** The language was feature-complete from v0.1.0 and deliberately
-closed; what comes next is a library, written in Algol-24 rather than in the
-runtime: collections, and a unified text-and-graphics unit over SDL. That is the
-whole of what *alpha* means here — nothing in the language is provisional.
+**v0.1.6.** The language is **stable, not closed**: it changes only on measured
+demand from a project using it, and the measurement goes in the proposal. What
+comes next is still a library, written in Algol-24 rather than in the runtime —
+that is the whole of what *alpha* means here, and nothing in the language is
+provisional.
 
-It has been opened once since, and once only. v0.1.5 adds **extension
-functions**, asked for by the library project, which had measured the
-alternatives: growing the core one verb at a time, or a rich wrapper over
-`String` whose seam answered `13` for the length of a five-character string.
-Neither is what a language should make people choose between, and a unit of free
-functions that composes is. The proposal, its five open questions and how each
-was settled are in `spec/ALGOL-24.md` under [FUN-015], [FUN-016], [EXP-022] and
-[MOD-015].
+v0.1.6 is three things the library asked for, each with its own proposal and its
+own measurements:
 
-The rest of v0.1.5 is the runtime, and came from a game rather than from the
+- **Bitwise operators.** `&`, `|`, `^`, `~`, `<<` and `>>` over Integers, with
+  the semantics only the language can get right: every Integer is two's
+  complement extended infinitely to the left, so every operation is total and
+  no width is named anywhere. `~0` is −1, `1 << 70` grows, and `-1 & 5` is 5. A
+  library forced to pick a width is correct for values that fit it and silently
+  wrong for values that do not, with nothing in its declaration able to say
+  which. `and`, `or` and `not` are untouched — they test truthiness and
+  short-circuit — and writing one where a bitwise operator was meant now raises
+  a `[WARN]`.
+- **A precision for `Str`.** `Str (X, Decimals)` renders a Double with exactly
+  that many places and never in exponent form; `Str (X, Width, Decimals)`
+  right-aligns it. Correctly rounded from the binary value, so `Str (2.675, 2)`
+  is `2.67` — which surgery on `Str (X)`'s output cannot know, because the digit
+  that decides has already been discarded, and which `Round (X * 100) / 100`
+  gets wrong the other way.
+- **Wider `Buffer` accessors.** `PutDouble`/`GetDouble` for eight bytes of IEEE
+  754 and `PutWord`/`GetWord` for four read unsigned, both little-endian
+  whatever the machine is — so a record written on one and read on another
+  agrees.
+
+A class may define the five binary bitwise operators and unary `~` for its own
+instances, which needed [EXP-001] to grow three precedence levels first.
+
+v0.1.5 added **extension functions**, asked for by the library project, which
+had measured the alternatives: growing the core one verb at a time, or a rich
+wrapper over `String` whose seam answered `13` for the length of a
+five-character string. Neither is what a language should make people choose
+between, and a unit of free functions that composes is.
+
+The rest of v0.1.5 was the runtime, and came from a game rather than from the
 specification:
 
 - **A sequence reuses the block it outgrew, and a Char stops allocating.** The
