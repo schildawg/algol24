@@ -5844,9 +5844,15 @@ any count is `-1`.
 count that arrived by subtraction and went negative is a bug a program wants to
 hear about rather than a shift the other way.
 
-**The count has no upper limit.** Shifting left by a large one makes a large
-Integer; shifting right past the top of a value answers `0` for a non-negative
-one and `-1` for a negative one, because that is what the leading bits are.
+**The count itself must fit a machine word**, with
+`A shift count must fit a machine word.` for one that does not. That is not a
+width creeping back into the model: a count of two to the sixty-third asks for
+an exabyte of bits and can never be satisfied, so refusing it beats running out
+of memory slowly. Every count a program can actually act on is accepted.
+
+**Within that, shifting left by a large count makes a large Integer**, and
+shifting right past the top of a value answers `0` for a non-negative one and
+`-1` for a negative one, because that is what the leading bits are.
 
 ##### conformance/0201-shifts.a24
 
@@ -5880,6 +5886,8 @@ WriteLn ((12345 << 11) >> 11);
 // A mask, which is why the shifts bind tighter than '+' [EXP-001].
 WriteLn ((1 << 8) - 1);
 
+try WriteLn (1 << (1 << 70));
+                         except on E : String do WriteLn ('  a vast count: ' + E); end
 try WriteLn (1 << -1);   except on E : String do WriteLn ('  left: ' + E); end
 try WriteLn (1 >> -1);   except on E : String do WriteLn ('  right: ' + E); end
 try WriteLn (1 << 1.5);  except on E : String do WriteLn ('  a Double count: ' + E); end
@@ -5904,6 +5912,7 @@ $ algc conformance/0201-shifts.a24
 -4
 12345
 255
+  a vast count: A shift count must fit a machine word.
   left: A shift count cannot be negative.
   right: A shift count cannot be negative.
   a Double count: << expects Integers.

@@ -19,6 +19,8 @@ extern bool d_outputsuppressed;
 extern Value fn_suppressoutput;
 extern Value fn_rendered;
 extern Value fn_stringify;
+extern Value v_wordVmax;
+extern bool d_wordVmax;
 extern Value k_native;
 extern Value fn_parsednumber;
 extern Value k_interpreter;

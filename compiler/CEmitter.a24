@@ -2917,6 +2917,7 @@ begin
         case TheExpr.Op.TypeOfToken of
             TOKEN_MINUS : Exit 'alg_negate(' + Operand + ')';
             TOKEN_NOT   : Exit 'alg_not(' + Operand + ')';
+            TOKEN_TILDE : Exit 'alg_bit_not(' + Operand + ')';
         end
 
         Unsupported ('Unary ''' + Str (TheExpr.Op.Lexeme) + '''');
@@ -2951,6 +2952,12 @@ begin
             TOKEN_EQUAL         : Call := 'alg_equal';
             TOKEN_NOT_EQUAL     : Call := 'alg_not_equal';
             TOKEN_IN            : Call := 'alg_in';
+
+            TOKEN_AMPERSAND     : Call := 'alg_bit_and';
+            TOKEN_PIPE          : Call := 'alg_bit_or';
+            TOKEN_CARET         : Call := 'alg_bit_xor';
+            TOKEN_SHIFT_LEFT    : Call := 'alg_shift_left';
+            TOKEN_SHIFT_RIGHT   : Call := 'alg_shift_right';
         end
 
         if Call = '' then Unsupported ('Binary ''' + Str (TheExpr.Op.Lexeme) + '''');

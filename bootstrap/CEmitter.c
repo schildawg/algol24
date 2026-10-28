@@ -3350,6 +3350,10 @@ static Value m_cemitter_visitunary_1_unaryexpr(Value v_this, Value *args, int32_
     } else {
         if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVnot))) {
             return alg_add(alg_add(alg_string("alg_not("), v_operand), alg_char_value(41));
+        } else {
+            if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVtilde))) {
+                return alg_add(alg_add(alg_string("alg_bit_not("), v_operand), alg_char_value(41));
+            }
         }
     }
     (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("Unary '"), alg_str(alg_property(alg_property(v_theexpr, "Op"), "Lexeme"))), alg_char_value(39))}, 1));
@@ -3407,6 +3411,26 @@ static Value m_cemitter_visitbinary_1_binaryexpr(Value v_this, Value *args, int3
                                                 } else {
                                                     if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVin))) {
                                                         (void)((v_call = alg_widen(alg_string("alg_in"), "String")));
+                                                    } else {
+                                                        if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVampersand))) {
+                                                            (void)((v_call = alg_widen(alg_string("alg_bit_and"), "String")));
+                                                        } else {
+                                                            if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVpipe))) {
+                                                                (void)((v_call = alg_widen(alg_string("alg_bit_or"), "String")));
+                                                            } else {
+                                                                if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVcaret))) {
+                                                                    (void)((v_call = alg_widen(alg_string("alg_bit_xor"), "String")));
+                                                                } else {
+                                                                    if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVshiftVleft))) {
+                                                                        (void)((v_call = alg_widen(alg_string("alg_shift_left"), "String")));
+                                                                    } else {
+                                                                        if (alg_truthy(alg_equal(alg_property(alg_property(v_theexpr, "Op"), "TypeOfToken"), e_tokentype_tokenVshiftVright))) {
+                                                                            (void)((v_call = alg_widen(alg_string("alg_shift_right"), "String")));
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }

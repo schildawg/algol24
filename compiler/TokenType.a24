@@ -29,6 +29,14 @@ type
         TOKEN_NOT_EQUAL, TOKEN_EQUAL, TOKEN_ASSIGN,
         TOKEN_GREATER, TOKEN_GREATER_EQUAL, TOKEN_LESS, TOKEN_LESS_EQUAL,
 
+        // The bitwise operators [EXP-023], [EXP-024].  Symbols rather than
+        // words, because none of these characters was lexed at all before them
+        // -- so no program could change meaning -- and because a word form
+        // would have to be a keyword, which a context-sensitive identifier
+        // cannot be in an infix position.
+        TOKEN_AMPERSAND, TOKEN_PIPE, TOKEN_CARET, TOKEN_TILDE,
+        TOKEN_SHIFT_LEFT, TOKEN_SHIFT_RIGHT,
+
         // Literals.  NUMBER is a Double and INTEGER is an Integer -- two types,
         // where Lox had only one.
         TOKEN_IDENTIFIER, TOKEN_STRING, TOKEN_CHAR, TOKEN_NUMBER, TOKEN_INTEGER,

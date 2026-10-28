@@ -203,11 +203,24 @@ begin
 
             '=' : AddToken(TOKEN_EQUAL);
             ':' : if Match('=') then AddToken(TOKEN_ASSIGN); else AddToken(TOKEN_COLON);
-            '>' : if Match('=') then AddToken(TOKEN_GREATER_EQUAL); else AddToken(TOKEN_GREATER);
 
+            '&' : AddToken(TOKEN_AMPERSAND);
+            '|' : AddToken(TOKEN_PIPE);
+            '^' : AddToken(TOKEN_CARET);
+            '~' : AddToken(TOKEN_TILDE);
+
+            '>' :
+                if Match('=') then AddToken(TOKEN_GREATER_EQUAL);
+                else if Match('>') then AddToken(TOKEN_SHIFT_RIGHT);
+                else AddToken(TOKEN_GREATER);
+
+            // '<' opens four tokens now, and the order is the whole of
+            // [LEX-005]: the longest match wins, so '<>' and '<=' are tried
+            // before '<<' and all three before a bare '<'.
             '<' :
                 if Match('>') then AddToken(TOKEN_NOT_EQUAL);
                 else if Match('=') then AddToken(TOKEN_LESS_EQUAL);
+                else if Match('<') then AddToken(TOKEN_SHIFT_LEFT);
                 else AddToken(TOKEN_LESS);
 
             '/':
@@ -715,20 +728,64 @@ begin
     AssertEqual(EOF, Uut.Tokens[7].TypeOfToken);
 end
 
-// '<' opens three tokens, so the order the scanner tries them in matters:
-// '<>' must be tested before '<=' and both before a bare '<'.
+// '<' opens four tokens, so the order the scanner tries them in matters:
+// '<>' and '<=' before '<<', and all three before a bare '<'.
+//
+// ⚠️ THIS TEST USED TO SCAN '<<' AND EXPECT TWO TOKENS.  It is one token now
+// [EXP-024], which is the only place adding the bitwise symbols changed how
+// anything already lexed -- and no working program could have contained it,
+// since '<' '<' was 'Expect expression!' whatever followed.
 //
 test 'Scan Less Is Not Greedy';
 begin
-    var Uut := Scanner('<<><=<');
+    var Uut := Scanner('<><=< <');
 
     Uut.ScanTokens();
 
-    AssertEqual(TOKEN_LESS,       Uut.Tokens[0].TypeOfToken);
-    AssertEqual(TOKEN_NOT_EQUAL,  Uut.Tokens[1].TypeOfToken);
-    AssertEqual(TOKEN_LESS_EQUAL, Uut.Tokens[2].TypeOfToken);
+    AssertEqual(TOKEN_NOT_EQUAL,  Uut.Tokens[0].TypeOfToken);
+    AssertEqual(TOKEN_LESS_EQUAL, Uut.Tokens[1].TypeOfToken);
+    AssertEqual(TOKEN_LESS,       Uut.Tokens[2].TypeOfToken);
     AssertEqual(TOKEN_LESS,       Uut.Tokens[3].TypeOfToken);
     AssertEqual(EOF,              Uut.Tokens[4].TypeOfToken);
+end
+
+// The longest match wins, and a space is what asks for the shorter one.
+//
+test 'Scan Shifts';
+begin
+    var Uut := Scanner('<< >> < < > > & | ^ ~');
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_SHIFT_LEFT,  Uut.Tokens[0].TypeOfToken);
+    AssertEqual(TOKEN_SHIFT_RIGHT, Uut.Tokens[1].TypeOfToken);
+
+    AssertEqual(TOKEN_LESS,    Uut.Tokens[2].TypeOfToken);
+    AssertEqual(TOKEN_LESS,    Uut.Tokens[3].TypeOfToken);
+    AssertEqual(TOKEN_GREATER, Uut.Tokens[4].TypeOfToken);
+    AssertEqual(TOKEN_GREATER, Uut.Tokens[5].TypeOfToken);
+
+    AssertEqual(TOKEN_AMPERSAND, Uut.Tokens[6].TypeOfToken);
+    AssertEqual(TOKEN_PIPE,      Uut.Tokens[7].TypeOfToken);
+    AssertEqual(TOKEN_CARET,     Uut.Tokens[8].TypeOfToken);
+    AssertEqual(TOKEN_TILDE,     Uut.Tokens[9].TypeOfToken);
+
+    AssertEqual(EOF, Uut.Tokens[10].TypeOfToken);
+end
+
+// '>=' is still tried before '>>', so '>>=' is '>=' after a '>' rather than a
+// shift followed by an '='.
+//
+test 'Scan Greater Is Not Greedy';
+begin
+    var Uut := Scanner('>= >> >');
+
+    Uut.ScanTokens();
+
+    AssertEqual(TOKEN_GREATER_EQUAL, Uut.Tokens[0].TypeOfToken);
+    AssertEqual(TOKEN_SHIFT_RIGHT,   Uut.Tokens[1].TypeOfToken);
+    AssertEqual(TOKEN_GREATER,       Uut.Tokens[2].TypeOfToken);
+    AssertEqual(EOF,                 Uut.Tokens[3].TypeOfToken);
 end
 
 // Tests that a comment is ignored until the end of a line.

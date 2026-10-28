@@ -235,6 +235,17 @@ void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **type
 Value alg_str_fixed(Value v, Value decimals);
 Value alg_str_padded(Value v, Value width, Value decimals);
 
+/* The bitwise operators [EXP-023], [EXP-024], over Integers of any size: two's
+   complement extended infinitely to the left, so every operation is total and
+   no width is named anywhere.  Each checks for a class's own operator first,
+   as alg_div_int does. */
+Value alg_bit_and(Value a, Value b);
+Value alg_bit_or(Value a, Value b);
+Value alg_bit_xor(Value a, Value b);
+Value alg_bit_not(Value a);
+Value alg_shift_left(Value a, Value b);
+Value alg_shift_right(Value a, Value b);
+
 Value alg_copy(Value text, Value begin, Value length);
 Value alg_pos(Value text, Value part);
 

@@ -3549,6 +3549,162 @@ Value alg_div_int(Value a, Value b) {
     return alg_int(a.integer / b.integer);
 }
 
+/* The bitwise operators [EXP-023], [EXP-024].
+
+   ⚠️ THE SAME ALGORITHM AS THE INTERPRETER'S, deliberately.  Interpreter.a24
+   carries Combined, Complement, ShiftedLeft and ShiftedRight written in
+   arithmetic, and these mirror them step for step so that the two can be read
+   against each other.  They are two implementations of one rule, which the
+   corpus running every case under both processors is what keeps honest.
+
+   The fast path is where all the real work happens: two machine words combine
+   with the hardware's own operation, because two's complement is what the
+   hardware already does.  The slow path is what the unbounded model means --
+   it walks the bits, and runs only when an operand has outgrown a word. */
+
+static bool int_negative(Value v) {
+    return is_bigint(v) ? ((ObjBigInt *)v.obj)->negative : v.integer < 0;
+}
+
+/* 0 or -1: a value whose every higher bit repeats forever. */
+static bool bit_settled(Value v) {
+    return v.type == VAL_INT && (v.integer == 0 || v.integer == -1);
+}
+
+/* The low bit, for a negative value as well.  'mod' follows the dividend's
+   sign, so the second fold is what makes this the bit rather than the
+   remainder. */
+static int bit_low(Value v) {
+    Value two = alg_int(2);
+
+    return (int)alg_mod(alg_add(alg_mod(v, two), two), two).integer;
+}
+
+/* Halved and FLOORED, which is one step of an arithmetic shift: 'div'
+   truncates toward zero, so the low bit comes off first. */
+static Value bit_halved(Value v) {
+    return alg_div_int(alg_subtract(v, alg_int(bit_low(v))), alg_int(2));
+}
+
+static int bit_of(char op, int a, int b) {
+    if (op == '&') return a && b;
+    if (op == '|') return a || b;
+
+    return a != b;
+}
+
+static void both_integers(Value a, Value b, const char *spelling) {
+    if (is_integer(a) && is_integer(b)) return;
+
+    char message[48];
+    snprintf(message, sizeof message, "%s expects Integers.", spelling);
+    alg_error(message);
+}
+
+static Value bit_combine(char op, Value a, Value b, const char *spelling) {
+    both_integers(a, b, spelling);
+
+    if (a.type == VAL_INT && b.type == VAL_INT) {
+        if (op == '&') return alg_int(a.integer & b.integer);
+        if (op == '|') return alg_int(a.integer | b.integer);
+
+        return alg_int(a.integer ^ b.integer);
+    }
+
+    Value result = alg_int(0);
+    Value place  = alg_int(1);
+    Value x      = a;
+    Value y      = b;
+
+    while (!(bit_settled(x) && bit_settled(y))) {
+        if (bit_of(op, bit_low(x), bit_low(y)))
+            result = alg_add(result, place);
+
+        x     = bit_halved(x);
+        y     = bit_halved(y);
+        place = alg_multiply(place, alg_int(2));
+    }
+
+    /* Every remaining bit of each operand is now that operand's sign bit,
+       forever -- and ones from this place up is exactly minus this place. */
+    if (bit_of(op, x.integer == -1, y.integer == -1))
+        result = alg_subtract(result, place);
+
+    return result;
+}
+
+/* Two to a non-negative power, by doubling.  alg_multiply promotes on overflow,
+   so this grows into a bignum of its own accord [EXP-007]. */
+static Value power_of_two(int64_t count) {
+    Value result = alg_int(1);
+    Value two    = alg_int(2);
+
+    for (int64_t i = 0; i < count; i++) result = alg_multiply(result, two);
+
+    return result;
+}
+
+/* A shift count has to fit a machine word, and that is not a width creeping
+   back in: a count of 2^63 asks for an exabyte of bits and can never be
+   satisfied, so refusing it is better than running out of memory slowly. */
+static int64_t shift_count(Value b) {
+    if (int_negative(b)) alg_error("A shift count cannot be negative.");
+    if (is_bigint(b))    alg_error("A shift count must fit a machine word.");
+
+    return b.integer;
+}
+
+Value alg_bit_and(Value a, Value b) {
+    if (defines_operator(a, "&")) return apply_operator(a, "&", b);
+
+    return bit_combine('&', a, b, "&");
+}
+
+Value alg_bit_or(Value a, Value b) {
+    if (defines_operator(a, "|")) return apply_operator(a, "|", b);
+
+    return bit_combine('|', a, b, "|");
+}
+
+Value alg_bit_xor(Value a, Value b) {
+    if (defines_operator(a, "^")) return apply_operator(a, "^", b);
+
+    return bit_combine('^', a, b, "^");
+}
+
+/* Inverting every bit of a two's complement value, and its infinite leading
+   run with them, is the same as negating and stepping down once -- for a value
+   of any size, which is why this needs no loop. */
+Value alg_bit_not(Value a) {
+    if (has_method(a, "~", 0)) return alg_invoke(a, "~", NULL, 0);
+
+    if (!is_integer(a)) alg_error("~ expects an Integer.");
+
+    return alg_subtract(alg_negate(a), alg_int(1));
+}
+
+Value alg_shift_left(Value a, Value b) {
+    if (defines_operator(a, "<<")) return apply_operator(a, "<<", b);
+
+    both_integers(a, b, "<<");
+
+    return alg_multiply(a, power_of_two(shift_count(b)));
+}
+
+Value alg_shift_right(Value a, Value b) {
+    if (defines_operator(a, ">>")) return apply_operator(a, ">>", b);
+
+    both_integers(a, b, ">>");
+
+    Value step = power_of_two(shift_count(b));
+
+    if (!int_negative(a)) return alg_div_int(a, step);
+
+    /* Floored rather than truncated, which for a negative value means biasing
+       before dividing -- so -7 >> 1 is -4 where -7 div 2 is -3 [EXP-024]. */
+    return alg_div_int(alg_subtract(a, alg_subtract(step, alg_int(1))), step);
+}
+
 Value alg_negate(Value a) {
 
     if (has_method(a, "-", 0)) return alg_invoke(a, "-", NULL, 0);

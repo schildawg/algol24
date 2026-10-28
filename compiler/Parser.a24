@@ -1982,7 +1982,7 @@ begin
         Right : Expr;
 
     begin
-        TheExpr := Term();
+        TheExpr := BitOr();
 
         while True do
         begin
@@ -1996,10 +1996,75 @@ begin
                     Match (TOKEN_IN) then
             begin
                 TheOperator := Previous();
-                Right := Term();
+                Right := BitOr();
                 TheExpr := BinaryExpr(TheExpr, TheOperator, Right);
             end
             else Exit TheExpr;
+        end
+        Exit TheExpr;
+    end
+
+    /// Parses '|', the loosest of the bitwise three.
+    ///
+    /// The three sit between the comparisons and the arithmetic, so
+    /// 'Flags & Mask = 0' groups as it reads [EXP-001].  C put them the other
+    /// side of '==' and every modern C warns about the result.
+    ///
+    /// # Satisfies
+    ///
+    /// [EXP-023]
+    function BitOr() : Expr;
+    var
+        TheExpr : Expr;
+        TheOperator : Token;
+        Right : Expr;
+
+    begin
+        TheExpr := BitXor();
+
+        while Match (TOKEN_PIPE) do
+        begin
+            TheOperator := Previous();
+            Right := BitXor();
+            TheExpr := BinaryExpr(TheExpr, TheOperator, Right);
+        end
+        Exit TheExpr;
+    end
+
+    /// Parses '^', between '|' and '&' as it is in C.
+    function BitXor() : Expr;
+    var
+        TheExpr : Expr;
+        TheOperator : Token;
+        Right : Expr;
+
+    begin
+        TheExpr := BitAnd();
+
+        while Match (TOKEN_CARET) do
+        begin
+            TheOperator := Previous();
+            Right := BitAnd();
+            TheExpr := BinaryExpr(TheExpr, TheOperator, Right);
+        end
+        Exit TheExpr;
+    end
+
+    /// Parses '&', the tightest of the bitwise three.
+    function BitAnd() : Expr;
+    var
+        TheExpr : Expr;
+        TheOperator : Token;
+        Right : Expr;
+
+    begin
+        TheExpr := Term();
+
+        while Match (TOKEN_AMPERSAND) do
+        begin
+            TheOperator := Previous();
+            Right := Term();
+            TheExpr := BinaryExpr(TheExpr, TheOperator, Right);
         end
         Exit TheExpr;
     end
@@ -2027,7 +2092,16 @@ begin
         Exit TheExpr;
     end
 
-    /// Parses '*', '/', 'div' and 'mod', which bind tighter than '+' and '-'.
+    /// Parses '*', '/', 'div', 'mod' and the two shifts, which bind tighter
+    /// than '+' and '-'.
+    ///
+    /// The shifts SHARE this level rather than taking one of their own, which
+    /// departs from C and Python deliberately: '1 << N - 1' is a mask in
+    /// practice, and the tight reading gives '(1 << N) - 1' [EXP-001].
+    ///
+    /// # Satisfies
+    ///
+    /// [EXP-024]
     function Factor() : Expr;
     var
         TheExpr  : Expr;
@@ -2037,7 +2111,8 @@ begin
     begin
         TheExpr := Unary();
         while Match(TOKEN_SLASH) or Match(TOKEN_STAR) or Match(TOKEN_DIV)
-           or Match(TOKEN_MOD) do
+           or Match(TOKEN_MOD) or Match(TOKEN_SHIFT_LEFT)
+           or Match(TOKEN_SHIFT_RIGHT) do
         begin
             TheOperator := Previous();
             Right := Unary();
@@ -2070,7 +2145,7 @@ begin
        TheExpr  : Expr;
 
     begin
-        if Match (TOKEN_NOT) or Match (TOKEN_MINUS) then
+        if Match (TOKEN_NOT) or Match (TOKEN_MINUS) or Match (TOKEN_TILDE) then
         begin
             TheOperator := Previous();
             Right    := Unary();

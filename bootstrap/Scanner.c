@@ -182,59 +182,83 @@ static Value m_scanner_scantoken_0(Value v_this, Value *args, int32_t count) {
                                                         (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVcolon}, 1));
                                                     }
                                                 } else {
-                                                    if (alg_truthy(alg_equal(v_c, alg_char_value(62)))) {
-                                                        if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(61)}, 1))) {
-                                                            (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVgreaterVequal}, 1));
-                                                        } else {
-                                                            (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVgreater}, 1));
-                                                        }
+                                                    if (alg_truthy(alg_equal(v_c, alg_char_value(38)))) {
+                                                        (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVampersand}, 1));
                                                     } else {
-                                                        if (alg_truthy(alg_equal(v_c, alg_char_value(60)))) {
-                                                            if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(62)}, 1))) {
-                                                                (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVnotVequal}, 1));
-                                                            } else {
-                                                                if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(61)}, 1))) {
-                                                                    (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVlessVequal}, 1));
-                                                                } else {
-                                                                    (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVless}, 1));
-                                                                }
-                                                            }
+                                                        if (alg_truthy(alg_equal(v_c, alg_char_value(124)))) {
+                                                            (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVpipe}, 1));
                                                         } else {
-                                                            if (alg_truthy(alg_equal(v_c, alg_char_value(47)))) {
-                                                                if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(47)}, 1))) {
-                                                                    while (alg_truthy((or_0 = alg_not_equal(alg_invoke(v_this, "Peek", NULL, 0), alg_char_value(10)), !alg_truthy(or_0) ? or_0 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
-                                                                        (void)(alg_invoke(v_this, "Advance", NULL, 0));
-                                                                    }
-                                                                } else {
-                                                                    (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVslash}, 1));
-                                                                }
+                                                            if (alg_truthy(alg_equal(v_c, alg_char_value(94)))) {
+                                                                (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVcaret}, 1));
                                                             } else {
-                                                                if (alg_truthy((or_2 = (or_1 = alg_equal(v_c, alg_char_value(9)), alg_truthy(or_1) ? or_1 : alg_equal(v_c, alg_char_value(13))), alg_truthy(or_2) ? or_2 : alg_equal(v_c, alg_char_value(32))))) {
-                                                                    return alg_nil();
+                                                                if (alg_truthy(alg_equal(v_c, alg_char_value(126)))) {
+                                                                    (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVtilde}, 1));
                                                                 } else {
-                                                                    if (alg_truthy(alg_equal(v_c, alg_char_value(10)))) {
-                                                                        {
-                                                                            (void)(alg_invoke(alg_singleton(k_sourcecode), "Add", (Value[]){alg_property(v_this, "Line"), alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "LineStart"), alg_subtract(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "LineStart")), alg_int(1)))}, 2));
-                                                                            (void)(alg_set_property(v_this, "Line", alg_widen(alg_add(alg_property(v_this, "Line"), alg_int(1)), "Integer")));
-                                                                            (void)(alg_set_property(v_this, "LineStart", alg_widen(alg_property(v_this, "Current"), "Integer")));
-                                                                            return alg_nil();
+                                                                    if (alg_truthy(alg_equal(v_c, alg_char_value(62)))) {
+                                                                        if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(61)}, 1))) {
+                                                                            (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVgreaterVequal}, 1));
+                                                                        } else {
+                                                                            if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(62)}, 1))) {
+                                                                                (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVshiftVright}, 1));
+                                                                            } else {
+                                                                                (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVgreater}, 1));
+                                                                            }
                                                                         }
                                                                     } else {
-                                                                        if (alg_truthy(alg_equal(v_c, alg_char_value(39)))) {
-                                                                            (void)(alg_invoke(v_this, "ScanString", NULL, 0));
-                                                                        } else {
-                                                                            if (alg_truthy(alg_equal(v_c, alg_char_value(35)))) {
-                                                                                (void)(alg_invoke(v_this, "ScanChar", NULL, 0));
+                                                                        if (alg_truthy(alg_equal(v_c, alg_char_value(60)))) {
+                                                                            if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(62)}, 1))) {
+                                                                                (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVnotVequal}, 1));
                                                                             } else {
-                                                                                if (alg_truthy(alg_invoke(v_this, "IsAlpha", (Value[]){v_c}, 1))) {
-                                                                                    (void)(alg_invoke(v_this, "ScanIdentifier", NULL, 0));
+                                                                                if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(61)}, 1))) {
+                                                                                    (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVlessVequal}, 1));
                                                                                 } else {
-                                                                                    if (alg_truthy(alg_invoke(v_this, "IsDigit", (Value[]){v_c}, 1))) {
-                                                                                        (void)(alg_invoke(v_this, "ScanNumber", NULL, 0));
+                                                                                    if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(60)}, 1))) {
+                                                                                        (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVshiftVleft}, 1));
                                                                                     } else {
+                                                                                        (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVless}, 1));
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        } else {
+                                                                            if (alg_truthy(alg_equal(v_c, alg_char_value(47)))) {
+                                                                                if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(47)}, 1))) {
+                                                                                    while (alg_truthy((or_0 = alg_not_equal(alg_invoke(v_this, "Peek", NULL, 0), alg_char_value(10)), !alg_truthy(or_0) ? or_0 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
+                                                                                        (void)(alg_invoke(v_this, "Advance", NULL, 0));
+                                                                                    }
+                                                                                } else {
+                                                                                    (void)(alg_invoke(v_this, "AddToken", (Value[]){e_tokentype_tokenVslash}, 1));
+                                                                                }
+                                                                            } else {
+                                                                                if (alg_truthy((or_2 = (or_1 = alg_equal(v_c, alg_char_value(9)), alg_truthy(or_1) ? or_1 : alg_equal(v_c, alg_char_value(13))), alg_truthy(or_2) ? or_2 : alg_equal(v_c, alg_char_value(32))))) {
+                                                                                    return alg_nil();
+                                                                                } else {
+                                                                                    if (alg_truthy(alg_equal(v_c, alg_char_value(10)))) {
                                                                                         {
-                                                                                            (void)((alg_declared(d_haderror, "HadError"), (v_haderror = alg_bool(true))));
-                                                                                            (void)((alg_declared(d_lasterror, "LastError"), (v_lasterror = alg_add(alg_add(alg_add(alg_string("[line "), alg_property(v_this, "Line")), alg_string("] Error: Unexpected character: ")), v_c))));
+                                                                                            (void)(alg_invoke(alg_singleton(k_sourcecode), "Add", (Value[]){alg_property(v_this, "Line"), alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "LineStart"), alg_subtract(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "LineStart")), alg_int(1)))}, 2));
+                                                                                            (void)(alg_set_property(v_this, "Line", alg_widen(alg_add(alg_property(v_this, "Line"), alg_int(1)), "Integer")));
+                                                                                            (void)(alg_set_property(v_this, "LineStart", alg_widen(alg_property(v_this, "Current"), "Integer")));
+                                                                                            return alg_nil();
+                                                                                        }
+                                                                                    } else {
+                                                                                        if (alg_truthy(alg_equal(v_c, alg_char_value(39)))) {
+                                                                                            (void)(alg_invoke(v_this, "ScanString", NULL, 0));
+                                                                                        } else {
+                                                                                            if (alg_truthy(alg_equal(v_c, alg_char_value(35)))) {
+                                                                                                (void)(alg_invoke(v_this, "ScanChar", NULL, 0));
+                                                                                            } else {
+                                                                                                if (alg_truthy(alg_invoke(v_this, "IsAlpha", (Value[]){v_c}, 1))) {
+                                                                                                    (void)(alg_invoke(v_this, "ScanIdentifier", NULL, 0));
+                                                                                                } else {
+                                                                                                    if (alg_truthy(alg_invoke(v_this, "IsDigit", (Value[]){v_c}, 1))) {
+                                                                                                        (void)(alg_invoke(v_this, "ScanNumber", NULL, 0));
+                                                                                                    } else {
+                                                                                                        {
+                                                                                                            (void)((alg_declared(d_haderror, "HadError"), (v_haderror = alg_bool(true))));
+                                                                                                            (void)((alg_declared(d_lasterror, "LastError"), (v_lasterror = alg_add(alg_add(alg_add(alg_string("[line "), alg_property(v_this, "Line")), alg_string("] Error: Unexpected character: ")), v_c))));
+                                                                                                        }
+                                                                                                    }
+                                                                                                }
+                                                                                            }
                                                                                         }
                                                                                     }
                                                                                 }
