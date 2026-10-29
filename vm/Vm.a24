@@ -36,6 +36,12 @@ const STACK_ROOM := 256;
 var Stack := Array (STACK_ROOM);
 
 /// How many values are on the stack.
+///
+/// Read by a test after a run to check the stack is where the emitter meant to
+/// leave it.  That is worth checking rather than assuming: a loop that lands
+/// two bytes early still computes the right answer when the answer is read
+/// from a LOCAL SLOT, and leaks a value per iteration while doing it.  Asking
+/// only for the answer passed twenty-five tests over exactly that bug.
 var SP : Integer := 0;
 
 /// Where the next instruction will be read from.
@@ -103,6 +109,25 @@ begin
     Exit B;
 end
 
+/// Reads the two-byte operand at IP and advances past it.
+///
+/// High byte first, which is the order PatchJump and EmitLoop write.
+function ReadShort () : Integer;
+var
+    High : Integer;
+
+begin
+    High := ReadByte ();
+
+    Exit High * 256 + ReadByte ();
+end
+
+/// Answers the value Distance from the top without popping it.
+function Peek (Distance : Integer) : Any;
+begin
+    Exit Stack[SP - 1 - Distance];
+end
+
 /// Pushes the constant its operand names.
 procedure DoConstant ();
 begin
@@ -164,6 +189,122 @@ begin
     WriteLn (Pop ());
 end
 
+/// Pushes nil.
+procedure DoNil ();
+begin
+    Push (Nil);
+end
+
+/// Pushes True.
+procedure DoTrue ();
+begin
+    Push (True);
+end
+
+/// Pushes False.
+procedure DoFalse ();
+begin
+    Push (False);
+end
+
+/// Discards the value on top.
+procedure DoPop ();
+begin
+    Pop ();
+end
+
+/// Pushes a local from its slot.
+procedure DoGetLocal ();
+begin
+    Push (Stack[ReadByte ()]);
+end
+
+/// Stores the top into a local's slot, leaving it on the stack.
+procedure DoSetLocal ();
+begin
+    Stack[ReadByte ()] := Peek (0);
+end
+
+/// Pushes whether the top two values are equal.
+procedure DoEqual ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () = Right);
+end
+
+/// Pushes whether the lower of the top two is greater than the upper.
+procedure DoGreater ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () > Right);
+end
+
+/// Pushes whether the lower of the top two is less than the upper.
+procedure DoLess ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () < Right);
+end
+
+/// Replaces the top with whether it was falsey.
+///
+/// The host's own `not` decides it, which is what makes the machine's
+/// truthiness the language's truthiness rather than a second opinion about it.
+procedure DoNot ();
+begin
+    Push (not Pop ());
+end
+
+/// Jumps forward by its operand.
+///
+/// The operand is read into a local FIRST, and that is not a style choice:
+/// `IP := IP + ReadShort ()` reads IP before ReadShort advances it past the
+/// two operand bytes, so the jump lands two bytes short -- on the operand of
+/// whatever follows.  It fails as a plausible wrong answer rather than a
+/// crash, which is the worst way for it to fail.
+procedure DoJump ();
+var
+    Distance : Integer;
+
+begin
+    Distance := ReadShort ();
+
+    IP := IP + Distance;
+end
+
+/// Jumps forward by its operand when the top is falsey, without popping it.
+procedure DoJumpIfFalse ();
+var
+    Distance : Integer;
+
+begin
+    Distance := ReadShort ();
+
+    if not Peek (0) then IP := IP + Distance;
+end
+
+/// Jumps backward by its operand.
+///
+/// The operand is read into a local first, for the reason DoJump gives.
+procedure DoLoop ();
+var
+    Distance : Integer;
+
+begin
+    Distance := ReadShort ();
+
+    IP := IP - Distance;
+end
+
 /// Stops the machine, keeping what is on top as the answer.
 procedure DoReturn ();
 begin
@@ -198,7 +339,20 @@ begin
     for var Slot : Integer := 0; Slot < BYTE_VALUES; Slot := Slot + 1 do
         Table[Slot] := DoUnknown;
 
-    Table[OP_CONSTANT] := DoConstant;
+    Table[OP_CONSTANT]      := DoConstant;
+    Table[OP_NIL]           := DoNil;
+    Table[OP_TRUE]          := DoTrue;
+    Table[OP_FALSE]         := DoFalse;
+    Table[OP_POP]           := DoPop;
+    Table[OP_GET_LOCAL]     := DoGetLocal;
+    Table[OP_SET_LOCAL]     := DoSetLocal;
+    Table[OP_EQUAL]         := DoEqual;
+    Table[OP_GREATER]       := DoGreater;
+    Table[OP_LESS]          := DoLess;
+    Table[OP_NOT]           := DoNot;
+    Table[OP_JUMP]          := DoJump;
+    Table[OP_JUMP_IF_FALSE] := DoJumpIfFalse;
+    Table[OP_LOOP]          := DoLoop;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
     Table[OP_MULTIPLY] := DoMultiply;
@@ -252,6 +406,61 @@ begin
     end
 
     Exit Result;
+end
+
+/// Runs OP_NOT over one value, for the truthiness tests.
+function NotOf (V : Any) : Any;
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (V);
+    C.Emit (OP_NOT);
+    C.Emit (OP_RETURN);
+
+    Exit Run (C);
+end
+
+/// Runs `Left and Right` as the emitter would, for the short-circuit tests.
+///
+/// The shape is clox's: jump over the right-hand side when the left is falsey
+/// and leave it on the stack, otherwise discard it and evaluate the right.
+function AndOf (Left : Any, Right : Any) : Any;
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (Left);
+
+    var Short := C.EmitJump (OP_JUMP_IF_FALSE);
+    C.Emit (OP_POP);
+    C.EmitConstant (Right);
+    C.PatchJump (Short);
+
+    C.Emit (OP_RETURN);
+
+    Exit Run (C);
+end
+
+/// Runs `Left or Right` as the emitter would.
+///
+/// One more jump than `and`: falsey falls into the right-hand side, so the
+/// truthy path needs a jump of its own over it.
+function OrOf (Left : Any, Right : Any) : Any;
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (Left);
+
+    var Falsey := C.EmitJump (OP_JUMP_IF_FALSE);
+    var Done   := C.EmitJump (OP_JUMP);
+
+    C.PatchJump (Falsey);
+    C.Emit (OP_POP);
+    C.EmitConstant (Right);
+    C.PatchJump (Done);
+
+    C.Emit (OP_RETURN);
+
+    Exit Run (C);
 end
 
 test 'A Constant Reaches The Stack';
@@ -374,14 +583,137 @@ begin
         C.EmitConstant (6);
         C.EmitConstant (3);
         C.EmitConstant (2);
-        if OpOperands (Op) = 1 then
-        begin
-            C.Write (Op);
-            C.Write (0);
-        end
-        else C.Write (Op);
+
+        C.Write (Op);
+
+        // Zero operands of whatever width this opcode takes.  A jump of zero
+        // lands on the next instruction, so every opcode falls through to the
+        // OP_RETURN below -- and writing ONE byte for a two-byte jump is how
+        // an earlier version of this test read the OP_RETURN as a distance and
+        // jumped five thousand bytes off the end.
+        for var B : Integer := 0; B < OpOperands (Op); B := B + 1 do C.Write (0);
+
         C.Emit (OP_RETURN);
 
         Run (C);
     end
+end
+
+test 'A While Loop Sums A Range';
+begin
+    // var S := 0; var I := 0; while I < 10 do begin S := S + I; I := I + 1 end
+    //
+    // The locals live in the slots the constants were pushed into: S is slot
+    // 0 and I is slot 1, which is what lets OP_GET_LOCAL be a subscript.
+    var C := Chunk ();
+
+    C.EmitConstant (0);                       // slot 0 -- S
+    C.EmitConstant (0);                       // slot 1 -- I
+
+    var Top := C.Count;
+    C.EmitWith (OP_GET_LOCAL, 1);
+    C.EmitConstant (10);
+    C.Emit (OP_LESS);
+
+    var Done := C.EmitJump (OP_JUMP_IF_FALSE);
+    C.Emit (OP_POP);                          // the condition
+
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitWith (OP_GET_LOCAL, 1);
+    C.Emit (OP_ADD);
+    C.EmitWith (OP_SET_LOCAL, 0);
+    C.Emit (OP_POP);
+
+    C.EmitWith (OP_GET_LOCAL, 1);
+    C.EmitConstant (1);
+    C.Emit (OP_ADD);
+    C.EmitWith (OP_SET_LOCAL, 1);
+    C.Emit (OP_POP);
+
+    C.EmitLoop (Top);
+    C.PatchJump (Done);
+    C.Emit (OP_POP);                          // the condition
+
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (45, Run (C) as Integer);
+
+    // The two locals, and nothing else: a backward jump that lands early
+    // leaves a value behind per iteration, and the answer alone cannot see it.
+    AssertEqual (2, SP);
+end
+
+test 'A Loop Leaves The Stack Where It Found It';
+begin
+    // The same shape with an empty body, so the only thing under test is that
+    // OP_LOOP lands exactly where EmitLoop aimed it.
+    var C := Chunk ();
+
+    C.EmitConstant (0);                       // slot 0 -- the counter
+
+    var Top := C.Count;
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitConstant (50);
+    C.Emit (OP_LESS);
+
+    var Done := C.EmitJump (OP_JUMP_IF_FALSE);
+    C.Emit (OP_POP);
+
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitConstant (1);
+    C.Emit (OP_ADD);
+    C.EmitWith (OP_SET_LOCAL, 0);
+    C.Emit (OP_POP);
+
+    C.EmitLoop (Top);
+    C.PatchJump (Done);
+    C.Emit (OP_POP);
+
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (50, Run (C) as Integer);
+    AssertEqual (1, SP);
+end
+
+test 'The Machines Truthiness Is The Languages';
+begin
+    // Not Lox's: nil, False and the Integer zero are falsey, where 0.0, the
+    // empty String and any Char are truthy.  Checked through OP_NOT, which is
+    // the only instruction that has to agree about it.
+    AssertTrue (NotOf (Nil) as Boolean);
+    AssertTrue (NotOf (False) as Boolean);
+    AssertTrue (NotOf (0) as Boolean);
+
+    AssertTrue (not (NotOf (0.0) as Boolean));
+    AssertTrue (not (NotOf ('') as Boolean));
+    AssertTrue (not (NotOf ('0') as Boolean));
+end
+
+test 'And Yields An Operand Rather Than A Boolean';
+begin
+    // 6 and 3 is 3, and 0 and 3 is 0 [EXP-010].  No opcode does this: it is
+    // OP_JUMP_IF_FALSE not popping, plus an OP_POP on the path that continues.
+    AssertEqual (3, AndOf (6, 3) as Integer);
+    AssertEqual (0, AndOf (0, 3) as Integer);
+end
+
+test 'Or Yields An Operand Rather Than A Boolean';
+begin
+    // 6 or 3 is 6, and 0 or 3 is 3 [EXP-010].
+    AssertEqual (6, OrOf (6, 3) as Integer);
+    AssertEqual (3, OrOf (0, 3) as Integer);
+end
+
+test 'A Comparison Of A Char And A String Is Unequal';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant ('a');                     // a Char
+    C.EmitConstant (Str ('a'));               // a String
+    C.Emit (OP_EQUAL);
+    C.Emit (OP_RETURN);
+
+    AssertTrue (not (Run (C) as Boolean));
 end

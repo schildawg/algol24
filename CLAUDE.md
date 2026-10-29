@@ -62,10 +62,29 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   window by an Algol-24 program.
 - `packaging/` — the Homebrew formula and its CI.
 - `vm/` — the bytecode VM, now started. `OpCode.a24`, `Chunk.a24` and
-  `Vm.a24` are arithmetic and printing on a stack machine, 16 tests, agreeing
-  byte for byte under both processors. Run them with **`./test.sh vm/Vm.a24`**:
-  `test.sh`'s default root is `compiler/Main.a24`, which does not import the VM,
-  so **the VM's tests are not in the default run.**
+  `Vm.a24` hold 21 opcodes — constants, locals, comparisons, arithmetic, jumps
+  — enough for a `while` loop, at **13.1 M instr/s** over a realistic mix. 26
+  tests, agreeing byte for byte under both processors. Numbered as clox numbers
+  them, so the book reads alongside the file. Run them with **`./test.sh
+  vm/Vm.a24`**: `test.sh`'s default root is `compiler/Main.a24`, which does not
+  import the VM, so **the VM's tests are not in the default run.**
+
+  ⚠️ **`and` and `or` need no opcodes**, and must not get any. They yield an
+  *operand* [EXP-010], which is exactly what a jump plus an `OP_POP` produces,
+  and `OP_JUMP_IF_FALSE` deliberately does not pop so that the operand is still
+  there. Truthiness is free for the same reason the arithmetic is: a guest value
+  **is** a host value, so the host's own `not` decides it and the machine cannot
+  hold a second opinion.
+
+  ⚠️ **`IP := IP + ReadShort ()` is a bug, and it fails as a plausible wrong
+  answer.** The left `IP` is read before `ReadShort` advances it past the two
+  operand bytes, so the jump lands two bytes short — on the operand of whatever
+  follows. Read the distance into a local first.
+
+  ⚠️ **Assert `SP` after a run, not just the answer.** A backward jump landing
+  early still computes the right result when the result is read from a local
+  slot, while leaking a value per iteration — that passed 25 tests. A correct
+  emitter leaves a balanced stack, and checking it is what catches the class.
 
   ⚠️ **Two things cost 3x each in a dispatch loop, both found by measuring.**
   A unit's bare STATEMENTS do not run under `--test` -- only a declaration's

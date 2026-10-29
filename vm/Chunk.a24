@@ -88,6 +88,78 @@ begin
         this.Write (Op);
     end
 
+    /// Emits a forward jump and answers where its distance must be filled in.
+    ///
+    /// The distance is not known yet -- that is the whole problem a forward
+    /// jump poses -- so two placeholder bytes go down and PatchJump replaces
+    /// them once the landing place exists.  This is clox's backpatching, and
+    /// it is the mechanism PROPOSAL-VM.md says to take from it.
+    ///
+    /// # Examples
+    ///
+    /// See test 'A Forward Jump Is Patched Once Its Target Exists'.
+    function EmitJump (Op : Integer) : Integer;
+    begin
+        this.Write (Op);
+        this.Write (255);
+        this.Write (255);
+
+        Exit this.Count - 2;
+    end
+
+    /// Fills in a jump emitted earlier so that it lands here.
+    ///
+    /// The distance is measured from the instruction AFTER the operand, which
+    /// is where IP already points by the time the jump executes -- so the
+    /// machine adds the distance and needs to know nothing about the
+    /// instruction's own width.
+    ///
+    /// # Raises
+    ///
+    /// 'A jump reaches 65535 bytes.' when the body jumped over is too long.
+    /// clox answers the same way, and the limit wants raising only when a
+    /// program meets it.
+    procedure PatchJump (At : Integer);
+    begin
+        var Distance := this.Count - At - 2;
+
+        if Distance > 65535 then raise 'A jump reaches 65535 bytes.';
+
+        this.Code[At]     := Distance div 256;
+        this.Code[At + 1] := Distance mod 256;
+    end
+
+    /// Emits a backward jump to an offset already passed.
+    ///
+    /// # Raises
+    ///
+    /// 'A jump reaches 65535 bytes.' when the loop body is too long.
+    procedure EmitLoop (Target : Integer);
+    begin
+        this.Write (OP_LOOP);
+
+        // Measured from after this instruction's own operand, as PatchJump's
+        // is, so the machine subtracts rather than knowing any widths.
+        var Distance := this.Count + 2 - Target;
+
+        if Distance > 65535 then raise 'A jump reaches 65535 bytes.';
+
+        this.Write (Distance div 256);
+        this.Write (Distance mod 256);
+    end
+
+    /// Appends an instruction and a one-byte operand.
+    ///
+    /// # Raises
+    ///
+    /// 'A byte of bytecode must be 0 to 255.' through Write, for an operand
+    /// that will not fit -- a local slot past 255, most likely.
+    procedure EmitWith (Op : Integer, Operand : Integer);
+    begin
+        this.Write (Op);
+        this.Write (Operand);
+    end
+
     /// Appends a constant and the instruction that pushes it.
     ///
     /// # Raises
@@ -147,6 +219,54 @@ begin
         Fail ('expected a raise');
     except
         on e : String do AssertEqual ('A byte of bytecode must be 0 to 255.', e);
+    end
+end
+
+test 'A Forward Jump Is Patched Once Its Target Exists';
+begin
+    var C := Chunk ();
+
+    var Hole := C.EmitJump (OP_JUMP);
+
+    AssertEqual (1, Hole);
+    AssertEqual (255, C.At (1));
+
+    C.Emit (OP_POP);
+    C.Emit (OP_POP);
+    C.PatchJump (Hole);
+
+    // Two OP_POPs between the operand and here, so the machine must add 2.
+    AssertEqual (0, C.At (1));
+    AssertEqual (2, C.At (2));
+end
+
+test 'A Backward Jump Measures From After Its Own Operand';
+begin
+    var C := Chunk ();
+
+    var Top := C.Count;
+    C.Emit (OP_POP);
+    C.EmitLoop (Top);
+
+    // OP_POP, then OP_LOOP and two operand bytes: four back to the top.
+    AssertEqual (OP_LOOP, C.At (1));
+    AssertEqual (0, C.At (2));
+    AssertEqual (4, C.At (3));
+end
+
+test 'A Jump Too Long To Encode Is Refused';
+begin
+    var C := Chunk ();
+
+    var Hole := C.EmitJump (OP_JUMP);
+
+    for var I : Integer := 0; I < 65540; I := I + 1 do C.Emit (OP_POP);
+
+    try
+        C.PatchJump (Hole);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('A jump reaches 65535 bytes.', e);
     end
 end
 

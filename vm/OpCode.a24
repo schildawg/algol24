@@ -1,7 +1,8 @@
 /// The instruction set, one constant per opcode.
 ///
-/// Named from clox, as `ObjFunction.a24` asks: the tree-walker, the C it emits
-/// and this machine all say the same word for the same thing.
+/// Named and numbered from clox, as `ObjFunction.a24` asks: the tree-walker,
+/// the C it emits and this machine all say the same word for the same thing,
+/// and keeping the order too means the book reads alongside this file.
 ///
 /// The numbering is not a contract yet.  Nothing reads bytecode from a file, so
 /// an opcode may be renumbered freely until something does -- at which point
@@ -15,35 +16,95 @@ unit OpCode;
 /// program needs it rather than before.
 const OP_CONSTANT := 0;
 
+/// Pushes nil.
+const OP_NIL := 1;
+
+/// Pushes True.
+const OP_TRUE := 2;
+
+/// Pushes False.
+const OP_FALSE := 3;
+
+/// Discards the value on top.
+const OP_POP := 4;
+
+/// Pushes a local, read from its stack slot.  One operand: the slot.
+///
+/// A local lives in the slot the expression stack grew it into, so reading one
+/// is a subscript and not a lookup -- which is the whole reason a compiler
+/// resolves locals before emitting.
+const OP_GET_LOCAL := 5;
+
+/// Stores the top value into a local's slot, LEAVING it on the stack.
+///
+/// One operand: the slot.  The value stays because assignment is an expression
+/// in this language, so a statement that discards it emits an OP_POP of its
+/// own and an expression that uses it does not.
+const OP_SET_LOCAL := 6;
+
+/// Pops two values and pushes whether they are equal.
+///
+/// Host equality, which is what makes a Char and a one-character String unequal
+/// here exactly as they are everywhere else [TYP-003].
+const OP_EQUAL := 7;
+
+/// Pops two values and pushes whether the lower is greater than the upper.
+const OP_GREATER := 8;
+
+/// Pops two values and pushes whether the lower is less than the upper.
+const OP_LESS := 9;
+
 /// Pops two numbers and pushes their sum.
-const OP_ADD := 1;
+const OP_ADD := 10;
 
 /// Pops two numbers and pushes the second less the first.
-const OP_SUBTRACT := 2;
+const OP_SUBTRACT := 11;
 
 /// Pops two numbers and pushes their product.
-const OP_MULTIPLY := 3;
+const OP_MULTIPLY := 12;
 
 /// Pops two numbers and pushes the quotient, which is always a Double.
 ///
 /// Real division, because that is what `/` means in this language [EXP-004].
 /// `div` and `mod` are separate opcodes and not this one rounded.
-const OP_DIVIDE := 4;
+const OP_DIVIDE := 13;
+
+/// Replaces the top with whether it was falsey.
+///
+/// Falsey is this language's reading and not Lox's: nil, False and the Integer
+/// zero are falsey, where 0.0, the empty String and any Char are truthy.  The
+/// machine gets that free, because a guest value IS a host value and the host's
+/// own `not` decides it.
+const OP_NOT := 14;
 
 /// Replaces the number on top with its negation.
-const OP_NEGATE := 5;
+const OP_NEGATE := 15;
 
 /// Pops a value and writes it, as `WriteLn` does.
-const OP_PRINT := 6;
+const OP_PRINT := 16;
+
+/// Jumps forward unconditionally.  Two operands: the distance, high byte first.
+const OP_JUMP := 17;
+
+/// Jumps forward when the top is falsey, WITHOUT popping it.
+///
+/// Two operands: the distance, high byte first.  Leaving the value is what lets
+/// `and` and `or` need no opcodes of their own: they are a jump and an OP_POP,
+/// and the value left behind is the operand [EXP-010] requires them to answer.
+const OP_JUMP_IF_FALSE := 18;
+
+/// Jumps backward.  Two operands: the distance, high byte first.
+///
+/// A separate opcode from OP_JUMP rather than a signed operand, because a
+/// distance that is always subtracted needs no sign and a byte pair that is
+/// never negative is easier to read in a disassembly.
+const OP_LOOP := 19;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 7;
+const OP_RETURN := 20;
 
-/// How many opcodes there are, which is the size the dispatch table needs.
-///
-/// Held as a constant rather than counted so that the table is built once at
-/// its full size: a table indexed by opcode is only O(1) if it never grows.
-const OP_COUNT := 8;
+/// How many opcodes there are.
+const OP_COUNT := 21;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -51,22 +112,41 @@ const OP_COUNT := 8;
 /// usually already reporting a problem and a second failure there buries it.
 function OpName (Op : Integer) : String;
 begin
-    if Op = OP_CONSTANT then Exit 'OP_CONSTANT';
-    if Op = OP_ADD      then Exit 'OP_ADD';
-    if Op = OP_SUBTRACT then Exit 'OP_SUBTRACT';
-    if Op = OP_MULTIPLY then Exit 'OP_MULTIPLY';
-    if Op = OP_DIVIDE   then Exit 'OP_DIVIDE';
-    if Op = OP_NEGATE   then Exit 'OP_NEGATE';
-    if Op = OP_PRINT    then Exit 'OP_PRINT';
-    if Op = OP_RETURN   then Exit 'OP_RETURN';
+    if Op = OP_CONSTANT      then Exit 'OP_CONSTANT';
+    if Op = OP_NIL           then Exit 'OP_NIL';
+    if Op = OP_TRUE          then Exit 'OP_TRUE';
+    if Op = OP_FALSE         then Exit 'OP_FALSE';
+    if Op = OP_POP           then Exit 'OP_POP';
+    if Op = OP_GET_LOCAL     then Exit 'OP_GET_LOCAL';
+    if Op = OP_SET_LOCAL     then Exit 'OP_SET_LOCAL';
+    if Op = OP_EQUAL         then Exit 'OP_EQUAL';
+    if Op = OP_GREATER       then Exit 'OP_GREATER';
+    if Op = OP_LESS          then Exit 'OP_LESS';
+    if Op = OP_ADD           then Exit 'OP_ADD';
+    if Op = OP_SUBTRACT      then Exit 'OP_SUBTRACT';
+    if Op = OP_MULTIPLY      then Exit 'OP_MULTIPLY';
+    if Op = OP_DIVIDE        then Exit 'OP_DIVIDE';
+    if Op = OP_NOT           then Exit 'OP_NOT';
+    if Op = OP_NEGATE        then Exit 'OP_NEGATE';
+    if Op = OP_PRINT         then Exit 'OP_PRINT';
+    if Op = OP_JUMP          then Exit 'OP_JUMP';
+    if Op = OP_JUMP_IF_FALSE then Exit 'OP_JUMP_IF_FALSE';
+    if Op = OP_LOOP          then Exit 'OP_LOOP';
+    if Op = OP_RETURN        then Exit 'OP_RETURN';
 
     Exit 'OP_?';
 end
 
-/// How many operand bytes follow an opcode.
+/// How many operand BYTES follow an opcode.
 function OpOperands (Op : Integer) : Integer;
 begin
-    if Op = OP_CONSTANT then Exit 1;
+    if Op = OP_CONSTANT  then Exit 1;
+    if Op = OP_GET_LOCAL then Exit 1;
+    if Op = OP_SET_LOCAL then Exit 1;
+
+    if Op = OP_JUMP          then Exit 2;
+    if Op = OP_JUMP_IF_FALSE then Exit 2;
+    if Op = OP_LOOP          then Exit 2;
 
     Exit 0;
 end
@@ -80,4 +160,12 @@ end
 test 'An Unknown Opcode Is Named Rather Than Raised';
 begin
     AssertEqual ('OP_?', OpName (OP_COUNT));
+end
+
+test 'Only The Opcodes That Take Operands Report Any';
+begin
+    AssertEqual (1, OpOperands (OP_CONSTANT));
+    AssertEqual (2, OpOperands (OP_JUMP));
+    AssertEqual (0, OpOperands (OP_ADD));
+    AssertEqual (0, OpOperands (OP_RETURN));
 end
