@@ -61,7 +61,22 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
 - `examples/hello-scripts/` — a pie chart and Unicode text drawn into an SDL2
   window by an Algol-24 program.
 - `packaging/` — the Homebrew formula and its CI.
-- `vm/` — the bytecode VM, not written yet. `vm/spike/` holds the programs that
+- `vm/` — the bytecode VM, now started. `OpCode.a24`, `Chunk.a24` and
+  `Vm.a24` are arithmetic and printing on a stack machine, 16 tests, agreeing
+  byte for byte under both processors. Run them with **`./test.sh vm/Vm.a24`**:
+  `test.sh`'s default root is `compiler/Main.a24`, which does not import the VM,
+  so **the VM's tests are not in the default run.**
+
+  ⚠️ **Two things cost 3x each in a dispatch loop, both found by measuring.**
+  A unit's bare STATEMENTS do not run under `--test` -- only a declaration's
+  initializer does -- so the handler table is built by `BuildHandlers ()` and
+  assigned in the `var`; a table half-built the other way fails as `Can only
+  call functions and classes` at the first instruction. And reading the chunk
+  through `Running.At (IP)` dispatches by method NAME through the runtime once
+  per instruction: 5.2 M instr/s against **16.1 M** for the same loop reading a
+  module-level Buffer lifted out of the chunk at `Run`.
+
+  `vm/spike/` holds the programs that
   measured whether it is worth writing, and **`vm/spike/measure.sh` reproduces
   every figure** in `PROPOSAL-VM.md` in about ten minutes — so run it rather
   than trusting a number quoted in prose. The short of it: an Algol-24 dispatch

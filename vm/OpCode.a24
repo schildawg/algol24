@@ -1,0 +1,83 @@
+/// The instruction set, one constant per opcode.
+///
+/// Named from clox, as `ObjFunction.a24` asks: the tree-walker, the C it emits
+/// and this machine all say the same word for the same thing.
+///
+/// The numbering is not a contract yet.  Nothing reads bytecode from a file, so
+/// an opcode may be renumbered freely until something does -- at which point
+/// the numbering becomes a format and wants a version stamp.
+unit OpCode;
+
+/// Pushes a constant from the chunk's table.  One operand: its index.
+///
+/// The index is a single byte, so a chunk holds 256 constants.  clox answers
+/// that with a second opcode taking a wider operand, and this will too when a
+/// program needs it rather than before.
+const OP_CONSTANT := 0;
+
+/// Pops two numbers and pushes their sum.
+const OP_ADD := 1;
+
+/// Pops two numbers and pushes the second less the first.
+const OP_SUBTRACT := 2;
+
+/// Pops two numbers and pushes their product.
+const OP_MULTIPLY := 3;
+
+/// Pops two numbers and pushes the quotient, which is always a Double.
+///
+/// Real division, because that is what `/` means in this language [EXP-004].
+/// `div` and `mod` are separate opcodes and not this one rounded.
+const OP_DIVIDE := 4;
+
+/// Replaces the number on top with its negation.
+const OP_NEGATE := 5;
+
+/// Pops a value and writes it, as `WriteLn` does.
+const OP_PRINT := 6;
+
+/// Stops the machine, answering whatever is on top of the stack.
+const OP_RETURN := 7;
+
+/// How many opcodes there are, which is the size the dispatch table needs.
+///
+/// Held as a constant rather than counted so that the table is built once at
+/// its full size: a table indexed by opcode is only O(1) if it never grows.
+const OP_COUNT := 8;
+
+/// The name of an opcode, for a disassembly listing and for a diagnostic.
+///
+/// Answers 'OP_?' rather than raising for an unknown one, because the caller is
+/// usually already reporting a problem and a second failure there buries it.
+function OpName (Op : Integer) : String;
+begin
+    if Op = OP_CONSTANT then Exit 'OP_CONSTANT';
+    if Op = OP_ADD      then Exit 'OP_ADD';
+    if Op = OP_SUBTRACT then Exit 'OP_SUBTRACT';
+    if Op = OP_MULTIPLY then Exit 'OP_MULTIPLY';
+    if Op = OP_DIVIDE   then Exit 'OP_DIVIDE';
+    if Op = OP_NEGATE   then Exit 'OP_NEGATE';
+    if Op = OP_PRINT    then Exit 'OP_PRINT';
+    if Op = OP_RETURN   then Exit 'OP_RETURN';
+
+    Exit 'OP_?';
+end
+
+/// How many operand bytes follow an opcode.
+function OpOperands (Op : Integer) : Integer;
+begin
+    if Op = OP_CONSTANT then Exit 1;
+
+    Exit 0;
+end
+
+test 'Every Opcode Has A Name';
+begin
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+        AssertTrue (OpName (Op) <> 'OP_?');
+end
+
+test 'An Unknown Opcode Is Named Rather Than Raised';
+begin
+    AssertEqual ('OP_?', OpName (OP_COUNT));
+end

@@ -1,0 +1,387 @@
+/// The virtual machine: a stack, a dispatch table, and the loop between them.
+///
+/// The state is at MODULE level and the handlers are plain subprograms rather
+/// than a class and its methods, which is a performance decision and not a
+/// style one.  A table of subprograms indexed by opcode is O(1) in the
+/// instruction set where a `case` is not -- there is no CaseStmt node, so each
+/// arm becomes an IfStmt and an opcode pays for every arm above it.  Measured
+/// at 2.4x between the first position and the thirty-first, which is the whole
+/// of why `Handlers` exists.  See PROPOSAL-VM.md.
+///
+/// One consequence is that there is one machine per process, as there is in
+/// clox.  Nothing needs two yet.
+unit Vm;
+
+uses OpCode;
+uses Chunk;
+
+/// How many values a byte can take, which is how wide the dispatch table is.
+const BYTE_VALUES := 256;
+
+/// How deep the value stack is.
+///
+/// Fixed, and overflow raises rather than growing: a runaway stack is a bug in
+/// the program being run, and a machine that grows to hold it reports the
+/// problem as a memory exhaustion somewhere else entirely.
+const STACK_ROOM := 256;
+
+/// The values being operated on.
+///
+/// Guest numbers are held as Algol-24 Integers and Doubles, which allocates
+/// NOTHING -- measured at zero arena bytes across twelve million instructions.
+/// That is only true while the guest's values are numbers: a guest string or
+/// collection would be an Algol-24 object in the host's arena, which never
+/// frees, so those want the Buffer heap PROPOSAL-GC.md describes rather than
+/// this stack.  The boundary is the thing to hold on to as opcodes are added.
+var Stack := Array (STACK_ROOM);
+
+/// How many values are on the stack.
+var SP : Integer := 0;
+
+/// Where the next instruction will be read from.
+var IP : Integer := 0;
+
+/// The chunk being run.
+var Running : Chunk := Nil;
+
+/// The chunk's code, lifted out of it for the duration of the run.
+///
+/// Read directly rather than through `Running.At (IP)`, and the difference is
+/// not small: a method call on an instance dispatches through the runtime by
+/// the method's NAME, once per instruction, which measured 5.2 M instr/s
+/// against 20 M for the same loop reading a module-level Buffer.  The chunk is
+/// not modified while it runs, so lifting its parts out is safe for exactly as
+/// long as that stays true.
+var Code : Buffer := Nil;
+
+/// The chunk's constant table, lifted out for the same reason as Code.
+var Constants : List := Nil;
+
+/// Whether the loop should keep going.
+var Live : Boolean := False;
+
+/// What OP_RETURN left behind, which is what Run answers.
+var Result : Any := Nil;
+
+/// Pushes a value.
+///
+/// # Raises
+///
+/// 'The value stack overflowed.' past STACK_ROOM.
+procedure Push (V : Any);
+begin
+    if SP >= STACK_ROOM then raise 'The value stack overflowed.';
+
+    Stack[SP] := V;
+    SP := SP + 1;
+end
+
+/// Pops a value.
+///
+/// # Raises
+///
+/// 'The value stack underflowed.' when nothing is on it, which means the
+/// bytecode is wrong rather than the program being run.
+function Pop () : Any;
+begin
+    if SP <= 0 then raise 'The value stack underflowed.';
+
+    SP := SP - 1;
+
+    Exit Stack[SP];
+end
+
+/// Reads the byte at IP and advances past it.
+function ReadByte () : Integer;
+var
+    B : Integer;
+
+begin
+    B := Code[IP] as Integer;
+    IP := IP + 1;
+
+    Exit B;
+end
+
+/// Pushes the constant its operand names.
+procedure DoConstant ();
+begin
+    Push (Constants[ReadByte ()]);
+end
+
+/// Adds the top two values.
+///
+/// The operands come off in reverse, so the second popped is the left-hand
+/// side -- which matters for every operator that is not commutative.
+procedure DoAdd ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () + Right);
+end
+
+/// Subtracts the top value from the one beneath it.
+procedure DoSubtract ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () - Right);
+end
+
+/// Multiplies the top two values.
+procedure DoMultiply ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () * Right);
+end
+
+/// Divides the value beneath the top by the top, answering a Double.
+procedure DoDivide ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () / Right);
+end
+
+/// Negates the value on top.
+procedure DoNegate ();
+begin
+    Push (-Pop ());
+end
+
+/// Writes the value on top, as WriteLn does.
+procedure DoPrint ();
+begin
+    WriteLn (Pop ());
+end
+
+/// Stops the machine, keeping what is on top as the answer.
+procedure DoReturn ();
+begin
+    Result := Pop ();
+    Live := False;
+end
+
+/// Refuses a byte that is not an instruction.
+///
+/// # Raises
+///
+/// 'No handler for opcode N.' always -- that is the whole of what it does.
+procedure DoUnknown ();
+begin
+    raise 'No handler for opcode ' + Str (Code[IP - 1]) + '.';
+end
+
+/// Builds the dispatch table, every slot filled.
+///
+/// A function rather than a run of assignments at unit level, because a unit's
+/// bare STATEMENTS do not run under `--test` -- only a declaration's
+/// initializer does.  A table left half-built that way fails as 'Can only call
+/// functions and classes' at the first instruction, which says nothing about
+/// why.
+function BuildHandlers () : Array;
+var
+    Table : Array;
+
+begin
+    Table := Array (BYTE_VALUES);
+
+    for var Slot : Integer := 0; Slot < BYTE_VALUES; Slot := Slot + 1 do
+        Table[Slot] := DoUnknown;
+
+    Table[OP_CONSTANT] := DoConstant;
+    Table[OP_ADD]      := DoAdd;
+    Table[OP_SUBTRACT] := DoSubtract;
+    Table[OP_MULTIPLY] := DoMultiply;
+    Table[OP_DIVIDE]   := DoDivide;
+    Table[OP_NEGATE]   := DoNegate;
+    Table[OP_PRINT]    := DoPrint;
+    Table[OP_RETURN]   := DoReturn;
+
+    Exit Table;
+end
+
+/// One handler per possible BYTE, indexed by it.
+///
+/// Sized to every value a byte can take rather than to OP_COUNT, which costs
+/// four kilobytes once and buys two things: a byte that is not an instruction
+/// reaches DoUnknown and is named, instead of failing as an Array subscript
+/// that mentions neither bytecode nor an opcode; and the dispatch loop needs
+/// no bounds check, which is a branch removed from the hottest path there is.
+///
+/// Built once, by the declaration's own initializer, which is what makes
+/// dispatch a subscript rather than a search.
+var Handlers : Array := BuildHandlers ();
+
+/// Runs a chunk and answers what its OP_RETURN left on the stack.
+///
+/// # Raises
+///
+/// Whatever the instructions raise, unchanged.  A machine that caught and
+/// rewrapped them would make a guest program's error harder to read than the
+/// same program compiled, and the two are meant to agree.
+///
+/// # Examples
+///
+/// See test 'Arithmetic Runs On The Machine'.
+function Run (C : Chunk) : Any;
+begin
+    Running   := C;
+    Code      := C.Code;
+    Constants := C.Constants;
+
+    IP      := 0;
+    SP      := 0;
+    Result  := Nil;
+    Live    := True;
+
+    while Live do
+    begin
+        var Op := ReadByte ();
+
+        Handlers[Op] ();
+    end
+
+    Exit Result;
+end
+
+test 'A Constant Reaches The Stack';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (42);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, Run (C) as Integer);
+end
+
+test 'Arithmetic Runs On The Machine';
+begin
+    // 1 + 2 * 3, in the order a postorder walk emits it.
+    var C := Chunk ();
+
+    C.EmitConstant (1);
+    C.EmitConstant (2);
+    C.EmitConstant (3);
+    C.Emit (OP_MULTIPLY);
+    C.Emit (OP_ADD);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (7, Run (C) as Integer);
+end
+
+test 'Subtraction Takes Its Operands In Order';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (10);
+    C.EmitConstant (4);
+    C.Emit (OP_SUBTRACT);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (6, Run (C) as Integer);
+end
+
+test 'Division Answers A Double As The Language Does';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (7);
+    C.EmitConstant (2);
+    C.Emit (OP_DIVIDE);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (3.5, Run (C) as Double);
+end
+
+test 'Negation Replaces The Top';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (5);
+    C.Emit (OP_NEGATE);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (-5, Run (C) as Integer);
+end
+
+test 'An Unbounded Integer Stays Unbounded On The Machine';
+begin
+    // The guest's arithmetic is the host's, so LEX-018 holds inside the VM
+    // without the VM doing anything about it.
+    var C := Chunk ();
+
+    C.EmitConstant (1);
+    for var I : Integer := 0; I < 70; I := I + 1 do
+    begin
+        C.EmitConstant (2);
+        C.Emit (OP_MULTIPLY);
+    end
+    C.Emit (OP_RETURN);
+
+    AssertEqual (1 << 70, Run (C) as Integer);
+end
+
+test 'The Stack Underflows Rather Than Reading Rubbish';
+begin
+    var C := Chunk ();
+
+    C.Emit (OP_ADD);
+    C.Emit (OP_RETURN);
+
+    try
+        Run (C);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('The value stack underflowed.', e);
+    end
+end
+
+test 'A Byte That Is Not An Instruction Is Named';
+begin
+    var C := Chunk ();
+
+    C.Write (200);
+
+    try
+        Run (C);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('No handler for opcode 200.', e);
+    end
+end
+
+test 'Every Opcode Has A Handler';
+begin
+    // Each one runs rather than reaching DoUnknown.  A renumbering that left
+    // a gap would fail here rather than at the instruction, which is where a
+    // gap is cheapest to find.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var C := Chunk ();
+
+        // Enough on the stack for the widest arity, and an OP_RETURN after so
+        // a handler that does not stop the machine still terminates.
+        C.EmitConstant (6);
+        C.EmitConstant (3);
+        C.EmitConstant (2);
+        if OpOperands (Op) = 1 then
+        begin
+            C.Write (Op);
+            C.Write (0);
+        end
+        else C.Write (Op);
+        C.Emit (OP_RETURN);
+
+        Run (C);
+    end
+end

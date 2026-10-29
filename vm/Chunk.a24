@@ -1,0 +1,163 @@
+/// A unit of bytecode: the instructions, and the constants they refer to.
+///
+/// The code is a Buffer rather than a List of Integer, which is the decision
+/// that makes a chunk a thing that can be written to a file later: a Buffer is
+/// bytes, and bytes are what a bytecode artifact holds.  It also means an
+/// operand is one byte and a constant index therefore reaches 255, which is a
+/// limit this will outgrow and clox answers with a wider opcode.
+unit Chunk;
+
+uses OpCode;
+
+/// How much code a fresh chunk has room for, doubled whenever it fills.
+///
+/// Small, because most chunks are small: a method is a chunk, and so is a
+/// program's main block.
+const CHUNK_ROOM := 64;
+
+/// A chunk of bytecode.
+class Chunk;
+var
+    /// The instructions, packed as bytes.
+    ///
+    /// Longer than Count: the slack is what Write appends into without
+    /// reallocating.  Read Count rather than the Buffer's own length.
+    ///
+    /// Its size is `Code.Length`, the collection property.  `Length (Code)`,
+    /// the text built-in, answers the length of the Buffer's PRINTED form --
+    /// 10 for a `Buffer(64)` -- where for a List it raises instead.  DEF-36.
+    Code      : Buffer;
+
+    /// How many bytes of Code are instructions.
+    Count     : Integer;
+
+    /// The values the code refers to by index, in the order they were added.
+    Constants : List;
+
+begin
+    /// Makes an empty chunk.
+    constructor Init ();
+    begin
+        this.Code      := Buffer (CHUNK_ROOM);
+        this.Count     := 0;
+        this.Constants := List ();
+    end
+
+    /// Appends one byte of code.
+    ///
+    /// # Raises
+    ///
+    /// 'A byte of bytecode must be 0 to 255.' for anything that will not fit,
+    /// which is a bug in whatever emitted it rather than a program's error --
+    /// an operand too large to encode is caught here instead of being
+    /// truncated into a different instruction.
+    procedure Write (B : Integer);
+    begin
+        if B < 0 or B > 255 then
+            raise 'A byte of bytecode must be 0 to 255.';
+
+        if this.Count >= this.Code.Length then
+            this.Code.Resize (this.Code.Length * 2);
+
+        this.Code[this.Count] := B;
+        this.Count := this.Count + 1;
+    end
+
+    /// Reads the byte at an offset.
+    function At (Offset : Integer) : Integer;
+    begin
+        Exit this.Code[Offset] as Integer;
+    end
+
+    /// Adds a constant and answers the index the code should refer to it by.
+    ///
+    /// Equal constants are not folded.  Folding needs a definition of equal
+    /// that agrees with the language's, and the language's answer for a Char
+    /// and a one-character String is that they differ -- so folding here would
+    /// be the wrong place to decide it.
+    function AddConstant (V : Any) : Integer;
+    begin
+        this.Constants.Add (V);
+
+        Exit this.Constants.Length - 1;
+    end
+
+    /// Appends an instruction that takes no operand.
+    procedure Emit (Op : Integer);
+    begin
+        this.Write (Op);
+    end
+
+    /// Appends a constant and the instruction that pushes it.
+    ///
+    /// # Raises
+    ///
+    /// 'A chunk holds 256 constants.' once the index will not fit in the
+    /// operand byte.
+    procedure EmitConstant (V : Any);
+    begin
+        var At := this.AddConstant (V);
+
+        if At > 255 then raise 'A chunk holds 256 constants.';
+
+        this.Write (OP_CONSTANT);
+        this.Write (At);
+    end
+end
+
+test 'A Fresh Chunk Is Empty';
+begin
+    var C := Chunk ();
+
+    AssertEqual (0, C.Count);
+    AssertEqual (0, C.Constants.Length);
+end
+
+test 'A Chunk Grows Past Its First Room';
+begin
+    var C := Chunk ();
+
+    for var I : Integer := 0; I < CHUNK_ROOM * 5; I := I + 1 do C.Write (I mod 256);
+
+    AssertEqual (CHUNK_ROOM * 5, C.Count);
+    AssertEqual (7, C.At (7));
+
+    // Past two doublings, and past the byte wrap, so the growth is checked to
+    // have preserved what came before it rather than only its own length.
+    AssertEqual (131, C.At (131));
+    AssertEqual (0, C.At (256));
+    AssertEqual (63, C.At (CHUNK_ROOM * 5 - 1));
+end
+
+test 'A Constant Is Referred To By Its Index';
+begin
+    var C := Chunk ();
+
+    AssertEqual (0, C.AddConstant (11));
+    AssertEqual (1, C.AddConstant (22));
+    AssertEqual (22, C.Constants[1] as Integer);
+end
+
+test 'A Byte Of Bytecode Must Fit';
+begin
+    var C := Chunk ();
+
+    try
+        C.Write (256);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('A byte of bytecode must be 0 to 255.', e);
+    end
+end
+
+test 'An Emitted Constant Writes Its Opcode And Index';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (42);
+
+    AssertEqual (2, C.Count);
+    AssertEqual (OP_CONSTANT, C.At (0));
+    AssertEqual (0, C.At (1));
+    AssertEqual (42, C.Constants[0] as Integer);
+end
