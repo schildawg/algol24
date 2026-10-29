@@ -338,6 +338,15 @@ fi
 # The identifier shape is deliberately narrow.  Two- and three-letter
 # namespaces both exist (RT-021 beside LEX-015), but demanding two digits is
 # what keeps ordinary prose out -- 'UTF-8' is not a citation.
+#
+# ⚠️ SPELLED OUT RATHER THAN WITH {2,3}, because the two awks disagree about a
+# pattern holding two interval expressions.  It read /[A-Z]{2,3}-[0-9]{2,3}/,
+# which BWK awk handles and Debian's mawk does not: given a line with an
+# uppercase run before the citation -- 'however many BYTES it takes [LEX-023]'
+# -- mawk answered 'X-023', one letter instead of three.  That made this check
+# report eighteen citations as dangling on Linux while passing on macOS, which
+# is the worst way for a harness to be wrong.  The spelled-out form was
+# compared against both.
 grep -ohE 'DEF-[0-9]+' "$DEFECTS" 2>/dev/null | sort -u \
   > "$WORK/known_ids"
 cat "$WORK/ids_sorted" >> "$WORK/known_ids"
@@ -351,7 +360,7 @@ awk '
     incode && /^```/ { incode = 0; next }
     incode {
         s = $0
-        while (match(s, /[A-Z]{2,3}-[0-9]{2,3}/)) {
+        while (match(s, /[A-Z][A-Z][A-Z]?-[0-9][0-9][0-9]?/)) {
             print NR "\t" substr(s, RSTART, RLENGTH)
             s = substr(s, RSTART + RLENGTH)
         }
