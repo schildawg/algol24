@@ -1,0 +1,414 @@
+/// The bytecode back end: an AST in, a chunk of bytecode out.
+///
+/// The third processor, beside the tree-walking Interpreter and the CEmitter.
+/// It shares the front end with both, which is the invariant the whole
+/// arrangement rests on -- a program that fails to parse or type-check must
+/// fail identically whichever back end is asked for.
+///
+/// It walks the AST the way the TypeChecker does, by asking for a node's
+/// ClassName rather than by importing the node classes, which is what lets it
+/// take a node as Any.
+///
+/// It lives here rather than in `vm/` because it is a back end, and it is
+/// reached from `vm/run.a24` rather than from Main.a24 -- so it is checked by
+/// docs.sh and is deliberately NOT in the seed, and a change to an opcode
+/// needs no reseed.  The import of `vm/Chunk` makes that a cycle between the
+/// two directories, which the language allows and which dissolves the moment
+/// there is a bytecode FILE format: this will write bytes and the machine will
+/// read them, and neither will name the other.
+///
+/// Like the CEmitter it REFUSES by name what it cannot emit yet, rather than
+/// emitting nothing.  A silent gap would produce a chunk that disagrees with
+/// the interpreter, and the two are meant to be compared.
+///
+/// It carries no tests of its own, for the reason the CEmitter carries none:
+/// a back end is judged by the corpus rather than by unit tests, because the
+/// thing worth checking is that it agrees with the other processors on a whole
+/// program.  `vm/conform.sh` is that check.
+unit VmEmitter;
+
+uses Token;
+uses 'vm/OpCode';
+uses 'vm/Chunk';
+
+/// What the emitter is building, for the duration of one Compile.
+var Target : Chunk := Nil;
+
+/// Refuses a construct by name.
+///
+/// # Raises
+///
+/// '<X> is not supported by the bytecode back end yet.' always, which is the
+/// CEmitter's wording with its own back end named.
+procedure Unsupported (What : Any);
+begin
+    raise Str (What) + ' is not supported by the bytecode back end yet.';
+end
+
+/// The node's class name, for dispatching on the kind of expression.
+///
+/// The TypeChecker and the Interpreter each have one of these as a METHOD on
+/// their own class rather than a shared top-level function, so a third walker
+/// needs its own.  Answers '' for anything with no ClassName rather than
+/// raising, which keeps the dispatch below a chain of comparisons.
+function KindOf (Node : Any) : Any;
+begin
+    try
+        Exit Node.ClassName;
+    except
+        on e : String do Exit '';
+    end
+end
+
+/// The text of a token, folded, so an operator or keyword can be matched
+/// without importing TokenType.
+///
+/// Folded because a keyword operator -- `div`, `mod`, `and` -- may be written
+/// in any case [SRC-011], where a symbol has only one spelling.
+///
+/// Every one-character operator it is compared against is wrapped in Str,
+/// because a one-character literal is a CHAR and a Char never equals a String
+/// [TYP-003].  Leaving them bare is quiet rather than fatal: `'<>'`, `'>='`
+/// and `'and'` are Strings and match, while `'+'` and `'*'` silently do not,
+/// so arithmetic is refused by name while the comparisons work.
+function Spelling (Op : Any) : Any;
+begin
+    Exit ToLower (Str (Op.Lexeme));
+end
+
+/// Emits one expression, leaving its value on the stack.
+procedure EmitExpr (TheExpr : Any);
+begin
+    if TheExpr = Nil then
+    begin
+        Target.Emit (OP_NIL);
+        Exit;
+    end
+
+    var Kind := KindOf (TheExpr);
+
+    if Kind = 'LiteralExpr' then
+    begin
+        var V := TheExpr.Value;
+
+        // The three literals with opcodes of their own, so that the commonest
+        // constants cost no table slot.
+        if V = Nil then Target.Emit (OP_NIL);
+        else if V = True then Target.Emit (OP_TRUE);
+        else if V = False then Target.Emit (OP_FALSE);
+        else Target.EmitConstant (V);
+
+        Exit;
+    end
+
+    if Kind = 'GroupingExpr' then
+    begin
+        EmitExpr (TheExpr.Expression);
+        Exit;
+    end
+
+    if Kind = 'VariableExpr' then
+    begin
+        Target.EmitWith (OP_GET_GLOBAL, Target.GlobalSlot (TheExpr.Name.Lexeme));
+        Exit;
+    end
+
+    if Kind = 'AssignExpr' then
+    begin
+        EmitExpr (TheExpr.Value);
+        Target.EmitWith (OP_SET_GLOBAL, Target.GlobalSlot (TheExpr.Name.Lexeme));
+        Exit;
+    end
+
+    if Kind = 'UnaryExpr' then
+    begin
+        var Op := Spelling (TheExpr.Op);
+
+        EmitExpr (TheExpr.Right);
+
+        if Op = Str ('-') then Target.Emit (OP_NEGATE);
+        else if Op = 'not' then Target.Emit (OP_NOT);
+        else Unsupported ('Unary ''' + Op + '''');
+
+        Exit;
+    end
+
+    if Kind = 'BinaryExpr' then
+    begin
+        EmitBinary (TheExpr);
+        Exit;
+    end
+
+    // `and` and `or` are their own node, not a BinaryExpr, because they
+    // short-circuit -- which is exactly why they are emitted as control flow.
+    if Kind = 'LogicalExpr' then
+    begin
+        EmitLogical (TheExpr);
+        Exit;
+    end
+
+    if Kind = 'CallExpr' then
+    begin
+        EmitCall (TheExpr);
+        Exit;
+    end
+
+    Unsupported (Kind);
+end
+
+/// Emits `and` or `or`, which get no opcodes and must not.
+///
+/// They yield an OPERAND rather than a Boolean [EXP-010] -- `6 and 3` is 3 and
+/// `0 and 3` is 0 -- and a jump that leaves the tested value on the stack
+/// answers exactly that.  So the operand semantics and the short-circuiting
+/// fall out of one shape, and OP_JUMP_IF_FALSE not popping is what makes it
+/// work.
+///
+/// # Raises
+///
+/// Whatever Unsupported raises, for an operator that is neither.
+procedure EmitLogical (TheExpr : Any);
+var
+    Op : Any;
+
+begin
+    Op := Spelling (TheExpr.Op);
+
+    if Op = 'and' then
+    begin
+        EmitExpr (TheExpr.Left);
+
+        var Short := Target.EmitJump (OP_JUMP_IF_FALSE);
+        Target.Emit (OP_POP);
+        EmitExpr (TheExpr.Right);
+        Target.PatchJump (Short);
+
+        Exit;
+    end
+
+    if Op = 'or' then
+    begin
+        EmitExpr (TheExpr.Left);
+
+        var Falsey := Target.EmitJump (OP_JUMP_IF_FALSE);
+        var Done   := Target.EmitJump (OP_JUMP);
+
+        Target.PatchJump (Falsey);
+        Target.Emit (OP_POP);
+        EmitExpr (TheExpr.Right);
+        Target.PatchJump (Done);
+
+        Exit;
+    end
+
+    Unsupported ('Logical ''' + Str (Op) + '''');
+end
+
+/// Emits a binary expression.
+procedure EmitBinary (TheExpr : Any);
+var
+    Op : Any;
+
+begin
+    Op := Spelling (TheExpr.Op);
+
+    EmitExpr (TheExpr.Left);
+    EmitExpr (TheExpr.Right);
+
+    if Op = Str ('+')  then Target.Emit (OP_ADD);
+    else if Op = Str ('-')  then Target.Emit (OP_SUBTRACT);
+    else if Op = Str ('*')  then Target.Emit (OP_MULTIPLY);
+    else if Op = Str ('/')  then Target.Emit (OP_DIVIDE);
+    else if Op = Str ('=')  then Target.Emit (OP_EQUAL);
+    else if Op = Str ('>')  then Target.Emit (OP_GREATER);
+    else if Op = Str ('<')  then Target.Emit (OP_LESS);
+
+    // The three the machine does not have, each one instruction and a negation
+    // -- which is what clox does, and costs a byte rather than three opcodes.
+    else if Op = '<>' then
+    begin
+        Target.Emit (OP_EQUAL);
+        Target.Emit (OP_NOT);
+    end
+    else if Op = '>=' then
+    begin
+        Target.Emit (OP_LESS);
+        Target.Emit (OP_NOT);
+    end
+    else if Op = '<=' then
+    begin
+        Target.Emit (OP_GREATER);
+        Target.Emit (OP_NOT);
+    end
+    else Unsupported ('Binary ''' + Op + '''');
+end
+
+/// Emits a call.
+///
+/// Only `WriteLn` so far, which is the one built-in with an opcode.  Everything
+/// else is refused by name until there is a call frame to put it in.
+procedure EmitCall (TheExpr : Any);
+var
+    Name : Any;
+
+begin
+    if KindOf (TheExpr.Callee) <> 'VariableExpr' then
+        Unsupported ('A call through an expression');
+
+    Name := ToLower (Str (TheExpr.Callee.Name.Lexeme));
+
+    if Name = 'writeln' then
+    begin
+        if TheExpr.Arguments.Length <> 1 then
+            Unsupported ('WriteLn with ' + Str (TheExpr.Arguments.Length) + ' arguments');
+
+        EmitExpr (TheExpr.Arguments[0]);
+        Target.Emit (OP_PRINT);
+
+        // Every expression leaves a value, and a call is an expression, so the
+        // statement above this one expects one to pop.  OP_PRINT consumed it.
+        Target.Emit (OP_NIL);
+
+        Exit;
+    end
+
+    Unsupported ('A call to ''' + Str (TheExpr.Callee.Name.Lexeme) + '''');
+end
+
+/// Emits one statement, leaving the stack as it found it.
+procedure EmitStmt (TheStmt : Any);
+begin
+    if TheStmt = Nil then Exit;
+
+    var Kind := KindOf (TheStmt);
+
+    if Kind = 'ExpressionStmt' then
+    begin
+        EmitExpr (TheStmt.Expression);
+        Target.Emit (OP_POP);
+
+        Exit;
+    end
+
+    if Kind = 'VarStmt' then
+    begin
+        // A declaration is what DEFINES a global, so one with no initializer
+        // defines it as nil rather than leaving it undefined.
+        EmitExpr (TheStmt.Initializer);
+        Target.EmitWith (OP_DEFINE_GLOBAL, Target.GlobalSlot (TheStmt.Name.Lexeme));
+
+        Exit;
+    end
+
+    if Kind = 'BlockStmt' then
+    begin
+        // No scope of its own yet: a 'var' inside a block would want a local
+        // slot and the block would want to pop it on the way out.  Until then
+        // the statements are emitted inline, which is right for every block
+        // that declares nothing.
+        for var Inner in TheStmt.Statements do
+        begin
+            if KindOf (Inner) = 'VarStmt' then
+                Unsupported ('A ''var'' inside a block');
+
+            EmitStmt (Inner);
+        end
+
+        Exit;
+    end
+
+    if Kind = 'IfStmt' then
+    begin
+        EmitExpr (TheStmt.Condition);
+
+        var Otherwise := Target.EmitJump (OP_JUMP_IF_FALSE);
+        Target.Emit (OP_POP);
+        EmitStmt (TheStmt.ThenBranch);
+
+        var Done := Target.EmitJump (OP_JUMP);
+
+        Target.PatchJump (Otherwise);
+        Target.Emit (OP_POP);
+        EmitStmt (TheStmt.ElseBranch);
+
+        Target.PatchJump (Done);
+
+        Exit;
+    end
+
+    if Kind = 'WhileStmt' then
+    begin
+        var Top := Target.Count;
+
+        EmitExpr (TheStmt.Condition);
+
+        var Done := Target.EmitJump (OP_JUMP_IF_FALSE);
+        Target.Emit (OP_POP);
+        EmitStmt (TheStmt.Body);
+
+        // The counted form carries its step here rather than in the body, so
+        // 'for var I := 0; I < N; I := I + 1' and 'while' are one node.
+        if TheStmt.Increment <> Nil then
+        begin
+            EmitExpr (TheStmt.Increment);
+            Target.Emit (OP_POP);
+        end
+
+        Target.EmitLoop (Top);
+
+        Target.PatchJump (Done);
+        Target.Emit (OP_POP);
+
+        Exit;
+    end
+
+    if Kind = 'ModuleStmt' then
+    begin
+        if TheStmt.Statements <> Nil then
+            for var Inner in TheStmt.Statements do EmitStmt (Inner);
+
+        Exit;
+    end
+
+    Unsupported (Kind);
+end
+
+/// Walks the declarations and gives every global a slot before any body is
+/// emitted.
+///
+/// Not optional, and not an optimisation: a module-level subprogram may refer
+/// to a global declared BELOW it, so a slot assigned as the declaration is
+/// reached would be assigned too late.  GlobalSlot is idempotent, so the later
+/// uses find the same slot.
+procedure CollectGlobals (Statements : List);
+begin
+    for var TheStmt in Statements do
+    begin
+        var Kind := KindOf (TheStmt);
+
+        if Kind = 'VarStmt' then Target.GlobalSlot (TheStmt.Name.Lexeme);
+
+        if Kind = 'ModuleStmt' then
+            if TheStmt.Statements <> Nil then CollectGlobals (TheStmt.Statements);
+    end
+end
+
+/// Compiles a parsed program into a chunk ending in OP_RETURN.
+///
+/// # Raises
+///
+/// Whatever Unsupported raises, for a construct with no opcodes yet.
+function Compile (Statements : List) : Chunk;
+begin
+    Target := Chunk ();
+
+    CollectGlobals (Statements);
+
+    for var TheStmt in Statements do EmitStmt (TheStmt);
+
+    // Something must be on the stack for OP_RETURN to answer.
+    Target.Emit (OP_NIL);
+    Target.Emit (OP_RETURN);
+
+    Exit Target;
+end

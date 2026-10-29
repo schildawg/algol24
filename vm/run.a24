@@ -1,0 +1,187 @@
+/// Runs a program on the bytecode machine.
+///
+///     algvm program.a24
+///
+/// A SECOND BINARY rather than a mode of algc, which is what PROPOSAL-VM.md
+/// prefers and what `uses` taking a path makes possible today: the compiler's
+/// front end is imported from here instead of this being imported into it.
+/// So nothing in `compiler/` changes, the VM stays out of the seed in
+/// `bootstrap/`, and a change to an opcode needs no reseed.
+///
+/// It parses the source itself rather than reading bytecode, because there is
+/// no bytecode file format yet.  When there is, this splits in two along the
+/// line the proposal draws -- `algc --emit` writing it and this reading it --
+/// and the front-end imports below are what goes away.
+///
+/// The order of the imports is Main.a24's order and must stay that way: a
+/// module's functions close over the environment its file was loaded in, so
+/// TypeChecker has to come after Parser to reach it.
+
+uses 'compiler/Token';
+uses 'compiler/TokenType';
+
+uses 'compiler/Expr';
+uses 'compiler/Stmt';
+
+uses 'compiler/Environment';
+uses 'compiler/ObjFunction';
+uses 'compiler/ObjClass';
+uses 'compiler/ObjInstance';
+uses 'compiler/ObjEnum';
+uses 'compiler/ObjCollection';
+uses 'compiler/ObjBuffer';
+uses 'compiler/ObjFile';
+uses 'compiler/SourceCode';
+uses 'compiler/Console';
+
+uses 'compiler/Scanner';
+uses 'compiler/Parser';
+
+uses 'compiler/TypeChecker';
+
+uses 'compiler/Resolver';
+uses 'compiler/Interpreter';
+
+uses 'compiler/VmEmitter';
+
+uses OpCode;
+uses Chunk;
+uses Vm;
+
+/// Reads a whole file as one String.
+///
+/// # Raises
+///
+/// Whatever Reset raises when the file cannot be opened.
+function SourceOf (Path : String) : String;
+var
+    Handle : TextFile;
+    Accum  : Buffer;
+
+begin
+    Handle := TextFile ();
+    Handle.Assign (Path);
+    Handle.Reset ();
+
+    // `Buffer ()` and not `Buffer (1024)`: a size pre-fills with that many
+    // ZERO bytes, which Append then adds after -- and a Buffer holding a zero
+    // byte has no Text.  A size is right for the code array in Chunk, which is
+    // indexed, and wrong for anything accumulated.
+    Accum := Buffer ();
+
+    while not Handle.Eof do
+    begin
+        Accum.Append (Handle.ReadLn ());
+        Accum.Append (#10);
+    end
+
+    Handle.Close ();
+
+    // `.Text` and not `Str (Accum)`.  Str answers a Buffer's PRINTED form --
+    // `Buffer(1041)` -- which parsed as a program and failed on the bracket.
+    // The same trap as `Length (B)`; see DEF-36.
+    Exit Accum.Text;
+end
+
+/// Fails the run if anything scanned badly.
+///
+/// A scan error is RECORDED rather than thrown -- the Scanner sets HadError and
+/// keeps the message -- so every driver has to ask.  This one did not, and the
+/// corpus found it immediately: `0006-line-endings-lf` expects `Unexpected
+/// character: $` and the VM ran the program with the character silently
+/// dropped, which is the exact failure Main.a24's own CheckScanned was written
+/// for.
+///
+/// Called TWICE, as Main.a24 calls it: once after scanning for the right
+/// message, and once after parsing so that a module loaded by `uses` is
+/// covered too.
+///
+/// # Raises
+///
+/// The scanner's last message, unchanged.
+procedure CheckScanned ();
+begin
+    if HadError then raise Str (LastError);
+end
+
+/// Parses, checks and compiles a program, answering its chunk.
+///
+/// The front end is the compiler's own, unchanged, which is the invariant the
+/// three back ends rest on: a program that fails to parse or type-check fails
+/// identically whichever one is asked for.
+function ChunkOf (Source : String, Path : String) : Chunk;
+var
+    TheScanner     : Scanner;
+    TheParser      : Parser;
+    TheResolver    : Resolver;
+    TheInterpreter : Interpreter;
+
+    Tokens : List;
+    Stmts  : List;
+
+begin
+    SourceCode.Begins (Path);
+
+    TheScanner := Scanner (Source);
+    Tokens := TheScanner.ScanTokens ();
+    CheckScanned ();
+
+    TheParser := Parser (Tokens);
+    TheParser.FileName := Path;
+
+    Stmts := TheParser.Parse ();
+    CheckScanned ();
+
+    // The Resolver reports through an Interpreter, so one is made for it even
+    // though nothing here interprets anything.
+    TheInterpreter := Interpreter ();
+    TheInterpreter.RootFile := Path;
+
+    TheResolver := Resolver (TheInterpreter);
+    TheResolver.ResolveAll (Stmts);
+
+    TypeChecker ().Resolve (Stmts);
+
+    Exit Compile (Stmts);
+end
+
+if ParamCount () < 1 then
+begin
+    WriteLn ('usage: algvm <program.a24>');
+    Halt (2);
+end
+
+var Path := ParamStr (1);
+
+var Listing := False;
+for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
+    if ParamStr (I) = '--list' then Listing := True;
+    else Path := ParamStr (I);
+
+var Program := ChunkOf (SourceOf (Path), Path);
+
+if Listing then
+begin
+    // A disassembly, which is the first thing wanted when a chunk misbehaves.
+    WriteLn ('== ' + Path + ' ==');
+
+    var At : Integer := 0;
+    while At < Program.Count do
+    begin
+        var Op := Program.At (At);
+        var Line := Str (At) + '  ' + OpName (Op);
+        var Wide := OpOperands (Op);
+
+        if Wide = 1 then Line := Line + ' ' + Str (Program.At (At + 1));
+        if Wide = 2 then
+            Line := Line + ' ' + Str (Program.At (At + 1) * 256 + Program.At (At + 2));
+
+        WriteLn (Line);
+
+        At := At + 1 + Wide;
+    end
+
+    WriteLn ('');
+end
+
+Run (Program);

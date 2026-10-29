@@ -140,7 +140,15 @@ begin
 end
 
 /// Answers the value Distance from the top without popping it.
-function Peek (Distance : Integer) : Any;
+///
+/// Named PeekAt rather than Peek, and not for taste: `Parser` has a METHOD
+/// called Peek that answers a Token and calls it bare ten times, and a
+/// top-level Peek declared in another unit of the same program shadows it.
+/// The program then fails to type-check with 'Expected Token, found Any'
+/// pointing at a line number in the merged source map -- nowhere near either
+/// declaration.  One name may not be declared at the top level of two files of
+/// one program, and a method is not the protection it looks like.
+function PeekAt (Distance : Integer) : Any;
 begin
     Exit Stack[SP - 1 - Distance];
 end
@@ -239,7 +247,7 @@ end
 /// Stores the top into a local's slot, leaving it on the stack.
 procedure DoSetLocal ();
 begin
-    Stack[ReadByte ()] := Peek (0);
+    Stack[ReadByte ()] := PeekAt (0);
 end
 
 /// Pushes a global from its slot.
@@ -281,7 +289,7 @@ var
 begin
     Slot := ReadByte ();
 
-    Globals[Slot] := Peek (0);
+    Globals[Slot] := PeekAt (0);
     Defined[Slot] := True;
 end
 
@@ -349,7 +357,7 @@ var
 begin
     Distance := ReadShort ();
 
-    if not Peek (0) then IP := IP + Distance;
+    if not PeekAt (0) then IP := IP + Distance;
 end
 
 /// Jumps backward by its operand.

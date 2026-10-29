@@ -106,6 +106,42 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   per instruction: 5.2 M instr/s against **16.1 M** for the same loop reading a
   module-level Buffer lifted out of the chunk at `Run`.
 
+  **`vm/run.a24` is a second binary, not a mode of `algc`** — it imports the
+  compiler's front end rather than being imported into it, so `compiler/` is
+  untouched and the VM stays out of the seed. `compiler/VmEmitter.a24` is the
+  third back end, reached from there and **not** from `Main.a24`, which is why
+  `fixedpoint.sh` never sees it.
+
+  **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
+  exactly as `conform.sh` renders it. Currently **28 identical, 166 refused by
+  name, 0 diverged**. A refusal is work to do; a divergence is a bug, and
+  refusing by name is what keeps the two apart.
+
+  ⚠️ **`uses` takes a PATH when the name is quoted** — `uses 'vm/OpCode';`,
+  `uses 'compiler/Parser';`. The corpus has used `uses 'modules/Alpha';`
+  throughout from the start. A bare name may not contain `/`.
+
+  ⚠️ **A top-level subprogram shadows another unit's class METHOD of the same
+  name.** `Vm.a24` declaring `Peek` broke `Parser.Peek() : Token`, which
+  `Parser` calls bare ten times — and it surfaced as `Expected Token, found
+  Any` at a line number in the merged source map, nowhere near either
+  declaration. A method is not the protection it looks like.
+
+  ⚠️ **Four Buffer and Char traps, all of which compile and then misbehave.**
+  `Str (B)` on a Buffer answers its PRINTED form, so use `B.Text`; `Buffer (N)`
+  pre-fills N **zero** bytes and a Buffer holding one has no Text, so use
+  `Buffer ()` to accumulate; `Length (B)` answers the printed form's length
+  where a List raises (DEF-36), so use `B.Length`; and a one-character operator
+  literal is a **Char**, so `Op = '+'` against a String is quietly false while
+  `Op = '<>'` works — which refused all the arithmetic while the comparisons
+  passed.
+
+  ⚠️ **`ClassNameOf` is a METHOD** on TypeChecker and on Interpreter, not a
+  built-in. A third walker needs its own; it is `Node.ClassName` in a `try`.
+
+  ⚠️ **`and` and `or` are a `LogicalExpr`, not a `BinaryExpr`.** They are their
+  own node because they short-circuit.
+
   `vm/spike/` holds the programs that
   measured whether it is worth writing, and **`vm/spike/measure.sh` reproduces
   every figure** in `PROPOSAL-VM.md` in about ten minutes — so run it rather
