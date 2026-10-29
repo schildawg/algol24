@@ -59,6 +59,31 @@ guest value into the host heap, where it is immortal. A VM whose arena stays
 flat in instruction count is honouring the boundary; one whose arena grows has
 broken it. That is a harness, not a code review.
 
+### What a guest program allocates, which is the VM's problem to solve
+
+The VM's own execution allocates nothing. **A program running on it is the
+opposite**, and `shroom-slots` is the measured example — compiled today, with
+its arena instrumented, over 1,200 frames of the Dew Drop Inn:
+
+| | |
+| --- | --- |
+| arena handed out | **124.6 MB** |
+| per frame | **104 KB** |
+| as it actually runs, at 87 fps here | **9.1 MB/s** |
+| a one-hour session | **~33 GB** |
+
+`machine.a24` already carries the same finding in a comment — the loop once ran
+uncapped at better than 2,000 fps and "the machine leaked twenty-seven megabytes
+a second while somebody played it. That is a phone dead in three minutes." The
+`SDL_Delay (8)` that caps the loop is there because of it.
+
+⚠️ **That is the VM's actual justification, and it is stronger than speed.**
+Running on the VM costs the Inn a factor of nine and drops it to 30 fps
+[`PROPOSAL-VM.md`]. But compiled Algol-24 **cannot** collect its own memory —
+constraint 2, roots in C locals — so the alternative to 30 fps on a managed
+heap is not 60 fps, it is 60 fps for as long as the memory lasts. A collected
+guest heap is the thing only the VM can offer.
+
 ### What does need it
 
 Programs whose live set is bounded but whose *allocation* is not — and the

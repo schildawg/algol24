@@ -84,10 +84,18 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   not repeat the 42% as though it were general -- `PROPOSAL-VM.md` did, and it
   was wrong.
 
+  ⚠️ **The frame budget is measured now, and the answer is 30 fps.** The Dew
+  Drop Inn spends **2.0 ms a frame** in Algol-24 (plus 0.3 ms in SDL), so on the
+  VM it needs 18.4 ms — over a 60 fps frame and comfortably inside a 30 fps
+  one. The reel engine, at 0.74 ms, fits at 60 either way. **The Inn is the
+  program that decides this, not `play`** — and the game is *logic*-bound, not
+  SDL-bound: foreign calls are 13% of its frame.
+
   ⚠️ **A third finding is a decision, not a repair**, and it is the only one
   that helps the VM more than the AOT path: writing just the dispatch loop in
   C, over handlers that stay in Algol-24, measured a further **1.7×** and takes
-  the VM to CPython parity. There is no barrier at the emitted-C level — a
+  the VM to CPython parity. The frame measurement makes it **load-bearing** --
+  without it the Inn is at 94% of a 30 fps frame. There is no barrier at the emitted-C level — a
   generated subprogram is already an ordinary C function — so what it would
   need is linkage, and `vm/spike/cdispatch.py` demonstrates it by patching a
   compiled variant. The catch is that giving C a stable name to call **freezes

@@ -15,6 +15,11 @@ language**, item 0b included, which was checked rather than assumed.
 VM itself is compiled to C by the existing back end, so the VM is native and the
 game is not.
 
+⚠️ **Measured, that means 30 frames a second for the Dew Drop Inn and 60 for
+the reel engine** — see *Does the game fit?*. Whether 30 is acceptable for a
+walking-and-dialogue game is a design question this proposal cannot settle, and
+it is now the decision everything else waits on.
+
 ⚠️ **This is not the same project as giving the AOT path a garbage collector**,
 and the two are easy to conflate because both are "a real GC".
 
@@ -256,35 +261,67 @@ for exactly that reason.
 | at 32.2 M instr/s, the two emitter fixes | ~536,000 bytecode instructions |
 | **at 54.9 M instr/s, all three** | **~915,000 bytecode instructions** |
 
-And the rule of thumb that follows: if the game's Algol-24 work takes **T**
-milliseconds a frame today, on the VM it takes about **12 × T** — which the
-emitter fixes push to 15 × T, because the AOT baseline it is measured against
-moves further than the VM does, and the C dispatch then pulls back to 9 × T. So:
+### Does the game fit? Measured, and the answer is no at sixty
 
-> **If `shroom-slots` currently spends under about 1.1 ms a frame in Algol-24
-> code it fits at 60 fps on any of these; under about 1.9 ms it fits with the
-> C dispatch.**
+This proposal used to say the frame cost was the one number it could not measure
+and the next step must. It has now been measured, with `clock()` either side of
+the frame loop's body in `shroom-slots` — stopping before `S.Present ()`, so the
+window is the game's own work and not the driver's — over 1,200 frames of each
+program.
 
-⚠️ **That is the number this proposal cannot measure and the next step must.**
-It is a `clock()` either side of the logic half of the frame loop on the AOT
-build, excluding the SDL present. Nothing else about the design matters until it
-is known.
+⚠️ **The reel engine and the Dew Drop Inn are not the same program, and the Inn
+is the one that decides this.** The machine is the reel engine; the Inn is the
+game.
 
-⚠️ **The emitter fixes barely move the threshold, and that is not a
-coincidence.** They make the VM 2.68× faster and the AOT path 3.54× faster, so
-the ratio the threshold is derived from is roughly preserved — the C dispatch is
-the only one of the three that changes it, because it is the only one that helps
-the VM alone. What the emitter fixes do move is the **absolute** budget, from
-200,000 instructions a frame to 536,000 and then 915,000, which is the figure to
-check the game against: its logic is a fixed amount of work rather than a
-fraction of the AOT build's throughput.
+| | Algol-24 logic and draw, per frame |
+| --- | --- |
+| `play` — one machine, the reel engine | **0.74 ms** |
+| **`inn` — the Dew Drop Inn** | **2.32 ms** |
 
-**A foreign call is one instruction, and that is what makes the budget
-plausible.** `Foreign` is already a five-argument built-in mapped to
-`alg_foreign_call`, so a `CALL_C` opcode costs one dispatch and then runs at
-native speed. A blit taking 200 µs inside SDL costs the VM a single
-instruction. The game is SDL-bound rather than logic-bound, so the multiplier
-applies to the cheap half of its frame.
+Of the Inn's 2.32 ms, the part a VM would multiply is smaller, because a foreign
+call costs one dispatch and then runs at native speed. Timed inside
+`alg_foreign`, excluding the present and the frame cap:
+
+| | |
+| --- | --- |
+| the frame window | 2.32 ms |
+| of which foreign — SDL, 215 calls a frame | **0.31 ms** |
+| **the Algol-24 remainder, which is what gets multiplied** | **~2.01 ms** |
+
+Against the measured AOT-to-VM ratios:
+
+| | VM frame cost | at 60 fps | at 30 fps |
+| --- | --- | --- | --- |
+| the two emitter fixes — 15.4× | **31.3 ms** | 188% — no | 94% — no headroom |
+| **all three, with the C dispatch — 9.0×** | **18.4 ms** | **110% — no** | **55% — yes** |
+
+> **The Dew Drop Inn does not fit at 60 fps on the VM, with or without the C
+> dispatch. It fits comfortably at 30. The reel engine fits at 60 either way —
+> 0.74 ms becomes 6.7 ms, two fifths of a frame.**
+
+⚠️ **This makes item 0b load-bearing rather than an optimisation.** Without the
+C dispatch the Inn sits at 94% of a 30 fps frame, which is not a budget. With
+it, 55%.
+
+⚠️ **And it corrects a claim this document made twice: the game is NOT
+SDL-bound.** Foreign calls are **0.31 ms of 2.32**, or 13% — so the multiplier
+applies to seven eighths of the frame rather than to "the cheap half" as an
+earlier draft had it. `CALL_C` being one instruction is still true and still
+matters; it is simply not what makes the budget work.
+
+⚠️ **Treat the multiplier as an estimate.** The 9.0× and 15.4× come from a tight
+integer loop. The Inn's own profile is string- and allocation-heavy — `concat`
+is its largest single allocation site — and on the VM strings would go through
+its own `ObjString` rather than Algol-24's, so the ratio could move either way.
+**Measuring the ratio on a representative mix rather than a loop is the next
+refinement**, and it is the only remaining number that could change the verdict
+above.
+
+**One correction of detail:** an `external` declaration is emitted as a call to
+`alg_foreign`, not to the `alg_foreign_call` this document previously named.
+`alg_foreign_call` is the dynamic `Foreign` built-in, which `shroom-slots` does
+not use — measured at zero calls across 1,200 frames. A `CALL_C` opcode would
+target `alg_foreign`.
 
 ### Why the AST is the memory problem, and where it goes
 
@@ -380,6 +417,11 @@ It needs no new rule, no corpus change, and no agreement about the VM.
 The remaining 1.71×, and unlike item 0 this is a decision rather than a repair.
 It is what takes the VM to CPython parity, and it is the only measured change
 that narrows the gap to the AOT path.
+
+⚠️ **It is also load-bearing rather than optional, which the frame measurement
+settled.** Without it the Dew Drop Inn sits at 94% of a 30 fps frame — not a
+budget. With it, 55%. So this item is not a late optimisation to weigh on its
+merits; it is a prerequisite for the Inn running on the VM at all.
 
 **What it is.** `vm/*.a24` holds the handlers, the object model and the
 collector — every opcode's *meaning* stays in Algol-24. A hand-written
@@ -544,8 +586,12 @@ actually break.
 
 ## Open questions
 
-1. **Does the game fit?** The 1.1-to-1.4 ms threshold above. Everything else is
-   premature until this is measured.
+1. ~~**Does the game fit?**~~ **Measured: the reel engine at 60 fps, the Dew
+   Drop Inn at 30.** What replaces it is a design question rather than an
+   engineering one — **is 30 fps acceptable for the Inn?** It is a walking and
+   dialogue game rather than a twitch one, and the alternative is not 60 fps
+   but a compiled build that leaks 9 MB a second. Everything else here waits on
+   that answer.
 2. **Does `algvm` ship as a second binary, or as a mode of `algc`?** A mode
    keeps one artifact and pays the 35 MB; a second binary gets the process
    boundary that makes the memory argument work.
@@ -680,6 +726,21 @@ an iteration: three for the Algol-24 and C VMs, eleven for CPython.
 read from `bootstrap/build.sh`; that `BoundValue` elides only `''` and `Any` is
 read from `compiler/CEmitter.a24`, and that `ReduceBinary` ends
 `if Left = Right then Exit Left;` from `compiler/TypeChecker.a24`.
+
+**The frame rows** are `clock()` either side of the frame loop's body in
+`shroom-slots` — `machine.a24`'s loop for the reel engine and `inn.a24`'s for
+the Inn — accumulated over 1,200 frames and divided, with the window ending
+**before** `S.Present ()` so that it covers the game's own work rather than the
+driver's. The instrumentation was reverted afterwards; it is six lines in each
+file.
+
+The foreign split is `alg_foreign` wrapped in a scratch `algol.c` to accumulate
+the time inside it, attributed per frame with `SDL_RenderPresent` as the frame
+boundary. ⚠️ **Two exclusions are load-bearing there**: `SDL_Delay` is the frame
+cap rather than work *and* falls after the present, and everything before the
+first present is loading art — counting either against a frame window that
+never contained them is how a first attempt reported more foreign time than the
+program's entire runtime.
 
 **The memory rows** are `/usr/bin/time -l` over `algc compiler/Main.a24`,
 `algc --compile … Main.a24` and `algc --test compiler/Main.a24`. The arena
