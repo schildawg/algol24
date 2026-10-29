@@ -1,6 +1,27 @@
 #ifndef ALGOL_H
 #define ALGOL_H
 
+/* glibc hides POSIX behind a feature test, and -std=c11 asks for it to: the
+   flag defines __STRICT_ANSI__, which suppresses the _DEFAULT_SOURCE glibc
+   would otherwise assume.  Every build line this project documents says
+   -std=c11 -- build.sh's default, the README's line for emitted programs, and
+   the Homebrew formula's own test -- so without this, 'realpath' and
+   'readlink' are implicitly declared and a fresh clone does not build on a
+   current Linux at all.  Measured on gcc 14.4 / glibc 2.41: four errors, two
+   of them a char* initialised from an int.
+
+   ⚠️ IT GOES HERE RATHER THAN IN algol.c, and the setjmp guard below is why.
+   That guard asks whether POSIX is exposed, so the macro decides which of two
+   setjmp variants the program uses -- and generated units call ALG_SETJMP on
+   the same jmp_buf the runtime unwinds.  Defining it in algol.c alone would
+   give the runtime '_setjmp' while every generated unit kept 'setjmp', which
+   is one buffer written and read two ways.  Here, every translation unit
+   agrees.
+
+   Harmless where it means nothing: Darwin and the BSDs key on their own
+   macros, and the branch below already picks the same variant for them. */
+#define _DEFAULT_SOURCE 1
+
 #include <setjmp.h>
 
 #if defined(__APPLE__)  || defined(__FreeBSD__) || defined(__NetBSD__)   \
