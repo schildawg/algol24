@@ -61,12 +61,38 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
 - `examples/hello-scripts/` — a pie chart and Unicode text drawn into an SDL2
   window by an Algol-24 program.
 - `packaging/` — the Homebrew formula and its CI.
-- `vm/` — the bytecode VM, not written yet. `vm/spike/` holds the four programs
-  that measured whether it is worth writing: an Algol-24 dispatch loop compiled
-  to C runs at **11.9 M instructions/s** against **136 M** for the same work
-  compiled directly, and `PROPOSAL-VM.md` is what that 11× buys. Reserved for a
-  real GC, because the runtime's bump allocator never frees — see the memory
-  section of `bootstrap/algol.c`.
+- `vm/` — the bytecode VM, not written yet. `vm/spike/` holds the programs that
+  measured whether it is worth writing, and **`vm/spike/measure.sh` reproduces
+  every figure** in `PROPOSAL-VM.md` in about ten minutes — so run it rather
+  than trusting a number quoted in prose. The short of it: an Algol-24 dispatch
+  loop compiled to C runs about **12× slower** than the same work compiled
+  directly, which is what the proposal weighs. Reserved for a real GC, because
+  the runtime's bump allocator never frees — see the memory section of
+  `bootstrap/algol.c`.
+
+  ⚠️ **Two findings there are about the emitter, not the VM, and they are not
+  conditional on it.** `build.sh` now probes for **`-flto`** and uses it
+  (`LTO=0` opts out), because `algol.c` is a separate translation unit and every
+  `alg_*` call crosses it. And `BoundValue` elides `alg_widen` only for `''` and
+  `Any`, so **annotating a variable currently makes the emitted code slower**,
+  which is backwards for a gradually typed language.
+
+  ⚠️ **LTO's size depends entirely on the shape of the work**, and a number
+  quoted without its workload is useless: 42% on a tight arithmetic loop, 24% on
+  a VM dispatch loop, **3% on `algc --test` and 1% on `algc --compile`**. It
+  removes call overhead, so it helps exactly where the callee does little. Do
+  not repeat the 42% as though it were general -- `PROPOSAL-VM.md` did, and it
+  was wrong.
+
+  ⚠️ **A third finding is a decision, not a repair**, and it is the only one
+  that helps the VM more than the AOT path: writing just the dispatch loop in
+  C, over handlers that stay in Algol-24, measured a further **1.7×** and takes
+  the VM to CPython parity. There is no barrier at the emitted-C level — a
+  generated subprogram is already an ordinary C function — so what it would
+  need is linkage, and `vm/spike/cdispatch.py` demonstrates it by patching a
+  compiled variant. The catch is that giving C a stable name to call **freezes
+  the `Value **cells, Value *args, int32_t count` calling convention**, which
+  is private today and has changed before.
 
 ## Commands
 

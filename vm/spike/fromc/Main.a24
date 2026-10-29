@@ -1,0 +1,6 @@
+// The ordinary Algol-24 entry point, so the same unit can be run the usual
+// way as well as called from C.  caller.c replaces this file's main.
+uses Hot;
+
+WriteLn (Twice (21));
+WriteLn (SumTo (100));
