@@ -1,0 +1,63 @@
+// A minimal bytecode loop, to measure what dispatch costs when the VM itself
+// is Algol-24 compiled to C.  Three instructions per iteration: an operand
+// fetch and a stack push, a pop, and a decrement-and-branch.
+
+const OP_HALT   := 0;
+const OP_PUSHI  := 1;
+const OP_POP    := 2;
+const OP_DECJNZ := 3;
+
+const ITERATIONS := 1000000;
+
+var Code : Buffer := Buffer (8);
+
+Code[0] := OP_PUSHI;
+Code[1] := 1;
+Code[2] := OP_POP;
+Code[3] := OP_DECJNZ;
+Code[4] := 5;
+Code[5] := OP_HALT;
+
+var Stack := Array (64);
+Stack[0] := ITERATIONS;
+
+var IP : Integer := 0;
+var SP : Integer := 1;
+var Running : Boolean := True;
+
+var Start : Double := clock ();
+
+while Running do
+begin
+    var Op : Integer := Code[IP] as Integer;
+    IP := IP + 1;
+
+    case Op of
+        OP_PUSHI :
+            begin
+                Stack[SP] := Code[IP] as Integer;
+                SP := SP + 1;
+                IP := IP + 1;
+            end
+
+        OP_POP : SP := SP - 1;
+
+        OP_DECJNZ :
+            begin
+                var Back : Integer := Code[IP] as Integer;
+                IP := IP + 1;
+
+                var N : Integer := (Stack[0] as Integer) - 1;
+                Stack[0] := N;
+
+                if N <> 0 then IP := IP - Back;
+            end
+
+        OP_HALT : Running := False;
+    end
+end
+
+var Elapsed : Double := clock () - Start;
+
+WriteLn ('bytecode: ' + Str (ITERATIONS * 3) + ' instructions in ' + Str (Elapsed, 3) + ' s');
+WriteLn ('          ' + Str ((ITERATIONS * 3) / Elapsed / 1000000.0, 2) + ' M instr/s');

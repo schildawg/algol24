@@ -61,8 +61,12 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
 - `examples/hello-scripts/` — a pie chart and Unicode text drawn into an SDL2
   window by an Algol-24 program.
 - `packaging/` — the Homebrew formula and its CI.
-- `vm/` — empty. Reserved for a bytecode VM with a real GC (the runtime's bump
-  allocator never frees; see the memory section of `bootstrap/algol.c`).
+- `vm/` — the bytecode VM, not written yet. `vm/spike/` holds the four programs
+  that measured whether it is worth writing: an Algol-24 dispatch loop compiled
+  to C runs at **11.9 M instructions/s** against **136 M** for the same work
+  compiled directly, and `PROPOSAL-VM.md` is what that 11× buys. Reserved for a
+  real GC, because the runtime's bump allocator never frees — see the memory
+  section of `bootstrap/algol.c`.
 
 ## Commands
 
