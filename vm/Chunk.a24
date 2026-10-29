@@ -34,13 +34,57 @@ var
     /// The values the code refers to by index, in the order they were added.
     Constants : List;
 
+    /// The name of each global slot, indexed by it.
+    ///
+    /// Carried for DIAGNOSTICS only -- the code refers to a global by its slot
+    /// and never looks in here.  It is what lets 'Undefined variable ''N''.'
+    /// name the variable even though the instruction does not.
+    ///
+    /// Its length is also how many slots the machine must make room for.
+    GlobalNames : List;
+
 begin
     /// Makes an empty chunk.
     constructor Init ();
     begin
         this.Code      := Buffer (CHUNK_ROOM);
         this.Count     := 0;
-        this.Constants := List ();
+        this.Constants   := List ();
+        this.GlobalNames := List ();
+    end
+
+    /// The slot a global name has, assigning one if it has none yet.
+    ///
+    /// Idempotent, which is what lets an emitter call it from a pre-pass over
+    /// the declarations and again at each use without counting a name twice.
+    /// A pre-pass is not optional: a module-level subprogram may refer to a
+    /// global declared BELOW it, so every slot has to exist before any body is
+    /// emitted.
+    ///
+    /// Matched case-insensitively, because identifiers are [SRC-011], with the
+    /// language's own ToLower rather than the compiler's FoldCase -- a chunk
+    /// should not need the compiler in order to be executed.
+    ///
+    /// # Raises
+    ///
+    /// 'A program holds 256 globals.' once a slot will not fit in an operand
+    /// byte.
+    ///
+    /// # Examples
+    ///
+    /// See test 'A Global Name Keeps Its Slot'.
+    function GlobalSlot (Name : Any) : Integer;
+    begin
+        var Wanted := ToLower (Str (Name));
+
+        for var I : Integer := 0; I < this.GlobalNames.Length; I := I + 1 do
+            if ToLower (Str (this.GlobalNames[I])) = Wanted then Exit I;
+
+        if this.GlobalNames.Length > 255 then raise 'A program holds 256 globals.';
+
+        this.GlobalNames.Add (Str (Name));
+
+        Exit this.GlobalNames.Length - 1;
     end
 
     /// Appends one byte of code.
@@ -280,4 +324,18 @@ begin
     AssertEqual (OP_CONSTANT, C.At (0));
     AssertEqual (0, C.At (1));
     AssertEqual (42, C.Constants[0] as Integer);
+end
+
+test 'A Global Name Keeps Its Slot';
+begin
+    var C := Chunk ();
+
+    AssertEqual (0, C.GlobalSlot ('Total'));
+    AssertEqual (1, C.GlobalSlot ('Count'));
+    AssertEqual (0, C.GlobalSlot ('Total'));
+
+    // Identifiers are case-insensitive [SRC-011], so these are one variable
+    // and must not be given two slots.
+    AssertEqual (0, C.GlobalSlot ('TOTAL'));
+    AssertEqual (2, C.GlobalNames.Length);
 end

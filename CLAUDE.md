@@ -62,12 +62,23 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   window by an Algol-24 program.
 - `packaging/` — the Homebrew formula and its CI.
 - `vm/` — the bytecode VM, now started. `OpCode.a24`, `Chunk.a24` and
-  `Vm.a24` hold 21 opcodes — constants, locals, comparisons, arithmetic, jumps
-  — enough for a `while` loop, at **13.1 M instr/s** over a realistic mix. 26
-  tests, agreeing byte for byte under both processors. Numbered as clox numbers
-  them, so the book reads alongside the file. Run them with **`./test.sh
-  vm/Vm.a24`**: `test.sh`'s default root is `compiler/Main.a24`, which does not
-  import the VM, so **the VM's tests are not in the default run.**
+  `Vm.a24` hold 24 opcodes — constants, locals, globals, comparisons,
+  arithmetic, jumps — enough for a `while` loop, at **13.1 M instr/s** over a
+  realistic mix. 32 tests, agreeing byte for byte under both processors.
+  Numbered as clox numbers them, so the book reads alongside the file. Run them
+  with **`./test.sh vm/Vm.a24`**: `test.sh`'s default root is
+  `compiler/Main.a24`, which does not import the VM, so **the VM's tests are
+  not in the default run.**
+
+  ⚠️ **A global is a SLOT, not a name — this departs from clox deliberately.**
+  The Resolver binds every variable before emission, so a module-level one gets
+  a fixed index and a subscript instead of clox's hash-per-access. Measured at
+  **12.8 M instr/s against a local's 13.1**, so the definite-assignment check
+  costs about 3%. Two consequences: an emitter needs a **pre-pass**, because a
+  module-level subprogram may refer to a global declared *below* it; and the
+  chunk still carries `GlobalNames`, read **only** to say which variable was
+  `Undefined` — a declaration is what defines a global, so `var X;` is nil
+  while a read from above its declaration raises.
 
   ⚠️ **`and` and `or` need no opcodes**, and must not get any. They yield an
   *operand* [EXP-010], which is exactly what a jump plus an `OP_POP` produces,

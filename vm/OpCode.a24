@@ -42,32 +42,60 @@ const OP_GET_LOCAL := 5;
 /// own and an expression that uses it does not.
 const OP_SET_LOCAL := 6;
 
+/// Pushes a global, read from its slot.  One operand: the slot.
+///
+/// A SLOT and not a name, which is where this departs from clox: the Resolver
+/// already binds every variable before emission, so a module-level one can be
+/// given a fixed index and read with a subscript instead of hashing a string
+/// at run time.  The name survives only in the chunk's GlobalNames, for the
+/// diagnostic below.
+///
+/// # Raises
+///
+/// 'Undefined variable ''N''.' when the declaration has not run yet, which a
+/// module-level subprogram called above its own globals will do.
+const OP_GET_GLOBAL := 7;
+
+/// Pops a value and defines a global with it.  One operand: the slot.
+///
+/// This is a declaration executing, which is what makes the global defined --
+/// `var X;` with no initializer defines it as nil rather than leaving it
+/// undefined.
+const OP_DEFINE_GLOBAL := 8;
+
+/// Stores the top into a global's slot, LEAVING it on the stack.
+///
+/// One operand: the slot.  Defines the global as a side effect, as an
+/// assignment does in the emitted C, so the value stays and the statement that
+/// discards it emits its own OP_POP.
+const OP_SET_GLOBAL := 9;
+
 /// Pops two values and pushes whether they are equal.
 ///
 /// Host equality, which is what makes a Char and a one-character String unequal
 /// here exactly as they are everywhere else [TYP-003].
-const OP_EQUAL := 7;
+const OP_EQUAL := 10;
 
 /// Pops two values and pushes whether the lower is greater than the upper.
-const OP_GREATER := 8;
+const OP_GREATER := 11;
 
 /// Pops two values and pushes whether the lower is less than the upper.
-const OP_LESS := 9;
+const OP_LESS := 12;
 
 /// Pops two numbers and pushes their sum.
-const OP_ADD := 10;
+const OP_ADD := 13;
 
 /// Pops two numbers and pushes the second less the first.
-const OP_SUBTRACT := 11;
+const OP_SUBTRACT := 14;
 
 /// Pops two numbers and pushes their product.
-const OP_MULTIPLY := 12;
+const OP_MULTIPLY := 15;
 
 /// Pops two numbers and pushes the quotient, which is always a Double.
 ///
 /// Real division, because that is what `/` means in this language [EXP-004].
 /// `div` and `mod` are separate opcodes and not this one rounded.
-const OP_DIVIDE := 13;
+const OP_DIVIDE := 16;
 
 /// Replaces the top with whether it was falsey.
 ///
@@ -75,36 +103,36 @@ const OP_DIVIDE := 13;
 /// zero are falsey, where 0.0, the empty String and any Char are truthy.  The
 /// machine gets that free, because a guest value IS a host value and the host's
 /// own `not` decides it.
-const OP_NOT := 14;
+const OP_NOT := 17;
 
 /// Replaces the number on top with its negation.
-const OP_NEGATE := 15;
+const OP_NEGATE := 18;
 
 /// Pops a value and writes it, as `WriteLn` does.
-const OP_PRINT := 16;
+const OP_PRINT := 19;
 
 /// Jumps forward unconditionally.  Two operands: the distance, high byte first.
-const OP_JUMP := 17;
+const OP_JUMP := 20;
 
 /// Jumps forward when the top is falsey, WITHOUT popping it.
 ///
 /// Two operands: the distance, high byte first.  Leaving the value is what lets
 /// `and` and `or` need no opcodes of their own: they are a jump and an OP_POP,
 /// and the value left behind is the operand [EXP-010] requires them to answer.
-const OP_JUMP_IF_FALSE := 18;
+const OP_JUMP_IF_FALSE := 21;
 
 /// Jumps backward.  Two operands: the distance, high byte first.
 ///
 /// A separate opcode from OP_JUMP rather than a signed operand, because a
 /// distance that is always subtracted needs no sign and a byte pair that is
 /// never negative is easier to read in a disassembly.
-const OP_LOOP := 19;
+const OP_LOOP := 22;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 20;
+const OP_RETURN := 23;
 
 /// How many opcodes there are.
-const OP_COUNT := 21;
+const OP_COUNT := 24;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -119,6 +147,9 @@ begin
     if Op = OP_POP           then Exit 'OP_POP';
     if Op = OP_GET_LOCAL     then Exit 'OP_GET_LOCAL';
     if Op = OP_SET_LOCAL     then Exit 'OP_SET_LOCAL';
+    if Op = OP_GET_GLOBAL    then Exit 'OP_GET_GLOBAL';
+    if Op = OP_DEFINE_GLOBAL then Exit 'OP_DEFINE_GLOBAL';
+    if Op = OP_SET_GLOBAL    then Exit 'OP_SET_GLOBAL';
     if Op = OP_EQUAL         then Exit 'OP_EQUAL';
     if Op = OP_GREATER       then Exit 'OP_GREATER';
     if Op = OP_LESS          then Exit 'OP_LESS';
@@ -143,6 +174,10 @@ begin
     if Op = OP_CONSTANT  then Exit 1;
     if Op = OP_GET_LOCAL then Exit 1;
     if Op = OP_SET_LOCAL then Exit 1;
+
+    if Op = OP_GET_GLOBAL    then Exit 1;
+    if Op = OP_DEFINE_GLOBAL then Exit 1;
+    if Op = OP_SET_GLOBAL    then Exit 1;
 
     if Op = OP_JUMP          then Exit 2;
     if Op = OP_JUMP_IF_FALSE then Exit 2;

@@ -63,6 +63,23 @@ var Code : Buffer := Nil;
 /// The chunk's constant table, lifted out for the same reason as Code.
 var Constants : List := Nil;
 
+/// The module-level variables, one slot each.
+///
+/// A flat Array indexed by slot rather than clox's hash table keyed by name.
+/// The Resolver already binds every variable before emission, so a name can be
+/// resolved to an index once instead of hashed on every access -- which is the
+/// whole point of doing it this way.
+var Globals : Array := Nil;
+
+/// Whether each global's declaration has run yet.
+///
+/// Parallel to Globals, and the same thing the emitted C calls `d_name`: a
+/// declaration is what defines a global, so `var X;` with no initializer
+/// defines it as nil while a subprogram reaching a global from ABOVE its
+/// declaration finds it undefined.  The name for that diagnostic comes from
+/// the chunk's GlobalNames, which is the only thing that reads them.
+var Defined : Array := Nil;
+
 /// Whether the loop should keep going.
 var Live : Boolean := False;
 
@@ -225,6 +242,49 @@ begin
     Stack[ReadByte ()] := Peek (0);
 end
 
+/// Pushes a global from its slot.
+///
+/// # Raises
+///
+/// Undefined variable, naming it -- which is the one place a slot has to be
+/// turned back into a name, and the only reason GlobalNames exists.
+procedure DoGetGlobal ();
+var
+    Slot : Integer;
+
+begin
+    Slot := ReadByte ();
+
+    if not Defined[Slot] then
+        raise 'Undefined variable ''' + Str (Running.GlobalNames[Slot]) + '''.';
+
+    Push (Globals[Slot]);
+end
+
+/// Pops a value and defines a global with it.
+procedure DoDefineGlobal ();
+var
+    Slot : Integer;
+
+begin
+    Slot := ReadByte ();
+
+    Globals[Slot] := Pop ();
+    Defined[Slot] := True;
+end
+
+/// Stores the top into a global's slot, leaving it on the stack.
+procedure DoSetGlobal ();
+var
+    Slot : Integer;
+
+begin
+    Slot := ReadByte ();
+
+    Globals[Slot] := Peek (0);
+    Defined[Slot] := True;
+end
+
 /// Pushes whether the top two values are equal.
 procedure DoEqual ();
 var
@@ -346,6 +406,9 @@ begin
     Table[OP_POP]           := DoPop;
     Table[OP_GET_LOCAL]     := DoGetLocal;
     Table[OP_SET_LOCAL]     := DoSetLocal;
+    Table[OP_GET_GLOBAL]    := DoGetGlobal;
+    Table[OP_DEFINE_GLOBAL] := DoDefineGlobal;
+    Table[OP_SET_GLOBAL]    := DoSetGlobal;
     Table[OP_EQUAL]         := DoEqual;
     Table[OP_GREATER]       := DoGreater;
     Table[OP_LESS]          := DoLess;
@@ -392,6 +455,18 @@ begin
     Running   := C;
     Code      := C.Code;
     Constants := C.Constants;
+
+    // Sized from the chunk, and nothing is defined until its declaration runs.
+    // Array (0) is not legal, so a program with no globals still gets one slot
+    // that it never reads.
+    var Slots := C.GlobalNames.Length;
+    if Slots < 1 then Slots := 1;
+
+    Globals := Array (Slots);
+    Defined := Array (Slots);
+
+    for var Slot : Integer := 0; Slot < Slots; Slot := Slot + 1 do
+        Defined[Slot] := False;
 
     IP      := 0;
     SP      := 0;
@@ -578,6 +653,12 @@ begin
     begin
         var C := Chunk ();
 
+        // A defined global in slot 0, so OP_GET_GLOBAL has something to read
+        // rather than raising -- its undefined path has a test of its own.
+        var Slot := C.GlobalSlot ('G');
+        C.Emit (OP_NIL);
+        C.EmitWith (OP_DEFINE_GLOBAL, Slot);
+
         // Enough on the stack for the widest arity, and an OP_RETURN after so
         // a handler that does not stop the machine still terminates.
         C.EmitConstant (6);
@@ -716,4 +797,101 @@ begin
     C.Emit (OP_RETURN);
 
     AssertTrue (not (Run (C) as Boolean));
+end
+
+test 'A Global Round Trips Through Its Slot';
+begin
+    var C := Chunk ();
+
+    var Total := C.GlobalSlot ('Total');
+
+    C.EmitConstant (41);
+    C.EmitWith (OP_DEFINE_GLOBAL, Total);
+
+    C.EmitWith (OP_GET_GLOBAL, Total);
+    C.EmitConstant (1);
+    C.Emit (OP_ADD);
+    C.EmitWith (OP_SET_GLOBAL, Total);
+    C.Emit (OP_POP);
+
+    C.EmitWith (OP_GET_GLOBAL, Total);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, Run (C) as Integer);
+    AssertEqual (0, SP);
+end
+
+test 'A Global Read Above Its Declaration Is Named';
+begin
+    // What a module-level subprogram called before its own globals does, and
+    // the reason the chunk keeps GlobalNames at all.
+    var C := Chunk ();
+
+    var Later := C.GlobalSlot ('Later');
+
+    C.EmitWith (OP_GET_GLOBAL, Later);
+    C.Emit (OP_RETURN);
+
+    try
+        Run (C);
+        Fail ('expected a raise');
+    except
+        on e : String do
+            AssertEqual ('Undefined variable ''Later''.', e);
+    end
+end
+
+test 'A Declaration With No Initializer Defines A Global As Nil';
+begin
+    // 'var X;' answers nil rather than being undefined -- a DECLARATION is
+    // what defines a global, which is what OP_DEFINE_GLOBAL models.
+    var C := Chunk ();
+
+    var X := C.GlobalSlot ('X');
+
+    C.Emit (OP_NIL);
+    C.EmitWith (OP_DEFINE_GLOBAL, X);
+    C.EmitWith (OP_GET_GLOBAL, X);
+    C.Emit (OP_RETURN);
+
+    AssertTrue (Run (C) = Nil);
+end
+
+test 'Assigning A Global Leaves Its Value For An Expression';
+begin
+    // Assignment is an expression here, so OP_SET_GLOBAL leaves the value and
+    // a statement that wants it gone emits its own OP_POP.
+    var C := Chunk ();
+
+    var X := C.GlobalSlot ('X');
+
+    C.Emit (OP_NIL);
+    C.EmitWith (OP_DEFINE_GLOBAL, X);
+
+    C.EmitConstant (9);
+    C.EmitWith (OP_SET_GLOBAL, X);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (9, Run (C) as Integer);
+end
+
+test 'Globals And Locals Do Not Share Slots';
+begin
+    // A global slot indexes Globals and a local slot indexes the value stack,
+    // so slot 0 means two different things and must not be confused.
+    var C := Chunk ();
+
+    var G := C.GlobalSlot ('G');
+
+    C.EmitConstant (100);
+    C.EmitWith (OP_DEFINE_GLOBAL, G);
+
+    C.EmitConstant (7);                       // local slot 0
+
+    C.EmitWith (OP_GET_GLOBAL, G);
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.Emit (OP_ADD);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (107, Run (C) as Integer);
 end
