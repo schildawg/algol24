@@ -26,9 +26,9 @@ static Value m_objenum_init_3_string_string_integer(Value v_this, Value *args, i
     (void)v_name;
     Value v_ordinal = alg_widen(args[2], "Integer");
     (void)v_ordinal;
-    (void)(alg_set_property(v_this, "TypeName", alg_widen(v_typename, "String")));
-    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
-    (void)(alg_set_property(v_this, "Ordinal", alg_widen(v_ordinal, "Integer")));
+    (void)(alg_set_property(v_this, "TypeName", v_typename));
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Ordinal", v_ordinal));
     return alg_nil();
 }
 
@@ -60,8 +60,8 @@ static Value m_objenumtype_init_1_string(Value v_this, Value *args, int32_t coun
     (void)v_this; (void)args; (void)count;
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
-    (void)(alg_set_property(v_this, "Members", alg_widen(alg_map(), "Map")));
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Members", alg_map()));
     return alg_nil();
 }
 
@@ -71,7 +71,7 @@ static Value m_objenumtype_add_1_string(Value v_this, Value *args, int32_t count
     (void)v_membername;
     Value v_member = alg_nil();
     (void)v_member;
-    (void)((v_member = alg_widen(alg_new(k_objenum, (Value[]){alg_property(v_this, "Name"), v_membername, alg_property(alg_property(v_this, "Members"), "Length")}, 3), "ObjEnum")));
+    (void)((v_member = alg_new(k_objenum, (Value[]){alg_property(v_this, "Name"), v_membername, alg_property(alg_property(v_this, "Members"), "Length")}, 3)));
     (void)(alg_invoke(alg_property(v_this, "Members"), "Put", (Value[]){f_foldcase(NULL, (Value[]){v_membername}, 1), v_member}, 2));
     return v_member;
     return alg_nil();

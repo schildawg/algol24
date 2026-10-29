@@ -33,10 +33,10 @@ static Value m_objclass_init_4_string_objclass_map_list(Value v_this, Value *arg
     (void)v_methods;
     Value v_fields = alg_widen(args[3], "List");
     (void)v_fields;
-    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "String")));
-    (void)(alg_set_property(v_this, "Methods", alg_widen(v_methods, "Map")));
-    (void)(alg_set_property(v_this, "Superclass", alg_widen(v_superclass, "ObjClass")));
-    (void)(alg_set_property(v_this, "Fields", alg_widen(v_fields, "List")));
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "Methods", v_methods));
+    (void)(alg_set_property(v_this, "Superclass", v_superclass));
+    (void)(alg_set_property(v_this, "Fields", v_fields));
     return alg_nil();
 }
 
@@ -194,7 +194,7 @@ static Value m_objclass_arity_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     Value v_initializer = alg_nil();
     (void)v_initializer;
-    (void)((v_initializer = alg_widen(alg_invoke(v_this, "FindMethod", (Value[]){alg_string("init")}, 1), "ObjFunction")));
+    (void)((v_initializer = alg_invoke(v_this, "FindMethod", (Value[]){alg_string("init")}, 1)));
     if (alg_truthy(alg_equal(v_initializer, alg_nil()))) {
         return alg_int(0);
     }
@@ -218,11 +218,11 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_instance;
     Value v_initializer = alg_nil();
     (void)v_initializer;
-    (void)((v_instance = alg_widen(alg_new(k_objinstance, (Value[]){v_this}, 1), "ObjInstance")));
+    (void)((v_instance = alg_new(k_objinstance, (Value[]){v_this}, 1)));
     (void)(alg_invoke(v_this, "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2));
-    (void)((v_initializer = alg_widen(alg_invoke(v_this, "FindOverload", (Value[]){alg_string("init"), v_arguments}, 2), "ObjFunction")));
+    (void)((v_initializer = alg_invoke(v_this, "FindOverload", (Value[]){alg_string("init"), v_arguments}, 2)));
     if (alg_truthy(alg_equal(v_initializer, alg_nil()))) {
-        (void)((v_initializer = alg_widen(alg_invoke(v_this, "FindMethod", (Value[]){alg_string("init")}, 1), "ObjFunction")));
+        (void)((v_initializer = alg_invoke(v_this, "FindMethod", (Value[]){alg_string("init")}, 1)));
     }
     if (alg_truthy(alg_not_equal(v_initializer, alg_nil()))) {
         {

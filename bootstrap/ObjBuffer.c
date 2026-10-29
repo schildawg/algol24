@@ -28,9 +28,9 @@ static Value m_buffermethod_init_3_objbuffer_token_integer(Value v_this, Value *
     (void)v_name;
     Value v_thearity = alg_widen(args[2], "Integer");
     (void)v_thearity;
-    (void)(alg_set_property(v_this, "Receiver", alg_widen(v_receiver, "ObjBuffer")));
-    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
-    (void)(alg_set_property(v_this, "TheArity", alg_widen(v_thearity, "Integer")));
+    (void)(alg_set_property(v_this, "Receiver", v_receiver));
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "TheArity", v_thearity));
     return alg_nil();
 }
 
@@ -76,7 +76,7 @@ static Value m_objbuffer_get_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_thename;
     Value v_member = alg_nil();
     (void)v_member;
-    (void)((v_member = alg_widen(f_foldcase(NULL, (Value[]){alg_property(v_thename, "Lexeme")}, 1), "String")));
+    (void)((v_member = f_foldcase(NULL, (Value[]){alg_property(v_thename, "Lexeme")}, 1)));
     if (alg_truthy(alg_equal(v_member, alg_string("text")))) {
         return alg_property(alg_property(v_this, "Handle"), "Text");
     }

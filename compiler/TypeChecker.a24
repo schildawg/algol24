@@ -752,6 +752,8 @@ begin
                 if TheStmt.TypeName <> 'Any' then
                     if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
                         raise Mismatch (TheStmt.Name, TheStmt.TypeName, Actual);
+
+                TheStmt.Actual := Actual;
             end
             Exit;
         end
@@ -771,6 +773,8 @@ begin
                 if TheStmt.TypeName <> 'Any' then
                     if Actual = '' or Actual = 'Any' or not Assignable (TheStmt.TypeName, Actual) then
                         raise Mismatch (TheStmt.Names[0], TheStmt.TypeName, Actual);
+
+                TheStmt.Actual := Actual;
             end
             Exit;
         end
@@ -1257,6 +1261,7 @@ begin
                     raise Mismatch (TheExpr.Name, Declared, Actual);
 
             TheExpr.Declared := Declared;
+            TheExpr.Actual   := Actual;
 
             Exit Declared;
         end
@@ -1331,6 +1336,7 @@ begin
                         raise Mismatch (TheExpr.Name, Declared, Actual);
 
                 TheExpr.Declared := Declared;
+                TheExpr.Actual   := Actual;
             end
 
             Exit Actual;

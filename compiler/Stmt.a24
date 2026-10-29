@@ -63,6 +63,14 @@ var
     /// first thing that reads it.
     TypeName    : String := '';
 
+    /// The type the INITIALIZER reduced to, filled in by the TypeChecker, or ''
+    /// where none was written or it is not known.
+    ///
+    /// Held so the C back end can drop a widening that provably converts
+    /// nothing: where this equals TypeName, alg_widen can only range-check, so
+    /// a TypeName that is not a subrange makes the call the identity.
+    Actual      : String := '';
+
     /// Whether the binding is fixed.
     ///
     /// A flag rather than a node of its own, because 'const' is purely a
@@ -110,6 +118,14 @@ var
 
     /// The declared type shared by every name, or '' when none was written.
     TypeName    : String  := '';
+
+    /// The type the INITIALIZER reduced to, filled in by the TypeChecker, or ''
+    /// where none was written or it is not known.
+    ///
+    /// Held so the C back end can drop a widening that provably converts
+    /// nothing: where this equals TypeName, alg_widen can only range-check, so
+    /// a TypeName that is not a subrange makes the call the identity.
+    Actual      : String := '';
 
     /// The shared element type of a 'List of T', or '' when none was written.
     Generic     : String  := '';

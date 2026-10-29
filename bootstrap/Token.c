@@ -40,7 +40,7 @@ Value f_definesubrange(Value **cells, Value *args, int32_t count) {
     (void)v_high;
     Value v_at = alg_nil();
     (void)v_at;
-    (void)((v_at = alg_widen(alg_invoke((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "IndexOf", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1), "Integer")));
+    (void)((v_at = alg_invoke((alg_declared(d_subrangeVnames, "SUBRANGE_NAMES"), v_subrangeVnames), "IndexOf", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1)));
     if (alg_truthy(alg_greater_equal(v_at, alg_int(0)))) {
         {
             (void)(alg_invoke((alg_declared(d_subrangeVlows, "SUBRANGE_LOWS"), v_subrangeVlows), "Set", (Value[]){v_at, v_low}, 2));
@@ -125,10 +125,10 @@ static Value m_token_init_4_tokentype_string_integer(Value v_this, Value *args, 
     (void)v_literal;
     Value v_linenumber = alg_widen(args[3], "Integer");
     (void)v_linenumber;
-    (void)(alg_set_property(v_this, "TypeOfToken", alg_widen(v_typeoftoken, "TokenType")));
-    (void)(alg_set_property(v_this, "Lexeme", alg_widen(v_lexeme, "String")));
+    (void)(alg_set_property(v_this, "TypeOfToken", v_typeoftoken));
+    (void)(alg_set_property(v_this, "Lexeme", v_lexeme));
     (void)(alg_set_property(v_this, "Literal", v_literal));
-    (void)(alg_set_property(v_this, "LineNumber", alg_widen(v_linenumber, "Integer")));
+    (void)(alg_set_property(v_this, "LineNumber", v_linenumber));
     return alg_nil();
 }
 

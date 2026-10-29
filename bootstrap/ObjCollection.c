@@ -30,9 +30,9 @@ static Value m_collectionmethod_init_3_objcollection_token_integer(Value v_this,
     (void)v_name;
     Value v_thearity = alg_widen(args[2], "Integer");
     (void)v_thearity;
-    (void)(alg_set_property(v_this, "Receiver", alg_widen(v_receiver, "ObjCollection")));
-    (void)(alg_set_property(v_this, "Name", alg_widen(v_name, "Token")));
-    (void)(alg_set_property(v_this, "TheArity", alg_widen(v_thearity, "Integer")));
+    (void)(alg_set_property(v_this, "Receiver", v_receiver));
+    (void)(alg_set_property(v_this, "Name", v_name));
+    (void)(alg_set_property(v_this, "TheArity", v_thearity));
     return alg_nil();
 }
 
@@ -70,9 +70,9 @@ static Value m_objcollection_init_1_string(Value v_this, Value *args, int32_t co
     (void)v_this; (void)args; (void)count;
     Value v_kind = alg_widen(args[0], "String");
     (void)v_kind;
-    (void)(alg_set_property(v_this, "Kind", alg_widen(v_kind, "String")));
-    (void)(alg_set_property(v_this, "Items", alg_widen(alg_list(), "List")));
-    (void)(alg_set_property(v_this, "Pairs", alg_widen(alg_map(), "Map")));
+    (void)(alg_set_property(v_this, "Kind", v_kind));
+    (void)(alg_set_property(v_this, "Items", alg_list()));
+    (void)(alg_set_property(v_this, "Pairs", alg_map()));
     return alg_nil();
 }
 
@@ -82,7 +82,7 @@ static Value m_objcollection_get_1_token(Value v_this, Value *args, int32_t coun
     (void)v_thename;
     Value v_member = alg_nil();
     (void)v_member;
-    (void)((v_member = alg_widen(f_foldcase(NULL, (Value[]){alg_property(v_thename, "Lexeme")}, 1), "String")));
+    (void)((v_member = f_foldcase(NULL, (Value[]){alg_property(v_thename, "Lexeme")}, 1)));
     if (alg_truthy(alg_equal(v_member, alg_string("length")))) {
         return alg_invoke(v_this, "Count", NULL, 0);
     }
@@ -200,7 +200,7 @@ static Value m_objcollection_aslist_1_list(Value v_this, Value *args, int32_t co
     (void)v_from;
     Value v_result = alg_nil();
     (void)v_result;
-    (void)((v_result = alg_widen(alg_new(k_objcollection, (Value[]){alg_string("List")}, 1), "ObjCollection")));
+    (void)((v_result = alg_new(k_objcollection, (Value[]){alg_string("List")}, 1)));
     {
         Value loop_0 = alg_iterable(v_from);
         for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {

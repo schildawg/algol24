@@ -102,14 +102,14 @@ static Value f_runtests(Value **cells, Value *args, int32_t count) {
     Value v_stmts = alg_nil();
     (void)v_stmts;
     (void)(alg_invoke(alg_singleton(k_sourcecode), "Begins", (Value[]){v_filename}, 1));
-    (void)((v_thescanner = alg_widen(alg_new(k_scanner, (Value[]){v_source}, 1), "Scanner")));
-    (void)((v_theparser = alg_widen(alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1), "Parser")));
+    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1)));
+    (void)((v_theparser = alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1)));
     (void)(f_checkscanned(NULL, NULL, 0));
-    (void)(alg_set_property(v_theparser, "FileName", alg_widen(v_filename, "String")));
-    (void)((v_stmts = alg_widen(alg_invoke(v_theparser, "Parse", NULL, 0), "List")));
+    (void)(alg_set_property(v_theparser, "FileName", v_filename));
+    (void)((v_stmts = alg_invoke(v_theparser, "Parse", NULL, 0)));
     (void)(f_checkscanned(NULL, NULL, 0));
-    (void)((v_theinterpreter = alg_widen(alg_new(k_interpreter, NULL, 0), "Interpreter")));
-    (void)((v_theresolver = alg_widen(alg_new(k_resolver, (Value[]){v_theinterpreter}, 1), "Resolver")));
+    (void)((v_theinterpreter = alg_new(k_interpreter, NULL, 0)));
+    (void)((v_theresolver = alg_new(k_resolver, (Value[]){v_theinterpreter}, 1)));
     (void)(alg_invoke(v_theresolver, "ResolveAll", (Value[]){v_stmts}, 1));
     (void)(alg_invoke(alg_new(k_typechecker, NULL, 0), "Resolve", (Value[]){v_stmts}, 1));
     return alg_invoke(v_theinterpreter, "RunTests", (Value[]){v_stmts, v_filename}, 2);
@@ -136,16 +136,16 @@ static Value f_run(Value **cells, Value *args, int32_t count) {
     Value v_stmts = alg_nil();
     (void)v_stmts;
     (void)(alg_invoke(alg_singleton(k_sourcecode), "Begins", (Value[]){v_filename}, 1));
-    (void)((v_thescanner = alg_widen(alg_new(k_scanner, (Value[]){v_source}, 1), "Scanner")));
-    (void)((v_tokens = alg_widen(alg_invoke(v_thescanner, "ScanTokens", NULL, 0), "List")));
+    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1)));
+    (void)((v_tokens = alg_invoke(v_thescanner, "ScanTokens", NULL, 0)));
     (void)(f_checkscanned(NULL, NULL, 0));
-    (void)((v_theparser = alg_widen(alg_new(k_parser, (Value[]){v_tokens}, 1), "Parser")));
-    (void)(alg_set_property(v_theparser, "FileName", alg_widen(v_filename, "String")));
-    (void)((v_stmts = alg_widen(alg_invoke(v_theparser, "Parse", NULL, 0), "List")));
+    (void)((v_theparser = alg_new(k_parser, (Value[]){v_tokens}, 1)));
+    (void)(alg_set_property(v_theparser, "FileName", v_filename));
+    (void)((v_stmts = alg_invoke(v_theparser, "Parse", NULL, 0)));
     (void)(f_checkscanned(NULL, NULL, 0));
-    (void)((v_theinterpreter = alg_widen(alg_new(k_interpreter, NULL, 0), "Interpreter")));
-    (void)(alg_set_property(v_theinterpreter, "RootFile", alg_widen(v_filename, "String")));
-    (void)((v_theresolver = alg_widen(alg_new(k_resolver, (Value[]){v_theinterpreter}, 1), "Resolver")));
+    (void)((v_theinterpreter = alg_new(k_interpreter, NULL, 0)));
+    (void)(alg_set_property(v_theinterpreter, "RootFile", v_filename));
+    (void)((v_theresolver = alg_new(k_resolver, (Value[]){v_theinterpreter}, 1)));
     (void)(alg_invoke(v_theresolver, "ResolveAll", (Value[]){v_stmts}, 1));
     (void)(alg_invoke(alg_new(k_typechecker, NULL, 0), "Resolve", (Value[]){v_stmts}, 1));
     (void)(alg_invoke(v_theinterpreter, "Interpret", (Value[]){v_stmts}, 1));
@@ -157,7 +157,7 @@ static Value f_argumentsfrom(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 1);
     Value v_first = alg_param(args[0], "Integer");
     (void)v_first;
-    Value v_result = alg_widen(alg_list(), "List");
+    Value v_result = alg_list();
     (void)v_result;
     {
         Value v_i = v_first;
@@ -188,11 +188,11 @@ static Value f_compile(Value **cells, Value *args, int32_t count) {
     Value v_stmts = alg_nil();
     (void)v_stmts;
     (void)(alg_invoke(alg_singleton(k_sourcecode), "Begins", (Value[]){v_filename}, 1));
-    (void)((v_thescanner = alg_widen(alg_new(k_scanner, (Value[]){v_source}, 1), "Scanner")));
-    (void)((v_theparser = alg_widen(alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1), "Parser")));
+    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1)));
+    (void)((v_theparser = alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1)));
     (void)(f_checkscanned(NULL, NULL, 0));
-    (void)(alg_set_property(v_theparser, "FileName", alg_widen(v_filename, "String")));
-    (void)((v_stmts = alg_widen(alg_invoke(v_theparser, "Parse", NULL, 0), "List")));
+    (void)(alg_set_property(v_theparser, "FileName", v_filename));
+    (void)((v_stmts = alg_invoke(v_theparser, "Parse", NULL, 0)));
     (void)(f_checkscanned(NULL, NULL, 0));
     Value v_theinterpreter = alg_new(k_interpreter, NULL, 0);
     (void)v_theinterpreter;
@@ -239,14 +239,14 @@ static Value f_folderof(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 1);
     Value v_path = alg_param(args[0], "String");
     (void)v_path;
-    Value v_cut = alg_widen(alg_negate(alg_int(1)), "Integer");
+    Value v_cut = alg_negate(alg_int(1));
     (void)v_cut;
     {
         Value v_i = alg_int(0);
         (void)v_i;
         for (; alg_truthy(alg_less(v_i, alg_text_length(v_path))); (v_i = alg_add(v_i, alg_int(1)))) {
             if (alg_truthy(alg_equal(alg_subscript_get(v_path, v_i), alg_char_value(47)))) {
-                (void)((v_cut = alg_widen(v_i, "Integer")));
+                (void)((v_cut = v_i));
             }
         }
     }
@@ -268,7 +268,7 @@ static Value f_copyfile(Value **cells, Value *args, int32_t count) {
     (void)v_source;
     volatile Value v_target = alg_nil();
     (void)v_target;
-    (void)((v_source = alg_widen(alg_text_file(), "TextFile")));
+    (void)((v_source = alg_text_file()));
     (void)(alg_invoke(v_source, "Assign", (Value[]){v_frompath}, 1));
     {
         AlgFrame frame_1;
@@ -294,7 +294,7 @@ static Value f_copyfile(Value **cells, Value *args, int32_t count) {
             }
         }
     }
-    (void)((v_target = alg_widen(alg_text_file(), "TextFile")));
+    (void)((v_target = alg_text_file()));
     (void)(alg_invoke(v_target, "Assign", (Value[]){v_topath}, 1));
     (void)(alg_invoke(v_target, "Rewrite", NULL, 0));
     while (alg_truthy(alg_not(alg_property(v_source, "Eof")))) {
@@ -311,7 +311,7 @@ static Value f_runtimefolder(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 0);
     Value v_own = alg_nil();
     (void)v_own;
-    (void)((v_own = alg_widen(f_folderof(NULL, (Value[]){alg_param_str(alg_int(0))}, 1), "String")));
+    (void)((v_own = f_folderof(NULL, (Value[]){alg_param_str(alg_int(0))}, 1)));
     if (alg_truthy(alg_not_equal(v_own, alg_string("")))) {
         {
             if (alg_truthy(alg_file_exists(alg_add(v_own, alg_string("/algol.h"))))) {
@@ -382,7 +382,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
             (void)v_wanttests;
             Value v_outdir = alg_string("out");
             (void)v_outdir;
-            (void)((v_name = alg_widen(alg_string(""), "String")));
+            (void)((v_name = alg_string("")));
             {
                 Value v_i = alg_int(2);
                 (void)v_i;
@@ -397,7 +397,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
                                 if (alg_truthy(alg_equal(alg_copy(v_arg, alg_int(0), alg_int(6)), alg_string("--out=")))) {
                                     (void)((v_outdir = alg_copy(v_arg, alg_int(6), alg_subtract(alg_text_length(v_arg), alg_int(6)))));
                                 } else {
-                                    (void)((v_name = alg_widen(v_arg, "String")));
+                                    (void)((v_name = v_arg));
                                 }
                             }
                         }
@@ -415,7 +415,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
     }
     if (alg_truthy(alg_equal(alg_param_str(alg_int(1)), alg_string("--test")))) {
         {
-            (void)((v_name = alg_widen(alg_param_str(alg_int(2)), "String")));
+            (void)((v_name = alg_param_str(alg_int(2))));
             if (alg_truthy(alg_not(alg_file_exists(v_name)))) {
                 {
                     alg_raise(alg_add(alg_string("algc: cannot open "), v_name));
@@ -428,7 +428,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
             return alg_nil();
         }
     }
-    (void)((v_name = alg_widen(alg_param_str(alg_int(1)), "String")));
+    (void)((v_name = alg_param_str(alg_int(1))));
     if (alg_truthy(alg_not(alg_file_exists(v_name)))) {
         {
             alg_raise(alg_add(alg_string("algc: cannot open "), v_name));

@@ -2120,7 +2120,7 @@ begin
             begin
                 Value := Evaluate (TheField.Initializer);
 
-                Value := BoundValue (TheField.TypeName, Value);
+                Value := BoundValue (TheField.TypeName, Value, '');
             end
 
             Applied := Applied + '    alg_set_property(v_this, '
@@ -2233,8 +2233,7 @@ begin
         begin
             Value := Evaluate (TheStmt.Initializer);
 
-            if Str (TheStmt.TypeName) <> '' and Str (TheStmt.TypeName) <> 'Any' then
-                Value := 'alg_widen(' + Value + ', ' + QuoteC (Str (TheStmt.TypeName)) + ')';
+            Value := BoundValue (TheStmt.TypeName, Value, TheStmt.Actual);
         end
 
         if AtTopLevel then
@@ -2863,12 +2862,44 @@ begin
         Unsupported ('Reading ''' + Name + ''' from a nested function');
     end
 
-    /// Wraps a value in the widening its declared type calls for.
-    function BoundValue (Declared : Any, Value : String) : String;
+    /// Wraps a value in the widening its declared type calls for, unless the
+    /// widening provably converts nothing.
+    ///
+    /// Actual is what the TypeChecker reduced the value to, or '' where it is
+    /// not known -- an unknown one never elides, which is what makes a missing
+    /// annotation safe rather than merely slow.
+    ///
+    /// # Satisfies
+    ///
+    /// VAL-001, VAR-004, VAR-017
+    function BoundValue (Declared : Any, Value : String, Actual : Any) : String;
     begin
         if Str (Declared) = '' or Str (Declared) = 'Any' then Exit Str (Value);
 
+        if Elidable (Declared, Actual) then Exit Str (Value);
+
         Exit 'alg_widen(' + Str (Value) + ', ' + QuoteC (Str (Declared)) + ')';
+    end
+
+    /// Answers whether widening a value of type Actual to Declared can be
+    /// dropped because it cannot change the value or raise.
+    ///
+    /// The runtime widens an Integer to a Double and a Char to a String and
+    /// nothing else, so a Declared equal to Actual converts nothing and the
+    /// only work left is the subrange bounds check. A Declared that is not a
+    /// subrange therefore makes the whole call the identity.
+    ///
+    /// A subrange is never elided even when the two names agree. The value
+    /// reaching it was range-checked where its own type was established, so
+    /// the check is redundant in principle -- but 'in principle' is doing the
+    /// work there, and the corpus checks that these raise [VAR-017].
+    function Elidable (Declared : Any, Actual : Any) : Boolean;
+    begin
+        if Str (Actual) = '' or Str (Actual) = 'Any' then Exit False;
+
+        if FoldCase (Declared) <> FoldCase (Actual) then Exit False;
+
+        Exit not IsSubrange (Declared);
     end
 
     /// Emits an assignment to a bare name, widened to the type declared for it.
@@ -2879,7 +2910,8 @@ begin
     begin
         Name := Str (TheExpr.Name.Lexeme);
 
-        var Written := BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value));
+        var Written := BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value),
+                                   TheExpr.Actual);
 
         if Captured.Contains (Name) or Boxed.Contains (Name) then
             Exit '(' + Read (Name) + ' = ' + Written + ')';
@@ -3820,7 +3852,8 @@ begin
 
         Exit 'alg_set_property(' + Evaluate (TheExpr.Obj) + ', '
            + QuoteC (Str (TheExpr.Name.Lexeme)) + ', '
-           + BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value)) + ')';
+           + BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value),
+                         TheExpr.Actual) + ')';
     end
 
     /// Emits 'super.M' as a method bound to the receiver, found from the

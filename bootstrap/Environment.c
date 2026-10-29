@@ -29,11 +29,11 @@ static Value i_environment(Value v_this, Value *args, int32_t count) {
 
 static Value m_environment_init_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
-    (void)(alg_set_property(v_this, "Values", alg_widen(alg_map(), "Map")));
+    (void)(alg_set_property(v_this, "Values", alg_map()));
     (void)(alg_set_property(v_this, "Enclosing", alg_widen(alg_nil(), "Environment")));
-    (void)(alg_set_property(v_this, "Imports", alg_widen(alg_list(), "List")));
+    (void)(alg_set_property(v_this, "Imports", alg_list()));
     (void)(alg_set_property(v_this, "Exports", alg_widen(alg_nil(), "Set")));
-    (void)(alg_set_property(v_this, "UnitName", alg_widen(alg_string(""), "String")));
+    (void)(alg_set_property(v_this, "UnitName", alg_string("")));
     (void)(alg_set_property(v_this, "Ambiguous", alg_widen(alg_nil(), "Map")));
     return alg_nil();
 }
@@ -45,7 +45,7 @@ static Value m_environment_markambiguous_2_string_string(Value v_this, Value *ar
     Value v_owners = alg_widen(args[1], "String");
     (void)v_owners;
     if (alg_truthy(alg_equal(alg_property(v_this, "Ambiguous"), alg_nil()))) {
-        (void)(alg_set_property(v_this, "Ambiguous", alg_widen(alg_map(), "Map")));
+        (void)(alg_set_property(v_this, "Ambiguous", alg_map()));
     }
     (void)(alg_invoke(alg_property(v_this, "Ambiguous"), "Put", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1), v_owners}, 2));
     (void)(alg_invoke(alg_property(v_this, "Values"), "Remove", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1));
@@ -62,8 +62,8 @@ static Value m_environment_raiseambiguousimport_2_string_string(Value v_this, Va
     (void)v_owners;
     Value v_seen = alg_nil();
     (void)v_seen;
-    (void)((v_owners = alg_widen(alg_string(""), "String")));
-    (void)((v_seen = alg_widen(alg_set(), "Set")));
+    (void)((v_owners = alg_string("")));
+    (void)((v_seen = alg_set()));
     {
         Value loop_0 = alg_iterable(alg_property(v_this, "Imports"));
         for (int32_t at_0 = 0; at_0 < alg_iterable_count(loop_0); at_0++) {
@@ -78,9 +78,9 @@ static Value m_environment_raiseambiguousimport_2_string_string(Value v_this, Va
                             {
                                 (void)(alg_invoke(v_seen, "Add", (Value[]){alg_property(v_themodule, "UnitName")}, 1));
                                 if (alg_truthy(alg_equal(v_owners, alg_string("")))) {
-                                    (void)((v_owners = alg_widen(alg_property(v_themodule, "UnitName"), "String")));
+                                    (void)((v_owners = alg_property(v_themodule, "UnitName")));
                                 } else {
-                                    (void)((v_owners = alg_widen(alg_add(alg_add(v_owners, alg_string(" or ")), alg_property(v_themodule, "UnitName")), "String")));
+                                    (void)((v_owners = alg_add(alg_add(v_owners, alg_string(" or ")), alg_property(v_themodule, "UnitName"))));
                                 }
                             }
                         }
@@ -127,7 +127,7 @@ static Value m_environment_ownerof_2_string_string(Value v_this, Value *args, in
                             if (alg_truthy((or_0 = alg_not_equal(v_found, alg_nil()), !alg_truthy(or_0) ? or_0 : alg_not_equal(v_themodule, v_found)))) {
                                 (void)(alg_invoke(v_this, "RaiseAmbiguousImport", (Value[]){v_name, v_display}, 2));
                             }
-                            (void)((v_found = alg_widen(v_themodule, "Environment")));
+                            (void)((v_found = v_themodule));
                         }
                     }
                 }
@@ -237,13 +237,13 @@ static Value m_environment_ancestor_1_integer(Value v_this, Value *args, int32_t
     (void)v_distance;
     Value v_env = alg_nil();
     (void)v_env;
-    (void)((v_env = alg_widen(alg_cast(v_this, "Environment"), "Environment")));
+    (void)((v_env = alg_cast(v_this, "Environment")));
     {
         Value v_i = alg_int(0);
         (void)v_i;
         for (; alg_truthy(alg_less(v_i, v_distance)); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                (void)((v_env = alg_widen(alg_property(v_env, "Enclosing"), "Environment")));
+                (void)((v_env = alg_property(v_env, "Enclosing")));
             }
         }
     }

@@ -18,8 +18,8 @@ static Value m_sourcecode_begins_1_string(Value v_this, Value *args, int32_t cou
     (void)v_this; (void)args; (void)count;
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
-    (void)(alg_set_property(v_this, "Lines", alg_widen(alg_list(), "List")));
-    (void)(alg_set_property(v_this, "FileName", alg_widen(v_name, "String")));
+    (void)(alg_set_property(v_this, "Lines", alg_list()));
+    (void)(alg_set_property(v_this, "FileName", v_name));
     return alg_nil();
 }
 
