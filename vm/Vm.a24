@@ -15,7 +15,30 @@ unit Vm;
 uses OpCode;
 uses Chunk;
 uses VmFunction;
+uses VmClass;
 
+
+/// Every method name the machine can invoke on a host value, lowercased.
+///
+/// Read only to tell a method named without parentheses -- which is a value
+/// this machine cannot make -- from a member that genuinely does not exist.
+var HOST_METHODS := ['pop', 'peek', 'keys', 'values', 'tolist', 'tostring',
+                     'readln', 'sort', 'clear', 'free', 'reset', 'rewrite',
+                     'flush', 'close', 'erase', 'append', 'get', 'contains',
+                     'indexof', 'getint', 'getword', 'getdouble', 'add',
+                     'push', 'remove', 'removeat', 'fill', 'resize', 'assign',
+                     'rename', 'write', 'writeln', 'put', 'set', 'insert',
+                     'putint', 'putword', 'putdouble'];
+
+/// A single quote, as a String, for a diagnostic that opens with one.
+///
+/// A literal cannot be used where the message STARTS with a quote and is then
+/// concatenated: `''' + X` opens a string, reads the next two quotes as an
+/// escaped one, and swallows the ` + X + ` as content -- after which ` is `
+/// parses as the `is` OPERATOR and the compiler reports 'Expect type name
+/// after is' from the middle of a string.  A trailing quote is fine, because
+/// the text before it separates the open from the escape.
+var QUOTE := Str ('''');
 
 /// How many values a byte can take, which is how wide the dispatch table is.
 const BYTE_VALUES := 256;
@@ -276,10 +299,38 @@ begin
     Push (-Pop ());
 end
 
-/// Writes the value on top, as WriteLn does.
-procedure DoPrint ();
+/// How an instance reads when written or converted to text.
+///
+/// '<ClassName> instance', which is the interpreter's rendering -- the host
+/// would answer the name of the MACHINE's own class, 'VmInstance instance'.
+///
+/// # Raises
+///
+/// A refusal when the class declares ToString.  The interpreter calls it and
+/// uses what it answers, which means pushing a frame from inside a handler
+/// that has to answer a value -- and a handler cannot wait for a frame to
+/// return.  Refused by name rather than rendered wrongly.
+function Rendered (V : Any) : Any;
 begin
-    WriteLn (Pop ());
+    if V.Klass.FindMethod ('tostring') <> Nil then
+        raise 'A class with ToString is not supported by the bytecode back end yet.';
+
+    Exit Str (V.Klass.Name) + ' instance';
+end
+
+/// Writes the value on top, as WriteLn does.
+///
+/// An instance is rendered the interpreter's way rather than the host's, for
+/// the reason the 'str' arm of DoBuiltin gives.
+procedure DoPrint ();
+var
+    V : Any;
+
+begin
+    V := Pop ();
+
+    if V is VmInstance then WriteLn (Rendered (V));
+    else WriteLn (V);
 end
 
 /// Pushes nil.
@@ -556,26 +607,21 @@ begin
     IP := IP - Distance;
 end
 
-/// Calls the value beneath its arguments.
+/// Pushes a frame for a callable, whose receiver or callee is already on the
+/// stack beneath its arguments.
+///
+/// Shared by a plain call, an instantiation and a method call, which differ
+/// only in what they put beneath the arguments.
 ///
 /// # Raises
 ///
-/// 'Can only call a subprogram.' for a callee that is not one, the arity
-/// message for a mismatch, and 'The call stack overflowed.' past FRAME_ROOM.
-procedure DoCall ();
-var
-    Count  : Integer;
-    Callee : Any;
-
+/// The arity message on a mismatch, and 'The call stack overflowed.' past
+/// FRAME_ROOM.
+procedure EnterFrame (Callee : Any, Count : Integer);
 begin
-    Count  := ReadByte ();
-    Callee := PeekAt (Count);
-
-    if not (Callee is VmFunction) then raise 'Can only call a subprogram.';
-
     if Count <> Callee.Arity then
-        raise Str (Callee.Describe ()) + ' takes ' + Str (Callee.Arity)
-            + ' arguments but got ' + Str (Count) + '.';
+        raise 'Expected ' + Str (Callee.Arity) + ' arguments but got '
+            + Str (Count) + '.';
 
     if FrameDepth >= FRAME_ROOM then raise 'The call stack overflowed.';
 
@@ -592,6 +638,51 @@ begin
     CodeBytes := Running.Code;
     Constants := Running.Constants;
     IP        := 0;
+end
+
+/// Calls the value beneath its arguments.
+///
+/// # Raises
+///
+/// 'Can only call a subprogram.' for a callee that is not one, the arity
+/// message for a mismatch, and 'The call stack overflowed.' past FRAME_ROOM.
+procedure DoCall ();
+var
+    Count  : Integer;
+    Callee : Any;
+
+begin
+    Count  := ReadByte ();
+    Callee := PeekAt (Count);
+
+    // A class is called to make an instance.  The class on the stack is
+    // REPLACED by the instance, so the constructor finds it exactly where a
+    // method finds its receiver -- one below the frame's base -- and every
+    // field assignment in the constructor reaches the thing being made.
+    if Callee is VmClass then
+    begin
+        Slots[SP - Count - 1] := VmInstance (Callee);
+
+        var Setup := Callee.FindMethod ('init');
+
+        // A class with no constructor still answers an instance: there is
+        // nothing to call, and the instance is already where the class was.
+        if Setup = Nil then
+        begin
+            if Count <> 0 then
+                raise 'Expected 0 arguments but got ' + Str (Count) + '.';
+
+            Exit;
+        end
+
+        EnterFrame (Setup, Count);
+
+        Exit;
+    end
+
+    if not (Callee is VmFunction) then raise 'Can only call a subprogram.';
+
+    EnterFrame (Callee, Count);
 end
 
 /// Replaces the top two -- a collection and an index -- with the element.
@@ -627,30 +718,68 @@ begin
     Push (Value);
 end
 
-/// Replaces the top with one of its properties.
+/// Reads a member of a value: a field, a method, or a runtime property.
 ///
-/// A chain over the five the runtime has, each written as a LITERAL -- a
-/// property cannot be reached from a name held in a variable, for the reason
-/// DoIs gives about `is`.
+/// The order matters and is the language's.  An INSTANCE is asked for a field
+/// first, then ClassName, then a method -- so a class that declares `Length`
+/// shadows the runtime's property of that name, which is the asymmetry
+/// 0033-no-computed-property is about.  Anything else gets the five
+/// properties the runtime has.
+///
+/// A method reached WITHOUT parentheses is the method as a value, which wants
+/// a bound-method object this machine does not have yet -- so it is refused by
+/// name rather than answered wrongly.
 ///
 /// # Raises
 ///
-/// 'No property N.' for a name the emitter should have refused.
-procedure DoProperty ();
+/// 'Undefined property ''N''.' for a member nothing answers, which is the
+/// interpreter's wording.
+function MemberOf (Self : Any, Written : Any) : Any;
 var
     Named : Any;
-    V     : Any;
 
 begin
-    Named := ToLower (Str (Constants[ReadByte ()]));
-    V     := Pop ();
+    Named := ToLower (Str (Written));
 
-    if Named = 'length' then Push (V.Length);
-    else if Named = 'text'    then Push (V.Text);
-    else if Named = 'eof'     then Push (V.Eof);
-    else if Named = 'isempty' then Push (V.IsEmpty);
-    else if Named = 'address' then Push (V.Address);
-    else raise 'No property ' + Str (Named) + '.';
+    if Self is VmInstance then
+    begin
+        // ClassName answers AHEAD of a field of that name, because the name
+        // belongs to the language and a field cannot take it [CLS-008].
+        if Named = 'classname' then Exit Self.Klass.Name;
+
+        if Self.Fields.Contains (Named) then Exit Self.Fields.Get (Named);
+
+        if Self.Klass.FindMethod (Named) <> Nil then
+            raise 'A method as a value is not supported by the bytecode back end yet.';
+
+        raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
+    end
+
+    // A host METHOD read without parentheses is the method as a value, which
+    // the interpreter renders '<fn Sort>' and this machine has no object for.
+    // Refused by name, so it does not report a member that exists as missing.
+    for var Known in HOST_METHODS do
+        if Known = Named then
+            raise 'A method as a value is not supported by the bytecode back end yet.';
+
+    if Named = 'length'  then Exit Self.Length;
+    if Named = 'text'    then Exit Self.Text;
+    if Named = 'eof'     then Exit Self.Eof;
+    if Named = 'isempty' then Exit Self.IsEmpty;
+    if Named = 'address' then Exit Self.Address;
+
+    raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
+end
+
+/// Replaces the top with one of its members.
+procedure DoProperty ();
+var
+    Written : Any;
+
+begin
+    Written := Constants[ReadByte ()];
+
+    Push (MemberOf (Pop (), Written));
 end
 
 /// Builds a List from the values its operand counts.
@@ -733,6 +862,23 @@ begin
     Name  := ToLower (Str (Constants[ReadByte ()]));
     Count := ReadByte ();
 
+    // An INSTANCE first, and without popping anything: a method call wants its
+    // receiver left beneath the arguments, exactly where a plain call keeps
+    // its callee, so that OP_THIS finds it one below the frame's base.
+    Self := PeekAt (Count);
+
+    if Self is VmInstance then
+    begin
+        var Found := Self.Klass.FindMethod (Name);
+
+        if Found = Nil then
+            raise Str (Self.Klass.Name) + ' has no method ' + Str (Name) + '.';
+
+        EnterFrame (Found, Count);
+
+        Exit;
+    end
+
     if Count >= 2 then B := Pop ();
     if Count >= 1 then A := Pop ();
 
@@ -792,6 +938,33 @@ begin
     raise 'No method ' + Str (Name) + ' taking ' + Str (Count) + ' arguments.';
 end
 
+/// Widens the value on top to a declared type.
+///
+/// Integer to Double and Char to String, which is the whole of the language's
+/// widening [VAL-001] -- the interpreter's Widen does exactly these two and
+/// then a subrange range-check, which the emitter refuses here because the
+/// bounds are not reachable from a chunk.
+procedure DoWiden ();
+var
+    Named : Any;
+    V     : Any;
+
+begin
+    Named := ToLower (Str (Constants[ReadByte ()]));
+    V     := Pop ();
+
+    if V = Nil then
+    begin
+        Push (V);
+
+        Exit;
+    end
+
+    if Named = 'double' and (V is Integer) then Push (V * 1.0);
+    else if Named = 'string' and (V is Char) then Push (Str (V));
+    else Push (V);
+end
+
 /// Calls a built-in by name.
 ///
 /// Every arm ends in a call to the HOST's built-in of the same name, which is
@@ -848,7 +1021,16 @@ begin
     if Count = 1 then
     begin
         if Name = 'length'     then begin Push (Length (A));     Exit; end
-        if Name = 'str'        then begin Push (Str (A));        Exit; end
+        if Name = 'str' then
+        begin
+            // An instance reads as '<ClassName> instance', which is the
+            // interpreter's rendering -- the host would answer the name of the
+            // machine's OWN class, 'VmInstance instance', instead.
+            if A is VmInstance then Push (Rendered (A));
+            else Push (Str (A));
+
+            Exit;
+        end
         if Name = 'toupper'    then begin Push (ToUpper (A));    Exit; end
         if Name = 'tolower'    then begin Push (ToLower (A));    Exit; end
         if Name = 'ord'        then begin Push (Ord (A));        Exit; end
@@ -940,6 +1122,98 @@ begin
     raise 'No handler for opcode ' + Str (CodeBytes[IP - 1]) + '.';
 end
 
+/// Pushes a new class.
+procedure DoClass ();
+begin
+    Push (VmClass (Str (Constants[ReadByte ()])));
+end
+
+/// Records a method on the class on top, leaving the class there.
+procedure DoMethod ();
+var
+    Named : Any;
+    Body  : Any;
+
+begin
+    Named := Constants[ReadByte ()];
+    Body  := Pop ();
+
+    PeekAt (0).AddMethod (Named, Body);
+end
+
+/// Records a field name on the class on top, leaving the class there.
+procedure DoField ();
+begin
+    PeekAt (0).AddField (Constants[ReadByte ()]);
+end
+
+/// Makes the popped class the parent of the one on top.
+///
+/// # Raises
+///
+/// '''N'' is not a class.' for a parent that is not one, quoting the name the
+/// program wrote -- the interpreter's wording.
+procedure DoInherit ();
+var
+    Parent     : Any;
+    ParentName : Any;
+
+begin
+    // The NAME is an operand so the refusal can quote what the program wrote,
+    // which is what the interpreter's own message does.
+    ParentName := Constants[ReadByte ()];
+    Parent     := Pop ();
+
+    if not (Parent is VmClass) then
+        raise QUOTE + Str (ParentName) + QUOTE + ' is not a class.';
+
+    PeekAt (0).Parent := Parent;
+end
+
+/// Pushes the running frame's receiver.
+///
+/// One below the base, where a plain call keeps its callee -- so `this` costs
+/// a subscript and no slot of its own.
+procedure DoThis ();
+begin
+    Push (Slots[Base - 1]);
+end
+
+/// Replaces a value with one of its members.
+///
+/// The same read as OP_PROPERTY, kept as its own opcode because the emitter
+/// knows which names are the runtime's five and which are not -- and a
+/// disassembly that says GET_FIELD where a field was meant reads better than
+/// one that says PROPERTY everywhere.
+procedure DoGetField ();
+var
+    Written : Any;
+
+begin
+    Written := Constants[ReadByte ()];
+
+    Push (MemberOf (Pop (), Written));
+end
+
+/// Stores a value in a field, leaving the value on the stack.
+procedure DoSetField ();
+var
+    Named : Any;
+    Self  : Any;
+    Value : Any;
+
+begin
+    Named := ToLower (Str (Constants[ReadByte ()]));
+    Value := Pop ();
+    Self  := Pop ();
+
+    if not (Self is VmInstance) then raise 'Only an instance has fields.';
+
+    Self.Fields.Put (Named, Value);
+
+    Push (Value);
+end
+
 /// Builds the dispatch table, every slot filled.
 ///
 /// A function rather than a run of assignments at unit level, because a unit's
@@ -990,6 +1264,14 @@ begin
     Table[OP_LIST]          := DoList;
     Table[OP_MAP]           := DoMap;
     Table[OP_INVOKE]        := DoInvoke;
+    Table[OP_CLASS]         := DoClass;
+    Table[OP_METHOD]        := DoMethod;
+    Table[OP_FIELD]         := DoField;
+    Table[OP_INHERIT]       := DoInherit;
+    Table[OP_THIS]          := DoThis;
+    Table[OP_GET_FIELD]     := DoGetField;
+    Table[OP_SET_FIELD]     := DoSetField;
+    Table[OP_WIDEN]         := DoWiden;
     Table[OP_BUILTIN]       := DoBuiltin;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
@@ -1540,7 +1822,7 @@ begin
     AssertEqual (0, SP);
 end
 
-test 'A Call With The Wrong Count Names The Subprogram';
+test 'A Call With The Wrong Count Says What Was Expected';
 begin
     var F := VmFunction ('Twice', 1);
     F.Body.Emit (OP_NIL);
@@ -1556,7 +1838,9 @@ begin
         Fail ('expected a raise');
     except
         on e : String do
-            AssertEqual ('Twice takes 1 arguments but got 0.', e);
+            // The interpreter's wording, which carries no name -- and the
+            // two are compared, so this matches rather than improves on it.
+            AssertEqual ('Expected 1 arguments but got 0.', e);
     end
 end
 
@@ -1775,7 +2059,10 @@ begin
         RunChunk (C);
         Fail ('expected a raise');
     except
-        on e : String do AssertEqual ('No property nonesuch.', e);
+        on e : String do
+            // The interpreter's wording, echoing the spelling the program
+            // wrote rather than the folded one used for the lookup.
+            AssertEqual ('Undefined property ''Nonesuch''.', e);
     end
 end
 
@@ -1844,4 +2131,123 @@ begin
     InvokeOn (L, 'Add', [1]);
 
     AssertEqual (0, SP);
+end
+
+test 'An Instance Carries Its Fields And Finds Its Methods';
+begin
+    var K := VmClass ('Point');
+    K.AddField ('X');
+
+    var Setup := VmFunction ('Init', 1);
+    Setup.Body.Emit (OP_THIS);
+    Setup.Body.EmitWith (OP_GET_LOCAL, 0);
+    Setup.Body.EmitWith (OP_SET_FIELD, Setup.Body.AddConstant ('X'));
+    Setup.Body.Emit (OP_POP);
+    Setup.Body.Emit (OP_THIS);
+    Setup.Body.Emit (OP_RETURN);
+    K.AddMethod ('Init', Setup);
+
+    var Twice := VmFunction ('Twice', 0);
+    Twice.Body.Emit (OP_THIS);
+    Twice.Body.EmitWith (OP_GET_FIELD, Twice.Body.AddConstant ('X'));
+    Twice.Body.EmitConstant (2);
+    Twice.Body.Emit (OP_MULTIPLY);
+    Twice.Body.Emit (OP_RETURN);
+    K.AddMethod ('Twice', Twice);
+
+    var C := Chunk ();
+    C.EmitConstant (K);
+    C.EmitConstant (21);
+    C.EmitWith (OP_CALL, 1);
+
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.Write (OP_INVOKE);
+    C.Write (C.AddConstant ('Twice'));
+    C.Write (0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C) as Integer);
+end
+
+test 'A Class With No Constructor Still Answers An Instance';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (VmClass ('Empty'));
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    AssertTrue (RunChunk (C) is VmInstance);
+    AssertEqual (0, SP);
+end
+
+test 'ClassName Answers Ahead Of A Field Of That Name';
+begin
+    // The name belongs to the language, so a field cannot take it [CLS-008].
+    var K := VmClass ('Thing');
+    K.AddField ('ClassName');
+
+    var C := Chunk ();
+    C.EmitConstant (K);
+    C.EmitWith (OP_CALL, 0);
+    C.EmitWith (OP_GET_FIELD, C.AddConstant ('ClassName'));
+    C.Emit (OP_RETURN);
+
+    AssertEqual ('Thing', Str (RunChunk (C)));
+end
+
+test 'A Member Nothing Answers Is Named As Undefined';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (VmClass ('Thing'));
+    C.EmitWith (OP_CALL, 0);
+    C.EmitWith (OP_GET_FIELD, C.AddConstant ('Nope'));
+    C.Emit (OP_RETURN);
+
+    try
+        RunChunk (C);
+        Fail ('expected a raise');
+    except
+        on e : String do
+            AssertEqual ('Undefined property ' + QUOTE + 'Nope' + QUOTE + '.', e);
+    end
+end
+
+test 'Extending Something That Is Not A Class Is Refused';
+begin
+    var C := Chunk ();
+
+    C.EmitWith (OP_CLASS, C.AddConstant ('C'));
+    C.EmitConstant (1);
+    C.EmitWith (OP_INHERIT, C.AddConstant ('X'));
+    C.Emit (OP_RETURN);
+
+    try
+        RunChunk (C);
+        Fail ('expected a raise');
+    except
+        on e : String do
+            AssertEqual (QUOTE + 'X' + QUOTE + ' is not a class.', e);
+    end
+end
+
+test 'Widening Converts Only What The Language Says It Does';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (1);
+    C.EmitWith (OP_WIDEN, C.AddConstant ('Double'));
+    C.Emit (OP_RETURN);
+
+    AssertEqual (1.0, RunChunk (C) as Double);
+
+    // And leaves everything else alone.
+    var D := Chunk ();
+
+    D.EmitConstant (7);
+    D.EmitWith (OP_WIDEN, D.AddConstant ('Integer'));
+    D.Emit (OP_RETURN);
+
+    AssertEqual (7, RunChunk (D) as Integer);
 end

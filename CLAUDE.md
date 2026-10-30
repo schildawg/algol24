@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **68 identical, 119 refused by
+  exactly as `conform.sh` renders it. Currently **77 identical, 110 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
@@ -168,6 +168,23 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   most and wrong for the ones with something to say — `Remove` answers the
   value removed from a Map and a Boolean from a Set [COL-011]. Every arm pushes
   the call's result.
+
+  ⚠️ **Classes are `VmClass`/`VmInstance`, and a member read is ONE path.**
+  Fields, `ClassName`, methods and the runtime's five properties are all
+  answered by `MemberOf`, in that order — a class declaring `Length` shadows
+  the runtime's property, which is the asymmetry [CLS-007] rests on, and
+  `ClassName` answers **ahead of** a field of that name [CLS-008].
+
+  ⚠️ **Widening is an opcode and it has five contexts, not one.** A
+  declaration, an assignment, a **parameter**, a **declared return type** and a
+  **field** — each is an assignment context [VAL-001], and 0140 names all five.
+  Missing any of them is a quietly wrong number rather than a failure. A
+  subrange annotation is refused, because its bounds live in the compiler's
+  table and a chunk cannot reach them.
+
+  ⚠️ **`Exit` inside a loop leaves the whole subprogram.** An untyped parameter
+  stopped every later one from being widened, because the skip was written as
+  `Exit` rather than a condition.
 
   ⚠️ **`Stack` is a built-in**, so the machine's value stack is called `Slots`.
   A module-level `Stack` shadowed it inside the built-in dispatcher and a guest

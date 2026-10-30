@@ -31,6 +31,7 @@ uses Token;
 uses 'vm/OpCode';
 uses 'vm/Chunk';
 uses 'vm/VmFunction';
+uses 'vm/VmClass';
 
 /// What the emitter is building, for the duration of one CompileProgram.
 var Into : Chunk := Nil;
@@ -86,6 +87,12 @@ function Spelling (Op : Any) : Any;
 begin
     Exit ToLower (Str (Op.Lexeme));
 end
+
+/// The return type of the subprogram being compiled, or '' at the top level.
+///
+/// Held so that `Exit X` can widen to it -- a declared return type is an
+/// assignment context [VAL-001] like a parameter and a declaration.
+var Returning : Any := '';
 
 /// The locals in scope, in the order their slots were taken.
 ///
@@ -223,6 +230,7 @@ var
     SavedLocals : List;
     SavedDepths : List;
     SavedDepth  : Integer;
+    SavedReturn : Any;
 
 begin
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
@@ -231,13 +239,17 @@ begin
     SavedLocals := Locals;
     SavedDepths := Depths;
     SavedDepth  := Depth;
+    SavedReturn := Returning;
 
     Into   := Made.Body;
     Locals := List ();
     Depths := List ();
     Depth  := 1;
+    Returning := TheStmt.ReturnType;
 
     for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
+
+    WidenParameters (TheStmt);
 
     for var Inner in TheStmt.Body do EmitStmt (Inner);
 
@@ -250,8 +262,67 @@ begin
     Locals := SavedLocals;
     Depths := SavedDepths;
     Depth  := SavedDepth;
+    Returning := SavedReturn;
 
     Exit Made;
+end
+
+/// Emits the widening a declared type calls for, if any.
+///
+/// Integer to Double and Char to String are the whole of it [VAL-001], and
+/// both are the machine's job because the value is not known until it runs.
+///
+/// A SUBRANGE is refused: widening one is a range check against bounds held in
+/// the compiler's own table, which a chunk cannot reach -- and emitting
+/// nothing would let `var B : Byte := 300` through silently.
+///
+/// # Raises
+///
+/// Whatever Refuse raises, for a subrange annotation.
+procedure EmitWidening (Declared : Any);
+begin
+    var Named := ToLower (Str (Declared));
+
+    if Named = '' or Named = 'any' then Exit;
+
+    if IsSubrange (Named) then
+        Refuse ('The subrange ' + Str (Declared) + ' as a declared type');
+
+    // Only the two that convert anything; a class or any other name widens
+    // nothing and needs no instruction.
+    if Named <> 'double' and Named <> 'string' then Exit;
+
+    var At := Into.AddConstant (Str (Declared));
+
+    if At > 255 then Refuse ('A chunk with more than 256 constants');
+
+    Into.EmitWith (OP_WIDEN, At);
+end
+
+/// Widens each parameter that was declared with a type, in place.
+///
+/// A parameter is an assignment context [VAL-001], so `function F (X : Double)`
+/// called with 1 must see 1.0.  Done on entry rather than at the call, because
+/// the caller does not know the callee's declared types -- overload selection
+/// is at run time [EXP-013] and a call site may not know which one it reaches.
+procedure WidenParameters (TheStmt : Any);
+begin
+    for var I : Integer := 0; I < TheStmt.Params.Length; I := I + 1 do
+        if I < TheStmt.ParamTypes.Length then
+        begin
+            var Declared := TheStmt.ParamTypes[I];
+
+            // A CONDITION and not an early Exit: `Exit` leaves the whole
+            // procedure, so an untyped parameter stopped every later one from
+            // being widened rather than merely skipping itself.
+            if ToLower (Str (Declared)) <> '' then
+            begin
+                Into.EmitWith (OP_GET_LOCAL, I);
+                EmitWidening (Declared);
+                Into.EmitWith (OP_SET_LOCAL, I);
+                Into.Emit (OP_POP);
+            end
+        end
 end
 
 /// Emits one expression, leaving its value on the stack.
@@ -307,6 +378,7 @@ begin
     if Kind = 'AssignExpr' then
     begin
         EmitExpr (TheExpr.Value);
+        EmitWidening (TheExpr.Declared);
 
         var Slot := LocalSlot (TheExpr.Name.Lexeme);
 
@@ -343,6 +415,29 @@ begin
 
     // `and` and `or` are their own node, not a BinaryExpr, because they
     // short-circuit -- which is exactly why they are emitted as control flow.
+    if Kind = 'ThisExpr' then
+    begin
+        Into.Emit (OP_THIS);
+
+        Exit;
+    end
+
+    if Kind = 'SetExpr' then
+    begin
+        if Str (TheExpr.Unit) <> '' then Refuse ('A write through a unit qualifier');
+
+        EmitExpr (TheExpr.Obj);
+        EmitExpr (TheExpr.Value);
+
+        // A field is an assignment context too [VAR-017], and the TypeChecker
+        // has already recorded what it was declared as.
+        EmitWidening (TheExpr.Declared);
+
+        Into.EmitWith (OP_SET_FIELD, ClassNameConstant (TheExpr.Name));
+
+        Exit;
+    end
+
     if Kind = 'SubscriptExpr' then
     begin
         EmitExpr (TheExpr.Obj);
@@ -372,9 +467,19 @@ begin
 
         var Named := ToLower (Str (TheExpr.Name.Lexeme));
 
+        // One of the runtime's five properties, or a FIELD of an instance.
+        // The two cannot be told apart here -- the receiver's type is not
+        // always known -- so the property names win and everything else is
+        // emitted as a field read, which refuses at run time if the receiver
+        // turns out not to be an instance.
         if Named <> 'length' and Named <> 'text' and Named <> 'eof'
                              and Named <> 'isempty' and Named <> 'address' then
-            Refuse ('The member ''' + Str (TheExpr.Name.Lexeme) + '''');
+        begin
+            EmitExpr (TheExpr.Obj);
+            Into.EmitWith (OP_GET_FIELD, ClassNameConstant (TheExpr.Name));
+
+            Exit;
+        end
 
         EmitExpr (TheExpr.Obj);
 
@@ -642,6 +747,209 @@ begin
     Exit;
 end
 
+/// Emits a class declaration.
+///
+/// The class is built on the stack -- OP_CLASS, then an OP_FIELD per field and
+/// an OP_METHOD per method -- and then bound like any other declaration, which
+/// is what lets a method find its own class through a global.
+///
+/// The FIELD INITIALIZERS are compiled into the constructor rather than stored
+/// on the class, because they are expressions and have to run per instance.  A
+/// class with no constructor gets a synthesized one so there is always exactly
+/// one place they run.
+///
+/// # Raises
+///
+/// Whatever Refuse raises, for a private member, a property or an overloaded
+/// method -- each of which the machine has no answer for yet.
+procedure EmitClass (TheStmt : Any);
+begin
+    if TheStmt.PrivateMembers.Length > 0 then Refuse ('A private member');
+
+    Into.EmitWith (OP_CLASS, ClassNameConstant (TheStmt.Name));
+
+    if TheStmt.Superclass <> Nil then
+    begin
+        RequireGlobal (TheStmt.Superclass.Name);
+
+        Into.EmitWith (OP_GET_GLOBAL,
+                       Script.GlobalSlot (TheStmt.Superclass.Name.Lexeme));
+        Into.EmitWith (OP_INHERIT, ClassNameConstant (TheStmt.Superclass.Name));
+    end
+
+    for var TheField in TheStmt.Fields do
+        Into.EmitWith (OP_FIELD, ClassNameConstant (TheField.Name));
+
+    var Seen := Map ();
+
+    for var TheMethod in TheStmt.Methods do
+    begin
+        if TheMethod.IsProperty then Refuse ('A property');
+
+        var Key := ToLower (Str (TheMethod.Name.Lexeme));
+
+        // Two methods of one name are an OVERLOAD SET selecting on the whole
+        // signature [FUN-013], which one entry in the method table cannot
+        // hold -- so it is refused rather than silently keeping the last.
+        if Seen.Contains (Key) then
+            Refuse ('An overloaded method ''' + Str (TheMethod.Name.Lexeme) + '''');
+
+        Seen.Put (Key, True);
+
+        Into.EmitConstant (CompileMethod (TheMethod, TheStmt, Key = 'init'));
+        Into.EmitWith (OP_METHOD, ClassNameConstant (TheMethod.Name));
+    end
+
+    // A constructor is where the field initializers run, so one is synthesized
+    // when the class declares none.
+    if not Seen.Contains ('init') then
+    begin
+        Into.EmitConstant (SynthesizedInit (TheStmt));
+        Into.EmitWith (OP_METHOD, Into.AddConstant ('Init'));
+    end
+
+    if Depth > 0 then
+    begin
+        AddLocal (TheStmt.Name.Lexeme);
+
+        Exit;
+    end
+
+    Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+end
+
+/// Adds a name to the constants and answers its index.
+///
+/// # Raises
+///
+/// 'A chunk with more than 256 constants' once an index will not fit.
+function ClassNameConstant (Name : Any) : Integer;
+begin
+    var At := Into.AddConstant (Str (Name.Lexeme));
+
+    if At > 255 then Refuse ('A chunk with more than 256 constants');
+
+    Exit At;
+end
+
+/// Compiles a method's body into a chunk of its own.
+///
+/// Like CompileFunction, with two differences that matter.  A method's frame
+/// has its RECEIVER one below the base rather than a callee, so slot 0 is
+/// still the first parameter and `this` is reached by OP_THIS.  And a
+/// constructor runs the class's FIELD INITIALIZERS first and answers `this`
+/// instead of nil, which is what makes `Foo ()` evaluate to the instance.
+function CompileMethod (TheStmt : Any, Owner : Any, IsInit : Boolean) : VmFunction;
+var
+    Made : VmFunction;
+
+    SavedInto   : Chunk;
+    SavedLocals : List;
+    SavedDepths : List;
+    SavedDepth  : Integer;
+    SavedReturn : Any;
+
+begin
+    Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
+
+    SavedInto   := Into;
+    SavedLocals := Locals;
+    SavedDepths := Depths;
+    SavedDepth  := Depth;
+    SavedReturn := Returning;
+
+    Into   := Made.Body;
+    Locals := List ();
+    Depths := List ();
+    Depth  := 1;
+    Returning := TheStmt.ReturnType;
+
+    for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
+
+    WidenParameters (TheStmt);
+
+    if IsInit then EmitFieldInitializers (Owner);
+
+    for var Inner in TheStmt.Body do EmitStmt (Inner);
+
+    // A constructor answers the instance; anything else answers nil when it
+    // runs off the end.
+    if IsInit then Into.Emit (OP_THIS);
+    else Into.Emit (OP_NIL);
+
+    Into.Emit (OP_RETURN);
+
+    Into   := SavedInto;
+    Locals := SavedLocals;
+    Depths := SavedDepths;
+    Depth  := SavedDepth;
+    Returning := SavedReturn;
+
+    Exit Made;
+end
+
+/// Emits the field initializers into whatever chunk is being written.
+///
+/// A field with no initializer is skipped rather than assigned nil, because
+/// the instance already begins with every field nil [CLS-006] -- assigning it
+/// again would cost an instruction to say the same thing.
+procedure EmitFieldInitializers (Owner : Any);
+begin
+    for var TheField in Owner.Fields do
+        if TheField.Initializer <> Nil then
+        begin
+            Into.Emit (OP_THIS);
+            EmitExpr (TheField.Initializer);
+            EmitWidening (TheField.TypeName);
+            Into.EmitWith (OP_SET_FIELD, ClassNameConstant (TheField.Name));
+            Into.Emit (OP_POP);
+        end
+end
+
+/// Builds a constructor for a class that declares none.
+///
+/// It takes no arguments and does nothing but run the field initializers and
+/// answer `this`, which is what keeps instantiation one shape whether or not
+/// the program wrote a constructor.
+function SynthesizedInit (Owner : Any) : VmFunction;
+var
+    Made : VmFunction;
+
+    SavedInto   : Chunk;
+    SavedLocals : List;
+    SavedDepths : List;
+    SavedDepth  : Integer;
+    SavedReturn : Any;
+
+begin
+    Made := VmFunction ('Init', 0);
+
+    SavedInto   := Into;
+    SavedLocals := Locals;
+    SavedDepths := Depths;
+    SavedDepth  := Depth;
+    SavedReturn := Returning;
+
+    Into   := Made.Body;
+    Locals := List ();
+    Depths := List ();
+    Depth  := 1;
+    Returning := '';
+
+    EmitFieldInitializers (Owner);
+
+    Into.Emit (OP_THIS);
+    Into.Emit (OP_RETURN);
+
+    Into   := SavedInto;
+    Locals := SavedLocals;
+    Depths := SavedDepths;
+    Depth  := SavedDepth;
+    Returning := SavedReturn;
+
+    Exit Made;
+end
+
 /// Emits a subprogram declaration.
 ///
 /// The callable goes in the constant table and the declaration binds it, so a
@@ -684,6 +992,7 @@ begin
     if Kind = 'VarStmt' then
     begin
         EmitExpr (TheStmt.Initializer);
+        EmitWidening (TheStmt.TypeName);
 
         // Inside a scope the value STAYS on the stack and that slot is the
         // local -- there is no define instruction, because the push was it.
@@ -701,6 +1010,13 @@ begin
         Exit;
     end
 
+    if Kind = 'ClassStmt' then
+    begin
+        EmitClass (TheStmt);
+
+        Exit;
+    end
+
     if Kind = 'FunctionStmt' then
     begin
         EmitFunction (TheStmt);
@@ -713,6 +1029,10 @@ begin
         // `Exit` with no value answers nil, which is what a procedure's Exit
         // does and what a function running off its end does.
         EmitExpr (TheStmt.Value);
+
+        // A declared return type is an assignment context too [VAL-001].
+        if TheStmt.Value <> Nil then EmitWidening (Returning);
+
         Into.Emit (OP_RETURN);
 
         Exit;
@@ -818,6 +1138,17 @@ begin
         // A subprogram's name is a global like any other, and it has to exist
         // before any BODY is emitted -- which is the case the pre-pass is for:
         // two subprograms that call each other, and one that calls itself.
+        // A class's name is a global too, and it has to exist before any
+        // METHOD body is emitted -- a method may name its own class, and two
+        // classes may name each other.
+        if Kind = 'ClassStmt' then
+        begin
+            if Script.KnownGlobal (TheStmt.Name.Lexeme) then
+                Refuse ('A redeclaration of ''' + Str (TheStmt.Name.Lexeme) + '''');
+
+            Script.GlobalSlot (TheStmt.Name.Lexeme);
+        end
+
         if Kind = 'FunctionStmt' then
         begin
             // Two declarations of one name are an OVERLOAD SET, which selects
@@ -860,6 +1191,7 @@ begin
     Depths      := List ();
     Depth       := 0;
     ModuleDepth := 0;
+    Returning   := '';
 
     ClaimGlobalSlots (Statements, 1);
 

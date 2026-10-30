@@ -237,6 +237,58 @@ const OP_MAP := 37;
 /// in the machine rather than an error in a program.
 const OP_INVOKE := 38;
 
+/// Pushes a new class.  One operand: the constant index of its name.
+const OP_CLASS := 39;
+
+/// Pops a callable and records it as a method of the class on top, which it
+/// leaves there.  One operand: the constant index of the method's name.
+const OP_METHOD := 40;
+
+/// Records a field name on the class on top, which it leaves there.  One
+/// operand: the constant index of the name.
+///
+/// The NAME and not a value: an instance begins with every field present and
+/// nil, so that a field with no initializer reads as nil [CLS-006] rather than
+/// as a member the class never declared.
+const OP_FIELD := 41;
+
+/// Pops a class and makes it the parent of the class on top, which it leaves.
+///
+/// One operand: the constant index of the parent's NAME, carried only so that
+/// a refusal can quote what the program wrote.
+///
+/// A pointer rather than clox's copy-down of the parent's methods, because a
+/// method added to a parent AFTER a subclass is declared must still be found
+/// -- which a copy made at declaration time would miss.
+const OP_INHERIT := 42;
+
+/// Pushes the receiver of the running frame.
+///
+/// The receiver sits one below the frame's base, where a plain call keeps the
+/// callee -- so `this` is a subscript and needs no slot of its own.
+const OP_THIS := 43;
+
+/// Replaces an instance on top with one of its fields.  One operand: the
+/// constant index of the name.
+const OP_GET_FIELD := 44;
+
+/// Stores a value in an instance's field, LEAVING the value on the stack.
+///
+/// One operand: the constant index of the name.  The instance then the value.
+const OP_SET_FIELD := 45;
+
+/// Widens the value on top to a declared type.  One operand: the constant
+/// index of the type's name.
+///
+/// Integer to Double and Char to String, and nothing else -- which is the
+/// whole of what the language's widening does at an assignment context
+/// [VAL-001], [VAR-004].  Without it `var X : Double := 1` answered 1 rather
+/// than 1.0.
+///
+/// It cannot range-check a SUBRANGE, because the bounds live in the
+/// compiler's own table, so the emitter refuses a subrange annotation instead.
+const OP_WIDEN := 46;
+
 /// Calls a built-in.  Two operands: the constant index of its NAME, and the
 /// argument count.
 ///
@@ -249,13 +301,13 @@ const OP_INVOKE := 38;
 ///
 /// 'No built-in N takes C arguments.' for a pairing the machine has no arm
 /// for, which is a gap in the machine rather than an error in a program.
-const OP_BUILTIN := 39;
+const OP_BUILTIN := 47;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 40;
+const OP_RETURN := 48;
 
 /// How many opcodes there are.
-const OP_COUNT := 41;
+const OP_COUNT := 49;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -302,6 +354,14 @@ begin
     if Op = OP_LIST          then Exit 'OP_LIST';
     if Op = OP_MAP           then Exit 'OP_MAP';
     if Op = OP_INVOKE        then Exit 'OP_INVOKE';
+    if Op = OP_CLASS         then Exit 'OP_CLASS';
+    if Op = OP_METHOD        then Exit 'OP_METHOD';
+    if Op = OP_FIELD         then Exit 'OP_FIELD';
+    if Op = OP_INHERIT       then Exit 'OP_INHERIT';
+    if Op = OP_THIS          then Exit 'OP_THIS';
+    if Op = OP_GET_FIELD     then Exit 'OP_GET_FIELD';
+    if Op = OP_SET_FIELD     then Exit 'OP_SET_FIELD';
+    if Op = OP_WIDEN         then Exit 'OP_WIDEN';
     if Op = OP_BUILTIN       then Exit 'OP_BUILTIN';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
 
@@ -323,6 +383,13 @@ begin
     if Op = OP_LIST          then Exit 1;
     if Op = OP_MAP           then Exit 1;
     if Op = OP_PROPERTY      then Exit 1;
+    if Op = OP_CLASS         then Exit 1;
+    if Op = OP_METHOD        then Exit 1;
+    if Op = OP_FIELD         then Exit 1;
+    if Op = OP_INHERIT       then Exit 1;
+    if Op = OP_GET_FIELD     then Exit 1;
+    if Op = OP_SET_FIELD     then Exit 1;
+    if Op = OP_WIDEN         then Exit 1;
 
     // The name's index and the argument count, for both of these.
     if Op = OP_BUILTIN       then Exit 2;

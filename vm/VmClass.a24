@@ -1,0 +1,185 @@
+/// A class and an instance of one.
+///
+/// clox calls these ObjClass and ObjInstance.  They cannot here, because
+/// `compiler/ObjClass` and `compiler/ObjInstance` are units of the same
+/// program once `vm/run.a24` imports the front end -- the same collision
+/// VmFunction avoids, and for the same reason.
+unit VmClass;
+
+uses VmFunction;
+
+/// A class: its name, its methods, and what it inherits from.
+class VmClass;
+var
+    /// The name, for a diagnostic and for ClassName.
+    Name    : String;
+
+    /// The methods, keyed by LOWERCASED name because identifiers are
+    /// case-insensitive [SRC-011].
+    ///
+    /// The constructor is the one called 'init', which is the interpreter's
+    /// convention -- `ObjClass.FindMethod ('init')` -- rather than a field of
+    /// its own.
+    Methods : Map;
+
+    /// The field names, in declaration order, including inherited ones.
+    ///
+    /// Held so an instance begins with every field present and nil, which is
+    /// what makes a field with no initializer read as nil [CLS-006] rather
+    /// than as an undefined member.
+    Fields  : List;
+
+    /// The class this one extends, or nil.
+    Parent  : Any;
+
+begin
+    /// Makes a class with no methods and no fields.
+    constructor Init (Name : String);
+    begin
+        this.Name    := Name;
+        this.Methods := Map ();
+        this.Fields  := List ();
+        this.Parent  := Nil;
+    end
+
+    /// Finds a method by name, walking up the parent chain.
+    ///
+    /// Answers nil when no class in the chain has it, which is what lets a
+    /// caller decide between a field, a method and a refusal.
+    function FindMethod (Wanted : Any) : Any;
+    var
+        Where : Any;
+        Key   : Any;
+
+    begin
+        Key   := ToLower (Str (Wanted));
+        Where := this;
+
+        while Where <> Nil do
+        begin
+            if Where.Methods.Contains (Key) then Exit Where.Methods.Get (Key);
+
+            Where := Where.Parent;
+        end
+
+        Exit Nil;
+    end
+
+    /// Records a method, replacing one of the same name.
+    procedure AddMethod (MethodName : Any, Body : VmFunction);
+    begin
+        this.Methods.Put (ToLower (Str (MethodName)), Body);
+    end
+
+    /// Records a field name, if it is not already known.
+    ///
+    /// Idempotent so that a subclass redeclaring an inherited field does not
+    /// give the instance two slots for one name.
+    procedure AddField (FieldName : Any);
+    begin
+        var Key := Str (FieldName);
+
+        for var Known in this.Fields do
+            if ToLower (Str (Known)) = ToLower (Key) then Exit;
+
+        this.Fields.Add (Key);
+    end
+end
+
+/// An instance: which class, and its fields.
+class VmInstance;
+var
+    /// The class this is an instance of.
+    Klass  : VmClass;
+
+    /// The fields, keyed by LOWERCASED name.
+    Fields : Map;
+
+begin
+    /// Makes an instance with every field of its class present and nil.
+    ///
+    /// Every field rather than none, because a field with no initializer reads
+    /// as nil [CLS-006] -- and a Map that simply lacks the key cannot tell that
+    /// apart from a member the class never declared.
+    constructor Init (Klass : VmClass);
+    begin
+        this.Klass  := Klass;
+        this.Fields := Map ();
+
+        var Where : Any := Klass;
+
+        while Where <> Nil do
+        begin
+            for var FieldName in Where.Fields do
+                this.Fields.Put (ToLower (Str (FieldName)), Nil);
+
+            Where := Where.Parent;
+        end
+    end
+end
+
+test 'A Class Finds Its Own Method';
+begin
+    var K := VmClass ('Point');
+    var M := VmFunction ('Shift', 0);
+
+    K.AddMethod ('Shift', M);
+
+    AssertTrue (K.FindMethod ('Shift') <> Nil);
+    AssertTrue (K.FindMethod ('SHIFT') <> Nil);
+    AssertTrue (K.FindMethod ('Absent') = Nil);
+end
+
+test 'A Method Is Found Through A Parent';
+begin
+    var Parent := VmClass ('Shape');
+    Parent.AddMethod ('Draw', VmFunction ('Draw', 0));
+
+    var Child := VmClass ('Circle');
+    Child.Parent := Parent;
+
+    AssertTrue (Child.FindMethod ('Draw') <> Nil);
+
+    // And an override wins over the inherited one.
+    var Own := VmFunction ('Draw', 0);
+    Child.AddMethod ('Draw', Own);
+
+    AssertTrue (Child.FindMethod ('Draw') = Own);
+end
+
+test 'An Instance Begins With Every Field Nil';
+begin
+    var K := VmClass ('Point');
+    K.AddField ('X');
+    K.AddField ('Y');
+
+    var I := VmInstance (K);
+
+    AssertEqual (2, I.Fields.Length);
+    AssertTrue (I.Fields.Get ('x') = Nil);
+end
+
+test 'An Instance Includes Its Parents Fields';
+begin
+    var Parent := VmClass ('Shape');
+    Parent.AddField ('Colour');
+
+    var Child := VmClass ('Circle');
+    Child.Parent := Parent;
+    Child.AddField ('Radius');
+
+    var I := VmInstance (Child);
+
+    AssertEqual (2, I.Fields.Length);
+    AssertTrue (I.Fields.Contains ('colour'));
+end
+
+test 'A Field Name Is Recorded Once';
+begin
+    var K := VmClass ('Point');
+
+    K.AddField ('X');
+    K.AddField ('x');
+
+    AssertEqual (1, K.Fields.Length);
+end
