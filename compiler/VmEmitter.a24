@@ -31,8 +31,8 @@ uses Token;
 uses 'vm/OpCode';
 uses 'vm/Chunk';
 
-/// What the emitter is building, for the duration of one Compile.
-var Target : Chunk := Nil;
+/// What the emitter is building, for the duration of one CompileProgram.
+var Into : Chunk := Nil;
 
 /// Refuses a construct by name.
 ///
@@ -40,7 +40,7 @@ var Target : Chunk := Nil;
 ///
 /// '<X> is not supported by the bytecode back end yet.' always, which is the
 /// CEmitter's wording with its own back end named.
-procedure Unsupported (What : Any);
+procedure Refuse (What : Any);
 begin
     raise Str (What) + ' is not supported by the bytecode back end yet.';
 end
@@ -76,12 +76,83 @@ begin
     Exit ToLower (Str (Op.Lexeme));
 end
 
+/// The locals in scope, in the order their slots were taken.
+///
+/// A local's slot IS its position here, because the emitter pushes a value for
+/// each declaration and never reorders them -- so the stack and this list have
+/// the same shape and the name resolves to an index without a map.
+var Locals : List := List ();
+
+/// The scope depth each local was declared at, parallel to Locals.
+var Depths : List := List ();
+
+/// How many scopes are open.  Zero is the top level, where a `var` is global.
+var Depth : Integer := 0;
+
+/// Opens a scope.
+procedure PushScope ();
+begin
+    Depth := Depth + 1;
+end
+
+/// Closes a scope, discarding the locals it declared.
+///
+/// One OP_POP per local, because the values are on the stack and the stack is
+/// where they lived -- which is also what keeps the stack balanced across a
+/// block, the invariant Vm.a24's tests assert SP for.
+procedure PopScope ();
+begin
+    Depth := Depth - 1;
+
+    while Locals.Length > 0 and (Depths[Locals.Length - 1] as Integer) > Depth do
+    begin
+        Into.Emit (OP_POP);
+
+        Locals.RemoveAt (Locals.Length - 1);
+        Depths.RemoveAt (Depths.Length - 1);
+    end
+end
+
+/// Declares a local and answers its slot.
+///
+/// # Raises
+///
+/// 'A scope holds 256 locals.' once a slot will not fit in an operand byte.
+function AddLocal (Name : Any) : Integer;
+begin
+    if Locals.Length > 255 then raise 'A scope holds 256 locals.';
+
+    Locals.Add (ToLower (Str (Name)));
+    Depths.Add (Depth);
+
+    Exit Locals.Length - 1;
+end
+
+/// The slot a name has as a local, or -1 when it is not one.
+///
+/// Searched from the INNERMOST outward, so an inner declaration shadows an
+/// outer one of the same name -- which the Resolver already permits, recording
+/// every name rather than only the constants so that a `var` may shadow a
+/// `const`.
+function LocalSlot (Name : Any) : Integer;
+var
+    Wanted : Any;
+
+begin
+    Wanted := ToLower (Str (Name));
+
+    for var I : Integer := Locals.Length - 1; I >= 0; I := I - 1 do
+        if Locals[I] = Wanted then Exit I;
+
+    Exit -1;
+end
+
 /// Emits one expression, leaving its value on the stack.
 procedure EmitExpr (TheExpr : Any);
 begin
     if TheExpr = Nil then
     begin
-        Target.Emit (OP_NIL);
+        Into.Emit (OP_NIL);
         Exit;
     end
 
@@ -93,10 +164,10 @@ begin
 
         // The three literals with opcodes of their own, so that the commonest
         // constants cost no table slot.
-        if V = Nil then Target.Emit (OP_NIL);
-        else if V = True then Target.Emit (OP_TRUE);
-        else if V = False then Target.Emit (OP_FALSE);
-        else Target.EmitConstant (V);
+        if V = Nil then Into.Emit (OP_NIL);
+        else if V = True then Into.Emit (OP_TRUE);
+        else if V = False then Into.Emit (OP_FALSE);
+        else Into.EmitConstant (V);
 
         Exit;
     end
@@ -109,14 +180,23 @@ begin
 
     if Kind = 'VariableExpr' then
     begin
-        Target.EmitWith (OP_GET_GLOBAL, Target.GlobalSlot (TheExpr.Name.Lexeme));
+        var Slot := LocalSlot (TheExpr.Name.Lexeme);
+
+        if Slot >= 0 then Into.EmitWith (OP_GET_LOCAL, Slot);
+        else Into.EmitWith (OP_GET_GLOBAL, Into.GlobalSlot (TheExpr.Name.Lexeme));
+
         Exit;
     end
 
     if Kind = 'AssignExpr' then
     begin
         EmitExpr (TheExpr.Value);
-        Target.EmitWith (OP_SET_GLOBAL, Target.GlobalSlot (TheExpr.Name.Lexeme));
+
+        var Slot := LocalSlot (TheExpr.Name.Lexeme);
+
+        if Slot >= 0 then Into.EmitWith (OP_SET_LOCAL, Slot);
+        else Into.EmitWith (OP_SET_GLOBAL, Into.GlobalSlot (TheExpr.Name.Lexeme));
+
         Exit;
     end
 
@@ -126,9 +206,9 @@ begin
 
         EmitExpr (TheExpr.Right);
 
-        if Op = Str ('-') then Target.Emit (OP_NEGATE);
-        else if Op = 'not' then Target.Emit (OP_NOT);
-        else Unsupported ('Unary ''' + Op + '''');
+        if Op = Str ('-') then Into.Emit (OP_NEGATE);
+        else if Op = 'not' then Into.Emit (OP_NOT);
+        else Refuse ('Unary ''' + Op + '''');
 
         Exit;
     end
@@ -153,7 +233,7 @@ begin
         Exit;
     end
 
-    Unsupported (Kind);
+    Refuse (Kind);
 end
 
 /// Emits `and` or `or`, which get no opcodes and must not.
@@ -166,7 +246,7 @@ end
 ///
 /// # Raises
 ///
-/// Whatever Unsupported raises, for an operator that is neither.
+/// Whatever Refuse raises, for an operator that is neither.
 procedure EmitLogical (TheExpr : Any);
 var
     Op : Any;
@@ -178,10 +258,10 @@ begin
     begin
         EmitExpr (TheExpr.Left);
 
-        var Short := Target.EmitJump (OP_JUMP_IF_FALSE);
-        Target.Emit (OP_POP);
+        var Short := Into.EmitJump (OP_JUMP_IF_FALSE);
+        Into.Emit (OP_POP);
         EmitExpr (TheExpr.Right);
-        Target.PatchJump (Short);
+        Into.PatchJump (Short);
 
         Exit;
     end
@@ -190,18 +270,18 @@ begin
     begin
         EmitExpr (TheExpr.Left);
 
-        var Falsey := Target.EmitJump (OP_JUMP_IF_FALSE);
-        var Done   := Target.EmitJump (OP_JUMP);
+        var Falsey := Into.EmitJump (OP_JUMP_IF_FALSE);
+        var Done   := Into.EmitJump (OP_JUMP);
 
-        Target.PatchJump (Falsey);
-        Target.Emit (OP_POP);
+        Into.PatchJump (Falsey);
+        Into.Emit (OP_POP);
         EmitExpr (TheExpr.Right);
-        Target.PatchJump (Done);
+        Into.PatchJump (Done);
 
         Exit;
     end
 
-    Unsupported ('Logical ''' + Str (Op) + '''');
+    Refuse ('Logical ''' + Str (Op) + '''');
 end
 
 /// Emits a binary expression.
@@ -215,32 +295,32 @@ begin
     EmitExpr (TheExpr.Left);
     EmitExpr (TheExpr.Right);
 
-    if Op = Str ('+')  then Target.Emit (OP_ADD);
-    else if Op = Str ('-')  then Target.Emit (OP_SUBTRACT);
-    else if Op = Str ('*')  then Target.Emit (OP_MULTIPLY);
-    else if Op = Str ('/')  then Target.Emit (OP_DIVIDE);
-    else if Op = Str ('=')  then Target.Emit (OP_EQUAL);
-    else if Op = Str ('>')  then Target.Emit (OP_GREATER);
-    else if Op = Str ('<')  then Target.Emit (OP_LESS);
+    if Op = Str ('+')  then Into.Emit (OP_ADD);
+    else if Op = Str ('-')  then Into.Emit (OP_SUBTRACT);
+    else if Op = Str ('*')  then Into.Emit (OP_MULTIPLY);
+    else if Op = Str ('/')  then Into.Emit (OP_DIVIDE);
+    else if Op = Str ('=')  then Into.Emit (OP_EQUAL);
+    else if Op = Str ('>')  then Into.Emit (OP_GREATER);
+    else if Op = Str ('<')  then Into.Emit (OP_LESS);
 
     // The three the machine does not have, each one instruction and a negation
     // -- which is what clox does, and costs a byte rather than three opcodes.
     else if Op = '<>' then
     begin
-        Target.Emit (OP_EQUAL);
-        Target.Emit (OP_NOT);
+        Into.Emit (OP_EQUAL);
+        Into.Emit (OP_NOT);
     end
     else if Op = '>=' then
     begin
-        Target.Emit (OP_LESS);
-        Target.Emit (OP_NOT);
+        Into.Emit (OP_LESS);
+        Into.Emit (OP_NOT);
     end
     else if Op = '<=' then
     begin
-        Target.Emit (OP_GREATER);
-        Target.Emit (OP_NOT);
+        Into.Emit (OP_GREATER);
+        Into.Emit (OP_NOT);
     end
-    else Unsupported ('Binary ''' + Op + '''');
+    else Refuse ('Binary ''' + Op + '''');
 end
 
 /// Emits a call.
@@ -253,26 +333,26 @@ var
 
 begin
     if KindOf (TheExpr.Callee) <> 'VariableExpr' then
-        Unsupported ('A call through an expression');
+        Refuse ('A call through an expression');
 
     Name := ToLower (Str (TheExpr.Callee.Name.Lexeme));
 
     if Name = 'writeln' then
     begin
         if TheExpr.Arguments.Length <> 1 then
-            Unsupported ('WriteLn with ' + Str (TheExpr.Arguments.Length) + ' arguments');
+            Refuse ('WriteLn with ' + Str (TheExpr.Arguments.Length) + ' arguments');
 
         EmitExpr (TheExpr.Arguments[0]);
-        Target.Emit (OP_PRINT);
+        Into.Emit (OP_PRINT);
 
         // Every expression leaves a value, and a call is an expression, so the
         // statement above this one expects one to pop.  OP_PRINT consumed it.
-        Target.Emit (OP_NIL);
+        Into.Emit (OP_NIL);
 
         Exit;
     end
 
-    Unsupported ('A call to ''' + Str (TheExpr.Callee.Name.Lexeme) + '''');
+    Refuse ('A call to ''' + Str (TheExpr.Callee.Name.Lexeme) + '''');
 end
 
 /// Emits one statement, leaving the stack as it found it.
@@ -285,34 +365,38 @@ begin
     if Kind = 'ExpressionStmt' then
     begin
         EmitExpr (TheStmt.Expression);
-        Target.Emit (OP_POP);
+        Into.Emit (OP_POP);
 
         Exit;
     end
 
     if Kind = 'VarStmt' then
     begin
-        // A declaration is what DEFINES a global, so one with no initializer
-        // defines it as nil rather than leaving it undefined.
         EmitExpr (TheStmt.Initializer);
-        Target.EmitWith (OP_DEFINE_GLOBAL, Target.GlobalSlot (TheStmt.Name.Lexeme));
+
+        // Inside a scope the value STAYS on the stack and that slot is the
+        // local -- there is no define instruction, because the push was it.
+        if Depth > 0 then
+        begin
+            AddLocal (TheStmt.Name.Lexeme);
+
+            Exit;
+        end
+
+        // At the top level a declaration is what DEFINES a global, so one with
+        // no initializer defines it as nil rather than leaving it undefined.
+        Into.EmitWith (OP_DEFINE_GLOBAL, Into.GlobalSlot (TheStmt.Name.Lexeme));
 
         Exit;
     end
 
     if Kind = 'BlockStmt' then
     begin
-        // No scope of its own yet: a 'var' inside a block would want a local
-        // slot and the block would want to pop it on the way out.  Until then
-        // the statements are emitted inline, which is right for every block
-        // that declares nothing.
-        for var Inner in TheStmt.Statements do
-        begin
-            if KindOf (Inner) = 'VarStmt' then
-                Unsupported ('A ''var'' inside a block');
+        PushScope ();
 
-            EmitStmt (Inner);
-        end
+        for var Inner in TheStmt.Statements do EmitStmt (Inner);
+
+        PopScope ();
 
         Exit;
     end
@@ -321,29 +405,29 @@ begin
     begin
         EmitExpr (TheStmt.Condition);
 
-        var Otherwise := Target.EmitJump (OP_JUMP_IF_FALSE);
-        Target.Emit (OP_POP);
+        var Otherwise := Into.EmitJump (OP_JUMP_IF_FALSE);
+        Into.Emit (OP_POP);
         EmitStmt (TheStmt.ThenBranch);
 
-        var Done := Target.EmitJump (OP_JUMP);
+        var Done := Into.EmitJump (OP_JUMP);
 
-        Target.PatchJump (Otherwise);
-        Target.Emit (OP_POP);
+        Into.PatchJump (Otherwise);
+        Into.Emit (OP_POP);
         EmitStmt (TheStmt.ElseBranch);
 
-        Target.PatchJump (Done);
+        Into.PatchJump (Done);
 
         Exit;
     end
 
     if Kind = 'WhileStmt' then
     begin
-        var Top := Target.Count;
+        var Top := Into.Count;
 
         EmitExpr (TheStmt.Condition);
 
-        var Done := Target.EmitJump (OP_JUMP_IF_FALSE);
-        Target.Emit (OP_POP);
+        var Done := Into.EmitJump (OP_JUMP_IF_FALSE);
+        Into.Emit (OP_POP);
         EmitStmt (TheStmt.Body);
 
         // The counted form carries its step here rather than in the body, so
@@ -351,13 +435,13 @@ begin
         if TheStmt.Increment <> Nil then
         begin
             EmitExpr (TheStmt.Increment);
-            Target.Emit (OP_POP);
+            Into.Emit (OP_POP);
         end
 
-        Target.EmitLoop (Top);
+        Into.EmitLoop (Top);
 
-        Target.PatchJump (Done);
-        Target.Emit (OP_POP);
+        Into.PatchJump (Done);
+        Into.Emit (OP_POP);
 
         Exit;
     end
@@ -370,7 +454,7 @@ begin
         Exit;
     end
 
-    Unsupported (Kind);
+    Refuse (Kind);
 end
 
 /// Walks the declarations and gives every global a slot before any body is
@@ -380,16 +464,16 @@ end
 /// to a global declared BELOW it, so a slot assigned as the declaration is
 /// reached would be assigned too late.  GlobalSlot is idempotent, so the later
 /// uses find the same slot.
-procedure CollectGlobals (Statements : List);
+procedure ClaimGlobalSlots (Statements : List);
 begin
     for var TheStmt in Statements do
     begin
         var Kind := KindOf (TheStmt);
 
-        if Kind = 'VarStmt' then Target.GlobalSlot (TheStmt.Name.Lexeme);
+        if Kind = 'VarStmt' then Into.GlobalSlot (TheStmt.Name.Lexeme);
 
         if Kind = 'ModuleStmt' then
-            if TheStmt.Statements <> Nil then CollectGlobals (TheStmt.Statements);
+            if TheStmt.Statements <> Nil then ClaimGlobalSlots (TheStmt.Statements);
     end
 end
 
@@ -397,18 +481,18 @@ end
 ///
 /// # Raises
 ///
-/// Whatever Unsupported raises, for a construct with no opcodes yet.
-function Compile (Statements : List) : Chunk;
+/// Whatever Refuse raises, for a construct with no opcodes yet.
+function CompileProgram (Statements : List) : Chunk;
 begin
-    Target := Chunk ();
+    Into := Chunk ();
 
-    CollectGlobals (Statements);
+    ClaimGlobalSlots (Statements);
 
     for var TheStmt in Statements do EmitStmt (TheStmt);
 
     // Something must be on the stack for OP_RETURN to answer.
-    Target.Emit (OP_NIL);
-    Target.Emit (OP_RETURN);
+    Into.Emit (OP_NIL);
+    Into.Emit (OP_RETURN);
 
-    Exit Target;
+    Exit Into;
 end

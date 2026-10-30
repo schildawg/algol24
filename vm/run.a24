@@ -53,14 +53,14 @@ uses Vm;
 /// # Raises
 ///
 /// Whatever Reset raises when the file cannot be opened.
-function SourceOf (Path : String) : String;
+function SourceOf (SourcePath : String) : String;
 var
     Handle : TextFile;
     Accum  : Buffer;
 
 begin
     Handle := TextFile ();
-    Handle.Assign (Path);
+    Handle.Assign (SourcePath);
     Handle.Reset ();
 
     // `Buffer ()` and not `Buffer (1024)`: a size pre-fills with that many
@@ -89,7 +89,7 @@ end
 /// keeps the message -- so every driver has to ask.  This one did not, and the
 /// corpus found it immediately: `0006-line-endings-lf` expects `Unexpected
 /// character: $` and the VM ran the program with the character silently
-/// dropped, which is the exact failure Main.a24's own CheckScanned was written
+/// dropped, which is the exact failure Main.a24's own FailIfScanErrors was written
 /// for.
 ///
 /// Called TWICE, as Main.a24 calls it: once after scanning for the right
@@ -99,7 +99,7 @@ end
 /// # Raises
 ///
 /// The scanner's last message, unchanged.
-procedure CheckScanned ();
+procedure FailIfScanErrors ();
 begin
     if HadError then raise Str (LastError);
 end
@@ -109,7 +109,7 @@ end
 /// The front end is the compiler's own, unchanged, which is the invariant the
 /// three back ends rest on: a program that fails to parse or type-check fails
 /// identically whichever one is asked for.
-function ChunkOf (Source : String, Path : String) : Chunk;
+function ChunkOf (Source : String, SourcePath : String) : Chunk;
 var
     TheScanner     : Scanner;
     TheParser      : Parser;
@@ -120,29 +120,29 @@ var
     Stmts  : List;
 
 begin
-    SourceCode.Begins (Path);
+    SourceCode.Begins (SourcePath);
 
     TheScanner := Scanner (Source);
     Tokens := TheScanner.ScanTokens ();
-    CheckScanned ();
+    FailIfScanErrors ();
 
     TheParser := Parser (Tokens);
-    TheParser.FileName := Path;
+    TheParser.FileName := SourcePath;
 
     Stmts := TheParser.Parse ();
-    CheckScanned ();
+    FailIfScanErrors ();
 
     // The Resolver reports through an Interpreter, so one is made for it even
     // though nothing here interprets anything.
     TheInterpreter := Interpreter ();
-    TheInterpreter.RootFile := Path;
+    TheInterpreter.RootFile := SourcePath;
 
     TheResolver := Resolver (TheInterpreter);
     TheResolver.ResolveAll (Stmts);
 
     TypeChecker ().Resolve (Stmts);
 
-    Exit Compile (Stmts);
+    Exit CompileProgram (Stmts);
 end
 
 if ParamCount () < 1 then
@@ -151,19 +151,19 @@ begin
     Halt (2);
 end
 
-var Path := ParamStr (1);
+var SourcePath := ParamStr (1);
 
 var Listing := False;
 for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     if ParamStr (I) = '--list' then Listing := True;
-    else Path := ParamStr (I);
+    else SourcePath := ParamStr (I);
 
-var Program := ChunkOf (SourceOf (Path), Path);
+var Program := ChunkOf (SourceOf (SourcePath), SourcePath);
 
 if Listing then
 begin
     // A disassembly, which is the first thing wanted when a chunk misbehaves.
-    WriteLn ('== ' + Path + ' ==');
+    WriteLn ('== ' + SourcePath + ' ==');
 
     var At : Integer := 0;
     while At < Program.Count do
@@ -184,4 +184,4 @@ begin
     WriteLn ('');
 end
 
-Run (Program);
+RunChunk (Program);

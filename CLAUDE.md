@@ -122,10 +122,18 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   throughout from the start. A bare name may not contain `/`.
 
   ⚠️ **A top-level subprogram shadows another unit's class METHOD of the same
-  name.** `Vm.a24` declaring `Peek` broke `Parser.Peek() : Token`, which
-  `Parser` calls bare ten times — and it surfaced as `Expected Token, found
-  Any` at a line number in the merged source map, nowhere near either
-  declaration. A method is not the protection it looks like.
+  name, and this cost fifteen renames.** `Vm.a24` declaring `Peek` broke
+  `Parser.Peek() : Token`, which `Parser` calls bare ten times — surfacing as
+  `Expected Token, found Any` at a line number in the merged source map,
+  nowhere near either declaration. Then `BeginScope`, `EndScope` and
+  `ResolveLocal` all collided with `Resolver` methods at once.
+
+  **A method is not the protection it looks like, and both processors agree
+  about it** — a bare call inside a class finds an imported unit's top-level
+  function over the class's own method. So before adding a top-level name to a
+  program that imports `compiler/*.a24`, check it against every declaration
+  there including the indented ones; `shroom-slots` keeps
+  `tools/name-clash.py` for exactly this and it is worth copying.
 
   ⚠️ **Four Buffer and Char traps, all of which compile and then misbehave.**
   `Str (B)` on a Buffer answers its PRINTED form, so use `B.Text`; `Buffer (N)`

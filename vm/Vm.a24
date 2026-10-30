@@ -6,7 +6,7 @@
 /// instruction set where a `case` is not -- there is no CaseStmt node, so each
 /// arm becomes an IfStmt and an opcode pays for every arm above it.  Measured
 /// at 2.4x between the first position and the thirty-first, which is the whole
-/// of why `Handlers` exists.  See PROPOSAL-VM.md.
+/// of why `Dispatch` exists.  See PROPOSAL-VM.md.
 ///
 /// One consequence is that there is one machine per process, as there is in
 /// clox.  Nothing needs two yet.
@@ -58,9 +58,9 @@ var Running : Chunk := Nil;
 /// against 20 M for the same loop reading a module-level Buffer.  The chunk is
 /// not modified while it runs, so lifting its parts out is safe for exactly as
 /// long as that stays true.
-var Code : Buffer := Nil;
+var CodeBytes : Buffer := Nil;
 
-/// The chunk's constant table, lifted out for the same reason as Code.
+/// The chunk's constant table, lifted out for the same reason as CodeBytes.
 var Constants : List := Nil;
 
 /// The module-level variables, one slot each.
@@ -69,22 +69,22 @@ var Constants : List := Nil;
 /// The Resolver already binds every variable before emission, so a name can be
 /// resolved to an index once instead of hashed on every access -- which is the
 /// whole point of doing it this way.
-var Globals : Array := Nil;
+var GlobalCells : Array := Nil;
 
 /// Whether each global's declaration has run yet.
 ///
-/// Parallel to Globals, and the same thing the emitted C calls `d_name`: a
+/// Parallel to GlobalCells, and the same thing the emitted C calls `d_name`: a
 /// declaration is what defines a global, so `var X;` with no initializer
 /// defines it as nil while a subprogram reaching a global from ABOVE its
 /// declaration finds it undefined.  The name for that diagnostic comes from
 /// the chunk's GlobalNames, which is the only thing that reads them.
-var Defined : Array := Nil;
+var WasDefined : Array := Nil;
 
 /// Whether the loop should keep going.
 var Live : Boolean := False;
 
-/// What OP_RETURN left behind, which is what Run answers.
-var Result : Any := Nil;
+/// What OP_RETURN left behind, which is what RunChunk answers.
+var Answer : Any := Nil;
 
 /// Pushes a value.
 ///
@@ -120,7 +120,7 @@ var
     B : Integer;
 
 begin
-    B := Code[IP] as Integer;
+    B := CodeBytes[IP] as Integer;
     IP := IP + 1;
 
     Exit B;
@@ -263,10 +263,10 @@ var
 begin
     Slot := ReadByte ();
 
-    if not Defined[Slot] then
+    if not WasDefined[Slot] then
         raise 'Undefined variable ''' + Str (Running.GlobalNames[Slot]) + '''.';
 
-    Push (Globals[Slot]);
+    Push (GlobalCells[Slot]);
 end
 
 /// Pops a value and defines a global with it.
@@ -277,8 +277,8 @@ var
 begin
     Slot := ReadByte ();
 
-    Globals[Slot] := Pop ();
-    Defined[Slot] := True;
+    GlobalCells[Slot] := Pop ();
+    WasDefined[Slot] := True;
 end
 
 /// Stores the top into a global's slot, leaving it on the stack.
@@ -289,8 +289,8 @@ var
 begin
     Slot := ReadByte ();
 
-    Globals[Slot] := PeekAt (0);
-    Defined[Slot] := True;
+    GlobalCells[Slot] := PeekAt (0);
+    WasDefined[Slot] := True;
 end
 
 /// Pushes whether the top two values are equal.
@@ -376,7 +376,7 @@ end
 /// Stops the machine, keeping what is on top as the answer.
 procedure DoReturn ();
 begin
-    Result := Pop ();
+    Answer := Pop ();
     Live := False;
 end
 
@@ -387,7 +387,7 @@ end
 /// 'No handler for opcode N.' always -- that is the whole of what it does.
 procedure DoUnknown ();
 begin
-    raise 'No handler for opcode ' + Str (Code[IP - 1]) + '.';
+    raise 'No handler for opcode ' + Str (CodeBytes[IP - 1]) + '.';
 end
 
 /// Builds the dispatch table, every slot filled.
@@ -445,7 +445,7 @@ end
 ///
 /// Built once, by the declaration's own initializer, which is what makes
 /// dispatch a subscript rather than a search.
-var Handlers : Array := BuildHandlers ();
+var Dispatch : Array := BuildHandlers ();
 
 /// Runs a chunk and answers what its OP_RETURN left on the stack.
 ///
@@ -458,10 +458,10 @@ var Handlers : Array := BuildHandlers ();
 /// # Examples
 ///
 /// See test 'Arithmetic Runs On The Machine'.
-function Run (C : Chunk) : Any;
+function RunChunk (C : Chunk) : Any;
 begin
     Running   := C;
-    Code      := C.Code;
+    CodeBytes      := C.Code;
     Constants := C.Constants;
 
     // Sized from the chunk, and nothing is defined until its declaration runs.
@@ -470,25 +470,25 @@ begin
     var Slots := C.GlobalNames.Length;
     if Slots < 1 then Slots := 1;
 
-    Globals := Array (Slots);
-    Defined := Array (Slots);
+    GlobalCells := Array (Slots);
+    WasDefined := Array (Slots);
 
     for var Slot : Integer := 0; Slot < Slots; Slot := Slot + 1 do
-        Defined[Slot] := False;
+        WasDefined[Slot] := False;
 
     IP      := 0;
     SP      := 0;
-    Result  := Nil;
+    Answer  := Nil;
     Live    := True;
 
     while Live do
     begin
         var Op := ReadByte ();
 
-        Handlers[Op] ();
+        Dispatch[Op] ();
     end
 
-    Exit Result;
+    Exit Answer;
 end
 
 /// Runs OP_NOT over one value, for the truthiness tests.
@@ -500,7 +500,7 @@ begin
     C.Emit (OP_NOT);
     C.Emit (OP_RETURN);
 
-    Exit Run (C);
+    Exit RunChunk (C);
 end
 
 /// Runs `Left and Right` as the emitter would, for the short-circuit tests.
@@ -520,7 +520,7 @@ begin
 
     C.Emit (OP_RETURN);
 
-    Exit Run (C);
+    Exit RunChunk (C);
 end
 
 /// Runs `Left or Right` as the emitter would.
@@ -543,7 +543,7 @@ begin
 
     C.Emit (OP_RETURN);
 
-    Exit Run (C);
+    Exit RunChunk (C);
 end
 
 test 'A Constant Reaches The Stack';
@@ -553,7 +553,7 @@ begin
     C.EmitConstant (42);
     C.Emit (OP_RETURN);
 
-    AssertEqual (42, Run (C) as Integer);
+    AssertEqual (42, RunChunk (C) as Integer);
 end
 
 test 'Arithmetic Runs On The Machine';
@@ -568,7 +568,7 @@ begin
     C.Emit (OP_ADD);
     C.Emit (OP_RETURN);
 
-    AssertEqual (7, Run (C) as Integer);
+    AssertEqual (7, RunChunk (C) as Integer);
 end
 
 test 'Subtraction Takes Its Operands In Order';
@@ -580,7 +580,7 @@ begin
     C.Emit (OP_SUBTRACT);
     C.Emit (OP_RETURN);
 
-    AssertEqual (6, Run (C) as Integer);
+    AssertEqual (6, RunChunk (C) as Integer);
 end
 
 test 'Division Answers A Double As The Language Does';
@@ -592,7 +592,7 @@ begin
     C.Emit (OP_DIVIDE);
     C.Emit (OP_RETURN);
 
-    AssertEqual (3.5, Run (C) as Double);
+    AssertEqual (3.5, RunChunk (C) as Double);
 end
 
 test 'Negation Replaces The Top';
@@ -603,7 +603,7 @@ begin
     C.Emit (OP_NEGATE);
     C.Emit (OP_RETURN);
 
-    AssertEqual (-5, Run (C) as Integer);
+    AssertEqual (-5, RunChunk (C) as Integer);
 end
 
 test 'An Unbounded Integer Stays Unbounded On The Machine';
@@ -620,7 +620,7 @@ begin
     end
     C.Emit (OP_RETURN);
 
-    AssertEqual (1 << 70, Run (C) as Integer);
+    AssertEqual (1 << 70, RunChunk (C) as Integer);
 end
 
 test 'The Stack Underflows Rather Than Reading Rubbish';
@@ -631,7 +631,7 @@ begin
     C.Emit (OP_RETURN);
 
     try
-        Run (C);
+        RunChunk (C);
         Fail ('expected a raise');
     except
         on e : String do AssertEqual ('The value stack underflowed.', e);
@@ -645,7 +645,7 @@ begin
     C.Write (200);
 
     try
-        Run (C);
+        RunChunk (C);
         Fail ('expected a raise');
     except
         on e : String do AssertEqual ('No handler for opcode 200.', e);
@@ -684,7 +684,7 @@ begin
 
         C.Emit (OP_RETURN);
 
-        Run (C);
+        RunChunk (C);
     end
 end
 
@@ -726,7 +726,7 @@ begin
     C.EmitWith (OP_GET_LOCAL, 0);
     C.Emit (OP_RETURN);
 
-    AssertEqual (45, Run (C) as Integer);
+    AssertEqual (45, RunChunk (C) as Integer);
 
     // The two locals, and nothing else: a backward jump that lands early
     // leaves a value behind per iteration, and the answer alone cannot see it.
@@ -762,7 +762,7 @@ begin
     C.EmitWith (OP_GET_LOCAL, 0);
     C.Emit (OP_RETURN);
 
-    AssertEqual (50, Run (C) as Integer);
+    AssertEqual (50, RunChunk (C) as Integer);
     AssertEqual (1, SP);
 end
 
@@ -804,7 +804,7 @@ begin
     C.Emit (OP_EQUAL);
     C.Emit (OP_RETURN);
 
-    AssertTrue (not (Run (C) as Boolean));
+    AssertTrue (not (RunChunk (C) as Boolean));
 end
 
 test 'A Global Round Trips Through Its Slot';
@@ -825,7 +825,7 @@ begin
     C.EmitWith (OP_GET_GLOBAL, Total);
     C.Emit (OP_RETURN);
 
-    AssertEqual (42, Run (C) as Integer);
+    AssertEqual (42, RunChunk (C) as Integer);
     AssertEqual (0, SP);
 end
 
@@ -841,7 +841,7 @@ begin
     C.Emit (OP_RETURN);
 
     try
-        Run (C);
+        RunChunk (C);
         Fail ('expected a raise');
     except
         on e : String do
@@ -862,7 +862,7 @@ begin
     C.EmitWith (OP_GET_GLOBAL, X);
     C.Emit (OP_RETURN);
 
-    AssertTrue (Run (C) = Nil);
+    AssertTrue (RunChunk (C) = Nil);
 end
 
 test 'Assigning A Global Leaves Its Value For An Expression';
@@ -880,12 +880,12 @@ begin
     C.EmitWith (OP_SET_GLOBAL, X);
     C.Emit (OP_RETURN);
 
-    AssertEqual (9, Run (C) as Integer);
+    AssertEqual (9, RunChunk (C) as Integer);
 end
 
-test 'Globals And Locals Do Not Share Slots';
+test 'GlobalCells And Locals Do Not Share Slots';
 begin
-    // A global slot indexes Globals and a local slot indexes the value stack,
+    // A global slot indexes GlobalCells and a local slot indexes the value stack,
     // so slot 0 means two different things and must not be confused.
     var C := Chunk ();
 
@@ -901,5 +901,5 @@ begin
     C.Emit (OP_ADD);
     C.Emit (OP_RETURN);
 
-    AssertEqual (107, Run (C) as Integer);
+    AssertEqual (107, RunChunk (C) as Integer);
 end
