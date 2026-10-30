@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **37 identical, 157 refused by
+  exactly as `conform.sh` renders it. Currently **41 identical, 153 refused by
   name, 0 diverged**. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
 
@@ -136,6 +136,13 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   ⚠️ **`STACK_ROOM` is derived from `FRAME_ROOM`, as clox derives it.** With the
   two equal, runaway recursion overflowed the *value* stack first and said so —
   true, but about the wrong thing.
+
+  ⚠️ **The machine may not import anything from `compiler/`.** `TypeNameOf`
+  looked like a built-in and is a function of `compiler/ObjFunction`, so `is`
+  is a chain over the five primitive type names using the host's own `is` with
+  each written as a literal — the language's answer rather than an imitation.
+  It cannot reach a subrange or a class, because `alg_is` takes the type as a
+  string the **emitter** wrote, so the emitter refuses every other type name.
 
   ⚠️ **`uses` takes a PATH when the name is quoted** — `uses 'vm/OpCode';`,
   `uses 'compiler/Parser';`. The corpus has used `uses 'modules/Alpha';`

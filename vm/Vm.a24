@@ -369,6 +369,121 @@ begin
     Push (Pop () < Right);
 end
 
+/// Divides the value beneath the top by the top, truncating toward zero.
+///
+/// # Raises
+///
+/// Whatever the host raises -- a Double operand and a zero divisor both,
+/// unchanged, because the host's own `div` decides them.
+procedure DoDiv ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () div Right);
+end
+
+/// The remainder of the same division.
+procedure DoMod ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () mod Right);
+end
+
+/// Bitwise and of the top two Integers.
+procedure DoBitAnd ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () & Right);
+end
+
+/// Bitwise or of the top two Integers.
+procedure DoBitOr ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () | Right);
+end
+
+/// Bitwise exclusive or of the top two Integers.
+procedure DoBitXor ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () ^ Right);
+end
+
+/// Bitwise complement of the Integer on top.
+procedure DoBitNot ();
+begin
+    Push (~Pop ());
+end
+
+/// Shifts the value beneath the top left by the top.
+procedure DoShiftLeft ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () << Right);
+end
+
+/// Shifts the value beneath the top right by the top.
+procedure DoShiftRight ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+    Push (Pop () >> Right);
+end
+
+/// Replaces the top with whether it is of the type its operand names.
+///
+/// A chain over the five primitive type names, each arm using the host's own
+/// `is` with the type written as a literal -- so the answer is the language's
+/// answer and not an imitation of it.
+///
+/// It cannot be one comparison against a type NAME, because `TypeNameOf` lives
+/// in `compiler/ObjFunction` and a chunk must be runnable without the
+/// compiler.  And it cannot cover a subrange or a class, because the host's
+/// `is` needs the type written at the call: `alg_is` takes a C string the
+/// EMITTER wrote.  So the emitter refuses every other type name and this never
+/// sees one it would answer wrongly.
+///
+/// # Raises
+///
+/// 'No test for type N.' if the emitter ever lets one through, which is a bug
+/// in the emitter rather than in a program.
+procedure DoIs ();
+var
+    Named : Any;
+    V     : Any;
+
+begin
+    Named := ToLower (Str (Constants[ReadByte ()]));
+    V     := Pop ();
+
+    if Named = 'integer' then Push (V is Integer);
+    else if Named = 'double'  then Push (V is Double);
+    else if Named = 'string'  then Push (V is String);
+    else if Named = 'char'    then Push (V is Char);
+    else if Named = 'boolean' then Push (V is Boolean);
+    else raise 'No test for type ' + Str (Named) + '.';
+end
+
 /// Replaces the top with whether it was falsey.
 ///
 /// The host's own `not` decides it, which is what makes the machine's
@@ -532,6 +647,15 @@ begin
     Table[OP_JUMP]          := DoJump;
     Table[OP_JUMP_IF_FALSE] := DoJumpIfFalse;
     Table[OP_LOOP]          := DoLoop;
+    Table[OP_DIV]           := DoDiv;
+    Table[OP_MOD]           := DoMod;
+    Table[OP_BIT_AND]       := DoBitAnd;
+    Table[OP_BIT_OR]        := DoBitOr;
+    Table[OP_BIT_XOR]       := DoBitXor;
+    Table[OP_BIT_NOT]       := DoBitNot;
+    Table[OP_SHIFT_LEFT]    := DoShiftLeft;
+    Table[OP_SHIFT_RIGHT]   := DoShiftRight;
+    Table[OP_IS]            := DoIs;
     Table[OP_CALL]          := DoCall;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
@@ -798,14 +922,21 @@ begin
             C.EmitConstant (Trivial);
         end
 
-        C.Write (Op);
+        // OP_IS reads its operand as the INDEX OF A TYPE NAME, so a zero
+        // operand would hand it the constant 6 and it would rightly refuse.
+        if Op = OP_IS then C.EmitWith (OP_IS, C.AddConstant ('Integer'));
+        else
+        begin
+            C.Write (Op);
 
-        // Zero operands of whatever width this opcode takes.  A jump of zero
-        // lands on the next instruction, so every opcode falls through to the
-        // OP_RETURN below -- and writing ONE byte for a two-byte jump is how
-        // an earlier version of this test read the OP_RETURN as a distance and
-        // jumped five thousand bytes off the end.
-        for var B : Integer := 0; B < OpOperands (Op); B := B + 1 do C.Write (0);
+            // Zero operands of whatever width this opcode takes.  A jump of
+            // zero lands on the next instruction, so every opcode falls
+            // through to the OP_RETURN below -- and writing ONE byte for a
+            // two-byte jump is how an earlier version of this test read the
+            // OP_RETURN as a distance and jumped five thousand bytes off the
+            // end.
+            for var B : Integer := 0; B < OpOperands (Op); B := B + 1 do C.Write (0);
+        end
 
         C.Emit (OP_RETURN);
 
@@ -1173,5 +1304,85 @@ begin
         Fail ('expected a raise');
     except
         on e : String do AssertEqual ('The call stack overflowed.', e);
+    end
+end
+
+/// Runs one binary opcode over two constants, for the operator tests.
+function BinaryOf (Left : Any, Op : Integer, Right : Any) : Any;
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (Left);
+    C.EmitConstant (Right);
+    C.Emit (Op);
+    C.Emit (OP_RETURN);
+
+    Exit RunChunk (C);
+end
+
+test 'Shifting Right Is Not Dividing';
+begin
+    // >> floors where div truncates toward zero, so they disagree exactly
+    // where the shifted-out bits are not zero [EXP-024].
+    AssertEqual (-4, BinaryOf (-7, OP_SHIFT_RIGHT, 1) as Integer);
+    AssertEqual (-3, BinaryOf (-7, OP_DIV, 2) as Integer);
+
+    // And agree where they are.
+    AssertEqual (4, BinaryOf (8, OP_SHIFT_RIGHT, 1) as Integer);
+    AssertEqual (4, BinaryOf (8, OP_DIV, 2) as Integer);
+end
+
+test 'A Shift Grows Rather Than Wrapping';
+begin
+    // The machine inherits an unbounded Integer because a guest value IS a
+    // host value, so [LEX-018] holds without the machine doing anything.
+    AssertEqual (1 << 70, BinaryOf (1, OP_SHIFT_LEFT, 70) as Integer);
+    AssertEqual (-1, BinaryOf (0, OP_BIT_XOR, -1) as Integer);
+end
+
+test 'And Is Not Bitwise On The Machine Either';
+begin
+    // 6 & 3 is 2 where `6 and 3` is 3, and the machine keeps them apart
+    // because they are different instructions -- OP_BIT_AND against a jump.
+    AssertEqual (2, BinaryOf (6, OP_BIT_AND, 3) as Integer);
+    AssertEqual (3, AndOf (6, 3) as Integer);
+end
+
+test 'Dividing By Zero Raises Where Real Division Does Not';
+begin
+    // div and mod are the only things that raise on a zero divisor; 7 / 0 is
+    // Infinity.  The machine asks the host, so it inherits both answers.
+    AssertTrue (BinaryOf (7, OP_DIVIDE, 0) > 0);
+
+    try
+        BinaryOf (7, OP_DIV, 0);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertTrue (Pos (ToLower (e), 'zero') >= 0);
+    end
+end
+
+test 'Is Answers For A Primitive And The Emitter Refuses The Rest';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (1);
+    C.EmitWith (OP_IS, C.AddConstant ('Integer'));
+    C.Emit (OP_RETURN);
+
+    AssertTrue (RunChunk (C) as Boolean);
+
+    // A name the emitter would never produce, refused rather than guessed.
+    var D := Chunk ();
+
+    D.EmitConstant (1);
+    D.EmitWith (OP_IS, D.AddConstant ('Byte'));
+    D.Emit (OP_RETURN);
+
+    try
+        RunChunk (D);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('No test for type byte.', e);
     end
 end

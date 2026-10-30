@@ -307,6 +307,7 @@ begin
 
         if Op = Str ('-') then Into.Emit (OP_NEGATE);
         else if Op = 'not' then Into.Emit (OP_NOT);
+        else if Op = Str ('~') then Into.Emit (OP_BIT_NOT);
         else Refuse ('Unary ''' + Op + '''');
 
         Exit;
@@ -320,6 +321,32 @@ begin
 
     // `and` and `or` are their own node, not a BinaryExpr, because they
     // short-circuit -- which is exactly why they are emitted as control flow.
+    if Kind = 'IsExpr' then
+    begin
+        // Only a primitive type name, and the reason is in Vm.a24's DoIs: the
+        // machine answers `is` by comparing TypeNameOf, which is right for
+        // these five and wrong for a subrange (a RANGE test) and for a class
+        // (inheritance-aware).  Emitting it for those would be a quiet wrong
+        // answer where a refusal is wanted.
+        var Named := ToLower (Str (TheExpr.TypeName.Lexeme));
+
+        if Named <> 'integer' and Named <> 'double' and Named <> 'string'
+                              and Named <> 'char'   and Named <> 'boolean' then
+            Refuse ('''is ' + Str (TheExpr.TypeName.Lexeme) + '''');
+
+        EmitExpr (TheExpr.Obj);
+
+        // AddConstant and not EmitConstant: the latter emits an OP_CONSTANT to
+        // push the name, where OP_IS wants the INDEX as its own operand.
+        var At := Into.AddConstant (Str (TheExpr.TypeName.Lexeme));
+
+        if At > 255 then Refuse ('A chunk with more than 256 constants');
+
+        Into.EmitWith (OP_IS, At);
+
+        Exit;
+    end
+
     if Kind = 'LogicalExpr' then
     begin
         EmitLogical (TheExpr);
@@ -401,6 +428,15 @@ begin
     else if Op = Str ('=')  then Into.Emit (OP_EQUAL);
     else if Op = Str ('>')  then Into.Emit (OP_GREATER);
     else if Op = Str ('<')  then Into.Emit (OP_LESS);
+
+    else if Op = 'div' then Into.Emit (OP_DIV);
+    else if Op = 'mod' then Into.Emit (OP_MOD);
+
+    else if Op = Str ('&') then Into.Emit (OP_BIT_AND);
+    else if Op = Str ('|') then Into.Emit (OP_BIT_OR);
+    else if Op = Str ('^') then Into.Emit (OP_BIT_XOR);
+    else if Op = '<<' then Into.Emit (OP_SHIFT_LEFT);
+    else if Op = '>>' then Into.Emit (OP_SHIFT_RIGHT);
 
     // The three the machine does not have, each one instruction and a negation
     // -- which is what clox does, and costs a byte rather than three opcodes.

@@ -97,29 +97,71 @@ const OP_MULTIPLY := 15;
 /// `div` and `mod` are separate opcodes and not this one rounded.
 const OP_DIVIDE := 16;
 
+/// Pops two Integers and pushes the quotient, truncated toward zero.
+///
+/// Not OP_DIVIDE rounded: `div` refuses a Double rather than truncating it,
+/// and it is one of the two things that raise on a zero divisor where
+/// `7 / 0` is Infinity.
+const OP_DIV := 17;
+
+/// Pops two Integers and pushes the remainder.
+const OP_MOD := 18;
+
+/// Pops two Integers and pushes their bitwise and.
+///
+/// Over an Integer that is two's complement extended infinitely to the left,
+/// so `~0` is -1 and `1 << 70` grows [EXP-023].  Nothing here has to know how
+/// wide an Integer is, because the host's operators already do not.
+const OP_BIT_AND := 19;
+
+/// Pops two Integers and pushes their bitwise or.
+const OP_BIT_OR := 20;
+
+/// Pops two Integers and pushes their bitwise exclusive or.
+const OP_BIT_XOR := 21;
+
+/// Replaces the Integer on top with its bitwise complement.
+const OP_BIT_NOT := 22;
+
+/// Pops two Integers and shifts the lower left by the upper.
+const OP_SHIFT_LEFT := 23;
+
+/// Pops two Integers and shifts the lower right by the upper.
+///
+/// Floors where `div` truncates toward zero, so `-7 >> 1` is -4 and
+/// `-7 div 2` is -3 [EXP-024].  Two opcodes for that reason.
+const OP_SHIFT_RIGHT := 24;
+
+/// Replaces the top with whether it is of a written type.
+///
+/// One operand: the constant index of the type's NAME.  A range test for a
+/// subrange and a type test otherwise, which is what the host's `is` already
+/// decides -- so this asks it rather than reimplementing it.
+const OP_IS := 25;
+
 /// Replaces the top with whether it was falsey.
 ///
 /// Falsey is this language's reading and not Lox's: nil, False and the Integer
 /// zero are falsey, where 0.0, the empty String and any Char are truthy.  The
 /// machine gets that free, because a guest value IS a host value and the host's
 /// own `not` decides it.
-const OP_NOT := 17;
+const OP_NOT := 26;
 
 /// Replaces the number on top with its negation.
-const OP_NEGATE := 18;
+const OP_NEGATE := 27;
 
 /// Pops a value and writes it, as `WriteLn` does.
-const OP_PRINT := 19;
+const OP_PRINT := 28;
 
 /// Jumps forward unconditionally.  Two operands: the distance, high byte first.
-const OP_JUMP := 20;
+const OP_JUMP := 29;
 
 /// Jumps forward when the top is falsey, WITHOUT popping it.
 ///
 /// Two operands: the distance, high byte first.  Leaving the value is what lets
 /// `and` and `or` need no opcodes of their own: they are a jump and an OP_POP,
 /// and the value left behind is the operand [EXP-010] requires them to answer.
-const OP_JUMP_IF_FALSE := 21;
+const OP_JUMP_IF_FALSE := 30;
 
 /// Calls the value beneath its arguments.  One operand: the argument count.
 ///
@@ -133,20 +175,20 @@ const OP_JUMP_IF_FALSE := 21;
 ///
 /// 'N takes A arguments but got G.' on a mismatch, and 'Can only call a
 /// subprogram.' for a callee that is not one.
-const OP_CALL := 23;
+const OP_CALL := 32;
 
 /// Jumps backward.  Two operands: the distance, high byte first.
 ///
 /// A separate opcode from OP_JUMP rather than a signed operand, because a
 /// distance that is always subtracted needs no sign and a byte pair that is
 /// never negative is easier to read in a disassembly.
-const OP_LOOP := 22;
+const OP_LOOP := 31;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 24;
+const OP_RETURN := 33;
 
 /// How many opcodes there are.
-const OP_COUNT := 25;
+const OP_COUNT := 34;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -171,6 +213,15 @@ begin
     if Op = OP_SUBTRACT      then Exit 'OP_SUBTRACT';
     if Op = OP_MULTIPLY      then Exit 'OP_MULTIPLY';
     if Op = OP_DIVIDE        then Exit 'OP_DIVIDE';
+    if Op = OP_DIV           then Exit 'OP_DIV';
+    if Op = OP_MOD           then Exit 'OP_MOD';
+    if Op = OP_BIT_AND       then Exit 'OP_BIT_AND';
+    if Op = OP_BIT_OR        then Exit 'OP_BIT_OR';
+    if Op = OP_BIT_XOR       then Exit 'OP_BIT_XOR';
+    if Op = OP_BIT_NOT       then Exit 'OP_BIT_NOT';
+    if Op = OP_SHIFT_LEFT    then Exit 'OP_SHIFT_LEFT';
+    if Op = OP_SHIFT_RIGHT   then Exit 'OP_SHIFT_RIGHT';
+    if Op = OP_IS            then Exit 'OP_IS';
     if Op = OP_NOT           then Exit 'OP_NOT';
     if Op = OP_NEGATE        then Exit 'OP_NEGATE';
     if Op = OP_PRINT         then Exit 'OP_PRINT';
@@ -194,6 +245,7 @@ begin
     if Op = OP_DEFINE_GLOBAL then Exit 1;
     if Op = OP_SET_GLOBAL    then Exit 1;
     if Op = OP_CALL          then Exit 1;
+    if Op = OP_IS            then Exit 1;
 
     if Op = OP_JUMP          then Exit 2;
     if Op = OP_JUMP_IF_FALSE then Exit 2;
