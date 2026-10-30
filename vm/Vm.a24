@@ -97,6 +97,34 @@ var IP : Integer := 0;
 /// The chunk being run, which is the current frame's.
 var Running : Chunk := Nil;
 
+/// How deep the handler stack is.
+var TryDepth : Integer := 0;
+
+/// How many protected regions may nest.
+const TRY_ROOM := 128;
+
+/// Where each protected region's handlers begin, indexed by depth.
+var TryIP : Array := Array (TRY_ROOM);
+
+/// The chunk each region's handlers live in.
+var TryOf : Array := Array (TRY_ROOM);
+
+/// The call depth each region was opened at.
+///
+/// Recorded so a raise from several frames down can discard them: unwinding is
+/// what makes a handler several calls above the raise still run.
+var TryFrame : Array := Array (TRY_ROOM);
+
+/// The frame base each region was opened at.
+var TryBase : Array := Array (TRY_ROOM);
+
+/// The value-stack depth each region was opened at.
+///
+/// Whatever the protected region pushed is discarded on the way out, so the
+/// handler starts from the stack the `try` started from -- which is what keeps
+/// a raise out of a half-evaluated expression from leaving rubbish behind.
+var TrySP : Array := Array (TRY_ROOM);
+
 /// How deep the call stack is.  Zero means the outermost chunk is running.
 var FrameDepth : Integer := 0;
 
@@ -413,8 +441,13 @@ var
 begin
     Slot := ReadByte ();
 
+    // Writing does NOT bind a global [0044]: a variable is bound by its
+    // DECLARATION, so an assignment above one is the same error a read gets.
+    // Defining it here instead made the write silently succeed.
+    if not WasDefined[Slot] then
+        raise 'Undefined variable ' + QUOTE + Str (GlobalNames[Slot]) + QUOTE + '.';
+
     GlobalCells[Slot] := PeekAt (0);
-    WasDefined[Slot] := True;
 end
 
 /// Pushes whether the top two values are equal.
@@ -545,31 +578,96 @@ end
 ///
 /// 'No test for type N.' if the emitter ever lets one through, which is a bug
 /// in the emitter rather than in a program.
+/// Whether a value is of the type a name denotes.
+///
+/// Shared by `is` and `as`, because [TYP-?] gives them one rule: a cast
+/// succeeds exactly where the test answers true.
+///
+/// # Raises
+///
+/// 'No test for type N.' for a name the emitter should have refused.
+function TypeMatches (V : Any, Named : Any) : Boolean;
+var
+    Where : Any;
+
+begin
+    // An INSTANCE answers for its own class and every class above it, so a
+    // handler -- or a cast -- for a base class takes a derived value
+    // [STM-017].
+    if V is VmInstance then
+    begin
+        Where := V.Klass;
+
+        while Where <> Nil do
+        begin
+            if ToLower (Str (Where.Name)) = Named then Exit True;
+
+            Where := Where.Parent;
+        end
+
+        Exit False;
+    end
+
+    // A member answers for its own enumeration and no other [ENU-006].
+    if V is VmEnum then Exit ToLower (Str (V.TypeName)) = Named;
+
+    if Named = 'integer' then Exit V is Integer;
+    if Named = 'double'  then Exit V is Double;
+    if Named = 'string'  then Exit V is String;
+    if Named = 'char'    then Exit V is Char;
+    if Named = 'boolean' then Exit V is Boolean;
+
+    raise 'No test for type ' + Str (Named) + '.';
+end
+
+/// The name of a value's type, for a cast's refusal.
+function NameOfType (V : Any) : Any;
+begin
+    if V is VmInstance then Exit V.Klass.Name;
+    if V is VmEnum     then Exit V.TypeName;
+
+    if V is Integer then Exit 'Integer';
+    if V is Double  then Exit 'Double';
+    if V is Char    then Exit 'Char';
+    if V is String  then Exit 'String';
+    if V is Boolean then Exit 'Boolean';
+
+    Exit 'Any';
+end
+
+/// Replaces the top with whether it is of the type its operand names.
 procedure DoIs ();
 var
     Named : Any;
-    V     : Any;
 
 begin
     Named := ToLower (Str (Constants[ReadByte ()]));
-    V     := Pop ();
 
-    // An enumeration MEMBER answers for its own type and no other [ENU-006],
-    // which it can do without the machine knowing what enumerations exist --
-    // the member carries the name.
-    if V is VmEnum then
-    begin
-        Push (ToLower (Str (V.TypeName)) = Named);
+    Push (TypeMatches (Pop (), Named));
+end
 
-        Exit;
-    end
+/// Checks the value on top against a type and leaves it.
+///
+/// # Raises
+///
+/// 'Cannot cast A to B.' when the test fails, which is the interpreter's
+/// wording.
+procedure DoCast ();
+var
+    Written : Any;
+    V       : Any;
 
-    if Named = 'integer' then Push (V is Integer);
-    else if Named = 'double'  then Push (V is Double);
-    else if Named = 'string'  then Push (V is String);
-    else if Named = 'char'    then Push (V is Char);
-    else if Named = 'boolean' then Push (V is Boolean);
-    else raise 'No test for type ' + Str (Named) + '.';
+begin
+    Written := Constants[ReadByte ()];
+    V       := PeekAt (0);
+
+    // nil satisfies every type [VAR-005], so it passes every cast rather than
+    // being tested at all.
+    if V = Nil then Exit;
+
+    if not TypeMatches (V, ToLower (Str (Written))) then
+        raise 'Cannot cast ' + Str (NameOfType (V)) + ' to '
+            + Str (Written) + '.';
 end
 
 /// Replaces the top with whether it was falsey.
@@ -646,13 +744,13 @@ end
 ///
 /// # Raises
 ///
-/// The arity message on a mismatch, and 'The call stack overflowed.' past
-/// FRAME_ROOM.
-procedure EnterFrame (Callee : Any, Count : Integer);
+/// Mismatch on the wrong argument count, supplied by the caller because a
+/// METHOD reports a selection failure where a subprogram and a constructor
+/// report the counts [0049], and 'The call stack overflowed.' past FRAME_ROOM.
+procedure EnterFrame (Callee : Any, Count : Integer, Mismatch : String);
 begin
     if Count <> Callee.Arity then
-        raise 'Expected ' + Str (Callee.Arity) + ' arguments but got '
-            + Str (Count) + '.';
+        raise Mismatch;
 
     if FrameDepth >= FRAME_ROOM then raise 'The call stack overflowed.';
 
@@ -706,14 +804,19 @@ begin
             Exit;
         end
 
-        EnterFrame (Setup, Count);
+        EnterFrame (Setup, Count, 'Expected ' + Str (Setup.Arity)
+                                + ' arguments but got ' + Str (Count) + '.');
 
         Exit;
     end
 
     if not (Callee is VmFunction) then raise 'Can only call a subprogram.';
 
-    EnterFrame (Callee, Count);
+    // A plain subprogram and a constructor report the COUNTS; only a METHOD
+    // reports a selection failure.  0049-call-failures draws the line and all
+    // five of its reports are compared, so the split is not a choice.
+    EnterFrame (Callee, Count, 'Expected ' + Str (Callee.Arity)
+                             + ' arguments but got ' + Str (Count) + '.');
 end
 
 /// Replaces the top two -- a collection and an index -- with the element.
@@ -927,7 +1030,7 @@ begin
         if Found = Nil then
             raise Str (Self.Klass.Name) + ' has no method ' + Str (Name) + '.';
 
-        EnterFrame (Found, Count);
+        EnterFrame (Found, Count, 'No matching signature for function.');
 
         Exit;
     end
@@ -1030,6 +1133,84 @@ begin
     Push (PeekAt (0).AddMember (Constants[ReadByte ()]));
 end
 
+/// Duplicates the value on top.
+procedure DoDup ();
+begin
+    Push (PeekAt (0));
+end
+
+/// Opens a protected region.
+///
+/// # Raises
+///
+/// 'Too many nested try blocks.' past TRY_ROOM.
+procedure DoTry ();
+var
+    Distance : Integer;
+
+begin
+    Distance := ReadShort ();
+
+    if TryDepth >= TRY_ROOM then raise 'Too many nested try blocks.';
+
+    TryIP[TryDepth]    := IP + Distance;
+    TryOf[TryDepth]    := Running;
+    TryFrame[TryDepth] := FrameDepth;
+    TryBase[TryDepth]  := Base;
+    TrySP[TryDepth]    := SP;
+
+    TryDepth := TryDepth + 1;
+end
+
+/// Closes the innermost protected region.
+procedure DoUntry ();
+begin
+    if TryDepth > 0 then TryDepth := TryDepth - 1;
+end
+
+/// Unwinds to the innermost handler and leaves the raised value for it.
+///
+/// Answers whether a handler was found.  A raise with none is the program's
+/// error escaping, which the caller turns back into a host exception so the
+/// driver reports it the way the interpreter does.
+function Unwind (Value : Any) : Boolean;
+begin
+    if TryDepth = 0 then Exit False;
+
+    TryDepth := TryDepth - 1;
+
+    // Every frame opened since the `try` goes, which is what lets a handler
+    // several calls above the raise still run.
+    FrameDepth := TryFrame[TryDepth] as Integer;
+    Base       := TryBase[TryDepth] as Integer;
+    SP         := TrySP[TryDepth] as Integer;
+
+    Running   := TryOf[TryDepth] as Chunk;
+    CodeBytes := Running.Code;
+    Constants := Running.Constants;
+    IP        := TryIP[TryDepth] as Integer;
+
+    Push (Value);
+
+    Exit True;
+end
+
+/// Pops a value and raises it.
+///
+/// # Raises
+///
+/// The value, as a host exception, when nothing is protecting it -- which is
+/// how an uncaught raise reaches the driver.
+procedure DoRaise ();
+var
+    Value : Any;
+
+begin
+    Value := Pop ();
+
+    if not Unwind (Value) then raise Str (Value);
+end
+
 /// Replaces a collection with a List of what `for ... in` would visit.
 ///
 /// Built by iterating it with the HOST's own `for ... in`, so a Map yields its
@@ -1082,6 +1263,24 @@ var
 begin
     Name  := ToLower (Str (Constants[ReadByte ()]));
     Count := ReadByte ();
+
+    // Write and WriteLn take any number [RT-015], so they are handled before
+    // the fixed-arity arms rather than needing one arm per count.
+    if Name = 'write' or Name = 'writeln' then
+    begin
+        var Given := List ();
+
+        for var I : Integer := 0; I < Count; I := I + 1 do
+            Given.Insert (0, Pop ());
+
+        for var Each in Given do Write (Each);
+
+        if Name = 'writeln' then WriteLn (Str (''));
+
+        Push (Nil);
+
+        Exit;
+    end
 
     // Popped in reverse, because the arguments were pushed in order.
     if Count >= 3 then C := Pop ();
@@ -1161,6 +1360,17 @@ begin
         if Name = 'str'  then begin Push (Str (A, B, C));  Exit; end
         if Name = 'pos'  then begin Push (Pos (A, B, C));  Exit; end
     end
+
+    // The interpreter names the arities it accepts rather than the name of
+    // the built-in, and the two reports are compared.
+    if Name = 'str' then
+        raise 'Expected 1, 2 or 3 arguments but got ' + Str (Count) + '.';
+
+    if Name = 'pos' then
+        raise 'Expected 2 or 3 arguments but got ' + Str (Count) + '.';
+
+    if Name = 'buffer' or Name = 'set' then
+        raise 'Expected 0 or 1 arguments but got ' + Str (Count) + '.';
 
     raise 'No built-in ' + Str (Name) + ' takes ' + Str (Count) + ' arguments.';
 end
@@ -1282,16 +1492,26 @@ end
 /// Stores a value in a field, leaving the value on the stack.
 procedure DoSetField ();
 var
-    Named : Any;
-    Self  : Any;
-    Value : Any;
+    Written : Any;
+    Named   : Any;
+    Self    : Any;
+    Value   : Any;
 
 begin
-    Named := ToLower (Str (Constants[ReadByte ()]));
-    Value := Pop ();
-    Self  := Pop ();
+    // Both spellings kept, for the reason DoGetField gives -- and the WRITTEN
+    // one has to be captured here rather than recovered from IP afterwards,
+    // which indexed the constants by a code offset instead.
+    Written := Constants[ReadByte ()];
+    Named   := ToLower (Str (Written));
+    Value   := Pop ();
+    Self    := Pop ();
 
     if not (Self is VmInstance) then raise 'Only an instance has fields.';
+
+    // An instance is CLOSED [0169]: a field the class never declared cannot be
+    // created by writing to it, which is what tells a typo from a new member.
+    if not Self.Fields.Contains (Named) then
+        raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
 
     Self.Fields.Put (Named, Value);
 
@@ -1356,6 +1576,11 @@ begin
     Table[OP_GET_FIELD]     := DoGetField;
     Table[OP_SET_FIELD]     := DoSetField;
     Table[OP_WIDEN]         := DoWiden;
+    Table[OP_CAST]          := DoCast;
+    Table[OP_DUP]           := DoDup;
+    Table[OP_TRY]           := DoTry;
+    Table[OP_UNTRY]         := DoUntry;
+    Table[OP_RAISE]         := DoRaise;
     Table[OP_ENUM]          := DoEnum;
     Table[OP_ENUM_MEMBER]   := DoEnumMember;
     Table[OP_ITER]          := DoIter;
@@ -1418,15 +1643,30 @@ begin
     SP         := 0;
     Base       := 0;
     FrameDepth := 0;
+    TryDepth   := 0;
     Answer     := Nil;
     Live       := True;
 
+    // Two loops, and the outer one is what makes a RUNTIME error catchable
+    // [STM-020].  A host error arrives as a String -- 'Division by zero.',
+    // 'Index out of range.' -- and is turned into a raise of that String, so a
+    // program can catch the language's own diagnostics.  One try for the whole
+    // run rather than one per instruction: the cost is paid on the way IN, and
+    // re-entered only when something is actually caught.
     while Live do
-    begin
-        var Op := ReadByte ();
+        try
+            while Live do
+            begin
+                var Op := ReadByte ();
 
-        Dispatch[Op] ();
-    end
+                Dispatch[Op] ();
+            end
+        except
+            on e : String do
+                // Nothing protecting it means the program's error escapes,
+                // and it escapes as the same String the interpreter reports.
+                if not Unwind (e) then raise e;
+        end
 
     Exit Answer;
 end
@@ -1909,7 +2149,7 @@ begin
     AssertEqual (0, SP);
 end
 
-test 'A Call With The Wrong Count Says What Was Expected';
+test 'A Subprograms Wrong Count Names The Counts';
 begin
     var F := VmFunction ('Twice', 1);
     F.Body.Emit (OP_NIL);
@@ -1925,8 +2165,8 @@ begin
         Fail ('expected a raise');
     except
         on e : String do
-            // The interpreter's wording, which carries no name -- and the
-            // two are compared, so this matches rather than improves on it.
+            // A subprogram and a constructor name the counts; only a METHOD
+            // reports a selection failure [0049].
             AssertEqual ('Expected 1 arguments but got 0.', e);
     end
 end
@@ -2389,4 +2629,119 @@ begin
     D.Emit (OP_RETURN);
 
     AssertEqual (Str ('k'), Str (RunChunk (D)[0]));
+end
+
+test 'A Raise Unwinds To The Innermost Handler';
+begin
+    var C := Chunk ();
+
+    var Opened := C.EmitJump (OP_TRY);
+    C.EmitConstant (42);
+    C.Emit (OP_RAISE);
+    C.Emit (OP_UNTRY);
+    var Survived := C.EmitJump (OP_JUMP);
+
+    C.PatchJump (Opened);
+    C.Emit (OP_RETURN);                       // the raised value is on top
+
+    C.PatchJump (Survived);
+    C.Emit (OP_NIL);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C) as Integer);
+end
+
+test 'A Raise Carries Any Value, Not Only A String';
+begin
+    // The machine unwinds its OWN handler stack rather than using a host
+    // exception, which is what lets a raise carry an instance or a number
+    // [STM-016] -- a host exception carries a String.
+    var K := VmClass ('Boom');
+
+    var C := Chunk ();
+
+    var Opened := C.EmitJump (OP_TRY);
+    C.EmitConstant (K);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RAISE);
+    C.Emit (OP_UNTRY);
+    var Survived := C.EmitJump (OP_JUMP);
+
+    C.PatchJump (Opened);
+    C.Emit (OP_RETURN);
+
+    C.PatchJump (Survived);
+    C.Emit (OP_NIL);
+    C.Emit (OP_RETURN);
+
+    AssertTrue (RunChunk (C) is VmInstance);
+end
+
+test 'A Host Error Is Catchable As A String';
+begin
+    // The language's own diagnostics are catchable [STM-020], which is what
+    // the try around the dispatch loop is for: a host error arrives as a
+    // String and becomes a raise of it.
+    var C := Chunk ();
+
+    var Opened := C.EmitJump (OP_TRY);
+    C.EmitConstant (7);
+    C.EmitConstant (0);
+    C.Emit (OP_DIV);
+    C.Emit (OP_UNTRY);
+    var Survived := C.EmitJump (OP_JUMP);
+
+    C.PatchJump (Opened);
+    C.Emit (OP_RETURN);
+
+    C.PatchJump (Survived);
+    C.Emit (OP_NIL);
+    C.Emit (OP_RETURN);
+
+    AssertTrue (Pos (ToLower (Str (RunChunk (C))), 'zero') >= 0);
+end
+
+test 'A Handler Several Frames Above The Raise Still Runs';
+begin
+    // Unwinding discards every frame opened since the try, which is the whole
+    // reason a handler records the call depth it was opened at.
+    var Deep := VmFunction ('Deep', 0);
+    Deep.Body.EmitConstant ('from inside');
+    Deep.Body.Emit (OP_RAISE);
+    Deep.Body.Emit (OP_NIL);
+    Deep.Body.Emit (OP_RETURN);
+
+    var C := Chunk ();
+
+    var Opened := C.EmitJump (OP_TRY);
+    C.EmitConstant (Deep);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_UNTRY);
+    var Survived := C.EmitJump (OP_JUMP);
+
+    C.PatchJump (Opened);
+    C.Emit (OP_RETURN);
+
+    C.PatchJump (Survived);
+    C.Emit (OP_NIL);
+    C.Emit (OP_RETURN);
+
+    AssertEqual ('from inside', Str (RunChunk (C)));
+    AssertEqual (0, FrameDepth);
+end
+
+test 'An Uncaught Raise Escapes As The Interpreter Reports It';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant ('no handler');
+    C.Emit (OP_RAISE);
+    C.Emit (OP_RETURN);
+
+    try
+        RunChunk (C);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('no handler', e);
+    end
 end

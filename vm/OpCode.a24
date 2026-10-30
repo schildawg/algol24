@@ -312,6 +312,43 @@ const OP_ENUM := 48;
 /// interned object.
 const OP_ENUM_MEMBER := 49;
 
+/// Duplicates the value on top.
+///
+/// Wanted by the handler chain an `except` compiles to: each arm tests the
+/// raised value's type and must leave it for the next arm to test.
+const OP_DUP := 50;
+
+/// Opens a protected region.  Two operands: the distance to its handlers.
+///
+/// Records where to resume, how deep the call stack was, and how deep the
+/// value stack was -- so a raise from several frames down can put all three
+/// back before the handler runs.
+const OP_TRY := 51;
+
+/// Closes the innermost protected region without raising.
+const OP_UNTRY := 52;
+
+/// Pops a value and raises it.
+///
+/// It does NOT travel as a host exception, because a raised value may be any
+/// value at all and a host exception carries a String.  The machine unwinds
+/// its own handler stack instead.
+///
+/// A host error is the other direction: it arrives as a String and is turned
+/// into a raise of that String, which is what makes a runtime error catchable
+/// [STM-020].
+const OP_RAISE := 53;
+
+/// Checks the value on top against a type and leaves it.  One operand: the
+/// constant index of the type's name.
+///
+/// `as` is a CHECK and not a conversion: it answers the same value or raises.
+/// nil satisfies every type [VAR-005] and so passes every cast.
+///
+/// The test is the one `is` uses, which is what makes a cast to a base class
+/// succeed for a derived value.
+const OP_CAST := 54;
+
 /// Calls a built-in.  Two operands: the constant index of its NAME, and the
 /// argument count.
 ///
@@ -324,13 +361,13 @@ const OP_ENUM_MEMBER := 49;
 ///
 /// 'No built-in N takes C arguments.' for a pairing the machine has no arm
 /// for, which is a gap in the machine rather than an error in a program.
-const OP_BUILTIN := 50;
+const OP_BUILTIN := 55;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 51;
+const OP_RETURN := 56;
 
 /// How many opcodes there are.
-const OP_COUNT := 52;
+const OP_COUNT := 57;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -385,6 +422,11 @@ begin
     if Op = OP_GET_FIELD     then Exit 'OP_GET_FIELD';
     if Op = OP_SET_FIELD     then Exit 'OP_SET_FIELD';
     if Op = OP_WIDEN         then Exit 'OP_WIDEN';
+    if Op = OP_CAST          then Exit 'OP_CAST';
+    if Op = OP_DUP           then Exit 'OP_DUP';
+    if Op = OP_TRY           then Exit 'OP_TRY';
+    if Op = OP_UNTRY         then Exit 'OP_UNTRY';
+    if Op = OP_RAISE         then Exit 'OP_RAISE';
     if Op = OP_ENUM          then Exit 'OP_ENUM';
     if Op = OP_ENUM_MEMBER   then Exit 'OP_ENUM_MEMBER';
     if Op = OP_ITER          then Exit 'OP_ITER';
@@ -406,6 +448,7 @@ begin
     if Op = OP_SET_GLOBAL    then Exit 1;
     if Op = OP_CALL          then Exit 1;
     if Op = OP_IS            then Exit 1;
+    if Op = OP_CAST          then Exit 1;
     if Op = OP_LIST          then Exit 1;
     if Op = OP_MAP           then Exit 1;
     if Op = OP_PROPERTY      then Exit 1;
@@ -426,6 +469,7 @@ begin
     if Op = OP_JUMP          then Exit 2;
     if Op = OP_JUMP_IF_FALSE then Exit 2;
     if Op = OP_LOOP          then Exit 2;
+    if Op = OP_TRY           then Exit 2;
 
     Exit 0;
 end

@@ -113,14 +113,14 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **90 identical, 97 refused by
+  exactly as `conform.sh` renders it. Currently **116 identical, 71 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
 
-  With functions and call frames in, `Fib (27)` runs in **0.79 s on the VM
-  against 6.26 s interpreted** — both native binaries, so that 7.9× is bytecode
-  against an AST walk.
+  `Fib (27)` runs in **0.91 s on the VM against 6.24 s interpreted** — both
+  native binaries, so that 6.9× is bytecode against an AST walk. It was 0.79 s
+  before exceptions: the `try` around the dispatch loop costs about 15%.
 
   ⚠️ **A global slot must mean the same thing in every chunk of one program.**
   A table per chunk let a subprogram resolve its own name to slot 0 of its own
@@ -181,6 +181,37 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   Missing any of them is a quietly wrong number rather than a failure. A
   subrange annotation is refused, because its bounds live in the compiler's
   table and a chunk cannot reach them.
+
+  ⚠️ **Exceptions are a handler stack, not `setjmp`.** `OP_TRY` records where
+  to resume **and the call depth and stack depth** it was opened at, so a raise
+  several frames down puts all three back before the handler runs. A raise does
+  **not** travel as a host exception, because a raised value may be any value
+  and a host exception carries a String.
+
+  ⚠️ **One `try` wraps the whole dispatch loop**, which is what makes a runtime
+  error catchable [STM-020] — a host error arrives as a String and becomes a
+  raise of it. One try for the run rather than one per instruction, and it
+  still costs about 15%.
+
+  ⚠️ **`except` arms are ordered MOST DERIVED FIRST by the emitter**, because
+  they compile to a chain of type tests that runs in order — so the order *is*
+  the selection rule [STM-018]. The catch-all is keyed `'default'` by the
+  Parser and always goes last.
+
+  ⚠️ **Three places where writing or reading does less than it looks.** Writing
+  to a global does **not** bind it — only a declaration does [0044]. An
+  instance is **closed**: writing an undeclared field raises rather than
+  creating one [0169]. And `as` is a **check**, not a conversion — dropping it
+  silently made `'text' as Integer` answer `'text'`.
+
+  ⚠️ **A method's wrong argument count reports a selection failure where a
+  subprogram's and a constructor's report the counts** [0049]. All five reports
+  in that one case are compared, so the split is not a style choice.
+
+  ⚠️ **Subprograms, classes and enums are HOISTED; a `var` is not.** A class is
+  hoisted but its **parent is attached in source order** — binding the parent
+  early reported `Undefined variable` for a name the program had declared
+  perfectly well [0112].
 
   ⚠️ **An enum member with ordinal 0 is FALSEY, and the host cannot tell.**
   It sees one of the machine's objects and calls every object truthy, so

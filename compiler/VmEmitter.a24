@@ -89,6 +89,13 @@ begin
     Exit ToLower (Str (Op.Lexeme));
 end
 
+/// Each declared class's parent, keyed by lowercased name.
+///
+/// Kept so that `except` can order its handlers MOST DERIVED FIRST, which
+/// [STM-018] requires however the program wrote them: the chain of type tests
+/// an except compiles to runs in order, so the order is the selection.
+var CLASS_PARENTS := Map ();
+
 /// The enumerations this program declares, lowercased.
 ///
 /// Kept so that `X is Colour` can be emitted: the machine answers `is` for the
@@ -333,8 +340,97 @@ begin
         end
 end
 
-/// Emits one expression, leaving its value on the stack.
+/// How many classes lie between a name and the root of its hierarchy.
+///
+/// A name that is not a declared class answers 0, which puts a primitive and
+/// an enumeration alongside a base class -- none of them can be a subclass of
+/// another handler's type, so their relative order cannot matter.
+function Derivation (Named : Any) : Integer;
+var
+    Depth : Integer;
+    Where : Any;
+
+begin
+    Depth := 0;
+    Where := ToLower (Str (Named));
+
+    while CLASS_PARENTS.Contains (Where) do
+    begin
+        var Parent := CLASS_PARENTS.Get (Where);
+
+        if Parent = '' then Exit Depth;
+
+        Depth := Depth + 1;
+        Where := ToLower (Str (Parent));
+    end
+
+    Exit Depth;
+end
+
+/// The handler type names, most derived first.
+///
+/// A plain insertion sort on Derivation, because [STM-018] asks only that a
+/// subclass be tested before its superclass -- and the chain of tests runs in
+/// whatever order this answers, so the order IS the selection rule.
+function HandlersInOrder (Handlers : Map) : List;
+var
+    Ordered : List;
+
+begin
+    Ordered := List ();
+
+    for var Named in Handlers do
+    begin
+        var At := 0;
+
+        while At < Ordered.Length
+          and Derivation (Ordered[At]) >= Derivation (Named) do At := At + 1;
+
+        Ordered.Insert (At, Named);
+    end
+
+    Exit Ordered;
+end
+
+/// Emits one expression, leaving its value on the stack, and applies the cast
+/// written on it if any.
+///
+/// A wrapper rather than a case in the walker, because `as` binds at the unary
+/// level and so can appear on ANY node -- and EmitBare has an Exit per kind,
+/// so there is no one place inside it to put this.  Dropping the cast silently
+/// was a wrong answer: `'text' as Integer` simply answered 'text'.
 procedure EmitExpr (TheExpr : Any);
+begin
+    EmitBare (TheExpr);
+
+    if TheExpr = Nil then Exit;
+    if Str (TheExpr.Cast) = '' then Exit;
+
+    var Named := ToLower (Str (TheExpr.Cast));
+
+    // The machine tests primitives, enumerations and classes; a subrange is a
+    // RANGE check against bounds it cannot reach.
+    var Known := Named = 'integer' or Named = 'double' or Named = 'string'
+              or Named = 'char'    or Named = 'boolean';
+
+    for var Declared in ENUM_NAMES do
+        if Declared = Named then Known := True;
+
+    if CLASS_PARENTS.Contains (Named) then Known := True;
+
+    if not Known then Refuse ('as ' + Str (TheExpr.Cast));
+
+    // AddConstant directly: Cast is a STRING where ClassNameConstant takes a
+    // Token and reads its Lexeme.
+    var At := Into.AddConstant (Str (TheExpr.Cast));
+
+    if At > 255 then Refuse ('A chunk with more than 256 constants');
+
+    Into.EmitWith (OP_CAST, At);
+end
+
+/// Emits one expression, ignoring any cast written on it.
+procedure EmitBare (TheExpr : Any);
 begin
     if TheExpr = Nil then
     begin
@@ -542,6 +638,10 @@ begin
         // because a member carries its own type's name [ENU-006].
         for var Declared in ENUM_NAMES do
             if Declared = Named then Known := True;
+
+        // And a declared class, which the machine answers by walking the
+        // instance's own chain [STM-017].
+        if CLASS_PARENTS.Contains (Named) then Known := True;
 
         if not Known then
             Refuse ('''is ' + Str (TheExpr.TypeName.Lexeme) + '''');
@@ -762,6 +862,47 @@ begin
     Exit;
 end
 
+/// Emits one `except` arm, with the raised value bound to its name.
+///
+/// The value is already on the stack, so the binding is a local in the arm's
+/// own scope -- which PopScope then discards, leaving the stack where the
+/// `try` left it.
+procedure EmitHandlerArm (Arm : Any);
+begin
+    PushScope ();
+
+    AddLocal (Arm.Name);
+
+    EmitStmt (Arm.Body);
+
+    PopScope ();
+end
+
+/// Emits the inheritance a class declaration asks for, where it is WRITTEN.
+///
+/// Separate from the class itself because the class is HOISTED -- it has to be
+/// callable above its own declaration [0044] -- while its parent is an
+/// ordinary global that may be assigned below the hoisted position.  Binding
+/// the parent early reported 'Undefined variable' for a name the program had
+/// declared perfectly well [0112], so the two halves run at different times:
+/// the class is made early and its parent attached in source order.
+///
+/// # Raises
+///
+/// Whatever RequireGlobal raises, for a parent that is not a known global.
+procedure EmitInheritance (TheStmt : Any);
+begin
+    if TheStmt.Superclass = Nil then Exit;
+
+    RequireGlobal (TheStmt.Superclass.Name);
+
+    Into.EmitWith (OP_GET_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+    Into.EmitWith (OP_GET_GLOBAL,
+                   Script.GlobalSlot (TheStmt.Superclass.Name.Lexeme));
+    Into.EmitWith (OP_INHERIT, ClassNameConstant (TheStmt.Superclass.Name));
+    Into.Emit (OP_POP);
+end
+
 /// Emits a class declaration.
 ///
 /// The class is built on the stack -- OP_CLASS, then an OP_FIELD per field and
@@ -782,15 +923,6 @@ begin
     if TheStmt.PrivateMembers.Length > 0 then Refuse ('A private member');
 
     Into.EmitWith (OP_CLASS, ClassNameConstant (TheStmt.Name));
-
-    if TheStmt.Superclass <> Nil then
-    begin
-        RequireGlobal (TheStmt.Superclass.Name);
-
-        Into.EmitWith (OP_GET_GLOBAL,
-                       Script.GlobalSlot (TheStmt.Superclass.Name.Lexeme));
-        Into.EmitWith (OP_INHERIT, ClassNameConstant (TheStmt.Superclass.Name));
-    end
 
     for var TheField in TheStmt.Fields do
         Into.EmitWith (OP_FIELD, ClassNameConstant (TheField.Name));
@@ -1083,6 +1215,74 @@ begin
         Exit;
     end
 
+    if Kind = 'TryStmt' then
+    begin
+        var Opened := Into.EmitJump (OP_TRY);
+
+        EmitStmt (TheStmt.TryBlock);
+
+        Into.Emit (OP_UNTRY);
+
+        var Survived := Into.EmitJump (OP_JUMP);
+
+        // The handlers begin here, and the raised value is on the stack --
+        // Unwind left it there.
+        Into.PatchJump (Opened);
+
+        var Leaving := List ();
+        var CatchAll : Any := Nil;
+
+        for var Named in HandlersInOrder (TheStmt.Handlers) do
+        begin
+            var Arm := TheStmt.Handlers.Get (Named);
+
+            // The untyped handler is keyed 'default' by the Parser, which is
+            // also where a trailing statement with no `on` at all ends up --
+            // both are the catch-all [STM-019].  It goes LAST however the
+            // program wrote it, because an earlier arm would make every later
+            // one unreachable.
+            if ToLower (Str (Named)) = 'default' then CatchAll := Arm;
+            else
+            begin
+                Into.Emit (OP_DUP);
+                Into.EmitWith (OP_IS, Into.AddConstant (Str (Named)));
+
+                var Next := Into.EmitJump (OP_JUMP_IF_FALSE);
+                Into.Emit (OP_POP);
+
+                EmitHandlerArm (Arm);
+
+                Leaving.Add (Into.EmitJump (OP_JUMP));
+
+                Into.PatchJump (Next);
+                Into.Emit (OP_POP);
+            end
+        end
+
+        if CatchAll <> Nil then EmitHandlerArm (CatchAll);
+        else
+        begin
+            // Nothing matched, so the raise continues outward -- which is what
+            // makes a handler for the wrong type transparent rather than a
+            // silent swallow.
+            Into.Emit (OP_RAISE);
+        end
+
+        for var Hole in Leaving do Into.PatchJump (Hole);
+
+        Into.PatchJump (Survived);
+
+        Exit;
+    end
+
+    if Kind = 'RaiseStmt' then
+    begin
+        EmitExpr (TheStmt.Value);
+        Into.Emit (OP_RAISE);
+
+        Exit;
+    end
+
     if Kind = 'EnumStmt' then
     begin
         Into.EmitWith (OP_ENUM, ClassNameConstant (TheStmt.Name));
@@ -1262,6 +1462,12 @@ begin
                 Refuse ('A redeclaration of ''' + Str (TheStmt.Name.Lexeme) + '''');
 
             Script.GlobalSlot (TheStmt.Name.Lexeme);
+
+            var Parent := '';
+            if TheStmt.Superclass <> Nil then
+                Parent := Str (TheStmt.Superclass.Name.Lexeme);
+
+            CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
         end
 
         if Kind = 'FunctionStmt' then
@@ -1292,6 +1498,17 @@ begin
     end
 end
 
+/// Whether a declaration is visible above where it is written.
+///
+/// A subprogram, a class and an enumeration are; a `var` is not, which is the
+/// distinction 0044-variables-are-not-hoisted exists to draw.
+function Hoisted (TheStmt : Any) : Boolean;
+begin
+    var Kind := KindOf (TheStmt);
+
+    Exit Kind = 'FunctionStmt' or Kind = 'ClassStmt' or Kind = 'EnumStmt';
+end
+
 /// Compiles a parsed program into a chunk ending in OP_RETURN.
 ///
 /// # Raises
@@ -1307,11 +1524,29 @@ begin
     Depth       := 0;
     ModuleDepth := 0;
     Returning   := '';
-    ENUM_NAMES  := List ();
+    ENUM_NAMES    := List ();
+    CLASS_PARENTS := Map ();
 
     ClaimGlobalSlots (Statements, 1);
 
-    for var TheStmt in Statements do EmitStmt (TheStmt);
+    // DECLARATIONS FIRST, because a function is visible above its own
+    // declaration and so is a class [0044, 0122].  Claiming the slot is not
+    // enough: the slot has to be DEFINED before a statement above it runs, or
+    // the call reports the name undefined.
+    //
+    // A `var` is not hoisted -- 'variables are not hoisted' is the other half
+    // of 0044 -- so only subprograms, classes and enumerations move.
+    for var TheStmt in Statements do
+        if Hoisted (TheStmt) then EmitStmt (TheStmt);
+
+    for var TheStmt in Statements do
+    begin
+        if not Hoisted (TheStmt) then EmitStmt (TheStmt);
+
+        // A hoisted class's PARENT is attached here, in source order, for the
+        // reason EmitInheritance gives.
+        if KindOf (TheStmt) = 'ClassStmt' then EmitInheritance (TheStmt);
+    end
 
     // Something must be on the stack for OP_RETURN to answer.
     Into.Emit (OP_NIL);
