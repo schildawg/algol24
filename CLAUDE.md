@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **131 identical, 56 refused by
+  exactly as `conform.sh` renders it. Currently **132 identical, 55 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
@@ -181,6 +181,20 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   Missing any of them is a quietly wrong number rather than a failure. A
   subrange annotation is refused, because its bounds live in the compiler's
   table and a chunk cannot reach them.
+
+  ⚠️ **Closures BOX rather than closing over stack slots**, which is what
+  `CEmitter` already does for the same problem — so there is no open-upvalue
+  list and nothing to close. A subprogram that declares a nested one boxes
+  **every** local, conservatively, because working out exactly which are
+  captured needs a free-variable analysis and boxing too many costs only an
+  indirection. Capture-by-reference, outliving the call, and a fresh set per
+  call [FUN-009, FUN-010] all fall out of the cell being heap-allocated.
+  **One level of nesting**; two would need a capture to come from a capture,
+  which is the distinction clox draws with its is-local flag.
+
+  ⚠️ **Closures were ONE corpus case.** Measure the refusal list before
+  choosing what to build: overloads are 8 cases, private members 5, nested
+  `uses` 5. The biggest remaining *piece of work* was nearly the smallest gain.
 
   ⚠️ **`is` and `as` are not the same rule, in two places.** `nil` has **no
   type**, so `nil is X` is false for every X — but a *cast* passes nil, by

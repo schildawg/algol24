@@ -1,0 +1,102 @@
+/// A captured variable, and a subprogram holding some.
+///
+/// clox captures a stack SLOT and closes it over when the scope exits -- its
+/// upvalues point into the stack while the frame is live.  This boxes instead,
+/// which is what `CEmitter` already does for the same problem: a local that a
+/// nested subprogram can see lives in a cell from the moment it is declared,
+/// so there is no open-upvalue list and nothing to close.
+///
+/// The three things [FUN-009] and [FUN-010] ask for fall out of that.  Capture
+/// is BY REFERENCE because both subprograms hold the same cell.  It OUTLIVES
+/// the call because the cell is not on the stack.  And each call gets a FRESH
+/// set because each call makes new cells.
+unit VmCell;
+
+uses VmFunction;
+
+/// One captured variable.
+class VmCell;
+var
+    /// What it holds.
+    Held : Any;
+
+begin
+    /// Makes a cell around a value.
+    constructor Init (Held : Any);
+    begin
+        this.Held := Held;
+    end
+end
+
+/// A subprogram together with the cells it captured.
+///
+/// Separate from VmFunction because the FUNCTION is shared by every closure
+/// made from it while the CELLS are not -- which is exactly what [FUN-010]
+/// requires, and what one object holding both could not express.
+class VmClosure;
+var
+    /// The subprogram, whose chunk and arity this borrows.
+    Body  : VmFunction;
+
+    /// The captured cells, in the order the enclosing subprogram declared
+    /// them -- so a cell's index here is its local slot there.
+    Cells : List;
+
+    /// How many arguments a call must supply, which is the subprogram's.
+    ///
+    /// A FIELD and not a method, because VmFunction has it as a field and
+    /// EnterFrame reads `Callee.Arity` without asking which it has -- as a
+    /// method it answered the method OBJECT, and the arity check compared a
+    /// count against `<fn Arity>`.
+    Arity : Integer;
+
+begin
+    /// Makes a closure over a subprogram and some cells.
+    constructor Init (Body : VmFunction, Cells : List);
+    begin
+        this.Body  := Body;
+        this.Cells := Cells;
+        this.Arity := Body.Arity;
+    end
+
+    /// How it reads in a message, which is the subprogram's name.
+    function Describe () : String;
+    begin
+        Exit this.Body.Describe ();
+    end
+end
+
+test 'A Cell Is Shared Rather Than Copied';
+begin
+    // Capture is BY REFERENCE [FUN-009], which is the whole reason a cell
+    // exists rather than a copy of the value.
+    var C := VmCell (1);
+    var Both := [C, C];
+
+    Both[0].Held := 9;
+
+    AssertEqual (9, Both[1].Held as Integer);
+end
+
+test 'Two Closures Over One Subprogram Hold Different Cells';
+begin
+    // Each call to the enclosing subprogram makes a FRESH set [FUN-010], so
+    // two counters do not share a count.
+    var F := VmFunction ('Next', 0);
+
+    var First  := VmClosure (F, [VmCell (0)]);
+    var Second := VmClosure (F, [VmCell (0)]);
+
+    First.Cells[0].Held := 5;
+
+    AssertEqual (0, Second.Cells[0].Held as Integer);
+    AssertTrue (First.Body = Second.Body);
+end
+
+test 'A Closure Borrows Its Subprograms Arity And Name';
+begin
+    var C := VmClosure (VmFunction ('Next', 2), []);
+
+    AssertEqual (2, C.Arity);
+    AssertEqual ('Next', C.Describe ());
+end

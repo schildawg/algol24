@@ -33,6 +33,7 @@ uses 'vm/Chunk';
 uses 'vm/VmFunction';
 uses 'vm/VmClass';
 uses 'vm/VmEnum';
+uses 'vm/VmCell';
 
 /// What the emitter is building, for the duration of one CompileProgram.
 var Into : Chunk := Nil;
@@ -108,6 +109,22 @@ var CLASS_PARENTS := Map ();
 /// else -- so the emitter has to know which names are which.
 var ENUM_NAMES := List ();
 
+/// The enclosing subprogram's locals, when compiling a nested one.
+///
+/// Empty at every other time.  A name found here and not in Locals is a
+/// CAPTURE, read with OP_GET_CELL at the index it has here -- which is the
+/// enclosing slot, and therefore the index OP_CLOSURE captured it into.
+var Outer : List := List ();
+
+/// Whether the subprogram being compiled holds its locals in CELLS.
+///
+/// True when it declares a nested subprogram, in which case EVERY local and
+/// parameter is boxed rather than only the ones actually captured -- which is
+/// what `CEmitter` does for the same problem.  Boxing too many costs an
+/// indirection; working out exactly which are captured costs a free-variable
+/// analysis, and the conservative answer is always correct.
+var Boxing : Boolean := False;
+
 /// The return type of the subprogram being compiled, or '' at the top level.
 ///
 /// Held so that `Exit X` can widen to it -- a declared return type is an
@@ -167,6 +184,23 @@ begin
     Depths.Add (Depth);
 
     Exit Locals.Length - 1;
+end
+
+/// The index a name has as a CAPTURE, or -1 when it is not one.
+///
+/// Searched innermost-outward like LocalSlot, and consulted only after it --
+/// a nested subprogram's own local shadows an enclosing one of the same name.
+function CapturedSlot (Name : Any) : Integer;
+var
+    Wanted : Any;
+
+begin
+    Wanted := ToLower (Str (Name));
+
+    for var I : Integer := Outer.Length - 1; I >= 0; I := I - 1 do
+        if Outer[I] = Wanted then Exit I;
+
+    Exit -1;
 end
 
 /// The slot a name has as a local, or -1 when it is not one.
@@ -251,6 +285,7 @@ var
     SavedDepths : List;
     SavedDepth  : Integer;
     SavedReturn : Any;
+    SavedBoxing : Boolean;
 
 begin
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
@@ -260,6 +295,7 @@ begin
     SavedDepths := Depths;
     SavedDepth  := Depth;
     SavedReturn := Returning;
+    SavedBoxing := Boxing;
 
     Into   := Made.Body;
     Locals := List ();
@@ -267,9 +303,23 @@ begin
     Depth  := 1;
     Returning := TheStmt.ReturnType;
 
+    // A body that declares a subprogram of its own holds its locals in cells,
+    // so the nested one can capture them by reference [FUN-009].
+    Boxing := DeclaresNested (TheStmt.Body);
+
     for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
 
     WidenParameters (TheStmt);
+
+    // A boxed parameter arrives as a plain value and is wrapped in place.
+    if Boxing then
+        for var I : Integer := 0; I < TheStmt.Params.Length; I := I + 1 do
+        begin
+            Into.EmitWith (OP_GET_LOCAL, I);
+            Into.Emit (OP_CELL);
+            Into.EmitWith (OP_SET_LOCAL, I);
+            Into.Emit (OP_POP);
+        end
 
     for var Inner in TheStmt.Body do EmitStmt (Inner);
 
@@ -283,6 +333,7 @@ begin
     Depths := SavedDepths;
     Depth  := SavedDepth;
     Returning := SavedReturn;
+    Boxing    := SavedBoxing;
 
     Exit Made;
 end
@@ -480,7 +531,12 @@ begin
     begin
         var Slot := LocalSlot (TheExpr.Name.Lexeme);
 
-        if Slot >= 0 then Into.EmitWith (OP_GET_LOCAL, Slot);
+        // A boxed local is read through its cell, which OP_GET_BOX does in one
+        // instruction -- the slot holds the cell and the cell holds the value.
+        if Slot >= 0 and Boxing then Into.EmitWith (OP_GET_BOX, Slot);
+        else if Slot >= 0 then Into.EmitWith (OP_GET_LOCAL, Slot);
+        else if CapturedSlot (TheExpr.Name.Lexeme) >= 0 then
+            Into.EmitWith (OP_GET_CELL, CapturedSlot (TheExpr.Name.Lexeme));
         else
         begin
             // Only a name the pre-pass CLAIMED is a global.  Anything else is
@@ -502,7 +558,10 @@ begin
 
         var Slot := LocalSlot (TheExpr.Name.Lexeme);
 
-        if Slot >= 0 then Into.EmitWith (OP_SET_LOCAL, Slot);
+        if Slot >= 0 and Boxing then Into.EmitWith (OP_SET_BOX, Slot);
+        else if Slot >= 0 then Into.EmitWith (OP_SET_LOCAL, Slot);
+        else if CapturedSlot (TheExpr.Name.Lexeme) >= 0 then
+            Into.EmitWith (OP_SET_CELL, CapturedSlot (TheExpr.Name.Lexeme));
         else
         begin
             RequireGlobal (TheExpr.Name);
@@ -1012,6 +1071,7 @@ var
     SavedDepths : List;
     SavedDepth  : Integer;
     SavedReturn : Any;
+    SavedBoxing : Boolean;
 
 begin
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
@@ -1021,6 +1081,7 @@ begin
     SavedDepths := Depths;
     SavedDepth  := Depth;
     SavedReturn := Returning;
+    SavedBoxing := Boxing;
 
     Into   := Made.Body;
     Locals := List ();
@@ -1048,6 +1109,7 @@ begin
     Depths := SavedDepths;
     Depth  := SavedDepth;
     Returning := SavedReturn;
+    Boxing    := SavedBoxing;
 
     Exit Made;
 end
@@ -1084,6 +1146,7 @@ var
     SavedDepths : List;
     SavedDepth  : Integer;
     SavedReturn : Any;
+    SavedBoxing : Boolean;
 
 begin
     Made := VmFunction ('Init', 0);
@@ -1093,6 +1156,7 @@ begin
     SavedDepths := Depths;
     SavedDepth  := Depth;
     SavedReturn := Returning;
+    SavedBoxing := Boxing;
 
     Into   := Made.Body;
     Locals := List ();
@@ -1110,6 +1174,74 @@ begin
     Depths := SavedDepths;
     Depth  := SavedDepth;
     Returning := SavedReturn;
+    Boxing    := SavedBoxing;
+
+    Exit Made;
+end
+
+/// Compiles a NESTED subprogram, whose enclosing locals it reads as captured
+/// cells rather than as slots.
+///
+/// The cell indices are the enclosing subprogram's local slots, in order,
+/// which is what lets OP_CLOSURE describe the captures as slot numbers -- so
+/// the enclosing names stay visible inside, resolved to OP_GET_CELL instead of
+/// OP_GET_LOCAL.
+///
+/// # Raises
+///
+/// 'A subprogram nested two deep' -- one level is supported, because a second
+/// would need a capture to come from a capture rather than from a slot, which
+/// is the distinction clox draws with its is-local flag.
+function CompileNested (TheStmt : Any) : VmFunction;
+var
+    Made : VmFunction;
+
+    SavedInto    : Chunk;
+    SavedLocals  : List;
+    SavedDepths  : List;
+    SavedDepth   : Integer;
+    SavedReturn  : Any;
+    SavedBoxing  : Boolean;
+    SavedOuter   : List;
+
+begin
+    if Outer.Length > 0 then Refuse ('A subprogram nested two deep');
+
+    Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
+
+    SavedInto   := Into;
+    SavedLocals := Locals;
+    SavedDepths := Depths;
+    SavedDepth  := Depth;
+    SavedReturn := Returning;
+    SavedBoxing := Boxing;
+    SavedOuter  := Outer;
+
+    // The enclosing locals become this one's CAPTURES, in slot order.
+    Outer  := SavedLocals;
+    Into   := Made.Body;
+    Locals := List ();
+    Depths := List ();
+    Depth  := 1;
+    Boxing := False;
+    Returning := TheStmt.ReturnType;
+
+    for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
+
+    WidenParameters (TheStmt);
+
+    for var Inner in TheStmt.Body do EmitStmt (Inner);
+
+    Into.Emit (OP_NIL);
+    Into.Emit (OP_RETURN);
+
+    Into      := SavedInto;
+    Locals    := SavedLocals;
+    Depths    := SavedDepths;
+    Depth     := SavedDepth;
+    Returning := SavedReturn;
+    Boxing    := SavedBoxing;
+    Outer     := SavedOuter;
 
     Exit Made;
 end
@@ -1124,6 +1256,40 @@ begin
     if TheStmt.Symbol <> '' then Refuse ('An external subprogram');
     if TheStmt.IsExtension then Refuse ('An extension');
     if TheStmt.IsProperty then Refuse ('A property');
+
+    // A NESTED subprogram becomes a closure over the enclosing subprogram's
+    // cells, so that a capture is by reference and outlives the call that made
+    // it [FUN-009].  Every boxed local is captured rather than only the ones
+    // it reads -- the same conservative choice as boxing them all.
+    if Boxing then
+    begin
+        var Body := CompileNested (TheStmt);
+        var At   := Into.AddConstant (Body);
+
+        if At > 255 then Refuse ('A chunk with more than 256 constants');
+
+        Into.Write (OP_CLOSURE);
+        Into.Write (At);
+        Into.Write (Locals.Length);
+
+        for var I : Integer := 0; I < Locals.Length; I := I + 1 do Into.Write (I);
+
+        if Depth > 0 then
+        begin
+            // The closure itself is a boxed local when the enclosing
+            // subprogram boxes, so that a sibling nested subprogram can call
+            // it the way it reads anything else.
+            Into.Emit (OP_CELL);
+
+            AddLocal (TheStmt.Name.Lexeme);
+
+            Exit;
+        end
+
+        Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+
+        Exit;
+    end
 
     Into.EmitConstant (CompileFunction (TheStmt));
 
@@ -1162,6 +1328,9 @@ begin
         // local -- there is no define instruction, because the push was it.
         if Depth > 0 then
         begin
+            // Boxed, if a nested subprogram might capture it.
+            if Boxing then Into.Emit (OP_CELL);
+
             AddLocal (TheStmt.Name.Lexeme);
 
             Exit;
@@ -1537,6 +1706,34 @@ begin
     end
 end
 
+/// Whether a body declares a subprogram of its own.
+///
+/// Decides whether the enclosing subprogram's locals are boxed, so it has to
+/// look inside blocks and loops as well -- a nested declaration anywhere in
+/// the body can capture anything the body declares.
+function DeclaresNested (Statements : List) : Boolean;
+begin
+    for var TheStmt in Statements do
+    begin
+        var Kind := KindOf (TheStmt);
+
+        if Kind = 'FunctionStmt' then Exit True;
+
+        if Kind = 'BlockStmt' and DeclaresNested (TheStmt.Statements) then Exit True;
+        if Kind = 'WhileStmt' and DeclaresNested ([TheStmt.Body]) then Exit True;
+        if Kind = 'ForInStmt' and DeclaresNested ([TheStmt.Body]) then Exit True;
+
+        if Kind = 'IfStmt' then
+        begin
+            if DeclaresNested ([TheStmt.ThenBranch]) then Exit True;
+            if TheStmt.ElseBranch <> Nil
+                   and DeclaresNested ([TheStmt.ElseBranch]) then Exit True;
+        end
+    end
+
+    Exit False;
+end
+
 /// Whether a declaration is visible above where it is written.
 ///
 /// A subprogram, a class and an enumeration are; a `var` is not, which is the
@@ -1563,6 +1760,8 @@ begin
     Depth       := 0;
     ModuleDepth := 0;
     Returning   := '';
+    Boxing      := False;
+    Outer       := List ();
     ENUM_NAMES    := List ();
     CLASS_PARENTS := Map ();
 

@@ -355,6 +355,39 @@ const OP_RAISE := 54;
 /// succeed for a derived value.
 const OP_CAST := 55;
 
+/// Replaces the value on top with a cell holding it.  No operand.
+///
+/// Emitted for a local that a nested subprogram can see, so the local's slot
+/// holds the CELL from the moment it is declared -- which is what makes the
+/// capture by reference and what removes any need to close it later.
+const OP_CELL := 56;
+
+/// Pushes what the cell in a local slot holds.  One operand: the slot.
+///
+/// For the ENCLOSING subprogram, whose boxed locals sit in slots.  The nested
+/// one reads the same cells through OP_GET_CELL, because it has them as
+/// captures rather than as locals.
+const OP_GET_BOX := 57;
+
+/// Stores the top into the cell in a local slot, LEAVING it on the stack.
+/// One operand: the slot.
+const OP_SET_BOX := 58;
+
+/// Pushes what a captured cell holds.  One operand: its index.
+const OP_GET_CELL := 59;
+
+/// Stores the top into a captured cell, LEAVING it on the stack.  One
+/// operand: the cell's index.
+const OP_SET_CELL := 60;
+
+/// Makes a closure.  One operand: the constant index of the subprogram, then a
+/// count, then one local slot per cell to capture.
+///
+/// The cells are taken from the ENCLOSING frame's slots, which is why the
+/// descriptors are slot numbers -- and why each evaluation of the enclosing
+/// subprogram produces a closure over different cells [FUN-010].
+const OP_CLOSURE := 61;
+
 /// Calls a built-in.  Two operands: the constant index of its NAME, and the
 /// argument count.
 ///
@@ -367,13 +400,13 @@ const OP_CAST := 55;
 ///
 /// 'No built-in N takes C arguments.' for a pairing the machine has no arm
 /// for, which is a gap in the machine rather than an error in a program.
-const OP_BUILTIN := 56;
+const OP_BUILTIN := 62;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 57;
+const OP_RETURN := 63;
 
 /// How many opcodes there are.
-const OP_COUNT := 58;
+const OP_COUNT := 64;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -437,6 +470,12 @@ begin
     if Op = OP_ENUM          then Exit 'OP_ENUM';
     if Op = OP_ENUM_MEMBER   then Exit 'OP_ENUM_MEMBER';
     if Op = OP_ITER          then Exit 'OP_ITER';
+    if Op = OP_CELL          then Exit 'OP_CELL';
+    if Op = OP_GET_BOX       then Exit 'OP_GET_BOX';
+    if Op = OP_SET_BOX       then Exit 'OP_SET_BOX';
+    if Op = OP_GET_CELL      then Exit 'OP_GET_CELL';
+    if Op = OP_SET_CELL      then Exit 'OP_SET_CELL';
+    if Op = OP_CLOSURE       then Exit 'OP_CLOSURE';
     if Op = OP_BUILTIN       then Exit 'OP_BUILTIN';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
 
@@ -444,6 +483,10 @@ begin
 end
 
 /// How many operand BYTES follow an opcode.
+///
+/// OP_CLOSURE answers 0 and is a LIE, because it is the one variable-width
+/// instruction: its width depends on how many cells it captures.  A
+/// disassembler has to special-case it, and `vm/run.a24` does.
 function OpOperands (Op : Integer) : Integer;
 begin
     if Op = OP_CONSTANT  then Exit 1;
@@ -456,6 +499,10 @@ begin
     if Op = OP_CALL          then Exit 1;
     if Op = OP_IS            then Exit 1;
     if Op = OP_CAST          then Exit 1;
+    if Op = OP_GET_BOX       then Exit 1;
+    if Op = OP_SET_BOX       then Exit 1;
+    if Op = OP_GET_CELL      then Exit 1;
+    if Op = OP_SET_CELL      then Exit 1;
     if Op = OP_LIST          then Exit 1;
     if Op = OP_MAP           then Exit 1;
     if Op = OP_PROPERTY      then Exit 1;

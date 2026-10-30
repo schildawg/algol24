@@ -17,6 +17,7 @@ uses Chunk;
 uses VmFunction;
 uses VmClass;
 uses VmEnum;
+uses VmCell;
 
 
 /// Every method name the machine can invoke on a host value, lowercased.
@@ -115,6 +116,9 @@ var TryOf : Array := Array (TRY_ROOM);
 /// what makes a handler several calls above the raise still run.
 var TryFrame : Array := Array (TRY_ROOM);
 
+/// The cells each frame captured, indexed by depth.
+var FrameCells : Array := Array (FRAME_ROOM);
+
 /// The frame base each region was opened at.
 var TryBase : Array := Array (TRY_ROOM);
 
@@ -139,6 +143,12 @@ var FrameResume : Array := Array (FRAME_ROOM);
 /// Slot 0 of a frame is Slots[Base], so OP_GET_LOCAL adds this -- which is the
 /// whole of what a frame costs the hot path: one addition.
 var FrameBase : Array := Array (FRAME_ROOM);
+
+/// The cells the running frame captured, or an empty List.
+///
+/// Held out of FrameCells for the reason CodeBytes is held out of the chunk: a
+/// subscript on every captured read is what a method call cost, and cost 3x.
+var Cells : List := List ();
 
 /// Where the running frame's locals start.
 ///
@@ -806,12 +816,25 @@ begin
     FrameOf[FrameDepth]     := Running;
     FrameResume[FrameDepth] := IP;
     FrameBase[FrameDepth]   := Base;
+    FrameCells[FrameDepth]  := Cells;
     FrameDepth := FrameDepth + 1;
 
     // The arguments are already in place: they were pushed in order, so the
     // first one is slot 0 of the frame about to run.
-    Base      := SP - Count;
-    Running   := Callee.Body as Chunk;
+    Base  := SP - Count;
+
+    // A closure brings its captured cells; anything else captured none.
+    if Callee is VmClosure then
+    begin
+        Cells   := Callee.Cells as List;
+        Running := Callee.Body.Body as Chunk;
+    end
+    else
+    begin
+        Cells   := List ();
+        Running := Callee.Body as Chunk;
+    end
+
     CodeBytes := Running.Code;
     Constants := Running.Constants;
     IP        := 0;
@@ -858,7 +881,8 @@ begin
         Exit;
     end
 
-    if not (Callee is VmFunction) then raise 'Can only call a subprogram.';
+    if not (Callee is VmFunction) and not (Callee is VmClosure) then
+        raise 'Can only call a subprogram.';
 
     // A plain subprogram and a constructor report the COUNTS; only a METHOD
     // reports a selection failure.  0049-call-failures draws the line and all
@@ -1294,6 +1318,68 @@ begin
     Push (Made);
 end
 
+/// Replaces the value on top with a cell holding it.
+procedure DoCell ();
+begin
+    Push (VmCell (Pop ()));
+end
+
+/// Pushes what the cell in a local slot holds.
+procedure DoGetBox ();
+begin
+    Push (Slots[Base + ReadByte ()].Held);
+end
+
+/// Stores the top into the cell in a local slot, leaving it on the stack.
+procedure DoSetBox ();
+var
+    At : Integer;
+
+begin
+    At := Base + ReadByte ();
+
+    Slots[At].Held := PeekAt (0);
+end
+
+/// Pushes what a captured cell holds.
+procedure DoGetCell ();
+begin
+    Push (Cells[ReadByte ()].Held);
+end
+
+/// Stores the top into a captured cell, leaving it on the stack.
+procedure DoSetCell ();
+var
+    At : Integer;
+
+begin
+    At := ReadByte ();
+
+    Cells[At].Held := PeekAt (0);
+end
+
+/// Makes a closure over the subprogram its operand names.
+///
+/// The cells come from the ENCLOSING frame's slots, read by the descriptors
+/// that follow -- so each evaluation of the enclosing subprogram closes over
+/// the cells that call made [FUN-010].
+procedure DoClosure ();
+var
+    Body  : Any;
+    Count : Integer;
+    Taken : List;
+
+begin
+    Body  := Constants[ReadByte ()];
+    Count := ReadByte ();
+    Taken := List ();
+
+    for var I : Integer := 0; I < Count; I := I + 1 do
+        Taken.Add (Slots[Base + ReadByte ()]);
+
+    Push (VmClosure (Body, Taken));
+end
+
 /// Calls a built-in by name.
 ///
 /// Every arm ends in a call to the HOST's built-in of the same name, which is
@@ -1464,6 +1550,7 @@ begin
     Running   := FrameOf[FrameDepth] as Chunk;
     IP        := FrameResume[FrameDepth] as Integer;
     Base      := FrameBase[FrameDepth] as Integer;
+    Cells     := FrameCells[FrameDepth] as List;
     CodeBytes := Running.Code;
     Constants := Running.Constants;
 
@@ -1649,6 +1736,12 @@ begin
     Table[OP_ENUM]          := DoEnum;
     Table[OP_ENUM_MEMBER]   := DoEnumMember;
     Table[OP_ITER]          := DoIter;
+    Table[OP_CELL]          := DoCell;
+    Table[OP_GET_BOX]       := DoGetBox;
+    Table[OP_SET_BOX]       := DoSetBox;
+    Table[OP_GET_CELL]      := DoGetCell;
+    Table[OP_SET_CELL]      := DoSetCell;
+    Table[OP_CLOSURE]       := DoClosure;
     Table[OP_BUILTIN]       := DoBuiltin;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
@@ -1709,6 +1802,7 @@ begin
     Base       := 0;
     FrameDepth := 0;
     TryDepth   := 0;
+    Cells      := List ();
     Answer     := Nil;
     Live       := True;
 
@@ -2820,4 +2914,88 @@ begin
     except
         on e : String do AssertEqual ('no handler', e);
     end
+end
+
+test 'A Closure Captures By Reference And Outlives The Call';
+begin
+    // function MakeCounter (); var Count := 0;
+    // begin function Next (); begin Count := Count + 1; Exit Count; end
+    //       Exit Next; end
+    //
+    // Count is boxed because MakeCounter declares a nested subprogram, so Next
+    // reads it as a captured CELL and the two see one variable [FUN-009].
+    var Next := VmFunction ('Next', 0);
+    Next.Body.EmitWith (OP_GET_CELL, 0);
+    Next.Body.EmitConstant (1);
+    Next.Body.Emit (OP_ADD);
+    Next.Body.EmitWith (OP_SET_CELL, 0);
+    Next.Body.Emit (OP_RETURN);
+
+    var Make := VmFunction ('MakeCounter', 0);
+    Make.Body.EmitConstant (0);
+    Make.Body.Emit (OP_CELL);                 // Count, in slot 0, boxed
+    Make.Body.Write (OP_CLOSURE);
+    Make.Body.Write (Make.Body.AddConstant (Next));
+    Make.Body.Write (1);
+    Make.Body.Write (0);                      // capture slot 0
+    Make.Body.Emit (OP_RETURN);
+
+    var C := Chunk ();
+    C.EmitConstant (Make);
+    C.EmitWith (OP_CALL, 0);                  // the counter, in slot 0
+
+    // Three calls, which must answer 1, 2, 3 -- the capture outliving the call
+    // that made it is the whole point.
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_POP);
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_POP);
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (3, RunChunk (C) as Integer);
+end
+
+test 'Two Closures Over One Subprogram Count Separately';
+begin
+    // [FUN-010]: each call to the enclosing subprogram makes a FRESH set of
+    // captured variables, which is what boxing per call gives.
+    var Next := VmFunction ('Next', 0);
+    Next.Body.EmitWith (OP_GET_CELL, 0);
+    Next.Body.EmitConstant (1);
+    Next.Body.Emit (OP_ADD);
+    Next.Body.EmitWith (OP_SET_CELL, 0);
+    Next.Body.Emit (OP_RETURN);
+
+    var Make := VmFunction ('MakeCounter', 0);
+    Make.Body.EmitConstant (0);
+    Make.Body.Emit (OP_CELL);
+    Make.Body.Write (OP_CLOSURE);
+    Make.Body.Write (Make.Body.AddConstant (Next));
+    Make.Body.Write (1);
+    Make.Body.Write (0);
+    Make.Body.Emit (OP_RETURN);
+
+    var C := Chunk ();
+    C.EmitConstant (Make);
+    C.EmitWith (OP_CALL, 0);                  // counter A, slot 0
+    C.EmitConstant (Make);
+    C.EmitWith (OP_CALL, 0);                  // counter B, slot 1
+
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_POP);
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_POP);
+
+    // B has never been called, so it must answer 1 and not 3.
+    C.EmitWith (OP_GET_LOCAL, 1);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (1, RunChunk (C) as Integer);
 end
