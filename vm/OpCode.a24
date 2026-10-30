@@ -121,6 +121,20 @@ const OP_JUMP := 20;
 /// and the value left behind is the operand [EXP-010] requires them to answer.
 const OP_JUMP_IF_FALSE := 21;
 
+/// Calls the value beneath its arguments.  One operand: the argument count.
+///
+/// The callee is pushed first and the arguments after it, so at the call the
+/// callee sits at `SP - count - 1`.  The new frame's slot 0 is the FIRST
+/// ARGUMENT, which differs from clox -- there slot 0 is the callee itself,
+/// reserved so that a method can find its receiver.  Nothing needs a receiver
+/// yet, and when something does this is where it changes.
+///
+/// # Raises
+///
+/// 'N takes A arguments but got G.' on a mismatch, and 'Can only call a
+/// subprogram.' for a callee that is not one.
+const OP_CALL := 23;
+
 /// Jumps backward.  Two operands: the distance, high byte first.
 ///
 /// A separate opcode from OP_JUMP rather than a signed operand, because a
@@ -129,10 +143,10 @@ const OP_JUMP_IF_FALSE := 21;
 const OP_LOOP := 22;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 23;
+const OP_RETURN := 24;
 
 /// How many opcodes there are.
-const OP_COUNT := 24;
+const OP_COUNT := 25;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -163,6 +177,7 @@ begin
     if Op = OP_JUMP          then Exit 'OP_JUMP';
     if Op = OP_JUMP_IF_FALSE then Exit 'OP_JUMP_IF_FALSE';
     if Op = OP_LOOP          then Exit 'OP_LOOP';
+    if Op = OP_CALL          then Exit 'OP_CALL';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
 
     Exit 'OP_?';
@@ -178,6 +193,7 @@ begin
     if Op = OP_GET_GLOBAL    then Exit 1;
     if Op = OP_DEFINE_GLOBAL then Exit 1;
     if Op = OP_SET_GLOBAL    then Exit 1;
+    if Op = OP_CALL          then Exit 1;
 
     if Op = OP_JUMP          then Exit 2;
     if Op = OP_JUMP_IF_FALSE then Exit 2;

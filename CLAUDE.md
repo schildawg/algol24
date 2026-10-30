@@ -113,9 +113,29 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **28 identical, 166 refused by
+  exactly as `conform.sh` renders it. Currently **37 identical, 157 refused by
   name, 0 diverged**. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
+
+  With functions and call frames in, `Fib (27)` runs in **0.79 s on the VM
+  against 6.26 s interpreted** — both native binaries, so that 7.9× is bytecode
+  against an AST walk.
+
+  ⚠️ **A global slot must mean the same thing in every chunk of one program.**
+  A table per chunk let a subprogram resolve its own name to slot 0 of its own
+  table where the caller had it in slot 2 of the script's, so recursion read
+  the wrong variable and answered 28 where 55 was right. Every global resolves
+  against the outermost chunk.
+
+  ⚠️ **Only a name the pre-pass CLAIMED may be emitted as a global.** Resolving
+  every unknown name to a fresh slot turned a built-in into `Undefined variable
+  'Str'` — a wrong answer where a refusal was wanted. Built-ins, captures and
+  overload sets are each refused by name now, which is why the refused count
+  went *up* while divergences went to zero.
+
+  ⚠️ **`STACK_ROOM` is derived from `FRAME_ROOM`, as clox derives it.** With the
+  two equal, runaway recursion overflowed the *value* stack first and said so —
+  true, but about the wrong thing.
 
   ⚠️ **`uses` takes a PATH when the name is quoted** — `uses 'vm/OpCode';`,
   `uses 'compiler/Parser';`. The corpus has used `uses 'modules/Alpha';`

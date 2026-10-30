@@ -53,6 +53,23 @@ begin
         this.GlobalNames := List ();
     end
 
+    /// Whether a global name already has a slot.
+    ///
+    /// Asked rather than GlobalSlot where the answer must not CREATE one: an
+    /// emitter that resolves every unknown name to a fresh global slot emits a
+    /// read of a variable that nothing ever defines, and the machine answers
+    /// `Undefined variable` for a built-in that exists -- a wrong answer where
+    /// a refusal was wanted.
+    function KnownGlobal (Name : Any) : Boolean;
+    begin
+        var Wanted := ToLower (Str (Name));
+
+        for var I : Integer := 0; I < this.GlobalNames.Length; I := I + 1 do
+            if ToLower (Str (this.GlobalNames[I])) = Wanted then Exit True;
+
+        Exit False;
+    end
+
     /// The slot a global name has, assigning one if it has none yet.
     ///
     /// Idempotent, which is what lets an emitter call it from a pre-pass over
@@ -324,6 +341,22 @@ begin
     AssertEqual (OP_CONSTANT, C.At (0));
     AssertEqual (0, C.At (1));
     AssertEqual (42, C.Constants[0] as Integer);
+end
+
+test 'An Unclaimed Global Is Known To Be Unclaimed';
+begin
+    var C := Chunk ();
+
+    AssertTrue (not C.KnownGlobal ('Total'));
+
+    C.GlobalSlot ('Total');
+
+    AssertTrue (C.KnownGlobal ('Total'));
+    AssertTrue (C.KnownGlobal ('TOTAL'));
+    AssertTrue (not C.KnownGlobal ('Other'));
+
+    // Asking must not have created one.
+    AssertEqual (1, C.GlobalNames.Length);
 end
 
 test 'A Global Name Keeps Its Slot';

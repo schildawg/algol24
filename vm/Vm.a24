@@ -14,16 +14,33 @@ unit Vm;
 
 uses OpCode;
 uses Chunk;
+uses VmFunction;
+
 
 /// How many values a byte can take, which is how wide the dispatch table is.
 const BYTE_VALUES := 256;
 
-/// How deep the value stack is.
+/// How deep the call stack may go.
+///
+/// Sixty-four, as clox has it, and STACK_ROOM is derived from this.
+///
+/// Fixed, and overflow raises rather than growing: runaway recursion is a bug
+/// in the program being run, and a machine that grows to hold it reports the
+/// problem as a memory exhaustion somewhere else entirely.
+const FRAME_ROOM := 64;
+
+/// How deep the value stack is: enough for every frame to fill its slots.
+///
+/// Derived from FRAME_ROOM rather than chosen, which is how clox sizes it and
+/// for a reason worth keeping.  With the two equal, a runaway recursion
+/// overflowed the VALUE stack first and reported it -- a true statement about
+/// the wrong thing, because the program's fault was its depth.  A frame holds
+/// at most 256 locals, so this guarantees the call stack is what gives way.
 ///
 /// Fixed, and overflow raises rather than growing: a runaway stack is a bug in
 /// the program being run, and a machine that grows to hold it reports the
 /// problem as a memory exhaustion somewhere else entirely.
-const STACK_ROOM := 256;
+const STACK_ROOM := FRAME_ROOM * 256;
 
 /// The values being operated on.
 ///
@@ -47,8 +64,30 @@ var SP : Integer := 0;
 /// Where the next instruction will be read from.
 var IP : Integer := 0;
 
-/// The chunk being run.
+/// The chunk being run, which is the current frame's.
 var Running : Chunk := Nil;
+
+/// How deep the call stack is.  Zero means the outermost chunk is running.
+var FrameDepth : Integer := 0;
+
+/// The callable each frame is running, indexed by depth.
+var FrameOf : Array := Array (FRAME_ROOM);
+
+/// Where each frame resumes when the one above it returns.
+var FrameResume : Array := Array (FRAME_ROOM);
+
+/// The stack index each frame's locals start at, indexed by depth.
+///
+/// Slot 0 of a frame is Stack[Base], so OP_GET_LOCAL adds this -- which is the
+/// whole of what a frame costs the hot path: one addition.
+var FrameBase : Array := Array (FRAME_ROOM);
+
+/// Where the running frame's locals start.
+///
+/// Held out of FrameBase for the same reason CodeBytes is held out of the
+/// chunk: a subscript on every local access is what a method call cost, and
+/// cost 3x.
+var Base : Integer := 0;
 
 /// The chunk's code, lifted out of it for the duration of the run.
 ///
@@ -62,6 +101,13 @@ var CodeBytes : Buffer := Nil;
 
 /// The chunk's constant table, lifted out for the same reason as CodeBytes.
 var Constants : List := Nil;
+
+/// The name of each global slot, taken from the OUTERMOST chunk.
+///
+/// Held here rather than read from the running frame's chunk, because a global
+/// slot means the same thing program-wide and only the script's table numbers
+/// them.  Read on the cold path only, to name an undefined variable.
+var GlobalNames : List := Nil;
 
 /// The module-level variables, one slot each.
 ///
@@ -241,13 +287,13 @@ end
 /// Pushes a local from its slot.
 procedure DoGetLocal ();
 begin
-    Push (Stack[ReadByte ()]);
+    Push (Stack[Base + ReadByte ()]);
 end
 
 /// Stores the top into a local's slot, leaving it on the stack.
 procedure DoSetLocal ();
 begin
-    Stack[ReadByte ()] := PeekAt (0);
+    Stack[Base + ReadByte ()] := PeekAt (0);
 end
 
 /// Pushes a global from its slot.
@@ -264,7 +310,7 @@ begin
     Slot := ReadByte ();
 
     if not WasDefined[Slot] then
-        raise 'Undefined variable ''' + Str (Running.GlobalNames[Slot]) + '''.';
+        raise 'Undefined variable ''' + Str (GlobalNames[Slot]) + '''.';
 
     Push (GlobalCells[Slot]);
 end
@@ -373,11 +419,73 @@ begin
     IP := IP - Distance;
 end
 
-/// Stops the machine, keeping what is on top as the answer.
-procedure DoReturn ();
+/// Calls the value beneath its arguments.
+///
+/// # Raises
+///
+/// 'Can only call a subprogram.' for a callee that is not one, the arity
+/// message for a mismatch, and 'The call stack overflowed.' past FRAME_ROOM.
+procedure DoCall ();
+var
+    Count  : Integer;
+    Callee : Any;
+
 begin
-    Answer := Pop ();
-    Live := False;
+    Count  := ReadByte ();
+    Callee := PeekAt (Count);
+
+    if not (Callee is VmFunction) then raise 'Can only call a subprogram.';
+
+    if Count <> Callee.Arity then
+        raise Str (Callee.Describe ()) + ' takes ' + Str (Callee.Arity)
+            + ' arguments but got ' + Str (Count) + '.';
+
+    if FrameDepth >= FRAME_ROOM then raise 'The call stack overflowed.';
+
+    // Where to come back to, and what to come back as.
+    FrameOf[FrameDepth]     := Running;
+    FrameResume[FrameDepth] := IP;
+    FrameBase[FrameDepth]   := Base;
+    FrameDepth := FrameDepth + 1;
+
+    // The arguments are already in place: they were pushed in order, so the
+    // first one is slot 0 of the frame about to run.
+    Base      := SP - Count;
+    Running   := Callee.Body as Chunk;
+    CodeBytes := Running.Code;
+    Constants := Running.Constants;
+    IP        := 0;
+end
+
+/// Returns from the running frame, or stops the machine at the outermost one.
+procedure DoReturn ();
+var
+    Value : Any;
+
+begin
+    Value := Pop ();
+
+    if FrameDepth = 0 then
+    begin
+        Answer := Value;
+        Live := False;
+
+        Exit;
+    end
+
+    FrameDepth := FrameDepth - 1;
+
+    // Everything the frame put on the stack goes, the callee beneath its
+    // arguments included -- which is why Base - 1 and not Base.
+    SP := Base - 1;
+
+    Running   := FrameOf[FrameDepth] as Chunk;
+    IP        := FrameResume[FrameDepth] as Integer;
+    Base      := FrameBase[FrameDepth] as Integer;
+    CodeBytes := Running.Code;
+    Constants := Running.Constants;
+
+    Push (Value);
 end
 
 /// Refuses a byte that is not an instruction.
@@ -424,6 +532,7 @@ begin
     Table[OP_JUMP]          := DoJump;
     Table[OP_JUMP_IF_FALSE] := DoJumpIfFalse;
     Table[OP_LOOP]          := DoLoop;
+    Table[OP_CALL]          := DoCall;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
     Table[OP_MULTIPLY] := DoMultiply;
@@ -467,7 +576,9 @@ begin
     // Sized from the chunk, and nothing is defined until its declaration runs.
     // Array (0) is not legal, so a program with no globals still gets one slot
     // that it never reads.
-    var Slots := C.GlobalNames.Length;
+    GlobalNames := C.GlobalNames;
+
+    var Slots := GlobalNames.Length;
     if Slots < 1 then Slots := 1;
 
     GlobalCells := Array (Slots);
@@ -476,10 +587,12 @@ begin
     for var Slot : Integer := 0; Slot < Slots; Slot := Slot + 1 do
         WasDefined[Slot] := False;
 
-    IP      := 0;
-    SP      := 0;
-    Answer  := Nil;
-    Live    := True;
+    IP         := 0;
+    SP         := 0;
+    Base       := 0;
+    FrameDepth := 0;
+    Answer     := Nil;
+    Live       := True;
 
     while Live do
     begin
@@ -672,6 +785,18 @@ begin
         C.EmitConstant (6);
         C.EmitConstant (3);
         C.EmitConstant (2);
+
+        // OP_CALL needs a CALLABLE where the others need a number, so it gets
+        // one that returns immediately.  Calling it with zero arguments is the
+        // shape every other opcode here is given: operands of zero.
+        if Op = OP_CALL then
+        begin
+            var Trivial := VmFunction ('Trivial', 0);
+            Trivial.Body.Emit (OP_NIL);
+            Trivial.Body.Emit (OP_RETURN);
+
+            C.EmitConstant (Trivial);
+        end
 
         C.Write (Op);
 
@@ -902,4 +1027,151 @@ begin
     C.Emit (OP_RETURN);
 
     AssertEqual (107, RunChunk (C) as Integer);
+end
+
+test 'A Call Runs A Frame And Comes Back';
+begin
+    // function Twice (N) begin Exit N * 2; end  -- then Twice (21)
+    var Twice := VmFunction ('Twice', 1);
+    Twice.Body.EmitWith (OP_GET_LOCAL, 0);      // the argument is slot 0
+    Twice.Body.EmitConstant (2);
+    Twice.Body.Emit (OP_MULTIPLY);
+    Twice.Body.Emit (OP_RETURN);
+
+    var C := Chunk ();
+    C.EmitConstant (Twice);
+    C.EmitConstant (21);
+    C.EmitWith (OP_CALL, 1);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C) as Integer);
+
+    // The callee and its argument are both gone: a frame leaves nothing.
+    AssertEqual (0, SP);
+end
+
+test 'A Frames Locals Do Not Reach Its Callers';
+begin
+    // The callee's slot 0 is its own argument and not the caller's local, which
+    // is the whole of what FrameBase buys.
+    var Inner := VmFunction ('Inner', 1);
+    Inner.Body.EmitWith (OP_GET_LOCAL, 0);
+    Inner.Body.Emit (OP_RETURN);
+
+    var C := Chunk ();
+    C.EmitConstant (111);                       // the caller's slot 0
+    C.EmitConstant (Inner);
+    C.EmitConstant (222);
+    C.EmitWith (OP_CALL, 1);
+
+    // 222 from the callee, and the caller's 111 still beneath it.
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.Emit (OP_ADD);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (333, RunChunk (C) as Integer);
+end
+
+test 'Recursion Nests Frames';
+begin
+    // function Down (N) begin if N = 0 then Exit 0; Exit N + Down (N - 1); end
+    //
+    // A chunk refers to ITSELF through a global slot, which is what lets a
+    // subprogram recurse without the constant table holding a cycle.
+    var C := Chunk ();
+    var Slot := C.GlobalSlot ('Down');
+
+    var Down := VmFunction ('Down', 1);
+    var B := Down.Body;
+    var DownSlot := B.GlobalSlot ('Down');
+
+    B.EmitWith (OP_GET_LOCAL, 0);
+    B.EmitConstant (0);
+    B.Emit (OP_EQUAL);
+    var Deeper := B.EmitJump (OP_JUMP_IF_FALSE);
+    B.Emit (OP_POP);
+    B.EmitConstant (0);
+    B.Emit (OP_RETURN);
+    B.PatchJump (Deeper);
+    B.Emit (OP_POP);
+
+    B.EmitWith (OP_GET_LOCAL, 0);
+    B.EmitWith (OP_GET_GLOBAL, DownSlot);
+    B.EmitWith (OP_GET_LOCAL, 0);
+    B.EmitConstant (1);
+    B.Emit (OP_SUBTRACT);
+    B.EmitWith (OP_CALL, 1);
+    B.Emit (OP_ADD);
+    B.Emit (OP_RETURN);
+
+    C.EmitConstant (Down);
+    C.EmitWith (OP_DEFINE_GLOBAL, Slot);
+    C.EmitWith (OP_GET_GLOBAL, Slot);
+    C.EmitConstant (10);
+    C.EmitWith (OP_CALL, 1);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (55, RunChunk (C) as Integer);
+    AssertEqual (0, SP);
+end
+
+test 'A Call With The Wrong Count Names The Subprogram';
+begin
+    var F := VmFunction ('Twice', 1);
+    F.Body.Emit (OP_NIL);
+    F.Body.Emit (OP_RETURN);
+
+    var C := Chunk ();
+    C.EmitConstant (F);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    try
+        RunChunk (C);
+        Fail ('expected a raise');
+    except
+        on e : String do
+            AssertEqual ('Twice takes 1 arguments but got 0.', e);
+    end
+end
+
+test 'Calling Something That Is Not A Subprogram Is Refused';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (7);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    try
+        RunChunk (C);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('Can only call a subprogram.', e);
+    end
+end
+
+test 'Runaway Recursion Overflows The Call Stack Rather Than Memory';
+begin
+    // function Forever () begin Exit Forever (); end
+    var C := Chunk ();
+    var Slot := C.GlobalSlot ('Forever');
+
+    var F := VmFunction ('Forever', 0);
+    F.Body.EmitWith (OP_GET_GLOBAL, F.Body.GlobalSlot ('Forever'));
+    F.Body.EmitWith (OP_CALL, 0);
+    F.Body.Emit (OP_RETURN);
+
+    C.EmitConstant (F);
+    C.EmitWith (OP_DEFINE_GLOBAL, Slot);
+    C.EmitWith (OP_GET_GLOBAL, Slot);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    try
+        RunChunk (C);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('The call stack overflowed.', e);
+    end
 end

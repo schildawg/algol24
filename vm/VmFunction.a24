@@ -1,0 +1,60 @@
+/// A callable: a chunk, how many arguments it takes, and its name.
+///
+/// clox calls this ObjFunction.  It cannot here, because `compiler/ObjFunction`
+/// is a unit of the same program once `vm/run.a24` imports the front end, and
+/// a top-level name declared in two units of one program is a collision the
+/// compiler resolves silently.  The `Vm` prefix is that collision avoided
+/// rather than a difference in meaning.
+unit VmFunction;
+
+uses Chunk;
+
+/// A compiled subprogram.
+class VmFunction;
+var
+    /// The bytecode, with its own constants and its own jumps.
+    ///
+    /// A chunk each rather than one chunk with offsets, so a jump's distance is
+    /// measured inside the subprogram that contains it and a function can be
+    /// compiled without knowing where it will sit.
+    Body  : Chunk;
+
+    /// How many arguments a call must supply.
+    Arity : Integer;
+
+    /// The name, for a diagnostic and for a disassembly.
+    Name  : String;
+
+begin
+    /// Makes a callable.
+    constructor Init (Name : String, Arity : Integer);
+    begin
+        this.Name  := Name;
+        this.Arity := Arity;
+        this.Body  := Chunk ();
+    end
+
+    /// How it reads in a message: the name, or `<script>` for the outermost
+    /// chunk, which has no name because no declaration made it.
+    function Describe () : String;
+    begin
+        if this.Name = '' then Exit '<script>';
+
+        Exit this.Name;
+    end
+end
+
+test 'A Callable Carries Its Own Chunk';
+begin
+    var F := VmFunction ('Twice', 1);
+
+    AssertEqual ('Twice', F.Name);
+    AssertEqual (1, F.Arity);
+    AssertEqual (0, F.Body.Count);
+end
+
+test 'The Outermost Chunk Describes Itself As A Script';
+begin
+    AssertEqual ('<script>', VmFunction ('', 0).Describe ());
+    AssertEqual ('Twice', VmFunction ('Twice', 1).Describe ());
+end

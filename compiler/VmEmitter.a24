@@ -30,9 +30,20 @@ unit VmEmitter;
 uses Token;
 uses 'vm/OpCode';
 uses 'vm/Chunk';
+uses 'vm/VmFunction';
 
 /// What the emitter is building, for the duration of one CompileProgram.
 var Into : Chunk := Nil;
+
+/// The OUTERMOST chunk, which owns the program's global slots.
+///
+/// A global slot has to mean the same thing in every chunk of one program, and
+/// a table per chunk does not: a subprogram resolving its own name got slot 0
+/// of its own table where the caller had put it in slot 2 of the script's, so
+/// recursion read the wrong variable and answered 28 where 55 was right.
+/// Every global therefore resolves against this one, whichever chunk is being
+/// written into.
+var Script : Chunk := Nil;
 
 /// Refuses a construct by name.
 ///
@@ -88,6 +99,9 @@ var Depths : List := List ();
 
 /// How many scopes are open.  Zero is the top level, where a `var` is global.
 var Depth : Integer := 0;
+
+/// How many modules deep the emitter is, so a nested `uses` can be refused.
+var ModuleDepth : Integer := 0;
 
 /// Opens a scope.
 procedure PushScope ();
@@ -147,6 +161,77 @@ begin
     Exit -1;
 end
 
+/// Refuses a name that is neither a local nor a claimed global.
+///
+/// The three things it catches, and all three used to be emitted as a read of
+/// a slot nothing defines: a BUILT-IN, which has no opcode yet; a variable of
+/// an ENCLOSING subprogram, which wants upvalues; and a name belonging to an
+/// OVERLOAD SET, which wants selection at the call.  Each is work to do, and
+/// naming it is what keeps it work to do instead of a wrong answer.
+///
+/// # Raises
+///
+/// Whatever Refuse raises, naming the identifier.
+procedure RequireGlobal (Name : Any);
+begin
+    if Script.KnownGlobal (Name.Lexeme) then Exit;
+
+    Refuse ('A reference to ''' + Str (Name.Lexeme) + '''');
+end
+
+/// Compiles a subprogram's body into a chunk of its own.
+///
+/// The emitter's state -- the chunk being written, the locals, the depth -- is
+/// saved and restored around it, which is clox's chain of Compiler structs
+/// written as a save and a restore instead.  A subprogram therefore compiles
+/// as though it were the only thing being compiled, which is what lets a jump
+/// inside it be measured against its own chunk.
+///
+/// The parameters are declared as the first locals, in order, because that is
+/// where the calling convention leaves the arguments: slot 0 is the first one.
+///
+/// # Raises
+///
+/// Whatever the body raises, and the arity limit through AddLocal.
+function CompileFunction (TheStmt : Any) : VmFunction;
+var
+    Made : VmFunction;
+
+    SavedInto   : Chunk;
+    SavedLocals : List;
+    SavedDepths : List;
+    SavedDepth  : Integer;
+
+begin
+    Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
+
+    SavedInto   := Into;
+    SavedLocals := Locals;
+    SavedDepths := Depths;
+    SavedDepth  := Depth;
+
+    Into   := Made.Body;
+    Locals := List ();
+    Depths := List ();
+    Depth  := 1;
+
+    for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
+
+    for var Inner in TheStmt.Body do EmitStmt (Inner);
+
+    // A body that runs off the end answers nil, as a procedure does and as a
+    // function without an Exit does.
+    Into.Emit (OP_NIL);
+    Into.Emit (OP_RETURN);
+
+    Into   := SavedInto;
+    Locals := SavedLocals;
+    Depths := SavedDepths;
+    Depth  := SavedDepth;
+
+    Exit Made;
+end
+
 /// Emits one expression, leaving its value on the stack.
 procedure EmitExpr (TheExpr : Any);
 begin
@@ -183,7 +268,16 @@ begin
         var Slot := LocalSlot (TheExpr.Name.Lexeme);
 
         if Slot >= 0 then Into.EmitWith (OP_GET_LOCAL, Slot);
-        else Into.EmitWith (OP_GET_GLOBAL, Into.GlobalSlot (TheExpr.Name.Lexeme));
+        else
+        begin
+            // Only a name the pre-pass CLAIMED is a global.  Anything else is
+            // a built-in, or a variable of an enclosing subprogram, or a name
+            // this back end has no opcodes for -- and each has to be refused
+            // rather than read from a slot nothing defines.
+            RequireGlobal (TheExpr.Name);
+
+            Into.EmitWith (OP_GET_GLOBAL, Script.GlobalSlot (TheExpr.Name.Lexeme));
+        end
 
         Exit;
     end
@@ -195,7 +289,12 @@ begin
         var Slot := LocalSlot (TheExpr.Name.Lexeme);
 
         if Slot >= 0 then Into.EmitWith (OP_SET_LOCAL, Slot);
-        else Into.EmitWith (OP_SET_GLOBAL, Into.GlobalSlot (TheExpr.Name.Lexeme));
+        else
+        begin
+            RequireGlobal (TheExpr.Name);
+
+            Into.EmitWith (OP_SET_GLOBAL, Script.GlobalSlot (TheExpr.Name.Lexeme));
+        end
 
         Exit;
     end
@@ -352,7 +451,44 @@ begin
         Exit;
     end
 
-    Refuse ('A call to ''' + Str (TheExpr.Callee.Name.Lexeme) + '''');
+    // ArgumentNames carries an entry per argument, EMPTY for a positional
+    // one, so the count is not the question -- whether any was written is.
+    for var Written in TheExpr.ArgumentNames do
+        if Str (Written) <> '' then Refuse ('A call with named arguments');
+
+    // The callee first and the arguments after it, which is the order OP_CALL
+    // reads them back in.
+    EmitExpr (TheExpr.Callee);
+
+    for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+    Into.EmitWith (OP_CALL, TheExpr.Arguments.Length);
+
+    Exit;
+end
+
+/// Emits a subprogram declaration.
+///
+/// The callable goes in the constant table and the declaration binds it, so a
+/// subprogram is a value in a slot like any other -- which is what lets one
+/// recurse by reading its own global.
+procedure EmitFunction (TheStmt : Any);
+begin
+    if TheStmt.Symbol <> '' then Refuse ('An external subprogram');
+    if TheStmt.IsExtension then Refuse ('An extension');
+    if TheStmt.IsProperty then Refuse ('A property');
+
+    Into.EmitConstant (CompileFunction (TheStmt));
+
+    if Depth > 0 then
+    begin
+        AddLocal (TheStmt.Name.Lexeme);
+
+        Exit;
+    end
+
+    Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+
 end
 
 /// Emits one statement, leaving the stack as it found it.
@@ -385,7 +521,24 @@ begin
 
         // At the top level a declaration is what DEFINES a global, so one with
         // no initializer defines it as nil rather than leaving it undefined.
-        Into.EmitWith (OP_DEFINE_GLOBAL, Into.GlobalSlot (TheStmt.Name.Lexeme));
+        Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+
+        Exit;
+    end
+
+    if Kind = 'FunctionStmt' then
+    begin
+        EmitFunction (TheStmt);
+
+        Exit;
+    end
+
+    if Kind = 'ReturnStmt' then
+    begin
+        // `Exit` with no value answers nil, which is what a procedure's Exit
+        // does and what a function running off its end does.
+        EmitExpr (TheStmt.Value);
+        Into.Emit (OP_RETURN);
 
         Exit;
     end
@@ -448,8 +601,23 @@ begin
 
     if Kind = 'ModuleStmt' then
     begin
+        // A nested `uses` is refused, exactly as the C back end refuses it.
+        //
+        // The reason here is visibility: one flat table of global slots keyed
+        // by name cannot say that a declaration is visible to the module that
+        // imported it and not to the module that imported THAT, which is what
+        // `uses` not being transitive requires [MOD-005].  A transitively
+        // imported module's declarations still have to RUN, so skipping them
+        // is not an answer either -- and emitting them made DeepName callable
+        // from a file with no `uses` for it.
+        if ModuleDepth > 0 then Refuse ('A nested ''uses''');
+
+        ModuleDepth := ModuleDepth + 1;
+
         if TheStmt.Statements <> Nil then
             for var Inner in TheStmt.Statements do EmitStmt (Inner);
+
+        ModuleDepth := ModuleDepth - 1;
 
         Exit;
     end
@@ -464,16 +632,42 @@ end
 /// to a global declared BELOW it, so a slot assigned as the declaration is
 /// reached would be assigned too late.  GlobalSlot is idempotent, so the later
 /// uses find the same slot.
-procedure ClaimGlobalSlots (Statements : List);
+procedure ClaimGlobalSlots (Statements : List, Reach : Integer);
 begin
     for var TheStmt in Statements do
     begin
         var Kind := KindOf (TheStmt);
 
-        if Kind = 'VarStmt' then Into.GlobalSlot (TheStmt.Name.Lexeme);
+        if Kind = 'VarStmt' then Script.GlobalSlot (TheStmt.Name.Lexeme);
 
-        if Kind = 'ModuleStmt' then
-            if TheStmt.Statements <> Nil then ClaimGlobalSlots (TheStmt.Statements);
+        // A subprogram's name is a global like any other, and it has to exist
+        // before any BODY is emitted -- which is the case the pre-pass is for:
+        // two subprograms that call each other, and one that calls itself.
+        if Kind = 'FunctionStmt' then
+        begin
+            // Two declarations of one name are an OVERLOAD SET, which selects
+            // at the call on the whole signature [FUN-013].  One global slot
+            // cannot hold both, and silently keeping the last one made a call
+            // report the wrong arity -- so it is refused by name.
+            if Script.KnownGlobal (TheStmt.Name.Lexeme) then
+                Refuse ('An overload of ''' + Str (TheStmt.Name.Lexeme) + '''');
+
+            Script.GlobalSlot (TheStmt.Name.Lexeme);
+        end
+
+        // `uses` is NOT transitive: a name in a module this program's modules
+        // import is not visible here, and claiming a slot for it made it
+        // readable -- so 0085-uses-is-not-transitive printed 'from Deep' where
+        // it should have refused the name.  Reach counts down, so the root's
+        // own statements and its direct imports are claimed and nothing below.
+        //
+        // This is an approximation of the Resolver's answer rather than the
+        // answer itself, and a private name [MOD-004] is the case it does not
+        // yet get right.  The emitter re-resolving names it could be asking
+        // the Resolver about is the thing to fix, not this arithmetic.
+        if Kind = 'ModuleStmt' and Reach > 0 then
+            if TheStmt.Statements <> Nil then
+                ClaimGlobalSlots (TheStmt.Statements, Reach - 1);
     end
 end
 
@@ -484,9 +678,15 @@ end
 /// Whatever Refuse raises, for a construct with no opcodes yet.
 function CompileProgram (Statements : List) : Chunk;
 begin
-    Into := Chunk ();
+    Into   := Chunk ();
+    Script := Into;
 
-    ClaimGlobalSlots (Statements);
+    Locals      := List ();
+    Depths      := List ();
+    Depth       := 0;
+    ModuleDepth := 0;
+
+    ClaimGlobalSlots (Statements, 1);
 
     for var TheStmt in Statements do EmitStmt (TheStmt);
 
