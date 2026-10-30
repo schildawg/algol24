@@ -44,13 +44,19 @@ const STACK_ROOM := FRAME_ROOM * 256;
 
 /// The values being operated on.
 ///
+/// Named Slots and not Stack, which is not taste: `Stack` is a BUILT-IN, and a
+/// module-level variable of that name shadowed it inside DoBuiltin -- so a
+/// guest program calling `Stack ()` reached this Array and failed with 'Can
+/// only call functions and classes'.  The same hazard as a top-level name
+/// shadowing another unit's method, with a built-in on the other side.
+///
 /// Guest numbers are held as Algol-24 Integers and Doubles, which allocates
 /// NOTHING -- measured at zero arena bytes across twelve million instructions.
 /// That is only true while the guest's values are numbers: a guest string or
 /// collection would be an Algol-24 object in the host's arena, which never
 /// frees, so those want the Buffer heap PROPOSAL-GC.md describes rather than
 /// this stack.  The boundary is the thing to hold on to as opcodes are added.
-var Stack := Array (STACK_ROOM);
+var Slots := Array (STACK_ROOM);
 
 /// How many values are on the stack.
 ///
@@ -78,7 +84,7 @@ var FrameResume : Array := Array (FRAME_ROOM);
 
 /// The stack index each frame's locals start at, indexed by depth.
 ///
-/// Slot 0 of a frame is Stack[Base], so OP_GET_LOCAL adds this -- which is the
+/// Slot 0 of a frame is Slots[Base], so OP_GET_LOCAL adds this -- which is the
 /// whole of what a frame costs the hot path: one addition.
 var FrameBase : Array := Array (FRAME_ROOM);
 
@@ -157,7 +163,7 @@ procedure Push (V : Any);
 begin
     if SP >= STACK_ROOM then raise 'The value stack overflowed.';
 
-    Stack[SP] := V;
+    Slots[SP] := V;
     SP := SP + 1;
 end
 
@@ -173,7 +179,7 @@ begin
 
     SP := SP - 1;
 
-    Exit Stack[SP];
+    Exit Slots[SP];
 end
 
 /// Reads the byte at IP and advances past it.
@@ -212,7 +218,7 @@ end
 /// one program, and a method is not the protection it looks like.
 function PeekAt (Distance : Integer) : Any;
 begin
-    Exit Stack[SP - 1 - Distance];
+    Exit Slots[SP - 1 - Distance];
 end
 
 /// Pushes the constant its operand names.
@@ -303,13 +309,13 @@ end
 /// Pushes a local from its slot.
 procedure DoGetLocal ();
 begin
-    Push (Stack[Base + ReadByte ()]);
+    Push (Slots[Base + ReadByte ()]);
 end
 
 /// Stores the top into a local's slot, leaving it on the stack.
 procedure DoSetLocal ();
 begin
-    Stack[Base + ReadByte ()] := PeekAt (0);
+    Slots[Base + ReadByte ()] := PeekAt (0);
 end
 
 /// Pushes a global from its slot.
@@ -663,7 +669,7 @@ begin
     From  := SP - Count;
     Made  := List ();
 
-    for var I : Integer := 0; I < Count; I := I + 1 do Made.Add (Stack[From + I]);
+    for var I : Integer := 0; I < Count; I := I + 1 do Made.Add (Slots[From + I]);
 
     SP := From;
 
@@ -686,11 +692,104 @@ begin
     Made  := Map ();
 
     for var I : Integer := 0; I < Count; I := I + 1 do
-        Made.Put (Stack[From + I * 2], Stack[From + I * 2 + 1]);
+        Made.Put (Slots[From + I * 2], Slots[From + I * 2 + 1]);
 
     SP := From;
 
     Push (Made);
+end
+
+/// Calls a method on the value beneath its arguments.
+///
+/// Every arm calls the host's method with the name written as a LITERAL, which
+/// is the only way to reach a member from here and is what makes the machine's
+/// `Add` the host's `Add` rather than a second one.
+///
+/// Dispatched on the name AND the count, because one name means different
+/// things at different arities -- `Append` with one argument is a Buffer's and
+/// with none is a TextFile's -- which is how the runtime's own member tables
+/// are keyed.
+///
+/// EVERY arm pushes the call's result, including the ones that look like
+/// procedures.  A member call is an expression and a void one answers nil, so
+/// discarding the result and pushing nil instead was wrong for the ones that
+/// have something to say: `Remove` answers the value removed from a Map and a
+/// Boolean from a Set [COL-011], and both came back nil.
+///
+/// # Raises
+///
+/// 'No method N taking C arguments.' for a pairing with no arm, which is a gap
+/// in the machine rather than an error in a program.  Everything else is
+/// whatever the host raises.
+procedure DoInvoke ();
+var
+    Name  : Any;
+    Count : Integer;
+    Self  : Any;
+    A     : Any;
+    B     : Any;
+
+begin
+    Name  := ToLower (Str (Constants[ReadByte ()]));
+    Count := ReadByte ();
+
+    if Count >= 2 then B := Pop ();
+    if Count >= 1 then A := Pop ();
+
+    Self := Pop ();
+
+    if Count = 0 then
+    begin
+        if Name = 'pop'       then begin Push (Self.Pop ());      Exit; end
+        if Name = 'peek'      then begin Push (Self.Peek ());     Exit; end
+        if Name = 'keys'      then begin Push (Self.Keys ());     Exit; end
+        if Name = 'values'    then begin Push (Self.Values ());   Exit; end
+        if Name = 'tolist'    then begin Push (Self.ToList ());   Exit; end
+        if Name = 'tostring'  then begin Push (Self.ToString ()); Exit; end
+        if Name = 'readln'    then begin Push (Self.ReadLn ());   Exit; end
+        if Name = 'sort'      then begin Push (Self.Sort ()); Exit; end
+        if Name = 'clear'     then begin Push (Self.Clear ()); Exit; end
+        if Name = 'free'      then begin Push (Self.Free ()); Exit; end
+        if Name = 'reset'     then begin Push (Self.Reset ()); Exit; end
+        if Name = 'rewrite'   then begin Push (Self.Rewrite ()); Exit; end
+        if Name = 'flush'     then begin Push (Self.Flush ()); Exit; end
+        if Name = 'close'     then begin Push (Self.Close ()); Exit; end
+        if Name = 'erase'     then begin Push (Self.Erase ()); Exit; end
+        if Name = 'append'    then begin Push (Self.Append ()); Exit; end
+    end
+
+    if Count = 1 then
+    begin
+        if Name = 'get'       then begin Push (Self.Get (A));      Exit; end
+        if Name = 'contains'  then begin Push (Self.Contains (A)); Exit; end
+        if Name = 'indexof'   then begin Push (Self.IndexOf (A));  Exit; end
+        if Name = 'getint'    then begin Push (Self.GetInt (A));   Exit; end
+        if Name = 'getword'   then begin Push (Self.GetWord (A));  Exit; end
+        if Name = 'getdouble' then begin Push (Self.GetDouble (A)); Exit; end
+        if Name = 'add'       then begin Push (Self.Add (A)); Exit; end
+        if Name = 'push'      then begin Push (Self.Push (A)); Exit; end
+        if Name = 'remove'    then begin Push (Self.Remove (A)); Exit; end
+        if Name = 'removeat'  then begin Push (Self.RemoveAt (A)); Exit; end
+        if Name = 'fill'      then begin Push (Self.Fill (A)); Exit; end
+        if Name = 'append'    then begin Push (Self.Append (A)); Exit; end
+        if Name = 'resize'    then begin Push (Self.Resize (A)); Exit; end
+        if Name = 'assign'    then begin Push (Self.Assign (A)); Exit; end
+        if Name = 'rename'    then begin Push (Self.Rename (A)); Exit; end
+        if Name = 'write'     then begin Push (Self.Write (A)); Exit; end
+        if Name = 'writeln'   then begin Push (Self.WriteLn (A)); Exit; end
+    end
+
+    if Count = 2 then
+    begin
+        if Name = 'put'       then begin Push (Self.Put (A, B)); Exit; end
+        if Name = 'set'       then begin Push (Self.Set (A, B)); Exit; end
+        if Name = 'insert'    then begin Push (Self.Insert (A, B)); Exit; end
+        if Name = 'putint'    then begin Push (Self.PutInt (A, B)); Exit; end
+        if Name = 'putword'   then begin Push (Self.PutWord (A, B)); Exit; end
+        if Name = 'putdouble' then begin Push (Self.PutDouble (A, B)); Exit; end
+    end
+
+    raise 'No method ' + Str (Name) + ' taking ' + Str (Count) + ' arguments.';
 end
 
 /// Calls a built-in by name.
@@ -704,7 +803,7 @@ end
 /// Dispatched on the name AND the count, because six of them are variadic and
 /// the host decides what each arity means.
 ///
-/// A collection built-in -- List, Map, Set, Array, Buffer, Stack, TextFile --
+/// A collection built-in -- List, Map, Set, Array, Buffer, Slots, TextFile --
 /// hands back a HOST object, allocated in an arena that never frees.  That is
 /// the guest-heap boundary PROPOSAL-GC.md describes, crossed deliberately and
 /// for now: it matches what the interpreter does, and the `Buffer` heap that
@@ -890,6 +989,7 @@ begin
     Table[OP_PROPERTY]      := DoProperty;
     Table[OP_LIST]          := DoList;
     Table[OP_MAP]           := DoMap;
+    Table[OP_INVOKE]        := DoInvoke;
     Table[OP_BUILTIN]       := DoBuiltin;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
@@ -1017,7 +1117,7 @@ begin
     Exit RunChunk (C);
 end
 
-test 'A Constant Reaches The Stack';
+test 'A Constant Reaches The Slots';
 begin
     var C := Chunk ();
 
@@ -1094,7 +1194,7 @@ begin
     AssertEqual (1 << 70, RunChunk (C) as Integer);
 end
 
-test 'The Stack Underflows Rather Than Reading Rubbish';
+test 'The Slots Underflows Rather Than Reading Rubbish';
 begin
     var C := Chunk ();
 
@@ -1183,7 +1283,7 @@ begin
     AssertEqual (2, SP);
 end
 
-test 'A Loop Leaves The Stack Where It Found It';
+test 'A Loop Leaves The Slots Where It Found It';
 begin
     // The same shape with an empty body, so the only thing under test is that
     // OP_LOOP lands exactly where EmitLoop aimed it.
@@ -1476,7 +1576,7 @@ begin
     end
 end
 
-test 'Runaway Recursion Overflows The Call Stack Rather Than Memory';
+test 'Runaway Recursion Overflows The Call Slots Rather Than Memory';
 begin
     // function Forever () begin Exit Forever (); end
     var C := Chunk ();
@@ -1677,4 +1777,71 @@ begin
     except
         on e : String do AssertEqual ('No property nonesuch.', e);
     end
+end
+
+/// Invokes one method on a receiver, for the method tests.
+function InvokeOn (Receiver : Any, Name : String, Args : List) : Any;
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (Receiver);
+
+    for var Argument in Args do C.EmitConstant (Argument);
+
+    C.Write (OP_INVOKE);
+    C.Write (C.AddConstant (Name));
+    C.Write (Args.Length);
+    C.Emit (OP_RETURN);
+
+    Exit RunChunk (C);
+end
+
+test 'A Method Answers Its Result And Not Nil';
+begin
+    // Remove answers different kinds of thing by kind [COL-011]: the value
+    // removed from a Map, and a Boolean from a Set.  Treating every method
+    // that reads like a procedure as void returned nil for both, and the
+    // corpus caught it in 0079-collection-behavior.
+    var M := Map ();
+    M.Put (1, 'one');
+
+    AssertEqual ('one', Str (InvokeOn (M, 'Remove', [1])));
+    AssertTrue (InvokeOn (M, 'Remove', [99]) = Nil);
+
+    var S := Set ();
+    S.Add (5);
+
+    AssertTrue (InvokeOn (S, 'Remove', [5]) as Boolean);
+    AssertTrue (not (InvokeOn (S, 'Remove', [5]) as Boolean));
+end
+
+test 'One Method Name Means Different Things At Different Arities';
+begin
+    // Append with one argument is a Buffer's and with none is a TextFile's,
+    // which is why the dispatch is keyed on the count as well as the name.
+    var B := Buffer ();
+
+    InvokeOn (B, 'Append', ['hi']);
+
+    AssertEqual ('hi', B.Text);
+end
+
+test 'A Method The Machine Has No Arm For Is Named';
+begin
+    try
+        InvokeOn (List (), 'Nonesuch', []);
+        Fail ('expected a raise');
+    except
+        on e : String do
+            AssertEqual ('No method nonesuch taking 0 arguments.', e);
+    end
+end
+
+test 'A Method Leaves The Stack Where It Found It';
+begin
+    var L := List ();
+
+    InvokeOn (L, 'Add', [1]);
+
+    AssertEqual (0, SP);
 end

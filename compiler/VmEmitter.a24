@@ -559,6 +559,34 @@ var
     Name : Any;
 
 begin
+    // `Receiver.Method (args)` parses as a call whose CALLEE is a GetExpr, so
+    // it is caught here rather than in the GetExpr branch -- which handles a
+    // property read and would otherwise try to read the method as one.
+    if KindOf (TheExpr.Callee) = 'GetExpr' then
+    begin
+        var Member := TheExpr.Callee;
+
+        if Str (Member.Unit) <> '' then Refuse ('A call through a unit qualifier');
+        if Str (Member.Extension) <> '' then Refuse ('An extension call');
+
+        for var Written in TheExpr.ArgumentNames do
+            if Str (Written) <> '' then Refuse ('A call with named arguments');
+
+        EmitExpr (Member.Obj);
+
+        for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+        var Slot := Into.AddConstant (Str (Member.Name.Lexeme));
+
+        if Slot > 255 then Refuse ('A chunk with more than 256 constants');
+
+        Into.Write (OP_INVOKE);
+        Into.Write (Slot);
+        Into.Write (TheExpr.Arguments.Length);
+
+        Exit;
+    end
+
     if KindOf (TheExpr.Callee) <> 'VariableExpr' then
         Refuse ('A call through an expression');
 

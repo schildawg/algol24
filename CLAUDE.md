@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **63 identical, 124 refused by
+  exactly as `conform.sh` renders it. Currently **68 identical, 119 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
@@ -156,9 +156,22 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   bug rather than as a back-end one.
 
   ⚠️ **A dynamic member name cannot be reached from Algol-24**, so `is`,
-  properties and built-ins are each a chain with the name written as a literal
-  in every arm — the same shape three times. The emitter refuses any name the
-  chain lacks, so a gap is work to do rather than a wrong answer.
+  properties, built-ins and method invocation are each a chain with the name
+  written as a literal in every arm — the same shape four times. The emitter
+  refuses any name the chain lacks, so a gap is work to do rather than a wrong
+  answer. Methods and built-ins key on the **name and the count**, because one
+  name means different things at different arities: `Append` with one argument
+  is a Buffer's, with none a TextFile's.
+
+  ⚠️ **A member call is an EXPRESSION, even when it reads like a procedure.**
+  Treating `Sort`, `Clear` and `Remove` as void and pushing nil was right for
+  most and wrong for the ones with something to say — `Remove` answers the
+  value removed from a Map and a Boolean from a Set [COL-011]. Every arm pushes
+  the call's result.
+
+  ⚠️ **`Stack` is a built-in**, so the machine's value stack is called `Slots`.
+  A module-level `Stack` shadowed it inside the built-in dispatcher and a guest
+  program calling `Stack ()` reached the Array instead.
 
   ⚠️ **"Every opcode has a handler" compares against `DoUnknown`** rather than
   running each opcode. The running version needed a special case per opcode
