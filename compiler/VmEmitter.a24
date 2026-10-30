@@ -89,6 +89,11 @@ begin
     Exit ToLower (Str (Op.Lexeme));
 end
 
+/// Every type name the machine can test a value against, lowercased.
+var TESTABLE_TYPES := ['any', 'integer', 'double', 'string', 'char', 'boolean',
+                       'list', 'map', 'set', 'array', 'stack', 'buffer',
+                       'textfile'];
+
 /// Each declared class's parent, keyed by lowercased name.
 ///
 /// Kept so that `except` can order its handlers MOST DERIVED FIRST, which
@@ -340,6 +345,25 @@ begin
         end
 end
 
+/// Whether the machine can test a value against a type of this name.
+///
+/// The primitives, Any, the collections, every declared enumeration and every
+/// declared class.  What is left out is a SUBRANGE, whose test is a range
+/// check against bounds held in the compiler's own table -- so `is Byte` is
+/// refused rather than answered as a type test, which would call 300 a Byte.
+function KnownTypeName (Named : Any) : Boolean;
+begin
+    var Key := ToLower (Str (Named));
+
+    for var Known in TESTABLE_TYPES do
+        if Known = Key then Exit True;
+
+    for var Declared in ENUM_NAMES do
+        if Declared = Key then Exit True;
+
+    Exit CLASS_PARENTS.Contains (Key);
+end
+
 /// How many classes lie between a name and the root of its hierarchy.
 ///
 /// A name that is not a declared class answers 0, which puts a primitive and
@@ -410,15 +434,7 @@ begin
 
     // The machine tests primitives, enumerations and classes; a subrange is a
     // RANGE check against bounds it cannot reach.
-    var Known := Named = 'integer' or Named = 'double' or Named = 'string'
-              or Named = 'char'    or Named = 'boolean';
-
-    for var Declared in ENUM_NAMES do
-        if Declared = Named then Known := True;
-
-    if CLASS_PARENTS.Contains (Named) then Known := True;
-
-    if not Known then Refuse ('as ' + Str (TheExpr.Cast));
+    if not KnownTypeName (Named) then Refuse ('as ' + Str (TheExpr.Cast));
 
     // AddConstant directly: Cast is a STRING where ClassNameConstant takes a
     // Token and reads its Lexeme.
@@ -631,8 +647,7 @@ begin
         // answer where a refusal is wanted.
         var Named := ToLower (Str (TheExpr.TypeName.Lexeme));
 
-        var Known := Named = 'integer' or Named = 'double' or Named = 'string'
-                  or Named = 'char'    or Named = 'boolean';
+        var Known := KnownTypeName (Named);
 
         // An enumeration too: `RED is Colour` is a test the machine can answer
         // because a member carries its own type's name [ENU-006].
@@ -741,6 +756,7 @@ begin
     else if Op = Str ('>')  then Into.Emit (OP_GREATER);
     else if Op = Str ('<')  then Into.Emit (OP_LESS);
 
+    else if Op = 'in'  then Into.Emit (OP_IN);
     else if Op = 'div' then Into.Emit (OP_DIV);
     else if Op = 'mod' then Into.Emit (OP_MOD);
 
@@ -812,11 +828,12 @@ begin
 
     Name := ToLower (Str (TheExpr.Callee.Name.Lexeme));
 
-    if Name = 'writeln' then
+    // WriteLn with exactly one argument keeps OP_PRINT, which is one
+    // instruction where the general path is three.  Any other count goes
+    // through OP_BUILTIN, which is variadic [RT-015] -- refusing them was
+    // leaving work undone that the machine could already do.
+    if Name = 'writeln' and TheExpr.Arguments.Length = 1 then
     begin
-        if TheExpr.Arguments.Length <> 1 then
-            Refuse ('WriteLn with ' + Str (TheExpr.Arguments.Length) + ' arguments');
-
         EmitExpr (TheExpr.Arguments[0]);
         Into.Emit (OP_PRINT);
 
@@ -1185,6 +1202,25 @@ begin
         Exit;
     end
 
+    if Kind = 'VarGroupStmt' then
+    begin
+        // One initializer shared by every name, evaluated ONCE -- which is why
+        // the value is duplicated rather than emitted per name.
+        EmitExpr (TheStmt.Initializer);
+        EmitWidening (TheStmt.TypeName);
+
+        for var I : Integer := 0; I < TheStmt.Names.Length; I := I + 1 do
+        begin
+            if I < TheStmt.Names.Length - 1 then Into.Emit (OP_DUP);
+
+            if Depth > 0 then AddLocal (TheStmt.Names[I].Lexeme);
+            else Into.EmitWith (OP_DEFINE_GLOBAL,
+                                Script.GlobalSlot (TheStmt.Names[I].Lexeme));
+        end
+
+        Exit;
+    end
+
     if Kind = 'BlockStmt' then
     begin
         PushScope ();
@@ -1428,6 +1464,9 @@ begin
         var Kind := KindOf (TheStmt);
 
         if Kind = 'VarStmt' then Script.GlobalSlot (TheStmt.Name.Lexeme);
+
+        if Kind = 'VarGroupStmt' then
+            for var TheName in TheStmt.Names do Script.GlobalSlot (TheName.Lexeme);
 
         // A subprogram's name is a global like any other, and it has to exist
         // before any BODY is emitted -- which is the case the pre-pass is for:

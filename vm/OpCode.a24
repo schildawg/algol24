@@ -107,37 +107,43 @@ const OP_DIV := 17;
 /// Pops two Integers and pushes the remainder.
 const OP_MOD := 18;
 
+/// Pops a value and a collection and pushes whether the collection has it.
+///
+/// The host's own `in` decides it, which is what makes a Map test its keys and
+/// a String test for a substring.
+const OP_IN := 19;
+
 /// Pops two Integers and pushes their bitwise and.
 ///
 /// Over an Integer that is two's complement extended infinitely to the left,
 /// so `~0` is -1 and `1 << 70` grows [EXP-023].  Nothing here has to know how
 /// wide an Integer is, because the host's operators already do not.
-const OP_BIT_AND := 19;
+const OP_BIT_AND := 20;
 
 /// Pops two Integers and pushes their bitwise or.
-const OP_BIT_OR := 20;
+const OP_BIT_OR := 21;
 
 /// Pops two Integers and pushes their bitwise exclusive or.
-const OP_BIT_XOR := 21;
+const OP_BIT_XOR := 22;
 
 /// Replaces the Integer on top with its bitwise complement.
-const OP_BIT_NOT := 22;
+const OP_BIT_NOT := 23;
 
 /// Pops two Integers and shifts the lower left by the upper.
-const OP_SHIFT_LEFT := 23;
+const OP_SHIFT_LEFT := 24;
 
 /// Pops two Integers and shifts the lower right by the upper.
 ///
 /// Floors where `div` truncates toward zero, so `-7 >> 1` is -4 and
 /// `-7 div 2` is -3 [EXP-024].  Two opcodes for that reason.
-const OP_SHIFT_RIGHT := 24;
+const OP_SHIFT_RIGHT := 25;
 
 /// Replaces the top with whether it is of a written type.
 ///
 /// One operand: the constant index of the type's NAME.  A range test for a
 /// subrange and a type test otherwise, which is what the host's `is` already
 /// decides -- so this asks it rather than reimplementing it.
-const OP_IS := 25;
+const OP_IS := 26;
 
 /// Replaces the top with whether it was falsey.
 ///
@@ -145,23 +151,23 @@ const OP_IS := 25;
 /// zero are falsey, where 0.0, the empty String and any Char are truthy.  The
 /// machine gets that free, because a guest value IS a host value and the host's
 /// own `not` decides it.
-const OP_NOT := 26;
+const OP_NOT := 27;
 
 /// Replaces the number on top with its negation.
-const OP_NEGATE := 27;
+const OP_NEGATE := 28;
 
 /// Pops a value and writes it, as `WriteLn` does.
-const OP_PRINT := 28;
+const OP_PRINT := 29;
 
 /// Jumps forward unconditionally.  Two operands: the distance, high byte first.
-const OP_JUMP := 29;
+const OP_JUMP := 30;
 
 /// Jumps forward when the top is falsey, WITHOUT popping it.
 ///
 /// Two operands: the distance, high byte first.  Leaving the value is what lets
 /// `and` and `or` need no opcodes of their own: they are a jump and an OP_POP,
 /// and the value left behind is the operand [EXP-010] requires them to answer.
-const OP_JUMP_IF_FALSE := 30;
+const OP_JUMP_IF_FALSE := 31;
 
 /// Calls the value beneath its arguments.  One operand: the argument count.
 ///
@@ -175,26 +181,26 @@ const OP_JUMP_IF_FALSE := 30;
 ///
 /// 'N takes A arguments but got G.' on a mismatch, and 'Can only call a
 /// subprogram.' for a callee that is not one.
-const OP_CALL := 31;
+const OP_CALL := 32;
 
 /// Jumps backward.  Two operands: the distance, high byte first.
 ///
 /// A separate opcode from OP_JUMP rather than a signed operand, because a
 /// distance that is always subtracted needs no sign and a byte pair that is
 /// never negative is easier to read in a disassembly.
-const OP_LOOP := 32;
+const OP_LOOP := 33;
 
 /// Replaces the top with the element its index names.
 ///
 /// No operand: the index is a value, pushed above the collection, so this one
 /// needs no help from the constant table.
-const OP_SUBSCRIPT_GET := 33;
+const OP_SUBSCRIPT_GET := 34;
 
 /// Stores a value at an index, LEAVING it on the stack.
 ///
 /// The collection, the index and the value, in that order.  The value stays
 /// because an assignment is an expression here.
-const OP_SUBSCRIPT_SET := 34;
+const OP_SUBSCRIPT_SET := 35;
 
 /// Replaces the top with one of its properties.  One operand: the name's
 /// constant index.
@@ -202,7 +208,7 @@ const OP_SUBSCRIPT_SET := 34;
 /// A chain over the five the runtime has -- Length, Text, Eof, IsEmpty and
 /// Address -- each arm written with the property as a LITERAL, for the reason
 /// OP_IS gives: a property cannot be reached from a name held in a variable.
-const OP_PROPERTY := 35;
+const OP_PROPERTY := 36;
 
 /// Builds a List from the values above it.  One operand: how many.
 ///
@@ -214,11 +220,11 @@ const OP_PROPERTY := 35;
 /// own limit for its own reason -- above a hundred it emits a helper function,
 /// because `cc` gives up at 256 bracket levels -- and above 255 the emitter
 /// refuses this rather than encoding the count some other way.
-const OP_LIST := 36;
+const OP_LIST := 37;
 
 /// Builds a Map from the key and value pairs above it.  One operand: how many
 /// PAIRS, so twice that many values are taken.
-const OP_MAP := 37;
+const OP_MAP := 38;
 
 /// Calls a method on the value beneath its arguments.  Two operands: the
 /// constant index of the NAME, and the argument count.
@@ -235,14 +241,14 @@ const OP_MAP := 37;
 ///
 /// 'No method N taking C arguments.' for a pairing with no arm, which is a gap
 /// in the machine rather than an error in a program.
-const OP_INVOKE := 38;
+const OP_INVOKE := 39;
 
 /// Pushes a new class.  One operand: the constant index of its name.
-const OP_CLASS := 39;
+const OP_CLASS := 40;
 
 /// Pops a callable and records it as a method of the class on top, which it
 /// leaves there.  One operand: the constant index of the method's name.
-const OP_METHOD := 40;
+const OP_METHOD := 41;
 
 /// Records a field name on the class on top, which it leaves there.  One
 /// operand: the constant index of the name.
@@ -250,7 +256,7 @@ const OP_METHOD := 40;
 /// The NAME and not a value: an instance begins with every field present and
 /// nil, so that a field with no initializer reads as nil [CLS-006] rather than
 /// as a member the class never declared.
-const OP_FIELD := 41;
+const OP_FIELD := 42;
 
 /// Pops a class and makes it the parent of the class on top, which it leaves.
 ///
@@ -260,22 +266,22 @@ const OP_FIELD := 41;
 /// A pointer rather than clox's copy-down of the parent's methods, because a
 /// method added to a parent AFTER a subclass is declared must still be found
 /// -- which a copy made at declaration time would miss.
-const OP_INHERIT := 42;
+const OP_INHERIT := 43;
 
 /// Pushes the receiver of the running frame.
 ///
 /// The receiver sits one below the frame's base, where a plain call keeps the
 /// callee -- so `this` is a subscript and needs no slot of its own.
-const OP_THIS := 43;
+const OP_THIS := 44;
 
 /// Replaces an instance on top with one of its fields.  One operand: the
 /// constant index of the name.
-const OP_GET_FIELD := 44;
+const OP_GET_FIELD := 45;
 
 /// Stores a value in an instance's field, LEAVING the value on the stack.
 ///
 /// One operand: the constant index of the name.  The instance then the value.
-const OP_SET_FIELD := 45;
+const OP_SET_FIELD := 46;
 
 /// Widens the value on top to a declared type.  One operand: the constant
 /// index of the type's name.
@@ -287,7 +293,7 @@ const OP_SET_FIELD := 45;
 ///
 /// It cannot range-check a SUBRANGE, because the bounds live in the
 /// compiler's own table, so the emitter refuses a subrange annotation instead.
-const OP_WIDEN := 46;
+const OP_WIDEN := 47;
 
 /// Replaces a collection with a List of the elements `for ... in` would visit.
 ///
@@ -299,10 +305,10 @@ const OP_WIDEN := 46;
 /// interpreter: a collection mutated during its own loop is iterated as it was
 /// when the loop began.  No conformance case does that, so it is a recorded
 /// trade rather than a known divergence.
-const OP_ITER := 47;
+const OP_ITER := 48;
 
 /// Pushes a new enumeration.  One operand: the constant index of its name.
-const OP_ENUM := 48;
+const OP_ENUM := 49;
 
 /// Adds the next member to the enumeration on top and PUSHES it, leaving the
 /// enumeration beneath.  One operand: the constant index of the member's name.
@@ -310,23 +316,23 @@ const OP_ENUM := 48;
 /// Pushed so that the emitter can bind the bare name immediately -- a member
 /// binds both bare and qualified [ENU-002] and both must reach the one
 /// interned object.
-const OP_ENUM_MEMBER := 49;
+const OP_ENUM_MEMBER := 50;
 
 /// Duplicates the value on top.
 ///
 /// Wanted by the handler chain an `except` compiles to: each arm tests the
 /// raised value's type and must leave it for the next arm to test.
-const OP_DUP := 50;
+const OP_DUP := 51;
 
 /// Opens a protected region.  Two operands: the distance to its handlers.
 ///
 /// Records where to resume, how deep the call stack was, and how deep the
 /// value stack was -- so a raise from several frames down can put all three
 /// back before the handler runs.
-const OP_TRY := 51;
+const OP_TRY := 52;
 
 /// Closes the innermost protected region without raising.
-const OP_UNTRY := 52;
+const OP_UNTRY := 53;
 
 /// Pops a value and raises it.
 ///
@@ -337,7 +343,7 @@ const OP_UNTRY := 52;
 /// A host error is the other direction: it arrives as a String and is turned
 /// into a raise of that String, which is what makes a runtime error catchable
 /// [STM-020].
-const OP_RAISE := 53;
+const OP_RAISE := 54;
 
 /// Checks the value on top against a type and leaves it.  One operand: the
 /// constant index of the type's name.
@@ -347,7 +353,7 @@ const OP_RAISE := 53;
 ///
 /// The test is the one `is` uses, which is what makes a cast to a base class
 /// succeed for a derived value.
-const OP_CAST := 54;
+const OP_CAST := 55;
 
 /// Calls a built-in.  Two operands: the constant index of its NAME, and the
 /// argument count.
@@ -361,13 +367,13 @@ const OP_CAST := 54;
 ///
 /// 'No built-in N takes C arguments.' for a pairing the machine has no arm
 /// for, which is a gap in the machine rather than an error in a program.
-const OP_BUILTIN := 55;
+const OP_BUILTIN := 56;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 56;
+const OP_RETURN := 57;
 
 /// How many opcodes there are.
-const OP_COUNT := 57;
+const OP_COUNT := 58;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -394,6 +400,7 @@ begin
     if Op = OP_DIVIDE        then Exit 'OP_DIVIDE';
     if Op = OP_DIV           then Exit 'OP_DIV';
     if Op = OP_MOD           then Exit 'OP_MOD';
+    if Op = OP_IN            then Exit 'OP_IN';
     if Op = OP_BIT_AND       then Exit 'OP_BIT_AND';
     if Op = OP_BIT_OR        then Exit 'OP_BIT_OR';
     if Op = OP_BIT_XOR       then Exit 'OP_BIT_XOR';

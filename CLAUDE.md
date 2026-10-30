@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **116 identical, 71 refused by
+  exactly as `conform.sh` renders it. Currently **131 identical, 56 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
@@ -181,6 +181,18 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   Missing any of them is a quietly wrong number rather than a failure. A
   subrange annotation is refused, because its bounds live in the compiler's
   table and a chunk cannot reach them.
+
+  ⚠️ **`is` and `as` are not the same rule, in two places.** `nil` has **no
+  type**, so `nil is X` is false for every X — but a *cast* passes nil, by
+  [VAR-005]. And `is Any` is **false** for everything, where `as Any` always
+  passes: `Any` is the absence of a written type rather than a type a value can
+  be tested against. Both were true-for-everything first, and both are
+  one-line differences in two handlers that look like they should agree.
+
+  ⚠️ **`5 is Dog` answers false, not an error.** A type name the machine cannot
+  test is the *emitter's* job to refuse; a declared class the value simply
+  isn't is a fair question with a boring answer. Raising on it reported a gap
+  that was not there.
 
   ⚠️ **Exceptions are a handler stack, not `setjmp`.** `OP_TRY` records where
   to resume **and the call depth and stack depth** it was opened at, so a raise

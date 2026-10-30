@@ -505,6 +505,19 @@ begin
     Push (Pop () mod Right);
 end
 
+/// Pops a value and a collection and pushes whether the collection has it.
+///
+/// The host's own `in` decides it, so a Map tests its KEYS and a String tests
+/// for a substring without this knowing the difference.
+procedure DoIn ();
+var
+    Over : Any;
+
+begin
+    Over := Pop ();
+    Push (Pop () in Over);
+end
+
 /// Bitwise and of the top two Integers.
 procedure DoBitAnd ();
 var
@@ -583,14 +596,18 @@ end
 /// Shared by `is` and `as`, because [TYP-?] gives them one rule: a cast
 /// succeeds exactly where the test answers true.
 ///
-/// # Raises
-///
-/// 'No test for type N.' for a name the emitter should have refused.
+/// Answers false rather than raising for a name that is a declared class or
+/// enumeration the value is not of -- `5 is Dog` is a fair question.
 function TypeMatches (V : Any, Named : Any) : Boolean;
 var
     Where : Any;
 
 begin
+    // nil HAS NO TYPE [0027], so `is` is false for it against everything --
+    // Any included.  That is not the same rule as a CAST, which nil passes
+    // [VAR-005]; DoCast short-circuits before asking.
+    if V = Nil then Exit False;
+
     // An INSTANCE answers for its own class and every class above it, so a
     // handler -- or a cast -- for a base class takes a derived value
     // [STM-017].
@@ -611,13 +628,31 @@ begin
     // A member answers for its own enumeration and no other [ENU-006].
     if V is VmEnum then Exit ToLower (Str (V.TypeName)) = Named;
 
+    // `is Any` is FALSE, for everything [0035].  Any is the absence of a
+    // written type rather than a type a value can be tested against -- which
+    // is the opposite of a CAST, where `as Any` always passes.
+    if Named = 'any' then Exit False;
+
     if Named = 'integer' then Exit V is Integer;
     if Named = 'double'  then Exit V is Double;
     if Named = 'string'  then Exit V is String;
     if Named = 'char'    then Exit V is Char;
     if Named = 'boolean' then Exit V is Boolean;
 
-    raise 'No test for type ' + Str (Named) + '.';
+    // The collections, each written as a literal for the reason the rest are.
+    if Named = 'list'     then Exit V is List;
+    if Named = 'map'      then Exit V is Map;
+    if Named = 'set'      then Exit V is Set;
+    if Named = 'array'    then Exit V is Array;
+    if Named = 'stack'    then Exit V is Stack;
+    if Named = 'buffer'   then Exit V is Buffer;
+    if Named = 'textfile' then Exit V is TextFile;
+
+    // A name the emitter allowed that got this far is a declared CLASS or
+    // ENUMERATION, and this value is neither one of those -- so the answer is
+    // false rather than a refusal.  `5 is Dog` is a fair question with a
+    // boring answer, and raising on it reported a gap that was not there.
+    Exit False;
 end
 
 /// The name of a value's type, for a cast's refusal.
@@ -625,6 +660,14 @@ function NameOfType (V : Any) : Any;
 begin
     if V is VmInstance then Exit V.Klass.Name;
     if V is VmEnum     then Exit V.TypeName;
+
+    if V is List     then Exit 'List';
+    if V is Map      then Exit 'Map';
+    if V is Set      then Exit 'Set';
+    if V is Array    then Exit 'Array';
+    if V is Stack    then Exit 'Stack';
+    if V is Buffer   then Exit 'Buffer';
+    if V is TextFile then Exit 'TextFile';
 
     if V is Integer then Exit 'Integer';
     if V is Double  then Exit 'Double';
@@ -662,8 +705,13 @@ begin
     V       := PeekAt (0);
 
     // nil satisfies every type [VAR-005], so it passes every cast rather than
-    // being tested at all.
+    // being tested at all -- which is not the rule `is` uses, where nil has no
+    // type and answers false.
     if V = Nil then Exit;
+
+    // And `as Any` always passes, where `is Any` is always false: Any is the
+    // absence of a written type, so casting to it asserts nothing.
+    if ToLower (Str (Written)) = 'any' then Exit;
 
     if not TypeMatches (V, ToLower (Str (Written))) then
         raise 'Cannot cast ' + Str (NameOfType (V)) + ' to '
@@ -1008,15 +1056,20 @@ end
 /// whatever the host raises.
 procedure DoInvoke ();
 var
-    Name  : Any;
-    Count : Integer;
+    Written : Any;
+    Name    : Any;
+    Count   : Integer;
     Self  : Any;
     A     : Any;
     B     : Any;
 
 begin
-    Name  := ToLower (Str (Constants[ReadByte ()]));
-    Count := ReadByte ();
+    // Both spellings kept: the folded one dispatches and the written one goes
+    // in the diagnostic.  Recovering it from IP afterwards indexed the
+    // CONSTANTS by a code offset, which is a different array entirely.
+    Written := Constants[ReadByte ()];
+    Name    := ToLower (Str (Written));
+    Count   := ReadByte ();
 
     // An INSTANCE first, and without popping anything: a method call wants its
     // receiver left beneath the arguments, exactly where a plain call keeps
@@ -1090,6 +1143,17 @@ begin
         if Name = 'putword'   then begin Push (Self.PutWord (A, B)); Exit; end
         if Name = 'putdouble' then begin Push (Self.PutDouble (A, B)); Exit; end
     end
+
+    // A name that is not one of the host's methods at all is an undefined
+    // PROPERTY, which is what the interpreter says -- `'text'.ToUpper ()`
+    // reaches for a built-in FUNCTION as though it were a member [0180].
+    var Isa := False;
+
+    for var Known in HOST_METHODS do
+        if Known = Name then Isa := True;
+
+    if not Isa then
+        raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
 
     raise 'No method ' + Str (Name) + ' taking ' + Str (Count) + ' arguments.';
 end
@@ -1554,6 +1618,7 @@ begin
     Table[OP_LOOP]          := DoLoop;
     Table[OP_DIV]           := DoDiv;
     Table[OP_MOD]           := DoMod;
+    Table[OP_IN]            := DoIn;
     Table[OP_BIT_AND]       := DoBitAnd;
     Table[OP_BIT_OR]        := DoBitOr;
     Table[OP_BIT_XOR]       := DoBitXor;
@@ -2267,7 +2332,7 @@ begin
     end
 end
 
-test 'Is Answers For A Primitive And The Emitter Refuses The Rest';
+test 'Is Answers False For A Type The Value Is Not';
 begin
     var C := Chunk ();
 
@@ -2277,19 +2342,16 @@ begin
 
     AssertTrue (RunChunk (C) as Boolean);
 
-    // A name the emitter would never produce, refused rather than guessed.
+    // A declared class or enumeration the value is not of answers FALSE
+    // rather than raising -- `5 is Dog` is a fair question with a boring
+    // answer, and the emitter is what refuses a name nothing can test.
     var D := Chunk ();
 
     D.EmitConstant (1);
-    D.EmitWith (OP_IS, D.AddConstant ('Byte'));
+    D.EmitWith (OP_IS, D.AddConstant ('Dog'));
     D.Emit (OP_RETURN);
 
-    try
-        RunChunk (D);
-        Fail ('expected a raise');
-    except
-        on e : String do AssertEqual ('No test for type byte.', e);
-    end
+    AssertTrue (not (RunChunk (D) as Boolean));
 end
 
 test 'A List Literal Keeps Its Source Order';
@@ -2440,14 +2502,28 @@ begin
     AssertEqual ('hi', B.Text);
 end
 
-test 'A Method The Machine Has No Arm For Is Named';
+test 'A Member That Is Not A Method At All Is An Undefined Property';
 begin
+    // The interpreter's wording: a name that is not one of the host's methods
+    // is a PROPERTY that does not exist, which is what reaching for a built-in
+    // function as though it were a member looks like [0180].
     try
         InvokeOn (List (), 'Nonesuch', []);
         Fail ('expected a raise');
     except
         on e : String do
-            AssertEqual ('No method nonesuch taking 0 arguments.', e);
+            AssertEqual ('Undefined property ''Nonesuch''.', e);
+    end
+end
+
+test 'A Real Method At The Wrong Arity Names The Arity';
+begin
+    try
+        InvokeOn (List (), 'Add', [1, 2]);
+        Fail ('expected a raise');
+    except
+        on e : String do
+            AssertEqual ('No method add taking 2 arguments.', e);
     end
 end
 
