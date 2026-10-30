@@ -152,13 +152,44 @@ begin
 end
 
 var SourcePath := ParamStr (1);
-
 var Listing := False;
+
+// The driver's own arguments, read BEFORE anything changes them.
+//
+// SetProgramArguments replaces what ParamCount and ParamStr answer, so a
+// second loop over them after the call reads the PROGRAM's arguments and not
+// this file's -- which is how an earlier version re-derived SourcePath from a
+// list it had just rewritten.
+var Given := List ();
+
+var Seen := False;
+
 for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     if ParamStr (I) = '--list' then Listing := True;
-    else SourcePath := ParamStr (I);
+    else
+    begin
+        // The FIRST non-flag argument is the program; the rest are its own,
+        // and taking the last one instead made `algvm prog.a24 a b` try to
+        // open 'b' as the source.
+        if not Seen then
+        begin
+            SourcePath := ParamStr (I);
+            Seen := True;
+        end
+
+        Given.Add (ParamStr (I));
+    end
 
 var Program := ChunkOf (SourceOf (SourcePath), SourcePath);
+
+// What the PROGRAM sees, and not what this driver was given: run as
+// `algvm prog.a24 a b` a program must find ParamCount () = 2 and ParamStr (0)
+// = 'prog.a24', exactly as it would run directly.
+//
+// The MACHINE is told, not the interpreter: SetProgramArguments sets what the
+// tree-walker reads, and the machine forwards a built-in to the HOST, whose
+// answer is about this driver's process instead.
+SetArguments (Given);
 
 if Listing then
 begin

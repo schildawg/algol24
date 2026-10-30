@@ -113,8 +113,9 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **41 identical, 153 refused by
-  name, 0 diverged**. A refusal is work to do; a divergence is a bug, and
+  exactly as `conform.sh` renders it. Currently **53 identical, 134 refused by
+  name, 7 not applicable, 0 diverged** — "not applicable" being a case that
+  asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
 
   With functions and call frames in, `Fib (27)` runs in **0.79 s on the VM
@@ -136,6 +137,25 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   ⚠️ **`STACK_ROOM` is derived from `FRAME_ROOM`, as clox derives it.** With the
   two equal, runaway recursion overflowed the *value* stack first and said so —
   true, but about the wrong thing.
+
+  ⚠️ **A built-in is called by NAME, and every arm ends in the host's own.**
+  `OP_BUILTIN` carries the name's constant index and an argument count, and
+  `DoBuiltin` dispatches on both — because six built-ins are variadic. That
+  keeps the interpreter's guarantee for a third processor: `Length` on the
+  machine **is** host `Length`, rather than a second one that must agree
+  forever.
+
+  ⚠️ **`ParamCount` and `ParamStr` are the exception and cannot be forwarded.**
+  The host's answer is about the *process*, which is the driver, not the program
+  being run — so the machine keeps its own `Arguments` and the driver calls
+  `SetArguments`. The interpreter has the identical split with its own
+  `ProgramArguments`, which is the thing to copy rather than rediscover.
+
+  ⚠️ **A collection built-in crosses the guest-heap boundary.** `List`, `Map`,
+  `Set`, `Array`, `Buffer`, `Stack` and `TextFile` hand back a **host** object
+  in an arena that never frees. Deliberate for now and matching the
+  interpreter, but it is exactly what the `Buffer` guest heap in
+  `PROPOSAL-GC.md` exists to fix.
 
   ⚠️ **The machine may not import anything from `compiler/`.** `TypeNameOf`
   looked like a built-in and is a function of `compiler/ObjFunction`, so `is`

@@ -102,6 +102,22 @@ var CodeBytes : Buffer := Nil;
 /// The chunk's constant table, lifted out for the same reason as CodeBytes.
 var Constants : List := Nil;
 
+/// The arguments the running PROGRAM sees, element 0 being its own name.
+///
+/// Held here because ParamCount and ParamStr are the one family of built-ins
+/// that cannot be forwarded to the host: the host's answer is about the
+/// process, which is the DRIVER, not about the program the machine is running.
+/// The interpreter has the same split -- it reads its own ProgramArguments and
+/// the host's built-in never sees them -- and this is that, for a third
+/// processor.
+var Arguments : List := List ();
+
+/// Tells the machine what the program's arguments are.
+procedure SetArguments (Given : List);
+begin
+    Arguments := Given;
+end
+
 /// The name of each global slot, taken from the OUTERMOST chunk.
 ///
 /// Held here rather than read from the running frame's chunk, because a global
@@ -572,6 +588,113 @@ begin
     IP        := 0;
 end
 
+/// Calls a built-in by name.
+///
+/// Every arm ends in a call to the HOST's built-in of the same name, which is
+/// the point: the interpreter guarantees that interpreted `Length` is host
+/// `Length` by having one implementation, and this keeps that promise for a
+/// third processor rather than writing a second `Length` that must agree with
+/// the first forever.
+///
+/// Dispatched on the name AND the count, because six of them are variadic and
+/// the host decides what each arity means.
+///
+/// A collection built-in -- List, Map, Set, Array, Buffer, Stack, TextFile --
+/// hands back a HOST object, allocated in an arena that never frees.  That is
+/// the guest-heap boundary PROPOSAL-GC.md describes, crossed deliberately and
+/// for now: it matches what the interpreter does, and the `Buffer` heap that
+/// would fix it is the VM's own work rather than a built-in's.
+///
+/// # Raises
+///
+/// 'No built-in N takes C arguments.' for a pairing with no arm, which is a
+/// gap in the machine rather than an error in a program.  Everything else is
+/// whatever the host raises, unchanged.
+procedure DoBuiltin ();
+var
+    Name  : Any;
+    Count : Integer;
+    A     : Any;
+    B     : Any;
+    C     : Any;
+
+begin
+    Name  := ToLower (Str (Constants[ReadByte ()]));
+    Count := ReadByte ();
+
+    // Popped in reverse, because the arguments were pushed in order.
+    if Count >= 3 then C := Pop ();
+    if Count >= 2 then B := Pop ();
+    if Count >= 1 then A := Pop ();
+
+    if Count = 0 then
+    begin
+        if Name = 'clock'      then begin Push (clock ());      Exit; end
+        if Name = 'getdir'     then begin Push (GetDir ());     Exit; end
+        if Name = 'list'       then begin Push (List ());       Exit; end
+        if Name = 'map'        then begin Push (Map ());        Exit; end
+        if Name = 'set'        then begin Push (Set ());        Exit; end
+        if Name = 'stack'      then begin Push (Stack ());      Exit; end
+        if Name = 'textfile'   then begin Push (TextFile ());   Exit; end
+        if Name = 'paramcount' then begin Push (Arguments.Length - 1); Exit; end
+        if Name = 'buffer'     then begin Push (Buffer ());     Exit; end
+        if Name = 'writeln'    then begin WriteLn (''); Push (Nil); Exit; end
+    end
+
+    if Count = 1 then
+    begin
+        if Name = 'length'     then begin Push (Length (A));     Exit; end
+        if Name = 'str'        then begin Push (Str (A));        Exit; end
+        if Name = 'toupper'    then begin Push (ToUpper (A));    Exit; end
+        if Name = 'tolower'    then begin Push (ToLower (A));    Exit; end
+        if Name = 'ord'        then begin Push (Ord (A));        Exit; end
+        if Name = 'char'       then begin Push (Char (A));       Exit; end
+        if Name = 'val'        then begin Push (Val (A));        Exit; end
+        if Name = 'pred'       then begin Push (Pred (A));       Exit; end
+        if Name = 'succ'       then begin Push (Succ (A));       Exit; end
+        if Name = 'array'      then begin Push (Array (A));      Exit; end
+        if Name = 'buffer'     then begin Push (Buffer (A));     Exit; end
+        if Name = 'set'        then begin Push (Set (A));        Exit; end
+        if Name = 'fileexists' then begin Push (FileExists (A)); Exit; end
+        if Name = 'paramstr' then
+        begin
+            var At := A as Integer;
+
+            // Out of range answers the empty String rather than raising,
+            // which is what the interpreter does.
+            if At < 0 or At >= Arguments.Length then Push (Str (''));
+            else Push (Arguments[At]);
+
+            Exit;
+        end
+        if Name = 'asserttrue' then begin AssertTrue (A); Push (Nil); Exit; end
+        if Name = 'fail'       then begin Fail (A);       Push (Nil); Exit; end
+        if Name = 'halt'       then begin Halt (A);       Push (Nil); Exit; end
+        if Name = 'chdir'      then begin ChDir (A);      Push (Nil); Exit; end
+        if Name = 'mkdir'      then begin MkDir (A);      Push (Nil); Exit; end
+        if Name = 'rmdir'      then begin RmDir (A);      Push (Nil); Exit; end
+        if Name = 'write'      then begin Write (A);      Push (Nil); Exit; end
+        if Name = 'writeln'    then begin WriteLn (A);    Push (Nil); Exit; end
+    end
+
+    if Count = 2 then
+    begin
+        if Name = 'pos'         then begin Push (Pos (A, B)); Exit; end
+        if Name = 'str'         then begin Push (Str (A, B)); Exit; end
+        if Name = 'copy'        then begin Push (Copy (A, B)); Exit; end
+        if Name = 'assertequal' then begin AssertEqual (A, B); Push (Nil); Exit; end
+    end
+
+    if Count = 3 then
+    begin
+        if Name = 'copy' then begin Push (Copy (A, B, C)); Exit; end
+        if Name = 'str'  then begin Push (Str (A, B, C));  Exit; end
+        if Name = 'pos'  then begin Push (Pos (A, B, C));  Exit; end
+    end
+
+    raise 'No built-in ' + Str (Name) + ' takes ' + Str (Count) + ' arguments.';
+end
+
 /// Returns from the running frame, or stops the machine at the outermost one.
 procedure DoReturn ();
 var
@@ -657,6 +780,7 @@ begin
     Table[OP_SHIFT_RIGHT]   := DoShiftRight;
     Table[OP_IS]            := DoIs;
     Table[OP_CALL]          := DoCall;
+    Table[OP_BUILTIN]       := DoBuiltin;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
     Table[OP_MULTIPLY] := DoMultiply;
@@ -922,9 +1046,16 @@ begin
             C.EmitConstant (Trivial);
         end
 
-        // OP_IS reads its operand as the INDEX OF A TYPE NAME, so a zero
-        // operand would hand it the constant 6 and it would rightly refuse.
+        // Three opcodes read an operand as an INDEX INTO THE CONSTANTS, so a
+        // zero operand would hand them the constant 6 -- a type name of '6'
+        // and a built-in called '6' -- and both would rightly refuse.
         if Op = OP_IS then C.EmitWith (OP_IS, C.AddConstant ('Integer'));
+        else if Op = OP_BUILTIN then
+        begin
+            C.Write (OP_BUILTIN);
+            C.Write (C.AddConstant ('clock'));
+            C.Write (0);
+        end
         else
         begin
             C.Write (Op);

@@ -12,6 +12,8 @@
 #
 #   identical         the machine agrees with the recorded expectation
 #   refused by name   an opcode does not exist yet, and the emitter said so
+#   not applicable    the case asks to be run some other way -- '--test', most
+#                     likely -- and the machine has no such mode yet
 #   DIVERGED          the machine ran it and got something else
 #
 # A refusal is work still to do.  A divergence is a bug, and the reason the
@@ -43,12 +45,25 @@ mkdir -p "$WORK/out"
 # shellcheck disable=SC2086
 $CC $CFLAGS -o "$WORK/algvm" "$WORK/out"/*.c
 
-PASS=0; REFUSED=0; DIVERGED=0
+PASS=0; REFUSED=0; DIVERGED=0; SKIPPED=0
 : > "$WORK/diverged"
 
 for src in conformance/*.a24; do
     expected="${src%.a24}.out"
     [ -f "$expected" ] || continue
+
+    # A case may ask to be run differently -- a .args file or a '// run:'
+    # line -- and conform.sh honours that.  '--test' is the common one, and
+    # the machine has no test runner, so such a case is not applicable rather
+    # than diverging: its recorded output is of a run this cannot perform.
+    wants=""
+    [ -f "${src%.a24}.args" ] && wants=$(cat "${src%.a24}.args")
+    [ -n "$wants" ] || wants=$(sed -n 's|^// run: ||p' "$src" | head -1)
+
+    if [ -n "$wants" ]; then
+        SKIPPED=$((SKIPPED + 1))
+        continue
+    fi
 
     status=0
     "$WORK/algvm" "$src" > "$WORK/raw" 2>&1 || status=$?
@@ -69,6 +84,7 @@ done
 
 echo "identical to expected : $PASS"
 echo "refused by name       : $REFUSED"
+echo "not applicable        : $SKIPPED"
 echo "DIVERGED              : $DIVERGED"
 
 if [ "$DIVERGED" -gt 0 ]; then

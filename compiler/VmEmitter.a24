@@ -161,6 +161,28 @@ begin
     Exit -1;
 end
 
+/// Every built-in this back end can call, lowercased.
+var BUILTIN_NAMES := ['array', 'assertequal', 'asserttrue', 'buffer', 'chdir', 'char', 'copy', 'fail', 'fileexists', 'getdir', 'halt', 'length', 'list', 'map', 'mkdir', 'ord', 'paramcount', 'paramstr', 'pos', 'pred', 'rmdir', 'set', 'stack', 'str', 'succ', 'textfile', 'tolower', 'toupper', 'val', 'write', 'writeln', 'clock'];
+
+/// Whether a name is one of the language's built-ins.
+///
+/// The list is Annex B's, and `spec/spec.sh` checks that against
+/// `Interpreter.a24` -- so a built-in added there and not here is refused by
+/// name rather than read from a global slot nothing defines.  `Foreign` is
+/// deliberately absent: it is a foreign call and wants an opcode of its own.
+function IsBuiltin (Name : Any) : Boolean;
+var
+    Wanted : Any;
+
+begin
+    Wanted := ToLower (Str (Name));
+
+    for var Known in BUILTIN_NAMES do
+        if Known = Wanted then Exit True;
+
+    Exit False;
+end
+
 /// Refuses a name that is neither a local nor a claimed global.
 ///
 /// The three things it catches, and all three used to be emitted as a read of
@@ -491,6 +513,25 @@ begin
     // one, so the count is not the question -- whether any was written is.
     for var Written in TheExpr.ArgumentNames do
         if Str (Written) <> '' then Refuse ('A call with named arguments');
+
+    // A built-in is called by NAME rather than through a slot, because a
+    // built-in has no slot: it is not a global the program declared.  A
+    // locally declared name of the same spelling shadows it, which is what
+    // checking the locals first does.
+    if LocalSlot (TheExpr.Callee.Name.Lexeme) < 0 and IsBuiltin (Name) then
+    begin
+        for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+        var At := Into.AddConstant (Str (TheExpr.Callee.Name.Lexeme));
+
+        if At > 255 then Refuse ('A chunk with more than 256 constants');
+
+        Into.Write (OP_BUILTIN);
+        Into.Write (At);
+        Into.Write (TheExpr.Arguments.Length);
+
+        Exit;
+    end
 
     // The callee first and the arguments after it, which is the order OP_CALL
     // reads them back in.

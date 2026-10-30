@@ -184,11 +184,25 @@ const OP_CALL := 32;
 /// never negative is easier to read in a disassembly.
 const OP_LOOP := 31;
 
+/// Calls a built-in.  Two operands: the constant index of its NAME, and the
+/// argument count.
+///
+/// By name rather than by a number per built-in, because the dispatch has to
+/// end in a call to the host's own -- which is how the interpreter guarantees
+/// that interpreted `Length` IS host `Length` and the two cannot disagree.  A
+/// number would buy a subscript and lose that.
+///
+/// # Raises
+///
+/// 'No built-in N takes C arguments.' for a pairing the machine has no arm
+/// for, which is a gap in the machine rather than an error in a program.
+const OP_BUILTIN := 33;
+
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 33;
+const OP_RETURN := 34;
 
 /// How many opcodes there are.
-const OP_COUNT := 34;
+const OP_COUNT := 35;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -229,6 +243,7 @@ begin
     if Op = OP_JUMP_IF_FALSE then Exit 'OP_JUMP_IF_FALSE';
     if Op = OP_LOOP          then Exit 'OP_LOOP';
     if Op = OP_CALL          then Exit 'OP_CALL';
+    if Op = OP_BUILTIN       then Exit 'OP_BUILTIN';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
 
     Exit 'OP_?';
@@ -246,6 +261,9 @@ begin
     if Op = OP_SET_GLOBAL    then Exit 1;
     if Op = OP_CALL          then Exit 1;
     if Op = OP_IS            then Exit 1;
+
+    // The name's index and the argument count.
+    if Op = OP_BUILTIN       then Exit 2;
 
     if Op = OP_JUMP          then Exit 2;
     if Op = OP_JUMP_IF_FALSE then Exit 2;
