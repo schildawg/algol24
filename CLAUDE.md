@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **53 identical, 134 refused by
+  exactly as `conform.sh` renders it. Currently **63 identical, 124 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
@@ -150,6 +150,22 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   being run — so the machine keeps its own `Arguments` and the driver calls
   `SetArguments`. The interpreter has the identical split with its own
   `ProgramArguments`, which is the thing to copy rather than rediscover.
+
+  ⚠️ **A collection literal is read off the stack by INDEX, not popped.**
+  Popping reverses the elements, and a reversed list literal reads as a parser
+  bug rather than as a back-end one.
+
+  ⚠️ **A dynamic member name cannot be reached from Algol-24**, so `is`,
+  properties and built-ins are each a chain with the name written as a literal
+  in every arm — the same shape three times. The emitter refuses any name the
+  chain lacks, so a gap is work to do rather than a wrong answer.
+
+  ⚠️ **"Every opcode has a handler" compares against `DoUnknown`** rather than
+  running each opcode. The running version needed a special case per opcode
+  whose operand is a constant INDEX — a type name, a built-in name, a property,
+  something callable — and each one it lacked failed as a refusal that looked
+  like a real finding. It still catches a gap in the numbering, which is what
+  it is for.
 
   ⚠️ **A collection built-in crosses the guest-heap boundary.** `List`, `Map`,
   `Set`, `Array`, `Buffer`, `Stack` and `TextFile` hand back a **host** object

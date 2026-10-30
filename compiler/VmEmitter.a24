@@ -343,6 +343,76 @@ begin
 
     // `and` and `or` are their own node, not a BinaryExpr, because they
     // short-circuit -- which is exactly why they are emitted as control flow.
+    if Kind = 'SubscriptExpr' then
+    begin
+        EmitExpr (TheExpr.Obj);
+        EmitExpr (TheExpr.Index);
+        Into.Emit (OP_SUBSCRIPT_GET);
+
+        Exit;
+    end
+
+    if Kind = 'SetSubscriptExpr' then
+    begin
+        EmitExpr (TheExpr.Obj);
+        EmitExpr (TheExpr.Index);
+        EmitExpr (TheExpr.Value);
+        Into.Emit (OP_SUBSCRIPT_SET);
+
+        Exit;
+    end
+
+    if Kind = 'GetExpr' then
+    begin
+        // A unit qualifier is a different thing wearing the same syntax --
+        // `Unit.Name` rather than a property of a value -- and the Resolver
+        // has already decided which.
+        if Str (TheExpr.Unit) <> '' then Refuse ('A read through a unit qualifier');
+        if Str (TheExpr.Extension) <> '' then Refuse ('An extension member');
+
+        var Named := ToLower (Str (TheExpr.Name.Lexeme));
+
+        if Named <> 'length' and Named <> 'text' and Named <> 'eof'
+                             and Named <> 'isempty' and Named <> 'address' then
+            Refuse ('The member ''' + Str (TheExpr.Name.Lexeme) + '''');
+
+        EmitExpr (TheExpr.Obj);
+
+        var At := Into.AddConstant (Str (TheExpr.Name.Lexeme));
+
+        if At > 255 then Refuse ('A chunk with more than 256 constants');
+
+        Into.EmitWith (OP_PROPERTY, At);
+
+        Exit;
+    end
+
+    if Kind = 'CollectionExpr' then
+    begin
+        if TheExpr.IsMap then
+        begin
+            if TheExpr.Keys.Length > 255 then Refuse ('A Map literal above 255 pairs');
+
+            for var I : Integer := 0; I < TheExpr.Keys.Length; I := I + 1 do
+            begin
+                EmitExpr (TheExpr.Keys[I]);
+                EmitExpr (TheExpr.Values[I]);
+            end
+
+            Into.EmitWith (OP_MAP, TheExpr.Keys.Length);
+
+            Exit;
+        end
+
+        if TheExpr.Values.Length > 255 then Refuse ('A List literal above 255 elements');
+
+        for var Element in TheExpr.Values do EmitExpr (Element);
+
+        Into.EmitWith (OP_LIST, TheExpr.Values.Length);
+
+        Exit;
+    end
+
     if Kind = 'IsExpr' then
     begin
         // Only a primitive type name, and the reason is in Vm.a24's DoIs: the

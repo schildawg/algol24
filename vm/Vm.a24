@@ -588,6 +588,111 @@ begin
     IP        := 0;
 end
 
+/// Replaces the top two -- a collection and an index -- with the element.
+///
+/// # Raises
+///
+/// Whatever the host raises: out of range, a bad index type, a target that is
+/// not subscriptable.  All of it unchanged, because the host decides it.
+procedure DoSubscriptGet ();
+var
+    Index : Any;
+
+begin
+    Index := Pop ();
+
+    Push (Pop ()[Index]);
+end
+
+/// Stores a value at an index, leaving the value on the stack.
+procedure DoSubscriptSet ();
+var
+    Target : Any;
+    Index  : Any;
+    Value  : Any;
+
+begin
+    Value  := Pop ();
+    Index  := Pop ();
+    Target := Pop ();
+
+    Target[Index] := Value;
+
+    Push (Value);
+end
+
+/// Replaces the top with one of its properties.
+///
+/// A chain over the five the runtime has, each written as a LITERAL -- a
+/// property cannot be reached from a name held in a variable, for the reason
+/// DoIs gives about `is`.
+///
+/// # Raises
+///
+/// 'No property N.' for a name the emitter should have refused.
+procedure DoProperty ();
+var
+    Named : Any;
+    V     : Any;
+
+begin
+    Named := ToLower (Str (Constants[ReadByte ()]));
+    V     := Pop ();
+
+    if Named = 'length' then Push (V.Length);
+    else if Named = 'text'    then Push (V.Text);
+    else if Named = 'eof'     then Push (V.Eof);
+    else if Named = 'isempty' then Push (V.IsEmpty);
+    else if Named = 'address' then Push (V.Address);
+    else raise 'No property ' + Str (Named) + '.';
+end
+
+/// Builds a List from the values its operand counts.
+///
+/// Read off the stack by index rather than popped, so the elements go in in
+/// SOURCE order -- popping would reverse them, and a reversed list literal is
+/// the kind of wrong answer that reads as a parser bug.
+procedure DoList ();
+var
+    Count : Integer;
+    From  : Integer;
+    Made  : List;
+
+begin
+    Count := ReadByte ();
+    From  := SP - Count;
+    Made  := List ();
+
+    for var I : Integer := 0; I < Count; I := I + 1 do Made.Add (Stack[From + I]);
+
+    SP := From;
+
+    Push (Made);
+end
+
+/// Builds a Map from the key and value pairs its operand counts.
+///
+/// The pairs are on the stack as key, value, key, value in source order, which
+/// is the order the emitter pushed them.
+procedure DoMap ();
+var
+    Count : Integer;
+    From  : Integer;
+    Made  : Map;
+
+begin
+    Count := ReadByte ();
+    From  := SP - Count * 2;
+    Made  := Map ();
+
+    for var I : Integer := 0; I < Count; I := I + 1 do
+        Made.Put (Stack[From + I * 2], Stack[From + I * 2 + 1]);
+
+    SP := From;
+
+    Push (Made);
+end
+
 /// Calls a built-in by name.
 ///
 /// Every arm ends in a call to the HOST's built-in of the same name, which is
@@ -780,6 +885,11 @@ begin
     Table[OP_SHIFT_RIGHT]   := DoShiftRight;
     Table[OP_IS]            := DoIs;
     Table[OP_CALL]          := DoCall;
+    Table[OP_SUBSCRIPT_GET] := DoSubscriptGet;
+    Table[OP_SUBSCRIPT_SET] := DoSubscriptSet;
+    Table[OP_PROPERTY]      := DoProperty;
+    Table[OP_LIST]          := DoList;
+    Table[OP_MAP]           := DoMap;
     Table[OP_BUILTIN]       := DoBuiltin;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
@@ -1015,64 +1125,17 @@ end
 
 test 'Every Opcode Has A Handler';
 begin
-    // Each one runs rather than reaching DoUnknown.  A renumbering that left
-    // a gap would fail here rather than at the instruction, which is where a
-    // gap is cheapest to find.
+    // Asks only whether a handler is REGISTERED, by comparing against the one
+    // that refuses -- not whether each opcode works, which needs a stack shaped
+    // for it and a constant table set up for it.  An earlier version tried to
+    // run every opcode with zero operands and grew a special case per opcode
+    // that reads its operand as an index: OP_IS wanted a type name, OP_BUILTIN
+    // a built-in name, OP_CALL something callable, and OP_PROPERTY a property.
+    // Each one it lacked failed as a refusal that looked like a real finding.
+    //
+    // A gap in the numbering is what this is for, and that it still catches.
     for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
-    begin
-        var C := Chunk ();
-
-        // A defined global in slot 0, so OP_GET_GLOBAL has something to read
-        // rather than raising -- its undefined path has a test of its own.
-        var Slot := C.GlobalSlot ('G');
-        C.Emit (OP_NIL);
-        C.EmitWith (OP_DEFINE_GLOBAL, Slot);
-
-        // Enough on the stack for the widest arity, and an OP_RETURN after so
-        // a handler that does not stop the machine still terminates.
-        C.EmitConstant (6);
-        C.EmitConstant (3);
-        C.EmitConstant (2);
-
-        // OP_CALL needs a CALLABLE where the others need a number, so it gets
-        // one that returns immediately.  Calling it with zero arguments is the
-        // shape every other opcode here is given: operands of zero.
-        if Op = OP_CALL then
-        begin
-            var Trivial := VmFunction ('Trivial', 0);
-            Trivial.Body.Emit (OP_NIL);
-            Trivial.Body.Emit (OP_RETURN);
-
-            C.EmitConstant (Trivial);
-        end
-
-        // Three opcodes read an operand as an INDEX INTO THE CONSTANTS, so a
-        // zero operand would hand them the constant 6 -- a type name of '6'
-        // and a built-in called '6' -- and both would rightly refuse.
-        if Op = OP_IS then C.EmitWith (OP_IS, C.AddConstant ('Integer'));
-        else if Op = OP_BUILTIN then
-        begin
-            C.Write (OP_BUILTIN);
-            C.Write (C.AddConstant ('clock'));
-            C.Write (0);
-        end
-        else
-        begin
-            C.Write (Op);
-
-            // Zero operands of whatever width this opcode takes.  A jump of
-            // zero lands on the next instruction, so every opcode falls
-            // through to the OP_RETURN below -- and writing ONE byte for a
-            // two-byte jump is how an earlier version of this test read the
-            // OP_RETURN as a distance and jumped five thousand bytes off the
-            // end.
-            for var B : Integer := 0; B < OpOperands (Op); B := B + 1 do C.Write (0);
-        end
-
-        C.Emit (OP_RETURN);
-
-        RunChunk (C);
-    end
+        AssertTrue (Dispatch[Op] <> DoUnknown);
 end
 
 test 'A While Loop Sums A Range';
@@ -1515,5 +1578,103 @@ begin
         Fail ('expected a raise');
     except
         on e : String do AssertEqual ('No test for type byte.', e);
+    end
+end
+
+test 'A List Literal Keeps Its Source Order';
+begin
+    // Read off the stack by index rather than popped, because popping would
+    // reverse them -- and a reversed list literal reads as a parser bug.
+    var C := Chunk ();
+
+    C.EmitConstant (10);
+    C.EmitConstant (20);
+    C.EmitConstant (30);
+    C.EmitWith (OP_LIST, 3);
+    C.Emit (OP_RETURN);
+
+    var L := RunChunk (C);
+
+    AssertEqual (3, L.Length);
+    AssertEqual (10, L[0] as Integer);
+    AssertEqual (30, L[2] as Integer);
+    AssertEqual (0, SP);
+end
+
+test 'An Empty List Literal Is A List';
+begin
+    var C := Chunk ();
+
+    C.EmitWith (OP_LIST, 0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (0, RunChunk (C).Length);
+end
+
+test 'A Map Literal Pairs Its Keys And Values';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant ('a');
+    C.EmitConstant (1);
+    C.EmitConstant ('b');
+    C.EmitConstant (2);
+    C.EmitWith (OP_MAP, 2);
+    C.Emit (OP_RETURN);
+
+    var M := RunChunk (C);
+
+    AssertEqual (2, M.Length);
+    AssertEqual (1, M['a'] as Integer);
+    AssertEqual (2, M['b'] as Integer);
+end
+
+test 'A Subscript Reads And Writes';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (1);
+    C.EmitConstant (2);
+    C.EmitConstant (3);
+    C.EmitWith (OP_LIST, 3);                  // local slot 0
+
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitConstant (1);
+    C.EmitConstant (99);
+    C.Emit (OP_SUBSCRIPT_SET);
+    C.Emit (OP_POP);
+
+    C.EmitWith (OP_GET_LOCAL, 0);
+    C.EmitConstant (1);
+    C.Emit (OP_SUBSCRIPT_GET);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (99, RunChunk (C) as Integer);
+end
+
+test 'A Property Is Read By Name';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant ('hello');
+    C.EmitWith (OP_PROPERTY, C.AddConstant ('Length'));
+    C.Emit (OP_RETURN);
+
+    AssertEqual (5, RunChunk (C) as Integer);
+end
+
+test 'A Property The Machine Has No Arm For Is Named';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant ('hello');
+    C.EmitWith (OP_PROPERTY, C.AddConstant ('Nonesuch'));
+    C.Emit (OP_RETURN);
+
+    try
+        RunChunk (C);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('No property nonesuch.', e);
     end
 end
