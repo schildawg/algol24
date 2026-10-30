@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **132 identical, 55 refused by
+  exactly as `conform.sh` renders it. Currently **135 identical, 52 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
@@ -181,6 +181,23 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   Missing any of them is a quietly wrong number rather than a failure. A
   subrange annotation is refused, because its bounds live in the compiler's
   table and a chunk cannot reach them.
+
+  ⚠️ **A `LabelStmt` WRAPS the statement it labels** — `Inner` — rather than
+  preceding it. Emitting nothing for the label emitted nothing for the loop
+  too, so `Outer: for ...` compiled to **no bytecode at all** and the whole
+  loop silently vanished.
+
+  ⚠️ **`break` and `continue` must close what they jump out of — both kinds.**
+  Locals declared since the loop opened need an `OP_POP` each, *and* every
+  `try` opened inside it needs an `OP_UNTRY`: the jump skips the one the `try`
+  would have run, so the handler stack keeps an entry whose frame and stack
+  depths are stale and the **next** raise unwinds to it. The corpus passed
+  before that fix by luck.
+
+  ⚠️ **`continue` lands on the INCREMENT, not the condition.** One target
+  serves both loop forms — a counted `for` runs its step and falls into the
+  backward jump, a `while` has no step and falls straight into it — which is
+  also why `continue` needs no backward jump of its own.
 
   ⚠️ **Closures BOX rather than closing over stack slots**, which is what
   `CEmitter` already does for the same problem — so there is no open-upvalue

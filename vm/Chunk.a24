@@ -190,6 +190,30 @@ begin
         this.Code[At + 1] := Distance mod 256;
     end
 
+    /// Fills in a jump emitted earlier so that it lands at a given offset.
+    ///
+    /// PatchJump lands a jump HERE, which is right for an `if` and a `while`
+    /// and wrong for a `continue`: its target is the loop's increment, which
+    /// is behind the point the loop finishes patching.  So the offset is named
+    /// rather than assumed.
+    ///
+    /// # Raises
+    ///
+    /// 'A jump reaches 65535 bytes.' when the distance will not encode, and
+    /// 'A jump cannot go backward.' for a target behind the jump -- which is
+    /// OP_LOOP's job and would otherwise encode as a huge forward distance.
+    procedure PatchJumpTo (At : Integer, Target : Integer);
+    begin
+        if Target < At + 2 then raise 'A jump cannot go backward.';
+
+        var Distance := Target - At - 2;
+
+        if Distance > 65535 then raise 'A jump reaches 65535 bytes.';
+
+        this.Code[At]     := Distance div 256;
+        this.Code[At + 1] := Distance mod 256;
+    end
+
     /// Emits a backward jump to an offset already passed.
     ///
     /// # Raises
@@ -371,4 +395,37 @@ begin
     // and must not be given two slots.
     AssertEqual (0, C.GlobalSlot ('TOTAL'));
     AssertEqual (2, C.GlobalNames.Length);
+end
+
+test 'A Jump Can Be Patched To A Named Offset';
+begin
+    var C := Chunk ();
+
+    var Hole := C.EmitJump (OP_JUMP);
+    C.Emit (OP_POP);
+    var Landing := C.Count;
+    C.Emit (OP_POP);
+    C.Emit (OP_POP);
+
+    C.PatchJumpTo (Hole, Landing);
+
+    // One OP_POP between the operand and the landing, so the machine adds 1.
+    AssertEqual (0, C.At (1));
+    AssertEqual (1, C.At (2));
+end
+
+test 'A Jump Cannot Be Patched Backward';
+begin
+    var C := Chunk ();
+
+    C.Emit (OP_POP);
+    C.Emit (OP_POP);
+    var Hole := C.EmitJump (OP_JUMP);
+
+    try
+        C.PatchJumpTo (Hole, 0);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('A jump cannot go backward.', e);
+    end
 end

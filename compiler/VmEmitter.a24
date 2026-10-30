@@ -109,6 +109,42 @@ var CLASS_PARENTS := Map ();
 /// else -- so the emitter has to know which names are which.
 var ENUM_NAMES := List ();
 
+/// The label of each open loop, innermost last, or '' when it has none.
+///
+/// Searched by a labelled `break` or `continue`, which may target any
+/// enclosing loop rather than only the innermost [0162].
+var LoopLabels : List := List ();
+
+/// The unpatched `break` jumps of each open loop.
+var LoopBreaks : List := List ();
+
+/// The unpatched `continue` jumps of each open loop.
+///
+/// Both are forward jumps patched when the loop closes, and `continue` lands
+/// on the START OF THE INCREMENT rather than on the condition.  That one
+/// target serves both loop forms: a counted `for` runs its step and falls into
+/// the backward jump, and a `while` has no step and falls straight into it --
+/// which is also why a backward jump is not needed for `continue` at all.
+var LoopContinues : List := List ();
+
+/// How many `try` blocks were open when each loop opened.
+///
+/// A `break` or `continue` out of a protected region skips its OP_UNTRY, so
+/// the handler stack would keep an entry whose frame and stack depths are
+/// stale -- and the next raise would unwind to it.  One OP_UNTRY per level
+/// left is emitted instead.
+var LoopTries : List := List ();
+
+/// How many `try` blocks the emitter is inside.
+var TryNesting : Integer := 0;
+
+/// How many locals were in scope when each loop opened.
+///
+/// A `break` out of a nested scope has to discard what that scope pushed, or
+/// the stack is left deeper than the loop found it -- the invariant Vm.a24's
+/// tests assert SP for.
+var LoopLocals : List := List ();
+
 /// The enclosing subprogram's locals, when compiling a nested one.
 ///
 /// Empty at every other time.  A name found here and not in Locals is a
@@ -1424,7 +1460,11 @@ begin
     begin
         var Opened := Into.EmitJump (OP_TRY);
 
+        TryNesting := TryNesting + 1;
+
         EmitStmt (TheStmt.TryBlock);
+
+        TryNesting := TryNesting - 1;
 
         Into.Emit (OP_UNTRY);
 
@@ -1511,8 +1551,6 @@ begin
 
     if Kind = 'ForInStmt' then
     begin
-        if Str (TheStmt.Label) <> '' then Refuse ('A labelled loop');
-
         // Desugared into a counted loop over the materialized sequence, which
         // needs three locals: what to walk, where in it, and the loop
         // variable.  They are the loop's OWN scope, so PopScope discards all
@@ -1533,6 +1571,8 @@ begin
         Into.Emit (OP_NIL);
         var Each := AddLocal (TheStmt.Name.Lexeme);
 
+        PushLoop (TheStmt.Label);
+
         var Top := Into.Count;
 
         Into.EmitWith (OP_GET_LOCAL, At);
@@ -1551,6 +1591,10 @@ begin
 
         EmitStmt (TheStmt.Body);
 
+        // Where `continue` lands: the step, so that continuing still advances
+        // -- landing on the condition instead would loop on one element.
+        var Stepping := Into.Count;
+
         Into.EmitWith (OP_GET_LOCAL, At);
         Into.EmitConstant (1);
         Into.Emit (OP_ADD);
@@ -1562,6 +1606,7 @@ begin
         Into.PatchJump (Done);
         Into.Emit (OP_POP);
 
+        PopLoop (Stepping);
         PopScope ();
 
         Exit;
@@ -1569,6 +1614,8 @@ begin
 
     if Kind = 'WhileStmt' then
     begin
+        PushLoop (TheStmt.Label);
+
         var Top := Into.Count;
 
         EmitExpr (TheStmt.Condition);
@@ -1576,6 +1623,10 @@ begin
         var Done := Into.EmitJump (OP_JUMP_IF_FALSE);
         Into.Emit (OP_POP);
         EmitStmt (TheStmt.Body);
+
+        // Where `continue` lands: the step if there is one, and the backward
+        // jump if there is not.
+        var Stepping := Into.Count;
 
         // The counted form carries its step here rather than in the body, so
         // 'for var I := 0; I < N; I := I + 1' and 'while' are one node.
@@ -1589,6 +1640,50 @@ begin
 
         Into.PatchJump (Done);
         Into.Emit (OP_POP);
+
+        PopLoop (Stepping);
+
+        Exit;
+    end
+
+    if Kind = 'LabelStmt' then
+    begin
+        // A label WRAPS the statement it labels -- `Inner` -- rather than
+        // merely preceding it, so emitting nothing for the label emitted
+        // nothing for the loop either, and `Outer: for ...` compiled to no
+        // bytecode at all.
+        //
+        // The Parser has already copied the name onto the loop inside, which
+        // is what a labelled `break` or `continue` searches for, so there is
+        // nothing to emit for the label itself.
+        //
+        // A `goto` would need the position recorded here, and is still
+        // refused -- `Targeted` is how the Parser says whether one needs it.
+        if TheStmt.Targeted then Refuse ('A label a ''goto'' targets');
+
+        EmitStmt (TheStmt.Inner);
+
+        Exit;
+    end
+
+    if Kind = 'BreakStmt' then
+    begin
+        var Which := LoopMeant (TheStmt.Label, 'A ''break''');
+
+        UnwindTo (Which);
+
+        LoopBreaks[Which].Add (Into.EmitJump (OP_JUMP));
+
+        Exit;
+    end
+
+    if Kind = 'ContinueStmt' then
+    begin
+        var Which := LoopMeant (TheStmt.Label, 'A ''continue''');
+
+        UnwindTo (Which);
+
+        LoopContinues[Which].Add (Into.EmitJump (OP_JUMP));
 
         Exit;
     end
@@ -1706,6 +1801,73 @@ begin
     end
 end
 
+/// Opens a loop, so `break` and `continue` inside it have somewhere to go.
+procedure PushLoop (Label : Any);
+begin
+    LoopLabels.Add (Str (Label));
+    LoopBreaks.Add (List ());
+    LoopContinues.Add (List ());
+    LoopLocals.Add (Locals.Length);
+    LoopTries.Add (TryNesting);
+end
+
+/// Closes a loop, patching its jumps.
+///
+/// Breaks land after everything the loop leaves behind and continues on the
+/// increment, which the caller names because only it knows where that is.
+procedure PopLoop (Stepping : Integer);
+begin
+    var Last := LoopLabels.Length - 1;
+
+    for var Hole in LoopContinues[Last] do Into.PatchJumpTo (Hole, Stepping);
+    for var Hole in LoopBreaks[Last] do Into.PatchJump (Hole);
+
+    LoopLabels.RemoveAt (Last);
+    LoopBreaks.RemoveAt (Last);
+    LoopContinues.RemoveAt (Last);
+    LoopLocals.RemoveAt (Last);
+    LoopTries.RemoveAt (Last);
+end
+
+/// Which open loop a `break` or `continue` means, innermost first.
+///
+/// # Raises
+///
+/// A refusal naming the label when no open loop carries it, and one for a
+/// `break` outside a loop at all.
+function LoopMeant (Label : Any, What : String) : Integer;
+begin
+    if LoopLabels.Length = 0 then Refuse (What + ' outside a loop');
+
+    if Str (Label) = '' then Exit LoopLabels.Length - 1;
+
+    for var I : Integer := LoopLabels.Length - 1; I >= 0; I := I - 1 do
+        if ToLower (Str (LoopLabels[I])) = ToLower (Str (Label)) then Exit I;
+
+    Refuse (What + ' to the unknown label ''' + Str (Label) + '''');
+
+    Exit -1;
+end
+
+/// Discards the locals a `break` or `continue` leaves behind.
+///
+/// Everything declared since the loop opened, because the jump skips the
+/// PopScope that would otherwise have done it.
+procedure UnwindTo (Which : Integer);
+begin
+    // Every protected region opened inside the loop is closed, or its handler
+    // outlives the jump and the next raise reaches a stale frame depth.
+    var Protected := LoopTries[Which] as Integer;
+
+    for var T : Integer := TryNesting; T > Protected; T := T - 1 do
+        Into.Emit (OP_UNTRY);
+
+    var Wanted := LoopLocals[Which] as Integer;
+
+    for var I : Integer := Locals.Length; I > Wanted; I := I - 1 do
+        Into.Emit (OP_POP);
+end
+
 /// Whether a body declares a subprogram of its own.
 ///
 /// Decides whether the enclosing subprogram's locals are boxed, so it has to
@@ -1762,6 +1924,12 @@ begin
     Returning   := '';
     Boxing      := False;
     Outer       := List ();
+    LoopLabels    := List ();
+    LoopBreaks    := List ();
+    LoopContinues := List ();
+    LoopLocals    := List ();
+    LoopTries     := List ();
+    TryNesting    := 0;
     ENUM_NAMES    := List ();
     CLASS_PARENTS := Map ();
 
