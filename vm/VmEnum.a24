@@ -1,0 +1,108 @@
+/// An enumeration and one of its members.
+///
+/// clox has neither, and the compiler's ObjEnum and ObjEnumType are units of
+/// the same program once `vm/run.a24` imports the front end -- so the names
+/// carry the Vm prefix for the reason VmFunction and VmClass do.
+unit VmEnum;
+
+/// One member of an enumeration.
+///
+/// Members compare by IDENTITY [ENU-005], which is why a type interns them:
+/// the bare name and the qualified one must denote the same object, and no
+/// member is ever equal to a member of another enumeration.
+class VmEnum;
+var
+    /// The enumeration this belongs to, for `is` and for a diagnostic.
+    TypeName : String;
+
+    /// The member's own name, which is how it renders [ENU-007].
+    Name     : String;
+
+    /// Its position in the declaration, which is the only place the order
+    /// appears [ENU-001].
+    ///
+    /// Load-bearing beyond ordering: a member whose ordinal is zero is FALSEY,
+    /// which is the one place an enumeration touches truthiness.
+    Ordinal  : Integer;
+
+begin
+    /// Makes a member.
+    constructor Init (TypeName : String, Name : String, Ordinal : Integer);
+    begin
+        this.TypeName := TypeName;
+        this.Name     := Name;
+        this.Ordinal  := Ordinal;
+    end
+end
+
+/// An enumeration: its name, and its members in declaration order.
+class VmEnumType;
+var
+    /// The type's name.
+    Name    : String;
+
+    /// The members, keyed by LOWERCASED name because identifiers are
+    /// case-insensitive [SRC-011].
+    Members : Map;
+
+    /// How many members have been added, which is the next ordinal.
+    Count   : Integer;
+
+begin
+    /// Makes an enumeration with no members.
+    constructor Init (Name : String);
+    begin
+        this.Name    := Name;
+        this.Members := Map ();
+        this.Count   := 0;
+    end
+
+    /// Adds the next member and answers it.
+    function AddMember (MemberName : Any) : VmEnum;
+    begin
+        var Made := VmEnum (this.Name, Str (MemberName), this.Count);
+
+        this.Members.Put (ToLower (Str (MemberName)), Made);
+        this.Count := this.Count + 1;
+
+        Exit Made;
+    end
+
+    /// Finds a member by name, or nil.
+    function FindMember (Wanted : Any) : Any;
+    begin
+        var Key := ToLower (Str (Wanted));
+
+        if this.Members.Contains (Key) then Exit this.Members.Get (Key);
+
+        Exit Nil;
+    end
+end
+
+test 'Members Are Numbered In Declaration Order';
+begin
+    var T := VmEnumType ('Colour');
+
+    AssertEqual (0, T.AddMember ('RED').Ordinal);
+    AssertEqual (1, T.AddMember ('GREEN').Ordinal);
+    AssertEqual (2, T.AddMember ('BLUE').Ordinal);
+end
+
+test 'A Member Is Interned So Both Spellings Are One Object';
+begin
+    // Members compare by identity [ENU-005], so the bare name and the
+    // qualified one have to reach the same object.
+    var T := VmEnumType ('Colour');
+    var Red := T.AddMember ('RED');
+
+    AssertTrue (T.FindMember ('RED') = Red);
+    AssertTrue (T.FindMember ('red') = Red);
+    AssertTrue (T.FindMember ('Absent') = Nil);
+end
+
+test 'A Member Knows Its Own Enumeration';
+begin
+    var T := VmEnumType ('Colour');
+
+    AssertEqual ('Colour', T.AddMember ('RED').TypeName);
+end

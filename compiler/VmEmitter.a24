@@ -32,6 +32,7 @@ uses 'vm/OpCode';
 uses 'vm/Chunk';
 uses 'vm/VmFunction';
 uses 'vm/VmClass';
+uses 'vm/VmEnum';
 
 /// What the emitter is building, for the duration of one CompileProgram.
 var Into : Chunk := Nil;
@@ -87,6 +88,13 @@ function Spelling (Op : Any) : Any;
 begin
     Exit ToLower (Str (Op.Lexeme));
 end
+
+/// The enumerations this program declares, lowercased.
+///
+/// Kept so that `X is Colour` can be emitted: the machine answers `is` for the
+/// five primitive type names and for an enumeration, and refuses everything
+/// else -- so the emitter has to know which names are which.
+var ENUM_NAMES := List ();
 
 /// The return type of the subprogram being compiled, or '' at the top level.
 ///
@@ -527,8 +535,15 @@ begin
         // answer where a refusal is wanted.
         var Named := ToLower (Str (TheExpr.TypeName.Lexeme));
 
-        if Named <> 'integer' and Named <> 'double' and Named <> 'string'
-                              and Named <> 'char'   and Named <> 'boolean' then
+        var Known := Named = 'integer' or Named = 'double' or Named = 'string'
+                  or Named = 'char'    or Named = 'boolean';
+
+        // An enumeration too: `RED is Colour` is a test the machine can answer
+        // because a member carries its own type's name [ENU-006].
+        for var Declared in ENUM_NAMES do
+            if Declared = Named then Known := True;
+
+        if not Known then
             Refuse ('''is ' + Str (TheExpr.TypeName.Lexeme) + '''');
 
         EmitExpr (TheExpr.Obj);
@@ -1068,6 +1083,85 @@ begin
         Exit;
     end
 
+    if Kind = 'EnumStmt' then
+    begin
+        Into.EmitWith (OP_ENUM, ClassNameConstant (TheStmt.Name));
+
+        // Each member is pushed by OP_ENUM_MEMBER and bound immediately, so
+        // the bare name and the qualified one reach the one interned object
+        // [ENU-002].  The enumeration stays beneath them throughout.
+        for var Member in TheStmt.Members do
+        begin
+            Into.EmitWith (OP_ENUM_MEMBER, ClassNameConstant (Member));
+
+            if Depth > 0 then Refuse ('An enumeration inside a block');
+
+            Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (Member.Lexeme));
+        end
+
+        Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+
+        Exit;
+    end
+
+    if Kind = 'ForInStmt' then
+    begin
+        if Str (TheStmt.Label) <> '' then Refuse ('A labelled loop');
+
+        // Desugared into a counted loop over the materialized sequence, which
+        // needs three locals: what to walk, where in it, and the loop
+        // variable.  They are the loop's OWN scope, so PopScope discards all
+        // three and the stack is where it was [the SP invariant].
+        PushScope ();
+
+        EmitExpr (TheStmt.Iterable);
+        Into.Emit (OP_ITER);
+        var Over := AddLocal (' for-in sequence ');
+
+        Into.EmitConstant (0);
+        var At := AddLocal (' for-in index ');
+
+        // The loop variable is declared ONCE and assigned per iteration.  A
+        // fresh one each time would want a scope per iteration, and nothing
+        // in this language can observe the difference -- there are no closures
+        // over it yet, which is the only thing that could.
+        Into.Emit (OP_NIL);
+        var Each := AddLocal (TheStmt.Name.Lexeme);
+
+        var Top := Into.Count;
+
+        Into.EmitWith (OP_GET_LOCAL, At);
+        Into.EmitWith (OP_GET_LOCAL, Over);
+        Into.EmitWith (OP_PROPERTY, Into.AddConstant ('Length'));
+        Into.Emit (OP_LESS);
+
+        var Done := Into.EmitJump (OP_JUMP_IF_FALSE);
+        Into.Emit (OP_POP);
+
+        Into.EmitWith (OP_GET_LOCAL, Over);
+        Into.EmitWith (OP_GET_LOCAL, At);
+        Into.Emit (OP_SUBSCRIPT_GET);
+        Into.EmitWith (OP_SET_LOCAL, Each);
+        Into.Emit (OP_POP);
+
+        EmitStmt (TheStmt.Body);
+
+        Into.EmitWith (OP_GET_LOCAL, At);
+        Into.EmitConstant (1);
+        Into.Emit (OP_ADD);
+        Into.EmitWith (OP_SET_LOCAL, At);
+        Into.Emit (OP_POP);
+
+        Into.EmitLoop (Top);
+
+        Into.PatchJump (Done);
+        Into.Emit (OP_POP);
+
+        PopScope ();
+
+        Exit;
+    end
+
     if Kind = 'WhileStmt' then
     begin
         var Top := Into.Count;
@@ -1138,6 +1232,27 @@ begin
         // A subprogram's name is a global like any other, and it has to exist
         // before any BODY is emitted -- which is the case the pre-pass is for:
         // two subprograms that call each other, and one that calls itself.
+        // An enumeration binds its own name AND every member as a bare global
+        // [ENU-002], so all of them are claimed before any body is emitted.
+        if Kind = 'EnumStmt' then
+        begin
+            Script.GlobalSlot (TheStmt.Name.Lexeme);
+            ENUM_NAMES.Add (ToLower (Str (TheStmt.Name.Lexeme)));
+
+            for var Member in TheStmt.Members do
+            begin
+                // Two enumerations sharing a member name make the BARE name
+                // ambiguous, and the language raises when it is used --
+                // naming both enumerations.  One global slot cannot hold
+                // 'ambiguous', so it is refused by name instead.
+                if Script.KnownGlobal (Member.Lexeme) then
+                    Refuse ('The shared enum member name '''
+                          + Str (Member.Lexeme) + '''');
+
+                Script.GlobalSlot (Member.Lexeme);
+            end
+        end
+
         // A class's name is a global too, and it has to exist before any
         // METHOD body is emitted -- a method may name its own class, and two
         // classes may name each other.
@@ -1192,6 +1307,7 @@ begin
     Depth       := 0;
     ModuleDepth := 0;
     Returning   := '';
+    ENUM_NAMES  := List ();
 
     ClaimGlobalSlots (Statements, 1);
 

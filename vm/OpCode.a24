@@ -175,14 +175,14 @@ const OP_JUMP_IF_FALSE := 30;
 ///
 /// 'N takes A arguments but got G.' on a mismatch, and 'Can only call a
 /// subprogram.' for a callee that is not one.
-const OP_CALL := 32;
+const OP_CALL := 31;
 
 /// Jumps backward.  Two operands: the distance, high byte first.
 ///
 /// A separate opcode from OP_JUMP rather than a signed operand, because a
 /// distance that is always subtracted needs no sign and a byte pair that is
 /// never negative is easier to read in a disassembly.
-const OP_LOOP := 31;
+const OP_LOOP := 32;
 
 /// Replaces the top with the element its index names.
 ///
@@ -289,6 +289,29 @@ const OP_SET_FIELD := 45;
 /// compiler's own table, so the emitter refuses a subrange annotation instead.
 const OP_WIDEN := 46;
 
+/// Replaces a collection with a List of the elements `for ... in` would visit.
+///
+/// The HOST's own iteration decides them, which is what makes a Map yield its
+/// keys, a String its Chars and a Set its members without this opcode knowing
+/// the difference.
+///
+/// It MATERIALIZES the sequence, which is a real difference from the
+/// interpreter: a collection mutated during its own loop is iterated as it was
+/// when the loop began.  No conformance case does that, so it is a recorded
+/// trade rather than a known divergence.
+const OP_ITER := 47;
+
+/// Pushes a new enumeration.  One operand: the constant index of its name.
+const OP_ENUM := 48;
+
+/// Adds the next member to the enumeration on top and PUSHES it, leaving the
+/// enumeration beneath.  One operand: the constant index of the member's name.
+///
+/// Pushed so that the emitter can bind the bare name immediately -- a member
+/// binds both bare and qualified [ENU-002] and both must reach the one
+/// interned object.
+const OP_ENUM_MEMBER := 49;
+
 /// Calls a built-in.  Two operands: the constant index of its NAME, and the
 /// argument count.
 ///
@@ -301,13 +324,13 @@ const OP_WIDEN := 46;
 ///
 /// 'No built-in N takes C arguments.' for a pairing the machine has no arm
 /// for, which is a gap in the machine rather than an error in a program.
-const OP_BUILTIN := 47;
+const OP_BUILTIN := 50;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 48;
+const OP_RETURN := 51;
 
 /// How many opcodes there are.
-const OP_COUNT := 49;
+const OP_COUNT := 52;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -362,6 +385,9 @@ begin
     if Op = OP_GET_FIELD     then Exit 'OP_GET_FIELD';
     if Op = OP_SET_FIELD     then Exit 'OP_SET_FIELD';
     if Op = OP_WIDEN         then Exit 'OP_WIDEN';
+    if Op = OP_ENUM          then Exit 'OP_ENUM';
+    if Op = OP_ENUM_MEMBER   then Exit 'OP_ENUM_MEMBER';
+    if Op = OP_ITER          then Exit 'OP_ITER';
     if Op = OP_BUILTIN       then Exit 'OP_BUILTIN';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
 
@@ -390,6 +416,8 @@ begin
     if Op = OP_GET_FIELD     then Exit 1;
     if Op = OP_SET_FIELD     then Exit 1;
     if Op = OP_WIDEN         then Exit 1;
+    if Op = OP_ENUM          then Exit 1;
+    if Op = OP_ENUM_MEMBER   then Exit 1;
 
     // The name's index and the argument count, for both of these.
     if Op = OP_BUILTIN       then Exit 2;

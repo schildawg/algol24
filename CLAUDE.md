@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **77 identical, 110 refused by
+  exactly as `conform.sh` renders it. Currently **90 identical, 97 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
@@ -181,6 +181,23 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   Missing any of them is a quietly wrong number rather than a failure. A
   subrange annotation is refused, because its bounds live in the compiler's
   table and a chunk cannot reach them.
+
+  ⚠️ **An enum member with ordinal 0 is FALSEY, and the host cannot tell.**
+  It sees one of the machine's objects and calls every object truthy, so
+  `OP_NOT` and `OP_JUMP_IF_FALSE` go through the machine's own `Truthy` —
+  the only place the machine must *not* defer to the host about truth
+  [ENU-009].
+
+  ⚠️ **`for ... in` asks the host what to visit.** `OP_ITER` builds a List by
+  running the host's own `for ... in`, so a Map yields keys, a String yields
+  Chars and a Set yields members without the machine deciding any of it. It
+  **materializes** the sequence, so a collection mutated during its own loop
+  would be iterated as it was — a recorded trade, since no corpus case does it.
+
+  ⚠️ **Renumber opcodes from DECLARATION ORDER, never by hand.** Inserting one
+  while renumbering those above it left a gap twice and a collision once, in
+  four increments. There is a test for contiguous *and* unique, and the fix is
+  a script that renumbers every opcode from its position in the file.
 
   ⚠️ **`Exit` inside a loop leaves the whole subprogram.** An untyped parameter
   stopped every later one from being widened, because the skip was written as

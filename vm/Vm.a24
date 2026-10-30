@@ -16,6 +16,7 @@ uses OpCode;
 uses Chunk;
 uses VmFunction;
 uses VmClass;
+uses VmEnum;
 
 
 /// Every method name the machine can invoke on a host value, lowercased.
@@ -312,6 +313,10 @@ end
 /// return.  Refused by name rather than rendered wrongly.
 function Rendered (V : Any) : Any;
 begin
+    // A member renders as its BARE NAME [ENU-007], not as the host's idea of
+    // what one of the machine's objects looks like.
+    if V is VmEnum then Exit V.Name;
+
     if V.Klass.FindMethod ('tostring') <> Nil then
         raise 'A class with ToString is not supported by the bytecode back end yet.';
 
@@ -329,7 +334,7 @@ var
 begin
     V := Pop ();
 
-    if V is VmInstance then WriteLn (Rendered (V));
+    if V is VmInstance or (V is VmEnum) then WriteLn (Rendered (V));
     else WriteLn (V);
 end
 
@@ -549,6 +554,16 @@ begin
     Named := ToLower (Str (Constants[ReadByte ()]));
     V     := Pop ();
 
+    // An enumeration MEMBER answers for its own type and no other [ENU-006],
+    // which it can do without the machine knowing what enumerations exist --
+    // the member carries the name.
+    if V is VmEnum then
+    begin
+        Push (ToLower (Str (V.TypeName)) = Named);
+
+        Exit;
+    end
+
     if Named = 'integer' then Push (V is Integer);
     else if Named = 'double'  then Push (V is Double);
     else if Named = 'string'  then Push (V is String);
@@ -563,7 +578,7 @@ end
 /// truthiness the language's truthiness rather than a second opinion about it.
 procedure DoNot ();
 begin
-    Push (not Pop ());
+    Push (not Truthy (Pop ()));
 end
 
 /// Jumps forward by its operand.
@@ -591,7 +606,7 @@ var
 begin
     Distance := ReadShort ();
 
-    if not PeekAt (0) then IP := IP + Distance;
+    if not Truthy (PeekAt (0)) then IP := IP + Distance;
 end
 
 /// Jumps backward by its operand.
@@ -605,6 +620,22 @@ begin
     Distance := ReadShort ();
 
     IP := IP - Distance;
+end
+
+/// Whether a value is truthy, by the language's reading.
+///
+/// The host decides it for everything except an enumeration MEMBER, and that
+/// exception is the whole reason this exists: a member whose ordinal is zero
+/// is falsey, where the host sees an object and calls every object truthy.
+/// `nil`, `False` and the Integer zero are falsey; `0.0`, the empty String and
+/// any Char are truthy -- all of which the host already answers correctly.
+function Truthy (V : Any) : Boolean;
+begin
+    if V is VmEnum then Exit V.Ordinal <> 0;
+
+    if V then Exit True;
+
+    Exit False;
 end
 
 /// Pushes a frame for a callable, whose receiver or callee is already on the
@@ -741,6 +772,18 @@ var
 begin
     Named := ToLower (Str (Written));
 
+    // A qualified member, `Colour.RED`, which must reach the INTERNED object
+    // so that it compares equal to the bare name [ENU-002].
+    if Self is VmEnumType then
+    begin
+        var Member := Self.FindMember (Named);
+
+        if Member = Nil then
+            raise 'Undefined enum member ' + QUOTE + Str (Written) + QUOTE + '.';
+
+        Exit Member;
+    end
+
     if Self is VmInstance then
     begin
         // ClassName answers AHEAD of a field of that name, because the name
@@ -751,6 +794,16 @@ begin
 
         if Self.Klass.FindMethod (Named) <> Nil then
             raise 'A method as a value is not supported by the bytecode back end yet.';
+
+        raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
+    end
+
+    // A member answers Ordinal, which is the position truthiness reads
+    // [ENU-009] and the only way a program can see it.
+    if Self is VmEnum then
+    begin
+        if Named = 'ordinal' then Exit Self.Ordinal;
+        if Named = 'name'    then Exit Self.Name;
 
         raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
     end
@@ -965,6 +1018,37 @@ begin
     else Push (V);
 end
 
+/// Pushes a new enumeration.
+procedure DoEnum ();
+begin
+    Push (VmEnumType (Str (Constants[ReadByte ()])));
+end
+
+/// Adds the next member to the enumeration on top and pushes it.
+procedure DoEnumMember ();
+begin
+    Push (PeekAt (0).AddMember (Constants[ReadByte ()]));
+end
+
+/// Replaces a collection with a List of what `for ... in` would visit.
+///
+/// Built by iterating it with the HOST's own `for ... in`, so a Map yields its
+/// keys, a String its Chars and a Set its members -- the machine does not
+/// decide any of that and therefore cannot disagree about it.
+procedure DoIter ();
+var
+    Over : Any;
+    Made : List;
+
+begin
+    Over := Pop ();
+    Made := List ();
+
+    for var Element in Over do Made.Add (Element);
+
+    Push (Made);
+end
+
 /// Calls a built-in by name.
 ///
 /// Every arm ends in a call to the HOST's built-in of the same name, which is
@@ -1026,7 +1110,7 @@ begin
             // An instance reads as '<ClassName> instance', which is the
             // interpreter's rendering -- the host would answer the name of the
             // machine's OWN class, 'VmInstance instance', instead.
-            if A is VmInstance then Push (Rendered (A));
+            if A is VmInstance or (A is VmEnum) then Push (Rendered (A));
             else Push (Str (A));
 
             Exit;
@@ -1272,6 +1356,9 @@ begin
     Table[OP_GET_FIELD]     := DoGetField;
     Table[OP_SET_FIELD]     := DoSetField;
     Table[OP_WIDEN]         := DoWiden;
+    Table[OP_ENUM]          := DoEnum;
+    Table[OP_ENUM_MEMBER]   := DoEnumMember;
+    Table[OP_ITER]          := DoIter;
     Table[OP_BUILTIN]       := DoBuiltin;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
@@ -2250,4 +2337,56 @@ begin
     D.Emit (OP_RETURN);
 
     AssertEqual (7, RunChunk (D) as Integer);
+end
+
+test 'An Enum Member Is Falsey At Ordinal Zero';
+begin
+    // The one place an enumeration touches truthiness [ENU-009], and the one
+    // thing the host cannot answer: it sees an object, and every object is
+    // truthy to it.
+    var T := VmEnumType ('Colour');
+    var Red := T.AddMember ('RED');
+    var Green := T.AddMember ('GREEN');
+
+    AssertTrue (not Truthy (Red));
+    AssertTrue (Truthy (Green));
+
+    // And the host disagrees, which is the whole reason Truthy exists: it
+    // sees one of the machine's objects and calls every object truthy.
+    AssertTrue (Red);
+end
+
+test 'A Member Renders As Its Bare Name';
+begin
+    var T := VmEnumType ('Colour');
+
+    AssertEqual ('RED', Str (Rendered (T.AddMember ('RED'))));
+end
+
+test 'For In Walks Every Kind Of Collection';
+begin
+    // OP_ITER asks the HOST what to visit, so a Map yields keys and a String
+    // yields Chars without the machine deciding either.
+    var C := Chunk ();
+
+    C.EmitConstant (Str ('abc'));
+    C.Emit (OP_ITER);
+    C.Emit (OP_RETURN);
+
+    var Chars := RunChunk (C);
+
+    AssertEqual (3, Chars.Length);
+    // Str of a Char is a String, and a Char never equals one [TYP-003], so
+    // the expectation is widened too rather than compared across the two.
+    AssertEqual (Str ('a'), Str (Chars[0]));
+
+    var D := Chunk ();
+    var M := Map ();
+    M.Put (Str ('k'), 1);
+
+    D.EmitConstant (M);
+    D.Emit (OP_ITER);
+    D.Emit (OP_RETURN);
+
+    AssertEqual (Str ('k'), Str (RunChunk (D)[0]));
 end
