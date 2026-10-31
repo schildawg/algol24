@@ -848,13 +848,37 @@ end
 /// 'Can only call a subprogram.' for a callee that is not one, the arity
 /// message for a mismatch, and 'The call stack overflowed.' past FRAME_ROOM.
 procedure DoCall ();
-var
-    Count  : Integer;
-    Callee : Any;
-
 begin
-    Count  := ReadByte ();
-    Callee := PeekAt (Count);
+    var Count := ReadByte ();
+
+    CallValue (PeekAt (Count), Count);
+end
+
+/// Calls a value sitting under Count arguments.
+///
+/// Separate from DoCall so that OP_INVOKE_EXT reaches the same machinery: an
+/// extension call is an ORDINARY call once the receiver is in front of the
+/// arguments, and selecting an overload or reporting a wrong count must happen
+/// the one way.
+///
+/// # Raises
+///
+/// 'Can only call a subprogram.' for a value that is not callable, and
+/// whatever a wrong argument count reports for the kind of callee it is.
+procedure CallValue (Callee : Any, Count : Integer);
+begin
+    // A bound extension is unpacked here rather than at OP_EXTEND, because
+    // only the call knows how many arguments were written -- the receiver goes
+    // in front of them [FUN-016], which is what makes the two spellings one
+    // call.
+    if Callee is VmExtension then
+    begin
+        Prepend (Callee.Target, Callee.Receiver, Count);
+
+        CallValue (Callee.Target, Count + 1);
+
+        Exit;
+    end
 
     // A class is called to make an instance.  The class on the stack is
     // REPLACED by the instance, so the constructor finds it exactly where a
@@ -1092,22 +1116,179 @@ end
 /// 'No method N taking C arguments.' for a pairing with no arm, which is a gap
 /// in the machine rather than an error in a program.  Everything else is
 /// whatever the host raises.
+/// Whether a value has a member of this name.
+///
+/// Step 1 of [EXP-022], and the whole of what decides between a member and an
+/// extension.  It mirrors the interpreter's own Responds rather than improving
+/// on it: a String answers to Length and nothing else, a number to ToString,
+/// an instance to its fields and methods and to ClassName.
+///
+/// A host object is asked by NAME against the machine's own tables, because a
+/// dynamic member name cannot be reached from Algol-24 -- the interpreter can
+/// try `Obj.Get (Name)` and catch, and this cannot.  HOST_METHODS is the same
+/// list OP_INVOKE dispatches against, so the two cannot drift.
+///
+/// # Satisfies
+///
+/// [EXP-022]
+function RespondsTo (Self : Any, Written : Any) : Boolean;
+begin
+    var Named := ToLower (Str (Written));
+
+    if Self = Nil then Exit False;
+
+    // A Char answers to nothing, which is what lets an extension take one.
+    if Self is String then Exit Named = 'length';
+
+    if Self is Integer or Self is Double then Exit Named = 'tostring';
+
+    // An instance's own field map, which MemberOf consults too: an instance
+    // begins with every declared field present and nil [CLS-006], so the map
+    // IS the answer to whether the class declares one.
+    if Self is VmInstance then
+        Exit Named = 'classname'
+          or Self.Fields.Contains (Named)
+          or Self.Klass.FindMethod (Named) <> Nil;
+
+    if Self is VmEnumType then Exit Self.FindMember (Named) <> Nil;
+
+    if Self is VmEnum then Exit Named = 'ordinal' or Named = 'name';
+
+    if Self is VmFunction or Self is VmClosure
+            or Self is VmClass or Self is VmOverloads
+            or Self is VmExtension then Exit False;
+
+    // The runtime's five properties, then the host's methods.
+    if Named = 'length' or Named = 'text' or Named = 'eof'
+                        or Named = 'isempty' or Named = 'address' then Exit True;
+
+    for var Known in HOST_METHODS do
+        if Known = Named then Exit True;
+
+    Exit False;
+end
+
+/// Reads a member, or binds a visible extension where there is no member.
+///
+/// The receiver is popped and one value replaces it either way, so this is an
+/// ordinary expression however it answers.
+procedure DoExtend ();
+var
+    Written : Any;
+    Slot    : Integer;
+
+begin
+    Written := Constants[ReadByte ()];
+    Slot    := ReadByte ();
+
+    var Self := Pop ();
+
+    if RespondsTo (Self, Written) then
+    begin
+        Push (MemberOf (Self, Written));
+
+        Exit;
+    end
+
+    if not WasDefined[Slot] then
+        raise 'Undefined variable ' + QUOTE + Str (GlobalNames[Slot]) + QUOTE + '.';
+
+    Push (VmExtension (Self, GlobalCells[Slot]));
+end
+
+/// Calls a member, or a visible extension where there is no member.
+///
+/// Where the extension answers, the receiver becomes its FIRST argument -- so
+/// the written arguments shift up one and the callable takes the receiver's
+/// place, after which it is an ordinary call [FUN-016].
+procedure DoInvokeExt ();
+var
+    Written : Any;
+    Count   : Integer;
+    Slot    : Integer;
+
+begin
+    Written := Constants[ReadByte ()];
+    Count   := ReadByte ();
+    Slot    := ReadByte ();
+
+    // A MEMBER wins, and this is the only place that can know: the receiver's
+    // value decides it, and the type system is gradual [EXP-022].
+    if RespondsTo (PeekAt (Count), Written) then
+    begin
+        InvokeMember (Written, Count);
+
+        Exit;
+    end
+
+    if not WasDefined[Slot] then
+        raise 'Undefined variable ' + QUOTE + Str (GlobalNames[Slot]) + QUOTE + '.';
+
+    Prepend (GlobalCells[Slot], PeekAt (Count), Count);
+
+    CallValue (GlobalCells[Slot], Count + 1);
+end
+
+/// Puts a callable under Count arguments and a receiver between them.
+///
+/// The receiver is passed rather than read off the stack, because the two
+/// callers hold it in different places: OP_INVOKE_EXT has it in the callee's
+/// slot, and a bound extension carries it inside the value sitting there.
+/// Taking it from the stack read the VmExtension itself as the receiver, and
+/// the extension then asked a function for its Length.
+///
+/// Written downward because the ranges overlap: upward would copy the first
+/// argument over all the rest.
+procedure Prepend (Callable : Any, Self : Any, Count : Integer);
+begin
+    if SP >= STACK_ROOM then raise 'The value stack overflowed.';
+
+    var Bottom := SP - Count - 1;
+
+    for var I : Integer := SP - 1; I >= Bottom; I := I - 1 do
+        Slots[I + 1] := Slots[I];
+
+    Slots[Bottom]     := Callable;
+    Slots[Bottom + 1] := Self;
+
+    SP := SP + 1;
+end
+
 procedure DoInvoke ();
 var
     Written : Any;
-    Name    : Any;
     Count   : Integer;
-    Self  : Any;
-    A     : Any;
-    B     : Any;
 
 begin
     // Both spellings kept: the folded one dispatches and the written one goes
     // in the diagnostic.  Recovering it from IP afterwards indexed the
     // CONSTANTS by a code offset, which is a different array entirely.
     Written := Constants[ReadByte ()];
-    Name    := ToLower (Str (Written));
     Count   := ReadByte ();
+
+    InvokeMember (Written, Count);
+end
+
+/// Calls a member of the receiver sitting under Count arguments.
+///
+/// Separate from DoInvoke so that OP_INVOKE_EXT can reach it: the extension
+/// instruction has to do exactly what OP_INVOKE does when the receiver has a
+/// member of the name [EXP-022], and a second copy of this chain would be two
+/// answers to maintain rather than one.
+///
+/// # Raises
+///
+/// 'Undefined property N.' for a name that is no member at all, and
+/// 'No method N taking C arguments.' for a pairing with no arm.
+procedure InvokeMember (Written : Any, Count : Integer);
+var
+    Name  : Any;
+    Self  : Any;
+    A     : Any;
+    B     : Any;
+
+begin
+    Name := ToLower (Str (Written));
 
     // An INSTANCE first, and without popping anything: a method call wants its
     // receiver left beneath the arguments, exactly where a plain call keeps
@@ -1850,6 +2031,8 @@ begin
     Table[OP_CLOSURE]       := DoClosure;
     Table[OP_OVERLOADS]     := DoOverloads;
     Table[OP_BUILTIN]       := DoBuiltin;
+    Table[OP_EXTEND]        := DoExtend;
+    Table[OP_INVOKE_EXT]    := DoInvokeExt;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
     Table[OP_MULTIPLY] := DoMultiply;
@@ -3160,6 +3343,147 @@ begin
 
     // And a Double still reaches the Double one.
     AssertEqual ('widened', Str (CallWith (Set, 1.5)));
+end
+
+/// Builds an extension taking one argument and answering it doubled.
+function Doubler () : VmFunction;
+begin
+    var F := VmFunction ('Doubled', 1);
+
+    F.Types.Add ('Integer');
+
+    F.Body.EmitWith (OP_GET_LOCAL, 0);
+    F.Body.EmitConstant (2);
+    F.Body.Emit (OP_MULTIPLY);
+    F.Body.Emit (OP_RETURN);
+
+    Exit F;
+end
+
+test 'An Extension Answers Where The Receiver Has No Member Of The Name';
+begin
+    var C := Chunk ();
+    var At := C.GlobalSlot ('Doubled');
+
+    C.EmitConstant (Doubler ());
+    C.EmitWith (OP_DEFINE_GLOBAL, At);
+
+    // 21.Doubled () -- an Integer answers only to ToString, so the extension
+    // is reached and the receiver becomes its first argument.
+    C.EmitConstant (21);
+    C.Write (OP_INVOKE_EXT);
+    C.Write (C.AddConstant ('Doubled'));
+    C.Write (0);
+    C.Write (At);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C));
+
+    // A correct emitter leaves a balanced stack: Prepend shifts the arguments
+    // up by one and the frame has to give that slot back.  RunChunk pops the
+    // answer, so balanced is nothing left at all.
+    AssertEqual (0, SP);
+end
+
+test 'A Member Wins Over An Extension Of The Same Name';
+begin
+    var C := Chunk ();
+    var At := C.GlobalSlot ('Size');
+
+    // An extension that would answer something else entirely.
+    var Ext := VmFunction ('Size', 1);
+    Ext.Types.Add ('Any');
+    Ext.Body.EmitConstant ('from the extension');
+    Ext.Body.Emit (OP_RETURN);
+
+    C.EmitConstant (Ext);
+    C.EmitWith (OP_DEFINE_GLOBAL, At);
+
+    // A class declaring Size: step 1 of EXP-022 answers, and the extension is
+    // never reached.  This is 0190's Box, which is the case that decides it.
+    var Box := VmClass ('Box');
+    var Own := VmFunction ('Size', 0);
+
+    Own.Body.EmitConstant (7);
+    Own.Body.Emit (OP_RETURN);
+
+    Box.AddMethod ('Size', Own);
+
+    C.EmitConstant (VmInstance (Box));
+    C.Write (OP_INVOKE_EXT);
+    C.Write (C.AddConstant ('Size'));
+    C.Write (0);
+    C.Write (At);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (7, RunChunk (C));
+    AssertEqual (0, SP);
+end
+
+test 'An Extension Without A Call Is A Value Bound To Its Receiver';
+begin
+    var C := Chunk ();
+    var At := C.GlobalSlot ('Doubled');
+
+    C.EmitConstant (Doubler ());
+    C.EmitWith (OP_DEFINE_GLOBAL, At);
+
+    // `var F := 21.Doubled;` -- no parentheses, so it is a value [FUN-011] --
+    // and then F () supplies the receiver the binding kept.
+    C.EmitConstant (21);
+    C.Write (OP_EXTEND);
+    C.Write (C.AddConstant ('Doubled'));
+    C.Write (At);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C));
+    AssertEqual (0, SP);
+end
+
+test 'A Receiver With The Member Answers It Rather Than Binding';
+begin
+    var C := Chunk ();
+    var At := C.GlobalSlot ('Length');
+
+    var Ext := VmFunction ('Length', 1);
+    Ext.Types.Add ('Any');
+    Ext.Body.EmitConstant (-1);
+    Ext.Body.Emit (OP_RETURN);
+
+    C.EmitConstant (Ext);
+    C.EmitWith (OP_DEFINE_GLOBAL, At);
+
+    // A String responds to Length, so OP_EXTEND reads the member.
+    C.EmitConstant ('abcd');
+    C.Write (OP_EXTEND);
+    C.Write (C.AddConstant ('Length'));
+    C.Write (At);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (4, RunChunk (C));
+end
+
+test 'What Responds To A Name Is What The Interpreter Says Responds';
+begin
+    // A String answers to Length and nothing else; a Char to nothing at all,
+    // which is what lets an extension take one.
+    AssertTrue (RespondsTo ('text', 'Length'));
+    AssertTrue (not RespondsTo ('text', 'Trimmed'));
+    AssertTrue (not RespondsTo (Char (120), 'Twice'));
+
+    // A number answers to ToString.
+    AssertTrue (RespondsTo (7, 'ToString'));
+    AssertTrue (not RespondsTo (7, 'Doubled'));
+
+    // A host object answers to its own methods and the five properties.
+    AssertTrue (RespondsTo (List (), 'Length'));
+    AssertTrue (RespondsTo (List (), 'Add'));
+    AssertTrue (not RespondsTo (List (), 'Size'));
+
+    // Nil has nothing, and neither has a subprogram.
+    AssertTrue (not RespondsTo (Nil, 'Length'));
+    AssertTrue (not RespondsTo (VmFunction ('F', 0), 'Length'));
 end
 
 test 'Widening Is Tried When Nothing Matches Exactly';

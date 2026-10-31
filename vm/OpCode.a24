@@ -409,11 +409,31 @@ const OP_OVERLOADS := 62;
 /// for, which is a gap in the machine rather than an error in a program.
 const OP_BUILTIN := 63;
 
+/// Reads a member, or binds a visible EXTENSION where there is no member.
+/// Two operands: the constant index of the NAME, and the extension's slot.
+///
+/// Step 2 of [EXP-022] without a call after it, which is a value [FUN-011].
+/// The member is asked for first and wins where it is there, so no reading
+/// that works today can change meaning; only where the receiver has nothing of
+/// the name does the extension answer, bound to it.
+const OP_EXTEND := 64;
+
+/// Calls a member, or a visible EXTENSION where there is no member.  Three
+/// operands: the constant index of the NAME, the argument count, and the
+/// extension's slot.
+///
+/// Both halves of [EXP-022] in one instruction, because the choice is about the
+/// receiver's VALUE and nothing at the call site can decide it earlier -- the
+/// type system is gradual, so `X.Size ()` may be a method on one value and an
+/// extension on the next.  Where the extension answers, the receiver becomes
+/// its first argument and the call is an ordinary one from there [FUN-016].
+const OP_INVOKE_EXT := 65;
+
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 64;
+const OP_RETURN := 66;
 
 /// How many opcodes there are.
-const OP_COUNT := 65;
+const OP_COUNT := 67;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -485,12 +505,17 @@ begin
     if Op = OP_CLOSURE       then Exit 'OP_CLOSURE';
     if Op = OP_OVERLOADS     then Exit 'OP_OVERLOADS';
     if Op = OP_BUILTIN       then Exit 'OP_BUILTIN';
+    if Op = OP_EXTEND        then Exit 'OP_EXTEND';
+    if Op = OP_INVOKE_EXT    then Exit 'OP_INVOKE_EXT';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
 
     Exit 'OP_?';
 end
 
 /// How many operand BYTES follow an opcode.
+///
+/// Bytes, not operands: a pair may be one 16-bit number or two separate
+/// indexes, and OpReadsShort is what tells them apart.
 ///
 /// OP_CLOSURE answers 0 and is a LIE, because it is the one variable-width
 /// instruction: its width depends on how many cells it captures.  A
@@ -531,12 +556,48 @@ begin
     if Op = OP_BUILTIN       then Exit 2;
     if Op = OP_INVOKE        then Exit 2;
 
+    // The name's index and the extension's slot.
+    if Op = OP_EXTEND        then Exit 2;
+
+    // The name's index, the argument count, and the extension's slot.
+    if Op = OP_INVOKE_EXT    then Exit 3;
+
     if Op = OP_JUMP          then Exit 2;
     if Op = OP_JUMP_IF_FALSE then Exit 2;
     if Op = OP_LOOP          then Exit 2;
     if Op = OP_TRY           then Exit 2;
 
     Exit 0;
+end
+
+/// Whether an opcode's two operand bytes are ONE 16-bit number.
+///
+/// The jumps are; every other pair -- a name's index beside an argument count,
+/// a count beside a name, a name beside a slot -- is two separate operands.
+/// Asked by a disassembler, which otherwise renders `OP_INVOKE 5 1` as
+/// `OP_INVOKE 1281` and reads like a chunk full of enormous constants.
+function OpReadsShort (Op : Integer) : Boolean;
+begin
+    Exit Op = OP_JUMP or Op = OP_JUMP_IF_FALSE
+      or Op = OP_LOOP or Op = OP_TRY;
+end
+
+test 'A Jump Reads One Short Where Another Pair Reads Two Bytes';
+begin
+    AssertTrue (OpReadsShort (OP_JUMP));
+    AssertTrue (OpReadsShort (OP_JUMP_IF_FALSE));
+    AssertTrue (OpReadsShort (OP_LOOP));
+    AssertTrue (OpReadsShort (OP_TRY));
+
+    // Two operands, and not a distance between them.
+    AssertTrue (not OpReadsShort (OP_INVOKE));
+    AssertTrue (not OpReadsShort (OP_BUILTIN));
+    AssertTrue (not OpReadsShort (OP_OVERLOADS));
+    AssertTrue (not OpReadsShort (OP_EXTEND));
+
+    // Every opcode that reads a short takes exactly two operand bytes.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+        if OpReadsShort (Op) then AssertEqual (2, OpOperands (Op));
 end
 
 test 'Every Opcode Has A Name';

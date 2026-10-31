@@ -998,7 +998,21 @@ begin
             Exit;
         end
 
-        if Str (TheExpr.Extension) <> '' then Refuse ('An extension member');
+        // Without parentheses it is a VALUE [FUN-011] -- the extension bound to
+        // this receiver, or the member where there is one.
+        if Str (TheExpr.Extension) <> '' then
+        begin
+            var Reaches := ExtensionSlot (TheExpr);
+
+            EmitExpr (TheExpr.Obj);
+
+            Into.Write (OP_EXTEND);
+            Into.Write (ClassNameConstant (TheExpr.Name));
+            Into.Write (Reaches);
+
+            Exit;
+        end
+
 
         var Named := ToLower (Str (TheExpr.Name.Lexeme));
 
@@ -1201,6 +1215,37 @@ begin
     else Refuse ('Binary ''' + Op + '''');
 end
 
+/// The slot holding the extension a method-syntax name could reach.
+///
+/// The Resolver has already decided that the name IS a visible extension, and
+/// visibility is the importing file's own `uses` clauses and nothing wider
+/// [MOD-015] -- so where it names the declaring unit the slot is that unit's,
+/// and otherwise the ordinary visible resolution answers.
+///
+/// # Raises
+///
+/// Whatever Refuse raises, where the name does not resolve to a slot -- which
+/// a correct Resolver cannot produce, since it marked the name an extension
+/// only because it found one.  Guarded because BareSlot answers -1 after
+/// planting a run-time diagnostic, and -1 is not an operand byte.
+///
+/// # Satisfies
+///
+/// [MOD-015]
+function ExtensionSlot (Member : Any) : Integer;
+begin
+    if Str (Member.ExtensionUnit) <> '' then
+        Exit Script.QualifiedSlot (ToLower (Str (Member.ExtensionUnit)) as String,
+                                   Member.Name.Lexeme);
+
+    var Reaches := BareSlot (Member.Name);
+
+    if Reaches < 0 then
+        Refuse ('The extension ' + QUOTE + Str (Member.Name.Lexeme) + QUOTE);
+
+    Exit Reaches;
+end
+
 /// Emits a call reaching through a unit qualifier.
 ///
 /// `System` names what is still built in and only that [MOD-011].  Its members
@@ -1260,8 +1305,9 @@ begin
     begin
         var Member := TheExpr.Callee;
 
-        if Str (Member.Extension) <> '' then Refuse ('An extension call');
-
+        // A UNIT QUALIFIER is asked about first, because [EXP-022] is the rule
+        // for `x.f (…)` where x is not one -- the Resolver should never mark a
+        // name both ways, and ordering it so means nothing depends on that.
         if Str (Member.Unit) <> '' then
         begin
             EmitUnitCall (TheExpr, Member);
@@ -1269,6 +1315,27 @@ begin
             Exit;
         end
 
+        // A member still WINS at the call [EXP-022], and only the receiver's
+        // value can say whether there is one -- so both halves go in one
+        // instruction rather than being decided here.
+        if Str (Member.Extension) <> '' then
+        begin
+            for var Written in TheExpr.ArgumentNames do
+                if Str (Written) <> '' then Refuse ('A call with named arguments');
+
+            var Reaches := ExtensionSlot (Member);
+
+            EmitExpr (Member.Obj);
+
+            for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+            Into.Write (OP_INVOKE_EXT);
+            Into.Write (ClassNameConstant (Member.Name));
+            Into.Write (TheExpr.Arguments.Length);
+            Into.Write (Reaches);
+
+            Exit;
+        end
 
         for var Written in TheExpr.ArgumentNames do
             if Str (Written) <> '' then Refuse ('A call with named arguments');
@@ -1673,8 +1740,13 @@ end
 procedure EmitFunction (TheStmt : Any);
 begin
     if TheStmt.Symbol <> '' then Refuse ('An external subprogram');
-    if TheStmt.IsExtension then Refuse ('An extension');
     if TheStmt.IsProperty then Refuse ('A property');
+
+    // `extension` is PERMISSION, not a kind of declaration: an extension is an
+    // ordinary top-level subprogram whose first parameter has a written type,
+    // and nothing here needs to know which it is.  The permission is spent at
+    // the CALL, where the Resolver has already recorded what a method-syntax
+    // name could fall back to.
 
     // A NESTED subprogram becomes a closure over the enclosing subprogram's
     // cells, so that a capture is by reference and outlives the call that made

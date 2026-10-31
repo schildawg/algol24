@@ -203,9 +203,35 @@ begin
         var Line := Str (At) + '  ' + OpName (Op);
         var Wide := OpOperands (Op);
 
-        if Wide = 1 then Line := Line + ' ' + Str (Program.At (At + 1));
-        if Wide = 2 then
+        // OP_CLOSURE is the one variable-width instruction -- a constant
+        // index, a capture count, then one enclosing slot per capture -- and
+        // OpOperands answers 0 for it.  Walking it as a one-byte instruction
+        // put every later offset out by the captures, so a disassembly of a
+        // chunk with a nested subprogram in it was fiction after that point.
+        if Op = OP_CLOSURE then
+        begin
+            var Taken := Program.At (At + 2);
+
+            Line := Line + ' ' + Str (Program.At (At + 1)) + ' ' + Str (Taken);
+
+            for var I : Integer := 0; I < Taken; I := I + 1 do
+                Line := Line + ' ' + Str (Program.At (At + 3 + I));
+
+            WriteLn (Line);
+
+            At := At + 3 + Taken;
+
+            continue;
+        end
+
+        // A jump's two bytes are ONE distance; every other pair is two
+        // separate operands, and rendering those as a 16-bit number read
+        // `OP_INVOKE 5 1` as `OP_INVOKE 1281`.
+        if OpReadsShort (Op) then
             Line := Line + ' ' + Str (Program.At (At + 1) * 256 + Program.At (At + 2));
+        else
+            for var I : Integer := 0; I < Wide; I := I + 1 do
+                Line := Line + ' ' + Str (Program.At (At + 1 + I));
 
         WriteLn (Line);
 

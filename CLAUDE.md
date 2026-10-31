@@ -163,6 +163,49 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   name means different things at different arities: `Append` with one argument
   is a Buffer's, with none a TextFile's.
 
+  ⚠️ **An extension is decided at the CALL, on the receiver's VALUE.** A
+  member wins [EXP-022] and only the running receiver can say whether there is
+  one, so `OP_INVOKE_EXT` carries the name, the argument count *and* the
+  extension's slot and chooses at run time — the type system is gradual, so
+  `X.Size ()` may be a method on one value and an extension on the next. The
+  Resolver's `Extension` field says **could**, not does. `RespondsTo` is the
+  choice, and it mirrors the interpreter's `Responds` rather than improving on
+  it: a String answers only to `Length`, a number only to `ToString`, a Char to
+  **nothing** — which is what lets an extension take one.
+
+  ⚠️ **A host object cannot be asked whether it responds, so it is asked by
+  name.** The interpreter can `try Obj.Get (Name)` and catch; the machine
+  cannot, because a dynamic member name is unreachable from Algol-24. It checks
+  `HOST_METHODS` — the same list `OP_INVOKE` dispatches against, so the two
+  cannot drift — plus the runtime's five properties.
+
+  ⚠️ **`S.Trim` without parentheses is a VALUE** [FUN-011], so `OP_EXTEND`
+  pushes a `VmExtension` holding the receiver, and `OP_CALL` unpacks it. The
+  receiver is held rather than re-evaluated because it is evaluated **once**
+  whichever step answers — 0190 counts the calls to prove it. Unpacking at the
+  call and not at `OP_EXTEND` is forced: only the call knows how many arguments
+  were written.
+
+  ⚠️ **`Prepend` must be given the receiver, not read it off the stack.** The
+  two callers keep it in different places — `OP_INVOKE_EXT` has it in the
+  callee's slot, a bound extension carries it *inside* the value sitting there.
+  Taking it from the stack read the `VmExtension` itself as the receiver, and
+  the extension then asked a function for its `Length`.
+
+  ⚠️ **`extension` needs nothing at the declaration.** It is permission, not a
+  kind of declaration, so dropping the refusal in `EmitFunction` was the whole
+  of that half — the Parser has already refused it on a method, a constructor,
+  a property and a nested subprogram.
+
+  ⚠️ **Two byte operands are not a 16-bit operand, and `--list` conflated
+  them.** A jump's pair is one distance; `OP_INVOKE`'s is a name index beside a
+  count. Rendering every pair as `hi * 256 + lo` printed `OP_INVOKE 5 1` as
+  `OP_INVOKE 1281`, so `OpReadsShort` now tells them apart. `OP_CLOSURE` was
+  worse: `OpOperands` answers 0 for it because it is **variable-width** (a
+  constant, a capture count, then one slot per capture), and its doc claimed
+  `run.a24` special-cased it when `run.a24` did not — so every offset after a
+  nested subprogram was fiction.
+
   ⚠️ **A member call is an EXPRESSION, even when it reads like a procedure.**
   Treating `Sort`, `Clear` and `Remove` as void and pushing nil was right for
   most and wrong for the ones with something to say — `Remove` answers the

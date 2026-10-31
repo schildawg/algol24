@@ -106,6 +106,51 @@ begin
     end
 end
 
+/// An extension bound to the receiver it was reached through.
+///
+/// What `S.Trim` answers where `Trim` is a visible extension and `S` has no
+/// member of that name.  It is a value in its own right [FUN-011]: a call takes
+/// it apart, putting the receiver in front of the written arguments, and
+/// without a call it simply stands.
+///
+/// The receiver is held rather than re-evaluated because it is evaluated ONCE
+/// whichever step of [EXP-022] answers -- 0190 counts the calls to prove it.
+///
+/// # Satisfies
+///
+/// [EXP-022], [FUN-011], [FUN-015], [FUN-016]
+class VmExtension;
+var
+    /// The value the extension was reached through, and its first argument.
+    Receiver : Any;
+
+    /// The subprogram, or the overload set, the call goes on to.
+    Target : Any;
+
+begin
+    /// Binds an extension to a receiver.
+    constructor Init (Receiver : Any, Target : Any);
+    begin
+        this.Receiver := Receiver;
+        this.Target   := Target;
+    end
+
+    /// How it reads in a message.
+    function Describe () : String;
+    begin
+        Exit 'extension';
+    end
+end
+
+test 'A Bound Extension Holds Its Receiver And Its Target';
+begin
+    var Target := VmFunction ('Doubled', 1);
+    var Bound  := VmExtension (21, Target);
+
+    AssertEqual (21, Bound.Receiver);
+    AssertTrue (Bound.Target = Target);
+end
+
 test 'An Overload Set Keeps Its Candidates In Declaration Order';
 begin
     var S := VmOverloads ('Take');
