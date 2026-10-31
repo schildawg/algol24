@@ -1,0 +1,3 @@
+A foreign call takes at most eight arguments.
+Foreign calls are not available in this build: 'strlen' cannot be reached.
+exit: 0

@@ -45,6 +45,20 @@ var
     /// and nothing else [FUN-005].
     Element : String;
 
+    /// The C symbol this subprogram is, or '' when it has a body [FUN-014].
+    ///
+    /// A declaration with a symbol has no bytecode at all: the call goes to the
+    /// host's own `Foreign` instead of entering a frame, which is how the
+    /// machine's foreign call IS the interpreter's rather than a second one
+    /// that would have to agree with it forever.
+    Symbol : String;
+
+    /// The library the symbol is in, or '' for the running program.
+    Library : String;
+
+    /// The written return type, which the foreign call needs to read a result.
+    Returns : String;
+
 begin
     /// Makes a callable.
     constructor Init (Name : String, Arity : Integer);
@@ -54,6 +68,9 @@ begin
         this.Body  := Chunk ();
         this.Types   := List ();
         this.Element := '';
+        this.Symbol  := '';
+        this.Library := '';
+        this.Returns := '';
     end
 
     /// How it reads in a message: the name, or `<script>` for the outermost

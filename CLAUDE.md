@@ -122,6 +122,31 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   native binaries, so that 6.9× is bytecode against an AST walk. It was 0.79 s
   before exceptions: the `try` around the dispatch loop costs about 15%.
 
+  ⚠️ **FFI cost almost nothing, because the dynamic entry point is a
+  BUILT-IN.** `Foreign` is one of [RT-001]'s thirty always-available names, so
+  an `external` call needs no libffi of its own and no opcode: `VmFunction`
+  carries Symbol, Library, Types and Returns, and `CallValue` hands those to
+  the host's `Foreign` instead of entering a frame. That is the interpreter's
+  own single line for it, so the machine's foreign call **is** the host's —
+  including the message a build without libffi gives.
+
+  ⚠️ **An external never reaches `EnterFrame`, so it checks its own count.**
+  It has no bytecode to enter, and skipping the check let a wrong-arity call
+  through to the foreign boundary.
+
+  ⚠️ **`is Pointer` was a missing literal, not a missing feature.** The host
+  answers `5 is Pointer` as false in every build, so the only thing wrong was
+  that `pointer` was absent from `TESTABLE_TYPES` and from `TypeMatches`'s
+  chain. A Pointer is only a *value* under `--ffi` [TYP-017]; the *test* is
+  answerable always.
+
+  ⚠️ **libffi is not installed here, so the real path is UNVERIFIED.** `-lffi`
+  does not link on this machine, so there is no `--ffi` build to try. 0174
+  passes because the corpus runs in the default build and expects
+  `Foreign calls are not available in this build`, which the machine gets by
+  deferring. That a real SDL call works is **not** established — it needs
+  `algvm` built `--ffi` where libffi exists.
+
   ⚠️ **A bare name inside a method is a VARIABLE first and a member of `this`
   second.** The interpreter looks the variable up and reaches for `this` only
   when that *raises* (`ThisField`), so a global of the name wins over a field

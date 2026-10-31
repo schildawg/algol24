@@ -10662,6 +10662,7 @@ than `3`. `WriteLn ()` is the newline on its own, which is the same rule and not
 a second form: rendering no values gives the empty string.
 
     conformance  0145-a-builtin-with-the-wrong-arity.a24
+    defect       DEF-37-foreign-misreads-an-interpreted-list.a24
 
 ##### conformance/0159-write-takes-any-number-of-values.a24
 

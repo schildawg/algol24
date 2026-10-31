@@ -694,6 +694,11 @@ begin
     if Named = 'buffer'   then Exit V is Buffer;
     if Named = 'textfile' then Exit V is TextFile;
 
+    // Pointer is only ever a value in a build with foreign calls [TYP-017],
+    // but the TEST is answerable in every build -- the host says false for
+    // anything that is not one, which is exactly what a program asking needs.
+    if Named = 'pointer'  then Exit V is Pointer;
+
     // A name the emitter allowed that got this far is a declared CLASS or
     // ENUMERATION, and this value is neither one of those -- so the answer is
     // false rather than a refusal.  `5 is Dog` is a fair question with a
@@ -934,6 +939,34 @@ begin
 
         Exit;
     end
+
+    // An EXTERNAL subprogram has no body to enter.  The call goes to the
+    // host's own `Foreign` built-in [RT-001], with the four things the
+    // declaration recorded -- which is the interpreter's own single line for
+    // this, so the machine's foreign call IS the host's and the two cannot
+    // disagree about what a symbol does or about the message a build without
+    // libffi gives.
+    if Callee is VmFunction then
+        if Str (Callee.Symbol) <> '' then
+        begin
+            if Count <> Callee.Arity then
+                raise 'Expected ' + Str (Callee.Arity) + ' arguments but got '
+                    + Str (Count) + '.';
+
+            // Read off the stack by INDEX and in order; popping would hand the
+            // foreign call its arguments backwards.
+            var Given := List ();
+
+            for var I : Integer := 0; I < Count; I := I + 1 do
+                Given.Add (Slots[SP - Count + I]);
+
+            SP := SP - Count - 1;
+
+            Push (Foreign (Callee.Symbol, Callee.Library,
+                           Callee.Types, Callee.Returns, Given));
+
+            Exit;
+        end
 
     // A class is called to make an instance.  The class on the stack is
     // REPLACED by the instance, so the constructor finds it exactly where a
@@ -1841,6 +1874,8 @@ var
     A     : Any;
     B     : Any;
     C     : Any;
+    D     : Any;
+    E     : Any;
 
 begin
     Name  := ToLower (Str (Constants[ReadByte ()]));
@@ -1865,6 +1900,8 @@ begin
     end
 
     // Popped in reverse, because the arguments were pushed in order.
+    if Count >= 5 then E := Pop ();
+    if Count >= 4 then D := Pop ();
     if Count >= 3 then C := Pop ();
     if Count >= 2 then B := Pop ();
     if Count >= 1 then A := Pop ();
@@ -1942,6 +1979,16 @@ begin
         if Name = 'str'  then begin Push (Str (A, B, C));  Exit; end
         if Name = 'pos'  then begin Push (Pos (A, B, C));  Exit; end
     end
+
+    // Foreign is the one built-in taking five [RT-001], and a program may call
+    // it directly as well as reaching it through an `external` declaration.
+    if Count = 5 then
+        if Name = 'foreign' then
+        begin
+            Push (Foreign (A, B, C, D, E));
+
+            Exit;
+        end
 
     // The interpreter names the arities it accepts rather than the name of
     // the built-in, and the two reports are compared.
@@ -2583,6 +2630,75 @@ begin
 
     AssertEqual (42, RunChunk (C) as Integer);
     AssertEqual (0, SP);
+end
+
+test 'An External Subprogram Calls The Host Rather Than Entering A Frame';
+begin
+    var C := Chunk ();
+
+    // function TextLength (S : String) : Integer; external 'strlen';
+    var Ext := VmFunction ('TextLength', 1);
+
+    Ext.Types.Add ('String');
+    Ext.Symbol  := 'strlen';
+    Ext.Returns := 'Integer';
+
+    C.EmitConstant (Ext);
+    C.EmitConstant ('abc');
+    C.EmitWith (OP_CALL, 1);
+    C.Emit (OP_RETURN);
+
+    // What is asserted is that the call REACHED the host's Foreign rather than
+    // entering a frame -- not the text, which differs by how this file is
+    // being run.  Compiled, a build without libffi says
+    // 'Foreign calls are not available in this build'.  INTERPRETED, it says
+    // 'A foreign call takes at most eight arguments' for a call of one,
+    // because the runtime reads a guest List as a host sequence and that is
+    // DEF-36 rather than anything this machine did.  Either way the message
+    // is the host's and no frame was entered; 0174 compares the compiled text
+    // under the compiled machine, which is where it belongs.
+    try
+        RunChunk (C);
+
+        // A build WITH foreign calls answers 3.
+        AssertEqual (3, RunChunk (C));
+    except
+        on e : String do
+            AssertTrue (Pos (Str (e), 'oreign') >= 0);
+    end
+end
+
+test 'An External Subprogram Still Checks Its Argument Count';
+begin
+    var C := Chunk ();
+
+    var Ext := VmFunction ('TextLength', 1);
+
+    Ext.Types.Add ('String');
+    Ext.Symbol := 'strlen';
+
+    C.EmitConstant (Ext);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    // The count is checked where EnterFrame would have checked it, because an
+    // external never reaches EnterFrame at all.
+    try
+        RunChunk (C);
+
+        Fail ('expected a count error');
+    except
+        on e : String do
+            AssertEqual ('Expected 1 arguments but got 0.', Str (e));
+    end
+end
+
+test 'Pointer Is A Testable Type In Every Build';
+begin
+    // A Pointer is only a VALUE in a build with foreign calls [TYP-017], but
+    // the test is answerable in all of them.
+    AssertTrue (not TypeMatches (5, 'pointer'));
+    AssertTrue (not TypeMatches (Str ('x'), 'pointer'));
 end
 
 test 'A Bare Name Is Read As A Field Of The Receiver';

@@ -93,7 +93,7 @@ end
 /// Every type name the machine can test a value against, lowercased.
 var TESTABLE_TYPES := ['any', 'integer', 'double', 'string', 'char', 'boolean',
                        'list', 'map', 'set', 'array', 'stack', 'buffer',
-                       'textfile'];
+                       'textfile', 'pointer'];
 
 /// Each declared class's parent, keyed by lowercased name.
 ///
@@ -677,6 +677,13 @@ end
 /// widened by instructions the emitter already placed.
 procedure RecordTypes (Made : VmFunction, TheStmt : Any);
 begin
+    // An EXTERNAL declaration has no body, and these four things are the whole
+    // of what a call to it needs -- the machine hands them to the host's own
+    // `Foreign`, exactly as the interpreter does [FUN-014].
+    Made.Symbol  := Str (TheStmt.Symbol);
+    Made.Library := Str (TheStmt.Library);
+    Made.Returns := Str (TheStmt.ReturnType);
+
     // A last parameter written `List of T` ABSORBS the trailing arguments
     // [FUN-005], and the element type is what they are checked against -- so
     // recording it is what makes the subprogram variadic at run time, where
@@ -1999,7 +2006,6 @@ end
 /// recurse by reading its own global.
 procedure EmitFunction (TheStmt : Any);
 begin
-    if TheStmt.Symbol <> '' then Refuse ('An external subprogram');
     if TheStmt.IsProperty then Refuse ('A property');
 
     // `extension` is PERMISSION, not a kind of declaration: an extension is an

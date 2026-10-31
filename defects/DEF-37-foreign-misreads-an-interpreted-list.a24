@@ -1,0 +1,34 @@
+// DEF-37: the Foreign built-in reads its argument list as a host sequence,
+// which it is only under the compiled back end.
+//
+// [RT-001] makes Foreign one of the thirty always-available built-ins, so a
+// program may call it directly rather than only through an `external`
+// declaration.  Interpreted, a guest List is an ObjCollection rather than the
+// host sequence alg_foreign_call casts it to, so the count it reads is an
+// unrelated field.
+//
+// The reproduction below passes ONE argument.  Compiled, this says
+//
+//     Foreign calls are not available in this build: 'strlen' cannot be
+//     reached.
+//
+// which is [INI-008]'s answer for a build without libffi, and correct.
+var Types := ['String'];
+var Args  := ['abc'];
+
+try
+    WriteLn (Foreign ('strlen', '', Types, 'Integer', Args));
+except
+    on e : String do WriteLn (e);
+end
+
+// The interpreter's own external path is unaffected, because its arguments are
+// already host sequences by the time they reach the runtime -- so an `external`
+// declaration works under both processors and only a DIRECT call differs.
+function TextLength (S : String) : Integer; external 'strlen';
+
+try
+    WriteLn (TextLength ('abc'));
+except
+    on e : String do WriteLn (e);
+end
