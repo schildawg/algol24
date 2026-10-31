@@ -193,7 +193,154 @@ var Depths : List := List ();
 /// How many scopes are open.  Zero is the top level, where a `var` is global.
 var Depth : Integer := 0;
 
-/// How many modules deep the emitter is, so a nested `uses` can be refused.
+/// A single quote, for a diagnostic that has to carry one.
+///
+/// Held as a constant because a literal opening with three quotes reads its
+/// second pair as an escape and swallows the operator after it -- the text has
+/// to come first, and a message starting with a quote has no text to put there.
+///
+/// Widened to a String rather than left a Char, because a concatenation
+/// OPENING with a Char has no String type for the checker to see and a
+/// parameter declared String then refuses it.
+const QUOTE := Str (Char (39));
+
+/// Every unit's declared names, folded, keyed by its folded unit name.
+///
+/// The root file's unit is '', which is a key like any other -- see
+/// Chunk.KeyFor, where the separator is written even for the root so that a
+/// root name and a unit's name of one spelling stay distinct.
+var DECLARED_NAMES := Map ();
+
+/// Every unit's `private` names, folded.
+///
+/// A private name is declared and takes a slot -- its own unit calls it -- and
+/// is simply not exported [MOD-007].
+var HIDDEN_NAMES := Map ();
+
+/// What each unit imports directly, folded, in `uses` order.
+///
+/// Direct imports only.  `uses` is not transitive [MOD-009], so a bare name is
+/// sought here and never through what these import in turn, and the order is
+/// kept because the ambiguity diagnostic names units in it.
+var UNIT_IMPORTS := Map ();
+
+/// Each unit's written spelling, keyed by its folded name.
+///
+/// A diagnostic must echo what the program wrote [SRC-011], and every key here
+/// is folded.
+var UNIT_SPELLING := Map ();
+
+/// The units already surveyed, so a diamond or a cycle is surveyed once.
+///
+/// A module imported twice parses once, and the second `uses` yields an EMPTY
+/// module node rather than nothing -- so surveying it again would record no
+/// declarations and no private names over the ones that are right.
+var UNITS_SURVEYED := Set ();
+
+/// The unit whose statements are being emitted, folded, or '' for the root.
+var CurrentUnit : String := '';
+
+/// Whether a unit declares a name, exported or not.
+function DeclaredIn (Unit : String, Folded : String) : Boolean;
+begin
+    if not DECLARED_NAMES.Contains (Unit) then Exit False;
+
+    Exit (DECLARED_NAMES.Get (Unit) as Set).Contains (Folded);
+end
+
+/// Whether a unit exports a name -- declares it, and does not hide it.
+function ExportedFrom (Unit : String, Folded : String) : Boolean;
+begin
+    if not DeclaredIn (Unit, Folded) then Exit False;
+    if not HIDDEN_NAMES.Contains (Unit)    then Exit True;
+
+    Exit not (HIDDEN_NAMES.Get (Unit) as Set).Contains (Folded);
+end
+
+/// A unit's written spelling, or its folded name if nothing recorded one.
+function SpellingOf (Unit : String) : String;
+begin
+    if UNIT_SPELLING.Contains (Unit) then Exit Str (UNIT_SPELLING.Get (Unit));
+
+    Exit Unit;
+end
+
+/// The imported units exporting a name to the unit being emitted.
+///
+/// Deduplicated and in `uses` order, because the ambiguity diagnostic names
+/// them in that order and a unit imported twice must be named once.
+function OwnersOf (Folded : String) : List;
+var
+    Found : List;
+    Seen  : Set;
+
+begin
+    Found := List ();
+    Seen  := Set ();
+
+    if not UNIT_IMPORTS.Contains (CurrentUnit) then Exit Found;
+
+    for var Each in UNIT_IMPORTS.Get (CurrentUnit) as List do
+    begin
+        var Unit := Str (Each);
+
+        if Seen.Contains (Unit)                then continue;
+        if not ExportedFrom (Unit, Folded)     then continue;
+
+        Seen.Add (Unit);
+        Found.Add (Unit);
+    end
+
+    Exit Found;
+end
+
+/// Emits code that raises a message when it is reached.
+///
+/// A visibility fault is a RUN-TIME error rather than a refusal, because the
+/// statements before it have to run and print first -- 0124 reads an ambiguous
+/// name as the LAST thing it does, and expects the four lines above it.  So the
+/// raise is planted where the read would have been.
+procedure EmitDiagnostic (Message : String);
+begin
+    Into.EmitConstant (Message);
+    Into.Emit (OP_RAISE);
+end
+
+/// Emits a read of a name reached through a unit qualifier.
+///
+/// Answers False having emitted a run-time diagnostic where the unit does not
+/// export the name, so a caller that meant to go on and call it knows there is
+/// nothing on the stack to call.  A PRIVATE name is the same answer as an
+/// absent one, which is what `private` at a module's top level means [MOD-007]
+/// -- the name is declared, takes a slot, and is reachable only from its own
+/// unit.
+///
+/// The qualifier is resolved here and not evaluated: `Alpha.F` names a unit
+/// statically [MOD-010], and the Resolver has already decided that it is a
+/// unit rather than a receiver.
+///
+/// # Satisfies
+///
+/// [MOD-007], [MOD-010]
+function EmitUnitRead (Unit : Any, Name : Any) : Boolean;
+begin
+    var Folded := ToLower (Str (Unit)) as String;
+    var Wanted := ToLower (Str (Name.Lexeme)) as String;
+
+    if not ExportedFrom (Folded, Wanted) then
+    begin
+        EmitDiagnostic ('Undefined name ' + QUOTE + Str (Name.Lexeme) + QUOTE
+                      + ' in unit ' + QUOTE + SpellingOf (Folded) + QUOTE + '.');
+
+        Exit False;
+    end
+
+    Into.EmitWith (OP_GET_GLOBAL, Script.QualifiedSlot (Folded, Name.Lexeme));
+
+    Exit True;
+end
+
+/// How many modules deep the emitter is.
 var ModuleDepth : Integer := 0;
 
 /// Opens a scope.
@@ -306,9 +453,95 @@ end
 /// Whatever Refuse raises, naming the identifier.
 procedure RequireGlobal (Name : Any);
 begin
-    if Script.KnownGlobal (Name.Lexeme) then Exit;
+    if Script.KnownQualified (CurrentUnit, Name.Lexeme) then Exit;
 
-    Refuse ('A reference to ''' + Str (Name.Lexeme) + '''');
+    Refuse ('A reference to ' + QUOTE + Str (Name.Lexeme) + QUOTE);
+end
+
+/// The slot a bare name resolves to from the unit being emitted.
+///
+/// Answers -1 having emitted a run-time diagnostic where the name is VISIBLE
+/// nowhere it could be: ambiguous between two imports, or exported by a unit
+/// this file has no `uses` for.  Those are faults in the program rather than
+/// gaps in the machine, and they are raised where the read would have been so
+/// that everything above them still runs.
+///
+/// A name that resolves to nothing and is not a visibility fault is refused by
+/// name, exactly as before -- a field read through `this`, a built-in, and a
+/// variable of an enclosing subprogram all arrive here, and reporting any of
+/// them as an undefined name would be a wrong answer where a refusal is owed.
+///
+/// # Raises
+///
+/// Whatever Refuse raises, for a name this back end has no answer for.
+///
+/// # Satisfies
+///
+/// [MOD-009], [MOD-013]
+function BareSlot (Name : Any) : Integer;
+begin
+    var Folded := ToLower (Str (Name.Lexeme)) as String;
+
+    // Its own unit first: a file's own declaration is what it means by a name,
+    // whatever its imports also export.
+    if DeclaredIn (CurrentUnit, Folded) then
+        Exit Script.QualifiedSlot (CurrentUnit, Name.Lexeme);
+
+    var Owners := OwnersOf (Folded);
+
+    if Owners.Length = 1 then
+        Exit Script.QualifiedSlot (Str (Owners[0]), Name.Lexeme);
+
+    // Exported by more than one import, so the bare name means neither
+    // [MOD-013].  The units are named in `uses` order.
+    if Owners.Length > 1 then
+    begin
+        var Named := '';
+
+        for var Each in Owners do
+        begin
+            if Named <> '' then Named := Named + ' or ';
+
+            Named := Named + SpellingOf (Str (Each));
+        end
+
+        EmitDiagnostic (QUOTE + Str (Name.Lexeme) + QUOTE
+                      + ' is ambiguous: ' + Named + '.');
+
+        Exit -1;
+    end
+
+    // Exported by a unit this file does not import.  `uses` is not transitive
+    // [MOD-009], and the diagnostic names the unit that would export it.
+    for var Each in DECLARED_NAMES.Keys () do
+        if Str (Each) <> CurrentUnit and Str (Each) <> ''
+               and ExportedFrom (Str (Each), Folded) then
+        begin
+            EmitDiagnostic ('Undefined variable ' + QUOTE + Str (Name.Lexeme)
+                          + QUOTE + '. Unit ' + QUOTE + SpellingOf (Str (Each))
+                          + QUOTE + ' exports it; this file has no ' + QUOTE
+                          + 'uses' + QUOTE + ' for it.');
+
+            Exit -1;
+        end
+
+    // Declared by the file the program started from, which is a unit nothing
+    // can import.
+    if CurrentUnit <> '' and DeclaredIn ('', Folded) then
+    begin
+        EmitDiagnostic ('Undefined variable ' + QUOTE + Str (Name.Lexeme)
+                      + QUOTE + '. The file the program started from declares '
+                      + 'it, and no file can ' + QUOTE + 'uses' + QUOTE
+                      + ' that.');
+
+        Exit -1;
+    end
+
+    RequireGlobal (Name);
+
+    // Unreachable: RequireGlobal refuses every name that reaches it, because
+    // the branch above answered every name it could have claimed a slot for.
+    Exit -1;
 end
 
 /// Records the types written for a subprogram's parameters, resolved.
@@ -629,9 +862,9 @@ begin
             // a built-in, or a variable of an enclosing subprogram, or a name
             // this back end has no opcodes for -- and each has to be refused
             // rather than read from a slot nothing defines.
-            RequireGlobal (TheExpr.Name);
+            var Slot := BareSlot (TheExpr.Name);
 
-            Into.EmitWith (OP_GET_GLOBAL, Script.GlobalSlot (TheExpr.Name.Lexeme));
+            if Slot >= 0 then Into.EmitWith (OP_GET_GLOBAL, Slot);
         end
 
         Exit;
@@ -650,9 +883,9 @@ begin
             Into.EmitWith (OP_SET_CELL, CapturedSlot (TheExpr.Name.Lexeme));
         else
         begin
-            RequireGlobal (TheExpr.Name);
+            var Where := BareSlot (TheExpr.Name);
 
-            Into.EmitWith (OP_SET_GLOBAL, Script.GlobalSlot (TheExpr.Name.Lexeme));
+            if Where >= 0 then Into.EmitWith (OP_SET_GLOBAL, Where);
         end
 
         Exit;
@@ -689,7 +922,32 @@ begin
 
     if Kind = 'SetExpr' then
     begin
-        if Str (TheExpr.Unit) <> '' then Refuse ('A write through a unit qualifier');
+        // A write through a qualifier reaches the unit's own slot.  `System`
+        // is refused by name: assigning to a built-in has its own diagnostic
+        // and no opcode to carry it.
+        if Str (TheExpr.Unit) <> '' then
+        begin
+            if ToLower (Str (TheExpr.Unit)) = 'system' then
+                Refuse ('A write through ' + QUOTE + 'System' + QUOTE);
+
+            var Folded := ToLower (Str (TheExpr.Unit)) as String;
+            var Wanted := ToLower (Str (TheExpr.Name.Lexeme)) as String;
+
+            if not ExportedFrom (Folded, Wanted) then
+            begin
+                EmitDiagnostic ('Undefined name ' + QUOTE
+                              + Str (TheExpr.Name.Lexeme) + QUOTE + ' in unit '
+                              + QUOTE + SpellingOf (Folded) + QUOTE + '.');
+
+                Exit;
+            end
+
+            EmitExpr (TheExpr.Value);
+            Into.EmitWith (OP_SET_GLOBAL, Script.QualifiedSlot (Folded, TheExpr.Name.Lexeme));
+
+            Exit;
+        end
+
 
         EmitExpr (TheExpr.Obj);
         EmitExpr (TheExpr.Value);
@@ -727,7 +985,19 @@ begin
         // A unit qualifier is a different thing wearing the same syntax --
         // `Unit.Name` rather than a property of a value -- and the Resolver
         // has already decided which.
-        if Str (TheExpr.Unit) <> '' then Refuse ('A read through a unit qualifier');
+        // `System` names the built-ins [MOD-011] and they have no slots, so a
+        // read through it is refused rather than resolved -- only a CALL to one
+        // has an opcode.
+        if Str (TheExpr.Unit) <> '' then
+        begin
+            if ToLower (Str (TheExpr.Unit)) = 'system' then
+                Refuse ('A read through ' + QUOTE + 'System' + QUOTE);
+
+            EmitUnitRead (TheExpr.Unit, TheExpr.Name);
+
+            Exit;
+        end
+
         if Str (TheExpr.Extension) <> '' then Refuse ('An extension member');
 
         var Named := ToLower (Str (TheExpr.Name.Lexeme));
@@ -931,6 +1201,49 @@ begin
     else Refuse ('Binary ''' + Op + '''');
 end
 
+/// Emits a call reaching through a unit qualifier.
+///
+/// `System` names what is still built in and only that [MOD-011].  Its members
+/// have no slots, so the call is emitted as the one the bare spelling gives --
+/// System.Copy and Copy are the same function, which is what 0086 asserts.  A
+/// name it does not know is REFUSED rather than reported as undefined, because
+/// an incomplete list of built-ins here would otherwise turn a gap in this back
+/// end into a diagnostic about the program.
+///
+/// # Satisfies
+///
+/// [MOD-010], [MOD-011]
+procedure EmitUnitCall (TheExpr : Any, Member : Any);
+begin
+    for var Written in TheExpr.ArgumentNames do
+        if Str (Written) <> '' then Refuse ('A call with named arguments');
+
+    if ToLower (Str (Member.Unit)) = 'system' then
+    begin
+        if not IsBuiltin (Member.Name.Lexeme) then
+            Refuse ('A call to ' + QUOTE + 'System.'
+                  + Str (Member.Name.Lexeme) + QUOTE);
+
+        for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+        var At := Into.AddConstant (Str (Member.Name.Lexeme));
+
+        if At > 255 then Refuse ('A chunk with more than 256 constants');
+
+        Into.Write (OP_BUILTIN);
+        Into.Write (At);
+        Into.Write (TheExpr.Arguments.Length);
+
+        Exit;
+    end
+
+    if not EmitUnitRead (Member.Unit, Member.Name) then Exit;
+
+    for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+    Into.EmitWith (OP_CALL, TheExpr.Arguments.Length);
+end
+
 /// Emits a call.
 ///
 /// Only `WriteLn` so far, which is the one built-in with an opcode.  Everything
@@ -947,8 +1260,15 @@ begin
     begin
         var Member := TheExpr.Callee;
 
-        if Str (Member.Unit) <> '' then Refuse ('A call through a unit qualifier');
         if Str (Member.Extension) <> '' then Refuse ('An extension call');
+
+        if Str (Member.Unit) <> '' then
+        begin
+            EmitUnitCall (TheExpr, Member);
+
+            Exit;
+        end
+
 
         for var Written in TheExpr.ArgumentNames do
             if Str (Written) <> '' then Refuse ('A call with named arguments');
@@ -1051,16 +1371,17 @@ end
 ///
 /// # Raises
 ///
-/// Whatever RequireGlobal raises, for a parent that is not a known global.
+/// Whatever BareSlot raises, for a parent this back end cannot resolve.
+///
+/// The parent is resolved by VISIBILITY rather than looked up in this unit: a
+/// class may inherit across a `uses` [0146], so the slot it reads may belong to
+/// an imported unit even though the subclass's own slot never does.
 procedure EmitInheritance (TheStmt : Any);
 begin
     if TheStmt.Superclass = Nil then Exit;
 
-    RequireGlobal (TheStmt.Superclass.Name);
-
-    Into.EmitWith (OP_GET_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
-    Into.EmitWith (OP_GET_GLOBAL,
-                   Script.GlobalSlot (TheStmt.Superclass.Name.Lexeme));
+    Into.EmitWith (OP_GET_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
+    Into.EmitWith (OP_GET_GLOBAL, BareSlot (TheStmt.Superclass.Name));
     Into.EmitWith (OP_INHERIT, ClassNameConstant (TheStmt.Superclass.Name));
     Into.Emit (OP_POP);
 end
@@ -1078,12 +1399,20 @@ end
 ///
 /// # Raises
 ///
-/// Whatever Refuse raises, for a private member, a property or an overloaded
-/// method -- each of which the machine has no answer for yet.
+/// Whatever Refuse raises, for a property or an overloaded method -- each of
+/// which the machine has no answer for yet.
+///
+/// Visibility needs nothing here.  `private:` is advisory [DCL-015] and is
+/// checked statically by the TypeChecker, which all three back ends share, so
+/// by the time the machine sees a class the question has been settled -- and
+/// settled as a diagnostic, not as a boundary: a private member reached
+/// through a receiver the checker cannot type is readable and writable at run
+/// time, which is normative rather than a gap.  Enforcing it here would make
+/// the machine refuse what the other two processors run.  `PrivateMembers` is
+/// a list of NAMES and is not consulted; the members themselves are in Fields
+/// and Methods like any other.
 procedure EmitClass (TheStmt : Any);
 begin
-    if TheStmt.PrivateMembers.Length > 0 then Refuse ('A private member');
-
     Into.EmitWith (OP_CLASS, ClassNameConstant (TheStmt.Name));
 
     for var TheField in TheStmt.Fields do
@@ -1124,7 +1453,7 @@ begin
         Exit;
     end
 
-    Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+    Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 end
 
 /// Adds a name to the constants and answers its index.
@@ -1376,7 +1705,7 @@ begin
             Exit;
         end
 
-        Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+        Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 
         Exit;
     end
@@ -1392,7 +1721,7 @@ begin
 
     // One of several declarations of this name: it stays on the stack until
     // the last arrives, and then they are gathered into one set.
-    var Key := ToLower (Str (TheStmt.Name.Lexeme));
+    var Key := CurrentUnit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
     var Total := 1;
 
     if OVERLOAD_COUNTS.Contains (Key) then
@@ -1414,7 +1743,7 @@ begin
         Into.Write (ClassNameConstant (TheStmt.Name));
     end
 
-    Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+    Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 
 end
 
@@ -1452,7 +1781,7 @@ begin
 
         // At the top level a declaration is what DEFINES a global, so one with
         // no initializer defines it as nil rather than leaving it undefined.
-        Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+        Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 
         Exit;
     end
@@ -1498,7 +1827,7 @@ begin
 
             if Depth > 0 then AddLocal (TheStmt.Names[I].Lexeme);
             else Into.EmitWith (OP_DEFINE_GLOBAL,
-                                Script.GlobalSlot (TheStmt.Names[I].Lexeme));
+                                Script.QualifiedSlot (CurrentUnit, TheStmt.Names[I].Lexeme));
         end
 
         Exit;
@@ -1619,10 +1948,10 @@ begin
 
             if Depth > 0 then Refuse ('An enumeration inside a block');
 
-            Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (Member.Lexeme));
+            Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, Member.Lexeme));
         end
 
-        Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
+        Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 
         Exit;
     end
@@ -1768,23 +2097,25 @@ begin
 
     if Kind = 'ModuleStmt' then
     begin
-        // A nested `uses` is refused, exactly as the C back end refuses it.
+        // A module's statements are emitted in ITS unit, which is the whole of
+        // how visibility is kept: the slots its declarations bind were claimed
+        // under its own name, so a file with no `uses` for it resolves nothing
+        // to them however deep the module sits.  Depth decides nothing.
         //
-        // The reason here is visibility: one flat table of global slots keyed
-        // by name cannot say that a declaration is visible to the module that
-        // imported it and not to the module that imported THAT, which is what
-        // `uses` not being transitive requires [MOD-005].  A transitively
-        // imported module's declarations still have to RUN, so skipping them
-        // is not an answer either -- and emitting them made DeepName callable
-        // from a file with no `uses` for it.
-        if ModuleDepth > 0 then Refuse ('A nested ''uses''');
+        // Emitting them is not optional either.  A transitively imported
+        // module's declarations still have to RUN -- 0085 reads Mid, which
+        // reads Deep -- so skipping them would leave Mid calling an undefined
+        // name, which is why an earlier version refused the whole shape.
+        var Enclosing := CurrentUnit;
 
+        CurrentUnit := ToLower (Str (TheStmt.UnitName)) as String;
         ModuleDepth := ModuleDepth + 1;
 
         if TheStmt.Statements <> Nil then
             for var Inner in TheStmt.Statements do EmitStmt (Inner);
 
         ModuleDepth := ModuleDepth - 1;
+        CurrentUnit := Enclosing;
 
         Exit;
     end
@@ -1793,44 +2124,69 @@ begin
 end
 
 /// Walks the declarations and gives every global a slot before any body is
-/// emitted.
+/// emitted, recording what each unit declares and hides as it goes.
 ///
 /// Not optional, and not an optimisation: a module-level subprogram may refer
 /// to a global declared BELOW it, so a slot assigned as the declaration is
-/// reached would be assigned too late.  GlobalSlot is idempotent, so the later
-/// uses find the same slot.
-procedure ClaimGlobalSlots (Statements : List, Reach : Integer);
+/// reached would be assigned too late.  QualifiedSlot is idempotent, so the
+/// later uses find the same slot.
+///
+/// Every unit is walked, however deep, because a transitively imported
+/// module's declarations still have to RUN -- what makes them invisible is the
+/// KEY their slots are claimed under, which carries the declaring unit, and not
+/// whether they were walked.  An earlier version counted depth instead and
+/// could not express a private name at all.
+///
+/// # Satisfies
+///
+/// [MOD-007], [MOD-009]
+procedure Survey (Statements : List, Unit : String);
 begin
+    if not DECLARED_NAMES.Contains (Unit) then DECLARED_NAMES.Put (Unit, Set ());
+    if not UNIT_IMPORTS.Contains (Unit)  then UNIT_IMPORTS.Put  (Unit, List ());
+
+    var Mine := DECLARED_NAMES.Get (Unit) as Set;
+
     for var TheStmt in Statements do
     begin
         var Kind := KindOf (TheStmt);
 
-        if Kind = 'VarStmt' then Script.GlobalSlot (TheStmt.Name.Lexeme);
+        if Kind = 'ModuleStmt' then
+        begin
+            SurveyModule (TheStmt, Unit);
+
+            continue;
+        end
+
+        if Kind = 'VarStmt' then Claim (Unit, Mine, TheStmt.Name);
 
         if Kind = 'VarGroupStmt' then
-            for var TheName in TheStmt.Names do Script.GlobalSlot (TheName.Lexeme);
+            for var TheName in TheStmt.Names do Claim (Unit, Mine, TheName);
 
-        // A subprogram's name is a global like any other, and it has to exist
-        // before any BODY is emitted -- which is the case the pre-pass is for:
-        // two subprograms that call each other, and one that calls itself.
+        // An ObjectStmt is refused when it is EMITTED, and emission stops the
+        // compile -- so claiming its name here cannot produce a wrong answer,
+        // and leaving it unclaimed would make a read of it an undefined name
+        // instead of the refusal it should be.
+        if Kind = 'ObjectStmt' then Claim (Unit, Mine, TheStmt.Name);
+
         // An enumeration binds its own name AND every member as a bare global
         // [ENU-002], so all of them are claimed before any body is emitted.
         if Kind = 'EnumStmt' then
         begin
-            Script.GlobalSlot (TheStmt.Name.Lexeme);
+            Claim (Unit, Mine, TheStmt.Name);
             ENUM_NAMES.Add (ToLower (Str (TheStmt.Name.Lexeme)));
 
             for var Member in TheStmt.Members do
             begin
-                // Two enumerations sharing a member name make the BARE name
-                // ambiguous, and the language raises when it is used --
-                // naming both enumerations.  One global slot cannot hold
-                // 'ambiguous', so it is refused by name instead.
-                if Script.KnownGlobal (Member.Lexeme) then
-                    Refuse ('The shared enum member name '''
-                          + Str (Member.Lexeme) + '''');
+                // Two enumerations of ONE unit sharing a member name make the
+                // bare name ambiguous, and one slot cannot hold 'ambiguous'.
+                // Across units it is not a slot clash at all -- the keys
+                // differ -- and OwnersOf reports it where it is read.
+                if Script.KnownQualified (Unit, Member.Lexeme) then
+                    Refuse ('The shared enum member name ' + QUOTE
+                          + Str (Member.Lexeme) + QUOTE);
 
-                Script.GlobalSlot (Member.Lexeme);
+                Claim (Unit, Mine, Member);
             end
         end
 
@@ -1839,10 +2195,11 @@ begin
         // classes may name each other.
         if Kind = 'ClassStmt' then
         begin
-            if Script.KnownGlobal (TheStmt.Name.Lexeme) then
-                Refuse ('A redeclaration of ''' + Str (TheStmt.Name.Lexeme) + '''');
+            if Script.KnownQualified (Unit, TheStmt.Name.Lexeme) then
+                Refuse ('A redeclaration of ' + QUOTE
+                      + Str (TheStmt.Name.Lexeme) + QUOTE);
 
-            Script.GlobalSlot (TheStmt.Name.Lexeme);
+            Claim (Unit, Mine, TheStmt.Name);
 
             var Parent := '';
             if TheStmt.Superclass <> Nil then
@@ -1851,33 +2208,57 @@ begin
             CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
         end
 
-        // Two declarations of one name are an OVERLOAD SET sharing one slot,
-        // counted here so that EmitFunction knows to gather rather than bind.
+        // Two declarations of one name IN ONE UNIT are an overload set sharing
+        // one slot, counted here so that EmitFunction knows to gather rather
+        // than bind.  The count is per unit, because two units each exporting
+        // a Shared are two slots and two lone subprograms -- counting them
+        // together would build an overload set out of unrelated declarations.
         if Kind = 'FunctionStmt' then
         begin
-            var Key := ToLower (Str (TheStmt.Name.Lexeme));
+            var Key := Unit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
 
             if OVERLOAD_COUNTS.Contains (Key) then
                 OVERLOAD_COUNTS.Put (Key, (OVERLOAD_COUNTS.Get (Key) as Integer) + 1);
             else OVERLOAD_COUNTS.Put (Key, 1);
 
-            Script.GlobalSlot (TheStmt.Name.Lexeme);
+            Claim (Unit, Mine, TheStmt.Name);
         end
-
-        // `uses` is NOT transitive: a name in a module this program's modules
-        // import is not visible here, and claiming a slot for it made it
-        // readable -- so 0085-uses-is-not-transitive printed 'from Deep' where
-        // it should have refused the name.  Reach counts down, so the root's
-        // own statements and its direct imports are claimed and nothing below.
-        //
-        // This is an approximation of the Resolver's answer rather than the
-        // answer itself, and a private name [MOD-004] is the case it does not
-        // yet get right.  The emitter re-resolving names it could be asking
-        // the Resolver about is the thing to fix, not this arithmetic.
-        if Kind = 'ModuleStmt' and Reach > 0 then
-            if TheStmt.Statements <> Nil then
-                ClaimGlobalSlots (TheStmt.Statements, Reach - 1);
     end
+end
+
+/// Claims a slot for one declaration of a unit and records the name as its own.
+procedure Claim (Unit : String, Mine : Set, Name : Any);
+begin
+    Script.QualifiedSlot (Unit, Name.Lexeme);
+
+    Mine.Add (ToLower (Str (Name.Lexeme)));
+end
+
+/// Records an import edge, and surveys the imported unit the first time.
+///
+/// The edge is recorded every time and the contents only once, which is what a
+/// re-import needs: the second `uses` of a module yields an EMPTY node, and the
+/// importer still has to SEE the unit even though there is nothing left to walk.
+procedure SurveyModule (TheStmt : Any, Unit : String);
+begin
+    var Inner := ToLower (Str (TheStmt.UnitName)) as String;
+
+    (UNIT_IMPORTS.Get (Unit) as List).Add (Inner);
+
+    if not UNIT_SPELLING.Contains (Inner) then
+        UNIT_SPELLING.Put (Inner, Str (TheStmt.UnitName));
+
+    if UNITS_SURVEYED.Contains (Inner) then Exit;
+
+    UNITS_SURVEYED.Add (Inner);
+
+    var Hidden := Set ();
+    for var TheName in TheStmt.PrivateNames do
+        Hidden.Add (ToLower (Str (TheName)));
+
+    HIDDEN_NAMES.Put (Inner, Hidden);
+
+    if TheStmt.Statements <> Nil then Survey (TheStmt.Statements, Inner);
 end
 
 /// Opens a loop, so `break` and `continue` inside it have somewhere to go.
@@ -2011,10 +2392,18 @@ begin
     OVERLOAD_COUNTS := Map ();
     OVERLOADS_SEEN  := Map ();
     TryNesting    := 0;
+    DECLARED_NAMES  := Map ();
+    HIDDEN_NAMES    := Map ();
+    UNIT_IMPORTS   := Map ();
+    UNIT_SPELLING   := Map ();
+    UNITS_SURVEYED  := Set ();
+
+    CurrentUnit := '';
+
     ENUM_NAMES    := List ();
     CLASS_PARENTS := Map ();
 
-    ClaimGlobalSlots (Statements, 1);
+    Survey (Statements, '');
 
     // DECLARATIONS FIRST, because a function is visible above its own
     // declaration and so is a class [0044, 0122].  Claiming the slot is not

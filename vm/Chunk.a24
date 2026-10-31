@@ -43,6 +43,16 @@ var
     /// Its length is also how many slots the machine must make room for.
     GlobalNames : List;
 
+    /// The KEY each slot was claimed under, indexed by it, parallel to
+    /// GlobalNames.
+    ///
+    /// Separate from the spelling because a key is qualified by the unit that
+    /// declared the name -- `alpha:shared` -- and a diagnostic must echo what
+    /// the program wrote [SRC-011], so `Undefined variable 'Shared'.` cannot
+    /// come from the key.  Two units may export one name, and one flat table
+    /// keyed by spelling alone could hold only one of them.
+    GlobalKeys : List;
+
 begin
     /// Makes an empty chunk.
     constructor Init ();
@@ -51,6 +61,17 @@ begin
         this.Count     := 0;
         this.Constants   := List ();
         this.GlobalNames := List ();
+        this.GlobalKeys  := List ();
+    end
+
+    /// The key a name takes in a unit, folded.
+    ///
+    /// The root file's unit is '', so its names key as `:name` -- the
+    /// separator is always written, which is what keeps a root name and a
+    /// unit's name of the same spelling distinct keys.
+    function KeyFor (Unit : Any, Name : Any) : String;
+    begin
+        Exit ToLower (Str (Unit)) + ':' + ToLower (Str (Name));
     end
 
     /// Whether a global name already has a slot.
@@ -62,10 +83,16 @@ begin
     /// a refusal was wanted.
     function KnownGlobal (Name : Any) : Boolean;
     begin
-        var Wanted := ToLower (Str (Name));
+        Exit this.KnownQualified ('', Name);
+    end
 
-        for var I : Integer := 0; I < this.GlobalNames.Length; I := I + 1 do
-            if ToLower (Str (this.GlobalNames[I])) = Wanted then Exit True;
+    /// Whether a name declared in a unit already has a slot.
+    function KnownQualified (Unit : Any, Name : Any) : Boolean;
+    begin
+        var Wanted := this.KeyFor (Unit, Name);
+
+        for var I : Integer := 0; I < this.GlobalKeys.Length; I := I + 1 do
+            if Str (this.GlobalKeys[I]) = Wanted then Exit True;
 
         Exit False;
     end
@@ -92,16 +119,37 @@ begin
     /// See test 'A Global Name Keeps Its Slot'.
     function GlobalSlot (Name : Any) : Integer;
     begin
-        var Wanted := ToLower (Str (Name));
+        Exit this.QualifiedSlot ('', Name);
+    end
 
-        for var I : Integer := 0; I < this.GlobalNames.Length; I := I + 1 do
-            if ToLower (Str (this.GlobalNames[I])) = Wanted then Exit I;
+    /// The slot a name declared in a unit has, assigning one if it has none.
+    ///
+    /// Idempotent exactly as GlobalSlot is, and for the same reason.  The slot
+    /// remembers the SPELLING for diagnostics and the KEY for lookup, so two
+    /// units exporting one name get two slots that both answer to the one
+    /// spelling in a message.
+    ///
+    /// # Raises
+    ///
+    /// 'A program holds 256 globals.' once a slot will not fit in an operand
+    /// byte.
+    ///
+    /// # Examples
+    ///
+    /// See test 'A Unit Qualifies A Global Slot'.
+    function QualifiedSlot (Unit : Any, Name : Any) : Integer;
+    begin
+        var Wanted := this.KeyFor (Unit, Name);
 
-        if this.GlobalNames.Length > 255 then raise 'A program holds 256 globals.';
+        for var I : Integer := 0; I < this.GlobalKeys.Length; I := I + 1 do
+            if Str (this.GlobalKeys[I]) = Wanted then Exit I;
+
+        if this.GlobalKeys.Length > 255 then raise 'A program holds 256 globals.';
 
         this.GlobalNames.Add (Str (Name));
+        this.GlobalKeys.Add (Wanted);
 
-        Exit this.GlobalNames.Length - 1;
+        Exit this.GlobalKeys.Length - 1;
     end
 
     /// Appends one byte of code.
@@ -395,6 +443,35 @@ begin
     // and must not be given two slots.
     AssertEqual (0, C.GlobalSlot ('TOTAL'));
     AssertEqual (2, C.GlobalNames.Length);
+end
+
+/// Two units may export one name, so the unit is part of the key -- and the
+/// spelling a diagnostic needs is kept whole beside it.
+test 'A Unit Qualifies A Global Slot';
+begin
+    var C := Chunk ();
+
+    var Root  := C.GlobalSlot ('Shared');
+    var Alpha := C.QualifiedSlot ('alpha', 'Shared');
+    var Beta  := C.QualifiedSlot ('beta',  'Shared');
+
+    AssertEqual (0, Root);
+    AssertEqual (1, Alpha);
+    AssertEqual (2, Beta);
+
+    // Idempotent, and folded [SRC-011].
+    AssertEqual (1, C.QualifiedSlot ('ALPHA', 'SHARED'));
+    AssertEqual (3, C.GlobalNames.Length);
+
+    // Every slot answers to the one spelling the program wrote.
+    AssertEqual ('Shared', Str (C.GlobalNames[1]));
+
+    AssertTrue (C.KnownQualified ('beta', 'Shared'));
+    AssertTrue (not C.KnownQualified ('deep', 'Shared'));
+
+    // A root name and a unit's name of the same spelling are not one slot.
+    AssertTrue (C.KnownGlobal ('Shared'));
+    AssertTrue (not C.KnownGlobal ('Nothing'));
 end
 
 test 'A Jump Can Be Patched To A Named Offset';

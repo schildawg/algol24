@@ -633,6 +633,19 @@ inline. Language points that bite when editing:
   for its test blocks to reach the parser.
 - ⚠️ The `for var X in C do` form has **no slot for a type**. Only the counted
   `for var I : Integer := 0; …` form accepts one.
+- ⚠️ **ALL_CAPS is not a namespace.** Identifiers are case-insensitive
+  [SRC-011], so a module-level `HIDDEN` and a local `var Hidden` are **one
+  name** and the local wins — `HIDDEN.Put` then runs on whatever the local
+  holds and reports `Undefined property 'Put'`, which reads like a type bug
+  rather than a shadowing one. Give a module-level table a name no local would
+  reach for: the underscores in `ENUM_NAMES` and `CLASS_PARENTS` are what has
+  kept those safe, and single-word `HIDDEN` is what was not.
+- ⚠️ **`Str (X)` does not give the checker a String when `X` is untyped.** The
+  type does not propagate — `ToLower (Str (Thing.Field))` is an *untyped*
+  expression, so a parameter declared `String` refuses it and the message is
+  `Expected String, found an untyped expression`. `as String` is the fix, and
+  it is the same cast the duck-typed passes already use for `as Set` and
+  `as List`.
 - An **extension** is declared `extension function F (Receiver : T, …)` at the
   top level only, and the receiver's type must be written: an untyped one would
   be a member of everything. It is refused on a method, a constructor, a
