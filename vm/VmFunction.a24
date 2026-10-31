@@ -25,6 +25,16 @@ var
     /// The name, for a diagnostic and for a disassembly.
     Name  : String;
 
+    /// The type written for each parameter, or '' where none was.
+    ///
+    /// Carried only so an OVERLOAD SET can select on the whole signature at
+    /// run time [FUN-013] -- a lone subprogram never reads them, because its
+    /// parameters are widened by instructions the emitter already placed.
+    ///
+    /// The names are RESOLVED: a subrange arrives as the type it constrains,
+    /// because the emitter can see the subrange table and a chunk cannot.
+    Types : List;
+
 begin
     /// Makes a callable.
     constructor Init (Name : String, Arity : Integer);
@@ -32,6 +42,7 @@ begin
         this.Name  := Name;
         this.Arity := Arity;
         this.Body  := Chunk ();
+        this.Types := List ();
     end
 
     /// How it reads in a message: the name, or `<script>` for the outermost
@@ -57,4 +68,62 @@ test 'The Outermost Chunk Describes Itself As A Script';
 begin
     AssertEqual ('<script>', VmFunction ('', 0).Describe ());
     AssertEqual ('Twice', VmFunction ('Twice', 1).Describe ());
+end
+
+/// A set of subprograms sharing one name.
+///
+/// Selection is at RUN TIME on the whole signature [FUN-013], and it has to
+/// be: the type system is gradual, so an argument's declared type may be Any
+/// while its value has a definite type.  No amount of annotation at the call
+/// site can decide it earlier.
+class VmOverloads;
+var
+    /// The shared name.
+    Name       : String;
+
+    /// The candidates, in declaration order -- which is the order they are
+    /// tried within a pass, so a tie goes to the one written first.
+    Candidates : List;
+
+begin
+    /// Makes an empty set.
+    constructor Init (Name : String);
+    begin
+        this.Name       := Name;
+        this.Candidates := List ();
+    end
+
+    /// Adds a candidate.
+    procedure Add (Candidate : Any);
+    begin
+        this.Candidates.Add (Candidate);
+    end
+
+    /// How it reads in a message.
+    function Describe () : String;
+    begin
+        Exit this.Name;
+    end
+end
+
+test 'An Overload Set Keeps Its Candidates In Declaration Order';
+begin
+    var S := VmOverloads ('Take');
+    var First := VmFunction ('Take', 1);
+    var Second := VmFunction ('Take', 2);
+
+    S.Add (First);
+    S.Add (Second);
+
+    AssertEqual (2, S.Candidates.Length);
+    AssertTrue (S.Candidates[0] = First);
+end
+
+test 'A Subprogram Carries The Types Written For Its Parameters';
+begin
+    var F := VmFunction ('Take', 1);
+
+    F.Types.Add ('Integer');
+
+    AssertEqual ('Integer', Str (F.Types[0]));
 end

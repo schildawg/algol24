@@ -113,7 +113,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **135 identical, 52 refused by
+  exactly as `conform.sh` renders it. Currently **136 identical, 51 refused by
   name, 7 not applicable, 0 diverged** — "not applicable" being a case that
   asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
   refusing by name is what keeps the two apart.
@@ -181,6 +181,18 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   Missing any of them is a quietly wrong number rather than a failure. A
   subrange annotation is refused, because its bounds live in the compiler's
   table and a chunk cannot reach them.
+
+  ⚠️ **Overload selection is at the CALL, on the argument values** [FUN-013] —
+  two passes, EXACT then WIDENING, candidates in declaration order so a tie
+  goes to the one written first. The interpreter's third pass, ABSORBING, is
+  for a **variadic** candidate, which the emitter refuses instead — two passes
+  would otherwise pick a wrong candidate silently.
+
+  ⚠️ **A subprogram carries its parameter types only so a set can select**, and
+  they arrive **resolved**: a subrange is recorded as the type it constrains,
+  because the subrange table is the compiler's and not a chunk's. With the
+  types missing every candidate accepted everything and the first always won —
+  which looks exactly like a selection bug rather than a missing field.
 
   ⚠️ **A `LabelStmt` WRAPS the statement it labels** — `Inner` — rather than
   preceding it. Emitting nothing for the label emitted nothing for the loop

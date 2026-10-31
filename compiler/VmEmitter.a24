@@ -145,6 +145,19 @@ var TryNesting : Integer := 0;
 /// tests assert SP for.
 var LoopLocals : List := List ();
 
+/// How many top-level declarations each subprogram name has, lowercased.
+///
+/// More than one is an overload set, which the declarations are gathered into
+/// rather than each binding the shared slot in turn -- the last would
+/// otherwise win, and a call would then report the wrong arity.
+var OVERLOAD_COUNTS := Map ();
+
+/// How many of each overload set have been compiled so far.
+///
+/// The set is built when the LAST of them is reached, because only then are
+/// all its candidates on the stack.
+var OVERLOADS_SEEN := Map ();
+
 /// The enclosing subprogram's locals, when compiling a nested one.
 ///
 /// Empty at every other time.  A name found here and not in Locals is a
@@ -298,6 +311,41 @@ begin
     Refuse ('A reference to ''' + Str (Name.Lexeme) + '''');
 end
 
+/// Records the types written for a subprogram's parameters, resolved.
+///
+/// A SUBRANGE is recorded as the type it constrains, because selection asks
+/// what a value could be passed as and a subrange constrains an Integer -- and
+/// because the subrange table is the compiler's rather than a chunk's.
+///
+/// Only an overload set ever reads these; a lone subprogram's parameters are
+/// widened by instructions the emitter already placed.
+procedure RecordTypes (Made : VmFunction, TheStmt : Any);
+begin
+    // A VARIADIC subprogram -- whose last parameter is a `List of T` -- is
+    // refused.  Selecting one is the interpreter's third pass, ABSORBING,
+    // which gathers the trailing arguments into a List; the machine has two
+    // passes and would otherwise pick a wrong candidate silently.
+    var Last := TheStmt.Params.Length - 1;
+
+    if Last >= 0 and Last < TheStmt.ParamTypes.Length
+                 and Last < TheStmt.ParamGenerics.Length then
+        if ToLower (Str (TheStmt.ParamTypes[Last])) = 'list'
+               and Str (TheStmt.ParamGenerics[Last]) <> '' then
+            Refuse ('A variadic subprogram');
+
+    for var I : Integer := 0; I < TheStmt.Params.Length; I := I + 1 do
+    begin
+        var Declared := '';
+
+        if I < TheStmt.ParamTypes.Length then
+            Declared := Str (TheStmt.ParamTypes[I]);
+
+        if IsSubrange (Declared) then Declared := 'Integer';
+
+        Made.Types.Add (Declared);
+    end
+end
+
 /// Compiles a subprogram's body into a chunk of its own.
 ///
 /// The emitter's state -- the chunk being written, the locals, the depth -- is
@@ -325,6 +373,8 @@ var
 
 begin
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
+
+    RecordTypes (Made, TheStmt);
 
     SavedInto   := Into;
     SavedLocals := Locals;
@@ -1112,6 +1162,8 @@ var
 begin
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
 
+    RecordTypes (Made, TheStmt);
+
     SavedInto   := Into;
     SavedLocals := Locals;
     SavedDepths := Depths;
@@ -1245,6 +1297,8 @@ begin
 
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
 
+    RecordTypes (Made, TheStmt);
+
     SavedInto   := Into;
     SavedLocals := Locals;
     SavedDepths := Depths;
@@ -1334,6 +1388,30 @@ begin
         AddLocal (TheStmt.Name.Lexeme);
 
         Exit;
+    end
+
+    // One of several declarations of this name: it stays on the stack until
+    // the last arrives, and then they are gathered into one set.
+    var Key := ToLower (Str (TheStmt.Name.Lexeme));
+    var Total := 1;
+
+    if OVERLOAD_COUNTS.Contains (Key) then
+        Total := OVERLOAD_COUNTS.Get (Key) as Integer;
+
+    if Total > 1 then
+    begin
+        var Done := 1;
+
+        if OVERLOADS_SEEN.Contains (Key) then
+            Done := (OVERLOADS_SEEN.Get (Key) as Integer) + 1;
+
+        OVERLOADS_SEEN.Put (Key, Done);
+
+        if Done < Total then Exit;
+
+        Into.Write (OP_OVERLOADS);
+        Into.Write (Total);
+        Into.Write (ClassNameConstant (TheStmt.Name));
     end
 
     Into.EmitWith (OP_DEFINE_GLOBAL, Script.GlobalSlot (TheStmt.Name.Lexeme));
@@ -1773,14 +1851,15 @@ begin
             CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
         end
 
+        // Two declarations of one name are an OVERLOAD SET sharing one slot,
+        // counted here so that EmitFunction knows to gather rather than bind.
         if Kind = 'FunctionStmt' then
         begin
-            // Two declarations of one name are an OVERLOAD SET, which selects
-            // at the call on the whole signature [FUN-013].  One global slot
-            // cannot hold both, and silently keeping the last one made a call
-            // report the wrong arity -- so it is refused by name.
-            if Script.KnownGlobal (TheStmt.Name.Lexeme) then
-                Refuse ('An overload of ''' + Str (TheStmt.Name.Lexeme) + '''');
+            var Key := ToLower (Str (TheStmt.Name.Lexeme));
+
+            if OVERLOAD_COUNTS.Contains (Key) then
+                OVERLOAD_COUNTS.Put (Key, (OVERLOAD_COUNTS.Get (Key) as Integer) + 1);
+            else OVERLOAD_COUNTS.Put (Key, 1);
 
             Script.GlobalSlot (TheStmt.Name.Lexeme);
         end
@@ -1929,6 +2008,8 @@ begin
     LoopContinues := List ();
     LoopLocals    := List ();
     LoopTries     := List ();
+    OVERLOAD_COUNTS := Map ();
+    OVERLOADS_SEEN  := Map ();
     TryNesting    := 0;
     ENUM_NAMES    := List ();
     CLASS_PARENTS := Map ();

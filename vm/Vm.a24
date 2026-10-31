@@ -20,6 +20,7 @@ uses VmEnum;
 uses VmCell;
 
 
+
 /// Every method name the machine can invoke on a host value, lowercased.
 ///
 /// Read only to tell a method named without parentheses -- which is a value
@@ -881,6 +882,19 @@ begin
         Exit;
     end
 
+    // An OVERLOAD SET selects now, on the values rather than on anything the
+    // call site could have known [FUN-013].
+    if Callee is VmOverloads then
+    begin
+        var Picked := Chosen (Callee, Count);
+
+        if Picked = Nil then raise 'No matching signature for function.';
+
+        EnterFrame (Picked, Count, 'No matching signature for function.');
+
+        Exit;
+    end
+
     if not (Callee is VmFunction) and not (Callee is VmClosure) then
         raise 'Can only call a subprogram.';
 
@@ -1380,6 +1394,98 @@ begin
     Push (VmClosure (Body, Taken));
 end
 
+/// Whether one value could be passed where a type was written.
+///
+/// The interpreter's FitsAt, which is the rule being matched rather than
+/// improved on.  An unwritten type and Any take anything; nil takes any type
+/// [VAR-005]; a derived value fits a base class; and on the WIDENING pass an
+/// Integer fits a Double and a Char a String.
+function FitsAt (Argument : Any, Declared : Any, Widening : Boolean) : Boolean;
+var
+    Wanted : Any;
+    Actual : Any;
+
+begin
+    Wanted := ToLower (Str (Declared));
+
+    if Wanted = '' or Wanted = 'any' then Exit True;
+
+    if Argument = Nil then Exit True;
+
+    Actual := ToLower (Str (NameOfType (Argument)));
+
+    if Actual = Wanted then Exit True;
+
+    // A derived value fits a base class, by the chain `is` walks.
+    if Argument is VmInstance then
+        if TypeMatches (Argument, Wanted) then Exit True;
+
+    if not Widening then Exit False;
+
+    if Wanted = 'double' and Actual = 'integer' then Exit True;
+    if Wanted = 'string' and Actual = 'char'    then Exit True;
+
+    Exit False;
+end
+
+/// Whether a candidate takes these arguments on a given pass.
+function Fits (Candidate : Any, Count : Integer, Widening : Boolean) : Boolean;
+begin
+    if Candidate.Arity <> Count then Exit False;
+
+    for var I : Integer := 0; I < Count; I := I + 1 do
+    begin
+        var Declared := '';
+
+        if I < Candidate.Types.Length then Declared := Candidate.Types[I];
+
+        if not FitsAt (Slots[SP - Count + I], Declared, Widening) then Exit False;
+    end
+
+    Exit True;
+end
+
+/// Chooses a candidate for the arguments on the stack.
+///
+/// Two passes, EXACT then WIDENING, and within a pass the candidates are tried
+/// in DECLARATION ORDER -- so a tie goes to the one written first, which is
+/// what the interpreter does.  Its third pass, ABSORBING, is for a variadic
+/// candidate; the emitter refuses one of those, so there is no third pass here
+/// and nothing silently falls through it.
+///
+/// Answers nil when nothing fits.
+function Chosen (Set : Any, Count : Integer) : Any;
+begin
+    for var TheCandidate in Set.Candidates do
+        if Fits (TheCandidate, Count, False) then Exit TheCandidate;
+
+    for var TheCandidate in Set.Candidates do
+        if Fits (TheCandidate, Count, True) then Exit TheCandidate;
+
+    Exit Nil;
+end
+
+/// Gathers the subprograms above it into an overload set.
+procedure DoOverloads ();
+var
+    Count : Integer;
+    Made  : VmOverloads;
+    From  : Integer;
+
+begin
+    Count := ReadByte ();
+    Made  := VmOverloads (Str (Constants[ReadByte ()]));
+    From  := SP - Count;
+
+    // Read by index rather than popped, so the candidates keep DECLARATION
+    // ORDER -- which decides a tie within a selection pass.
+    for var I : Integer := 0; I < Count; I := I + 1 do Made.Add (Slots[From + I]);
+
+    SP := From;
+
+    Push (Made);
+end
+
 /// Calls a built-in by name.
 ///
 /// Every arm ends in a call to the HOST's built-in of the same name, which is
@@ -1742,6 +1848,7 @@ begin
     Table[OP_GET_CELL]      := DoGetCell;
     Table[OP_SET_CELL]      := DoSetCell;
     Table[OP_CLOSURE]       := DoClosure;
+    Table[OP_OVERLOADS]     := DoOverloads;
     Table[OP_BUILTIN]       := DoBuiltin;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
@@ -2998,4 +3105,103 @@ begin
     C.Emit (OP_RETURN);
 
     AssertEqual (1, RunChunk (C) as Integer);
+end
+
+/// Builds a candidate with written parameter types, for the overload tests.
+function Candidate (Name : String, Types : List, Answer : Any) : VmFunction;
+begin
+    var F := VmFunction (Name, Types.Length);
+
+    for var T in Types do F.Types.Add (T);
+
+    F.Body.EmitConstant (Answer);
+    F.Body.Emit (OP_RETURN);
+
+    Exit F;
+end
+
+/// Calls an overload set with one argument, for the overload tests.
+function CallWith (Set : Any, Argument : Any) : Any;
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (Set);
+    C.EmitConstant (Argument);
+    C.EmitWith (OP_CALL, 1);
+    C.Emit (OP_RETURN);
+
+    Exit RunChunk (C);
+end
+
+test 'Selection Is On The Argument Value, Not On The Call Site';
+begin
+    // [FUN-013]: the type system is gradual, so a declared type may be Any
+    // while the VALUE has a definite type -- which is why no call site can
+    // decide this earlier than the call.
+    var Set := VmOverloads ('Take');
+
+    Set.Add (Candidate ('Take', [Str ('Integer')], 'took an integer'));
+    Set.Add (Candidate ('Take', [Str ('String')],  'took a string'));
+
+    AssertEqual ('took an integer', Str (CallWith (Set, 1)));
+    AssertEqual ('took a string',   Str (CallWith (Set, Str ('x'))));
+end
+
+test 'An Exact Match Beats One That Needs Widening';
+begin
+    // Two passes, EXACT then WIDENING, so an Integer takes the Integer
+    // candidate even though it would also widen into the Double one.
+    var Set := VmOverloads ('Take');
+
+    Set.Add (Candidate ('Take', [Str ('Double')],  'widened'));
+    Set.Add (Candidate ('Take', [Str ('Integer')], 'exact'));
+
+    AssertEqual ('exact', Str (CallWith (Set, 1)));
+
+    // And a Double still reaches the Double one.
+    AssertEqual ('widened', Str (CallWith (Set, 1.5)));
+end
+
+test 'Widening Is Tried When Nothing Matches Exactly';
+begin
+    var Set := VmOverloads ('Take');
+
+    Set.Add (Candidate ('Take', [Str ('Double')], 'as a double'));
+
+    AssertEqual ('as a double', Str (CallWith (Set, 1)));
+end
+
+test 'A Tie Within A Pass Goes To The One Declared First';
+begin
+    var Set := VmOverloads ('Take');
+
+    Set.Add (Candidate ('Take', [Str ('Any')], 'first'));
+    Set.Add (Candidate ('Take', [Str ('Any')], 'second'));
+
+    AssertEqual ('first', Str (CallWith (Set, 1)));
+end
+
+test 'Nothing Matching Is A Selection Failure';
+begin
+    var Set := VmOverloads ('Take');
+
+    Set.Add (Candidate ('Take', [Str ('Integer'), Str ('Integer')], 'two'));
+
+    try
+        CallWith (Set, 1);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('No matching signature for function.', e);
+    end
+end
+
+test 'An Untyped Parameter Takes Anything';
+begin
+    var Set := VmOverloads ('Take');
+
+    Set.Add (Candidate ('Take', [Str ('Integer')], 'integer'));
+    Set.Add (Candidate ('Take', [Str ('')],        'anything'));
+
+    AssertEqual ('integer',  Str (CallWith (Set, 1)));
+    AssertEqual ('anything', Str (CallWith (Set, True)));
 end

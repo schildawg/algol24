@@ -388,6 +388,13 @@ const OP_SET_CELL := 60;
 /// subprogram produces a closure over different cells [FUN-010].
 const OP_CLOSURE := 61;
 
+/// Gathers the subprograms above it into an overload set.  One operand: how
+/// many, and then the constant index of the shared NAME.
+///
+/// A set rather than a slot each, because the declarations share one name and
+/// selection happens at the call [FUN-013].
+const OP_OVERLOADS := 62;
+
 /// Calls a built-in.  Two operands: the constant index of its NAME, and the
 /// argument count.
 ///
@@ -400,13 +407,13 @@ const OP_CLOSURE := 61;
 ///
 /// 'No built-in N takes C arguments.' for a pairing the machine has no arm
 /// for, which is a gap in the machine rather than an error in a program.
-const OP_BUILTIN := 62;
+const OP_BUILTIN := 63;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 63;
+const OP_RETURN := 64;
 
 /// How many opcodes there are.
-const OP_COUNT := 64;
+const OP_COUNT := 65;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -476,6 +483,7 @@ begin
     if Op = OP_GET_CELL      then Exit 'OP_GET_CELL';
     if Op = OP_SET_CELL      then Exit 'OP_SET_CELL';
     if Op = OP_CLOSURE       then Exit 'OP_CLOSURE';
+    if Op = OP_OVERLOADS     then Exit 'OP_OVERLOADS';
     if Op = OP_BUILTIN       then Exit 'OP_BUILTIN';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
 
@@ -515,6 +523,9 @@ begin
     if Op = OP_WIDEN         then Exit 1;
     if Op = OP_ENUM          then Exit 1;
     if Op = OP_ENUM_MEMBER   then Exit 1;
+
+    // The count and the name's index.
+    if Op = OP_OVERLOADS     then Exit 2;
 
     // The name's index and the argument count, for both of these.
     if Op = OP_BUILTIN       then Exit 2;
