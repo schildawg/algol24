@@ -22,6 +22,8 @@ Value fn_issubrange;
 static const char *t_f_issubrange[] = { "Name : Any" };
 Value fn_underlyingtype;
 static const char *t_f_underlyingtype[] = { "Name : Any" };
+Value v_typeVspellings;
+bool d_typeVspellings;
 Value fn_canonicaltype;
 static const char *t_f_canonicaltype[] = { "Name : Any" };
 Value fn_foldcase;
@@ -89,8 +91,10 @@ Value f_canonicaltype(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 1);
     Value v_name = args[0];
     (void)v_name;
-    if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){v_name}, 1), alg_string("real")))) {
-        return alg_string("Double");
+    Value v_folded = f_foldcase(NULL, (Value[]){v_name}, 1);
+    (void)v_folded;
+    if (alg_truthy(alg_invoke((alg_declared(d_typeVspellings, "TYPE_SPELLINGS"), v_typeVspellings), "Contains", (Value[]){v_folded}, 1))) {
+        return alg_str(alg_invoke((alg_declared(d_typeVspellings, "TYPE_SPELLINGS"), v_typeVspellings), "Get", (Value[]){v_folded}, 1));
     }
     return alg_str(v_name);
     return alg_nil();
@@ -161,4 +165,6 @@ void init_Token(void) {
     d_subrangeVlows = true;
     v_subrangeVhighs = alg_list_keep(alg_list_keep(alg_list_keep(alg_list(), alg_int(255)), alg_int(65535)), alg_int(32767));
     d_subrangeVhighs = true;
+    v_typeVspellings = alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map_keep(alg_map(), alg_string("integer"), alg_string("Integer")), alg_string("double"), alg_string("Double")), alg_string("string"), alg_string("String")), alg_string("char"), alg_string("Char")), alg_string("boolean"), alg_string("Boolean")), alg_string("any"), alg_string("Any")), alg_string("list"), alg_string("List")), alg_string("set"), alg_string("Set")), alg_string("map"), alg_string("Map")), alg_string("array"), alg_string("Array")), alg_string("stack"), alg_string("Stack")), alg_string("buffer"), alg_string("Buffer")), alg_string("textfile"), alg_string("TextFile")), alg_string("pointer"), alg_string("Pointer")), alg_string("real"), alg_string("Double"));
+    d_typeVspellings = true;
 }

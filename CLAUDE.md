@@ -185,11 +185,11 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   because there are four arguments. `Expected 2 arguments but got 4.` is the
   plausible wrong answer, and 0158 compares the text.
 
-  ⚠️ **The `List` spelling is compared CASE-SENSITIVELY**, which sits oddly
-  beside [SRC-011] and is the interpreter's behaviour: `list of Integer` does
-  **not** absorb — it raises `Expected 1 arguments but got 2.` Matching that
-  exactly matters, because being lenient here absorbs where the interpreter
-  raises.
+  ⚠️ **Whether a parameter absorbs goes through `CanonicalType`**, not through
+  a raw string compare. All three back ends used to test the written spelling
+  against `'List'` exactly, so `list of Integer` did not absorb — a defect
+  against [TYP-002], since a type is written as an identifier and folds like
+  any other name. Fixed rather than matched; see the type-name note below.
 
   ⚠️ **The name-clash trap bit again, and it cost 76 divergences.** A
   top-level `Absorbs` and `SignatureOf` in `vm/Vm.a24` collided with
@@ -727,6 +727,21 @@ inline. Language points that bite when editing:
   rather than a shadowing one. Give a module-level table a name no local would
   reach for: the underscores in `ENUM_NAMES` and `CLASS_PARENTS` are what has
   kept those safe, and single-word `HIDDEN` is what was not.
+- ⚠️ **A written type name FOLDS, and `CanonicalType` is the one place that
+  decides it.** A type is written as an identifier [TYP-002], so `integer` is
+  `Integer` in a declaration, a parameter, a return type, a class header's
+  parent and after `of`. This was a defect until v0.1.6 — `1 is integer` was
+  true while `var X : integer` was refused — and the sharpest symptom was
+  silent: gathering is decided by the written type being a `List` with an
+  element type [FUN-005], so `list of Integer` did not absorb and the call
+  failed as a wrong argument count. A diagnostic answers in the **canonical**
+  spelling, which is [TYP-014]'s treatment of `Real` reaching case too.
+- ⚠️ **Folding a table's keys means folding every READ, and missing one broke
+  the next generation rather than this one.** `CEmitter` keys its class and
+  singleton tables by name; folding the writes and five of six reads left every
+  singleton reference emitting `alg_error("Undefined variable 'SourceCode'…")`
+  into the generated C. Tests passed, the corpus passed, and `fixedpoint.sh`
+  caught it — which is what it iterates for.
 - ⚠️ **`Str (X)` does not give the checker a String when `X` is untyped.** The
   type does not propagate — `ToLower (Str (Thing.Field))` is an *untyped*
   expression, so a parameter declared `String` refuses it and the message is

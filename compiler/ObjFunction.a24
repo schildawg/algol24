@@ -456,7 +456,7 @@ begin
         if Last >= Declaration.ParamTypes.Length    then Exit False;
         if Last >= Declaration.ParamGenerics.Length then Exit False;
 
-        Exit Str (Declaration.ParamTypes[Last]) = 'List'
+        Exit CanonicalType (Declaration.ParamTypes[Last]) = 'List'
          and Str (Declaration.ParamGenerics[Last]) <> '';
     end
 

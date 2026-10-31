@@ -3109,7 +3109,121 @@ collection type with an element type, written `of` — `List of Integer`,
 Type = identifier [ "of" identifier ] .
 ```
 
+**Being an identifier, a type name folds case** [SRC-011] — wherever one is
+written. A declaration, a parameter, a return type, a parent in a class header
+and the element type after `of` are all the same question, and `integer` is
+`Integer` in every one of them. [VAL-006] says this of the name in `is` and
+calls it SRC-011 applied to a type name rather than a special case; it is the
+same rule in the other places a type is written down.
+
+**A diagnostic answers in the canonical spelling** rather than echoing what was
+written, which is [TYP-014]'s treatment of `Real` reaching case as well. So
+`var X : integer := 'text'` is refused as `Expected Integer, found String.`,
+naming the type the program asked for rather than the letters it typed.
+
+**This reaches gathering too.** Whether a last parameter absorbs is decided by
+its written type being a `List` with an element type [FUN-005], so
+`list of Integer` gathers exactly as `List of Integer` does.
+
     conformance  0026-the-runtime-types.a24
+    conformance  0202-declared-type-names-fold.a24
+
+##### conformance/0202-declared-type-names-fold.a24
+
+```algol24
+// A type is written as an identifier, so its spelling folds like every other
+// name.  0035 covers the name in 'is'; this covers the places a type is
+// written down.
+var Count : integer := 7;
+var Word  : STRING  := 'ready';
+var Ratio : dOuBlE  := 1.5;
+
+WriteLn (Count);
+WriteLn (Word);
+WriteLn (Ratio);
+
+// A collection type folds, with and without an element type.
+var Items : list := [1, 2];
+var Named : map of String := ['k' : 'v'];
+
+WriteLn (Items.Length);
+WriteLn (Named.Get ('k'));
+
+// A parameter and a return type are the same question.
+function Doubled (N : integer) : integer;
+begin
+    Exit N * 2;
+end
+
+WriteLn (Doubled (21));
+
+// A class name folds, and so does a parent's wherever it is written.
+class Animal;
+begin
+    constructor Init (); begin end
+    function Speaks () : string; begin Exit 'generic'; end
+end
+
+class Dog (animal);
+begin
+    constructor Init (); begin end
+    function Speaks () : STRING; begin Exit 'woof'; end
+end
+
+var Pet  : dog    := Dog ();
+var Some : ANIMAL := Dog ();
+
+WriteLn (Pet.Speaks ());
+WriteLn (Some.Speaks ());
+
+// Gathering is decided by the written type, so it folds as well [FUN-005].
+procedure Total (Label : String, Items : list of Integer);
+begin
+    var Sum := 0;
+
+    for var I in Items do Sum := Sum + I;
+
+    WriteLn (Label + Str (Sum));
+end
+
+Total ('sum=', 1, 2, 3);
+Total ('none=');
+```
+
+```console
+$ algc conformance/0202-declared-type-names-fold.a24
+7
+ready
+1.5
+2
+v
+42
+woof
+woof
+sum=6
+none=0
+```
+
+Folding admits more programs and refuses nothing it refused before.
+
+##### refusals/0198-a-folded-type-name-still-checks.a24
+
+```algol24
+// 'integer' means Integer, so a String initializer is the same mismatch it
+// always was -- and the diagnostic names the canonical spelling.
+var Wrong : integer := 'text';
+
+WriteLn (Wrong);
+```
+
+```console
+$ algc refusals/0198-a-folded-type-name-still-checks.a24
+Uncaught: Expected Integer, found String.
+[ERROR] refusals/0198-a-folded-type-name-still-checks.a24: Expected Integer, found String.
+[ERROR] 3 | var Wrong : integer := 'text';
+[ERROR]   |     ^^^^^
+exit: 70
+```
 
 **[TYP-003]**  `Char` and `String` are distinct types, and a one-character
 value is a `Char`. `'s' is String` is **false**.

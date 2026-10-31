@@ -20,6 +20,8 @@ extern Value fn_definesubrange;
 extern Value fn_subrangeindex;
 extern Value fn_issubrange;
 extern Value fn_underlyingtype;
+extern Value v_typeVspellings;
+extern bool d_typeVspellings;
 extern Value fn_canonicaltype;
 extern Value fn_foldcase;
 extern Value k_token;

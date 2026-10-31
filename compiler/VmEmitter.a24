@@ -559,15 +559,16 @@ begin
     // recording it is what makes the subprogram variadic at run time, where
     // the decision belongs: it depends on the argument VALUES.
     //
-    // The spelling is compared as the interpreter compares it, against 'List'
-    // exactly.  A lowercase `list of Integer` does NOT absorb there -- which
-    // sits oddly beside identifiers being case-insensitive [SRC-011] -- and
-    // being lenient here would absorb where the interpreter raises.
+    // Through CanonicalType, which is the one point at which a written type
+    // becomes something to compare -- so `list of Integer` absorbs exactly as
+    // `List of Integer` does [TYP-002].  Comparing the raw spelling was a
+    // defect shared by all three back ends, and matching it here would have
+    // carried it forward.
     var Last := TheStmt.Params.Length - 1;
 
     if Last >= 0 and Last < TheStmt.ParamTypes.Length
                  and Last < TheStmt.ParamGenerics.Length then
-        if Str (TheStmt.ParamTypes[Last]) = 'List'
+        if CanonicalType (TheStmt.ParamTypes[Last]) = 'List'
                and Str (TheStmt.ParamGenerics[Last]) <> '' then
             Made.Element := Str (TheStmt.ParamGenerics[Last]);
 

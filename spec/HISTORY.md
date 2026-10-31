@@ -7,7 +7,7 @@ Four things live here, and all four are closed or closing:
 
 - **Compiler divergences** — thirty-seven places where the C back end did not do
   what the interpreter did. Every one is withdrawn.
-- **Advisory notes** — eighteen questions raised during the conformance pass.
+- **Advisory notes** — nineteen questions raised during the conformance pass.
   Every one is resolved.
 - **What could be written in Algol-24 itself** — a survey asking, for each
   built-in and collection, whether it is native because it *must* be. The
@@ -1803,6 +1803,47 @@ it. Documenting it was as valuable as fixing the stem.
 ⚠️ Any change here alters the report, which [TST-008] specifies and which both
 processors must reproduce byte for byte — so it is a change to the observable
 surface and to `bootstrap/algol.c` in the same breath, not a cosmetic edit.
+
+**D-19 — A declared type name did not fold case.** *(refers to [TYP-002])*
+
+**Resolved by fixing the implementation, not the rule.** `1 is integer` was
+true — [VAL-006] says so and calls it [SRC-011] applied to a type name rather
+than a special case — while `var X : integer := 5` was refused as
+`Expected integer, found Integer.` A type is written as an identifier
+[TYP-002], so there was never a reading under which the two could differ.
+
+It reached every place a type is written: a declaration, a parameter, a return
+type, a class name, a parent in a class header, and the element type after
+`of`. Both processors agreed, which is what made it look like a rule.
+
+⚠️ **The sharpest symptom was the one that produced a wrong answer rather than
+a diagnostic.** Whether a last parameter gathers is decided by its written type
+being a `List` with an element type [FUN-005], and that test compared the
+spelling exactly — so `list of Integer` silently did not absorb, and
+`Total ('a', 1, 2)` failed as `Expected 1 arguments but got 2.` The arity
+message named the symptom and hid the cause.
+
+⚠️ **The fix belongs in one place and nearly did not go there.**
+`CanonicalType` is documented as the single point at which a written type
+becomes something to compare — it already folded to resolve the `Real` alias
+[TYP-014] — so folding the rest of the built-in spellings there fixed the
+primitives, the collections and the gathering test together. Only a *class*
+name needed anything further, because no table can know how a user spelt one;
+`Assignable` folds its own comparison for those.
+
+⚠️ **A diagnostic now answers in the canonical spelling**, so
+`var X : integer := 'text'` is refused as `Expected Integer, found String.`
+That is [TYP-014]'s treatment of `Real` reaching case as well, and it is an
+improvement rather than a side effect: the reader is told the type they asked
+for instead of the letters they typed.
+
+⚠️ **Folding a table's keys means folding its READS, and missing one emitted a
+broken compiler.** The C back end keys its class and singleton tables by name;
+folding the writes without folding all six reads left every reference to a
+singleton emitting `alg_error("Undefined variable 'SourceCode'. …")` into the
+generated C. Nothing failed at the time — the tests passed and the corpus
+passed — because the damage was in what the *next* generation would emit.
+`fixedpoint.sh` caught it, which is the whole reason it iterates.
 
 ---
 

@@ -87,24 +87,54 @@ begin
     Exit CanonicalType (Name);
 end
 
+/// The canonical spelling of each built-in type name, keyed folded.
+///
+/// The names are [TYP-001]'s, and 'Real' is here as the alias it is [TYP-014].
+/// A module-level table wants a name no local would reach for, because
+/// identifiers are case-insensitive [SRC-011] and a local would simply BE it.
+var TYPE_SPELLINGS := ['integer'  : 'Integer',  'double' : 'Double',
+                       'string'   : 'String',   'char'   : 'Char',
+                       'boolean'  : 'Boolean',  'any'    : 'Any',
+                       'list'     : 'List',     'set'    : 'Set',
+                       'map'      : 'Map',      'array'  : 'Array',
+                       'stack'    : 'Stack',    'buffer' : 'Buffer',
+                       'textfile' : 'TextFile', 'pointer': 'Pointer',
+                       'real'     : 'Double'];
+
 /// Gets the name a written type is compared under.
 ///
-/// 'Real' is another spelling of 'Double' [TYP-014], not a type of its own, so
-/// it is replaced HERE -- at the one point a written type becomes something to
-/// compare -- and nothing downstream needs to know the alias exists.  The C
-/// runtime therefore needs no case for it at all, which is what keeps the two
-/// processors agreeing by construction rather than by both remembering.
+/// A type is written as an IDENTIFIER [TYP-002], so its spelling folds like
+/// every other name [SRC-011] -- and this is the one point at which a written
+/// type becomes something to compare, so folding it here is what makes
+/// `var X : integer` mean what `var X : Integer` means.  [VAL-006] states the
+/// rule for `is` and says explicitly that it is [SRC-011] applied to a type
+/// name rather than a special case.
 ///
-/// The canonical spelling wins in a DIAGNOSTIC too, so 'X as Real' on a
-/// String says 'Cannot cast String to Double.'  That is the alias telling the
-/// reader what it is, which is more use than echoing what they wrote.
+/// 'Real' is another spelling of 'Double' [TYP-014], not a type of its own, so
+/// it is replaced here too and nothing downstream needs to know the alias
+/// exists.  The C runtime therefore needs no case for it at all, which is what
+/// keeps the processors agreeing by construction rather than by all
+/// remembering.
+///
+/// The canonical spelling wins in a DIAGNOSTIC, so 'X as Real' on a String
+/// says 'Cannot cast String to Double.'  That is the alias telling the reader
+/// what it is, which is more use than echoing what they wrote -- and it is why
+/// a folded primitive reads back capitalised.
+///
+/// A CLASS or enumeration name is not in the table and passes through as
+/// written, so its diagnostics still echo the program.  Comparing two of them
+/// folds in Assignable instead, because only a declaration knows how a
+/// user-defined name is spelt.
 ///
 /// # Satisfies
 ///
-/// [TYP-014]
+/// [SRC-011], [TYP-002], [TYP-014], [VAL-006]
 function CanonicalType (Name : Any) : String;
 begin
-    if FoldCase (Name) = 'real' then Exit 'Double';
+    var Folded := FoldCase (Name);
+
+    if TYPE_SPELLINGS.Contains (Folded) then
+        Exit Str (TYPE_SPELLINGS.Get (Folded));
 
     Exit Str (Name);
 end
