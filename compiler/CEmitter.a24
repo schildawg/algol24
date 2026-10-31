@@ -859,13 +859,13 @@ begin
 
             if TheStmt is ClassStmt then
             begin
-                Classes.Put (Str (TheStmt.Name.Lexeme), TheStmt);
+                Classes.Put (FoldCase (TheStmt.Name.Lexeme), TheStmt);
                 Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
             end
 
             if TheStmt is ObjectStmt then
             begin
-                Objects.Add (Str (TheStmt.Name.Lexeme));
+                Objects.Add (FoldCase (TheStmt.Name.Lexeme));
                 Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
             end
 
@@ -1914,7 +1914,7 @@ begin
         if Last >= TheStmt.ParamTypes.Length    then Exit False;
         if Last >= TheStmt.ParamGenerics.Length then Exit False;
 
-        Exit Str (TheStmt.ParamTypes[Last]) = 'List'
+        Exit CanonicalType (TheStmt.ParamTypes[Last]) = 'List'
          and Str (TheStmt.ParamGenerics[Last]) <> '';
     end
 
@@ -1951,9 +1951,9 @@ begin
         At := SuperName;
         while At <> '' do
         begin
-            if not Classes.Contains (At) then Exit Names;
+            if not Classes.Contains (FoldCase (At)) then Exit Names;
 
-            var Ancestor := Classes.Get (At);
+            var Ancestor := Classes.Get (FoldCase (At));
 
             var Inherited := Ancestor.Methods;
             if Fields then Inherited := Ancestor.Fields;
@@ -2153,8 +2153,16 @@ begin
 
         if SuperName <> '' then
         begin
-            if not Classes.Contains (SuperName) and not Objects.Contains (SuperName) then
+            if not Classes.Contains (FoldCase (SuperName))
+                   and not Objects.Contains (FoldCase (SuperName)) then
                 raise '''' + SuperName + ''' is not a class.';
+
+            // A parent's name folds where it is written [TYP-002], so the
+            // DECLARED spelling is what names the class at run time -- taking
+            // the subclass header's letters would make `class Dog (animal)`
+            // give the parent a ClassName of 'animal'.
+            if Classes.Contains (FoldCase (SuperName)) then
+                SuperName := Str (Classes.Get (FoldCase (SuperName)).Name.Lexeme);
 
             if not Hoisted then
                 Built (Hoisted, 'alg_class_declared(' + ClassHandle (SuperName) + ', '
@@ -2789,7 +2797,7 @@ begin
 
             if EnumTypes.Contains (Name) then Exit EnumTypeName (Name);
 
-            if Objects.Contains (Name) then
+            if Objects.Contains (FoldCase (Name)) then
                 Exit 'alg_singleton(' + ClassHandle (Name) + ')';
 
             if Declared.Contains (Name) then Exit SubprogramValue (Name);
@@ -2798,8 +2806,8 @@ begin
         Unreachable (Name);
 
         if not Locals.Contains (Name) and not Globals.Contains (Name)
-                                      and not Classes.Contains (Name)
-                                      and not Objects.Contains (Name) then
+                                      and not Classes.Contains (FoldCase (Name))
+                                      and not Objects.Contains (FoldCase (Name)) then
             Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
 
         Exit Guarded (Name, VariableName (Name));
@@ -3363,7 +3371,7 @@ begin
         Renames := RenamesOf (Unit, Name);
 
         var Built := '';
-        if Classes.Contains (Name) then
+        if Classes.Contains (FoldCase (Name)) then
             Built := Constructing (ClassHandle (Name), Arguments, Names);
         else if Declared.Contains (Name) and Overloaded.Contains (Name) then
             Built := Calling (SetName (Name), Arguments, Names);
@@ -3499,10 +3507,10 @@ begin
             Exit '(alg_error(' + QuoteC ('No matching signature for function.')
                + '), alg_nil())';
 
-        if Classes.Contains (Name) then
+        if Classes.Contains (FoldCase (Name)) then
             Exit Constructing (ClassHandle (Name), Arguments, TheExpr.ArgumentNames);
 
-        if Objects.Contains (Name) then
+        if Objects.Contains (FoldCase (Name)) then
             Exit Calling ('alg_singleton(' + ClassHandle (Name) + ')', Arguments,
                           TheExpr.ArgumentNames);
 
@@ -3545,8 +3553,8 @@ begin
         end
 
         if not Locals.Contains (Name)  and not Globals.Contains (Name)
-                                       and not Classes.Contains (Name)
-                                       and not Objects.Contains (Name)
+                                       and not Classes.Contains (FoldCase (Name))
+                                       and not Objects.Contains (FoldCase (Name))
                                        and not Declared.Contains (Name)
                                        and not EnumTypes.Contains (Name)
                                        and not EnumMembers.Contains (Name)
@@ -3767,8 +3775,8 @@ begin
         if EnumMembers.Contains (Name) then
             Built := EnumMemberName (Str (EnumMembers.Get (Name)), Name);
         else if EnumTypes.Contains (Name) then Built := EnumTypeName (Name);
-        else if Objects.Contains (Name)   then Built := 'alg_singleton(' + ClassHandle (Name) + ')';
-        else if Classes.Contains (Name)   then Built := ClassHandle (Name);
+        else if Objects.Contains (FoldCase (Name)) then Built := 'alg_singleton(' + ClassHandle (Name) + ')';
+        else if Classes.Contains (FoldCase (Name)) then Built := ClassHandle (Name);
         else if Declared.Contains (Name)  then Built := SubprogramValue (Name);
         else if Globals.Contains (Name)   then Built := Guarded (Name, VariableName (Name));
 

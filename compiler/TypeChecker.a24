@@ -556,7 +556,13 @@ begin
         if Expected = '' or Actual = '' then Exit True;
         if Expected = 'Any' or Actual = 'Any' then Exit True;
         if Actual = 'Nil' then Exit True;
-        if Expected = Actual then Exit True;
+
+        // Folded, because a type is written as an identifier [TYP-002] and
+        // identifiers are matched without regard to case [SRC-011].
+        // CanonicalType has already settled the built-in names; what is left
+        // folding to do here is a CLASS or enumeration name, whose spelling
+        // only its declaration knows.
+        if FoldCase (Expected) = FoldCase (Actual) then Exit True;
 
         if Expected = 'Double' and Actual = 'Integer' then Exit True;
         if Expected = 'String' and Actual = 'Char'    then Exit True;
@@ -564,7 +570,7 @@ begin
         Parent := Str (Lookup.Parents.Get (Actual));
         while Parent <> '' and Parent <> 'nil' do
         begin
-            if Expected = Parent then Exit True;
+            if FoldCase (Expected) = FoldCase (Parent) then Exit True;
 
             Parent := Str (Lookup.Parents.Get (Parent));
         end
@@ -958,7 +964,7 @@ begin
         var Gathers := False;
 
         if Count > 0 then
-            Gathers := Str (TheStmt.ParamTypes[Count - 1]) = 'List'
+            Gathers := CanonicalType (TheStmt.ParamTypes[Count - 1]) = 'List'
                    and Str (TheStmt.ParamGenerics[Count - 1]) <> '';
 
         if Gathers then

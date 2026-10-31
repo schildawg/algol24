@@ -550,7 +550,7 @@ static Value m_typechecker_assignable_2_string_string(Value v_this, Value *args,
     if (alg_truthy(alg_equal(v_actual, alg_string("Nil")))) {
         return alg_bool(true);
     }
-    if (alg_truthy(alg_equal(v_expected, v_actual))) {
+    if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){v_expected}, 1), f_foldcase(NULL, (Value[]){v_actual}, 1)))) {
         return alg_bool(true);
     }
     if (alg_truthy((or_14 = alg_equal(v_expected, alg_string("Double")), !alg_truthy(or_14) ? or_14 : alg_equal(v_actual, alg_string("Integer"))))) {
@@ -562,7 +562,7 @@ static Value m_typechecker_assignable_2_string_string(Value v_this, Value *args,
     (void)((v_parent = alg_widen(alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_actual}, 1)), "String")));
     while (alg_truthy((or_16 = alg_not_equal(v_parent, alg_string("")), !alg_truthy(or_16) ? or_16 : alg_not_equal(v_parent, alg_string("nil"))))) {
         {
-            if (alg_truthy(alg_equal(v_expected, v_parent))) {
+            if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){v_expected}, 1), f_foldcase(NULL, (Value[]){v_parent}, 1)))) {
                 return alg_bool(true);
             }
             (void)((v_parent = alg_widen(alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_parent}, 1)), "String")));
@@ -1054,7 +1054,7 @@ static Value m_typechecker_recordarity_2_string(Value v_this, Value *args, int32
     Value v_gathers = alg_bool(false);
     (void)v_gathers;
     if (alg_truthy(alg_greater(v_count, alg_int(0)))) {
-        (void)((v_gathers = (or_25 = alg_equal(alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), alg_subtract(v_count, alg_int(1)))), alg_string("List")), !alg_truthy(or_25) ? or_25 : alg_not_equal(alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamGenerics"), alg_subtract(v_count, alg_int(1)))), alg_string("")))));
+        (void)((v_gathers = (or_25 = alg_equal(f_canonicaltype(NULL, (Value[]){alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), alg_subtract(v_count, alg_int(1)))}, 1), alg_string("List")), !alg_truthy(or_25) ? or_25 : alg_not_equal(alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamGenerics"), alg_subtract(v_count, alg_int(1)))), alg_string("")))));
     }
     if (alg_truthy(v_gathers)) {
         {

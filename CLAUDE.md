@@ -310,6 +310,21 @@ inline. Language points that bite when editing:
   for its test blocks to reach the parser.
 - ⚠️ The `for var X in C do` form has **no slot for a type**. Only the counted
   `for var I : Integer := 0; …` form accepts one.
+- ⚠️ **A written type name FOLDS, and `CanonicalType` is the one place that
+  decides it.** A type is written as an identifier [TYP-002], so `integer` is
+  `Integer` in a declaration, a parameter, a return type, a class header's
+  parent and after `of`. This was a defect through v0.1.6 — `1 is integer` was
+  true while `var X : integer` was refused — and the sharpest symptom was
+  silent: gathering is decided by the written type being a `List` with an
+  element type [FUN-005], so `list of Integer` did not absorb and the call
+  failed as a wrong argument count. A diagnostic answers in the **canonical**
+  spelling, which is [TYP-014]'s treatment of `Real` reaching case too.
+- ⚠️ **Folding a table's keys means folding every READ, and missing one broke
+  the next generation rather than this one.** `CEmitter` keys its class and
+  singleton tables by name; folding the writes and five of six reads left every
+  singleton reference emitting `alg_error("Undefined variable 'SourceCode'…")`
+  into the generated C. Tests passed, the corpus passed, and `fixedpoint.sh`
+  caught it — which is what it iterates for.
 - An **extension** is declared `extension function F (Receiver : T, …)` at the
   top level only, and the receiver's type must be written: an untyped one would
   be a member of everything. It is refused on a method, a constructor, a

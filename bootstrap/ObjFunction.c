@@ -535,7 +535,7 @@ static Value m_objfunction_variadic_0(Value v_this, Value *args, int32_t count) 
     if (alg_truthy(alg_greater_equal(v_last, alg_property(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), "Length")))) {
         return alg_bool(false);
     }
-    return (or_9 = alg_equal(alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_last)), alg_string("List")), !alg_truthy(or_9) ? or_9 : alg_not_equal(alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), v_last)), alg_string("")));
+    return (or_9 = alg_equal(f_canonicaltype(NULL, (Value[]){alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_last)}, 1), alg_string("List")), !alg_truthy(or_9) ? or_9 : alg_not_equal(alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), v_last)), alg_string("")));
     return alg_nil();
 }
 

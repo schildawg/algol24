@@ -890,13 +890,13 @@ static Value m_cemitter_collectfunctions_1_list(Value v_this, Value *args, int32
                 }
                 if (alg_truthy(alg_is(v_thestmt, "ClassStmt"))) {
                     {
-                        (void)(alg_invoke(alg_property(v_this, "Classes"), "Put", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme")), v_thestmt}, 2));
+                        (void)(alg_invoke(alg_property(v_this, "Classes"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1), v_thestmt}, 2));
                         (void)(alg_invoke(alg_property(v_this, "Canonical"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 2));
                     }
                 }
                 if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
                     {
-                        (void)(alg_invoke(alg_property(v_this, "Objects"), "Add", (Value[]){alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 1));
+                        (void)(alg_invoke(alg_property(v_this, "Objects"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
                         (void)(alg_invoke(alg_property(v_this, "Canonical"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))}, 2));
                     }
                 }
@@ -2275,7 +2275,7 @@ static Value m_cemitter_variadic_1(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_greater_equal(v_last, alg_property(alg_property(v_thestmt, "ParamGenerics"), "Length")))) {
         return alg_bool(false);
     }
-    return (or_39 = alg_equal(alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), v_last)), alg_string("List")), !alg_truthy(or_39) ? or_39 : alg_not_equal(alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamGenerics"), v_last)), alg_string("")));
+    return (or_39 = alg_equal(f_canonicaltype(NULL, (Value[]){alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), v_last)}, 1), alg_string("List")), !alg_truthy(or_39) ? or_39 : alg_not_equal(alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamGenerics"), v_last)), alg_string("")));
     return alg_nil();
 }
 
@@ -2328,10 +2328,10 @@ static Value m_cemitter_namesvisible_3_string_list_boolean(Value v_this, Value *
     (void)((v_at = alg_widen(v_supername, "String")));
     while (alg_truthy(alg_not_equal(v_at, alg_string("")))) {
         {
-            if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_at}, 1)))) {
+            if (alg_truthy(alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_at}, 1)}, 1)))) {
                 return v_names;
             }
-            Value v_ancestor = alg_invoke(alg_property(v_this, "Classes"), "Get", (Value[]){v_at}, 1);
+            Value v_ancestor = alg_invoke(alg_property(v_this, "Classes"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_at}, 1)}, 1);
             (void)v_ancestor;
             Value v_inherited = alg_property(v_ancestor, "Methods");
             (void)v_inherited;
@@ -2567,8 +2567,11 @@ static Value m_cemitter_emitclass_5_string_list_list_boolean(Value v_this, Value
     (void)v_hoisted;
     if (alg_truthy(alg_not_equal(v_supername, alg_string("")))) {
         {
-            if (alg_truthy((or_43 = alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_supername}, 1)), !alg_truthy(or_43) ? or_43 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_supername}, 1))))) {
+            if (alg_truthy((or_43 = alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_supername}, 1)}, 1)), !alg_truthy(or_43) ? or_43 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_supername}, 1)}, 1))))) {
                 alg_raise(alg_add(alg_add(alg_char_value(39), v_supername), alg_string("' is not a class.")));
+            }
+            if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_supername}, 1)}, 1))) {
+                (void)((v_supername = alg_widen(alg_str(alg_property(alg_property(alg_invoke(alg_property(v_this, "Classes"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_supername}, 1)}, 1), "Name"), "Lexeme")), "String")));
             }
             if (alg_truthy(alg_not(v_hoisted))) {
                 (void)(alg_invoke(v_this, "Built", (Value[]){v_hoisted, alg_add(alg_add(alg_add(alg_add(alg_string("alg_class_declared("), alg_invoke(v_this, "ClassHandle", (Value[]){v_supername}, 1)), alg_string(", ")), f_quotec(NULL, (Value[]){v_supername}, 1)), alg_string(");"))}, 2));
@@ -3205,7 +3208,7 @@ static Value m_cemitter_visitvariableexpr_1_variableexpr(Value v_this, Value *ar
             if (alg_truthy(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_name}, 1))) {
                 return alg_invoke(v_this, "EnumTypeName", (Value[]){v_name}, 1);
             }
-            if (alg_truthy(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))) {
+            if (alg_truthy(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
                 return alg_add(alg_add(alg_string("alg_singleton("), alg_invoke(v_this, "ClassHandle", (Value[]){v_name}, 1)), alg_char_value(41));
             }
             if (alg_truthy(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))) {
@@ -3214,7 +3217,7 @@ static Value m_cemitter_visitvariableexpr_1_variableexpr(Value v_this, Value *ar
         }
     }
     (void)(alg_invoke(v_this, "Unreachable", (Value[]){v_name}, 1));
-    if (alg_truthy((or_51 = (or_50 = (or_49 = alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)), !alg_truthy(or_49) ? or_49 : alg_not(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_50) ? or_50 : alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_51) ? or_51 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_51 = (or_50 = (or_49 = alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)), !alg_truthy(or_49) ? or_49 : alg_not(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_50) ? or_50 : alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))), !alg_truthy(or_51) ? or_51 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "MissingName", (Value[]){v_name}, 1)}, 1)), alg_string("), alg_nil())"));
     }
     return alg_invoke(v_this, "Guarded", (Value[]){v_name, alg_invoke(v_this, "VariableName", (Value[]){v_name}, 1)}, 2);
@@ -4033,7 +4036,7 @@ static Value m_cemitter_unitcall_5_string_string_list_string_list(Value v_this, 
     (void)(alg_set_property(v_this, "Renames", alg_widen(alg_invoke(v_this, "RenamesOf", (Value[]){v_unit, v_name}, 2), "Map")));
     Value v_built = alg_string("");
     (void)v_built;
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))) {
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
         (void)((v_built = alg_invoke(v_this, "Constructing", (Value[]){alg_invoke(v_this, "ClassHandle", (Value[]){v_name}, 1), v_arguments, v_names}, 3)));
     } else {
         if (alg_truthy((or_69 = alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1), !alg_truthy(or_69) ? or_69 : alg_invoke(alg_property(v_this, "Overloaded"), "Contains", (Value[]){v_name}, 1)))) {
@@ -4212,10 +4215,10 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
     if (alg_truthy((or_78 = (or_77 = alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1), !alg_truthy(or_77) ? or_77 : alg_not(v_shadowed)), !alg_truthy(or_78) ? or_78 : alg_greater(alg_property(alg_invoke(v_this, "BuiltinCounts", (Value[]){v_name}, 1), "Length"), alg_int(0))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_string("No matching signature for function.")}, 1)), alg_string("), alg_nil())"));
     }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))) {
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
         return alg_invoke(v_this, "Constructing", (Value[]){alg_invoke(v_this, "ClassHandle", (Value[]){v_name}, 1), v_arguments, alg_property(v_theexpr, "ArgumentNames")}, 3);
     }
-    if (alg_truthy(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))) {
+    if (alg_truthy(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
         return alg_invoke(v_this, "Calling", (Value[]){alg_add(alg_add(alg_string("alg_singleton("), alg_invoke(v_this, "ClassHandle", (Value[]){v_name}, 1)), alg_char_value(41)), v_arguments, alg_property(v_theexpr, "ArgumentNames")}, 3);
     }
     if (alg_truthy(alg_invoke(alg_property(v_this, "AmbiguousImports"), "Contains", (Value[]){v_name}, 1))) {
@@ -4253,7 +4256,7 @@ static Value m_cemitter_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
             }
         }
     }
-    if (alg_truthy((or_90 = (or_89 = (or_88 = (or_87 = (or_86 = (or_85 = (or_84 = alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)), !alg_truthy(or_84) ? or_84 : alg_not(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_85) ? or_85 : alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_86) ? or_86 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_87) ? or_87 : alg_not(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_88) ? or_88 : alg_not(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_89) ? or_89 : alg_not(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_90) ? or_90 : alg_not(alg_invoke(alg_property(v_this, "AmbiguousMembers"), "Contains", (Value[]){v_name}, 1))))) {
+    if (alg_truthy((or_90 = (or_89 = (or_88 = (or_87 = (or_86 = (or_85 = (or_84 = alg_not(alg_invoke(alg_property(v_this, "Locals"), "Contains", (Value[]){v_name}, 1)), !alg_truthy(or_84) ? or_84 : alg_not(alg_invoke(alg_property(v_this, "Globals"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_85) ? or_85 : alg_not(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))), !alg_truthy(or_86) ? or_86 : alg_not(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))), !alg_truthy(or_87) ? or_87 : alg_not(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_88) ? or_88 : alg_not(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_89) ? or_89 : alg_not(alg_invoke(alg_property(v_this, "EnumMembers"), "Contains", (Value[]){v_name}, 1))), !alg_truthy(or_90) ? or_90 : alg_not(alg_invoke(alg_property(v_this, "AmbiguousMembers"), "Contains", (Value[]){v_name}, 1))))) {
         return alg_add(alg_add(alg_string("(alg_error("), f_quotec(NULL, (Value[]){alg_invoke(v_this, "MissingName", (Value[]){v_name}, 1)}, 1)), alg_string("), alg_nil())"));
     }
     (void)(alg_invoke(v_this, "Unsupported", (Value[]){alg_add(alg_add(alg_string("A call to '"), v_name), alg_char_value(39))}, 1));
@@ -4520,10 +4523,10 @@ static Value m_cemitter_unitvalue_2_string_string(Value v_this, Value *args, int
         if (alg_truthy(alg_invoke(alg_property(v_this, "EnumTypes"), "Contains", (Value[]){v_name}, 1))) {
             (void)((v_built = alg_invoke(v_this, "EnumTypeName", (Value[]){v_name}, 1)));
         } else {
-            if (alg_truthy(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){v_name}, 1))) {
+            if (alg_truthy(alg_invoke(alg_property(v_this, "Objects"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
                 (void)((v_built = alg_add(alg_add(alg_string("alg_singleton("), alg_invoke(v_this, "ClassHandle", (Value[]){v_name}, 1)), alg_char_value(41))));
             } else {
-                if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){v_name}, 1))) {
+                if (alg_truthy(alg_invoke(alg_property(v_this, "Classes"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
                     (void)((v_built = alg_invoke(v_this, "ClassHandle", (Value[]){v_name}, 1)));
                 } else {
                     if (alg_truthy(alg_invoke(alg_property(v_this, "Declared"), "Contains", (Value[]){v_name}, 1))) {
