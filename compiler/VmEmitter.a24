@@ -158,6 +158,36 @@ var OVERLOAD_COUNTS := Map ();
 /// all its candidates on the stack.
 var OVERLOADS_SEEN := Map ();
 
+/// The method names an `operator` declaration may take [EXP-020].
+///
+/// A member declared `operator +` is a method whose NAME is the symbol, so a
+/// class that declares one is told from any other by this list.
+var OPERATOR_NAMES := ['+', '-', '*', '/', 'div', 'mod',
+                       '&', '|', '^', '~', '<<', '>>'];
+
+/// The field names each class declares, folded, keyed by folded class name.
+///
+/// Its own only; FieldOfThis walks CLASS_PARENTS for the inherited ones, the
+/// same way the type tests walk it.
+var CLASS_FIELDS := Map ();
+
+/// The method names each class declares, folded, keyed by folded class name.
+///
+/// Its own only; the walk up CLASS_PARENTS finds the inherited ones.
+var CLASS_METHODS := Map ();
+
+/// Each class's declaration, keyed by folded name.
+///
+/// Held so a constructor can reach a PARENT's field initializers, which live
+/// on the parent's node and nowhere else.
+var CLASS_NODES := Map ();
+
+/// The folded name of the class whose method is being compiled, or ''.
+///
+/// What tells a bare name that could be a field from one that cannot: outside
+/// a method there is no receiver for an implicit `this` to mean.
+var CurrentClass : String := '';
+
 /// The enclosing subprogram's locals, when compiling a nested one.
 ///
 /// Empty at every other time.  A name found here and not in Locals is a
@@ -475,6 +505,86 @@ begin
     Refuse ('A reference to ' + QUOTE + Str (Name.Lexeme) + QUOTE);
 end
 
+/// The slot a bare name resolves to as a VARIABLE, or -1.
+///
+/// Asked rather than BareSlot wherever the answer must not emit anything: a
+/// write to a field of `this` has to put the receiver on the stack BEFORE the
+/// value, so it cannot be decided after the value is already there.
+///
+/// Answers only about variables.  A name that is no variable may still be a
+/// field, and this says nothing about that -- which is the order the
+/// interpreter tries them in, and therefore the order here.
+function VisibleSlot (Name : Any) : Integer;
+begin
+    var Folded := ToLower (Str (Name.Lexeme)) as String;
+
+    // Its own unit first: a file's own declaration is what it means by a name,
+    // whatever its imports also export.
+    if DeclaredIn (CurrentUnit, Folded) then
+        Exit Script.QualifiedSlot (CurrentUnit, Name.Lexeme);
+
+    var Owners := OwnersOf (Folded);
+
+    if Owners.Length = 1 then
+        Exit Script.QualifiedSlot (Str (Owners[0]), Name.Lexeme);
+
+    Exit -1;
+end
+
+/// Whether a bare name is a field of the class whose method is being compiled.
+///
+/// Walks the parent chain, because a field is inherited and a method may name
+/// one its own class never declared.  Answers False outside a method, where
+/// there is no receiver for an implicit `this` to mean.
+///
+/// This is the SECOND thing a bare name is tried as [EXP-022 is about members;
+/// this is about a name with no dot at all].  The interpreter looks the
+/// variable up first and reaches for `this` only when that raises, so a global
+/// of the name wins over a field of it -- and asking in that order here is
+/// what keeps the two agreeing.
+function FieldOfThis (Name : Any) : Boolean;
+begin
+    Exit MemberOfThis (CLASS_FIELDS, Name);
+end
+
+/// Whether a bare name is a method of the class whose method is being compiled.
+///
+/// The same question a field asks, and the library writes it constantly --
+/// `while not AtEnd () do` inside a class means `this.AtEnd ()`.
+function MethodOfThis (Name : Any) : Boolean;
+begin
+    Exit MemberOfThis (CLASS_METHODS, Name);
+end
+
+/// Whether a bare name is in one of the member tables, up the parent chain.
+///
+/// Walks the chain, because a member is inherited and a method may name one
+/// its own class never declared.  Answers False outside a method, where there
+/// is no receiver for an implicit `this` to mean.
+function MemberOfThis (Table : Map, Name : Any) : Boolean;
+var
+    Where : String;
+
+begin
+    if CurrentClass = '' then Exit False;
+
+    var Folded := ToLower (Str (Name.Lexeme)) as String;
+
+    Where := CurrentClass;
+
+    while Where <> '' do
+    begin
+        if Table.Contains (Where) then
+            if (Table.Get (Where) as Set).Contains (Folded) then Exit True;
+
+        if not CLASS_PARENTS.Contains (Where) then Exit False;
+
+        Where := ToLower (Str (CLASS_PARENTS.Get (Where))) as String;
+    end
+
+    Exit False;
+end
+
 /// The slot a bare name resolves to from the unit being emitted.
 ///
 /// Answers -1 having emitted a run-time diagnostic where the name is VISIBLE
@@ -499,15 +609,11 @@ function BareSlot (Name : Any) : Integer;
 begin
     var Folded := ToLower (Str (Name.Lexeme)) as String;
 
-    // Its own unit first: a file's own declaration is what it means by a name,
-    // whatever its imports also export.
-    if DeclaredIn (CurrentUnit, Folded) then
-        Exit Script.QualifiedSlot (CurrentUnit, Name.Lexeme);
+    var Visible := VisibleSlot (Name);
+
+    if Visible >= 0 then Exit Visible;
 
     var Owners := OwnersOf (Folded);
-
-    if Owners.Length = 1 then
-        Exit Script.QualifiedSlot (Str (Owners[0]), Name.Lexeme);
 
     // Exported by more than one import, so the bare name means neither
     // [MOD-013].  The units are named in `uses` order.
@@ -620,6 +726,8 @@ function CompileFunction (TheStmt : Any) : VmFunction;
 var
     Made : VmFunction;
 
+    SavedClass : Any;
+
     SavedInto   : Chunk;
     SavedLocals : List;
     SavedDepths : List;
@@ -648,6 +756,13 @@ begin
     // A body that declares a subprogram of its own holds its locals in cells,
     // so the nested one can capture them by reference [FUN-009].
     Boxing := DeclaresNested (TheStmt.Body);
+
+    // A plain subprogram is not a method, however deeply it sits inside one:
+    // its frame has its own base, so `this` is not one below it and an
+    // implicit `this` cannot reach the enclosing receiver.  Clearing the class
+    // keeps 0148 an honest refusal rather than a read of whatever sits there.
+    SavedClass   := CurrentClass;
+    CurrentClass := '';
 
     for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
 
@@ -881,13 +996,26 @@ begin
             Into.EmitWith (OP_GET_CELL, CapturedSlot (TheExpr.Name.Lexeme));
         else
         begin
-            // Only a name the pre-pass CLAIMED is a global.  Anything else is
-            // a built-in, or a variable of an enclosing subprogram, or a name
-            // this back end has no opcodes for -- and each has to be refused
-            // rather than read from a slot nothing defines.
-            var Slot := BareSlot (TheExpr.Name);
+            // A VARIABLE first.  A name that is no variable may still be a
+            // field of the receiver, written without `this.` -- which the
+            // interpreter reaches only after the variable lookup raises, so a
+            // global of the name wins over a field of it.
+            var Slot := VisibleSlot (TheExpr.Name);
 
-            if Slot >= 0 then EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, Slot);
+            if Slot >= 0 then
+                EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, Slot);
+
+            else if FieldOfThis (TheExpr.Name) then
+            begin
+                Into.Emit (OP_THIS);
+                Into.EmitWith (OP_GET_FIELD, ClassNameConstant (TheExpr.Name));
+            end
+
+            // Neither, so BareSlot says why -- a visibility fault reported
+            // where the read would have been, or a refusal by name.
+            else if BareSlot (TheExpr.Name) >= 0 then
+                Refuse ('A reference to ' + QUOTE + Str (TheExpr.Name.Lexeme)
+                      + QUOTE);
         end
 
         Exit;
@@ -895,6 +1023,24 @@ begin
 
     if Kind = 'AssignExpr' then
     begin
+        // Decided BEFORE the value is emitted, because OP_SET_FIELD wants the
+        // receiver underneath it -- which is why VisibleSlot exists as a
+        // question separate from BareSlot's answer.
+        if LocalSlot (TheExpr.Name.Lexeme) < 0
+               and CapturedSlot (TheExpr.Name.Lexeme) < 0
+               and VisibleSlot (TheExpr.Name) < 0
+               and FieldOfThis (TheExpr.Name) then
+        begin
+            Into.Emit (OP_THIS);
+
+            EmitExpr (TheExpr.Value);
+            EmitWidening (TheExpr.Declared);
+
+            Into.EmitWith (OP_SET_FIELD, ClassNameConstant (TheExpr.Name));
+
+            Exit;
+        end
+
         EmitExpr (TheExpr.Value);
         EmitWidening (TheExpr.Declared);
 
@@ -1414,6 +1560,32 @@ begin
     for var Written in TheExpr.ArgumentNames do
         if Str (Written) <> '' then Refuse ('A call with named arguments');
 
+    // A bare call inside a class may mean one of its own METHODS, with `this`
+    // as the receiver -- `while not AtEnd () do` is how the library writes it,
+    // and 18 of shroom-slots' 28 units stop on exactly that.
+    //
+    // A variable of the name wins, which is the order a bare READ uses and the
+    // order the interpreter tries them in.  A top-level subprogram therefore
+    // shadows a method of the same name, which is the trap CLAUDE.md records
+    // and is the language's answer rather than this back end's.
+    if LocalSlot (TheExpr.Callee.Name.Lexeme) < 0
+           and CapturedSlot (TheExpr.Callee.Name.Lexeme) < 0
+           and VisibleSlot (TheExpr.Callee.Name) < 0
+           and MethodOfThis (TheExpr.Callee.Name) then
+    begin
+        Into.Emit (OP_THIS);
+
+        for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+        var Slot := ClassNameConstant (TheExpr.Callee.Name);
+
+        Into.Write (OP_INVOKE);
+        Into.Write (Slot);
+        Into.Write (TheExpr.Arguments.Length);
+
+        Exit;
+    end
+
     // A built-in is called by NAME rather than through a slot, because a
     // built-in has no slot: it is not a global the program declared.  A
     // locally declared name of the same spelling shadows it, which is what
@@ -1535,6 +1707,20 @@ begin
     begin
         if TheMethod.IsProperty then Refuse ('A property');
 
+        // An OPERATOR is a method named by its symbol, and the arithmetic
+        // opcodes know nothing of it -- they would answer 'Operands must be
+        // numbers' for a program the interpreter runs [0172].
+        for var Symbol in OPERATOR_NAMES do
+            if Str (TheMethod.Name.Lexeme) = Str (Symbol) then
+                Refuse ('A class that declares the operator ' + QUOTE
+                      + Str (Symbol) + QUOTE);
+
+        // ORDERING is Compare, which the comparison opcodes do not reach
+        // [0170].  Refused here rather than at the comparison, so the gap is
+        // named where the class is written.
+        if ToLower (Str (TheMethod.Name.Lexeme)) = 'compare' then
+            Refuse ('A class that orders');
+
         var Key := ToLower (Str (TheMethod.Name.Lexeme));
 
         // Two methods of one name are an OVERLOAD SET selecting on the whole
@@ -1598,6 +1784,7 @@ var
     SavedDepth  : Integer;
     SavedReturn : Any;
     SavedBoxing : Boolean;
+    SavedClass  : Any;
 
 begin
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
@@ -1610,12 +1797,17 @@ begin
     SavedDepth  := Depth;
     SavedReturn := Returning;
     SavedBoxing := Boxing;
+    SavedClass  := CurrentClass;
 
     Into   := Made.Body;
     Locals := List ();
     Depths := List ();
     Depth  := 1;
     Returning := TheStmt.ReturnType;
+
+    // Which class this is a method OF, so a bare name in the body can be
+    // recognised as one of its fields.
+    CurrentClass := ToLower (Str (Owner.Name.Lexeme)) as String;
 
     for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
 
@@ -1638,6 +1830,7 @@ begin
     Depth  := SavedDepth;
     Returning := SavedReturn;
     Boxing    := SavedBoxing;
+    CurrentClass := Str (SavedClass);
 
     Exit Made;
 end
@@ -1649,6 +1842,20 @@ end
 /// again would cost an instruction to say the same thing.
 procedure EmitFieldInitializers (Owner : Any);
 begin
+    // A PARENT's initializers first, so an inherited field holds what its own
+    // class gave it [0141] and a subclass's initializer still wins by running
+    // after.  An instance already has every inherited field PRESENT, because
+    // VmInstance walks the chain for the names -- what was missing was the
+    // value, so the field read as nil where it should have read as its
+    // initializer.
+    if Owner.Superclass <> Nil then
+    begin
+        var Above := ToLower (Str (Owner.Superclass.Name.Lexeme)) as String;
+
+        if CLASS_NODES.Contains (Above) then
+            EmitFieldInitializers (CLASS_NODES.Get (Above));
+    end
+
     for var TheField in Owner.Fields do
         if TheField.Initializer <> Nil then
         begin
@@ -1731,6 +1938,7 @@ var
     SavedReturn  : Any;
     SavedBoxing  : Boolean;
     SavedOuter   : List;
+    SavedClass   : Any;
 
 begin
     if Outer.Length > 0 then Refuse ('A subprogram nested two deep');
@@ -1746,6 +1954,13 @@ begin
     SavedReturn := Returning;
     SavedBoxing := Boxing;
     SavedOuter  := Outer;
+    SavedClass  := CurrentClass;
+
+    // A nested subprogram has its OWN frame, so `this` is not one below its
+    // base and an implicit `this` cannot reach the enclosing method's
+    // receiver.  Clearing the class is what keeps 0148 an honest refusal
+    // rather than a read of whatever happens to sit there.
+    CurrentClass := '';
 
     // The enclosing locals become this one's CAPTURES, in slot order.
     Outer  := SavedLocals;
@@ -1772,6 +1987,7 @@ begin
     Returning := SavedReturn;
     Boxing    := SavedBoxing;
     Outer     := SavedOuter;
+    CurrentClass := Str (SavedClass);
 
     Exit Made;
 end
@@ -2322,6 +2538,26 @@ begin
                 Parent := Str (TheStmt.Superclass.Name.Lexeme);
 
             CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
+
+            // The fields it declares, so a bare name inside one of its
+            // methods can be told from an undefined variable.
+            var Owned := Set ();
+
+            for var TheField in TheStmt.Fields do
+                Owned.Add (ToLower (Str (TheField.Name.Lexeme)));
+
+            CLASS_FIELDS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Owned);
+
+            // Its methods too.  A bare call inside a class may mean one of
+            // them -- `while not AtEnd () do` is how the library writes it --
+            // and that is the same implicit `this` a bare field read is.
+            var Offers := Set ();
+
+            for var TheMethod in TheStmt.Methods do
+                Offers.Add (ToLower (Str (TheMethod.Name.Lexeme)));
+
+            CLASS_METHODS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Offers);
+            CLASS_NODES.Put  (ToLower (Str (TheStmt.Name.Lexeme)), TheStmt);
         end
 
         // Two declarations of one name IN ONE UNIT are an overload set sharing
@@ -2518,6 +2754,11 @@ begin
 
     ENUM_NAMES    := List ();
     CLASS_PARENTS := Map ();
+    CLASS_FIELDS  := Map ();
+    CLASS_NODES   := Map ();
+    CLASS_METHODS := Map ();
+
+    CurrentClass := '';
 
     Survey (Statements, '');
 

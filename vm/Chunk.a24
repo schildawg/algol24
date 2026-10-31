@@ -351,13 +351,18 @@ begin
     ///
     /// # Raises
     ///
-    /// 'A chunk holds 256 constants.' once the index will not fit in the
-    /// operand byte.
+    /// A refusal naming the limit once the index will not fit in the operand
+    /// byte.  Phrased as a REFUSAL rather than a plain error because it is a
+    /// gap in the machine and not a fault in the program -- `vm/conform.sh`
+    /// sorts the two by that wording, and a plain error made a case the
+    /// machine simply cannot hold look like a divergence.
     procedure EmitConstant (V : Any);
     begin
         var At := this.AddConstant (V);
 
-        if At > 255 then raise 'A chunk holds 256 constants.';
+        if At > 255 then
+            raise 'A chunk with more than 256 constants is not supported '
+                + 'by the bytecode back end yet.';
 
         this.Write (OP_CONSTANT);
         this.Write (At);

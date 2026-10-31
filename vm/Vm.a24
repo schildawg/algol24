@@ -1563,6 +1563,17 @@ begin
     Over := Pop ();
     Made := List ();
 
+    // A class may offer its own elements, which is a protocol the host's own
+    // `for ... in` knows nothing about [0165] -- so it is named rather than
+    // iterated as whatever the host makes of an instance.
+    //
+    // Only a class that DECLARES it.  An instance without it is not iterable
+    // at all [0032], and that is an error in the program rather than a gap in
+    // the machine -- refusing both alike reported a gap that was not there.
+    if Over is VmInstance then
+        if Over.Klass.FindMethod ('elements') <> Nil then
+            raise 'A class that iterates is not supported by the bytecode back end yet.';
+
     for var Element in Over do Made.Add (Element);
 
     Push (Made);
@@ -2571,6 +2582,76 @@ begin
     C.Emit (OP_RETURN);
 
     AssertEqual (42, RunChunk (C) as Integer);
+    AssertEqual (0, SP);
+end
+
+test 'A Bare Name Is Read As A Field Of The Receiver';
+begin
+    var C := Chunk ();
+    var At := C.GlobalSlot ('Box');
+
+    // class Box; var N : Integer; begin function Twice (); ... end
+    var Box := VmClass ('Box');
+    Box.Fields.Add ('N');
+
+    // Twice reads N bare, which the emitter turns into `this.N`.
+    var Twice := VmFunction ('Twice', 0);
+
+    Twice.Body.Emit (OP_THIS);
+    Twice.Body.EmitWith (OP_GET_FIELD, Twice.Body.AddConstant ('N'));
+    Twice.Body.EmitConstant (2);
+    Twice.Body.Emit (OP_MULTIPLY);
+    Twice.Body.Emit (OP_RETURN);
+
+    Box.AddMethod ('Twice', Twice);
+
+    var It := VmInstance (Box);
+
+    // Keyed with Str, because a field map's keys are STRINGS and a
+    // one-character literal is a Char [TYP-003] -- putting `'n'` added a
+    // SECOND entry under a Char key, and the String one still held nil.  The
+    // symptom read as `MemberOf` being broken.
+    It.Fields.Put (Str ('n'), 21);
+
+    C.EmitConstant (It);
+    C.Write (OP_INVOKE);
+    C.Write (C.AddConstant ('Twice'));
+    C.Write (0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C));
+    AssertEqual (0, SP);
+end
+
+test 'A Bare Call Reaches A Method Of The Receiver';
+begin
+    var C := Chunk ();
+
+    // A method calling another of its own class bare, which is how the
+    // library writes `while not AtEnd () do`.
+    var Box := VmClass ('Box');
+
+    var Inner := VmFunction ('AtEnd', 0);
+    Inner.Body.EmitConstant (True);
+    Inner.Body.Emit (OP_RETURN);
+
+    var Outer := VmFunction ('Check', 0);
+    Outer.Body.Emit (OP_THIS);
+    Outer.Body.Write (OP_INVOKE);
+    Outer.Body.Write (Outer.Body.AddConstant ('AtEnd'));
+    Outer.Body.Write (0);
+    Outer.Body.Emit (OP_RETURN);
+
+    Box.AddMethod ('AtEnd', Inner);
+    Box.AddMethod ('Check', Outer);
+
+    C.EmitConstant (VmInstance (Box));
+    C.Write (OP_INVOKE);
+    C.Write (C.AddConstant ('Check'));
+    C.Write (0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (True, RunChunk (C));
     AssertEqual (0, SP);
 end
 

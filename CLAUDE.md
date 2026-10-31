@@ -122,6 +122,52 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   native binaries, so that 6.9× is bytecode against an AST walk. It was 0.79 s
   before exceptions: the `try` around the dispatch loop costs about 15%.
 
+  ⚠️ **A bare name inside a method is a VARIABLE first and a member of `this`
+  second.** The interpreter looks the variable up and reaches for `this` only
+  when that *raises* (`ThisField`), so a global of the name wins over a field
+  of it — and if the field is missing too it re-raises the ORIGINAL
+  undefined-variable message. The emitter decides it statically instead: not a
+  local, not a capture, not a visible global, and a member of the class being
+  compiled. `VisibleSlot` exists as a question separate from `BareSlot`'s
+  answer because a field WRITE must put the receiver on the stack before the
+  value, so it cannot be decided after the value is already there.
+
+  ⚠️ **Methods matter more than fields here.** Of shroom-slots' 28 units, the
+  field half unblocked 2 and the bare *method* call unblocked **18** — the
+  library writes `while not AtEnd () do` inside a class constantly. Both are
+  the same implicit `this`; only the opcode differs (`OP_GET_FIELD` against
+  `OP_INVOKE`).
+
+  ⚠️ **A nested subprogram has its OWN frame, so `this` is not one below its
+  base.** `CompileFunction` and `CompileNested` both clear `CurrentClass`,
+  which is what keeps 0148 — a bare field read from a function inside a method
+  — an honest refusal rather than a read of whatever happens to sit there. The
+  interpreter manages it by closing over the method's environment, which the
+  machine has no equivalent of.
+
+  ⚠️ **A PARENT's field initializers have to run too.** An instance already
+  has every inherited field *present*, because `VmInstance` walks the chain for
+  the names — what was missing was the value, so an inherited field read as
+  nil. Parent first, so a subclass's initializer still wins by running after.
+  Invisible until implicit `this` made the bare read reachable.
+
+  ⚠️ **A refusal is only ever first in line.** Of the 7 corpus cases blocked on
+  `A reference to 'X'`, implicit `this` fixed **2**; the other 5 wanted
+  properties, `Elements` [TYP-011], `Compare` [VAL-014] and operator
+  overloading. Each is now refused by its own name. Measure what a refusal is
+  actually hiding before sizing the work behind it.
+
+  ⚠️ **Refuse the PROTOCOL, not the shape.** Refusing iteration for every
+  instance broke 0032, where an instance with no `Elements` must raise
+  `Can only iterate a collection or a String.` — a fault in the program, not a
+  gap in the machine. The refusal is conditional on the class declaring the
+  protocol.
+
+  ⚠️ **A limit must be phrased as a REFUSAL or `vm/conform.sh` calls it a
+  divergence.** `EmitConstant`'s 256-constant cap raised a plain error, so a
+  program the machine simply cannot hold looked like a wrong answer. The script
+  sorts the two by the words `is not supported by the bytecode back end yet`.
+
   ⚠️ **A global slot is a SHORT where it has to be, and the cap was never the
   interesting part.** One byte addresses 256 globals; shroom-slots and its
   library declare about **1,700** names between them, so `OP_GET_GLOBAL_LONG`,
@@ -772,6 +818,12 @@ inline. Language points that bite when editing:
   singleton reference emitting `alg_error("Undefined variable 'SourceCode'…")`
   into the generated C. Tests passed, the corpus passed, and `fixedpoint.sh`
   caught it — which is what it iterates for.
+- ⚠️ **A Map keyed by a String is not reachable with a Char key.** A field map
+  uses String keys, and `Fields.Put ('n', 21)` keys it with a **Char**
+  [TYP-003] — adding a SECOND entry while the String one still held nil. Both
+  `Contains ('n')` and `Contains (Str ('n'))` then answer true about different
+  entries, and the symptom reads as the *reader* being broken: `MemberOf`
+  returned nil for a field that was plainly there. `Str ('n')` is the key.
 - ⚠️ **`Str (X)` does not give the checker a String when `X` is untyped.** The
   type does not propagate — `ToLower (Str (Thing.Field))` is an *untyped*
   expression, so a parameter declared `String` refuses it and the message is
