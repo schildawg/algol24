@@ -131,8 +131,7 @@ begin
     ///
     /// # Raises
     ///
-    /// 'A program holds 256 globals.' once a slot will not fit in an operand
-    /// byte.
+    /// 'A program holds 65536 globals.' once a slot will not fit in a short.
     ///
     /// # Examples
     ///
@@ -144,7 +143,8 @@ begin
         for var I : Integer := 0; I < this.GlobalKeys.Length; I := I + 1 do
             if Str (this.GlobalKeys[I]) = Wanted then Exit I;
 
-        if this.GlobalKeys.Length > 255 then raise 'A program holds 256 globals.';
+        if this.GlobalKeys.Length > 65535 then
+            raise 'A program holds 65536 globals.';
 
         this.GlobalNames.Add (Str (Name));
         this.GlobalKeys.Add (Wanted);
@@ -186,9 +186,46 @@ begin
     /// be the wrong place to decide it.
     function AddConstant (V : Any) : Integer;
     begin
+        // A PRIMITIVE is interned, so a chunk holds one copy of a value
+        // however many times it is written.  Without this, 400 globals each
+        // initialised to 7 took 400 constant slots and a chunk ran out at 256
+        // -- the cap was never the problem, the waste was.
+        //
+        // An OBJECT is not interned: a subprogram's body is distinct even from
+        // one that compares equal, and merging two would make a call reach the
+        // wrong body.
+        if IsPrimitive (V) then
+            for var I : Integer := 0; I < this.Constants.Length; I := I + 1 do
+                if SameConstant (this.Constants[I], V) then Exit I;
+
         this.Constants.Add (V);
 
         Exit this.Constants.Length - 1;
+    end
+
+    /// Whether a value is one of the five primitive types [TYP-001].
+    function IsPrimitive (V : Any) : Boolean;
+    begin
+        Exit V is Integer or V is Double or V is String
+          or V is Char    or V is Boolean;
+    end
+
+    /// Whether two constants are the same value of the same type.
+    ///
+    /// The type is asked about FIRST, because an Integer and a Double may
+    /// compare equal and render differently -- `Str (1)` is 1 and `Str (1.0)`
+    /// is 1.0 -- so interning on equality alone would make a program print the
+    /// wrong one.  A Char and a String are never equal [TYP-003] and need no
+    /// such care, but they are checked alike so the rule reads as one.
+    function SameConstant (A : Any, B : Any) : Boolean;
+    begin
+        if (A is Integer) <> (B is Integer) then Exit False;
+        if (A is Double)  <> (B is Double)  then Exit False;
+        if (A is String)  <> (B is String)  then Exit False;
+        if (A is Char)    <> (B is Char)    then Exit False;
+        if (A is Boolean) <> (B is Boolean) then Exit False;
+
+        Exit A = B;
     end
 
     /// Appends an instruction that takes no operand.
@@ -291,6 +328,23 @@ begin
     begin
         this.Write (Op);
         this.Write (Operand);
+    end
+
+    /// Appends an opcode and a SHORT operand, most significant byte first.
+    ///
+    /// The same order EmitJump writes a distance in and ReadShort reads one
+    /// back, so a wide slot and a jump distance are the one encoding.
+    ///
+    /// # Raises
+    ///
+    /// 'An operand reaches 65535.' for a value a short cannot hold.
+    procedure EmitWide (Op : Integer, Operand : Integer);
+    begin
+        if Operand > 65535 then raise 'An operand reaches 65535.';
+
+        this.Write (Op);
+        this.Write (Operand div 256);
+        this.Write (Operand mod 256);
     end
 
     /// Appends a constant and the instruction that pushes it.
@@ -447,6 +501,69 @@ end
 
 /// Two units may export one name, so the unit is part of the key -- and the
 /// spelling a diagnostic needs is kept whole beside it.
+test 'A Constant Is Interned So A Chunk Holds One Copy';
+begin
+    var C := Chunk ();
+
+    AssertEqual (0, C.AddConstant (7));
+    AssertEqual (0, C.AddConstant (7));
+    AssertEqual (1, C.AddConstant (8));
+    AssertEqual (0, C.AddConstant (7));
+
+    AssertEqual (2, C.Constants.Length);
+end
+
+test 'Interning Agrees About The Type Before The Value';
+begin
+    var C := Chunk ();
+
+    // 1 and 1.0 compare equal and render differently, so they are two
+    // constants rather than one.
+    var Whole := C.AddConstant (1);
+    var Real  := C.AddConstant (1.0);
+
+    AssertTrue (Whole <> Real);
+    AssertEqual (Str ('1'), Str (C.Constants[Whole]));
+    AssertEqual ('1.0',     Str (C.Constants[Real]));
+
+    // A Char and a String of one character are never equal [TYP-003].  The
+    // String has to be built with Str, because a one-character LITERAL is a
+    // Char -- `'a'` here interned with Char (97) exactly as it should have.
+    AssertTrue (C.AddConstant (Char (97)) <> C.AddConstant (Str ('a')));
+
+    // And the same spelling twice is still one constant.
+    AssertEqual (C.AddConstant (Char (97)), C.AddConstant ('a'));
+end
+
+test 'An Object Constant Is Not Interned';
+begin
+    var C := Chunk ();
+
+    // Two objects that would compare equal are still two objects, and a call
+    // has to reach the body it was emitted for.  A Chunk stands in for a
+    // subprogram here because VmFunction imports this unit rather than the
+    // other way about.
+    var First  := C.AddConstant (Chunk ());
+    var Second := C.AddConstant (Chunk ());
+
+    AssertTrue (First <> Second);
+    AssertEqual (2, C.Constants.Length);
+end
+
+test 'A Wide Operand Is Written Most Significant Byte First';
+begin
+    var C := Chunk ();
+
+    C.EmitWide (OP_GET_GLOBAL_LONG, 300);
+
+    AssertEqual (OP_GET_GLOBAL_LONG, C.At (0));
+    AssertEqual (1,  C.At (1));
+    AssertEqual (44, C.At (2));
+
+    // The same encoding a jump distance uses, so one reader serves both.
+    AssertEqual (300, (C.At (1) as Integer) * 256 + (C.At (2) as Integer));
+end
+
 test 'A Unit Qualifies A Global Slot';
 begin
     var C := Chunk ();

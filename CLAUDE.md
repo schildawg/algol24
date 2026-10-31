@@ -122,6 +122,36 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   native binaries, so that 6.9× is bytecode against an AST walk. It was 0.79 s
   before exceptions: the `try` around the dispatch loop costs about 15%.
 
+  ⚠️ **A global slot is a SHORT where it has to be, and the cap was never the
+  interesting part.** One byte addresses 256 globals; shroom-slots and its
+  library declare about **1,700** names between them, so `OP_GET_GLOBAL_LONG`,
+  `OP_DEFINE_GLOBAL_LONG` and `OP_SET_GLOBAL_LONG` take a short and the emitter
+  picks the narrow form when the slot fits. That is `clox`'s split for its
+  constants, kept for its reason: a global read is in the dispatch loop.
+  Measured at **no cost** — Fib (27) is 0.96 s against 0.95 s before.
+
+  ⚠️ **The 256-CONSTANT cap was waste, not a limit.** `AddConstant` appended
+  without interning, so 400 globals each initialised to `7` took 400 constant
+  slots and the chunk ran out. Interning primitives fixed it with no wide form
+  needed. **The type is compared before the value**, because `1` and `1.0`
+  compare equal and render differently — interning on equality alone would
+  print the wrong one. An OBJECT is never interned: two subprogram bodies that
+  compare equal are still two subprograms.
+
+  ⚠️ **Two operand bytes are not one operand, so an opcode has a SHAPE.**
+  `OpShape` answers one letter per operand — `b` a byte, `s` a short — and
+  `OpOperands` is derived from it rather than listed beside it. A count could
+  not describe `OP_EXTEND` once its slot went wide, because it carries a byte
+  and a short *together*; the old count-plus-is-it-a-jump pair had already
+  rendered `OP_INVOKE 5 1` as `OP_INVOKE 1281`.
+
+  ⚠️ **What the REAL program wants is two features, and the corpus never said
+  so.** With the cap gone, all 28 shroom-slots units compile past it, and what
+  they stop on is: **20 units** on a bare field read inside a method (implicit
+  `this`) and **8** on `external` (SDL). The corpus ranked implicit `this` at 7
+  cases among 33 refusals and said nothing about the FFI. Point `algvm` at the
+  program before choosing the next increment.
+
   ⚠️ **A global slot must mean the same thing in every chunk of one program.**
   A table per chunk let a subprogram resolve its own name to slot 0 of its own
   table where the caller had it in slot 2 of the script's, so recursion read

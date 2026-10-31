@@ -420,38 +420,73 @@ end
 /// Undefined variable, naming it -- which is the one place a slot has to be
 /// turned back into a name, and the only reason GlobalNames exists.
 procedure DoGetGlobal ();
-var
-    Slot : Integer;
-
 begin
-    Slot := ReadByte ();
+    GetGlobalAt (ReadByte ());
+end
 
+/// Pushes a global from a wide slot.
+///
+/// The operand is the only difference: one byte caps a program at 256 globals,
+/// and a real one needs thousands, so the emitter reaches for this form where
+/// the slot will not fit.  Both end in the same subprogram, which is what
+/// keeps the two from drifting about what a read means.
+procedure DoGetGlobalLong ();
+begin
+    GetGlobalAt (ReadShort ());
+end
+
+/// Pushes the global in a slot, whichever operand named it.
+///
+/// # Raises
+///
+/// Undefined variable, naming it -- which is the one place a slot has to be
+/// turned back into a name, and the only reason GlobalNames exists.
+procedure GetGlobalAt (Slot : Integer);
+begin
     if not WasDefined[Slot] then
-        raise 'Undefined variable ''' + Str (GlobalNames[Slot]) + '''.';
+        raise 'Undefined variable ' + QUOTE + Str (GlobalNames[Slot]) + QUOTE + '.';
 
     Push (GlobalCells[Slot]);
 end
 
 /// Pops a value and defines a global with it.
 procedure DoDefineGlobal ();
-var
-    Slot : Integer;
-
 begin
-    Slot := ReadByte ();
+    DefineGlobalAt (ReadByte ());
+end
 
+/// Pops a value and defines a global at a wide slot.
+procedure DoDefineGlobalLong ();
+begin
+    DefineGlobalAt (ReadShort ());
+end
+
+/// Pops a value and binds the global in a slot to it.
+procedure DefineGlobalAt (Slot : Integer);
+begin
     GlobalCells[Slot] := Pop ();
     WasDefined[Slot] := True;
 end
 
 /// Stores the top into a global's slot, leaving it on the stack.
 procedure DoSetGlobal ();
-var
-    Slot : Integer;
-
 begin
-    Slot := ReadByte ();
+    SetGlobalAt (ReadByte ());
+end
 
+/// Stores the top into a wide global slot, leaving it on the stack.
+procedure DoSetGlobalLong ();
+begin
+    SetGlobalAt (ReadShort ());
+end
+
+/// Stores the top into the global in a slot, leaving it on the stack.
+///
+/// # Raises
+///
+/// Undefined variable, for a write above the declaration.
+procedure SetGlobalAt (Slot : Integer);
+begin
     // Writing does NOT bind a global [0044]: a variable is bound by its
     // DECLARATION, so an assignment above one is the same error a read gets.
     // Defining it here instead made the write silently succeed.
@@ -1199,7 +1234,7 @@ var
 
 begin
     Written := Constants[ReadByte ()];
-    Slot    := ReadByte ();
+    Slot    := ReadShort ();
 
     var Self := Pop ();
 
@@ -1230,7 +1265,7 @@ var
 begin
     Written := Constants[ReadByte ()];
     Count   := ReadByte ();
-    Slot    := ReadByte ();
+    Slot    := ReadShort ();
 
     // A MEMBER wins, and this is the only place that can know: the receiver's
     // value decides it, and the type system is gradual [EXP-022].
@@ -2130,6 +2165,9 @@ begin
     Table[OP_CLOSURE]       := DoClosure;
     Table[OP_OVERLOADS]     := DoOverloads;
     Table[OP_BUILTIN]       := DoBuiltin;
+    Table[OP_GET_GLOBAL_LONG]    := DoGetGlobalLong;
+    Table[OP_DEFINE_GLOBAL_LONG] := DoDefineGlobalLong;
+    Table[OP_SET_GLOBAL_LONG]    := DoSetGlobalLong;
     Table[OP_EXTEND]        := DoExtend;
     Table[OP_INVOKE_EXT]    := DoInvokeExt;
     Table[OP_ADD]      := DoAdd;
@@ -2534,6 +2572,53 @@ begin
 
     AssertEqual (42, RunChunk (C) as Integer);
     AssertEqual (0, SP);
+end
+
+test 'A Global Beyond The First 256 Is Read Through The Wide Form';
+begin
+    var C := Chunk ();
+
+    // Claim enough slots that the one wanted cannot be addressed by a byte.
+    for var I : Integer := 0; I < 300; I := I + 1 do
+        C.GlobalSlot ('Filler' + Str (I));
+
+    var Far := C.GlobalSlot ('Answer');
+
+    AssertTrue (Far > 255);
+
+    C.EmitConstant (42);
+    C.EmitWide (OP_DEFINE_GLOBAL_LONG, Far);
+
+    C.EmitWide (OP_GET_GLOBAL_LONG, Far);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C));
+    AssertEqual (0, SP);
+end
+
+test 'A Wide Slot Names Its Variable In A Diagnostic Too';
+begin
+    var C := Chunk ();
+
+    for var I : Integer := 0; I < 300; I := I + 1 do
+        C.GlobalSlot ('Filler' + Str (I));
+
+    var Far := C.GlobalSlot ('Missing');
+
+    // Read without a declaration: the wide form has to reach GlobalNames the
+    // same way the narrow one does, or the message loses the name.
+    C.EmitWide (OP_GET_GLOBAL_LONG, Far);
+    C.Emit (OP_RETURN);
+
+    try
+        RunChunk (C);
+
+        Fail ('expected an undefined variable');
+    except
+        on e : String do
+            AssertEqual ('Undefined variable ' + QUOTE + 'Missing' + QUOTE + '.',
+                         Str (e));
+    end
 end
 
 test 'A Global Read Above Its Declaration Is Named';
@@ -3473,7 +3558,8 @@ begin
     C.Write (OP_INVOKE_EXT);
     C.Write (C.AddConstant ('Doubled'));
     C.Write (0);
-    C.Write (At);
+    C.Write (At div 256);
+    C.Write (At mod 256);
     C.Emit (OP_RETURN);
 
     AssertEqual (42, RunChunk (C));
@@ -3512,7 +3598,8 @@ begin
     C.Write (OP_INVOKE_EXT);
     C.Write (C.AddConstant ('Size'));
     C.Write (0);
-    C.Write (At);
+    C.Write (At div 256);
+    C.Write (At mod 256);
     C.Emit (OP_RETURN);
 
     AssertEqual (7, RunChunk (C));
@@ -3532,7 +3619,8 @@ begin
     C.EmitConstant (21);
     C.Write (OP_EXTEND);
     C.Write (C.AddConstant ('Doubled'));
-    C.Write (At);
+    C.Write (At div 256);
+    C.Write (At mod 256);
     C.EmitWith (OP_CALL, 0);
     C.Emit (OP_RETURN);
 
@@ -3557,7 +3645,8 @@ begin
     C.EmitConstant ('abcd');
     C.Write (OP_EXTEND);
     C.Write (C.AddConstant ('Length'));
-    C.Write (At);
+    C.Write (At div 256);
+    C.Write (At mod 256);
     C.Emit (OP_RETURN);
 
     AssertEqual (4, RunChunk (C));

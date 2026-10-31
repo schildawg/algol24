@@ -409,6 +409,23 @@ const OP_OVERLOADS := 62;
 /// for, which is a gap in the machine rather than an error in a program.
 const OP_BUILTIN := 63;
 
+/// Pushes a global from a WIDE slot.  One operand: the slot, as a short.
+///
+/// The short form's slot is one byte, which caps a program at 256 globals --
+/// and a real one is nowhere near that: shroom-slots and its library declare
+/// about 1,700 names between them.  `clox` draws the same distinction for its
+/// constants and for the same reason, so the common case stays one byte and
+/// the operand only grows where it must.
+const OP_GET_GLOBAL_LONG := 64;
+
+/// Pops a value and defines a global at a WIDE slot.  One operand: the slot,
+/// as a short.
+const OP_DEFINE_GLOBAL_LONG := 65;
+
+/// Stores the top into a WIDE global slot, leaving it on the stack.  One
+/// operand: the slot, as a short.
+const OP_SET_GLOBAL_LONG := 66;
+
 /// Reads a member, or binds a visible EXTENSION where there is no member.
 /// Two operands: the constant index of the NAME, and the extension's slot.
 ///
@@ -416,7 +433,7 @@ const OP_BUILTIN := 63;
 /// The member is asked for first and wins where it is there, so no reading
 /// that works today can change meaning; only where the receiver has nothing of
 /// the name does the extension answer, bound to it.
-const OP_EXTEND := 64;
+const OP_EXTEND := 67;
 
 /// Calls a member, or a visible EXTENSION where there is no member.  Three
 /// operands: the constant index of the NAME, the argument count, and the
@@ -427,13 +444,13 @@ const OP_EXTEND := 64;
 /// type system is gradual, so `X.Size ()` may be a method on one value and an
 /// extension on the next.  Where the extension answers, the receiver becomes
 /// its first argument and the call is an ordinary one from there [FUN-016].
-const OP_INVOKE_EXT := 65;
+const OP_INVOKE_EXT := 68;
 
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 66;
+const OP_RETURN := 69;
 
 /// How many opcodes there are.
-const OP_COUNT := 67;
+const OP_COUNT := 70;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -505,6 +522,9 @@ begin
     if Op = OP_CLOSURE       then Exit 'OP_CLOSURE';
     if Op = OP_OVERLOADS     then Exit 'OP_OVERLOADS';
     if Op = OP_BUILTIN       then Exit 'OP_BUILTIN';
+    if Op = OP_GET_GLOBAL_LONG    then Exit 'OP_GET_GLOBAL_LONG';
+    if Op = OP_DEFINE_GLOBAL_LONG then Exit 'OP_DEFINE_GLOBAL_LONG';
+    if Op = OP_SET_GLOBAL_LONG    then Exit 'OP_SET_GLOBAL_LONG';
     if Op = OP_EXTEND        then Exit 'OP_EXTEND';
     if Op = OP_INVOKE_EXT    then Exit 'OP_INVOKE_EXT';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
@@ -512,92 +532,131 @@ begin
     Exit 'OP_?';
 end
 
-/// How many operand BYTES follow an opcode.
+/// The OPERAND SHAPE of an opcode, one letter per operand.
 ///
-/// Bytes, not operands: a pair may be one 16-bit number or two separate
-/// indexes, and OpReadsShort is what tells them apart.
+/// `b` is a single byte -- a slot, a count, an index into the constants.  `s`
+/// is a SHORT, two bytes most significant first -- a jump distance, or a slot
+/// too wide for one byte.  An opcode taking no operands answers ''.
 ///
-/// OP_CLOSURE answers 0 and is a LIE, because it is the one variable-width
-/// instruction: its width depends on how many cells it captures.  A
-/// disassembler has to special-case it, and `vm/run.a24` does.
-function OpOperands (Op : Integer) : Integer;
+/// A shape rather than a count, because two operand bytes are not always one
+/// number: OP_INVOKE carries a name's index BESIDE an argument count, while
+/// OP_JUMP carries a single distance.  A disassembler told only "two bytes"
+/// cannot tell them apart, and rendered `OP_INVOKE 5 1` as `OP_INVOKE 1281`.
+/// Once a slot could be wide, OP_EXTEND needed a byte and a short together,
+/// which no count can describe at all.
+///
+/// OP_CLOSURE answers '' and is a LIE, because it is the one variable-width
+/// instruction: a constant index, a capture count, and then one slot per
+/// capture.  A disassembler has to special-case it, and `vm/run.a24` does.
+///
+/// # Examples
+///
+/// See test 'An Operand Shape Describes Every Byte That Follows'.
+function OpShape (Op : Integer) : String;
 begin
-    if Op = OP_CONSTANT  then Exit 1;
-    if Op = OP_GET_LOCAL then Exit 1;
-    if Op = OP_SET_LOCAL then Exit 1;
+    if Op = OP_CONSTANT  then Exit 'b';
+    if Op = OP_GET_LOCAL then Exit 'b';
+    if Op = OP_SET_LOCAL then Exit 'b';
 
-    if Op = OP_GET_GLOBAL    then Exit 1;
-    if Op = OP_DEFINE_GLOBAL then Exit 1;
-    if Op = OP_SET_GLOBAL    then Exit 1;
-    if Op = OP_CALL          then Exit 1;
-    if Op = OP_IS            then Exit 1;
-    if Op = OP_CAST          then Exit 1;
-    if Op = OP_GET_BOX       then Exit 1;
-    if Op = OP_SET_BOX       then Exit 1;
-    if Op = OP_GET_CELL      then Exit 1;
-    if Op = OP_SET_CELL      then Exit 1;
-    if Op = OP_LIST          then Exit 1;
-    if Op = OP_MAP           then Exit 1;
-    if Op = OP_PROPERTY      then Exit 1;
-    if Op = OP_CLASS         then Exit 1;
-    if Op = OP_METHOD        then Exit 1;
-    if Op = OP_FIELD         then Exit 1;
-    if Op = OP_INHERIT       then Exit 1;
-    if Op = OP_GET_FIELD     then Exit 1;
-    if Op = OP_SET_FIELD     then Exit 1;
-    if Op = OP_WIDEN         then Exit 1;
-    if Op = OP_ENUM          then Exit 1;
-    if Op = OP_ENUM_MEMBER   then Exit 1;
+    if Op = OP_GET_GLOBAL    then Exit 'b';
+    if Op = OP_DEFINE_GLOBAL then Exit 'b';
+    if Op = OP_SET_GLOBAL    then Exit 'b';
+    if Op = OP_CALL          then Exit 'b';
+    if Op = OP_IS            then Exit 'b';
+    if Op = OP_CAST          then Exit 'b';
+    if Op = OP_GET_BOX       then Exit 'b';
+    if Op = OP_SET_BOX       then Exit 'b';
+    if Op = OP_GET_CELL      then Exit 'b';
+    if Op = OP_SET_CELL      then Exit 'b';
+    if Op = OP_LIST          then Exit 'b';
+    if Op = OP_MAP           then Exit 'b';
+    if Op = OP_PROPERTY      then Exit 'b';
+    if Op = OP_CLASS         then Exit 'b';
+    if Op = OP_METHOD        then Exit 'b';
+    if Op = OP_FIELD         then Exit 'b';
+    if Op = OP_INHERIT       then Exit 'b';
+    if Op = OP_GET_FIELD     then Exit 'b';
+    if Op = OP_SET_FIELD     then Exit 'b';
+    if Op = OP_WIDEN         then Exit 'b';
+    if Op = OP_ENUM          then Exit 'b';
+    if Op = OP_ENUM_MEMBER   then Exit 'b';
 
     // The count and the name's index.
-    if Op = OP_OVERLOADS     then Exit 2;
+    if Op = OP_OVERLOADS     then Exit 'bb';
 
     // The name's index and the argument count, for both of these.
-    if Op = OP_BUILTIN       then Exit 2;
-    if Op = OP_INVOKE        then Exit 2;
+    if Op = OP_BUILTIN       then Exit 'bb';
+    if Op = OP_INVOKE        then Exit 'bb';
 
-    // The name's index and the extension's slot.
-    if Op = OP_EXTEND        then Exit 2;
+    // A single distance, which is why these are a short and OP_INVOKE is not.
+    if Op = OP_JUMP          then Exit 's';
+    if Op = OP_JUMP_IF_FALSE then Exit 's';
+    if Op = OP_LOOP          then Exit 's';
+    if Op = OP_TRY           then Exit 's';
 
-    // The name's index, the argument count, and the extension's slot.
-    if Op = OP_INVOKE_EXT    then Exit 3;
+    // A wide slot, so that a program may hold more than 256 globals.
+    if Op = OP_GET_GLOBAL_LONG    then Exit 's';
+    if Op = OP_DEFINE_GLOBAL_LONG then Exit 's';
+    if Op = OP_SET_GLOBAL_LONG    then Exit 's';
 
-    if Op = OP_JUMP          then Exit 2;
-    if Op = OP_JUMP_IF_FALSE then Exit 2;
-    if Op = OP_LOOP          then Exit 2;
-    if Op = OP_TRY           then Exit 2;
+    // The name's index, then a WIDE slot -- an extension may live anywhere in
+    // a program's globals, so its operand cannot be the narrow one.
+    if Op = OP_EXTEND        then Exit 'bs';
 
-    Exit 0;
+    // The name's index, the argument count, then a wide slot.
+    if Op = OP_INVOKE_EXT    then Exit 'bbs';
+
+    Exit '';
 end
 
-/// Whether an opcode's two operand bytes are ONE 16-bit number.
+/// How many operand BYTES follow an opcode.
 ///
-/// The jumps are; every other pair -- a name's index beside an argument count,
-/// a count beside a name, a name beside a slot -- is two separate operands.
-/// Asked by a disassembler, which otherwise renders `OP_INVOKE 5 1` as
-/// `OP_INVOKE 1281` and reads like a chunk full of enormous constants.
-function OpReadsShort (Op : Integer) : Boolean;
+/// Derived from the shape rather than listed beside it, so the two cannot
+/// disagree about an opcode.
+function OpOperands (Op : Integer) : Integer;
+var
+    Bytes : Integer;
+
 begin
-    Exit Op = OP_JUMP or Op = OP_JUMP_IF_FALSE
-      or Op = OP_LOOP or Op = OP_TRY;
+    var Shape := OpShape (Op);
+
+    Bytes := 0;
+
+    for var I : Integer := 0; I < Length (Shape); I := I + 1 do
+        if Shape[I] = 's' then Bytes := Bytes + 2;
+        else Bytes := Bytes + 1;
+
+    Exit Bytes;
 end
 
-test 'A Jump Reads One Short Where Another Pair Reads Two Bytes';
+test 'An Operand Shape Describes Every Byte That Follows';
 begin
-    AssertTrue (OpReadsShort (OP_JUMP));
-    AssertTrue (OpReadsShort (OP_JUMP_IF_FALSE));
-    AssertTrue (OpReadsShort (OP_LOOP));
-    AssertTrue (OpReadsShort (OP_TRY));
+    // A jump's pair is one number; OP_INVOKE's pair is two operands.
+    AssertEqual (Str ('s'),  Str (OpShape (OP_JUMP)));
+    AssertEqual ('bb', Str (OpShape (OP_INVOKE)));
 
-    // Two operands, and not a distance between them.
-    AssertTrue (not OpReadsShort (OP_INVOKE));
-    AssertTrue (not OpReadsShort (OP_BUILTIN));
-    AssertTrue (not OpReadsShort (OP_OVERLOADS));
-    AssertTrue (not OpReadsShort (OP_EXTEND));
+    // A wide slot, and a byte beside one.
+    AssertEqual (Str ('s'),   Str (OpShape (OP_GET_GLOBAL_LONG)));
+    AssertEqual ('bs',  Str (OpShape (OP_EXTEND)));
+    AssertEqual ('bbs', Str (OpShape (OP_INVOKE_EXT)));
 
-    // Every opcode that reads a short takes exactly two operand bytes.
+    // The width follows from the shape and is not listed twice.
+    AssertEqual (2, OpOperands (OP_JUMP));
+    AssertEqual (2, OpOperands (OP_INVOKE));
+    AssertEqual (2, OpOperands (OP_GET_GLOBAL_LONG));
+    AssertEqual (3, OpOperands (OP_EXTEND));
+    AssertEqual (4, OpOperands (OP_INVOKE_EXT));
+    AssertEqual (0, OpOperands (OP_RETURN));
+
+    // Every shape is made of the two letters and nothing else, so a
+    // disassembler walking it cannot meet one it has no case for.
     for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
-        if OpReadsShort (Op) then AssertEqual (2, OpOperands (Op));
+    begin
+        var Shape := OpShape (Op);
+
+        for var I : Integer := 0; I < Length (Shape); I := I + 1 do
+            AssertTrue (Shape[I] = 'b' or Shape[I] = 's');
+    end
 end
 
 test 'Every Opcode Has A Name';

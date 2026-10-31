@@ -335,9 +335,26 @@ begin
         Exit False;
     end
 
-    Into.EmitWith (OP_GET_GLOBAL, Script.QualifiedSlot (Folded, Name.Lexeme));
+    EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, Script.QualifiedSlot (Folded, Name.Lexeme));
 
     Exit True;
+end
+
+/// Emits a global read, write or definition, narrow where the slot fits.
+///
+/// One byte addresses 256 globals, which no real program lives within --
+/// shroom-slots and its library declare about 1,700 names between them -- so
+/// each of the three has a wide form taking a short.  The narrow one is kept
+/// and preferred because a global read is in the dispatch loop: `clox` draws
+/// the same distinction for its constants, and for the same reason.
+///
+/// # Raises
+///
+/// Whatever EmitWide raises, for a slot a short cannot hold.
+procedure EmitGlobal (Narrow : Integer, Wide : Integer, Slot : Integer);
+begin
+    if Slot < 256 then Into.EmitWith (Narrow, Slot);
+    else Into.EmitWide (Wide, Slot);
 end
 
 /// How many modules deep the emitter is.
@@ -870,7 +887,7 @@ begin
             // rather than read from a slot nothing defines.
             var Slot := BareSlot (TheExpr.Name);
 
-            if Slot >= 0 then Into.EmitWith (OP_GET_GLOBAL, Slot);
+            if Slot >= 0 then EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, Slot);
         end
 
         Exit;
@@ -891,7 +908,7 @@ begin
         begin
             var Where := BareSlot (TheExpr.Name);
 
-            if Where >= 0 then Into.EmitWith (OP_SET_GLOBAL, Where);
+            if Where >= 0 then EmitGlobal (OP_SET_GLOBAL, OP_SET_GLOBAL_LONG, Where);
         end
 
         Exit;
@@ -949,7 +966,7 @@ begin
             end
 
             EmitExpr (TheExpr.Value);
-            Into.EmitWith (OP_SET_GLOBAL, Script.QualifiedSlot (Folded, TheExpr.Name.Lexeme));
+            EmitGlobal (OP_SET_GLOBAL, OP_SET_GLOBAL_LONG, Script.QualifiedSlot (Folded, TheExpr.Name.Lexeme));
 
             Exit;
         end
@@ -1014,7 +1031,12 @@ begin
 
             Into.Write (OP_EXTEND);
             Into.Write (ClassNameConstant (TheExpr.Name));
-            Into.Write (Reaches);
+            // A wide slot, because an extension may live anywhere among a
+            // program's globals and one byte reaches only the first 256.
+            if Reaches > 65535 then Refuse ('A program holds 65536 globals');
+
+            Into.Write (Reaches div 256);
+            Into.Write (Reaches mod 256);
 
             Exit;
         end
@@ -1338,7 +1360,12 @@ begin
             Into.Write (OP_INVOKE_EXT);
             Into.Write (ClassNameConstant (Member.Name));
             Into.Write (TheExpr.Arguments.Length);
-            Into.Write (Reaches);
+            // A wide slot, because an extension may live anywhere among a
+            // program's globals and one byte reaches only the first 256.
+            if Reaches > 65535 then Refuse ('A program holds 65536 globals');
+
+            Into.Write (Reaches div 256);
+            Into.Write (Reaches mod 256);
 
             Exit;
         end
@@ -1464,8 +1491,8 @@ procedure EmitInheritance (TheStmt : Any);
 begin
     if TheStmt.Superclass = Nil then Exit;
 
-    Into.EmitWith (OP_GET_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
-    Into.EmitWith (OP_GET_GLOBAL, BareSlot (TheStmt.Superclass.Name));
+    EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
+    EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, BareSlot (TheStmt.Superclass.Name));
     Into.EmitWith (OP_INHERIT, ClassNameConstant (TheStmt.Superclass.Name));
     Into.Emit (OP_POP);
 end
@@ -1537,7 +1564,7 @@ begin
         Exit;
     end
 
-    Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
+    EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 end
 
 /// Adds a name to the constants and answers its index.
@@ -1794,7 +1821,7 @@ begin
             Exit;
         end
 
-        Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
+        EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 
         Exit;
     end
@@ -1832,7 +1859,7 @@ begin
         Into.Write (ClassNameConstant (TheStmt.Name));
     end
 
-    Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
+    EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 
 end
 
@@ -1870,7 +1897,7 @@ begin
 
         // At the top level a declaration is what DEFINES a global, so one with
         // no initializer defines it as nil rather than leaving it undefined.
-        Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
+        EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 
         Exit;
     end
@@ -1915,7 +1942,7 @@ begin
             if I < TheStmt.Names.Length - 1 then Into.Emit (OP_DUP);
 
             if Depth > 0 then AddLocal (TheStmt.Names[I].Lexeme);
-            else Into.EmitWith (OP_DEFINE_GLOBAL,
+            else EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG,
                                 Script.QualifiedSlot (CurrentUnit, TheStmt.Names[I].Lexeme));
         end
 
@@ -2037,10 +2064,10 @@ begin
 
             if Depth > 0 then Refuse ('An enumeration inside a block');
 
-            Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, Member.Lexeme));
+            EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, Member.Lexeme));
         end
 
-        Into.EmitWith (OP_DEFINE_GLOBAL, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
+        EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
 
         Exit;
     end
