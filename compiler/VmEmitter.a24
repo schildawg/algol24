@@ -554,17 +554,22 @@ end
 /// widened by instructions the emitter already placed.
 procedure RecordTypes (Made : VmFunction, TheStmt : Any);
 begin
-    // A VARIADIC subprogram -- whose last parameter is a `List of T` -- is
-    // refused.  Selecting one is the interpreter's third pass, ABSORBING,
-    // which gathers the trailing arguments into a List; the machine has two
-    // passes and would otherwise pick a wrong candidate silently.
+    // A last parameter written `List of T` ABSORBS the trailing arguments
+    // [FUN-005], and the element type is what they are checked against -- so
+    // recording it is what makes the subprogram variadic at run time, where
+    // the decision belongs: it depends on the argument VALUES.
+    //
+    // The spelling is compared as the interpreter compares it, against 'List'
+    // exactly.  A lowercase `list of Integer` does NOT absorb there -- which
+    // sits oddly beside identifiers being case-insensitive [SRC-011] -- and
+    // being lenient here would absorb where the interpreter raises.
     var Last := TheStmt.Params.Length - 1;
 
     if Last >= 0 and Last < TheStmt.ParamTypes.Length
                  and Last < TheStmt.ParamGenerics.Length then
-        if ToLower (Str (TheStmt.ParamTypes[Last])) = 'list'
+        if Str (TheStmt.ParamTypes[Last]) = 'List'
                and Str (TheStmt.ParamGenerics[Last]) <> '' then
-            Refuse ('A variadic subprogram');
+            Made.Element := Str (TheStmt.ParamGenerics[Last]);
 
     for var I : Integer := 0; I < TheStmt.Params.Length; I := I + 1 do
     begin
@@ -1387,6 +1392,17 @@ begin
     // checking the locals first does.
     if LocalSlot (TheExpr.Callee.Name.Lexeme) < 0 and IsBuiltin (Name) then
     begin
+        // A program may DECLARE a built-in's name, and then the two share the
+        // spelling: the declaration answers at the arities it declares and the
+        // built-in keeps the rest [FUN-005, 0187].  Choosing between them is
+        // about the argument values, so it needs an instruction that tries the
+        // declaration and falls back -- the shape OP_INVOKE_EXT has.  Until
+        // there is one, preferring the built-in would call it with the
+        // declaration's arguments, so this is refused by name.
+        if DeclaredIn (CurrentUnit, Name as String) then
+            Refuse ('A declaration of the built-in ' + QUOTE
+                  + Str (TheExpr.Callee.Name.Lexeme) + QUOTE);
+
         for var Argument in TheExpr.Arguments do EmitExpr (Argument);
 
         var At := Into.AddConstant (Str (TheExpr.Callee.Name.Lexeme));

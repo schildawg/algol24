@@ -808,6 +808,26 @@ end
 /// report the counts [0049], and 'The call stack overflowed.' past FRAME_ROOM.
 procedure EnterFrame (Callee : Any, Count : Integer, Mismatch : String);
 begin
+    // Gathering happens HERE, so every way into a frame absorbs on the same
+    // terms: a plain call, a method, a constructor and a selected overload.
+    //
+    // An exact or widening fit is preferred, which is why Fits is asked first
+    // -- `Total ('a', [1, 2, 3])` passes the list rather than gathering it
+    // into a second list holding it.  Comparing counts alone would not do it:
+    // `Total ('a', 1)` has the right COUNT and the wrong type, and still has
+    // to gather.
+    if not Fits (Callee, Count, True) then
+    begin
+        if CanGather (Callee, Count) then Count := GatherRest (Callee, Count);
+
+        // A VARIADIC callee that neither fits nor gathers reports a SELECTION
+        // failure and not a count, because its element type replaced the arity
+        // check and is stricter than it: `Total ('a', 1, 2, 'red')` has a
+        // stray argument of the wrong TYPE rather than one too many.
+        else if Str (CalleeSignature (Callee).Element) <> '' then
+            raise 'No matching signature for function.';
+    end
+
     if Count <> Callee.Arity then
         raise Mismatch;
 
@@ -1610,8 +1630,10 @@ begin
 end
 
 /// Whether a candidate takes these arguments on a given pass.
-function Fits (Candidate : Any, Count : Integer, Widening : Boolean) : Boolean;
+function Fits (Callee : Any, Count : Integer, Widening : Boolean) : Boolean;
 begin
+    var Candidate := CalleeSignature (Callee);
+
     if Candidate.Arity <> Count then Exit False;
 
     for var I : Integer := 0; I < Count; I := I + 1 do
@@ -1635,6 +1657,76 @@ end
 /// and nothing silently falls through it.
 ///
 /// Answers nil when nothing fits.
+/// The thing carrying a callee's signature.
+///
+/// A closure borrows its subprogram's, so a nested variadic absorbs on the
+/// same terms as a top-level one.
+function CalleeSignature (Callee : Any) : Any;
+begin
+    if Callee is VmClosure then Exit Callee.Body;
+
+    Exit Callee;
+end
+
+/// Whether these arguments fit by GATHERING the trailing ones into a list.
+///
+/// The interpreter's third pass, and it mirrors ObjFunction.CanGather rather
+/// than improving on it.  The element type REPLACES the arity check and is
+/// stricter than it: `Total ('a', 1, 2, 'red')` is still an error against
+/// `List of Integer`, and it fails as a selection failure rather than as a
+/// wrong count, because the stray argument is the wrong TYPE and not one too
+/// many.
+///
+/// # Satisfies
+///
+/// [FUN-005]
+function CanGather (Callee : Any, Count : Integer) : Boolean;
+begin
+    var Candidate := CalleeSignature (Callee);
+
+    if Str (Candidate.Element) = '' then Exit False;
+
+    var Fixed := (Candidate.Arity as Integer) - 1;
+
+    if Count < Fixed then Exit False;
+
+    for var I : Integer := 0; I < Fixed; I := I + 1 do
+    begin
+        var Declared := '';
+
+        if I < Candidate.Types.Length then Declared := Candidate.Types[I];
+
+        if not FitsAt (Slots[SP - Count + I], Declared, True) then Exit False;
+    end
+
+    for var I : Integer := Fixed; I < Count; I := I + 1 do
+        if not FitsAt (Slots[SP - Count + I], Candidate.Element, True) then
+            Exit False;
+
+    Exit True;
+end
+
+/// Gathers the trailing arguments into one list, answering the new count.
+///
+/// Read off the stack by INDEX and in order, because a list built by popping
+/// would hold them backwards -- the same trap a collection literal has.
+function GatherRest (Callee : Any, Count : Integer) : Integer;
+begin
+    var Fixed := (CalleeSignature (Callee).Arity as Integer) - 1;
+    var Rest  := List ();
+
+    for var I : Integer := Fixed; I < Count; I := I + 1 do
+        Rest.Add (Slots[SP - Count + I]);
+
+    // Absorbing NOTHING yields the empty list, which is structural rather than
+    // a default: the loop above simply runs no times.
+    SP := SP - Count + Fixed;
+
+    Push (Rest);
+
+    Exit Fixed + 1;
+end
+
 function Chosen (Set : Any, Count : Integer) : Any;
 begin
     for var TheCandidate in Set.Candidates do
@@ -1642,6 +1734,13 @@ begin
 
     for var TheCandidate in Set.Candidates do
         if Fits (TheCandidate, Count, True) then Exit TheCandidate;
+
+    // ABSORBING is the third pass and never runs when either of the first two
+    // found something -- which is the whole of why a fixed-arity signature
+    // beats a gathering one [EXP-014].  It is pass ORDER rather than a rule of
+    // its own, so there is nothing here to express it but the position.
+    for var TheCandidate in Set.Candidates do
+        if CanGather (TheCandidate, Count) then Exit TheCandidate;
 
     Exit Nil;
 end
@@ -3484,6 +3583,132 @@ begin
     // Nil has nothing, and neither has a subprogram.
     AssertTrue (not RespondsTo (Nil, 'Length'));
     AssertTrue (not RespondsTo (VmFunction ('F', 0), 'Length'));
+end
+
+/// Builds a variadic subprogram answering the gathered list's length.
+///
+/// `procedure Counted (Label : String, Items : List of Integer)`.
+function Gathering () : VmFunction;
+begin
+    var F := VmFunction ('Counted', 2);
+
+    F.Types.Add ('String');
+    F.Types.Add ('List');
+    F.Element := 'Integer';
+
+    F.Body.EmitWith (OP_GET_LOCAL, 1);
+    F.Body.EmitWith (OP_PROPERTY, F.Body.AddConstant ('Length'));
+    F.Body.Emit (OP_RETURN);
+
+    Exit F;
+end
+
+/// Calls a subprogram with these arguments, answering what it answered.
+function CalledWith (Callee : Any, Arguments : List) : Any;
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (Callee);
+
+    for var Each in Arguments do C.EmitConstant (Each);
+
+    C.EmitWith (OP_CALL, Arguments.Length);
+    C.Emit (OP_RETURN);
+
+    Exit RunChunk (C);
+end
+
+test 'A Variadic Parameter Gathers The Trailing Arguments';
+begin
+    AssertEqual (3, CalledWith (Gathering (), ['a', 1, 2, 3]));
+
+    // The stack is balanced afterwards: GatherRest drops the arguments it
+    // gathered and pushes one list in their place.
+    AssertEqual (0, SP);
+end
+
+test 'Gathering Nothing Yields The Empty List';
+begin
+    // Structural rather than a default: the gathering loop simply runs no
+    // times, which is the same rule that gathers three.
+    AssertEqual (0, CalledWith (Gathering (), ['a']));
+end
+
+test 'An Exact Match Is Preferred To Gathering';
+begin
+    // The list is PASSED rather than gathered into a second list holding it,
+    // because Fits is asked before CanGather [EXP-014].
+    AssertEqual (3, CalledWith (Gathering (), ['a', [7, 8, 9]]));
+end
+
+test 'The Right Count With The Wrong Type Still Gathers';
+begin
+    // Two arguments is the arity, so comparing counts alone would pass this
+    // straight through with an Integer where the list belongs.
+    AssertEqual (1, CalledWith (Gathering (), ['a', 5]));
+end
+
+test 'A Stray Argument Of The Wrong Type Is A Selection Failure';
+begin
+    // The element type REPLACED the arity check and is stricter than it, so
+    // this is not 'Expected 2 arguments but got 4'.
+    try
+        CalledWith (Gathering (), ['a', 1, 2, 'red']);
+
+        Fail ('expected a selection failure');
+    except
+        on e : String do
+            AssertEqual ('No matching signature for function.', Str (e));
+    end
+end
+
+test 'A Fixed Arity Candidate Beats A Gathering One';
+begin
+    var Set := VmOverloads ('Pick');
+
+    // Declaration order puts the gathering one FIRST, so if absorption were
+    // not the third pass it would win.  It is pass order that decides this
+    // and not a rule of its own [EXP-014].
+    var Loose := VmFunction ('Pick', 1);
+    Loose.Types.Add ('List');
+    Loose.Element := 'Integer';
+    Loose.Body.EmitConstant ('gathered');
+    Loose.Body.Emit (OP_RETURN);
+
+    Set.Add (Loose);
+    Set.Add (Candidate ('Pick', [Str ('Integer'), Str ('Integer')], 'fixed'));
+
+    AssertEqual ('fixed', Str (CalledWith (Set, [1, 2])));
+
+    // Three arguments fit no fixed signature, so the third pass answers.
+    AssertEqual ('gathered', Str (CalledWith (Set, [1, 2, 3])));
+end
+
+test 'Only A List Of Something Absorbs';
+begin
+    // A bare `List` has no element type to check gathered arguments against,
+    // which is what leaves it the spelling for a parameter that wants the
+    // list itself and nothing else.  So this is a COUNT error, which is also
+    // what says absorption never ran: a variadic mismatch reports a selection
+    // failure instead.
+    var Bare := VmFunction ('Bare', 1);
+
+    Bare.Types.Add ('List');
+    Bare.Body.EmitWith (OP_GET_LOCAL, 0);
+    Bare.Body.Emit (OP_RETURN);
+
+    try
+        CalledWith (Bare, [4, 5]);
+
+        Fail ('expected a count error');
+    except
+        on e : String do
+            AssertEqual ('Expected 1 arguments but got 2.', Str (e));
+    end
+
+    // Asked of the stack, so CanGather is exercised through a call rather than
+    // on its own -- it reads the arguments where a frame would find them.
+    AssertEqual (2, CalledWith (Bare, [[4, 5]]).Length);
 end
 
 test 'Widening Is Tried When Nothing Matches Exactly';

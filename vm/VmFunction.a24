@@ -35,6 +35,16 @@ var
     /// because the emitter can see the subrange table and a chunk cannot.
     Types : List;
 
+    /// The ELEMENT type of an absorbing last parameter, or '' where there is
+    /// none.
+    ///
+    /// Empty is what says the subprogram is not variadic, so one field carries
+    /// both facts.  A parameter absorbs only when it is written `List of T`:
+    /// the element type is what the gathered arguments are checked against, so
+    /// a bare `List` has nothing to check them with and takes the list itself
+    /// and nothing else [FUN-005].
+    Element : String;
+
 begin
     /// Makes a callable.
     constructor Init (Name : String, Arity : Integer);
@@ -42,7 +52,8 @@ begin
         this.Name  := Name;
         this.Arity := Arity;
         this.Body  := Chunk ();
-        this.Types := List ();
+        this.Types   := List ();
+        this.Element := '';
     end
 
     /// How it reads in a message: the name, or `<script>` for the outermost

@@ -163,6 +163,50 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   name means different things at different arities: `Append` with one argument
   is a Buffer's, with none a TextFile's.
 
+  ⚠️ **Absorption is the THIRD pass, and the pass ORDER is the rule.** Exact,
+  then widening, then gathering — so "a fixed-arity signature beats a variadic
+  one" is written nowhere [EXP-014] and needs no code of its own. Putting
+  gathering anywhere but last makes a gathering candidate declared first win
+  calls a fixed one answered exactly.
+
+  ⚠️ **Gathering belongs in `EnterFrame`, not at the call sites.** Every way
+  into a frame then absorbs on the same terms — a plain call, a method, a
+  constructor and a selected overload — and 0158 exercises all four.
+
+  ⚠️ **`Fits` must be asked before gathering, and comparing COUNTS is not
+  enough.** `Total ('a', [1, 2, 3])` has the right count and passes the list;
+  `Total ('a', 1)` has the right count too and still has to gather, because the
+  Integer does not fit `List`. A count test alone silently binds the Integer to
+  the list parameter.
+
+  ⚠️ **A variadic mismatch is a SELECTION failure, not a count.** The element
+  type *replaces* the arity check and is stricter than it, so
+  `Total ('a', 1, 2, 'red')` fails because `'red'` is not an Integer — not
+  because there are four arguments. `Expected 2 arguments but got 4.` is the
+  plausible wrong answer, and 0158 compares the text.
+
+  ⚠️ **The `List` spelling is compared CASE-SENSITIVELY**, which sits oddly
+  beside [SRC-011] and is the interpreter's behaviour: `list of Integer` does
+  **not** absorb — it raises `Expected 1 arguments but got 2.` Matching that
+  exactly matters, because being lenient here absorbs where the interpreter
+  raises.
+
+  ⚠️ **The name-clash trap bit again, and it cost 76 divergences.** A
+  top-level `Absorbs` and `SignatureOf` in `vm/Vm.a24` collided with
+  `ObjFunction.Absorbs` and `Resolver.SignatureOf` — both **methods called
+  bare from inside their own class** — and the whole corpus broke at once in
+  cases with no variadic in them. What found it was this emitter's own new
+  diagnostic, `Undefined variable 'SignatureOf'. Unit 'Vm' exports it; this
+  file has no 'uses' for it`, naming the colliding unit outright. Run the clash
+  check *before* adding a top-level name to `vm/*.a24`, not after.
+
+  **`Fits` and `FitsAt` collide the same way and measure clean**, which is
+  recorded so neither gets "fixed" on suspicion: `ObjFunction` has methods of
+  both names and calls them bare, yet overload selection through `algvm`
+  answers correctly — a `Char` argument takes the `Char` overload and a
+  `String` the `String` one. Not every collision breaks; the ones that do break
+  loudly and nowhere near themselves.
+
   ⚠️ **An extension is decided at the CALL, on the receiver's VALUE.** A
   member wins [EXP-022] and only the running receiver can say whether there is
   one, so `OP_INVOKE_EXT` carries the name, the argument count *and* the
