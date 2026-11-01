@@ -291,6 +291,20 @@ begin
     Exit ReadShort ();
 end
 
+/// Reads a LOCAL slot, two bytes where OP_LONG said so.
+///
+/// The same rule an index follows and the same flag, because no opcode carries
+/// both -- a subprogram past 256 locals is shroom-slots' RunMachine, nearly
+/// 3,900 lines of frame loop, and the slot it wants cannot fit in a byte.
+function ReadSlot () : Integer;
+begin
+    if not Wide then Exit ReadByte ();
+
+    Wide := False;
+
+    Exit ReadShort ();
+end
+
 /// Runs the next instruction with its constant index widened.
 ///
 /// The flag is cleared again afterwards as well, so an opcode the emitter
@@ -439,13 +453,13 @@ end
 /// Pushes a local from its slot.
 procedure DoGetLocal ();
 begin
-    Push (Slots[Base + ReadByte ()]);
+    Push (Slots[Base + ReadSlot ()]);
 end
 
 /// Stores the top into a local's slot, leaving it on the stack.
 procedure DoSetLocal ();
 begin
-    Slots[Base + ReadByte ()] := PeekAt (0);
+    Slots[Base + ReadSlot ()] := PeekAt (0);
 end
 
 /// Pushes a global from its slot.
@@ -760,6 +774,13 @@ begin
     if V is Char    then Exit 'Char';
     if V is String  then Exit 'String';
     if V is Boolean then Exit 'Boolean';
+
+    // A Pointer exists only in a build with foreign calls [TYP-017], which is
+    // why it was missed twice -- once in the `is` chain and again here.  The
+    // fallback below is the trap: a runtime type this does not know answers
+    // 'Any', which then satisfies NO declared type, so an omission here is a
+    // selection that silently fails rather than a name that is refused.
+    if V is Pointer then Exit 'Pointer';
 
     Exit 'Any';
 end
@@ -1670,7 +1691,7 @@ end
 /// Pushes what the cell in a local slot holds.
 procedure DoGetBox ();
 begin
-    Push (Slots[Base + ReadByte ()].Held);
+    Push (Slots[Base + ReadSlot ()].Held);
 end
 
 /// Stores the top into the cell in a local slot, leaving it on the stack.
@@ -1679,7 +1700,7 @@ var
     At : Integer;
 
 begin
-    At := Base + ReadByte ();
+    At := Base + ReadSlot ();
 
     Slots[At].Held := PeekAt (0);
 end
@@ -1687,7 +1708,7 @@ end
 /// Pushes what a captured cell holds.
 procedure DoGetCell ();
 begin
-    Push (Cells[ReadByte ()].Held);
+    Push (Cells[ReadSlot ()].Held);
 end
 
 /// Stores the top into a captured cell, leaving it on the stack.
@@ -1696,7 +1717,7 @@ var
     At : Integer;
 
 begin
-    At := ReadByte ();
+    At := ReadSlot ();
 
     Cells[At].Held := PeekAt (0);
 end
@@ -3006,6 +3027,44 @@ begin
 
     AssertEqual (True, RunChunk (C));
     AssertEqual (0, SP);
+end
+
+test 'A Local Beyond The First 256 Is Read Through The Long Prefix';
+begin
+    var F := VmFunction ('Deep', 0);
+
+    // Fill the frame past a byte's reach, then read the far slot.
+    for var I : Integer := 0; I < 300; I := I + 1 do
+    begin
+        F.Body.EmitConstant (I);
+        F.Body.Emit (OP_POP);
+    end
+
+    // Slot 300 holds 42; everything below it is whatever the frame began with,
+    // so the test is about the OPERAND and not about the values.
+    for var I : Integer := 0; I < 300; I := I + 1 do F.Body.EmitConstant (0);
+
+    F.Body.EmitConstant (42);
+    F.Body.EmitIndexed (OP_GET_LOCAL, 300);
+    F.Body.Emit (OP_RETURN);
+
+    var C := Chunk ();
+
+    C.EmitConstant (F);
+    C.EmitWith (OP_CALL, 0);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C));
+end
+
+test 'A Local Slot Is A Widenable Operand Like An Index';
+begin
+    // Both widen and neither is a mere byte, which is what OpShape records so
+    // a disassembler knows which operand to read as a short.
+    AssertEqual (Str ('l'), Str (OpShape (OP_GET_LOCAL)));
+    AssertEqual (Str ('l'), Str (OpShape (OP_SET_CELL)));
+    AssertEqual (Str ('i'), Str (OpShape (OP_CONSTANT)));
+    AssertEqual (Str ('b'), Str (OpShape (OP_CALL)));
 end
 
 test 'A Constant Beyond The First 256 Is Read Through The Long Prefix';

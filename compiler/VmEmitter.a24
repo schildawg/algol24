@@ -433,17 +433,15 @@ end
 ///
 /// # Raises
 ///
-/// A refusal naming the limit once a slot will not fit in an operand byte.
+/// A refusal naming the limit once a slot will not fit in a short.
 function AddLocal (Name : Any) : Integer;
 begin
-    // Phrased as a REFUSAL, because a local slot is a one-byte operand and a
-    // subprogram with more live locals than that is a gap in the machine
-    // rather than a fault in the program -- shroom-slots' RunMachine is 3,900
-    // lines and genuinely has more.  A plain error here was sorted as a
-    // SUCCESS by every measurement that looked for the refusal wording, which
-    // is how `all 28 units run` came to be claimed when six did not.
-    if Locals.Length > 255 then
-        raise 'A subprogram with more than 256 locals is not supported '
+    // A local slot is one byte on its own and two under OP_LONG, so the limit
+    // is what a short holds rather than what a byte does.  shroom-slots'
+    // RunMachine is nearly 3,900 lines of frame loop and genuinely holds more
+    // than 256 live locals, which is what moved this.
+    if Locals.Length > 65535 then
+        raise 'A subprogram with more than 65536 locals is not supported '
             + 'by the bytecode back end yet.';
 
     Locals.Add (ToLower (Str (Name)));
@@ -822,9 +820,9 @@ begin
     if Boxing then
         for var I : Integer := 0; I < TheStmt.Params.Length; I := I + 1 do
         begin
-            Into.EmitWith (OP_GET_LOCAL, I);
+            Into.EmitIndexed (OP_GET_LOCAL, I);
             Into.Emit (OP_CELL);
-            Into.EmitWith (OP_SET_LOCAL, I);
+            Into.EmitIndexed (OP_SET_LOCAL, I);
             Into.Emit (OP_POP);
         end
 
@@ -894,9 +892,9 @@ begin
             // being widened rather than merely skipping itself.
             if ToLower (Str (Declared)) <> '' then
             begin
-                Into.EmitWith (OP_GET_LOCAL, I);
+                Into.EmitIndexed (OP_GET_LOCAL, I);
                 EmitWidening (Declared);
-                Into.EmitWith (OP_SET_LOCAL, I);
+                Into.EmitIndexed (OP_SET_LOCAL, I);
                 Into.Emit (OP_POP);
             end
         end
@@ -1038,10 +1036,10 @@ begin
 
         // A boxed local is read through its cell, which OP_GET_BOX does in one
         // instruction -- the slot holds the cell and the cell holds the value.
-        if Slot >= 0 and Boxing then Into.EmitWith (OP_GET_BOX, Slot);
-        else if Slot >= 0 then Into.EmitWith (OP_GET_LOCAL, Slot);
+        if Slot >= 0 and Boxing then Into.EmitIndexed (OP_GET_BOX, Slot);
+        else if Slot >= 0 then Into.EmitIndexed (OP_GET_LOCAL, Slot);
         else if CapturedSlot (TheExpr.Name.Lexeme) >= 0 then
-            Into.EmitWith (OP_GET_CELL, CapturedSlot (TheExpr.Name.Lexeme));
+            Into.EmitIndexed (OP_GET_CELL, CapturedSlot (TheExpr.Name.Lexeme));
         else
         begin
             // A VARIABLE first.  A name that is no variable may still be a
@@ -1094,10 +1092,10 @@ begin
 
         var Slot := LocalSlot (TheExpr.Name.Lexeme);
 
-        if Slot >= 0 and Boxing then Into.EmitWith (OP_SET_BOX, Slot);
-        else if Slot >= 0 then Into.EmitWith (OP_SET_LOCAL, Slot);
+        if Slot >= 0 and Boxing then Into.EmitIndexed (OP_SET_BOX, Slot);
+        else if Slot >= 0 then Into.EmitIndexed (OP_SET_LOCAL, Slot);
         else if CapturedSlot (TheExpr.Name.Lexeme) >= 0 then
-            Into.EmitWith (OP_SET_CELL, CapturedSlot (TheExpr.Name.Lexeme));
+            Into.EmitIndexed (OP_SET_CELL, CapturedSlot (TheExpr.Name.Lexeme));
         else
         begin
             var Where := BareSlot (TheExpr.Name);
@@ -2061,6 +2059,15 @@ begin
         var Body := CompileNested (TheStmt);
         var At   := Into.AddConstant (Body);
 
+        // OP_CLOSURE's capture COUNT and each captured slot stay one byte, and
+        // must: the instruction already spends its one widenable operand on
+        // the body's constant index, and a second would mean the machine
+        // tracking WHERE the prefix applies rather than clearing a flag on the
+        // first widenable read.  So an enclosing subprogram past 256 locals
+        // that also declares a nested one is refused by name -- narrow, since
+        // it needs both at once.
+        if Locals.Length > 255 then
+            Refuse ('A closure inside a subprogram of more than 256 locals');
 
         Into.WriteIndexed (OP_CLOSURE, At);
         Into.WriteIndex (At);
@@ -2362,18 +2369,18 @@ begin
 
         var Top := Into.Count;
 
-        Into.EmitWith (OP_GET_LOCAL, At);
-        Into.EmitWith (OP_GET_LOCAL, Over);
+        Into.EmitIndexed (OP_GET_LOCAL, At);
+        Into.EmitIndexed (OP_GET_LOCAL, Over);
         Into.EmitIndexed (OP_PROPERTY, Into.AddConstant ('Length'));
         Into.Emit (OP_LESS);
 
         var Done := Into.EmitJump (OP_JUMP_IF_FALSE);
         Into.Emit (OP_POP);
 
-        Into.EmitWith (OP_GET_LOCAL, Over);
-        Into.EmitWith (OP_GET_LOCAL, At);
+        Into.EmitIndexed (OP_GET_LOCAL, Over);
+        Into.EmitIndexed (OP_GET_LOCAL, At);
         Into.Emit (OP_SUBSCRIPT_GET);
-        Into.EmitWith (OP_SET_LOCAL, Each);
+        Into.EmitIndexed (OP_SET_LOCAL, Each);
         Into.Emit (OP_POP);
 
         EmitStmt (TheStmt.Body);
@@ -2382,10 +2389,10 @@ begin
         // -- landing on the condition instead would loop on one element.
         var Stepping := Into.Count;
 
-        Into.EmitWith (OP_GET_LOCAL, At);
+        Into.EmitIndexed (OP_GET_LOCAL, At);
         Into.EmitConstant (1);
         Into.Emit (OP_ADD);
-        Into.EmitWith (OP_SET_LOCAL, At);
+        Into.EmitIndexed (OP_SET_LOCAL, At);
         Into.Emit (OP_POP);
 
         Into.EmitLoop (Top);

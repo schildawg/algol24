@@ -263,7 +263,8 @@ begin
         // anything else.  Walked rather than totalled, because the width
         // depends on the prefix and on which operand the index is.
         for var I : Integer := 0; I < Length (Shape); I := I + 1 do
-            if Shape[I] = 's' or (Widened and Shape[I] = 'i') then
+            if Shape[I] = 's'
+                   or (Widened and (Shape[I] = 'i' or Shape[I] = 'l')) then
             begin
                 Line  := Line + ' ' + Str ((Program.At (Where) as Integer) * 256
                                          + (Program.At (Where + 1) as Integer));

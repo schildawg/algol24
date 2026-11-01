@@ -558,16 +558,23 @@ end
 
 /// The OPERAND SHAPE of an opcode, one letter per operand.
 ///
-/// `b` is a single byte -- a slot or a count.  `i` is an index into the
-/// CONSTANTS, one byte on its own and two under an OP_LONG prefix.  `s` is a
-/// short, two bytes most significant first -- a jump distance, or a slot too
-/// wide for one byte.  An opcode taking no operands answers ''.
+/// `b` is a single byte -- a count, or a global slot's narrow form.  `i` is an
+/// index into the CONSTANTS and `l` is a LOCAL slot: each is one byte on its
+/// own and two under an OP_LONG prefix.  `s` is a short, two bytes most
+/// significant first -- a jump distance, or a slot too wide for one byte.  An
+/// opcode taking no operands answers ''.
 ///
-/// `i` is told from `b` because only an index widens, and a disassembler has
-/// to know WHICH operand that is: OP_BUILTIN carries the index first and
+/// No opcode has more than ONE widenable operand, which is what lets the
+/// machine clear its flag on the first widenable read rather than counting
+/// operands.  OP_CLOSURE is the one that could have broken that -- an index
+/// AND a slot per capture -- so its capture slots stay narrow and a closure
+/// over a slot past 255 is refused by name instead.
+///
+/// `i` and `l` are told from `b` because only they widen, and a disassembler
+/// has to know WHICH operand that is: OP_BUILTIN carries its index first and
 /// OP_OVERLOADS carries it second, so "the first byte" would have rendered one
 /// of them wrongly.  The machine itself needs no such care, because it clears
-/// the wide flag on the first index it reads.
+/// the flag on the first widenable operand it reads.
 ///
 /// A shape rather than a count, because two operand bytes are not always one
 /// number: OP_INVOKE carries a name's index BESIDE an argument count, while
@@ -586,8 +593,8 @@ end
 function OpShape (Op : Integer) : String;
 begin
     if Op = OP_CONSTANT  then Exit 'i';
-    if Op = OP_GET_LOCAL then Exit 'b';
-    if Op = OP_SET_LOCAL then Exit 'b';
+    if Op = OP_GET_LOCAL then Exit 'l';
+    if Op = OP_SET_LOCAL then Exit 'l';
 
     if Op = OP_GET_GLOBAL    then Exit 'b';
     if Op = OP_DEFINE_GLOBAL then Exit 'b';
@@ -595,10 +602,10 @@ begin
     if Op = OP_CALL          then Exit 'b';
     if Op = OP_IS            then Exit 'i';
     if Op = OP_CAST          then Exit 'i';
-    if Op = OP_GET_BOX       then Exit 'b';
-    if Op = OP_SET_BOX       then Exit 'b';
-    if Op = OP_GET_CELL      then Exit 'b';
-    if Op = OP_SET_CELL      then Exit 'b';
+    if Op = OP_GET_BOX       then Exit 'l';
+    if Op = OP_SET_BOX       then Exit 'l';
+    if Op = OP_GET_CELL      then Exit 'l';
+    if Op = OP_SET_CELL      then Exit 'l';
     if Op = OP_LIST          then Exit 'b';
     if Op = OP_MAP           then Exit 'b';
     if Op = OP_PROPERTY      then Exit 'i';
@@ -657,8 +664,8 @@ begin
 
     Bytes := 0;
 
-    // An `i` counts as one, which is its width WITHOUT the prefix.  Under
-    // OP_LONG it is two, and a caller that cares walks the shape itself.
+    // An `i` or an `l` counts as one, which is its width WITHOUT the prefix.
+    // Under OP_LONG it is two, and a caller that cares walks the shape itself.
     for var I : Integer := 0; I < Length (Shape); I := I + 1 do
         if Shape[I] = 's' then Bytes := Bytes + 2;
         else Bytes := Bytes + 1;
@@ -675,6 +682,24 @@ begin
     // An index is told from a byte, and OP_OVERLOADS carries it SECOND.
     AssertEqual (Str ('i'), Str (OpShape (OP_CONSTANT)));
     AssertEqual ('bi', Str (OpShape (OP_OVERLOADS)));
+
+    // A LOCAL slot widens too, and is told from a count for the same reason.
+    AssertEqual (Str ('l'), Str (OpShape (OP_GET_LOCAL)));
+    AssertEqual (Str ('b'), Str (OpShape (OP_CALL)));
+
+    // At most ONE widenable operand per opcode, which is what makes a single
+    // flag in the machine sound.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Widenable := 0;
+        var Letters   := OpShape (Op);
+
+        for var I : Integer := 0; I < Length (Letters); I := I + 1 do
+            if Letters[I] = 'i' or Letters[I] = 'l' then
+                Widenable := Widenable + 1;
+
+        AssertTrue (Widenable <= 1);
+    end
 
     // A wide slot, and a byte beside one.
     AssertEqual (Str ('s'),   Str (OpShape (OP_GET_GLOBAL_LONG)));
@@ -697,7 +722,8 @@ begin
         var Shape := OpShape (Op);
 
         for var I : Integer := 0; I < Length (Shape); I := I + 1 do
-            AssertTrue (Shape[I] = 'b' or Shape[I] = 'i' or Shape[I] = 's');
+            AssertTrue (Shape[I] = 'b' or Shape[I] = 'i'
+                     or Shape[I] = 'l' or Shape[I] = 's');
     end
 end
 

@@ -223,6 +223,26 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `grep` being case-sensitive where the language is not, so searching `Shown`
   missed nothing and searching the right file never happened.
 
+  ⚠️ **A LOCAL slot widens by the same prefix, and `OpShape` now has `l` for
+  it.** Third instance of the one-byte operand, after globals and constants.
+  The invariant that makes one flag sound is **at most one widenable operand
+  per opcode**, and there is a test for it — `OP_CLOSURE` is the one that could
+  break it, carrying an index *and* a slot per capture, so its capture slots
+  stay narrow and a closure inside a subprogram of more than 256 locals is
+  refused by name instead.
+
+  ⚠️ **`NameOfType` answering 'Any' for a type it does not know is a silent
+  selection failure.** `Pointer` was missing, so every Pointer reported `Any`,
+  satisfied no declared type, and `Screen.DrawOnto (Tex : Pointer)` failed to
+  select — reported as `No matching signature for function.`, which names the
+  call and not the cause. The same omission had already cost `is Pointer`. A
+  type missing from that chain cannot be refused, only mis-answered.
+
+  ⚠️ **`bootstrap/algc` built `--ffi` FAILS two conformance cases**, and
+  rightly: 0174 and DEF-37 record what a build *without* libffi says. Rebuild
+  plainly before trusting `conform.sh` — two failures appeared that way and
+  were the build, not the code.
+
   ⚠️ **A constant index widens by a PREFIX, not by a long form per opcode.**
   Nineteen opcodes carry an index into the constants, so nineteen long forms
   would be nineteen numbers, names, handlers and chances to miss one.
