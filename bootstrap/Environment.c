@@ -251,7 +251,12 @@ static Value m_environment_ancestor_1_integer(Value v_this, Value *args, int32_t
     return alg_nil();
 }
 
+static Value *roots_Environment[] = {
+    &k_environment,
+};
+
 void init_Environment(void) {
+    alg_roots(roots_Environment, 1);
     k_environment = alg_class("Environment", alg_nil());
     alg_class_field(k_environment, "Values");
     alg_class_field(k_environment, "Enclosing");

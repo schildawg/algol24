@@ -122,7 +122,13 @@ static Value m_objsingleton_tostring_0(Value v_this, Value *args, int32_t count)
     return alg_nil();
 }
 
+static Value *roots_ObjInstance[] = {
+    &k_objinstance,
+    &k_objsingleton,
+};
+
 void init_ObjInstance(void) {
+    alg_roots(roots_ObjInstance, 2);
     k_objinstance = alg_class("ObjInstance", alg_nil());
     k_objsingleton = alg_class("ObjSingleton", alg_nil());
     alg_class_field(k_objinstance, "Klass");

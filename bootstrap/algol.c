@@ -52,6 +52,10 @@ static void seq_forget_spares(void);
    saving it -- which is recorded in the proposal rather than hidden here. */
 static void *arena_alloc(size_t bytes);
 
+/* Set when the collector cannot be trusted -- a root table that could not be
+   recorded, say.  A collection that cannot see every root must not run. */
+static bool collect_disabled = false;
+
 static Obj   **obj_registry = NULL;
 static size_t  obj_count    = 0;
 static size_t  obj_room     = 0;
@@ -75,15 +79,73 @@ static void obj_register(Obj *obj) {
 
 /* Allocates an object, tags it, and registers it.  The one door every object
    constructor goes through, so that nothing can be allocated and forgotten. */
+static Obj *obj_spare(size_t bytes);
+
 static void *obj_alloc(size_t bytes, ObjType type) {
-    Obj *obj = arena_alloc(bytes);
+    /* A swept object of this size, if the collector left one -- which is the
+       whole point of sweeping: the memory comes back here or nowhere. */
+    Obj *obj = obj_spare(bytes);
+
+    if (obj != NULL) {
+        obj->type   = type;
+        obj->marked = false;
+        obj->dead   = false;
+
+        /* Already in the registry from its first life, and must not be
+           entered twice: a sweep would then release it twice and hand the
+           same block out to two owners. */
+        return obj;
+    }
+
+    obj = arena_alloc(bytes);
 
     obj->type   = type;
     obj->marked = false;
+    obj->dead   = false;
 
     obj_register(obj);
 
     return obj;
+}
+
+/* ── Roots ────────────────────────────────────────────────────────────────
+   Every module-level variable of every unit, by address.
+
+   A unit's globals are emitted as C statics -- `static Value v_top;` -- so the
+   emitter can hand their addresses over in `init_<Unit>()` and the global root
+   set is PRECISE.  No stack scanning for it, and no guessing.
+
+   What this does not cover is a value living only in a C local.  That is why
+   collection happens at a safe point chosen by the caller rather than
+   whenever the arena grows: the VM collects at the top of its dispatch loop,
+   where every live guest value is on `Slots` or in a global and no handler is
+   part-way through. */
+typedef struct {
+    Value  **slots;
+    int32_t  count;
+} RootTable;
+
+static RootTable *root_tables = NULL;
+static int32_t    root_count  = 0;
+static int32_t    root_room   = 0;
+
+void alg_roots(Value **slots, int32_t count) {
+    if (root_count == root_room) {
+        int32_t    room  = root_room < 8 ? 8 : root_room * 2;
+        RootTable *grown = realloc(root_tables, (size_t)room * sizeof(RootTable));
+
+        /* Without room for the table a collection would not see these
+           globals, so the safe answer is to refuse to collect at all rather
+           than to collect without them. */
+        if (grown == NULL) { collect_disabled = true; return; }
+
+        root_tables = grown;
+        root_room   = room;
+    }
+
+    root_tables[root_count].slots = slots;
+    root_tables[root_count].count = count;
+    root_count++;
 }
 
 static void alg_shutdown(void) {
@@ -2982,6 +3044,218 @@ typedef struct {
     int32_t        count;
     int32_t        capacity;
 } ObjOverloads;
+
+/* ── Mark ─────────────────────────────────────────────────────────────────
+   Depth-first from the roots, following every Value an object can hold.
+
+   The VM's own structures need no case of their own: `Chunk`, `VmFunction` and
+   `VmClass` are ordinary Algol-24 classes, so they arrive here as
+   OBJ_INSTANCE and the generic slot walk covers them.  That is what writing
+   the VM in Algol-24 buys the collector. */
+static void mark_value(Value v);
+
+static void mark_obj(Obj *obj) {
+    if (obj == NULL || obj->marked) return;
+
+    obj->marked = true;
+
+    switch (obj->type) {
+    case OBJ_LIST: case OBJ_SET: case OBJ_STACK: case OBJ_ARRAY: {
+        ObjSeq *seq = (ObjSeq *)obj;
+        for (int32_t i = 0; i < seq->count; i++) mark_value(seq->items[i]);
+        break;
+    }
+    case OBJ_MAP: {
+        ObjMap *map = (ObjMap *)obj;
+        for (int32_t i = 0; i < map->count; i++) {
+            mark_value(map->entries[i].key);
+            mark_value(map->entries[i].value);
+        }
+        break;
+    }
+    case OBJ_INSTANCE: {
+        ObjInstance *instance = (ObjInstance *)obj;
+        mark_obj((Obj *)instance->klass);
+        if (instance->slots != NULL && instance->klass != NULL)
+            for (int32_t i = 0; i < instance->klass->total_fields; i++)
+                mark_value(instance->slots[i]);
+        break;
+    }
+    case OBJ_CLASS: {
+        ObjClass *klass = (ObjClass *)obj;
+        mark_obj((Obj *)klass->super);
+        mark_value(klass->instance);
+        break;
+    }
+    case OBJ_ENUM_TYPE: {
+        ObjEnumType *type = (ObjEnumType *)obj;
+        for (int32_t i = 0; i < type->count; i++) mark_value(type->members[i]);
+        break;
+    }
+    case OBJ_CLOSURE: {
+        ObjClosure *closure = (ObjClosure *)obj;
+        for (int32_t i = 0; i < closure->cell_count; i++)
+            if (closure->cells[i] != NULL) mark_value(*closure->cells[i]);
+        break;
+    }
+    case OBJ_BOUND:         mark_value(((ObjBound *)obj)->receiver);        break;
+    case OBJ_BUILTIN_BOUND: mark_value(((ObjBuiltinBound *)obj)->receiver); break;
+    case OBJ_EXTENSION:
+        mark_value(((ObjExtension *)obj)->receiver);
+        mark_value(((ObjExtension *)obj)->target);
+        break;
+
+    /* No Values inside: an enum member is three scalars, an overload set's
+       entries are function pointers and arities, a BigInt is digits, a file is
+       a handle, and a Buffer's bytes are malloc'd and explicitly managed. */
+    case OBJ_ENUM: case OBJ_OVERLOADS: case OBJ_BIGINT:
+    case OBJ_FILE: case OBJ_BUFFER:
+        break;
+    }
+}
+
+static void mark_value(Value v) {
+    if (v.type == VAL_OBJ) mark_obj(v.obj);
+}
+
+/* ── Sweep ────────────────────────────────────────────────────────────────
+   Everything unmarked goes back, and so does the block it owned.
+
+   The owned block is where the memory actually is: a List's `items` is 392 MB
+   of the compiler's arena against 183 MB for the ObjSeq headers, so returning
+   the array matters more than returning the object.  `seq_recycle` already
+   keeps those, per size class, so a swept List hands its array straight to the
+   list a growing List draws from.
+
+   Object BODIES get their own classes, by eight-byte step. They are small and
+   few in size, so a flat table indexed by size/8 is enough and needs no
+   search. */
+#define OBJ_CLASSES 24
+
+static Obj *obj_spares[OBJ_CLASSES];
+
+static int obj_class_of(size_t bytes) {
+    size_t step = (bytes + 7u) / 8u;
+
+    return step < OBJ_CLASSES ? (int)step : -1;
+}
+
+static size_t obj_size_of(const Obj *obj) {
+    switch (obj->type) {
+    case OBJ_LIST: case OBJ_SET: case OBJ_STACK: case OBJ_ARRAY:
+                            return sizeof(ObjSeq);
+    case OBJ_MAP:           return sizeof(ObjMap);
+    case OBJ_INSTANCE:      return sizeof(ObjInstance);
+    case OBJ_CLASS:         return sizeof(ObjClass);
+    case OBJ_ENUM_TYPE:     return sizeof(ObjEnumType);
+    case OBJ_ENUM:          return sizeof(ObjEnum);
+    case OBJ_CLOSURE:       return sizeof(ObjClosure);
+    case OBJ_BOUND:         return sizeof(ObjBound);
+    case OBJ_BUILTIN_BOUND: return sizeof(ObjBuiltinBound);
+    case OBJ_EXTENSION:     return sizeof(ObjExtension);
+    case OBJ_OVERLOADS:     return sizeof(ObjOverloads);
+    case OBJ_BIGINT:        return sizeof(ObjBigInt);
+    case OBJ_FILE:          return sizeof(ObjFile);
+    case OBJ_BUFFER:        return sizeof(ObjBuffer);
+    }
+
+    return 0;
+}
+
+/* Hands an object's owned block back and then the object itself.
+
+   A Buffer is never swept: its bytes are malloc'd, it is on a list of its own
+   that `free_all_buffers` walks, and `Free` already releases it explicitly.
+   An object the language can already release is not the collector's business.
+
+   An instance's `slots` is allocated at exactly its field count rather than a
+   size class, so `seq_recycle` declines it and those bytes stay lost -- 206 MB
+   of the compiler's arena, and the next thing worth doing here. */
+static void obj_release(Obj *obj) {
+
+    /* Set FIRST, and whatever follows.  The owned block is handed back below,
+       and if the object's own body turns out to have no size class the
+       function returns early -- leaving an object whose block is already on a
+       free list.  Without the bit set by then, the next collection would hand
+       that same block back a second time and two owners would share it. */
+    obj->dead = true;
+
+    switch (obj->type) {
+    case OBJ_LIST: case OBJ_SET: case OBJ_STACK: case OBJ_ARRAY: {
+        ObjSeq *seq = (ObjSeq *)obj;
+        if (seq->items != NULL) seq_recycle(seq->items, seq->capacity);
+        break;
+    }
+    case OBJ_MAP: {
+        ObjMap *map = (ObjMap *)obj;
+        if (map->entries != NULL && map->capacity <= INT32_MAX / 2)
+            seq_recycle((Value *)map->entries, map->capacity * 2);
+        break;
+    }
+    case OBJ_ENUM_TYPE: {
+        ObjEnumType *type = (ObjEnumType *)obj;
+        if (type->members != NULL) seq_recycle(type->members, type->capacity);
+        break;
+    }
+    default:
+        break;
+    }
+
+    int band = obj_class_of(obj_size_of(obj));
+    if (band < 0) return;
+
+    /* The link lives in the dead object's own first word, as seq_recycle does
+       with a dead block: no allocation to keep the free list. */
+    *(Obj **)obj = obj_spares[band];
+    obj_spares[band] = obj;
+}
+
+static Obj *obj_spare(size_t bytes) {
+    int band = obj_class_of(bytes);
+    if (band < 0 || obj_spares[band] == NULL) return NULL;
+
+    Obj *obj = obj_spares[band];
+    obj_spares[band] = *(Obj **)obj;
+
+    return obj;
+}
+
+/* ── Collect ──────────────────────────────────────────────────────────────
+   Mark from every registered root, then release everything unmarked.
+
+   The registry is compacted rather than rebuilt: a swept object keeps its
+   place in the arena and may be handed out again by `obj_spare`, so it has to
+   stay registered exactly once.  Dropping it from the registry and letting
+   `obj_alloc` re-enter it would be the same thing, slower.
+
+   Answers how many objects it released, so a caller can tell a collection
+   that did something from one that did not. */
+int32_t alg_collect(void) {
+    if (collect_disabled || obj_registry == NULL) return 0;
+
+    for (size_t i = 0; i < obj_count; i++) obj_registry[i]->marked = false;
+
+    for (int32_t t = 0; t < root_count; t++)
+        for (int32_t i = 0; i < root_tables[t].count; i++)
+            if (root_tables[t].slots[i] != NULL)
+                mark_value(*root_tables[t].slots[i]);
+
+    int32_t freed = 0;
+
+    for (size_t i = 0; i < obj_count; i++) {
+        Obj *obj = obj_registry[i];
+
+        /* A Buffer is explicitly managed and never swept, so it must not be
+           released even when nothing points at it any more. */
+        if (obj->marked || obj->dead || obj->type == OBJ_BUFFER) continue;
+
+        obj_release(obj);
+        freed++;
+    }
+
+    return freed;
+}
+
 
 Value alg_overloads(const char *name) {
     ObjOverloads *set = obj_alloc(sizeof(ObjOverloads), OBJ_OVERLOADS);

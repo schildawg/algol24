@@ -79,13 +79,20 @@ typedef enum {
 
 /* Every heap object begins with one of these.
 
-   `marked` costs nothing: ObjType is an enum and every object that follows it
-   holds a pointer, so there were already four bytes of padding here for a bool
-   to sit in.  It is the collector's bit -- see `obj_registry` in algol.c, which
-   is how a sweep finds the objects to clear it on. */
+   Both bools cost nothing: ObjType is an enum and every object that follows it
+   holds a pointer, so there were already four bytes of padding here for them
+   to sit in.  `marked` is the collector's bit -- see `obj_registry` in
+   algol.c, which is how a sweep finds the objects to clear it on.
+
+   `dead` says the object is on a free list.  A released object KEEPS its place
+   in the registry, because it keeps its place in the arena and may be handed
+   out again; without this bit the next collection would find it unmarked and
+   release it a second time, putting one block on the free list twice and
+   handing it to two owners. */
 typedef struct {
     ObjType type;
     bool    marked;
+    bool    dead;
 } Obj;
 
 typedef struct {
@@ -253,6 +260,17 @@ Value alg_foreign(const char *symbol, const char *library, const char **types,
                   int32_t count, const char *returns, Value *args);
 
 Value alg_foreign_call(Value symbol, Value library, Value types, Value returns, Value args);
+
+/* The collector.  `alg_roots` registers one unit's module-level variables by
+   address, which the emitter calls from `init_<Unit>()`; `alg_collect` marks
+   from every registered root and releases what nothing points at, answering
+   how many objects it released.
+
+   A caller chooses WHEN, because a value living only in a C local is invisible
+   here: the VM collects at the top of its dispatch loop, where every live
+   guest value is on its stack or in a global. */
+void    alg_roots(Value **slots, int32_t count);
+int32_t alg_collect(void);
 
 Value   alg_overloads(const char *name);
 void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **types);

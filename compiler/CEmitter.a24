@@ -146,6 +146,14 @@ var
     /// a different reason.
     Declarations : Buffer := Buffer();
 
+    /// Every file-scope Value this unit declares, by C symbol.
+    ///
+    /// Emitted as a table of ADDRESSES and registered with the runtime in
+    /// `init_<Unit>()`, which is what makes the collector's global root set
+    /// precise rather than conservative: a module-level variable is a C
+    /// static, so its address is knowable here and nowhere else.
+    RootSymbols : List := [];
+
     /// Whole function bodies.
     Functions    : Buffer := Buffer();
 
@@ -808,6 +816,8 @@ begin
     /// C file when it is not.
     procedure DeclareValue (Symbol : String, Name : String);
     begin
+        RootSymbols.Add (Symbol);
+
         if Exported (Name) then
         begin
             Declarations.Append ('Value ' + Symbol + ';' + #10);
@@ -1058,6 +1068,7 @@ begin
             var Unit := Units[U];
 
             Declarations := Buffer();
+            RootSymbols  := List();
             Functions := Buffer();
             Setup := Buffer();
             Shells := Buffer();
@@ -1275,7 +1286,27 @@ begin
         if Declarations.Length > 0 then Text := Text + Declarations.Text + #10;
         if Functions.Length > 0 then Text := Text + Functions.Text;
 
+        // The root table, after the declarations it takes addresses of and
+        // before the init that registers it.  A unit with no globals gets no
+        // table, because C has no empty array initializer.
+        if RootSymbols.Length > 0 then
+        begin
+            Text := Text + 'static Value *roots_' + Str (Unit.Name) + '[] = {' + #10;
+
+            for var Each in RootSymbols do
+                Text := Text + '    &' + Str (Each) + ',' + #10;
+
+            Text := Text + '};' + #10 + #10;
+        end
+
         Text := Text + 'void init_' + Str (Unit.Name) + '(void) {' + #10;
+
+        // Registered FIRST, so a collection during this unit's own
+        // initialization can already see what it has set.
+        if RootSymbols.Length > 0 then
+            Text := Text + '    alg_roots(roots_' + Str (Unit.Name) + ', '
+                  + Str (RootSymbols.Length) + ');' + #10;
+
         Text := Text + Shells.Text;
         Text := Text + Setup.Text;
         Text := Text + MainBody.Text;

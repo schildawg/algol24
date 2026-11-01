@@ -233,7 +233,12 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_ObjClass[] = {
+    &k_objclass,
+};
+
 void init_ObjClass(void) {
+    alg_roots(roots_ObjClass, 1);
     k_objclass = alg_class("ObjClass", alg_nil());
     alg_class_field(k_objclass, "Name");
     alg_class_field(k_objclass, "Methods");

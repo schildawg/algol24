@@ -142,7 +142,22 @@ static Value m_token_tostring_0(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_Token[] = {
+    &v_subrangeVnames,
+    &v_subrangeVlows,
+    &v_subrangeVhighs,
+    &fn_definesubrange,
+    &fn_subrangeindex,
+    &fn_issubrange,
+    &fn_underlyingtype,
+    &v_typeVspellings,
+    &fn_canonicaltype,
+    &fn_foldcase,
+    &k_token,
+};
+
 void init_Token(void) {
+    alg_roots(roots_Token, 11);
     k_token = alg_class("Token", alg_nil());
     fn_definesubrange = alg_closure("DefineSubrange", f_definesubrange, NULL, 0, 3, t_f_definesubrange);
     fn_subrangeindex = alg_closure("SubrangeIndex", f_subrangeindex, NULL, 0, 1, t_f_subrangeindex);

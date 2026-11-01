@@ -63,7 +63,12 @@ static Value m_sourcecode_name_0(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_SourceCode[] = {
+    &k_sourcecode,
+};
+
 void init_SourceCode(void) {
+    alg_roots(roots_SourceCode, 1);
     k_sourcecode = alg_class("SourceCode", alg_nil());
     alg_class_field(k_sourcecode, "Lines");
     alg_class_field(k_sourcecode, "FileName");

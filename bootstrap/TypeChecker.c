@@ -1613,7 +1613,16 @@ Value f_candidates(Value **cells, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_TypeChecker[] = {
+    &k_typelookup,
+    &k_typechecker,
+    &fn_rejects,
+    &fn_candidates,
+    &v_hider,
+};
+
 void init_TypeChecker(void) {
+    alg_roots(roots_TypeChecker, 5);
     k_typelookup = alg_class("TypeLookup", alg_nil());
     k_typechecker = alg_class("TypeChecker", alg_nil());
     alg_class_field(k_typelookup, "Scopes");

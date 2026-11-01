@@ -439,7 +439,23 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_Main[] = {
+    &fn_readsource,
+    &fn_checkscanned,
+    &fn_runtests,
+    &fn_run,
+    &fn_argumentsfrom,
+    &fn_compile,
+    &v_version,
+    &fn_folderof,
+    &fn_copyfile,
+    &fn_runtimefolder,
+    &fn_usage,
+    &fn_main,
+};
+
 void init_Main(void) {
+    alg_roots(roots_Main, 12);
     alg_subrange("byte", "0", "255");
     alg_subrange("word", "0", "65535");
     alg_subrange("short", "-32768", "32767");

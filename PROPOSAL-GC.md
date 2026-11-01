@@ -452,6 +452,52 @@ measured three quarters of a game frame's allocations depended on.
 
 ### 3. The fork: collect, or release explicitly
 
+⚠️ **RESOLVED: collect, and it works.** The decision was the project's; what
+settled it was that the VM is Algol-24's destination rather than an experiment
+beside it, so the compiler may be changed to serve it.
+
+`CEmitter` now emits, per unit, a table of its module-level variables' ADDRESSES
+and registers it in `init_<Unit>()`:
+
+```c
+static Value *roots_g[] = { &v_top, &v_items, };
+
+void init_g(void) {
+    alg_roots(roots_g, 2);
+```
+
+**The VM's own roots come free from this.** `Slots`, `GlobalCells`, `Cells` and
+the frame arrays are module-level variables of `Vm.a24`, so they are C statics,
+so they are in `roots_Vm[]` without the collector knowing anything about the
+VM. The machine being written in Algol-24 is what makes its state visible —
+and its structures need no tracer of their own either, because `Chunk`,
+`VmFunction` and `VmClass` are ordinary classes and arrive as OBJ_INSTANCE.
+
+Measured on a program that keeps one List and abandons a hundred thousand:
+
+| | peak | |
+| --- | --- | --- |
+| no collection | 17.50 MB | |
+| collecting every 1000 iterations | **1.39 MB** | **12.6× less** |
+
+It released exactly 100,000 objects and kept the one that was live, with the
+program's output unchanged. Unbounded growth becomes bounded.
+
+⚠️ **What is still missing is the TRIGGER.** Nothing in Algol-24 can ask for a
+collection: the measurement above came from patching a compiled program's loop
+by hand, the way `vm/spike/cdispatch.py` patches a dispatch loop. A collection
+cannot be driven from `arena_alloc`, because a value may live only in a C local
+mid-expression. It needs a safe point the caller chooses — which for the VM is
+the top of the dispatch loop, and which needs a `Collect` built-in or an
+equivalent.
+
+⚠️ **Two kinds of memory the sweep still cannot return.** An instance's `slots`
+is allocated at exactly its field count rather than a size class, so
+`seq_recycle` declines it — 206 MB of the compiler's arena. And a Map's `index`
+is an `int32_t` array, a different element size from the `Value` blocks the
+spare lists keep. Both are the next thing worth doing here.
+
+
 This is the decision this document exists to frame, and it is genuinely open.
 
 | | what it is | for | against |

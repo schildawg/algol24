@@ -1271,7 +1271,21 @@ static Value m_resolver_resolvelocal_2_expr_token(Value v_this, Value *args, int
     return alg_nil();
 }
 
+static Value *roots_Resolver[] = {
+    &e_functiontype,
+    &e_functiontype_funVnone,
+    &e_functiontype_funVfunction,
+    &e_functiontype_funVmethod,
+    &e_functiontype_funVinitializer,
+    &e_classtype,
+    &e_classtype_classVnone,
+    &e_classtype_classVclass,
+    &e_classtype_classVsubclass,
+    &k_resolver,
+};
+
 void init_Resolver(void) {
+    alg_roots(roots_Resolver, 10);
     k_resolver = alg_class("Resolver", alg_nil());
     e_functiontype = alg_enum_type("FunctionType");
     e_functiontype_funVnone = alg_enum_member(e_functiontype, "FUN_NONE");

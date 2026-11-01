@@ -157,7 +157,24 @@ static Value m_console_error_2_token_string(Value v_this, Value *args, int32_t c
     return alg_nil();
 }
 
+static Value *roots_Console[] = {
+    &v_bar,
+    &v_esc,
+    &v_ansiVreset,
+    &v_ansiVred,
+    &v_ansiVgreen,
+    &v_ansiVyellow,
+    &v_ansiVblue,
+    &v_ansiVcyan,
+    &v_ansiVwhite,
+    &v_infoVtag,
+    &v_errorVtag,
+    &v_warnVtag,
+    &k_console,
+};
+
 void init_Console(void) {
+    alg_roots(roots_Console, 13);
     k_console = alg_class("Console", alg_nil());
     alg_class_field(k_console, "Id");
     alg_class_initializer(k_console, i_console);

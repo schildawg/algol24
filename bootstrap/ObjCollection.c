@@ -417,7 +417,13 @@ static Value m_objcollection_tostring_0(Value v_this, Value *args, int32_t count
     return alg_nil();
 }
 
+static Value *roots_ObjCollection[] = {
+    &k_collectionmethod,
+    &k_objcollection,
+};
+
 void init_ObjCollection(void) {
+    alg_roots(roots_ObjCollection, 2);
     k_collectionmethod = alg_class("CollectionMethod", alg_nil());
     k_objcollection = alg_class("ObjCollection", alg_nil());
     alg_class_field(k_collectionmethod, "Receiver");

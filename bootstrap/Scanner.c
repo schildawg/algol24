@@ -642,7 +642,20 @@ static Value m_scanner_isdigit_1_char(Value v_this, Value *args, int32_t count) 
     return alg_nil();
 }
 
+static Value *roots_Scanner[] = {
+    &v_digits,
+    &v_hexdigits,
+    &v_bindigits,
+    &fn_tointeger,
+    &fn_toradix,
+    &v_keywords,
+    &v_haderror,
+    &v_lasterror,
+    &k_scanner,
+};
+
 void init_Scanner(void) {
+    alg_roots(roots_Scanner, 9);
     k_scanner = alg_class("Scanner", alg_nil());
     fn_tointeger = alg_closure("ToInteger", f_tointeger, NULL, 0, 1, t_f_tointeger);
     fn_toradix = alg_closure("ToRadix", f_toradix, NULL, 0, 2, t_f_toradix);

@@ -182,7 +182,13 @@ static Value m_objbuffer_tostring_0(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_ObjBuffer[] = {
+    &k_buffermethod,
+    &k_objbuffer,
+};
+
 void init_ObjBuffer(void) {
+    alg_roots(roots_ObjBuffer, 2);
     k_buffermethod = alg_class("BufferMethod", alg_nil());
     k_objbuffer = alg_class("ObjBuffer", alg_nil());
     alg_class_field(k_buffermethod, "Receiver");

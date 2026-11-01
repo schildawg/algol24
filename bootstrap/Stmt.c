@@ -656,7 +656,33 @@ static Value m_classstmt_accept_1(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_Stmt[] = {
+    &k_stmt,
+    &k_blockstmt,
+    &k_expressionstmt,
+    &k_varstmt,
+    &k_vargroupstmt,
+    &k_ifstmt,
+    &k_excepthandler,
+    &k_objectstmt,
+    &k_modulestmt,
+    &k_breakstmt,
+    &k_continuestmt,
+    &k_labelstmt,
+    &k_gotostmt,
+    &k_trystmt,
+    &k_raisestmt,
+    &k_forinstmt,
+    &k_whilestmt,
+    &k_functionstmt,
+    &k_returnstmt,
+    &k_enumstmt,
+    &k_subrangestmt,
+    &k_classstmt,
+};
+
 void init_Stmt(void) {
+    alg_roots(roots_Stmt, 22);
     k_stmt = alg_class("Stmt", alg_nil());
     k_blockstmt = alg_class("BlockStmt", alg_nil());
     k_expressionstmt = alg_class("ExpressionStmt", alg_nil());

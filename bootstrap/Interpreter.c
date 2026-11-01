@@ -3162,7 +3162,27 @@ static Value m_return_init_1(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_Interpreter[] = {
+    &v_programarguments,
+    &fn_setprogramarguments,
+    &v_outputsuppressed,
+    &fn_suppressoutput,
+    &fn_rendered,
+    &fn_stringify,
+    &k_native,
+    &fn_parsednumber,
+    &k_interpreter,
+    &k_broke,
+    &k_continued,
+    &k_jumped,
+    &fn_labelat,
+    &fn_names,
+    &k_raised,
+    &k_return,
+};
+
 void init_Interpreter(void) {
+    alg_roots(roots_Interpreter, 16);
     k_native = alg_class("Native", alg_nil());
     k_interpreter = alg_class("Interpreter", alg_nil());
     k_broke = alg_class("Broke", alg_nil());

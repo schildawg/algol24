@@ -94,7 +94,13 @@ static Value m_objenumtype_tostring_0(Value v_this, Value *args, int32_t count) 
     return alg_nil();
 }
 
+static Value *roots_ObjEnum[] = {
+    &k_objenum,
+    &k_objenumtype,
+};
+
 void init_ObjEnum(void) {
+    alg_roots(roots_ObjEnum, 2);
     k_objenum = alg_class("ObjEnum", alg_nil());
     k_objenumtype = alg_class("ObjEnumType", alg_nil());
     alg_class_field(k_objenum, "TypeName");

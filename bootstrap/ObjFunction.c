@@ -787,7 +787,24 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_ObjFunction[] = {
+    &fn_typenameof,
+    &fn_nameofclass,
+    &k_objoverloads,
+    &k_numbermethod,
+    &k_objextension,
+    &fn_samesignature,
+    &fn_anynamed,
+    &v_exact,
+    &v_widening,
+    &v_absorbing,
+    &fn_widens,
+    &fn_inheritsfrom,
+    &k_objfunction,
+};
+
 void init_ObjFunction(void) {
+    alg_roots(roots_ObjFunction, 13);
     k_objoverloads = alg_class("ObjOverloads", alg_nil());
     k_numbermethod = alg_class("NumberMethod", alg_nil());
     k_objextension = alg_class("ObjExtension", alg_nil());

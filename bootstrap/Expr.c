@@ -499,7 +499,28 @@ static Value m_isexpr_accept_1(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_Expr[] = {
+    &k_expr,
+    &k_binaryexpr,
+    &k_logicalexpr,
+    &k_groupingexpr,
+    &k_collectionexpr,
+    &k_subscriptexpr,
+    &k_setsubscriptexpr,
+    &k_literalexpr,
+    &k_variableexpr,
+    &k_assignexpr,
+    &k_unaryexpr,
+    &k_callexpr,
+    &k_getexpr,
+    &k_setexpr,
+    &k_thisexpr,
+    &k_superexpr,
+    &k_isexpr,
+};
+
 void init_Expr(void) {
+    alg_roots(roots_Expr, 17);
     k_expr = alg_class("Expr", alg_nil());
     k_binaryexpr = alg_class("BinaryExpr", alg_nil());
     k_logicalexpr = alg_class("LogicalExpr", alg_nil());

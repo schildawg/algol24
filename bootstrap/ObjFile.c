@@ -161,7 +161,13 @@ static Value m_objfile_tostring_0(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
+static Value *roots_ObjFile[] = {
+    &k_filemethod,
+    &k_objfile,
+};
+
 void init_ObjFile(void) {
+    alg_roots(roots_ObjFile, 2);
     k_filemethod = alg_class("FileMethod", alg_nil());
     k_objfile = alg_class("ObjFile", alg_nil());
     alg_class_field(k_filemethod, "Receiver");
