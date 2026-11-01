@@ -888,13 +888,44 @@ static void map_put(ObjMap *map, Value key, Value item) {
     }
 
     if (map->count == map->capacity) {
-        int32_t   capacity = map->capacity < 8 ? 8 : map->capacity * 2;
-        MapEntry *entries  = arena_alloc((size_t)capacity * sizeof(MapEntry));
+        int32_t capacity = map->capacity < 8 ? 8 : map->capacity * 2;
+        size_t  had      = (size_t)map->capacity * sizeof(MapEntry);
+        size_t  wants    = (size_t)capacity * sizeof(MapEntry);
 
-        if (map->count > 0) memcpy(entries, map->entries, (size_t)map->count * sizeof(MapEntry));
+        /* If this table is the last thing the arena handed out, it can be made
+           longer where it stands -- no copy, and nothing left behind. The same
+           bargain `seq_append` strikes for a List's backing array, and for the
+           same reason: a table that grows by doubling otherwise abandons every
+           earlier size, so a Map that reaches N entries has left 2N behind. */
+        if (map->entries != NULL
+            && (char *)map->entries + had == arena_next
+            && wants - had <= arena_left) {
 
-        map->entries  = entries;
-        map->capacity = capacity;
+            arena_next += wants - had;
+            arena_left -= wants - had;
+
+            map->capacity = capacity;
+        }
+        else {
+            /* A MapEntry is exactly two Values, so a table of capacity N is a
+               block of 2N of them -- which is a size class `seq_spares`
+               already keeps, because a Map's capacity is 8 doubled and twice
+               that is 8 doubled again. One free list serves both. */
+            int32_t   values  = capacity <= INT32_MAX / 2 ? capacity * 2 : -1;
+            MapEntry *entries = values > 0 ? (MapEntry *)seq_spare(values) : NULL;
+
+            if (entries == NULL) entries = arena_alloc(wants);
+
+            if (map->count > 0)
+                memcpy(entries, map->entries, (size_t)map->count * sizeof(MapEntry));
+
+            /* After the copy, never before: the old block is read above. */
+            if (map->entries != NULL && map->capacity <= INT32_MAX / 2)
+                seq_recycle((Value *)map->entries, map->capacity * 2);
+
+            map->entries  = entries;
+            map->capacity = capacity;
+        }
     }
     map->entries[map->count].key   = key;
     map->entries[map->count].value = item;

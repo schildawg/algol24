@@ -371,6 +371,30 @@ steps 1 and 2 are worth doing whichever way it goes.**
 
 ### 1. Take the ownership wins — they need no collector at all
 
+⚠️ **The Map entry table is DONE, and measured smaller than this section
+projected.** `map_put` now extends in place when its table is the arena's last
+block and recycles the grown-out-of table onto `seq_spares` — one free list
+serves both, because a `MapEntry` is exactly two `Value`s and a Map's capacity
+is 8 doubled. Peak resident size:
+
+| | before | after | |
+| --- | --- | --- | --- |
+| `algc --compile compiler/Main.a24` | 67.5 MB | 63.4 MB | −6.1% |
+| `algc --test compiler/Main.a24` | 1,981 MB | 1,888 MB | −4.7% |
+| the Dew Drop Inn, 300 frames on the VM | 7,978 MB | 8,130 MB | **none** |
+
+**The game saw nothing, and that is the finding rather than a disappointment.**
+A free list returns the *old* block when one Map grows; it cannot return
+anything from a Map that simply dies. The compiler grows a few large tables and
+benefits; a frame loop makes millions of short-lived small ones and does not.
+That is this section's own warning — a constant factor on an unbounded
+problem — measured rather than predicted, and it is why steps 2 and 3 are not
+optional.
+
+The 203 MB figure below is *cumulative arena bytes*, not peak residency, which
+is why a 203 MB saving shows up as 93 MB of peak. Both numbers are right; they
+answer different questions.
+
 | | MB | the claim to prove |
 | --- | --- | --- |
 | a Map's entry table | **203** | the one `seq_spares` already proves for a List's backing array: the table never leaves its ObjMap |
