@@ -3699,6 +3699,9 @@ static Value m_cemitter_builtin_2_string_integer(Value v_this, Value *args, int3
     if (alg_truthy(alg_equal(v_key, alg_string("clock/0")))) {
         return alg_string("alg_clock");
     }
+    if (alg_truthy(alg_equal(v_key, alg_string("Collect/0")))) {
+        return alg_string("alg_collected");
+    }
     if (alg_truthy(alg_equal(v_key, alg_string("Halt/1")))) {
         return alg_string("alg_halt");
     }

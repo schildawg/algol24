@@ -10627,14 +10627,14 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-three names are built in. Thirty are always
+**[RT-001]**  Thirty-four names are built in. Thirty-one are always
 available:
 
 ```
 Length  Copy  Pos   Str        Ord   Char  Val
 ToUpper ToLower
 Succ    Pred  Foreign
-clock
+clock   Collect
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
@@ -12420,6 +12420,67 @@ n=1ab
 plain
 ```
 
+**[RT-029]**  `Collect()` **requests** that unreachable objects be released,
+and answers how many were. An implementation may release none and answer `0`.
+
+**It is a request rather than an instruction, and that is normative.** Whether
+a collection is safe depends on where it is asked from, which the language has
+no way to express: a value reachable only from the host's own call stack is
+invisible to a collector, so an implementation that cannot see all of its roots
+must decline rather than release something still in use. Declining is
+conformant.
+
+**A program may therefore not depend on the count**, nor on anything being
+released. `Collect` changes how much memory a correct program uses and never
+what it computes — a program whose output differs with and without it was
+already wrong.
+
+⚠️ **The two processors differ here, by the rule rather than against it.** The
+tree-walking interpreter answers `0`: its live values sit in C locals all
+through a recursive evaluator. The bytecode machine releases, because every
+live guest value is on its stack or in a module-level variable, both of which a
+collector can walk — which is the whole of why the machine keeps its state
+where it does.
+
+    conformance  0203-collect-is-a-request.a24
+
+##### conformance/0203-collect-is-a-request.a24
+
+```algol24
+// What a program may rely on is here, and the COUNT is not: one processor
+// releases and the other declines, and both are conformant.
+var Kept := [1, 2, 3];
+
+for var I : Integer := 0; I < 2000; I := I + 1 do
+begin
+    var Rubbish := [I, I + 1];
+
+    Rubbish.Add (I);
+end
+
+var Released := Collect ();
+
+// An Integer, and never negative.
+WriteLn (Released is Integer);
+WriteLn (Released >= 0);
+
+// What a collection may never do is change what the program computes.
+WriteLn (Kept.Length);
+WriteLn (Kept[0] + Kept[2]);
+
+// And asking twice is no more an instruction than asking once.
+WriteLn (Collect () >= 0);
+```
+
+```console
+$ algc conformance/0203-collect-is-a-request.a24
+true
+true
+3
+4
+true
+```
+
 ---
 
 ## 17. Program initialization and execution
@@ -13438,7 +13499,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-three built-in names, with the rule specifying each. `spec/spec.sh`
+The thirty-four built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -13467,6 +13528,7 @@ interpreter actually registers.
 | `Str` | [RT-006] | Any value rendered as text |
 | `Val` | [RT-009] | A number parsed from text — an **Integer** without a point, a Double with one |
 | `clock` | [RT-012] | Seconds since the epoch, as a Double |
+| `Collect` | [RT-029] | Requests a collection; answers how many objects were released |
 | `FileExists` | [RT-014] | Whether a named file exists |
 | `MkDir` | [RT-026] | Makes one directory; a missing parent is a failure |
 | `RmDir` | [RT-026] | Removes an empty directory, never a tree |

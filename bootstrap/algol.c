@@ -3230,6 +3230,12 @@ static Obj *obj_spare(size_t bytes) {
 
    Answers how many objects it released, so a caller can tell a collection
    that did something from one that did not. */
+/* `Collect`'s value form, for the emitter to call: the built-in answers an
+   Integer and alg_collect answers a count. */
+Value alg_collected(void) {
+    return alg_int(alg_collect());
+}
+
 int32_t alg_collect(void) {
     if (collect_disabled || obj_registry == NULL) return 0;
 

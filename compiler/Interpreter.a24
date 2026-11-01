@@ -208,6 +208,14 @@ begin
         case Name of
             'clock' : Exit clock ();
 
+            // A REQUEST, and this processor declines it [RT-029].  The
+            // interpreter's live values sit in C locals all through its
+            // recursive evaluator, where no collector can see them, so a
+            // collection here would release objects still in use.  Answering
+            // zero is the conformant answer for an implementation that cannot
+            // safely collect, which is why the rule makes the count advisory.
+            'Collect' : Exit 0;
+
             'Length' : begin
                            if Arguments[0] is ObjCollection then
                                raise 'Length expects text; use .Length for a collection.';
@@ -475,6 +483,7 @@ begin
         this.Env := Globals;
 
         Builtins.Define ('clock', Native ('clock', 0));
+        Builtins.Define ('Collect', Native ('Collect', 0));
 
         Builtins.Define ('Length', Native ('Length', 1));
         Builtins.Define ('Copy', Native ('Copy', 3));

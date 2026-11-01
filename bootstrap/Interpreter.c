@@ -335,206 +335,210 @@ static Value m_native_call_2(Value v_this, Value *args, int32_t count) {
     if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("clock")))) {
         return alg_clock();
     } else {
-        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Length")))) {
-            {
-                if (alg_truthy(alg_is(alg_subscript_get(v_arguments, alg_int(0)), "ObjCollection"))) {
-                    alg_raise(alg_string("Length expects text; use .Length for a collection."));
-                }
-                return alg_text_length(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
-            }
+        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Collect")))) {
+            return alg_int(0);
         } else {
-            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Copy")))) {
-                return alg_copy(alg_str(alg_subscript_get(v_arguments, alg_int(0))), alg_subscript_get(v_arguments, alg_int(1)), alg_subscript_get(v_arguments, alg_int(2)));
-            } else {
-                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Pos")))) {
-                    {
-                        if (alg_truthy((or_0 = alg_less(alg_property(v_arguments, "Length"), alg_int(2)), alg_truthy(or_0) ? or_0 : alg_greater(alg_property(v_arguments, "Length"), alg_int(3))))) {
-                            alg_raise(alg_add(alg_add(alg_string("Expected 2 or 3 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
-                        }
-                        if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(2)))) {
-                            return alg_pos(alg_str(alg_subscript_get(v_arguments, alg_int(0))), alg_str(alg_subscript_get(v_arguments, alg_int(1))));
-                        }
-                        return alg_pos_from(alg_str(alg_subscript_get(v_arguments, alg_int(0))), alg_str(alg_subscript_get(v_arguments, alg_int(1))), alg_subscript_get(v_arguments, alg_int(2)));
+            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Length")))) {
+                {
+                    if (alg_truthy(alg_is(alg_subscript_get(v_arguments, alg_int(0)), "ObjCollection"))) {
+                        alg_raise(alg_string("Length expects text; use .Length for a collection."));
                     }
+                    return alg_text_length(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
+                }
+            } else {
+                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Copy")))) {
+                    return alg_copy(alg_str(alg_subscript_get(v_arguments, alg_int(0))), alg_subscript_get(v_arguments, alg_int(1)), alg_subscript_get(v_arguments, alg_int(2)));
                 } else {
-                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ToUpper")))) {
-                        return alg_to_upper(alg_subscript_get(v_arguments, alg_int(0)));
+                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Pos")))) {
+                        {
+                            if (alg_truthy((or_0 = alg_less(alg_property(v_arguments, "Length"), alg_int(2)), alg_truthy(or_0) ? or_0 : alg_greater(alg_property(v_arguments, "Length"), alg_int(3))))) {
+                                alg_raise(alg_add(alg_add(alg_string("Expected 2 or 3 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
+                            }
+                            if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(2)))) {
+                                return alg_pos(alg_str(alg_subscript_get(v_arguments, alg_int(0))), alg_str(alg_subscript_get(v_arguments, alg_int(1))));
+                            }
+                            return alg_pos_from(alg_str(alg_subscript_get(v_arguments, alg_int(0))), alg_str(alg_subscript_get(v_arguments, alg_int(1))), alg_subscript_get(v_arguments, alg_int(2)));
+                        }
                     } else {
-                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ToLower")))) {
-                            return alg_to_lower(alg_subscript_get(v_arguments, alg_int(0)));
+                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ToUpper")))) {
+                            return alg_to_upper(alg_subscript_get(v_arguments, alg_int(0)));
                         } else {
-                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Str")))) {
-                                {
-                                    if (alg_truthy((or_1 = alg_less(alg_property(v_arguments, "Length"), alg_int(1)), alg_truthy(or_1) ? or_1 : alg_greater(alg_property(v_arguments, "Length"), alg_int(3))))) {
-                                        alg_raise(alg_add(alg_add(alg_string("Expected 1, 2 or 3 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
-                                    }
-                                    if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(1)))) {
-                                        return f_stringify(NULL, (Value[]){v_theinterpreter, alg_subscript_get(v_arguments, alg_int(0))}, 2);
-                                    }
-                                    if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(2)))) {
-                                        return alg_str_fixed(alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1)));
-                                    }
-                                    return alg_str_padded(alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1)), alg_subscript_get(v_arguments, alg_int(2)));
-                                }
+                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ToLower")))) {
+                                return alg_to_lower(alg_subscript_get(v_arguments, alg_int(0)));
                             } else {
-                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Array")))) {
+                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Str")))) {
                                     {
-                                        Value v_thearray = alg_new(k_objcollection, (Value[]){alg_string("Array")}, 1);
-                                        (void)v_thearray;
-                                        (void)(alg_invoke(v_thearray, "Allocate", (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1));
-                                        return v_thearray;
+                                        if (alg_truthy((or_1 = alg_less(alg_property(v_arguments, "Length"), alg_int(1)), alg_truthy(or_1) ? or_1 : alg_greater(alg_property(v_arguments, "Length"), alg_int(3))))) {
+                                            alg_raise(alg_add(alg_add(alg_string("Expected 1, 2 or 3 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
+                                        }
+                                        if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(1)))) {
+                                            return f_stringify(NULL, (Value[]){v_theinterpreter, alg_subscript_get(v_arguments, alg_int(0))}, 2);
+                                        }
+                                        if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(2)))) {
+                                            return alg_str_fixed(alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1)));
+                                        }
+                                        return alg_str_padded(alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1)), alg_subscript_get(v_arguments, alg_int(2)));
                                     }
                                 } else {
-                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("List")))) {
-                                        return alg_new(k_objcollection, (Value[]){alg_string("List")}, 1);
+                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Array")))) {
+                                        {
+                                            Value v_thearray = alg_new(k_objcollection, (Value[]){alg_string("Array")}, 1);
+                                            (void)v_thearray;
+                                            (void)(alg_invoke(v_thearray, "Allocate", (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1));
+                                            return v_thearray;
+                                        }
                                     } else {
-                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Map")))) {
-                                            return alg_new(k_objcollection, (Value[]){alg_string("Map")}, 1);
+                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("List")))) {
+                                            return alg_new(k_objcollection, (Value[]){alg_string("List")}, 1);
                                         } else {
-                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Stack")))) {
-                                                return alg_new(k_objcollection, (Value[]){alg_string("Stack")}, 1);
+                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Map")))) {
+                                                return alg_new(k_objcollection, (Value[]){alg_string("Map")}, 1);
                                             } else {
-                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Set")))) {
-                                                    {
-                                                        if (alg_truthy(alg_greater(alg_property(v_arguments, "Length"), alg_int(1)))) {
-                                                            alg_raise(alg_add(alg_add(alg_string("Expected 0 or 1 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
-                                                        }
-                                                        Value v_theset = alg_new(k_objcollection, (Value[]){alg_string("Set")}, 1);
-                                                        (void)v_theset;
-                                                        if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(1)))) {
-                                                            {
-                                                                Value v_from = alg_subscript_get(v_arguments, alg_int(0));
-                                                                (void)v_from;
-                                                                if (alg_truthy((or_2 = alg_not((alg_is(v_from, "ObjCollection"))), alg_truthy(or_2) ? or_2 : alg_not_equal(alg_property(v_from, "Kind"), alg_string("List"))))) {
-                                                                    alg_raise(alg_add(alg_add(alg_string("Set expects (List) but got ("), f_typenameof(NULL, (Value[]){v_from}, 1)), alg_string(").")));
-                                                                }
+                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Stack")))) {
+                                                    return alg_new(k_objcollection, (Value[]){alg_string("Stack")}, 1);
+                                                } else {
+                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Set")))) {
+                                                        {
+                                                            if (alg_truthy(alg_greater(alg_property(v_arguments, "Length"), alg_int(1)))) {
+                                                                alg_raise(alg_add(alg_add(alg_string("Expected 0 or 1 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
+                                                            }
+                                                            Value v_theset = alg_new(k_objcollection, (Value[]){alg_string("Set")}, 1);
+                                                            (void)v_theset;
+                                                            if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(1)))) {
                                                                 {
-                                                                    Value loop_3 = alg_iterable(alg_property(v_from, "Items"));
-                                                                    for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
-                                                                        Value v_item = alg_iterable_at(loop_3, at_3);
-                                                                        (void)v_item;
-                                                                        (void)(alg_invoke(v_theset, "Invoke", (Value[]){alg_string("add"), alg_list_keep(alg_list(), v_item)}, 2));
+                                                                    Value v_from = alg_subscript_get(v_arguments, alg_int(0));
+                                                                    (void)v_from;
+                                                                    if (alg_truthy((or_2 = alg_not((alg_is(v_from, "ObjCollection"))), alg_truthy(or_2) ? or_2 : alg_not_equal(alg_property(v_from, "Kind"), alg_string("List"))))) {
+                                                                        alg_raise(alg_add(alg_add(alg_string("Set expects (List) but got ("), f_typenameof(NULL, (Value[]){v_from}, 1)), alg_string(").")));
+                                                                    }
+                                                                    {
+                                                                        Value loop_3 = alg_iterable(alg_property(v_from, "Items"));
+                                                                        for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
+                                                                            Value v_item = alg_iterable_at(loop_3, at_3);
+                                                                            (void)v_item;
+                                                                            (void)(alg_invoke(v_theset, "Invoke", (Value[]){alg_string("add"), alg_list_keep(alg_list(), v_item)}, 2));
+                                                                        }
                                                                     }
                                                                 }
                                                             }
-                                                        }
-                                                        return v_theset;
-                                                    }
-                                                } else {
-                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Write")))) {
-                                                        {
-                                                            if (alg_truthy(alg_not((alg_declared(d_outputsuppressed, "OutputSuppressed"), v_outputsuppressed)))) {
-                                                                (void)(alg_write(f_rendered(NULL, (Value[]){v_theinterpreter, v_arguments}, 2)));
-                                                            }
-                                                            return alg_nil();
+                                                            return v_theset;
                                                         }
                                                     } else {
-                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("WriteLn")))) {
+                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Write")))) {
                                                             {
                                                                 if (alg_truthy(alg_not((alg_declared(d_outputsuppressed, "OutputSuppressed"), v_outputsuppressed)))) {
-                                                                    (void)(alg_writeln(f_rendered(NULL, (Value[]){v_theinterpreter, v_arguments}, 2)));
+                                                                    (void)(alg_write(f_rendered(NULL, (Value[]){v_theinterpreter, v_arguments}, 2)));
                                                                 }
                                                                 return alg_nil();
                                                             }
                                                         } else {
-                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Halt")))) {
+                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("WriteLn")))) {
                                                                 {
-                                                                    (void)(alg_halt(alg_subscript_get(v_arguments, alg_int(0))));
+                                                                    if (alg_truthy(alg_not((alg_declared(d_outputsuppressed, "OutputSuppressed"), v_outputsuppressed)))) {
+                                                                        (void)(alg_writeln(f_rendered(NULL, (Value[]){v_theinterpreter, v_arguments}, 2)));
+                                                                    }
                                                                     return alg_nil();
                                                                 }
                                                             } else {
-                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Foreign")))) {
-                                                                    return alg_foreign_call(alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1)), alg_subscript_get(v_arguments, alg_int(2)), alg_subscript_get(v_arguments, alg_int(3)), alg_subscript_get(v_arguments, alg_int(4)));
+                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Halt")))) {
+                                                                    {
+                                                                        (void)(alg_halt(alg_subscript_get(v_arguments, alg_int(0))));
+                                                                        return alg_nil();
+                                                                    }
                                                                 } else {
-                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Succ")))) {
-                                                                        return alg_succ(alg_subscript_get(v_arguments, alg_int(0)));
+                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Foreign")))) {
+                                                                        return alg_foreign_call(alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1)), alg_subscript_get(v_arguments, alg_int(2)), alg_subscript_get(v_arguments, alg_int(3)), alg_subscript_get(v_arguments, alg_int(4)));
                                                                     } else {
-                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Pred")))) {
-                                                                            return alg_pred(alg_subscript_get(v_arguments, alg_int(0)));
+                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Succ")))) {
+                                                                            return alg_succ(alg_subscript_get(v_arguments, alg_int(0)));
                                                                         } else {
-                                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Ord")))) {
-                                                                                {
-                                                                                    if (alg_truthy(alg_is(alg_subscript_get(v_arguments, alg_int(0)), "ObjEnum"))) {
-                                                                                        return alg_property(alg_subscript_get(v_arguments, alg_int(0)), "Ordinal");
-                                                                                    }
-                                                                                    return alg_ord(alg_subscript_get(v_arguments, alg_int(0)));
-                                                                                }
+                                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Pred")))) {
+                                                                                return alg_pred(alg_subscript_get(v_arguments, alg_int(0)));
                                                                             } else {
-                                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Val")))) {
-                                                                                    return f_parsednumber(NULL, (Value[]){alg_str(alg_subscript_get(v_arguments, alg_int(0)))}, 1);
+                                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Ord")))) {
+                                                                                    {
+                                                                                        if (alg_truthy(alg_is(alg_subscript_get(v_arguments, alg_int(0)), "ObjEnum"))) {
+                                                                                            return alg_property(alg_subscript_get(v_arguments, alg_int(0)), "Ordinal");
+                                                                                        }
+                                                                                        return alg_ord(alg_subscript_get(v_arguments, alg_int(0)));
+                                                                                    }
                                                                                 } else {
-                                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Char")))) {
-                                                                                        return alg_char(alg_subscript_get(v_arguments, alg_int(0)));
+                                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Val")))) {
+                                                                                        return f_parsednumber(NULL, (Value[]){alg_str(alg_subscript_get(v_arguments, alg_int(0)))}, 1);
                                                                                     } else {
-                                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("TextFile")))) {
-                                                                                            return alg_new(k_objfile, NULL, 0);
+                                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Char")))) {
+                                                                                            return alg_char(alg_subscript_get(v_arguments, alg_int(0)));
                                                                                         } else {
-                                                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("FileExists")))) {
-                                                                                                return alg_file_exists(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
+                                                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("TextFile")))) {
+                                                                                                return alg_new(k_objfile, NULL, 0);
                                                                                             } else {
-                                                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("MkDir")))) {
-                                                                                                    return alg_mkdir(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
+                                                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("FileExists")))) {
+                                                                                                    return alg_file_exists(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
                                                                                                 } else {
-                                                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("RmDir")))) {
-                                                                                                        return alg_rmdir(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
+                                                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("MkDir")))) {
+                                                                                                        return alg_mkdir(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
                                                                                                     } else {
-                                                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ChDir")))) {
-                                                                                                            return alg_chdir(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
+                                                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("RmDir")))) {
+                                                                                                            return alg_rmdir(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
                                                                                                         } else {
-                                                                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("GetDir")))) {
-                                                                                                                return alg_getdir();
+                                                                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ChDir")))) {
+                                                                                                                return alg_chdir(alg_str(alg_subscript_get(v_arguments, alg_int(0))));
                                                                                                             } else {
-                                                                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Buffer")))) {
-                                                                                                                    {
-                                                                                                                        if (alg_truthy(alg_greater(alg_property(v_arguments, "Length"), alg_int(1)))) {
-                                                                                                                            alg_raise(alg_add(alg_add(alg_string("Expected 0 or 1 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
-                                                                                                                        }
-                                                                                                                        if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(0)))) {
-                                                                                                                            return alg_new(k_objbuffer, (Value[]){alg_int(0)}, 1);
-                                                                                                                        }
-                                                                                                                        return alg_new(k_objbuffer, (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1);
-                                                                                                                    }
+                                                                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("GetDir")))) {
+                                                                                                                    return alg_getdir();
                                                                                                                 } else {
-                                                                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ParamCount")))) {
-                                                                                                                        return alg_subtract(alg_property((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), "Length"), alg_int(1));
-                                                                                                                    } else {
-                                                                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ParamStr")))) {
-                                                                                                                            {
-                                                                                                                                Value v_at = alg_cast(alg_subscript_get(v_arguments, alg_int(0)), "Integer");
-                                                                                                                                (void)v_at;
-                                                                                                                                if (alg_truthy((or_3 = alg_less(v_at, alg_int(0)), alg_truthy(or_3) ? or_3 : alg_greater_equal(v_at, alg_property((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), "Length"))))) {
-                                                                                                                                    return alg_string("");
-                                                                                                                                }
-                                                                                                                                return alg_subscript_get((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), v_at);
+                                                                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Buffer")))) {
+                                                                                                                        {
+                                                                                                                            if (alg_truthy(alg_greater(alg_property(v_arguments, "Length"), alg_int(1)))) {
+                                                                                                                                alg_raise(alg_add(alg_add(alg_string("Expected 0 or 1 arguments but got "), alg_str(alg_property(v_arguments, "Length"))), alg_char_value(46)));
                                                                                                                             }
+                                                                                                                            if (alg_truthy(alg_equal(alg_property(v_arguments, "Length"), alg_int(0)))) {
+                                                                                                                                return alg_new(k_objbuffer, (Value[]){alg_int(0)}, 1);
+                                                                                                                            }
+                                                                                                                            return alg_new(k_objbuffer, (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1);
+                                                                                                                        }
+                                                                                                                    } else {
+                                                                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ParamCount")))) {
+                                                                                                                            return alg_subtract(alg_property((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), "Length"), alg_int(1));
                                                                                                                         } else {
-                                                                                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("AssertTrue")))) {
+                                                                                                                            if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("ParamStr")))) {
                                                                                                                                 {
-                                                                                                                                    if (alg_truthy(alg_not(alg_invoke(v_theinterpreter, "IsTruthy", (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1)))) {
-                                                                                                                                        alg_raise(alg_add(alg_add(alg_string("Assertion failed.  Expected true but got '"), alg_str(alg_subscript_get(v_arguments, alg_int(0)))), alg_string("'.")));
+                                                                                                                                    Value v_at = alg_cast(alg_subscript_get(v_arguments, alg_int(0)), "Integer");
+                                                                                                                                    (void)v_at;
+                                                                                                                                    if (alg_truthy((or_3 = alg_less(v_at, alg_int(0)), alg_truthy(or_3) ? or_3 : alg_greater_equal(v_at, alg_property((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), "Length"))))) {
+                                                                                                                                        return alg_string("");
                                                                                                                                     }
-                                                                                                                                    return alg_nil();
+                                                                                                                                    return alg_subscript_get((alg_declared(d_programarguments, "ProgramArguments"), v_programarguments), v_at);
                                                                                                                                 }
                                                                                                                             } else {
-                                                                                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("AssertEqual")))) {
+                                                                                                                                if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("AssertTrue")))) {
                                                                                                                                     {
-                                                                                                                                        if (alg_truthy(alg_not(alg_invoke(v_theinterpreter, "IsEqual", (Value[]){alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1))}, 2)))) {
-                                                                                                                                            {
-                                                                                                                                                Value v_left = alg_str(alg_subscript_get(v_arguments, alg_int(0)));
-                                                                                                                                                (void)v_left;
-                                                                                                                                                Value v_right = alg_str(alg_subscript_get(v_arguments, alg_int(1)));
-                                                                                                                                                (void)v_right;
-                                                                                                                                                if (alg_truthy(alg_equal(v_left, v_right))) {
-                                                                                                                                                    alg_raise(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("Assertion failed.  Expected "), f_typenameof(NULL, (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1)), alg_string(" '")), v_left), alg_string("' but got ")), f_typenameof(NULL, (Value[]){alg_subscript_get(v_arguments, alg_int(1))}, 1)), alg_string(" '")), v_right), alg_string("'.")));
-                                                                                                                                                }
-                                                                                                                                                alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Assertion failed.  Expected '"), v_left), alg_string("' but got '")), v_right), alg_string("'.")));
-                                                                                                                                            }
+                                                                                                                                        if (alg_truthy(alg_not(alg_invoke(v_theinterpreter, "IsTruthy", (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1)))) {
+                                                                                                                                            alg_raise(alg_add(alg_add(alg_string("Assertion failed.  Expected true but got '"), alg_str(alg_subscript_get(v_arguments, alg_int(0)))), alg_string("'.")));
                                                                                                                                         }
                                                                                                                                         return alg_nil();
                                                                                                                                     }
                                                                                                                                 } else {
-                                                                                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Fail")))) {
-                                                                                                                                        alg_raise(alg_add(alg_string("Failed.  "), alg_str(alg_subscript_get(v_arguments, alg_int(0)))));
+                                                                                                                                    if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("AssertEqual")))) {
+                                                                                                                                        {
+                                                                                                                                            if (alg_truthy(alg_not(alg_invoke(v_theinterpreter, "IsEqual", (Value[]){alg_subscript_get(v_arguments, alg_int(0)), alg_subscript_get(v_arguments, alg_int(1))}, 2)))) {
+                                                                                                                                                {
+                                                                                                                                                    Value v_left = alg_str(alg_subscript_get(v_arguments, alg_int(0)));
+                                                                                                                                                    (void)v_left;
+                                                                                                                                                    Value v_right = alg_str(alg_subscript_get(v_arguments, alg_int(1)));
+                                                                                                                                                    (void)v_right;
+                                                                                                                                                    if (alg_truthy(alg_equal(v_left, v_right))) {
+                                                                                                                                                        alg_raise(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_string("Assertion failed.  Expected "), f_typenameof(NULL, (Value[]){alg_subscript_get(v_arguments, alg_int(0))}, 1)), alg_string(" '")), v_left), alg_string("' but got ")), f_typenameof(NULL, (Value[]){alg_subscript_get(v_arguments, alg_int(1))}, 1)), alg_string(" '")), v_right), alg_string("'.")));
+                                                                                                                                                    }
+                                                                                                                                                    alg_raise(alg_add(alg_add(alg_add(alg_add(alg_string("Assertion failed.  Expected '"), v_left), alg_string("' but got '")), v_right), alg_string("'.")));
+                                                                                                                                                }
+                                                                                                                                            }
+                                                                                                                                            return alg_nil();
+                                                                                                                                        }
+                                                                                                                                    } else {
+                                                                                                                                        if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Fail")))) {
+                                                                                                                                            alg_raise(alg_add(alg_string("Failed.  "), alg_str(alg_subscript_get(v_arguments, alg_int(0)))));
+                                                                                                                                        }
                                                                                                                                     }
                                                                                                                                 }
                                                                                                                             }
@@ -640,6 +644,7 @@ static Value m_interpreter_init_0(Value v_this, Value *args, int32_t count) {
     (void)(alg_set_property(v_this, "UnitsByName", alg_map()));
     (void)(alg_set_property(v_this, "Env", alg_property(v_this, "Globals")));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("clock"), alg_new(k_native, (Value[]){alg_string("clock"), alg_int(0)}, 2)}, 2));
+    (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Collect"), alg_new(k_native, (Value[]){alg_string("Collect"), alg_int(0)}, 2)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Length"), alg_new(k_native, (Value[]){alg_string("Length"), alg_int(1)}, 2)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Copy"), alg_new(k_native, (Value[]){alg_string("Copy"), alg_int(3)}, 2)}, 2));
     (void)(alg_invoke(alg_property(v_this, "Builtins"), "Define", (Value[]){alg_string("Pos"), alg_new(k_native, (Value[]){alg_string("Pos"), alg_negate(alg_int(1))}, 2)}, 2));

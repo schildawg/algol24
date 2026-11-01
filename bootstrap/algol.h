@@ -271,6 +271,7 @@ Value alg_foreign_call(Value symbol, Value library, Value types, Value returns, 
    guest value is on its stack or in a global. */
 void    alg_roots(Value **slots, int32_t count);
 int32_t alg_collect(void);
+Value   alg_collected(void);
 
 Value   alg_overloads(const char *name);
 void    alg_overload(Value set, AlgFunction fn, int32_t arity, const char **types);

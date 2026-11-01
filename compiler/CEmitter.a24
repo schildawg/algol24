@@ -3172,6 +3172,7 @@ begin
         if Key = 'Pred/1'    then Exit 'alg_pred';
         if Key = 'Foreign/5' then Exit 'alg_foreign_call';
         if Key = 'clock/0'   then Exit 'alg_clock';
+        if Key = 'Collect/0' then Exit 'alg_collected';
         if Key = 'Halt/1'    then Exit 'alg_halt';
 
         if EmitTests then

@@ -2054,6 +2054,13 @@ begin
     if Count = 0 then
     begin
         if Name = 'clock'      then begin Push (clock ());      Exit; end
+
+        // The machine ACCEPTS the request where the interpreter declines it
+        // [RT-029].  It can: every live guest value is on Slots or in a
+        // module-level variable, both of which the collector sees, and a
+        // built-in call is a safe point because no handler is part-way
+        // through when one runs.
+        if Name = 'collect'    then begin Push (Collect ());    Exit; end
         if Name = 'getdir'     then begin Push (GetDir ());     Exit; end
         if Name = 'list'       then begin Push (List ());       Exit; end
         if Name = 'map'        then begin Push (Map ());        Exit; end

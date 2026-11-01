@@ -677,6 +677,48 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   the `Value **cells, Value *args, int32_t count` calling convention**, which
   is private today and has changed before.
 
+## The collector
+
+⚠️ **`Collect ()` is a REQUEST [RT-029], and the two processors answer it
+differently by the rule rather than against it.** The interpreter answers `0`
+— its live values sit in C locals all through a recursive evaluator, where no
+collector can see them, so releasing would free something still in use. The
+compiled back end and the bytecode machine release. A program may depend on
+neither the count nor on anything being freed: `Collect` changes how much
+memory a correct program uses and never what it computes.
+
+⚠️ **Roots are PRECISE because a module-level variable is a C static.**
+`CEmitter` emits `static Value *roots_<Unit>[]` of their addresses and calls
+`alg_roots` in `init_<Unit>()`. No stack scanning, no guessing — and the VM's
+roots come free from it, because `Slots`, `GlobalCells`, `Cells` and the frame
+arrays are module-level variables of `Vm.a24`. The VM's *structures* need no
+tracer either: `Chunk`, `VmFunction` and `VmClass` are ordinary classes, so
+they arrive as `OBJ_INSTANCE` and the generic slot walk covers them.
+
+⚠️ **A released object KEEPS its registry slot, so it needs a `dead` bit.** It
+keeps its place in the arena and may be handed out again, so without the bit
+the next collection finds it unmarked and releases it twice — one block on a
+free list twice, handed to two owners. And `obj_release` must set that bit
+FIRST, because it recycles the owned block before discovering whether the
+object's own body has a size class, and an early return would otherwise leave
+a recycled block for the next sweep to recycle again.
+
+⚠️ **The owned block is where the memory is.** A List's `items` array is 392 MB
+of the compiler's arena against 183 MB for the headers, so a sweep hands the
+array back to `seq_recycle`'s size-class lists — the same lists a growing List
+draws from. Measured: a program keeping one List and abandoning 100,000 peaks
+at 17.50 MB uncollected and **1.39 MB** collecting every 1000 iterations.
+
+⚠️ **A Buffer is never swept.** Its bytes are malloc'd, it is on a list of its
+own, and `Free` releases it explicitly. An object the language can already
+release is not the collector's business.
+
+**Two kinds of memory the sweep cannot return yet.** An instance's `slots` is
+allocated at exactly its field count rather than a size class, so
+`seq_recycle` declines it — 206 MB of the compiler's arena. And a Map's `index`
+is an `int32_t` array, a different element size from the `Value` blocks the
+spare lists keep.
+
 ## Commands
 
 Build the compiler from the seed (needs only a C compiler; ~2 s):
