@@ -38,6 +38,54 @@ static void free_all_buffers(void);
 
 static void seq_forget_spares(void);
 
+/* ── The object registry ──────────────────────────────────────────────────
+   Every heap object, in allocation order, so a sweep has something to walk.
+
+   A side array rather than a link threaded through the objects themselves: it
+   costs the same eight bytes an object, leaves every struct the size it was,
+   and sweeps contiguously instead of chasing a pointer per object.  The arena
+   has no object boundaries [constraint 4 of PROPOSAL-GC.md], so without this
+   there is no way to enumerate what was allocated.
+
+   It is deliberately NOT a free list.  Freeing is step 3; this is the step 2
+   that makes step 3 possible, and on its own it costs memory rather than
+   saving it -- which is recorded in the proposal rather than hidden here. */
+static void *arena_alloc(size_t bytes);
+
+static Obj   **obj_registry = NULL;
+static size_t  obj_count    = 0;
+static size_t  obj_room     = 0;
+
+static void obj_register(Obj *obj) {
+    if (obj_count == obj_room) {
+        size_t room = obj_room < 1024 ? 1024 : obj_room * 2;
+        Obj  **grown = realloc(obj_registry, room * sizeof(Obj *));
+
+        /* Out of memory here is not fatal to the PROGRAM, only to collection:
+           an unregistered object is simply one a sweep will never free, which
+           is the behaviour every object had before this existed. */
+        if (grown == NULL) return;
+
+        obj_registry = grown;
+        obj_room     = room;
+    }
+
+    obj_registry[obj_count++] = obj;
+}
+
+/* Allocates an object, tags it, and registers it.  The one door every object
+   constructor goes through, so that nothing can be allocated and forgotten. */
+static void *obj_alloc(size_t bytes, ObjType type) {
+    Obj *obj = arena_alloc(bytes);
+
+    obj->type   = type;
+    obj->marked = false;
+
+    obj_register(obj);
+
+    return obj;
+}
+
 static void alg_shutdown(void) {
     close_open_files();
     free_all_buffers();
@@ -51,6 +99,11 @@ static void alg_shutdown(void) {
         free(arena_chunks);
         arena_chunks = previous;
     }
+
+    free(obj_registry);
+    obj_registry = NULL;
+    obj_count    = 0;
+    obj_room     = 0;
 
     arena_next = NULL;
     arena_left = 0;
@@ -156,9 +209,8 @@ typedef struct {
 } ObjBigInt;
 
 static ObjBigInt *big_alloc(int32_t count) {
-    ObjBigInt *b = arena_alloc(sizeof(ObjBigInt));
+    ObjBigInt *b = obj_alloc(sizeof(ObjBigInt), OBJ_BIGINT);
 
-    b->obj.type = OBJ_BIGINT;
     b->negative = false;
     b->count    = count;
     b->limbs    = count == 0 ? NULL : arena_alloc((size_t)count * sizeof(uint32_t));
@@ -512,9 +564,8 @@ Value alg_buffer(Value size) {
     int32_t length = as_integer(size, "A Buffer's size must be an Integer.");
     if (length < 0) alg_error("A Buffer's size cannot be negative.");
 
-    ObjBuffer *buffer = arena_alloc(sizeof(ObjBuffer));
+    ObjBuffer *buffer = obj_alloc(sizeof(ObjBuffer), OBJ_BUFFER);
 
-    buffer->obj.type = OBJ_BUFFER;
     buffer->bytes    = NULL;
     buffer->length   = 0;
     buffer->capacity = 0;
@@ -593,9 +644,8 @@ static void buffer_resize(ObjBuffer *buffer, int32_t length) {
 }
 
 static Value sequence(ObjType type) {
-    ObjSeq *seq = arena_alloc(sizeof(ObjSeq));
+    ObjSeq *seq = obj_alloc(sizeof(ObjSeq), type);
 
-    seq->obj.type = type;
     seq->items    = NULL;
     seq->count    = 0;
     seq->capacity = 0;
@@ -741,9 +791,8 @@ Value alg_set_of(Value items) {
 }
 
 Value alg_map(void) {
-    ObjMap *map = arena_alloc(sizeof(ObjMap));
+    ObjMap *map = obj_alloc(sizeof(ObjMap), OBJ_MAP);
 
-    map->obj.type  = OBJ_MAP;
     map->entries   = NULL;
     map->count     = 0;
     map->capacity  = 0;
@@ -1367,9 +1416,8 @@ static ObjClass *as_class(Value v, const char *what) {
 }
 
 Value alg_class(const char *name, Value super) {
-    ObjClass *klass = arena_alloc(sizeof(ObjClass));
+    ObjClass *klass = obj_alloc(sizeof(ObjClass), OBJ_CLASS);
 
-    klass->obj.type        = OBJ_CLASS;
     klass->name            = name;
     klass->super           = super.type == VAL_NIL ? NULL : as_class(super, "Superclass must be a class.");
     klass->fields          = NULL;
@@ -1847,8 +1895,7 @@ static void initialize_fields(ObjClass *klass, Value self) {
 Value alg_new(Value value, Value *args, int32_t count) {
     ObjClass *klass = as_class(value, "Can only construct a class.");
 
-    ObjInstance *instance = arena_alloc(sizeof(ObjInstance));
-    instance->obj.type = OBJ_INSTANCE;
+    ObjInstance *instance = obj_alloc(sizeof(ObjInstance), OBJ_INSTANCE);
     instance->klass    = klass;
     int32_t slots = total_fields(klass);
 
@@ -1885,9 +1932,8 @@ Value alg_singleton(Value value) {
 }
 
 Value alg_enum_type(const char *name) {
-    ObjEnumType *type = arena_alloc(sizeof(ObjEnumType));
+    ObjEnumType *type = obj_alloc(sizeof(ObjEnumType), OBJ_ENUM_TYPE);
 
-    type->obj.type = OBJ_ENUM_TYPE;
     type->name     = name;
     type->members  = NULL;
     type->count    = 0;
@@ -1901,8 +1947,7 @@ Value alg_enum_member(Value value, const char *name) {
 
     ObjEnumType *type = (ObjEnumType *)value.obj;
 
-    ObjEnum *member = arena_alloc(sizeof(ObjEnum));
-    member->obj.type = OBJ_ENUM;
+    ObjEnum *member = obj_alloc(sizeof(ObjEnum), OBJ_ENUM);
     member->type     = type->name;
     member->name     = name;
     member->ordinal  = type->count;
@@ -1939,9 +1984,8 @@ typedef struct ObjFile {
 static ObjFile *all_files = NULL;
 
 Value alg_text_file(void) {
-    ObjFile *file = arena_alloc(sizeof(ObjFile));
+    ObjFile *file = obj_alloc(sizeof(ObjFile), OBJ_FILE);
 
-    file->obj.type  = OBJ_FILE;
     file->name      = "";
     file->handle    = NULL;
     file->reading   = false;
@@ -2698,9 +2742,8 @@ typedef struct {
 } ObjExtension;
 
 Value alg_extension(Value receiver, Value target) {
-    ObjExtension *bound = arena_alloc(sizeof(ObjExtension));
+    ObjExtension *bound = obj_alloc(sizeof(ObjExtension), OBJ_EXTENSION);
 
-    bound->obj.type = OBJ_EXTENSION;
     bound->receiver = receiver;
     bound->target   = target;
 
@@ -2868,9 +2911,8 @@ typedef struct {
 } ObjBuiltinBound;
 
 static Value alg_bound(Value receiver, MethodEntry *method) {
-    ObjBound *bound = arena_alloc(sizeof(ObjBound));
+    ObjBound *bound = obj_alloc(sizeof(ObjBound), OBJ_BOUND);
 
-    bound->obj.type = OBJ_BOUND;
     bound->receiver = receiver;
     bound->method   = method;
 
@@ -2878,9 +2920,8 @@ static Value alg_bound(Value receiver, MethodEntry *method) {
 }
 
 static Value builtin_bound(Value receiver, const char *name, int32_t arity) {
-    ObjBuiltinBound *bound = arena_alloc(sizeof(ObjBuiltinBound));
+    ObjBuiltinBound *bound = obj_alloc(sizeof(ObjBuiltinBound), OBJ_BUILTIN_BOUND);
 
-    bound->obj.type = OBJ_BUILTIN_BOUND;
     bound->receiver = receiver;
     bound->name     = name;
     bound->arity    = arity;
@@ -2909,9 +2950,8 @@ Value *alg_cell(Value initial) {
 
 Value alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity,
                   const char **types) {
-    ObjClosure *closure = arena_alloc(sizeof(ObjClosure));
+    ObjClosure *closure = obj_alloc(sizeof(ObjClosure), OBJ_CLOSURE);
 
-    closure->obj.type   = OBJ_CLOSURE;
     closure->name       = name;
     closure->fn         = fn;
     closure->arity      = arity;
@@ -2944,9 +2984,8 @@ typedef struct {
 } ObjOverloads;
 
 Value alg_overloads(const char *name) {
-    ObjOverloads *set = arena_alloc(sizeof(ObjOverloads));
+    ObjOverloads *set = obj_alloc(sizeof(ObjOverloads), OBJ_OVERLOADS);
 
-    set->obj.type = OBJ_OVERLOADS;
     set->name     = name;
     set->entries  = NULL;
     set->count    = 0;

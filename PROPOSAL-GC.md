@@ -410,6 +410,36 @@ for step 3. They are simply the cheapest memory left in the runtime.
 
 ### 2. Give `Obj` a header and the arena an allocation list
 
+⚠️ **DONE, and it costs almost exactly what step 1 saved.** `Obj` gained a
+`marked` bool — free, in padding that was already there before the first
+pointer — and every one of the fourteen object constructors now goes through
+one `obj_alloc`, which records the object in a side array. A side array rather
+than a link threaded through the objects: the same eight bytes, no struct grows
+by a pointer, and a sweep walks contiguously.
+
+| peak | after step 1 | after step 2 |
+| --- | --- | --- |
+| `algc --compile compiler/Main.a24` | 63.4 MB | 67.4 MB |
+| `algc --test compiler/Main.a24` | 1,888 MB | 1,982 MB |
+
+Net of both steps the compiler is where it started. That is what a prerequisite
+looks like and it is recorded rather than dressed up.
+
+⚠️ **The roots question is SETTLED, and it is the reason to take the collecting
+fork.** A unit's module-level variables are emitted as C statics —
+`static Value v_top;` — so `CEmitter` can emit a table of their addresses per
+unit and register it in `init_<Unit>()`. The global root set is therefore
+**precise**, not conservative, and no stack scanning is needed for it.
+
+What remains imprecise is a value living only in a C local of a handler
+mid-flight. For the VM that is answerable: collect at a **safe point** at the
+top of the dispatch loop, where every live guest value is on `Slots` or in a
+module-level variable, and no handler is part-way through. This is what `clox`
+does with its own stack, and it is available here only because the VM keeps its
+state where a collector can see it — which was the whole argument for building
+it.
+
+
 Constraints 3 and 4. A mark bit and a link to the next allocation, set by the
 ~20 object constructors, and a sweep that can walk the list. **Nothing in step 3
 is possible without this, and it is the same prerequisite whichever branch is

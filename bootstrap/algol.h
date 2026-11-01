@@ -77,8 +77,15 @@ typedef enum {
     OBJ_BUFFER
 } ObjType;
 
+/* Every heap object begins with one of these.
+
+   `marked` costs nothing: ObjType is an enum and every object that follows it
+   holds a pointer, so there were already four bytes of padding here for a bool
+   to sit in.  It is the collector's bit -- see `obj_registry` in algol.c, which
+   is how a sweep finds the objects to clear it on. */
 typedef struct {
     ObjType type;
+    bool    marked;
 } Obj;
 
 typedef struct {
