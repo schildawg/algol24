@@ -219,6 +219,15 @@ var Outer : List := List ();
 /// analysis, and the conservative answer is always correct.
 var Boxing : Boolean := False;
 
+/// Whether the subprogram being compiled is a CONSTRUCTOR.
+///
+/// An `Exit` in one answers the INSTANCE and not its own value, so a return
+/// cannot be emitted without knowing this.  Both other processors do it --
+/// `ObjFunction.Call` answers `this` on the Return path and again on falling
+/// off the end -- so it is a property of the language rather than of one of
+/// them, even though [CLS-004] does not say so.
+var InInit : Boolean := False;
+
 /// The return type of the subprogram being compiled, or '' at the top level.
 ///
 /// Held so that `Exit X` can widen to it -- a declared return type is an
@@ -775,6 +784,7 @@ var
     Made : VmFunction;
 
     SavedClass : Any;
+    SavedInit  : Boolean;
 
     SavedInto   : Chunk;
     SavedLocals : List;
@@ -812,6 +822,11 @@ begin
     SavedClass   := CurrentClass;
     CurrentClass := '';
 
+    // A plain subprogram is not a constructor, however deeply it sits inside
+    // one -- its own `Exit` answers its own value.
+    SavedInit := InInit;
+    InInit    := False;
+
     for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
 
     WidenParameters (TheStmt);
@@ -839,6 +854,8 @@ begin
     Depth  := SavedDepth;
     Returning := SavedReturn;
     Boxing    := SavedBoxing;
+    CurrentClass := Str (SavedClass);
+    InInit       := SavedInit;
 
     Exit Made;
 end
@@ -1826,6 +1843,7 @@ var
     SavedReturn : Any;
     SavedBoxing : Boolean;
     SavedClass  : Any;
+    SavedInit   : Boolean;
 
 begin
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
@@ -1851,6 +1869,9 @@ begin
     CurrentClass := CurrentUnit + ':'
                   + (ToLower (Str (Owner.Name.Lexeme)) as String);
 
+    SavedInit := InInit;
+    InInit    := IsInit;
+
     for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
 
     WidenParameters (TheStmt);
@@ -1873,6 +1894,7 @@ begin
     Returning := SavedReturn;
     Boxing    := SavedBoxing;
     CurrentClass := Str (SavedClass);
+    InInit       := SavedInit;
 
     Exit Made;
 end
@@ -1982,6 +2004,7 @@ var
     SavedBoxing  : Boolean;
     SavedOuter   : List;
     SavedClass   : Any;
+    SavedInit    : Boolean;
 
 begin
     if Outer.Length > 0 then Refuse ('A subprogram nested two deep');
@@ -2004,6 +2027,9 @@ begin
     // receiver.  Clearing the class is what keeps 0148 an honest refusal
     // rather than a read of whatever happens to sit there.
     CurrentClass := '';
+
+    SavedInit := InInit;
+    InInit    := False;
 
     // The enclosing locals become this one's CAPTURES, in slot order.
     Outer  := SavedLocals;
@@ -2031,6 +2057,7 @@ begin
     Boxing    := SavedBoxing;
     Outer     := SavedOuter;
     CurrentClass := Str (SavedClass);
+    InInit       := SavedInit;
 
     Exit Made;
 end
@@ -2189,6 +2216,28 @@ begin
 
     if Kind = 'ReturnStmt' then
     begin
+        // An `Exit` in a CONSTRUCTOR answers the instance, whatever it was
+        // given.  Emitting its value instead made `Atlas (S, Folder)` answer
+        // nil the moment its early `Exit` was taken, and the failure surfaced
+        // two calls later as `Undefined property 'Ready'` on a nil receiver.
+        //
+        // The value is still evaluated and then dropped, because the
+        // interpreter evaluates it into the Return it raises and discards it
+        // there -- a side effect in it has to happen either way.
+        if InInit then
+        begin
+            if TheStmt.Value <> Nil then
+            begin
+                EmitExpr (TheStmt.Value);
+                Into.Emit (OP_POP);
+            end
+
+            Into.Emit (OP_THIS);
+            Into.Emit (OP_RETURN);
+
+            Exit;
+        end
+
         // `Exit` with no value answers nil, which is what a procedure's Exit
         // does and what a function running off its end does.
         EmitExpr (TheStmt.Value);

@@ -278,6 +278,7 @@ end
 /// served by the same rule without the flag knowing where it sits.
 var Wide : Boolean := False;
 
+
 /// Reads a constant index, two bytes where OP_LONG said so.
 ///
 /// Every read of the constants goes through this, which is what makes the
@@ -940,6 +941,7 @@ begin
     // first one is slot 0 of the frame about to run.
     Base  := SP - Count;
 
+
     // A closure brings its captured cells; anything else captured none.
     if Callee is VmClosure then
     begin
@@ -961,7 +963,7 @@ end
 ///
 /// # Raises
 ///
-/// 'Can only call a subprogram.' for a callee that is not one, the arity
+/// 'Can only call functions and classes.' for a callee that is not one, the arity
 /// message for a mismatch, and 'The call stack overflowed.' past FRAME_ROOM.
 procedure DoCall ();
 begin
@@ -979,7 +981,7 @@ end
 ///
 /// # Raises
 ///
-/// 'Can only call a subprogram.' for a value that is not callable, and
+/// 'Can only call functions and classes.' for a value that is not callable, and
 /// whatever a wrong argument count reports for the kind of callee it is.
 procedure CallValue (Callee : Any, Count : Integer);
 begin
@@ -1068,7 +1070,11 @@ begin
     end
 
     if not (Callee is VmFunction) and not (Callee is VmClosure) then
-        raise 'Can only call a subprogram.';
+        // The interpreter's wording exactly, which conformance/0070 compares.
+        // That case is refused for ObjectStmt today, so a message of this
+        // machine's own went unnoticed until the Dew Drop Inn raised it and
+        // the two processors printed different text for one fault.
+        raise 'Can only call functions and classes.';
 
     // A plain subprogram and a constructor report the COUNTS; only a METHOD
     // reports a selection failure.  0049-call-failures draws the line and all
@@ -2959,6 +2965,43 @@ begin
     end
 end
 
+test 'An Exit Inside A Constructor Answers The Instance';
+begin
+    var K := VmClass ('Thing');
+
+    K.AddField ('N');
+
+    // constructor Init (); begin this.N := 1; Exit; end
+    //
+    // The early Exit must answer the INSTANCE, not its own value.  Both other
+    // processors do -- ObjFunction.Call answers `this` on the Return path as
+    // well as on falling off the end -- so a constructor that returns nil is
+    // a divergence, and it surfaced two calls later as a member read on nil.
+    var Setup := VmFunction ('Init', 0);
+
+    Setup.Body.Emit (OP_THIS);
+    Setup.Body.EmitConstant (1);
+    Setup.Body.EmitWith (OP_SET_FIELD, Setup.Body.AddConstant ('N'));
+    Setup.Body.Emit (OP_POP);
+
+    // The explicit return, as the emitter writes one inside a constructor.
+    Setup.Body.Emit (OP_THIS);
+    Setup.Body.Emit (OP_RETURN);
+
+    K.AddMethod ('Init', Setup);
+
+    var C := Chunk ();
+
+    C.EmitConstant (K);
+    C.EmitWith (OP_CALL, 0);
+    C.EmitIndexed (OP_GET_FIELD, C.AddConstant ('N'));
+    C.Emit (OP_RETURN);
+
+    // An instance holding what the constructor set, not nil -- reading a
+    // member of it is what the Inn did next and what failed.
+    AssertEqual (1, RunChunk (C));
+end
+
 test 'A Bare Name Is Read As A Field Of The Receiver';
 begin
     var C := Chunk ();
@@ -3382,7 +3425,7 @@ begin
         RunChunk (C);
         Fail ('expected a raise');
     except
-        on e : String do AssertEqual ('Can only call a subprogram.', e);
+        on e : String do AssertEqual ('Can only call functions and classes.', e);
     end
 end
 

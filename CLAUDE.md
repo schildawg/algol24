@@ -223,6 +223,31 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `grep` being case-sensitive where the language is not, so searching `Shown`
   missed nothing and searching the right file never happened.
 
+  ⚠️ **An `Exit` inside a CONSTRUCTOR answers the instance, not its own
+  value.** `ObjFunction.Call` answers `this` on the Return path *and* on
+  falling off the end, so both other processors do it and it is the language
+  rather than one of them — though [CLS-004] does not say so. Emitting the
+  value instead made `Atlas (S, Folder)` answer nil the moment its early
+  `Exit` was taken, and the failure surfaced two calls later as
+  `Undefined property 'Ready'` on a nil receiver. The value is still evaluated
+  and dropped, because the interpreter evaluates it into the `Return` it raises.
+
+  ⚠️ **The VM and the interpreter now produce IDENTICAL output on the Dew Drop
+  Inn**, modulo the randomly-chosen barmaid — 32 lines, both stopping in the
+  same place for the same reason.
+
+  ⚠️ **That place is a bug in shroom-slots, not in the machine.**
+  `inn.a24:422` declares `var PX := Edge;` and `chrome.a24:37` declares
+  `function Px (N, Wide)`. Identifiers fold [SRC-011], so `PX` **is** `Px`, and
+  `Px (14, Wide)` at `inn.a24:446` calls an Integer. Both processors say so.
+  Renaming the local is the fix; it is used at 463 and 466 only.
+
+  ⚠️ **`Can only call functions and classes.` is the wording**, and the
+  machine had invented `Can only call a subprogram.` `conformance/0070`
+  compares the real one but is refused for `ObjectStmt`, so the difference was
+  latent until the Inn raised it and the two processors printed different text
+  for one fault. A message no case reaches is still a divergence.
+
   ⚠️ **A LOCAL slot widens by the same prefix, and `OpShape` now has `l` for
   it.** Third instance of the one-byte operand, after globals and constants.
   The invariant that makes one flag sound is **at most one widenable operand
