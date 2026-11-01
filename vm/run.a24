@@ -109,6 +109,18 @@ end
 /// The front end is the compiler's own, unchanged, which is the invariant the
 /// three back ends rest on: a program that fails to parse or type-check fails
 /// identically whichever one is asked for.
+/// Whether to report what each phase of the compile cost, for `--time`.
+var Timing := False;
+
+/// Reports a phase's elapsed time, for `--time`.
+procedure Took (What : String, Began : Double);
+begin
+    if not Timing then Exit;
+
+    WriteLn ('[time] ' + What + ' '
+           + Str ((clock () - Began) * 1000.0, 0) + 'ms');
+end
+
 function ChunkOf (Source : String, SourcePath : String) : Chunk;
 var
     TheScanner     : Scanner;
@@ -122,15 +134,23 @@ var
 begin
     SourceCode.Begins (SourcePath);
 
+    var At := clock ();
+
     TheScanner := Scanner (Source);
     Tokens := TheScanner.ScanTokens ();
     FailIfScanErrors ();
+
+    Took ('scan   ', At);
+    At := clock ();
 
     TheParser := Parser (Tokens);
     TheParser.FileName := SourcePath;
 
     Stmts := TheParser.Parse ();
     FailIfScanErrors ();
+
+    Took ('parse  ', At);
+    At := clock ();
 
     // The Resolver reports through an Interpreter, so one is made for it even
     // though nothing here interprets anything.
@@ -140,9 +160,19 @@ begin
     TheResolver := Resolver (TheInterpreter);
     TheResolver.ResolveAll (Stmts);
 
+    Took ('resolve', At);
+    At := clock ();
+
     TypeChecker ().Resolve (Stmts);
 
-    Exit CompileProgram (Stmts);
+    Took ('check  ', At);
+    At := clock ();
+
+    var Made := CompileProgram (Stmts);
+
+    Took ('emit   ', At);
+
+    Exit Made;
 end
 
 if ParamCount () < 1 then
@@ -162,6 +192,13 @@ var Listing := False;
 /// them.  0 turns collection off.
 var Every := -1;
 
+/// Whether to compile and stop, for `--stop`.
+///
+/// What it separates is worth separating: a program's own startup -- loading
+/// art, parsing its JSON -- is not the compile, and peak memory before the
+/// first frame is both.
+var Stopping := False;
+
 var WantsEvery := False;
 
 // The driver's own arguments, read BEFORE anything changes them.
@@ -176,6 +213,8 @@ var Seen := False;
 
 for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     if ParamStr (I) = '--list' then Listing := True;
+    else if ParamStr (I) = '--time' then Timing := True;
+    else if ParamStr (I) = '--stop' then Stopping := True;
     else if ParamStr (I) = '--collect' then WantsEvery := True;
     else if WantsEvery then
     begin
@@ -205,6 +244,10 @@ var Program := ChunkOf (SourceOf (SourcePath), SourcePath);
 // The MACHINE is told, not the interpreter: SetProgramArguments sets what the
 // tree-walker reads, and the machine forwards a built-in to the HOST, whose
 // answer is about this driver's process instead.
+// Compiled and nothing more, so what the COMPILE costs can be told from what
+// the program's own loading costs.
+if Stopping then Halt (0);
+
 SetArguments (Given);
 
 // Before the run, so the first collection honours it.
