@@ -433,10 +433,18 @@ end
 ///
 /// # Raises
 ///
-/// 'A scope holds 256 locals.' once a slot will not fit in an operand byte.
+/// A refusal naming the limit once a slot will not fit in an operand byte.
 function AddLocal (Name : Any) : Integer;
 begin
-    if Locals.Length > 255 then raise 'A scope holds 256 locals.';
+    // Phrased as a REFUSAL, because a local slot is a one-byte operand and a
+    // subprogram with more live locals than that is a gap in the machine
+    // rather than a fault in the program -- shroom-slots' RunMachine is 3,900
+    // lines and genuinely has more.  A plain error here was sorted as a
+    // SUCCESS by every measurement that looked for the refusal wording, which
+    // is how `all 28 units run` came to be claimed when six did not.
+    if Locals.Length > 255 then
+        raise 'A subprogram with more than 256 locals is not supported '
+            + 'by the bytecode back end yet.';
 
     Locals.Add (ToLower (Str (Name)));
     Depths.Add (Depth);
