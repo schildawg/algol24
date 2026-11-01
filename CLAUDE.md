@@ -193,6 +193,36 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   program the machine simply cannot hold looked like a wrong answer. The script
   sorts the two by the words `is not supported by the bytecode back end yet`.
 
+  ⚠️ **ALL 28 shroom-slots units now compile and run**, and `verify.a24` — the
+  phase-one gate that recomputes the slot math against the Unity export's
+  recorded figures — answers **59 lines byte-identical to the interpreter** at
+  **6.7×** its speed (11.97 s against 80.68 s). That matches `Fib`'s 6.9×, so
+  the microbenchmark was not flattering the machine.
+
+  ⚠️ **A method table holds a LIST per name, and nothing gathers it.** Two
+  methods of a name are an overload set [FUN-013]; emitting `OP_METHOD` for
+  each is what builds it, because `AddMethod` appends. The emitter needed only
+  to stop refusing.
+
+  ⚠️ **Each selection pass runs the WHOLE inheritance chain before the next
+  begins** [EXP-014]. An exact match on a parent must beat a widened match on
+  the child, or adding an overload to a subclass silently captures calls the
+  parent was answering exactly — so it is pass-major over the chain, never
+  class-major. And a failed match must **fall through** to the superclass
+  rather than return, or a class declaring `Take (String)` hides an inherited
+  `Take (Integer)` entirely. `ObjClass.Fitting` records having made that
+  mistake; this mirrors the fix rather than rediscovering it.
+
+  ⚠️ **The member tables must be keyed `unit:class`, and bare keying cost an
+  afternoon.** shroom-slots declares a `Reel` in `walk` and another in `reels`,
+  so one bare-keyed `CLASS_FIELDS` entry kept whichever was surveyed last and a
+  field of the other read as an undefined name. The symptom appeared only when
+  compiling `inn.a24`, which reaches both — every unit alone was fine, and so
+  was every import of `inn` alone. **What found it was instrumenting the
+  refusal** to print the unit and class; what hid it for twenty minutes was
+  `grep` being case-sensitive where the language is not, so searching `Shown`
+  missed nothing and searching the right file never happened.
+
   ⚠️ **A constant index widens by a PREFIX, not by a long form per opcode.**
   Nineteen opcodes carry an index into the constants, so nineteen long forms
   would be nineteen numbers, names, handlers and chances to miss one.

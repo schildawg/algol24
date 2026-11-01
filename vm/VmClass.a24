@@ -14,8 +14,11 @@ var
     /// The name, for a diagnostic and for ClassName.
     Name    : String;
 
-    /// The methods, keyed by LOWERCASED name because identifiers are
-    /// case-insensitive [SRC-011].
+    /// The candidates declared under each name, keyed by LOWERCASED name
+    /// because identifiers are case-insensitive [SRC-011].
+    ///
+    /// A LIST per name even where there is one, which is what lets two methods
+    /// share a name and be told apart at the call.
     ///
     /// The constructor is the one called 'init', which is the interpreter's
     /// convention -- `ObjClass.FindMethod ('init')` -- rather than a field of
@@ -42,7 +45,13 @@ begin
         this.Parent  := Nil;
     end
 
-    /// Finds a method by name, walking up the parent chain.
+    /// Finds a method of this name, walking up the parent chain.
+    ///
+    /// Answers the FIRST candidate declared under the name, which is all a
+    /// caller asking "is there a method called this?" needs -- a field read, a
+    /// `method as a value` refusal and the ToString check each ask only that.
+    /// A CALL wants FindOverload instead, because which candidate answers
+    /// depends on the arguments.
     ///
     /// Answers nil when no class in the chain has it, which is what lets a
     /// caller decide between a field, a method and a refusal.
@@ -57,7 +66,8 @@ begin
 
         while Where <> Nil do
         begin
-            if Where.Methods.Contains (Key) then Exit Where.Methods.Get (Key);
+            if Where.Methods.Contains (Key) then
+                Exit (Where.Methods.Get (Key) as List)[0];
 
             Where := Where.Parent;
         end
@@ -65,10 +75,29 @@ begin
         Exit Nil;
     end
 
-    /// Records a method, replacing one of the same name.
+    /// Every candidate declared under a name by one class, or nil.
+    function CandidatesFor (Wanted : Any) : Any;
+    begin
+        var Key := ToLower (Str (Wanted));
+
+        if this.Methods.Contains (Key) then Exit this.Methods.Get (Key);
+
+        Exit Nil;
+    end
+
+    /// Records a method, GATHERING it beside any of the same name.
+    ///
+    /// A list per name rather than one entry, because two methods of a name
+    /// are an overload set selecting on the whole signature [FUN-013] and one
+    /// entry could only keep the last.  Declaration order is kept, so a tie
+    /// goes to the one written first.
     procedure AddMethod (MethodName : Any, Body : VmFunction);
     begin
-        this.Methods.Put (ToLower (Str (MethodName)), Body);
+        var Key := ToLower (Str (MethodName));
+
+        if not this.Methods.Contains (Key) then this.Methods.Put (Key, List ());
+
+        (this.Methods.Get (Key) as List).Add (Body);
     end
 
     /// Records a field name, if it is not already known.

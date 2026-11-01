@@ -1011,7 +1011,11 @@ begin
     begin
         Slots[SP - Count - 1] := VmInstance (Callee);
 
-        var Setup := Callee.FindMethod ('init');
+        // A CONSTRUCTOR may be overloaded like any other method, so which one
+        // runs depends on the arguments.
+        var Setup := ChosenMethod (Callee, 'init', Count);
+
+        if Setup = Nil then Setup := Callee.FindMethod ('init');
 
         // A class with no constructor still answers an instance: there is
         // nothing to call, and the instance is already where the class was.
@@ -1420,10 +1424,20 @@ begin
 
     if Self is VmInstance then
     begin
-        var Found := Self.Klass.FindMethod (Name);
+        var Found := ChosenMethod (Self.Klass, Name, Count);
 
+        // Nothing fitting is two different reports.  A name no class in the
+        // chain declares is `has no method`; a name that is declared and fits
+        // nothing is a SELECTION failure -- which is also what a single method
+        // called with the wrong count gives, where a subprogram and a
+        // constructor report the counts instead [0049].
         if Found = Nil then
-            raise Str (Self.Klass.Name) + ' has no method ' + Str (Name) + '.';
+        begin
+            if Self.Klass.FindMethod (Name) = Nil then
+                raise Str (Self.Klass.Name) + ' has no method ' + Str (Name) + '.';
+
+            raise 'No matching signature for function.';
+        end
 
         EnterFrame (Found, Count, 'No matching signature for function.');
 
@@ -1839,6 +1853,75 @@ begin
     Push (Rest);
 
     Exit Fixed + 1;
+end
+
+/// AnswersOn the method of this name that these arguments fit.
+///
+/// Three passes, exact before widening before absorbing, mirroring both
+/// `ObjClass.FindOverload` and the Chosen below it -- one rule for overloads
+/// wherever they live.
+///
+/// NOT named FindOverload, which is a METHOD of ObjClass that ObjClass calls
+/// bare: a top-level name here shadows it, and the compiler's own constructor
+/// selection then reached this instead and reported
+/// `Expected ObjFunction, found Any` from a file with no overload in it.
+///
+/// # Satisfies
+///
+/// [EXP-013], [EXP-014], [FUN-007]
+function ChosenMethod (Klass : Any, Wanted : Any, Count : Integer) : Any;
+begin
+    var Exact := FittingMethod (Klass, Wanted, Count, 0);
+
+    if Exact <> Nil then Exit Exact;
+
+    var Widened := FittingMethod (Klass, Wanted, Count, 1);
+
+    if Widened <> Nil then Exit Widened;
+
+    Exit FittingMethod (Klass, Wanted, Count, 2);
+end
+
+/// Runs one pass of method selection, up the WHOLE chain.
+///
+/// Each pass finishes the chain before the next begins, which is the rule
+/// rather than an optimisation [EXP-014]: an exact match on a parent must beat
+/// a widened match on the child, or adding an overload to a subclass would
+/// silently capture calls the parent was answering exactly.
+///
+/// A failed match FALLS THROUGH to the superclass rather than returning.
+/// Returning would let a class declaring `Take (String)` hide an inherited
+/// `Take (Integer)` entirely, which overloading across a hierarchy has to
+/// allow -- and is the mistake ObjClass.Fitting records having made.
+function FittingMethod (Klass : Any, Wanted : Any, Count : Integer,
+                        Pass : Integer) : Any;
+var
+    Where : Any;
+
+begin
+    Where := Klass;
+
+    while Where <> Nil do
+    begin
+        var Candidates := Where.CandidatesFor (Wanted);
+
+        if Candidates <> Nil then
+            for var TheCandidate in Candidates as List do
+                if AnswersOn (TheCandidate, Count, Pass) then Exit TheCandidate;
+
+        Where := Where.Parent;
+    end
+
+    Exit Nil;
+end
+
+/// Whether a candidate answers on one pass: exact, widening, then absorbing.
+function AnswersOn (Candidate : Any, Count : Integer, Pass : Integer) : Boolean;
+begin
+    if Pass = 0 then Exit Fits (Candidate, Count, False);
+    if Pass = 1 then Exit Fits (Candidate, Count, True);
+
+    Exit CanGather (Candidate, Count);
 end
 
 function Chosen (Set : Any, Count : Integer) : Any;
@@ -2735,6 +2818,124 @@ begin
     // the test is answerable in all of them.
     AssertTrue (not TypeMatches (5, 'pointer'));
     AssertTrue (not TypeMatches (Str ('x'), 'pointer'));
+end
+
+/// Builds a method of this arity answering this value.
+function Answering (Name : String, Types : List, Answer : Any) : VmFunction;
+begin
+    var F := VmFunction (Name, Types.Length);
+
+    for var T in Types do F.Types.Add (T);
+
+    F.Body.EmitConstant (Answer);
+    F.Body.Emit (OP_RETURN);
+
+    Exit F;
+end
+
+/// Calls a method on an instance of a class, with these arguments.
+function Invoked (Klass : Any, Name : String, Arguments : List) : Any;
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (VmInstance (Klass));
+
+    for var Each in Arguments do C.EmitConstant (Each);
+
+    C.Write (OP_INVOKE);
+    C.Write (C.AddConstant (Name));
+    C.Write (Arguments.Length);
+    C.Emit (OP_RETURN);
+
+    Exit RunChunk (C);
+end
+
+test 'Two Methods Of One Name Are Told Apart At The Call';
+begin
+    var K := VmClass ('Box');
+
+    K.AddMethod ('Take', Answering ('Take', [Str ('Integer')], 'one'));
+    K.AddMethod ('Take', Answering ('Take', [Str ('Integer'), Str ('Integer')], 'two'));
+
+    AssertEqual ('one', Str (Invoked (K, 'Take', [1])));
+    AssertEqual ('two', Str (Invoked (K, 'Take', [1, 2])));
+    AssertEqual (0, SP);
+end
+
+test 'An Exact Match Beats One Needing Widening, Across Methods';
+begin
+    var K := VmClass ('Box');
+
+    // Declared Double FIRST, so declaration order would pick it for a Char
+    // if the passes did not run exact before widening.
+    K.AddMethod ('Take', Answering ('Take', [Str ('Double')], 'as a double'));
+    K.AddMethod ('Take', Answering ('Take', [Str ('Integer')], 'as an integer'));
+
+    AssertEqual ('as an integer', Str (Invoked (K, 'Take', [7])));
+    AssertEqual ('as a double',   Str (Invoked (K, 'Take', [7.5])));
+end
+
+test 'Each Pass Runs The Whole Chain Before The Next Begins';
+begin
+    var Parent := VmClass ('Above');
+    var Child  := VmClass ('Below');
+
+    Child.Parent := Parent;
+
+    // The PARENT answers an Integer exactly; the CHILD would take one by
+    // widening it to a Double.  The parent has to win [EXP-014], or adding an
+    // overload to a subclass silently captures calls the parent answered
+    // exactly.  A class-at-a-time walk would pick the child.
+    Parent.AddMethod ('Take', Answering ('Take', [Str ('Integer')], 'the parent'));
+    Child.AddMethod  ('Take', Answering ('Take', [Str ('Double')],  'the child'));
+
+    AssertEqual ('the parent', Str (Invoked (Child, 'Take', [7])));
+
+    // And a Double reaches the child, which is the only one that fits it.
+    AssertEqual ('the child', Str (Invoked (Child, 'Take', [7.5])));
+end
+
+test 'A Subclass Does Not Hide An Inherited Overload Of Another Arity';
+begin
+    var Parent := VmClass ('Above');
+    var Child  := VmClass ('Below');
+
+    Child.Parent := Parent;
+
+    // A failed match in the child must FALL THROUGH rather than return, or a
+    // class declaring Take (String) hides an inherited Take (Integer).
+    Parent.AddMethod ('Take', Answering ('Take', [Str ('Integer')], 'inherited'));
+    Child.AddMethod  ('Take', Answering ('Take', [Str ('String')],  'declared'));
+
+    AssertEqual ('inherited', Str (Invoked (Child, 'Take', [7])));
+    AssertEqual ('declared',  Str (Invoked (Child, 'Take', [Str ('x')])));
+end
+
+test 'A Name That Fits Nothing Is A Selection Failure, Not A Missing Method';
+begin
+    var K := VmClass ('Box');
+
+    K.AddMethod ('Take', Answering ('Take', [Str ('Integer')], 'one'));
+
+    // Declared but fitting nothing is a SELECTION failure; a method's wrong
+    // count reports that where a subprogram's reports the counts [0049].
+    try
+        Invoked (K, 'Take', [1, 2]);
+
+        Fail ('expected a selection failure');
+    except
+        on e : String do
+            AssertEqual ('No matching signature for function.', Str (e));
+    end
+
+    // A name no class in the chain declares is a different report.
+    try
+        Invoked (K, 'Missing', []);
+
+        Fail ('expected no such method');
+    except
+        on e : String do AssertEqual ('Box has no method missing.', Str (e));
+    end
 end
 
 test 'A Bare Name Is Read As A Field Of The Receiver';
