@@ -74,7 +74,12 @@ typedef enum {
     OBJ_MAP,
     OBJ_FILE,
 
-    OBJ_BUFFER
+    OBJ_BUFFER,
+
+    /* Not a kind of object: what a RELEASED one is retagged as when poisoning
+       is on, so the first use of it faults where the misuse is rather than
+       wedging the program three operations later.  See obj_release. */
+    OBJ_RELEASED
 } ObjType;
 
 /* Every heap object begins with one of these.
@@ -361,10 +366,62 @@ void  alg_writeln(Value v);
 void  alg_writeln_blank(void);
 Value alg_str(Value v);
 
+/* ── The shadow stack ─────────────────────────────────────────────────────
+   Where a subprogram's locals are registered, so that a collection can see
+   them.
+
+   `alg_roots` covers every module-level variable, because the emitter can take
+   a static's address once and be done.  A LOCAL has no such address: it is an
+   ordinary C local, live only while its frame is, so the emitter registers a
+   range on the way in and truncates the stack on the way out.  One entry
+   serves a single local (`count` of 1), a subprogram's whole argument array,
+   and a captured cell alike.
+
+   The depth is read and written DIRECTLY by generated code -- `int32_t r =
+   alg_root_top;` to save, `alg_root_top = r;` to restore -- because a block
+   boundary is far more common than a declaration and a call per brace is a
+   cost the generated code should not carry.  The push is inline for the same
+   reason: a local declared inside a loop is registered once an iteration. */
+/* The slots are VOLATILE because a local inside a `try` is: the emitter marks
+   one so that a value written before the `setjmp` survives the `longjmp`, and
+   registering it through a plain `Value *` would quietly cast that away.  The
+   qualifier costs the collector nothing it can measure -- it reads each slot
+   once per collection -- and a plain local converts to it without a cast. */
+typedef struct {
+    volatile Value *slots;
+    int32_t         count;
+} AlgRoots;
+
+extern AlgRoots *alg_root_stack;
+extern int32_t   alg_root_top;
+extern int32_t   alg_root_room;
+
+void alg_root_grow(void);
+
+static inline void alg_root(volatile Value *slots, int32_t count) {
+    if (alg_root_top == alg_root_room) {
+        alg_root_grow();
+
+        /* Out of memory here is not fatal to the program, only to collection,
+           and `alg_root_grow` has already declined on its way out. */
+        if (alg_root_top == alg_root_room) return;
+    }
+
+    alg_root_stack[alg_root_top].slots = slots;
+    alg_root_stack[alg_root_top].count = count;
+
+    alg_root_top++;
+}
+
 typedef struct AlgFrame {
     jmp_buf          jump;
     struct AlgFrame *previous;
     Value            raised;
+
+    /* The shadow stack's depth when the `try` was entered, so that a raise
+       several calls down truncates every frame it unwound past.  The normal
+       path needs nothing: each block restores its own depth as it closes. */
+    int32_t          roots;
 } AlgFrame;
 
 void alg_push_frame(AlgFrame *frame);

@@ -1,0 +1,28 @@
+// The point of the whole exercise: abandoning collections has to return their
+// memory, and keeping one has to keep it.
+//
+// A List's backing array is where the memory actually is -- 392 MB of the
+// compiler's own arena against 183 MB for the object headers -- so a sweep
+// hands that array back to the same size-class lists a growing List draws
+// from.  The count is not asserted, only that something came back, because an
+// exact figure is a claim about allocation behaviour rather than about the
+// collector.
+
+begin
+    var Kept := [1, 2, 3];
+
+    for var I : Integer := 0; I < 20000; I := I + 1 do
+    begin
+        var Abandoned := [I, I + 1, I + 2, I + 3, I + 4, I + 5, I + 6, I + 7];
+    end
+
+    WriteLn ('released something: ' + Str (Collect () > 0));
+    WriteLn ('kept: ' + Str (Kept));
+
+    // And a second collection with nothing new to find must not answer
+    // nonsense: a released object leaves the registry, so it cannot be
+    // released twice.
+    var Again := Collect ();
+    WriteLn ('again is sane: ' + Str (Again >= 0));
+    WriteLn ('kept still: ' + Str (Kept));
+end

@@ -1,0 +1,34 @@
+// A value held only in a LOCAL must survive a collection.
+//
+// `alg_roots` covers module-level variables, whose addresses the emitter knows
+// once.  A local has no such address: it is an ordinary C local, live only
+// while its frame is, so CEmitter registers it on the shadow stack where it is
+// declared and truncates the stack as the block closes.  Without that this
+// program segfaults -- the collector cannot see `Keep`, releases it, and hands
+// its body to the next allocation.
+//
+// [RT-029] is what makes releasing it non-conformant rather than merely risky:
+// an implementation that cannot see all of its roots must decline.
+
+procedure Churn ();
+begin
+    for var I : Integer := 0; I < 2000; I := I + 1 do
+    begin
+        var Junk := [I, I, I];
+    end
+end
+
+procedure Use ();
+begin
+    var Keep := [10, 20, 30];      // the ONLY reference is this local
+
+    Churn ();
+    WriteLn ('released something: ' + Str (Collect () > 0));
+    Churn ();                      // hands the released bodies back out
+
+    WriteLn ('kept: ' + Str (Keep));
+end
+
+begin
+    Use ();
+end

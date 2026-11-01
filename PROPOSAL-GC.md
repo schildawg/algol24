@@ -308,6 +308,15 @@ function**, which means changing `CEmitter`, reseeding, and paying on every
 call. A collector here either scans the C stack conservatively or is not
 precise.
 
+✅ **Resolved: `CEmitter` now emits the shadow stack, and the cost is
+measured.** The prediction held in every part except its pessimism. A frame
+registers its argument array as one entry, a block saves and restores
+`alg_root_top` across its own braces, and each local is one entry pushed where
+it is declared. Fib (27) on the bytecode VM reads **1.21 s against 1.28 s**
+(+5.8%) and `algc --compile` of its own sources **1.78 s against 1.80 s**
+(+1.3%) — the dispatch loop pays most, because a per-call frame costs most
+where the callee does least, which is the same shape as LTO's gains in reverse.
+
 ⚠️ **The VM escapes this, and that is a fact about the VM's own collector
 rather than about this one.** A VM keeps its state in *explicit data
 structures*: its value stack is one object, its globals another, its frames a
@@ -529,6 +538,200 @@ them, not folded into this.
 it**: `SourceCode` is one global keyed by line number, so something does
 outlive a file's parse. A region per file is unsound until that is dealt with,
 and finding the other escapes is the actual work of this step.
+
+### What step 3's collector hit: constraint 2, exactly as written
+
+The precise collector is built and works, and the limit it ran into was the one
+this document predicted above — now closed by the shadow stack. **It was not a
+missing root. It was a missing *class* of roots: every local.** `alg_roots`
+registers the emitted `static Value *roots_<Unit>[]` tables, which is every
+module-level variable and nothing else, so a value held only in an Algol-24
+local was held only in a C local, and the collector could not see it.
+
+Nine lines reproduce it, and they are worth keeping as the shape of the
+remaining work:
+
+```algol24
+procedure Use ();
+begin
+    var Keep := [10, 20, 30];      // the ONLY reference is this local
+
+    Churn ();
+    WriteLn ('released ' + Str (Collect ()));
+    Churn ();                      // hands the released bodies back out
+
+    WriteLn ('kept    ' + Str (Keep));
+end
+```
+
+Compiled against the old emitter that segfaults, and declaring `Keep` at module
+level instead printed `released 2000` and `kept [10, 20, 30]` — the same
+program, the same collector, one word of difference. It is the regression test
+for the shadow stack now, and passes as written.
+
+**What the shadow stack is, in the generated C.** Three pieces, none of which
+needs the emitter to know a block's locals in advance:
+
+```c
+static Value f_use(Value **cells, Value *args, int32_t count) {
+    alg_arity(count, 0);
+    int32_t rt_base = alg_root_top;     /* the frame's base */
+    alg_root(args, count);              /* every parameter, as ONE entry */
+    {
+        int32_t rt_0 = alg_root_top;    /* the block's base */
+        Value v_keep = …;
+        alg_root(&v_keep, 1);           /* registered where it is declared */
+        …
+        alg_root_top = rt_0;            /* its locals go out of scope here */
+    }
+    Value ret_0 = alg_nil();
+    alg_root_top = rt_base;             /* evaluated BEFORE the truncation */
+    return ret_0;
+}
+```
+
+⚠️ **The depth is read and written directly, and the push is inline.** A block
+boundary is far more common than a declaration, so a call per brace is a cost
+the generated code should not carry; `alg_root_top` is an `extern int32_t` and
+`alg_root` is a `static inline` in `algol.h` for the same reason.
+
+⚠️ **A return has to evaluate its value before truncating.** `return <expr>;`
+after the reset would evaluate an arbitrary expression — one that can allocate —
+with this frame's locals already unregistered. `EmitReturn` puts it in a slot
+first, which is the shape `Exit` already used for popping try frames.
+
+⚠️ **A raise truncates in `alg_raise`, not at the handler.** Every block
+between the raise and the handler is about to be jumped past, so `AlgFrame`
+records `alg_root_top` at `alg_push_frame` and the raise restores it before the
+`longjmp` — otherwise the stack keeps entries pointing into frames that no
+longer exist. That is the same bookkeeping the VM's `OP_TRY` does for its frame
+and stack depths.
+
+⚠️ **A `volatile` local is registered as one.** The emitter marks a local
+inside a `try` volatile so it survives the `longjmp`, so `AlgRoots.slots` is
+`volatile Value *` — registering it through a plain `Value *` compiled, and cast
+the qualifier away 101 times in one build.
+
+⚠️ **A capture is reached through `cells`, not through a local.** A boxed local
+is registered by `DeclareCell` as the cell itself, since the cell pointer
+already *is* the Value's address; a nested subprogram's inherited cells arrive
+as `cells[i]` and are registered at entry instead.
+
+⚠️ **The remaining gap is a temporary, not a local.** An intermediate inside one
+expression — the list in `[MakeList (), Collect ()]` — is in no local and is
+registered nowhere. It is reachable only by a collection that happens partway
+through evaluating an expression, which for this back end means a `Collect ()`
+written inside one.
+
+⚠️ **The VM's escape from constraint 2 was narrower than stated above.** A VM
+keeps its *guest* state in explicit structures, which is true and is what makes
+the safe point sound: at the top of the dispatch loop `RunChunk` holds only
+Integers, and `Running`, `CodeBytes`, `Constants`, `GlobalCells`, `Cells` and
+the value stack are all module-level and therefore rooted. But the VM's own
+*implementation* is Algol-24 compiled to C, so a handler's locals are C locals
+like any other — which is why a `Collect ()` reached from guest code through
+`DoBuiltin` is unsound where the same collection at the safe point is not.
+[RT-029] calling `Collect` a **request** rather than a collection is what makes
+the distinction expressible: the built-in can set a flag the safe point
+honours, instead of collecting under a stack it cannot see.
+
+### A second finding, which poisoning did not need to show
+
+The sweep kept a **dead** object in the registry — `obj->dead` sat in the keep
+condition beside the Buffer exemption — while `obj_spare` hands a released body
+back out and `obj_alloc` registers it again. So one body accumulated a registry
+entry per reuse, and since clearing marks and sweeping both walk the registry,
+the cost crept back to *O(every allocation ever)* by a different road than the
+one already fixed there. The registry's own comment described the intent
+correctly and the code did the opposite.
+
+Dropping a dead object instead is the fix, and the guard that remains is the
+one that matters: release it only if `dead` is not already set.
+
+### A TextFile is on a list the runtime walks, and the sweep did not know it
+
+The sharpest bug of the lot, and the last one the poison/reuse split pointed at
+three times before it was read correctly.
+
+`ObjBuffer` sits on `all_buffers` and `ObjFile` on `all_files`, two lists the
+runtime walks at exit. Only `OBJ_BUFFER` was exempt from the sweep. So an
+unreachable `ObjFile` was released, its body went on the free list and was
+handed to a new owner — and `obj_release` writes its link **over the body,
+`next` included**. The file stayed linked in `all_files` with a `next` saying
+whatever its new owner had written there, so `close_open_files` walked in a
+circle at exit: every pass found `handle` already NULL, did nothing, and went
+round again. **Twenty-six minutes of spin on one run**, on every collecting run,
+and never on the baseline.
+
+```c
+if (obj->marked || obj->type == OBJ_BUFFER || obj->type == OBJ_FILE) {
+```
+
+⚠️ **It was invisible under `ALG_POISON=1`**, which is the signature to read
+faster next time: poisoning never hands a body back out, so the list stayed
+intact and that run exited 0. Three bugs in this hunt had that shape — the
+registry duplicate, the missing local roots, and this — and in each one
+"poisoning works, reuse does not" was the whole diagnosis.
+
+⚠️ **The trace that found the stage nearly misled.** `[exit] files` is printed
+*before* `close_open_files` runs, so the label naming a stage means "about to",
+not "done". Reading it as "done" blamed the next stage along and sent one round
+of work at the wrong function.
+
+The price of exempting rather than unlinking is the Buffer's own bargain: an
+abandoned `TextFile` is not reclaimed until the process ends. Unlinking on
+release would reclaim it *and* close it early, which wants a predecessor
+pointer and changes *when* a file is closed.
+
+### The arena is not freed at exit
+
+`alg_shutdown` is registered with `atexit` and nothing else calls it, so every
+`free` it performed was returning memory the kernel was about to reclaim. It
+now closes open files and does nothing else; `free_all_buffers` and
+`seq_forget_spares` were deleted with the calls, rather than kept against a
+hypothetical embedding — dead code that compiles with two `-Wunused-function`
+warnings where the baseline had none.
+
+`close_open_files` stays, because a buffered write that never reaches the disk
+is a wrong answer rather than a tidiness question.
+
+### What collection is worth on the Dew Drop Inn
+
+Thirty frames, the same binary, `--collect 5000000` against nothing:
+
+| | peak memory footprint | frame rate |
+| --- | --- | --- |
+| no collection | 14.53 GB | 19 a second |
+| `--collect 5000000` | **1.80 GB** | 21 a second |
+
+**8.1× less peak memory at the same frame rate**, and maximum resident size
+goes the other way — 1.93 GB to 2.29 GB — because without collection the
+footprint is large enough that pages are evicted rather than kept.
+
+### Poisoning, which is how the above was established
+
+`ALG_POISON=1` makes the sweep retag each released body `OBJ_RELEASED` and
+withhold it from the free list, and `check_live` reports any later use of one by
+kind and by site. So
+
+```
+exit=139
+```
+
+becomes
+
+```
+Uncaught: The collector released a List that a value being printed still needs.
+```
+
+It is wired into the property read, the collection and Map accessors,
+`alg_invoke` and `as_text` — which is nearly every way a value is used.
+
+⚠️ **Poisoning still recycles the backing blocks and withholds only the
+object body**, which is what made it diagnostic rather than merely safer: the
+Dew Drop Inn ran to completion under it after releasing 19,369,686 objects, and
+that separated *marking is wrong* from *reuse is wrong* in one run. Marking was
+never the problem.
 
 ### 4. Conservative mark–sweep eventually, for programs that cannot cooperate
 

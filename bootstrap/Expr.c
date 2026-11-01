@@ -54,449 +54,744 @@ static const char *t_isexpr_accept_1[] = { "Visitor : Any" };
 
 static Value i_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Cast", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value i_binaryexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Left", alg_nil());
     alg_set_property(v_this, "Op", alg_nil());
     alg_set_property(v_this, "Right", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_binaryexpr_init_3(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_left = args[0];
     (void)v_left;
+    alg_root(&v_left, 1);
     Value v_op = args[1];
     (void)v_op;
+    alg_root(&v_op, 1);
     Value v_right = args[2];
     (void)v_right;
+    alg_root(&v_right, 1);
     (void)(alg_set_property(v_this, "Left", v_left));
     (void)(alg_set_property(v_this, "Op", v_op));
     (void)(alg_set_property(v_this, "Right", v_right));
-    return alg_nil();
+    Value ret_0 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_0;
 }
 
 static Value m_binaryexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitBinary", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_1 = alg_invoke(v_visitor, "VisitBinary", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_1;
+    Value ret_2 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_2;
 }
 
 static Value i_logicalexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Left", alg_nil());
     alg_set_property(v_this, "Op", alg_nil());
     alg_set_property(v_this, "Right", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_logicalexpr_init_3(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_left = args[0];
     (void)v_left;
+    alg_root(&v_left, 1);
     Value v_op = args[1];
     (void)v_op;
+    alg_root(&v_op, 1);
     Value v_right = args[2];
     (void)v_right;
+    alg_root(&v_right, 1);
     (void)(alg_set_property(v_this, "Left", v_left));
     (void)(alg_set_property(v_this, "Op", v_op));
     (void)(alg_set_property(v_this, "Right", v_right));
-    return alg_nil();
+    Value ret_3 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_3;
 }
 
 static Value m_logicalexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitLogical", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_4 = alg_invoke(v_visitor, "VisitLogical", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_4;
+    Value ret_5 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_5;
 }
 
 static Value i_groupingexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Expression", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_groupingexpr_init_1_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_expression = alg_widen(args[0], "Expr");
     (void)v_expression;
+    alg_root(&v_expression, 1);
     (void)(alg_set_property(v_this, "Expression", v_expression));
-    return alg_nil();
+    Value ret_6 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_6;
 }
 
 static Value m_groupingexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitGrouping", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_7 = alg_invoke(v_visitor, "VisitGrouping", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_7;
+    Value ret_8 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_8;
 }
 
 static Value i_collectionexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "IsMap", alg_nil());
     alg_set_property(v_this, "Keys", alg_nil());
     alg_set_property(v_this, "Values", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_collectionexpr_init_3_boolean_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_ismap = alg_widen(args[0], "Boolean");
     (void)v_ismap;
+    alg_root(&v_ismap, 1);
     Value v_keys = alg_widen(args[1], "List");
     (void)v_keys;
+    alg_root(&v_keys, 1);
     Value v_values = alg_widen(args[2], "List");
     (void)v_values;
+    alg_root(&v_values, 1);
     (void)(alg_set_property(v_this, "IsMap", v_ismap));
     (void)(alg_set_property(v_this, "Keys", v_keys));
     (void)(alg_set_property(v_this, "Values", v_values));
-    return alg_nil();
+    Value ret_9 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_9;
 }
 
 static Value m_collectionexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitCollectionExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_10 = alg_invoke(v_visitor, "VisitCollectionExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_10;
+    Value ret_11 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_11;
 }
 
 static Value i_subscriptexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Index", alg_nil());
     alg_set_property(v_this, "Bracket", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_subscriptexpr_init_3_expr_expr_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_obj = alg_widen(args[0], "Expr");
     (void)v_obj;
+    alg_root(&v_obj, 1);
     Value v_index = alg_widen(args[1], "Expr");
     (void)v_index;
+    alg_root(&v_index, 1);
     Value v_bracket = alg_widen(args[2], "Token");
     (void)v_bracket;
+    alg_root(&v_bracket, 1);
     (void)(alg_set_property(v_this, "Obj", v_obj));
     (void)(alg_set_property(v_this, "Index", v_index));
     (void)(alg_set_property(v_this, "Bracket", v_bracket));
-    return alg_nil();
+    Value ret_12 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_12;
 }
 
 static Value m_subscriptexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitSubscriptExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_13 = alg_invoke(v_visitor, "VisitSubscriptExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_13;
+    Value ret_14 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_14;
 }
 
 static Value i_setsubscriptexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Index", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
     alg_set_property(v_this, "Bracket", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_setsubscriptexpr_init_4_expr_expr_expr_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_obj = alg_widen(args[0], "Expr");
     (void)v_obj;
+    alg_root(&v_obj, 1);
     Value v_index = alg_widen(args[1], "Expr");
     (void)v_index;
+    alg_root(&v_index, 1);
     Value v_value = alg_widen(args[2], "Expr");
     (void)v_value;
+    alg_root(&v_value, 1);
     Value v_bracket = alg_widen(args[3], "Token");
     (void)v_bracket;
+    alg_root(&v_bracket, 1);
     (void)(alg_set_property(v_this, "Obj", v_obj));
     (void)(alg_set_property(v_this, "Index", v_index));
     (void)(alg_set_property(v_this, "Value", v_value));
     (void)(alg_set_property(v_this, "Bracket", v_bracket));
-    return alg_nil();
+    Value ret_15 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_15;
 }
 
 static Value m_setsubscriptexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitSetSubscriptExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_16 = alg_invoke(v_visitor, "VisitSetSubscriptExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_16;
+    Value ret_17 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_17;
 }
 
 static Value i_literalexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Value", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_literalexpr_init_1_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_value = alg_widen(args[0], "Expr");
     (void)v_value;
+    alg_root(&v_value, 1);
     (void)(alg_set_property(v_this, "Value", v_value));
-    return alg_nil();
+    Value ret_18 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_18;
 }
 
 static Value m_literalexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitLiteral", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_19 = alg_invoke(v_visitor, "VisitLiteral", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_19;
+    Value ret_20 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_20;
 }
 
 static Value i_variableexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_variableexpr_init_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
-    return alg_nil();
+    Value ret_21 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_21;
 }
 
 static Value m_variableexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitVariableExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_22 = alg_invoke(v_visitor, "VisitVariableExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_22;
+    Value ret_23 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_23;
 }
 
 static Value i_assignexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
     alg_set_property(v_this, "Declared", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Actual", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_assignexpr_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_value = alg_widen(args[1], "Expr");
     (void)v_value;
+    alg_root(&v_value, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Value", v_value));
-    return alg_nil();
+    Value ret_24 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_24;
 }
 
 static Value m_assignexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitAssignExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_25 = alg_invoke(v_visitor, "VisitAssignExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_25;
+    Value ret_26 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_26;
 }
 
 static Value i_unaryexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Op", alg_nil());
     alg_set_property(v_this, "Right", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_unaryexpr_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_op = alg_widen(args[0], "Token");
     (void)v_op;
+    alg_root(&v_op, 1);
     Value v_right = alg_widen(args[1], "Expr");
     (void)v_right;
+    alg_root(&v_right, 1);
     (void)(alg_set_property(v_this, "Op", v_op));
     (void)(alg_set_property(v_this, "Right", v_right));
-    return alg_nil();
+    Value ret_27 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_27;
 }
 
 static Value m_unaryexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitUnary", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_28 = alg_invoke(v_visitor, "VisitUnary", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_28;
+    Value ret_29 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_29;
 }
 
 static Value i_callexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Callee", alg_nil());
     alg_set_property(v_this, "Paren", alg_nil());
     alg_set_property(v_this, "Arguments", alg_nil());
     alg_set_property(v_this, "ArgumentNames", alg_widen(alg_list(), "List"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_callexpr_init_3_expr_token_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_callee = alg_widen(args[0], "Expr");
     (void)v_callee;
+    alg_root(&v_callee, 1);
     Value v_paren = alg_widen(args[1], "Token");
     (void)v_paren;
+    alg_root(&v_paren, 1);
     Value v_arguments = alg_widen(args[2], "List");
     (void)v_arguments;
+    alg_root(&v_arguments, 1);
     (void)(alg_set_property(v_this, "Callee", v_callee));
     (void)(alg_set_property(v_this, "Paren", v_paren));
     (void)(alg_set_property(v_this, "Arguments", v_arguments));
-    return alg_nil();
+    Value ret_30 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_30;
 }
 
 static Value m_callexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitCall", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_31 = alg_invoke(v_visitor, "VisitCall", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_31;
+    Value ret_32 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_32;
 }
 
 static Value i_getexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Unit", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Extension", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "ExtensionUnit", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_getexpr_init_2_expr_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_obj = alg_widen(args[0], "Expr");
     (void)v_obj;
+    alg_root(&v_obj, 1);
     Value v_name = alg_widen(args[1], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     (void)(alg_set_property(v_this, "Obj", v_obj));
     (void)(alg_set_property(v_this, "Name", v_name));
-    return alg_nil();
+    Value ret_33 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_33;
 }
 
 static Value m_getexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitGetExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_34 = alg_invoke(v_visitor, "VisitGetExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_34;
+    Value ret_35 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_35;
 }
 
 static Value i_setexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
     alg_set_property(v_this, "Unit", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Declared", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Actual", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_setexpr_init_3_expr_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_obj = alg_widen(args[0], "Expr");
     (void)v_obj;
+    alg_root(&v_obj, 1);
     Value v_name = alg_widen(args[1], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_value = alg_widen(args[2], "Expr");
     (void)v_value;
+    alg_root(&v_value, 1);
     (void)(alg_set_property(v_this, "Obj", v_obj));
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Value", v_value));
-    return alg_nil();
+    Value ret_36 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_36;
 }
 
 static Value m_setexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitSetExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_37 = alg_invoke(v_visitor, "VisitSetExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_37;
+    Value ret_38 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_38;
 }
 
 static Value i_thisexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Keyword", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_thisexpr_init_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
+    alg_root(&v_keyword, 1);
     (void)(alg_set_property(v_this, "Keyword", v_keyword));
-    return alg_nil();
+    Value ret_39 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_39;
 }
 
 static Value m_thisexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitThisExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_40 = alg_invoke(v_visitor, "VisitThisExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_40;
+    Value ret_41 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_41;
 }
 
 static Value i_superexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Method", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_superexpr_init_2_token_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
+    alg_root(&v_keyword, 1);
     Value v_method = alg_widen(args[1], "Token");
     (void)v_method;
+    alg_root(&v_method, 1);
     (void)(alg_set_property(v_this, "Keyword", v_keyword));
     (void)(alg_set_property(v_this, "Method", v_method));
-    return alg_nil();
+    Value ret_42 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_42;
 }
 
 static Value m_superexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitSuperExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_43 = alg_invoke(v_visitor, "VisitSuperExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_43;
+    Value ret_44 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_44;
 }
 
 static Value i_isexpr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Obj", alg_nil());
     alg_set_property(v_this, "TypeName", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_isexpr_init_2_expr_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_obj = alg_widen(args[0], "Expr");
     (void)v_obj;
+    alg_root(&v_obj, 1);
     Value v_typename = alg_widen(args[1], "Token");
     (void)v_typename;
+    alg_root(&v_typename, 1);
     (void)(alg_set_property(v_this, "Obj", v_obj));
     (void)(alg_set_property(v_this, "TypeName", v_typename));
-    return alg_nil();
+    Value ret_45 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_45;
 }
 
 static Value m_isexpr_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitIsExpr", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_46 = alg_invoke(v_visitor, "VisitIsExpr", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_46;
+    Value ret_47 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_47;
 }
 
 static Value *roots_Expr[] = {

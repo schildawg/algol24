@@ -69,440 +69,726 @@ static const char *t_classstmt_accept_1[] = { "Visitor : Any" };
 
 static Value i_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value i_blockstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Statements", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_blockstmt_init_1_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_statements = alg_widen(args[0], "List");
     (void)v_statements;
+    alg_root(&v_statements, 1);
     (void)(alg_set_property(v_this, "Statements", v_statements));
-    return alg_nil();
+    Value ret_0 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_0;
 }
 
 static Value m_blockstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitBlockStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_1 = alg_invoke(v_visitor, "VisitBlockStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_1;
+    Value ret_2 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_2;
 }
 
 static Value i_expressionstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Expression", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_expressionstmt_init_1_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_expression = alg_widen(args[0], "Expr");
     (void)v_expression;
+    alg_root(&v_expression, 1);
     (void)(alg_set_property(v_this, "Expression", v_expression));
-    return alg_nil();
+    Value ret_3 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_3;
 }
 
 static Value m_expressionstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitExpressionStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_4 = alg_invoke(v_visitor, "VisitExpressionStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_4;
+    Value ret_5 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_5;
 }
 
 static Value i_varstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Initializer", alg_nil());
     alg_set_property(v_this, "TypeName", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Actual", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "IsConstant", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "Generic", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_varstmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_initializer = alg_widen(args[1], "Expr");
     (void)v_initializer;
+    alg_root(&v_initializer, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Initializer", v_initializer));
-    return alg_nil();
+    Value ret_6 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_6;
 }
 
 static Value m_varstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitVarStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_7 = alg_invoke(v_visitor, "VisitVarStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_7;
+    Value ret_8 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_8;
 }
 
 static Value i_vargroupstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Names", alg_nil());
     alg_set_property(v_this, "Initializer", alg_nil());
     alg_set_property(v_this, "TypeName", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Actual", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "Generic", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "IsConstant", alg_widen(alg_bool(false), "Boolean"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_vargroupstmt_init_2_list_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_names = alg_widen(args[0], "List");
     (void)v_names;
+    alg_root(&v_names, 1);
     Value v_initializer = alg_widen(args[1], "Expr");
     (void)v_initializer;
+    alg_root(&v_initializer, 1);
     (void)(alg_set_property(v_this, "Names", v_names));
     (void)(alg_set_property(v_this, "Initializer", v_initializer));
-    return alg_nil();
+    Value ret_9 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_9;
 }
 
 static Value m_vargroupstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitVarGroupStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_10 = alg_invoke(v_visitor, "VisitVarGroupStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_10;
+    Value ret_11 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_11;
 }
 
 static Value i_ifstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Condition", alg_nil());
     alg_set_property(v_this, "ThenBranch", alg_nil());
     alg_set_property(v_this, "ElseBranch", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_ifstmt_init_3_expr_stmt_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_condition = alg_widen(args[0], "Expr");
     (void)v_condition;
+    alg_root(&v_condition, 1);
     Value v_thenbranch = alg_widen(args[1], "Stmt");
     (void)v_thenbranch;
+    alg_root(&v_thenbranch, 1);
     Value v_elsebranch = alg_widen(args[2], "Stmt");
     (void)v_elsebranch;
+    alg_root(&v_elsebranch, 1);
     (void)(alg_set_property(v_this, "Condition", v_condition));
     (void)(alg_set_property(v_this, "ThenBranch", v_thenbranch));
     (void)(alg_set_property(v_this, "ElseBranch", v_elsebranch));
-    return alg_nil();
+    Value ret_12 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_12;
 }
 
 static Value m_ifstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitIfStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_13 = alg_invoke(v_visitor, "VisitIfStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_13;
+    Value ret_14 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_14;
 }
 
 static Value i_excepthandler(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_excepthandler_init_2_string_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_body = alg_widen(args[1], "Stmt");
     (void)v_body;
+    alg_root(&v_body, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Body", v_body));
-    return alg_nil();
+    Value ret_15 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_15;
 }
 
 static Value i_objectstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Superclass", alg_nil());
     alg_set_property(v_this, "Methods", alg_nil());
     alg_set_property(v_this, "Fields", alg_nil());
     alg_set_property(v_this, "PrivateMembers", alg_widen(alg_list(), "List"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_objectstmt_init_4_token_variableexpr_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_superclass = alg_widen(args[1], "VariableExpr");
     (void)v_superclass;
+    alg_root(&v_superclass, 1);
     Value v_methods = alg_widen(args[2], "List");
     (void)v_methods;
+    alg_root(&v_methods, 1);
     Value v_fields = alg_widen(args[3], "List");
     (void)v_fields;
+    alg_root(&v_fields, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Superclass", v_superclass));
     (void)(alg_set_property(v_this, "Methods", v_methods));
     (void)(alg_set_property(v_this, "Fields", v_fields));
-    return alg_nil();
+    Value ret_16 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_16;
 }
 
 static Value m_objectstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitObjectStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_17 = alg_invoke(v_visitor, "VisitObjectStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_17;
+    Value ret_18 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_18;
 }
 
 static Value i_modulestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Statements", alg_nil());
     alg_set_property(v_this, "PrivateNames", alg_nil());
     alg_set_property(v_this, "FileName", alg_widen(alg_string(""), "String"));
     alg_set_property(v_this, "UnitName", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_modulestmt_init_3_token_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_statements = alg_widen(args[1], "List");
     (void)v_statements;
+    alg_root(&v_statements, 1);
     Value v_privatenames = alg_widen(args[2], "List");
     (void)v_privatenames;
+    alg_root(&v_privatenames, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Statements", v_statements));
     (void)(alg_set_property(v_this, "PrivateNames", v_privatenames));
-    return alg_nil();
+    Value ret_19 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_19;
 }
 
 static Value m_modulestmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitModuleStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_20 = alg_invoke(v_visitor, "VisitModuleStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_20;
+    Value ret_21 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_21;
 }
 
 static Value i_breakstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Label", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_breakstmt_init_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
+    alg_root(&v_keyword, 1);
     (void)(alg_set_property(v_this, "Keyword", v_keyword));
-    return alg_nil();
+    Value ret_22 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_22;
 }
 
 static Value m_breakstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitBreakStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_23 = alg_invoke(v_visitor, "VisitBreakStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_23;
+    Value ret_24 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_24;
 }
 
 static Value i_continuestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Label", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_continuestmt_init_1_token(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
+    alg_root(&v_keyword, 1);
     (void)(alg_set_property(v_this, "Keyword", v_keyword));
-    return alg_nil();
+    Value ret_25 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_25;
 }
 
 static Value m_continuestmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitContinueStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_26 = alg_invoke(v_visitor, "VisitContinueStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_26;
+    Value ret_27 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_27;
 }
 
 static Value i_labelstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Inner", alg_nil());
     alg_set_property(v_this, "Targeted", alg_widen(alg_bool(false), "Boolean"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_labelstmt_init_2_token_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_inner = alg_widen(args[1], "Stmt");
     (void)v_inner;
+    alg_root(&v_inner, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Inner", v_inner));
-    return alg_nil();
+    Value ret_28 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_28;
 }
 
 static Value m_labelstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitLabelStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_29 = alg_invoke(v_visitor, "VisitLabelStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_29;
+    Value ret_30 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_30;
 }
 
 static Value i_gotostmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Label", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_gotostmt_init_2_token_string(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
+    alg_root(&v_keyword, 1);
     Value v_label = alg_widen(args[1], "String");
     (void)v_label;
+    alg_root(&v_label, 1);
     (void)(alg_set_property(v_this, "Keyword", v_keyword));
     (void)(alg_set_property(v_this, "Label", v_label));
-    return alg_nil();
+    Value ret_31 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_31;
 }
 
 static Value m_gotostmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitGotoStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_32 = alg_invoke(v_visitor, "VisitGotoStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_32;
+    Value ret_33 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_33;
 }
 
 static Value i_trystmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "TryBlock", alg_nil());
     alg_set_property(v_this, "Handlers", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_trystmt_init_2_stmt_map(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_tryblock = alg_widen(args[0], "Stmt");
     (void)v_tryblock;
+    alg_root(&v_tryblock, 1);
     Value v_handlers = alg_widen(args[1], "Map");
     (void)v_handlers;
+    alg_root(&v_handlers, 1);
     (void)(alg_set_property(v_this, "TryBlock", v_tryblock));
     (void)(alg_set_property(v_this, "Handlers", v_handlers));
-    return alg_nil();
+    Value ret_34 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_34;
 }
 
 static Value m_trystmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitTryStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_35 = alg_invoke(v_visitor, "VisitTryStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_35;
+    Value ret_36 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_36;
 }
 
 static Value i_raisestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_raisestmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
+    alg_root(&v_keyword, 1);
     Value v_value = alg_widen(args[1], "Expr");
     (void)v_value;
+    alg_root(&v_value, 1);
     (void)(alg_set_property(v_this, "Keyword", v_keyword));
     (void)(alg_set_property(v_this, "Value", v_value));
-    return alg_nil();
+    Value ret_37 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_37;
 }
 
 static Value m_raisestmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitRaiseStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_38 = alg_invoke(v_visitor, "VisitRaiseStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_38;
+    Value ret_39 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_39;
 }
 
 static Value i_forinstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Iterable", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
     alg_set_property(v_this, "Label", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_forinstmt_init_3_token_expr_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_iterable = alg_widen(args[1], "Expr");
     (void)v_iterable;
+    alg_root(&v_iterable, 1);
     Value v_body = alg_widen(args[2], "Stmt");
     (void)v_body;
+    alg_root(&v_body, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Iterable", v_iterable));
     (void)(alg_set_property(v_this, "Body", v_body));
-    return alg_nil();
+    Value ret_40 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_40;
 }
 
 static Value m_forinstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitForInStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_41 = alg_invoke(v_visitor, "VisitForInStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_41;
+    Value ret_42 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_42;
 }
 
 static Value i_whilestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Condition", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
     alg_set_property(v_this, "Increment", alg_widen(alg_nil(), "Expr"));
     alg_set_property(v_this, "Label", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_whilestmt_init_2_expr_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_condition = alg_widen(args[0], "Expr");
     (void)v_condition;
+    alg_root(&v_condition, 1);
     Value v_body = alg_widen(args[1], "Stmt");
     (void)v_body;
+    alg_root(&v_body, 1);
     (void)(alg_set_property(v_this, "Condition", v_condition));
     (void)(alg_set_property(v_this, "Body", v_body));
-    return alg_nil();
+    Value ret_43 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_43;
 }
 
 static Value m_whilestmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitWhileStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_44 = alg_invoke(v_visitor, "VisitWhileStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_44;
+    Value ret_45 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_45;
 }
 
 static Value i_functionstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Params", alg_nil());
     alg_set_property(v_this, "Body", alg_nil());
@@ -514,146 +800,238 @@ static Value i_functionstmt(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "IsProperty", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "IsExtension", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "ReturnGeneric", alg_widen(alg_string(""), "String"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_functionstmt_init_3_token_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_params = alg_widen(args[1], "List");
     (void)v_params;
+    alg_root(&v_params, 1);
     Value v_body = alg_widen(args[2], "List");
     (void)v_body;
+    alg_root(&v_body, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Params", v_params));
     (void)(alg_set_property(v_this, "Body", v_body));
-    return alg_nil();
+    Value ret_46 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_46;
 }
 
 static Value m_functionstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitFunctionStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_47 = alg_invoke(v_visitor, "VisitFunctionStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_47;
+    Value ret_48 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_48;
 }
 
 static Value i_returnstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Keyword", alg_nil());
     alg_set_property(v_this, "Value", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_returnstmt_init_2_token_expr(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_keyword = alg_widen(args[0], "Token");
     (void)v_keyword;
+    alg_root(&v_keyword, 1);
     Value v_value = alg_widen(args[1], "Expr");
     (void)v_value;
+    alg_root(&v_value, 1);
     (void)(alg_set_property(v_this, "Keyword", v_keyword));
     (void)(alg_set_property(v_this, "Value", v_value));
-    return alg_nil();
+    Value ret_49 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_49;
 }
 
 static Value m_returnstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitReturnStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_50 = alg_invoke(v_visitor, "VisitReturnStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_50;
+    Value ret_51 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_51;
 }
 
 static Value i_enumstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Members", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_enumstmt_init_2_token_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_members = alg_widen(args[1], "List");
     (void)v_members;
+    alg_root(&v_members, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Members", v_members));
-    return alg_nil();
+    Value ret_52 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_52;
 }
 
 static Value m_enumstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitEnumStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_53 = alg_invoke(v_visitor, "VisitEnumStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_53;
+    Value ret_54 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_54;
 }
 
 static Value i_subrangestmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Low", alg_nil());
     alg_set_property(v_this, "High", alg_nil());
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_subrangestmt_init_3_token_integer_integer(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_low = alg_widen(args[1], "Integer");
     (void)v_low;
+    alg_root(&v_low, 1);
     Value v_high = alg_widen(args[2], "Integer");
     (void)v_high;
+    alg_root(&v_high, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Low", v_low));
     (void)(alg_set_property(v_this, "High", v_high));
-    return alg_nil();
+    Value ret_55 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_55;
 }
 
 static Value m_subrangestmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitSubrangeStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_56 = alg_invoke(v_visitor, "VisitSubrangeStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_56;
+    Value ret_57 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_57;
 }
 
 static Value i_classstmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Superclass", alg_nil());
     alg_set_property(v_this, "Methods", alg_nil());
     alg_set_property(v_this, "Fields", alg_nil());
     alg_set_property(v_this, "PrivateMembers", alg_widen(alg_list(), "List"));
+    alg_root_top = rt_base;
     return alg_nil();
 }
 
 static Value m_classstmt_init_4_token_variableexpr_list_list(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_name = alg_widen(args[0], "Token");
     (void)v_name;
+    alg_root(&v_name, 1);
     Value v_superclass = alg_widen(args[1], "VariableExpr");
     (void)v_superclass;
+    alg_root(&v_superclass, 1);
     Value v_methods = alg_widen(args[2], "List");
     (void)v_methods;
+    alg_root(&v_methods, 1);
     Value v_fields = alg_widen(args[3], "List");
     (void)v_fields;
+    alg_root(&v_fields, 1);
     (void)(alg_set_property(v_this, "Name", v_name));
     (void)(alg_set_property(v_this, "Superclass", v_superclass));
     (void)(alg_set_property(v_this, "Methods", v_methods));
     (void)(alg_set_property(v_this, "Fields", v_fields));
-    return alg_nil();
+    Value ret_58 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_58;
 }
 
 static Value m_classstmt_accept_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
     Value v_visitor = args[0];
     (void)v_visitor;
-    return alg_invoke(v_visitor, "VisitClassStmt", (Value[]){v_this}, 1);
-    return alg_nil();
+    alg_root(&v_visitor, 1);
+    Value ret_59 = alg_invoke(v_visitor, "VisitClassStmt", (Value[]){v_this}, 1);
+    alg_root_top = rt_base;
+    return ret_59;
+    Value ret_60 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_60;
 }
 
 static Value *roots_Stmt[] = {

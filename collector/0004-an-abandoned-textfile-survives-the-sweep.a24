@@ -1,0 +1,58 @@
+// A TextFile may not be released by a sweep, because the runtime keeps every
+// one of them on a list it walks at exit.
+//
+// A handle joins `all_files` when it is MADE, not when it is opened, so this
+// needs no file on disk.  Releasing one left it linked there with its `next`
+// overwritten by the free list's link, and `close_open_files` then walked in a
+// circle: every pass found the handle already nil, did nothing, and went round
+// again.  It cost twenty-six minutes of spin on one run.
+//
+// So the failure this case guards against is a HANG AT EXIT rather than a wrong
+// answer, which is why the harness bounds how long a case may take.  It was
+// also invisible under ALG_POISON=1, where a body is never handed back out and
+// the list stays intact -- the harness runs both ways for that reason.
+
+procedure Churn ();
+begin
+    for var I : Integer := 0; I < 4000; I := I + 1 do
+    begin
+        var Junk := [I, I, I];
+    end
+end
+
+begin
+    // Abandoned immediately: nothing refers to any of them afterwards, and the
+    // LAST one made is at the head of `all_files`.
+    for var I : Integer := 0; I < 400; I := I + 1 do
+    begin
+        var Handle := TextFile ();
+    end
+
+    // Churned so that there is ordinary garbage for the sweep to find, and the
+    // count below is asserting that a collection happened rather than
+    // asserting the exemption -- which would turn red for an implementation
+    // that unlinked a released handle instead of exempting it, a change this
+    // case has no business forbidding.
+    Churn ();
+
+    WriteLn ('released something: ' + Str (Collect () > 0));
+
+    // ⚠️ MORE HANDLES, and this is the whole reproduction.  A released body
+    // only does damage when it is handed back to an object OF ITS OWN SIZE
+    // CLASS, and a List is a different class from a TextFile -- so churning
+    // Lists here reproduced nothing and the case passed with the bug present.
+    //
+    // A new handle takes a released body and runs `next := all_files`.  If the
+    // released body is still the head of that list, which the last one made
+    // is, the result is a handle whose `next` is itself: a self-loop, and
+    // `close_open_files` never reaches the end of it.
+    for var I : Integer := 0; I < 400; I := I + 1 do
+    begin
+        var Another := TextFile ();
+    end
+
+    var Kept := TextFile ();
+
+    WriteLn ('kept a handle: ' + Str (Kept is TextFile));
+    WriteLn ('reached the end');
+end

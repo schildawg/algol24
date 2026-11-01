@@ -1,0 +1,106 @@
+// The shadow stack has to cover more than a plain local: a method's receiver,
+// a boxed local a nested subprogram captures, a local that outlives a raise
+// several frames down, and a frame deep enough to grow the stack past its
+// first block.
+//
+// Each one reaches the collector by a different route.  A receiver arrives as a
+// C parameter; a capture lives in a heap cell and is registered as the cell
+// rather than as its address; a raise truncates in `alg_raise`, which is why
+// `Held` is still intact in the handler; and recursion is what makes the stack
+// realloc while entries are live.
+
+procedure Churn ();
+begin
+    for var I : Integer := 0; I < 3000; I := I + 1 do
+    begin
+        var Junk := [I, I, I];
+    end
+end
+
+class Box;
+var
+    Items : List;
+
+begin
+    constructor Init (Seed : Integer);
+    begin
+        this.Items := [Seed, Seed * 2];
+    end
+
+    function Total () : Integer;
+    begin
+        var Sum := 0;
+        Churn ();
+        var N := Collect ();
+
+        for var Each in Items do Sum := Sum + Each;
+
+        Exit Sum;
+    end
+end
+
+/// A local captured by a nested subprogram, which lives in a cell.
+function Counter () : Any;
+begin
+    var Seen := [];
+
+    function Note (X : Any);
+    begin
+        Seen.Add (X);
+    end
+
+    Note (1);
+    Churn ();
+    var N := Collect ();
+    Note (2);
+
+    Exit Seen;
+end
+
+function Deep (N : Integer) : Integer;
+begin
+    if N = 0 then raise 'bottom';
+
+    Exit Deep (N - 1);
+end
+
+/// A local that must survive a raise forty frames down.
+function Guarded () : Any;
+var
+    Held : List;
+
+begin
+    Held := [7, 8, 9];
+
+    try
+        Deep (40);
+    except
+        on E : String do
+        begin
+            Churn ();
+            var M := Collect ();
+        end
+    end
+
+    Exit Held;
+end
+
+/// Deep enough that the shadow stack has to grow while entries are live.
+function Sum (N : Integer) : Integer;
+begin
+    var Here := [N];
+    if N = 0 then Exit 0;
+
+    Exit Here[0] + Sum (N - 1);
+end
+
+begin
+    WriteLn ('method:  ' + Str (Box (5).Total ()));
+    WriteLn ('capture: ' + Str (Counter ()));
+    WriteLn ('guarded: ' + Str (Guarded ()));
+    WriteLn ('deep:    ' + Str (Sum (300)));
+
+    var Kept := [1, [2, [3, 'four']], 5];
+    Churn ();
+    WriteLn ('nested:  ' + Str (Collect () > 0) + ' ' + Str (Kept));
+end

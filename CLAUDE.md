@@ -596,6 +596,75 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   interpreter, but it is exactly what the `Buffer` guest heap in
   `PROPOSAL-GC.md` exists to fix.
 
+  ⚠️ **An Algol-24 LOCAL is a GC root, and `CEmitter` emits the shadow stack
+  that makes it one.** `alg_roots` covers module-level variables, whose
+  addresses the emitter knows once; a local has no such address, so a frame
+  registers its argument array as ONE entry, each block saves and restores
+  `alg_root_top` across its own braces, and each local is one entry pushed where
+  it is declared. Measured at **+5.8%** on the VM's Fib (27) and **+1.3%** on
+  `algc --compile`: a per-call frame costs most where the callee does least,
+  which is LTO's own finding in reverse.
+
+  ⚠️ **`alg_root_top` is read and written DIRECTLY by generated code, and
+  `alg_root` is inline.** A block boundary is far more common than a
+  declaration, so a call per brace is a cost the generated code must not carry.
+  Both live in `algol.h` for that reason, which is why the contract there
+  exposes runtime internals it otherwise would not.
+
+  ⚠️ **A return evaluates its value BEFORE truncating, and a raise truncates in
+  `alg_raise`.** `return <expr>;` after the reset would evaluate an allocating
+  expression with the frame already unregistered, so `EmitReturn` uses a slot —
+  the shape `Exit` already had for popping try frames. And a raise skips every
+  block between it and the handler, so `AlgFrame` records the depth at
+  `alg_push_frame` and the raise restores it before the `longjmp`.
+
+  ⚠️ **A `volatile` local must be registered as one.** The emitter marks a local
+  inside a `try` volatile so it survives the `longjmp`; `AlgRoots.slots` is
+  `volatile Value *` because registering it through a plain `Value *` compiled
+  fine and cast the qualifier away 101 times in one build.
+
+  ⚠️ **The remaining gap is a TEMPORARY, not a local.** An intermediate inside
+  one expression — the list in `[MakeList (), Collect ()]` — is in no local and
+  registered nowhere. It is reachable only by a collection that happens partway
+  through evaluating an expression.
+
+  ⚠️ **A Buffer AND a TextFile are exempt from the sweep, because both are on
+  a list the runtime walks.** `all_buffers` and `all_files`. Only the Buffer was
+  exempt, so a released `ObjFile` stayed linked with its `next` overwritten by
+  `obj_release`'s free-list link — and `close_open_files` walked in a circle at
+  exit, finding the handle already NULL every pass. Twenty-six minutes of spin
+  on one run, every collecting run, never the baseline. The price of exempting
+  rather than unlinking is that an abandoned TextFile is not reclaimed until the
+  process ends.
+
+  ⚠️ **"Poisoning works, reuse does not" was the whole diagnosis three times** —
+  the registry duplicate, the missing local roots, and the file list. Under
+  `ALG_POISON=1` a body is never handed back out, so any bug that needs reuse
+  vanishes. Read that split first.
+
+  ⚠️ **A stage label in a trace means "about to", not "done".** `[exit] files`
+  prints *before* `close_open_files` runs; reading it the other way blamed the
+  next stage along and sent a round of work at the wrong function.
+
+  ⚠️ **The arena is NOT freed at exit, and `alg_shutdown` closes files only.**
+  `atexit` is its one caller, so every `free` it did returned memory the kernel
+  was about to reclaim. `free_all_buffers` and `seq_forget_spares` were deleted
+  with the calls rather than left as dead code.
+
+  ⚠️ **Collection is worth 8.1× on the Inn**: 30 frames at 14.53 GB of peak
+  footprint without it against **1.80 GB** with `--collect 5000000`, at the same
+  frame rate (19 against 21 a second). Maximum resident goes the other way —
+  1.93 GB to 2.29 GB — because without collection the pages get evicted.
+
+  ⚠️ **`ALG_POISON=1` is how to debug this class at all.** The sweep retags
+  each released body `OBJ_RELEASED`, withholds it from the free list, and
+  `check_live` names the kind and the site at the first misuse — so `exit=139`
+  becomes `The collector released a List that a value being printed still
+  needs.` It still recycles the backing BLOCKS and withholds only the object
+  body, which is what makes it diagnostic: the Inn ran to completion under it
+  after releasing 19,369,686 objects, separating *marking is wrong* from
+  *reuse is wrong* in one run.
+
   ⚠️ **The machine may not import anything from `compiler/`.** `TypeNameOf`
   looked like a built-in and is a function of `compiler/ObjFunction`, so `is`
   is a chain over the five primitive type names using the host's own `is` with
@@ -782,9 +851,9 @@ runs every test block reachable from `X.a24`, its imports included — the
 narrowest thing you can run is a leaf module. `compiler/Token.a24` (2 tests) is a
 useful fast loop; `compiler/Main.a24` imports everything.
 
-## The five harnesses
+## The six harnesses
 
-All five must pass. They are the definition of done.
+All six must pass. They are the definition of done.
 
 ```sh
 ./test.sh          # the unit tests, inline in the source they cover
@@ -792,11 +861,38 @@ All five must pass. They are the definition of done.
 ./spec/spec.sh     # every rule cites something that exists
 ./fixedpoint.sh    # the seed matches what the compiler emits, and emits itself
 ./docs.sh          # every unit is documented per spec/DOCUMENTATION.md
+./collector.sh     # the collector keeps what a program holds, both ways
 ```
 
 Each prints its own totals. **Do not copy those totals into this file or the
 README**: every count written down here has gone stale, and a number in prose is
 a claim nothing checks.
+
+⚠️ **`./collector.sh` runs the COMPILED back end only, and that is the rule
+rather than an omission.** `Collect` is a request [RT-029]: the interpreter
+answers 0 because its live values sit in C locals all through a recursive
+evaluator, so declining is its conformant answer and there is nothing to
+compare against. `conform.sh` is where the two processors are held to each
+other.
+
+⚠️ **Every collector case runs TWICE — plainly and under `ALG_POISON=1`** —
+because that split *is* the diagnosis. Poisoning withholds a released body
+instead of reusing it, so a case that passes one way and fails the other says
+whether marking or reuse is at fault. Three bugs in the hunt that produced
+these cases had exactly that signature.
+
+⚠️ **A collector failure may be a HANG, so each run is bounded** (`--limit N`,
+default 120s). 0004 guards a released TextFile left linked in `all_files`, whose
+symptom was `close_open_files` walking in a circle at exit — comparing output
+alone waits for it forever.
+
+⚠️ **A green collector case proves nothing until it has been seen to go red.**
+0004 passed with the bug deliberately reinstated, because a released body only
+does damage when it is handed to an object OF ITS OWN SIZE CLASS: the case
+churned Lists, `sizeof(ObjSeq)` is a different band from `sizeof(ObjFile)`, and
+the bodies were never reused. It now allocates handles after the collection and
+fails in 30 seconds with the fix removed. Validate a new case against the
+reverted fix before trusting it.
 
 ⚠️ **A compiler gap is a failure, not a report.** Every case in `conformance/`
 and `refusals/` must pass under the interpreter *and* the compiled back end.

@@ -1,0 +1,5 @@
+method:  15
+capture: [1, 2]
+guarded: [7, 8, 9]
+deep:    45150
+nested:  true [1, [2, [3, four]], 5]
