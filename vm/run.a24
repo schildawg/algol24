@@ -154,6 +154,16 @@ end
 var SourcePath := ParamStr (1);
 var Listing := False;
 
+/// How many instructions between collections, for `--collect N`.
+///
+/// A knob on the driver rather than a constant in the machine, because the
+/// right number is a measurement and not a fact: marking costs O(live heap),
+/// so a program holding a lot pays more per collection and wants fewer of
+/// them.  0 turns collection off.
+var Every := -1;
+
+var WantsEvery := False;
+
 // The driver's own arguments, read BEFORE anything changes them.
 //
 // SetProgramArguments replaces what ParamCount and ParamStr answer, so a
@@ -166,6 +176,12 @@ var Seen := False;
 
 for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     if ParamStr (I) = '--list' then Listing := True;
+    else if ParamStr (I) = '--collect' then WantsEvery := True;
+    else if WantsEvery then
+    begin
+        Every := Val (ParamStr (I)) as Integer;
+        WantsEvery := False;
+    end
     else
     begin
         // The FIRST non-flag argument is the program; the rest are its own,
@@ -190,6 +206,9 @@ var Program := ChunkOf (SourceOf (SourcePath), SourcePath);
 // tree-walker reads, and the machine forwards a built-in to the HOST, whose
 // answer is about this driver's process instead.
 SetArguments (Given);
+
+// Before the run, so the first collection honours it.
+if Every >= 0 then SetCollectEvery (Every);
 
 if Listing then
 begin

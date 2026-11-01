@@ -91,9 +91,11 @@ static void *obj_alloc(size_t bytes, ObjType type) {
         obj->marked = false;
         obj->dead   = false;
 
-        /* Already in the registry from its first life, and must not be
-           entered twice: a sweep would then release it twice and hand the
-           same block out to two owners. */
+        /* Re-entered, because the sweep that released it also dropped it from
+           the registry -- which is what keeps a collection proportional to
+           what is alive rather than to everything ever allocated. */
+        obj_register(obj);
+
         return obj;
     }
 
@@ -3204,9 +3206,19 @@ static void obj_release(Obj *obj) {
     int band = obj_class_of(obj_size_of(obj));
     if (band < 0) return;
 
-    /* The link lives in the dead object's own first word, as seq_recycle does
-       with a dead block: no allocation to keep the free list. */
-    *(Obj **)obj = obj_spares[band];
+    /* The link lives AFTER the header, never over it.
+
+       ⚠️ Writing it at the object's first word -- which is what seq_recycle
+       does with a dead block, where there is no header to protect -- put it
+       straight over `type`, `marked` and `dead`.  The flag set two lines above
+       was destroyed by the line that followed it, so the next collection read
+       a garbage `dead` byte, released the same object a second time, and the
+       free list came to hold one block twice.  It surfaced in the Dew Drop Inn
+       as `Only instances have properties.`
+
+       Every object has at least one pointer after its header, so there is
+       always room here. */
+    *(Obj **)((char *)obj + sizeof(Obj)) = obj_spares[band];
     obj_spares[band] = obj;
 }
 
@@ -3215,7 +3227,7 @@ static Obj *obj_spare(size_t bytes) {
     if (band < 0 || obj_spares[band] == NULL) return NULL;
 
     Obj *obj = obj_spares[band];
-    obj_spares[band] = *(Obj **)obj;
+    obj_spares[band] = *(Obj **)((char *)obj + sizeof(Obj));
 
     return obj;
 }
@@ -3246,18 +3258,32 @@ int32_t alg_collect(void) {
             if (root_tables[t].slots[i] != NULL)
                 mark_value(*root_tables[t].slots[i]);
 
+    /* Sweep AND compact, in one pass.  A released object leaves the registry
+       and is re-entered by obj_alloc if it is ever handed out again.
+
+       ⚠️ Keeping dead objects registered made every collection cost O(all
+       objects ever allocated) rather than O(live): clearing marks and sweeping
+       both walked the whole history, so collection grew steadily slower and
+       the Dew Drop Inn could not finish 120 frames.  Compacting is what makes
+       the cost proportional to what is alive. */
     int32_t freed = 0;
+    size_t  kept  = 0;
 
     for (size_t i = 0; i < obj_count; i++) {
         Obj *obj = obj_registry[i];
 
         /* A Buffer is explicitly managed and never swept, so it must not be
            released even when nothing points at it any more. */
-        if (obj->marked || obj->dead || obj->type == OBJ_BUFFER) continue;
+        if (obj->marked || obj->dead || obj->type == OBJ_BUFFER) {
+            obj_registry[kept++] = obj;
+            continue;
+        }
 
         obj_release(obj);
         freed++;
     }
+
+    obj_count = kept;
 
     return freed;
 }

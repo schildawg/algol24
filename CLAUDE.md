@@ -687,6 +687,34 @@ compiled back end and the bytecode machine release. A program may depend on
 neither the count nor on anything being freed: `Collect` changes how much
 memory a correct program uses and never what it computes.
 
+⚠️ **AUTOMATIC collection is wired but OFF by default, because it is not safe
+yet.** `Vm.a24` collects at a safe point — the top of the dispatch loop, after
+an instruction has finished, where every live guest value is on `Slots` or in a
+module-level variable. That is safe across all **161** corpus programs the
+machine runs and it is **not** safe on the Dew Drop Inn, which fails as
+`Only instances have properties.` or blocks outright depending on what gets
+released. So the root set has a gap 161 programs do not reach and the Inn does.
+`--collect N` on `vm/run.a24` turns it on for experiment; nothing turns it on
+by default. An explicit `Collect ()` is unaffected and works.
+
+⚠️ **The registry must be COMPACTED by the sweep, or collection costs O(every
+object ever allocated).** Keeping released objects registered made clearing
+marks and sweeping both walk the whole history, so each collection grew slower
+than the last and the Inn could not finish 120 frames. A released object leaves
+the registry and `obj_alloc` re-enters it if it is ever handed out again.
+
+⚠️ **A free-list link must not go in the object's FIRST word.** `seq_recycle`
+puts one there because a bare block has no header to protect; an OBJECT does.
+Writing it at offset zero put it straight over `type`, `marked` and `dead` —
+destroying the `dead` flag the line above had just set, so the next collection
+read a garbage byte and released the same object twice. It goes after
+`sizeof(Obj)`, where every object has at least a pointer.
+
+⚠️ **VM startup dominates a short run and is not the frame cost.** 10 frames of
+the Inn is 488 ms of frames inside a **41.5 s** process: the machine compiles
+the whole program first. Quote the game's own `frames`/`rate` lines, never
+process wall time.
+
 ⚠️ **Roots are PRECISE because a module-level variable is a C static.**
 `CEmitter` emits `static Value *roots_<Unit>[]` of their addresses and calls
 `alg_roots` in `init_<Unit>()`. No stack scanning, no guessing — and the VM's

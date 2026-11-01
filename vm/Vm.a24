@@ -276,6 +276,34 @@ end
 /// so a handler reading one index cannot leave it set for the next -- and an
 /// opcode whose index comes AFTER another operand, as OP_OVERLOADS's does, is
 /// served by the same rule without the flag knowing where it sits.
+/// How many instructions between collections.  Zero is off, and is the
+/// DEFAULT, because automatic collection is not safe yet.
+///
+/// ⚠️ It is safe across all 161 corpus programs the machine runs and it is not
+/// safe on the Dew Drop Inn, which fails as `Only instances have properties.`
+/// or blocks outright depending on what gets released.  So the root set has a
+/// gap that 161 programs do not reach and the Inn does -- most likely a value
+/// held only in a C local across a safe point, somewhere the corpus never
+/// goes.  Until that is found, `--collect N` turns it on for experiment and
+/// nothing turns it on by default.
+///
+/// An explicit `Collect ()` is unaffected and does work: it is the AUTOMATIC
+/// trigger that is withheld, not the collector.
+var COLLECT_EVERY := 0;
+
+/// Instructions since the last collection.
+var Tick : Integer := 0;
+
+/// Sets how many instructions pass between collections, or 0 for none.
+///
+/// A policy the driver may set, because the right number is a measurement:
+/// marking costs O(live heap), so a program holding a lot pays more per
+/// collection and wants fewer of them.
+procedure SetCollectEvery (N : Integer);
+begin
+    COLLECT_EVERY := N;
+end
+
 var Wide : Boolean := False;
 
 
@@ -2443,6 +2471,7 @@ begin
     Cells      := List ();
     Answer     := Nil;
     Live       := True;
+    Tick       := 0;
 
     // Two loops, and the outer one is what makes a RUNTIME error catchable
     // [STM-020].  A host error arrives as a String -- 'Division by zero.',
@@ -2457,6 +2486,24 @@ begin
                 var Op := ReadByte ();
 
                 Dispatch[Op] ();
+
+                // THE SAFE POINT.  An instruction has just finished, so every
+                // live guest value is on Slots or in a module-level variable
+                // and no handler is part-way through -- the one place a
+                // collection can see everything [RT-029].
+                //
+                // Counted rather than asked, because asking costs a call and
+                // this runs per instruction.  COLLECT_EVERY is a policy and
+                // nothing more: too small spends the frame marking, too large
+                // lets the arena climb between collections.
+                Tick := Tick + 1;
+
+                if COLLECT_EVERY > 0 and Tick >= COLLECT_EVERY then
+                begin
+                    Tick := 0;
+
+                    Collect ();
+                end
             end
         except
             on e : String do
