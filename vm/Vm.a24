@@ -270,6 +270,41 @@ begin
     Exit High * 256 + ReadByte ();
 end
 
+/// Whether the instruction running was prefixed with OP_LONG.
+///
+/// Cleared by the first index read rather than at the end of the instruction,
+/// so a handler reading one index cannot leave it set for the next -- and an
+/// opcode whose index comes AFTER another operand, as OP_OVERLOADS's does, is
+/// served by the same rule without the flag knowing where it sits.
+var Wide : Boolean := False;
+
+/// Reads a constant index, two bytes where OP_LONG said so.
+///
+/// Every read of the constants goes through this, which is what makes the
+/// prefix one change rather than nineteen.
+function ReadIndex () : Integer;
+begin
+    if not Wide then Exit ReadByte ();
+
+    Wide := False;
+
+    Exit ReadShort ();
+end
+
+/// Runs the next instruction with its constant index widened.
+///
+/// The flag is cleared again afterwards as well, so an opcode the emitter
+/// prefixed by mistake cannot corrupt the instruction after it -- it would
+/// read its own operands narrow and be wrong in one place rather than two.
+procedure DoWide ();
+begin
+    Wide := True;
+
+    Dispatch[ReadByte ()] ();
+
+    Wide := False;
+end
+
 /// Answers the value Distance from the top without popping it.
 ///
 /// Named PeekAt rather than Peek, and not for taste: `Parser` has a METHOD
@@ -287,7 +322,7 @@ end
 /// Pushes the constant its operand names.
 procedure DoConstant ();
 begin
-    Push (Constants[ReadByte ()]);
+    Push (Constants[ReadIndex ()]);
 end
 
 /// Adds the top two values.
@@ -735,7 +770,7 @@ var
     Named : Any;
 
 begin
-    Named := ToLower (Str (Constants[ReadByte ()]));
+    Named := ToLower (Str (Constants[ReadIndex ()]));
 
     Push (TypeMatches (Pop (), Named));
 end
@@ -752,7 +787,7 @@ var
     V       : Any;
 
 begin
-    Written := Constants[ReadByte ()];
+    Written := Constants[ReadIndex ()];
     V       := PeekAt (0);
 
     // nil satisfies every type [VAR-005], so it passes every cast rather than
@@ -1131,7 +1166,7 @@ var
     Written : Any;
 
 begin
-    Written := Constants[ReadByte ()];
+    Written := Constants[ReadIndex ()];
 
     Push (MemberOf (Pop (), Written));
 end
@@ -1266,7 +1301,7 @@ var
     Slot    : Integer;
 
 begin
-    Written := Constants[ReadByte ()];
+    Written := Constants[ReadIndex ()];
     Slot    := ReadShort ();
 
     var Self := Pop ();
@@ -1296,7 +1331,7 @@ var
     Slot    : Integer;
 
 begin
-    Written := Constants[ReadByte ()];
+    Written := Constants[ReadIndex ()];
     Count   := ReadByte ();
     Slot    := ReadShort ();
 
@@ -1351,7 +1386,7 @@ begin
     // Both spellings kept: the folded one dispatches and the written one goes
     // in the diagnostic.  Recovering it from IP afterwards indexed the
     // CONSTANTS by a code offset, which is a different array entirely.
-    Written := Constants[ReadByte ()];
+    Written := Constants[ReadIndex ()];
     Count   := ReadByte ();
 
     InvokeMember (Written, Count);
@@ -1477,7 +1512,7 @@ var
     V     : Any;
 
 begin
-    Named := ToLower (Str (Constants[ReadByte ()]));
+    Named := ToLower (Str (Constants[ReadIndex ()]));
     V     := Pop ();
 
     if V = Nil then
@@ -1495,13 +1530,13 @@ end
 /// Pushes a new enumeration.
 procedure DoEnum ();
 begin
-    Push (VmEnumType (Str (Constants[ReadByte ()])));
+    Push (VmEnumType (Str (Constants[ReadIndex ()])));
 end
 
 /// Adds the next member to the enumeration on top and pushes it.
 procedure DoEnumMember ();
 begin
-    Push (PeekAt (0).AddMember (Constants[ReadByte ()]));
+    Push (PeekAt (0).AddMember (Constants[ReadIndex ()]));
 end
 
 /// Duplicates the value on top.
@@ -1664,7 +1699,7 @@ var
     Taken : List;
 
 begin
-    Body  := Constants[ReadByte ()];
+    Body  := Constants[ReadIndex ()];
     Count := ReadByte ();
     Taken := List ();
 
@@ -1833,7 +1868,7 @@ var
 
 begin
     Count := ReadByte ();
-    Made  := VmOverloads (Str (Constants[ReadByte ()]));
+    Made  := VmOverloads (Str (Constants[ReadIndex ()]));
     From  := SP - Count;
 
     // Read by index rather than popped, so the candidates keep DECLARATION
@@ -1878,7 +1913,7 @@ var
     E     : Any;
 
 begin
-    Name  := ToLower (Str (Constants[ReadByte ()]));
+    Name  := ToLower (Str (Constants[ReadIndex ()]));
     Count := ReadByte ();
 
     // Write and WriteLn take any number [RT-015], so they are handled before
@@ -2049,7 +2084,7 @@ end
 /// Pushes a new class.
 procedure DoClass ();
 begin
-    Push (VmClass (Str (Constants[ReadByte ()])));
+    Push (VmClass (Str (Constants[ReadIndex ()])));
 end
 
 /// Records a method on the class on top, leaving the class there.
@@ -2059,7 +2094,7 @@ var
     Body  : Any;
 
 begin
-    Named := Constants[ReadByte ()];
+    Named := Constants[ReadIndex ()];
     Body  := Pop ();
 
     PeekAt (0).AddMethod (Named, Body);
@@ -2068,7 +2103,7 @@ end
 /// Records a field name on the class on top, leaving the class there.
 procedure DoField ();
 begin
-    PeekAt (0).AddField (Constants[ReadByte ()]);
+    PeekAt (0).AddField (Constants[ReadIndex ()]);
 end
 
 /// Makes the popped class the parent of the one on top.
@@ -2085,7 +2120,7 @@ var
 begin
     // The NAME is an operand so the refusal can quote what the program wrote,
     // which is what the interpreter's own message does.
-    ParentName := Constants[ReadByte ()];
+    ParentName := Constants[ReadIndex ()];
     Parent     := Pop ();
 
     if not (Parent is VmClass) then
@@ -2114,7 +2149,7 @@ var
     Written : Any;
 
 begin
-    Written := Constants[ReadByte ()];
+    Written := Constants[ReadIndex ()];
 
     Push (MemberOf (Pop (), Written));
 end
@@ -2131,7 +2166,7 @@ begin
     // Both spellings kept, for the reason DoGetField gives -- and the WRITTEN
     // one has to be captured here rather than recovered from IP afterwards,
     // which indexed the constants by a code offset instead.
-    Written := Constants[ReadByte ()];
+    Written := Constants[ReadIndex ()];
     Named   := ToLower (Str (Written));
     Value   := Pop ();
     Self    := Pop ();
@@ -2226,6 +2261,7 @@ begin
     Table[OP_GET_GLOBAL_LONG]    := DoGetGlobalLong;
     Table[OP_DEFINE_GLOBAL_LONG] := DoDefineGlobalLong;
     Table[OP_SET_GLOBAL_LONG]    := DoSetGlobalLong;
+    Table[OP_LONG]          := DoWide;
     Table[OP_EXTEND]        := DoExtend;
     Table[OP_INVOKE_EXT]    := DoInvokeExt;
     Table[OP_ADD]      := DoAdd;
@@ -2769,6 +2805,79 @@ begin
 
     AssertEqual (True, RunChunk (C));
     AssertEqual (0, SP);
+end
+
+test 'A Constant Beyond The First 256 Is Read Through The Long Prefix';
+begin
+    var C := Chunk ();
+
+    // Fill past a byte's reach with distinct values, so interning cannot
+    // collapse them back under 256.
+    for var I : Integer := 0; I < 300; I := I + 1 do
+        C.AddConstant ('filler ' + Str (I));
+
+    var Far := C.AddConstant (42);
+
+    AssertTrue (Far > 255);
+
+    C.EmitIndexed (OP_CONSTANT, Far);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C));
+    AssertEqual (0, SP);
+end
+
+test 'The Long Prefix Widens Only The Index Beside Other Operands';
+begin
+    var C := Chunk ();
+
+    for var I : Integer := 0; I < 300; I := I + 1 do
+        C.AddConstant ('filler ' + Str (I));
+
+    // OP_OVERLOADS carries its COUNT first and its index second, so a prefix
+    // that widened "the first operand" would read the count as a short and
+    // the whole instruction after it would be misaligned.
+    var Named := C.AddConstant ('Take');
+
+    AssertTrue (Named > 255);
+
+    C.EmitConstant (Candidate ('Take', [Str ('Integer')], 'one'));
+    C.EmitConstant (Candidate ('Take', [Str ('Integer'), Str ('Integer')], 'two'));
+
+    C.WriteIndexed (OP_OVERLOADS, Named);
+    C.Write (2);
+    C.WriteIndex (Named);
+
+    C.EmitConstant (1);
+    C.EmitConstant (2);
+    C.EmitWith (OP_CALL, 2);
+    C.Emit (OP_RETURN);
+
+    AssertEqual ('two', Str (RunChunk (C)));
+    AssertEqual (0, SP);
+end
+
+test 'A Narrow Instruction After A Long One Is Still Narrow';
+begin
+    var C := Chunk ();
+
+    for var I : Integer := 0; I < 300; I := I + 1 do
+        C.AddConstant ('filler ' + Str (I));
+
+    var Far  := C.AddConstant (40);
+    var Near := C.AddConstant (2);
+
+    AssertTrue (Far > 255);
+    AssertTrue (Near > 255);
+
+    // Two widened instructions in a row: the flag has to be cleared by the
+    // first index READ, or the second reads one byte and then drifts.
+    C.EmitIndexed (OP_CONSTANT, Far);
+    C.EmitIndexed (OP_CONSTANT, Near);
+    C.Emit (OP_ADD);
+    C.Emit (OP_RETURN);
+
+    AssertEqual (42, RunChunk (C));
 end
 
 test 'A Global Beyond The First 256 Is Read Through The Wide Form';

@@ -446,11 +446,34 @@ const OP_EXTEND := 67;
 /// its first argument and the call is an ordinary one from there [FUN-016].
 const OP_INVOKE_EXT := 68;
 
+/// Widens the CONSTANT INDEX of the instruction that follows.  Its operand is
+/// that whole instruction, opcode and all.
+///
+/// Named LONG rather than WIDE because OP_WIDEN already exists and widens a
+/// VALUE to a declared type [VAL-001] -- two opcodes a letter apart meaning
+/// unrelated things is a misreading waiting to happen, and `clox` spells the
+/// same idea OP_CONSTANT_LONG.
+///
+/// A prefix rather than a long form per opcode, which is what the JVM's `wide`
+/// does and for the same reason: nineteen opcodes carry an index into the
+/// constants, and nineteen long forms would be nineteen numbers, nineteen
+/// names, nineteen handlers and nineteen chances to forget one.  A prefix is
+/// one of each and covers an opcode added later for free.
+///
+/// Only the INDEX widens.  An argument count beside it stays a byte, and a
+/// slot beside it is already a short -- so `OP_INVOKE_EXT` under the prefix
+/// reads a short, a byte and a short.
+///
+/// The emitter writes it only before an instruction that reads an index, which
+/// is what lets the machine clear the flag on the first read rather than
+/// tracking where in the operands the index sits.
+const OP_LONG := 69;
+
 /// Stops the machine, answering whatever is on top of the stack.
-const OP_RETURN := 69;
+const OP_RETURN := 70;
 
 /// How many opcodes there are.
-const OP_COUNT := 70;
+const OP_COUNT := 71;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -527,6 +550,7 @@ begin
     if Op = OP_SET_GLOBAL_LONG    then Exit 'OP_SET_GLOBAL_LONG';
     if Op = OP_EXTEND        then Exit 'OP_EXTEND';
     if Op = OP_INVOKE_EXT    then Exit 'OP_INVOKE_EXT';
+    if Op = OP_LONG          then Exit 'OP_LONG';
     if Op = OP_RETURN        then Exit 'OP_RETURN';
 
     Exit 'OP_?';
@@ -534,9 +558,16 @@ end
 
 /// The OPERAND SHAPE of an opcode, one letter per operand.
 ///
-/// `b` is a single byte -- a slot, a count, an index into the constants.  `s`
-/// is a SHORT, two bytes most significant first -- a jump distance, or a slot
-/// too wide for one byte.  An opcode taking no operands answers ''.
+/// `b` is a single byte -- a slot or a count.  `i` is an index into the
+/// CONSTANTS, one byte on its own and two under an OP_LONG prefix.  `s` is a
+/// short, two bytes most significant first -- a jump distance, or a slot too
+/// wide for one byte.  An opcode taking no operands answers ''.
+///
+/// `i` is told from `b` because only an index widens, and a disassembler has
+/// to know WHICH operand that is: OP_BUILTIN carries the index first and
+/// OP_OVERLOADS carries it second, so "the first byte" would have rendered one
+/// of them wrongly.  The machine itself needs no such care, because it clears
+/// the wide flag on the first index it reads.
 ///
 /// A shape rather than a count, because two operand bytes are not always one
 /// number: OP_INVOKE carries a name's index BESIDE an argument count, while
@@ -554,7 +585,7 @@ end
 /// See test 'An Operand Shape Describes Every Byte That Follows'.
 function OpShape (Op : Integer) : String;
 begin
-    if Op = OP_CONSTANT  then Exit 'b';
+    if Op = OP_CONSTANT  then Exit 'i';
     if Op = OP_GET_LOCAL then Exit 'b';
     if Op = OP_SET_LOCAL then Exit 'b';
 
@@ -562,31 +593,31 @@ begin
     if Op = OP_DEFINE_GLOBAL then Exit 'b';
     if Op = OP_SET_GLOBAL    then Exit 'b';
     if Op = OP_CALL          then Exit 'b';
-    if Op = OP_IS            then Exit 'b';
-    if Op = OP_CAST          then Exit 'b';
+    if Op = OP_IS            then Exit 'i';
+    if Op = OP_CAST          then Exit 'i';
     if Op = OP_GET_BOX       then Exit 'b';
     if Op = OP_SET_BOX       then Exit 'b';
     if Op = OP_GET_CELL      then Exit 'b';
     if Op = OP_SET_CELL      then Exit 'b';
     if Op = OP_LIST          then Exit 'b';
     if Op = OP_MAP           then Exit 'b';
-    if Op = OP_PROPERTY      then Exit 'b';
-    if Op = OP_CLASS         then Exit 'b';
-    if Op = OP_METHOD        then Exit 'b';
-    if Op = OP_FIELD         then Exit 'b';
-    if Op = OP_INHERIT       then Exit 'b';
-    if Op = OP_GET_FIELD     then Exit 'b';
-    if Op = OP_SET_FIELD     then Exit 'b';
-    if Op = OP_WIDEN         then Exit 'b';
-    if Op = OP_ENUM          then Exit 'b';
-    if Op = OP_ENUM_MEMBER   then Exit 'b';
+    if Op = OP_PROPERTY      then Exit 'i';
+    if Op = OP_CLASS         then Exit 'i';
+    if Op = OP_METHOD        then Exit 'i';
+    if Op = OP_FIELD         then Exit 'i';
+    if Op = OP_INHERIT       then Exit 'i';
+    if Op = OP_GET_FIELD     then Exit 'i';
+    if Op = OP_SET_FIELD     then Exit 'i';
+    if Op = OP_WIDEN         then Exit 'i';
+    if Op = OP_ENUM          then Exit 'i';
+    if Op = OP_ENUM_MEMBER   then Exit 'i';
 
     // The count and the name's index.
-    if Op = OP_OVERLOADS     then Exit 'bb';
+    if Op = OP_OVERLOADS     then Exit 'bi';
 
     // The name's index and the argument count, for both of these.
-    if Op = OP_BUILTIN       then Exit 'bb';
-    if Op = OP_INVOKE        then Exit 'bb';
+    if Op = OP_BUILTIN       then Exit 'ib';
+    if Op = OP_INVOKE        then Exit 'ib';
 
     // A single distance, which is why these are a short and OP_INVOKE is not.
     if Op = OP_JUMP          then Exit 's';
@@ -601,10 +632,14 @@ begin
 
     // The name's index, then a WIDE slot -- an extension may live anywhere in
     // a program's globals, so its operand cannot be the narrow one.
-    if Op = OP_EXTEND        then Exit 'bs';
+    if Op = OP_EXTEND        then Exit 'is';
 
     // The name's index, the argument count, then a wide slot.
-    if Op = OP_INVOKE_EXT    then Exit 'bbs';
+    if Op = OP_INVOKE_EXT    then Exit 'ibs';
+
+    // OP_LONG answers '' and is a LIE for the same reason OP_CLOSURE is: its
+    // operand is the whole instruction after it, whose own shape decides the
+    // width.  A disassembler has to special-case it, and `vm/run.a24` does.
 
     Exit '';
 end
@@ -622,6 +657,8 @@ begin
 
     Bytes := 0;
 
+    // An `i` counts as one, which is its width WITHOUT the prefix.  Under
+    // OP_LONG it is two, and a caller that cares walks the shape itself.
     for var I : Integer := 0; I < Length (Shape); I := I + 1 do
         if Shape[I] = 's' then Bytes := Bytes + 2;
         else Bytes := Bytes + 1;
@@ -633,16 +670,21 @@ test 'An Operand Shape Describes Every Byte That Follows';
 begin
     // A jump's pair is one number; OP_INVOKE's pair is two operands.
     AssertEqual (Str ('s'),  Str (OpShape (OP_JUMP)));
-    AssertEqual ('bb', Str (OpShape (OP_INVOKE)));
+    AssertEqual ('ib', Str (OpShape (OP_INVOKE)));
+
+    // An index is told from a byte, and OP_OVERLOADS carries it SECOND.
+    AssertEqual (Str ('i'), Str (OpShape (OP_CONSTANT)));
+    AssertEqual ('bi', Str (OpShape (OP_OVERLOADS)));
 
     // A wide slot, and a byte beside one.
     AssertEqual (Str ('s'),   Str (OpShape (OP_GET_GLOBAL_LONG)));
-    AssertEqual ('bs',  Str (OpShape (OP_EXTEND)));
-    AssertEqual ('bbs', Str (OpShape (OP_INVOKE_EXT)));
+    AssertEqual ('is',  Str (OpShape (OP_EXTEND)));
+    AssertEqual ('ibs', Str (OpShape (OP_INVOKE_EXT)));
 
     // The width follows from the shape and is not listed twice.
     AssertEqual (2, OpOperands (OP_JUMP));
     AssertEqual (2, OpOperands (OP_INVOKE));
+    AssertEqual (0, OpOperands (OP_LONG));
     AssertEqual (2, OpOperands (OP_GET_GLOBAL_LONG));
     AssertEqual (3, OpOperands (OP_EXTEND));
     AssertEqual (4, OpOperands (OP_INVOKE_EXT));
@@ -655,7 +697,7 @@ begin
         var Shape := OpShape (Op);
 
         for var I : Integer := 0; I < Length (Shape); I := I + 1 do
-            AssertTrue (Shape[I] = 'b' or Shape[I] = 's');
+            AssertTrue (Shape[I] = 'b' or Shape[I] = 'i' or Shape[I] = 's');
     end
 end
 

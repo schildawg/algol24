@@ -829,9 +829,8 @@ begin
 
     var At := Into.AddConstant (Str (Declared));
 
-    if At > 255 then Refuse ('A chunk with more than 256 constants');
 
-    Into.EmitWith (OP_WIDEN, At);
+    Into.EmitIndexed (OP_WIDEN, At);
 end
 
 /// Widens each parameter that was declared with a type, in place.
@@ -955,9 +954,8 @@ begin
     // Token and reads its Lexeme.
     var At := Into.AddConstant (Str (TheExpr.Cast));
 
-    if At > 255 then Refuse ('A chunk with more than 256 constants');
 
-    Into.EmitWith (OP_CAST, At);
+    Into.EmitIndexed (OP_CAST, At);
 end
 
 /// Emits one expression, ignoring any cast written on it.
@@ -1015,7 +1013,7 @@ begin
             else if FieldOfThis (TheExpr.Name) then
             begin
                 Into.Emit (OP_THIS);
-                Into.EmitWith (OP_GET_FIELD, ClassNameConstant (TheExpr.Name));
+                Into.EmitIndexed (OP_GET_FIELD, ClassNameConstant (TheExpr.Name));
             end
 
             // Neither, so BareSlot says why -- a visibility fault reported
@@ -1043,7 +1041,7 @@ begin
             EmitExpr (TheExpr.Value);
             EmitWidening (TheExpr.Declared);
 
-            Into.EmitWith (OP_SET_FIELD, ClassNameConstant (TheExpr.Name));
+            Into.EmitIndexed (OP_SET_FIELD, ClassNameConstant (TheExpr.Name));
 
             Exit;
         end
@@ -1132,7 +1130,7 @@ begin
         // has already recorded what it was declared as.
         EmitWidening (TheExpr.Declared);
 
-        Into.EmitWith (OP_SET_FIELD, ClassNameConstant (TheExpr.Name));
+        Into.EmitIndexed (OP_SET_FIELD, ClassNameConstant (TheExpr.Name));
 
         Exit;
     end
@@ -1182,8 +1180,10 @@ begin
 
             EmitExpr (TheExpr.Obj);
 
-            Into.Write (OP_EXTEND);
-            Into.Write (ClassNameConstant (TheExpr.Name));
+            var Named := ClassNameConstant (TheExpr.Name);
+
+            Into.WriteIndexed (OP_EXTEND, Named);
+            Into.WriteIndex (Named);
             // A wide slot, because an extension may live anywhere among a
             // program's globals and one byte reaches only the first 256.
             if Reaches > 65535 then Refuse ('A program holds 65536 globals');
@@ -1206,7 +1206,7 @@ begin
                              and Named <> 'isempty' and Named <> 'address' then
         begin
             EmitExpr (TheExpr.Obj);
-            Into.EmitWith (OP_GET_FIELD, ClassNameConstant (TheExpr.Name));
+            Into.EmitIndexed (OP_GET_FIELD, ClassNameConstant (TheExpr.Name));
 
             Exit;
         end
@@ -1215,9 +1215,8 @@ begin
 
         var At := Into.AddConstant (Str (TheExpr.Name.Lexeme));
 
-        if At > 255 then Refuse ('A chunk with more than 256 constants');
 
-        Into.EmitWith (OP_PROPERTY, At);
+        Into.EmitIndexed (OP_PROPERTY, At);
 
         Exit;
     end
@@ -1277,9 +1276,8 @@ begin
         // push the name, where OP_IS wants the INDEX as its own operand.
         var At := Into.AddConstant (Str (TheExpr.TypeName.Lexeme));
 
-        if At > 255 then Refuse ('A chunk with more than 256 constants');
 
-        Into.EmitWith (OP_IS, At);
+        Into.EmitIndexed (OP_IS, At);
 
         Exit;
     end
@@ -1454,10 +1452,9 @@ begin
 
         var At := Into.AddConstant (Str (Member.Name.Lexeme));
 
-        if At > 255 then Refuse ('A chunk with more than 256 constants');
 
-        Into.Write (OP_BUILTIN);
-        Into.Write (At);
+        Into.WriteIndexed (OP_BUILTIN, At);
+        Into.WriteIndex (At);
         Into.Write (TheExpr.Arguments.Length);
 
         Exit;
@@ -1510,8 +1507,10 @@ begin
 
             for var Argument in TheExpr.Arguments do EmitExpr (Argument);
 
-            Into.Write (OP_INVOKE_EXT);
-            Into.Write (ClassNameConstant (Member.Name));
+            var Named := ClassNameConstant (Member.Name);
+
+            Into.WriteIndexed (OP_INVOKE_EXT, Named);
+            Into.WriteIndex (Named);
             Into.Write (TheExpr.Arguments.Length);
             // A wide slot, because an extension may live anywhere among a
             // program's globals and one byte reaches only the first 256.
@@ -1532,10 +1531,9 @@ begin
 
         var Slot := Into.AddConstant (Str (Member.Name.Lexeme));
 
-        if Slot > 255 then Refuse ('A chunk with more than 256 constants');
 
-        Into.Write (OP_INVOKE);
-        Into.Write (Slot);
+        Into.WriteIndexed (OP_INVOKE, Slot);
+        Into.WriteIndex (Slot);
         Into.Write (TheExpr.Arguments.Length);
 
         Exit;
@@ -1586,8 +1584,8 @@ begin
 
         var Slot := ClassNameConstant (TheExpr.Callee.Name);
 
-        Into.Write (OP_INVOKE);
-        Into.Write (Slot);
+        Into.WriteIndexed (OP_INVOKE, Slot);
+        Into.WriteIndex (Slot);
         Into.Write (TheExpr.Arguments.Length);
 
         Exit;
@@ -1614,10 +1612,9 @@ begin
 
         var At := Into.AddConstant (Str (TheExpr.Callee.Name.Lexeme));
 
-        if At > 255 then Refuse ('A chunk with more than 256 constants');
 
-        Into.Write (OP_BUILTIN);
-        Into.Write (At);
+        Into.WriteIndexed (OP_BUILTIN, At);
+        Into.WriteIndex (At);
         Into.Write (TheExpr.Arguments.Length);
 
         Exit;
@@ -1672,7 +1669,7 @@ begin
 
     EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
     EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, BareSlot (TheStmt.Superclass.Name));
-    Into.EmitWith (OP_INHERIT, ClassNameConstant (TheStmt.Superclass.Name));
+    Into.EmitIndexed (OP_INHERIT, ClassNameConstant (TheStmt.Superclass.Name));
     Into.Emit (OP_POP);
 end
 
@@ -1703,10 +1700,10 @@ end
 /// and Methods like any other.
 procedure EmitClass (TheStmt : Any);
 begin
-    Into.EmitWith (OP_CLASS, ClassNameConstant (TheStmt.Name));
+    Into.EmitIndexed (OP_CLASS, ClassNameConstant (TheStmt.Name));
 
     for var TheField in TheStmt.Fields do
-        Into.EmitWith (OP_FIELD, ClassNameConstant (TheField.Name));
+        Into.EmitIndexed (OP_FIELD, ClassNameConstant (TheField.Name));
 
     var Seen := Map ();
 
@@ -1739,7 +1736,7 @@ begin
         Seen.Put (Key, True);
 
         Into.EmitConstant (CompileMethod (TheMethod, TheStmt, Key = 'init'));
-        Into.EmitWith (OP_METHOD, ClassNameConstant (TheMethod.Name));
+        Into.EmitIndexed (OP_METHOD, ClassNameConstant (TheMethod.Name));
     end
 
     // A constructor is where the field initializers run, so one is synthesized
@@ -1747,7 +1744,7 @@ begin
     if not Seen.Contains ('init') then
     begin
         Into.EmitConstant (SynthesizedInit (TheStmt));
-        Into.EmitWith (OP_METHOD, Into.AddConstant ('Init'));
+        Into.EmitIndexed (OP_METHOD, Into.AddConstant ('Init'));
     end
 
     if Depth > 0 then
@@ -1764,14 +1761,12 @@ end
 ///
 /// # Raises
 ///
-/// 'A chunk with more than 256 constants' once an index will not fit.
+/// Whatever WriteIndex raises, once a chunk holds 65536 constants -- the index
+/// itself no longer has a limit the emitter must check, because OP_LONG
+/// carries any index a short can hold.
 function ClassNameConstant (Name : Any) : Integer;
 begin
-    var At := Into.AddConstant (Str (Name.Lexeme));
-
-    if At > 255 then Refuse ('A chunk with more than 256 constants');
-
-    Exit At;
+    Exit Into.AddConstant (Str (Name.Lexeme));
 end
 
 /// Compiles a method's body into a chunk of its own.
@@ -1869,7 +1864,7 @@ begin
             Into.Emit (OP_THIS);
             EmitExpr (TheField.Initializer);
             EmitWidening (TheField.TypeName);
-            Into.EmitWith (OP_SET_FIELD, ClassNameConstant (TheField.Name));
+            Into.EmitIndexed (OP_SET_FIELD, ClassNameConstant (TheField.Name));
             Into.Emit (OP_POP);
         end
 end
@@ -2023,10 +2018,9 @@ begin
         var Body := CompileNested (TheStmt);
         var At   := Into.AddConstant (Body);
 
-        if At > 255 then Refuse ('A chunk with more than 256 constants');
 
-        Into.Write (OP_CLOSURE);
-        Into.Write (At);
+        Into.WriteIndexed (OP_CLOSURE, At);
+        Into.WriteIndex (At);
         Into.Write (Locals.Length);
 
         for var I : Integer := 0; I < Locals.Length; I := I + 1 do Into.Write (I);
@@ -2076,9 +2070,14 @@ begin
 
         if Done < Total then Exit;
 
-        Into.Write (OP_OVERLOADS);
+        var Named := ClassNameConstant (TheStmt.Name);
+
+        // The index comes SECOND here, which the prefix needs no special case
+        // for: the machine clears the wide flag on the first index it READS,
+        // wherever in the operands that sits.
+        Into.WriteIndexed (OP_OVERLOADS, Named);
         Into.Write (Total);
-        Into.Write (ClassNameConstant (TheStmt.Name));
+        Into.WriteIndex (Named);
     end
 
     EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme));
@@ -2235,7 +2234,7 @@ begin
             else
             begin
                 Into.Emit (OP_DUP);
-                Into.EmitWith (OP_IS, Into.AddConstant (Str (Named)));
+                Into.EmitIndexed (OP_IS, Into.AddConstant (Str (Named)));
 
                 var Next := Into.EmitJump (OP_JUMP_IF_FALSE);
                 Into.Emit (OP_POP);
@@ -2275,14 +2274,14 @@ begin
 
     if Kind = 'EnumStmt' then
     begin
-        Into.EmitWith (OP_ENUM, ClassNameConstant (TheStmt.Name));
+        Into.EmitIndexed (OP_ENUM, ClassNameConstant (TheStmt.Name));
 
         // Each member is pushed by OP_ENUM_MEMBER and bound immediately, so
         // the bare name and the qualified one reach the one interned object
         // [ENU-002].  The enumeration stays beneath them throughout.
         for var Member in TheStmt.Members do
         begin
-            Into.EmitWith (OP_ENUM_MEMBER, ClassNameConstant (Member));
+            Into.EmitIndexed (OP_ENUM_MEMBER, ClassNameConstant (Member));
 
             if Depth > 0 then Refuse ('An enumeration inside a block');
 
@@ -2322,7 +2321,7 @@ begin
 
         Into.EmitWith (OP_GET_LOCAL, At);
         Into.EmitWith (OP_GET_LOCAL, Over);
-        Into.EmitWith (OP_PROPERTY, Into.AddConstant ('Length'));
+        Into.EmitIndexed (OP_PROPERTY, Into.AddConstant ('Length'));
         Into.Emit (OP_LESS);
 
         var Done := Into.EmitJump (OP_JUMP_IF_FALSE);

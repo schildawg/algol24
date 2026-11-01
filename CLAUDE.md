@@ -193,6 +193,33 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   program the machine simply cannot hold looked like a wrong answer. The script
   sorts the two by the words `is not supported by the bytecode back end yet`.
 
+  ⚠️ **A constant index widens by a PREFIX, not by a long form per opcode.**
+  Nineteen opcodes carry an index into the constants, so nineteen long forms
+  would be nineteen numbers, names, handlers and chances to miss one.
+  `OP_LONG` precedes an instruction and widens its index — the JVM's `wide`,
+  and it covers an opcode added later for free. Measured free on the narrow
+  path: Fib (27) interleaved against the prior commit reads 0.98–0.99 s both
+  ways.
+
+  ⚠️ **It is `OP_LONG`, not `OP_WIDE`, because `OP_WIDEN` already exists** and
+  widens a *value* to a declared type. Two opcodes a letter apart meaning
+  unrelated things is a misreading waiting to happen — and it happened to me
+  inside ten minutes, grepping a disassembly for the prefix and matching the
+  other one.
+
+  ⚠️ **The machine clears the wide flag on the first index READ; the
+  disassembler cannot.** `ReadIndex` consults a flag, so it does not care where
+  in the operands the index sits — which matters because `OP_BUILTIN` carries
+  it first and `OP_OVERLOADS` carries it second. A disassembler has to know
+  *which* operand it is, so `OpShape` tells `i` from `b`: an index from a mere
+  byte. Widening "the first operand" would have rendered `OP_OVERLOADS`
+  wrongly and put every later offset out.
+
+  ⚠️ **Two prefixed instructions in a row is the case that catches a stale
+  flag.** Clearing at the end of the instruction instead of at the read leaves
+  the second one reading a byte where a short was written, and everything after
+  it drifts. There is a test for exactly that pair.
+
   ⚠️ **A global slot is a SHORT where it has to be, and the cap was never the
   interesting part.** One byte addresses 256 globals; shroom-slots and its
   library declare about **1,700** names between them, so `OP_GET_GLOBAL_LONG`,

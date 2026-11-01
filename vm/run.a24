@@ -201,7 +201,21 @@ begin
     begin
         var Op := Program.At (At);
         var Line := Str (At) + '  ' + OpName (Op);
-        var Wide := OpOperands (Op);
+
+        // OP_LONG is a PREFIX: its operand is the whole instruction after it,
+        // whose constant index is then two bytes.  Rendered as the prefix and
+        // then the instruction, which is what the bytes are.
+        var Widened := Op = OP_LONG;
+
+        if Widened then
+        begin
+            WriteLn (Line);
+
+            At   := At + 1;
+            Op   := Program.At (At);
+            Line := Str (At) + '  ' + OpName (Op);
+        end
+
 
         // OP_CLOSURE is the one variable-width instruction -- a constant
         // index, a capture count, then one enclosing slot per capture -- and
@@ -210,16 +224,30 @@ begin
         // chunk with a nested subprogram in it was fiction after that point.
         if Op = OP_CLOSURE then
         begin
-            var Taken := Program.At (At + 2);
+            // Its index widens under the prefix like any other, so where the
+            // capture count sits depends on that.
+            var Index := At + 1;
+            var After := At + 2;
 
-            Line := Line + ' ' + Str (Program.At (At + 1)) + ' ' + Str (Taken);
+            var Named := Str (Program.At (Index));
+
+            if Widened then
+            begin
+                Named := Str ((Program.At (Index) as Integer) * 256
+                            + (Program.At (Index + 1) as Integer));
+                After := At + 3;
+            end
+
+            var Taken := Program.At (After);
+
+            Line := Line + ' ' + Named + ' ' + Str (Taken);
 
             for var I : Integer := 0; I < Taken; I := I + 1 do
-                Line := Line + ' ' + Str (Program.At (At + 3 + I));
+                Line := Line + ' ' + Str (Program.At (After + 1 + I));
 
             WriteLn (Line);
 
-            At := At + 3 + Taken;
+            At := After + 1 + Taken;
 
             continue;
         end
@@ -231,8 +259,11 @@ begin
         var Where := At + 1;
         var Shape := OpShape (Op);
 
+        // Two bytes for a short, and for an INDEX under the prefix; one for
+        // anything else.  Walked rather than totalled, because the width
+        // depends on the prefix and on which operand the index is.
         for var I : Integer := 0; I < Length (Shape); I := I + 1 do
-            if Shape[I] = 's' then
+            if Shape[I] = 's' or (Widened and Shape[I] = 'i') then
             begin
                 Line  := Line + ' ' + Str ((Program.At (Where) as Integer) * 256
                                          + (Program.At (Where + 1) as Integer));
@@ -246,7 +277,7 @@ begin
 
         WriteLn (Line);
 
-        At := At + 1 + Wide;
+        At := Where;
     end
 
     WriteLn ('');
