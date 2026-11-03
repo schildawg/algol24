@@ -140,6 +140,52 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   divergence is a bug, and refusing by name is what keeps the two apart — so
   the first refusal to reappear is the thing to look at.
 
+  **`vm/REFERENCE.md` is the opcode reference, and `./vm/reference.sh` is what
+  keeps it honest.** One uniform entry per opcode in the shape of the 1987 IBM
+  Macro Assembler reference — Encoding, Stack, Operation, Satisfies, Raises,
+  See also — written toward an assembly-like front end that would make the
+  mnemonics user-facing syntax. **4 of 78 entries exist**, as a format test on
+  the awkward shapes; the checker counts the rest as work to do and still exits
+  0, the way `vm/conform.sh` counts a refusal.
+
+  ⚠️ **The checker reads ONE row per entry, and that is the whole design.** The
+  first bracketed row in an entry's fence carries the opcode's number, its
+  operand letters and its byte count, all three compared against `OpCode.a24`
+  and `OpShape`. Reading the letters from the whole row instead took the `b`
+  and the `s` out of the words `5 bytes` and called every multi-operand opcode
+  wrong.
+
+  ⚠️ **It caught a stale number in its first run, in three files at once.**
+  `OP_LONG`'s rationale said nineteen opcodes carry a constant index where
+  twenty-four do, and the figure had been copied from `OpCode.a24` into
+  `CLAUDE.md` and into the draft. No count belongs in that sentence; the
+  argument for a prefix is that the number grows.
+
+  ⚠️ **A section header is matched as a HEADER, not as a word that appears.** A
+  loose substring match passed an entry whose `**Stack**` header had been
+  mangled into prose, because the mangled line still contained the word — the
+  one check of ten that did not go red when broken.
+
+  ⚠️ **An opcode `OpShape` cannot describe must SAY so, and a name that is
+  deliberately not an opcode must say that too.** `OP_CLOSURE` is variable-width
+  and declares it in its fence, which exempts it from the shape comparison and
+  lists it in the report rather than hiding it — dropping the marker is caught,
+  and so is claiming it for an opcode whose shape is known. `OP_WIDE` is named
+  in prose as a name that does not exist, and carries
+  `<!-- reference.sh: not-an-opcode OP_WIDE -->` beside the sentence that needs
+  it, so the exemption sits with its reason.
+
+  ⚠️ **An opcode's NUMBER is not interface; its mnemonic is.** A script
+  renumbers every opcode from its declaration order, so nothing may hard-code
+  37 for `OP_LIST` — which the reference says outright, because an assembly
+  front end would otherwise invite exactly that.
+
+  ⚠️ **The STACK section is checked for presence only.** What an entry claims
+  it pops and pushes is not compared against a run, which is the next thing
+  worth building: the machine has twice had a bug that gave the right answer
+  while leaking a slot per iteration, so that is the most valuable section in
+  the file and the least guarded.
+
   `Fib (27)` runs in **0.91 s on the VM against 6.24 s interpreted** — both
   native binaries, so that 6.9× is bytecode against an AST walk. It was 0.79 s
   before exceptions: the `try` around the dispatch loop costs about 15%.
@@ -329,8 +375,11 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   run at the copy.
 
   ⚠️ **A constant index widens by a PREFIX, not by a long form per opcode.**
-  Nineteen opcodes carry an index into the constants, so nineteen long forms
-  would be nineteen numbers, names, handlers and chances to miss one.
+  Most opcodes carry an index into the constants, so a long form each would be
+  that many numbers, names, handlers and chances to miss one. **No count
+  belongs in that sentence** — it said nineteen in three files while the figure
+  had grown to twenty-four, which is the whole argument for the prefix making
+  itself felt.
   `OP_LONG` precedes an instruction and widens its index — the JVM's `wide`,
   and it covers an opcode added later for free. Measured free on the narrow
   path: Fib (27) interleaved against the prior commit reads 0.98–0.99 s both

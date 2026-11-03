@@ -455,10 +455,12 @@ const OP_INVOKE_EXT := 68;
 /// same idea OP_CONSTANT_LONG.
 ///
 /// A prefix rather than a long form per opcode, which is what the JVM's `wide`
-/// does and for the same reason: nineteen opcodes carry an index into the
-/// constants, and nineteen long forms would be nineteen numbers, nineteen
-/// names, nineteen handlers and nineteen chances to forget one.  A prefix is
-/// one of each and covers an opcode added later for free.
+/// does and for the same reason: most opcodes here carry an index into the
+/// constants, so a long form each would be that many numbers, names, handlers
+/// and chances to forget one.  A prefix is one of each and covers an opcode
+/// added later for free -- which is the argument, and is why no count is
+/// quoted: the one that used to be here said nineteen and the figure had
+/// grown by five without anything noticing.
 ///
 /// Only the INDEX widens.  An argument count beside it stays a byte, and a
 /// slot beside it is already a short -- so `OP_INVOKE_EXT` under the prefix
