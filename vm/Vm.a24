@@ -951,6 +951,23 @@ begin
         // stray argument of the wrong TYPE rather than one too many.
         else if Str (CalleeSignature (Callee).Element) <> '' then
             raise 'No matching signature for function.';
+
+        // And a FIXED-arity callee whose arguments do not fit at the right
+        // count is a selection failure too: [EXP-013] puts even a lone
+        // candidate through selection, so `G ('a string')` where G takes an
+        // Integer answers 'No matching signature for function.' rather than
+        // running with a String in an Integer's slot.
+        //
+        // ⚠️ Only at the RIGHT count, because a wrong count reports the counts
+        // [0049] -- and a wrong count fails Fits as well, so raising here
+        // without that guard would turn every arity error into a selection
+        // failure.
+        //
+        // ⚠️ This fell through to the arity check before, and nothing caught
+        // it: refusals/0042 compares the message and `vm/conform.sh` walked
+        // only conformance/, so the refusal corpus had never run here at all.
+        else if Count = Callee.Arity then
+            raise 'No matching signature for function.';
     end
 
     if Count <> Callee.Arity then
@@ -998,6 +1015,54 @@ begin
     var Count := ReadByte ();
 
     CallValue (PeekAt (Count), Count);
+end
+
+/// Calls a value whose arguments were written with names.
+///
+/// The arrangement happens BEFORE CallValue, and must: it decides the arity
+/// that selection and gathering then see, which is how naming the absorbing
+/// parameter turns absorption off [FUN-005].
+procedure DoCallNamed ();
+var
+    Names : Any;
+    Count : Integer;
+
+begin
+    Names := Constants[ReadIndex ()];
+    Count := ReadByte ();
+
+    var Callee := PeekAt (Count);
+
+    ArrangeCall (Callee, Count, Names as List);
+
+    CallValue (Callee, Count);
+end
+
+/// Invokes a member whose arguments were written with names.
+///
+/// ⚠️ ONE constant carries both: element 0 is the member's name and the rest
+/// are the argument names.  Two constant indices would break the invariant
+/// that at most one operand per opcode is widenable, which is what makes the
+/// OP_LONG prefix sound.
+procedure DoInvokeNamed ();
+var
+    Packed : Any;
+    Count  : Integer;
+
+begin
+    Packed := Constants[ReadIndex ()];
+    Count  := ReadByte ();
+
+    var Written := (Packed as List)[0];
+
+    var Names := List ();
+    for var I : Integer := 1; I < (Packed as List).Length; I := I + 1 do
+        Names.Add ((Packed as List)[I]);
+
+    // The arrangement happens inside InvokeMember, where the receiver has
+    // been read and the chain's candidates for the name are reachable -- which
+    // member a named call means cannot be known any earlier.
+    InvokeMember (Written, Count, Names);
 end
 
 /// Calls a value sitting under Count arguments.
@@ -1398,7 +1463,7 @@ begin
     // value decides it, and the type system is gradual [EXP-022].
     if RespondsTo (PeekAt (Count), Written) then
     begin
-        InvokeMember (Written, Count);
+        InvokeMember (Written, Count, List ());
 
         Exit;
     end
@@ -1448,7 +1513,7 @@ begin
     Written := Constants[ReadIndex ()];
     Count   := ReadByte ();
 
-    InvokeMember (Written, Count);
+    InvokeMember (Written, Count, List ());
 end
 
 /// Calls a member of the receiver sitting under Count arguments.
@@ -1462,7 +1527,7 @@ end
 ///
 /// 'Undefined property N.' for a name that is no member at all, and
 /// 'No method N taking C arguments.' for a pairing with no arm.
-procedure InvokeMember (Written : Any, Count : Integer);
+procedure InvokeMember (Written : Any, Count : Integer, Names : List);
 var
     Name  : Any;
     Self  : Any;
@@ -1479,6 +1544,10 @@ begin
 
     if Self is VmInstance then
     begin
+        // Arranged BEFORE selection, because the arrangement decides the arity
+        // that selection then sees.
+        ArrangeMethod (Self.Klass, Name, Count, Names);
+
         var Found := ChosenMethod (Self.Klass, Name, Count);
 
         // Nothing fitting is two different reports.  A name no class in the
@@ -1498,6 +1567,11 @@ begin
 
         Exit;
     end
+
+    // Everything below is a HOST member -- a collection's, a Buffer's, a
+    // file's -- whose parameters are not declared in this language and so have
+    // no names to write, exactly as a built-in's do not [RT-001].
+    if AnyWritten (Names) then raise 'A built-in has no named parameters.';
 
     if Count >= 2 then B := Pop ();
     if Count >= 1 then A := Pop ();
@@ -1851,6 +1925,167 @@ begin
     Exit Callee;
 end
 
+/// Whether any argument at a call site was written with a name.
+///
+/// The names arrive as one entry per argument, EMPTY for a positional one, so
+/// the count is never the question -- whether any was written is.
+function AnyWritten (Names : List) : Boolean;
+begin
+    for var Each in Names do
+        if Str (Each) <> '' then Exit True;
+
+    Exit False;
+end
+
+/// The parameter a name denotes in a callee, or -1 where it has none.
+///
+/// Both sides are folded: the emitter folds what the call site wrote and
+/// VmFunction.Params holds the declaration folded, because a parameter name is
+/// an identifier [SRC-011].
+function ParameterSlot (Callee : Any, Wanted : String) : Integer;
+begin
+    var Signature := CalleeSignature (Callee);
+
+    for var I : Integer := 0; I < (Signature.Params as List).Length; I := I + 1 do
+        if Str ((Signature.Params as List)[I]) = Wanted then Exit I;
+
+    Exit -1;
+end
+
+/// Rearranges the arguments on the stack to the DECLARATION's order, answering
+/// False where they cannot be arranged against this callee.
+///
+/// Mirrors ObjFunction.Arrange rather than improving on it: a slot per
+/// parameter, each filled exactly once, and every slot filled by the end.  So
+/// a name no parameter has, a parameter named twice, and a call that leaves a
+/// slot empty are one answer -- False -- and the caller turns that into the
+/// one message [EXP-013] gives them all.
+///
+/// ⚠️ An arrangement has exactly the declared arity, which is what turns
+/// ABSORPTION off without a rule of its own [FUN-005]: every slot is filled
+/// once, so `Take (Items: [1], Label: 'a')` arrives as a two-argument call and
+/// the exact pass takes it before gathering is ever reached.
+/// ⚠️ The locals here are NOT called `Slots`.  That is the machine's value
+/// stack, a module-level name, and a local of the spelling shadows it -- so
+/// `Slots[SP - Count + I]` would have read this list instead of the stack and
+/// arranged nothing. The same trap as a module-level table losing to a local.
+function ArrangeNamed (Callee : Any, Count : Integer, Names : List) : Boolean;
+var
+    Placed : List;
+    Filled : List;
+
+begin
+    var Wanted := CalleeSignature (Callee).Arity;
+
+    if Count <> Wanted then Exit False;
+
+    Placed := List ();
+    Filled := List ();
+
+    for var I : Integer := 0; I < Wanted; I := I + 1 do
+    begin
+        Placed.Add (Nil);
+        Filled.Add (False);
+    end
+
+    for var I : Integer := 0; I < Count; I := I + 1 do
+    begin
+        var Written := '';
+        if I < Names.Length then Written := Str (Names[I]);
+
+        var At := I;
+        if Written <> '' then At := ParameterSlot (Callee, Written);
+
+        if At < 0 or At >= Wanted then Exit False;
+        if Filled[At] then Exit False;
+
+        Placed[At] := Slots[SP - Count + I];
+        Filled[At] := True;
+    end
+
+    for var Each in Filled do
+        if not Each then Exit False;
+
+    // Written back only once every slot is known good, so a failed
+    // arrangement leaves the stack exactly as it was for the next candidate
+    // to try.
+    for var I : Integer := 0; I < Count; I := I + 1 do
+        Slots[SP - Count + I] := Placed[I];
+
+    Exit True;
+end
+
+/// Arranges a named METHOD call against the chain's candidates for the name.
+///
+/// Walks the chain exactly as FittingMethod walks it, because the method a
+/// named call means is found the same way -- and takes the first candidate
+/// that can be arranged, which is what tells two methods of one name apart by
+/// their parameter names alone.
+procedure ArrangeMethod (Klass : Any, Wanted : Any, Count : Integer,
+                         Names : List);
+var
+    Where : Any;
+
+begin
+    if not AnyWritten (Names) then Exit;
+
+    Where := Klass;
+
+    while Where <> Nil do
+    begin
+        var Candidates := Where.CandidatesFor (Wanted);
+
+        if Candidates <> Nil then
+            for var TheCandidate in Candidates as List do
+                if ArrangeNamed (TheCandidate, Count, Names) then Exit;
+
+        Where := Where.Parent;
+    end
+
+    raise 'No matching signature for function.';
+end
+
+/// Arranges a named call against whatever the callee turns out to be.
+///
+/// Mirrors Interpreter.Arranged, and happens BEFORE selection for the reason
+/// that one does: the arrangement decides the arity, and selection reads the
+/// arranged arguments.  An overload set takes the first candidate that can be
+/// arranged, which is what lets `Note (Code: 7)` and `Note (Level: 'a',
+/// Message: 'b')` be told apart by their names alone.
+procedure ArrangeCall (Callee : Any, Count : Integer, Names : List);
+begin
+    if not AnyWritten (Names) then Exit;
+
+    if Callee is VmOverloads then
+    begin
+        for var Candidate in Callee.Candidates as List do
+            if ArrangeNamed (Candidate, Count, Names) then Exit;
+
+        raise 'No matching signature for function.';
+    end
+
+    if Callee is VmClass then
+    begin
+        var Setup := Callee.FindMethod ('init');
+
+        if Setup <> Nil then
+            if ArrangeNamed (Setup, Count, Names) then Exit;
+
+        raise 'No matching signature for function.';
+    end
+
+    if Callee is VmFunction or Callee is VmClosure then
+    begin
+        if ArrangeNamed (Callee, Count, Names) then Exit;
+
+        raise 'No matching signature for function.';
+    end
+
+    // A built-in's parameters are not declared in this language at all -- they
+    // exist only as a count -- so there is no name to write [RT-001].
+    raise 'A built-in has no named parameters.';
+end
+
 /// Whether these arguments fit by GATHERING the trailing ones into a list.
 ///
 /// The interpreter's third pass, and it mirrors ObjFunction.CanGather rather
@@ -2181,8 +2416,34 @@ begin
     if Name = 'buffer' or Name = 'set' then
         raise 'Expected 0 or 1 arguments but got ' + Str (Count) + '.';
 
+    // A FIXED-arity built-in reports the same way a subprogram does, because
+    // the interpreter registers it with an arity and the ordinary arity check
+    // is what fires -- `Expected 1 arguments but got 2.` for `Length ('a','b')`.
+    //
+    // ⚠️ Reached only once an unresolvable name stopped being refused: while
+    // the emitter refused `Nonexistent`, 0145 never ran far enough to compare
+    // this message, and the machine's own wording went unnoticed.
+    if BUILTIN_ARITY.Contains (Str (Name)) then
+        raise 'Expected ' + Str (BUILTIN_ARITY.Get (Str (Name)))
+            + ' arguments but got ' + Str (Count) + '.';
+
     raise 'No built-in ' + Str (Name) + ' takes ' + Str (Count) + ' arguments.';
 end
+
+/// How many arguments each FIXED-arity built-in takes, mirroring the arities
+/// the interpreter registers its natives with.
+///
+/// The six variadic ones are absent on purpose -- `Str`, `Pos`, `Set`,
+/// `Write`, `WriteLn` and `Buffer` each name the counts they accept, and those
+/// messages are raised above this table rather than derived from it.
+var BUILTIN_ARITY := ['clock' : 0, 'collect' : 0, 'length' : 1, 'copy' : 3,
+                      'toupper' : 1, 'tolower' : 1, 'array' : 1, 'list' : 0,
+                      'map' : 0, 'stack' : 0, 'halt' : 1, 'ord' : 1,
+                      'succ' : 1, 'pred' : 1, 'foreign' : 5, 'val' : 1,
+                      'char' : 1, 'textfile' : 0, 'fileexists' : 1,
+                      'mkdir' : 1, 'rmdir' : 1, 'chdir' : 1, 'getdir' : 0,
+                      'paramcount' : 0, 'paramstr' : 1, 'asserttrue' : 1,
+                      'assertequal' : 2, 'fail' : 1];
 
 /// Returns from the running frame, or stops the machine at the outermost one.
 procedure DoReturn ();
@@ -2373,6 +2634,8 @@ begin
     Table[OP_SHIFT_RIGHT]   := DoShiftRight;
     Table[OP_IS]            := DoIs;
     Table[OP_CALL]          := DoCall;
+    Table[OP_CALL_NAMED]    := DoCallNamed;
+    Table[OP_INVOKE_NAMED]  := DoInvokeNamed;
     Table[OP_SUBSCRIPT_GET] := DoSubscriptGet;
     Table[OP_SUBSCRIPT_SET] := DoSubscriptSet;
     Table[OP_PROPERTY]      := DoProperty;

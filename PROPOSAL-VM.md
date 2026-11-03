@@ -295,13 +295,30 @@ Against the measured AOT-to-VM ratios:
 | the two emitter fixes — 15.4× | **31.3 ms** | 188% — no | 94% — no headroom |
 | **all three, with the C dispatch — 9.0×** | **18.4 ms** | **110% — no** | **55% — yes** |
 
-> **The Dew Drop Inn does not fit at 60 fps on the VM, with or without the C
-> dispatch. It fits comfortably at 30. The reel engine fits at 60 either way —
-> 0.74 ms becomes 6.7 ms, two fifths of a frame.**
+⚠️ **THE TABLE ABOVE IS A PROJECTION AND IT WAS OPTIMISTIC BY 2.2×. The VM is
+built now, and the Inn measures 39.75 ms.** A played session — 4,941 frames in
+196.4 s, automatic collection on — runs at **25 fps**, which is **119% of a 30
+fps frame**:
 
-⚠️ **This makes item 0b load-bearing rather than an optimisation.** Without the
-C dispatch the Inn sits at 94% of a 30 fps frame, which is not a budget. With
-it, 55%.
+| | VM frame cost | at 60 fps | at 30 fps |
+| --- | --- | --- | --- |
+| **measured, 4,941 frames** | **39.75 ms** | **239% — no** | **119% — no** |
+
+So the sentence this document used to put in a block quote — "it fits
+comfortably at 30" — is wrong, and the projection is why. Multiplying a
+per-frame cost by a ratio taken from microbenchmarks compounds every way the
+real program differs from them. The two findings beside it survive, because
+they are measurements of the *game*: foreign calls are 13% of its frame, and
+the reel engine at 0.74 ms fits at 60 fps either way.
+
+⚠️ **This makes item 0b MORE load-bearing, not less.** The projection had the
+Inn at 94% of a 30 fps frame without the C dispatch; the measurement says
+119%, so it is the difference between missing 30 fps and clearing it rather
+than the difference between tight and comfortable. **If** the 1.7× held, 39.75
+ms becomes 23.4 ms — 70% of a 30 fps frame, about 43 fps. That factor came off
+a four-opcode toy, so it is a reason to try the work rather than a number to
+plan with; the lesson of the table above is precisely that such a factor does
+not survive contact with a real frame.
 
 ⚠️ **And it corrects a claim this document made twice: the game is NOT
 SDL-bound.** Foreign calls are **0.31 ms of 2.32**, or 13% — so the multiplier
@@ -419,7 +436,7 @@ It is what takes the VM to CPython parity, and it is the only measured change
 that narrows the gap to the AOT path.
 
 ⚠️ **It is also load-bearing rather than optional, which the frame measurement
-settled.** Without it the Dew Drop Inn sits at 94% of a 30 fps frame — not a
+settled.** Without it the Dew Drop Inn sits at 119% of a 30 fps frame — not a
 budget. With it, 55%. So this item is not a late optimisation to weigh on its
 merits; it is a prerequisite for the Inn running on the VM at all.
 
@@ -586,12 +603,20 @@ actually break.
 
 ## Open questions
 
-1. ~~**Does the game fit?**~~ **Measured: the reel engine at 60 fps, the Dew
-   Drop Inn at 30.** What replaces it is a design question rather than an
-   engineering one — **is 30 fps acceptable for the Inn?** It is a walking and
-   dialogue game rather than a twitch one, and the alternative is not 60 fps
-   but a compiled build that leaks 9 MB a second. Everything else here waits on
-   that answer.
+1. ~~**Does the game fit?**~~ **Measured on the built machine: the reel engine
+   at 60 fps, the Dew Drop Inn at 25** — 4,941 frames in 196.4 s, not the 30 fps
+   this answer claimed from a projection. What replaces it is a design question
+   rather than an engineering one — **is 25 fps acceptable for the Inn?** It is
+   a walking and dialogue game rather than a twitch one.
+
+   ⚠️ **And the alternative has changed, which matters more than the 5 fps.**
+   This answer said the choice was 25 fps "or a compiled build that leaks 9 MB a
+   second". The compiled build does not leak any more: the collector is precise,
+   every local is a root, and `Collect` releases under the AOT back end. So the
+   memory argument that made the VM necessary is weaker than when this was
+   written, and the VM's remaining case is the one it always had on its own
+   terms — a process boundary, a serializable artifact, and startup without a
+   compile. That is worth re-arguing rather than inheriting.
 2. **Does `algvm` ship as a second binary, or as a mode of `algc`?** A mode
    keeps one artifact and pays the 35 MB; a second binary gets the process
    boundary that makes the memory argument work.

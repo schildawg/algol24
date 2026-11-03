@@ -35,6 +35,19 @@ var
     /// because the emitter can see the subrange table and a chunk cannot.
     Types : List;
 
+    /// Each parameter's name, folded, in declaration order.
+    ///
+    /// Carried so that a NAMED argument can be arranged against the parameter
+    /// list at run time [EXP-013].  It has to be run time rather than emit
+    /// time for the same reason selection does: the callee may be a variable,
+    /// and `var F := Log; F (Message: 'x', Level: 'warn')` keeps the names of
+    /// whatever it holds.
+    ///
+    /// Folded, because a parameter name is an identifier and folds like every
+    /// other one [SRC-011] -- `Log (level: 'warn')` names the same parameter
+    /// as `Level`.
+    Params : List;
+
     /// The ELEMENT type of an absorbing last parameter, or '' where there is
     /// none.
     ///
@@ -67,6 +80,7 @@ begin
         this.Arity := Arity;
         this.Body  := Chunk ();
         this.Types   := List ();
+        this.Params  := List ();
         this.Element := '';
         this.Symbol  := '';
         this.Library := '';

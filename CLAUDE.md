@@ -665,6 +665,109 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   after releasing 19,369,686 objects, separating *marking is wrong* from
   *reuse is wrong* in one run.
 
+  ⚠️ **A MODULE's statements get the same two passes the root's do, and for a
+  long time they got one.** `EmitInheritance` was called only from the loop
+  over the root file's statements, and a `ModuleStmt` is not a `ClassStmt` — so
+  **no class declared in any unit ever had its parent attached**. An instance
+  of such a subclass had none of its inherited fields, which is how the
+  library's `AppendFile` — a subclass of `OutFile` declaring no fields of its
+  own — failed as `Undefined property 'Handle'` on the parent's field. The one
+  pass also meant a unit's declarations were not HOISTED, though a class and a
+  subprogram are visible above their own declaration [0044, 0122].
+
+  ⚠️ **The corpus has inheritance cases and module cases but not their
+  PRODUCT.** 0068 and 0112 cover inheritance, 0085 covers transitive modules,
+  and inheritance *inside* a unit needed a subclass whose parent is in that
+  same unit, instantiated from an importing file. Five bugs this session hid in
+  a combination of two features the corpus tests separately.
+
+  ⚠️ **An overload set's candidates are PARKED IN SLOTS, not left on the
+  stack.** `OP_OVERLOADS` reads a window of `Count` values from the top, and
+  leaving each declaration's closure there until the last arrives only works
+  when a name's declarations are ADJACENT IN THE FILE. Interleave two
+  overloaded names — `Tint`, `Where`, `Tint`, `Where` — and the window takes
+  one candidate of each, so a perfectly good call fails with `No matching
+  signature for function.` Five lines reproduce it.
+
+  ⚠️ **The corpus cannot catch that, and the reason generalises.** A focused
+  case declares a name's variants together; a library organised by TOPIC
+  declares `TextColor`, `WhereY`, `NormVideo` and only much later their
+  `Window`-taking variants. So `algol24-library`'s `graph` interleaves nearly
+  every overloaded name it has, and this one bug was **ten of its fourteen**
+  divergences. When a real program fails where the corpus passes, suspect a
+  shape a test case would never be written in.
+
+  ⚠️ **The comment that described this was right about the mechanism and wrong
+  about the premise** — "the set is built when the LAST of them is reached,
+  because only then are all its candidates on the stack". True of the code,
+  false of the stack. A comment stating a reason is still a claim.
+
+  ⚠️ **`vm/conform.sh` runs BOTH corpora, and for a long time it ran only
+  conformance/.** A `refusals/` case is a program that must FAIL with a
+  particular diagnostic — exactly what a back end gets wrong quietly — and the
+  omission hid `refusals/0042` for the machine's whole life: a lone
+  subprogram's declared parameter type was never checked, so `G ('a string')`
+  where `G` takes an Integer ran and printed the string. It stayed hidden
+  because refuse-by-name answered most refusal cases with a refusal, so there
+  was nothing to compare; the hole only began to bite once the machine started
+  emitting run-time diagnostics instead. **A count that says `0 diverged` is
+  only as good as the set it walked.**
+
+  ⚠️ **`EmitWidening` emits for `double` and `string` ONLY, because those are
+  the two that convert — and a declared type also has to be CHECKED.**
+  `EnterFrame` asked `Fits` and then fell through to the arity check, so a
+  wrong type at the right count entered the frame. [EXP-013] puts even a lone
+  candidate through selection, so the answer is
+  `No matching signature for function.` — guarded on the count, since a wrong
+  count still reports the counts [0049].
+
+  ⚠️ **A `test` block is a `FunctionStmt` whose NAME TOKEN is the quoted
+  name**, which is how the interpreter finds them and how the machine used to
+  miss them: it emitted every test in every imported unit as an ordinary
+  subprogram. The machine has no `--test`, so that is dead code that can never
+  run — and one construct it lacks refuses the whole program. `graph.a24` has a
+  test pinning its documented parameter names, written with named arguments,
+  and emitting it refused **all 57** of the library's reference examples that
+  import `graph`. `DeclaresATest` is the predicate, named so it collides with
+  neither `CEmitter.IsTest` nor `Parser.IsTestBlock`.
+
+  ⚠️ **A DECLARATION of a built-in's name is one overload set with it**
+  [FUN-005, 0187], not a shadowing — the declaration answers the arities it
+  declares and the built-in keeps the rest. So the machine may skip the
+  built-in only when the declaration provably answers EVERY call, which is one
+  shape: a lone parameter written `List of Any`. That is what `crt` and `graph`
+  use to redirect `Write` to a graphical console. A fixed-arity declaration
+  stays refused until an instruction tries the declaration and falls back.
+
+  ⚠️ **Asking only about the CURRENT unit made that a silent divergence.** A
+  program that `uses crt` and called `Write` reached the built-in and wrote to
+  stdout, losing the redirect the interpreter honoured. `VisibleSlot`, not
+  `DeclaredIn (CurrentUnit, …)`.
+
+  ⚠️ **A FAST PATH is where a wrong answer hides, and `WriteLn`'s cost two
+  bugs.** `WriteLn` with one argument short-circuits to `OP_PRINT` *above* the
+  built-in branch, so it escaped both the visible-declaration question (the
+  redirect) and the named-argument question (`WriteLn (V: 'abc')` printed
+  `abc` instead of raising). Both guards sit on it now. Add a check to the
+  general path and ask what skips it.
+
+  ⚠️ **Named arguments are arranged at RUN TIME, and `OP_INVOKE_NAMED` packs
+  two names into one constant.** The arrangement mirrors
+  `ObjFunction.Arrange` — a slot per parameter, each filled once, all filled —
+  so a name no parameter has, a parameter named twice and a half-filled call
+  are one answer. It is run time because the callee may be a variable:
+  `var F := Log; F (Message: 'held', Level: 'warn')` keeps the names of
+  whatever `F` holds. And it is **why naming the absorbing parameter turns
+  gathering off with no rule of its own** [FUN-005]: an arrangement has exactly
+  the declared arity, so the exact pass takes it first. The member name and the
+  argument names share one constant because at most one operand per opcode may
+  widen.
+
+  ⚠️ **A local named `Slots` shadows the VALUE STACK.** Writing the arrangement
+  with `Slots` as its working list made `Slots[SP - Count + I]` read that list
+  instead of the stack, arranging nothing. The stack is `Slots` because `Stack`
+  is a built-in — same trap as a module-level table losing to a local.
+
   ⚠️ **The machine may not import anything from `compiler/`.** `TypeNameOf`
   looked like a built-in and is a function of `compiler/ObjFunction`, so `is`
   is a chain over the five primitive type names using the host's own `is` with
@@ -728,23 +831,44 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   not repeat the 42% as though it were general -- `PROPOSAL-VM.md` did, and it
   was wrong.
 
-  ⚠️ **The frame budget is measured now, and the answer is 30 fps.** The Dew
-  Drop Inn spends **2.0 ms a frame** in Algol-24 (plus 0.3 ms in SDL), so on the
-  VM it needs 18.4 ms — over a 60 fps frame and comfortably inside a 30 fps
-  one. The reel engine, at 0.74 ms, fits at 60 either way. **The Inn is the
-  program that decides this, not `play`** — and the game is *logic*-bound, not
-  SDL-bound: foreign calls are 13% of its frame.
+  ⚠️ **The frame budget is MEASURED on the machine now, and the Inn misses 30
+  fps.** A played session — 4,941 frames in 196.4 s with automatic collection
+  on — runs at **39.75 ms a frame, 25 fps**, which is **119% of a 30 fps
+  frame**. Quote that, not a short run: 30 frames reads 19–21 fps because the
+  first frames dominate, and the game's own `frames`/`rate` lines are the only
+  honest source.
+
+  ⚠️ **The projection this section used to carry was optimistic by 2.2×.** It
+  reasoned from the Inn spending **2.0 ms a frame** in compiled Algol-24 (plus
+  0.3 ms in SDL) to 18.4 ms on the VM, "comfortably inside a 30 fps one"; the
+  machine actually takes 39.75 ms. A per-frame cost projected through a
+  microbenchmark factor is a guess, and this one was wrong in the direction
+  that flatters the machine. The two facts that survive are about the *game*
+  rather than the VM: it is **logic-bound, not SDL-bound** — foreign calls are
+  13% of its frame — and **the Inn is the program that decides this, not
+  `play`**, whose reel engine at 0.74 ms fits at 60 fps either way.
+
+  ⚠️ **Collection is free at this scale, which 30 frames could not have
+  shown.** The 25 fps above is *with* `--collect 5000000` running for the whole
+  session, and the no-collection comparison over 30 frames reads 19 against 21
+  — so the cost does not accumulate over thousands of frames. It buys **8.1×**
+  less peak memory: 14.53 GB of footprint against **1.80 GB**.
 
   ⚠️ **A third finding is a decision, not a repair**, and it is the only one
   that helps the VM more than the AOT path: writing just the dispatch loop in
   C, over handlers that stay in Algol-24, measured a further **1.7×** and takes
-  the VM to CPython parity. The frame measurement makes it **load-bearing** --
-  without it the Inn is at 94% of a 30 fps frame. There is no barrier at the emitted-C level — a
-  generated subprogram is already an ordinary C function — so what it would
-  need is linkage, and `vm/spike/cdispatch.py` demonstrates it by patching a
-  compiled variant. The catch is that giving C a stable name to call **freezes
-  the `Value **cells, Value *args, int32_t count` calling convention**, which
-  is private today and has changed before.
+  the VM to CPython parity. The real frame makes it **more** load-bearing than
+  the projection did, not less — the old text said the Inn was at 94% of a 30
+  fps frame without it, where the measurement says 119%, so it is the
+  difference between missing 30 fps and clearing it. **If** the 1.7× held it
+  would be 23.4 ms, 70% of a 30 fps frame; that factor came off a FOUR-OPCODE
+  toy (`vm/spike/vmtable.a24`), so treat it as a reason to try rather than as a
+  number. There is no barrier at the emitted-C level — a generated subprogram
+  is already an ordinary C function — so what it would need is linkage, and
+  `vm/spike/cdispatch.py` demonstrates it by patching a compiled variant. The
+  catch is that giving C a stable name to call **freezes the `Value **cells,
+  Value *args, int32_t count` calling convention**, which is private today and
+  has changed before.
 
 ## The collector
 

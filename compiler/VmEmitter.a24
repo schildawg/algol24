@@ -152,10 +152,31 @@ var LoopLocals : List := List ();
 /// otherwise win, and a call would then report the wrong arity.
 var OVERLOAD_COUNTS := Map ();
 
+/// Keyed `unit:name`, the declarations that answer EVERY call -- so a built-in
+/// of the same spelling is left no arity to keep.
+///
+/// Only one shape qualifies: a single parameter written `List of Any`, which
+/// gathers [FUN-005] and whose element type admits every value.  It is the
+/// shape a unit uses to REDIRECT a built-in, as the library's `crt` and
+/// `graph` redirect `Write` to a graphical console, and it is the only case
+/// where the emitter can tell statically that the built-in is unreachable.
+var TOTAL_NAMES := Map ();
+
 /// How many of each overload set have been compiled so far.
 ///
-/// The set is built when the LAST of them is reached, because only then are
-/// all its candidates on the stack.
+/// The set is built when the LAST of them is reached, and each earlier one is
+/// parked in a slot of its own until then.
+///
+/// Parked rather than left on the stack, which is what it used to be: the
+/// candidates of one name are only ADJACENT on the stack when its declarations
+/// are adjacent in the file, and `OP_OVERLOADS` reads a window of Count values
+/// from the top.  Interleave two overloaded names -- declare `Tint`, `Where`,
+/// `Tint`, `Where`, which is how a library organised by topic reads -- and the
+/// window took one candidate of each, so selection failed with `No matching
+/// signature for function.` on a call that is perfectly good.  The corpus
+/// never interleaves, because a focused case declares a name's variants
+/// together; `algol24-library`'s `graph` interleaves nearly every one of them,
+/// which was ten of its fourteen divergences.
 var OVERLOADS_SEEN := Map ();
 
 /// The method names an `operator` declaration may take [EXP-020].
@@ -202,6 +223,16 @@ var CLASS_NODES := Map ();
 /// What tells a bare name that could be a field from one that cannot: outside
 /// a method there is no receiver for an implicit `this` to mean.
 var CurrentClass : String := '';
+
+/// The class whose METHOD lexically encloses what is being emitted, kept
+/// across the nested subprograms that clear CurrentClass.
+///
+/// CurrentClass answers "may a bare name mean a field here?", and a nested
+/// subprogram clears it because its frame has its own base.  This answers the
+/// different question "was there a receiver further out?", which is what tells
+/// a field the machine cannot yet reach -- a refusal -- from a name the
+/// program never declared, which is a run-time fault.  0148 is the case.
+var LEXICAL_CLASS : String := '';
 
 /// The enclosing subprogram's locals, when compiling a nested one.
 ///
@@ -300,6 +331,43 @@ begin
     if not DECLARED_NAMES.Contains (Unit) then Exit False;
 
     Exit (DECLARED_NAMES.Get (Unit) as Set).Contains (Folded);
+end
+
+/// Whether one declaration answers every call a built-in of its name could.
+///
+/// A gathering parameter absorbs the trailing arguments, so a lone
+/// `List of Any` absorbs all of them whatever their number or type and the
+/// built-in keeps nothing.  Any other signature leaves the built-in some
+/// arity, which is a run-time choice between the two and is refused instead.
+function GathersEverything (TheStmt : Any) : Boolean;
+begin
+    if TheStmt.Params.Length <> 1          then Exit False;
+    if TheStmt.ParamTypes.Length < 1       then Exit False;
+    if TheStmt.ParamGenerics.Length < 1    then Exit False;
+
+    if CanonicalType (TheStmt.ParamTypes[0]) <> 'List' then Exit False;
+
+    Exit CanonicalType (TheStmt.ParamGenerics[0]) = 'Any';
+end
+
+/// Whether the VISIBLE declaration of a name answers every call.
+///
+/// Resolved the way VisibleSlot resolves the slot itself -- this unit's own
+/// declaration first, then a unique owner among its imports -- because the two
+/// have to agree about which declaration a bare name means.
+function AnswersEveryCall (Name : Any) : Boolean;
+begin
+    var Folded := ToLower (Str (Name.Lexeme)) as String;
+
+    if DeclaredIn (CurrentUnit, Folded) then
+        Exit TOTAL_NAMES.Contains (CurrentUnit + ':' + Folded);
+
+    var Owners := OwnersOf (Folded);
+
+    if Owners.Length = 1 then
+        Exit TOTAL_NAMES.Contains (Str (Owners[0]) + ':' + Folded);
+
+    Exit False;
 end
 
 /// Whether a unit exports a name -- declares it, and does not hide it.
@@ -517,22 +585,50 @@ begin
     Exit False;
 end
 
-/// Refuses a name that is neither a local nor a claimed global.
+/// Answers an unresolvable name, as a refusal or as a run-time diagnostic.
 ///
-/// The three things it catches, and all three used to be emitted as a read of
-/// a slot nothing defines: a BUILT-IN, which has no opcode yet; a variable of
-/// an ENCLOSING subprogram, which wants upvalues; and a name belonging to an
-/// OVERLOAD SET, which wants selection at the call.  Each is work to do, and
-/// naming it is what keeps it work to do instead of a wrong answer.
+/// Which of the two is the whole of this: a construct the machine lacks is a
+/// refusal, and a name the program never declared is a fault at run time.
+/// Refusing both reported a gap in the back end for four corpus cases that
+/// merely expect an error:
+///
+///     0010  `B : String;` with no var section -- Undefined variable 'String'.
+///     0039  `Inner` declared inside a block and read after it [DCL-001]
+///     0145  `Nonexistent (1)`, caught by the program itself
+///     0178  `Max`, which the language removed
+///
+/// 0039 is the clearest: its own comment says the fault is a RUNTIME error,
+/// "which is why the lines above have already printed".  A refusal prints
+/// nothing at all, so the case cannot pass however the machine behaves.
+///
+/// What remains a refusal is a BUILT-IN used as a value, which wants the
+/// callable-object work 0149 and its family ask for.  A capture and an
+/// overload set no longer reach here -- the caller resolves both first -- and
+/// the doc that listed them said so before either existed.
 ///
 /// # Raises
 ///
-/// Whatever Refuse raises, naming the identifier.
+/// Whatever Refuse raises, for a built-in named as a value.
 procedure RequireGlobal (Name : Any);
 begin
     if Script.KnownQualified (CurrentUnit, Name.Lexeme) then Exit;
 
-    Refuse ('A reference to ' + QUOTE + Str (Name.Lexeme) + QUOTE);
+    if IsBuiltin (Name.Lexeme) then
+        Refuse ('The built-in ' + QUOTE + Str (Name.Lexeme) + QUOTE
+              + ' as a value');
+
+    // A field of the class whose METHOD encloses this subprogram is a feature
+    // the machine lacks rather than a name the program failed to declare: the
+    // interpreter reaches it by closing over the method's environment, and a
+    // nested frame here has no path to that receiver.  So it stays a refusal,
+    // which is what 0148 records.
+    if MemberOfClass (CLASS_FIELDS, LEXICAL_CLASS, Name) then
+        Refuse ('A bare field read from a subprogram inside a method');
+
+    // Emitted rather than refused, and the wording is the interpreter's own
+    // so that the two processors report one fault identically [RT-012].
+    EmitDiagnostic ('Undefined variable ' + QUOTE + Str (Name.Lexeme)
+                  + QUOTE + '.');
 end
 
 /// The slot a bare name resolves to as a VARIABLE, or -1.
@@ -592,15 +688,24 @@ end
 /// its own class never declared.  Answers False outside a method, where there
 /// is no receiver for an implicit `this` to mean.
 function MemberOfThis (Table : Map, Name : Any) : Boolean;
+begin
+    Exit MemberOfClass (Table, CurrentClass, Name);
+end
+
+/// Whether a name is in a member table of a named class, up the parent chain.
+///
+/// The walk MemberOfThis does, with the starting class given rather than taken
+/// from whatever is being emitted.
+function MemberOfClass (Table : Map, Start : String, Name : Any) : Boolean;
 var
     Where : String;
 
 begin
-    if CurrentClass = '' then Exit False;
+    if Start = '' then Exit False;
 
     var Folded := ToLower (Str (Name.Lexeme)) as String;
 
-    Where := CurrentClass;
+    Where := Start;
 
     while Where <> '' do
     begin
@@ -751,6 +856,13 @@ begin
         if CanonicalType (TheStmt.ParamTypes[Last]) = 'List'
                and Str (TheStmt.ParamGenerics[Last]) <> '' then
             Made.Element := Str (TheStmt.ParamGenerics[Last]);
+
+    // The names, folded, so a named argument can be arranged against them
+    // [EXP-013].  Recorded for EVERY subprogram and not only an overloaded
+    // one, because a named call may reach any of them -- including one held in
+    // a variable, whose declaration the call site cannot see.
+    for var Param in TheStmt.Params do
+        Made.Params.Add (ToLower (Str (Param.Lexeme)));
 
     for var I : Integer := 0; I < TheStmt.Params.Length; I := I + 1 do
     begin
@@ -1580,12 +1692,27 @@ begin
             Exit;
         end
 
-        for var Written in TheExpr.ArgumentNames do
-            if Str (Written) <> '' then Refuse ('A call with named arguments');
-
         EmitExpr (Member.Obj);
 
         for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+        // A named method call packs the member's name and the argument names
+        // into ONE constant, because at most one operand per opcode may widen.
+        if NamesWritten (TheExpr) then
+        begin
+            var Packed := List ();
+            Packed.Add (Str (Member.Name.Lexeme));
+
+            for var Each in NamesConstant (TheExpr) do Packed.Add (Each);
+
+            var At := Into.AddConstant (Packed);
+
+            Into.WriteIndexed (OP_INVOKE_NAMED, At);
+            Into.WriteIndex (At);
+            Into.Write (TheExpr.Arguments.Length);
+
+            Exit;
+        end
 
         var Slot := Into.AddConstant (Str (Member.Name.Lexeme));
 
@@ -1606,7 +1733,16 @@ begin
     // instruction where the general path is three.  Any other count goes
     // through OP_BUILTIN, which is variadic [RT-015] -- refusing them was
     // leaving work undone that the machine could already do.
-    if Name = 'writeln' and TheExpr.Arguments.Length = 1 then
+    //
+    // ⚠️ NOT when something declares the name.  This shortcut sits above the
+    // built-in branch below and so escaped its question entirely: a program
+    // importing a unit that redirects `WriteLn` had the redirect silently
+    // ignored and its text went to stdout.  A fast path is exactly where a
+    // wrong answer hides, because it is the one that skips the checks.
+    if Name = 'writeln' and TheExpr.Arguments.Length = 1
+           and LocalSlot (TheExpr.Callee.Name.Lexeme) < 0
+           and VisibleSlot (TheExpr.Callee.Name) < 0
+           and not NamesWritten (TheExpr) then
     begin
         EmitExpr (TheExpr.Arguments[0]);
         Into.Emit (OP_PRINT);
@@ -1618,10 +1754,6 @@ begin
         Exit;
     end
 
-    // ArgumentNames carries an entry per argument, EMPTY for a positional
-    // one, so the count is not the question -- whether any was written is.
-    for var Written in TheExpr.ArgumentNames do
-        if Str (Written) <> '' then Refuse ('A call with named arguments');
 
     // A bare call inside a class may mean one of its own METHODS, with `this`
     // as the receiver -- `while not AtEnd () do` is how the library writes it,
@@ -1658,24 +1790,49 @@ begin
         // A program may DECLARE a built-in's name, and then the two share the
         // spelling: the declaration answers at the arities it declares and the
         // built-in keeps the rest [FUN-005, 0187].  Choosing between them is
-        // about the argument values, so it needs an instruction that tries the
-        // declaration and falls back -- the shape OP_INVOKE_EXT has.  Until
-        // there is one, preferring the built-in would call it with the
-        // declaration's arguments, so this is refused by name.
-        if DeclaredIn (CurrentUnit, Name as String) then
-            Refuse ('A declaration of the built-in ' + QUOTE
-                  + Str (TheExpr.Callee.Name.Lexeme) + QUOTE);
+        // about the argument values, so in general it needs an instruction
+        // that tries the declaration and falls back -- the shape
+        // OP_INVOKE_EXT has -- and until there is one it is refused by name.
+        //
+        // ⚠️ VISIBLE, not merely declared in THIS unit.  Asking only about the
+        // current unit meant a program that `uses crt` and called `Write`
+        // reached the built-in and wrote to stdout, silently losing the
+        // redirect the interpreter honoured.  That is a wrong answer rather
+        // than a refusal, and no corpus case reaches it.
+        if VisibleSlot (TheExpr.Callee.Name) >= 0 then
+        begin
+            // A declaration answering EVERY call leaves the built-in no arity
+            // to keep, so there is nothing to choose and the ordinary call
+            // below is right.  That is the shape a unit redirecting a built-in
+            // uses -- `procedure Write (Values : List of Any)` -- which is why
+            // the library's console redirect works while a fixed-arity
+            // declaration of the same name is still refused.
+            if not AnswersEveryCall (TheExpr.Callee.Name) then
+                Refuse ('A declaration of the built-in ' + QUOTE
+                      + Str (TheExpr.Callee.Name.Lexeme) + QUOTE);
+        end
+        else
+        begin
+            // A built-in's parameters are not declared in this language -- they
+            // exist only as a count -- so there is no name to write [RT-001].
+            // Emitted rather than refused, because the program may catch it.
+            if NamesWritten (TheExpr) then
+            begin
+                EmitDiagnostic ('A built-in has no named parameters.');
 
-        for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+                Exit;
+            end
 
-        var At := Into.AddConstant (Str (TheExpr.Callee.Name.Lexeme));
+            for var Argument in TheExpr.Arguments do EmitExpr (Argument);
 
+            var At := Into.AddConstant (Str (TheExpr.Callee.Name.Lexeme));
 
-        Into.WriteIndexed (OP_BUILTIN, At);
-        Into.WriteIndex (At);
-        Into.Write (TheExpr.Arguments.Length);
+            Into.WriteIndexed (OP_BUILTIN, At);
+            Into.WriteIndex (At);
+            Into.Write (TheExpr.Arguments.Length);
 
-        Exit;
+            Exit;
+        end
     end
 
     // The callee first and the arguments after it, which is the order OP_CALL
@@ -1683,6 +1840,20 @@ begin
     EmitExpr (TheExpr.Callee);
 
     for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+    // The names go in a constant and the arrangement happens at run time,
+    // because the callee may be a VARIABLE: `var F := Log;` keeps the
+    // parameter names of whatever it holds, which no call site can see.
+    if NamesWritten (TheExpr) then
+    begin
+        var At := Into.AddConstant (NamesConstant (TheExpr));
+
+        Into.WriteIndexed (OP_CALL_NAMED, At);
+        Into.WriteIndex (At);
+        Into.Write (TheExpr.Arguments.Length);
+
+        Exit;
+    end
 
     Into.EmitWith (OP_CALL, TheExpr.Arguments.Length);
 
@@ -1843,6 +2014,7 @@ var
     SavedReturn : Any;
     SavedBoxing : Boolean;
     SavedClass  : Any;
+    SavedLexical : Any;
     SavedInit   : Boolean;
 
 begin
@@ -1858,6 +2030,12 @@ begin
     SavedBoxing := Boxing;
     SavedClass  := CurrentClass;
 
+    // Saved and restored like the one above, because it is NOT cleared by the
+    // nested subprograms that clear that one -- so without this it outlived
+    // the class, and a top-level subprogram after one would refuse an
+    // undeclared name that happened to match a field of it.
+    SavedLexical := LEXICAL_CLASS;
+
     Into   := Made.Body;
     Locals := List ();
     Depths := List ();
@@ -1868,6 +2046,10 @@ begin
     // recognised as one of its fields.
     CurrentClass := CurrentUnit + ':'
                   + (ToLower (Str (Owner.Name.Lexeme)) as String);
+
+    // And kept where a nested subprogram clears the one above, so that a field
+    // read from inside one is still known to BE a field.
+    LEXICAL_CLASS := CurrentClass;
 
     SavedInit := InInit;
     InInit    := IsInit;
@@ -1893,8 +2075,9 @@ begin
     Depth  := SavedDepth;
     Returning := SavedReturn;
     Boxing    := SavedBoxing;
-    CurrentClass := Str (SavedClass);
-    InInit       := SavedInit;
+    CurrentClass  := Str (SavedClass);
+    LEXICAL_CLASS := Str (SavedLexical);
+    InInit        := SavedInit;
 
     Exit Made;
 end
@@ -2128,8 +2311,8 @@ begin
         Exit;
     end
 
-    // One of several declarations of this name: it stays on the stack until
-    // the last arrives, and then they are gathered into one set.
+    // One of several declarations of this name: each is parked in a slot of
+    // its own, and the last gathers them all into one set.
     var Key := CurrentUnit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
     var Total := 1;
 
@@ -2145,7 +2328,20 @@ begin
 
         OVERLOADS_SEEN.Put (Key, Done);
 
+        // Parked: the closure this declaration left on the stack goes into a
+        // slot named for its position, so nothing between here and the last
+        // declaration can disturb it.
+        EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG,
+                    CandidateSlot (TheStmt.Name, Done));
+
         if Done < Total then Exit;
+
+        // Read back in declaration order, which decides a tie within a
+        // selection pass -- and they are adjacent on the stack now because
+        // these pushes are consecutive, whatever the file's order was.
+        for var I : Integer := 1; I <= Total; I := I + 1 do
+            EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG,
+                        CandidateSlot (TheStmt.Name, I));
 
         var Named := ClassNameConstant (TheStmt.Name);
 
@@ -2209,6 +2405,9 @@ begin
 
     if Kind = 'FunctionStmt' then
     begin
+        // A test block is one of these, and does not run outside `--test`.
+        if DeclaresATest (TheStmt) then Exit;
+
         EmitFunction (TheStmt);
 
         Exit;
@@ -2547,8 +2746,30 @@ begin
         CurrentUnit := ToLower (Str (TheStmt.UnitName)) as String;
         ModuleDepth := ModuleDepth + 1;
 
+        // ⚠️ The SAME two passes CompileProgram makes, and running one pass
+        // here was a bug with a long reach: a unit's class never had its
+        // PARENT attached, because EmitInheritance was called only from the
+        // loop over the root's own statements and a ModuleStmt is not a
+        // ClassStmt.  So an instance of a subclass declared in a unit had none
+        // of its inherited fields, and `AppendFile ('diary.txt')` -- a
+        // subclass of the library's OutFile that declares no fields of its own
+        // -- failed as `Undefined property 'Handle'` on the parent's field.
+        //
+        // Hoisting matters here for the same reason it does there: a class and
+        // a subprogram are visible above their own declaration [0044, 0122],
+        // and a unit's declarations are no exception.
         if TheStmt.Statements <> Nil then
-            for var Inner in TheStmt.Statements do EmitStmt (Inner);
+        begin
+            for var Inner in TheStmt.Statements do
+                if Hoisted (Inner) then EmitStmt (Inner);
+
+            for var Inner in TheStmt.Statements do
+            begin
+                if not Hoisted (Inner) then EmitStmt (Inner);
+
+                if KindOf (Inner) = 'ClassStmt' then EmitInheritance (Inner);
+            end
+        end
 
         ModuleDepth := ModuleDepth - 1;
         CurrentUnit := Enclosing;
@@ -2673,13 +2894,25 @@ begin
         // than bind.  The count is per unit, because two units each exporting
         // a Shared are two slots and two lone subprograms -- counting them
         // together would build an overload set out of unrelated declarations.
-        if Kind = 'FunctionStmt' then
+        // Nothing to claim for a test block: its name is a quoted string, not
+        // an identifier anything can call.
+        //
+        // ⚠️ A CONDITION rather than an `Exit`, because `Exit` here leaves the
+        // whole survey and not just this statement -- so a test block stopped
+        // every later declaration in the file from being claimed.  0102
+        // declares `var test := 7` below one and lost it, which surfaced as an
+        // undefined name far from the cause.
+        if Kind = 'FunctionStmt' and not DeclaresATest (TheStmt) then
         begin
             var Key := Unit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
 
             if OVERLOAD_COUNTS.Contains (Key) then
                 OVERLOAD_COUNTS.Put (Key, (OVERLOAD_COUNTS.Get (Key) as Integer) + 1);
             else OVERLOAD_COUNTS.Put (Key, 1);
+
+            // Recorded and never unset: one total declaration answers every
+            // call whatever else the overload set holds.
+            if GathersEverything (TheStmt) then TOTAL_NAMES.Put (Key, True);
 
             Claim (Unit, Mine, TheStmt.Name);
         end
@@ -2814,6 +3047,60 @@ begin
     end
 
     Exit False;
+end
+
+/// The slot one candidate of an overload set is parked in until the set is
+/// built.
+///
+/// Named for the declaration's position, so two candidates never share one.
+/// The name carries a character no identifier may hold, which is what keeps it
+/// out of the way of anything the program itself declares.
+function CandidateSlot (Name : Any, Which : Integer) : Integer;
+begin
+    Exit Script.QualifiedSlot (CurrentUnit,
+                               Str (Name.Lexeme) + ' overload ' + Str (Which));
+end
+
+/// Whether any argument at a call site was written with a name.
+function NamesWritten (TheExpr : Any) : Boolean;
+begin
+    for var Written in TheExpr.ArgumentNames do
+        if Str (Written) <> '' then Exit True;
+
+    Exit False;
+end
+
+/// The list of argument names a named call carries, folded, one per argument
+/// and empty for a positional one.
+///
+/// Folded here rather than at run time, because a parameter name is an
+/// identifier and folds like any other [SRC-011] -- so `Log (level: 'warn')`
+/// and `Log (Level: 'warn')` reach the one parameter.
+function NamesConstant (TheExpr : Any) : List;
+begin
+    var Written := List ();
+
+    for var Each in TheExpr.ArgumentNames do
+        Written.Add (ToLower (Str (Each)));
+
+    Exit Written;
+end
+
+/// Whether a FunctionStmt is a `test` block rather than a subprogram.
+///
+/// The Parser gives a test block a FunctionStmt whose NAME TOKEN is the quoted
+/// test name, so its Literal is set where an ordinary identifier's is nil --
+/// which is the same question CEmitter's own `IsTest` asks, under a name that
+/// cannot collide with it or with Parser's `IsTestBlock`.
+///
+/// The machine has no `--test`, so a test block never runs here and emitting
+/// one is emitting dead code -- dead code that refuses the whole program when
+/// it uses something the back end lacks. `graph.a24` has a test pinning its
+/// documented parameter names, written with named arguments, and emitting it
+/// refused all 57 of the library's reference examples that import `graph`.
+function DeclaresATest (TheStmt : Any) : Boolean;
+begin
+    Exit TheStmt.Name.Literal <> Nil;
 end
 
 /// Whether a declaration is visible above where it is written.

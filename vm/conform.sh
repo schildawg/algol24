@@ -1,5 +1,6 @@
 #!/bin/sh
-# vm/conform.sh -- runs the conformance corpus on the bytecode machine.
+# vm/conform.sh -- runs the conformance AND refusal corpora on the bytecode
+# machine.
 #
 #     ./bootstrap/build.sh && vm/conform.sh
 #
@@ -19,6 +20,16 @@
 # A refusal is work still to do.  A divergence is a bug, and the reason the
 # emitter refuses by name rather than emitting nothing: a silent gap would
 # show up here as a divergence in a case that looks unrelated.
+#
+# ⚠️ BOTH CORPORA, and for a while it was only the first.  A refusals/ case is
+# a program that must FAIL with a particular diagnostic, which is exactly what
+# a back end gets wrong quietly -- and walking only conformance/ hid
+# refusals/0042 for the whole life of the machine: a lone subprogram's declared
+# parameter type was never checked, so `G ('a string')` where G takes an
+# Integer ran and printed the string.  It stayed hidden because the emitter's
+# refuse-by-name policy answered most refusal cases with a refusal, so the hole
+# only began to matter once the machine started emitting run-time diagnostics
+# instead.
 set -eu
 
 CC="${CC:-cc}"
@@ -48,8 +59,13 @@ $CC $CFLAGS -o "$WORK/algvm" "$WORK/out"/*.c
 PASS=0; REFUSED=0; DIVERGED=0; SKIPPED=0
 : > "$WORK/diverged"
 
-for src in conformance/*.a24; do
+for src in conformance/*.a24 refusals/*.a24; do
+    [ -f "$src" ] || continue
+
+    # conformance/ records what a program PRINTS and refusals/ what it is
+    # refused with, under different extensions; the comparison is the same.
     expected="${src%.a24}.out"
+    [ -f "$expected" ] || expected="${src%.a24}.expected"
     [ -f "$expected" ] || continue
 
     # A case may ask to be run differently -- a .args file or a '// run:'
