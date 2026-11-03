@@ -32,11 +32,15 @@ cd "$(dirname "$0")"
 CC="${CC:-cc}"
 CFLAGS="${CFLAGS:--std=c11 -O2}"
 
-# Link-time optimization, which is worth about 42% to a compiled Algol-24
-# program and is not an optimization of the program at all: algol.c is a
-# separate translation unit, so EVERY alg_* call in the emitted C crosses a
-# translation-unit boundary and cannot be inlined without it.  Measured in
-# PROPOSAL-VM.md; vm/spike/measure.sh reproduces it.
+# Link-time optimization, which is not an optimization of the program at all:
+# algol.c is a separate translation unit, so EVERY alg_* call in the emitted C
+# crosses a translation-unit boundary and cannot be inlined without it.
+#
+# ⚠️ What it is worth depends entirely on the shape of the work, so a figure
+# quoted without its workload is useless: 42% on a tight arithmetic loop, 24%
+# on a VM dispatch loop, 3% on `algc --test` and 1% on `algc --compile`.  It
+# removes call overhead, so it helps where the callee does least -- which is
+# not this compiler.  vm/spike/measure.sh reproduces all four.
 #
 # ⚠️ It is probed rather than assumed, because this script must work with
 # nothing but a C compiler and -flto needs a linker plugin that some toolchains

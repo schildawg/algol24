@@ -130,20 +130,38 @@ const BYTE_VALUES := 256;
 
 /// How deep the call stack may go.
 ///
-/// Sixty-four, as clox has it, and STACK_ROOM is derived from this.
+/// A THOUSAND, chosen rather than inherited. Sixty-four is clox's number and
+/// was this machine's for a long time, which made it the most restrictive of
+/// the three processors by more than an order of magnitude: the interpreter
+/// manages about 800 frames before the C stack gives way and the compiled back
+/// end more than 50,000, where this stopped at 63. Recursive descent is an
+/// ordinary thing to write -- this compiler's own parser is one -- so the
+/// first program to meet that limit would read it as a bug in itself.
+///
+/// Measured: no runtime cost at all (Fib (27) is 1.23 s either way, the depth
+/// being a bound and not a loop) and about 7.7 MB more resident, which is the
+/// value stack derived below. Raised on that measurement rather than on a
+/// program demanding it, because the program that would demand it cannot yet
+/// run far enough to ask.
 ///
 /// Fixed, and overflow raises rather than growing: runaway recursion is a bug
 /// in the program being run, and a machine that grows to hold it reports the
-/// problem as a memory exhaustion somewhere else entirely.
-const FRAME_ROOM := 64;
+/// problem as a memory exhaustion somewhere else entirely. Both other
+/// processors SEGFAULT at their own limit with no diagnostic, so the
+/// diagnostic is this machine's advantage and worth keeping.
+const FRAME_ROOM := 1024;
 
 /// How deep the value stack is: enough for every frame to fill its slots.
 ///
 /// Derived from FRAME_ROOM rather than chosen, which is how clox sizes it and
 /// for a reason worth keeping.  With the two equal, a runaway recursion
 /// overflowed the VALUE stack first and reported it -- a true statement about
-/// the wrong thing, because the program's fault was its depth.  A frame holds
-/// at most 256 locals, so this guarantees the call stack is what gives way.
+/// the wrong thing, because the program's fault was its depth.
+///
+/// ⚠️ The multiplier was once a GUARANTEE and is now only a margin. It held
+/// while a local slot was one byte, so 256 was every frame's ceiling; local
+/// slots widened to a short, so a frame may hold more and a program of very
+/// many locals can still reach the value stack first.
 ///
 /// Fixed, and overflow raises rather than growing: a runaway stack is a bug in
 /// the program being run, and a machine that grows to hold it reports the
@@ -1762,7 +1780,7 @@ var
     Made  : List;
 
 begin
-    Count := ReadByte ();
+    Count := ReadShort ();
     From  := SP - Count;
     Made  := List ();
 
@@ -1784,7 +1802,7 @@ var
     Made  : Map;
 
 begin
-    Count := ReadByte ();
+    Count := ReadShort ();
     From  := SP - Count * 2;
     Made  := Map ();
 
@@ -2383,9 +2401,15 @@ end
 
 /// Makes a closure over the subprogram its operand names.
 ///
-/// The cells come from the ENCLOSING frame's slots, read by the descriptors
-/// that follow -- so each evaluation of the enclosing subprogram closes over
-/// the cells that call made [FUN-010].
+/// The cells come from the enclosing frame, read by the descriptors that
+/// follow -- so each evaluation of the enclosing subprogram closes over the
+/// cells that call made [FUN-010].
+///
+/// A descriptor says WHERE, which is what lets nesting go to any depth
+/// [FUN-012]: from one of this frame's own slots, which holds a cell because a
+/// frame that declares a nested subprogram boxes every local; or from a cell
+/// this frame itself captured, which is how a subprogram two deep reaches a
+/// name its parent only captured. clox's is-local flag.
 procedure DoClosure ();
 var
     Body  : Any;
@@ -2394,11 +2418,17 @@ var
 
 begin
     Body  := Constants[ReadIndex ()];
-    Count := ReadByte ();
+    Count := ReadShort ();
     Taken := List ();
 
     for var I : Integer := 0; I < Count; I := I + 1 do
-        Taken.Add (Slots[Base + ReadByte ()]);
+    begin
+        var Own := ReadByte ();
+        var At  := ReadShort ();
+
+        if Own <> 0 then Taken.Add (Slots[Base + At]);
+        else Taken.Add (Cells[At]);
+    end
 
     Push (VmClosure (Body, Taken));
 end
@@ -4618,7 +4648,7 @@ begin
     C.EmitConstant (10);
     C.EmitConstant (20);
     C.EmitConstant (30);
-    C.EmitWith (OP_LIST, 3);
+    C.EmitWide (OP_LIST, 3);
     C.Emit (OP_RETURN);
 
     var L := RunChunk (C);
@@ -4633,7 +4663,7 @@ test 'An Empty List Literal Is A List';
 begin
     var C := Chunk ();
 
-    C.EmitWith (OP_LIST, 0);
+    C.EmitWide (OP_LIST, 0);
     C.Emit (OP_RETURN);
 
     AssertEqual (0, RunChunk (C).Length);
@@ -4647,7 +4677,7 @@ begin
     C.EmitConstant (1);
     C.EmitConstant ('b');
     C.EmitConstant (2);
-    C.EmitWith (OP_MAP, 2);
+    C.EmitWide (OP_MAP, 2);
     C.Emit (OP_RETURN);
 
     var M := RunChunk (C);
@@ -4664,7 +4694,7 @@ begin
     C.EmitConstant (1);
     C.EmitConstant (2);
     C.EmitConstant (3);
-    C.EmitWith (OP_LIST, 3);                  // local slot 0
+    C.EmitWide (OP_LIST, 3);                  // local slot 0
 
     C.EmitWith (OP_GET_LOCAL, 0);
     C.EmitConstant (1);
@@ -5097,8 +5127,9 @@ begin
     Make.Body.Emit (OP_CELL);                 // Count, in slot 0, boxed
     Make.Body.Write (OP_CLOSURE);
     Make.Body.Write (Make.Body.AddConstant (Next));
-    Make.Body.Write (1);
-    Make.Body.Write (0);                      // capture slot 0
+    Make.Body.WriteShort (1);                 // one capture
+    Make.Body.Write (1);                      // ... from this frame's own slot
+    Make.Body.WriteShort (0);                 // ... slot 0
     Make.Body.Emit (OP_RETURN);
 
     var C := Chunk ();
@@ -5136,8 +5167,9 @@ begin
     Make.Body.Emit (OP_CELL);
     Make.Body.Write (OP_CLOSURE);
     Make.Body.Write (Make.Body.AddConstant (Next));
+    Make.Body.WriteShort (1);
     Make.Body.Write (1);
-    Make.Body.Write (0);
+    Make.Body.WriteShort (0);
     Make.Body.Emit (OP_RETURN);
 
     var C := Chunk ();

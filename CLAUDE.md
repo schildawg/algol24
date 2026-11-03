@@ -110,7 +110,28 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   compiler's front end rather than being imported into it, so `compiler/` is
   untouched and the VM stays out of the seed. `compiler/VmEmitter.a24` is the
   third back end, reached from there and **not** from `Main.a24`, which is why
-  `fixedpoint.sh` never sees it.
+  `fixedpoint.sh` never sees it. **`./vm/build.sh` is how it is built**, into
+  `vm/algvm`.
+
+  ⚠️ **Foreign calls are NOT a switch on the machine, and `algc`'s switch does
+  not generalise to it.** A foreign call is a feature of the language
+  [FUN-014], so `vm/build.sh` always passes `-DALG_FFI -lffi` and FAILS if it
+  cannot, rather than producing a binary that answers `Foreign calls are not
+  available in this build`. `algc` has the switch for a reason that does not
+  apply here: the compiler must build from a C compiler and nothing else,
+  because the only way into the language is a checked-in copy of its own
+  output. The machine is built by someone who already has `algc` and is in no
+  bootstrap path, so it carries the dependency.
+
+  ⚠️ **One fixture therefore does not describe the machine, and the script says
+  so rather than skipping it.** `conformance/0174`'s recorded output is a build
+  WITHOUT libffi saying so at each call — `algc`'s default configuration
+  [INI-008] — so `vm/conform.sh` compares that case against an `--ffi`
+  interpreter it builds itself, and reports it on a line of its own. The
+  fixture names itself: nothing but a no-foreign build prints that message, so
+  the rule needs no list to maintain. Currently **259 identical to the fixture,
+  1 identical to the FFI interpreter, 0 refused, 0 not applicable, 0
+  diverged** — all 260 compared, none skipped.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
   exactly as `conform.sh` renders it, over **both** corpora. Currently **260
@@ -141,12 +162,30 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   chain. A Pointer is only a *value* under `--ffi` [TYP-017]; the *test* is
   answerable always.
 
-  ⚠️ **libffi is not installed here, so the real path is UNVERIFIED.** `-lffi`
-  does not link on this machine, so there is no `--ffi` build to try. 0174
-  passes because the corpus runs in the default build and expects
-  `Foreign calls are not available in this build`, which the machine gets by
-  deferring. That a real SDL call works is **not** established — it needs
-  `algvm` built `--ffi` where libffi exists.
+  ⚠️ **libffi IS here, and the note that said otherwise was wrong about both
+  halves.** macOS ships it in the SDK: `-lffi` links against
+  `MacOSX.sdk/usr/lib/libffi.tbd`, and the header is at
+  `$(xcrun --show-sdk-path)/usr/include/ffi/ffi.h` — one directory down, which
+  is why a bare `#include <ffi.h>` fails and `algol.c` writes
+  `#include <ffi/ffi.h>` on Apple. `./bootstrap/build.sh --ffi` works as it
+  stands. The claim had stood unchecked beside a note describing which cases an
+  `--ffi` build fails, which cannot both be true; two minutes of `cc` settled
+  it.
+
+  ⚠️ **The machine's foreign path is VERIFIED, SDL included.** `algvm` built
+  `--ffi` answers 0174 byte-identically to the interpreter, and a probe making
+  real calls into `/opt/homebrew/lib/libSDL2.dylib` — `SDL_Init`,
+  `SDL_CreateWindow` answering a Pointer, `SDL_GetNumVideoDisplays`,
+  `SDL_DestroyWindow`, `SDL_Quit` — agrees line for line under
+  `SDL_VIDEODRIVER=dummy`.
+
+  ⚠️ **`in` takes a LITERAL, so a library path cannot be hoisted into a
+  `const`.** `external 'SDL_Init' in SDL` is `Expect a library name after
+  'in'`, which is why `hello.a24` repeats the dylib path at every declaration.
+
+  ⚠️ **`'libm'` cannot be opened on macOS**, because libm is part of
+  libSystem rather than a dylib of its own. 0174 expects that failure, so the
+  case passes; a program wanting `pow` needs no library name at all.
 
   ⚠️ **A bare name inside a method is a VARIABLE first and a member of `this`
   second.** The interpreter looks the variable up and reaches for `this` only
@@ -279,7 +318,15 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   ⚠️ **`bootstrap/algc` built `--ffi` FAILS two conformance cases**, and
   rightly: 0174 and DEF-37 record what a build *without* libffi says. Rebuild
   plainly before trusting `conform.sh` — two failures appeared that way and
-  were the build, not the code.
+  were the build, not the code. `vm/conform.sh` builds its own `--ffi` algc in
+  its work directory for exactly this reason, so running it leaves no trap.
+
+  ⚠️ **Rebuilding `bootstrap/algc` while a comparison is RUNNING invalidates
+  it.** A harness that shells out to `algc` picks up whichever binary is on
+  disk at the moment it spawns, so a rebuild part way through means the first
+  half of a run and the second half used different compilers — and the failures
+  that appear look like findings. Copy the binary somewhere stable and point the
+  run at the copy.
 
   ⚠️ **A constant index widens by a PREFIX, not by a long form per opcode.**
   Nineteen opcodes carry an index into the constants, so nineteen long forms
@@ -737,11 +784,12 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   ⚠️ **A `test` block is a `FunctionStmt` whose NAME TOKEN is the quoted
   name**, which is how the interpreter finds them and how the machine used to
   miss them: it emitted every test in every imported unit as an ordinary
-  subprogram. The machine has no `--test`, so that is dead code that can never
-  run — and one construct it lacks refuses the whole program. `graph.a24` has a
-  test pinning its documented parameter names, written with named arguments,
-  and emitting it refused **all 57** of the library's reference examples that
-  import `graph`. `DeclaresATest` is the predicate, named so it collides with
+  subprogram. Without `--test` that is dead code that can never run — and one
+  construct it lacks refuses the whole program. `graph.a24` has a test pinning
+  its documented parameter names, written with named arguments, and emitting it
+  refused **all 57** of the library's reference examples that import `graph`.
+  So a test block is emitted only when `TESTS_WANTED` says the run asked for
+  one, which is how `algvm --test` and an ordinary run share the emitter. `DeclaresATest` is the predicate, named so it collides with
   neither `CEmitter.IsTest` nor `Parser.IsTestBlock`.
 
   ⚠️ **A DECLARATION of a built-in's name is one overload set with it**
@@ -757,6 +805,60 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   — recording a floor of zero because it simply binds the name. A lone
   gathering parameter is the shape `crt` and `graph` use to redirect `Write` to
   a graphical console, and it answers every count.
+
+  ⚠️ **Nesting goes to ANY depth now [FUN-012], and the old limit was a wrong
+  answer rather than a refusal.** `CompileNested` set `Boxing := False`, so a
+  subprogram two deep went down the plain-function path, resolved an enclosing
+  name to a capture index anyway, and read cell 0 of a frame with no cells —
+  `Index 0 out of range 0..-1.` The guard meant to refuse it sat in
+  `CompileNested`, which that path never reached. 0063 passes either way
+  because its middle subprogram has no locals to capture.
+
+  ⚠️ **A capture DESCRIPTOR is what makes depth work, and it is clox's
+  is-local flag.** `OP_CLOSURE` now writes, per capture, a flag byte saying
+  whether it comes from this frame's own slot — which holds a cell, since a
+  frame that declares a nested subprogram boxes every local — or from a cell
+  this frame itself captured. A child's capture list is the parent's locals
+  followed by the parent's own captures, in that order, so a name reached from
+  three levels out is captured again at each level. Conservative, like the
+  boxing.
+
+  ⚠️ **Two caps were operand WIDTH, not design, and both are gone.** The
+  capture count and each descriptor index are unconditional shorts, and
+  `OP_LIST`/`OP_MAP` take a short count — all three instructions run once per
+  closure or literal rather than in the dispatch loop, so a fixed second byte
+  costs nothing measurable. What bounds a literal now is the value stack, which
+  answers `The value stack overflowed.` at run time instead of refusing a
+  program the machine could nearly hold.
+
+  ⚠️ **`FRAME_ROOM` was clox's 64 and made the machine the most restrictive of
+  the three processors by an order of magnitude.** It stopped at 63 frames
+  where the interpreter manages about 800 and the compiled back end more than
+  50,000 — and recursive descent is an ordinary thing to write, this compiler's
+  own parser being one. Now 1024, measured at **no runtime cost** (Fib (27) is
+  1.23 s either way, depth being a bound and not a loop) and about **7.7 MB**
+  more resident. Both other processors SEGFAULT at their own limit with no
+  diagnostic, so the honest message is this machine's advantage.
+
+  ⚠️ **`STACK_ROOM`'s multiplier was a GUARANTEE and is now only a margin.**
+  It held while a local slot was one byte, making 256 every frame's ceiling;
+  local slots widened to a short, so a frame may hold more and a program of
+  very many locals can reach the value stack first after all.
+
+  ⚠️ **A SINGLETON's members were keyed by `ClassKeyFor` and a class's are
+  not**, which is two faults in one call. `ClassKeyFor` wants a FOLDED name, as
+  its other callers pass, so a mixed-case `SourceCode` matched nothing and the
+  members went under the key `''`; and it resolves through the unit's imports,
+  which is the question to ask about a class being USED and the wrong one about
+  a class being DECLARED. The symptom was `Undefined variable 'Lines'` — a bare
+  field read inside a singleton's own method, which is how this compiler's own
+  `SourceCode` is written, so it is what stopped `algvm` running `algc`.
+
+  ⚠️ **A class declared INSIDE a subprogram is still a wrong answer.** The
+  survey walks top-level statements and `ModuleStmt`s, so such a class is in no
+  member table and a bare field read inside its method reports
+  `Undefined variable`. The interpreter answers it. Not a refusal, which is
+  what makes it worth writing down.
 
   ⚠️ **A guest object renders through `ToString`, and without one the host
   says `<Class> instance`.** `as_text` invokes a `ToString` it finds, which is
@@ -1001,6 +1103,7 @@ Build the compiler from the seed (needs only a C compiler; ~2 s):
 ```sh
 ./bootstrap/build.sh          # -> bootstrap/algc
 ./bootstrap/build.sh --ffi    # ... able to call C, needs libffi
+./vm/build.sh                 # -> vm/algvm, which ALWAYS calls C
 ```
 
 Run, test, and compile (from the repository root, so `uses` resolves):

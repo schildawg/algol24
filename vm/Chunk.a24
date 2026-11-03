@@ -396,6 +396,23 @@ begin
 
         this.Write (At);
     end
+
+    /// Appends a two-byte operand, high byte first.
+    ///
+    /// Always two bytes, unlike WriteIndex: an operand of a fixed width is
+    /// read with ReadShort and is unaffected by the OP_LONG prefix, which is
+    /// what lets an opcode carry one beside an index that does widen.
+    ///
+    /// # Raises
+    ///
+    /// 'A short cannot carry <N>.' for a value two bytes cannot hold.
+    procedure WriteShort (N : Integer);
+    begin
+        if N < 0 or N > 65535 then raise 'A short cannot carry ' + Str (N) + '.';
+
+        this.Write (N div 256);
+        this.Write (N mod 256);
+    end
 end
 
 test 'A Fresh Chunk Is Empty';

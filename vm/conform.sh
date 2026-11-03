@@ -12,6 +12,9 @@
 # Three outcomes, and only the third is a failure:
 #
 #   identical         the machine agrees with the recorded expectation
+#   identical to the  a case whose fixture records a build WITHOUT foreign
+#   FFI interpreter   calls, which this machine is not -- so the oracle is an
+#                     interpreter in the same configuration instead
 #   refused by name   an opcode does not exist yet, and the emitter said so
 #   not applicable    the case asks to be run some other way, and the machine
 #                     has no such mode.  '--test' USED to be the common one and
@@ -50,15 +53,30 @@ render() {
       | tr '\000' "$BEL" | sed "s/${BEL}/^@/g"
 }
 
-mkdir -p "$WORK/out"
-"$ALGC" --compile --out="$WORK/out" vm/run.a24 > "$WORK/emit.log" 2>&1 \
-    || { cat "$WORK/emit.log"; exit 1; }
+# The machine as vm/build.sh builds it, which is to say WITH foreign calls: a
+# foreign call is a feature of the language [FUN-014] and the machine has no
+# switch for it.
+ALGC="$ALGC" CC="$CC" CFLAGS="$CFLAGS" ./vm/build.sh "$WORK/algvm" > "$WORK/build.log" 2>&1 \
+    || { cat "$WORK/build.log"; exit 1; }
 
+# ⚠️ And an interpreter built the same way, because ONE fixture does not
+# describe this binary.  conformance/0174's recorded output is a build WITHOUT
+# libffi saying so at each call -- the configuration algc's default build is in
+# [INI-008] -- so comparing the machine against it would report a divergence
+# for a case where both processors are right and merely configured alike.  The
+# oracle for such a case has to be a processor in the SAME configuration, and
+# the fixture names itself: nothing but a no-foreign build prints that line.
+#
+# Built from the seed rather than reusing $ALGC, so this harness neither needs
+# nor leaves an --ffi algc -- one of those fails 0174 and DEF-37 under the main
+# conform.sh, which is a trap worth not setting.
 # shellcheck disable=SC2086
-$CC $CFLAGS -o "$WORK/algvm" "$WORK/out"/*.c
+$CC $CFLAGS -DALG_FFI -o "$WORK/algc-ffi" bootstrap/*.c -lffi 2>"$WORK/ffi.log" \
+    || { cat "$WORK/ffi.log"; echo "cannot build an --ffi algc to compare against" >&2; exit 1; }
 
-PASS=0; REFUSED=0; DIVERGED=0; SKIPPED=0
+PASS=0; REFUSED=0; DIVERGED=0; SKIPPED=0; FOREIGN=0
 : > "$WORK/diverged"
+: > "$WORK/foreign"
 
 for src in conformance/*.a24 refusals/*.a24; do
     [ -f "$src" ] || continue
@@ -99,6 +117,25 @@ for src in conformance/*.a24 refusals/*.a24; do
         continue
     fi
 
+    # A fixture written for a build with no foreign calls is answered by the
+    # interpreter in THIS configuration instead.  Still compared, and a
+    # divergence still caught -- just against the only oracle that applies.
+    if grep -q 'Foreign calls are not available in this build' "$expected"; then
+        oracle=0
+        "$WORK/algc-ffi" "$src" > "$WORK/raw" 2>&1 || oracle=$?
+        { render < "$WORK/raw"; echo "exit: $oracle"; } > "$WORK/oracle"
+
+        if cmp -s "$WORK/got" "$WORK/oracle"; then
+            FOREIGN=$((FOREIGN + 1))
+            basename "$src" .a24 >> "$WORK/foreign"
+        else
+            DIVERGED=$((DIVERGED + 1))
+            basename "$src" .a24 >> "$WORK/diverged"
+        fi
+
+        continue
+    fi
+
     if cmp -s "$WORK/got" "$expected"; then
         PASS=$((PASS + 1))
     else
@@ -108,9 +145,17 @@ for src in conformance/*.a24 refusals/*.a24; do
 done
 
 echo "identical to expected : $PASS"
+echo "identical to the FFI interpreter : $FOREIGN"
 echo "refused by name       : $REFUSED"
 echo "not applicable        : $SKIPPED"
 echo "DIVERGED              : $DIVERGED"
+
+if [ "$FOREIGN" -gt 0 ]; then
+    echo
+    echo "compared against an --ffi interpreter, their fixture being a build"
+    echo "without foreign calls:"
+    sed 's/^/  /' "$WORK/foreign"
+fi
 
 if [ "$DIVERGED" -gt 0 ]; then
     echo
@@ -120,4 +165,6 @@ if [ "$DIVERGED" -gt 0 ]; then
 fi
 
 echo
-echo "OK: every case the machine runs, it runs as the corpus records it."
+echo "OK: every case the machine runs, it answers as recorded -- or, where the"
+echo "    recording is of a build without foreign calls, as an interpreter with"
+echo "    them answers it."

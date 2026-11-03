@@ -266,12 +266,18 @@ var CurrentClass : String := '';
 /// program never declared, which is a run-time fault.  0148 is the case.
 var LEXICAL_CLASS : String := '';
 
-/// The enclosing subprogram's locals, when compiling a nested one.
+/// The names of this frame's CELLS, in the order OP_CLOSURE captured them.
 ///
-/// Empty at every other time.  A name found here and not in Locals is a
-/// CAPTURE, read with OP_GET_CELL at the index it has here -- which is the
-/// enclosing slot, and therefore the index OP_CLOSURE captured it into.
-var Outer : List := List ();
+/// Empty in a subprogram that is not nested.  A name found here and not in
+/// Locals is a capture, read with OP_GET_CELL at the index it has here.
+///
+/// Built as the enclosing frame's locals followed by the enclosing frame's own
+/// captures, which is what makes nesting work to ANY depth [FUN-012]: a
+/// subprogram two deep reaches its grandparent's local because its parent
+/// captured it, so the name is in the parent's captures and is captured again
+/// in turn. Conservative, like the boxing itself -- every name in scope is
+/// captured rather than only the ones read.
+var Captures : List := List ();
 
 /// Whether the subprogram being compiled holds its locals in CELLS.
 ///
@@ -627,8 +633,8 @@ var
 begin
     Wanted := ToLower (Str (Name));
 
-    for var I : Integer := Outer.Length - 1; I >= 0; I := I - 1 do
-        if Outer[I] = Wanted then Exit I;
+    for var I : Integer := Captures.Length - 1; I >= 0; I := I - 1 do
+        if Captures[I] = Wanted then Exit I;
 
     Exit -1;
 end
@@ -708,10 +714,12 @@ begin
 
     // A field of the class whose METHOD encloses this subprogram, where the
     // receiver could not be reached -- the caller tries MemberOfReceiver first
-    // and that answers whenever the method boxed `this` into a capturable cell.
-    // What is left is the shape it cannot: a subprogram nested two deep, which
-    // would need a capture to come from a capture.  A refusal rather than a
-    // diagnostic, because the name IS a field and the program is right.
+    // and that answers at any depth, because a method that declares a nested
+    // subprogram boxes `this` and every level captures what the one above it
+    // captured [FUN-012].  So this is a NET rather than a known shape: it says
+    // the name is a field of the enclosing class and nothing could reach the
+    // receiver, which is a refusal rather than a diagnostic, because the name
+    // IS a field and the program is right.
     if MemberOfClass (CLASS_FIELDS, LEXICAL_CLASS, Name) then
         Refuse ('A bare field read from a subprogram inside a method');
 
@@ -1569,26 +1577,28 @@ begin
 
     if Kind = 'CollectionExpr' then
     begin
+        // The element count is a SHORT, not a byte with a cap on it. Both
+        // instructions run once per literal rather than in the dispatch loop,
+        // so the fixed second byte costs nothing measurable -- and what then
+        // bounds a literal is the value stack it is built on, which answers
+        // 'The value stack overflowed.' at run time rather than refusing a
+        // program the machine could nearly hold.
         if TheExpr.IsMap then
         begin
-            if TheExpr.Keys.Length > 255 then Refuse ('A Map literal above 255 pairs');
-
             for var I : Integer := 0; I < TheExpr.Keys.Length; I := I + 1 do
             begin
                 EmitExpr (TheExpr.Keys[I]);
                 EmitExpr (TheExpr.Values[I]);
             end
 
-            Into.EmitWith (OP_MAP, TheExpr.Keys.Length);
+            Into.EmitWide (OP_MAP, TheExpr.Keys.Length);
 
             Exit;
         end
 
-        if TheExpr.Values.Length > 255 then Refuse ('A List literal above 255 elements');
-
         for var Element in TheExpr.Values do EmitExpr (Element);
 
-        Into.EmitWith (OP_LIST, TheExpr.Values.Length);
+        Into.EmitWide (OP_LIST, TheExpr.Values.Length);
 
         Exit;
     end
@@ -2452,8 +2462,6 @@ var
     SavedInit    : Boolean;
 
 begin
-    if Outer.Length > 0 then Refuse ('A subprogram nested two deep');
-
     Made := VmFunction (Str (TheStmt.Name.Lexeme), TheStmt.Params.Length);
 
     RecordTypes (Made, TheStmt);
@@ -2464,7 +2472,7 @@ begin
     SavedDepth  := Depth;
     SavedReturn := Returning;
     SavedBoxing := Boxing;
-    SavedOuter  := Outer;
+    SavedOuter  := Captures;
     SavedClass  := CurrentClass;
 
     // A nested subprogram has its OWN frame, so `this` is not one below its
@@ -2476,18 +2484,41 @@ begin
     SavedInit := InInit;
     InInit    := False;
 
-    // The enclosing locals become this one's CAPTURES, in slot order.
-    Outer  := SavedLocals;
+    // The enclosing frame's locals become this one's captures, in slot order,
+    // and its own captures follow them -- the order EmitFunction writes the
+    // descriptors in, and the whole of what makes a subprogram two deep able
+    // to reach a name its parent only captured [FUN-012].
+    Captures := List ();
+
+    for var Each in SavedLocals do Captures.Add (Each);
+    for var Each in SavedOuter  do Captures.Add (Each);
+
     Into   := Made.Body;
     Locals := List ();
     Depths := List ();
     Depth  := 1;
-    Boxing := False;
     Returning := TheStmt.ReturnType;
+
+    // ⚠️ A nested subprogram that declares one of ITS OWN boxes its locals
+    // like any other, and for a long time this was `Boxing := False`. That did
+    // not make the deeper subprogram a refusal, it made it a WRONG ANSWER: the
+    // grandchild went down the plain-function path, resolved an enclosing name
+    // to a capture index anyway, and read cell 0 of a frame that had no cells.
+    Boxing := DeclaresNested (TheStmt.Body);
 
     for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
 
     WidenParameters (TheStmt);
+
+    // A boxed parameter arrives as a plain value and is wrapped in place.
+    if Boxing then
+        for var I : Integer := 0; I < TheStmt.Params.Length; I := I + 1 do
+        begin
+            Into.EmitIndexed (OP_GET_LOCAL, I);
+            Into.Emit (OP_CELL);
+            Into.EmitIndexed (OP_SET_LOCAL, I);
+            Into.Emit (OP_POP);
+        end
 
     for var Inner in TheStmt.Body do EmitStmt (Inner);
 
@@ -2500,7 +2531,7 @@ begin
     Depth     := SavedDepth;
     Returning := SavedReturn;
     Boxing    := SavedBoxing;
-    Outer     := SavedOuter;
+    Captures  := SavedOuter;
     CurrentClass := Str (SavedClass);
     InInit       := SavedInit;
 
@@ -2531,21 +2562,35 @@ begin
         var Body := CompileNested (TheStmt);
         var At   := Into.AddConstant (Body);
 
-        // OP_CLOSURE's capture COUNT and each captured slot stay one byte, and
-        // must: the instruction already spends its one widenable operand on
-        // the body's constant index, and a second would mean the machine
-        // tracking WHERE the prefix applies rather than clearing a flag on the
-        // first widenable read.  So an enclosing subprogram past 256 locals
-        // that also declares a nested one is refused by name -- narrow, since
-        // it needs both at once.
-        if Locals.Length > 255 then
-            Refuse ('A closure inside a subprogram of more than 256 locals');
+        // The count and each descriptor's index are SHORTS unconditionally,
+        // rather than bytes with a cap or indices under the OP_LONG prefix.
+        // The prefix is spent on the body's constant index and at most one
+        // operand per opcode may widen, and this instruction runs once per
+        // closure made rather than in the dispatch loop -- so the fixed width
+        // costs nothing measurable and removes the cap outright.
+        var Total := Locals.Length + Captures.Length;
 
         Into.WriteIndexed (OP_CLOSURE, At);
         Into.WriteIndex (At);
-        Into.Write (Locals.Length);
+        Into.WriteShort (Total);
 
-        for var I : Integer := 0; I < Locals.Length; I := I + 1 do Into.Write (I);
+        // A DESCRIPTOR per capture: whether it comes from this frame's own
+        // slot -- which holds a cell, because a frame that declares a nested
+        // subprogram boxes every local -- or from a cell this frame itself
+        // captured.  The second is what reaches past the parent, so nesting
+        // works to any depth [FUN-012], and it is clox's is-local flag under
+        // another name.
+        for var I : Integer := 0; I < Locals.Length; I := I + 1 do
+        begin
+            Into.Write (1);
+            Into.WriteShort (I);
+        end
+
+        for var J : Integer := 0; J < Captures.Length; J := J + 1 do
+        begin
+            Into.Write (0);
+            Into.WriteShort (J);
+        end
 
         if Depth > 0 then
         begin
@@ -3194,7 +3239,17 @@ begin
 
             CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
 
-            var Key := ClassKeyFor (Unit, Str (TheStmt.Name.Lexeme));
+            // ⚠️ Keyed as the ClassStmt branch keys it, and NOT through
+            // ClassKeyFor. Two faults in one call: ClassKeyFor wants a FOLDED
+            // name, as its other callers pass, so a mixed-case `SourceCode`
+            // matched nothing and the members went under the key ''; and it
+            // resolves through this unit's imports, which is the question to
+            // ask about a class being USED and the wrong one about a class
+            // being DECLARED -- an import exporting the same name would have
+            // taken the entry. The symptom was `Undefined variable 'Lines'`:
+            // a bare field read inside a singleton's own method, which is how
+            // the compiler's own SourceCode is written.
+            var Key := Unit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
 
             var Owned := Set ();
             for var TheField in TheStmt.Fields do
@@ -3792,7 +3847,7 @@ begin
     ModuleDepth := 0;
     Returning   := '';
     Boxing      := False;
-    Outer       := List ();
+    Captures    := List ();
     LoopLabels    := List ();
     LoopBreaks    := List ();
     LoopContinues := List ();

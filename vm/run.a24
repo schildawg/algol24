@@ -434,10 +434,12 @@ begin
 
 
         // OP_CLOSURE is the one variable-width instruction -- a constant
-        // index, a capture count, then one enclosing slot per capture -- and
-        // OpOperands answers 0 for it.  Walking it as a one-byte instruction
-        // put every later offset out by the captures, so a disassembly of a
-        // chunk with a nested subprogram in it was fiction after that point.
+        // index, a capture count as a SHORT, then a descriptor per capture: a
+        // flag byte saying whether it comes from this frame's own slot or from
+        // a cell this frame captured, and a short for which -- and OpOperands
+        // answers 0 for it.  Walking it as a one-byte instruction put every
+        // later offset out by the captures, so a disassembly of a chunk with a
+        // nested subprogram in it was fiction after that point.
         if Op = OP_CLOSURE then
         begin
             // Its index widens under the prefix like any other, so where the
@@ -454,16 +456,28 @@ begin
                 After := At + 3;
             end
 
-            var Taken := Program.At (After);
+            var Taken := (Program.At (After) as Integer) * 256
+                       + (Program.At (After + 1) as Integer);
 
             Line := Line + ' ' + Named + ' ' + Str (Taken);
 
+            // Three bytes a descriptor, rendered as `local:N` or `cell:N` --
+            // a bare number could not tell the two apart, and which one it is
+            // is the whole of what the flag carries.
             for var I : Integer := 0; I < Taken; I := I + 1 do
-                Line := Line + ' ' + Str (Program.At (After + 1 + I));
+            begin
+                var Where := After + 2 + I * 3;
+                var Index := (Program.At (Where + 1) as Integer) * 256
+                           + (Program.At (Where + 2) as Integer);
+
+                if Program.At (Where) <> 0 then
+                    Line := Line + ' local:' + Str (Index);
+                else Line := Line + ' cell:' + Str (Index);
+            end
 
             WriteLn (Line);
 
-            At := After + 1 + Taken;
+            At := After + 2 + Taken * 3;
 
             continue;
         end
