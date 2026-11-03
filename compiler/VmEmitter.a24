@@ -322,6 +322,27 @@ var UNIT_SPELLING := Map ();
 /// declarations and no private names over the ones that are right.
 var UNITS_SURVEYED := Set ();
 
+/// Whether `test` blocks are to be emitted, which is what `--test` asks for.
+///
+/// Off by default: the machine runs a program, and a test block never runs in
+/// one, so emitting it is emitting dead code that can refuse the whole
+/// compile over a construct the body happens to use.
+var TESTS_WANTED : Boolean := False;
+
+/// Each test block emitted, as a list of its FILE, its name, and the slot its
+/// body was bound to.
+///
+/// The file is the path a diagnostic names and the report groups by, so it is
+/// recorded per test rather than derived afterwards -- a test's file is the one
+/// it was declared in, not the one being compiled when the report is printed.
+var TESTS_FOUND := [];
+
+/// The path of the file whose statements are being emitted.
+///
+/// Distinct from CurrentUnit, which is a folded unit NAME: the report banners
+/// name the file as `uses` resolved it, and 0104 compares those strings.
+var CurrentFile : String := '';
+
 /// The unit whose statements are being emitted, folded, or '' for the root.
 var CurrentUnit : String := '';
 
@@ -2406,7 +2427,17 @@ begin
     if Kind = 'FunctionStmt' then
     begin
         // A test block is one of these, and does not run outside `--test`.
-        if DeclaresATest (TheStmt) then Exit;
+        if DeclaresATest (TheStmt) then
+        begin
+            if not TESTS_WANTED then Exit;
+
+            // Bound like any other subprogram, under the quoted name -- which
+            // is not an identifier, and does not need to be: a slot is keyed
+            // by a string and nothing in the program can name this one.
+            EmitFunction (TheStmt);
+
+            Exit;
+        end
 
         EmitFunction (TheStmt);
 
@@ -2742,8 +2773,10 @@ begin
         // reads Deep -- so skipping them would leave Mid calling an undefined
         // name, which is why an earlier version refused the whole shape.
         var Enclosing := CurrentUnit;
+        var EnclosingFile := CurrentFile;
 
         CurrentUnit := ToLower (Str (TheStmt.UnitName)) as String;
+        CurrentFile := Str (TheStmt.FileName);
         ModuleDepth := ModuleDepth + 1;
 
         // ⚠️ The SAME two passes CompileProgram makes, and running one pass
@@ -2765,7 +2798,9 @@ begin
 
             for var Inner in TheStmt.Statements do
             begin
-                if not Hoisted (Inner) then EmitStmt (Inner);
+                if not Hoisted (Inner) then
+                    if RunsUnderTest (Inner) or not TESTS_WANTED then
+                        EmitStmt (Inner);
 
                 if KindOf (Inner) = 'ClassStmt' then EmitInheritance (Inner);
             end
@@ -2773,6 +2808,7 @@ begin
 
         ModuleDepth := ModuleDepth - 1;
         CurrentUnit := Enclosing;
+        CurrentFile := EnclosingFile;
 
         Exit;
     end
@@ -2902,6 +2938,23 @@ begin
         // every later declaration in the file from being claimed.  0102
         // declares `var test := 7` below one and lost it, which surfaced as an
         // undefined name far from the cause.
+        // A test's body needs a slot like any other subprogram, but it is NOT
+        // an overload candidate: two tests of one name are a mistake rather
+        // than a set, and counting them as one would emit OP_OVERLOADS over
+        // bodies nothing selects between.
+        if Kind = 'FunctionStmt' and DeclaresATest (TheStmt) and TESTS_WANTED then
+        begin
+            Claim (Unit, Mine, TheStmt.Name);
+
+            // Recorded HERE and not at emission, because this walk is in
+            // statement order and emission is not: declarations are hoisted
+            // ahead of the ModuleStmt, so recording as they were emitted put
+            // the root's own tests before an imported module's and 0104
+            // compares that order.
+            TESTS_FOUND.Add ([CurrentFile, Str (TheStmt.Name.Literal),
+                              Script.QualifiedSlot (Unit, TheStmt.Name.Lexeme)]);
+        end
+
         if Kind = 'FunctionStmt' and not DeclaresATest (TheStmt) then
         begin
             var Key := Unit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
@@ -2951,7 +3004,18 @@ begin
 
     HIDDEN_NAMES.Put (Inner, Hidden);
 
-    if TheStmt.Statements <> Nil then Survey (TheStmt.Statements, Inner);
+    // The module's own FILE while its statements are surveyed, so a test block
+    // inside it is recorded against the file it was declared in.
+    if TheStmt.Statements <> Nil then
+    begin
+        var EnclosingFile := CurrentFile;
+
+        CurrentFile := Str (TheStmt.FileName);
+
+        Survey (TheStmt.Statements, Inner);
+
+        CurrentFile := EnclosingFile;
+    end
 end
 
 /// Opens a loop, so `break` and `continue` inside it have somewhere to go.
@@ -3061,6 +3125,28 @@ begin
                                Str (Name.Lexeme) + ' overload ' + Str (Which));
 end
 
+/// Asks for test blocks to be emitted, and names the root file they are
+/// reported against.
+///
+/// Called before compiling, because the survey has to claim a slot for every
+/// test body it is going to bind.
+procedure WantTests (RootFile : String);
+begin
+    TESTS_WANTED := True;
+    CurrentFile  := RootFile;
+end
+
+/// Every test block emitted, in declaration order.
+///
+/// Each entry is its file, its name, and its slot. Ordering them for the
+/// report is the driver's business: the rule groups by file in first-seen
+/// order and sorts names within a file [TST-004], which is the interpreter's
+/// and is compared by 0104.
+function TestsFound () : List;
+begin
+    Exit TESTS_FOUND;
+end
+
 /// Whether any argument at a call site was written with a name.
 function NamesWritten (TheExpr : Any) : Boolean;
 begin
@@ -3103,6 +3189,21 @@ begin
     Exit TheStmt.Name.Literal <> Nil;
 end
 
+/// Whether a statement runs during a TEST run.
+///
+/// A declaration does; the program's own statements do not, because `--test`
+/// runs the test blocks instead of the program and its main block never
+/// executes [TST-002]. A unit's bare statements are the same answer -- only a
+/// declaration's initializer runs.
+function RunsUnderTest (TheStmt : Any) : Boolean;
+begin
+    var Kind := KindOf (TheStmt);
+
+    Exit Kind = 'FunctionStmt' or Kind = 'ClassStmt'    or Kind = 'ObjectStmt'
+      or Kind = 'EnumStmt'     or Kind = 'VarGroupStmt' or Kind = 'VarStmt'
+      or Kind = 'SubrangeStmt' or Kind = 'ModuleStmt';
+end
+
 /// Whether a declaration is visible above where it is written.
 ///
 /// A subprogram, a class and an enumeration are; a `var` is not, which is the
@@ -3138,6 +3239,11 @@ begin
     LoopTries     := List ();
     OVERLOAD_COUNTS := Map ();
     OVERLOADS_SEEN  := Map ();
+
+    // Cleared per compile, where TESTS_WANTED is NOT: the driver asks for
+    // tests before compiling, and clearing the switch here would answer it
+    // with silence.
+    TESTS_FOUND     := [];
     TryNesting    := 0;
     DECLARED_NAMES  := Map ();
     HIDDEN_NAMES    := Map ();
@@ -3171,7 +3277,11 @@ begin
 
     for var TheStmt in Statements do
     begin
-        if not Hoisted (TheStmt) then EmitStmt (TheStmt);
+        // Under `--test` the program's own statements are skipped and only its
+        // declarations run, which is what makes the main block not execute.
+        if not Hoisted (TheStmt) then
+            if RunsUnderTest (TheStmt) or not TESTS_WANTED then
+                EmitStmt (TheStmt);
 
         // A hoisted class's PARENT is attached here, in source order, for the
         // reason EmitInheritance gives.

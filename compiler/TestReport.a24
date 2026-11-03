@@ -1,0 +1,89 @@
+/// The test report, in one place, because three processors print it.
+///
+/// Every line a test run produces is shaped here: the opening count, a file's
+/// banner, a test's dot-leader line, the `[ERROR]` line naming why one failed,
+/// and the closing totals. The interpreter and the bytecode machine both call
+/// these, so the two cannot drift apart however differently they run a test
+/// body.
+///
+/// The format is not a convention: `conformance/0105-report-format` and
+/// `conformance/0106-dot-leader` compare it character for character, which is
+/// what makes a shared implementation worth the unit rather than merely tidy.
+/// `bootstrap/algol.c` carries a third for the compiled back end, held to the
+/// same cases; that one is C and cannot be reached from here.
+unit TestReport;
+
+uses Console;
+
+/// How wide a test's name may run before its dot leader is squeezed to one.
+///
+/// Fifty-five, measured on the BARE name -- the tags and the verdict are not
+/// counted, so a name longer than this still produces a well-formed line
+/// rather than a wrapped one [TST-009].
+const LEADER_WIDTH := 55;
+
+/// The line that opens a run, naming how many tests were collected.
+function TestOpening (Count : Integer) : String;
+begin
+    Exit INFO_TAG + 'Running ' + Str (Count) + ' tests...';
+end
+
+/// The banner that introduces the tests of one file.
+///
+/// A run reports every test reachable through `uses`, so the file each came
+/// from has to be named or a failure cannot be placed [TST-014].
+function TestBanner (File : String) : String;
+begin
+    Exit INFO_TAG + '< ' + ANSI_CYAN + File + ANSI_RESET + ' >';
+end
+
+/// One test's line: its name, a dot leader, and its verdict.
+///
+/// The leader is measured on the bare name, so a name at or past the width
+/// still gets a single dot and the verdict still lines up as a column.
+function TestLine (Name : String, Status : String) : String;
+var
+    Dots : Integer;
+
+begin
+    Dots := LEADER_WIDTH - Length (Name);
+    if Dots < 1 then Dots := 1;
+
+    var Leader := '';
+    for var I : Integer := 0; I < Dots; I := I + 1 do Leader := Leader + '.';
+
+    var Tint := ANSI_GREEN;
+    if Status = 'FAIL' then Tint := ANSI_RED;
+
+    Exit INFO_TAG + 'Test: ' + Name + ' ' + Leader
+       + ' [ ' + Tint + Status + ANSI_RESET + ' ]';
+end
+
+/// The line that says why a test failed.
+///
+/// The file named is the ROOT of the run rather than the file the failing test
+/// lives in, which is deliberate and is what the other processors do: source
+/// positions are kept in one table keyed by line number, so the root is the
+/// only name a failure can be attributed to [TST-008].
+///
+/// Exactly one of these follows a failure. `Console.Error` adds a source line
+/// and a caret; a test failure does not go through it.
+function TestFailure (RootFile : String, Said : String) : String;
+begin
+    Exit ERROR_TAG + RootFile + ': ' + Said;
+end
+
+/// The totals that close a run.
+///
+/// A run with no failures names only the count that passed; one with failures
+/// names the failures against the total, because that is the number a reader
+/// acts on.
+function TestTotals (Passed : Integer, Failed : Integer) : String;
+begin
+    if Failed = 0 then
+        Exit INFO_TAG + ANSI_GREEN + 'All ' + Str (Passed) + ' tests passed.'
+           + ANSI_RESET;
+
+    Exit INFO_TAG + ANSI_RED + Str (Failed) + ' of ' + Str (Passed + Failed)
+       + ' tests failed.' + ANSI_RESET;
+end

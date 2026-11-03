@@ -33,6 +33,7 @@ uses 'compiler/ObjBuffer';
 uses 'compiler/ObjFile';
 uses 'compiler/SourceCode';
 uses 'compiler/Console';
+uses 'compiler/TestReport';
 
 uses 'compiler/Scanner';
 uses 'compiler/Parser';
@@ -175,6 +176,143 @@ begin
     Exit Made;
 end
 
+/// A chunk that calls the subprogram in one global slot and answers it.
+///
+/// Three instructions, built here rather than emitted: a test body is bound to
+/// a slot by the compile, and calling it needs no more than a read, a call and
+/// a return.
+function CallChunk (Slot : Integer) : Chunk;
+begin
+    var C := Chunk ();
+
+    // The wide form past 255, which is the same split the emitter makes and
+    // for the same reason: a program may hold more globals than a byte spans.
+    if Slot > 255 then
+    begin
+        C.Write (OP_GET_GLOBAL_LONG);
+        C.Write (Slot div 256);
+        C.Write (Slot mod 256);
+    end
+    else
+    begin
+        C.Write (OP_GET_GLOBAL);
+        C.Write (Slot);
+    end
+
+    C.Write (OP_CALL);
+    C.Write (0);
+    C.Write (OP_RETURN);
+
+    Exit C;
+end
+
+/// Runs every test the compile found and answers how many failed.
+///
+/// The order is the interpreter's and is compared by
+/// `conformance/0104-test-collection-and-order`: files in the order they were
+/// first seen, which puts an imported module ahead of the file importing it,
+/// and names sorted within a file.
+///
+/// A test that RAISES fails rather than ending the run, which is what lets one
+/// broken test leave the rest measurable -- and the raise arrives as a String
+/// because that is what the machine turns a runtime error into [STM-020].
+///
+/// Every line printed here comes from `compiler/TestReport`, which the
+/// interpreter prints through as well: the format is compared character for
+/// character by 0105 and 0106, so the two cannot be allowed to drift.
+function RunEveryTest (RootFile : String) : Integer;
+var
+    Files  : List;
+    ByFile : Map;
+    Passed : Integer;
+    Failed : Integer;
+
+begin
+    var Found := TestsFound ();
+
+    Files  := List ();
+    ByFile := Map ();
+
+    for var Each in Found do
+    begin
+        var Where := Str ((Each as List)[0]);
+
+        if not Files.Contains (Where) then
+        begin
+            Files.Add (Where);
+            ByFile.Put (Where, List ());
+        end
+
+        (ByFile.Get (Where) as List).Add (Each);
+    end
+
+    WriteLn (TestOpening (Found.Length));
+
+    Passed := 0;
+    Failed := 0;
+
+    var Opened := False;
+
+    for var Where in Files do
+    begin
+        // A blank line before every banner but the first, and one more before
+        // the totals.
+        if Opened then WriteLn (INFO_TAG);
+        Opened := True;
+
+        WriteLn (TestBanner (Str (Where)));
+
+        var Group := ByFile.Get (Str (Where)) as List;
+
+        // Sorted on the NAMES rather than on the entries, which are lists and
+        // would order by something no rule mentions.
+        var Names := List ();
+        for var Each in Group do Names.Add (Str ((Each as List)[1]));
+        Names.Sort ();
+
+        for var Name in Names do
+        begin
+            var Slot := -1;
+
+            for var Each in Group do
+                if Str ((Each as List)[1]) = Str (Name) then
+                    Slot := (Each as List)[2] as Integer;
+
+            var Said  := '';
+            var Broke := False;
+
+            try
+                ContinueWith (CallChunk (Slot));
+            except
+                on E : String do
+                begin
+                    Broke := True;
+                    Said  := E;
+                end
+            end
+
+            if Broke then
+            begin
+                Failed := Failed + 1;
+
+                WriteLn (TestLine (Str (Name), 'FAIL'));
+                WriteLn (TestFailure (RootFile, Said));
+            end
+            else
+            begin
+                Passed := Passed + 1;
+
+                WriteLn (TestLine (Str (Name), 'PASS'));
+            end
+        end
+    end
+
+    WriteLn (INFO_TAG);
+    WriteLn (TestTotals (Passed, Failed));
+
+    Exit Failed;
+end
+
 if ParamCount () < 1 then
 begin
     WriteLn ('usage: algvm <program.a24>');
@@ -211,8 +349,16 @@ var Given := List ();
 
 var Seen := False;
 
+/// Whether to run the program's test blocks instead of the program.
+///
+/// ⚠️ Not `Testing`, which FOLDS to Vm's own `TESTING` [SRC-011] -- the two
+/// became one name and the C came out with a static declaration following an
+/// extern one. ALL_CAPS is not a namespace.
+var WantsTests := False;
+
 for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     if ParamStr (I) = '--list' then Listing := True;
+    else if ParamStr (I) = '--test' then WantsTests := True;
     else if ParamStr (I) = '--time' then Timing := True;
     else if ParamStr (I) = '--stop' then Stopping := True;
     else if ParamStr (I) = '--collect' then WantsEvery := True;
@@ -234,6 +380,14 @@ for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
 
         Given.Add (ParamStr (I));
     end
+
+// Asked BEFORE compiling: the survey has to claim a slot for every test body
+// it is going to bind, and the main block has to be left out of the script.
+if WantsTests then
+begin
+    WantTests (SourcePath);
+    SetTesting (True);
+end
 
 var Program := ChunkOf (SourceOf (SourcePath), SourcePath);
 
@@ -346,4 +500,12 @@ begin
     WriteLn ('');
 end
 
+// THE TEST RUN.  The script defines every declaration, test bodies included --
+// its own statements are left out of the compile -- and then each body is
+// called in the report's order.
 RunChunk (Program);
+
+// 70 and not the count, which is the status a failing test run exits with
+// [TST-013] and what the other two processors answer.
+if WantsTests then
+    if RunEveryTest (SourcePath) > 0 then Halt (70);

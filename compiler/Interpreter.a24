@@ -6,6 +6,7 @@
 unit Interpreter;
 
 uses Console;
+uses TestReport;
 uses Environment;
 uses Expr;
 uses ObjBuffer;
@@ -753,7 +754,7 @@ begin
         HoistTests (Statements, Tests, ByName, True, Globals, DeclaredIn,
                     FileName, Files, ByFile, Hoisted, True);
 
-        WriteLn (INFO_TAG + 'Running ' + Str(Tests.Length) + ' tests...');
+        WriteLn (TestOpening (Tests.Length));
 
         Passed := 0;
         Failed := 0;
@@ -774,7 +775,7 @@ begin
             begin
                 if I > 0 then WriteLn (INFO_TAG);
 
-                WriteLn (INFO_TAG + '< ' + ANSI_CYAN + Str (Ordered[I]) + ANSI_RESET + ' >');
+                WriteLn (TestBanner (Str (Ordered[I])));
             end
             else
             begin
@@ -790,20 +791,20 @@ begin
                 Body.Call (this, List());
 
                 Passed := Passed + 1;
-                WriteLn (Report (Name, 'PASS'));
+                WriteLn (TestLine (Name, 'PASS'));
             except
                 on e : String do
                     begin
                         Failed := Failed + 1;
-                        WriteLn (Report (Name, 'FAIL'));
-                        WriteLn (ERROR_TAG + FileName + ': ' + e);
+                        WriteLn (TestLine (Name, 'FAIL'));
+                        WriteLn (TestFailure (FileName, e));
                     end
 
                 on e : Raised do
                     begin
                         Failed := Failed + 1;
-                        WriteLn (Report (Name, 'FAIL'));
-                        WriteLn (ERROR_TAG + FileName + ': ' + Str (e.Value));
+                        WriteLn (TestLine (Name, 'FAIL'));
+                        WriteLn (TestFailure (FileName, Str (e.Value)));
                     end
             end
             end
@@ -811,40 +812,9 @@ begin
 
         WriteLn (INFO_TAG);
 
-        if Failed = 0 then
-            WriteLn (INFO_TAG + ANSI_GREEN + 'All ' + Str(Passed) + ' tests passed.' + ANSI_RESET);
-        else
-            WriteLn (INFO_TAG + ANSI_RED + Str(Failed) + ' of ' + Str(Passed + Failed)
-                          + ' tests failed.' + ANSI_RESET);
+        WriteLn (TestTotals (Passed, Failed));
 
         Exit Failed;
-    end
-
-    /// Builds one line of the test report: the name, a dot leader, and the
-    /// verdict.
-    ///
-    /// The leader's width is measured on the bare name, and the compiled runner
-    /// reproduces this exactly -- the two reports are compared line for line.
-    ///
-    /// # Satisfies
-    ///
-    /// [TST-008], [TST-009], [TST-014]
-    function Report (Name : String, Status : String) : String;
-    var
-        Dots : Integer;
-
-    begin
-        Dots := 55 - Length(Name);
-        if Dots < 1 then Dots := 1;
-
-        var Leader := '';
-        for var I := 0; I < Dots; I := I + 1 do
-            Leader := Leader + '.';
-
-        var Tint := ANSI_GREEN;
-        if Status = 'FAIL' then Tint := ANSI_RED;
-
-        Exit INFO_TAG + 'Test: ' + Name + ' ' + Leader + ' [ ' + Tint + Status + ANSI_RESET + ' ]';
     end
 
     /// Evaluates a literal to the value the scanner already built.

@@ -451,6 +451,13 @@ var
 begin
     V := Pop ();
 
+    // SWALLOWED during a test run, which is what 0103 is named for: a test
+    // body's own output would interleave with the report and the report is
+    // compared line for line.  The report itself is printed by the DRIVER and
+    // never passes through here, so suppressing everything the machine prints
+    // is exactly the right reach.
+    if TESTING then Exit;
+
     if V is VmInstance or (V is VmEnum) then WriteLn (Rendered (V));
     else WriteLn (V);
 end
@@ -2298,9 +2305,15 @@ begin
         for var I : Integer := 0; I < Count; I := I + 1 do
             Given.Insert (0, Pop ());
 
-        for var Each in Given do Write (Each);
+        // Swallowed during a test run, for the reason DoPrint gives.  The
+        // arguments are still evaluated and still popped: a program's output
+        // disappearing must not change what it computes.
+        if not TESTING then
+        begin
+            for var Each in Given do Write (Each);
 
-        if Name = 'writeln' then WriteLn (Str (''));
+            if Name = 'writeln' then WriteLn (Str (''));
+        end
 
         Push (Nil);
 
@@ -2370,8 +2383,26 @@ begin
 
             Exit;
         end
-        if Name = 'asserttrue' then begin AssertTrue (A); Push (Nil); Exit; end
-        if Name = 'fail'       then begin Fail (A);       Push (Nil); Exit; end
+        if Name = 'asserttrue' then
+        begin
+            if not TESTING then raise 'Undefined variable ' + QUOTE
+                                    + 'AssertTrue' + QUOTE + '.';
+
+            AssertedTrue (A);
+            Push (Nil);
+
+            Exit;
+        end
+        if Name = 'fail' then
+        begin
+            if not TESTING then raise 'Undefined variable ' + QUOTE
+                                    + 'Fail' + QUOTE + '.';
+
+            FailedWith (A);
+            Push (Nil);
+
+            Exit;
+        end
         if Name = 'halt'       then begin Halt (A);       Push (Nil); Exit; end
         if Name = 'chdir'      then begin ChDir (A);      Push (Nil); Exit; end
         if Name = 'mkdir'      then begin MkDir (A);      Push (Nil); Exit; end
@@ -2385,7 +2416,16 @@ begin
         if Name = 'pos'         then begin Push (Pos (A, B)); Exit; end
         if Name = 'str'         then begin Push (Str (A, B)); Exit; end
         if Name = 'copy'        then begin Push (Copy (A, B)); Exit; end
-        if Name = 'assertequal' then begin AssertEqual (A, B); Push (Nil); Exit; end
+        if Name = 'assertequal' then
+        begin
+            if not TESTING then raise 'Undefined variable ' + QUOTE
+                                    + 'AssertEqual' + QUOTE + '.';
+
+            AssertedEqual (A, B);
+            Push (Nil);
+
+            Exit;
+        end
     end
 
     if Count = 3 then
@@ -2428,6 +2468,61 @@ begin
             + ' arguments but got ' + Str (Count) + '.';
 
     raise 'No built-in ' + Str (Name) + ' takes ' + Str (Count) + ' arguments.';
+end
+
+/// Whether the machine is running test blocks rather than a program.
+///
+/// `AssertTrue`, `AssertEqual` and `Fail` are the three built-ins [RT-001]
+/// makes available only under a test run, so outside one a call to them must
+/// answer exactly what the interpreter answers -- `Undefined variable`, naming
+/// it -- rather than quietly working.
+var TESTING : Boolean := False;
+
+/// Turns test mode on, which is what `--test` asks the driver to do.
+procedure SetTesting (On : Boolean);
+begin
+    TESTING := On;
+end
+
+/// Raises unless the value is truthy.
+///
+/// ⚠️ These three carry the interpreter's wording character for character,
+/// two spaces after `failed.` included, because a test's failure line is what
+/// `conformance/0107` and `conformance/0132` compare. They cannot forward to
+/// the host's own the way every other built-in does: the host's `AssertEqual`
+/// exists only in a build made with `--test`, and the machine is not one.
+procedure AssertedTrue (Value : Any);
+begin
+    if not Truthy (Value) then
+        raise 'Assertion failed.  Expected true but got ' + QUOTE
+            + Str (Value) + QUOTE + '.';
+end
+
+/// Raises unless the two values are equal.
+///
+/// Names the TYPES when the two render alike, because `Expected '5' but got
+/// '5'` tells a reader nothing -- a Char and a one-character String are the
+/// case that reaches it [TST-008].
+procedure AssertedEqual (Expected : Any, Actual : Any);
+begin
+    if Expected = Actual then Exit;
+
+    var Left  := Str (Expected);
+    var Right := Str (Actual);
+
+    if Left = Right then
+        raise 'Assertion failed.  Expected ' + Str (NameOfType (Expected))
+            + ' ' + QUOTE + Left + QUOTE + ' but got '
+            + Str (NameOfType (Actual)) + ' ' + QUOTE + Right + QUOTE + '.';
+
+    raise 'Assertion failed.  Expected ' + QUOTE + Left + QUOTE
+        + ' but got ' + QUOTE + Right + QUOTE + '.';
+end
+
+/// Fails a test outright, with a reason.
+procedure FailedWith (Said : Any);
+begin
+    raise 'Failed.  ' + Str (Said);
 end
 
 /// How many arguments each FIXED-arity built-in takes, mirroring the arities
@@ -2736,6 +2831,44 @@ begin
     Live       := True;
     Tick       := 0;
 
+    Exit RunLoop ();
+end
+
+/// Runs a chunk against the globals an earlier run already defined.
+///
+/// RunChunk SIZES the globals from the chunk it is given and clears them, which
+/// is right for starting a program and wrong for anything after: a second call
+/// would wipe every definition the first made.  So a run that continues one --
+/// a test body called after the script that bound it -- enters here instead,
+/// and the globals are whatever the script left.
+///
+/// The frame and value stacks are reset, because what is being entered is a
+/// fresh call and not a resumption.
+function ContinueWith (C : Chunk) : Any;
+begin
+    Running   := C;
+    CodeBytes := C.Code;
+    Constants := C.Constants;
+
+    IP         := 0;
+    SP         := 0;
+    Base       := 0;
+    FrameDepth := 0;
+    TryDepth   := 0;
+    Cells      := List ();
+    Answer     := Nil;
+    Live       := True;
+
+    Exit RunLoop ();
+end
+
+/// The dispatch loop, which is the machine.
+///
+/// Separate from the setup above it so that both ways in share it exactly --
+/// a second copy would be a second safe point, a second place a runtime error
+/// becomes catchable, and a second thing to keep in step.
+function RunLoop () : Any;
+begin
     // Two loops, and the outer one is what makes a RUNTIME error catchable
     // [STM-020].  A host error arrives as a String -- 'Division by zero.',
     // 'Index out of range.' -- and is turned into a raise of that String, so a
@@ -2777,6 +2910,7 @@ begin
 
     Exit Answer;
 end
+
 
 /// Runs OP_NOT over one value, for the truthiness tests.
 function NotOf (V : Any) : Any;

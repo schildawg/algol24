@@ -13,8 +13,9 @@
 #
 #   identical         the machine agrees with the recorded expectation
 #   refused by name   an opcode does not exist yet, and the emitter said so
-#   not applicable    the case asks to be run some other way -- '--test', most
-#                     likely -- and the machine has no such mode yet
+#   not applicable    the case asks to be run some other way, and the machine
+#                     has no such mode.  '--test' USED to be the common one and
+#                     no longer is: the machine runs test blocks now.
 #   DIVERGED          the machine ran it and got something else
 #
 # A refusal is work still to do.  A divergence is a bug, and the reason the
@@ -76,13 +77,21 @@ for src in conformance/*.a24 refusals/*.a24; do
     [ -f "${src%.a24}.args" ] && wants=$(cat "${src%.a24}.args")
     [ -n "$wants" ] || wants=$(sed -n 's|^// run: ||p' "$src" | head -1)
 
-    if [ -n "$wants" ]; then
+    # '--test' is one the machine CAN now be asked, so it is run rather than
+    # skipped: the seven cases that ask for it are the ones that pin the report
+    # itself -- collection order, the dot leader, the assertion messages -- and
+    # skipping them left the format unchecked on this processor.
+    if [ -n "$wants" ] && [ "$wants" != "--test" ]; then
         SKIPPED=$((SKIPPED + 1))
         continue
     fi
 
     status=0
-    "$WORK/algvm" "$src" > "$WORK/raw" 2>&1 || status=$?
+    if [ "$wants" = "--test" ]; then
+        "$WORK/algvm" --test "$src" > "$WORK/raw" 2>&1 || status=$?
+    else
+        "$WORK/algvm" "$src" > "$WORK/raw" 2>&1 || status=$?
+    fi
     { render < "$WORK/raw"; echo "exit: $status"; } > "$WORK/got"
 
     if grep -q 'is not supported by the bytecode back end yet' "$WORK/raw"; then
