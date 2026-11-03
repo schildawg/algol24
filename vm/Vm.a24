@@ -3701,6 +3701,175 @@ begin
     AssertEqual (1 << 70, RunChunk (C) as Integer);
 end
 
+/// Runs one instruction above Deep values and answers the SP it left behind.
+///
+/// The chunk fills the stack with the Integer 1 -- which every arithmetic,
+/// comparison and bitwise opcode accepts -- then writes the instruction under
+/// test, then OP_NIL and OP_RETURN. At the floor OP_RETURN pops its value and
+/// stops without restoring anything, so the SP left is exactly
+/// `Deep - pops + pushes`.
+///
+/// # Raises
+///
+/// Whatever the instruction raises, which is what the depth probe wants.
+function MeasuredStack (Op : Integer, Operands : List, Deep : Integer) : Integer;
+var
+    C : Chunk;
+
+begin
+    C := Chunk ();
+
+    // One constant in the table before anything is emitted, so that an
+    // instruction whose operand is index 0 has something to read even at a
+    // depth of nothing.  Interned, so the filler below reuses it rather than
+    // adding a second.
+    C.AddConstant (1);
+
+    for var I : Integer := 0; I < Deep; I := I + 1 do C.EmitConstant (1);
+
+    C.Write (Op);
+
+    for var B in Operands do C.Write (B as Integer);
+
+    C.Emit (OP_NIL);
+    C.Emit (OP_RETURN);
+
+    RunChunk (C);
+
+    Exit SP;
+end
+
+/// How many values an opcode takes, by its own declaration.
+///
+/// StackPart and StackTerm live in OpCode.a24 beside OpStack, and not here:
+/// one name may not be declared at the top level of two files of one program,
+/// and a copy here clashed with that one.
+function DeclaredPops (Op : Integer, N : Integer) : Integer;
+begin
+    Exit StackTerm (StackPart (OpStack (Op), 0), N);
+end
+
+/// How many it leaves, by its own declaration.
+function DeclaredPushes (Op : Integer, N : Integer) : Integer;
+begin
+    Exit StackTerm (StackPart (OpStack (Op), 1), N);
+end
+
+/// The least depth it requires, by its own declaration.
+function DeclaredNeeds (Op : Integer, N : Integer) : Integer;
+begin
+    Exit StackTerm (StackPart (OpStack (Op), 2), N);
+end
+
+/// Asserts that an instruction moves the stack exactly as OpStack says.
+///
+/// Two claims, not one. The NET is checked by running the instruction on a
+/// stack deep enough for it and comparing the SP left. The POPS are pinned
+/// separately by running it one value shallower, which must fail -- Pop raises
+/// 'The value stack underflowed.' and a peeking handler faults on a negative
+/// index, and either is a failure. Without that second half, `2 1` and `1 0`
+/// are indistinguishable: both move the stack by one.
+procedure AssertStackEffect (Op : Integer, Operands : List, N : Integer);
+var
+    Pops   : Integer;
+    Pushes : Integer;
+
+begin
+    Pops   := DeclaredPops (Op, N);
+    Pushes := DeclaredPushes (Op, N);
+
+    var Needs := DeclaredNeeds (Op, N);
+
+    // THE NET, at the depth the declaration asks for.
+    AssertEqual (Needs - Pops + Pushes, MeasuredStack (Op, Operands, Needs));
+
+    if Needs = 0 then Exit;
+
+    // THE DEPTH, by running one value shallower, which must fail.  Pop raises
+    // 'The value stack underflowed.' and a PEEKING handler faults on a
+    // negative index instead -- either is a failure, and which one it is says
+    // nothing about the effect, so neither is compared.
+    var Shallow := False;
+
+    try
+        MeasuredStack (Op, Operands, Needs - 1);
+    except
+        on e : String do Shallow := True;
+    end
+
+    if not Shallow then
+        Fail (OpName (Op) + ' claims to need ' + Str (Needs)
+            + ' values but ran on ' + Str (Needs - 1));
+end
+
+test 'A Measurable Opcode Moves The Stack Exactly As It Declares';
+begin
+    // ⚠️ What is NOT measured here, and why -- because a count of the measured
+    // ones means nothing without it. OP_PRINT writes to stdout and would
+    // pollute the report; OP_THIS reads one below the base, which the script
+    // frame does not have; OP_RAISE and OP_LOOP do not come back; OP_IN,
+    // OP_ITER and the subscript pair need a collection rather than the
+    // Integer the filler pushes; and every opcode whose operand is the index
+    // of a NAME -- a field, a method, a type, a built-in, a property -- needs
+    // that name in the constants and a receiver that answers to it, which is
+    // the context this harness deliberately does not build. Those are held to
+    // their declaration by the corpus instead.
+    var None := List ();
+
+    // Nothing in, one out.
+    AssertStackEffect (OP_NIL,   None, 0);
+    AssertStackEffect (OP_TRUE,  None, 0);
+    AssertStackEffect (OP_FALSE, None, 0);
+    AssertStackEffect (OP_CONSTANT, [0], 0);
+
+    // One in, nothing out.
+    AssertStackEffect (OP_POP, None, 0);
+
+    // One in, one out.
+    AssertStackEffect (OP_NOT,     None, 0);
+    AssertStackEffect (OP_NEGATE,  None, 0);
+    AssertStackEffect (OP_BIT_NOT, None, 0);
+    AssertStackEffect (OP_CELL,    None, 0);
+
+    // Two in, one out -- every binary operator the filler can stand in for.
+    AssertStackEffect (OP_EQUAL,       None, 0);
+    AssertStackEffect (OP_GREATER,     None, 0);
+    AssertStackEffect (OP_LESS,        None, 0);
+    AssertStackEffect (OP_ADD,         None, 0);
+    AssertStackEffect (OP_SUBTRACT,    None, 0);
+    AssertStackEffect (OP_MULTIPLY,    None, 0);
+    AssertStackEffect (OP_DIVIDE,      None, 0);
+    AssertStackEffect (OP_DIV,         None, 0);
+    AssertStackEffect (OP_MOD,         None, 0);
+    AssertStackEffect (OP_BIT_AND,     None, 0);
+    AssertStackEffect (OP_BIT_OR,      None, 0);
+    AssertStackEffect (OP_BIT_XOR,     None, 0);
+    AssertStackEffect (OP_SHIFT_LEFT,  None, 0);
+    AssertStackEffect (OP_SHIFT_RIGHT, None, 0);
+
+    // The top read and left alone, which is what makes an assignment an
+    // expression [EXP-020].
+    AssertStackEffect (OP_SET_LOCAL, [0], 0);
+    AssertStackEffect (OP_DUP,       None, 0);
+
+    // Nothing at all.
+    AssertStackEffect (OP_JUMP,  [0, 0], 0);
+    AssertStackEffect (OP_TRY,   [0, 0], 0);
+    AssertStackEffect (OP_UNTRY, None,   0);
+
+    // A jump that does not pop is the whole of why `and` and `or` need no
+    // opcodes [EXP-010], so it is worth measuring rather than asserting.
+    AssertStackEffect (OP_JUMP_IF_FALSE, [0, 0], 0);
+
+    // A window of n in, one out.  Measured at two counts each, because a
+    // declaration reading `n 1` is a claim about every count and a single one
+    // would be satisfied by a constant.
+    AssertStackEffect (OP_LIST, [0, 0], 0);
+    AssertStackEffect (OP_LIST, [0, 3], 3);
+    AssertStackEffect (OP_MAP,  [0, 0], 0);
+    AssertStackEffect (OP_MAP,  [0, 2], 2);
+end
+
 test 'The Slots Underflows Rather Than Reading Rubbish';
 begin
     var C := Chunk ();

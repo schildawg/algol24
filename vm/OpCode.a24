@@ -723,6 +723,198 @@ begin
     Exit '';
 end
 
+/// What an opcode does to the stack, as `pops pushes needs`.
+///
+/// A number says exactly that many.  `n` is the instruction's COUNT operand,
+/// `n+1` that many and the callable or receiver beneath them, and `2n` that
+/// many key-and-value pairs.  `frame` is OP_RETURN alone, which discards
+/// whatever its frame put on the stack rather than a fixed number.
+///
+/// NEEDS is the minimum depth the instruction requires, and it is a third term
+/// rather than the same as `pops` because an instruction may READ the top
+/// without taking it: OP_DUP and every assignment opcode need a value beneath
+/// them and leave it there.
+///
+/// Of the three, two are observable and one is description.  The DIFFERENCE
+/// `pushes - pops` is what a run reveals, and `needs` is what running one
+/// value shallower reveals -- but the split itself is not visible from
+/// outside, because popping a value and pushing two copies of it moves the
+/// stack exactly as reading it and pushing one does.  So the split says what
+/// the handler is written to mean, and the two things a test can hold it to
+/// are held to it.
+///
+/// This is the question worth asking of a back end and the hardest to see by
+/// reading: a correct emitter leaves the stack where it found it, and this
+/// machine has twice answered correctly while leaking a slot an iteration,
+/// which the answer alone cannot show.
+///
+/// Answers '' for a number that is no opcode, which is what the test for
+/// completeness compares against.
+///
+/// # Satisfies
+///
+/// [EXP-020]
+function OpStack (Op : Integer) : String;
+begin
+    // Nothing in, one value out, and nothing needed beneath.
+    if Op = OP_CONSTANT             then Exit '0 1 0';
+    if Op = OP_NIL                  then Exit '0 1 0';
+    if Op = OP_TRUE                 then Exit '0 1 0';
+    if Op = OP_FALSE                then Exit '0 1 0';
+    if Op = OP_GET_LOCAL            then Exit '0 1 0';
+    if Op = OP_GET_GLOBAL           then Exit '0 1 0';
+    if Op = OP_GET_GLOBAL_LONG      then Exit '0 1 0';
+    if Op = OP_GET_BOX              then Exit '0 1 0';
+    if Op = OP_GET_CELL             then Exit '0 1 0';
+    if Op = OP_THIS                 then Exit '0 1 0';
+    if Op = OP_CLASS                then Exit '0 1 0';
+    if Op = OP_ENUM                 then Exit '0 1 0';
+    if Op = OP_CLOSURE              then Exit '0 1 0';
+    if Op = OP_SUPER                then Exit '0 1 0';
+
+    // One value in, nothing out.
+    if Op = OP_POP                  then Exit '1 0 1';
+    if Op = OP_PRINT                then Exit '1 0 1';
+    if Op = OP_RAISE                then Exit '1 0 1';
+    if Op = OP_DEFINE_GLOBAL        then Exit '1 0 1';
+    if Op = OP_DEFINE_GLOBAL_LONG   then Exit '1 0 1';
+
+    // One in, one out.
+    if Op = OP_IS                   then Exit '1 1 1';
+    if Op = OP_NOT                  then Exit '1 1 1';
+    if Op = OP_NEGATE               then Exit '1 1 1';
+    if Op = OP_BIT_NOT              then Exit '1 1 1';
+    if Op = OP_PROPERTY             then Exit '1 1 1';
+    if Op = OP_GET_FIELD            then Exit '1 1 1';
+    if Op = OP_WIDEN                then Exit '1 1 1';
+    if Op = OP_ITER                 then Exit '1 1 1';
+    if Op = OP_CELL                 then Exit '1 1 1';
+    if Op = OP_EXTEND               then Exit '1 1 1';
+    if Op = OP_SINGLETON            then Exit '1 1 1';
+
+    // Two in, one out -- every binary operator.
+    if Op = OP_EQUAL                then Exit '2 1 2';
+    if Op = OP_GREATER              then Exit '2 1 2';
+    if Op = OP_LESS                 then Exit '2 1 2';
+    if Op = OP_ADD                  then Exit '2 1 2';
+    if Op = OP_SUBTRACT             then Exit '2 1 2';
+    if Op = OP_MULTIPLY             then Exit '2 1 2';
+    if Op = OP_DIVIDE               then Exit '2 1 2';
+    if Op = OP_DIV                  then Exit '2 1 2';
+    if Op = OP_MOD                  then Exit '2 1 2';
+    if Op = OP_IN                   then Exit '2 1 2';
+    if Op = OP_BIT_AND              then Exit '2 1 2';
+    if Op = OP_BIT_OR               then Exit '2 1 2';
+    if Op = OP_BIT_XOR              then Exit '2 1 2';
+    if Op = OP_SHIFT_LEFT           then Exit '2 1 2';
+    if Op = OP_SHIFT_RIGHT          then Exit '2 1 2';
+    if Op = OP_SUBSCRIPT_GET        then Exit '2 1 2';
+    if Op = OP_SET_FIELD            then Exit '2 1 2';
+
+    // Three in, one out: the target, the index and the value.
+    if Op = OP_SUBSCRIPT_SET        then Exit '3 1 3';
+
+    // Nothing in, nothing out, nothing read.
+    if Op = OP_JUMP                 then Exit '0 0 0';
+    if Op = OP_LOOP                 then Exit '0 0 0';
+    if Op = OP_TRY                  then Exit '0 0 0';
+    if Op = OP_UNTRY                then Exit '0 0 0';
+    if Op = OP_SUBRANGE             then Exit '0 0 0';
+    if Op = OP_LONG                 then Exit '0 0 0';
+
+    // Nothing in and nothing out, but the TOP IS READ -- an assignment is an
+    // expression, so its value stays on the stack [EXP-020].
+    if Op = OP_SET_LOCAL            then Exit '0 0 1';
+    if Op = OP_SET_GLOBAL           then Exit '0 0 1';
+    if Op = OP_SET_GLOBAL_LONG      then Exit '0 0 1';
+    if Op = OP_SET_BOX              then Exit '0 0 1';
+    if Op = OP_SET_CELL             then Exit '0 0 1';
+    if Op = OP_JUMP_IF_FALSE        then Exit '0 0 1';
+    if Op = OP_CAST                 then Exit '0 0 1';
+    if Op = OP_FIELD                then Exit '0 0 1';
+
+    // The top read and one pushed above it.
+    if Op = OP_DUP                  then Exit '0 1 1';
+    if Op = OP_ENUM_MEMBER          then Exit '0 1 1';
+
+    // One in, nothing out, and the CLASS beneath it read.
+    if Op = OP_METHOD               then Exit '1 0 2';
+    if Op = OP_DECLARE_PROPERTY     then Exit '1 0 2';
+    if Op = OP_INHERIT              then Exit '1 0 2';
+
+    // A window of n in, one out.
+    if Op = OP_LIST                 then Exit 'n 1 n';
+    if Op = OP_OVERLOADS            then Exit 'n 1 n';
+    if Op = OP_BUILTIN              then Exit 'n 1 n';
+
+    // A window of n PAIRS in, one out.
+    if Op = OP_MAP                  then Exit '2n 1 2n';
+
+    // A callable or a receiver beneath n arguments, and one out.
+    if Op = OP_CALL                 then Exit 'n+1 1 n+1';
+    if Op = OP_CALL_NAMED           then Exit 'n+1 1 n+1';
+    if Op = OP_INVOKE               then Exit 'n+1 1 n+1';
+    if Op = OP_INVOKE_NAMED         then Exit 'n+1 1 n+1';
+    if Op = OP_INVOKE_EXT           then Exit 'n+1 1 n+1';
+    if Op = OP_INVOKE_EXT_NAMED     then Exit 'n+1 1 n+1';
+
+    // OP_RETURN is the one instruction whose pops are not a number: it
+    // truncates to its frame's base and pushes the answer, so what it takes is
+    // whatever that frame had put there.
+    if Op = OP_RETURN             then Exit 'frame 1 1';
+
+    Exit '';
+end
+
+/// One of the three terms of a stack effect, counting from zero.
+///
+/// There is no Split built-in, so the terms are cut out by hand -- which is
+/// three lines rather than a dependency, and the count is fixed at three by
+/// the test beside OpStack.
+function StackPart (Said : String, Which : Integer) : String;
+var
+    From : Integer;
+
+begin
+    From := 0;
+
+    for var I : Integer := 0; I < Which; I := I + 1 do
+    begin
+        var At := Pos (Copy (Said, From, Length (Said)), Str (' '));
+
+        if At < 0 then Exit '';
+
+        From := From + At + 1;
+    end
+
+    var Ends := Pos (Copy (Said, From, Length (Said)), Str (' '));
+
+    if Ends < 0 then Exit Copy (Said, From, Length (Said));
+
+    Exit Copy (Said, From, Ends);
+end
+
+/// A stack term as a number, given the instruction's count operand.
+///
+/// # Raises
+///
+/// 'No such stack term: <term>.' for anything outside the closed vocabulary,
+/// which is what keeps a declaration from carrying an expression nothing can
+/// evaluate.
+function StackTerm (Term : String, N : Integer) : Integer;
+begin
+    if Term = Str ('0') then Exit 0;
+    if Term = Str ('1') then Exit 1;
+    if Term = Str ('2') then Exit 2;
+    if Term = Str ('3') then Exit 3;
+
+    if Term = Str ('n') then Exit N;
+    if Term = 'n+1'     then Exit N + 1;
+    if Term = '2n'      then Exit N * 2;
+
+    raise 'No such stack term: ' + Term + '.';
+end
+
 /// How many operand BYTES follow an opcode.
 ///
 /// Derived from the shape rather than listed beside it, so the two cannot
@@ -803,6 +995,54 @@ test 'Every Opcode Has A Name';
 begin
     for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
         AssertTrue (OpName (Op) <> 'OP_?');
+end
+
+test 'Every Opcode Declares What It Does To The Stack';
+begin
+    // An opcode added without a stack effect would be documented in
+    // REFERENCE.md against nothing, and vm/reference.sh would have nothing to
+    // hold the entry to -- so the gap belongs here, where it is one line to
+    // find rather than a silently unchecked claim in prose.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+        AssertTrue (OpStack (Op) <> '');
+end
+
+test 'A Stack Effect Is Three Known Terms';
+begin
+    // The vocabulary is closed on purpose: a term nothing can evaluate would
+    // pass the completeness test above and then be unverifiable, which is the
+    // shape of claim this whole mechanism exists to stop.  StackTerm raises on
+    // anything outside it, so reaching all three IS the check.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Said := OpStack (Op);
+
+        AssertTrue (StackPart (Said, 2) <> '');
+        AssertEqual ('', StackPart (Said, 3));
+
+        if StackPart (Said, 0) <> 'frame' then
+            AssertTrue (StackTerm (StackPart (Said, 0), 7) >= 0);
+
+        AssertTrue (StackTerm (StackPart (Said, 1), 7) >= 0);
+        AssertTrue (StackTerm (StackPart (Said, 2), 7) >= 0);
+    end
+end
+
+test 'An Opcode Cannot Need Less Than It Pops';
+begin
+    // Incoherent rather than merely wrong: an instruction taking two values
+    // off a stack of one has nothing to take, so a declaration saying so is a
+    // typo the measurement would never reach -- it runs at the depth the
+    // declaration names, which would be the smaller of the two.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Said := OpStack (Op);
+
+        if StackPart (Said, 0) = 'frame' then continue;
+
+        AssertTrue (StackTerm (StackPart (Said, 2), 9)
+                 >= StackTerm (StackPart (Said, 0), 9));
+    end
 end
 
 test 'The Numbering Is Contiguous And Unique';

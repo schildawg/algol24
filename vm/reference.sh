@@ -26,11 +26,18 @@
 #   not yet written  no entry, which is work to do
 #   WRONG            the entry disagrees with the machine
 #
-# ⚠️ The STACK section is checked for presence and shape only.  What it claims
-# an instruction pops and pushes is not yet compared against a run, which is
-# the next thing worth building here: the machine has twice had a bug that
-# produced the right answer while leaking a slot per iteration, so that section
-# is the most valuable one in the file and currently the least guarded.
+# The STACK section is compared against OpStack in vm/OpCode.a24, which is in
+# turn held to a RUN by vm/Vm.a24's own tests -- so an entry's stack effect is
+# two steps from something that executes rather than being prose.  Two of its
+# three numbers are measured: `pushes - pops` is what a run reveals and `needs`
+# is what running one value shallower reveals.
+#
+# ⚠️ The SPLIT between pops and pushes is description and not measurement, and
+# no test can make it otherwise: popping a value and pushing two copies of it
+# moves the stack exactly as reading it and pushing one does.  That was checked
+# with distinct sentinels rather than assumed, and it is why the vocabulary
+# carries `needs` at all -- the two-term version passed a declaration of
+# `1 2` for OP_DUP, whose truth is `0 1`.
 
 set -eu
 
@@ -76,6 +83,15 @@ awk '/^function OpShape/ { inside = 1; next }
      inside' "$OPCODES" \
   | sed -n "s/.*if Op = \(OP_[A-Z0-9_]*\)[[:space:]]*then Exit '\([a-z]*\)';.*/\1 \2/p" \
   > "$WORK/shapes"
+
+# OpStack's body the same way: `pops pushes needs` per opcode.  This is the
+# section REFERENCE.md's readers care most about and the one that was pure
+# prose until there was something to hold it to.
+awk '/^function OpStack/ { inside = 1; next }
+     inside && /^end$/    { inside = 0 }
+     inside' "$OPCODES" \
+  | sed -n "s/.*if Op = \(OP_[A-Z0-9_]*\)[[:space:]]*then Exit '\([^']*\)';.*/\1 \2/p" \
+  > "$WORK/effects"
 
 # ----------------------------------------------------------------- the file --
 
@@ -134,6 +150,19 @@ while read -r name; do
         grep -q "^\*\*$section\*\*" "$entry" \
             || fail "$name has no $section section"
     done
+
+    # The STACK line, against OpStack.  Everything after the three numbers is
+    # free prose; the three themselves are the claim.
+    want_effect=$(awk -v n="$name" '$1 == n { print $2, $3, $4 }' "$WORK/effects")
+    said=$(sed -n 's/^\*\*Stack\*\* — pops \([^,]*\), pushes \([^,]*\), needs \([^. ]*\).*/\1 \2 \3/p' "$entry" | head -1)
+
+    if [ -z "$said" ]; then
+        fail "$name states no stack effect in the form 'pops P, pushes Q, needs R'"
+    elif [ -z "$want_effect" ]; then
+        fail "$name has no OpStack entry to be held to"
+    elif [ "$said" != "$want_effect" ]; then
+        fail "$name does '$want_effect' to the stack but its entry says '$said'"
+    fi
 
     # The first bracketed row inside the fence is the machine-readable one.
     row=$(sed -n '/^```/,/^```/p' "$entry" | grep -m1 '\[ *[0-9]' || true)

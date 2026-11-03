@@ -31,11 +31,27 @@ order in `vm/OpCode.a24` by a script, and inserting one renumbers those above
 it. The *mnemonic* is the stable name. Nothing should hard-code 37 for
 `OP_LIST`.
 
-**Stack** — what the instruction pops and pushes, in slots. This is the section
-to read first and the one most worth doubting. A correct emitter leaves a
-balanced stack, and the machine has twice had a bug that produced the right
-answer while leaking a slot per iteration — which is why the tests assert `SP`
-after a run and not only the result.
+**Stack** — `pops P, pushes Q, needs R`, in slots, and **`vm/reference.sh`
+compares all three against `OpStack` in `vm/OpCode.a24`**. This is the section
+to read first. A correct emitter leaves a balanced stack, and the machine has
+twice had a bug that produced the right answer while leaking a slot per
+iteration — which is why the tests assert `SP` after a run and not only the
+result.
+
+`needs` is the least depth the instruction requires, and it is a third number
+rather than the same as `pops` because an instruction may **read** the top
+without taking it: `OP_DUP` and every assignment opcode need a value beneath
+them and leave it there [EXP-020].
+
+⚠️ **Of the three, two are measured and one is description.** `pushes - pops`
+is what a run reveals, and `needs` is what running one value shallower reveals
+— both are asserted against the machine by
+`A Measurable Opcode Moves The Stack Exactly As It Declares`. The **split** is
+not observable from outside, because popping a value and pushing two copies of
+it moves the stack exactly as reading it and pushing one does; that was checked
+with distinct sentinels rather than assumed. So `pops` and `pushes` separately
+say what the handler is written to mean, and a reader should trust their
+difference further than either alone.
 
 **Operation** — what it does, in the fewest words that are still true.
 
@@ -90,7 +106,7 @@ Encoding    [ 69 ]                                        1 byte
             follows it, opcode included.
 ```
 
-**Stack** — pops 0, pushes 0.
+**Stack** — pops 0, pushes 0, needs 0.
 
 **Operation** — sets a flag, then runs the next instruction. That instruction's
 one widenable operand — its constant index (`i`) or its local slot (`l`) — is
@@ -150,7 +166,7 @@ Encoding    [ 61 ][ i ][ s ]  then one 3-byte descriptor per capture
             variable-width -- OpShape cannot describe this one
 ```
 
-**Stack** — pops 0, pushes 1 (the closure).
+**Stack** — pops 0, pushes 1, needs 0. The closure is what it leaves.
 
 ⚠️ **This is the only variable-width instruction, and `OpShape` answers `''`
 for it** — which is a deliberate lie that every walker has to know about.
@@ -208,8 +224,9 @@ Encoding    [ 68 ][ i ][ b ][ s ]                     5 bytes
             s    the extension's global slot
 ```
 
-**Stack** — pops the receiver and `b` arguments; pushes the call's result. The
-receiver sits beneath the arguments, `b + 1` slots down from the top.
+**Stack** — pops n+1, pushes 1, needs n+1. The receiver sits beneath the
+arguments, `b + 1` slots down from the top, and the call's result replaces the
+whole window.
 
 **Operation** — asks the receiver's **value** whether it has a member of the
 name. Where it does, that member is invoked. Where it does not, the extension
@@ -263,7 +280,7 @@ Encoding    [ 62 ][ b ][ i ]                          3 bytes
             the same two the other way round.
 ```
 
-**Stack** — pops `b` candidates; pushes 1 (the set).
+**Stack** — pops n, pushes 1, needs n. The set replaces the candidates.
 
 **Operation** — reads a window of `b` values from the top of the stack **by
 index rather than by popping**, so the candidates keep declaration order, and

@@ -180,11 +180,38 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   37 for `OP_LIST` — which the reference says outright, because an assembly
   front end would otherwise invite exactly that.
 
-  ⚠️ **The STACK section is checked for presence only.** What an entry claims
-  it pops and pushes is not compared against a run, which is the next thing
-  worth building: the machine has twice had a bug that gave the right answer
-  while leaking a slot per iteration, so that is the most valuable section in
-  the file and the least guarded.
+  ⚠️ **The STACK section is now THREE terms and two of them are measured.**
+  `OpStack` declares `pops pushes needs` for all 78 opcodes, `vm/reference.sh`
+  holds each entry to it, and `vm/Vm.a24` holds the declaration to a RUN — so
+  an entry is two steps from something that executes. `pushes - pops` is what a
+  run reveals; `needs` is what running one value shallower reveals, since `Pop`
+  raises `The value stack underflowed.` and a peeking handler faults on a
+  negative index instead.
+
+  ⚠️ **`needs` exists because the two-term version was WRONG, and the probe
+  that found it is the lesson.** Declaring `OP_DUP` as `1 2` instead of `0 1`
+  passed both checks: the net is the same and it does fail at depth 0. So pops
+  and "the depth required" are different questions — an instruction may READ
+  the top without taking it, which is every assignment opcode [EXP-020] as well
+  as `OP_DUP`.
+
+  ⚠️ **The SPLIT between pops and pushes is unobservable, and that is settled
+  rather than assumed.** Popping a value and pushing two copies moves the stack
+  exactly as reading it and pushing one does — checked with distinct sentinels,
+  which showed slot 0 holding the same value either way. So the split says what
+  the handler is written to mean and nothing can hold it to that; the
+  difference and the depth are what the tests assert. `1 2 1` for `OP_DUP`
+  still passes, and the doc comment says so.
+
+  ⚠️ **Three traps in one small test, all of them in CLAUDE.md already.**
+  `Set` takes a COLLECTION and not members, so `Set (A, B, C)` is
+  `Expected 0 or 1 arguments but got 3.`; a one-character literal is a **Char**
+  and never equals the String `Copy` answers, so a set of bare `'0'` matched
+  nothing; and a second top-level `StackTerm` in `Vm.a24` clashed with the one
+  in `OpCode.a24`, which is why both helpers live beside `OpStack`.
+
+  ⚠️ **There is no `Split` built-in**, so `StackPart` cuts the terms out with
+  `Pos` and `Copy` — and `Pos (Text, Part)` takes the text first.
 
   `Fib (27)` runs in **0.91 s on the VM against 6.24 s interpreted** — both
   native binaries, so that 6.9× is bytecode against an AST walk. It was 0.79 s
