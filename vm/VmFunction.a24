@@ -148,6 +148,61 @@ begin
     end
 end
 
+/// A member bound to the receiver it was read from.
+///
+/// What `L.Sort` answers without parentheses, and what `Box ().Size` answers
+/// where Size is a method: a member read is a VALUE [FUN-011], and the call is
+/// a separate step that may never come.
+///
+/// The WRITTEN spelling is kept rather than the folded one, because it is what
+/// a message shows -- `L.SORT` renders `<fn SORT>` and the two spellings must
+/// not be made to agree [SRC-011, 0149].
+///
+/// One class for both kinds of receiver, a class instance and a host object
+/// alike: the call goes through InvokeMember either way, which is the one
+/// place that knows how to find a member on a value.
+class VmBound;
+var
+    /// The value the member was read from.
+    Receiver : Any;
+
+    /// The member's name, as the program wrote it.
+    Written : String;
+
+    /// The class the lookup starts at, or nil to start at the receiver's own.
+    ///
+    /// What `super.Who` needs and an ordinary bound member does not: `super`
+    /// means the parent of the class the method was WRITTEN in, not the parent
+    /// of whatever the receiver turned out to be -- so the starting class is
+    /// decided where the code is, and carried.
+    From : Any;
+
+begin
+    /// Binds a member to the receiver it was read from.
+    constructor Init (Receiver : Any, Written : String);
+    begin
+        this.Receiver := Receiver;
+        this.Written  := Written;
+        this.From     := Nil;
+    end
+
+
+    /// How it reads when written or converted to text.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Written + '>';
+    end
+end
+
+test 'A Bound Member Keeps Its Receiver And Its Written Spelling';
+begin
+    var Bound := VmBound ([3, 1, 2], 'SORT');
+
+    AssertEqual (3, (Bound.Receiver as List).Length);
+    AssertEqual ('SORT', Bound.Written);
+    AssertEqual ('<fn SORT>', Bound.ToString ());
+end
+
 /// An extension bound to the receiver it was reached through.
 ///
 /// What `S.Trim` answers where `Trim` is a visible extension and `S` has no

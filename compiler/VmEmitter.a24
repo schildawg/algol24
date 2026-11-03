@@ -109,6 +109,21 @@ var CLASS_PARENTS := Map ();
 /// else -- so the emitter has to know which names are which.
 var ENUM_NAMES := List ();
 
+/// The enumeration that bound each member name first, keyed `unit:name`.
+///
+/// Kept so that an ambiguity can NAME both types in the order they were
+/// declared, which is the order the diagnostic uses.
+var MEMBER_OWNER := Map ();
+
+/// Bare names that two enumerations of ONE unit both bind, keyed `unit:name`
+/// and holding the two type names as the diagnostic words them.
+///
+/// A slot cannot hold 'ambiguous', so the name resolves to nothing and a READ
+/// of it raises -- which is also when the interpreter raises, and 0123 turns on
+/// that: the ambiguity is the LAST thing that happens, after every unambiguous
+/// line has printed.
+var AMBIGUOUS_MEMBERS := Map ();
+
 /// The label of each open loop, innermost last, or '' when it has none.
 ///
 /// Searched by a labelled `break` or `continue`, which may target any
@@ -135,6 +150,18 @@ var LoopContinues : List := List ();
 /// left is emitted instead.
 var LoopTries : List := List ();
 
+/// A stack of label scopes, innermost last.
+///
+/// Each is a Map from a folded label name to its offset, the locals depth and
+/// the try depth it sits at. The offset is -1 until the label is reached, which
+/// is what a FORWARD goto needs patching for -- and the depths are pre-scanned
+/// at block entry, because a goto is emitted before the label it names and has
+/// to know how many locals and how many handlers lie between them.
+var LABEL_SCOPES : List := List ();
+
+/// A stack parallel to LABEL_SCOPES: the forward jumps awaiting each label.
+var LABEL_PENDING : List := List ();
+
 /// How many `try` blocks the emitter is inside.
 var TryNesting : Integer := 0;
 
@@ -152,15 +179,20 @@ var LoopLocals : List := List ();
 /// otherwise win, and a call would then report the wrong arity.
 var OVERLOAD_COUNTS := Map ();
 
-/// Keyed `unit:name`, the declarations that answer EVERY call -- so a built-in
-/// of the same spelling is left no arity to keep.
+/// Keyed `unit:name`, the set of FIXED argument counts its declarations answer.
 ///
-/// Only one shape qualifies: a single parameter written `List of Any`, which
-/// gathers [FUN-005] and whose element type admits every value.  It is the
-/// shape a unit uses to REDIRECT a built-in, as the library's `crt` and
-/// `graph` redirect `Write` to a graphical console, and it is the only case
-/// where the emitter can tell statically that the built-in is unreachable.
-var TOTAL_NAMES := Map ();
+/// Read with GATHERED_FROM to decide whether a declaration of a built-in's
+/// name takes a given call or leaves it to the built-in [FUN-005, 0187].
+var EXACT_ARITIES := Map ();
+
+/// Keyed `unit:name`, the lowest count a GATHERING declaration of it answers.
+///
+/// A gathering parameter absorbs the trailing arguments, so a declaration of
+/// N parameters whose last is written `List of T` answers N-1 and every count
+/// above it.  Zero is the shape a unit uses to REDIRECT a built-in, as the
+/// library's `crt` and `graph` redirect `Write` to a graphical console: a lone
+/// gathering parameter leaves the built-in no count at all.
+var GATHERED_FROM := Map ();
 
 /// How many of each overload set have been compiled so far.
 ///
@@ -346,6 +378,16 @@ var CurrentFile : String := '';
 /// The unit whose statements are being emitted, folded, or '' for the root.
 var CurrentUnit : String := '';
 
+/// The enumeration that bound a member name first, or '' where none did.
+function OwnerOfMember (Unit : String, Member : Any) : String;
+begin
+    var Key := Unit + ':' + (ToLower (Str (Member.Lexeme)) as String);
+
+    if MEMBER_OWNER.Contains (Key) then Exit Str (MEMBER_OWNER.Get (Key));
+
+    Exit '';
+end
+
 /// Whether a unit declares a name, exported or not.
 function DeclaredIn (Unit : String, Folded : String) : Boolean;
 begin
@@ -354,39 +396,65 @@ begin
     Exit (DECLARED_NAMES.Get (Unit) as Set).Contains (Folded);
 end
 
-/// Whether one declaration answers every call a built-in of its name could.
+/// The lowest argument count a declaration GATHERS at, or -1 if it does not.
 ///
-/// A gathering parameter absorbs the trailing arguments, so a lone
-/// `List of Any` absorbs all of them whatever their number or type and the
-/// built-in keeps nothing.  Any other signature leaves the built-in some
-/// arity, which is a run-time choice between the two and is refused instead.
-function GathersEverything (TheStmt : Any) : Boolean;
+/// A declaration whose last parameter is written `List of T` absorbs the
+/// trailing arguments [FUN-005], so it answers one fewer than its own arity
+/// and every count above that.  The element type is not consulted: a built-in
+/// of the same name is chosen on the COUNT alone, which is what
+/// ObjOverloads.Declares asks, and a stray element type is then a failure
+/// against the declaration rather than a reason to reach past it.
+function GatheringArity (TheStmt : Any) : Integer;
 begin
-    if TheStmt.Params.Length <> 1          then Exit False;
-    if TheStmt.ParamTypes.Length < 1       then Exit False;
-    if TheStmt.ParamGenerics.Length < 1    then Exit False;
+    var Last := TheStmt.Params.Length - 1;
 
-    if CanonicalType (TheStmt.ParamTypes[0]) <> 'List' then Exit False;
+    if Last < 0                                 then Exit -1;
+    if Last >= TheStmt.ParamTypes.Length        then Exit -1;
+    if Last >= TheStmt.ParamGenerics.Length     then Exit -1;
 
-    Exit CanonicalType (TheStmt.ParamGenerics[0]) = 'Any';
+    if CanonicalType (TheStmt.ParamTypes[Last]) <> 'List' then Exit -1;
+    if Str (TheStmt.ParamGenerics[Last]) = ''             then Exit -1;
+
+    Exit Last;
 end
 
-/// Whether the VISIBLE declaration of a name answers every call.
+/// Whether the declarations recorded under this key answer a call of a count.
+function AritySuits (Key : String, Count : Integer) : Boolean;
+begin
+    if EXACT_ARITIES.Contains (Key)
+       and (EXACT_ARITIES.Get (Key) as Set).Contains (Count) then Exit True;
+
+    if GATHERED_FROM.Contains (Key)
+       and Count >= (GATHERED_FROM.Get (Key) as Integer) then Exit True;
+
+    Exit False;
+end
+
+/// Whether the visible declaration of a name answers a call of this count.
+///
+/// The question a declaration of a BUILT-IN's name turns on: the declaration
+/// takes over the counts it declares and the built-in keeps the rest
+/// [FUN-005, 0187].  It is decided here rather than by an instruction that
+/// tries one and falls back, because the rule is about the count alone and the
+/// count is written at the call.
 ///
 /// Resolved the way VisibleSlot resolves the slot itself -- this unit's own
 /// declaration first, then a unique owner among its imports -- because the two
-/// have to agree about which declaration a bare name means.
-function AnswersEveryCall (Name : Any) : Boolean;
+/// have to agree about which declaration a bare name means.  Answering with
+/// the unit instead and a sentinel for none cannot work: the ROOT file's unit
+/// name is the empty string, so every top-level declaration read as no
+/// declaration at all.
+function DeclarationAnswers (Name : Any, Count : Integer) : Boolean;
 begin
     var Folded := ToLower (Str (Name.Lexeme)) as String;
 
     if DeclaredIn (CurrentUnit, Folded) then
-        Exit TOTAL_NAMES.Contains (CurrentUnit + ':' + Folded);
+        Exit AritySuits (CurrentUnit + ':' + Folded, Count);
 
     var Owners := OwnersOf (Folded);
 
     if Owners.Length = 1 then
-        Exit TOTAL_NAMES.Contains (Str (Owners[0]) + ':' + Folded);
+        Exit AritySuits (Str (Owners[0]) + ':' + Folded, Count);
 
     Exit False;
 end
@@ -638,11 +706,12 @@ begin
         Refuse ('The built-in ' + QUOTE + Str (Name.Lexeme) + QUOTE
               + ' as a value');
 
-    // A field of the class whose METHOD encloses this subprogram is a feature
-    // the machine lacks rather than a name the program failed to declare: the
-    // interpreter reaches it by closing over the method's environment, and a
-    // nested frame here has no path to that receiver.  So it stays a refusal,
-    // which is what 0148 records.
+    // A field of the class whose METHOD encloses this subprogram, where the
+    // receiver could not be reached -- the caller tries MemberOfReceiver first
+    // and that answers whenever the method boxed `this` into a capturable cell.
+    // What is left is the shape it cannot: a subprogram nested two deep, which
+    // would need a capture to come from a capture.  A refusal rather than a
+    // diagnostic, because the name IS a field and the program is right.
     if MemberOfClass (CLASS_FIELDS, LEXICAL_CLASS, Name) then
         Refuse ('A bare field read from a subprogram inside a method');
 
@@ -665,6 +734,12 @@ function VisibleSlot (Name : Any) : Integer;
 begin
     var Folded := ToLower (Str (Name.Lexeme)) as String;
 
+    // A name two of this unit's enumerations both bind resolves to NOTHING,
+    // whatever slot the first of them claimed: answering that slot would hand
+    // back one member where the program named neither [ENU-003].  BareSlot
+    // reports it where the read is.
+    if AMBIGUOUS_MEMBERS.Contains (CurrentUnit + ':' + Folded) then Exit -1;
+
     // Its own unit first: a file's own declaration is what it means by a name,
     // whatever its imports also export.
     if DeclaredIn (CurrentUnit, Folded) then
@@ -676,6 +751,35 @@ begin
         Exit Script.QualifiedSlot (Str (Owners[0]), Name.Lexeme);
 
     Exit -1;
+end
+
+/// Puts the receiver of an implicit `this` on the stack.
+///
+/// A METHOD reads it one below its base, which is what OP_THIS does.  A
+/// subprogram NESTED inside a method has a base of its own, so it reads the
+/// cell the method boxed the receiver into -- the cell being there is what
+/// CompileMethod arranges when the body declares a nested subprogram.
+procedure EmitReceiver ();
+begin
+    if CapturedSlot ('this') >= 0 then
+        Into.EmitIndexed (OP_GET_CELL, CapturedSlot ('this'));
+    else Into.Emit (OP_THIS);
+end
+
+/// Whether a bare name is a member of the enclosing class AND reachable.
+///
+/// Two ways in: a method, where CurrentClass says which class and OP_THIS
+/// reads the receiver; and a subprogram nested inside one, where the class is
+/// LEXICAL_CLASS and the receiver is the captured cell.  Asked together
+/// because the two differ only in how EmitReceiver reaches it.  0148 is the
+/// case.
+function MemberOfReceiver (Table : Map, Name : Any) : Boolean;
+begin
+    if MemberOfThis (Table, Name) then Exit True;
+
+    if CapturedSlot ('this') < 0 then Exit False;
+
+    Exit MemberOfClass (Table, LEXICAL_CLASS, Name);
 end
 
 /// Whether a bare name is a field of the class whose method is being compiled.
@@ -784,6 +888,17 @@ end
 function BareSlot (Name : Any) : Integer;
 begin
     var Folded := ToLower (Str (Name.Lexeme)) as String;
+
+    // Two of this unit's own enumerations bind it, so the bare name means
+    // neither and says which two it could have meant.
+    if AMBIGUOUS_MEMBERS.Contains (CurrentUnit + ':' + Folded) then
+    begin
+        EmitDiagnostic (QUOTE + Str (Name.Lexeme) + QUOTE + ' is ambiguous: '
+                      + Str (AMBIGUOUS_MEMBERS.Get (CurrentUnit + ':' + Folded))
+                      + '.');
+
+        Exit -1;
+    end
 
     var Visible := VisibleSlot (Name);
 
@@ -993,30 +1108,30 @@ begin
     Exit Made;
 end
 
-/// Emits the widening a declared type calls for, if any.
+/// Emits what a declared type calls for at an assignment context, if anything.
 ///
-/// Integer to Double and Char to String are the whole of it [VAL-001], and
-/// both are the machine's job because the value is not known until it runs.
+/// Two conversions and one check: Integer to Double, Char to String [VAL-001],
+/// and a subrange's bounds [VAR-017]. None can be decided until the value is
+/// known, so all three are the machine's job.
 ///
-/// A SUBRANGE is refused: widening one is a range check against bounds held in
-/// the compiler's own table, which a chunk cannot reach -- and emitting
-/// nothing would let `var B : Byte := 300` through silently.
-///
-/// # Raises
-///
-/// Whatever Refuse raises, for a subrange annotation.
+/// One instruction serves all three, and what it does depends on the type name
+/// it is given rather than on an opcode per job. The subrange's bounds reached
+/// the machine through OP_SUBRANGE before anything ran, which is how a chunk
+/// answers a question whose data lives in the compiler's own table.
 procedure EmitWidening (Declared : Any);
 begin
     var Named := ToLower (Str (Declared));
 
     if Named = '' or Named = 'any' then Exit;
 
-    if IsSubrange (Named) then
-        Refuse ('The subrange ' + Str (Declared) + ' as a declared type');
-
-    // Only the two that convert anything; a class or any other name widens
-    // nothing and needs no instruction.
-    if Named <> 'double' and Named <> 'string' then Exit;
+    // A SUBRANGE is a bounds check at every assignment context [VAR-017], and
+    // the machine holds the bounds because OP_SUBRANGE registered them.  So the
+    // instruction is the same one, and what it does depends on the name it is
+    // given rather than on a second opcode.
+    if not IsSubrange (Named) then
+        // Only the two that convert anything; a class or any other name widens
+        // nothing and needs no instruction.
+        if Named <> 'double' and Named <> 'string' then Exit;
 
     var At := Into.AddConstant (Str (Declared));
 
@@ -1065,6 +1180,11 @@ begin
 
     for var Declared in ENUM_NAMES do
         if Declared = Key then Exit True;
+
+    // A SUBRANGE is testable now: `is Byte` is a range test, which is the
+    // program asking explicitly, and the machine has the bounds to answer it
+    // [0153].
+    if IsSubrange (Key) then Exit True;
 
     Exit CLASS_PARENTS.Contains (Key);
 end
@@ -1201,9 +1321,9 @@ begin
             if Slot >= 0 then
                 EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, Slot);
 
-            else if FieldOfThis (TheExpr.Name) then
+            else if MemberOfReceiver (CLASS_FIELDS, TheExpr.Name) then
             begin
-                Into.Emit (OP_THIS);
+                EmitReceiver ();
                 Into.EmitIndexed (OP_GET_FIELD, ClassNameConstant (TheExpr.Name));
             end
 
@@ -1225,9 +1345,9 @@ begin
         if LocalSlot (TheExpr.Name.Lexeme) < 0
                and CapturedSlot (TheExpr.Name.Lexeme) < 0
                and VisibleSlot (TheExpr.Name) < 0
-               and FieldOfThis (TheExpr.Name) then
+               and MemberOfReceiver (CLASS_FIELDS, TheExpr.Name) then
         begin
-            Into.Emit (OP_THIS);
+            EmitReceiver ();
 
             EmitExpr (TheExpr.Value);
             EmitWidening (TheExpr.Declared);
@@ -1280,7 +1400,42 @@ begin
     // short-circuit -- which is exactly why they are emitted as control flow.
     if Kind = 'ThisExpr' then
     begin
-        Into.Emit (OP_THIS);
+        // The same receiver an implicit `this` reaches, by the same two paths:
+        // one below the base in a method, the captured cell in a subprogram
+        // nested inside one.
+        EmitReceiver ();
+
+        Exit;
+    end
+
+    // `super.Member` is the member bound to `this`, looked up starting at the
+    // parent of the class the code was WRITTEN in -- which is why the parent is
+    // resolved here and not from the receiver: a method of C reached on an
+    // instance of D still means C's parent [CLS-009].
+    //
+    // The whole of it is a value [FUN-011], so the call form needs nothing of
+    // its own: the general-expression path emits this and then OP_CALL.
+    if Kind = 'SuperExpr' then
+    begin
+        if CurrentClass = '' then Refuse ('''super'' outside a class');
+
+        if not CLASS_ABOVE.Contains (CurrentClass) then
+            Refuse ('''super'' in a class with no parent');
+
+        var Bare := Str (CLASS_ABOVE.Get (CurrentClass));
+
+        if Bare = '' then Refuse ('''super'' in a class with no parent');
+
+        var Named := ClassNameConstant (TheExpr.Method);
+        var Slot  := Script.QualifiedSlot (Str (CLASS_UNIT.Get (CurrentClass)),
+                                           Bare);
+
+        if Slot > 65535 then Refuse ('A program holds 65536 globals');
+
+        Into.WriteIndexed (OP_SUPER, Named);
+        Into.WriteIndex (Named);
+        Into.Write (Slot div 256);
+        Into.Write (Slot mod 256);
 
         Exit;
     end
@@ -1445,7 +1600,12 @@ begin
         // these five and wrong for a subrange (a RANGE test) and for a class
         // (inheritance-aware).  Emitting it for those would be a quiet wrong
         // answer where a refusal is wanted.
-        var Named := ToLower (Str (TheExpr.TypeName.Lexeme));
+        // Through CanonicalType, because a type name FOLDS and `Real` IS
+        // `Double` [TYP-002, TYP-014] -- so the written spelling is replaced
+        // before anything asks whether the machine can test it, and the
+        // constant carries the canonical name the machine compares against.
+        var Written := CanonicalType (TheExpr.TypeName.Lexeme);
+        var Named   := ToLower (Written);
 
         var Known := KnownTypeName (Named);
 
@@ -1461,11 +1621,12 @@ begin
         if not Known then
             Refuse ('''is ' + Str (TheExpr.TypeName.Lexeme) + '''');
 
+
         EmitExpr (TheExpr.Obj);
 
         // AddConstant and not EmitConstant: the latter emits an OP_CONSTANT to
         // push the name, where OP_IS wants the INDEX as its own operand.
-        var At := Into.AddConstant (Str (TheExpr.TypeName.Lexeme));
+        var At := Into.AddConstant (Str (Written));
 
 
         Into.EmitIndexed (OP_IS, At);
@@ -1630,14 +1791,21 @@ end
 /// [MOD-010], [MOD-011]
 procedure EmitUnitCall (TheExpr : Any, Member : Any);
 begin
-    for var Written in TheExpr.ArgumentNames do
-        if Str (Written) <> '' then Refuse ('A call with named arguments');
-
     if ToLower (Str (Member.Unit)) = 'system' then
     begin
         if not IsBuiltin (Member.Name.Lexeme) then
             Refuse ('A call to ' + QUOTE + 'System.'
                   + Str (Member.Name.Lexeme) + QUOTE);
+
+        // A built-in's parameters are not declared in this language -- they
+        // exist only as a count -- so there is no name to write [RT-001], and
+        // the qualifier changes nothing about that.
+        if NamesWritten (TheExpr) then
+        begin
+            EmitDiagnostic ('A built-in has no named parameters.');
+
+            Exit;
+        end
 
         for var Argument in TheExpr.Arguments do EmitExpr (Argument);
 
@@ -1654,6 +1822,20 @@ begin
     if not EmitUnitRead (Member.Unit, Member.Name) then Exit;
 
     for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+    // The qualifier decides which declaration the call reaches and nothing
+    // else, so a named call through one is the call a bare name gives: the
+    // names are arranged at run time against whatever the slot holds.
+    if NamesWritten (TheExpr) then
+    begin
+        var Where := Into.AddConstant (NamesConstant (TheExpr));
+
+        Into.WriteIndexed (OP_CALL_NAMED, Where);
+        Into.WriteIndex (Where);
+        Into.Write (TheExpr.Arguments.Length);
+
+        Exit;
+    end
 
     Into.EmitWith (OP_CALL, TheExpr.Arguments.Length);
 end
@@ -1689,18 +1871,31 @@ begin
         // instruction rather than being decided here.
         if Str (Member.Extension) <> '' then
         begin
-            for var Written in TheExpr.ArgumentNames do
-                if Str (Written) <> '' then Refuse ('A call with named arguments');
-
             var Reaches := ExtensionSlot (Member);
 
             EmitExpr (Member.Obj);
 
             for var Argument in TheExpr.Arguments do EmitExpr (Argument);
 
+            // The names travel in the SAME constant as the member's name, as a
+            // named method call's do -- the instruction already spends its one
+            // widenable operand on that constant, and the slot beside it is
+            // already a short.
             var Named := ClassNameConstant (Member.Name);
 
-            Into.WriteIndexed (OP_INVOKE_EXT, Named);
+            if NamesWritten (TheExpr) then
+            begin
+                var Packed := List ();
+                Packed.Add (Str (Member.Name.Lexeme));
+
+                for var Each in NamesConstant (TheExpr) do Packed.Add (Each);
+
+                Named := Into.AddConstant (Packed);
+
+                Into.WriteIndexed (OP_INVOKE_EXT_NAMED, Named);
+            end
+            else Into.WriteIndexed (OP_INVOKE_EXT, Named);
+
             Into.WriteIndex (Named);
             Into.Write (TheExpr.Arguments.Length);
             // A wide slot, because an extension may live anywhere among a
@@ -1745,8 +1940,44 @@ begin
         Exit;
     end
 
+    // A callee that is neither a bare name nor a member read is an ORDINARY
+    // expression: `Ops[0] (7)` subscripts a list of subprograms, and
+    // `ByName.Get ('double') (9)` calls what a call answered [0062].  A
+    // subprogram is a value [FUN-011], so a call needs nothing of the callee
+    // but that it be one.
+    //
+    // ⚠️ Emitted and RETURNED here, before anything below reads
+    // `Callee.Name` -- a SubscriptExpr has no such member, and letting one
+    // through to the bare-name path failed at EMIT time as `Undefined property
+    // 'Name'`, which reads like a bug in the program rather than in the
+    // emitter.
+    //
+    // A GetExpr never reaches here: the branch above answers every member
+    // call, so there is no receiver this could lose.
     if KindOf (TheExpr.Callee) <> 'VariableExpr' then
-        Refuse ('A call through an expression');
+    begin
+        EmitExpr (TheExpr.Callee);
+
+        for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+        // Named arguments are arranged at run time against whatever the
+        // expression answered, which is the same question a variable's callee
+        // asks and the same answer.
+        if NamesWritten (TheExpr) then
+        begin
+            var Where := Into.AddConstant (NamesConstant (TheExpr));
+
+            Into.WriteIndexed (OP_CALL_NAMED, Where);
+            Into.WriteIndex (Where);
+            Into.Write (TheExpr.Arguments.Length);
+
+            Exit;
+        end
+
+        Into.EmitWith (OP_CALL, TheExpr.Arguments.Length);
+
+        Exit;
+    end
 
     Name := ToLower (Str (TheExpr.Callee.Name.Lexeme));
 
@@ -1787,9 +2018,9 @@ begin
     if LocalSlot (TheExpr.Callee.Name.Lexeme) < 0
            and CapturedSlot (TheExpr.Callee.Name.Lexeme) < 0
            and VisibleSlot (TheExpr.Callee.Name) < 0
-           and MethodOfThis (TheExpr.Callee.Name) then
+           and MemberOfReceiver (CLASS_METHODS, TheExpr.Callee.Name) then
     begin
-        Into.Emit (OP_THIS);
+        EmitReceiver ();
 
         for var Argument in TheExpr.Arguments do EmitExpr (Argument);
 
@@ -1809,28 +2040,23 @@ begin
     if LocalSlot (TheExpr.Callee.Name.Lexeme) < 0 and IsBuiltin (Name) then
     begin
         // A program may DECLARE a built-in's name, and then the two share the
-        // spelling: the declaration answers at the arities it declares and the
-        // built-in keeps the rest [FUN-005, 0187].  Choosing between them is
-        // about the argument values, so in general it needs an instruction
-        // that tries the declaration and falls back -- the shape
-        // OP_INVOKE_EXT has -- and until there is one it is refused by name.
+        // spelling: the declaration answers the argument COUNTS it declares and
+        // the built-in keeps the rest [FUN-005, 0187].  That is decided here,
+        // at the count written, rather than by an instruction that tries one
+        // and falls back -- because the rule asks nothing about the argument
+        // types, as ObjOverloads.Declares does not.
         //
         // ⚠️ VISIBLE, not merely declared in THIS unit.  Asking only about the
         // current unit meant a program that `uses crt` and called `Write`
         // reached the built-in and wrote to stdout, silently losing the
-        // redirect the interpreter honoured.  That is a wrong answer rather
-        // than a refusal, and no corpus case reaches it.
-        if VisibleSlot (TheExpr.Callee.Name) >= 0 then
+        // redirect the interpreter honoured.
+        if VisibleSlot (TheExpr.Callee.Name) >= 0
+           and DeclarationAnswers (TheExpr.Callee.Name, TheExpr.Arguments.Length) then
         begin
-            // A declaration answering EVERY call leaves the built-in no arity
-            // to keep, so there is nothing to choose and the ordinary call
-            // below is right.  That is the shape a unit redirecting a built-in
-            // uses -- `procedure Write (Values : List of Any)` -- which is why
-            // the library's console redirect works while a fixed-arity
-            // declaration of the same name is still refused.
-            if not AnswersEveryCall (TheExpr.Callee.Name) then
-                Refuse ('A declaration of the built-in ' + QUOTE
-                      + Str (TheExpr.Callee.Name.Lexeme) + QUOTE);
+            // The declaration takes this call, so the ordinary path below is
+            // right and the built-in is not reached.  A lone gathering
+            // parameter -- `procedure Write (Values : List of Any)` -- answers
+            // every count, which is why the library's console redirect works.
         end
         else
         begin
@@ -1959,22 +2185,6 @@ begin
 
     for var TheMethod in TheStmt.Methods do
     begin
-        if TheMethod.IsProperty then Refuse ('A property');
-
-        // An OPERATOR is a method named by its symbol, and the arithmetic
-        // opcodes know nothing of it -- they would answer 'Operands must be
-        // numbers' for a program the interpreter runs [0172].
-        for var Symbol in OPERATOR_NAMES do
-            if Str (TheMethod.Name.Lexeme) = Str (Symbol) then
-                Refuse ('A class that declares the operator ' + QUOTE
-                      + Str (Symbol) + QUOTE);
-
-        // ORDERING is Compare, which the comparison opcodes do not reach
-        // [0170].  Refused here rather than at the comparison, so the gap is
-        // named where the class is written.
-        if ToLower (Str (TheMethod.Name.Lexeme)) = 'compare' then
-            Refuse ('A class that orders');
-
         var Key := ToLower (Str (TheMethod.Name.Lexeme));
 
         // Two methods of one name are an OVERLOAD SET selecting on the whole
@@ -1984,7 +2194,14 @@ begin
         Seen.Put (Key, True);
 
         Into.EmitConstant (CompileMethod (TheMethod, TheStmt, Key = 'init'));
-        Into.EmitIndexed (OP_METHOD, ClassNameConstant (TheMethod.Name));
+
+        // A property is a method that answers on a read, so it is registered
+        // as both -- one opcode rather than two, because the class needs the
+        // body in its method table either way.
+        if TheMethod.IsProperty then
+            Into.EmitIndexed (OP_DECLARE_PROPERTY,
+                              ClassNameConstant (TheMethod.Name));
+        else Into.EmitIndexed (OP_METHOD, ClassNameConstant (TheMethod.Name));
     end
 
     // A constructor is where the field initializers run, so one is synthesized
@@ -2078,6 +2295,30 @@ begin
     for var Param in TheStmt.Params do AddLocal (Param.Lexeme);
 
     WidenParameters (TheStmt);
+
+    // A body that declares a subprogram of its own holds its locals in cells,
+    // so the nested one can capture them by reference [FUN-009].
+    Boxing := DeclaresNested (TheStmt.Body);
+
+    if Boxing then
+    begin
+        // A boxed parameter arrives as a plain value and is wrapped in place.
+        for var I : Integer := 0; I < TheStmt.Params.Length; I := I + 1 do
+        begin
+            Into.EmitIndexed (OP_GET_LOCAL, I);
+            Into.Emit (OP_CELL);
+            Into.EmitIndexed (OP_SET_LOCAL, I);
+            Into.Emit (OP_POP);
+        end
+
+        // And the RECEIVER is boxed as a local of its own, which is the whole
+        // of what gives a nested subprogram a path to it: a capture is found by
+        // NAME among the enclosing locals, so `this` has to be one of them.
+        Into.Emit (OP_THIS);
+        Into.Emit (OP_CELL);
+
+        AddLocal ('this');
+    end
 
     if IsInit then EmitFieldInitializers (Owner);
 
@@ -2424,6 +2665,42 @@ begin
         Exit;
     end
 
+    if Kind = 'GotoStmt' then
+    begin
+        EmitGoto (TheStmt.Label);
+
+        Exit;
+    end
+
+    // A SUBRANGE declares no VALUE -- it constrains one -- so there is nothing
+    // to emit here.  The RESOLVER recorded its bounds before emission began,
+    // which is why CompileProgram's registration loop already has them, and
+    // the statement is kept in the tree only so the declaration has a place in
+    // the program's order.
+    if Kind = 'SubrangeStmt' then Exit;
+
+    // An OBJECT is a class with exactly one instance [CLS-015], and the two
+    // steps are the interpreter's own: declare the class under the name, then
+    // REASSIGN the name to a wrapper holding it.  EmitClass binds the global
+    // itself, so the class is read back rather than kept on the stack.
+    //
+    // The instance is built the first time a member is read, which is what lets
+    // one object's method reach another declared below it.
+    if Kind = 'ObjectStmt' then
+    begin
+        EmitClass (TheStmt);
+
+        var Slot := Script.QualifiedSlot (CurrentUnit, TheStmt.Name.Lexeme);
+
+        EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, Slot);
+
+        Into.Emit (OP_SINGLETON);
+
+        EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Slot);
+
+        Exit;
+    end
+
     if Kind = 'FunctionStmt' then
     begin
         // A test block is one of these, and does not run outside `--test`.
@@ -2502,9 +2779,11 @@ begin
     if Kind = 'BlockStmt' then
     begin
         PushScope ();
+        OpenLabels (TheStmt.Statements);
 
         for var Inner in TheStmt.Statements do EmitStmt (Inner);
 
+        CloseLabels ();
         PopScope ();
 
         Exit;
@@ -2603,6 +2882,47 @@ begin
 
     if Kind = 'EnumStmt' then
     begin
+        // Inside a subprogram each name is a LOCAL, which is a stack slot, so
+        // the slots have to be reserved BEFORE the enumeration is pushed: a
+        // local's slot is where its value sits, and OP_ENUM_MEMBER needs the
+        // enumeration on top every time it runs.  So the members are reserved
+        // nil, the enumeration goes on top of them, and each member is written
+        // back into its own slot as it is made.
+        if Depth > 0 then
+        begin
+            var Where := List ();
+
+            for var Member in TheStmt.Members do
+            begin
+                Into.Emit (OP_NIL);
+
+                if Boxing then Into.Emit (OP_CELL);
+
+                Where.Add (AddLocal (Member.Lexeme));
+            end
+
+            Into.EmitIndexed (OP_ENUM, ClassNameConstant (TheStmt.Name));
+
+            for var I : Integer := 0; I < TheStmt.Members.Length; I := I + 1 do
+            begin
+                Into.EmitIndexed (OP_ENUM_MEMBER,
+                                  ClassNameConstant (TheStmt.Members[I]));
+
+                if Boxing then Into.EmitIndexed (OP_SET_BOX, Where[I]);
+                else Into.EmitIndexed (OP_SET_LOCAL, Where[I]);
+
+                Into.Emit (OP_POP);
+            end
+
+            // The enumeration is still on top, which is its own slot -- boxed
+            // last, because OP_ENUM_MEMBER wanted it bare.
+            if Boxing then Into.Emit (OP_CELL);
+
+            AddLocal (TheStmt.Name.Lexeme);
+
+            Exit;
+        end
+
         Into.EmitIndexed (OP_ENUM, ClassNameConstant (TheStmt.Name));
 
         // Each member is pushed by OP_ENUM_MEMBER and bound immediately, so
@@ -2611,8 +2931,6 @@ begin
         for var Member in TheStmt.Members do
         begin
             Into.EmitIndexed (OP_ENUM_MEMBER, ClassNameConstant (Member));
-
-            if Depth > 0 then Refuse ('An enumeration inside a block');
 
             EmitGlobal (OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_LONG, Script.QualifiedSlot (CurrentUnit, Member.Lexeme));
         end
@@ -2730,9 +3048,10 @@ begin
         // is what a labelled `break` or `continue` searches for, so there is
         // nothing to emit for the label itself.
         //
-        // A `goto` would need the position recorded here, and is still
-        // refused -- `Targeted` is how the Parser says whether one needs it.
-        if TheStmt.Targeted then Refuse ('A label a ''goto'' targets');
+        // A label a `goto` targets records where it landed and patches every
+        // forward jump waiting on it.  `Targeted` is how the Parser says
+        // whether one needs it at all.
+        if TheStmt.Targeted then MarkLabel (TheStmt.Name);
 
         EmitStmt (TheStmt.Inner);
 
@@ -2851,35 +3170,75 @@ begin
             continue;
         end
 
-        if Kind = 'VarStmt' then Claim (Unit, Mine, TheStmt.Name);
+        if Kind = 'VarStmt' then ClaimTotal (Unit, Mine, TheStmt.Name);
 
         if Kind = 'VarGroupStmt' then
-            for var TheName in TheStmt.Names do Claim (Unit, Mine, TheName);
+            for var TheName in TheStmt.Names do ClaimTotal (Unit, Mine, TheName);
 
         // An ObjectStmt is refused when it is EMITTED, and emission stops the
         // compile -- so claiming its name here cannot produce a wrong answer,
         // and leaving it unclaimed would make a read of it an undefined name
         // instead of the refusal it should be.
-        if Kind = 'ObjectStmt' then Claim (Unit, Mine, TheStmt.Name);
+        // An OBJECT is surveyed as the class it is, because every later pass
+        // asks the same questions of it: `is Reg` wants a testable type name,
+        // a bare member inside one of its methods wants the field and method
+        // tables, and the parent chain wants an entry.  Only the VALUE bound
+        // to the name differs, and that is decided at emission.
+        if Kind = 'ObjectStmt' then
+        begin
+            ClaimTotal (Unit, Mine, TheStmt.Name);
+
+            var Parent := '';
+            if TheStmt.Superclass <> Nil then
+                Parent := Str (TheStmt.Superclass.Name.Lexeme);
+
+            CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
+
+            var Key := ClassKeyFor (Unit, Str (TheStmt.Name.Lexeme));
+
+            var Owned := Set ();
+            for var TheField in TheStmt.Fields do
+                Owned.Add (ToLower (Str (TheField.Name.Lexeme)));
+
+            CLASS_FIELDS.Put (Key, Owned);
+            CLASS_UNIT.Put   (Key, Unit);
+            CLASS_ABOVE.Put  (Key, ToLower (Parent));
+
+            var Offers := Set ();
+            for var TheMethod in TheStmt.Methods do
+                Offers.Add (ToLower (Str (TheMethod.Name.Lexeme)));
+
+            CLASS_METHODS.Put (Key, Offers);
+            CLASS_NODES.Put   (Key, TheStmt);
+        end
 
         // An enumeration binds its own name AND every member as a bare global
         // [ENU-002], so all of them are claimed before any body is emitted.
         if Kind = 'EnumStmt' then
         begin
-            Claim (Unit, Mine, TheStmt.Name);
+            ClaimTotal (Unit, Mine, TheStmt.Name);
             ENUM_NAMES.Add (ToLower (Str (TheStmt.Name.Lexeme)));
 
             for var Member in TheStmt.Members do
             begin
                 // Two enumerations of ONE unit sharing a member name make the
-                // bare name ambiguous, and one slot cannot hold 'ambiguous'.
+                // bare name ambiguous [ENU-003].  Recorded rather than
+                // refused: the QUALIFIED forms still work and so does every
+                // other member, so only a bare read of this one may fail.
+                //
                 // Across units it is not a slot clash at all -- the keys
                 // differ -- and OwnersOf reports it where it is read.
                 if Script.KnownQualified (Unit, Member.Lexeme) then
-                    Refuse ('The shared enum member name ' + QUOTE
-                          + Str (Member.Lexeme) + QUOTE);
+                    AMBIGUOUS_MEMBERS.Put (Unit + ':'
+                                         + (ToLower (Str (Member.Lexeme)) as String),
+                                           Str (OwnerOfMember (Unit, Member))
+                                         + ' or ' + Str (TheStmt.Name.Lexeme));
 
                 Claim (Unit, Mine, Member);
+
+                MEMBER_OWNER.Put (Unit + ':'
+                                + (ToLower (Str (Member.Lexeme)) as String),
+                                  Str (TheStmt.Name.Lexeme));
             end
         end
 
@@ -2892,7 +3251,7 @@ begin
                 Refuse ('A redeclaration of ' + QUOTE
                       + Str (TheStmt.Name.Lexeme) + QUOTE);
 
-            Claim (Unit, Mine, TheStmt.Name);
+            ClaimTotal (Unit, Mine, TheStmt.Name);
 
             var Parent := '';
             if TheStmt.Superclass <> Nil then
@@ -2963,13 +3322,45 @@ begin
                 OVERLOAD_COUNTS.Put (Key, (OVERLOAD_COUNTS.Get (Key) as Integer) + 1);
             else OVERLOAD_COUNTS.Put (Key, 1);
 
-            // Recorded and never unset: one total declaration answers every
-            // call whatever else the overload set holds.
-            if GathersEverything (TheStmt) then TOTAL_NAMES.Put (Key, True);
+            // Every declaration of the name adds the counts it answers, so an
+            // overload set answers the union of them -- and a gathering one
+            // keeps the LOWEST floor, since a lower floor answers more.
+            var Gathers := GatheringArity (TheStmt);
+
+            if Gathers >= 0 then
+            begin
+                if not GATHERED_FROM.Contains (Key)
+                   or Gathers < (GATHERED_FROM.Get (Key) as Integer) then
+                    GATHERED_FROM.Put (Key, Gathers);
+            end
+            else
+            begin
+                if not EXACT_ARITIES.Contains (Key) then
+                    EXACT_ARITIES.Put (Key, Set ());
+
+                (EXACT_ARITIES.Get (Key) as Set).Add (TheStmt.Params.Length);
+            end
 
             Claim (Unit, Mine, TheStmt.Name);
         end
     end
+end
+
+/// Claims a slot for a declaration that SHADOWS a built-in of its name
+/// outright, rather than forming an overload set with it.
+///
+/// Only a SUBPROGRAM declaration shares a name with a built-in [FUN-005,
+/// 0187]: the declaration answers the arities it declares and the built-in
+/// keeps the rest.  A class, an object, an enumeration, a variable -- each
+/// simply binds the name, and the built-in is then unreachable.  `class Stack`
+/// is the case the corpus reaches, in 0168 and 0171.
+procedure ClaimTotal (Unit : String, Mine : Set, Name : Any);
+begin
+    Claim (Unit, Mine, Name);
+
+    // Recorded as answering from a count of ZERO, which is every count: the
+    // name is simply bound, so no call of it can reach the built-in.
+    GATHERED_FROM.Put (Unit + ':' + (ToLower (Str (Name.Lexeme)) as String), 0);
 end
 
 /// Claims a slot for one declaration of a unit and records the name as its own.
@@ -3066,6 +3457,160 @@ begin
     Exit -1;
 end
 
+/// How many locals a statement declares where it stands.
+///
+/// A `var` is one, a var group is one per name, and a nested subprogram is one
+/// for the closure it binds. Everything else declares none.
+function DeclaresCount (TheStmt : Any) : Integer;
+begin
+    var Kind := KindOf (TheStmt);
+
+    if Kind = 'VarStmt' then Exit 1;
+    if Kind = 'VarGroupStmt' then Exit TheStmt.Names.Length;
+    if Kind = 'FunctionStmt' then Exit 1;
+
+    Exit 0;
+end
+
+/// Opens a label scope over a statement list, pre-scanning what each label a
+/// `goto` targets will sit at.
+///
+/// The depths are counted HERE rather than when the label is reached, because a
+/// forward goto is emitted first and must already know how many locals to
+/// discard and how many handlers to close.
+procedure OpenLabels (Statements : List);
+var
+    Here : Map;
+
+begin
+    Here := Map ();
+
+    var Deep := Locals.Length;
+
+    for var TheStmt in Statements do
+    begin
+        if KindOf (TheStmt) = 'LabelStmt' then
+            if TheStmt.Targeted then
+            begin
+                var Found := List ();
+
+                Found.Add (0 - 1);
+                Found.Add (Deep);
+                Found.Add (TryNesting);
+
+                Here.Put (ToLower (Str (TheStmt.Name.Lexeme)), Found);
+            end
+
+        // Only inside a scope: at the TOP LEVEL a `var` binds a global and
+        // pushes nothing, so counting one there put every later label one
+        // deeper than it is -- and a `goto` out of a loop then popped one too
+        // few, leaving the loop variable behind for the next handler to read
+        // as the raised value.
+        if Depth > 0 then Deep := Deep + DeclaresCount (TheStmt);
+    end
+
+    LABEL_SCOPES.Add (Here);
+    LABEL_PENDING.Add (Map ());
+end
+
+/// Closes the innermost label scope.
+///
+/// A forward goto still unpatched named a label this scope does not hold, which
+/// is a jump into or across a scope rather than within one.
+procedure CloseLabels ();
+begin
+    var Last := LABEL_PENDING.Length - 1;
+
+    var Waiting := LABEL_PENDING[Last] as Map;
+
+    for var Name in Waiting.Keys () do
+        if (Waiting.Get (Name) as List).Length > 0 then
+            Refuse ('A ''goto'' to the label ' + QUOTE + Str (Name) + QUOTE
+                  + ', which no enclosing block declares');
+
+    LABEL_SCOPES.RemoveAt (LABEL_SCOPES.Length - 1);
+    LABEL_PENDING.RemoveAt (Last);
+end
+
+/// Records where a label landed, and patches every forward goto waiting on it.
+procedure MarkLabel (Name : Any);
+begin
+    var Key := ToLower (Str (Name.Lexeme)) as String;
+
+    for var I : Integer := LABEL_SCOPES.Length - 1; I >= 0; I := I - 1 do
+    begin
+        var Scope := LABEL_SCOPES[I] as Map;
+
+        if Scope.Contains (Key) then
+        begin
+            // Subscript assignment, because a List has no `Set` -- that is
+            // an Array's member, which is exactly what HostHasMember records.
+            var Found := Scope.Get (Key) as List;
+
+            Found[0] := Into.Count;
+
+            var Waiting := LABEL_PENDING[I] as Map;
+
+            if Waiting.Contains (Key) then
+            begin
+                for var At in Waiting.Get (Key) as List do
+                    Into.PatchJumpTo (At as Integer, Into.Count);
+
+                Waiting.Put (Key, List ());
+            end
+
+            Exit;
+        end
+    end
+end
+
+/// Emits a `goto`: close what the jump skips, then jump.
+///
+/// Backward where the label has already been reached and forward where it has
+/// not, which is the same split every other jump makes -- and the locals and
+/// handlers between here and there are closed first, exactly as a `break`
+/// closes them, or the stack arrives at the label the wrong depth.
+procedure EmitGoto (Named : Any);
+begin
+    // A GotoStmt carries its label as a STRING and not as a Token, where a
+    // LabelStmt carries a Token -- so the two are folded from different shapes.
+    var Key := ToLower (Str (Named)) as String;
+
+    for var I : Integer := LABEL_SCOPES.Length - 1; I >= 0; I := I - 1 do
+    begin
+        var Scope := LABEL_SCOPES[I] as Map;
+
+        if Scope.Contains (Key) then
+        begin
+            var Found := Scope.Get (Key) as List;
+
+            for var T : Integer := TryNesting; T > (Found[2] as Integer); T := T - 1 do
+                Into.Emit (OP_UNTRY);
+
+            for var L : Integer := Locals.Length; L > (Found[1] as Integer); L := L - 1 do
+                Into.Emit (OP_POP);
+
+            if (Found[0] as Integer) >= 0 then
+            begin
+                Into.EmitLoop (Found[0] as Integer);
+
+                Exit;
+            end
+
+            var Waiting := LABEL_PENDING[I] as Map;
+
+            if not Waiting.Contains (Key) then Waiting.Put (Key, List ());
+
+            (Waiting.Get (Key) as List).Add (Into.EmitJump (OP_JUMP));
+
+            Exit;
+        end
+    end
+
+    Refuse ('A ''goto'' to the label ' + QUOTE + Str (Named) + QUOTE
+          + ', which no enclosing block declares');
+end
+
 /// Discards the locals a `break` or `continue` leaves behind.
 ///
 /// Everything declared since the loop opened, because the jump skips the
@@ -3101,6 +3646,22 @@ begin
         if Kind = 'BlockStmt' and DeclaresNested (TheStmt.Statements) then Exit True;
         if Kind = 'WhileStmt' and DeclaresNested ([TheStmt.Body]) then Exit True;
         if Kind = 'ForInStmt' and DeclaresNested ([TheStmt.Body]) then Exit True;
+
+        // A LabelStmt WRAPS what it labels rather than preceding it, so missing
+        // it would miss everything under a label.
+        if Kind = 'LabelStmt' and DeclaresNested ([TheStmt.Inner]) then Exit True;
+
+        // A `try` is two places, and missing them was a WRONG ANSWER rather
+        // than a refusal: a nested subprogram inside one captured locals the
+        // enclosing body had not boxed, so it read whatever was in the slot and
+        // the raise path was taken on a program that raises nothing.
+        if Kind = 'TryStmt' then
+        begin
+            if DeclaresNested ([TheStmt.TryBlock]) then Exit True;
+
+            for var Key in TheStmt.Handlers do
+                if DeclaresNested ([TheStmt.Handlers.Get (Key)]) then Exit True;
+        end
 
         if Kind = 'IfStmt' then
         begin
@@ -3236,6 +3797,8 @@ begin
     LoopBreaks    := List ();
     LoopContinues := List ();
     LoopLocals    := List ();
+    LABEL_SCOPES  := List ();
+    LABEL_PENDING := List ();
     LoopTries     := List ();
     OVERLOAD_COUNTS := Map ();
     OVERLOADS_SEEN  := Map ();
@@ -3244,6 +3807,8 @@ begin
     // tests before compiling, and clearing the switch here would answer it
     // with silence.
     TESTS_FOUND     := [];
+    AMBIGUOUS_MEMBERS := Map ();
+    MEMBER_OWNER      := Map ();
     TryNesting    := 0;
     DECLARED_NAMES  := Map ();
     HIDDEN_NAMES    := Map ();
@@ -3264,6 +3829,28 @@ begin
     CurrentClass := '';
 
     Survey (Statements, '');
+
+    // THE SUBRANGES FIRST, before any declaration: a bounds check may fire in
+    // a field initializer or a `var` at the top of the file, and the machine
+    // cannot reach the compiler's own table -- so the bounds arrive as
+    // instructions, which is what `alg_subrange` does for the C back end in a
+    // unit's initializer.
+    //
+    // Every subrange the PROGRAM declares, from one flat table: the compiler
+    // keys them by folded name across the whole program, so there is no unit to
+    // qualify them by.
+    OpenLabels (Statements);
+
+    for var I : Integer := 0; I < SUBRANGE_NAMES.Length; I := I + 1 do
+    begin
+        var Said := List ();
+
+        Said.Add (SUBRANGE_NAMES[I]);
+        Said.Add (SUBRANGE_LOWS[I]);
+        Said.Add (SUBRANGE_HIGHS[I]);
+
+        Into.EmitIndexed (OP_SUBRANGE, Into.AddConstant (Said));
+    end
 
     // DECLARATIONS FIRST, because a function is visible above its own
     // declaration and so is a class [0044, 0122].  Claiming the slot is not
@@ -3287,6 +3874,8 @@ begin
         // reason EmitInheritance gives.
         if KindOf (TheStmt) = 'ClassStmt' then EmitInheritance (TheStmt);
     end
+
+    CloseLabels ();
 
     // Something must be on the stack for OP_RETURN to answer.
     Into.Emit (OP_NIL);

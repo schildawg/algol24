@@ -33,6 +33,17 @@ begin
         this.Name     := Name;
         this.Ordinal  := Ordinal;
     end
+
+    /// How the member renders: its own name [ENU-007].
+    ///
+    /// Declared so that the HOST renders it, which is what puts a member
+    /// inside a collection, inside a diagnostic and on its own through one
+    /// answer rather than three. Without it the runtime reached for a class
+    /// name and a List of members printed as `[VmEnum instance, ...]`.
+    function ToString () : String;
+    begin
+        Exit Name;
+    end
 end
 
 /// An enumeration: its name, and its members in declaration order.
@@ -76,6 +87,12 @@ begin
         if this.Members.Contains (Key) then Exit this.Members.Get (Key);
 
         Exit Nil;
+    end
+
+    /// How the enumeration renders: its own name.
+    function ToString () : String;
+    begin
+        Exit Name;
     end
 end
 

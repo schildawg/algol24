@@ -33,6 +33,88 @@ var HOST_METHODS := ['pop', 'peek', 'keys', 'values', 'tolist', 'tostring',
                      'rename', 'write', 'writeln', 'put', 'set', 'insert',
                      'putint', 'putword', 'putdouble'];
 
+/// Whether a host receiver has a member of a name, which depends on its KIND.
+///
+/// ⚠️ HOST_METHODS above is every name across every kind, which is right for
+/// dispatching a call -- the host raises for a kind that lacks one -- and wrong
+/// for reading a member as a VALUE: `L.Push` on a List answered `<fn Push>`
+/// where it has to answer `Undefined property 'Push'.` [0144, 0175].
+///
+/// Mirrors the runtime's own tables, because that is where the answer lives and
+/// the interpreter reaches it by PROBING -- `try Obj.Get (Name)` -- which the
+/// machine cannot do: a dynamic member name is unreachable from Algol-24. The
+/// fifth place that shape appears, after `is`, the properties, the built-ins
+/// and method invocation.
+function HostHasMember (Self : Any, Named : Any) : Boolean;
+begin
+    if Self is Integer or Self is Double then Exit Named = 'tostring';
+
+    // Contains is shared by every sequence and by a Map.
+    if Named = 'contains' then
+        Exit Self is List or Self is Set or Self is Stack
+          or Self is Array or Self is Map;
+
+    if Self is List then
+        Exit Named = 'get'      or Named = 'add'  or Named = 'insert'
+          or Named = 'removeat' or Named = 'indexof'
+          or Named = 'sort'     or Named = 'clear';
+
+    if Self is Array then
+        Exit Named = 'get' or Named = 'set' or Named = 'fill'
+          or Named = 'indexof' or Named = 'sort';
+
+    if Self is Map then
+        Exit Named = 'get'  or Named = 'put'    or Named = 'remove'
+          or Named = 'keys' or Named = 'values' or Named = 'clear';
+
+    if Self is Set then
+        Exit Named = 'add' or Named = 'remove' or Named = 'tolist'
+          or Named = 'clear';
+
+    if Self is Stack then
+        Exit Named = 'push' or Named = 'pop' or Named = 'peek'
+          or Named = 'clear';
+
+    if Self is Buffer then
+        Exit Named = 'append'    or Named = 'putint'    or Named = 'getint'
+          or Named = 'putword'   or Named = 'getword'
+          or Named = 'putdouble' or Named = 'getdouble'
+          or Named = 'resize'    or Named = 'free';
+
+    if Self is TextFile then
+        Exit Named = 'assign' or Named = 'reset'  or Named = 'rewrite'
+          or Named = 'append' or Named = 'readln' or Named = 'write'
+          or Named = 'writeln' or Named = 'flush' or Named = 'close'
+          or Named = 'erase'  or Named = 'rename';
+
+    Exit False;
+end
+
+/// Each declared subrange's low bound, keyed by folded name.
+///
+/// Registered by OP_SUBRANGE before anything runs.  The compiler's own table is
+/// not reachable from here -- the machine may import nothing from compiler/ --
+/// so the bounds arrive as instructions, which is also what keeps a chunk
+/// self-describing for a serialised one later.
+var SUBRANGE_LOW := Map ();
+
+/// Each declared subrange's high bound, keyed by folded name.
+var SUBRANGE_HIGH := Map ();
+
+/// Whether a value falls within a declared subrange.
+///
+/// Only an INTEGER is ever within one: a subrange constrains an Integer, so a
+/// Double and a Char are outside every subrange rather than compared against
+/// its bounds [0153].
+function WithinSubrange (V : Any, Named : Any) : Boolean;
+begin
+    if not SUBRANGE_LOW.Contains (Str (Named)) then Exit False;
+    if not (V is Integer) then Exit False;
+
+    Exit (V as Integer) >= (SUBRANGE_LOW.Get (Str (Named)) as Integer)
+     and (V as Integer) <= (SUBRANGE_HIGH.Get (Str (Named)) as Integer);
+end
+
 /// A single quote, as a String, for a diagnostic that opens with one.
 ///
 /// A literal cannot be used where the message STARTS with a quote and is then
@@ -132,6 +214,17 @@ var TrySP : Array := Array (TRY_ROOM);
 
 /// How deep the call stack is.  Zero means the outermost chunk is running.
 var FrameDepth : Integer := 0;
+
+/// The frame depth at which a return STOPS the loop rather than resuming its
+/// caller.
+///
+/// Zero for a program: the script is frame 0, and its return ends the run.  A
+/// NESTED call sets it to the depth the callee will run at, which is what lets
+/// a handler enter the loop for one frame and get a value back -- the mechanism
+/// every class protocol needs, because `ToString`, `Elements`, `Compare` and an
+/// operator method are all a host operation asking an instance for a member and
+/// waiting for the answer.
+var StopDepth : Integer := 0;
 
 /// The callable each frame is running, indexed by depth.
 var FrameOf : Array := Array (FRAME_ROOM);
@@ -372,13 +465,35 @@ end
 ///
 /// The operands come off in reverse, so the second popped is the left-hand
 /// side -- which matters for every operator that is not commutative.
+/// Whether a value answers an operator of a symbol at a given arity.
+///
+/// An operator is a method NAMED BY ITS SYMBOL [EXP-020], so the protocol test
+/// is the ordinary one -- and the arity is what tells unary minus from binary
+/// subtraction, exactly as it tells the two subscripts apart.
+function AnswersOperator (V : Any, Symbol : Any, Count : Integer) : Boolean;
+begin
+    if not (V is VmInstance) then Exit False;
+
+    Exit DeclaresShape (V.Klass, Symbol, Count);
+end
+
 procedure DoAdd ();
 var
     Right : Any;
 
 begin
     Right := Pop ();
-    Push (Pop () + Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '+', 1) then
+    begin
+        Push (CallNested (Left, '+', [Right]));
+
+        Exit;
+    end
+
+    Push (Left + Right);
 end
 
 /// Subtracts the top value from the one beneath it.
@@ -388,7 +503,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () - Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '-', 1) then
+    begin
+        Push (CallNested (Left, '-', [Right]));
+
+        Exit;
+    end
+
+    Push (Left - Right);
 end
 
 /// Multiplies the top two values.
@@ -398,7 +523,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () * Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '*', 1) then
+    begin
+        Push (CallNested (Left, '*', [Right]));
+
+        Exit;
+    end
+
+    Push (Left * Right);
 end
 
 /// Divides the value beneath the top by the top, answering a Double.
@@ -408,13 +543,88 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () / Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '/', 1) then
+    begin
+        Push (CallNested (Left, '/', [Right]));
+
+        Exit;
+    end
+
+    Push (Left / Right);
 end
 
 /// Negates the value on top.
 procedure DoNegate ();
 begin
-    Push (-Pop ());
+    var V := Pop ();
+
+    // Arity ZERO is what makes this unary minus rather than subtraction.
+    if AnswersOperator (V, '-', 0) then
+    begin
+        Push (CallNested (V, '-', List ()));
+
+        Exit;
+    end
+
+    Push (-V);
+end
+
+/// Calls a member on a receiver and answers what it returns, from inside a
+/// handler.
+///
+/// The machine's registers are module-level, so a nested run has to put every
+/// one of them back: a handler is itself running inside the dispatch loop, and
+/// re-entering it would otherwise leave the outer program resuming at the
+/// callee's instruction pointer.
+///
+/// The arguments are given rather than taken from the stack, because the
+/// caller here is a HANDLER -- the host operation that needed the member -- and
+/// what it holds is values, not stack positions.
+function CallNested (Receiver : Any, Name : Any, Args : List) : Any;
+var
+    WasRunning : Any;
+    WasCells   : Any;
+
+begin
+    WasRunning   := Running;
+    var WasCode  := CodeBytes;
+    var WasConst := Constants;
+    var WasIP    := IP;
+    var WasSP    := SP;
+    var WasBase  := Base;
+    WasCells     := Cells;
+    var WasDepth := FrameDepth;
+    var WasStop  := StopDepth;
+    var WasAnswer := Answer;
+    var WasLive  := Live;
+
+    // The callee will run one frame above this one, and its return is the
+    // floor that ends the nested loop.
+    StopDepth := FrameDepth + 1;
+
+    Push (Receiver);
+    for var Each in Args do Push (Each);
+
+    InvokeMember (Name, Args.Length, List ());
+
+    var Got := RunLoop ();
+
+    Running    := WasRunning as Chunk;
+    CodeBytes  := WasCode;
+    Constants  := WasConst;
+    IP         := WasIP;
+    SP         := WasSP;
+    Base       := WasBase;
+    Cells      := WasCells as List;
+    FrameDepth := WasDepth;
+    StopDepth  := WasStop;
+    Answer     := WasAnswer;
+    Live       := WasLive;
+
+    Exit Got;
 end
 
 /// How an instance reads when written or converted to text.
@@ -434,8 +644,19 @@ begin
     // what one of the machine's objects looks like.
     if V is VmEnum then Exit V.Name;
 
-    if V.Klass.FindMethod ('tostring') <> Nil then
-        raise 'A class with ToString is not supported by the bytecode back end yet.';
+    // A bound member renders '<fn Name>' in the spelling it was written in.
+    if V is VmBound then Exit V.ToString ();
+
+    // A class may say how it reads [CLS-006], and what it answers is used
+    // as-is -- which needs a frame entered from inside this function, and that
+    // is what CallNested is for.
+    //
+    // ⚠️ A PROTOCOL IS A NAME AND A SHAPE.  `ToString (N : Integer)` does not
+    // implement this one, so the default rendering stands rather than the call
+    // failing selection -- which is why the test is ChosenMethod at arity
+    // ZERO and not FindMethod [0165].
+    if DeclaresShape (V.Klass, 'tostring', 0) then
+        Exit CallNested (V, 'ToString', List ());
 
     Exit Str (V.Klass.Name) + ' instance';
 end
@@ -591,6 +812,62 @@ begin
     Push (Pop () = Right);
 end
 
+/// Whether a class declares a member of a name taking a given count, up the
+/// parent chain.
+///
+/// ⚠️ This is the SHAPE half of a protocol, and ChosenMethod cannot answer it.
+/// Selection reads the arguments WHERE THEY SIT -- `Fits` indexes the stack --
+/// so asking it before the arguments are pushed inspected whatever happened to
+/// be there and answered differently from one call to the next.  At arity zero
+/// it reads nothing and looked correct, which is how `ToString` and `Elements`
+/// passed while `Compare` at arity one did not.
+function DeclaresShape (Klass : Any, Wanted : Any, Count : Integer) : Boolean;
+var
+    Where : Any;
+
+begin
+    Where := Klass;
+
+    while Where <> Nil do
+    begin
+        var Candidates := Where.CandidatesFor (Wanted);
+
+        if Candidates <> Nil then
+            for var TheCandidate in Candidates as List do
+                if CalleeSignature (TheCandidate).Arity = Count then Exit True;
+
+        Where := Where.Parent;
+    end
+
+    Exit False;
+end
+
+/// Whether a value orders itself, which is a Compare taking one argument.
+///
+/// Arity ONE, because a protocol is a name and a shape: `Compare ()` does not
+/// implement ordering any more than `Elements (N)` implements iteration, and
+/// such a class is left to the host's operators and their refusal [0165, 0170].
+function OrdersItself (V : Any) : Boolean;
+begin
+    if not (V is VmInstance) then Exit False;
+
+    Exit DeclaresShape (V.Klass, 'compare', 1);
+end
+
+/// How one value orders against another, through the class's own Compare.
+///
+/// A Compare that answers anything but an Integer is a fault in the CLASS and
+/// says so, rather than failing as a cast -- the message is the interpreter's
+/// and 0170 compares it.
+function OrderOf (Left : Any, Right : Any) : Integer;
+begin
+    var Said := CallNested (Left, 'Compare', [Right]);
+
+    if not (Said is Integer) then raise 'Compare must answer an Integer.';
+
+    Exit Said as Integer;
+end
+
 /// Pushes whether the lower of the top two is greater than the upper.
 procedure DoGreater ();
 var
@@ -598,7 +875,21 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () > Right);
+
+    var Left := Pop ();
+
+    // A class may order itself [VAL-014], and what Compare answers is read as
+    // a sign.  EQUALITY is untouched and stays identity [VAL-011]: `=` is
+    // coupled to `in` by [VAL-013], so a second protocol would have to move
+    // with it, which is why ordering is settled where equality is not.
+    if OrdersItself (Left) then
+    begin
+        Push (OrderOf (Left, Right) > 0);
+
+        Exit;
+    end
+
+    Push (Left > Right);
 end
 
 /// Pushes whether the lower of the top two is less than the upper.
@@ -608,7 +899,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () < Right);
+
+    var Left := Pop ();
+
+    if OrdersItself (Left) then
+    begin
+        Push (OrderOf (Left, Right) < 0);
+
+        Exit;
+    end
+
+    Push (Left < Right);
 end
 
 /// Divides the value beneath the top by the top, truncating toward zero.
@@ -623,7 +924,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () div Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, 'div', 1) then
+    begin
+        Push (CallNested (Left, 'div', [Right]));
+
+        Exit;
+    end
+
+    Push (Left div Right);
 end
 
 /// The remainder of the same division.
@@ -633,7 +944,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () mod Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, 'mod', 1) then
+    begin
+        Push (CallNested (Left, 'mod', [Right]));
+
+        Exit;
+    end
+
+    Push (Left mod Right);
 end
 
 /// Pops a value and a collection and pushes whether the collection has it.
@@ -656,7 +977,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () & Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '&', 1) then
+    begin
+        Push (CallNested (Left, '&', [Right]));
+
+        Exit;
+    end
+
+    Push (Left & Right);
 end
 
 /// Bitwise or of the top two Integers.
@@ -666,7 +997,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () | Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '|', 1) then
+    begin
+        Push (CallNested (Left, '|', [Right]));
+
+        Exit;
+    end
+
+    Push (Left | Right);
 end
 
 /// Bitwise exclusive or of the top two Integers.
@@ -676,13 +1017,32 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () ^ Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '^', 1) then
+    begin
+        Push (CallNested (Left, '^', [Right]));
+
+        Exit;
+    end
+
+    Push (Left ^ Right);
 end
 
 /// Bitwise complement of the Integer on top.
 procedure DoBitNot ();
 begin
-    Push (~Pop ());
+    var V := Pop ();
+
+    if AnswersOperator (V, '~', 0) then
+    begin
+        Push (CallNested (V, '~', List ()));
+
+        Exit;
+    end
+
+    Push (~V);
 end
 
 /// Shifts the value beneath the top left by the top.
@@ -692,7 +1052,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () << Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '<<', 1) then
+    begin
+        Push (CallNested (Left, '<<', [Right]));
+
+        Exit;
+    end
+
+    Push (Left << Right);
 end
 
 /// Shifts the value beneath the top right by the top.
@@ -702,7 +1072,17 @@ var
 
 begin
     Right := Pop ();
-    Push (Pop () >> Right);
+
+    var Left := Pop ();
+
+    if AnswersOperator (Left, '>>', 1) then
+    begin
+        Push (CallNested (Left, '>>', [Right]));
+
+        Exit;
+    end
+
+    Push (Left >> Right);
 end
 
 /// Replaces the top with whether it is of the type its operand names.
@@ -738,6 +1118,15 @@ begin
     // Any included.  That is not the same rule as a CAST, which nil passes
     // [VAR-005]; DoCast short-circuits before asking.
     if V = Nil then Exit False;
+
+    // A SUBRANGE is a RANGE TEST, which is the program asking explicitly --
+    // what the language may not do is dispatch on a value silently [0153].
+    if SUBRANGE_LOW.Contains (ToLower (Str (Named))) then
+        Exit WithinSubrange (V, ToLower (Str (Named)));
+
+    // An OBJECT answers for the class it is the one instance of [CLS-015], so
+    // `Reg is Reg` is true -- which needs the instance, and asking builds it.
+    if V is VmSingleton then Exit TypeMatches (Materialised (V), Named);
 
     // An INSTANCE answers for its own class and every class above it, so a
     // handler -- or a cast -- for a base class takes a derived value
@@ -1089,6 +1478,33 @@ begin
     // only the call knows how many arguments were written -- the receiver goes
     // in front of them [FUN-016], which is what makes the two spellings one
     // call.
+    // A BOUND MEMBER puts its receiver where the callee sat and goes through
+    // the one path that knows how to find a member on a value.  The receiver
+    // is held rather than re-evaluated, for the reason VmExtension holds its:
+    // it is evaluated once, when the member was read.
+    if Callee is VmBound then
+    begin
+        Slots[SP - Count - 1] := Callee.Receiver;
+
+        // A `super` binding names where to START, because the method wanted is
+        // the parent's and the receiver's own class would find the override.
+        if Callee.From <> Nil then
+        begin
+            var Found := ChosenMethod (Callee.From,
+                                       ToLower (Str (Callee.Written)), Count);
+
+            if Found = Nil then raise 'No matching signature for function.';
+
+            EnterFrame (Found, Count, 'No matching signature for function.');
+
+            Exit;
+        end
+
+        InvokeMember (Callee.Written, Count, List ());
+
+        Exit;
+    end
+
     if Callee is VmExtension then
     begin
         Prepend (Callee.Target, Callee.Receiver, Count);
@@ -1196,7 +1612,20 @@ var
 begin
     Index := Pop ();
 
-    Push (Pop ()[Index]);
+    var Target := Pop ();
+
+    // A class may be subscriptable, which is `Get` taking one argument and
+    // `Put` taking two [CLS-013] -- the two forms told apart by ARITY, as
+    // everything else in the language is.
+    if Target is VmInstance then
+        if DeclaresShape (Target.Klass, 'get', 1) then
+        begin
+            Push (CallNested (Target, 'Get', [Index]));
+
+            Exit;
+        end
+
+    Push (Target[Index]);
 end
 
 /// Stores a value at an index, leaving the value on the stack.
@@ -1210,6 +1639,17 @@ begin
     Value  := Pop ();
     Index  := Pop ();
     Target := Pop ();
+
+    if Target is VmInstance then
+        if DeclaresShape (Target.Klass, 'put', 2) then
+        begin
+            CallNested (Target, 'Put', [Index, Value]);
+
+            // The VALUE is what an assignment answers, not what Put did.
+            Push (Value);
+
+            Exit;
+        end
 
     Target[Index] := Value;
 
@@ -1251,16 +1691,26 @@ begin
         Exit Member;
     end
 
+    // An OBJECT answers like the instance it stands for, and asking is what
+    // builds it.
+    if Self is VmSingleton then Exit MemberOf (Materialised (Self), Written);
+
     if Self is VmInstance then
     begin
         // ClassName answers AHEAD of a field of that name, because the name
         // belongs to the language and a field cannot take it [CLS-008].
         if Named = 'classname' then Exit Self.Klass.Name;
 
+        // A PROPERTY answers on a read by being CALLED [CLS-012], which is the
+        // one way a member read differs from reading a method as a value.
+        if Self.Klass.HasProperty (Named) then
+            Exit CallNested (Self, Written, List ());
+
         if Self.Fields.Contains (Named) then Exit Self.Fields.Get (Named);
 
-        if Self.Klass.FindMethod (Named) <> Nil then
-            raise 'A method as a value is not supported by the bytecode back end yet.';
+        // A method read without parentheses is the method as a VALUE
+        // [FUN-011], bound to the receiver it was read from.
+        if Self.Klass.FindMethod (Named) <> Nil then Exit VmBound (Self, Str (Written));
 
         raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
     end
@@ -1275,12 +1725,10 @@ begin
         raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
     end
 
-    // A host METHOD read without parentheses is the method as a value, which
-    // the interpreter renders '<fn Sort>' and this machine has no object for.
-    // Refused by name, so it does not report a member that exists as missing.
-    for var Known in HOST_METHODS do
-        if Known = Named then
-            raise 'A method as a value is not supported by the bytecode back end yet.';
+    // A host method read without parentheses is the same answer: the member
+    // is a value, and the written spelling is what it renders as.  Asked PER
+    // KIND, because a name belonging to some other kind is not a member here.
+    if HostHasMember (Self, Named) then Exit VmBound (Self, Str (Written));
 
     if Named = 'length'  then Exit Self.Length;
     if Named = 'text'    then Exit Self.Text;
@@ -1483,6 +1931,54 @@ begin
     CallValue (GlobalCells[Slot], Count + 1);
 end
 
+/// Calls a member written with named arguments, or a visible extension.
+///
+/// The two halves of OP_INVOKE_EXT and the two halves of OP_INVOKE_NAMED at
+/// once: the receiver's value decides whether there is a member [EXP-022], and
+/// the names are arranged against whichever answers.
+procedure DoInvokeExtNamed ();
+var
+    Packed  : Any;
+    Count   : Integer;
+    Slot    : Integer;
+    Written : Any;
+
+begin
+    Packed := Constants[ReadIndex ()];
+    Count  := ReadByte ();
+    Slot   := ReadShort ();
+
+    Written := (Packed as List)[0];
+
+    var Names := List ();
+
+    for var I : Integer := 1; I < (Packed as List).Length; I := I + 1 do
+        Names.Add ((Packed as List)[I]);
+
+    if RespondsTo (PeekAt (Count), Written) then
+    begin
+        InvokeMember (Written, Count, Names);
+
+        Exit;
+    end
+
+    if not WasDefined[Slot] then
+        raise 'Undefined variable ' + QUOTE + Str (GlobalNames[Slot]) + QUOTE + '.';
+
+    Prepend (GlobalCells[Slot], PeekAt (Count), Count);
+
+    // The RECEIVER became the first argument and is POSITIONAL whichever
+    // spelling the call used [FUN-016], so the written names shift up one.
+    var Shifted := List ();
+    Shifted.Add ('');
+
+    for var Each in Names do Shifted.Add (Each);
+
+    ArrangeCall (GlobalCells[Slot], Count + 1, Shifted);
+
+    CallValue (GlobalCells[Slot], Count + 1);
+end
+
 /// Puts a callable under Count arguments and a receiver between them.
 ///
 /// The receiver is passed rather than read off the stack, because the two
@@ -1548,6 +2044,16 @@ begin
     // receiver left beneath the arguments, exactly where a plain call keeps
     // its callee, so that OP_THIS finds it one below the frame's base.
     Self := PeekAt (Count);
+
+    // An OBJECT answers like the instance it stands for, and the receiver on
+    // the stack is REPLACED so that OP_THIS finds the instance and not the
+    // wrapper.
+    if Self is VmSingleton then
+    begin
+        Self := Materialised (Self);
+
+        Slots[SP - Count - 1] := Self;
+    end
 
     if Self is VmInstance then
     begin
@@ -1658,12 +2164,17 @@ end
 /// bounds are not reachable from a chunk.
 procedure DoWiden ();
 var
-    Named : Any;
-    V     : Any;
+    Named   : Any;
+    Written : Any;
+    V       : Any;
 
 begin
-    Named := ToLower (Str (Constants[ReadIndex ()]));
-    V     := Pop ();
+    // Both spellings: the folded one decides, and the WRITTEN one goes in the
+    // diagnostic -- `300 is not in Byte.` names the subrange as the program
+    // spelled it.
+    Written := Constants[ReadIndex ()];
+    Named   := ToLower (Str (Written));
+    V       := Pop ();
 
     if V = Nil then
     begin
@@ -1672,9 +2183,36 @@ begin
         Exit;
     end
 
+    // A SUBRANGE is a bounds check rather than a conversion: the value stays
+    // the Integer it is, and a value outside says which subrange it missed
+    // [VAR-017].
+    if SUBRANGE_LOW.Contains (Named) then
+    begin
+        if not WithinSubrange (V, Named) then
+            raise Str (V) + ' is not in ' + Str (Written) + '.';
+
+        Push (V);
+
+        Exit;
+    end
+
     if Named = 'double' and (V is Integer) then Push (V * 1.0);
     else if Named = 'string' and (V is Char) then Push (Str (V));
     else Push (V);
+end
+
+/// Records a subrange's bounds, from a constant holding its name and both.
+procedure DoSubrange ();
+var
+    Said : Any;
+
+begin
+    Said := Constants[ReadIndex ()];
+
+    var Named := ToLower (Str ((Said as List)[0]));
+
+    SUBRANGE_LOW.Put  (Named, (Said as List)[1]);
+    SUBRANGE_HIGH.Put (Named, (Said as List)[2]);
 end
 
 /// Pushes a new enumeration.
@@ -1788,9 +2326,15 @@ begin
     // Only a class that DECLARES it.  An instance without it is not iterable
     // at all [0032], and that is an error in the program rather than a gap in
     // the machine -- refusing both alike reported a gap that was not there.
-    if Over is VmInstance then
-        if Over.Klass.FindMethod ('elements') <> Nil then
-            raise 'A class that iterates is not supported by the bytecode back end yet.';
+    // Asked REPEATEDLY, because what Elements answers is iterated on the same
+    // terms: an Outer whose Elements hands back an Inner that also declares it
+    // resolves the chain [0165].
+    //
+    // Arity ZERO, for the reason Rendered gives: `Elements (N : Integer)` does
+    // not implement the protocol, and such a class is not iterable at all
+    // rather than a selection failure.
+    while Over is VmInstance and DeclaresShape (Over.Klass, 'elements', 0) do
+        Over := CallNested (Over, 'Elements', List ());
 
     for var Element in Over do Made.Add (Element);
 
@@ -2363,6 +2907,12 @@ begin
         end
         if Name = 'toupper'    then begin Push (ToUpper (A));    Exit; end
         if Name = 'tolower'    then begin Push (ToLower (A));    Exit; end
+        // An enum MEMBER has an ordinal and the host cannot see it: it holds
+        // one of the machine's own objects, so it reports no ordinal where the
+        // other two processors answer the position [ENU-010].  The same place
+        // the machine must not defer about truth.
+        if Name = 'ord' and A is VmEnum then begin Push (A.Ordinal); Exit; end
+
         if Name = 'ord'        then begin Push (Ord (A));        Exit; end
         if Name = 'char'       then begin Push (Char (A));       Exit; end
         if Name = 'val'        then begin Push (Val (A));        Exit; end
@@ -2548,7 +3098,10 @@ var
 begin
     Value := Pop ();
 
-    if FrameDepth = 0 then
+    // At the floor the loop STOPS and nothing is restored: either this is the
+    // script returning and the run is over, or a nested call is answering and
+    // CallNested puts the machine back as it found it.
+    if FrameDepth = StopDepth then
     begin
         Answer := Value;
         Live := False;
@@ -2599,6 +3152,75 @@ begin
     Body  := Pop ();
 
     PeekAt (0).AddMethod (Named, Body);
+end
+
+/// The instance an object stands for, built the first time it is asked for.
+///
+/// The wrapper records the instance BEFORE the constructor runs, so an object
+/// whose own constructor reaches it finds the half-built instance rather than
+/// recursing forever -- which is what "built on first use" has to mean.
+///
+/// The constructor is where a class's field initializers live, so it runs even
+/// for an object that declares none: EmitClass synthesizes one.
+function Materialised (Only : Any) : Any;
+begin
+    if Only.Made <> Nil then Exit Only.Made;
+
+    var Made := VmInstance (Only.Klass as VmClass);
+
+    Only.Made := Made;
+
+    if ChosenMethod (Only.Klass, 'init', 0) <> Nil then
+        CallNested (Made, 'Init', List ());
+
+    Exit Made;
+end
+
+/// Replaces the class on top with an object of it.
+procedure DoSingleton ();
+begin
+    Push (VmSingleton (Pop () as VmClass));
+end
+
+/// Pushes `super.Member`: the member bound to `this`, looked up starting at the
+/// parent of the class the code was written in.
+procedure DoSuper ();
+var
+    Written : Any;
+
+begin
+    Written := Constants[ReadIndex ()];
+
+    var Slot := ReadShort ();
+
+    // `this` sits one below the running frame's base, where a method call left
+    // its receiver.
+    //
+    // The starting class is set after construction rather than through a second
+    // constructor: a named one is called `VmBound.Above (...)`, which the C back
+    // end resolves as a VARIABLE of that name and fails to compile.
+    var Made := VmBound (Slots[Base - 1], Str (Written));
+
+    Made.From := GlobalCells[Slot];
+
+    Push (Made);
+end
+
+/// Records the method on top as a property of the class beneath it.
+///
+/// Not DoProperty, which already exists for OP_PROPERTY and reads one of the
+/// runtime's five.
+procedure DoDeclareProperty ();
+var
+    Named : Any;
+    Body  : Any;
+
+begin
+    Named := Constants[ReadIndex ()];
+    Body  := Pop ();
+
+    PeekAt (0).AddMethod (Named, Body);
+    PeekAt (0).AddProperty (Named);
 end
 
 /// Records a field name on the class on top, leaving the class there.
@@ -2730,10 +3352,14 @@ begin
     Table[OP_IS]            := DoIs;
     Table[OP_CALL]          := DoCall;
     Table[OP_CALL_NAMED]    := DoCallNamed;
+    Table[OP_PROPERTY]      := DoProperty;
     Table[OP_INVOKE_NAMED]  := DoInvokeNamed;
     Table[OP_SUBSCRIPT_GET] := DoSubscriptGet;
     Table[OP_SUBSCRIPT_SET] := DoSubscriptSet;
-    Table[OP_PROPERTY]      := DoProperty;
+    Table[OP_DECLARE_PROPERTY] := DoDeclareProperty;
+    Table[OP_SUPER]         := DoSuper;
+    Table[OP_SINGLETON]     := DoSingleton;
+    Table[OP_SUBRANGE]      := DoSubrange;
     Table[OP_LIST]          := DoList;
     Table[OP_MAP]           := DoMap;
     Table[OP_INVOKE]        := DoInvoke;
@@ -2767,6 +3393,7 @@ begin
     Table[OP_LONG]          := DoWide;
     Table[OP_EXTEND]        := DoExtend;
     Table[OP_INVOKE_EXT]    := DoInvokeExt;
+    Table[OP_INVOKE_EXT_NAMED] := DoInvokeExtNamed;
     Table[OP_ADD]      := DoAdd;
     Table[OP_SUBTRACT] := DoSubtract;
     Table[OP_MULTIPLY] := DoMultiply;

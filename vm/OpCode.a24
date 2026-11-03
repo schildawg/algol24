@@ -488,7 +488,48 @@ const OP_CALL_NAMED := 71;
 /// operand per opcode, and two indices would break it.
 const OP_INVOKE_NAMED := 72;
 
-const OP_COUNT := 73;
+/// Records the method on top as a PROPERTY of the class beneath it.
+///
+/// Everything OP_METHOD does, plus the note that reading this name calls it.
+///
+/// ⚠️ Not OP_PROPERTY, which already exists and reads one of the RUNTIME's
+/// five -- Length, Text, Eof, IsEmpty, Address.  Two opcodes a word apart
+/// meaning unrelated things is the OP_WIDEN/OP_LONG trap again.
+const OP_DECLARE_PROPERTY := 73;
+
+/// Pushes `super.Member` -- the member bound to `this`, looked up starting at
+/// the parent of the class the code was written in.
+///
+/// Operands: the member name's constant index, then the parent class's global
+/// slot as a SHORT.  The slot is always two bytes, as OP_INVOKE_EXT's is, so
+/// that only the name index is widenable and the OP_LONG flag stays sound.
+const OP_SUPER := 74;
+
+/// Replaces the class on top with an OBJECT of it -- one instance, built on
+/// first use.  No operands.
+const OP_SINGLETON := 75;
+
+/// Records a subrange's bounds.  One operand: a constant holding its name, its
+/// low bound and its high bound.
+///
+/// Emitted once per subrange before anything runs, which is what the C back end
+/// does with `alg_subrange` in a unit's initializer -- so the three processors
+/// answer a range check from one shape of table rather than three.
+///
+/// The bounds travel as a CONSTANT and never as operands, because an Integer is
+/// unbounded [LEX-018] and `type Big = 0..99999999999999999999` is legal.
+const OP_SUBRANGE := 76;
+
+/// Calls a member written with named arguments, or a visible extension.  Three
+/// operands: a constant, an argument count, and the extension's global slot as
+/// a short.
+///
+/// The constant carries the member's name in element 0 and the argument names
+/// after it, as OP_INVOKE_NAMED's does -- two constant indices would break the
+/// invariant that at most one operand per opcode is widenable.
+const OP_INVOKE_EXT_NAMED := 77;
+
+const OP_COUNT := 78;
 
 /// The name of an opcode, for a disassembly listing and for a diagnostic.
 ///
@@ -531,6 +572,11 @@ begin
     if Op = OP_LOOP          then Exit 'OP_LOOP';
     if Op = OP_CALL          then Exit 'OP_CALL';
     if Op = OP_CALL_NAMED    then Exit 'OP_CALL_NAMED';
+    if Op = OP_DECLARE_PROPERTY then Exit 'OP_DECLARE_PROPERTY';
+    if Op = OP_SUPER         then Exit 'OP_SUPER';
+    if Op = OP_SINGLETON     then Exit 'OP_SINGLETON';
+    if Op = OP_SUBRANGE      then Exit 'OP_SUBRANGE';
+    if Op = OP_INVOKE_EXT_NAMED then Exit 'OP_INVOKE_EXT_NAMED';
     if Op = OP_INVOKE_NAMED  then Exit 'OP_INVOKE_NAMED';
     if Op = OP_SUBSCRIPT_GET then Exit 'OP_SUBSCRIPT_GET';
     if Op = OP_SUBSCRIPT_SET then Exit 'OP_SUBSCRIPT_SET';
@@ -618,6 +664,11 @@ begin
     if Op = OP_SET_GLOBAL    then Exit 'b';
     if Op = OP_CALL          then Exit 'b';
     if Op = OP_CALL_NAMED    then Exit 'ib';
+    if Op = OP_DECLARE_PROPERTY then Exit 'i';
+    if Op = OP_SUPER         then Exit 'is';
+    if Op = OP_SINGLETON     then Exit '';
+    if Op = OP_SUBRANGE      then Exit 'i';
+    if Op = OP_INVOKE_EXT_NAMED then Exit 'ibs';
     if Op = OP_INVOKE_NAMED  then Exit 'ib';
     if Op = OP_IS            then Exit 'i';
     if Op = OP_CAST          then Exit 'i';

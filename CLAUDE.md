@@ -113,10 +113,11 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `fixedpoint.sh` never sees it.
 
   **`vm/conform.sh` is the third column** — the corpus on the machine, rendered
-  exactly as `conform.sh` renders it. Currently **136 identical, 51 refused by
-  name, 7 not applicable, 0 diverged** — "not applicable" being a case that
-  asks for `--test`, which the machine has no mode for. A refusal is work to do; a divergence is a bug, and
-  refusing by name is what keeps the two apart.
+  exactly as `conform.sh` renders it, over **both** corpora. Currently **260
+  identical, 0 refused by name, 0 not applicable, 0 diverged**: every case the
+  corpus records, the machine answers as recorded. A refusal is work to do; a
+  divergence is a bug, and refusing by name is what keeps the two apart — so
+  the first refusal to reappear is the thing to look at.
 
   `Fib (27)` runs in **0.91 s on the VM against 6.24 s interpreted** — both
   native binaries, so that 6.9× is bytecode against an AST walk. It was 0.79 s
@@ -164,11 +165,22 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `OP_INVOKE`).
 
   ⚠️ **A nested subprogram has its OWN frame, so `this` is not one below its
-  base.** `CompileFunction` and `CompileNested` both clear `CurrentClass`,
-  which is what keeps 0148 — a bare field read from a function inside a method
-  — an honest refusal rather than a read of whatever happens to sit there. The
-  interpreter manages it by closing over the method's environment, which the
-  machine has no equivalent of.
+  base — it is a CAPTURE.** A method whose body declares a nested subprogram
+  boxes the receiver as a local named `this`, which is the whole of what makes
+  it reachable: a capture is found by NAME among the enclosing locals, so
+  `this` has to be one of them. `EmitReceiver` then emits `OP_THIS` in a method
+  and `OP_GET_CELL` in a subprogram nested inside one, and `MemberOfReceiver`
+  asks the two together — a field read, a field write, a bare method call and
+  an explicit `this` all go through that one pair. This is what `CEmitter`
+  already did for the same problem, and 0148 is the case.
+
+  ⚠️ **`DeclaresNested` missing a statement kind is a WRONG ANSWER, not a
+  refusal.** It decides whether a body boxes its locals, and it did not walk a
+  `try` — so a nested subprogram inside one captured locals nobody had boxed,
+  read whatever was in the slot, and a program that raises nothing took its
+  handler. A counted `for` is a `WhileStmt` with an `Increment`, which is why
+  that one was covered by accident. `LabelStmt` wraps what it labels, so
+  missing it would miss everything under a label.
 
   ⚠️ **A PARENT's field initializers have to run too.** An instance already
   has every inherited field *present*, because `VmInstance` walks the chain for
@@ -179,8 +191,9 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   ⚠️ **A refusal is only ever first in line.** Of the 7 corpus cases blocked on
   `A reference to 'X'`, implicit `this` fixed **2**; the other 5 wanted
   properties, `Elements` [TYP-011], `Compare` [VAL-014] and operator
-  overloading. Each is now refused by its own name. Measure what a refusal is
-  actually hiding before sizing the work behind it.
+  overloading — each of which is now implemented, and each of which was its own
+  increment. Measure what a refusal is actually hiding before sizing the work
+  behind it: one refusal's wording covered four unrelated features.
 
   ⚠️ **Refuse the PROTOCOL, not the shape.** Refusing iteration for every
   instance broke 0032, where an instance with no `Elements` must raise
@@ -732,12 +745,53 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   neither `CEmitter.IsTest` nor `Parser.IsTestBlock`.
 
   ⚠️ **A DECLARATION of a built-in's name is one overload set with it**
-  [FUN-005, 0187], not a shadowing — the declaration answers the arities it
-  declares and the built-in keeps the rest. So the machine may skip the
-  built-in only when the declaration provably answers EVERY call, which is one
-  shape: a lone parameter written `List of Any`. That is what `crt` and `graph`
-  use to redirect `Write` to a graphical console. A fixed-arity declaration
-  stays refused until an instruction tries the declaration and falls back.
+  [FUN-005, 0187], not a shadowing — the declaration answers the argument
+  COUNTS it declares and the built-in keeps the rest. **The rule is about the
+  count alone**, which is what makes it a decision the emitter can take rather
+  than an instruction that tries one and falls back: `ObjOverloads.Declares`
+  asks nothing about the argument types, so a declared count wins even when the
+  argument types do not fit it — a failure rather than a reason to reach past
+  the declaration. `EXACT_ARITIES` and `GATHERED_FROM` record what the visible
+  declarations answer, a gathering parameter lowering the floor to its own
+  arity minus one, and a non-subprogram declaration of the name — `class Stack`
+  — recording a floor of zero because it simply binds the name. A lone
+  gathering parameter is the shape `crt` and `graph` use to redirect `Write` to
+  a graphical console, and it answers every count.
+
+  ⚠️ **A guest object renders through `ToString`, and without one the host
+  says `<Class> instance`.** `as_text` invokes a `ToString` it finds, which is
+  why `Str (Green)` was right while `WriteLn ([Red, Green])` printed
+  `[VmEnum instance, VmEnum instance]` — the machine answered `Str` itself and
+  never gave the host anything to render. One method on `VmEnum` and one on
+  `VmEnumType` fixes a member inside a collection, inside a diagnostic and on
+  its own at once. Any machine object a program can see needs one.
+
+  ⚠️ **`Ord` of an enum member is the machine's answer, not the host's** — the
+  same split truthiness has. The host holds one of the machine's objects and
+  reports `has no ordinal` where the other two processors answer the position
+  [ENU-010]. No corpus case asks, which is why it survived 260 of them.
+
+  ⚠️ **An enumeration inside a subprogram is LOCALS, and the slots must be
+  reserved first.** `OP_ENUM_MEMBER` reads the enumeration on top of the stack
+  and pushes the member, which works for globals because defining one pops it
+  and leaves the enumeration there. A local *is* its stack slot, so the members
+  cannot stay on top: each is reserved nil, the enumeration goes above them,
+  and every member is written back into its own slot and popped. The
+  enumeration is boxed last, because `OP_ENUM_MEMBER` wanted it bare.
+
+  ⚠️ **Named arguments reach a unit qualifier and an extension too.** A
+  qualifier decides which declaration a call reaches and nothing else, so it
+  takes `OP_CALL_NAMED` unchanged; an extension needs `OP_INVOKE_EXT_NAMED`,
+  which packs the member name and the argument names into the one constant
+  `OP_INVOKE_NAMED` already packs two names into — and **the receiver stays
+  positional**, so the written names shift up one when it is prepended
+  [FUN-016].
+
+  ⚠️ **The ROOT file's unit name is the empty string, so `''` cannot mean "no
+  unit".** Answering the visible-declaration question with a unit name and `''`
+  for none made every top-level declaration read as no declaration at all, and
+  0187 then sent a declared call to the built-in. Resolve and answer in one
+  function, as `VisibleSlot` does.
 
   ⚠️ **Asking only about the CURRENT unit made that a silent divergence.** A
   program that `uses crt` and called `Write` reached the built-in and wrote to

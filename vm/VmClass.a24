@@ -9,6 +9,41 @@ unit VmClass;
 uses VmFunction;
 
 /// A class: its name, its methods, and what it inherits from.
+/// An object: a class with exactly one instance, built on FIRST USE.
+///
+/// `object Config; ... end` declares this [CLS-015].  The instance is not made
+/// when the declaration runs, which is what lets one object's method reach
+/// another declared below it -- so the global holds this wrapper and the
+/// instance appears the first time a member is read.
+///
+/// Two reads of the name answer the SAME wrapper, which is how `A = B` is true
+/// for an object: identity needs no materialising at all.
+class VmSingleton;
+var
+    /// The class the instance will be of.
+    Klass : Any;
+
+    /// The instance, once something has asked for it.
+    Made : Any;
+
+begin
+    /// Declares an object, without building it.
+    constructor Init (Klass : Any);
+    begin
+        this.Klass := Klass;
+        this.Made  := Nil;
+    end
+end
+
+test 'An Object Holds Its Class And Nothing Else Until Asked';
+begin
+    var Klass := VmClass ('Config');
+    var Only  := VmSingleton (Klass);
+
+    AssertTrue (Only.Klass = Klass);
+    AssertTrue (Only.Made = Nil);
+end
+
 class VmClass;
 var
     /// The name, for a diagnostic and for ClassName.
@@ -25,6 +60,14 @@ var
     /// its own.
     Methods : Map;
 
+    /// The names this class declares as PROPERTIES, folded.
+    ///
+    /// A property is a method in every respect but one: reading the name
+    /// CALLS it, where reading a method's name answers the method [CLS-012].
+    /// So it lives in Methods like any other and this records which of them
+    /// answer on a read.
+    Properties : Set;
+
     /// The field names, in declaration order, including inherited ones.
     ///
     /// Held so an instance begins with every field present and nil, which is
@@ -40,7 +83,8 @@ begin
     constructor Init (Name : String);
     begin
         this.Name    := Name;
-        this.Methods := Map ();
+        this.Methods    := Map ();
+        this.Properties := Set ();
         this.Fields  := List ();
         this.Parent  := Nil;
     end
@@ -91,6 +135,32 @@ begin
     /// are an overload set selecting on the whole signature [FUN-013] and one
     /// entry could only keep the last.  Declaration order is kept, so a tie
     /// goes to the one written first.
+    /// Whether this class, or one above it, declares a name as a property.
+    function HasProperty (Wanted : Any) : Boolean;
+    var
+        Where : Any;
+
+    begin
+        var Key := ToLower (Str (Wanted));
+
+        Where := this;
+
+        while Where <> Nil do
+        begin
+            if (Where.Properties as Set).Contains (Key) then Exit True;
+
+            Where := Where.Parent;
+        end
+
+        Exit False;
+    end
+
+    /// Records a name as answering on a read.
+    procedure AddProperty (PropertyName : Any);
+    begin
+        this.Properties.Add (ToLower (Str (PropertyName)));
+    end
+
     procedure AddMethod (MethodName : Any, Body : VmFunction);
     begin
         var Key := ToLower (Str (MethodName));
