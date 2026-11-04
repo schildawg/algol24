@@ -3848,7 +3848,7 @@ begin
     AssertStackEffect (OP_SHIFT_RIGHT, None, 0);
 
     // The top read and left alone, which is what makes an assignment an
-    // expression [EXP-020].
+    // expression [EXP-017].
     AssertStackEffect (OP_SET_LOCAL, [0], 0);
     AssertStackEffect (OP_DUP,       None, 0);
 

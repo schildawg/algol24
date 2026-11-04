@@ -305,8 +305,20 @@ if [ "$FAILED" -ne 0 ]; then
 fi
 
 if [ "$UNWRITTEN" -gt 0 ]; then
-    echo "OK so far: every entry agrees with the machine, and $UNWRITTEN opcodes"
-    echo "    are still unwritten.  Run with --missing to name them."
+    # Work to do rather than a failure, as a refusal is in vm/conform.sh -- so
+    # adding an opcode does not break the build before its entry is written.
+    # The gate that DOES fail on one is vm/Vm.a24's own test suite: an opcode
+    # with no OpStack entry fails four tests there, which is the right place
+    # for it, since the machine cannot run the opcode either.
+    #
+    # ⚠️ Every entry existed once.  Going from none unwritten to any is a file
+    # falling behind the machine, which is worth looking at even though it is
+    # not red.
+    noun="opcodes"
+    [ "$UNWRITTEN" -eq 1 ] && noun="opcode"
+
+    echo "OK so far: every entry agrees with the machine, and $UNWRITTEN $noun"
+    echo "    $([ "$UNWRITTEN" -eq 1 ] && echo 'is' || echo 'are') still unwritten.  Run with --missing to name $([ "$UNWRITTEN" -eq 1 ] && echo it || echo them)."
     exit 0
 fi
 

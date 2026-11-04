@@ -144,9 +144,32 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   keeps it honest.** One uniform entry per opcode in the shape of the 1987 IBM
   Macro Assembler reference — Encoding, Stack, Operation, Satisfies, Raises,
   See also — written toward an assembly-like front end that would make the
-  mnemonics user-facing syntax. **4 of 78 entries exist**, as a format test on
-  the awkward shapes; the checker counts the rest as work to do and still exits
-  0, the way `vm/conform.sh` counts a refusal.
+  mnemonics user-facing syntax. **All 78 entries exist**, grouped by what an
+  instruction is for with an alphabetical index, and `./vm/reference.sh` holds
+  every one of them to `OpCode.a24`.
+
+  ⚠️ **What no script can check is whether a sentence is TRUE, and the
+  citations are the sharpest case.** The checker confirms a cited rule exists,
+  not that it says what the entry claims — and five citations of `[EXP-020]`
+  (operator overloading) were meant to be `[EXP-017]` (assignment is an
+  expression), having been copied into four files before anything noticed. Read
+  a citation in a comment as a pointer to check, never as a checked fact.
+
+  ⚠️ **`OP_PROPERTY` and `OP_GET_FIELD` have BYTE-IDENTICAL handlers**, which
+  writing the reference is what surfaced: both read a name from the constants,
+  pop a value and push what the one shared `MemberOf` answers. So they are one
+  operation and the difference is what the emitter meant, not what the machine
+  does. Whether both should exist is open; neither entry pretends otherwise.
+
+  ⚠️ **Four opcode doc comments had gone stale, and writing an entry from each
+  is what found them.** `OP_CONSTANT` still said a chunk holds 256 constants
+  and that a wider form would come "when a program needs it" — `OP_LONG` has
+  existed for several increments; `OP_LIST` still quoted its 255-element cap;
+  `OP_CLOSURE` still described its captures as bare slot numbers rather than
+  flag-and-short descriptors; and `OP_RETURN` said it "stops the machine",
+  which is only its floor-frame case. A fifth was a stray line: `OP_COUNT`'s
+  one-line doc had been left stranded above `OP_CALL_NAMED` when that opcode
+  was inserted below it.
 
   ⚠️ **The checker reads ONE row per entry, and that is the whole design.** The
   first bracketed row in an entry's fence carries the opcode's number, its
@@ -192,7 +215,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   that found it is the lesson.** Declaring `OP_DUP` as `1 2` instead of `0 1`
   passed both checks: the net is the same and it does fail at depth 0. So pops
   and "the depth required" are different questions — an instruction may READ
-  the top without taking it, which is every assignment opcode [EXP-020] as well
+  the top without taking it, which is every assignment opcode [EXP-017] as well
   as `OP_DUP`.
 
   ⚠️ **The SPLIT between pops and pushes is unobservable, and that is settled

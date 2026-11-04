@@ -11,9 +11,9 @@ unit OpCode;
 
 /// Pushes a constant from the chunk's table.  One operand: its index.
 ///
-/// The index is a single byte, so a chunk holds 256 constants.  clox answers
-/// that with a second opcode taking a wider operand, and this will too when a
-/// program needs it rather than before.
+/// The index is one byte, and two when OP_LONG precedes the instruction --
+/// a prefix rather than clox's second opcode, so that the other opcodes
+/// carrying an index need no long form of their own.
 const OP_CONSTANT := 0;
 
 /// Pushes nil.
@@ -216,10 +216,9 @@ const OP_PROPERTY := 36;
 /// elements are expressions, so they are evaluated onto the stack and gathered
 /// here.
 ///
-/// One operand byte caps a literal at 255 elements.  The C back end has its
-/// own limit for its own reason -- above a hundred it emits a helper function,
-/// because `cc` gives up at 256 bracket levels -- and above 255 the emitter
-/// refuses this rather than encoding the count some other way.
+/// The count is a SHORT, so what bounds a literal is the value stack it is
+/// built on -- 'The value stack overflowed.' at run time -- rather than an
+/// operand width refusing a program the machine could nearly hold.
 const OP_LIST := 37;
 
 /// Builds a Map from the key and value pairs above it.  One operand: how many
@@ -380,12 +379,17 @@ const OP_GET_CELL := 59;
 /// operand: the cell's index.
 const OP_SET_CELL := 60;
 
-/// Makes a closure.  One operand: the constant index of the subprogram, then a
-/// count, then one local slot per cell to capture.
+/// Makes a closure.  Variable width: the constant index of the subprogram, a
+/// capture count as a short, then one three-byte DESCRIPTOR per capture.
 ///
-/// The cells are taken from the ENCLOSING frame's slots, which is why the
-/// descriptors are slot numbers -- and why each evaluation of the enclosing
-/// subprogram produces a closure over different cells [FUN-010].
+/// A descriptor is a flag byte and a short.  The flag says where the cell
+/// comes from -- this frame's own slot, which holds a cell because a frame
+/// declaring a nested subprogram boxes every local; or a cell this frame
+/// itself captured, which is what lets nesting go to any depth [FUN-012].
+/// clox's is-local flag.
+///
+/// Whichever it is, each evaluation of the enclosing subprogram closes over
+/// the cells that call made [FUN-010].
 const OP_CLOSURE := 61;
 
 /// Gathers the subprograms above it into an overload set.  One operand: how
@@ -471,10 +475,13 @@ const OP_INVOKE_EXT := 68;
 /// tracking where in the operands the index sits.
 const OP_LONG := 69;
 
-/// Stops the machine, answering whatever is on top of the stack.
+/// Returns from the running frame, answering the value on top.
+///
+/// At the FLOOR frame it stops the machine instead, which is the same
+/// instruction doing the last of its job: there is no frame to go back to, so
+/// the value becomes the run's answer.
 const OP_RETURN := 70;
 
-/// How many opcodes there are.
 /// Calls with NAMED arguments: the constant is the list of names written at
 /// the call, one entry per argument and empty for a positional one.
 ///
@@ -753,7 +760,7 @@ end
 ///
 /// # Satisfies
 ///
-/// [EXP-020]
+/// [EXP-017]
 function OpStack (Op : Integer) : String;
 begin
     // Nothing in, one value out, and nothing needed beneath.
@@ -823,7 +830,7 @@ begin
     if Op = OP_LONG                 then Exit '0 0 0';
 
     // Nothing in and nothing out, but the TOP IS READ -- an assignment is an
-    // expression, so its value stays on the stack [EXP-020].
+    // expression, so its value stays on the stack [EXP-017].
     if Op = OP_SET_LOCAL            then Exit '0 0 1';
     if Op = OP_SET_GLOBAL           then Exit '0 0 1';
     if Op = OP_SET_GLOBAL_LONG      then Exit '0 0 1';
