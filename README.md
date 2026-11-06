@@ -136,7 +136,7 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.2.2.** The language is **stable, not closed**: it changes only on measured
+**v0.2.3.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
@@ -160,6 +160,16 @@ what an existing program means by a name.
 v0.2.2 is packaging: `algvm` reports `--version` and `--help` like `algc` does,
 and both read one constant, because a version in two places is two answers to
 one question.
+
+v0.2.3 is four fixes that only an *installed* program could meet, found by
+packaging the language for three platforms rather than by reading it. A `uses`
+resolves against an installed library on Windows as well — a path is cut at
+either separator, and nothing asks whether a directory exists, because
+`FileExists` opens the path and opening a directory succeeds on two platforms
+of three. A nested subprogram's C symbol carries what it is nested in, so two
+of one name in different parents no longer emit one function; and a nested
+`external` binds a local rather than a global handle. There is a seventh
+harness, `./installed.sh`, for the question the other six assume away.
 
 What comes next is still a library, written in Algol-24 rather than in the
 runtime — that is the whole of what *alpha* means here, and nothing in the

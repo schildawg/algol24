@@ -406,6 +406,19 @@ var
     /// second level of nesting is refused.
     InsideNested : Boolean := False;
 
+    /// What a NESTED subprogram's C symbol is qualified by, or '' at the top.
+    ///
+    /// A nested subprogram's symbol was its bare name, so two of one name in
+    /// DIFFERENT enclosing subprograms emitted the same C function and the
+    /// generated file did not compile -- `error: redefinition of 'f_shared'`.
+    /// Legal Algol-24: both other processors run it.
+    ///
+    /// Qualified by the enclosing subprogram's own SYMBOL rather than its name,
+    /// because that one is already unique where the name is not: two overloads
+    /// of one name each carry their signature, so a nested subprogram inside
+    /// each of them would otherwise collide again.
+    NestedIn : String := '';
+
     /// True when emitting the test bodies and a runner instead of the program.
     EmitTests    : Boolean := False;
 
@@ -778,13 +791,20 @@ begin
 
     begin
         var Name := Str (TheStmt.Name.Lexeme);
-        if not Overloaded.Contains (Name) then Exit FunctionName (Name);
 
-        Symbol := FunctionName (Name) + '_' + Str (TheStmt.Params.Length);
+        if not Overloaded.Contains (Name) then Symbol := FunctionName (Name);
+        else
+        begin
+            Symbol := FunctionName (Name) + '_' + Str (TheStmt.Params.Length);
 
-        var Types := DeclaredTypes (TheStmt);
-        for var TheType in Types do
-            if TheType <> 'Any' then Symbol := Symbol + '_' + Escaped (Str (TheType));
+            var Types := DeclaredTypes (TheStmt);
+            for var TheType in Types do
+                if TheType <> 'Any' then Symbol := Symbol + '_' + Escaped (Str (TheType));
+        end
+
+        // A nested subprogram is distinguished by what it is nested IN, which
+        // is what keeps two of one name in different parents apart.
+        if NestedIn <> '' then Symbol := Symbol + '_in_' + NestedIn;
 
         Exit Symbol;
     end
@@ -2681,6 +2701,27 @@ begin
         Functions.Append ('}' + #10 + #10);
         var Name := Str (TheStmt.Name.Lexeme);
 
+        // ⚠️ A NESTED external binds a LOCAL, like any other nested
+        // subprogram.  This declared a global handle whatever the nesting, so
+        // the enclosing body looked for a local of the name, found none, and
+        // the generated C called `alg_error("Undefined variable 'Len'.")` --
+        // a wrong answer at run time for a program both other processors run.
+        //
+        // The symbol needs no qualifying here: EmitForeign is reached before
+        // VisitFunctionStmt touches NestedIn, so FunctionSymbol still sees the
+        // ENCLOSING subprogram's qualifier, which is the right one.
+        if not AtTopLevel then
+        begin
+            Locals.Add (Name);
+
+            DeclareLocal (VariableName (Name),
+                          'alg_closure(' + QuoteC (Name) + ', ' + Symbol
+                        + ', NULL, 0, ' + Str (TheStmt.Params.Length) + ', '
+                        + Table + ')');
+
+            Exit;
+        end
+
         if Overloaded.Contains (Name) then
         begin
             if not Declared.Contains (SetName (Name)) then
@@ -2733,6 +2774,10 @@ begin
 
         var Nested := not AtTopLevel;
 
+        // The symbol this subprogram's own children will be qualified by, taken
+        // while NestedIn still describes this one's enclosure.
+        var EnclosingSymbol := FunctionSymbol (TheStmt);
+
         EnclosingLocals := Locals;
         EnclosingTop := AtTopLevel;
         EnclosingDepth := Depth;
@@ -2741,6 +2786,17 @@ begin
         var EnclosingCaptured := Captured;
         var EnclosingCells := Cells;
         var EnclosingNested := InsideNested;
+
+        // ⚠️ READ BEFORE IT IS SET, and that order is the whole of it: this
+        // subprogram is qualified by what encloses IT, while anything nested
+        // inside it is qualified by this one.  Setting first would have every
+        // nested subprogram qualified by its own name.
+        var EnclosingNestedIn := NestedIn;
+
+        // UNCONDITIONAL, because this names what anything declared inside this
+        // body is nested in -- a top-level subprogram's children are nested in
+        // it just as much as a nested one's would be.
+        NestedIn := EnclosingSymbol;
 
         Locals := List();
 
@@ -2834,6 +2890,11 @@ begin
 
         Target := EnclosingTarget;
         Body := EnclosingBody;
+
+        // ⚠️ RESTORED BEFORE THE PROTOTYPE, which is this subprogram's own
+        // symbol: left set, FunctionSymbol would qualify it by itself and the
+        // definition would not match the closure that binds it.
+        NestedIn := EnclosingNestedIn;
 
         Functions.Append (Prototype (TheStmt) + ' {' + #10);
 

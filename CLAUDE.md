@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.2.2.** The language is **stable, not closed**: it changes only on measured
+**v0.2.3.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
@@ -402,6 +402,26 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   asks the two together — a field read, a field write, a bare method call and
   an explicit `this` all go through that one pair. This is what `CEmitter`
   already did for the same problem, and 0148 is the case.
+
+  ⚠️ **A nested subprogram's C SYMBOL was its bare name**, so two of one name
+  in different parents emitted one function and the file did not compile:
+  `error: redefinition of 'f_shared'`. `FunctionSymbol` qualifies a nested one
+  by its parent's **symbol** rather than its parent's name, because a name is
+  not unique — two overloads of one name each carry their signature, and a
+  nested subprogram inside each would collide again.
+
+  ⚠️ **The qualifier's ORDER is the whole of getting it right.** `NestedIn`
+  must be this subprogram's symbol while its BODY is emitted and restored
+  BEFORE its own prototype: left set, `FunctionSymbol` qualifies it by itself
+  and the definition stops matching the closure that binds it. Set it before
+  reading it and every nested subprogram is qualified by its own name instead.
+
+  ⚠️ **A nested `external` binds a LOCAL, like any other nested subprogram.**
+  `EmitForeign` declared a global handle whatever the nesting, so the enclosing
+  body looked for a local of the name, found none, and the generated C called
+  `alg_error("Undefined variable 'Len'.")`. Its symbol needs no qualifying
+  there: `EmitForeign` is reached before `VisitFunctionStmt` touches
+  `NestedIn`, so it still sees the enclosing subprogram's qualifier.
 
   ⚠️ **A NESTED `external` is still an external, and the machine answered
   NIL.** `CallValue` asked `Callee is VmFunction`, where a subprogram declared
@@ -2034,14 +2054,19 @@ to use themselves after the reseed. Expect two commits, and expect
 
 ## Known issues
 
-**A NESTED `external` does not work in the C back end**, two ways, and both are
-wrong answers rather than its documented refusals. Two nested subprograms of
-one name in *different* enclosing procedures emit one C symbol —
-`error: redefinition of 'f_textlength'` — and a nested external that does
-compile answers `Undefined variable 'X'.` when called. Legal programs: the
-interpreter and the machine both run them, and the machine was fixed to. No
-conformance case can be added until this is, because `conform.sh` requires both
-processors to pass and a compiler gap is a failure rather than a report.
+**A nested subprogram calling a SIBLING nested one answers
+`Undefined variable 'X'.` in the C back end**, and with no `external` involved
+at all — `function Sized` and `function Ask` in one body, where `Ask` calls
+`Sized`, compiles and then fails at run time. A wrong answer rather than one of
+the back end's documented refusals, and the interpreter and the machine both
+run it. Verified separately rather than assumed to be part of the nested-symbol
+defects below, which are fixed: the same shape fails identically without a
+foreign call in it.
+
+⚠️ **It is what a nested-external case must avoid**, which is why
+`conformance/0210` calls its externals where they are declared. A case that
+reached through a sibling would turn `conform.sh` red for a different defect
+than the one it pins.
 
 **DEF-34 — `Val` follows `strtod`'s acceptance rather than the language's literal
 rules**, so `'0x1F'` answers a Double where a hex literal is an Integer. Any fix

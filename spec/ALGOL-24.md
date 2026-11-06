@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.2.2.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.2.3.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -8559,6 +8559,104 @@ costs one new keyword instead of two.
 **At most eight arguments.** More is `A foreign call takes at most eight
 arguments.` The limit is the marshalling buffers' and is not a language
 principle; it is stated so that a program meets a message rather than a crash.
+
+**A NESTED subprogram is one too, and a nested `external` is still an
+external** [FUN-012]. Both halves of that were wrong in one back end: a nested
+subprogram's C symbol was its bare name, so two of one name in *different*
+parents emitted the same function and the generated file did not compile; and a
+nested `external` bound a global handle rather than a local, so the enclosing
+body looked for a local of the name and the generated C answered
+`Undefined variable 'X'.` at run time. Legal programs both, which the other two
+processors ran.
+
+    conformance  0210-a-nested-external.a24
+
+##### conformance/0210-a-nested-external.a24
+
+```algol24
+// A NESTED subprogram is one its enclosing body declares, and both halves of
+// that were wrong in the C back end.  Its C symbol was its bare name, so two of
+// one name in DIFFERENT parents emitted the same function and the file did not
+// compile; and a nested `external` bound a global handle, so the enclosing body
+// looked for a local of the name and the generated C answered
+// `Undefined variable` at run time [FUN-012, FUN-014].
+
+procedure First ();
+begin
+    function Shared () : String;
+    begin
+        Exit 'first';
+    end
+
+    WriteLn (Shared ());
+end
+
+procedure Second ();
+begin
+    // The SAME name in a different parent, which is what collided.
+    function Shared () : String;
+    begin
+        Exit 'second';
+    end
+
+    WriteLn (Shared ());
+end
+
+First ();
+Second ();
+
+// A nested EXTERNAL, called where it is declared.
+procedure Measure ();
+begin
+    function TextLength (S : String) : Integer;
+        external 'strlen';
+
+    // Read as a value first, which is legal whether or not the build can
+    // honour it [FUN-011].
+    WriteLn (TextLength <> Nil);
+
+    try
+        WriteLn (TextLength ('hello'));
+    except
+        on e : String do WriteLn (e);
+    end
+
+    // An external checks its own argument count, having no frame to enter.
+    try
+        WriteLn (TextLength ('hello', 'extra'));
+    except
+        on e : String do WriteLn (e);
+    end
+end
+
+Measure ();
+
+// And a nested external of the SAME name in another parent, which needs both
+// fixes at once: the symbol must differ and each must bind its own local.
+procedure MeasureAgain ();
+begin
+    function TextLength (S : String) : Integer;
+        external 'strlen';
+
+    try
+        WriteLn (TextLength ('four'));
+    except
+        on e : String do WriteLn (e);
+    end
+end
+
+MeasureAgain ();
+```
+
+```console
+$ algc conformance/0210-a-nested-external.a24
+first
+second
+true
+Foreign calls are not available in this build: 'strlen' cannot be reached.
+Expected 1 arguments but got 2.
+Foreign calls are not available in this build: 'strlen' cannot be reached.
+```
 
 ##### conformance/0174-a-foreign-call.a24
 
