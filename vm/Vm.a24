@@ -140,16 +140,28 @@ const BYTE_VALUES := 256;
 ///
 /// Measured: no runtime cost at all (Fib (27) is 1.23 s either way, the depth
 /// being a bound and not a loop) and about 7.7 MB more resident, which is the
-/// value stack derived below. Raised on that measurement rather than on a
-/// program demanding it, because the program that would demand it cannot yet
-/// run far enough to ask.
+/// value stack derived below.
+///
+/// Raised again to 4096, this time by a program that DID demand it. `algvm`
+/// hosting `algc` hosting `algc` -- the machine running the compiler running
+/// the compiler -- needs 2095 frames to compile a 1198-line unit, measured on
+/// a run that completed and emitted byte-identical C. 1024 stopped it as
+/// 'The call stack overflowed.' A tree-walking interpreter spends about seven
+/// of its own frames per guest frame, so hosting one multiplies depth: the
+/// same compile needs 256 frames with one level of hosting and 2095 with two.
+///
+/// Measured again at no runtime cost -- Fib (27) reads 1.29-1.31 s at 1024,
+/// 4096 and 8192 alike -- and about 8 MB of value stack per 1024 frames, so a
+/// one-line program's resident set goes from 10 MB to 34 MB. 8192 was measured
+/// too, at 67 MB, and not taken: nothing has asked for depth that 4096 does
+/// not cover, and the cost falls on every script whether it recurses or not.
 ///
 /// Fixed, and overflow raises rather than growing: runaway recursion is a bug
 /// in the program being run, and a machine that grows to hold it reports the
 /// problem as a memory exhaustion somewhere else entirely. Both other
 /// processors SEGFAULT at their own limit with no diagnostic, so the
 /// diagnostic is this machine's advantage and worth keeping.
-const FRAME_ROOM := 1024;
+const FRAME_ROOM := 4096;
 
 /// How deep the value stack is: enough for every frame to fill its slots.
 ///

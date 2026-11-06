@@ -1148,6 +1148,38 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `OUT_OF_ROOM` makes `Unwind` decline those four, so they escape to the
   driver as the diagnostics they are.
 
+  ⚠️ **THE MACHINE COMPILES THE COMPILER, and the output IS the seed.**
+  `algvm compiler/Main.a24 --compile --out=DIR compiler/Main.a24` emits C
+  byte-identical to `bootstrap/algc`'s own emission and to every generated file
+  in `bootstrap/` — and that C builds into a compiler passing all 245 tests.
+  30.85 s against 1.77 s native, so **17.4×**, well above `Fib`'s 6.9×:
+  compilation allocates where `Fib` computes. Peak 3.07 GB resident, and the
+  frame stack never goes deeper than **272**.
+
+  ⚠️ **`algvm` → `algc` → `algc` is CORRECT and does not fit on 16 GB.** The
+  machine hosting the compiler hosting the compiler emits byte-identical C for
+  a 233-line unit (4.1 GB, 736 frames) and a 1198-line one (6.9 GB, 2095
+  frames), and is **killed by the OS** at about 9 GB for anything larger —
+  1605 lines reaches 9005 MB, and `Main.a24` itself 9166 MB after 52 minutes.
+  The native two-level run needs 8.97 GB and succeeds, so the machine loses by
+  **2%** on a box with 16 GB of RAM and swap capped at 4 GB.
+
+  ⚠️ **Collecting harder does NOT help that, and it is the obvious wrong
+  instinct.** Peak footprint is 64.25 GB at `--collect 200000` and 61.4 GB for
+  the native run that uses no VM collector at all — the interval made no
+  difference across 5×, because the memory is **live**: the outer tree-walker
+  holds the inner compiler's whole AST and every environment. A collector
+  cannot reclaim what is reachable. What this needs is a bigger machine, not a
+  smaller interval.
+
+  ⚠️ **Hosting an interpreter multiplies frame depth by about SEVEN, and that
+  is what `FRAME_ROOM` has to cover.** Two points rather than a law: 256 frames
+  at one level of hosting became 2095 at two, and 60 became 736 — so
+  `3-level ≈ 320 + 6.93 × 2-level`, a fixed base plus a per-guest-frame cost,
+  which fits better than a ratio. **The ratio alone misleads**: it reads 12.5×
+  at depth 60 and 8.2× at depth 256, and projecting from the shallow point
+  alone over-estimated `Main.a24`'s need by 50%.
+
   ⚠️ **THE MACHINE RUNS `algc`, AND THE WHOLE CORPUS AGREES.** All **196**
   conformance cases answer identically through the machine-hosted compiler —
   195 against `bootstrap/algc` directly, and `0174` against an `--ffi`
