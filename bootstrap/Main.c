@@ -14,6 +14,7 @@
 #include "ObjFile.h"
 #include "SourceCode.h"
 #include "Console.h"
+#include "Release.h"
 #include "Scanner.h"
 #include "Parser.h"
 #include "TypeChecker.h"
@@ -42,8 +43,6 @@ static Value fn_argumentsfrom;
 static const char *t_f_argumentsfrom[] = { "First : Integer" };
 static Value fn_compile;
 static const char *t_f_compile[] = { "Source : String", "FileName : String", "WantTests : Boolean", "OutDir : String" };
-static Value v_version;
-static bool d_version;
 static Value fn_copyfile;
 static const char *t_f_copyfile[] = { "FromPath : String", "ToPath : String" };
 static Value fn_runtimefolder;
@@ -554,7 +553,6 @@ static Value *roots_Main[] = {
     &fn_run,
     &fn_argumentsfrom,
     &fn_compile,
-    &v_version,
     &fn_copyfile,
     &fn_runtimefolder,
     &fn_usage,
@@ -562,7 +560,7 @@ static Value *roots_Main[] = {
 };
 
 void init_Main(void) {
-    alg_roots(roots_Main, 11);
+    alg_roots(roots_Main, 10);
     alg_subrange("byte", "0", "255");
     alg_subrange("word", "0", "65535");
     alg_subrange("short", "-32768", "32767");
@@ -581,10 +579,9 @@ void init_Main(void) {
     init_Stmt();
     init_Environment();
     init_ObjFunction();
+    init_Release();
     init_TypeChecker();
     init_CEmitter();
-    v_version = alg_string("0.2.1");
-    d_version = true;
     (void)(f_main(NULL, NULL, 0));
 }
 

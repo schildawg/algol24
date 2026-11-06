@@ -30,6 +30,7 @@ uses ObjFile;
 uses SourceCode;
 uses Console;
 
+uses Release;
 uses Scanner;
 uses Parser;
 
@@ -255,9 +256,6 @@ begin
         CopyFile (Runtime + '/algol.h', OutDir + '/algol.h');
     end
 end
-
-/// The release this compiler reports for '--version'.
-const VERSION := '0.2.1';
 
 
 /// Copies one file, answering whether it worked.

@@ -17,6 +17,7 @@
 /// module's functions close over the environment its file was loaded in, so
 /// TypeChecker has to come after Parser to reach it.
 
+uses 'compiler/Release';
 uses 'compiler/Token';
 uses 'compiler/TokenType';
 
@@ -313,10 +314,51 @@ begin
     Exit Failed;
 end
 
+/// Prints how to invoke the machine.
+///
+/// Its own usage rather than algc's, because the two take different flags --
+/// the machine has no `--compile`, and algc has none of the tracing.
+procedure Usage ();
+begin
+    WriteLn ('algvm -- the Algol-24 bytecode machine.');
+    WriteLn ('');
+    WriteLn ('Usage:');
+    WriteLn ('  algvm <file.a24> [args]       run a program');
+    WriteLn ('  algvm --test <file.a24>       run its test blocks');
+    WriteLn ('  algvm --list <file.a24>       disassemble every chunk');
+    WriteLn ('  algvm --time <file.a24>       report what compiling and running cost');
+    WriteLn ('  algvm --stop <file.a24>       compile and stop, without running');
+    WriteLn ('  algvm --collect N <file>      collect every N instructions, 0 for never');
+    WriteLn ('  algvm --trace N <file>        keep the last N instructions and dump them on a raise');
+    WriteLn ('  algvm --watch TEXT <file>     dump the trace where TEXT is raised, caught or not');
+    WriteLn ('  algvm --version               the version');
+    WriteLn ('  algvm --help                  this');
+    WriteLn ('');
+    WriteLn ('Foreign calls are always available, which algc makes a build switch:');
+    WriteLn ('a foreign call is a feature of the language, and this binary is built');
+    WriteLn ('by someone who already has algc.');
+end
+
+// ⚠️ BEFORE the flag loop, because that loop takes the first non-flag argument
+// as the program -- so `--version` with no file would otherwise be read as a
+// request to run a file called `--version`, which is what it did: `Reset
+// failed: cannot open '--version'.`
 if ParamCount () < 1 then
 begin
-    WriteLn ('usage: algvm <program.a24>');
+    Usage ();
     Halt (2);
+end
+
+if ParamStr (1) = '--version' then
+begin
+    WriteLn ('algvm ' + VERSION);
+    Halt (0);
+end
+
+if ParamStr (1) = '--help' or ParamStr (1) = '-h' then
+begin
+    Usage ();
+    Halt (0);
 end
 
 var SourcePath := ParamStr (1);

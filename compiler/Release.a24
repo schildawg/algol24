@@ -1,0 +1,19 @@
+/// The release this source tree is, which every binary built from it reports.
+///
+/// One constant in one unit, because two places holding a version number means
+/// two answers to one question -- and this repository's packaging notes already
+/// record that `VERSION` and the release tag can drift with nothing to catch
+/// it.  `algc` and `algvm` are separate binaries built from one tree, so they
+/// are one release and say so with one string.
+///
+/// It is a release of the TREE rather than of the language: what the language
+/// gained, if anything, is recorded per rule in `spec/ALGOL-24.md`.  A machine
+/// increment moves this number without claiming the language changed.
+unit Release;
+
+/// The version every binary built from this tree reports.
+///
+/// Nothing checks it against the git tag, which is the one thing in this
+/// repository verified by nobody -- so it is bumped by hand before tagging,
+/// and it lives in the seed, which makes bumping it a reseed.
+const VERSION := '0.2.1';
