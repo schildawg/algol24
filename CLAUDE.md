@@ -1706,9 +1706,9 @@ runs every test block reachable from `X.a24`, its imports included — the
 narrowest thing you can run is a leaf module. `compiler/Token.a24` (2 tests) is a
 useful fast loop; `compiler/Main.a24` imports everything.
 
-## The six harnesses
+## The seven harnesses
 
-All six must pass. They are the definition of done.
+All seven must pass. They are the definition of done.
 
 ```sh
 ./test.sh          # the unit tests, inline in the source they cover
@@ -1717,7 +1717,27 @@ All six must pass. They are the definition of done.
 ./fixedpoint.sh    # the seed matches what the compiler emits, and emits itself
 ./docs.sh          # every unit is documented per spec/DOCUMENTATION.md
 ./collector.sh     # the collector keeps what a program holds, both ways
+./installed.sh     # a program reaches an installed unit by name
 ```
+
+⚠️ **`./installed.sh` asks the one question every other gate assumes away.**
+They all run from the repository root with a program's modules beside it, so
+none of them asks whether a program in some *other* directory can reach a unit
+installed somewhere else. Two portability defects hid in that gap and neither
+was reachable from any of the 265 corpus cases: `FolderOf` cut a path at `/`
+alone, so a Windows binary found no install prefix at all; and `FileExists`
+OPENS the path, and `fopen` on a **directory** succeeds on macOS and Linux and
+fails on Windows, so a tested `lib` was found on two platforms and not the
+third.
+
+⚠️ **It would have caught NEITHER on a Unix, which was checked rather than
+assumed.** With the directory test put back it still passes 9 of 9 on macOS —
+`fopen` on a directory succeeding here is exactly why the defect reached
+Windows undetected. So the separator defect is guarded by a Parser unit test
+handing `FolderOf` a literal backslash, and the directory defect by this script
+running in the **windows** workflow. What it guards everywhere is the layout
+itself: both places a processor looks, under all three processors, and that a
+nearer unit still wins.
 
 Each prints its own totals. **Do not copy those totals into this file or the
 README**: every count written down here has gone stale, and a number in prose is
