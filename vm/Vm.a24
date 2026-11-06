@@ -561,25 +561,21 @@ begin
     Exit High * 256 + ReadByte ();
 end
 
-/// Whether the instruction running was prefixed with OP_LONG.
+/// How many instructions between collections.  Zero is off.
 ///
-/// Cleared by the first index read rather than at the end of the instruction,
-/// so a handler reading one index cannot leave it set for the next -- and an
-/// opcode whose index comes AFTER another operand, as OP_OVERLOADS's does, is
-/// served by the same rule without the flag knowing where it sits.
-/// How many instructions between collections.  Zero is off, and is the
-/// DEFAULT, because automatic collection is not safe yet.
+/// Zero here and a live interval on the driver, which is the split the policy
+/// wants: the machine holds no opinion about when to collect, and `algvm`
+/// supplies one.  An embedder that sets nothing collects nothing.
 ///
-/// ⚠️ It is safe across all 161 corpus programs the machine runs and it is not
-/// safe on the Dew Drop Inn, which fails as `Only instances have properties.`
-/// or blocks outright depending on what gets released.  So the root set has a
-/// gap that 161 programs do not reach and the Inn does -- most likely a value
-/// held only in a C local across a safe point, somewhere the corpus never
-/// goes.  Until that is found, `--collect N` turns it on for experiment and
-/// nothing turns it on by default.
+/// This said automatic collection was NOT SAFE, and named the Dew Drop Inn
+/// failing as `Only instances have properties.` for a root the corpus never
+/// reached.  That is disproven: the Inn closes cleanly at four intervals and
+/// is line-for-line identical to an uncollected run over 3,000 frames, most
+/// likely because the precise-roots and shadow-stack work landed after the
+/// claim was written -- which is exactly the missing-root class it described.
 ///
-/// An explicit `Collect ()` is unaffected and does work: it is the AUTOMATIC
-/// trigger that is withheld, not the collector.
+/// An explicit `Collect ()` was always unaffected: it was the AUTOMATIC
+/// trigger that was withheld, never the collector.
 var COLLECT_EVERY := 0;
 
 /// Instructions since the last collection.
@@ -595,6 +591,12 @@ begin
     COLLECT_EVERY := N;
 end
 
+/// Whether the instruction running was prefixed with OP_LONG.
+///
+/// Cleared by the first index read rather than at the end of the instruction,
+/// so a handler reading one index cannot leave it set for the next -- and an
+/// opcode whose index comes AFTER another operand, as OP_OVERLOADS's does, is
+/// served by the same rule without the flag knowing where it sits.
 var Wide : Boolean := False;
 
 

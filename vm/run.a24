@@ -339,13 +339,33 @@ var Watch : String := '';
 /// Whether the next argument is that text.
 var WantsWatch := False;
 
-/// How many instructions between collections, for `--collect N`.
+/// How many instructions between collections.  `--collect N` overrides it,
+/// and `--collect 0` turns collection off.
 ///
 /// A knob on the driver rather than a constant in the machine, because the
 /// right number is a measurement and not a fact: marking costs O(live heap),
 /// so a program holding a lot pays more per collection and wants fewer of
-/// them.  0 turns collection off.
-var Every := -1;
+/// them.
+///
+/// ON BY DEFAULT, and 2,000,000 is where the measurement put the knee.
+/// Compiling the compiler on the machine:
+///
+///       off          30.59 s   2952 MB
+///       5,000,000    32.03 s    780 MB
+///   --> 2,000,000    32.38 s    707 MB
+///       1,000,000    33.27 s    674 MB
+///         200,000    39.59 s    658 MB
+///
+/// So about 4x less memory for about 6% of the time, and below the knee the
+/// time climbs while the memory does not: 200,000 costs five times as much
+/// time as 2,000,000 to save 7% more memory.  A program that allocates almost
+/// nothing pays the same 5% -- Fib (27) reads 1.29 s off and 1.35 s here --
+/// because the counter is tested per instruction either way.
+///
+/// Every interval emitted byte-identical C, which is what [RT-029] asks of a
+/// request: collection changes how much memory a correct program uses and
+/// never what it computes.
+var Every := 2000000;
 
 /// Whether to compile and stop, for `--stop`.
 ///

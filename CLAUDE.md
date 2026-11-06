@@ -1552,27 +1552,37 @@ compiled back end and the bytecode machine release. A program may depend on
 neither the count nor on anything being freed: `Collect` changes how much
 memory a correct program uses and never what it computes.
 
-⚠️ **AUTOMATIC collection is wired and still OFF by default, but no longer
-because it is unsafe — that claim is DISPROVEN and the default has simply not
-been revisited.** `Vm.a24` collects at a safe point: the top of the dispatch
-loop, after an instruction has finished, where every live guest value is on
-`Slots` or in a module-level variable.
+⚠️ **AUTOMATIC collection is ON by default on the machine, at 2,000,000
+instructions, and `--collect 0` is how to turn it off.** `Vm.a24` collects at a
+safe point: the top of the dispatch loop, after an instruction has finished,
+where every live guest value is on `Slots` or in a module-level variable.
 
-The note this replaces said the Inn failed under it as
-`Only instances have properties.` or blocked outright, and that the root set
-had a gap the corpus did not reach. Measured again on 2026-11-04 at four
-intervals — `--collect` 5,000,000, 2,000,000, 200,000 and 20,000 — the Inn
-**closes cleanly every time**, and at **3,000 frames** with the 200,000
-interval its output is line-for-line identical to a run with no collection at
-all. Most likely the gap was closed by the precise-roots and shadow-stack work
-that landed after the note was written, which is exactly the missing-root class
-it was describing.
+⚠️ **The interval is a MEASUREMENT and the knee is sharp.** Compiling the
+compiler on the machine: off is 30.59 s and 2952 MB; 5,000,000 is 32.03 s and
+780 MB; **2,000,000 is 32.38 s and 707 MB**; 1,000,000 is 33.27 s and 674 MB;
+200,000 is 39.59 s and 658 MB. So below the knee the time climbs while the
+memory does not — 200,000 costs five times as much time as 2,000,000 to save
+7% more memory. About **4x less memory for about 6% of the time**, and a
+program that allocates almost nothing pays the same 5% because the counter is
+tested per instruction either way (Fib (27) is 1.29 s off, 1.35 s on).
 
-⚠️ **What that does NOT license is flipping the default**, which is a
-behavioural change rather than a documentation one, and the evidence has a
-shape worth knowing: a SCRIPTED walk (`--push 0 -1`), headless video, one path
-through the game. A played session touches more. `--collect N` on `vm/run.a24`
-turns it on; an explicit `Collect ()` is unaffected and works either way.
+⚠️ **The DEFAULT is the machine's, not the driver's — and the split is
+deliberate.** `COLLECT_EVERY` stays 0 in `Vm.a24`, so an embedder that sets
+nothing collects nothing; `vm/run.a24` supplies the policy. The right number is
+a measurement rather than a fact, which is why it does not belong in the
+machine.
+
+The claim this replaces said automatic collection was UNSAFE and named the Inn
+failing as `Only instances have properties.` Disproven, most likely by the
+precise-roots and shadow-stack work that landed after it was written — exactly
+the missing-root class it described. The note that replaced *that* one said
+flipping the default was unlicensed because the evidence was "a scripted walk,
+headless video, one path through the game". That is what the flip answered:
+**265 corpus cases (0 diverged), `algol24-library`'s 836 tests across ten
+units, shroom-slots' `verify.a24` 59 lines identical to the interpreter, the
+compiler's own self-compile byte-identical, and the Inn closing cleanly at 400
+frames — 19 fps against 20.** An explicit `Collect ()` was always unaffected
+and works either way.
 
 ⚠️ **The registry must be COMPACTED by the sweep, or collection costs O(every
 object ever allocated).** Keeping released objects registered made clearing
