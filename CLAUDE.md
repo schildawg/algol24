@@ -995,11 +995,16 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   field read inside a singleton's own method, which is how this compiler's own
   `SourceCode` is written, so it is what stopped `algvm` running `algc`.
 
-  ⚠️ **A class declared INSIDE a subprogram is still a wrong answer.** The
-  survey walks top-level statements and `ModuleStmt`s, so such a class is in no
-  member table and a bare field read inside its method reports
-  `Undefined variable`. The interpreter answers it. Not a refusal, which is
-  what makes it worth writing down.
+  ⚠️ **A class declared INSIDE a subprogram works, and took THREE holes to
+  fix.** `Survey` walks top-level statements and `ModuleStmt`s only, so such a
+  class was in no member table — `SurveyBodies` is a second walk that records
+  members and claims nothing. Its PARENT was never attached, because
+  `EmitInheritance` reads a top-level class back from a global the class in a
+  body has not got — it is attached inline instead, with the class still on the
+  stack, which a body's lack of hoisting makes correct. And `ClassKeyFor` is
+  blind to a body-declared class at two sites, since it resolves through
+  `DECLARED_NAMES` and the unit's imports and such a class is in neither;
+  `ParentKey` tries the unit's own entry first.
 
   ⚠️ **The machine HOSTS `algc`, and the front end plus the C back end are
   byte-exact.** `algvm compiler/Main.a24 --compile --out=DIR X.a24` emits C

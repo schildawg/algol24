@@ -50,14 +50,17 @@ without taking it: `OP_DUP` and every assignment opcode need a value beneath
 them and leave it there [EXP-017].
 
 ⚠️ **Of the three, two are measured and one is description.** `pushes - pops`
-is what a run reveals, and `needs` is what running one value shallower reveals
-— both are asserted against the machine by
-`A Measurable Opcode Moves The Stack Exactly As It Declares`. The **split** is
-not observable from outside, because popping a value and pushing two copies of
-it moves the stack exactly as reading it and pushing one does; that was checked
-with distinct sentinels rather than assumed. So `pops` and `pushes` separately
-say what the handler is written to mean, and a reader should trust their
-difference further than either alone.
+is what a run reveals, and `needs` is what running one value shallower reveals.
+Both are asserted against the machine for **67 of the 78 opcodes**; the other
+eleven are named in `vm/Vm.a24` with the reason each cannot be run in
+isolation, and a test fails if an opcode has neither a measurement nor a
+reason — so the coverage cannot shrink in silence.
+
+The **split** is not observable from outside, because popping a value and
+pushing two copies of it moves the stack exactly as reading it and pushing one
+does; that was checked with distinct sentinels rather than assumed. So `pops`
+and `pushes` separately say what the handler is written to mean, and a reader
+should trust their difference further than either alone.
 
 **Operation** — what it does, in the fewest words that are still true.
 

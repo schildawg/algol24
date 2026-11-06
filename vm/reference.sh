@@ -29,7 +29,9 @@
 # The STACK section is compared against OpStack in vm/OpCode.a24, which is in
 # turn held to a RUN by vm/Vm.a24's own tests -- so an entry's stack effect is
 # two steps from something that executes rather than being prose.  Two of its
-# three numbers are measured: `pushes - pops` is what a run reveals and `needs`
+# three numbers are measured for 67 of the 78 opcodes, the other eleven being
+# named in vm/Vm.a24 with the reason each cannot be run alone: `pushes - pops`
+# is what a run reveals and `needs`
 # is what running one value shallower reveals.
 #
 # ⚠️ The SPLIT between pops and pushes is description and not measurement, and
