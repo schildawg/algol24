@@ -1,0 +1,99 @@
+# The Windows build, which is a RELEASE ARTIFACT rather than a bottle.
+#
+# Homebrew is the channel on macOS and Linux and is not one here, so Windows
+# gets a zip attached to a GitHub release instead -- `algvm.exe` with the
+# runtime library beside it, which is the same "complete package" the
+# algol24-vm formula installs.
+#
+# ⚠️ MSYS2 RATHER THAN MSVC, and the reason is the build scripts.
+# bootstrap/build.sh and vm/build.sh are POSIX sh, and the library's build.sh
+# is too -- so a shell that runs them unchanged is worth more than a native
+# toolchain that would need all three rewritten.  mingw-w64 is also what the
+# runtime's Windows support was checked with.
+#
+# ⚠️ THE SHIMS ARE NAMED .so ON WINDOWS TOO, and that is not an oversight.
+# A unit declares its shim as `external ... in 'libgraphffi.so'`, the name
+# reaches LoadLibraryA exactly as written, and a PE library loads whatever its
+# extension says.  Naming them .so on every platform was deliberate and this
+# is where it pays.
+name: windows
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - ".github/workflows/windows.yml"
+      - "bootstrap/**"
+      - "compiler/**"
+      - "vm/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # libffi is the half the runtime's Windows support was missing: the
+      # README records it as checked with mingw-w64 while "the foreign-call
+      # half still wants a mingw libffi".  This is that libffi.  SDL2 is for
+      # the library's graph and sound.
+      - uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-libffi
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-pkgconf
+            zip
+
+      # STAGE 1 -- the compiler, from the checked-in seed and a C compiler and
+      # nothing else.  Known to work: this is what the README means by the
+      # runtime compiling for Windows.
+      - name: Build algc
+        run: |
+          ./bootstrap/build.sh
+          ./bootstrap/algc --version
+
+      - name: The compiler's own tests
+        run: ./bootstrap/algc --test compiler/Main.a24
+
+      # STAGE 2 -- the machine, which ALWAYS needs libffi: a foreign call is a
+      # feature of the language [FUN-014], so vm/build.sh fails rather than
+      # producing a binary that refuses them.  This is the step that has never
+      # run anywhere before.
+      - name: Build algvm
+        run: |
+          ./vm/build.sh
+          ./vm/algvm --version
+
+      - name: The machine's own tests
+        run: ./test.sh vm/Vm.a24
+
+      # STAGE 3 -- a program, to prove the pair works rather than merely links.
+      - name: Run a program both ways
+        run: |
+          printf "WriteLn ('hello, ' + Str (2 + 2));\n" > hello.a24
+          test "$(./bootstrap/algc hello.a24)" = "hello, 4"
+          test "$(./vm/algvm hello.a24)" = "hello, 4"
+
+      - name: Upload what built
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-binaries
+          path: |
+            bootstrap/algc.exe
+            vm/algvm.exe
+          if-no-files-found: warn
