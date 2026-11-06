@@ -810,10 +810,17 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   was about to reclaim. `free_all_buffers` and `seq_forget_spares` were deleted
   with the calls rather than left as dead code.
 
-  ⚠️ **Collection is worth 8.1× on the Inn**: 30 frames at 14.53 GB of peak
-  footprint without it against **1.80 GB** with `--collect 5000000`, at the same
-  frame rate (19 against 21 a second). Maximum resident goes the other way —
-  1.93 GB to 2.29 GB — because without collection the pages get evicted.
+  ⚠️ **Collection is worth 2.4× on the Inn over a LONG run, and a figure here
+  is worthless without its frame count.** 3,000 frames at `--collect 200000`:
+  peak footprint **2.58 GB** against 6.10 GB uncollected, maximum resident
+  **3.54 GB** against 5.28 GB, and 19 frames a second against 20 — so about 5%
+  for 2.4× less memory.
+
+  The figure this replaces read 8.1× from **30 frames** (14.53 GB against
+  1.80 GB) and claimed maximum resident went the other way. Neither survives at
+  3,000 frames, where both numbers move together and the ratio is a third of
+  what the short run showed. A short run is dominated by start-up, so it
+  measures the arena filling rather than a program in steady state.
 
   ⚠️ **`ALG_POISON=1` is how to debug this class at all.** The sweep retags
   each released body `OBJ_RELEASED`, withholds it from the free list, and
@@ -1135,15 +1142,27 @@ compiled back end and the bytecode machine release. A program may depend on
 neither the count nor on anything being freed: `Collect` changes how much
 memory a correct program uses and never what it computes.
 
-⚠️ **AUTOMATIC collection is wired but OFF by default, because it is not safe
-yet.** `Vm.a24` collects at a safe point — the top of the dispatch loop, after
-an instruction has finished, where every live guest value is on `Slots` or in a
-module-level variable. That is safe across all **161** corpus programs the
-machine runs and it is **not** safe on the Dew Drop Inn, which fails as
-`Only instances have properties.` or blocks outright depending on what gets
-released. So the root set has a gap 161 programs do not reach and the Inn does.
-`--collect N` on `vm/run.a24` turns it on for experiment; nothing turns it on
-by default. An explicit `Collect ()` is unaffected and works.
+⚠️ **AUTOMATIC collection is wired and still OFF by default, but no longer
+because it is unsafe — that claim is DISPROVEN and the default has simply not
+been revisited.** `Vm.a24` collects at a safe point: the top of the dispatch
+loop, after an instruction has finished, where every live guest value is on
+`Slots` or in a module-level variable.
+
+The note this replaces said the Inn failed under it as
+`Only instances have properties.` or blocked outright, and that the root set
+had a gap the corpus did not reach. Measured again on 2026-11-04 at four
+intervals — `--collect` 5,000,000, 2,000,000, 200,000 and 20,000 — the Inn
+**closes cleanly every time**, and at **3,000 frames** with the 200,000
+interval its output is line-for-line identical to a run with no collection at
+all. Most likely the gap was closed by the precise-roots and shadow-stack work
+that landed after the note was written, which is exactly the missing-root class
+it was describing.
+
+⚠️ **What that does NOT license is flipping the default**, which is a
+behavioural change rather than a documentation one, and the evidence has a
+shape worth knowing: a SCRIPTED walk (`--push 0 -1`), headless video, one path
+through the game. A played session touches more. `--collect N` on `vm/run.a24`
+turns it on; an explicit `Collect ()` is unaffected and works either way.
 
 ⚠️ **The registry must be COMPACTED by the sweep, or collection costs O(every
 object ever allocated).** Keeping released objects registered made clearing
