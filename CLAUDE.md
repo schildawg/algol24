@@ -16,11 +16,20 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.1.6.** The language is **stable, not closed**: it changes only on measured
+**v0.2.0.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
 disproved it.
+
+v0.2.0 is the **bytecode machine** — a third processor, `algvm`, beside the
+interpreter and the compiled back end — with a **precise garbage collector**
+under both of them. The language itself gained nothing and had five rules
+*corrected*, every one of them found by building a third processor rather than
+by reading: [CLS-004] (a constructor goes through selection), [CLS-005] (field
+initializers are seeded chain-first before any constructor body), [CLS-010]
+(`super` is not exempt), [CLS-012] and [VAL-014] (NaN is not ordered, and the
+inclusive comparisons are no exception).
 
 What the language still does not have is a library written in Algol-24, which is
 the whole of what *alpha* means here; nothing in the language is provisional.

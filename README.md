@@ -136,14 +136,28 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.1.6.** The language is **stable, not closed**: it changes only on measured
-demand from a project using it, and the measurement goes in the proposal. What
-comes next is still a library, written in Algol-24 rather than in the runtime —
-that is the whole of what *alpha* means here, and nothing in the language is
-provisional.
+**v0.2.0.** The language is **stable, not closed**: it changes only on measured
+demand from a project using it, and the measurement goes in the proposal.
 
-v0.1.6 is three things the library asked for, each with its own proposal and its
-own measurements:
+v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
+same language the interpreter and the compiled back end do — 6.9× the
+tree-walker, and it hosts `algc` compiling *itself* to byte-identical C. Under
+all three there is now a **precise garbage collector**, so the runtime no
+longer only ever grows.
+
+The language itself gained nothing and had five rules **corrected**, each found
+by building a third processor rather than by reading: a constructor's declared
+parameter types are checked, a chain's field initializers are seeded before any
+constructor body, `super` is not exempt from the undefined-member rule, and NaN
+is not ordered — including by `<=` and `>=`, which a negated `>` had been
+answering backwards.
+
+What comes next is still a library, written in Algol-24 rather than in the
+runtime — that is the whole of what *alpha* means here, and nothing in the
+language is provisional.
+
+v0.1.6 was three things the library asked for, each with its own proposal and
+its own measurements:
 
 - **Bitwise operators.** `&`, `|`, `^`, `~`, `<<` and `>>` over Integers, with
   the semantics only the language can get right: every Integer is two's
