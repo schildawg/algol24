@@ -95,6 +95,12 @@ begin
 
         Exit this.Name;
     end
+
+    /// How a subprogram reads when written or converted to text.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Name + '>';
+    end
 end
 
 test 'A Callable Carries Its Own Chunk';
@@ -145,6 +151,13 @@ begin
     function Describe () : String;
     begin
         Exit this.Name;
+    end
+
+    /// How an overload set reads: the shared name, as any one of its
+    /// candidates would read.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Name + '>';
     end
 end
 
@@ -236,6 +249,13 @@ begin
     function Describe () : String;
     begin
         Exit 'extension';
+    end
+
+    /// How a bound extension reads: as the subprogram it is bound to, the
+    /// receiver being no part of how it prints.
+    function ToString () : String;
+    begin
+        Exit Str (Target);
     end
 end
 

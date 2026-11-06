@@ -64,6 +64,12 @@ begin
     begin
         Exit this.Body.Describe ();
     end
+
+    /// How a closure reads: as the subprogram it closes over.
+    function ToString () : String;
+    begin
+        Exit Str (Body);
+    end
 end
 
 test 'A Cell Is Shared Rather Than Copied';

@@ -970,9 +970,31 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   says `<Class> instance`.** `as_text` invokes a `ToString` it finds, which is
   why `Str (Green)` was right while `WriteLn ([Red, Green])` printed
   `[VmEnum instance, VmEnum instance]` — the machine answered `Str` itself and
-  never gave the host anything to render. One method on `VmEnum` and one on
-  `VmEnumType` fixes a member inside a collection, inside a diagnostic and on
-  its own at once. Any machine object a program can see needs one.
+  never gave the host anything to render.
+
+  ⚠️ **EVERY machine class a program can see needs one, and seven were
+  missing.** `Rendered` is the machine's own renderer and is reached only when
+  the machine renders the TOP value — from `OP_PRINT` and from `Str` — so a
+  value the HOST renders, inside a collection or a diagnostic, went to
+  `as_text` instead. `VmClass`, `VmSingleton`, `VmFunction`, `VmClosure`,
+  `VmOverloads`, `VmExtension` and `VmInstance` each have one now: a class
+  reads as its name, a singleton as its class's name, and a subprogram, an
+  overload set, a closure and a bound extension all as `<fn Name>`.
+
+  ⚠️ **`VmInstance` needed a HOOK, because `VmClass.a24` cannot import
+  `Vm.a24`.** A class may say how its instances read [CLS-009], and reaching
+  that means entering a frame, which only `Vm.a24` can do. So `VmClass.a24`
+  holds `INSTANCE_RENDERER` and `RunChunk` fills it with `Rendered` — set
+  there and not in a unit initializer, because a unit's bare statements do not
+  run under `--test`.
+
+  ⚠️ **One rendering position is a THREE-WAY disagreement and the interpreter
+  is the odd one out.** `Ord (X)` on an instance declaring `ToString` says
+  `Ord failed: 'F2' has no ordinal.` on the machine and on the compiled back
+  end, and `'Fancy instance'` interpreted — its diagnostic path does not
+  consult a declared `ToString` where `Str` does. [CLS-009] covers `Str` and
+  "wherever a value is written", so a diagnostic is unspecified and nothing in
+  the corpus reaches it. The machine is with the majority deliberately.
 
   ⚠️ **`Ord` of an enum member is the machine's answer, not the host's** — the
   same split truthiness has. The host holds one of the machine's objects and

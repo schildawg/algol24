@@ -3460,6 +3460,13 @@ var Dispatch : Array := BuildHandlers ();
 /// See test 'Arithmetic Runs On The Machine'.
 function RunChunk (C : Chunk) : Any;
 begin
+    // The host renders one of the machine's instances by invoking its
+    // ToString, and that has to reach a rendering the guest class may declare
+    // for itself -- which needs a frame, so VmClass.a24 holds a hook and this
+    // is where it is filled in.  Set here rather than in a unit's own
+    // initializer because a unit's bare statements do not run under --test.
+    SetInstanceRenderer (Rendered);
+
     Running   := C;
     CodeBytes      := C.Code;
     Constants := C.Constants;

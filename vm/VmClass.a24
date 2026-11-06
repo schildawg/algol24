@@ -33,6 +33,13 @@ begin
         this.Klass := Klass;
         this.Made  := Nil;
     end
+
+    /// How an object reads: the name of the class it is the one instance of
+    /// [CLS-015].
+    function ToString () : String;
+    begin
+        Exit Str (Klass.Name);
+    end
 end
 
 test 'An Object Holds Its Class And Nothing Else Until Asked';
@@ -42,6 +49,22 @@ begin
 
     AssertTrue (Only.Klass = Klass);
     AssertTrue (Only.Made = Nil);
+end
+
+/// How an instance is rendered, set by the machine at startup.
+///
+/// A HOOK and not a call, because the rendering a class may declare for itself
+/// has to be reached by entering a frame, which only `Vm.a24` can do -- and
+/// this unit cannot import it, being what it imports. So the machine assigns
+/// its own renderer here once and VmInstance.ToString asks through it.
+///
+/// Nil until then, which is what the default rendering below is for.
+var INSTANCE_RENDERER : Any := Nil;
+
+/// Tells this unit how to render an instance.
+procedure SetInstanceRenderer (Answering : Any);
+begin
+    INSTANCE_RENDERER := Answering;
 end
 
 class VmClass;
@@ -183,6 +206,17 @@ begin
 
         this.Fields.Add (Key);
     end
+
+    /// How a class reads when written or converted to text: its own name.
+    ///
+    /// Declared so the HOST renders it, which is what puts a class inside a
+    /// collection and on its own through one answer. Without it the runtime
+    /// reached for the name of the MACHINE's class and a class printed as
+    /// `VmClass instance`.
+    function ToString () : String;
+    begin
+        Exit Name;
+    end
 end
 
 /// An instance: which class, and its fields.
@@ -214,6 +248,21 @@ begin
 
             Where := Where.Parent;
         end
+    end
+
+    /// How an instance reads when written or converted to text.
+    ///
+    /// Its class may say [CLS-006], and what that answers is used as-is; where
+    /// it does not, '<ClassName> instance', which is what the other two
+    /// processors answer. Without this the host reached for the name of the
+    /// MACHINE's class, so an instance inside a collection printed as
+    /// `VmInstance instance` while `Str` of it on its own was right -- the
+    /// machine answering `Str` itself and giving the host nothing to render.
+    function ToString () : String;
+    begin
+        if INSTANCE_RENDERER <> Nil then Exit Str (INSTANCE_RENDERER (this));
+
+        Exit Str (Klass.Name) + ' instance';
     end
 end
 
