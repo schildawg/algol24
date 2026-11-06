@@ -1927,14 +1927,26 @@ value removed from a Map and a Boolean from a Set [COL-011].
 subprogram's and a constructor's report the counts. All five reports in
 `conformance/0049` are compared, so the split is not a style choice.
 
+⚠️ A FIELD of the name holding a callable is called where no method of the
+name exists -- `X.F := Up; X.F ('ab')`. Where BOTH are declared the METHOD
+wins, which is the compiled back end's answer and not the interpreter's:
+that case is a three-way split left standing rather than settled here.
+
+⚠️ `<Class> has no method <name>.` was this machine's own invention and is
+gone. Both other processors answer `Undefined property` in every shape -- an
+undeclared name, one missing up the chain, one on a singleton -- nothing in
+the corpus reached it, and a VM test had pinned the wrong wording.
+
 **Satisfies** — [EXP-013], [EXP-014], [FUN-013], [COL-011], [CLS-009].
 
-**Raises** — `<Class> has no method <name>.` for a name the chain has not
-got, the name appearing FOLDED because that is the key it was looked up by;
-`No method <name> taking <n> arguments.` where the name exists at another
-arity; `No matching signature for function.` where selection finds no
-candidate; `Undefined property '<name>'.` for a receiver with no such member
-at all.
+**Raises** — `Undefined property '<name>'.` for a name nothing in the chain
+declares -- and nothing a FIELD of the name holds either, since a field
+holding a callable is called [FUN-011]; `No matching signature for
+function.` where the name is declared and selection finds no candidate,
+which is also what a single method called at the wrong count gives, where a
+subprogram and a constructor report the counts instead [0049]; `Can only
+call functions and classes.` where the field holds something that is not
+callable.
 
 **See also** — `OP_INVOKE_NAMED`, `OP_INVOKE_EXT`, `OP_CALL`, `OP_METHOD`.
 

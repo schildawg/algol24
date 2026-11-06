@@ -2107,7 +2107,38 @@ begin
         if Found = Nil then
         begin
             if Self.Klass.FindMethod (Name) = Nil then
-                raise Str (Self.Klass.Name) + ' has no method ' + Str (Name) + '.';
+            begin
+                // A FIELD of the name holding a callable is called, which is
+                // `X.F := Up; X.F ('ab')` -- a subprogram is a value [FUN-011]
+                // and a field holds values like any other.  Reached only where
+                // no method of the name exists at all: where BOTH are
+                // declared the method wins, which is the compiled back end's
+                // answer and not the interpreter's, and that disagreement is
+                // left standing rather than settled here.
+                //
+                // The field's value goes where the receiver sat, as a bound
+                // member's does, so the one path that knows how to call a
+                // value finds it.
+                if Self.Fields.Contains (Name) then
+                begin
+                    var Held := Self.Fields.Get (Name);
+
+                    Slots[SP - Count - 1] := Held;
+
+                    CallValue (Held, Count);
+
+                    Exit;
+                end
+
+                // ⚠️ `<Class> has no method <name>.` was this machine's own
+                // invention and was never right: both other processors say
+                // `Undefined property`, in every shape -- an undeclared name,
+                // one missing up the chain, and one on a singleton.  Nothing
+                // in the corpus reached it, and a VM test pinned the wrong
+                // wording.  The WRITTEN spelling, because the folded one is
+                // the key it was looked up by and not what the program said.
+                raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
+            end
 
             raise 'No matching signature for function.';
         end
@@ -4277,7 +4308,7 @@ begin
 
         Fail ('expected no such method');
     except
-        on e : String do AssertEqual ('Box has no method missing.', Str (e));
+        on e : String do AssertEqual ('Undefined property ''Missing''.', Str (e));
     end
 end
 
