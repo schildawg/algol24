@@ -29,12 +29,21 @@ on:
       - "vm/**"
   workflow_dispatch:
 
+# Read at the top, so anything added later starts with none of it.
 permissions:
   contents: read
 
 jobs:
   build:
     runs-on: windows-latest
+
+    # ⚠️ WRITE, for the release step alone, and unused on every other run: a
+    # pull request builds and tests the package and attaches nothing.  Actions
+    # grants permissions per JOB rather than per step, so the narrowest this
+    # gets without splitting the job in two is write here and a tag condition
+    # on the one step that needs it.
+    permissions:
+      contents: write
 
     defaults:
       run:
@@ -177,7 +186,17 @@ jobs:
           cmd //c "$(cygpath -w "$OUT")\\algvm.bat" font.a24
 
       - name: Zip it
-        run: zip -qr algol24-vm-windows-x86_64.zip algol24-vm-windows-x86_64
+        run: |
+          # Named for the release it is when there is one, so a downloaded zip
+          # says which version it holds -- and `dev` otherwise, which is every
+          # run that is not a tag.
+          case "$GITHUB_REF" in
+            refs/tags/*) VERSION="${GITHUB_REF_NAME#v}" ;;
+            *)           VERSION="dev" ;;
+          esac
+
+          zip -qr "algol24-vm-$VERSION-windows-x86_64.zip" algol24-vm-windows-x86_64
+          ls -la algol24-vm-*-windows-x86_64.zip
 
       - name: Upload what built
         if: always()
@@ -185,7 +204,46 @@ jobs:
         with:
           name: windows-package
           path: |
-            algol24-vm-windows-x86_64.zip
+            algol24-vm-*-windows-x86_64.zip
             bootstrap/algc.exe
             vm/algvm.exe
           if-no-files-found: warn
+
+      # ⚠️ ONLY ON A TAG, and this is the first thing in this repository to
+      # publish a GitHub RELEASE at all.  The tags have never had one: Homebrew
+      # installs from the tarball GitHub generates for a tag, so a release was
+      # never needed on macOS or Linux.  Windows has no such channel, so the
+      # zip needs somewhere to live and a release page is it.
+      #
+      # fail_on_unmatched_files, because a release that quietly carries no
+      # asset is worse than a failed workflow: the page exists, the download
+      # does not, and nothing says so.
+      - name: Attach the package to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@28ab305d0ffa26d60ec4bd614126329e26c7a0ec # v3.0.4
+        with:
+          files: algol24-vm-*-windows-x86_64.zip
+          fail_on_unmatched_files: true
+          body: |
+            ## Windows
+
+            `algol24-vm-${{ github.ref_name }}-windows-x86_64.zip` is the
+            bytecode machine with the Algol-24 runtime library beside it.
+            Unzip it anywhere and run `algvm.bat`, which sets the two things
+            the library needs: where its units and glyph files live, and where
+            its C shims are.
+
+            Built with mingw-w64, and foreign calls work -- `external` reaches
+            a DLL through the same declaration a Unix uses, because the shims
+            are named `.so` on every platform on purpose.
+
+            ## macOS and Linux
+
+            ```sh
+            brew tap schildawg/algol24
+            brew trust schildawg/algol24
+            brew install algol24-vm   # the machine and its library
+            brew install algol24      # the compiler
+            ```
+
+            The two coexist: one installs `algvm`, the other `algc`.
