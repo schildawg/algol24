@@ -415,6 +415,117 @@ begin
     Exit '';
 end
 
+/// Records the members of every class and object declared inside a BODY.
+///
+/// The survey proper walks a file's top-level statements and its modules, so a
+/// class declared inside a subprogram was in no member table at all -- and a
+/// bare field read inside one of its methods reported `Undefined variable`
+/// where the interpreter answers. The class itself worked: it is bound as a
+/// local like any other declaration in a body, constructed, and reached
+/// through an explicit `this`. Only the implicit one was missing.
+///
+/// Claims NOTHING. A class in a body has no global slot and must not be given
+/// one; this fills the tables and leaves the slots to the survey.
+///
+/// # Satisfies
+///
+/// [CLS-006]
+procedure SurveyBodies (Statements : List, Unit : String);
+begin
+    for var TheStmt in Statements do
+    begin
+        var Kind := KindOf (TheStmt);
+
+        // A class or an object anywhere: recorded, and then walked itself,
+        // since a method's body may declare one in turn.
+        if Kind = 'ClassStmt' or Kind = 'ObjectStmt' then
+        begin
+            RecordMembers (Unit, TheStmt);
+
+            for var TheMethod in TheStmt.Methods do
+                SurveyBodies (TheMethod.Body, Unit);
+
+            continue;
+        end
+
+        // A module's statements belong to ITS unit, which is the key the
+        // member tables use, so the name is folded the way SurveyModule folds
+        // it rather than inherited from the importer.
+        if Kind = 'ModuleStmt' and TheStmt.Statements <> Nil then
+            SurveyBodies (TheStmt.Statements,
+                          ToLower (Str (TheStmt.UnitName)) as String);
+
+        if Kind = 'FunctionStmt' then SurveyBodies (TheStmt.Body, Unit);
+        if Kind = 'BlockStmt'    then SurveyBodies (TheStmt.Statements, Unit);
+        if Kind = 'WhileStmt'    then SurveyBodies ([TheStmt.Body], Unit);
+        if Kind = 'ForInStmt'    then SurveyBodies ([TheStmt.Body], Unit);
+        if Kind = 'LabelStmt'    then SurveyBodies ([TheStmt.Inner], Unit);
+
+        if Kind = 'IfStmt' then
+        begin
+            SurveyBodies ([TheStmt.ThenBranch], Unit);
+
+            if TheStmt.ElseBranch <> Nil then
+                SurveyBodies ([TheStmt.ElseBranch], Unit);
+        end
+
+        if Kind = 'TryStmt' then
+        begin
+            SurveyBodies ([TheStmt.TryBlock], Unit);
+
+            for var Key in TheStmt.Handlers do
+                SurveyBodies ([TheStmt.Handlers.Get (Key)], Unit);
+        end
+    end
+end
+
+/// Records what a class or an object declares, in the member tables.
+///
+/// Separate from claiming its slot, because a class declared INSIDE a
+/// subprogram needs the tables and must not have a global: its name is a
+/// local like any other declaration in a body. The survey claims only what it
+/// finds at the top level and calls this for everything, wherever it is.
+///
+/// Idempotent, so the nested walk meeting a top-level class again costs
+/// nothing.
+///
+/// # Satisfies
+///
+/// [CLS-006], [CLS-016]
+procedure RecordMembers (Unit : String, TheStmt : Any);
+begin
+    var Parent := '';
+
+    if TheStmt.Superclass <> Nil then
+        Parent := Str (TheStmt.Superclass.Name.Lexeme);
+
+    CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
+
+    // The fields it declares, so a bare name inside one of its methods can be
+    // told from an undefined variable.
+    var Owned := Set ();
+
+    for var TheField in TheStmt.Fields do
+        Owned.Add (ToLower (Str (TheField.Name.Lexeme)));
+
+    var Key := Unit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
+
+    CLASS_FIELDS.Put (Key, Owned);
+    CLASS_UNIT.Put   (Key, Unit);
+    CLASS_ABOVE.Put  (Key, ToLower (Parent));
+
+    // Its methods too.  A bare call inside a class may mean one of them --
+    // `while not AtEnd () do` is how the library writes it -- and that is the
+    // same implicit `this` a bare field read is.
+    var Offers := Set ();
+
+    for var TheMethod in TheStmt.Methods do
+        Offers.Add (ToLower (Str (TheMethod.Name.Lexeme)));
+
+    CLASS_METHODS.Put (Key, Offers);
+    CLASS_NODES.Put   (Key, TheStmt);
+end
+
 /// Whether a unit declares a name, exported or not.
 function DeclaredIn (Unit : String, Folded : String) : Boolean;
 begin
@@ -879,10 +990,26 @@ begin
 
         if Above = '' then Exit False;
 
-        Where := ClassKeyFor (Str (CLASS_UNIT.Get (Where)), Above);
+        Where := ParentKey (Str (CLASS_UNIT.Get (Where)), Above);
     end
 
     Exit False;
+end
+
+/// The member-table key for a PARENT named bare from a unit.
+///
+/// The same unit's own entry first, directly, and ClassKeyFor's visibility
+/// walk only after. A class declared inside a SUBPROGRAM is in neither
+/// DECLARED_NAMES nor any import -- it has no global slot, so the survey never
+/// claimed its name -- yet its members are recorded under the ordinary key. So
+/// a chain through one is found here and nowhere else.
+function ParentKey (Unit : String, Bare : String) : String;
+begin
+    var Near := Unit + ':' + Bare;
+
+    if CLASS_FIELDS.Contains (Near) then Exit Near;
+
+    Exit ClassKeyFor (Unit, Bare);
 end
 
 /// The member-table key for a class named bare and seen from a unit.
@@ -1483,8 +1610,19 @@ begin
         // and no opcode to carry it.
         if Str (TheExpr.Unit) <> '' then
         begin
+            // A built-in is not a variable, so there is nothing to assign
+            // to -- which is a fault in the PROGRAM and gets the
+            // interpreter's own wording, whether the name is a built-in or
+            // not.  It was refused by name, which reported a gap in the back
+            // end for a program that was simply wrong.
             if ToLower (Str (TheExpr.Unit)) = 'system' then
-                Refuse ('A write through ' + QUOTE + 'System' + QUOTE);
+            begin
+                EmitDiagnostic ('Can''t assign to ' + QUOTE
+                              + Str (TheExpr.Name.Lexeme) + QUOTE
+                              + ' in unit ' + QUOTE + 'System' + QUOTE + '.');
+
+                Exit;
+            end
 
             var Folded := ToLower (Str (TheExpr.Unit)) as String;
             var Wanted := ToLower (Str (TheExpr.Name.Lexeme)) as String;
@@ -1546,8 +1684,25 @@ begin
         // has an opcode.
         if Str (TheExpr.Unit) <> '' then
         begin
+            // `System` names the built-ins [MOD-011], and one read through it
+            // is the same value a bare read gives -- `System.Copy` and `Copy`
+            // are one function, which is what 0086 asserts.  A name it has
+            // not got is the interpreter's own diagnostic rather than a
+            // refusal: an incomplete list here would be a gap in the back end
+            // reported as a fault in the program, but the list is [RT-001]'s
+            // and is complete.
             if ToLower (Str (TheExpr.Unit)) = 'system' then
-                Refuse ('A read through ' + QUOTE + 'System' + QUOTE);
+            begin
+                if IsBuiltin (TheExpr.Name.Lexeme) then
+                    Into.EmitConstant (BuiltinValue (TheExpr.Name.Lexeme));
+
+                else EmitDiagnostic ('Undefined name ' + QUOTE
+                                   + Str (TheExpr.Name.Lexeme) + QUOTE
+                                   + ' in unit ' + QUOTE + 'System' + QUOTE
+                                   + '.');
+
+                Exit;
+            end
 
             EmitUnitRead (TheExpr.Unit, TheExpr.Name);
 
@@ -1831,9 +1986,20 @@ procedure EmitUnitCall (TheExpr : Any, Member : Any);
 begin
     if ToLower (Str (Member.Unit)) = 'system' then
     begin
+        // A name `System` has not got is the interpreter's own diagnostic and
+        // not a refusal, for the reason the READ gives: the list of built-ins
+        // here is [RT-001]'s and is complete, so an unknown name is the
+        // program's mistake.
         if not IsBuiltin (Member.Name.Lexeme) then
-            Refuse ('A call to ' + QUOTE + 'System.'
-                  + Str (Member.Name.Lexeme) + QUOTE);
+        begin
+            for var Argument in TheExpr.Arguments do EmitExpr (Argument);
+
+            EmitDiagnostic ('Undefined name ' + QUOTE
+                          + Str (Member.Name.Lexeme) + QUOTE
+                          + ' in unit ' + QUOTE + 'System' + QUOTE + '.');
+
+            Exit;
+        end
 
         // A built-in's parameters are not declared in this language -- they
         // exist only as a count -- so there is no name to write [RT-001], and
@@ -2187,6 +2353,39 @@ begin
     Into.Emit (OP_POP);
 end
 
+/// Pushes the class a nested declaration names as its parent.
+///
+/// A parent may itself be declared in the body -- `class B; ... class D (B);`
+/// inside one subprogram -- so it is read as a VARIABLE and not only as a
+/// global, which is the whole difference from EmitInheritance.
+procedure EmitParent (Name : Any);
+begin
+    var Slot := LocalSlot (Name.Lexeme);
+
+    if Slot >= 0 and Boxing then
+    begin
+        Into.EmitIndexed (OP_GET_BOX, Slot);
+
+        Exit;
+    end
+
+    if Slot >= 0 then
+    begin
+        Into.EmitIndexed (OP_GET_LOCAL, Slot);
+
+        Exit;
+    end
+
+    if CapturedSlot (Name.Lexeme) >= 0 then
+    begin
+        Into.EmitIndexed (OP_GET_CELL, CapturedSlot (Name.Lexeme));
+
+        Exit;
+    end
+
+    EmitGlobal (OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, BareSlot (Name));
+end
+
 /// Emits a class declaration.
 ///
 /// The class is built on the stack -- OP_CLASS, then an OP_FIELD per field and
@@ -2252,6 +2451,19 @@ begin
 
     if Depth > 0 then
     begin
+        // The PARENT is attached here, with the class still on the stack --
+        // where EmitInheritance reads a top-level one back from its global,
+        // which a class in a body has not got.  In a body there is no
+        // hoisting either, so attaching it inline already respects source
+        // order [CLS-016] rather than working against it.
+        if TheStmt.Superclass <> Nil then
+        begin
+            EmitParent (TheStmt.Superclass.Name);
+
+            Into.EmitIndexed (OP_INHERIT,
+                              ClassNameConstant (TheStmt.Superclass.Name));
+        end
+
         AddLocal (TheStmt.Name.Lexeme);
 
         Exit;
@@ -2398,7 +2610,7 @@ begin
     if Owner.Superclass <> Nil then
     begin
         var Bare  := ToLower (Str (Owner.Superclass.Name.Lexeme)) as String;
-        var Above := ClassKeyFor (CurrentUnit, Bare);
+        var Above := ParentKey (CurrentUnit, Bare);
 
         if CLASS_NODES.Contains (Above) then
             EmitFieldInitializers (CLASS_NODES.Get (Above));
@@ -3261,38 +3473,13 @@ begin
         begin
             ClaimTotal (Unit, Mine, TheStmt.Name);
 
-            var Parent := '';
-            if TheStmt.Superclass <> Nil then
-                Parent := Str (TheStmt.Superclass.Name.Lexeme);
-
-            CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
-
-            // ⚠️ Keyed as the ClassStmt branch keys it, and NOT through
-            // ClassKeyFor. Two faults in one call: ClassKeyFor wants a FOLDED
-            // name, as its other callers pass, so a mixed-case `SourceCode`
-            // matched nothing and the members went under the key ''; and it
-            // resolves through this unit's imports, which is the question to
-            // ask about a class being USED and the wrong one about a class
-            // being DECLARED -- an import exporting the same name would have
-            // taken the entry. The symptom was `Undefined variable 'Lines'`:
-            // a bare field read inside a singleton's own method, which is how
-            // the compiler's own SourceCode is written.
-            var Key := Unit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
-
-            var Owned := Set ();
-            for var TheField in TheStmt.Fields do
-                Owned.Add (ToLower (Str (TheField.Name.Lexeme)));
-
-            CLASS_FIELDS.Put (Key, Owned);
-            CLASS_UNIT.Put   (Key, Unit);
-            CLASS_ABOVE.Put  (Key, ToLower (Parent));
-
-            var Offers := Set ();
-            for var TheMethod in TheStmt.Methods do
-                Offers.Add (ToLower (Str (TheMethod.Name.Lexeme)));
-
-            CLASS_METHODS.Put (Key, Offers);
-            CLASS_NODES.Put   (Key, TheStmt);
+            // Surveyed as the class it is, because every later pass asks the
+            // same questions of it: `is Reg` wants a testable type name, a
+            // bare member inside one of its methods wants the field and
+            // method tables, and the parent chain wants an entry.  Only the
+            // VALUE bound to the name differs, and that is decided at
+            // emission.
+            RecordMembers (Unit, TheStmt);
         end
 
         // An enumeration binds its own name AND every member as a bare global
@@ -3336,35 +3523,7 @@ begin
 
             ClaimTotal (Unit, Mine, TheStmt.Name);
 
-            var Parent := '';
-            if TheStmt.Superclass <> Nil then
-                Parent := Str (TheStmt.Superclass.Name.Lexeme);
-
-            CLASS_PARENTS.Put (ToLower (Str (TheStmt.Name.Lexeme)), Parent);
-
-            // The fields it declares, so a bare name inside one of its
-            // methods can be told from an undefined variable.
-            var Owned := Set ();
-
-            for var TheField in TheStmt.Fields do
-                Owned.Add (ToLower (Str (TheField.Name.Lexeme)));
-
-            var Key := Unit + ':' + ToLower (Str (TheStmt.Name.Lexeme));
-
-            CLASS_FIELDS.Put (Key, Owned);
-            CLASS_UNIT.Put   (Key, Unit);
-            CLASS_ABOVE.Put  (Key, ToLower (Parent));
-
-            // Its methods too.  A bare call inside a class may mean one of
-            // them -- `while not AtEnd () do` is how the library writes it --
-            // and that is the same implicit `this` a bare field read is.
-            var Offers := Set ();
-
-            for var TheMethod in TheStmt.Methods do
-                Offers.Add (ToLower (Str (TheMethod.Name.Lexeme)));
-
-            CLASS_METHODS.Put (Key, Offers);
-            CLASS_NODES.Put   (Key, TheStmt);
+            RecordMembers (Unit, TheStmt);
         end
 
         // Two declarations of one name IN ONE UNIT are an overload set sharing
@@ -3912,6 +4071,12 @@ begin
     CurrentClass := '';
 
     Survey (Statements, '');
+
+    // And a second walk for the classes the first cannot see: one declared
+    // inside a subprogram is in no top-level statement list.  Separate rather
+    // than folded into Survey, because that one CLAIMS slots as it goes and a
+    // class in a body must not be given one.
+    SurveyBodies (Statements, '');
 
     // THE SUBRANGES FIRST, before any declaration: a bounds check may fire in
     // a field initializer or a `var` at the top of the file, and the machine
