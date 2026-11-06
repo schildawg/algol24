@@ -200,11 +200,16 @@ end
 class LiteralExpr (Expr);
 var
     /// The value the scanner already built for the token.
-    Value : Expr;
+    ///
+    /// Any, because it is a VALUE and not a node: an Integer, a Double, a
+    /// String, a Char, a Boolean or nil. It was declared `Expr`, which no
+    /// processor checked and so nothing caught -- and which is what a
+    /// constructor's declared types going unchecked was hiding.
+    Value : Any;
 
 begin
     /// Makes a literal expression.
-    constructor Init(Value : Expr);
+    constructor Init(Value : Any);
     begin
         this.Value := Value;
     end

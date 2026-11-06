@@ -318,6 +318,16 @@ var Boxing : Boolean := False;
 /// them, even though [CLS-004] does not say so.
 var InInit : Boolean := False;
 
+/// The method name a constructor's BODY is registered under, holding a space.
+///
+/// A program cannot write it: an identifier is one word [SRC-010], so nothing
+/// a source file says can reach the entry.  It exists so a subclass declaring
+/// no constructor of its own can run its own field initializers and then enter
+/// the inherited constructor's body -- which the inherited `Init` cannot do,
+/// since that one runs the initializers of its OWN chain and knows nothing
+/// about the subclass's.
+const CTOR_BODY := 'ctor body';
+
 /// The return type of the subprogram being compiled, or '' at the top level.
 ///
 /// Held so that `Exit X` can widen to it -- a declared return type is an
@@ -903,6 +913,30 @@ begin
 
     if Owners.Length = 1 then
         Exit Script.QualifiedSlot (Str (Owners[0]), Name.Lexeme);
+
+    Exit -1;
+end
+
+/// The global slot a CLASS named bare occupies, seen from one unit, or -1.
+///
+/// The question VisibleSlot answers about a variable, asked about a name that
+/// arrives as a String rather than as a token -- `super`'s parent comes from
+/// CLASS_ABOVE and has no token to carry.  Resolving it with QualifiedSlot
+/// instead ALLOCATED a slot: a class in another unit is keyed `unit:name`, so
+/// a root file's `:b` matched nothing, a fresh and forever undefined global
+/// was claimed, and `super.Tag ()` in a root-file class whose parent lives in
+/// a unit recursed until the call stack overflowed.  EmitInheritance has
+/// always resolved the same name through BareSlot, which is why OP_INHERIT
+/// found the parent that OP_SUPER could not.
+function ClassSlotFrom (Unit : String, Bare : String) : Integer;
+begin
+    // Its own unit first, as everywhere else: a file's own declaration is what
+    // it means by a name, whatever its imports also export.
+    if DeclaredIn (Unit, Bare) then Exit Script.QualifiedSlot (Unit, Bare);
+
+    var Owners := OwnersOf (Bare);
+
+    if Owners.Length = 1 then Exit Script.QualifiedSlot (Str (Owners[0]), Bare);
 
     Exit -1;
 end
@@ -1597,8 +1631,20 @@ begin
         if Bare = '' then Refuse ('''super'' in a class with no parent');
 
         var Named := ClassNameConstant (TheExpr.Method);
-        var Slot  := Script.QualifiedSlot (Str (CLASS_UNIT.Get (CurrentClass)),
-                                           Bare);
+
+        // ⚠️ `super.Init` reaches the parent's constructor BODY and not its
+        // `Init`.  Entering `Init` runs the parent chain's field initializers,
+        // which this instance has already had -- so a `const` or a
+        // side-effecting initializer ran TWICE, where both other processors
+        // seed an instance's fields once and never again [CLS-005].  The body
+        // is registered under CTOR_BODY for exactly this.
+        if ToLower (Str (TheExpr.Method.Lexeme)) = 'init' then
+            Named := Into.AddConstant (CTOR_BODY);
+
+        var Slot  := ClassSlotFrom (Str (CLASS_UNIT.Get (CurrentClass)), Bare);
+
+        if Slot < 0 then
+            Refuse ('''super'' through a parent it cannot resolve');
 
         if Slot > 65535 then Refuse ('A program holds 65536 globals');
 
@@ -2437,7 +2483,7 @@ begin
         // for each is what builds the set, and the call selects.
         Seen.Put (Key, True);
 
-        Into.EmitConstant (CompileMethod (TheMethod, TheStmt, Key = 'init'));
+        Into.EmitConstant (CompileMethod (TheMethod, TheStmt, Key = 'init', True));
 
         // A property is a method that answers on a read, so it is registered
         // as both -- one opcode rather than two, because the class needs the
@@ -2446,14 +2492,43 @@ begin
             Into.EmitIndexed (OP_DECLARE_PROPERTY,
                               ClassNameConstant (TheMethod.Name));
         else Into.EmitIndexed (OP_METHOD, ClassNameConstant (TheMethod.Name));
+
+        // And the constructor's BODY alone, for a subclass to forward into
+        // once it has run its own field initializers.  Registered under a name
+        // holding a space, which no program can write [SRC-010] -- so the
+        // method table carries it without a program being able to reach it.
+        if Key = 'init' then
+        begin
+            Into.EmitConstant (CompileMethod (TheMethod, TheStmt, True, False));
+            Into.EmitIndexed (OP_METHOD, Into.AddConstant (CTOR_BODY));
+        end
     end
 
     // A constructor is where the field initializers run, so one is synthesized
     // when the class declares none.
     if not Seen.Contains ('init') then
     begin
-        Into.EmitConstant (SynthesizedInit (TheStmt));
-        Into.EmitIndexed (OP_METHOD, Into.AddConstant ('Init'));
+        // ⚠️ One per INHERITED signature, rather than one taking nothing.  A
+        // synthesized arity-0 constructor HID the inherited one: selection
+        // walks the chain and found the parent's for a fitting call, while
+        // every other call fell back to the arity-0 synthetic -- so
+        // `K ('s')` where the parent takes an Integer answered
+        // `Expected 0 arguments but got 1.` instead of naming the selection
+        // failure, and a subclass's own field initializers never ran at all.
+        var Inherited := InheritedInits (TheStmt);
+
+        if Inherited.Length = 0 then
+        begin
+            Into.EmitConstant (SynthesizedInit (TheStmt));
+            Into.EmitIndexed (OP_METHOD, Into.AddConstant ('Init'));
+        end
+
+        else
+            for var TheInherited in Inherited do
+            begin
+                Into.EmitConstant (ForwardingInit (TheStmt, TheInherited));
+                Into.EmitIndexed (OP_METHOD, Into.AddConstant ('Init'));
+            end
     end
 
     if Depth > 0 then
@@ -2498,7 +2573,8 @@ end
 /// still the first parameter and `this` is reached by OP_THIS.  And a
 /// constructor runs the class's FIELD INITIALIZERS first and answers `this`
 /// instead of nil, which is what makes `Foo ()` evaluate to the instance.
-function CompileMethod (TheStmt : Any, Owner : Any, IsInit : Boolean) : VmFunction;
+function CompileMethod (TheStmt : Any, Owner : Any, IsInit : Boolean,
+                       WithFields : Boolean) : VmFunction;
 var
     Made : VmFunction;
 
@@ -2577,7 +2653,14 @@ begin
         AddLocal ('this');
     end
 
-    if IsInit then EmitFieldInitializers (Owner);
+    // ⚠️ A constructor's body is emitted TWICE: once as `Init`, with the field
+    // initializers ahead of it, and once as CTOR_BODY without them -- which is
+    // what lets a SUBCLASS declaring no constructor run its own field
+    // initializers and then reach this body.  Emitting only the first made a
+    // subclass's initializers unreachable, because the inherited `Init` knows
+    // only its own chain: `class K (P)` with a field of its own read nil where
+    // both other processors read its initializer.
+    if IsInit and WithFields then EmitFieldInitializers (Owner);
 
     for var Inner in TheStmt.Body do EmitStmt (Inner);
 
@@ -2677,6 +2760,132 @@ begin
     Depth  := SavedDepth;
     Returning := SavedReturn;
     Boxing    := SavedBoxing;
+
+    Exit Made;
+end
+
+/// The constructors a class INHERITS, or an empty list.
+///
+/// The nearest ancestor declaring any is the one that answers: a class further
+/// up is already hidden by it, exactly as it would be for a call.  Answers an
+/// empty list where no ancestor declares one, which is what distinguishes a
+/// class that needs a synthesized constructor from one that needs a forwarding
+/// one.
+function InheritedInits (Owner : Any) : List;
+var
+    Found : List;
+    Where : Any;
+
+begin
+    Found := List ();
+    Where := Owner;
+
+    while Where <> Nil do
+    begin
+        if Where.Superclass = Nil then Exit Found;
+
+        var Bare  := ToLower (Str (Where.Superclass.Name.Lexeme)) as String;
+        var Above := ParentKey (CurrentUnit, Bare);
+
+        if not CLASS_NODES.Contains (Above) then Exit Found;
+
+        Where := CLASS_NODES.Get (Above);
+
+        for var TheMethod in Where.Methods do
+            if ToLower (Str (TheMethod.Name.Lexeme)) = 'init' then
+                Found.Add (TheMethod);
+
+        if Found.Length > 0 then Exit Found;
+    end
+
+    Exit Found;
+end
+
+/// Builds a constructor that runs this class's field initializers and then
+/// enters an INHERITED constructor's body.
+///
+/// It carries the inherited signature, so selection chooses between several
+/// inherited constructors exactly as it would at the parent [FUN-013] and a
+/// wrong argument is reported against the declared types rather than against
+/// an arity-0 synthetic.  The forwarded call reaches CTOR_BODY, which is the
+/// inherited body WITHOUT its field prologue -- so no initializer runs twice
+/// and the whole chain's run before any constructor body, parent-first, which
+/// is the order both other processors keep [CLS-005].
+function ForwardingInit (Owner : Any, Inherited : Any) : VmFunction;
+var
+    Made : VmFunction;
+
+    SavedInto   : Chunk;
+    SavedLocals : List;
+    SavedDepths : List;
+    SavedDepth  : Integer;
+    SavedReturn : Any;
+    SavedBoxing : Boolean;
+    SavedClass  : Any;
+    SavedLexical : Any;
+    SavedInit   : Boolean;
+
+begin
+    Made := VmFunction ('Init', Inherited.Params.Length);
+
+    RecordTypes (Made, Inherited);
+
+    SavedInto   := Into;
+    SavedLocals := Locals;
+    SavedDepths := Depths;
+    SavedDepth  := Depth;
+    SavedReturn := Returning;
+    SavedBoxing := Boxing;
+    SavedClass  := CurrentClass;
+    SavedLexical := LEXICAL_CLASS;
+    SavedInit   := InInit;
+
+    Into   := Made.Body;
+    Locals := List ();
+    Depths := List ();
+    Depth  := 1;
+    Returning := '';
+    Boxing    := False;
+    InInit    := True;
+
+    // The initializers belong to THIS class, not to the one whose body is
+    // about to run -- which is the whole point of the forward.
+    CurrentClass := CurrentUnit + ':'
+                  + (ToLower (Str (Owner.Name.Lexeme)) as String);
+    LEXICAL_CLASS := CurrentClass;
+
+    for var Param in Inherited.Params do AddLocal (Param.Lexeme);
+
+    EmitFieldInitializers (Owner);
+
+    // this.<CTOR_BODY> (every parameter, in order), whose result is dropped:
+    // a constructor answers the instance, and the instance is what this one
+    // answers for itself.
+    Into.Emit (OP_THIS);
+
+    for var I : Integer := 0; I < Inherited.Params.Length; I := I + 1 do
+        Into.EmitIndexed (OP_GET_LOCAL, I);
+
+    var Slot := Into.AddConstant (CTOR_BODY);
+
+    Into.WriteIndexed (OP_INVOKE, Slot);
+    Into.WriteIndex (Slot);
+    Into.Write (Inherited.Params.Length);
+
+    Into.Emit (OP_POP);
+
+    Into.Emit (OP_THIS);
+    Into.Emit (OP_RETURN);
+
+    Into   := SavedInto;
+    Locals := SavedLocals;
+    Depths := SavedDepths;
+    Depth  := SavedDepth;
+    Returning := SavedReturn;
+    Boxing    := SavedBoxing;
+    CurrentClass  := Str (SavedClass);
+    LEXICAL_CLASS := Str (SavedLexical);
+    InInit        := SavedInit;
 
     Exit Made;
 end

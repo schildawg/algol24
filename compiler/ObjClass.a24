@@ -177,6 +177,50 @@ begin
         Exit Initializer.Arity() as Integer;
     end
 
+    /// Whether construction would GATHER its trailing arguments.
+    ///
+    /// A constructor is a member and absorbs on the same terms a method does
+    /// [FUN-005], so this has to be answerable about the CLASS: the
+    /// interpreter asks it before checking the count, and a class is not an
+    /// ObjFunction.  Without it a variadic constructor was the one subprogram
+    /// in the language that did not gather -- `C ('a', 1, 2, 3)` where Init
+    /// declares `Rest : list of Integer` reported
+    /// `Expected 2 arguments but got 4.` while the same signature on a method
+    /// and on a top-level function gathered.
+    ///
+    /// # Satisfies
+    ///
+    /// [FUN-005]
+    function Absorbs (Arguments : List) : Boolean;
+    var
+       Initializer : ObjFunction;
+
+    begin
+        Initializer := FindOverload ('init', Arguments);
+
+        if Initializer = Nil then Initializer := FindMethod ('init');
+        if Initializer = Nil then Exit False;
+
+        Exit Initializer.Absorbs (Arguments) as Boolean;
+    end
+
+    /// Whether construction GATHERS its trailing arguments into a collection.
+    ///
+    /// A class is not an ObjFunction, so the question has to be answerable
+    /// about it: the interpreter asks before counting arguments, and a
+    /// variadic callee is past that count whichever way it failed [FUN-005].
+    function Variadic () : Boolean;
+    var
+       Initializer : ObjFunction;
+
+    begin
+        Initializer := FindMethod ('init');
+
+        if Initializer = Nil then Exit False;
+
+        Exit Initializer.Variadic () as Boolean;
+    end
+
     /// Prints the class as its bare name.
     function ToString () : String;
     begin
@@ -200,7 +244,38 @@ begin
         SeedFields (Instance, TheInterpreter);
 
         Initializer := FindOverload('init', Arguments);
-        if Initializer = Nil then Initializer := FindMethod('init');
+
+        if Initializer = Nil then
+        begin
+            // ⚠️ A CONSTRUCTOR'S DECLARED TYPES ARE CHECKED, as a
+            // subprogram's and a method's are: [EXP-013] puts even a lone
+            // candidate through selection, and FindOverload above walks every
+            // candidate of the name through all three passes.
+            //
+            // This fell straight through to FindMethod, which asks nothing
+            // about types -- so `Holder (7)` where `Init` declares
+            // `V : Thing` ran, in all three processors, and compiler/Expr.a24
+            // carried a field declared `Expr` that held a literal's VALUE
+            // with nothing to catch it.
+            //
+            // The fallback stands only for a count no candidate takes, which
+            // reports the COUNTS rather than a selection failure [0049] --
+            // and reports them from ObjFunction.Call, where a subprogram's
+            // wrong count is reported too.
+            Initializer := FindMethod('init');
+
+            //
+            // ⚠️ The split MIRRORS the one a plain call makes, rather than
+            // inventing a second rule: a wrong count on a FIXED-arity
+            // constructor reports the counts [0049], and anything else -- the
+            // right count, or any count on a VARIADIC one -- is a selection
+            // failure, because an element type replaces the arity check and is
+            // stricter than it [FUN-005, 0158].
+            if Initializer <> Nil then
+                if Initializer.Variadic ()
+                       or Arguments.Length = Initializer.Arity () then
+                    raise 'No matching signature for function.';
+        end
 
         if Initializer <> Nil then
         begin

@@ -1532,20 +1532,6 @@ end
 /// Mismatch on the wrong argument count, supplied by the caller because a
 /// METHOD reports a selection failure where a subprogram and a constructor
 /// report the counts [0049], and 'The call stack overflowed.' past FRAME_ROOM.
-/// Whether the frame about to be entered is a CONSTRUCTOR's.
-///
-/// A constructor's declared parameter types are NOT enforced, which is what
-/// the other two processors do: `Holder (7)` where `Init` declares
-/// `V : Thing` runs interpreted and compiled, and only this machine refused
-/// it. A function's and a method's ARE enforced, in all three.
-///
-/// That asymmetry is theirs rather than this machine's reading of [EXP-013],
-/// and nothing in the corpus distinguishes the two -- but the compiler's own
-/// `LiteralExpr` declares `Value : Expr` and is handed a literal's VALUE, so
-/// the strict reading stopped the machine running `algc` at the first literal
-/// it parsed. Matching the majority is what lets it run at all.
-var ENTERING_INIT : Boolean := False;
-
 procedure EnterFrame (Callee : Any, Count : Integer, Mismatch : String);
 begin
     // Gathering happens HERE, so every way into a frame absorbs on the same
@@ -1581,7 +1567,7 @@ begin
         // ⚠️ This fell through to the arity check before, and nothing caught
         // it: refusals/0042 compares the message and `vm/conform.sh` walked
         // only conformance/, so the refusal corpus had never run here at all.
-        else if Count = Callee.Arity and not ENTERING_INIT then
+        else if Count = Callee.Arity then
             raise 'No matching signature for function.';
     end
 
@@ -1803,21 +1789,14 @@ begin
             Exit;
         end
 
-        ENTERING_INIT := True;
-
-        try
-            EnterFrame (Setup, Count, 'Expected ' + Str (Setup.Arity)
-                                    + ' arguments but got ' + Str (Count) + '.');
-        except
-            on e : String do
-            begin
-                ENTERING_INIT := False;
-
-                raise e;
-            end
-        end
-
-        ENTERING_INIT := False;
+        // A CONSTRUCTOR is held to its declared parameter types like any other
+        // subprogram, which is what EnterFrame does unaided.  It was entered
+        // behind a flag that turned the check off, because neither other
+        // processor made it -- the interpreter fell through to a type-blind
+        // lookup and the compiled back end passed `strict = false` to one
+        // call.  Both check now, so the flag is gone.
+        EnterFrame (Setup, Count, 'Expected ' + Str (Setup.Arity)
+                                + ' arguments but got ' + Str (Count) + '.');
 
         Exit;
     end

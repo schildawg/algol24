@@ -432,6 +432,16 @@ reachable by any conformance case: `Ord` on an instance declaring `ToString`,
 a call of a name that is both a field and a method, and a singleton declaring
 `ToString`. The habit found them; a harness would have kept finding them.
 
+⚠️ A fourth kind of fault needs a different habit, because a differential
+script cannot see it: all three processors AGREEING on something the
+specification does not say. A constructor's declared parameter types went
+unchecked in every one of them — the interpreter fell through to a lookup by
+arity, the compiled back end passed `strict = false` to the one call that
+selects, and the machine was made lenient on purpose so the three would match.
+Three identical wrong answers are no divergence at all. What found it was
+reading [CLS-004] against [FUN-013] and noticing that *checks its arity* is a
+narrower claim than *a constructor is a member*.
+
 ### 0. Do the two cheap fixes first, whichever way this goes
 
 `-flto` in `build.sh`, and eliding `alg_widen` and `alg_cast` where the checker

@@ -1,0 +1,30 @@
+/// Classes a file that imports this one inherits from.
+unit Inherited;
+
+/// A base declaring a field initializer, a constructor and a method.
+class Figure;
+var Kind : Any := 'figure';
+begin
+    /// Records what made it.
+    constructor Init (Name : String);
+    begin
+        this.Kind := 'figure/' + Name;
+    end
+
+    /// Answers what the instance calls itself.
+    function Label () : String;
+    begin
+        Exit 'Figure';
+    end
+end
+
+/// A middle class declaring no constructor of its own.
+class Framed (Figure);
+var Border : Any := 'thin';
+begin
+    /// Answers what the instance calls itself.
+    function Label () : String;
+    begin
+        Exit 'Framed';
+    end
+end

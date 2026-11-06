@@ -22,7 +22,7 @@ Value k_setsubscriptexpr;
 static const char *t_setsubscriptexpr_init_4_expr_expr_expr_token[] = { "Obj : Expr", "Index : Expr", "Value : Expr", "Bracket : Token" };
 static const char *t_setsubscriptexpr_accept_1[] = { "Visitor : Any" };
 Value k_literalexpr;
-static const char *t_literalexpr_init_1_expr[] = { "Value : Expr" };
+static const char *t_literalexpr_init_1[] = { "Value : Any" };
 static const char *t_literalexpr_accept_1[] = { "Visitor : Any" };
 Value k_variableexpr;
 static const char *t_variableexpr_init_1_token[] = { "Name : Token" };
@@ -359,12 +359,12 @@ static Value i_literalexpr(Value v_this, Value *args, int32_t count) {
     return alg_nil();
 }
 
-static Value m_literalexpr_init_1_expr(Value v_this, Value *args, int32_t count) {
+static Value m_literalexpr_init_1(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    Value v_value = alg_widen(args[0], "Expr");
+    Value v_value = args[0];
     (void)v_value;
     alg_root(&v_value, 1);
     (void)(alg_set_property(v_this, "Value", v_value));
@@ -879,7 +879,7 @@ void init_Expr(void) {
     alg_class_super(k_literalexpr, k_expr);
     alg_class_field(k_literalexpr, "Value");
     alg_class_initializer(k_literalexpr, i_literalexpr);
-    alg_class_method(k_literalexpr, "Init", m_literalexpr_init_1_expr, 1, t_literalexpr_init_1_expr);
+    alg_class_method(k_literalexpr, "Init", m_literalexpr_init_1, 1, t_literalexpr_init_1);
     alg_class_method(k_literalexpr, "Accept", m_literalexpr_accept_1, 1, t_literalexpr_accept_1);
     alg_class_super(k_variableexpr, k_expr);
     alg_class_field(k_variableexpr, "Name");

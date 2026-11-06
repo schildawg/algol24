@@ -57,6 +57,17 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `/* Generated from Algol-24. Do not edit. */`. Edit the `.a24` and re-emit.
 - `conformance/`, `refusals/`, `defects/` — the corpus. One question decides
   which directory a case belongs in: *is the interpreter right?*
+
+  ⚠️ **Those three directories are GENERATED and git-ignored.** A case lives in
+  `spec/ALGOL-24.md`, under the rule it pins, as a `##### conformance/NAME.a24`
+  header followed by an ```` ```algol24 ```` block and a ```` ```console ````
+  block holding `$ algc conformance/NAME.a24`, the expected output, and
+  `exit: N` when it is not 0. `conform.sh` **deletes** `conformance/*.a24`,
+  `*.out`, `*.args` and the `refusals/` equivalents and extracts them fresh —
+  so a case written straight into the directory is a build artifact that the
+  next run removes, and writing one there looked like the files being eaten by
+  something. The point is that a case and the rule it demonstrates cannot
+  drift: they are the same text.
 - `spec/DOCUMENTATION.md` — how `///` doc comments are written here.
 - `examples/hello-scripts/` — a pie chart and Unicode text drawn into an SDL2
   window by an Algol-24 program.
@@ -421,6 +432,81 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   refusal** to print the unit and class; what hid it for twenty minutes was
   `grep` being case-sensitive where the language is not, so searching `Shown`
   missed nothing and searching the right file never happened.
+
+  ⚠️ **A CONSTRUCTOR is held to its declared parameter types, and all three
+  processors used to agree that it was not.** [CLS-004] said construction
+  *checks its arity*, where a constructor is a member and a method overloads on
+  the whole signature [FUN-013] — so the narrow sentence was an incomplete rule
+  rather than a different one. The leniency was one thing in each processor: the
+  interpreter fell through to `FindMethod` after `FindOverload` declined, the
+  compiled back end passed `strict = false` at `algol.c`'s one `find_method`
+  call for `Init` where an invoke and a `super` call pass `true`, and the
+  machine carried an `ENTERING_INIT` flag put there deliberately to match the
+  other two. Three identical wrong answers are no divergence, which is why
+  nothing caught it — not 196 conformance cases, not the differential habit.
+  `conformance/0204` is the case now.
+
+  ⚠️ **An unchecked parameter is where a WRONG ANNOTATION lives, and the
+  compiler's own source had one.** `compiler/Expr.a24` declared
+  `LiteralExpr.Value : Expr` for a field holding a literal's *value* — an
+  Integer, a String, a Boolean — and a gradually typed language has no other
+  place a written type is inert enough to hide that. Fix the mis-declaration
+  **before** making the check strict, or the change bricks the bootstrap.
+
+  ⚠️ **A SYNTHESIZED arity-0 constructor HID the inherited one, and that one
+  decision was three bugs.** The emitter gives a class with no constructor an
+  `Init` that runs the field initializers — so a subclass declaring none got an
+  arity-0 `Init` of its own, which (1) made `K ('s')` where the parent takes an
+  Integer answer `Expected 0 arguments but got 1.` instead of naming the
+  selection failure, because selection walked the chain and the fallback did
+  not, and (2) meant the subclass's OWN field initializers never ran when the
+  inherited constructor did — `K` with a field of its own read **nil** where
+  both other processors read its initializer. The third was `super.Init`
+  entering the parent's `Init`, which re-ran the parent chain's initializers:
+  twice per instance, against [CLS-005].
+
+  ⚠️ **The fix is a second entry point, `CTOR_BODY`, and the reason is
+  ordering.** A constructor's body is emitted twice — as `Init`, with the field
+  prologue ahead of it, and as `'ctor body'`, a method name holding a **space**
+  that no program can write. A subclass declaring no constructor then gets one
+  forwarding `Init` **per inherited signature**: its own chain's initializers,
+  parent-first, then an `OP_INVOKE` of `'ctor body'`. Nothing else keeps the
+  order the language needs — every field in the chain seeded before any
+  constructor body — which is what lets a parent's constructor call an
+  overridden method or read a subclass's field. `super.Init` reaches
+  `'ctor body'` for the same reason.
+
+  ⚠️ **`super` ACROSS A `uses` recursed until the stack overflowed, and the
+  fix is to resolve the parent the way a bare name is resolved.** The super
+  site asked `Script.QualifiedSlot (unit, Bare)`, which **allocates** when the
+  key is absent — and a class in another unit is keyed `unit:name`, so a root
+  file's `:b` matched nothing, a fresh and forever undefined global was
+  claimed, and `super.Tag ()` called itself. `EmitInheritance` had always used
+  `BareSlot` for the same name, which is why `class D (B)` worked while
+  `super.M ()` inside it did not. `ClassSlotFrom` is the non-emitting version
+  of the question, and a parent it cannot resolve is now refused by name.
+  Pre-existing, and invisible to 262 corpus cases: the corpus has inheritance
+  cases and module cases and had none of their **product** — the same gap that
+  hid five bugs earlier in this work. `conformance/0206` is the case.
+
+  ⚠️ **`super.Init` where the parent declares NO constructor is a three-way
+  divergence, and it was one before this.** The interpreter says
+  `Only instances have properties.`, the compiled back end
+  `Undefined method on the superclass.`, and the machine
+  `No matching signature for function.` No corpus case asks, which is why
+  `conform.sh` reports zero divergences over it. All three agree it is an
+  error; what it should SAY is open.
+
+  ⚠️ **A VARIADIC constructor was the one subprogram in the language that did
+  not gather**, in the interpreter and the compiled back end both. The same
+  signature on a method and on a top-level function absorbed. Three separate
+  places had to learn that a class absorbs too: `ObjClass.Absorbs` and
+  `ObjClass.Variadic` (a class is not an `ObjFunction`, and the interpreter
+  counts arguments before `ObjFunction.Call` ever reaches its `Absorb`), and
+  `should_absorb` at `algol.c`'s construction site. A variadic mismatch is a
+  **selection** failure and not a count [FUN-005, 0158] — the element type
+  replaces the arity check and is stricter than it — so the split a plain call
+  makes is mirrored rather than reinvented.
 
   ⚠️ **An `Exit` inside a CONSTRUCTOR answers the instance, not its own
   value.** `ObjFunction.Call` answers `this` on the Return path *and* on

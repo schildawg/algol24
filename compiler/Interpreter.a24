@@ -1432,10 +1432,27 @@ begin
             end
         end
 
+        // ⚠️ A CLASS absorbs too, because a constructor is a member and
+        // gathers on the same terms a method does [FUN-005].  Asking only an
+        // ObjFunction made a variadic constructor the one subprogram in the
+        // language that did not gather: the count check below refused it
+        // before ObjFunction.Call ever reached its Absorb.
         var Gathering := False;
-        if Callee is ObjFunction then Gathering := Callee.Absorbs (Arguments);
+        if Callee is ObjFunction or Callee is ObjClass then
+            Gathering := Callee.Absorbs (Arguments);
 
-        if not Gathering and Callee.Arity() >= 0 and Arguments.Length <> Callee.Arity() then
+        // ⚠️ A VARIADIC callee is past this check whichever way it failed,
+        // because its element type replaced the arity check [FUN-005] and the
+        // report belongs where selection happens -- the arm above for a
+        // function, ObjClass.Call for a constructor.  Counting here instead
+        // answered `Expected 2 arguments but got 3.` for a stray argument of
+        // the wrong TYPE, which is the plausible wrong answer 0158 pins.
+        var Absorbing := False;
+        if Callee is ObjFunction or Callee is ObjClass then
+            Absorbing := Callee.Variadic ();
+
+        if not Gathering and not Absorbing
+               and Callee.Arity() >= 0 and Arguments.Length <> Callee.Arity() then
         begin
             raise 'Expected ' + Callee.Arity() + ' arguments but got ' + Arguments.Length + '.';
         end

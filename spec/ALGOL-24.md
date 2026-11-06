@@ -8902,16 +8902,293 @@ exit: 70
 ```
 
 **[CLS-004]**  A constructor is a member named `constructor Init`. Construction
-checks its arity, and a class with no constructor takes no arguments —
-`C(1, 2)` on such a class is `Expected 0 arguments but got 2.`
+goes through **selection** on the whole signature, as a call of any other
+subprogram does [EXP-013, FUN-013] — so a declared parameter type is checked,
+constructors may overload, and a wrong type at the right count answers
+`No matching signature for function.` where a wrong count reports the counts. A
+class with no constructor takes no arguments — `C(1, 2)` on such a class is
+`Expected 0 arguments but got 2.`
 
     conformance  0065-construction.a24
+    conformance  0204-a-constructor-is-selected-too.a24
+
+This rule read *checks its arity* until v0.1.6, and all three processors agreed
+with the narrower sentence: the interpreter fell through to a lookup by arity
+alone, the compiled back end passed `strict = false` to the one call that
+selects, and the machine was deliberately made lenient to match the other two.
+Nothing in the corpus asked. What a rule says about a constructor and a rule
+says about every subprogram are the same claim here, since a constructor **is**
+a member — the narrow sentence was not a different rule, it was an incomplete
+one.
+
+A **gradually** typed language makes this cost more than it looks. An unchecked
+constructor parameter is the one place a written type is inert, so it is the one
+place a wrong annotation survives: `compiler/Expr.a24` declared
+`LiteralExpr.Value : Expr` where the field holds a literal's *value*, every
+construction passed an Integer, a String or a Boolean through it, and no
+processor was in a position to object. Checking it is what found that.
+
+##### conformance/0204-a-constructor-is-selected-too.a24
+
+```algol24
+// A constructor is a member [CLS-004], and a method overloads on the whole
+// signature [FUN-013] -- so construction goes through selection like any other
+// call and a declared parameter type is CHECKED.  [CLS-004] used to say
+// construction checks its arity, and all three processors agreed with the
+// narrower sentence.
+
+class Thing;
+begin
+end
+
+class Holder;
+var Held : Any := Nil;
+begin
+    constructor Init (V : Thing); begin this.Held := V; end
+end
+
+// The right type constructs.
+WriteLn (Holder (Thing ()).Held.ClassName);
+
+// The wrong type at the RIGHT count is a selection failure, not a count one.
+try
+    WriteLn (Holder (7));
+except
+    on e : String do WriteLn (e);
+end
+
+// A wrong COUNT still reports the counts [CLS-004, 0049].
+try
+    WriteLn (Holder ());
+except
+    on e : String do WriteLn (e);
+end
+
+// An UNTYPED parameter takes anything, which is what makes this gradual.
+class Open;
+var Held : Any := Nil;
+begin
+    constructor Init (V); begin this.Held := V; end
+end
+
+WriteLn (Open (7).Held);
+WriteLn (Open ('text').Held);
+
+// A declared type WIDENS as any other assignment context does [VAL-001],
+// so an Integer argument reaches a Double parameter.
+class Measured;
+var Size : Double := 0.0;
+begin
+    constructor Init (Size : Double); begin this.Size := Size; end
+end
+
+WriteLn (Measured (3).Size);
+
+// And constructors OVERLOAD, selection choosing from the arguments.
+class Shape;
+var What : String := '';
+begin
+    constructor Init (N : Integer); begin this.What := 'integer'; end
+    constructor Init (S : String);  begin this.What := 'string';  end
+end
+
+WriteLn (Shape (1).What);
+WriteLn (Shape ('x').What);
+
+// A VARIADIC constructor gathers, on the same terms a method and a top-level
+// subprogram do [FUN-005] -- which it did not, in two of the three processors.
+class Tally;
+var Count : Any := Nil;
+begin
+    constructor Init (Tag : String, Rest : list of Integer);
+    begin
+        this.Count := Rest.Length;
+    end
+end
+
+WriteLn (Tally ('a', 1, 2, 3).Count);
+WriteLn (Tally ('a').Count);
+
+// A list passed WHOLE is passed rather than gathered into a second one.
+WriteLn (Tally ('a', [1, 2, 3]).Count);
+
+// And a variadic mismatch is a SELECTION failure, not a count: the element
+// type replaces the arity check and is stricter than it [FUN-005, 0158].
+try
+    WriteLn (Tally ('a', 1, 'x'));
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (Tally ());
+except
+    on e : String do WriteLn (e);
+end
+
+// Uncaught, which is how the failure ends a program.
+WriteLn (Holder ('not a Thing'));
+```
+
+```console
+$ algc conformance/0204-a-constructor-is-selected-too.a24
+Uncaught: No matching signature for function.
+Thing
+No matching signature for function.
+Expected 1 arguments but got 0.
+7
+text
+3.0
+integer
+string
+3
+0
+3
+No matching signature for function.
+No matching signature for function.
+exit: 70
+```
 
 **[CLS-005]**  A field's initializer is evaluated **once per instance**, at
 construction. Two instances of a class whose field is `List := []` hold two
 different Lists.
 
+**Every field in the chain is seeded before any constructor body runs**, the
+parent's before the child's — so a subclass's initializer wins where it
+redeclares an inherited name, and a constructor body may call an overridden
+method [CLS-011] or read a subclass's field and find it initialized. *Once* per
+instance is the same claim seen from the other side: `super.Init` runs the
+parent's **body**, not its initializers again.
+
     conformance  0064-class-declaration-and-fields.a24
+    conformance  0205-an-inherited-constructor.a24
+
+The order went unwritten while all three processors happened to keep it, and a
+subclass declaring **no constructor of its own** is where that stopped being
+free. Its parent's constructor is the one that runs, and that constructor knows
+only its own chain — so the bytecode machine, which emitted the initializers
+into each constructor, ran the parent's and never the child's: a field of the
+subclass read `nil` where both other processors read its initializer. Stating
+the order is what makes the fix describable rather than a repair nothing names.
+
+##### conformance/0205-an-inherited-constructor.a24
+
+```algol24
+// A class declaring no constructor INHERITS its parent's, and construction
+// then has to do two things in one order: seed every field in the chain,
+// parent first [CLS-005], and only then run the inherited constructor's body.
+// A subclass's own field initializers are the half that is easy to lose, since
+// the inherited constructor knows only its own chain.
+
+var Times := 0;
+
+function Count (); begin Times := Times + 1; Exit Times; end
+
+class Base;
+var Tag   : Any := 'base';
+    Once  : Any := Count ();
+begin
+    constructor Init (N : Integer);
+    begin
+        this.Tag := 'base/' + Str (N);
+
+        // The CHILD's fields are already seeded here, which is what makes a
+        // constructor body able to call an overridden method [CLS-011].
+        WriteLn ('in Base.Init, Extra=', Str (this.Extra), ' Named=', this.Named ());
+    end
+
+    function Named (); begin Exit 'Base'; end
+end
+
+class Derived (Base);
+var Extra : Any := 'derived';
+begin
+    function Named (); begin Exit 'Derived'; end
+end
+
+var D := Derived (7);
+
+WriteLn ('Tag=',   D.Tag);
+WriteLn ('Extra=', D.Extra);
+
+// CLS-005: once per instance, however many classes the chain has.
+WriteLn ('Once=', D.Once, ' calls=', Times);
+
+// The INHERITED signature is what construction selects against, so a wrong
+// type at the right count is a selection failure rather than a count.
+try
+    WriteLn (Derived ('seven'));
+except
+    on e : String do WriteLn (e);
+end
+
+// And a class with no constructor ANYWHERE in its chain still takes none.
+class Bare;
+begin
+end
+
+class AlsoBare (Bare);
+begin
+end
+
+try
+    WriteLn (AlsoBare (1));
+except
+    on e : String do WriteLn (e);
+end
+
+// Several inherited constructors stay an overload set, selecting on the
+// arguments exactly as they would at the parent [FUN-013].
+class Pair;
+var Which : Any := Nil;
+begin
+    constructor Init (N : Integer); begin this.Which := 'integer'; end
+    constructor Init (S : String);  begin this.Which := 'string';  end
+end
+
+class Twice (Pair);
+begin
+end
+
+WriteLn (Twice (1).Which);
+WriteLn (Twice ('x').Which);
+
+// super.Init runs the parent's BODY, and the fields it seeded are not seeded
+// again -- one instance, one evaluation of each initializer [CLS-005].
+class Child (Base);
+var Extra : Any := 'child';
+begin
+    constructor Init (N : Integer);
+    begin
+        super.Init (N * 2);
+
+        this.Extra := 'child/' + Str (N);
+    end
+
+    function Named (); begin Exit 'Child'; end
+end
+
+Times := 0;
+
+var C := Child (5);
+
+WriteLn ('Tag=', C.Tag, ' Extra=', C.Extra, ' calls=', Times);
+```
+
+```console
+$ algc conformance/0205-an-inherited-constructor.a24
+in Base.Init, Extra=derived Named=Derived
+Tag=base/7
+Extra=derived
+Once=1 calls=1
+No matching signature for function.
+Expected 0 arguments but got 1.
+integer
+string
+in Base.Init, Extra=child Named=Child
+Tag=base/10 Extra=child/5 calls=1
+exit: 0
+```
 
 **[CLS-006]**  A field with no initializer begins as `nil` [VAR-002].
 
@@ -9080,7 +9357,69 @@ receiver**, exactly as `B.M` binds the receiver's own [CLS-011], and the search
 starts in the same place. It is the only way a program can hold the
 implementation an override replaced.
 
+**Across a `uses`** it is the same rule and nothing more, which is worth a case
+of its own because the parent is then a global of another unit. The bytecode
+machine resolved that global by the *importing* file's key, matched nothing,
+claimed a fresh and forever undefined slot, and the call recursed until the
+call stack overflowed — while `class D (B)` itself worked, because inheritance
+had always resolved the same name the way a bare name is resolved. The corpus
+covers inheritance and covers modules, and had no case for their product.
+
     conformance  0068-inheritance.a24
+    conformance  0206-inheritance-across-a-uses.a24
+
+##### conformance/0206-inheritance-across-a-uses.a24
+
+```algol24
+uses 'conformance/modules/Inherited';
+
+// A class declaring no constructor inherits the one two classes above it, and
+// its OWN field initializer still runs.
+class Boxed (Framed);
+var Fill : Any := 'none';
+begin
+    function Label () : String; begin Exit 'Boxed'; end
+end
+
+var B := Boxed ('deep');
+
+WriteLn (B.Kind, ' ', B.Border, ' ', B.Fill, ' ', B.Label ());
+
+// CLS-012: super.M () reaches the version above the class that declared the
+// body -- across a `uses`, where the parent is a global of another unit.  The
+// bytecode machine resolved that global by the importing file's own key, which
+// matched nothing, so it claimed a fresh and forever undefined one and the
+// call recursed until the call stack overflowed.
+class Named (Framed);
+begin
+    constructor Init (N : String);
+    begin
+        super.Init (N + '!');
+
+        this.Border := 'thick';
+    end
+
+    function Label () : String; begin Exit 'Named+' + super.Label (); end
+end
+
+var N := Named ('own');
+
+WriteLn (N.Kind, ' ', N.Border, ' ', N.Label ());
+
+// And the inherited signature is what construction selects against.
+try
+    WriteLn (Boxed (7));
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0206-inheritance-across-a-uses.a24
+figure/deep thin none Boxed
+figure/own! thick Named+Framed
+No matching signature for function.
+```
 
 ##### conformance/0150-super-as-a-value.a24
 

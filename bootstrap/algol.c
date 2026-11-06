@@ -1976,11 +1976,48 @@ Value alg_new(Value value, Value *args, int32_t count) {
 
     initialize_fields(klass, self);
 
-    MethodEntry *init = find_method(klass, "Init", count, args, false);
-    if (init != NULL) {
+    /* STRICT, as an invoke and a super call are: a constructor's declared
+       parameter types are checked like any other subprogram's, since
+       [EXP-013] puts even a lone candidate through selection.
 
-        alg_arity(count, init->arity);
-        init->fn(self, args, count);
+       This passed false, and that one argument was the whole of why a
+       constructor went unchecked -- in every processor, since the interpreter
+       fell through to a type-blind lookup and the machine was made lenient to
+       match. compiler/Expr.a24 carried a field declared `Expr` that held a
+       literal's VALUE, and nothing could catch it. */
+    MethodEntry *init = find_method(klass, "Init", count, args, true);
+    if (init != NULL) {
+        /* GATHERING, as a method call and a plain call do: a constructor is a
+           member, and a final `list of T` parameter absorbs on the same terms
+           [FUN-005].  Without it a variadic constructor was the one subprogram
+           in the language that did not gather -- `C ('a', 1, 2, 3)` where Init
+           declares `Rest : list of Integer` reported
+           `Expected 2 arguments but got 4.` while the identical signature on a
+           method and on a top-level function gathered. */
+        if (should_absorb(init->types, init->arity, args, count)) {
+
+            init->fn(self, absorb_args(init->arity, args, count), init->arity);
+        }
+        /* A VARIADIC constructor at the WRONG count that did not absorb
+           reports a SELECTION failure and not a count, because its element
+           type replaced the arity check and is stricter than it: the stray
+           argument is of the wrong TYPE rather than one too many
+           [FUN-005, 0158].
+
+           The count guard is what keeps `C ('a', [1, 2, 3])` running -- a
+           list passed WHOLE fits exactly, so should_absorb declines by
+           design rather than by failure, and raising on that alone refused a
+           perfectly good call. */
+        else if (variadic_element(init->types, init->arity) != NULL
+                     && count != init->arity) {
+
+            alg_error("No matching signature for function.");
+        }
+        else {
+
+            alg_arity(count, init->arity);
+            init->fn(self, args, count);
+        }
     }
     else if (count != 0) {
 
