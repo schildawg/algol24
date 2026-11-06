@@ -4033,20 +4033,89 @@ end
 /// # Raises
 ///
 /// Whatever the instruction raises, which is what the depth probe wants.
-function MeasuredStack (Op : Integer, Operands : List, Deep : Integer) : Integer;
+/// What the measuring chunk's constants hold, at fixed indices.
+///
+/// Seeded so an instruction whose operand indexes a NAME has one to read.
+/// Fixed because the test writes the index literally, and interning would
+/// otherwise move them: a Double and an Integer of the same value are
+/// different constants, which is the one case the interning compares by type
+/// before value.
+const SEED_ONE     := 0;   // the Integer 1, the stack filler
+const SEED_TYPE    := 1;   // 'Integer', a testable type name
+const SEED_MEMBER  := 2;   // 'Length', a runtime property and a host member
+const SEED_BUILTIN := 3;   // 'length', a built-in's name
+const SEED_NAME    := 4;   // 'K', a class, enum, field or method name
+const SEED_BODY    := 5;   // a callable taking nothing and answering nil
+const SEED_RANGE   := 6;   // ['R', 1, 5], a subrange's name and bounds
+const SEED_LIST    := 7;   // [1, 1], a collection with an index 1
+const SEED_ADD     := 8;   // 'Add', a host METHOD a collection answers
+const SEED_NONAMES := 9;   // an empty name list, for a named call of none
+
+/// A chunk with those constants and one global slot, ready to measure in.
+function MeasuringChunk () : Chunk;
 var
     C : Chunk;
 
 begin
     C := Chunk ();
 
-    // One constant in the table before anything is emitted, so that an
-    // instruction whose operand is index 0 has something to read even at a
-    // depth of nothing.  Interned, so the filler below reuses it rather than
-    // adding a second.
     C.AddConstant (1);
+    C.AddConstant ('Integer');
+    C.AddConstant ('Length');
+    C.AddConstant ('length');
+    C.AddConstant ('K');
 
-    for var I : Integer := 0; I < Deep; I := I + 1 do C.EmitConstant (1);
+    // A body that returns at once, so an instruction that ENTERS a frame can
+    // be measured: the frame comes straight back and the net is what the call
+    // did to the caller's stack.
+    var Body := VmFunction ('Measured', 0);
+
+    Body.Body.Emit (OP_NIL);
+    Body.Body.Emit (OP_RETURN);
+
+    C.AddConstant (Body);
+    C.AddConstant (['R', 1, 5]);
+
+    // A collection, so a prime that wants one is a single two-byte push like
+    // every other -- which is what lets the depth probe drop the last push by
+    // dropping two bytes.
+    C.AddConstant ([1, 1]);
+    C.AddConstant ('Add');
+    C.AddConstant (List ());
+
+    // One global, so the global opcodes have a slot to name.
+    C.QualifiedSlot ('', 'G');
+
+    Exit C;
+end
+
+/// Bytes that push Deep copies of the Integer filler.
+function FillerFor (Deep : Integer) : List;
+begin
+    var Out := List ();
+
+    for var I : Integer := 0; I < Deep; I := I + 1 do
+    begin
+        Out.Add (OP_CONSTANT);
+        Out.Add (SEED_ONE);
+    end
+
+    Exit Out;
+end
+
+/// Runs one instruction above a PREPARED stack and answers the SP it left.
+///
+/// The preparation is raw bytes rather than a depth, because many
+/// instructions want something other than a number beneath them -- a class, a
+/// collection, a cell, a defined global -- and the caller knows what it built.
+function MeasuredAfter (Prime : List, Op : Integer, Operands : List) : Integer;
+var
+    C : Chunk;
+
+begin
+    C := MeasuringChunk ();
+
+    for var B in Prime do C.Write (B as Integer);
 
     C.Write (Op);
 
@@ -4058,6 +4127,12 @@ begin
     RunChunk (C);
 
     Exit SP;
+end
+
+/// The same, above Deep copies of the Integer filler.
+function MeasuredStack (Op : Integer, Operands : List, Deep : Integer) : Integer;
+begin
+    Exit MeasuredAfter (FillerFor (Deep), Op, Operands);
 end
 
 /// How many values an opcode takes, by its own declaration.
@@ -4090,12 +4165,64 @@ end
 /// 'The value stack underflowed.' and a peeking handler faults on a negative
 /// index, and either is a failure. Without that second half, `2 1` and `1 0`
 /// are indistinguishable: both move the stack by one.
+/// Every opcode a run has held to its declaration, so the GAP can be named.
+var MEASURED : Set := Set ();
+
+/// Asserts the effect with a stack the caller prepared, the depth being what
+/// that preparation leaves.
+///
+/// The same two claims AssertStackEffect makes -- the net at the declared
+/// depth, and a failure one value shallower -- but reached for instructions
+/// that want a class, a collection, a cell or a defined global beneath them
+/// rather than a number.
+procedure AssertStackEffectOn (Op : Integer, Operands : List, N : Integer,
+                               Prime : List, Deep : Integer);
+var
+    Pops   : Integer;
+    Pushes : Integer;
+
+begin
+    MEASURED.Add (OpName (Op));
+
+    Pops   := DeclaredPops (Op, N);
+    Pushes := DeclaredPushes (Op, N);
+
+    AssertEqual (Deep - Pops + Pushes, MeasuredAfter (Prime, Op, Operands));
+
+    var Needs := DeclaredNeeds (Op, N);
+
+    if Needs = 0 then Exit;
+
+    // One value shallower must fail.  The preparation is trimmed by dropping
+    // its LAST push, which is why a prime is a list of bytes in pairs.
+    if Prime.Length < 2 then Exit;
+
+    var Shallow := List ();
+
+    for var I : Integer := 0; I < Prime.Length - 2; I := I + 1 do
+        Shallow.Add (Prime[I]);
+
+    var Failed := False;
+
+    try
+        MeasuredAfter (Shallow, Op, Operands);
+    except
+        on e : String do Failed := True;
+    end
+
+    if not Failed then
+        Fail (OpName (Op) + ' claims to need ' + Str (Needs)
+            + ' values but ran on ' + Str (Deep - 1));
+end
+
 procedure AssertStackEffect (Op : Integer, Operands : List, N : Integer);
 var
     Pops   : Integer;
     Pushes : Integer;
 
 begin
+    MEASURED.Add (OpName (Op));
+
     Pops   := DeclaredPops (Op, N);
     Pushes := DeclaredPushes (Op, N);
 
@@ -4124,6 +4251,77 @@ begin
 end
 
 test 'A Measurable Opcode Moves The Stack Exactly As It Declares';
+begin
+    MeasureOnFiller ();
+end
+
+test 'A Measurable Opcode Moves The Stack As It Declares, On A Prepared One';
+begin
+    MeasureOnPrepared ();
+end
+
+test 'Every Opcode Is Either MEASURED Or Named As Unmeasurable';
+begin
+    // ⚠️ The POINT of this test is that the gap cannot grow in silence. A
+    // count of the measured ones means nothing without the complement, so the
+    // complement is declared here and compared -- an opcode added without
+    // either a measurement or a reason fails, which is the only way the list
+    // stays honest.
+    //
+    // Both measurements are run HERE as well as in their own tests, because
+    // nothing fixes the order tests run in and MEASURED has to be full before
+    // it is compared. Adding to a Set twice costs nothing.
+    MeasureOnFiller ();
+    MeasureOnPrepared ();
+
+    var Unmeasurable := Set ([
+        // Does not come back: a backward jump has no terminating shape
+        // without a counter, so a measuring chunk would never reach its
+        // OP_RETURN.
+        'OP_LOOP',
+
+        // Its pops are `frame` and not a number, so there is nothing to
+        // compare -- it is the instruction the whole measurement ends with.
+        'OP_RETURN',
+
+        // A PREFIX. Measuring it alone measures whatever follows it too.
+        'OP_LONG',
+
+        // Unwinds, so the SP afterwards is the handler's and not this
+        // instruction's.
+        'OP_RAISE',
+
+        // Reads one below the frame's base, which the floor frame of a
+        // measuring chunk has not got.
+        'OP_THIS',
+
+        // Want a guest INSTANCE or a closure's cells, which means a
+        // constructor entered or a closure made and called -- context this
+        // harness deliberately does not build, because building it would make
+        // the measurement depend on the very opcodes it is measuring.
+        'OP_SET_FIELD', 'OP_GET_CELL', 'OP_SET_CELL',
+        'OP_INVOKE_NAMED', 'OP_INVOKE_EXT_NAMED', 'OP_SUPER'
+    ]);
+
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Named := OpName (Op);
+
+        if MEASURED.Contains (Named) then continue;
+
+        if Unmeasurable.Contains (Named) then continue;
+
+        Fail (Str (Named) + ' is neither measured nor named as unmeasurable');
+    end
+
+    // And the other way: a name declared unmeasurable that IS measured is a
+    // stale exemption, which would quietly shrink what the test checks.
+    for var Named in Unmeasurable do
+        if MEASURED.Contains (Str (Named)) then
+            Fail (Str (Named) + ' is measured, so its exemption is stale');
+end
+
+procedure MeasureOnFiller ();
 begin
     // ⚠️ What is NOT measured here, and why -- because a count of the measured
     // ones means nothing without it. OP_PRINT writes to stdout and would
@@ -4189,6 +4387,141 @@ begin
     AssertStackEffect (OP_LIST, [0, 3], 3);
     AssertStackEffect (OP_MAP,  [0, 0], 0);
     AssertStackEffect (OP_MAP,  [0, 2], 2);
+
+    // Reads of a slot, a global and a box, which take nothing and leave one.
+    AssertStackEffect (OP_GET_LOCAL, [0], 0);
+
+    // SWALLOWED under a test run, which is what makes it measurable at all:
+    // its output would otherwise interleave with the report 0103 compares.
+    AssertStackEffect (OP_PRINT, None, 0);
+
+    // A type NAME, which the seeded constants carry.
+    AssertStackEffect (OP_IS,    [SEED_TYPE], 0);
+    AssertStackEffect (OP_CAST,  [SEED_TYPE], 0);
+    AssertStackEffect (OP_WIDEN, [SEED_TYPE], 0);
+
+    // A class, an enumeration and a subrange, each built from a name.
+    AssertStackEffect (OP_CLASS,    [SEED_NAME],  0);
+    AssertStackEffect (OP_ENUM,     [SEED_NAME],  0);
+    AssertStackEffect (OP_SUBRANGE, [SEED_RANGE], 0);
+end
+
+procedure MeasureOnPrepared ();
+begin
+    // The instructions that want something other than a number beneath them.
+    // Each prime is pairs of bytes, so AssertStackEffectOn can drop the last
+    // push to probe the depth.
+    var None := List ();
+
+    var ACollection := [OP_CONSTANT, SEED_LIST];
+    var AClass      := [OP_CLASS, SEED_NAME];
+    var ACell       := [OP_NIL, OP_CELL];
+
+    // A COLLECTION beneath it, where the Integer filler would raise.
+    AssertStackEffectOn (OP_ITER, None, 0, ACollection, 1);
+
+    // A member read, which is the same handler OP_GET_FIELD has -- measured
+    // through both names because the reference says they are one operation.
+    AssertStackEffectOn (OP_PROPERTY,  [SEED_MEMBER], 0, ACollection, 1);
+    AssertStackEffectOn (OP_GET_FIELD, [SEED_MEMBER], 0, ACollection, 1);
+
+    // A CLASS beneath it.
+    AssertStackEffectOn (OP_SINGLETON, None, 0, AClass, 1);
+    AssertStackEffectOn (OP_FIELD, [SEED_NAME], 0, AClass, 1);
+
+    // A class AND a callable above it.
+    var AClassAndBody := [OP_CLASS, SEED_NAME, OP_CONSTANT, SEED_BODY];
+
+    AssertStackEffectOn (OP_METHOD, [SEED_NAME], 0, AClassAndBody, 2);
+    AssertStackEffectOn (OP_DECLARE_PROPERTY, [SEED_NAME], 0, AClassAndBody, 2);
+
+    // Two classes, the upper becoming the parent of the lower.
+    AssertStackEffectOn (OP_INHERIT, [SEED_NAME], 0,
+                         [OP_CLASS, SEED_NAME, OP_CLASS, SEED_NAME], 2);
+
+    // An ENUMERATION beneath it, which it reads and leaves.
+    AssertStackEffectOn (OP_ENUM_MEMBER, [SEED_NAME], 0,
+                         [OP_ENUM, SEED_NAME], 1);
+
+    // A CELL in a slot, which is where a boxed local lives.
+    AssertStackEffectOn (OP_GET_BOX, [0], 0, ACell, 1);
+    AssertStackEffectOn (OP_SET_BOX, [0], 0, [OP_NIL, OP_CELL, OP_NIL], 2);
+
+    // A GLOBAL, defined first so a read of it is not undefined.  The define
+    // itself is measured on the filler, the other two above the definition.
+    var Defined := [OP_CONSTANT, SEED_ONE, OP_DEFINE_GLOBAL, 0];
+
+    AssertStackEffect (OP_DEFINE_GLOBAL, [0], 0);
+    AssertStackEffectOn (OP_GET_GLOBAL, [0], 0, Defined, 0);
+    AssertStackEffectOn (OP_SET_GLOBAL, [0], 0,
+                         [OP_CONSTANT, SEED_ONE, OP_DEFINE_GLOBAL, 0,
+                          OP_CONSTANT, SEED_ONE], 1);
+
+    // The subscript pair and `in`, each wanting a collection and an index.
+    // TWO elements, because the index pushed is the filler -- the Integer 1 --
+    // and a one-element list has no index 1.
+    AssertStackEffectOn (OP_SUBSCRIPT_GET, None, 0,
+                         [OP_CONSTANT, SEED_LIST, OP_CONSTANT, SEED_ONE], 2);
+
+    // ⚠️ The COLLECTION is the right operand of `in`, so it goes on top --
+    // the other way round answers 'Right operand of ''in'' must be a
+    // collection or a String.'
+    AssertStackEffectOn (OP_IN, None, 0,
+                         [OP_CONSTANT, SEED_ONE, OP_CONSTANT, SEED_LIST], 2);
+
+    // A window of callables, gathered into a set.
+    AssertStackEffectOn (OP_OVERLOADS, [2, SEED_NAME], 2,
+                         [OP_CONSTANT, SEED_BODY, OP_CONSTANT, SEED_BODY], 2);
+
+    // A BUILT-IN by name and count, over a collection it can answer.
+    // ⚠️ Over a STRING and not the collection: `Length` the built-in answers
+    // 'Length expects text; use .Length for a collection.' -- the built-in and
+    // the property of that name are different members [RT-001], which is the
+    // asymmetry CLAUDE.md records for Buffer.
+    AssertStackEffectOn (OP_BUILTIN, [SEED_BUILTIN, 1], 1,
+                         [OP_CONSTANT, SEED_TYPE], 1);
+
+    // A CLOSURE over nothing, which is still a closure.
+    AssertStackEffectOn (OP_CLOSURE, [SEED_BODY, 0, 0], 0, None, 0);
+
+    // A CALL that enters a frame and comes straight back, so the net is what
+    // the call did to the CALLER's stack.
+    AssertStackEffectOn (OP_CALL, [0], 0, [OP_CONSTANT, SEED_BODY], 1);
+
+    // The same with an empty list of written names, which is a named call of
+    // no arguments.
+    AssertStackEffectOn (OP_CALL_NAMED, [SEED_NONAMES, 0], 0,
+                         [OP_CONSTANT, SEED_BODY], 1);
+
+    // The WIDE global trio, which differ from the narrow three only in taking
+    // a short -- so they are measured the same way and prove the operand
+    // width changed nothing about the effect.
+    AssertStackEffect (OP_DEFINE_GLOBAL_LONG, [0, 0], 0);
+
+    AssertStackEffectOn (OP_GET_GLOBAL_LONG, [0, 0], 0,
+                         [OP_CONSTANT, SEED_ONE, OP_DEFINE_GLOBAL, 0], 0);
+
+    AssertStackEffectOn (OP_SET_GLOBAL_LONG, [0, 0], 0,
+                         [OP_CONSTANT, SEED_ONE, OP_DEFINE_GLOBAL, 0,
+                          OP_CONSTANT, SEED_ONE], 1);
+
+    // Three in, one out: the collection, the index and the value.
+    AssertStackEffectOn (OP_SUBSCRIPT_SET, None, 0,
+                         [OP_CONSTANT, SEED_LIST, OP_CONSTANT, SEED_ONE,
+                          OP_CONSTANT, SEED_ONE], 3);
+
+    // A host METHOD, which a collection answers -- `Add` with one argument.
+    AssertStackEffectOn (OP_INVOKE, [SEED_ADD, 1], 1,
+                         [OP_CONSTANT, SEED_LIST, OP_CONSTANT, SEED_ONE], 2);
+
+    // The extension pair, reached where the receiver HAS the member -- which
+    // is the half that needs no global, the slot being read only where it has
+    // not [EXP-022].
+    AssertStackEffectOn (OP_EXTEND, [SEED_MEMBER, 0, 0], 0,
+                         [OP_CONSTANT, SEED_TYPE], 1);
+
+    AssertStackEffectOn (OP_INVOKE_EXT, [SEED_ADD, 1, 0, 0], 1,
+                         [OP_CONSTANT, SEED_LIST, OP_CONSTANT, SEED_ONE], 2);
 end
 
 test 'The Slots Underflows Rather Than Reading Rubbish';

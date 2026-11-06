@@ -218,6 +218,41 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   the top without taking it, which is every assignment opcode [EXP-017] as well
   as `OP_DUP`.
 
+  ⚠️ **67 of the 78 opcodes are held to their declaration by a RUN, and the
+  other 11 are NAMED.** The gap is a declared `Unmeasurable` set compared
+  against `OP_COUNT`, so an opcode added with neither a measurement nor a
+  reason fails — and a name declared unmeasurable that IS measured fails too,
+  since a stale exemption quietly shrinks what the test checks. Both
+  directions were seen to go red before being trusted.
+
+  The eleven, with their reasons: `OP_LOOP` and `OP_RETURN` do not come back;
+  `OP_LONG` is a prefix, so measuring it measures what follows; `OP_RAISE`
+  unwinds, so the SP afterwards is the handler's; `OP_THIS` reads below a base
+  the floor frame has not got; and `OP_SET_FIELD`, `OP_GET_CELL`,
+  `OP_SET_CELL`, `OP_INVOKE_NAMED`, `OP_INVOKE_EXT_NAMED` and `OP_SUPER` want a
+  guest instance or a closure's cells — context the harness declines to build,
+  because building it would make the measurement depend on the very opcodes it
+  is measuring.
+
+  ⚠️ **What made the other 36 reachable was PRIMING the stack with bytes, not
+  a depth.** Most of them want something other than a number beneath them — a
+  class, a collection, a cell, a defined global — so `MeasuredAfter` takes raw
+  prime bytes and the caller says how deep they leave it. Every prime is
+  two-byte pushes, which is what lets the depth probe drop the last one by
+  dropping two bytes.
+
+  ⚠️ **Three traps in the primes, each a real asymmetry rather than a slip.**
+  The collection is the RIGHT operand of `in`, so it goes on top; `Length` the
+  BUILT-IN takes text and answers
+  `Length expects text; use .Length for a collection.`, where the property of
+  that name answers a collection; and a one-element list has no index 1, which
+  the Integer filler is.
+
+  ⚠️ **`OP_PRINT` is measurable only because a test run SWALLOWS it.** `DoPrint`
+  returns early under `TESTING`, which is what 0103 needs so a test body's
+  output does not interleave with the report — and it is what lets the
+  harness measure a printing instruction at all.
+
   ⚠️ **The SPLIT between pops and pushes is unobservable, and that is settled
   rather than assumed.** Popping a value and pushing two copies moves the stack
   exactly as reading it and pushing one does — checked with distinct sentinels,
