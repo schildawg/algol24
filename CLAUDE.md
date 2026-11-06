@@ -1918,7 +1918,7 @@ inline. Language points that bite when editing:
 - ⚠️ **A written type name FOLDS, and `CanonicalType` is the one place that
   decides it.** A type is written as an identifier [TYP-002], so `integer` is
   `Integer` in a declaration, a parameter, a return type, a class header's
-  parent and after `of`. This was a defect until v0.1.6 — `1 is integer` was
+  parent and after `of`. This was a defect through v0.1.6 — `1 is integer` was
   true while `var X : integer` was refused — and the sharpest symptom was
   silent: gathering is decided by the written type being a `List` with an
   element type [FUN-005], so `list of Integer` did not absorb and the call
