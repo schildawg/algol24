@@ -28,6 +28,15 @@ class Algol24Vm < Formula
   # layer over SDL3, so the name that actually owns libSDL2 is this one.
   depends_on "sdl2-compat"
 
+  # ⚠️ LINUX-ONLY, and the asymmetry is the operating system's: macOS ships the
+  # foreign-call library in /usr/lib and Linux has to be told.  The machine
+  # always needs it -- a foreign call is a feature of the language rather than
+  # a build option [FUN-014], so vm/build.sh fails without one instead of
+  # producing a binary that refuses foreign calls at run time.
+  on_linux do
+    depends_on "libffi"
+  end
+
   # ⚠️ PINNED, and to a VERSION rather than a branch: the bundle is a pairing
   # of two releases, and `algol24-vm 0.2.2` carrying `algol24-library 0.1.0`
   # says which.  The library's number is its own and does not track this one --
@@ -68,19 +77,23 @@ class Algol24Vm < Formula
 
     # ⚠️ A WRAPPER, and all three of these are load-bearing.
     #
-    # DYLD_LIBRARY_PATH: a unit declares its shim as "external ... in
+    # The loader path: a unit declares its shim as "external ... in
     # 'libgraphffi.so'", and dlopen is handed that name exactly as written --
     # so a relative one resolves against the working directory, and without
     # this the library works only when run from its own install directory.
+    # The variable's NAME is the platform's: dyld reads one and ld.so another,
+    # and setting the wrong one fails silently rather than loudly.
     #
     # ALGOL24_LIB: 'graph' reads its glyph files itself rather than through the
     # compiler, so an installed font has to be named rather than searched for.
     #
     # And the real binary is exec'd from libexec so that argv[0] stays there,
     # which is what lets the compiler find libexec/lib beside it.
+    loader = OS.mac? ? "DYLD_LIBRARY_PATH" : "LD_LIBRARY_PATH"
+
     (bin/"algvm").write <<~SHELL
       #!/bin/sh
-      DYLD_LIBRARY_PATH="#{libexec}/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}" \\
+      #{loader}="#{libexec}/lib${#{loader}:+:$#{loader}}" \\
       ALGOL24_LIB="#{libexec}/lib" \\
       exec "#{libexec}/algvm" "$@"
     SHELL
