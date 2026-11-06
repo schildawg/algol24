@@ -974,8 +974,24 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `LiteralExpr.Init (Value : Expr)` is handed a literal's VALUE, so a strict
   reading stopped the machine at the first literal it parsed.
 
-  ⚠️ **Only the INTERPRETER diverges, and only above about fifteen
-  statements.** `algvm compiler/Main.a24 X.a24` — the interpret path — is
+  ⚠️ **`TRY_ROOM` was 128 and a tree walker opens a region per EVALUATION**,
+  so the handler stack gave way at a recursion depth of about 125 — long before
+  the call stack. Derived from `FRAME_ROOM` now, at two per frame.
+
+  ⚠️ **A capacity limit must not be CATCHABLE, and that was the real bug.**
+  [STM-020] makes a runtime error catchable, which is right for the program's
+  own faults — but the machine's limits travel the same way, as a raised
+  String, so an ordinary `except on e : String` swallowed them: `Deep (200)`
+  guarded by a handler answered **125** where both other processors answer 200,
+  silently. In the hosted compiler the raised String was bound where a loop
+  counter belonged, and `I := I + 1` then concatenated onto
+  `Too many nested try blocks.1111…`, which is what finally named it.
+  `OUT_OF_ROOM` makes `Unwind` decline those four, so they escape to the
+  driver as the diagnostics they are.
+
+  ⚠️ **The interpret path is still not exact, and the cause is NOT a swallowed
+  limit.** 50 of the first 60 corpus cases now answer identically through the
+  machine-hosted compiler; 10 do not, and no limit escapes on them.** `algvm compiler/Main.a24 X.a24` — the interpret path — is
   correct for a program of 15 top-level statements and wrong at 16. The
   threshold is hard and the symptom varies with the program:
   `Operands must be numbers.`, `Undefined property 'Add'`,

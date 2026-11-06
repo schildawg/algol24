@@ -199,11 +199,43 @@ var IP : Integer := 0;
 /// The chunk being run, which is the current frame's.
 var Running : Chunk := Nil;
 
+/// Whether the machine ran out of ROOM rather than the program going wrong.
+///
+/// ⚠️ A capacity limit must not be CATCHABLE. [STM-020] makes a runtime error
+/// catchable, which is right for the program's own faults -- but the machine's
+/// own limits travel the same way, as a raised String, so an ordinary
+/// `except on e : String` swallowed them and the answer came out silently
+/// wrong. `Deep (200)` guarded by a handler answered 125 where both other
+/// processors answer 200, and in the hosted compiler the raised String was
+/// bound where a loop counter belonged.
+///
+/// So Unwind refuses to handle one of these: it escapes to the driver as the
+/// diagnostic it is, which is what the other two processors do by segfaulting.
+var OUT_OF_ROOM : Boolean := False;
+
 /// How deep the handler stack is.
 var TryDepth : Integer := 0;
 
 /// How many protected regions may nest.
-const TRY_ROOM := 128;
+///
+/// DERIVED from FRAME_ROOM, because a protected region is opened per FRAME in
+/// any recursive subprogram that guards its own work -- a tree walker is the
+/// shape that does it -- so a fixed 128 made the handler stack give way long
+/// before the call stack, at a recursion depth of about 125.
+///
+/// ⚠️ Overflowing it was a WRONG ANSWER rather than a diagnostic, which is why
+/// the number mattered so much. The overflow raises a String, [STM-020] makes
+/// a runtime error catchable, and the program's own `except` then swallows the
+/// machine's capacity limit: `Deep (200)` guarded by `on e : String` answered
+/// 125 silently where both other processors answer 200. It is also what
+/// stopped the machine running `algc` on a program of more than fifteen
+/// statements -- the interpreter nests a region per evaluation, the overflow
+/// was caught by its own handler, and the raised String was bound where a loop
+/// counter should have been.
+///
+/// Two per frame rather than one, since a frame may open a region and call
+/// something that opens another before the first closes.
+const TRY_ROOM := FRAME_ROOM * 2;
 
 /// Where each protected region's handlers begin, indexed by depth.
 var TryIP : Array := Array (TRY_ROOM);
@@ -335,7 +367,7 @@ var Answer : Any := Nil;
 /// 'The value stack overflowed.' past STACK_ROOM.
 procedure Push (V : Any);
 begin
-    if SP >= STACK_ROOM then raise 'The value stack overflowed.';
+    if SP >= STACK_ROOM then begin OUT_OF_ROOM := True; raise 'The value stack overflowed.'; end
 
     Slots[SP] := V;
     SP := SP + 1;
@@ -349,7 +381,7 @@ end
 /// bytecode is wrong rather than the program being run.
 function Pop () : Any;
 begin
-    if SP <= 0 then raise 'The value stack underflowed.';
+    if SP <= 0 then begin OUT_OF_ROOM := True; raise 'The value stack underflowed.'; end
 
     SP := SP - 1;
 
@@ -1401,7 +1433,7 @@ begin
     if Count <> Callee.Arity then
         raise Mismatch;
 
-    if FrameDepth >= FRAME_ROOM then raise 'The call stack overflowed.';
+    if FrameDepth >= FRAME_ROOM then begin OUT_OF_ROOM := True; raise 'The call stack overflowed.'; end
 
     // Where to come back to, and what to come back as.
     FrameOf[FrameDepth]     := Running;
@@ -2054,7 +2086,7 @@ end
 /// argument over all the rest.
 procedure Prepend (Callable : Any, Self : Any, Count : Integer);
 begin
-    if SP >= STACK_ROOM then raise 'The value stack overflowed.';
+    if SP >= STACK_ROOM then begin OUT_OF_ROOM := True; raise 'The value stack overflowed.'; end
 
     var Bottom := SP - Count - 1;
 
@@ -2339,7 +2371,7 @@ var
 begin
     Distance := ReadShort ();
 
-    if TryDepth >= TRY_ROOM then raise 'Too many nested try blocks.';
+    if TryDepth >= TRY_ROOM then begin OUT_OF_ROOM := True; raise 'Too many nested try blocks.'; end
 
     TryIP[TryDepth]    := IP + Distance;
     TryOf[TryDepth]    := Running;
@@ -2363,6 +2395,10 @@ end
 /// driver reports it the way the interpreter does.
 function Unwind (Value : Any) : Boolean;
 begin
+    // The machine's own limit is not the program's error, so no handler of the
+    // program's sees it.
+    if OUT_OF_ROOM then Exit False;
+
     if TryDepth = 0 then Exit False;
 
     TryDepth := TryDepth - 1;
@@ -3580,6 +3616,7 @@ begin
     Base       := 0;
     FrameDepth := 0;
     TryDepth   := 0;
+    OUT_OF_ROOM := False;
     Cells      := List ();
     Answer     := Nil;
     Live       := True;
@@ -3609,6 +3646,7 @@ begin
     Base       := 0;
     FrameDepth := 0;
     TryDepth   := 0;
+    OUT_OF_ROOM := False;
     Cells      := List ();
     Answer     := Nil;
     Live       := True;
