@@ -2885,6 +2885,9 @@ static Value m_interpreter_visitsuperexpr_1_superexpr(Value v_this, Value *args,
     (void)((v_superclass = alg_cast(alg_invoke(alg_property(v_this, "Env"), "GetAt", (Value[]){v_distance, alg_string("super")}, 2), "ObjClass")));
     (void)((v_obj = alg_cast(alg_invoke(alg_property(v_this, "Env"), "GetAt", (Value[]){alg_subtract(v_distance, alg_int(1)), alg_string("this")}, 2), "ObjInstance")));
     (void)((v_method = alg_invoke(v_superclass, "FindMethod", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_theexpr, "Method"), "Lexeme")}, 1)}, 1)));
+    if (alg_truthy(alg_equal(v_method, alg_nil()))) {
+        alg_raise(alg_add(alg_add(alg_string("Undefined property '"), alg_str(alg_property(alg_property(v_theexpr, "Method"), "Lexeme"))), alg_string("'.")));
+    }
     Value ret_207 = alg_invoke(v_method, "Bind", (Value[]){v_obj}, 1);
     alg_root_top = rt_base;
     return ret_207;

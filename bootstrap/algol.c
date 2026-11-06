@@ -2987,8 +2987,13 @@ Value alg_bound_from(Value value, Value receiver, const char *name) {
 
     if (klass->super == NULL) alg_error("No superclass.");
 
+    /* [CLS-010] unqualified, rather than a message of its own: a name the
+       parent chain does not declare is a member the class does not have, and
+       naming it is what the reader needs. "Undefined method on the
+       superclass." said neither which member nor which class, and the three
+       processors each had a different sentence for one fault. */
     MethodEntry *method = find_method(klass->super, name, -1, NULL, false);
-    if (method == NULL) alg_error("Undefined method on the superclass.");
+    if (method == NULL) undefined("property", name);
 
     return alg_bound(receiver, method);
 }
@@ -2999,7 +3004,7 @@ Value alg_invoke_from(Value value, Value receiver, const char *name, Value *args
     if (klass->super == NULL) alg_error("No superclass.");
 
     MethodEntry *method = find_method(klass->super, name, count, args, true);
-    if (method == NULL) alg_error("Undefined method on the superclass.");
+    if (method == NULL) undefined("property", name);
 
     return invoke_found(method, receiver, args, count);
 }

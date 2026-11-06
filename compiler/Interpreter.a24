@@ -1688,9 +1688,18 @@ begin
     /// Evaluates 'super.M', finding the method on the parent rather than the
     /// override.
     ///
+    /// # Raises
+    ///
+    /// 'Undefined property ''X''.' where the superclass has no such member,
+    /// which is [CLS-010] unqualified rather than a rule of its own: a name
+    /// the parent chain does not declare is a member the class does not have.
+    /// This raised 'Only instances have properties.' -- true of nothing here,
+    /// since the receiver is an instance and the fault is the NAME -- because
+    /// a nil method was bound without being looked at.
+    ///
     /// # Satisfies
     ///
-    /// [CLS-012]
+    /// [CLS-010], [CLS-012]
     function VisitSuperExpr (TheExpr : SuperExpr) : Any;
     var
         Distance   : Integer;
@@ -1704,6 +1713,9 @@ begin
         Superclass := Env.GetAt (Distance, 'super') as ObjClass;
         Obj := Env.GetAt (Distance - 1, 'this') as ObjInstance;
         Method := Superclass.FindMethod (FoldCase (TheExpr.Method.Lexeme));
+
+        if Method = Nil then
+            raise 'Undefined property ''' + Str (TheExpr.Method.Lexeme) + '''.';
 
         Exit Method.Bind(Obj);
     end

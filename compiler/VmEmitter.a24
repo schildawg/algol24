@@ -318,16 +318,6 @@ var Boxing : Boolean := False;
 /// them, even though [CLS-004] does not say so.
 var InInit : Boolean := False;
 
-/// The method name a constructor's BODY is registered under, holding a space.
-///
-/// A program cannot write it: an identifier is one word [SRC-010], so nothing
-/// a source file says can reach the entry.  It exists so a subclass declaring
-/// no constructor of its own can run its own field initializers and then enter
-/// the inherited constructor's body -- which the inherited `Init` cannot do,
-/// since that one runs the initializers of its OWN chain and knows nothing
-/// about the subclass's.
-const CTOR_BODY := 'ctor body';
-
 /// The return type of the subprogram being compiled, or '' at the top level.
 ///
 /// Held so that `Exit X` can widen to it -- a declared return type is an

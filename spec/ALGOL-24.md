@@ -9276,6 +9276,16 @@ rendering stands, rather than the call being attempted and failing.
 **[CLS-010]**  Reading or calling a member the class does not have is
 `Undefined property 'X'.`
 
+**Unqualified, which includes `super`** [CLS-012]: a name the parent chain does
+not declare is a member the class does not have, and the message names it. Each
+processor used to have a sentence of its own there — `Only instances have
+properties.` interpreted, which was true of nothing, since the receiver *is* an
+instance and the fault is the name; `Undefined method on the superclass.`
+compiled, which named neither the member nor the class; and the bytecode
+machine answered `<fn M>` for a read and a selection failure for a call, having
+bound a member that does not exist. Three different sentences for one fault,
+none of them this rule's.
+
     unit         Call Undefined Getter
 
 ##### conformance/0067-undefined-property.a24
@@ -9367,6 +9377,91 @@ covers inheritance and covers modules, and had no case for their product.
 
     conformance  0068-inheritance.a24
     conformance  0206-inheritance-across-a-uses.a24
+    conformance  0207-super-reaches-a-member-or-says-so.a24
+
+**A parent declaring no constructor has no `Init` to reach**, which falls out of
+[CLS-004] rather than needing a rule: a constructor is a *member*, so a class
+without one has no such member and `super.Init ()` is [CLS-010]'s error. That a
+class with no constructor **takes no arguments** says what *construction* does
+with it, not that the name exists to be called.
+
+##### conformance/0207-super-reaches-a-member-or-says-so.a24
+
+```algol24
+class Base;
+var Field : Any := 'a field';
+begin
+    constructor Init (); begin end
+    function Here () : String; begin Exit 'base'; end
+end
+
+class Derived (Base);
+begin
+    constructor Init (); begin super.Init (); end
+
+    function Here () : String; begin Exit 'derived+' + super.Here (); end
+
+    // CLS-012: super.M read without calling it binds the parent's method.
+    function Held () : String; var F := super.Here; begin Exit F (); end
+
+    // CLS-010: a name the parent chain does not declare is a member the class
+    // does not have, whether it is called or merely read.
+    function Calls () : String; begin Exit super.Missing (); end
+    function Reads () : String; begin Exit super.Missing; end
+
+    // super reaches METHODS.  A parent's FIELD is not one, and is reported the
+    // same way as any other name the parent does not answer.
+    function Field? () : String; begin Exit super.Field; end
+end
+
+var D := Derived ();
+
+WriteLn (D.Here ());
+WriteLn (D.Held ());
+
+try
+    WriteLn (D.Calls ());
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (D.Reads ());
+except
+    on e : String do WriteLn (e);
+end
+
+try
+    WriteLn (D.Field? ());
+except
+    on e : String do WriteLn (e);
+end
+
+// A parent declaring NO constructor has no `Init` to reach, and said three
+// different things in three processors before this case existed.
+class Plain;
+var Seeded : Any := 'seeded';
+begin
+end
+
+class Asks (Plain);
+begin
+    constructor Init (); begin super.Init (); end
+end
+
+WriteLn (Asks ().Seeded);
+```
+
+```console
+$ algc conformance/0207-super-reaches-a-member-or-says-so.a24
+Uncaught: Undefined property 'Init'.
+derived+base
+base
+Undefined property 'Missing'.
+Undefined property 'Missing'.
+Undefined property 'Field'.
+exit: 70
+```
 
 ##### conformance/0206-inheritance-across-a-uses.a24
 

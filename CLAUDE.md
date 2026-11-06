@@ -489,13 +489,30 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   cases and module cases and had none of their **product** — the same gap that
   hid five bugs earlier in this work. `conformance/0206` is the case.
 
-  ⚠️ **`super.Init` where the parent declares NO constructor is a three-way
-  divergence, and it was one before this.** The interpreter says
-  `Only instances have properties.`, the compiled back end
-  `Undefined method on the superclass.`, and the machine
-  `No matching signature for function.` No corpus case asks, which is why
-  `conform.sh` reports zero divergences over it. All three agree it is an
-  error; what it should SAY is open.
+  ⚠️ **A MISSING MEMBER ON A SUPERCLASS answers `Undefined property 'X'.`,
+  and the question was never about `Init`.** `super.Init` where the parent
+  declares no constructor said three different things in three processors — and
+  so did `super.Anything` the parent does not declare, which is what the
+  divergence actually was. [CLS-010] is unqualified, so the rule had the answer
+  all along: a name the parent chain does not declare is a member the class
+  does not have. Each processor was wrong its own way, and none was a majority
+  to defer to: `Only instances have properties.` interpreted (true of nothing —
+  the receiver IS an instance and the fault is the name), `Undefined method on
+  the superclass.` compiled (naming neither member nor class), and on the
+  machine a **fabricated `<fn M>`** for a read plus a selection failure for a
+  call. `conformance/0207` is the case.
+
+  ⚠️ **The machine checks that in `DoSuper`, not at the call, because
+  `super.M` is a VALUE** [FUN-011]. Binding one for a member nothing declares
+  answered `<fn Missing>` — a wrong answer rather than a wrong message — and
+  deferring the check to the call would have left that read intact.
+
+  ⚠️ **`CTOR_BODY` moved to `vm/OpCode.a24` for the message's sake.** It is
+  emitter-to-machine contract like an opcode's number, and the machine needs
+  the name in order NOT to print it: `super.Init` reaches that entry, so the
+  fault reported straight from the constant read `Undefined property
+  'ctor body'.` for a parent that merely declares no constructor.
+  `ReportedMember` answers the name a program could have written.
 
   ⚠️ **A VARIADIC constructor was the one subprogram in the language that did
   not gather**, in the interpreter and the compiled back end both. The same

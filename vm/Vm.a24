@@ -3493,6 +3493,11 @@ end
 
 /// Pushes `super.Member`: the member bound to `this`, looked up starting at the
 /// parent of the class the code was written in.
+///
+/// # Raises
+///
+/// 'Undefined property ''M''.' where the parent chain declares no such member,
+/// which is [CLS-010] unqualified rather than a rule of its own.
 procedure DoSuper ();
 var
     Written : Any;
@@ -3508,9 +3513,26 @@ begin
     // The starting class is set after construction rather than through a second
     // constructor: a named one is called `VmBound.Above (...)`, which the C back
     // end resolves as a VARIABLE of that name and fails to compile.
+    var Parent := GlobalCells[Slot];
+
+    // ⚠️ Checked HERE and not at the call, because `super.M` without
+    // parentheses is a VALUE [FUN-011]: binding one for a member nothing
+    // declares answered `<fn M>` for a name that does not exist, and calling
+    // it then failed as `No matching signature for function.` -- naming
+    // neither the member nor the class.  All three processors had a different
+    // sentence for this one fault, and none of them was [CLS-010]'s.
+    //
+    // ⚠️ Reported through ReportedMember, so the name is the one the program
+    // WROTE.  `super.Init` reaches CTOR_BODY, which no source file can say, so
+    // naming the constant answered `Undefined property 'ctor body'.` for a
+    // parent that simply declares no constructor.
+    if Parent = Nil or Parent.FindMethod (Written) = Nil then
+        raise 'Undefined property ' + QUOTE + ReportedMember (Written)
+            + QUOTE + '.';
+
     var Made := VmBound (Slots[Base - 1], Str (Written));
 
-    Made.From := GlobalCells[Slot];
+    Made.From := Parent;
 
     Push (Made);
 end
