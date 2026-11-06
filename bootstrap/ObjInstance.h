@@ -4,6 +4,10 @@
 
 #include "algol.h"
 
+Value f_setinstanceshown(Value **cells, Value *args, int32_t count);
+extern Value v_instanceVshown;
+extern bool d_instanceVshown;
+extern Value fn_setinstanceshown;
 extern Value k_objinstance;
 extern Value k_objsingleton;
 void init_ObjInstance(void);

@@ -839,6 +839,19 @@ begin
     // A bound member renders '<fn Name>' in the spelling it was written in.
     if V is VmBound then Exit V.ToString ();
 
+    // An OBJECT asks the same question an instance does and falls back
+    // differently: its class's bare name, since the name IS the instance
+    // [CLS-015].  Both other processors let a declared ToString win here, the
+    // interpreter's singleton being a SUBCLASS of its instance so that its
+    // Stringify finds the method without asking.
+    if V is VmSingleton then
+    begin
+        if DeclaresShape (V.Klass, 'tostring', 0) then
+            Exit CallNested (V, 'ToString', List ());
+
+        Exit Str (V.Klass.Name);
+    end
+
     // A class may say how it reads [CLS-006], and what it answers is used
     // as-is -- which needs a frame entered from inside this function, and that
     // is what CallNested is for.

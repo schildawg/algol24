@@ -34,10 +34,17 @@ begin
         this.Made  := Nil;
     end
 
-    /// How an object reads: the name of the class it is the one instance of
-    /// [CLS-015].
+    /// How an object reads: what its class says, and otherwise the name of the
+    /// class it is the one instance of [CLS-015].
+    ///
+    /// A declared `ToString` wins, which is what the other two processors
+    /// answer -- the interpreter's singleton being a SUBCLASS of its instance,
+    /// so its Stringify finds the method without asking. Answering the bare
+    /// name unconditionally made this machine the odd one out.
     function ToString () : String;
     begin
+        if INSTANCE_RENDERER <> Nil then Exit Str (INSTANCE_RENDERER (this));
+
         Exit Str (Klass.Name);
     end
 end
@@ -52,6 +59,10 @@ begin
 end
 
 /// How an instance is rendered, set by the machine at startup.
+///
+/// Named differently from `compiler/ObjInstance.a24`'s INSTANCE_SHOWN on
+/// purpose: `vm/run.a24` imports both units, and one name may not be declared
+/// at the top level of two files of one program.
 ///
 /// A HOOK and not a call, because the rendering a class may declare for itself
 /// has to be reached by entering a frame, which only `Vm.a24` can do -- and

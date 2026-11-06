@@ -1174,13 +1174,41 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   there and not in a unit initializer, because a unit's bare statements do not
   run under `--test`.
 
-  ⚠️ **One rendering position is a THREE-WAY disagreement and the interpreter
-  is the odd one out.** `Ord (X)` on an instance declaring `ToString` says
-  `Ord failed: 'F2' has no ordinal.` on the machine and on the compiled back
-  end, and `'Fancy instance'` interpreted — its diagnostic path does not
-  consult a declared `ToString` where `Str` does. [CLS-009] covers `Str` and
-  "wherever a value is written", so a diagnostic is unspecified and nothing in
-  the corpus reaches it. The machine is with the majority deliberately.
+  ⚠️ **THREE processor disagreements are closed, all by changing whoever was
+  the odd one out.** None was covered by a case and none was settled by a rule,
+  so each was decided by majority:
+
+  - `Ord (X)` on an instance declaring `ToString` answered `'Fancy instance'`
+    interpreted and `'F2'` the other two ways. `ObjInstance.ToString` never
+    consulted the class's own rendering, which [CLS-009] gives it wherever a
+    value is written — and the RUNTIME writes one inside its own diagnostics.
+  - A CALL of a name that is both a field and a method took the FIELD
+    interpreted and the METHOD the other two ways. A plain read answers the
+    field in all three, which is what makes the call the only question.
+  - `object S` declaring `ToString` printed the bare name on the MACHINE and
+    `custom` the other two ways — the interpreter's singleton being a SUBCLASS
+    of its instance, so its `Stringify` finds the method without being asked.
+    That one was this machine's own regression, from adding
+    `VmSingleton.ToString`.
+
+  ⚠️ **The interpreter's two fixes both wanted a HOOK, for the reason the
+  machine's did.** A class's declared rendering has to be *called*, which needs
+  an interpreter — and `ObjInstance` cannot import the unit that imports it. So
+  `INSTANCE_SHOWN` lives there and the interpreter installs `Shown` at
+  construction.
+
+  ⚠️ **That hook must NOT answer through `Stringify`.** `Stringify` ends in
+  `Str (Value)`, which comes back to `ObjInstance.ToString` — so a class
+  declaring nothing would recurse forever. It answers the default directly.
+
+  ⚠️ **A method wins at a call by a flag the OUTERMOST member read clears.**
+  `VisitCall` sets `MemberIsCallee` when its callee is a `GetExpr`;
+  `VisitGetExpr` reads and clears it BEFORE evaluating the receiver. Without
+  the clearing, `A.B.F (...)` would prefer a method for `B` on its way to `F`.
+
+  ⚠️ **Two hooks may not share a name.** Naming the machine's
+  `INSTANCE_SHOWN` too would have put one top-level name in two units that
+  `vm/run.a24` imports both of; the machine's stays `INSTANCE_RENDERER`.
 
   ⚠️ **`Ord` of an enum member is the machine's answer, not the host's** — the
   same split truthiness has. The host holds one of the machine's objects and

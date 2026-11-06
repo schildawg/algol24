@@ -467,6 +467,17 @@ var
     /// Unit name to that unit's environment, for a qualified access.
     UnitsByName : Map;
 
+    /// Whether the member read being evaluated is a CALL's callee.
+    ///
+    /// A METHOD wins at a call where a FIELD wins at a read: `X.F ('a')`
+    /// reaches the method and `Str (X.F)` answers the field. Both other
+    /// processors do it, so it is the language rather than one of them -- and
+    /// this interpreter took the field either way, which no case covered.
+    ///
+    /// Read and CLEARED by the outermost GetExpr, so `A.B.F (...)` does not
+    /// prefer a method for `B` on its way to `F`.
+    MemberIsCallee : Boolean := False;
+
 begin
     /// Makes an interpreter with the built-ins defined and a program scope
     /// inside them.
@@ -482,6 +493,11 @@ begin
         this.UnitsByName := Map();
 
         this.Env := Globals;
+
+        // How the RUNTIME renders one of this interpreter's instances. Set
+        // here because ObjInstance cannot import this unit, being what this
+        // unit imports.
+        SetInstanceShown (this.Shown);
 
         Builtins.Define ('clock', Native ('clock', 0));
         Builtins.Define ('Collect', Native ('Collect', 0));
@@ -1101,6 +1117,26 @@ begin
         end
     end
 
+    /// How an instance reads: what its class says, or the default.
+    ///
+    /// Installed as ObjInstance's hook, so the runtime renders an instance the
+    /// way a program does. It must NOT answer through Stringify where the
+    /// class declares nothing: Stringify ends in `Str (Value)`, which comes
+    /// back to ObjInstance.ToString and recurses forever.
+    ///
+    /// # Satisfies
+    ///
+    /// [CLS-009]
+    function Shown (Value : Any) : String;
+    begin
+        var Method := Value.Klass.MethodOfArity ('tostring', 0);
+
+        if Method <> Nil then
+            Exit Stringify (this, Method.Bind (Value).Call (this, List ()));
+
+        Exit Str (Value.Klass.Name) + ' instance';
+    end
+
     /// Adds 'Did you mean U.X?' to an undefined-name message when some unit
     /// exports it.
     function SuggestUnit (Name : Token, Message : String) : String;
@@ -1332,7 +1368,13 @@ begin
         Arguments : List;
 
     begin
+        // A member read as a CALLEE prefers a method of the name, which is
+        // what the field above records.
+        MemberIsCallee := TheExpr.Callee is GetExpr;
+
         Callee := Evaluate (TheExpr.Callee);
+
+        MemberIsCallee := False;
 
         Arguments := List();
         for var Argument in TheExpr.Arguments do
@@ -1536,6 +1578,12 @@ begin
        Obj : Any;
 
     begin
+        // Read and cleared BEFORE the receiver is evaluated, so only the
+        // outermost member read of a callee is affected.
+        var AsCallee := MemberIsCallee;
+
+        MemberIsCallee := False;
+
         if TheExpr.Unit <> '' then Exit Qualified (TheExpr.Unit, TheExpr.Name);
 
         Obj := Evaluate (TheExpr.Obj);
@@ -1572,6 +1620,16 @@ begin
 
         if Obj is ObjInstance then
         begin
+            // A METHOD WINS AT A CALL.  Reached only as a callee, so a plain
+            // read still answers the field -- which is what all three
+            // processors already agreed about.
+            if AsCallee then
+            begin
+                var Called := Obj.Klass.FindMethod (FoldCase (TheExpr.Name.Lexeme));
+
+                if Called <> Nil then Exit Called.Bind (Obj);
+            end
+
             var Member := Obj.Klass.MethodOfArity (FoldCase (TheExpr.Name.Lexeme), 0);
 
             if Member <> Nil and Member.Declaration.IsProperty
