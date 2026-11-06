@@ -2361,6 +2361,17 @@ procedure EmitHandlerArm (Arm : Any);
 begin
     PushScope ();
 
+    // ⚠️ BOXED like any other local of a frame that declares a nested
+    // subprogram, which this did not do.  The raised value is already on the
+    // stack and AddLocal claims that position as the slot, so a frame boxing
+    // its locals got a RAW value where every reader expects a cell -- and the
+    // handler's own first read answered `Undefined property 'Held'`, naming
+    // VmCell's field at a program that has no such name.
+    //
+    // Any `try` in a frame with a nested subprogram in it, which the corpus
+    // reaches in 0 of its cases.
+    if Boxing then Into.Emit (OP_CELL);
+
     AddLocal (Arm.Name);
 
     EmitStmt (Arm.Body);
@@ -4105,8 +4116,14 @@ begin
         begin
             if DeclaresNested ([TheStmt.TryBlock]) then Exit True;
 
+            // ⚠️ The arm's BODY, not the arm.  A handler arm is not a
+            // statement -- it carries a Name and a Body -- so passing the arm
+            // matched no kind and the walk answered False for every handler
+            // there is.  A nested subprogram declared inside a handler then
+            // sat in an unboxed frame, and capturing the handler's own
+            // variable reported `Undefined variable 'e'`.
             for var Key in TheStmt.Handlers do
-                if DeclaresNested ([TheStmt.Handlers.Get (Key)]) then Exit True;
+                if DeclaresNested ([TheStmt.Handlers.Get (Key).Body]) then Exit True;
         end
 
         if Kind = 'IfStmt' then

@@ -1806,11 +1806,21 @@ begin
     // this, so the machine's foreign call IS the host's and the two cannot
     // disagree about what a symbol does or about the message a build without
     // libffi gives.
-    if Callee is VmFunction then
-        if Str (Callee.Symbol) <> '' then
+    // ⚠️ Through the CLOSURE as well, because a NESTED external is one.  A
+    // subprogram declared inside another is a VmClosure wrapping the
+    // VmFunction, so asking only `Callee is VmFunction` skipped the check
+    // entirely: the machine entered a body an external has not got and the
+    // call answered NIL.  Not an error -- a wrong answer, which is the worst
+    // shape a foreign call can fail in, and the interpreter answers correctly.
+    var Declared := Callee;
+
+    if Callee is VmClosure then Declared := Callee.Body;
+
+    if Declared is VmFunction then
+        if Str (Declared.Symbol) <> '' then
         begin
-            if Count <> Callee.Arity then
-                raise 'Expected ' + Str (Callee.Arity) + ' arguments but got '
+            if Count <> Declared.Arity then
+                raise 'Expected ' + Str (Declared.Arity) + ' arguments but got '
                     + Str (Count) + '.';
 
             // Read off the stack by INDEX and in order; popping would hand the
@@ -1822,8 +1832,8 @@ begin
 
             SP := SP - Count - 1;
 
-            Push (Foreign (Callee.Symbol, Callee.Library,
-                           Callee.Types, Callee.Returns, Given));
+            Push (Foreign (Declared.Symbol, Declared.Library,
+                           Declared.Types, Declared.Returns, Given));
 
             Exit;
         end

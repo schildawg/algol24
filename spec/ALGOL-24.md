@@ -8123,6 +8123,102 @@ reference**, and the capture outlives the call that created it. A function
 returning a nested one hands back something that keeps reading and writing the
 same variable.
 
+**A HANDLER's variable is one of those enclosing variables** [STM-017], and a
+nested subprogram may be declared inside a handler arm and capture it. Neither
+is apparent from the shape of the code, and an implementation that holds
+captured locals in cells has to put the raised value in one like any other
+local — the bytecode machine did not, and a handler's own first read answered
+`Undefined property 'Held'`, naming an internal field at a program that has no
+such name. Any `try` in a frame declaring a nested subprogram, which no other
+case reaches.
+
+    conformance  0209-a-handler-variable-is-captured.a24
+
+##### conformance/0209-a-handler-variable-is-captured.a24
+
+```algol24
+// A frame that declares a nested subprogram holds its locals in cells, so a
+// nested one can capture them by reference [FUN-009].  A HANDLER's variable is
+// such a local, and a nested subprogram may be declared inside a handler arm
+// and capture it -- neither of which the shape of the code makes obvious.
+
+procedure Caught ();
+var Kept := 'kept';
+begin
+    // The nested subprogram is what makes every local of this frame a cell.
+    function Peek () : String;
+    begin
+        Exit Kept;
+    end
+
+    try
+        raise 'thrown';
+    except
+        on e : String do WriteLn ('caught ', e);
+    end
+
+    // The frame survives its own handler: the local still reads, and so does
+    // the capture.
+    WriteLn (Kept, ' ', Peek ());
+end
+
+Caught ();
+
+// A caught RUNTIME error, which arrives the same way [STM-020].
+procedure Arity ();
+var N := 7;
+begin
+    function Twice (M : Integer) : Integer;
+    begin
+        Exit M * 2 + N;
+    end
+
+    try
+        WriteLn (Twice (1, 2));
+    except
+        on e : String do WriteLn ('caught ', e);
+    end
+
+    WriteLn ('N is ', N);
+end
+
+Arity ();
+
+// And a nested subprogram declared INSIDE a handler arm, capturing both the
+// handler's own variable and a local of the frame around it.
+procedure Inside ();
+var Tag := 'tag';
+begin
+    try
+        raise 'reason';
+    except
+        on e : String do
+        begin
+            function Describe () : String;
+            begin
+                Exit Tag + '/' + e;
+            end
+
+            WriteLn (Describe ());
+        end
+    end
+
+    WriteLn ('Tag is ', Tag);
+end
+
+Inside ();
+```
+
+```console
+$ algc conformance/0209-a-handler-variable-is-captured.a24
+caught thrown
+kept kept
+caught Expected 1 arguments but got 2.
+N is 7
+tag/reason
+Tag is tag
+```
+
 ##### conformance/0061-closures.a24
 
 ```algol24

@@ -403,6 +403,29 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   an explicit `this` all go through that one pair. This is what `CEmitter`
   already did for the same problem, and 0148 is the case.
 
+  ⚠️ **A NESTED `external` is still an external, and the machine answered
+  NIL.** `CallValue` asked `Callee is VmFunction`, where a subprogram declared
+  inside another is a `VmClosure` **wrapping** one — so the foreign path was
+  skipped, the machine entered a body an external has not got, and the call
+  answered nil. Not an error: a wrong answer, which is the worst shape a
+  foreign call can fail in. Unwrap the closure before asking.
+
+  ⚠️ **A HANDLER's variable is a local, so a boxing frame must BOX it.**
+  `EmitHandlerArm` claimed the slot the raised value already occupies without
+  the `OP_CELL` every other local-declaring site emits — so in a frame that
+  declares a nested subprogram the handler's own first read answered
+  `Undefined property 'Held'`, naming `VmCell`'s field at a program that has no
+  such name. **Any `try` in such a frame was broken**, and 265 corpus cases
+  reach none of them. `conformance/0209` is the case.
+
+  ⚠️ **`DeclaresNested` walked the handler ARM rather than its BODY**, which
+  made the walk it already had useless. An arm is not a statement — it carries
+  a `Name` and a `Body` — so no kind matched and it answered False for every
+  handler there is; a nested subprogram declared inside an arm then sat in an
+  unboxed frame and capturing the handler's variable reported
+  `Undefined variable 'e'`. The existing note below says a missing statement
+  kind is a wrong answer; so is a present one handed the wrong node.
+
   ⚠️ **`DeclaresNested` missing a statement kind is a WRONG ANSWER, not a
   refusal.** It decides whether a body boxes its locals, and it did not walk a
   `try` — so a nested subprogram inside one captured locals nobody had boxed,
@@ -1990,6 +2013,15 @@ to use themselves after the reseed. Expect two commits, and expect
 `fixedpoint.sh` to need more than one generation.
 
 ## Known issues
+
+**A NESTED `external` does not work in the C back end**, two ways, and both are
+wrong answers rather than its documented refusals. Two nested subprograms of
+one name in *different* enclosing procedures emit one C symbol —
+`error: redefinition of 'f_textlength'` — and a nested external that does
+compile answers `Undefined variable 'X'.` when called. Legal programs: the
+interpreter and the machine both run them, and the machine was fixed to. No
+conformance case can be added until this is, because `conform.sh` requires both
+processors to pass and a compiler gap is a failure rather than a report.
 
 **DEF-34 — `Val` follows `strtod`'s acceptance rather than the language's literal
 rules**, so `'0x1F'` answers a Double where a hex literal is an Integer. Any fix
