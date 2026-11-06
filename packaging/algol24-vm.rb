@@ -22,7 +22,11 @@ class Algol24Vm < Formula
   license "MIT"
   head "https://github.com/schildawg/algol24.git", branch: "main"
 
-  depends_on "sdl2"
+  # ⚠️ sdl2-compat AND NOT sdl2, which is merely its alias -- `brew linkage
+  # --test` reports a dylib reached through an alias as an INDIRECT dependency
+  # and fails the formula for it.  Homebrew's sdl2 has become a compatibility
+  # layer over SDL3, so the name that actually owns libSDL2 is this one.
+  depends_on "sdl2-compat"
 
   # ⚠️ PINNED, and to a VERSION rather than a branch: the bundle is a pairing
   # of two releases, and `algol24-vm 0.2.2` carrying `algol24-library 0.1.0`
@@ -85,6 +89,14 @@ class Algol24Vm < Formula
   end
 
   test do
+    # ⚠️ HEADLESS, because a test runner has no display: `graph` opens a real
+    # window otherwise and fails with `Graph could not start: The video driver
+    # did not add any displays`.  The library's own test script sets the same
+    # variable for the same reason; a user's install is untouched by it, since
+    # this is the test's environment and not the wrapper's.
+    ENV["SDL_VIDEODRIVER"] = "dummy"
+    ENV["ALG_SOUND"] = "dummy"
+
     assert_match "algvm", shell_output("#{bin}/algvm --version")
 
     (testpath/"hello.a24").write "WriteLn ('hello, ' + Str (2 + 2));\n"
