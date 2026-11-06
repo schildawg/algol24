@@ -17,8 +17,8 @@
 class Algol24 < Formula
   desc "Retro-modern, gradually typed, self-hosting language"
   homepage "https://github.com/schildawg/algol24"
-  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.2.1.tar.gz"
-  sha256 "2b6d4bc658f641a233ef5a619490461bd8c18283848b96c28a956f89cbc6a948"
+  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.2.2.tar.gz"
+  sha256 "1395bbec34e8eb25dbb785e149a5286ae5a00b60052ab0b10eaa49fd4a6f0832"
   license "MIT"
   head "https://github.com/schildawg/algol24.git", branch: "main"
 
