@@ -1,0 +1,32 @@
+// A local declared inside a loop is registered once per ITERATION, so the
+// shadow stack has to be truncated once per iteration too.
+//
+// The element of a 'for ... in' is the sharp case, because it is declared
+// inside the C loop body rather than in the wrapper block: registering it
+// without truncating pushed one entry an iteration and left every one of them
+// pointing at a scope that had already closed.  A hundred thousand iterations
+// is enough that an unbounded stack is unmistakable, and the truncation point
+// sits after the continue target so that a 'continue' truncates as well.
+
+function Tally (Rows : List) : Integer;
+begin
+    var Sum := 0;
+
+    for var I : Integer := 0; I < 200; I := I + 1 do
+        for var Row in Rows do
+        begin
+            var Doubled := Row * 2;
+            Sum := Sum + Doubled;
+        end
+
+    Exit Sum;
+end
+
+begin
+    var Rows := [];
+    for var I : Integer := 0; I < 500; I := I + 1 do Rows.Add (I);
+
+    WriteLn ('tally: ' + Str (Tally (Rows)));
+    WriteLn ('rows kept: ' + Str (Rows.Length));
+    WriteLn ('released something: ' + Str (Collect () > 0));
+end

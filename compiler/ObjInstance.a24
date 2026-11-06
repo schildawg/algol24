@@ -6,6 +6,25 @@ uses ObjClass;
 uses ObjFunction;
 uses Token;
 
+/// How an instance is rendered, set by the interpreter at startup.
+///
+/// A HOOK and not a call, because the rendering a class may declare for itself
+/// has to be reached by CALLING it, which needs an interpreter -- and this unit
+/// cannot import the one that imports it. So the interpreter installs its own
+/// renderer here once and ToString below asks through it.
+///
+/// Nil until then, which is what the default below is for. The default is also
+/// what the hook must answer where the class declares nothing: answering
+/// through Stringify instead would come back here and recurse forever, since
+/// Stringify ends in `Str (Value)`.
+var INSTANCE_SHOWN : Any := Nil;
+
+/// Tells this unit how to render an instance.
+procedure SetInstanceShown (Answering : Any);
+begin
+    INSTANCE_SHOWN := Answering;
+end
+
 /// One object: its class, and the values of the fields that class declared.
 class ObjInstance;
 var
@@ -81,9 +100,18 @@ begin
         Fields.Put (FoldCase (Name.Lexeme), Value);
     end
 
-    /// Prints the instance as its class name followed by ' instance'.
+    /// Prints the instance as its class may say, and otherwise as its class
+    /// name followed by ' instance'.
+    ///
+    /// A class declaring `ToString ()` decides how its instances render
+    /// wherever a value is written [CLS-009], and that has to hold where the
+    /// RUNTIME renders one too -- inside `Ord failed: '<value>' has no
+    /// ordinal.`, for instance, which answered the default where the compiled
+    /// back end and the machine both answered the declared rendering.
     function ToString () : String;
     begin
+        if INSTANCE_SHOWN <> Nil then Exit Str (INSTANCE_SHOWN (this));
+
         Exit Klass.Name + ' instance';
     end
 end

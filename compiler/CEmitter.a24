@@ -146,6 +146,24 @@ var
     /// a different reason.
     Declarations : Buffer := Buffer();
 
+    /// Every file-scope Value this unit declares, by C symbol.
+    ///
+    /// Emitted as a table of ADDRESSES and registered with the runtime in
+    /// `init_<Unit>()`, which is what makes the collector's global root set
+    /// precise rather than conservative: a module-level variable is a C
+    /// static, so its address is knowable here and nowhere else.
+    RootSymbols : List := [];
+
+    /// Fresh names for the saved shadow-stack depths, one per block that
+    /// declares anything.
+    RootMarks : Integer := 0;
+
+    /// The name holding the shadow-stack depth the current subprogram was
+    /// entered at, which every 'Exit' restores.
+    ///
+    /// Empty at the top level, where there is no frame to leave.
+    FrameRoots : String := '';
+
     /// Whole function bodies.
     Functions    : Buffer := Buffer();
 
@@ -808,6 +826,8 @@ begin
     /// C file when it is not.
     procedure DeclareValue (Symbol : String, Name : String);
     begin
+        RootSymbols.Add (Symbol);
+
         if Exported (Name) then
         begin
             Declarations.Append ('Value ' + Symbol + ';' + #10);
@@ -1058,6 +1078,7 @@ begin
             var Unit := Units[U];
 
             Declarations := Buffer();
+            RootSymbols  := List();
             Functions := Buffer();
             Setup := Buffer();
             Shells := Buffer();
@@ -1275,7 +1296,27 @@ begin
         if Declarations.Length > 0 then Text := Text + Declarations.Text + #10;
         if Functions.Length > 0 then Text := Text + Functions.Text;
 
+        // The root table, after the declarations it takes addresses of and
+        // before the init that registers it.  A unit with no globals gets no
+        // table, because C has no empty array initializer.
+        if RootSymbols.Length > 0 then
+        begin
+            Text := Text + 'static Value *roots_' + Str (Unit.Name) + '[] = {' + #10;
+
+            for var Each in RootSymbols do
+                Text := Text + '    &' + Str (Each) + ',' + #10;
+
+            Text := Text + '};' + #10 + #10;
+        end
+
         Text := Text + 'void init_' + Str (Unit.Name) + '(void) {' + #10;
+
+        // Registered FIRST, so a collection during this unit's own
+        // initialization can already see what it has set.
+        if RootSymbols.Length > 0 then
+            Text := Text + '    alg_roots(roots_' + Str (Unit.Name) + ', '
+                  + Str (RootSymbols.Length) + ');' + #10;
+
         Text := Text + Shells.Text;
         Text := Text + Setup.Text;
         Text := Text + MainBody.Text;
@@ -1722,6 +1763,94 @@ begin
         while Locals.Length > Mark[1] do Locals.RemoveAt (Locals.Length - 1);
     end
 
+    /// Registers a range of Values with the collector for as long as the
+    /// enclosing block runs.
+    ///
+    /// A local the collector cannot see is one it will release while the
+    /// program still holds it, which [RT-029] forbids an implementation from
+    /// doing: it must decline instead. So every local goes through here.
+    procedure Root (Slots : String, Count : String);
+    begin
+        Line ('alg_root(' + Slots + ', ' + Count + ');');
+    end
+
+    /// Declares a local, silences the unused warning, and registers it.
+    procedure DeclareLocal (Symbol : String, Initial : String);
+    begin
+        Line (Local () + Symbol + ' = ' + Initial + ';');
+        Line ('(void)' + Symbol + ';');
+
+        Root ('&' + Symbol, '1');
+    end
+
+    /// Emits a return, truncating the shadow stack to what the subprogram was
+    /// entered at.
+    ///
+    /// The value goes into a slot FIRST, because it is an expression that may
+    /// itself allocate and must be evaluated while this frame's locals are
+    /// still registered.
+    procedure EmitReturn (Value : String);
+    begin
+        if FrameRoots = '' then
+        begin
+            Line ('return ' + Value + ';');
+            Exit;
+        end
+
+        var Slot := 'ret_' + Str (Loops);
+        Loops := Loops + 1;
+
+        Line (Local () + Slot + ' = ' + Value + ';');
+        Line ('alg_root_top = ' + FrameRoots + ';');
+        Line ('return ' + Slot + ';');
+    end
+
+    /// Saves the shadow-stack depth, and answers the name it was saved in.
+    ///
+    /// Answers '' for a block that declares nothing, which needs no save and no
+    /// truncation -- the common case, and the reason this asks rather than
+    /// emitting unconditionally.
+    function OpenRoots (Declares : Boolean) : String;
+    begin
+        if not Declares then Exit '';
+
+        var Mark := 'rt_' + Str (RootMarks);
+        RootMarks := RootMarks + 1;
+
+        Line ('int32_t ' + Mark + ' = alg_root_top;');
+
+        Exit Mark;
+    end
+
+    /// Truncates the shadow stack back to what a block opened at.
+    ///
+    /// Required rather than tidy: the block's locals go out of scope here, so an
+    /// entry left pointing at one points into a C frame that may already have
+    /// been reused.
+    procedure CloseRoots (Mark : String);
+    begin
+        if Mark = '' then Exit;
+
+        Line ('alg_root_top = ' + Mark + ';');
+    end
+
+    /// Whether a statement list declares anything the shadow stack must hold.
+    function DeclaresLocal (Statements : List) : Boolean;
+    begin
+        for var Each in Statements do
+        begin
+            if Each is VarStmt or Each is VarGroupStmt then Exit True;
+
+            // A nested subprogram becomes a local holding its closure.
+            if Each is FunctionStmt then Exit True;
+
+            if Each is LabelStmt and Each.Inner <> Nil then
+                if Each.Inner is VarStmt or Each.Inner is VarGroupStmt then Exit True;
+        end
+
+        Exit False;
+    end
+
     /// Declares one cell and gives it a starting value.
     procedure DeclareCell (Name : String, Initial : String);
     var
@@ -1733,6 +1862,10 @@ begin
 
         Line ('Value *' + Qualifier + Cell (Name) + ' = alg_cell(' + Initial + ');');
         Line ('(void)' + Cell (Name) + ';');
+
+        // The CELL, not its address: a boxed local lives on the heap and the
+        // cell pointer is already the Value's address.
+        Root (Cell (Name), '1');
 
         Cells.Add (Name);
     end
@@ -1780,17 +1913,20 @@ begin
         Line ('{');
         Depth := Depth + 1;
 
+        var Roots := OpenRoots (True);
+
         Locals.Add (Str (Handler.Name));
 
         if Boxed.Contains (Str (Handler.Name)) then
             DeclareCell (Str (Handler.Name), Frame + '.raised');
         else
         begin
-            Line (Local () + VariableName (Str (Handler.Name)) + ' = ' + Frame + '.raised;');
-            Line ('(void)' + VariableName (Str (Handler.Name)) + ';');
+            DeclareLocal (VariableName (Str (Handler.Name)), Frame + '.raised');
         end
 
         Execute (Handler.Body);
+
+        CloseRoots (Roots);
 
         Depth := Depth - 1;
         Line ('}');
@@ -1994,6 +2130,17 @@ begin
         var EnclosingVolatiles := Volatiles;
         Volatiles := ContainsTry (TheMethod.Body);
 
+        // The frame's base, before anything is registered against it.  The
+        // receiver is a C parameter like any other and is rooted as one: a
+        // method body may allocate, and nothing else holds the instance while
+        // this frame runs.
+        var EnclosingFrameRoots := FrameRoots;
+        FrameRoots := 'rt_base';
+
+        Line ('int32_t ' + FrameRoots + ' = alg_root_top;');
+        Root ('&v_this', '1');
+        Root ('args', 'count');
+
         var EnclosingBoxed := Boxed;
         var EnclosingCaptured := Captured;
         var EnclosingCells := Cells;
@@ -2034,8 +2181,7 @@ begin
             if Boxed.Contains (Name) then DeclareCell (Name, Slot);
             else
             begin
-                Line (Local () + VariableName (Name) + ' = ' + Slot + ';');
-                Line ('(void)' + VariableName (Name) + ';');
+                DeclareLocal (VariableName (Name), Slot);
             end
         end
 
@@ -2048,7 +2194,7 @@ begin
 
         PopLabels ();
 
-        Line ('return alg_nil();');
+        EmitReturn ('alg_nil()');
 
         var Written := Body.Text;
 
@@ -2071,6 +2217,7 @@ begin
         Cells := EnclosingCells;
         TryDepth := EnclosingTryDepth;
         LoopTryDepth := EnclosingLoopTry;
+        FrameRoots := EnclosingFrameRoots;
     end
 
     /// Emits a class: its shell, then its link to its parent, then its fields
@@ -2120,7 +2267,7 @@ begin
             begin
                 Value := Evaluate (TheField.Initializer);
 
-                Value := BoundValue (TheField.TypeName, Value);
+                Value := BoundValue (TheField.TypeName, Value, '');
             end
 
             Applied := Applied + '    alg_set_property(v_this, '
@@ -2136,7 +2283,16 @@ begin
                    + '(Value v_this, Value *args, int32_t count) {' + #10);
 
         Functions.Append ('    (void)v_this; (void)args; (void)count;' + #10);
+
+        // Written as text rather than through Line, so the frame is too.  A
+        // field's initializer is an arbitrary expression and the instance it
+        // is being written into is held nowhere else yet.
+        Functions.Append ('    int32_t rt_base = alg_root_top;' + #10);
+        Functions.Append ('    alg_root(&v_this, 1);' + #10);
+
         Functions.Append (Applied);
+
+        Functions.Append ('    alg_root_top = rt_base;' + #10);
         Functions.Append ('    return alg_nil();' + #10 + '}' + #10 + #10);
 
         for var Method in Methods do
@@ -2241,8 +2397,7 @@ begin
         begin
             Value := Evaluate (TheStmt.Initializer);
 
-            if Str (TheStmt.TypeName) <> '' and Str (TheStmt.TypeName) <> 'Any' then
-                Value := 'alg_widen(' + Value + ', ' + QuoteC (Str (TheStmt.TypeName)) + ')';
+            Value := BoundValue (TheStmt.TypeName, Value, TheStmt.Actual);
         end
 
         if AtTopLevel then
@@ -2265,8 +2420,7 @@ begin
         begin
             Locals.Add (Str (TheStmt.Name.Lexeme));
 
-            Line (Local () + VariableName (Str (TheStmt.Name.Lexeme)) + ' = ' + Value + ';');
-            Line ('(void)' + VariableName (Str (TheStmt.Name.Lexeme)) + ';');
+            DeclareLocal (VariableName (Str (TheStmt.Name.Lexeme)), Value);
         end
     end
 
@@ -2347,6 +2501,13 @@ begin
 
         Line ('{');
         Depth := Depth + 1;
+
+        // Before HoistCells, which declares cells of its own, and restored
+        // after the last statement: the block's locals go out of scope at the
+        // brace, so an entry left pointing at one points into storage C is
+        // free to reuse.
+        var Roots := OpenRoots (DeclaresLocal (TheStmt.Statements));
+
         HoistCells (TheStmt.Statements);
         PushLabels (TheStmt.Statements);
 
@@ -2354,6 +2515,8 @@ begin
             Execute (Statement);
 
         PopLabels ();
+
+        CloseRoots (Roots);
 
         Depth := Depth - 1;
         Line ('}');
@@ -2471,7 +2634,7 @@ begin
 
         if TryDepth = 0 then
         begin
-            Line ('return ' + Value + ';');
+            EmitReturn (Value);
             Exit;
         end
 
@@ -2482,6 +2645,8 @@ begin
 
         for var I := 0; I < TryDepth; I := I + 1 do
             Line ('alg_pop_frame();');
+
+        if FrameRoots <> '' then Line ('alg_root_top = ' + FrameRoots + ';');
 
         Line ('return ' + Slot + ';');
     end
@@ -2618,6 +2783,20 @@ begin
         if not Nested then
             Line ('alg_arity(count, ' + Str (TheStmt.Params.Length) + ');');
 
+        // The argument array is one entry, whatever its length -- which also
+        // covers the caller's own array for as long as this call runs.
+        var EnclosingFrameRoots := FrameRoots;
+        FrameRoots := 'rt_base';
+
+        Line ('int32_t ' + FrameRoots + ' = alg_root_top;');
+        Root ('args', 'count');
+
+        // A capture is reached through `cells` rather than through a local, so
+        // it is registered here and not by DeclareCell.
+        if Nested then
+            for var I := 0; I < Inherited.Length; I := I + 1 do
+                Root ('cells[' + Str (I) + ']', '1');
+
         for var I := 0; I < TheStmt.Params.Length; I := I + 1 do
         begin
             var ParamName := Str (TheStmt.Params[I].Lexeme);
@@ -2636,9 +2815,8 @@ begin
             end
             else
             begin
-                Line (Local () + VariableName (ParamName) + ' = '
-                    + BoundArgument (TheStmt.Params, TheStmt.ParamTypes, I) + ';');
-                Line ('(void)' + VariableName (ParamName) + ';');
+                DeclareLocal (VariableName (ParamName),
+                              BoundArgument (TheStmt.Params, TheStmt.ParamTypes, I));
             end
         end
 
@@ -2650,7 +2828,7 @@ begin
 
         PopLabels ();
 
-        Line ('return alg_nil();');
+        EmitReturn ('alg_nil()');
 
         var Written := Body.Text;
 
@@ -2664,6 +2842,8 @@ begin
         Functions.Append ('}' + #10 + #10);
 
         var CapturedCells := Inherited;
+
+        FrameRoots := EnclosingFrameRoots;
 
         Depth := EnclosingDepth;
         AtTopLevel := EnclosingTop;
@@ -2681,8 +2861,10 @@ begin
         if Nested then
         begin
             Locals.Add (Name);
-            Line (Local () + VariableName (Name) + ' = '
-                + ClosureOf (TheStmt, CapturedCells) + ';');
+
+            // Rooted like any local: the closure owns the cells its nested
+            // body reads, so releasing it releases those too.
+            DeclareLocal (VariableName (Name), ClosureOf (TheStmt, CapturedCells));
         end
         else if Overloaded.Contains (Name) then
         begin
@@ -2871,12 +3053,44 @@ begin
         Unsupported ('Reading ''' + Name + ''' from a nested function');
     end
 
-    /// Wraps a value in the widening its declared type calls for.
-    function BoundValue (Declared : Any, Value : String) : String;
+    /// Wraps a value in the widening its declared type calls for, unless the
+    /// widening provably converts nothing.
+    ///
+    /// Actual is what the TypeChecker reduced the value to, or '' where it is
+    /// not known -- an unknown one never elides, which is what makes a missing
+    /// annotation safe rather than merely slow.
+    ///
+    /// # Satisfies
+    ///
+    /// VAL-001, VAR-004, VAR-017
+    function BoundValue (Declared : Any, Value : String, Actual : Any) : String;
     begin
         if Str (Declared) = '' or Str (Declared) = 'Any' then Exit Str (Value);
 
+        if Elidable (Declared, Actual) then Exit Str (Value);
+
         Exit 'alg_widen(' + Str (Value) + ', ' + QuoteC (Str (Declared)) + ')';
+    end
+
+    /// Answers whether widening a value of type Actual to Declared can be
+    /// dropped because it cannot change the value or raise.
+    ///
+    /// The runtime widens an Integer to a Double and a Char to a String and
+    /// nothing else, so a Declared equal to Actual converts nothing and the
+    /// only work left is the subrange bounds check. A Declared that is not a
+    /// subrange therefore makes the whole call the identity.
+    ///
+    /// A subrange is never elided even when the two names agree. The value
+    /// reaching it was range-checked where its own type was established, so
+    /// the check is redundant in principle -- but 'in principle' is doing the
+    /// work there, and the corpus checks that these raise [VAR-017].
+    function Elidable (Declared : Any, Actual : Any) : Boolean;
+    begin
+        if Str (Actual) = '' or Str (Actual) = 'Any' then Exit False;
+
+        if FoldCase (Declared) <> FoldCase (Actual) then Exit False;
+
+        Exit not IsSubrange (Declared);
     end
 
     /// Emits an assignment to a bare name, widened to the type declared for it.
@@ -2887,7 +3101,8 @@ begin
     begin
         Name := Str (TheExpr.Name.Lexeme);
 
-        var Written := BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value));
+        var Written := BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value),
+                                   TheExpr.Actual);
 
         if Captured.Contains (Name) or Boxed.Contains (Name) then
             Exit '(' + Read (Name) + ' = ' + Written + ')';
@@ -3109,6 +3324,7 @@ begin
         if Key = 'Pred/1'    then Exit 'alg_pred';
         if Key = 'Foreign/5' then Exit 'alg_foreign_call';
         if Key = 'clock/0'   then Exit 'alg_clock';
+        if Key = 'Collect/0' then Exit 'alg_collected';
         if Key = 'Halt/1'    then Exit 'alg_halt';
 
         if EmitTests then
@@ -3828,7 +4044,8 @@ begin
 
         Exit 'alg_set_property(' + Evaluate (TheExpr.Obj) + ', '
            + QuoteC (Str (TheExpr.Name.Lexeme)) + ', '
-           + BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value)) + ')';
+           + BoundValue (TheExpr.Declared, Evaluate (TheExpr.Value),
+                         TheExpr.Actual) + ')';
     end
 
     /// Emits 'super.M' as a method bound to the receiver, found from the
@@ -4035,7 +4252,9 @@ begin
         Line ('{');
         Depth := Depth + 1;
 
-        Line (Local () + Snapshot + ' = alg_iterable(' + Evaluate (TheStmt.Iterable) + ');');
+        var OuterRoots := OpenRoots (True);
+
+        DeclareLocal (Snapshot, 'alg_iterable(' + Evaluate (TheStmt.Iterable) + ')');
 
         Counter := 'int32_t ';
         if Volatiles then Counter := 'volatile int32_t ';
@@ -4043,6 +4262,12 @@ begin
         Line ('for (' + Counter + Index + ' = 0; ' + Index + ' < alg_iterable_count('
             + Snapshot + '); ' + Index + '++) {');
         Depth := Depth + 1;
+
+        // PER ITERATION, because the element is declared inside the C loop
+        // body: registering it without truncating pushed one entry an
+        // iteration and left every one of them pointing at a scope that had
+        // already closed.
+        var IterRoots := OpenRoots (True);
 
         Locals.Add (Str (TheStmt.Name.Lexeme));
 
@@ -4052,8 +4277,7 @@ begin
             DeclareCell (Str (TheStmt.Name.Lexeme), Element);
         else
         begin
-            Line (Local () + VariableName (Str (TheStmt.Name.Lexeme)) + ' = ' + Element + ';');
-            Line ('(void)' + VariableName (Str (TheStmt.Name.Lexeme)) + ';');
+            DeclareLocal (VariableName (Str (TheStmt.Name.Lexeme)), Element);
         end
 
         var EnclosingLoopDepth := LoopTryDepth;
@@ -4069,10 +4293,17 @@ begin
 
         EmitContinueTarget (TheStmt.Label);
 
+        // After the continue target, so that a 'continue' truncates too.  A
+        // 'break' skips it and lands below, where the wrapper's own restore
+        // takes the iteration's entries with it.
+        CloseRoots (IterRoots);
+
         Depth := Depth - 1;
         Line ('}');
 
         EmitBreakTarget (TheStmt.Label);
+
+        CloseRoots (OuterRoots);
 
         Depth := Depth - 1;
         Line ('}');
@@ -4176,7 +4407,7 @@ begin
             Declarations.Append ('static Value ' + Shared + ';' + #10);
             Line (Shared + ' = ' + Value + ';');
         end
-        else Line (Local () + Shared + ' = ' + Value + ';');
+        else DeclareLocal (Shared, Value);
 
         for var TheName in TheStmt.Names do
         begin
@@ -4200,8 +4431,7 @@ begin
             begin
                 Locals.Add (Name);
 
-                Line (Local () + VariableName (Name) + ' = ' + Shared + ';');
-                Line ('(void)' + VariableName (Name) + ';');
+                DeclareLocal (VariableName (Name), Shared);
             end
         end
     end

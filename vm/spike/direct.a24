@@ -1,0 +1,18 @@
+// The same loop written directly, which is what shroom-slots compiles to today.
+const ITERATIONS := 1000000;
+
+var I : Integer := ITERATIONS;
+var X : Integer := 0;
+
+var Start : Double := clock ();
+
+while I <> 0 do
+begin
+    X := 1;
+    I := I - 1;
+end
+
+var Elapsed : Double := clock () - Start;
+
+WriteLn ('direct:   ' + Str (ITERATIONS * 3) + ' operations in ' + Str (Elapsed, 3) + ' s');
+WriteLn ('          ' + Str ((ITERATIONS * 3) / Elapsed / 1000000.0, 2) + ' M op/s');

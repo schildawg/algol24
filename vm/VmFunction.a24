@@ -1,0 +1,325 @@
+/// A callable: a chunk, how many arguments it takes, and its name.
+///
+/// clox calls this ObjFunction.  It cannot here, because `compiler/ObjFunction`
+/// is a unit of the same program once `vm/run.a24` imports the front end, and
+/// a top-level name declared in two units of one program is a collision the
+/// compiler resolves silently.  The `Vm` prefix is that collision avoided
+/// rather than a difference in meaning.
+unit VmFunction;
+
+uses Chunk;
+
+/// A compiled subprogram.
+class VmFunction;
+var
+    /// The bytecode, with its own constants and its own jumps.
+    ///
+    /// A chunk each rather than one chunk with offsets, so a jump's distance is
+    /// measured inside the subprogram that contains it and a function can be
+    /// compiled without knowing where it will sit.
+    Body  : Chunk;
+
+    /// How many arguments a call must supply.
+    Arity : Integer;
+
+    /// The name, for a diagnostic and for a disassembly.
+    Name  : String;
+
+    /// The type written for each parameter, or '' where none was.
+    ///
+    /// Carried only so an OVERLOAD SET can select on the whole signature at
+    /// run time [FUN-013] -- a lone subprogram never reads them, because its
+    /// parameters are widened by instructions the emitter already placed.
+    ///
+    /// The names are RESOLVED: a subrange arrives as the type it constrains,
+    /// because the emitter can see the subrange table and a chunk cannot.
+    Types : List;
+
+    /// Each parameter's name, folded, in declaration order.
+    ///
+    /// Carried so that a NAMED argument can be arranged against the parameter
+    /// list at run time [EXP-013].  It has to be run time rather than emit
+    /// time for the same reason selection does: the callee may be a variable,
+    /// and `var F := Log; F (Message: 'x', Level: 'warn')` keeps the names of
+    /// whatever it holds.
+    ///
+    /// Folded, because a parameter name is an identifier and folds like every
+    /// other one [SRC-011] -- `Log (level: 'warn')` names the same parameter
+    /// as `Level`.
+    Params : List;
+
+    /// The ELEMENT type of an absorbing last parameter, or '' where there is
+    /// none.
+    ///
+    /// Empty is what says the subprogram is not variadic, so one field carries
+    /// both facts.  A parameter absorbs only when it is written `List of T`:
+    /// the element type is what the gathered arguments are checked against, so
+    /// a bare `List` has nothing to check them with and takes the list itself
+    /// and nothing else [FUN-005].
+    Element : String;
+
+    /// The C symbol this subprogram is, or '' when it has a body [FUN-014].
+    ///
+    /// A declaration with a symbol has no bytecode at all: the call goes to the
+    /// host's own `Foreign` instead of entering a frame, which is how the
+    /// machine's foreign call IS the interpreter's rather than a second one
+    /// that would have to agree with it forever.
+    Symbol : String;
+
+    /// The library the symbol is in, or '' for the running program.
+    Library : String;
+
+    /// The written return type, which the foreign call needs to read a result.
+    Returns : String;
+
+begin
+    /// Makes a callable.
+    constructor Init (Name : String, Arity : Integer);
+    begin
+        this.Name  := Name;
+        this.Arity := Arity;
+        this.Body  := Chunk ();
+        this.Types   := List ();
+        this.Params  := List ();
+        this.Element := '';
+        this.Symbol  := '';
+        this.Library := '';
+        this.Returns := '';
+    end
+
+    /// How it reads in a message: the name, or `<script>` for the outermost
+    /// chunk, which has no name because no declaration made it.
+    function Describe () : String;
+    begin
+        if this.Name = '' then Exit '<script>';
+
+        Exit this.Name;
+    end
+
+    /// How a subprogram reads when written or converted to text.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Name + '>';
+    end
+end
+
+test 'A Callable Carries Its Own Chunk';
+begin
+    var F := VmFunction ('Twice', 1);
+
+    AssertEqual ('Twice', F.Name);
+    AssertEqual (1, F.Arity);
+    AssertEqual (0, F.Body.Count);
+end
+
+test 'The Outermost Chunk Describes Itself As A Script';
+begin
+    AssertEqual ('<script>', VmFunction ('', 0).Describe ());
+    AssertEqual ('Twice', VmFunction ('Twice', 1).Describe ());
+end
+
+/// A set of subprograms sharing one name.
+///
+/// Selection is at RUN TIME on the whole signature [FUN-013], and it has to
+/// be: the type system is gradual, so an argument's declared type may be Any
+/// while its value has a definite type.  No amount of annotation at the call
+/// site can decide it earlier.
+class VmOverloads;
+var
+    /// The shared name.
+    Name       : String;
+
+    /// The candidates, in declaration order -- which is the order they are
+    /// tried within a pass, so a tie goes to the one written first.
+    Candidates : List;
+
+begin
+    /// Makes an empty set.
+    constructor Init (Name : String);
+    begin
+        this.Name       := Name;
+        this.Candidates := List ();
+    end
+
+    /// Adds a candidate.
+    procedure Add (Candidate : Any);
+    begin
+        this.Candidates.Add (Candidate);
+    end
+
+    /// How it reads in a message.
+    function Describe () : String;
+    begin
+        Exit this.Name;
+    end
+
+    /// How an overload set reads: the shared name, as any one of its
+    /// candidates would read.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Name + '>';
+    end
+end
+
+/// A member bound to the receiver it was read from.
+///
+/// What `L.Sort` answers without parentheses, and what `Box ().Size` answers
+/// where Size is a method: a member read is a VALUE [FUN-011], and the call is
+/// a separate step that may never come.
+///
+/// The WRITTEN spelling is kept rather than the folded one, because it is what
+/// a message shows -- `L.SORT` renders `<fn SORT>` and the two spellings must
+/// not be made to agree [SRC-011, 0149].
+///
+/// One class for both kinds of receiver, a class instance and a host object
+/// alike: the call goes through InvokeMember either way, which is the one
+/// place that knows how to find a member on a value.
+class VmBound;
+var
+    /// The value the member was read from.
+    Receiver : Any;
+
+    /// The member's name, as the program wrote it.
+    Written : String;
+
+    /// The class the lookup starts at, or nil to start at the receiver's own.
+    ///
+    /// What `super.Who` needs and an ordinary bound member does not: `super`
+    /// means the parent of the class the method was WRITTEN in, not the parent
+    /// of whatever the receiver turned out to be -- so the starting class is
+    /// decided where the code is, and carried.
+    From : Any;
+
+begin
+    /// Binds a member to the receiver it was read from.
+    constructor Init (Receiver : Any, Written : String);
+    begin
+        this.Receiver := Receiver;
+        this.Written  := Written;
+        this.From     := Nil;
+    end
+
+
+    /// How it reads when written or converted to text.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Written + '>';
+    end
+end
+
+test 'A Bound Member Keeps Its Receiver And Its Written Spelling';
+begin
+    var Bound := VmBound ([3, 1, 2], 'SORT');
+
+    AssertEqual (3, (Bound.Receiver as List).Length);
+    AssertEqual ('SORT', Bound.Written);
+    AssertEqual ('<fn SORT>', Bound.ToString ());
+end
+
+/// A BUILT-IN held as a value, which is a name and nothing else.
+///
+/// A built-in has no body the machine could enter and no slot of its own, so
+/// reading one as a value [FUN-011] cannot push a callable the way reading a
+/// subprogram does.  It pushes this instead, and CallValue sends it to the
+/// same name-and-count dispatch OP_BUILTIN goes through -- so a built-in
+/// called through a variable IS the host's own, exactly as one called by name
+/// is.
+///
+/// The WRITTEN spelling is kept, because that is how it renders; the dispatch
+/// folds it [SRC-011].
+///
+/// # Satisfies
+///
+/// [FUN-011], [RT-001]
+class VmBuiltin;
+var
+    /// Its name, as the program wrote it.
+    Name : String;
+
+begin
+    /// Makes a built-in value.
+    constructor Init (Name : String);
+    begin
+        this.Name := Name;
+    end
+
+    /// How it reads: '<fn Name>', as any other subprogram value does.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Name + '>';
+    end
+end
+
+/// An extension bound to the receiver it was reached through.
+///
+/// What `S.Trim` answers where `Trim` is a visible extension and `S` has no
+/// member of that name.  It is a value in its own right [FUN-011]: a call takes
+/// it apart, putting the receiver in front of the written arguments, and
+/// without a call it simply stands.
+///
+/// The receiver is held rather than re-evaluated because it is evaluated ONCE
+/// whichever step of [EXP-022] answers -- 0190 counts the calls to prove it.
+///
+/// # Satisfies
+///
+/// [EXP-022], [FUN-011], [FUN-015], [FUN-016]
+class VmExtension;
+var
+    /// The value the extension was reached through, and its first argument.
+    Receiver : Any;
+
+    /// The subprogram, or the overload set, the call goes on to.
+    Target : Any;
+
+begin
+    /// Binds an extension to a receiver.
+    constructor Init (Receiver : Any, Target : Any);
+    begin
+        this.Receiver := Receiver;
+        this.Target   := Target;
+    end
+
+    /// How it reads in a message.
+    function Describe () : String;
+    begin
+        Exit 'extension';
+    end
+
+    /// How a bound extension reads: as the subprogram it is bound to, the
+    /// receiver being no part of how it prints.
+    function ToString () : String;
+    begin
+        Exit Str (Target);
+    end
+end
+
+test 'A Bound Extension Holds Its Receiver And Its Target';
+begin
+    var Target := VmFunction ('Doubled', 1);
+    var Bound  := VmExtension (21, Target);
+
+    AssertEqual (21, Bound.Receiver);
+    AssertTrue (Bound.Target = Target);
+end
+
+test 'An Overload Set Keeps Its Candidates In Declaration Order';
+begin
+    var S := VmOverloads ('Take');
+    var First := VmFunction ('Take', 1);
+    var Second := VmFunction ('Take', 2);
+
+    S.Add (First);
+    S.Add (Second);
+
+    AssertEqual (2, S.Candidates.Length);
+    AssertTrue (S.Candidates[0] = First);
+end
+
+test 'A Subprogram Carries The Types Written For Its Parameters';
+begin
+    var F := VmFunction ('Take', 1);
+
+    F.Types.Add ('Integer');
+
+    AssertEqual ('Integer', Str (F.Types[0]));
+end

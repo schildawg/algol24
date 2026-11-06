@@ -1,0 +1,1141 @@
+/// The instruction set, one constant per opcode.
+///
+/// Named and numbered from clox, as `ObjFunction.a24` asks: the tree-walker,
+/// the C it emits and this machine all say the same word for the same thing,
+/// and keeping the order too means the book reads alongside this file.
+///
+/// The numbering is not a contract yet.  Nothing reads bytecode from a file, so
+/// an opcode may be renumbered freely until something does -- at which point
+/// the numbering becomes a format and wants a version stamp.
+unit OpCode;
+
+/// Pushes a constant from the chunk's table.  One operand: its index.
+///
+/// The index is one byte, and two when OP_LONG precedes the instruction --
+/// a prefix rather than clox's second opcode, so that the other opcodes
+/// carrying an index need no long form of their own.
+const OP_CONSTANT := 0;
+
+/// Pushes nil.
+const OP_NIL := 1;
+
+/// Pushes True.
+const OP_TRUE := 2;
+
+/// Pushes False.
+const OP_FALSE := 3;
+
+/// Discards the value on top.
+const OP_POP := 4;
+
+/// Pushes a local, read from its stack slot.  One operand: the slot.
+///
+/// A local lives in the slot the expression stack grew it into, so reading one
+/// is a subscript and not a lookup -- which is the whole reason a compiler
+/// resolves locals before emitting.
+const OP_GET_LOCAL := 5;
+
+/// Stores the top value into a local's slot, LEAVING it on the stack.
+///
+/// One operand: the slot.  The value stays because assignment is an expression
+/// in this language, so a statement that discards it emits an OP_POP of its
+/// own and an expression that uses it does not.
+const OP_SET_LOCAL := 6;
+
+/// Pushes a global, read from its slot.  One operand: the slot.
+///
+/// A SLOT and not a name, which is where this departs from clox: the Resolver
+/// already binds every variable before emission, so a module-level one can be
+/// given a fixed index and read with a subscript instead of hashing a string
+/// at run time.  The name survives only in the chunk's GlobalNames, for the
+/// diagnostic below.
+///
+/// # Raises
+///
+/// 'Undefined variable ''N''.' when the declaration has not run yet, which a
+/// module-level subprogram called above its own globals will do.
+const OP_GET_GLOBAL := 7;
+
+/// Pops a value and defines a global with it.  One operand: the slot.
+///
+/// This is a declaration executing, which is what makes the global defined --
+/// `var X;` with no initializer defines it as nil rather than leaving it
+/// undefined.
+const OP_DEFINE_GLOBAL := 8;
+
+/// Stores the top into a global's slot, LEAVING it on the stack.
+///
+/// One operand: the slot.  Defines the global as a side effect, as an
+/// assignment does in the emitted C, so the value stays and the statement that
+/// discards it emits its own OP_POP.
+const OP_SET_GLOBAL := 9;
+
+/// Pops two values and pushes whether they are equal.
+///
+/// Host equality, which is what makes a Char and a one-character String unequal
+/// here exactly as they are everywhere else [TYP-003].
+const OP_EQUAL := 10;
+
+/// Pops two values and pushes whether the lower is greater than the upper.
+const OP_GREATER := 11;
+
+/// Pops two values and pushes whether the lower is less than the upper.
+const OP_LESS := 12;
+
+/// Pops two numbers and pushes their sum.
+const OP_ADD := 13;
+
+/// Pops two numbers and pushes the second less the first.
+const OP_SUBTRACT := 14;
+
+/// Pops two numbers and pushes their product.
+const OP_MULTIPLY := 15;
+
+/// Pops two numbers and pushes the quotient, which is always a Double.
+///
+/// Real division, because that is what `/` means in this language [EXP-004].
+/// `div` and `mod` are separate opcodes and not this one rounded.
+const OP_DIVIDE := 16;
+
+/// Pops two Integers and pushes the quotient, truncated toward zero.
+///
+/// Not OP_DIVIDE rounded: `div` refuses a Double rather than truncating it,
+/// and it is one of the two things that raise on a zero divisor where
+/// `7 / 0` is Infinity.
+const OP_DIV := 17;
+
+/// Pops two Integers and pushes the remainder.
+const OP_MOD := 18;
+
+/// Pops a value and a collection and pushes whether the collection has it.
+///
+/// The host's own `in` decides it, which is what makes a Map test its keys and
+/// a String test for a substring.
+const OP_IN := 19;
+
+/// Pops two Integers and pushes their bitwise and.
+///
+/// Over an Integer that is two's complement extended infinitely to the left,
+/// so `~0` is -1 and `1 << 70` grows [EXP-023].  Nothing here has to know how
+/// wide an Integer is, because the host's operators already do not.
+const OP_BIT_AND := 20;
+
+/// Pops two Integers and pushes their bitwise or.
+const OP_BIT_OR := 21;
+
+/// Pops two Integers and pushes their bitwise exclusive or.
+const OP_BIT_XOR := 22;
+
+/// Replaces the Integer on top with its bitwise complement.
+const OP_BIT_NOT := 23;
+
+/// Pops two Integers and shifts the lower left by the upper.
+const OP_SHIFT_LEFT := 24;
+
+/// Pops two Integers and shifts the lower right by the upper.
+///
+/// Floors where `div` truncates toward zero, so `-7 >> 1` is -4 and
+/// `-7 div 2` is -3 [EXP-024].  Two opcodes for that reason.
+const OP_SHIFT_RIGHT := 25;
+
+/// Replaces the top with whether it is of a written type.
+///
+/// One operand: the constant index of the type's NAME.  A range test for a
+/// subrange and a type test otherwise, which is what the host's `is` already
+/// decides -- so this asks it rather than reimplementing it.
+const OP_IS := 26;
+
+/// Replaces the top with whether it was falsey.
+///
+/// Falsey is this language's reading and not Lox's: nil, False and the Integer
+/// zero are falsey, where 0.0, the empty String and any Char are truthy.  The
+/// machine gets that free, because a guest value IS a host value and the host's
+/// own `not` decides it.
+const OP_NOT := 27;
+
+/// Replaces the number on top with its negation.
+const OP_NEGATE := 28;
+
+/// Pops a value and writes it, as `WriteLn` does.
+const OP_PRINT := 29;
+
+/// Jumps forward unconditionally.  Two operands: the distance, high byte first.
+const OP_JUMP := 30;
+
+/// Jumps forward when the top is falsey, WITHOUT popping it.
+///
+/// Two operands: the distance, high byte first.  Leaving the value is what lets
+/// `and` and `or` need no opcodes of their own: they are a jump and an OP_POP,
+/// and the value left behind is the operand [EXP-010] requires them to answer.
+const OP_JUMP_IF_FALSE := 31;
+
+/// Calls the value beneath its arguments.  One operand: the argument count.
+///
+/// The callee is pushed first and the arguments after it, so at the call the
+/// callee sits at `SP - count - 1`.  The new frame's slot 0 is the FIRST
+/// ARGUMENT, which differs from clox -- there slot 0 is the callee itself,
+/// reserved so that a method can find its receiver.  Nothing needs a receiver
+/// yet, and when something does this is where it changes.
+///
+/// # Raises
+///
+/// 'N takes A arguments but got G.' on a mismatch, and 'Can only call a
+/// subprogram.' for a callee that is not one.
+const OP_CALL := 32;
+
+/// Jumps backward.  Two operands: the distance, high byte first.
+///
+/// A separate opcode from OP_JUMP rather than a signed operand, because a
+/// distance that is always subtracted needs no sign and a byte pair that is
+/// never negative is easier to read in a disassembly.
+const OP_LOOP := 33;
+
+/// Replaces the top with the element its index names.
+///
+/// No operand: the index is a value, pushed above the collection, so this one
+/// needs no help from the constant table.
+const OP_SUBSCRIPT_GET := 34;
+
+/// Stores a value at an index, LEAVING it on the stack.
+///
+/// The collection, the index and the value, in that order.  The value stays
+/// because an assignment is an expression here.
+const OP_SUBSCRIPT_SET := 35;
+
+/// Replaces the top with one of its properties.  One operand: the name's
+/// constant index.
+///
+/// A chain over the five the runtime has -- Length, Text, Eof, IsEmpty and
+/// Address -- each arm written with the property as a LITERAL, for the reason
+/// OP_IS gives: a property cannot be reached from a name held in a variable.
+const OP_GET_MEMBER := 36;
+
+/// Builds a List from the values above it.  One operand: how many.
+///
+/// A literal, not a constructor call: `[1, 2, 3]` is a CollectionExpr and the
+/// elements are expressions, so they are evaluated onto the stack and gathered
+/// here.
+///
+/// The count is a SHORT, so what bounds a literal is the value stack it is
+/// built on -- 'The value stack overflowed.' at run time -- rather than an
+/// operand width refusing a program the machine could nearly hold.
+const OP_LIST := 37;
+
+/// Builds a Map from the key and value pairs above it.  One operand: how many
+/// PAIRS, so twice that many values are taken.
+const OP_MAP := 38;
+
+/// Calls a method on the value beneath its arguments.  Two operands: the
+/// constant index of the NAME, and the argument count.
+///
+/// Dispatched on both, because one name means different things at different
+/// arities: `Append` with one argument is a Buffer's and with none is a
+/// TextFile's.  The runtime's own member tables are keyed the same way.
+///
+/// Every arm calls the host's method with the name written as a LITERAL, for
+/// the reason OP_GET_MEMBER gives -- a member cannot be reached from a name held
+/// in a variable -- so the machine's `Add` is the host's `Add`.
+///
+/// # Raises
+///
+/// 'No method N taking C arguments.' for a pairing with no arm, which is a gap
+/// in the machine rather than an error in a program.
+const OP_INVOKE := 39;
+
+/// Pushes a new class.  One operand: the constant index of its name.
+const OP_CLASS := 40;
+
+/// Pops a callable and records it as a method of the class on top, which it
+/// leaves there.  One operand: the constant index of the method's name.
+const OP_METHOD := 41;
+
+/// Records a field name on the class on top, which it leaves there.  One
+/// operand: the constant index of the name.
+///
+/// The NAME and not a value: an instance begins with every field present and
+/// nil, so that a field with no initializer reads as nil [CLS-006] rather than
+/// as a member the class never declared.
+const OP_FIELD := 42;
+
+/// Pops a class and makes it the parent of the class on top, which it leaves.
+///
+/// One operand: the constant index of the parent's NAME, carried only so that
+/// a refusal can quote what the program wrote.
+///
+/// A pointer rather than clox's copy-down of the parent's methods, because a
+/// method added to a parent AFTER a subclass is declared must still be found
+/// -- which a copy made at declaration time would miss.
+const OP_INHERIT := 43;
+
+/// Pushes the receiver of the running frame.
+///
+/// The receiver sits one below the frame's base, where a plain call keeps the
+/// callee -- so `this` is a subscript and needs no slot of its own.
+const OP_THIS := 44;
+
+/// Replaces an instance on top with one of its fields.  One operand: the
+/// constant index of the name.
+const OP_GET_FIELD := 45;
+
+/// Stores a value in an instance's field, LEAVING the value on the stack.
+///
+/// One operand: the constant index of the name.  The instance then the value.
+const OP_SET_FIELD := 46;
+
+/// Widens the value on top to a declared type.  One operand: the constant
+/// index of the type's name.
+///
+/// Integer to Double and Char to String, and nothing else -- which is the
+/// whole of what the language's widening does at an assignment context
+/// [VAL-001], [VAR-004].  Without it `var X : Double := 1` answered 1 rather
+/// than 1.0.
+///
+/// It cannot range-check a SUBRANGE, because the bounds live in the
+/// compiler's own table, so the emitter refuses a subrange annotation instead.
+const OP_WIDEN := 47;
+
+/// Replaces a collection with a List of the elements `for ... in` would visit.
+///
+/// The HOST's own iteration decides them, which is what makes a Map yield its
+/// keys, a String its Chars and a Set its members without this opcode knowing
+/// the difference.
+///
+/// It MATERIALIZES the sequence, which is a real difference from the
+/// interpreter: a collection mutated during its own loop is iterated as it was
+/// when the loop began.  No conformance case does that, so it is a recorded
+/// trade rather than a known divergence.
+const OP_ITER := 48;
+
+/// Pushes a new enumeration.  One operand: the constant index of its name.
+const OP_ENUM := 49;
+
+/// Adds the next member to the enumeration on top and PUSHES it, leaving the
+/// enumeration beneath.  One operand: the constant index of the member's name.
+///
+/// Pushed so that the emitter can bind the bare name immediately -- a member
+/// binds both bare and qualified [ENU-002] and both must reach the one
+/// interned object.
+const OP_ENUM_MEMBER := 50;
+
+/// Duplicates the value on top.
+///
+/// Wanted by the handler chain an `except` compiles to: each arm tests the
+/// raised value's type and must leave it for the next arm to test.
+const OP_DUP := 51;
+
+/// Opens a protected region.  Two operands: the distance to its handlers.
+///
+/// Records where to resume, how deep the call stack was, and how deep the
+/// value stack was -- so a raise from several frames down can put all three
+/// back before the handler runs.
+const OP_TRY := 52;
+
+/// Closes the innermost protected region without raising.
+const OP_UNTRY := 53;
+
+/// Pops a value and raises it.
+///
+/// It does NOT travel as a host exception, because a raised value may be any
+/// value at all and a host exception carries a String.  The machine unwinds
+/// its own handler stack instead.
+///
+/// A host error is the other direction: it arrives as a String and is turned
+/// into a raise of that String, which is what makes a runtime error catchable
+/// [STM-020].
+const OP_RAISE := 54;
+
+/// Checks the value on top against a type and leaves it.  One operand: the
+/// constant index of the type's name.
+///
+/// `as` is a CHECK and not a conversion: it answers the same value or raises.
+/// nil satisfies every type [VAR-005] and so passes every cast.
+///
+/// The test is the one `is` uses, which is what makes a cast to a base class
+/// succeed for a derived value.
+const OP_CAST := 55;
+
+/// Replaces the value on top with a cell holding it.  No operand.
+///
+/// Emitted for a local that a nested subprogram can see, so the local's slot
+/// holds the CELL from the moment it is declared -- which is what makes the
+/// capture by reference and what removes any need to close it later.
+const OP_CELL := 56;
+
+/// Pushes what the cell in a local slot holds.  One operand: the slot.
+///
+/// For the ENCLOSING subprogram, whose boxed locals sit in slots.  The nested
+/// one reads the same cells through OP_GET_CELL, because it has them as
+/// captures rather than as locals.
+const OP_GET_BOX := 57;
+
+/// Stores the top into the cell in a local slot, LEAVING it on the stack.
+/// One operand: the slot.
+const OP_SET_BOX := 58;
+
+/// Pushes what a captured cell holds.  One operand: its index.
+const OP_GET_CELL := 59;
+
+/// Stores the top into a captured cell, LEAVING it on the stack.  One
+/// operand: the cell's index.
+const OP_SET_CELL := 60;
+
+/// Makes a closure.  Variable width: the constant index of the subprogram, a
+/// capture count as a short, then one three-byte DESCRIPTOR per capture.
+///
+/// A descriptor is a flag byte and a short.  The flag says where the cell
+/// comes from -- this frame's own slot, which holds a cell because a frame
+/// declaring a nested subprogram boxes every local; or a cell this frame
+/// itself captured, which is what lets nesting go to any depth [FUN-012].
+/// clox's is-local flag.
+///
+/// Whichever it is, each evaluation of the enclosing subprogram closes over
+/// the cells that call made [FUN-010].
+const OP_CLOSURE := 61;
+
+/// Gathers the subprograms above it into an overload set.  One operand: how
+/// many, and then the constant index of the shared NAME.
+///
+/// A set rather than a slot each, because the declarations share one name and
+/// selection happens at the call [FUN-013].
+const OP_OVERLOADS := 62;
+
+/// Calls a built-in.  Two operands: the constant index of its NAME, and the
+/// argument count.
+///
+/// By name rather than by a number per built-in, because the dispatch has to
+/// end in a call to the host's own -- which is how the interpreter guarantees
+/// that interpreted `Length` IS host `Length` and the two cannot disagree.  A
+/// number would buy a subscript and lose that.
+///
+/// # Raises
+///
+/// 'No built-in N takes C arguments.' for a pairing the machine has no arm
+/// for, which is a gap in the machine rather than an error in a program.
+const OP_BUILTIN := 63;
+
+/// Pushes a global from a WIDE slot.  One operand: the slot, as a short.
+///
+/// The short form's slot is one byte, which caps a program at 256 globals --
+/// and a real one is nowhere near that: shroom-slots and its library declare
+/// about 1,700 names between them.  `clox` draws the same distinction for its
+/// constants and for the same reason, so the common case stays one byte and
+/// the operand only grows where it must.
+const OP_GET_GLOBAL_LONG := 64;
+
+/// Pops a value and defines a global at a WIDE slot.  One operand: the slot,
+/// as a short.
+const OP_DEFINE_GLOBAL_LONG := 65;
+
+/// Stores the top into a WIDE global slot, leaving it on the stack.  One
+/// operand: the slot, as a short.
+const OP_SET_GLOBAL_LONG := 66;
+
+/// Reads a member, or binds a visible EXTENSION where there is no member.
+/// Two operands: the constant index of the NAME, and the extension's slot.
+///
+/// Step 2 of [EXP-022] without a call after it, which is a value [FUN-011].
+/// The member is asked for first and wins where it is there, so no reading
+/// that works today can change meaning; only where the receiver has nothing of
+/// the name does the extension answer, bound to it.
+const OP_EXTEND := 67;
+
+/// Calls a member, or a visible EXTENSION where there is no member.  Three
+/// operands: the constant index of the NAME, the argument count, and the
+/// extension's slot.
+///
+/// Both halves of [EXP-022] in one instruction, because the choice is about the
+/// receiver's VALUE and nothing at the call site can decide it earlier -- the
+/// type system is gradual, so `X.Size ()` may be a method on one value and an
+/// extension on the next.  Where the extension answers, the receiver becomes
+/// its first argument and the call is an ordinary one from there [FUN-016].
+const OP_INVOKE_EXT := 68;
+
+/// Widens the CONSTANT INDEX of the instruction that follows.  Its operand is
+/// that whole instruction, opcode and all.
+///
+/// Named LONG rather than WIDE because OP_WIDEN already exists and widens a
+/// VALUE to a declared type [VAL-001] -- two opcodes a letter apart meaning
+/// unrelated things is a misreading waiting to happen, and `clox` spells the
+/// same idea OP_CONSTANT_LONG.
+///
+/// A prefix rather than a long form per opcode, which is what the JVM's `wide`
+/// does and for the same reason: most opcodes here carry an index into the
+/// constants, so a long form each would be that many numbers, names, handlers
+/// and chances to forget one.  A prefix is one of each and covers an opcode
+/// added later for free -- which is the argument, and is why no count is
+/// quoted: the one that used to be here said nineteen and the figure had
+/// grown by five without anything noticing.
+///
+/// Only the INDEX widens.  An argument count beside it stays a byte, and a
+/// slot beside it is already a short -- so `OP_INVOKE_EXT` under the prefix
+/// reads a short, a byte and a short.
+///
+/// The emitter writes it only before an instruction that reads an index, which
+/// is what lets the machine clear the flag on the first read rather than
+/// tracking where in the operands the index sits.
+const OP_LONG := 69;
+
+/// Returns from the running frame, answering the value on top.
+///
+/// At the FLOOR frame it stops the machine instead, which is the same
+/// instruction doing the last of its job: there is no frame to go back to, so
+/// the value becomes the run's answer.
+const OP_RETURN := 70;
+
+/// Calls with NAMED arguments: the constant is the list of names written at
+/// the call, one entry per argument and empty for a positional one.
+///
+/// A separate opcode rather than a flag on OP_CALL, because the names cost a
+/// constant index and the ordinary call is in the hot path.
+const OP_CALL_NAMED := 71;
+
+/// Invokes a member with NAMED arguments.
+///
+/// ⚠️ ONE constant for both the member's name and the argument names -- a List
+/// whose first element is the member and whose rest are the names -- because
+/// the invariant that makes the OP_LONG flag sound is AT MOST ONE widenable
+/// operand per opcode, and two indices would break it.
+const OP_INVOKE_NAMED := 72;
+
+/// Records the method on top as a PROPERTY of the class beneath it.
+///
+/// Everything OP_METHOD does, plus the note that reading this name calls it.
+///
+/// ⚠️ Not OP_GET_MEMBER, which already exists and reads one of the RUNTIME's
+/// five -- Length, Text, Eof, IsEmpty, Address.  Two opcodes a word apart
+/// meaning unrelated things is the OP_WIDEN/OP_LONG trap again.
+const OP_DECLARE_PROPERTY := 73;
+
+/// Pushes `super.Member` -- the member bound to `this`, looked up starting at
+/// the parent of the class the code was written in.
+///
+/// Operands: the member name's constant index, then the parent class's global
+/// slot as a SHORT.  The slot is always two bytes, as OP_INVOKE_EXT's is, so
+/// that only the name index is widenable and the OP_LONG flag stays sound.
+const OP_SUPER := 74;
+
+/// Replaces the class on top with an OBJECT of it -- one instance, built on
+/// first use.  No operands.
+const OP_SINGLETON := 75;
+
+/// Records a subrange's bounds.  One operand: a constant holding its name, its
+/// low bound and its high bound.
+///
+/// Emitted once per subrange before anything runs, which is what the C back end
+/// does with `alg_subrange` in a unit's initializer -- so the three processors
+/// answer a range check from one shape of table rather than three.
+///
+/// The bounds travel as a CONSTANT and never as operands, because an Integer is
+/// unbounded [LEX-018] and `type Big = 0..99999999999999999999` is legal.
+const OP_SUBRANGE := 76;
+
+/// Calls a member written with named arguments, or a visible extension.  Three
+/// operands: a constant, an argument count, and the extension's global slot as
+/// a short.
+///
+/// The constant carries the member's name in element 0 and the argument names
+/// after it, as OP_INVOKE_NAMED's does -- two constant indices would break the
+/// invariant that at most one operand per opcode is widenable.
+const OP_INVOKE_EXT_NAMED := 77;
+
+/// Pushes whether the lower of the top two is less than or equal to the upper.
+///
+/// An opcode of its own, where clox spells `<=` as `>` followed by a negation
+/// and saves two numbers by it.  That trick is wrong about NaN, and silently:
+/// every ordered comparison with NaN is false, so negating one answers TRUE
+/// and `NaN <= 1.0` came out true on this machine where both other processors
+/// answer false.  It cost a library assertion -- `AssertNear` guards itself
+/// with `not (Difference <= Tolerance)`, which is exactly the shape the trick
+/// inverts, so a NaN difference PASSED a test written to catch it.
+///
+/// `<>` keeps the negation and is right to: equality is defined for NaN
+/// [VAL-011], so `NaN = NaN` being false makes `NaN <> NaN` true, which is
+/// the answer wanted.  Only the ORDERED pair breaks.
+const OP_LESS_EQUAL := 78;
+
+/// Pushes whether the lower of the top two is greater than or equal to the
+/// upper.  The other half of what the negation got wrong.
+const OP_GREATER_EQUAL := 79;
+
+const OP_COUNT := 80;
+
+/// The method name a constructor's BODY is registered under, holding a space.
+///
+/// Part of the contract between the emitter and the machine, like an opcode's
+/// number, which is why it lives beside them rather than in either one.  A
+/// program cannot write it: an identifier is one word [SRC-010], so nothing a
+/// source file says can reach the entry.
+///
+/// It exists so a subclass declaring no constructor can run its own field
+/// initializers and then enter the inherited constructor's body -- which the
+/// inherited `Init` cannot do, since that one runs the initializers of its OWN
+/// chain and knows nothing about the subclass's.  The machine needs the name
+/// to report a fault against the name the program WROTE: `super.Init` reaches
+/// this entry, so a parent declaring no constructor would otherwise answer
+/// `Undefined property 'ctor body'.`
+const CTOR_BODY := 'ctor body';
+
+/// The member name to report a fault against, which is the one a program could
+/// have written.
+///
+/// Answers 'Init' for CTOR_BODY and the name itself for everything else.
+function ReportedMember (Named : Any) : String;
+begin
+    if Str (Named) = CTOR_BODY then Exit 'Init';
+
+    Exit Str (Named);
+end
+
+/// The name of an opcode, for a disassembly listing and for a diagnostic.
+///
+/// Answers 'OP_?' rather than raising for an unknown one, because the caller is
+/// usually already reporting a problem and a second failure there buries it.
+function OpName (Op : Integer) : String;
+begin
+    if Op = OP_CONSTANT      then Exit 'OP_CONSTANT';
+    if Op = OP_NIL           then Exit 'OP_NIL';
+    if Op = OP_TRUE          then Exit 'OP_TRUE';
+    if Op = OP_FALSE         then Exit 'OP_FALSE';
+    if Op = OP_POP           then Exit 'OP_POP';
+    if Op = OP_GET_LOCAL     then Exit 'OP_GET_LOCAL';
+    if Op = OP_SET_LOCAL     then Exit 'OP_SET_LOCAL';
+    if Op = OP_GET_GLOBAL    then Exit 'OP_GET_GLOBAL';
+    if Op = OP_DEFINE_GLOBAL then Exit 'OP_DEFINE_GLOBAL';
+    if Op = OP_SET_GLOBAL    then Exit 'OP_SET_GLOBAL';
+    if Op = OP_EQUAL         then Exit 'OP_EQUAL';
+    if Op = OP_GREATER       then Exit 'OP_GREATER';
+    if Op = OP_LESS          then Exit 'OP_LESS';
+    if Op = OP_LESS_EQUAL    then Exit 'OP_LESS_EQUAL';
+    if Op = OP_GREATER_EQUAL then Exit 'OP_GREATER_EQUAL';
+    if Op = OP_ADD           then Exit 'OP_ADD';
+    if Op = OP_SUBTRACT      then Exit 'OP_SUBTRACT';
+    if Op = OP_MULTIPLY      then Exit 'OP_MULTIPLY';
+    if Op = OP_DIVIDE        then Exit 'OP_DIVIDE';
+    if Op = OP_DIV           then Exit 'OP_DIV';
+    if Op = OP_MOD           then Exit 'OP_MOD';
+    if Op = OP_IN            then Exit 'OP_IN';
+    if Op = OP_BIT_AND       then Exit 'OP_BIT_AND';
+    if Op = OP_BIT_OR        then Exit 'OP_BIT_OR';
+    if Op = OP_BIT_XOR       then Exit 'OP_BIT_XOR';
+    if Op = OP_BIT_NOT       then Exit 'OP_BIT_NOT';
+    if Op = OP_SHIFT_LEFT    then Exit 'OP_SHIFT_LEFT';
+    if Op = OP_SHIFT_RIGHT   then Exit 'OP_SHIFT_RIGHT';
+    if Op = OP_IS            then Exit 'OP_IS';
+    if Op = OP_NOT           then Exit 'OP_NOT';
+    if Op = OP_NEGATE        then Exit 'OP_NEGATE';
+    if Op = OP_PRINT         then Exit 'OP_PRINT';
+    if Op = OP_JUMP          then Exit 'OP_JUMP';
+    if Op = OP_JUMP_IF_FALSE then Exit 'OP_JUMP_IF_FALSE';
+    if Op = OP_LOOP          then Exit 'OP_LOOP';
+    if Op = OP_CALL          then Exit 'OP_CALL';
+    if Op = OP_CALL_NAMED    then Exit 'OP_CALL_NAMED';
+    if Op = OP_DECLARE_PROPERTY then Exit 'OP_DECLARE_PROPERTY';
+    if Op = OP_SUPER         then Exit 'OP_SUPER';
+    if Op = OP_SINGLETON     then Exit 'OP_SINGLETON';
+    if Op = OP_SUBRANGE      then Exit 'OP_SUBRANGE';
+    if Op = OP_INVOKE_EXT_NAMED then Exit 'OP_INVOKE_EXT_NAMED';
+    if Op = OP_INVOKE_NAMED  then Exit 'OP_INVOKE_NAMED';
+    if Op = OP_SUBSCRIPT_GET then Exit 'OP_SUBSCRIPT_GET';
+    if Op = OP_SUBSCRIPT_SET then Exit 'OP_SUBSCRIPT_SET';
+    if Op = OP_GET_MEMBER      then Exit 'OP_GET_MEMBER';
+    if Op = OP_LIST          then Exit 'OP_LIST';
+    if Op = OP_MAP           then Exit 'OP_MAP';
+    if Op = OP_INVOKE        then Exit 'OP_INVOKE';
+    if Op = OP_CLASS         then Exit 'OP_CLASS';
+    if Op = OP_METHOD        then Exit 'OP_METHOD';
+    if Op = OP_FIELD         then Exit 'OP_FIELD';
+    if Op = OP_INHERIT       then Exit 'OP_INHERIT';
+    if Op = OP_THIS          then Exit 'OP_THIS';
+    if Op = OP_GET_FIELD     then Exit 'OP_GET_FIELD';
+    if Op = OP_SET_FIELD     then Exit 'OP_SET_FIELD';
+    if Op = OP_WIDEN         then Exit 'OP_WIDEN';
+    if Op = OP_CAST          then Exit 'OP_CAST';
+    if Op = OP_DUP           then Exit 'OP_DUP';
+    if Op = OP_TRY           then Exit 'OP_TRY';
+    if Op = OP_UNTRY         then Exit 'OP_UNTRY';
+    if Op = OP_RAISE         then Exit 'OP_RAISE';
+    if Op = OP_ENUM          then Exit 'OP_ENUM';
+    if Op = OP_ENUM_MEMBER   then Exit 'OP_ENUM_MEMBER';
+    if Op = OP_ITER          then Exit 'OP_ITER';
+    if Op = OP_CELL          then Exit 'OP_CELL';
+    if Op = OP_GET_BOX       then Exit 'OP_GET_BOX';
+    if Op = OP_SET_BOX       then Exit 'OP_SET_BOX';
+    if Op = OP_GET_CELL      then Exit 'OP_GET_CELL';
+    if Op = OP_SET_CELL      then Exit 'OP_SET_CELL';
+    if Op = OP_CLOSURE       then Exit 'OP_CLOSURE';
+    if Op = OP_OVERLOADS     then Exit 'OP_OVERLOADS';
+    if Op = OP_BUILTIN       then Exit 'OP_BUILTIN';
+    if Op = OP_GET_GLOBAL_LONG    then Exit 'OP_GET_GLOBAL_LONG';
+    if Op = OP_DEFINE_GLOBAL_LONG then Exit 'OP_DEFINE_GLOBAL_LONG';
+    if Op = OP_SET_GLOBAL_LONG    then Exit 'OP_SET_GLOBAL_LONG';
+    if Op = OP_EXTEND        then Exit 'OP_EXTEND';
+    if Op = OP_INVOKE_EXT    then Exit 'OP_INVOKE_EXT';
+    if Op = OP_LONG          then Exit 'OP_LONG';
+    if Op = OP_RETURN        then Exit 'OP_RETURN';
+
+    Exit 'OP_?';
+end
+
+/// The OPERAND SHAPE of an opcode, one letter per operand.
+///
+/// `b` is a single byte -- a count, or a global slot's narrow form.  `i` is an
+/// index into the CONSTANTS and `l` is a LOCAL slot: each is one byte on its
+/// own and two under an OP_LONG prefix.  `s` is a short, two bytes most
+/// significant first -- a jump distance, or a slot too wide for one byte.  An
+/// opcode taking no operands answers ''.
+///
+/// No opcode has more than ONE widenable operand, which is what lets the
+/// machine clear its flag on the first widenable read rather than counting
+/// operands.  OP_CLOSURE is the one that could have broken that -- an index
+/// AND a slot per capture -- so its capture slots stay narrow and a closure
+/// over a slot past 255 is refused by name instead.
+///
+/// `i` and `l` are told from `b` because only they widen, and a disassembler
+/// has to know WHICH operand that is: OP_BUILTIN carries its index first and
+/// OP_OVERLOADS carries it second, so "the first byte" would have rendered one
+/// of them wrongly.  The machine itself needs no such care, because it clears
+/// the flag on the first widenable operand it reads.
+///
+/// A shape rather than a count, because two operand bytes are not always one
+/// number: OP_INVOKE carries a name's index BESIDE an argument count, while
+/// OP_JUMP carries a single distance.  A disassembler told only "two bytes"
+/// cannot tell them apart, and rendered `OP_INVOKE 5 1` as `OP_INVOKE 1281`.
+/// Once a slot could be wide, OP_EXTEND needed a byte and a short together,
+/// which no count can describe at all.
+///
+/// OP_CLOSURE answers '' and is a LIE, because it is the one variable-width
+/// instruction: a constant index, a capture count, and then one slot per
+/// capture.  A disassembler has to special-case it, and `vm/run.a24` does.
+///
+/// # Examples
+///
+/// See test 'An Operand Shape Describes Every Byte That Follows'.
+function OpShape (Op : Integer) : String;
+begin
+    if Op = OP_CONSTANT  then Exit 'i';
+    if Op = OP_GET_LOCAL then Exit 'l';
+    if Op = OP_SET_LOCAL then Exit 'l';
+
+    if Op = OP_GET_GLOBAL    then Exit 'b';
+    if Op = OP_DEFINE_GLOBAL then Exit 'b';
+    if Op = OP_SET_GLOBAL    then Exit 'b';
+    if Op = OP_CALL          then Exit 'b';
+    if Op = OP_CALL_NAMED    then Exit 'ib';
+    if Op = OP_DECLARE_PROPERTY then Exit 'i';
+    if Op = OP_SUPER         then Exit 'is';
+    if Op = OP_SINGLETON     then Exit '';
+    if Op = OP_SUBRANGE      then Exit 'i';
+    if Op = OP_INVOKE_EXT_NAMED then Exit 'ibs';
+    if Op = OP_INVOKE_NAMED  then Exit 'ib';
+    if Op = OP_IS            then Exit 'i';
+    if Op = OP_CAST          then Exit 'i';
+    if Op = OP_GET_BOX       then Exit 'l';
+    if Op = OP_SET_BOX       then Exit 'l';
+    if Op = OP_GET_CELL      then Exit 'l';
+    if Op = OP_SET_CELL      then Exit 'l';
+    if Op = OP_LIST          then Exit 's';
+    if Op = OP_MAP           then Exit 's';
+    if Op = OP_GET_MEMBER      then Exit 'i';
+    if Op = OP_CLASS         then Exit 'i';
+    if Op = OP_METHOD        then Exit 'i';
+    if Op = OP_FIELD         then Exit 'i';
+    if Op = OP_INHERIT       then Exit 'i';
+    if Op = OP_GET_FIELD     then Exit 'i';
+    if Op = OP_SET_FIELD     then Exit 'i';
+    if Op = OP_WIDEN         then Exit 'i';
+    if Op = OP_ENUM          then Exit 'i';
+    if Op = OP_ENUM_MEMBER   then Exit 'i';
+
+    // The count and the name's index.
+    if Op = OP_OVERLOADS     then Exit 'bi';
+
+    // The name's index and the argument count, for both of these.
+    if Op = OP_BUILTIN       then Exit 'ib';
+    if Op = OP_INVOKE        then Exit 'ib';
+
+    // A single distance, which is why these are a short and OP_INVOKE is not.
+    if Op = OP_JUMP          then Exit 's';
+    if Op = OP_JUMP_IF_FALSE then Exit 's';
+    if Op = OP_LOOP          then Exit 's';
+    if Op = OP_TRY           then Exit 's';
+
+    // A wide slot, so that a program may hold more than 256 globals.
+    if Op = OP_GET_GLOBAL_LONG    then Exit 's';
+    if Op = OP_DEFINE_GLOBAL_LONG then Exit 's';
+    if Op = OP_SET_GLOBAL_LONG    then Exit 's';
+
+    // The name's index, then a WIDE slot -- an extension may live anywhere in
+    // a program's globals, so its operand cannot be the narrow one.
+    if Op = OP_EXTEND        then Exit 'is';
+
+    // The name's index, the argument count, then a wide slot.
+    if Op = OP_INVOKE_EXT    then Exit 'ibs';
+
+    // OP_LONG answers '' and is a LIE for the same reason OP_CLOSURE is: its
+    // operand is the whole instruction after it, whose own shape decides the
+    // width.  A disassembler has to special-case it, and `vm/run.a24` does.
+
+    Exit '';
+end
+
+/// What an opcode does to the stack, as `pops pushes needs`.
+///
+/// A number says exactly that many.  `n` is the instruction's COUNT operand,
+/// `n+1` that many and the callable or receiver beneath them, and `2n` that
+/// many key-and-value pairs.  `frame` is OP_RETURN alone, which discards
+/// whatever its frame put on the stack rather than a fixed number.
+///
+/// NEEDS is the minimum depth the instruction requires, and it is a third term
+/// rather than the same as `pops` because an instruction may READ the top
+/// without taking it: OP_DUP and every assignment opcode need a value beneath
+/// them and leave it there.
+///
+/// Of the three, two are observable and one is description.  The DIFFERENCE
+/// `pushes - pops` is what a run reveals, and `needs` is what running one
+/// value shallower reveals -- but the split itself is not visible from
+/// outside, because popping a value and pushing two copies of it moves the
+/// stack exactly as reading it and pushing one does.  So the split says what
+/// the handler is written to mean, and the two things a test can hold it to
+/// are held to it.
+///
+/// This is the question worth asking of a back end and the hardest to see by
+/// reading: a correct emitter leaves the stack where it found it, and this
+/// machine has twice answered correctly while leaking a slot an iteration,
+/// which the answer alone cannot show.
+///
+/// Answers '' for a number that is no opcode, which is what the test for
+/// completeness compares against.
+///
+/// # Satisfies
+///
+/// [EXP-017]
+function OpStack (Op : Integer) : String;
+begin
+    // Nothing in, one value out, and nothing needed beneath.
+    if Op = OP_CONSTANT             then Exit '0 1 0';
+    if Op = OP_NIL                  then Exit '0 1 0';
+    if Op = OP_TRUE                 then Exit '0 1 0';
+    if Op = OP_FALSE                then Exit '0 1 0';
+    if Op = OP_GET_LOCAL            then Exit '0 1 0';
+    if Op = OP_GET_GLOBAL           then Exit '0 1 0';
+    if Op = OP_GET_GLOBAL_LONG      then Exit '0 1 0';
+    if Op = OP_GET_BOX              then Exit '0 1 0';
+    if Op = OP_GET_CELL             then Exit '0 1 0';
+    if Op = OP_THIS                 then Exit '0 1 0';
+    if Op = OP_CLASS                then Exit '0 1 0';
+    if Op = OP_ENUM                 then Exit '0 1 0';
+    if Op = OP_CLOSURE              then Exit '0 1 0';
+    if Op = OP_SUPER                then Exit '0 1 0';
+
+    // One value in, nothing out.
+    if Op = OP_POP                  then Exit '1 0 1';
+    if Op = OP_PRINT                then Exit '1 0 1';
+    if Op = OP_RAISE                then Exit '1 0 1';
+    if Op = OP_DEFINE_GLOBAL        then Exit '1 0 1';
+    if Op = OP_DEFINE_GLOBAL_LONG   then Exit '1 0 1';
+
+    // One in, one out.
+    if Op = OP_IS                   then Exit '1 1 1';
+    if Op = OP_NOT                  then Exit '1 1 1';
+    if Op = OP_NEGATE               then Exit '1 1 1';
+    if Op = OP_BIT_NOT              then Exit '1 1 1';
+    if Op = OP_GET_MEMBER             then Exit '1 1 1';
+    if Op = OP_GET_FIELD            then Exit '1 1 1';
+    if Op = OP_WIDEN                then Exit '1 1 1';
+    if Op = OP_ITER                 then Exit '1 1 1';
+    if Op = OP_CELL                 then Exit '1 1 1';
+    if Op = OP_EXTEND               then Exit '1 1 1';
+    if Op = OP_SINGLETON            then Exit '1 1 1';
+
+    // Two in, one out -- every binary operator.
+    if Op = OP_EQUAL                then Exit '2 1 2';
+    if Op = OP_GREATER              then Exit '2 1 2';
+    if Op = OP_LESS                 then Exit '2 1 2';
+    if Op = OP_LESS_EQUAL           then Exit '2 1 2';
+    if Op = OP_GREATER_EQUAL        then Exit '2 1 2';
+    if Op = OP_ADD                  then Exit '2 1 2';
+    if Op = OP_SUBTRACT             then Exit '2 1 2';
+    if Op = OP_MULTIPLY             then Exit '2 1 2';
+    if Op = OP_DIVIDE               then Exit '2 1 2';
+    if Op = OP_DIV                  then Exit '2 1 2';
+    if Op = OP_MOD                  then Exit '2 1 2';
+    if Op = OP_IN                   then Exit '2 1 2';
+    if Op = OP_BIT_AND              then Exit '2 1 2';
+    if Op = OP_BIT_OR               then Exit '2 1 2';
+    if Op = OP_BIT_XOR              then Exit '2 1 2';
+    if Op = OP_SHIFT_LEFT           then Exit '2 1 2';
+    if Op = OP_SHIFT_RIGHT          then Exit '2 1 2';
+    if Op = OP_SUBSCRIPT_GET        then Exit '2 1 2';
+    if Op = OP_SET_FIELD            then Exit '2 1 2';
+
+    // Three in, one out: the target, the index and the value.
+    if Op = OP_SUBSCRIPT_SET        then Exit '3 1 3';
+
+    // Nothing in, nothing out, nothing read.
+    if Op = OP_JUMP                 then Exit '0 0 0';
+    if Op = OP_LOOP                 then Exit '0 0 0';
+    if Op = OP_TRY                  then Exit '0 0 0';
+    if Op = OP_UNTRY                then Exit '0 0 0';
+    if Op = OP_SUBRANGE             then Exit '0 0 0';
+    if Op = OP_LONG                 then Exit '0 0 0';
+
+    // Nothing in and nothing out, but the TOP IS READ -- an assignment is an
+    // expression, so its value stays on the stack [EXP-017].
+    if Op = OP_SET_LOCAL            then Exit '0 0 1';
+    if Op = OP_SET_GLOBAL           then Exit '0 0 1';
+    if Op = OP_SET_GLOBAL_LONG      then Exit '0 0 1';
+    if Op = OP_SET_BOX              then Exit '0 0 1';
+    if Op = OP_SET_CELL             then Exit '0 0 1';
+    if Op = OP_JUMP_IF_FALSE        then Exit '0 0 1';
+    if Op = OP_CAST                 then Exit '0 0 1';
+    if Op = OP_FIELD                then Exit '0 0 1';
+
+    // The top read and one pushed above it.
+    if Op = OP_DUP                  then Exit '0 1 1';
+    if Op = OP_ENUM_MEMBER          then Exit '0 1 1';
+
+    // One in, nothing out, and the CLASS beneath it read.
+    if Op = OP_METHOD               then Exit '1 0 2';
+    if Op = OP_DECLARE_PROPERTY     then Exit '1 0 2';
+    if Op = OP_INHERIT              then Exit '1 0 2';
+
+    // A window of n in, one out.
+    if Op = OP_LIST                 then Exit 'n 1 n';
+    if Op = OP_OVERLOADS            then Exit 'n 1 n';
+    if Op = OP_BUILTIN              then Exit 'n 1 n';
+
+    // A window of n PAIRS in, one out.
+    if Op = OP_MAP                  then Exit '2n 1 2n';
+
+    // A callable or a receiver beneath n arguments, and one out.
+    if Op = OP_CALL                 then Exit 'n+1 1 n+1';
+    if Op = OP_CALL_NAMED           then Exit 'n+1 1 n+1';
+    if Op = OP_INVOKE               then Exit 'n+1 1 n+1';
+    if Op = OP_INVOKE_NAMED         then Exit 'n+1 1 n+1';
+    if Op = OP_INVOKE_EXT           then Exit 'n+1 1 n+1';
+    if Op = OP_INVOKE_EXT_NAMED     then Exit 'n+1 1 n+1';
+
+    // OP_RETURN is the one instruction whose pops are not a number: it
+    // truncates to its frame's base and pushes the answer, so what it takes is
+    // whatever that frame had put there.
+    if Op = OP_RETURN             then Exit 'frame 1 1';
+
+    Exit '';
+end
+
+/// One of the three terms of a stack effect, counting from zero.
+///
+/// There is no Split built-in, so the terms are cut out by hand -- which is
+/// three lines rather than a dependency, and the count is fixed at three by
+/// the test beside OpStack.
+function StackPart (Said : String, Which : Integer) : String;
+var
+    From : Integer;
+
+begin
+    From := 0;
+
+    for var I : Integer := 0; I < Which; I := I + 1 do
+    begin
+        var At := Pos (Copy (Said, From, Length (Said)), Str (' '));
+
+        if At < 0 then Exit '';
+
+        From := From + At + 1;
+    end
+
+    var Ends := Pos (Copy (Said, From, Length (Said)), Str (' '));
+
+    if Ends < 0 then Exit Copy (Said, From, Length (Said));
+
+    Exit Copy (Said, From, Ends);
+end
+
+/// A stack term as a number, given the instruction's count operand.
+///
+/// # Raises
+///
+/// 'No such stack term: <term>.' for anything outside the closed vocabulary,
+/// which is what keeps a declaration from carrying an expression nothing can
+/// evaluate.
+function StackTerm (Term : String, N : Integer) : Integer;
+begin
+    if Term = Str ('0') then Exit 0;
+    if Term = Str ('1') then Exit 1;
+    if Term = Str ('2') then Exit 2;
+    if Term = Str ('3') then Exit 3;
+
+    if Term = Str ('n') then Exit N;
+    if Term = 'n+1'     then Exit N + 1;
+    if Term = '2n'      then Exit N * 2;
+
+    raise 'No such stack term: ' + Term + '.';
+end
+
+/// How many operand BYTES follow an opcode.
+///
+/// Derived from the shape rather than listed beside it, so the two cannot
+/// disagree about an opcode.
+function OpOperands (Op : Integer) : Integer;
+var
+    Bytes : Integer;
+
+begin
+    var Shape := OpShape (Op);
+
+    Bytes := 0;
+
+    // An `i` or an `l` counts as one, which is its width WITHOUT the prefix.
+    // Under OP_LONG it is two, and a caller that cares walks the shape itself.
+    for var I : Integer := 0; I < Length (Shape); I := I + 1 do
+        if Shape[I] = 's' then Bytes := Bytes + 2;
+        else Bytes := Bytes + 1;
+
+    Exit Bytes;
+end
+
+test 'An Operand Shape Describes Every Byte That Follows';
+begin
+    // A jump's pair is one number; OP_INVOKE's pair is two operands.
+    AssertEqual (Str ('s'),  Str (OpShape (OP_JUMP)));
+    AssertEqual ('ib', Str (OpShape (OP_INVOKE)));
+
+    // An index is told from a byte, and OP_OVERLOADS carries it SECOND.
+    AssertEqual (Str ('i'), Str (OpShape (OP_CONSTANT)));
+    AssertEqual ('bi', Str (OpShape (OP_OVERLOADS)));
+
+    // A LOCAL slot widens too, and is told from a count for the same reason.
+    AssertEqual (Str ('l'), Str (OpShape (OP_GET_LOCAL)));
+    AssertEqual (Str ('b'), Str (OpShape (OP_CALL)));
+
+    // At most ONE widenable operand per opcode, which is what makes a single
+    // flag in the machine sound.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Widenable := 0;
+        var Letters   := OpShape (Op);
+
+        for var I : Integer := 0; I < Length (Letters); I := I + 1 do
+            if Letters[I] = 'i' or Letters[I] = 'l' then
+                Widenable := Widenable + 1;
+
+        AssertTrue (Widenable <= 1);
+    end
+
+    // A wide slot, and a byte beside one.
+    AssertEqual (Str ('s'),   Str (OpShape (OP_GET_GLOBAL_LONG)));
+    AssertEqual ('is',  Str (OpShape (OP_EXTEND)));
+    AssertEqual ('ibs', Str (OpShape (OP_INVOKE_EXT)));
+
+    // The width follows from the shape and is not listed twice.
+    AssertEqual (2, OpOperands (OP_JUMP));
+    AssertEqual (2, OpOperands (OP_INVOKE));
+    AssertEqual (0, OpOperands (OP_LONG));
+    AssertEqual (2, OpOperands (OP_GET_GLOBAL_LONG));
+    AssertEqual (3, OpOperands (OP_EXTEND));
+    AssertEqual (4, OpOperands (OP_INVOKE_EXT));
+    AssertEqual (0, OpOperands (OP_RETURN));
+
+    // Every shape is made of the two letters and nothing else, so a
+    // disassembler walking it cannot meet one it has no case for.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Shape := OpShape (Op);
+
+        for var I : Integer := 0; I < Length (Shape); I := I + 1 do
+            AssertTrue (Shape[I] = 'b' or Shape[I] = 'i'
+                     or Shape[I] = 'l' or Shape[I] = 's');
+    end
+end
+
+test 'Every Opcode Has A Name';
+begin
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+        AssertTrue (OpName (Op) <> 'OP_?');
+end
+
+test 'Every Opcode Declares What It Does To The Stack';
+begin
+    // An opcode added without a stack effect would be documented in
+    // REFERENCE.md against nothing, and vm/reference.sh would have nothing to
+    // hold the entry to -- so the gap belongs here, where it is one line to
+    // find rather than a silently unchecked claim in prose.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+        AssertTrue (OpStack (Op) <> '');
+end
+
+test 'A Stack Effect Is Three Known Terms';
+begin
+    // The vocabulary is closed on purpose: a term nothing can evaluate would
+    // pass the completeness test above and then be unverifiable, which is the
+    // shape of claim this whole mechanism exists to stop.  StackTerm raises on
+    // anything outside it, so reaching all three IS the check.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Said := OpStack (Op);
+
+        AssertTrue (StackPart (Said, 2) <> '');
+        AssertEqual ('', StackPart (Said, 3));
+
+        if StackPart (Said, 0) <> 'frame' then
+            AssertTrue (StackTerm (StackPart (Said, 0), 7) >= 0);
+
+        AssertTrue (StackTerm (StackPart (Said, 1), 7) >= 0);
+        AssertTrue (StackTerm (StackPart (Said, 2), 7) >= 0);
+    end
+end
+
+test 'An Opcode Cannot Need Less Than It Pops';
+begin
+    // Incoherent rather than merely wrong: an instruction taking two values
+    // off a stack of one has nothing to take, so a declaration saying so is a
+    // typo the measurement would never reach -- it runs at the depth the
+    // declaration names, which would be the smaller of the two.
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Said := OpStack (Op);
+
+        if StackPart (Said, 0) = 'frame' then continue;
+
+        AssertTrue (StackTerm (StackPart (Said, 2), 9)
+                 >= StackTerm (StackPart (Said, 0), 9));
+    end
+end
+
+test 'The Numbering Is Contiguous And Unique';
+begin
+    // Every opcode below OP_COUNT has exactly one name, which is a stronger
+    // claim than every opcode HAVING one: inserting an opcode while
+    // renumbering the ones above it left a gap twice and a COLLISION once --
+    // OP_INVOKE and OP_LIST both 36, where OpName answered for the first and
+    // the second was unreachable.
+    //
+    // A gap or a collision is only a confused disassembly today.  Once a chunk
+    // is read from a file it is a hole in the format.
+    var Seen := Map ();
+
+    for var Op : Integer := 0; Op < OP_COUNT; Op := Op + 1 do
+    begin
+        var Name := OpName (Op);
+
+        AssertTrue (Name <> 'OP_?');
+        AssertTrue (not Seen.Contains (Name));
+
+        Seen.Put (Name, Op);
+    end
+
+    AssertEqual (OP_COUNT, Seen.Length);
+end
+
+test 'An Unknown Opcode Is Named Rather Than Raised';
+begin
+    AssertEqual ('OP_?', OpName (OP_COUNT));
+end
+
+test 'Only The Opcodes That Take Operands Report Any';
+begin
+    AssertEqual (1, OpOperands (OP_CONSTANT));
+    AssertEqual (2, OpOperands (OP_JUMP));
+    AssertEqual (0, OpOperands (OP_ADD));
+    AssertEqual (0, OpOperands (OP_RETURN));
+end

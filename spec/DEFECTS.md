@@ -42,6 +42,44 @@ over, not a replacement for it.
 
     defect  DEF-34-val-follows-strtod.a24
 
+**DEF-37 — `Foreign` reads its argument list as a host sequence, which it is
+only when compiled.** *(violates [RT-001], [INI-008])*
+
+[RT-001] makes `Foreign` one of the thirty always-available built-ins, so a
+program may call it directly and not only through an `external` declaration.
+`alg_foreign_call` casts its `args` to the runtime's own sequence and reads a
+count from it. Under the compiled back end that is what a List is; interpreted,
+a guest List is an `ObjCollection`, so the count comes from an unrelated field.
+
+A call passing **one** argument is therefore refused for passing too many:
+
+| | answers |
+| --- | --- |
+| compiled | `Foreign calls are not available in this build: 'strlen' cannot be reached.` |
+| interpreted | `A foreign call takes at most eight arguments.` |
+
+The compiled answer is right — [INI-008] is what a build without libffi owes.
+
+⚠️ **It is a type-confused read rather than only a wrong message.** The count is
+an `int32_t` taken from whatever field sits at that offset, and the loop that
+follows indexes `items[i]` that many times. Here it happens to exceed eight and
+be refused; an object laid out differently could pass the check and then read
+past the end. That is why this is filed as a defect rather than as a
+diagnostic's wording.
+
+**An `external` declaration is unaffected under both processors**, which is
+what makes the defect narrow: the interpreter reaches the runtime with
+arguments that are already host sequences, so `TextLength ('abc')` answers
+correctly interpreted and compiled alike. Only a direct call differs. The
+bytecode machine is also unaffected, because it is compiled.
+
+The fix belongs on the Algol-24 side rather than in `algol.c`: the built-in
+should hand the runtime a host sequence, as the interpreter's own external path
+already does, rather than teaching the C runtime about the interpreter's object
+layout.
+
+    defects  DEF-37-foreign-misreads-an-interpreted-list.a24
+
 **DEF-35 — A type inferred from an initializer is invisible above the declaration.**
 *(violates [VAR-006], [DCL-007])*
 

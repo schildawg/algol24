@@ -1,0 +1,676 @@
+/// A unit of bytecode: the instructions, and the constants they refer to.
+///
+/// The code is a Buffer rather than a List of Integer, which is the decision
+/// that makes a chunk a thing that can be written to a file later: a Buffer is
+/// bytes, and bytes are what a bytecode artifact holds.  It also means an
+/// operand is one byte and a constant index therefore reaches 255, which is a
+/// limit this will outgrow and clox answers with a wider opcode.
+unit Chunk;
+
+uses OpCode;
+
+/// How much code a fresh chunk has room for, doubled whenever it fills.
+///
+/// Small, because most chunks are small: a method is a chunk, and so is a
+/// program's main block.
+const CHUNK_ROOM := 64;
+
+/// A chunk of bytecode.
+class Chunk;
+var
+    /// The instructions, packed as bytes.
+    ///
+    /// Longer than Count: the slack is what Write appends into without
+    /// reallocating.  Read Count rather than the Buffer's own length.
+    ///
+    /// Its size is `Code.Length`, the collection property.  `Length (Code)`,
+    /// the text built-in, answers the length of the Buffer's PRINTED form --
+    /// 10 for a `Buffer(64)` -- where for a List it raises instead.  DEF-36.
+    Code      : Buffer;
+
+    /// How many bytes of Code are instructions.
+    Count     : Integer;
+
+    /// The values the code refers to by index, in the order they were added.
+    Constants : List;
+
+    /// The name of each global slot, indexed by it.
+    ///
+    /// Carried for DIAGNOSTICS only -- the code refers to a global by its slot
+    /// and never looks in here.  It is what lets 'Undefined variable ''N''.'
+    /// name the variable even though the instruction does not.
+    ///
+    /// Its length is also how many slots the machine must make room for.
+    GlobalNames : List;
+
+    /// The KEY each slot was claimed under, indexed by it, parallel to
+    /// GlobalNames.
+    ///
+    /// Separate from the spelling because a key is qualified by the unit that
+    /// declared the name -- `alpha:shared` -- and a diagnostic must echo what
+    /// the program wrote [SRC-011], so `Undefined variable 'Shared'.` cannot
+    /// come from the key.  Two units may export one name, and one flat table
+    /// keyed by spelling alone could hold only one of them.
+    GlobalKeys : List;
+
+begin
+    /// Makes an empty chunk.
+    constructor Init ();
+    begin
+        this.Code      := Buffer (CHUNK_ROOM);
+        this.Count     := 0;
+        this.Constants   := List ();
+        this.GlobalNames := List ();
+        this.GlobalKeys  := List ();
+    end
+
+    /// The key a name takes in a unit, folded.
+    ///
+    /// The root file's unit is '', so its names key as `:name` -- the
+    /// separator is always written, which is what keeps a root name and a
+    /// unit's name of the same spelling distinct keys.
+    function KeyFor (Unit : Any, Name : Any) : String;
+    begin
+        Exit ToLower (Str (Unit)) + ':' + ToLower (Str (Name));
+    end
+
+    /// Whether a global name already has a slot.
+    ///
+    /// Asked rather than GlobalSlot where the answer must not CREATE one: an
+    /// emitter that resolves every unknown name to a fresh global slot emits a
+    /// read of a variable that nothing ever defines, and the machine answers
+    /// `Undefined variable` for a built-in that exists -- a wrong answer where
+    /// a refusal was wanted.
+    function KnownGlobal (Name : Any) : Boolean;
+    begin
+        Exit this.KnownQualified ('', Name);
+    end
+
+    /// Whether a name declared in a unit already has a slot.
+    function KnownQualified (Unit : Any, Name : Any) : Boolean;
+    begin
+        var Wanted := this.KeyFor (Unit, Name);
+
+        for var I : Integer := 0; I < this.GlobalKeys.Length; I := I + 1 do
+            if Str (this.GlobalKeys[I]) = Wanted then Exit True;
+
+        Exit False;
+    end
+
+    /// The slot a global name has, assigning one if it has none yet.
+    ///
+    /// Idempotent, which is what lets an emitter call it from a pre-pass over
+    /// the declarations and again at each use without counting a name twice.
+    /// A pre-pass is not optional: a module-level subprogram may refer to a
+    /// global declared BELOW it, so every slot has to exist before any body is
+    /// emitted.
+    ///
+    /// Matched case-insensitively, because identifiers are [SRC-011], with the
+    /// language's own ToLower rather than the compiler's FoldCase -- a chunk
+    /// should not need the compiler in order to be executed.
+    ///
+    /// # Raises
+    ///
+    /// 'A program holds 256 globals.' once a slot will not fit in an operand
+    /// byte.
+    ///
+    /// # Examples
+    ///
+    /// See test 'A Global Name Keeps Its Slot'.
+    function GlobalSlot (Name : Any) : Integer;
+    begin
+        Exit this.QualifiedSlot ('', Name);
+    end
+
+    /// The slot a name declared in a unit has, assigning one if it has none.
+    ///
+    /// Idempotent exactly as GlobalSlot is, and for the same reason.  The slot
+    /// remembers the SPELLING for diagnostics and the KEY for lookup, so two
+    /// units exporting one name get two slots that both answer to the one
+    /// spelling in a message.
+    ///
+    /// # Raises
+    ///
+    /// 'A program holds 65536 globals.' once a slot will not fit in a short.
+    ///
+    /// # Examples
+    ///
+    /// See test 'A Unit Qualifies A Global Slot'.
+    function QualifiedSlot (Unit : Any, Name : Any) : Integer;
+    begin
+        var Wanted := this.KeyFor (Unit, Name);
+
+        for var I : Integer := 0; I < this.GlobalKeys.Length; I := I + 1 do
+            if Str (this.GlobalKeys[I]) = Wanted then Exit I;
+
+        if this.GlobalKeys.Length > 65535 then
+            raise 'A program holds 65536 globals.';
+
+        this.GlobalNames.Add (Str (Name));
+        this.GlobalKeys.Add (Wanted);
+
+        Exit this.GlobalKeys.Length - 1;
+    end
+
+    /// Appends one byte of code.
+    ///
+    /// # Raises
+    ///
+    /// 'A byte of bytecode must be 0 to 255.' for anything that will not fit,
+    /// which is a bug in whatever emitted it rather than a program's error --
+    /// an operand too large to encode is caught here instead of being
+    /// truncated into a different instruction.
+    procedure Write (B : Integer);
+    begin
+        if B < 0 or B > 255 then
+            raise 'A byte of bytecode must be 0 to 255.';
+
+        if this.Count >= this.Code.Length then
+            this.Code.Resize (this.Code.Length * 2);
+
+        this.Code[this.Count] := B;
+        this.Count := this.Count + 1;
+    end
+
+    /// Reads the byte at an offset.
+    function At (Offset : Integer) : Integer;
+    begin
+        Exit this.Code[Offset] as Integer;
+    end
+
+    /// Adds a constant and answers the index the code should refer to it by.
+    ///
+    /// Equal constants are not folded.  Folding needs a definition of equal
+    /// that agrees with the language's, and the language's answer for a Char
+    /// and a one-character String is that they differ -- so folding here would
+    /// be the wrong place to decide it.
+    function AddConstant (V : Any) : Integer;
+    begin
+        // A PRIMITIVE is interned, so a chunk holds one copy of a value
+        // however many times it is written.  Without this, 400 globals each
+        // initialised to 7 took 400 constant slots and a chunk ran out at 256
+        // -- the cap was never the problem, the waste was.
+        //
+        // An OBJECT is not interned: a subprogram's body is distinct even from
+        // one that compares equal, and merging two would make a call reach the
+        // wrong body.
+        if IsPrimitive (V) then
+            for var I : Integer := 0; I < this.Constants.Length; I := I + 1 do
+                if SameConstant (this.Constants[I], V) then Exit I;
+
+        this.Constants.Add (V);
+
+        Exit this.Constants.Length - 1;
+    end
+
+    /// Whether a value is one of the five primitive types [TYP-001].
+    function IsPrimitive (V : Any) : Boolean;
+    begin
+        Exit V is Integer or V is Double or V is String
+          or V is Char    or V is Boolean;
+    end
+
+    /// Whether two constants are the same value of the same type.
+    ///
+    /// The type is asked about FIRST, because an Integer and a Double may
+    /// compare equal and render differently -- `Str (1)` is 1 and `Str (1.0)`
+    /// is 1.0 -- so interning on equality alone would make a program print the
+    /// wrong one.  A Char and a String are never equal [TYP-003] and need no
+    /// such care, but they are checked alike so the rule reads as one.
+    function SameConstant (A : Any, B : Any) : Boolean;
+    begin
+        if (A is Integer) <> (B is Integer) then Exit False;
+        if (A is Double)  <> (B is Double)  then Exit False;
+        if (A is String)  <> (B is String)  then Exit False;
+        if (A is Char)    <> (B is Char)    then Exit False;
+        if (A is Boolean) <> (B is Boolean) then Exit False;
+
+        Exit A = B;
+    end
+
+    /// Appends an instruction that takes no operand.
+    procedure Emit (Op : Integer);
+    begin
+        this.Write (Op);
+    end
+
+    /// Emits a forward jump and answers where its distance must be filled in.
+    ///
+    /// The distance is not known yet -- that is the whole problem a forward
+    /// jump poses -- so two placeholder bytes go down and PatchJump replaces
+    /// them once the landing place exists.  This is clox's backpatching, and
+    /// it is the mechanism PROPOSAL-VM.md says to take from it.
+    ///
+    /// # Examples
+    ///
+    /// See test 'A Forward Jump Is Patched Once Its Target Exists'.
+    function EmitJump (Op : Integer) : Integer;
+    begin
+        this.Write (Op);
+        this.Write (255);
+        this.Write (255);
+
+        Exit this.Count - 2;
+    end
+
+    /// Fills in a jump emitted earlier so that it lands here.
+    ///
+    /// The distance is measured from the instruction AFTER the operand, which
+    /// is where IP already points by the time the jump executes -- so the
+    /// machine adds the distance and needs to know nothing about the
+    /// instruction's own width.
+    ///
+    /// # Raises
+    ///
+    /// 'A jump reaches 65535 bytes.' when the body jumped over is too long.
+    /// clox answers the same way, and the limit wants raising only when a
+    /// program meets it.
+    procedure PatchJump (At : Integer);
+    begin
+        var Distance := this.Count - At - 2;
+
+        if Distance > 65535 then raise 'A jump reaches 65535 bytes.';
+
+        this.Code[At]     := Distance div 256;
+        this.Code[At + 1] := Distance mod 256;
+    end
+
+    /// Fills in a jump emitted earlier so that it lands at a given offset.
+    ///
+    /// PatchJump lands a jump HERE, which is right for an `if` and a `while`
+    /// and wrong for a `continue`: its target is the loop's increment, which
+    /// is behind the point the loop finishes patching.  So the offset is named
+    /// rather than assumed.
+    ///
+    /// # Raises
+    ///
+    /// 'A jump reaches 65535 bytes.' when the distance will not encode, and
+    /// 'A jump cannot go backward.' for a target behind the jump -- which is
+    /// OP_LOOP's job and would otherwise encode as a huge forward distance.
+    procedure PatchJumpTo (At : Integer, Target : Integer);
+    begin
+        if Target < At + 2 then raise 'A jump cannot go backward.';
+
+        var Distance := Target - At - 2;
+
+        if Distance > 65535 then raise 'A jump reaches 65535 bytes.';
+
+        this.Code[At]     := Distance div 256;
+        this.Code[At + 1] := Distance mod 256;
+    end
+
+    /// Emits a backward jump to an offset already passed.
+    ///
+    /// # Raises
+    ///
+    /// 'A jump reaches 65535 bytes.' when the loop body is too long.
+    procedure EmitLoop (Target : Integer);
+    begin
+        this.Write (OP_LOOP);
+
+        // Measured from after this instruction's own operand, as PatchJump's
+        // is, so the machine subtracts rather than knowing any widths.
+        var Distance := this.Count + 2 - Target;
+
+        if Distance > 65535 then raise 'A jump reaches 65535 bytes.';
+
+        this.Write (Distance div 256);
+        this.Write (Distance mod 256);
+    end
+
+    /// Appends an instruction and a one-byte operand.
+    ///
+    /// # Raises
+    ///
+    /// 'A byte of bytecode must be 0 to 255.' through Write, for an operand
+    /// that will not fit -- a local slot past 255, most likely.
+    procedure EmitWith (Op : Integer, Operand : Integer);
+    begin
+        this.Write (Op);
+        this.Write (Operand);
+    end
+
+    /// Appends an opcode and a SHORT operand, most significant byte first.
+    ///
+    /// The same order EmitJump writes a distance in and ReadShort reads one
+    /// back, so a wide slot and a jump distance are the one encoding.
+    ///
+    /// # Raises
+    ///
+    /// 'An operand reaches 65535.' for a value a short cannot hold.
+    procedure EmitWide (Op : Integer, Operand : Integer);
+    begin
+        if Operand > 65535 then raise 'An operand reaches 65535.';
+
+        this.Write (Op);
+        this.Write (Operand div 256);
+        this.Write (Operand mod 256);
+    end
+
+    /// Appends a constant and the instruction that pushes it.
+    ///
+    procedure EmitConstant (V : Any);
+    begin
+        this.EmitIndexed (OP_CONSTANT, this.AddConstant (V));
+    end
+
+    /// Appends an opcode whose only operand is a constant index.
+    ///
+    /// Prefixed with OP_LONG where the index will not fit in a byte, which is
+    /// the whole of how a chunk holds more than 256 constants.
+    procedure EmitIndexed (Op : Integer, At : Integer);
+    begin
+        this.WriteIndexed (Op, At);
+        this.WriteIndex (At);
+    end
+
+    /// Appends an opcode, prefixing it where a constant index needs two bytes.
+    ///
+    /// Paired with WriteIndex, which must be given the SAME index: the prefix
+    /// says the index is wide and the index itself must then be written wide.
+    /// An opcode carrying further operands writes them after, unprefixed --
+    /// only the index widens.
+    procedure WriteIndexed (Op : Integer, At : Integer);
+    begin
+        if At > 255 then this.Write (OP_LONG);
+
+        this.Write (Op);
+    end
+
+    /// Appends a constant index, two bytes where it needs them.
+    ///
+    /// # Raises
+    ///
+    /// 'A chunk holds 65536 constants.' for an index a short cannot carry.
+    procedure WriteIndex (At : Integer);
+    begin
+        if At > 65535 then raise 'A chunk holds 65536 constants.';
+
+        if At > 255 then
+        begin
+            this.Write (At div 256);
+            this.Write (At mod 256);
+
+            Exit;
+        end
+
+        this.Write (At);
+    end
+
+    /// Appends a two-byte operand, high byte first.
+    ///
+    /// Always two bytes, unlike WriteIndex: an operand of a fixed width is
+    /// read with ReadShort and is unaffected by the OP_LONG prefix, which is
+    /// what lets an opcode carry one beside an index that does widen.
+    ///
+    /// # Raises
+    ///
+    /// 'A short cannot carry <N>.' for a value two bytes cannot hold.
+    procedure WriteShort (N : Integer);
+    begin
+        if N < 0 or N > 65535 then raise 'A short cannot carry ' + Str (N) + '.';
+
+        this.Write (N div 256);
+        this.Write (N mod 256);
+    end
+end
+
+test 'A Fresh Chunk Is Empty';
+begin
+    var C := Chunk ();
+
+    AssertEqual (0, C.Count);
+    AssertEqual (0, C.Constants.Length);
+end
+
+test 'A Chunk Grows Past Its First Room';
+begin
+    var C := Chunk ();
+
+    for var I : Integer := 0; I < CHUNK_ROOM * 5; I := I + 1 do C.Write (I mod 256);
+
+    AssertEqual (CHUNK_ROOM * 5, C.Count);
+    AssertEqual (7, C.At (7));
+
+    // Past two doublings, and past the byte wrap, so the growth is checked to
+    // have preserved what came before it rather than only its own length.
+    AssertEqual (131, C.At (131));
+    AssertEqual (0, C.At (256));
+    AssertEqual (63, C.At (CHUNK_ROOM * 5 - 1));
+end
+
+test 'A Constant Is Referred To By Its Index';
+begin
+    var C := Chunk ();
+
+    AssertEqual (0, C.AddConstant (11));
+    AssertEqual (1, C.AddConstant (22));
+    AssertEqual (22, C.Constants[1] as Integer);
+end
+
+test 'A Byte Of Bytecode Must Fit';
+begin
+    var C := Chunk ();
+
+    try
+        C.Write (256);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('A byte of bytecode must be 0 to 255.', e);
+    end
+end
+
+test 'A Forward Jump Is Patched Once Its Target Exists';
+begin
+    var C := Chunk ();
+
+    var Hole := C.EmitJump (OP_JUMP);
+
+    AssertEqual (1, Hole);
+    AssertEqual (255, C.At (1));
+
+    C.Emit (OP_POP);
+    C.Emit (OP_POP);
+    C.PatchJump (Hole);
+
+    // Two OP_POPs between the operand and here, so the machine must add 2.
+    AssertEqual (0, C.At (1));
+    AssertEqual (2, C.At (2));
+end
+
+test 'A Backward Jump Measures From After Its Own Operand';
+begin
+    var C := Chunk ();
+
+    var Top := C.Count;
+    C.Emit (OP_POP);
+    C.EmitLoop (Top);
+
+    // OP_POP, then OP_LOOP and two operand bytes: four back to the top.
+    AssertEqual (OP_LOOP, C.At (1));
+    AssertEqual (0, C.At (2));
+    AssertEqual (4, C.At (3));
+end
+
+test 'A Jump Too Long To Encode Is Refused';
+begin
+    var C := Chunk ();
+
+    var Hole := C.EmitJump (OP_JUMP);
+
+    for var I : Integer := 0; I < 65540; I := I + 1 do C.Emit (OP_POP);
+
+    try
+        C.PatchJump (Hole);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('A jump reaches 65535 bytes.', e);
+    end
+end
+
+test 'An Emitted Constant Writes Its Opcode And Index';
+begin
+    var C := Chunk ();
+
+    C.EmitConstant (42);
+
+    AssertEqual (2, C.Count);
+    AssertEqual (OP_CONSTANT, C.At (0));
+    AssertEqual (0, C.At (1));
+    AssertEqual (42, C.Constants[0] as Integer);
+end
+
+test 'An Unclaimed Global Is Known To Be Unclaimed';
+begin
+    var C := Chunk ();
+
+    AssertTrue (not C.KnownGlobal ('Total'));
+
+    C.GlobalSlot ('Total');
+
+    AssertTrue (C.KnownGlobal ('Total'));
+    AssertTrue (C.KnownGlobal ('TOTAL'));
+    AssertTrue (not C.KnownGlobal ('Other'));
+
+    // Asking must not have created one.
+    AssertEqual (1, C.GlobalNames.Length);
+end
+
+test 'A Global Name Keeps Its Slot';
+begin
+    var C := Chunk ();
+
+    AssertEqual (0, C.GlobalSlot ('Total'));
+    AssertEqual (1, C.GlobalSlot ('Count'));
+    AssertEqual (0, C.GlobalSlot ('Total'));
+
+    // Identifiers are case-insensitive [SRC-011], so these are one variable
+    // and must not be given two slots.
+    AssertEqual (0, C.GlobalSlot ('TOTAL'));
+    AssertEqual (2, C.GlobalNames.Length);
+end
+
+/// Two units may export one name, so the unit is part of the key -- and the
+/// spelling a diagnostic needs is kept whole beside it.
+test 'A Constant Is Interned So A Chunk Holds One Copy';
+begin
+    var C := Chunk ();
+
+    AssertEqual (0, C.AddConstant (7));
+    AssertEqual (0, C.AddConstant (7));
+    AssertEqual (1, C.AddConstant (8));
+    AssertEqual (0, C.AddConstant (7));
+
+    AssertEqual (2, C.Constants.Length);
+end
+
+test 'Interning Agrees About The Type Before The Value';
+begin
+    var C := Chunk ();
+
+    // 1 and 1.0 compare equal and render differently, so they are two
+    // constants rather than one.
+    var Whole := C.AddConstant (1);
+    var Real  := C.AddConstant (1.0);
+
+    AssertTrue (Whole <> Real);
+    AssertEqual (Str ('1'), Str (C.Constants[Whole]));
+    AssertEqual ('1.0',     Str (C.Constants[Real]));
+
+    // A Char and a String of one character are never equal [TYP-003].  The
+    // String has to be built with Str, because a one-character LITERAL is a
+    // Char -- `'a'` here interned with Char (97) exactly as it should have.
+    AssertTrue (C.AddConstant (Char (97)) <> C.AddConstant (Str ('a')));
+
+    // And the same spelling twice is still one constant.
+    AssertEqual (C.AddConstant (Char (97)), C.AddConstant ('a'));
+end
+
+test 'An Object Constant Is Not Interned';
+begin
+    var C := Chunk ();
+
+    // Two objects that would compare equal are still two objects, and a call
+    // has to reach the body it was emitted for.  A Chunk stands in for a
+    // subprogram here because VmFunction imports this unit rather than the
+    // other way about.
+    var First  := C.AddConstant (Chunk ());
+    var Second := C.AddConstant (Chunk ());
+
+    AssertTrue (First <> Second);
+    AssertEqual (2, C.Constants.Length);
+end
+
+test 'A Wide Operand Is Written Most Significant Byte First';
+begin
+    var C := Chunk ();
+
+    C.EmitWide (OP_GET_GLOBAL_LONG, 300);
+
+    AssertEqual (OP_GET_GLOBAL_LONG, C.At (0));
+    AssertEqual (1,  C.At (1));
+    AssertEqual (44, C.At (2));
+
+    // The same encoding a jump distance uses, so one reader serves both.
+    AssertEqual (300, (C.At (1) as Integer) * 256 + (C.At (2) as Integer));
+end
+
+test 'A Unit Qualifies A Global Slot';
+begin
+    var C := Chunk ();
+
+    var Root  := C.GlobalSlot ('Shared');
+    var Alpha := C.QualifiedSlot ('alpha', 'Shared');
+    var Beta  := C.QualifiedSlot ('beta',  'Shared');
+
+    AssertEqual (0, Root);
+    AssertEqual (1, Alpha);
+    AssertEqual (2, Beta);
+
+    // Idempotent, and folded [SRC-011].
+    AssertEqual (1, C.QualifiedSlot ('ALPHA', 'SHARED'));
+    AssertEqual (3, C.GlobalNames.Length);
+
+    // Every slot answers to the one spelling the program wrote.
+    AssertEqual ('Shared', Str (C.GlobalNames[1]));
+
+    AssertTrue (C.KnownQualified ('beta', 'Shared'));
+    AssertTrue (not C.KnownQualified ('deep', 'Shared'));
+
+    // A root name and a unit's name of the same spelling are not one slot.
+    AssertTrue (C.KnownGlobal ('Shared'));
+    AssertTrue (not C.KnownGlobal ('Nothing'));
+end
+
+test 'A Jump Can Be Patched To A Named Offset';
+begin
+    var C := Chunk ();
+
+    var Hole := C.EmitJump (OP_JUMP);
+    C.Emit (OP_POP);
+    var Landing := C.Count;
+    C.Emit (OP_POP);
+    C.Emit (OP_POP);
+
+    C.PatchJumpTo (Hole, Landing);
+
+    // One OP_POP between the operand and the landing, so the machine adds 1.
+    AssertEqual (0, C.At (1));
+    AssertEqual (1, C.At (2));
+end
+
+test 'A Jump Cannot Be Patched Backward';
+begin
+    var C := Chunk ();
+
+    C.Emit (OP_POP);
+    C.Emit (OP_POP);
+    var Hole := C.EmitJump (OP_JUMP);
+
+    try
+        C.PatchJumpTo (Hole, 0);
+        Fail ('expected a raise');
+    except
+        on e : String do AssertEqual ('A jump cannot go backward.', e);
+    end
+end

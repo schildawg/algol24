@@ -1,0 +1,27 @@
+/// A unit whose subprograms hand-written C calls directly, which is what the
+/// C dispatch loop in PROPOSAL-VM.md item 0b would need.
+///
+/// Nothing here is marked for export and nothing needs to be: a top-level
+/// subprogram of a UNIT that is not private already reaches the unit's header
+/// with external linkage, because that is how one unit's C calls another's.
+unit Hot;
+
+/// Doubles an Integer, so there is a trivial call to make from C.
+function Twice (N : Integer) : Integer;
+begin
+    Exit N * 2;
+end
+
+/// Sums one to N, as a loop C would rather not write again.
+function SumTo (N : Integer) : Integer;
+var
+    Total : Integer;
+
+begin
+    Total := 0;
+
+    for var I : Integer := 1; I <= N; I := I + 1 do
+        Total := Total + I;
+
+    Exit Total;
+end

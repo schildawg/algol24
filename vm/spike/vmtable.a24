@@ -1,0 +1,139 @@
+// The same machine, dispatching through a TABLE of subprograms rather than a
+// case -- the option available today with no change to the compiler [FUN-011].
+
+const OP_HALT   := 0;
+const OP_PUSHI  := 1;
+const OP_POP    := 2;
+const OP_DECJNZ := 3;
+
+const ITERATIONS := 1000000;
+
+var Code : Buffer := Buffer (8);
+var Stack := Array (64);
+var IP : Integer := 0;
+var SP : Integer := 1;
+var Running : Boolean := True;
+
+procedure DoPushI ();
+begin
+    Stack[SP] := Code[IP] as Integer;
+    SP := SP + 1;
+    IP := IP + 1;
+end
+
+procedure DoPop ();
+begin
+    SP := SP - 1;
+end
+
+procedure DoDecJnz ();
+var
+    Back : Integer;
+    N    : Integer;
+
+begin
+    Back := Code[IP] as Integer;
+    IP := IP + 1;
+
+    N := (Stack[0] as Integer) - 1;
+    Stack[0] := N;
+
+    if N <> 0 then IP := IP - Back;
+end
+
+procedure DoHalt ();
+begin
+    Running := False;
+end
+
+procedure Cold0 (); begin SP := SP + 0; end
+procedure Cold1 (); begin SP := SP + 0; end
+procedure Cold2 (); begin SP := SP + 0; end
+procedure Cold3 (); begin SP := SP + 0; end
+procedure Cold4 (); begin SP := SP + 0; end
+procedure Cold5 (); begin SP := SP + 0; end
+procedure Cold6 (); begin SP := SP + 0; end
+procedure Cold7 (); begin SP := SP + 0; end
+procedure Cold8 (); begin SP := SP + 0; end
+procedure Cold9 (); begin SP := SP + 0; end
+procedure Cold10 (); begin SP := SP + 0; end
+procedure Cold11 (); begin SP := SP + 0; end
+procedure Cold12 (); begin SP := SP + 0; end
+procedure Cold13 (); begin SP := SP + 0; end
+procedure Cold14 (); begin SP := SP + 0; end
+procedure Cold15 (); begin SP := SP + 0; end
+procedure Cold16 (); begin SP := SP + 0; end
+procedure Cold17 (); begin SP := SP + 0; end
+procedure Cold18 (); begin SP := SP + 0; end
+procedure Cold19 (); begin SP := SP + 0; end
+procedure Cold20 (); begin SP := SP + 0; end
+procedure Cold21 (); begin SP := SP + 0; end
+procedure Cold22 (); begin SP := SP + 0; end
+procedure Cold23 (); begin SP := SP + 0; end
+procedure Cold24 (); begin SP := SP + 0; end
+procedure Cold25 (); begin SP := SP + 0; end
+procedure Cold26 (); begin SP := SP + 0; end
+procedure Cold27 (); begin SP := SP + 0; end
+procedure Cold28 (); begin SP := SP + 0; end
+procedure Cold29 (); begin SP := SP + 0; end
+
+var Handlers := Array (80);
+
+Handlers[OP_HALT]   := DoHalt;
+Handlers[OP_PUSHI]  := DoPushI;
+Handlers[OP_POP]    := DoPop;
+Handlers[OP_DECJNZ] := DoDecJnz;
+Handlers[40] := Cold0;
+Handlers[41] := Cold1;
+Handlers[42] := Cold2;
+Handlers[43] := Cold3;
+Handlers[44] := Cold4;
+Handlers[45] := Cold5;
+Handlers[46] := Cold6;
+Handlers[47] := Cold7;
+Handlers[48] := Cold8;
+Handlers[49] := Cold9;
+Handlers[50] := Cold10;
+Handlers[51] := Cold11;
+Handlers[52] := Cold12;
+Handlers[53] := Cold13;
+Handlers[54] := Cold14;
+Handlers[55] := Cold15;
+Handlers[56] := Cold16;
+Handlers[57] := Cold17;
+Handlers[58] := Cold18;
+Handlers[59] := Cold19;
+Handlers[60] := Cold20;
+Handlers[61] := Cold21;
+Handlers[62] := Cold22;
+Handlers[63] := Cold23;
+Handlers[64] := Cold24;
+Handlers[65] := Cold25;
+Handlers[66] := Cold26;
+Handlers[67] := Cold27;
+Handlers[68] := Cold28;
+Handlers[69] := Cold29;
+
+Code[0] := OP_PUSHI;
+Code[1] := 1;
+Code[2] := OP_POP;
+Code[3] := OP_DECJNZ;
+Code[4] := 5;
+Code[5] := OP_HALT;
+
+Stack[0] := ITERATIONS;
+
+var Start : Double := clock ();
+
+while Running do
+begin
+    var Op : Integer := Code[IP] as Integer;
+    IP := IP + 1;
+
+    Handlers[Op] ();
+end
+
+var Elapsed : Double := clock () - Start;
+
+WriteLn ('table(60):    ' + Str (ITERATIONS * 3) + ' instructions in ' + Str (Elapsed, 3) + ' s');
+WriteLn ('              ' + Str ((ITERATIONS * 3) / Elapsed / 1000000.0, 2) + ' M instr/s');

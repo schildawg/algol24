@@ -5,6 +5,11 @@
 # the compiler is written in Algol-24 and compiles itself.
 bootstrap/algc
 
+# The bytecode machine, built from vm/run.a24 by vm/build.sh.  A second binary
+# rather than a mode of algc, and in no bootstrap path -- so there is no seed
+# of it to keep.
+vm/algvm
+
 # Emitted C: the default --compile output directory, and anything a harness
 # writes beside it.
 out/

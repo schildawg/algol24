@@ -200,11 +200,16 @@ end
 class LiteralExpr (Expr);
 var
     /// The value the scanner already built for the token.
-    Value : Expr;
+    ///
+    /// Any, because it is a VALUE and not a node: an Integer, a Double, a
+    /// String, a Char, a Boolean or nil. It was declared `Expr`, which no
+    /// processor checked and so nothing caught -- and which is what a
+    /// constructor's declared types going unchecked was hiding.
+    Value : Any;
 
 begin
     /// Makes a literal expression.
-    constructor Init(Value : Expr);
+    constructor Init(Value : Any);
     begin
         this.Value := Value;
     end
@@ -255,6 +260,14 @@ var
     /// conversion happens; a plain assignment is the one context that does not,
     /// which is why widening reached it last [VAR-004], [VAR-017].
     Declared : String := '';
+
+    /// The type the ASSIGNED VALUE reduced to, filled in by the TypeChecker, or
+    /// '' where it is not known.
+    ///
+    /// Held so the C back end can drop a widening that provably converts
+    /// nothing: where this equals Declared, alg_widen can only range-check, so
+    /// a Declared that is not a subrange makes the call the identity.
+    Actual : String := '';
 
 begin
     /// Makes an assign expression.
@@ -407,6 +420,14 @@ var
     /// A field is an assignment context [VAR-017], and this is what lets it
     /// widen.
     Declared : String := '';
+
+    /// The type the ASSIGNED VALUE reduced to, filled in by the TypeChecker, or
+    /// '' where it is not known.
+    ///
+    /// Held so the C back end can drop a widening that provably converts
+    /// nothing: where this equals Declared, alg_widen can only range-check, so
+    /// a Declared that is not a subrange makes the call the identity.
+    Actual : String := '';
 
 begin
     /// Makes a set expression.

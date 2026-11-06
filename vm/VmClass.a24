@@ -1,0 +1,344 @@
+/// A class and an instance of one.
+///
+/// clox calls these ObjClass and ObjInstance.  They cannot here, because
+/// `compiler/ObjClass` and `compiler/ObjInstance` are units of the same
+/// program once `vm/run.a24` imports the front end -- the same collision
+/// VmFunction avoids, and for the same reason.
+unit VmClass;
+
+uses VmFunction;
+
+/// A class: its name, its methods, and what it inherits from.
+/// An object: a class with exactly one instance, built on FIRST USE.
+///
+/// `object Config; ... end` declares this [CLS-015].  The instance is not made
+/// when the declaration runs, which is what lets one object's method reach
+/// another declared below it -- so the global holds this wrapper and the
+/// instance appears the first time a member is read.
+///
+/// Two reads of the name answer the SAME wrapper, which is how `A = B` is true
+/// for an object: identity needs no materialising at all.
+class VmSingleton;
+var
+    /// The class the instance will be of.
+    Klass : Any;
+
+    /// The instance, once something has asked for it.
+    Made : Any;
+
+begin
+    /// Declares an object, without building it.
+    constructor Init (Klass : Any);
+    begin
+        this.Klass := Klass;
+        this.Made  := Nil;
+    end
+
+    /// How an object reads: what its class says, and otherwise the name of the
+    /// class it is the one instance of [CLS-015].
+    ///
+    /// A declared `ToString` wins, which is what the other two processors
+    /// answer -- the interpreter's singleton being a SUBCLASS of its instance,
+    /// so its Stringify finds the method without asking. Answering the bare
+    /// name unconditionally made this machine the odd one out.
+    function ToString () : String;
+    begin
+        if INSTANCE_RENDERER <> Nil then Exit Str (INSTANCE_RENDERER (this));
+
+        Exit Str (Klass.Name);
+    end
+end
+
+test 'An Object Holds Its Class And Nothing Else Until Asked';
+begin
+    var Klass := VmClass ('Config');
+    var Only  := VmSingleton (Klass);
+
+    AssertTrue (Only.Klass = Klass);
+    AssertTrue (Only.Made = Nil);
+end
+
+/// How an instance is rendered, set by the machine at startup.
+///
+/// Named differently from `compiler/ObjInstance.a24`'s INSTANCE_SHOWN on
+/// purpose: `vm/run.a24` imports both units, and one name may not be declared
+/// at the top level of two files of one program.
+///
+/// A HOOK and not a call, because the rendering a class may declare for itself
+/// has to be reached by entering a frame, which only `Vm.a24` can do -- and
+/// this unit cannot import it, being what it imports. So the machine assigns
+/// its own renderer here once and VmInstance.ToString asks through it.
+///
+/// Nil until then, which is what the default rendering below is for.
+var INSTANCE_RENDERER : Any := Nil;
+
+/// Tells this unit how to render an instance.
+procedure SetInstanceRenderer (Answering : Any);
+begin
+    INSTANCE_RENDERER := Answering;
+end
+
+class VmClass;
+var
+    /// The name, for a diagnostic and for ClassName.
+    Name    : String;
+
+    /// The candidates declared under each name, keyed by LOWERCASED name
+    /// because identifiers are case-insensitive [SRC-011].
+    ///
+    /// A LIST per name even where there is one, which is what lets two methods
+    /// share a name and be told apart at the call.
+    ///
+    /// The constructor is the one called 'init', which is the interpreter's
+    /// convention -- `ObjClass.FindMethod ('init')` -- rather than a field of
+    /// its own.
+    Methods : Map;
+
+    /// The names this class declares as PROPERTIES, folded.
+    ///
+    /// A property is a method in every respect but one: reading the name
+    /// CALLS it, where reading a method's name answers the method [CLS-012].
+    /// So it lives in Methods like any other and this records which of them
+    /// answer on a read.
+    Properties : Set;
+
+    /// The field names, in declaration order, including inherited ones.
+    ///
+    /// Held so an instance begins with every field present and nil, which is
+    /// what makes a field with no initializer read as nil [CLS-006] rather
+    /// than as an undefined member.
+    Fields  : List;
+
+    /// The class this one extends, or nil.
+    Parent  : Any;
+
+begin
+    /// Makes a class with no methods and no fields.
+    constructor Init (Name : String);
+    begin
+        this.Name    := Name;
+        this.Methods    := Map ();
+        this.Properties := Set ();
+        this.Fields  := List ();
+        this.Parent  := Nil;
+    end
+
+    /// Finds a method of this name, walking up the parent chain.
+    ///
+    /// Answers the FIRST candidate declared under the name, which is all a
+    /// caller asking "is there a method called this?" needs -- a field read, a
+    /// `method as a value` refusal and the ToString check each ask only that.
+    /// A CALL wants FindOverload instead, because which candidate answers
+    /// depends on the arguments.
+    ///
+    /// Answers nil when no class in the chain has it, which is what lets a
+    /// caller decide between a field, a method and a refusal.
+    function FindMethod (Wanted : Any) : Any;
+    var
+        Where : Any;
+        Key   : Any;
+
+    begin
+        Key   := ToLower (Str (Wanted));
+        Where := this;
+
+        while Where <> Nil do
+        begin
+            if Where.Methods.Contains (Key) then
+                Exit (Where.Methods.Get (Key) as List)[0];
+
+            Where := Where.Parent;
+        end
+
+        Exit Nil;
+    end
+
+    /// Every candidate declared under a name by one class, or nil.
+    function CandidatesFor (Wanted : Any) : Any;
+    begin
+        var Key := ToLower (Str (Wanted));
+
+        if this.Methods.Contains (Key) then Exit this.Methods.Get (Key);
+
+        Exit Nil;
+    end
+
+    /// Records a method, GATHERING it beside any of the same name.
+    ///
+    /// A list per name rather than one entry, because two methods of a name
+    /// are an overload set selecting on the whole signature [FUN-013] and one
+    /// entry could only keep the last.  Declaration order is kept, so a tie
+    /// goes to the one written first.
+    /// Whether this class, or one above it, declares a name as a property.
+    function HasProperty (Wanted : Any) : Boolean;
+    var
+        Where : Any;
+
+    begin
+        var Key := ToLower (Str (Wanted));
+
+        Where := this;
+
+        while Where <> Nil do
+        begin
+            if (Where.Properties as Set).Contains (Key) then Exit True;
+
+            Where := Where.Parent;
+        end
+
+        Exit False;
+    end
+
+    /// Records a name as answering on a read.
+    procedure AddProperty (PropertyName : Any);
+    begin
+        this.Properties.Add (ToLower (Str (PropertyName)));
+    end
+
+    procedure AddMethod (MethodName : Any, Body : VmFunction);
+    begin
+        var Key := ToLower (Str (MethodName));
+
+        if not this.Methods.Contains (Key) then this.Methods.Put (Key, List ());
+
+        (this.Methods.Get (Key) as List).Add (Body);
+    end
+
+    /// Records a field name, if it is not already known.
+    ///
+    /// Idempotent so that a subclass redeclaring an inherited field does not
+    /// give the instance two slots for one name.
+    procedure AddField (FieldName : Any);
+    begin
+        var Key := Str (FieldName);
+
+        for var Known in this.Fields do
+            if ToLower (Str (Known)) = ToLower (Key) then Exit;
+
+        this.Fields.Add (Key);
+    end
+
+    /// How a class reads when written or converted to text: its own name.
+    ///
+    /// Declared so the HOST renders it, which is what puts a class inside a
+    /// collection and on its own through one answer. Without it the runtime
+    /// reached for the name of the MACHINE's class and a class printed as
+    /// `VmClass instance`.
+    function ToString () : String;
+    begin
+        Exit Name;
+    end
+end
+
+/// An instance: which class, and its fields.
+class VmInstance;
+var
+    /// The class this is an instance of.
+    Klass  : VmClass;
+
+    /// The fields, keyed by LOWERCASED name.
+    Fields : Map;
+
+begin
+    /// Makes an instance with every field of its class present and nil.
+    ///
+    /// Every field rather than none, because a field with no initializer reads
+    /// as nil [CLS-006] -- and a Map that simply lacks the key cannot tell that
+    /// apart from a member the class never declared.
+    constructor Init (Klass : VmClass);
+    begin
+        this.Klass  := Klass;
+        this.Fields := Map ();
+
+        var Where : Any := Klass;
+
+        while Where <> Nil do
+        begin
+            for var FieldName in Where.Fields do
+                this.Fields.Put (ToLower (Str (FieldName)), Nil);
+
+            Where := Where.Parent;
+        end
+    end
+
+    /// How an instance reads when written or converted to text.
+    ///
+    /// Its class may say [CLS-006], and what that answers is used as-is; where
+    /// it does not, '<ClassName> instance', which is what the other two
+    /// processors answer. Without this the host reached for the name of the
+    /// MACHINE's class, so an instance inside a collection printed as
+    /// `VmInstance instance` while `Str` of it on its own was right -- the
+    /// machine answering `Str` itself and giving the host nothing to render.
+    function ToString () : String;
+    begin
+        if INSTANCE_RENDERER <> Nil then Exit Str (INSTANCE_RENDERER (this));
+
+        Exit Str (Klass.Name) + ' instance';
+    end
+end
+
+test 'A Class Finds Its Own Method';
+begin
+    var K := VmClass ('Point');
+    var M := VmFunction ('Shift', 0);
+
+    K.AddMethod ('Shift', M);
+
+    AssertTrue (K.FindMethod ('Shift') <> Nil);
+    AssertTrue (K.FindMethod ('SHIFT') <> Nil);
+    AssertTrue (K.FindMethod ('Absent') = Nil);
+end
+
+test 'A Method Is Found Through A Parent';
+begin
+    var Parent := VmClass ('Shape');
+    Parent.AddMethod ('Draw', VmFunction ('Draw', 0));
+
+    var Child := VmClass ('Circle');
+    Child.Parent := Parent;
+
+    AssertTrue (Child.FindMethod ('Draw') <> Nil);
+
+    // And an override wins over the inherited one.
+    var Own := VmFunction ('Draw', 0);
+    Child.AddMethod ('Draw', Own);
+
+    AssertTrue (Child.FindMethod ('Draw') = Own);
+end
+
+test 'An Instance Begins With Every Field Nil';
+begin
+    var K := VmClass ('Point');
+    K.AddField ('X');
+    K.AddField ('Y');
+
+    var I := VmInstance (K);
+
+    AssertEqual (2, I.Fields.Length);
+    AssertTrue (I.Fields.Get ('x') = Nil);
+end
+
+test 'An Instance Includes Its Parents Fields';
+begin
+    var Parent := VmClass ('Shape');
+    Parent.AddField ('Colour');
+
+    var Child := VmClass ('Circle');
+    Child.Parent := Parent;
+    Child.AddField ('Radius');
+
+    var I := VmInstance (Child);
+
+    AssertEqual (2, I.Fields.Length);
+    AssertTrue (I.Fields.Contains ('colour'));
+end
+
+test 'A Field Name Is Recorded Once';
+begin
+    var K := VmClass ('Point');
+
+    K.AddField ('X');
+    K.AddField ('x');
+
+    AssertEqual (1, K.Fields.Length);
+end

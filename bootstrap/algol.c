@@ -34,26 +34,153 @@ static int32_t     arena_tail_cap  = 0;
 
 static void close_open_files(void);
 
-static void free_all_buffers(void);
+/* ── The object registry ──────────────────────────────────────────────────
+   Every heap object, in allocation order, so a sweep has something to walk.
 
-static void seq_forget_spares(void);
+   A side array rather than a link threaded through the objects themselves: it
+   costs the same eight bytes an object, leaves every struct the size it was,
+   and sweeps contiguously instead of chasing a pointer per object.  The arena
+   has no object boundaries [constraint 4 of PROPOSAL-GC.md], so without this
+   there is no way to enumerate what was allocated.
 
-static void alg_shutdown(void) {
-    close_open_files();
-    free_all_buffers();
+   It is deliberately NOT a free list.  Freeing is step 3; this is the step 2
+   that makes step 3 possible, and on its own it costs memory rather than
+   saving it -- which is recorded in the proposal rather than hidden here. */
+static void *arena_alloc(size_t bytes);
 
-    /* The spare sequence blocks live in the arena and are about to go with it,
-       so the list of them has to be dropped in the same breath. */
-    seq_forget_spares();
+/* Set when the collector cannot be trusted -- a root table that could not be
+   recorded, say.  A collection that cannot see every root must not run. */
+static bool collect_disabled = false;
 
-    while (arena_chunks != NULL) {
-        ArenaChunk *previous = arena_chunks->previous;
-        free(arena_chunks);
-        arena_chunks = previous;
+/* The shadow stack, where generated code registers its locals.  Declared in
+   algol.h because the push is inline there and the depth is read and written
+   straight by the emitted C; see that comment for why. */
+AlgRoots *alg_root_stack = NULL;
+int32_t   alg_root_top   = 0;
+int32_t   alg_root_room  = 0;
+
+void alg_root_grow(void) {
+    int32_t   room  = alg_root_room < 256 ? 256 : alg_root_room * 2;
+    AlgRoots *grown = realloc(alg_root_stack, (size_t)room * sizeof(AlgRoots));
+
+    /* A local that could not be registered is a local a collection cannot
+       see, which [RT-029] answers for: an implementation that cannot see all
+       of its roots must decline rather than release something still in use. */
+    if (grown == NULL) { collect_disabled = true; return; }
+
+    alg_root_stack = grown;
+    alg_root_room  = room;
+}
+
+static Obj   **obj_registry = NULL;
+static size_t  obj_count    = 0;
+static size_t  obj_room     = 0;
+
+static void obj_register(Obj *obj) {
+    if (obj_count == obj_room) {
+        size_t room = obj_room < 1024 ? 1024 : obj_room * 2;
+        Obj  **grown = realloc(obj_registry, room * sizeof(Obj *));
+
+        /* Out of memory here is not fatal to the PROGRAM, only to collection:
+           an unregistered object is simply one a sweep will never free, which
+           is the behaviour every object had before this existed. */
+        if (grown == NULL) return;
+
+        obj_registry = grown;
+        obj_room     = room;
     }
 
-    arena_next = NULL;
-    arena_left = 0;
+    obj_registry[obj_count++] = obj;
+}
+
+/* Allocates an object, tags it, and registers it.  The one door every object
+   constructor goes through, so that nothing can be allocated and forgotten. */
+static Obj *obj_spare(size_t bytes);
+
+static void *obj_alloc(size_t bytes, ObjType type) {
+    /* A swept object of this size, if the collector left one -- which is the
+       whole point of sweeping: the memory comes back here or nowhere. */
+    Obj *obj = obj_spare(bytes);
+
+    if (obj != NULL) {
+        obj->type   = type;
+        obj->marked = false;
+        obj->dead   = false;
+
+        /* Re-entered, because the sweep that released it also dropped it from
+           the registry -- which is what keeps a collection proportional to
+           what is alive rather than to everything ever allocated. */
+        obj_register(obj);
+
+        return obj;
+    }
+
+    obj = arena_alloc(bytes);
+
+    obj->type   = type;
+    obj->marked = false;
+    obj->dead   = false;
+
+    obj_register(obj);
+
+    return obj;
+}
+
+/* ── Roots ────────────────────────────────────────────────────────────────
+   Every module-level variable of every unit, by address.
+
+   A unit's globals are emitted as C statics -- `static Value v_top;` -- so the
+   emitter can hand their addresses over in `init_<Unit>()` and the global root
+   set is PRECISE.  No stack scanning for it, and no guessing.
+
+   What this does not cover is a value living only in a C local.  That is why
+   collection happens at a safe point chosen by the caller rather than
+   whenever the arena grows: the VM collects at the top of its dispatch loop,
+   where every live guest value is on `Slots` or in a global and no handler is
+   part-way through. */
+typedef struct {
+    Value  **slots;
+    int32_t  count;
+} RootTable;
+
+static RootTable *root_tables = NULL;
+static int32_t    root_count  = 0;
+static int32_t    root_room   = 0;
+
+void alg_roots(Value **slots, int32_t count) {
+    if (root_count == root_room) {
+        int32_t    room  = root_room < 8 ? 8 : root_room * 2;
+        RootTable *grown = realloc(root_tables, (size_t)room * sizeof(RootTable));
+
+        /* Without room for the table a collection would not see these
+           globals, so the safe answer is to refuse to collect at all rather
+           than to collect without them. */
+        if (grown == NULL) { collect_disabled = true; return; }
+
+        root_tables = grown;
+        root_room   = room;
+    }
+
+    root_tables[root_count].slots = slots;
+    root_tables[root_count].count = count;
+    root_count++;
+}
+
+/* Flushes and closes what the operating system will not tidy by itself, and
+   frees nothing.
+
+   ⚠️ The arena is NOT returned at exit, deliberately.  The kernel reclaims a
+   process's address space whichever way it leaves, so walking the chunk list
+   to hand it back was pure waste -- and `free_all_buffers` and
+   `seq_forget_spares` went with it for the same reason.
+
+   `close_open_files` stays, because a buffered write that never reaches the
+   disk is a wrong answer rather than a tidiness question.  It is also where a
+   twenty-six-minute exit spin lived, and the cause was not here: a released
+   ObjFile stayed linked in `all_files` with its `next` overwritten.  The sweep
+   exempts OBJ_FILE now, where the fix belongs. */
+static void alg_shutdown(void) {
+    close_open_files();
 }
 
 static void *arena_alloc(size_t bytes) {
@@ -141,6 +268,10 @@ _Noreturn static void undefined(const char *what, const char *name);
 static bool has_method(Value v, const char *name, int32_t arity);
 static double as_double(Value v);
 
+/* Declared early so every site that could meet a released object can say so;
+   defined with the collector, which is where the poison is set. */
+static void check_live(Value v, const char *where);
+
 static bool is_obj(Value v, ObjType type) {
     return v.type == VAL_OBJ && v.obj->type == type;
 }
@@ -156,9 +287,8 @@ typedef struct {
 } ObjBigInt;
 
 static ObjBigInt *big_alloc(int32_t count) {
-    ObjBigInt *b = arena_alloc(sizeof(ObjBigInt));
+    ObjBigInt *b = obj_alloc(sizeof(ObjBigInt), OBJ_BIGINT);
 
-    b->obj.type = OBJ_BIGINT;
     b->negative = false;
     b->count    = count;
     b->limbs    = count == 0 ? NULL : arena_alloc((size_t)count * sizeof(uint32_t));
@@ -473,14 +603,6 @@ typedef struct ObjBuffer {
 
 static ObjBuffer *all_buffers = NULL;
 
-static void free_all_buffers(void) {
-    for (ObjBuffer *buffer = all_buffers; buffer != NULL; buffer = buffer->next) {
-        free(buffer->bytes);
-        buffer->bytes    = NULL;
-        buffer->capacity = 0;
-    }
-    all_buffers = NULL;
-}
 
 static void buffer_reserve(ObjBuffer *buffer, size_t needed) {
     if (needed <= buffer->capacity) return;
@@ -512,9 +634,8 @@ Value alg_buffer(Value size) {
     int32_t length = as_integer(size, "A Buffer's size must be an Integer.");
     if (length < 0) alg_error("A Buffer's size cannot be negative.");
 
-    ObjBuffer *buffer = arena_alloc(sizeof(ObjBuffer));
+    ObjBuffer *buffer = obj_alloc(sizeof(ObjBuffer), OBJ_BUFFER);
 
-    buffer->obj.type = OBJ_BUFFER;
     buffer->bytes    = NULL;
     buffer->length   = 0;
     buffer->capacity = 0;
@@ -593,9 +714,8 @@ static void buffer_resize(ObjBuffer *buffer, int32_t length) {
 }
 
 static Value sequence(ObjType type) {
-    ObjSeq *seq = arena_alloc(sizeof(ObjSeq));
+    ObjSeq *seq = obj_alloc(sizeof(ObjSeq), type);
 
-    seq->obj.type = type;
     seq->items    = NULL;
     seq->count    = 0;
     seq->capacity = 0;
@@ -604,6 +724,7 @@ static Value sequence(ObjType type) {
 }
 
 static ObjSeq *as_sequence(Value v, const char *what) {
+    check_live(v, "a collection");
     if (!is_sequence(v)) alg_error(what);
     return (ObjSeq *)v.obj;
 }
@@ -661,9 +782,6 @@ static Value *seq_spare(int32_t capacity) {
     return block;
 }
 
-static void seq_forget_spares(void) {
-    for (int band = 0; band < SEQ_CLASSES; band++) seq_spares[band] = NULL;
-}
 
 static void seq_append(ObjSeq *seq, Value item) {
     if (seq->count == seq->capacity) {
@@ -741,9 +859,8 @@ Value alg_set_of(Value items) {
 }
 
 Value alg_map(void) {
-    ObjMap *map = arena_alloc(sizeof(ObjMap));
+    ObjMap *map = obj_alloc(sizeof(ObjMap), OBJ_MAP);
 
-    map->obj.type  = OBJ_MAP;
     map->entries   = NULL;
     map->count     = 0;
     map->capacity  = 0;
@@ -754,6 +871,7 @@ Value alg_map(void) {
 }
 
 static ObjMap *as_map(Value v, const char *what) {
+    check_live(v, "a Map");
     if (!is_obj(v, OBJ_MAP)) alg_error(what);
     return (ObjMap *)v.obj;
 }
@@ -888,13 +1006,44 @@ static void map_put(ObjMap *map, Value key, Value item) {
     }
 
     if (map->count == map->capacity) {
-        int32_t   capacity = map->capacity < 8 ? 8 : map->capacity * 2;
-        MapEntry *entries  = arena_alloc((size_t)capacity * sizeof(MapEntry));
+        int32_t capacity = map->capacity < 8 ? 8 : map->capacity * 2;
+        size_t  had      = (size_t)map->capacity * sizeof(MapEntry);
+        size_t  wants    = (size_t)capacity * sizeof(MapEntry);
 
-        if (map->count > 0) memcpy(entries, map->entries, (size_t)map->count * sizeof(MapEntry));
+        /* If this table is the last thing the arena handed out, it can be made
+           longer where it stands -- no copy, and nothing left behind. The same
+           bargain `seq_append` strikes for a List's backing array, and for the
+           same reason: a table that grows by doubling otherwise abandons every
+           earlier size, so a Map that reaches N entries has left 2N behind. */
+        if (map->entries != NULL
+            && (char *)map->entries + had == arena_next
+            && wants - had <= arena_left) {
 
-        map->entries  = entries;
-        map->capacity = capacity;
+            arena_next += wants - had;
+            arena_left -= wants - had;
+
+            map->capacity = capacity;
+        }
+        else {
+            /* A MapEntry is exactly two Values, so a table of capacity N is a
+               block of 2N of them -- which is a size class `seq_spares`
+               already keeps, because a Map's capacity is 8 doubled and twice
+               that is 8 doubled again. One free list serves both. */
+            int32_t   values  = capacity <= INT32_MAX / 2 ? capacity * 2 : -1;
+            MapEntry *entries = values > 0 ? (MapEntry *)seq_spare(values) : NULL;
+
+            if (entries == NULL) entries = arena_alloc(wants);
+
+            if (map->count > 0)
+                memcpy(entries, map->entries, (size_t)map->count * sizeof(MapEntry));
+
+            /* After the copy, never before: the old block is read above. */
+            if (map->entries != NULL && map->capacity <= INT32_MAX / 2)
+                seq_recycle((Value *)map->entries, map->capacity * 2);
+
+            map->entries  = entries;
+            map->capacity = capacity;
+        }
     }
     map->entries[map->count].key   = key;
     map->entries[map->count].value = item;
@@ -1336,9 +1485,8 @@ static ObjClass *as_class(Value v, const char *what) {
 }
 
 Value alg_class(const char *name, Value super) {
-    ObjClass *klass = arena_alloc(sizeof(ObjClass));
+    ObjClass *klass = obj_alloc(sizeof(ObjClass), OBJ_CLASS);
 
-    klass->obj.type        = OBJ_CLASS;
     klass->name            = name;
     klass->super           = super.type == VAL_NIL ? NULL : as_class(super, "Superclass must be a class.");
     klass->fields          = NULL;
@@ -1816,8 +1964,7 @@ static void initialize_fields(ObjClass *klass, Value self) {
 Value alg_new(Value value, Value *args, int32_t count) {
     ObjClass *klass = as_class(value, "Can only construct a class.");
 
-    ObjInstance *instance = arena_alloc(sizeof(ObjInstance));
-    instance->obj.type = OBJ_INSTANCE;
+    ObjInstance *instance = obj_alloc(sizeof(ObjInstance), OBJ_INSTANCE);
     instance->klass    = klass;
     int32_t slots = total_fields(klass);
 
@@ -1829,11 +1976,48 @@ Value alg_new(Value value, Value *args, int32_t count) {
 
     initialize_fields(klass, self);
 
-    MethodEntry *init = find_method(klass, "Init", count, args, false);
-    if (init != NULL) {
+    /* STRICT, as an invoke and a super call are: a constructor's declared
+       parameter types are checked like any other subprogram's, since
+       [EXP-013] puts even a lone candidate through selection.
 
-        alg_arity(count, init->arity);
-        init->fn(self, args, count);
+       This passed false, and that one argument was the whole of why a
+       constructor went unchecked -- in every processor, since the interpreter
+       fell through to a type-blind lookup and the machine was made lenient to
+       match. compiler/Expr.a24 carried a field declared `Expr` that held a
+       literal's VALUE, and nothing could catch it. */
+    MethodEntry *init = find_method(klass, "Init", count, args, true);
+    if (init != NULL) {
+        /* GATHERING, as a method call and a plain call do: a constructor is a
+           member, and a final `list of T` parameter absorbs on the same terms
+           [FUN-005].  Without it a variadic constructor was the one subprogram
+           in the language that did not gather -- `C ('a', 1, 2, 3)` where Init
+           declares `Rest : list of Integer` reported
+           `Expected 2 arguments but got 4.` while the identical signature on a
+           method and on a top-level function gathered. */
+        if (should_absorb(init->types, init->arity, args, count)) {
+
+            init->fn(self, absorb_args(init->arity, args, count), init->arity);
+        }
+        /* A VARIADIC constructor at the WRONG count that did not absorb
+           reports a SELECTION failure and not a count, because its element
+           type replaced the arity check and is stricter than it: the stray
+           argument is of the wrong TYPE rather than one too many
+           [FUN-005, 0158].
+
+           The count guard is what keeps `C ('a', [1, 2, 3])` running -- a
+           list passed WHOLE fits exactly, so should_absorb declines by
+           design rather than by failure, and raising on that alone refused a
+           perfectly good call. */
+        else if (variadic_element(init->types, init->arity) != NULL
+                     && count != init->arity) {
+
+            alg_error("No matching signature for function.");
+        }
+        else {
+
+            alg_arity(count, init->arity);
+            init->fn(self, args, count);
+        }
     }
     else if (count != 0) {
 
@@ -1854,9 +2038,8 @@ Value alg_singleton(Value value) {
 }
 
 Value alg_enum_type(const char *name) {
-    ObjEnumType *type = arena_alloc(sizeof(ObjEnumType));
+    ObjEnumType *type = obj_alloc(sizeof(ObjEnumType), OBJ_ENUM_TYPE);
 
-    type->obj.type = OBJ_ENUM_TYPE;
     type->name     = name;
     type->members  = NULL;
     type->count    = 0;
@@ -1870,8 +2053,7 @@ Value alg_enum_member(Value value, const char *name) {
 
     ObjEnumType *type = (ObjEnumType *)value.obj;
 
-    ObjEnum *member = arena_alloc(sizeof(ObjEnum));
-    member->obj.type = OBJ_ENUM;
+    ObjEnum *member = obj_alloc(sizeof(ObjEnum), OBJ_ENUM);
     member->type     = type->name;
     member->name     = name;
     member->ordinal  = type->count;
@@ -1908,9 +2090,8 @@ typedef struct ObjFile {
 static ObjFile *all_files = NULL;
 
 Value alg_text_file(void) {
-    ObjFile *file = arena_alloc(sizeof(ObjFile));
+    ObjFile *file = obj_alloc(sizeof(ObjFile), OBJ_FILE);
 
-    file->obj.type  = OBJ_FILE;
     file->name      = "";
     file->handle    = NULL;
     file->reading   = false;
@@ -2406,6 +2587,7 @@ Value alg_property(Value receiver, const char *name) {
 
     if (is_number(receiver)) return builtin_member(receiver, name);
 
+    check_live(receiver, "a property read");
     alg_error("Only instances have properties.");
     return alg_nil();
 }
@@ -2667,9 +2849,8 @@ typedef struct {
 } ObjExtension;
 
 Value alg_extension(Value receiver, Value target) {
-    ObjExtension *bound = arena_alloc(sizeof(ObjExtension));
+    ObjExtension *bound = obj_alloc(sizeof(ObjExtension), OBJ_EXTENSION);
 
-    bound->obj.type = OBJ_EXTENSION;
     bound->receiver = receiver;
     bound->target   = target;
 
@@ -2775,6 +2956,7 @@ static Value invoke_found(MethodEntry *method, Value receiver, Value *args, int3
 }
 
 Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
+    check_live(receiver, "a method call");
     if (is_obj(receiver, OBJ_INSTANCE)) {
         ObjInstance *instance = (ObjInstance *)receiver.obj;
 
@@ -2795,6 +2977,7 @@ Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
     if (buffer_method(receiver, name, args, count, &result)) return result;
     if (collection_method(receiver, name, args, count, &result)) return result;
 
+    check_live(receiver, "a property read");
     alg_error("Only instances have properties.");
     return alg_nil();
 }
@@ -2804,8 +2987,13 @@ Value alg_bound_from(Value value, Value receiver, const char *name) {
 
     if (klass->super == NULL) alg_error("No superclass.");
 
+    /* [CLS-010] unqualified, rather than a message of its own: a name the
+       parent chain does not declare is a member the class does not have, and
+       naming it is what the reader needs. "Undefined method on the
+       superclass." said neither which member nor which class, and the three
+       processors each had a different sentence for one fault. */
     MethodEntry *method = find_method(klass->super, name, -1, NULL, false);
-    if (method == NULL) alg_error("Undefined method on the superclass.");
+    if (method == NULL) undefined("property", name);
 
     return alg_bound(receiver, method);
 }
@@ -2816,7 +3004,7 @@ Value alg_invoke_from(Value value, Value receiver, const char *name, Value *args
     if (klass->super == NULL) alg_error("No superclass.");
 
     MethodEntry *method = find_method(klass->super, name, count, args, true);
-    if (method == NULL) alg_error("Undefined method on the superclass.");
+    if (method == NULL) undefined("property", name);
 
     return invoke_found(method, receiver, args, count);
 }
@@ -2837,9 +3025,8 @@ typedef struct {
 } ObjBuiltinBound;
 
 static Value alg_bound(Value receiver, MethodEntry *method) {
-    ObjBound *bound = arena_alloc(sizeof(ObjBound));
+    ObjBound *bound = obj_alloc(sizeof(ObjBound), OBJ_BOUND);
 
-    bound->obj.type = OBJ_BOUND;
     bound->receiver = receiver;
     bound->method   = method;
 
@@ -2847,9 +3034,8 @@ static Value alg_bound(Value receiver, MethodEntry *method) {
 }
 
 static Value builtin_bound(Value receiver, const char *name, int32_t arity) {
-    ObjBuiltinBound *bound = arena_alloc(sizeof(ObjBuiltinBound));
+    ObjBuiltinBound *bound = obj_alloc(sizeof(ObjBuiltinBound), OBJ_BUILTIN_BOUND);
 
-    bound->obj.type = OBJ_BUILTIN_BOUND;
     bound->receiver = receiver;
     bound->name     = name;
     bound->arity    = arity;
@@ -2878,9 +3064,8 @@ Value *alg_cell(Value initial) {
 
 Value alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity,
                   const char **types) {
-    ObjClosure *closure = arena_alloc(sizeof(ObjClosure));
+    ObjClosure *closure = obj_alloc(sizeof(ObjClosure), OBJ_CLOSURE);
 
-    closure->obj.type   = OBJ_CLOSURE;
     closure->name       = name;
     closure->fn         = fn;
     closure->arity      = arity;
@@ -2912,10 +3097,372 @@ typedef struct {
     int32_t        capacity;
 } ObjOverloads;
 
-Value alg_overloads(const char *name) {
-    ObjOverloads *set = arena_alloc(sizeof(ObjOverloads));
+/* ── Mark ─────────────────────────────────────────────────────────────────
+   Depth-first from the roots, following every Value an object can hold.
 
-    set->obj.type = OBJ_OVERLOADS;
+   The VM's own structures need no case of their own: `Chunk`, `VmFunction` and
+   `VmClass` are ordinary Algol-24 classes, so they arrive here as
+   OBJ_INSTANCE and the generic slot walk covers them.  That is what writing
+   the VM in Algol-24 buys the collector. */
+static void mark_value(Value v);
+
+static void mark_obj(Obj *obj) {
+    if (obj == NULL || obj->marked) return;
+
+    obj->marked = true;
+
+    switch (obj->type) {
+    case OBJ_LIST: case OBJ_SET: case OBJ_STACK: case OBJ_ARRAY: {
+        ObjSeq *seq = (ObjSeq *)obj;
+        for (int32_t i = 0; i < seq->count; i++) mark_value(seq->items[i]);
+        break;
+    }
+    case OBJ_MAP: {
+        ObjMap *map = (ObjMap *)obj;
+        for (int32_t i = 0; i < map->count; i++) {
+            mark_value(map->entries[i].key);
+            mark_value(map->entries[i].value);
+        }
+        break;
+    }
+    case OBJ_INSTANCE: {
+        ObjInstance *instance = (ObjInstance *)obj;
+        mark_obj((Obj *)instance->klass);
+        if (instance->slots != NULL && instance->klass != NULL)
+            for (int32_t i = 0; i < instance->klass->total_fields; i++)
+                mark_value(instance->slots[i]);
+        break;
+    }
+    case OBJ_CLASS: {
+        ObjClass *klass = (ObjClass *)obj;
+        mark_obj((Obj *)klass->super);
+        mark_value(klass->instance);
+        break;
+    }
+    case OBJ_ENUM_TYPE: {
+        ObjEnumType *type = (ObjEnumType *)obj;
+        for (int32_t i = 0; i < type->count; i++) mark_value(type->members[i]);
+        break;
+    }
+    case OBJ_CLOSURE: {
+        ObjClosure *closure = (ObjClosure *)obj;
+        for (int32_t i = 0; i < closure->cell_count; i++)
+            if (closure->cells[i] != NULL) mark_value(*closure->cells[i]);
+        break;
+    }
+    case OBJ_BOUND:         mark_value(((ObjBound *)obj)->receiver);        break;
+    case OBJ_BUILTIN_BOUND: mark_value(((ObjBuiltinBound *)obj)->receiver); break;
+    case OBJ_EXTENSION:
+        mark_value(((ObjExtension *)obj)->receiver);
+        mark_value(((ObjExtension *)obj)->target);
+        break;
+
+    /* No Values inside: an enum member is three scalars, an overload set's
+       entries are function pointers and arities, a BigInt is digits, a file is
+       a handle, and a Buffer's bytes are malloc'd and explicitly managed. */
+    case OBJ_ENUM: case OBJ_OVERLOADS: case OBJ_BIGINT:
+    case OBJ_FILE: case OBJ_BUFFER:
+        break;
+
+    /* Reachable only if something live points at a released object, which is
+       the bug poisoning exists to find.  Marking it would hide that. */
+    case OBJ_RELEASED:
+        break;
+    }
+}
+
+static void mark_value(Value v) {
+    if (v.type == VAL_OBJ) mark_obj(v.obj);
+}
+
+/* ── Sweep ────────────────────────────────────────────────────────────────
+   Everything unmarked goes back, and so does the block it owned.
+
+   The owned block is where the memory actually is: a List's `items` is 392 MB
+   of the compiler's arena against 183 MB for the ObjSeq headers, so returning
+   the array matters more than returning the object.  `seq_recycle` already
+   keeps those, per size class, so a swept List hands its array straight to the
+   list a growing List draws from.
+
+   Object BODIES get their own classes, by eight-byte step. They are small and
+   few in size, so a flat table indexed by size/8 is enough and needs no
+   search. */
+#define OBJ_CLASSES 24
+
+static Obj *obj_spares[OBJ_CLASSES];
+
+static int obj_class_of(size_t bytes) {
+    size_t step = (bytes + 7u) / 8u;
+
+    return step < OBJ_CLASSES ? (int)step : -1;
+}
+
+static size_t obj_size_of(const Obj *obj) {
+    switch (obj->type) {
+    case OBJ_LIST: case OBJ_SET: case OBJ_STACK: case OBJ_ARRAY:
+                            return sizeof(ObjSeq);
+    case OBJ_MAP:           return sizeof(ObjMap);
+    case OBJ_INSTANCE:      return sizeof(ObjInstance);
+    case OBJ_CLASS:         return sizeof(ObjClass);
+    case OBJ_ENUM_TYPE:     return sizeof(ObjEnumType);
+    case OBJ_ENUM:          return sizeof(ObjEnum);
+    case OBJ_CLOSURE:       return sizeof(ObjClosure);
+    case OBJ_BOUND:         return sizeof(ObjBound);
+    case OBJ_BUILTIN_BOUND: return sizeof(ObjBuiltinBound);
+    case OBJ_EXTENSION:     return sizeof(ObjExtension);
+    case OBJ_OVERLOADS:     return sizeof(ObjOverloads);
+    case OBJ_BIGINT:        return sizeof(ObjBigInt);
+    case OBJ_FILE:          return sizeof(ObjFile);
+    case OBJ_BUFFER:        return sizeof(ObjBuffer);
+
+    /* No size, so `obj_class_of` answers -1 and a poisoned body is never put
+       on a free list -- which is the point of poisoning, stated once here
+       rather than special-cased at the call. */
+    case OBJ_RELEASED:      return 0;
+    }
+
+    return 0;
+}
+
+/* Hands an object's owned block back and then the object itself.
+
+   A Buffer is never swept: its bytes are malloc'd and `Free` already releases
+   them explicitly.  An object the language can already release is not the
+   collector's business, and what is still held when the process ends goes with
+   the process.
+
+   An instance's `slots` is allocated at exactly its field count rather than a
+   size class, so `seq_recycle` declines it and those bytes stay lost -- 206 MB
+   of the compiler's arena, and the next thing worth doing here. */
+/* ── Poisoning ────────────────────────────────────────────────────────────
+   ALG_POISON=1 makes a released object fault at its first use.
+
+   Without it a collector that frees something live corrupts quietly: the block
+   is handed to a new owner, and the program fails somewhere else entirely --
+   the Dew Drop Inn reported `Only instances have properties.` once and simply
+   blocked the next time.  With it, the object keeps its grave: retagged
+   OBJ_RELEASED, never reused, and remembering what it was. */
+static bool poisoning = false;
+
+static const char *released_kind(const Obj *obj) {
+    /* The former type is kept where the free-list link would have gone, which
+       is free under poisoning because nothing is ever relinked. */
+    switch (*(const ObjType *)((const char *)obj + sizeof(Obj))) {
+    case OBJ_LIST:          return "a List";
+    case OBJ_SET:           return "a Set";
+    case OBJ_STACK:         return "a Stack";
+    case OBJ_ARRAY:         return "an Array";
+    case OBJ_MAP:           return "a Map";
+    case OBJ_INSTANCE:      return "an instance";
+    case OBJ_CLASS:         return "a class";
+    case OBJ_ENUM_TYPE:     return "an enumeration";
+    case OBJ_ENUM:          return "an enumeration member";
+    case OBJ_CLOSURE:       return "a closure";
+    case OBJ_BOUND:         return "a bound method";
+    case OBJ_BUILTIN_BOUND: return "a bound built-in";
+    case OBJ_EXTENSION:     return "a bound extension";
+    case OBJ_OVERLOADS:     return "an overload set";
+    case OBJ_BIGINT:        return "a big integer";
+    case OBJ_FILE:          return "a file";
+    case OBJ_BUFFER:        return "a Buffer";
+    default:                return "an object";
+    }
+}
+
+/* Faults if this value is a released object, naming what it was. */
+static void check_live(Value v, const char *where) {
+    /* The flag FIRST, because this sits in `as_sequence` and `as_text`, which
+       are as hot as the runtime gets.  Off, it is a load of a static and a
+       branch that always goes the same way; testing the value first would
+       dereference `v.obj` and risk a cache miss on every collection access. */
+    if (!poisoning) return;
+
+    if (v.type != VAL_OBJ || v.obj == NULL) return;
+    if (v.obj->type != OBJ_RELEASED)        return;
+
+    static char said[160];
+
+    snprintf(said, sizeof said, "The collector released %s that %s still needs.",
+             released_kind(v.obj), where);
+
+    alg_error(said);
+}
+
+static void obj_release(Obj *obj) {
+
+    /* Set FIRST, and whatever follows.  The owned block is handed back below,
+       and if the object's own body turns out to have no size class the
+       function returns early -- leaving an object whose block is already on a
+       free list.  Without the bit set by then, the next collection would hand
+       that same block back a second time and two owners would share it. */
+    obj->dead = true;
+
+    switch (obj->type) {
+    case OBJ_LIST: case OBJ_SET: case OBJ_STACK: case OBJ_ARRAY: {
+        ObjSeq *seq = (ObjSeq *)obj;
+        if (seq->items != NULL) seq_recycle(seq->items, seq->capacity);
+        break;
+    }
+    case OBJ_MAP: {
+        ObjMap *map = (ObjMap *)obj;
+        if (map->entries != NULL && map->capacity <= INT32_MAX / 2)
+            seq_recycle((Value *)map->entries, map->capacity * 2);
+        break;
+    }
+    case OBJ_ENUM_TYPE: {
+        ObjEnumType *type = (ObjEnumType *)obj;
+        if (type->members != NULL) seq_recycle(type->members, type->capacity);
+        break;
+    }
+    default:
+        break;
+    }
+
+    /* Under poisoning the object keeps its grave: the former type goes where
+       the link would have, the tag becomes OBJ_RELEASED, and nothing is
+       relinked -- so the next use of it faults instead of finding a plausible
+       object of some other kind. */
+    if (poisoning) {
+        ObjType was = obj->type;
+
+        *(ObjType *)((char *)obj + sizeof(Obj)) = was;
+
+        obj->type = OBJ_RELEASED;
+
+        return;
+    }
+
+    int band = obj_class_of(obj_size_of(obj));
+    if (band < 0) return;
+
+    /* The link lives AFTER the header, never over it.
+
+       ⚠️ Writing it at the object's first word -- which is what seq_recycle
+       does with a dead block, where there is no header to protect -- put it
+       straight over `type`, `marked` and `dead`.  The flag set two lines above
+       was destroyed by the line that followed it, so the next collection read
+       a garbage `dead` byte, released the same object a second time, and the
+       free list came to hold one block twice.  It surfaced in the Dew Drop Inn
+       as `Only instances have properties.`
+
+       Every object has at least one pointer after its header, so there is
+       always room here. */
+    *(Obj **)((char *)obj + sizeof(Obj)) = obj_spares[band];
+    obj_spares[band] = obj;
+}
+
+static Obj *obj_spare(size_t bytes) {
+    int band = obj_class_of(bytes);
+    if (band < 0 || obj_spares[band] == NULL) return NULL;
+
+    Obj *obj = obj_spares[band];
+    obj_spares[band] = *(Obj **)((char *)obj + sizeof(Obj));
+
+    return obj;
+}
+
+/* ── Collect ──────────────────────────────────────────────────────────────
+   Mark from every registered root, then release everything unmarked.
+
+   The registry is compacted rather than rebuilt: a swept object keeps its
+   place in the arena and may be handed out again by `obj_spare`, so it has to
+   stay registered exactly once.  Dropping it from the registry and letting
+   `obj_alloc` re-enter it would be the same thing, slower.
+
+   Answers how many objects it released, so a caller can tell a collection
+   that did something from one that did not. */
+/* `Collect`'s value form, for the emitter to call: the built-in answers an
+   Integer and alg_collect answers a count. */
+Value alg_collected(void) {
+    return alg_int(alg_collect());
+}
+
+int32_t alg_collect(void) {
+    static bool asked = false;
+
+    if (!asked) {
+        poisoning = getenv("ALG_POISON") != NULL;
+        asked     = true;
+    }
+
+    if (collect_disabled || obj_registry == NULL) return 0;
+
+    for (size_t i = 0; i < obj_count; i++) obj_registry[i]->marked = false;
+
+    for (int32_t t = 0; t < root_count; t++)
+        for (int32_t i = 0; i < root_tables[t].count; i++)
+            if (root_tables[t].slots[i] != NULL)
+                mark_value(*root_tables[t].slots[i]);
+
+    /* And from the locals of every frame on the C stack.  A range may be a
+       subprogram's argument array, which is NULL when it takes none. */
+    for (int32_t i = 0; i < alg_root_top; i++)
+        if (alg_root_stack[i].slots != NULL)
+            for (int32_t j = 0; j < alg_root_stack[i].count; j++)
+                mark_value(alg_root_stack[i].slots[j]);
+
+    /* Sweep AND compact, in one pass.  A released object leaves the registry
+       and is re-entered by obj_alloc if it is ever handed out again.
+
+       ⚠️ Keeping dead objects registered made every collection cost O(all
+       objects ever allocated) rather than O(live): clearing marks and sweeping
+       both walked the whole history, so collection grew steadily slower and
+       the Dew Drop Inn could not finish 120 frames.  Compacting is what makes
+       the cost proportional to what is alive. */
+    int32_t freed = 0;
+    size_t  kept  = 0;
+
+    for (size_t i = 0; i < obj_count; i++) {
+        Obj *obj = obj_registry[i];
+
+        /* A Buffer and a TextFile are explicitly managed and never swept, so
+           neither may be released even when nothing points at it any more.
+
+           ⚠️ Both are on a LIST THE RUNTIME WALKS -- `all_buffers` and
+           `all_files` -- and `obj_release` writes its free-list link over the
+           body, `next` included.  Releasing one left it linked into a list
+           whose `next` then said whatever the body's new owner wrote there, so
+           `close_open_files` walked in a circle at exit: every pass found the
+           handle already NULL, did nothing, and went round again.  It cost
+           twenty-six minutes of spin on one run and was invisible under
+           `ALG_POISON=1`, where a body is never handed back out and the list
+           stays intact.
+
+           Exempting it is the Buffer's own bargain -- an object the language
+           already releases explicitly is not the collector's business -- and
+           the price is that an abandoned TextFile is not reclaimed until the
+           process ends.  Unlinking it on release instead would both reclaim it
+           and close it early, which wants a predecessor pointer and is a
+           change to when a file is closed. */
+        if (obj->marked || obj->type == OBJ_BUFFER || obj->type == OBJ_FILE) {
+            obj_registry[kept++] = obj;
+            continue;
+        }
+
+        /* Dropped from the registry whether or not there was anything left to
+           do, which is what keeps it holding each object exactly once.
+
+           ⚠️ Keeping a DEAD one -- it was in this condition, next to the
+           Buffer -- was the registry's slow leak: `obj_spare` hands a released
+           body back out and `obj_alloc` registers it again, so one body
+           accumulated an entry per reuse.  Clearing marks and sweeping both
+           walk the registry, so the cost crept back to O(every allocation
+           ever) by a different road than the one already fixed here. */
+        if (!obj->dead) {
+            obj_release(obj);
+            freed++;
+        }
+    }
+
+    obj_count = kept;
+
+    return freed;
+}
+
+
+Value alg_overloads(const char *name) {
+    ObjOverloads *set = obj_alloc(sizeof(ObjOverloads), OBJ_OVERLOADS);
+
     set->name     = name;
     set->entries  = NULL;
     set->count    = 0;
@@ -3085,6 +3632,7 @@ static AlgFrame *frames = NULL;
 void alg_push_frame(AlgFrame *frame) {
     frame->previous = frames;
     frame->raised   = alg_nil();
+    frame->roots    = alg_root_top;
     frames          = frame;
 }
 
@@ -3102,6 +3650,12 @@ _Noreturn void alg_raise(Value value) {
     frames = frame->previous;
 
     frame->raised = value;
+
+    /* Truncated before the jump, because every block between the raise and
+       this handler is about to be skipped past and would otherwise leave the
+       stack pointing at locals whose frames no longer exist. */
+    alg_root_top = frame->roots;
+
     ALG_LONGJMP(frame->jump, 1);
 }
 
@@ -4053,6 +4607,8 @@ static const char *collection_text(Value v) {
 }
 
 static const char *as_text(Value v) {
+    check_live(v, "a value being printed");
+
     switch (v.type) {
         case VAL_NIL:    return "nil";
         case VAL_BOOL:   return v.boolean ? "true" : "false";
