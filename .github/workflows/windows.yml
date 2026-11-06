@@ -88,12 +88,97 @@ jobs:
           test "$(./bootstrap/algc hello.a24)" = "hello, 4"
           test "$(./vm/algvm hello.a24)" = "hello, 4"
 
+      # STAGE 4 -- the library, pinned to the same version the Homebrew formula
+      # carries, so the three platforms ship one pairing.
+      - name: Check out the library
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: schildawg/algol24-library
+          ref: v0.1.0
+          path: library
+
+      - name: Build the library's shims
+        working-directory: library
+        run: ./build.sh
+
+      # STAGE 5 -- the package, and its SHAPE is forced by how Windows finds a
+      # DLL.  There is no LD_LIBRARY_PATH here: LoadLibraryA searches the
+      # EXECUTABLE's own directory, so the shims go beside algvm.exe -- while
+      # the units go in algvm.exe's `lib`, because that is where the compiler
+      # looks for an installed library [MOD-002].  Two directories where macOS
+      # and Linux need one.
+      - name: Assemble the package
+        run: |
+          OUT="algol24-vm-windows-x86_64"
+          mkdir -p "$OUT/lib"
+
+          cp vm/algvm.exe "$OUT/"
+          cp library/lib*ffi.so "$OUT/"
+
+          cp library/*.a24 "$OUT/lib/"
+          cp library/*.hex library/beep.wav "$OUT/lib/"
+          cp library/REFERENCE.md "$OUT/lib/"
+          cp README.md spec/ALGOL-24.md "$OUT/"
+
+          # Every mingw library the binaries actually load, found by asking
+          # rather than by listing: a list goes stale the first time a flag
+          # changes, and a missing DLL fails at startup with a dialog box.
+          for F in "$OUT"/algvm.exe "$OUT"/lib*ffi.so; do
+            ldd "$F" | awk '/mingw64/ { print $3 }'
+          done | sort -u | while read -r DLL; do
+            [ -f "$DLL" ] && cp -n "$DLL" "$OUT/"
+          done
+
+          # The Windows answer to the Homebrew wrapper: ALGOL24_LIB because
+          # `graph` reads its glyph files itself rather than through the
+          # compiler, and the directory on PATH so a shim is found however the
+          # program was launched.
+          #
+          # Written with printf rather than a heredoc: inside a YAML block
+          # scalar every line is indented, and a heredoc terminator cannot be,
+          # so `<<'BAT'` would never close.
+          {
+            printf '@echo off\r\n'
+            printf 'setlocal\r\n'
+            printf 'set "ALGOL24_LIB=%%~dp0lib"\r\n'
+            printf 'set "PATH=%%~dp0;%%PATH%%"\r\n'
+            printf '"%%~dp0algvm.exe" %%*\r\n'
+          } > "$OUT/algvm.bat"
+
+          ls "$OUT"
+          echo "--- lib ---"
+          ls "$OUT/lib" | head -20
+
+      # STAGE 6 -- the package used as a user would, from a directory holding
+      # none of its files.  This is what the whole arrangement exists for, and
+      # what failed three separate ways on macOS before it worked.
+      - name: Use the package from elsewhere
+        env:
+          SDL_VIDEODRIVER: dummy
+          ALG_SOUND: dummy
+        run: |
+          OUT="$(pwd)/algol24-vm-windows-x86_64"
+          mkdir -p /tmp/elsewhere && cd /tmp/elsewhere
+
+          printf "WriteLn ('hello, ' + Str (2 + 2));\n" > hello.a24
+          test "$(cmd //c "$(cygpath -w "$OUT")\\algvm.bat" hello.a24 | tr -d '\r')" = "hello, 4"
+
+          printf "uses strings;\n\nWriteLn (ToUpper ('shouting'));\n" > lib.a24
+          test "$(cmd //c "$(cygpath -w "$OUT")\\algvm.bat" lib.a24 | tr -d '\r')" = "SHOUTING"
+
+          printf "uses graph;\n\nInitGraph (160, 100, 'test', False);\nOutTextXY (4, 4, 'drawn');\nCloseGraph ();\n" > font.a24
+          cmd //c "$(cygpath -w "$OUT")\\algvm.bat" font.a24
+
+      - name: Zip it
+        run: zip -qr algol24-vm-windows-x86_64.zip algol24-vm-windows-x86_64
+
       - name: Upload what built
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: windows-binaries
+          name: windows-package
           path: |
+            algol24-vm-windows-x86_64.zip
             bootstrap/algc.exe
             vm/algvm.exe
           if-no-files-found: warn
