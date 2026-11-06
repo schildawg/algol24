@@ -1492,6 +1492,24 @@ end
 /// whatever a wrong argument count reports for the kind of callee it is.
 procedure CallValue (Callee : Any, Count : Integer);
 begin
+    // A BUILT-IN held as a value goes to the same dispatch OP_BUILTIN uses,
+    // so it is the host's own either way.  The callee is still beneath its
+    // arguments and a built-in knows nothing about frames, so the answer is
+    // lifted over it by hand -- where a subprogram's OP_RETURN truncates to
+    // Base - 1 and does the same thing.
+    if Callee is VmBuiltin then
+    begin
+        CallBuiltin (ToLower (Str (Callee.Name)), Count);
+
+        var Answered := Pop ();
+
+        Pop ();
+
+        Push (Answered);
+
+        Exit;
+    end
+
     // A bound extension is unpacked here rather than at OP_EXTEND, because
     // only the call knows how many arguments were written -- the receiver goes
     // in front of them [FUN-016], which is what makes the two spellings one
@@ -2857,9 +2875,25 @@ end
 /// gap in the machine rather than an error in a program.  Everything else is
 /// whatever the host raises, unchanged.
 procedure DoBuiltin ();
+begin
+    var Name  := ToLower (Str (Constants[ReadIndex ()]));
+    var Count := ReadByte ();
+
+    CallBuiltin (Name, Count);
+end
+
+/// Calls a built-in by its FOLDED name and an argument count.
+///
+/// Separate from DoBuiltin so that a built-in held as a VALUE reaches the same
+/// dispatch: `var F := Length; F ('abc')` must be host `Length` and not a
+/// second one that would have to agree with it forever, which is the whole
+/// guarantee OP_BUILTIN exists to keep.
+///
+/// # Raises
+///
+/// Whatever the built-in raises, and an arity report for a count no arm takes.
+procedure CallBuiltin (Name : Any, Count : Integer);
 var
-    Name  : Any;
-    Count : Integer;
     A     : Any;
     B     : Any;
     C     : Any;
@@ -2867,8 +2901,6 @@ var
     E     : Any;
 
 begin
-    Name  := ToLower (Str (Constants[ReadIndex ()]));
-    Count := ReadByte ();
 
     // Write and WriteLn take any number [RT-015], so they are handled before
     // the fixed-arity arms rather than needing one arm per count.

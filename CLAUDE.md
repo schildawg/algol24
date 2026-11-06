@@ -966,6 +966,34 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `Undefined variable`. The interpreter answers it. Not a refusal, which is
   what makes it worth writing down.
 
+  ⚠️ **A BUILT-IN held as a value is a CONSTANT, not an opcode.** A built-in
+  has no body to enter and no slot of its own, so reading one [FUN-011] pushes
+  a `VmBuiltin` carrying its name, and `CallValue` sends that to the same
+  `CallBuiltin (Name, Count)` dispatch `OP_BUILTIN` reaches — which is the
+  whole guarantee: `var F := Length; F ('abc')` IS host `Length`, not a second
+  one that would have to agree with it forever. The arity report comes free,
+  since no arm matches a wrong count and the fallback already words it as a
+  subprogram's.
+
+  ⚠️ **It must be INTERNED or `Length = Length` is false.** A built-in is one
+  value — the interpreter keeps a single native per name in the environment
+  every file encloses — and these compare by identity [VAL-011], so a fresh
+  object per read answers false. The table is program-wide and not per chunk,
+  because a read in the script and a read inside a subprogram are the same
+  built-in. Constant interning does not cover it: an OBJECT is never interned.
+
+  ⚠️ **A built-in answers nothing about frames, so `CallValue` lifts the
+  answer over the callee by hand.** The callee still sits beneath its
+  arguments, where a subprogram's `OP_RETURN` would truncate to `Base - 1`.
+
+  ⚠️ **Calling a subprogram held in a FIELD is a separate wrong answer, and it
+  was found by probing this one.** `X.F := Up; X.F ('ab')` reports
+  `C has no method f.` where the interpreter answers — the machine emits
+  `OP_INVOKE` and `InvokeMember` never falls back to a field holding a
+  callable. It fails identically for a plain subprogram, so it is nothing to
+  do with built-ins; `var G := X.F; G ('ab')` works, which is what localises
+  it to the invoke path.
+
   ⚠️ **A guest object renders through `ToString`, and without one the host
   says `<Class> instance`.** `as_text` invokes a `ToString` it finds, which is
   why `Str (Green)` was right while `WriteLn ([Red, Green])` printed

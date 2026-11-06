@@ -179,6 +179,27 @@ var LoopLocals : List := List ();
 /// otherwise win, and a call would then report the wrong arity.
 var OVERLOAD_COUNTS := Map ();
 
+/// One VmBuiltin per built-in NAME, for the whole program.
+///
+/// Interned because a built-in is ONE value: the interpreter keeps a single
+/// native per name in the environment every file encloses, so `Length =
+/// Length` is true there -- and these compare by identity [VAL-011], so a
+/// fresh object per read would answer false. Program-wide and not per chunk,
+/// because a read in the script and a read inside a subprogram are the same
+/// built-in.
+var BUILTIN_VALUES := Map ();
+
+/// The one value standing for a built-in of this name.
+function BuiltinValue (Written : Any) : Any;
+begin
+    var Key := ToLower (Str (Written)) as String;
+
+    if not BUILTIN_VALUES.Contains (Key) then
+        BUILTIN_VALUES.Put (Key, VmBuiltin (Str (Written)));
+
+    Exit BUILTIN_VALUES.Get (Key);
+end
+
 /// Keyed `unit:name`, the set of FIXED argument counts its declarations answer.
 ///
 /// Read with GATHERED_FROM to decide whether a declaration of a built-in's
@@ -708,9 +729,16 @@ procedure RequireGlobal (Name : Any);
 begin
     if Script.KnownQualified (CurrentUnit, Name.Lexeme) then Exit;
 
+    // A BUILT-IN read as a value is a constant holding its name, which the
+    // machine's CallValue sends to the same dispatch a call by name reaches.
+    // No opcode of its own: a built-in has no slot, so the only thing to push
+    // is the name, and a constant is how a name travels [FUN-011].
     if IsBuiltin (Name.Lexeme) then
-        Refuse ('The built-in ' + QUOTE + Str (Name.Lexeme) + QUOTE
-              + ' as a value');
+    begin
+        Into.EmitConstant (BuiltinValue (Name.Lexeme));
+
+        Exit;
+    end
 
     // A field of the class whose METHOD encloses this subprogram, where the
     // receiver could not be reached -- the caller tries MemberOfReceiver first

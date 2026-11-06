@@ -216,6 +216,40 @@ begin
     AssertEqual ('<fn SORT>', Bound.ToString ());
 end
 
+/// A BUILT-IN held as a value, which is a name and nothing else.
+///
+/// A built-in has no body the machine could enter and no slot of its own, so
+/// reading one as a value [FUN-011] cannot push a callable the way reading a
+/// subprogram does.  It pushes this instead, and CallValue sends it to the
+/// same name-and-count dispatch OP_BUILTIN goes through -- so a built-in
+/// called through a variable IS the host's own, exactly as one called by name
+/// is.
+///
+/// The WRITTEN spelling is kept, because that is how it renders; the dispatch
+/// folds it [SRC-011].
+///
+/// # Satisfies
+///
+/// [FUN-011], [RT-001]
+class VmBuiltin;
+var
+    /// Its name, as the program wrote it.
+    Name : String;
+
+begin
+    /// Makes a built-in value.
+    constructor Init (Name : String);
+    begin
+        this.Name := Name;
+    end
+
+    /// How it reads: '<fn Name>', as any other subprogram value does.
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Name + '>';
+    end
+end
+
 /// An extension bound to the receiver it was reached through.
 ///
 /// What `S.Trim` answers where `Trim` is a visible extension and `S` has no
