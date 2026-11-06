@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.2.0.** The language is **stable, not closed**: it changes only on measured
+**v0.2.1.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
@@ -30,6 +30,10 @@ by reading: [CLS-004] (a constructor goes through selection), [CLS-005] (field
 initializers are seeded chain-first before any constructor body), [CLS-010]
 (`super` is not exempt), [CLS-012] and [VAL-014] (NaN is not ordered, and the
 inclusive comparisons are no exception).
+
+v0.2.1 adds the one thing a library needs to BE one: [MOD-002]'s third place,
+so `uses graph;` reaches a library a package manager installed rather than only
+one beside the program. Found by trying to write the formula that installs it.
 
 What the language still does not have is a library written in Algol-24, which is
 the whole of what *alpha* means here; nothing in the language is provisional.

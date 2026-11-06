@@ -583,7 +583,7 @@ void init_Main(void) {
     init_ObjFunction();
     init_TypeChecker();
     init_CEmitter();
-    v_version = alg_string("0.2.0");
+    v_version = alg_string("0.2.1");
     d_version = true;
     (void)(f_main(NULL, NULL, 0));
 }

@@ -257,7 +257,7 @@ begin
 end
 
 /// The release this compiler reports for '--version'.
-const VERSION := '0.2.0';
+const VERSION := '0.2.1';
 
 
 /// Copies one file, answering whether it worked.
