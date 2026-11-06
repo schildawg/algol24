@@ -351,7 +351,7 @@ begin
     // answers and LibraryFolder reads it to find the install prefix.  Once
     // per run rather than per driver, so the three paths -- run, --test and
     // --compile -- cannot disagree about where a library lives.
-    SetModuleFolder (LibraryFolder ());
+    SetModuleFolders (LibraryFolders ());
 
     // A bare 'algc' says how to invoke it.  It used to run a built-in sample
     // program instead, which reads as the compiler having done something to a

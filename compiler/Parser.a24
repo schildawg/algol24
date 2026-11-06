@@ -34,25 +34,31 @@ begin
     Exit Result.Text;
 end
 
-/// Where an INSTALLED library's units live, or '' for none.
+/// Where an INSTALLED library's units might live, in the order to try them.
 ///
-/// The third place a `uses` looks, after the importing file's own directory
-/// and the working directory [MOD-002] -- so a library installed by a package
-/// manager is reachable by its bare name, where before it could only be
-/// reached by writing its full path in every importing file.
+/// The third place a `uses` looks, after the importing file's own directory and
+/// the working directory [MOD-002] -- so a library installed by a package
+/// manager is reachable by its bare name, where before it could only be reached
+/// by writing its full path in every importing file.
 ///
-/// Set by the DRIVER and not read here, which the ordering forces: the folder
-/// is derived from the binary's own path, and `SetProgramArguments` has
-/// already replaced what `ParamStr (0)` answers by the time parsing starts --
-/// so the Parser asking would get the path of the program being run.  This is
-/// the shape `SetProgramArguments` itself uses, and `SetCollectEvery` on the
-/// machine.
-var MODULE_FOLDER : String := '';
+/// CANDIDATES rather than a found directory, which is the whole of why it is a
+/// list.  Whether a DIRECTORY exists is not a question this language answers
+/// portably: FileExists OPENS the path, which succeeds for a directory on macOS
+/// and Linux and fails on Windows -- so a tested folder was found on two
+/// platforms and not the third, and a packaged `uses strings` reported
+/// `no strings.a24 in the working directory`.  Each candidate is tried with a
+/// FILE test instead, which is the question FileExists does answer.
+///
+/// Set by the DRIVER and not read here, which the ordering forces: the folders
+/// come from the binary's own path, and SetProgramArguments has already
+/// replaced what `ParamStr (0)` answers by the time parsing starts -- so the
+/// Parser asking would get the path of the program being run.
+var MODULE_FOLDERS : List := [];
 
-/// Names where an installed library's units live.
-procedure SetModuleFolder (Folder : String);
+/// Names where an installed library's units might live.
+procedure SetModuleFolders (Folders : List);
 begin
-    MODULE_FOLDER := Folder;
+    MODULE_FOLDERS := Folders;
 end
 
 /// Gets the directory part of a path, or '' when there is none.
@@ -79,31 +85,29 @@ begin
     Exit Copy (Path, 0, Cut);
 end
 
-/// Where an installed library's units live, or '' when none is installed.
+/// Where an installed library's units might live, from the binary's own path.
 ///
-/// The same question RuntimeFolder answers about `algol.c` and `algol.h`, asked
-/// about `.a24` units, and answered the same way: from the binary's own path,
-/// because the language has no way to be told its own install prefix.  Beside
-/// the binary first, then the `bin/../share` layout a package manager makes.
+/// The same question RuntimeFolder answers about `algol.c` and `algol.h`, and
+/// answered the same way -- from the binary's own path, because the language
+/// has no way to be told its own install prefix.  Beside the binary first, then
+/// the `bin/../share` layout a package manager makes.
+///
+/// Neither is TESTED here, because whether a directory exists is not portably
+/// answerable; the caller tries each with a file test.
 ///
 /// Must be called before SetProgramArguments, which replaces what
-/// `ParamStr (0)` answers -- so asking afterwards gives the path of the
-/// program being run instead of the processor's own.
-function LibraryFolder () : String;
+/// `ParamStr (0)` answers -- so asking afterwards gives the path of the program
+/// being run instead of the processor's own.
+function LibraryFolders () : List;
 var
     Own : String;
 
 begin
     Own := FolderOf (ParamStr (0));
 
-    if Own <> '' then
-    begin
-        if FileExists (Own + '/lib') then Exit Own + '/lib';
-        if FileExists (Own + '/../share/algol24/lib') then
-            Exit Own + '/../share/algol24/lib';
-    end
+    if Own = '' then Exit [];
 
-    Exit '';
+    Exit [Own + '/lib', Own + '/../share/algol24/lib'];
 end
 
 /// Turns one file's tokens into statements, loading the files it imports.
@@ -706,16 +710,17 @@ begin
         if FileExists (TheFile) then Exit TheFile;
 
         // An INSTALLED library, last, so anything nearer the program wins.
-        if MODULE_FOLDER <> '' then
+        for var Folder in MODULE_FOLDERS do
         begin
-            var Installed := MODULE_FOLDER + '/' + TheFile;
+            var Installed := Str (Folder) + '/' + TheFile;
             if FileExists (Installed) then Exit Installed;
         end
 
         var Searched := 'the working directory';
         if Dir <> '' then Searched := '''' + Dir + ''' or the working directory';
-        if MODULE_FOLDER <> '' then
-            Searched := Searched + ', or ''' + MODULE_FOLDER + '''';
+
+        for var Folder in MODULE_FOLDERS do
+            Searched := Searched + ', or ''' + Str (Folder) + '''';
 
         raise Error (Where, 'Could not find module ''' + ModuleName
                           + ''': no ' + TheFile + ' in ' + Searched + '.');
@@ -3962,21 +3967,27 @@ begin
     // two places can answer.
     TheParser.FileName := 'spec/nothing-here.a24';
 
-    SetModuleFolder ('compiler');
+    SetModuleFolders (['compiler']);
 
     AssertEqual ('compiler/Token.a24',
                  TheParser.ResolveModule (TheParser.Peek (), 'Token'));
 
-    // And NEARER WINS: the working directory is tried before the install, so
-    // a unit of the same name there answers instead.
-    SetModuleFolder ('spec');
+    // Candidates are tried IN ORDER, so a later one answers where an earlier
+    // one has nothing -- which is what lets a folder be offered without first
+    // asking whether it exists.
+    SetModuleFolders (['spec', 'compiler']);
+
+    AssertEqual ('compiler/Token.a24',
+                 TheParser.ResolveModule (TheParser.Peek (), 'Token'));
+
+    SetModuleFolders (['spec']);
 
     try
         TheParser.ResolveModule (TheParser.Peek (), 'Token');
 
         Fail ('An installed folder without the unit should not resolve.');
     except
-        on e : String do SetModuleFolder ('');
+        on e : String do SetModuleFolders ([]);
     end
 end
 

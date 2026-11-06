@@ -5,15 +5,15 @@
 #include "algol.h"
 
 Value f_readwholefile(Value **cells, Value *args, int32_t count);
-Value f_setmodulefolder(Value **cells, Value *args, int32_t count);
+Value f_setmodulefolders(Value **cells, Value *args, int32_t count);
 Value f_folderof(Value **cells, Value *args, int32_t count);
-Value f_libraryfolder(Value **cells, Value *args, int32_t count);
+Value f_libraryfolders(Value **cells, Value *args, int32_t count);
 extern Value fn_readwholefile;
-extern Value v_moduleVfolder;
-extern bool d_moduleVfolder;
-extern Value fn_setmodulefolder;
+extern Value v_moduleVfolders;
+extern bool d_moduleVfolders;
+extern Value fn_setmodulefolders;
 extern Value fn_folderof;
-extern Value fn_libraryfolder;
+extern Value fn_libraryfolders;
 extern Value k_parser;
 void init_Parser(void);
 

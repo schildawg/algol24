@@ -484,7 +484,7 @@ end
 // SetArguments below, which replaces what ParamStr (0) answers.  The machine
 // is a second binary, so it asks the same question of its own path that algc
 // asks of its.
-SetModuleFolder (LibraryFolder ());
+SetModuleFolders (LibraryFolders ());
 
 var Program := ChunkOf (SourceOf (SourcePath), SourcePath);
 
