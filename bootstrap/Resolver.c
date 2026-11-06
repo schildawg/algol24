@@ -134,12 +134,12 @@ static Value m_resolver_collectextensions_2_list_string(Value v_this, Value *arg
     (void)v_unit;
     alg_root(&v_unit, 1);
     {
-        int32_t rt_71 = alg_root_top;
+        int32_t rt_70 = alg_root_top;
         Value loop_1 = alg_iterable(v_statements);
         (void)loop_1;
         alg_root(&loop_1, 1);
         for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
-            int32_t rt_72 = alg_root_top;
+            int32_t rt_71 = alg_root_top;
             Value v_thestmt = alg_iterable_at(loop_1, at_1);
             (void)v_thestmt;
             alg_root(&v_thestmt, 1);
@@ -151,9 +151,9 @@ static Value m_resolver_collectextensions_2_list_string(Value v_this, Value *arg
                     (void)(alg_invoke(alg_property(v_this, "Extensions"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1), v_unit}, 2));
                 }
             }
-            alg_root_top = rt_72;
+            alg_root_top = rt_71;
         }
-        alg_root_top = rt_71;
+        alg_root_top = rt_70;
     }
     Value ret_2 = alg_nil();
     alg_root_top = rt_base;
@@ -182,28 +182,28 @@ static Value m_resolver_ownextensions_3_map_modulestmt_string(Value v_this, Valu
     alg_root(&v_result, 1);
     (void)((v_hidden = alg_set()));
     {
-        int32_t rt_73 = alg_root_top;
+        int32_t rt_72 = alg_root_top;
         Value loop_3 = alg_iterable(alg_property(v_stmt, "PrivateNames"));
         (void)loop_3;
         alg_root(&loop_3, 1);
         for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
-            int32_t rt_74 = alg_root_top;
+            int32_t rt_73 = alg_root_top;
             Value v_thename = alg_iterable_at(loop_3, at_3);
             (void)v_thename;
             alg_root(&v_thename, 1);
             (void)(alg_invoke(v_hidden, "Add", (Value[]){f_foldcase(NULL, (Value[]){v_thename}, 1)}, 1));
-            alg_root_top = rt_74;
+            alg_root_top = rt_73;
         }
-        alg_root_top = rt_73;
+        alg_root_top = rt_72;
     }
     (void)((v_result = alg_map()));
     {
-        int32_t rt_75 = alg_root_top;
+        int32_t rt_74 = alg_root_top;
         Value loop_4 = alg_iterable(alg_invoke(v_inner, "Keys", NULL, 0));
         (void)loop_4;
         alg_root(&loop_4, 1);
         for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
-            int32_t rt_76 = alg_root_top;
+            int32_t rt_75 = alg_root_top;
             Value v_key = alg_iterable_at(loop_4, at_4);
             (void)v_key;
             alg_root(&v_key, 1);
@@ -216,9 +216,9 @@ static Value m_resolver_ownextensions_3_map_modulestmt_string(Value v_this, Valu
                 }
                 (void)(alg_invoke(v_result, "Put", (Value[]){v_key, v_unit}, 2));
             }
-            alg_root_top = rt_76;
+            alg_root_top = rt_75;
         }
-        alg_root_top = rt_75;
+        alg_root_top = rt_74;
     }
     Value ret_5 = v_result;
     alg_root_top = rt_base;
@@ -246,19 +246,19 @@ static Value m_resolver_adoptextensions_1_string(Value v_this, Value *args, int3
     }
     (void)((v_theirs = alg_cast(alg_invoke(alg_property(v_this, "Exported"), "Get", (Value[]){v_unit}, 1), "Map")));
     {
-        int32_t rt_77 = alg_root_top;
+        int32_t rt_76 = alg_root_top;
         Value loop_8 = alg_iterable(alg_invoke(v_theirs, "Keys", NULL, 0));
         (void)loop_8;
         alg_root(&loop_8, 1);
         for (int32_t at_8 = 0; at_8 < alg_iterable_count(loop_8); at_8++) {
-            int32_t rt_78 = alg_root_top;
+            int32_t rt_77 = alg_root_top;
             Value v_key = alg_iterable_at(loop_8, at_8);
             (void)v_key;
             alg_root(&v_key, 1);
             (void)(alg_invoke(alg_property(v_this, "Extensions"), "Put", (Value[]){v_key, alg_str(alg_invoke(v_theirs, "Get", (Value[]){v_key}, 1))}, 2));
-            alg_root_top = rt_78;
+            alg_root_top = rt_77;
         }
-        alg_root_top = rt_77;
+        alg_root_top = rt_76;
     }
     Value ret_9 = alg_nil();
     alg_root_top = rt_base;
@@ -274,12 +274,12 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
     (void)v_statements;
     alg_root(&v_statements, 1);
     {
-        int32_t rt_79 = alg_root_top;
+        int32_t rt_78 = alg_root_top;
         Value loop_10 = alg_iterable(v_statements);
         (void)loop_10;
         alg_root(&loop_10, 1);
         for (int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
-            int32_t rt_80 = alg_root_top;
+            int32_t rt_79 = alg_root_top;
             Value v_thestmt = alg_iterable_at(loop_10, at_10);
             (void)v_thestmt;
             alg_root(&v_thestmt, 1);
@@ -295,28 +295,28 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
                 }
                 if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                     {
-                        int32_t rt_81 = alg_root_top;
+                        int32_t rt_80 = alg_root_top;
                         Value loop_11 = alg_iterable(alg_property(v_thestmt, "Names"));
                         (void)loop_11;
                         alg_root(&loop_11, 1);
                         for (int32_t at_11 = 0; at_11 < alg_iterable_count(loop_11); at_11++) {
-                            int32_t rt_82 = alg_root_top;
+                            int32_t rt_81 = alg_root_top;
                             Value v_thename = alg_iterable_at(loop_11, at_11);
                             (void)v_thename;
                             alg_root(&v_thename, 1);
                             (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_thename, "Lexeme")}, 1)}, 1));
-                            alg_root_top = rt_82;
+                            alg_root_top = rt_81;
                         }
-                        alg_root_top = rt_81;
+                        alg_root_top = rt_80;
                     }
                 }
                 if (alg_truthy((or_0 = alg_is(v_thestmt, "ModuleStmt"), !alg_truthy(or_0) ? or_0 : alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil())))) {
                     (void)(alg_invoke(v_this, "CollectDottable", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
                 }
             }
-            alg_root_top = rt_80;
+            alg_root_top = rt_79;
         }
-        alg_root_top = rt_79;
+        alg_root_top = rt_78;
     }
     Value ret_12 = alg_nil();
     alg_root_top = rt_base;
@@ -350,7 +350,7 @@ static Value m_resolver_isunitqualifier_1(Value v_this, Value *args, int32_t cou
         return ret_15;
     }
     {
-        int32_t rt_83 = alg_root_top;
+        int32_t rt_82 = alg_root_top;
         Value v_i = alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1));
         (void)v_i;
         alg_root(&v_i, 1);
@@ -361,7 +361,7 @@ static Value m_resolver_isunitqualifier_1(Value v_this, Value *args, int32_t cou
                 return ret_16;
             }
         }
-        alg_root_top = rt_83;
+        alg_root_top = rt_82;
     }
     Value ret_17 = alg_bool(true);
     alg_root_top = rt_base;
@@ -422,17 +422,17 @@ static Value m_resolver_visitclassstmt_1_classstmt(Value v_this, Value *args, in
     (void)(alg_invoke(v_this, "BeginScope", NULL, 0));
     (void)(alg_invoke(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Put", (Value[]){alg_string("this"), alg_bool(true)}, 2));
     {
-        int32_t rt_84 = alg_root_top;
+        int32_t rt_83 = alg_root_top;
         Value loop_20 = alg_iterable(alg_property(v_stmt, "Methods"));
         (void)loop_20;
         alg_root(&loop_20, 1);
         for (int32_t at_20 = 0; at_20 < alg_iterable_count(loop_20); at_20++) {
-            int32_t rt_85 = alg_root_top;
+            int32_t rt_84 = alg_root_top;
             Value v_method = alg_iterable_at(loop_20, at_20);
             (void)v_method;
             alg_root(&v_method, 1);
             {
-                int32_t rt_86 = alg_root_top;
+                int32_t rt_85 = alg_root_top;
                 Value v_declaration = e_functiontype_funVfunction;
                 (void)v_declaration;
                 alg_root(&v_declaration, 1);
@@ -442,11 +442,11 @@ static Value m_resolver_visitclassstmt_1_classstmt(Value v_this, Value *args, in
                     }
                 }
                 (void)(alg_invoke(v_this, "ResolveFunction", (Value[]){v_method, v_declaration}, 2));
-                alg_root_top = rt_86;
+                alg_root_top = rt_85;
             }
-            alg_root_top = rt_85;
+            alg_root_top = rt_84;
         }
-        alg_root_top = rt_84;
+        alg_root_top = rt_83;
     }
     (void)(alg_invoke(v_this, "EndScope", NULL, 0));
     if (alg_truthy(alg_not_equal(alg_property(v_stmt, "Superclass"), alg_nil()))) {
@@ -499,12 +499,12 @@ static Value m_resolver_visitenumstmt_1_enumstmt(Value v_this, Value *args, int3
     (void)(alg_invoke(v_this, "Declare", (Value[]){alg_property(v_stmt, "Name")}, 1));
     (void)(alg_invoke(v_this, "Define", (Value[]){alg_property(v_stmt, "Name")}, 1));
     {
-        int32_t rt_87 = alg_root_top;
+        int32_t rt_86 = alg_root_top;
         Value loop_24 = alg_iterable(alg_property(v_stmt, "Members"));
         (void)loop_24;
         alg_root(&loop_24, 1);
         for (int32_t at_24 = 0; at_24 < alg_iterable_count(loop_24); at_24++) {
-            int32_t rt_88 = alg_root_top;
+            int32_t rt_87 = alg_root_top;
             Value v_member = alg_iterable_at(loop_24, at_24);
             (void)v_member;
             alg_root(&v_member, 1);
@@ -512,9 +512,9 @@ static Value m_resolver_visitenumstmt_1_enumstmt(Value v_this, Value *args, int3
                 (void)(alg_invoke(v_this, "Declare", (Value[]){v_member}, 1));
                 (void)(alg_invoke(v_this, "Define", (Value[]){v_member}, 1));
             }
-            alg_root_top = rt_88;
+            alg_root_top = rt_87;
         }
-        alg_root_top = rt_87;
+        alg_root_top = rt_86;
     }
     Value ret_25 = alg_nil();
     alg_root_top = rt_base;
@@ -567,19 +567,19 @@ static Value m_resolver_visittrystmt_1_trystmt(Value v_this, Value *args, int32_
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_stmt, "TryBlock")}, 1));
     (void)((v_keys = alg_invoke(alg_property(v_stmt, "Handlers"), "Keys", NULL, 0)));
     {
-        int32_t rt_89 = alg_root_top;
+        int32_t rt_88 = alg_root_top;
         Value loop_28 = alg_iterable(v_keys);
         (void)loop_28;
         alg_root(&loop_28, 1);
         for (int32_t at_28 = 0; at_28 < alg_iterable_count(loop_28); at_28++) {
-            int32_t rt_90 = alg_root_top;
+            int32_t rt_89 = alg_root_top;
             Value v_key = alg_iterable_at(loop_28, at_28);
             (void)v_key;
             alg_root(&v_key, 1);
             (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(alg_invoke(alg_property(v_stmt, "Handlers"), "Get", (Value[]){v_key}, 1), "Body")}, 1));
-            alg_root_top = rt_90;
+            alg_root_top = rt_89;
         }
-        alg_root_top = rt_89;
+        alg_root_top = rt_88;
     }
     Value ret_29 = alg_nil();
     alg_root_top = rt_base;
@@ -795,37 +795,37 @@ static Value m_resolver_visitvargroupstmt_1_vargroupstmt(Value v_this, Value *ar
     (void)v_stmt;
     alg_root(&v_stmt, 1);
     {
-        int32_t rt_91 = alg_root_top;
+        int32_t rt_90 = alg_root_top;
         Value loop_41 = alg_iterable(alg_property(v_stmt, "Names"));
         (void)loop_41;
         alg_root(&loop_41, 1);
         for (int32_t at_41 = 0; at_41 < alg_iterable_count(loop_41); at_41++) {
-            int32_t rt_92 = alg_root_top;
+            int32_t rt_91 = alg_root_top;
             Value v_name = alg_iterable_at(loop_41, at_41);
             (void)v_name;
             alg_root(&v_name, 1);
             (void)(alg_invoke(v_this, "DeclareBinding", (Value[]){v_name, alg_property(v_stmt, "IsConstant")}, 2));
-            alg_root_top = rt_92;
+            alg_root_top = rt_91;
         }
-        alg_root_top = rt_91;
+        alg_root_top = rt_90;
     }
     if (alg_truthy(alg_not_equal(alg_property(v_stmt, "Initializer"), alg_nil()))) {
         (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_stmt, "Initializer")}, 1));
     }
     {
-        int32_t rt_93 = alg_root_top;
+        int32_t rt_92 = alg_root_top;
         Value loop_42 = alg_iterable(alg_property(v_stmt, "Names"));
         (void)loop_42;
         alg_root(&loop_42, 1);
         for (int32_t at_42 = 0; at_42 < alg_iterable_count(loop_42); at_42++) {
-            int32_t rt_94 = alg_root_top;
+            int32_t rt_93 = alg_root_top;
             Value v_thename = alg_iterable_at(loop_42, at_42);
             (void)v_thename;
             alg_root(&v_thename, 1);
             (void)(alg_invoke(v_this, "Define", (Value[]){v_thename}, 1));
-            alg_root_top = rt_94;
+            alg_root_top = rt_93;
         }
-        alg_root_top = rt_93;
+        alg_root_top = rt_92;
     }
     Value ret_43 = alg_nil();
     alg_root_top = rt_base;
@@ -904,21 +904,21 @@ static Value m_resolver_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
     alg_root(&v_theexpr, 1);
     (void)(alg_invoke(v_this, "Resolve", (Value[]){alg_property(v_theexpr, "Callee")}, 1));
     {
-        int32_t rt_95 = alg_root_top;
+        int32_t rt_94 = alg_root_top;
         Value loop_48 = alg_iterable(alg_property(v_theexpr, "Arguments"));
         (void)loop_48;
         alg_root(&loop_48, 1);
         for (int32_t at_48 = 0; at_48 < alg_iterable_count(loop_48); at_48++) {
-            int32_t rt_96 = alg_root_top;
+            int32_t rt_95 = alg_root_top;
             Value v_argument = alg_iterable_at(loop_48, at_48);
             (void)v_argument;
             alg_root(&v_argument, 1);
             {
                 (void)(alg_invoke(v_this, "Resolve", (Value[]){v_argument}, 1));
             }
-            alg_root_top = rt_96;
+            alg_root_top = rt_95;
         }
-        alg_root_top = rt_95;
+        alg_root_top = rt_94;
     }
     Value ret_49 = alg_nil();
     alg_root_top = rt_base;
@@ -1089,34 +1089,34 @@ static Value m_resolver_visitcollectionexpr_1_collectionexpr(Value v_this, Value
     (void)v_theexpr;
     alg_root(&v_theexpr, 1);
     {
-        int32_t rt_97 = alg_root_top;
+        int32_t rt_96 = alg_root_top;
         Value loop_60 = alg_iterable(alg_property(v_theexpr, "Keys"));
         (void)loop_60;
         alg_root(&loop_60, 1);
         for (int32_t at_60 = 0; at_60 < alg_iterable_count(loop_60); at_60++) {
-            int32_t rt_98 = alg_root_top;
+            int32_t rt_97 = alg_root_top;
             Value v_key = alg_iterable_at(loop_60, at_60);
             (void)v_key;
             alg_root(&v_key, 1);
             (void)(alg_invoke(v_this, "Resolve", (Value[]){v_key}, 1));
-            alg_root_top = rt_98;
+            alg_root_top = rt_97;
         }
-        alg_root_top = rt_97;
+        alg_root_top = rt_96;
     }
     {
-        int32_t rt_99 = alg_root_top;
+        int32_t rt_98 = alg_root_top;
         Value loop_61 = alg_iterable(alg_property(v_theexpr, "Values"));
         (void)loop_61;
         alg_root(&loop_61, 1);
         for (int32_t at_61 = 0; at_61 < alg_iterable_count(loop_61); at_61++) {
-            int32_t rt_100 = alg_root_top;
+            int32_t rt_99 = alg_root_top;
             Value v_value = alg_iterable_at(loop_61, at_61);
             (void)v_value;
             alg_root(&v_value, 1);
             (void)(alg_invoke(v_this, "Resolve", (Value[]){v_value}, 1));
-            alg_root_top = rt_100;
+            alg_root_top = rt_99;
         }
-        alg_root_top = rt_99;
+        alg_root_top = rt_98;
     }
     Value ret_62 = alg_nil();
     alg_root_top = rt_base;
@@ -1176,12 +1176,12 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
     (void)((v_memberowner = alg_map()));
     (void)((v_signatures = alg_map()));
     {
-        int32_t rt_101 = alg_root_top;
+        int32_t rt_100 = alg_root_top;
         Value loop_65 = alg_iterable(v_statements);
         (void)loop_65;
         alg_root(&loop_65, 1);
         for (int32_t at_65 = 0; at_65 < alg_iterable_count(loop_65); at_65++) {
-            int32_t rt_102 = alg_root_top;
+            int32_t rt_101 = alg_root_top;
             Value v_thestmt = alg_iterable_at(loop_65, at_65);
             (void)v_thestmt;
             alg_root(&v_thestmt, 1);
@@ -1194,7 +1194,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                     }
                 } else {
                     {
-                        int32_t rt_103 = alg_root_top;
+                        int32_t rt_102 = alg_root_top;
                         Value v_thename = alg_string("");
                         (void)v_thename;
                         alg_root(&v_thename, 1);
@@ -1203,7 +1203,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                         alg_root(&v_written, 1);
                         if (alg_truthy(alg_is(v_thestmt, "FunctionStmt"))) {
                             {
-                                int32_t rt_104 = alg_root_top;
+                                int32_t rt_103 = alg_root_top;
                                 Value v_fnname = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
                                 (void)v_fnname;
                                 alg_root(&v_fnname, 1);
@@ -1220,24 +1220,24 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                 (void)v_taken;
                                 alg_root(&v_taken, 1);
                                 {
-                                    int32_t rt_105 = alg_root_top;
+                                    int32_t rt_104 = alg_root_top;
                                     Value loop_66 = alg_iterable(v_taken);
                                     (void)loop_66;
                                     alg_root(&loop_66, 1);
                                     for (int32_t at_66 = 0; at_66 < alg_iterable_count(loop_66); at_66++) {
-                                        int32_t rt_106 = alg_root_top;
+                                        int32_t rt_105 = alg_root_top;
                                         Value v_item = alg_iterable_at(loop_66, at_66);
                                         (void)v_item;
                                         alg_root(&v_item, 1);
                                         if (alg_truthy(alg_equal(alg_str(v_item), v_signature))) {
                                             alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))), alg_string("' is already defined.")));
                                         }
-                                        alg_root_top = rt_106;
+                                        alg_root_top = rt_105;
                                     }
-                                    alg_root_top = rt_105;
+                                    alg_root_top = rt_104;
                                 }
                                 (void)(alg_invoke(v_taken, "Add", (Value[]){v_signature}, 1));
-                                alg_root_top = rt_104;
+                                alg_root_top = rt_103;
                             }
                         }
                         if (alg_truthy(alg_is(v_thestmt, "ClassStmt"))) {
@@ -1260,22 +1260,22 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                         }
                         if (alg_truthy(alg_is(v_thestmt, "EnumStmt"))) {
                             {
-                                int32_t rt_107 = alg_root_top;
+                                int32_t rt_106 = alg_root_top;
                                 Value v_owner = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
                                 (void)v_owner;
                                 alg_root(&v_owner, 1);
                                 {
-                                    int32_t rt_108 = alg_root_top;
+                                    int32_t rt_107 = alg_root_top;
                                     Value loop_67 = alg_iterable(alg_property(v_thestmt, "Members"));
                                     (void)loop_67;
                                     alg_root(&loop_67, 1);
                                     for (int32_t at_67 = 0; at_67 < alg_iterable_count(loop_67); at_67++) {
-                                        int32_t rt_109 = alg_root_top;
+                                        int32_t rt_108 = alg_root_top;
                                         Value v_themember = alg_iterable_at(loop_67, at_67);
                                         (void)v_themember;
                                         alg_root(&v_themember, 1);
                                         {
-                                            int32_t rt_110 = alg_root_top;
+                                            int32_t rt_109 = alg_root_top;
                                             Value v_member = f_foldcase(NULL, (Value[]){alg_property(v_themember, "Lexeme")}, 1);
                                             (void)v_member;
                                             alg_root(&v_member, 1);
@@ -1291,30 +1291,30 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                                 }
                                             }
                                             (void)(alg_invoke(v_memberowner, "Put", (Value[]){v_member, v_owner}, 2));
-                                            alg_root_top = rt_110;
+                                            alg_root_top = rt_109;
                                         }
-                                        alg_root_top = rt_109;
+                                        alg_root_top = rt_108;
                                     }
-                                    alg_root_top = rt_108;
+                                    alg_root_top = rt_107;
                                 }
                                 (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
                                 (void)((v_written = alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))));
-                                alg_root_top = rt_107;
+                                alg_root_top = rt_106;
                             }
                         }
                         if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
                             {
-                                int32_t rt_111 = alg_root_top;
+                                int32_t rt_110 = alg_root_top;
                                 Value loop_68 = alg_iterable(alg_property(v_thestmt, "Names"));
                                 (void)loop_68;
                                 alg_root(&loop_68, 1);
                                 for (int32_t at_68 = 0; at_68 < alg_iterable_count(loop_68); at_68++) {
-                                    int32_t rt_112 = alg_root_top;
+                                    int32_t rt_111 = alg_root_top;
                                     Value v_eachname = alg_iterable_at(loop_68, at_68);
                                     (void)v_eachname;
                                     alg_root(&v_eachname, 1);
                                     {
-                                        int32_t rt_113 = alg_root_top;
+                                        int32_t rt_112 = alg_root_top;
                                         Value v_each = f_foldcase(NULL, (Value[]){alg_property(v_eachname, "Lexeme")}, 1);
                                         (void)v_each;
                                         alg_root(&v_each, 1);
@@ -1328,11 +1328,11 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                             alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(v_eachname, "Lexeme"))), alg_string("' is already defined.")));
                                         }
                                         (void)(alg_invoke(v_seen, "Add", (Value[]){v_each}, 1));
-                                        alg_root_top = rt_113;
+                                        alg_root_top = rt_112;
                                     }
-                                    alg_root_top = rt_112;
+                                    alg_root_top = rt_111;
                                 }
-                                alg_root_top = rt_111;
+                                alg_root_top = rt_110;
                             }
                         }
                         if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
@@ -1349,13 +1349,13 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                 (void)(alg_invoke(v_seen, "Add", (Value[]){v_thename}, 1));
                             }
                         }
-                        alg_root_top = rt_103;
+                        alg_root_top = rt_102;
                     }
                 }
             }
-            alg_root_top = rt_102;
+            alg_root_top = rt_101;
         }
-        alg_root_top = rt_101;
+        alg_root_top = rt_100;
     }
     Value ret_69 = alg_nil();
     alg_root_top = rt_base;
@@ -1375,13 +1375,13 @@ static Value m_resolver_signatureof_1(Value v_this, Value *args, int32_t count) 
     alg_root(&v_text, 1);
     (void)((v_text = alg_str(alg_property(alg_property(v_thestmt, "Params"), "Length"))));
     {
-        int32_t rt_114 = alg_root_top;
+        int32_t rt_113 = alg_root_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
             {
-                int32_t rt_115 = alg_root_top;
+                int32_t rt_114 = alg_root_top;
                 Value v_declared = alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), v_i));
                 (void)v_declared;
                 alg_root(&v_declared, 1);
@@ -1389,10 +1389,10 @@ static Value m_resolver_signatureof_1(Value v_this, Value *args, int32_t count) 
                     (void)((v_declared = alg_string("Any")));
                 }
                 (void)((v_text = alg_add(alg_add(v_text, alg_char_value(47)), f_foldcase(NULL, (Value[]){v_declared}, 1))));
-                alg_root_top = rt_115;
+                alg_root_top = rt_114;
             }
         }
-        alg_root_top = rt_114;
+        alg_root_top = rt_113;
     }
     Value ret_70 = v_text;
     alg_root_top = rt_base;
@@ -1415,17 +1415,17 @@ static Value m_resolver_checkmethodduplicates_1_list(Value v_this, Value *args, 
     alg_root(&v_signatures, 1);
     (void)((v_signatures = alg_map()));
     {
-        int32_t rt_116 = alg_root_top;
+        int32_t rt_115 = alg_root_top;
         Value loop_72 = alg_iterable(v_methods);
         (void)loop_72;
         alg_root(&loop_72, 1);
         for (int32_t at_72 = 0; at_72 < alg_iterable_count(loop_72); at_72++) {
-            int32_t rt_117 = alg_root_top;
+            int32_t rt_116 = alg_root_top;
             Value v_method = alg_iterable_at(loop_72, at_72);
             (void)v_method;
             alg_root(&v_method, 1);
             {
-                int32_t rt_118 = alg_root_top;
+                int32_t rt_117 = alg_root_top;
                 Value v_fnname = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_method, "Name"), "Lexeme")}, 1);
                 (void)v_fnname;
                 alg_root(&v_fnname, 1);
@@ -1439,28 +1439,28 @@ static Value m_resolver_checkmethodduplicates_1_list(Value v_this, Value *args, 
                 (void)v_taken;
                 alg_root(&v_taken, 1);
                 {
-                    int32_t rt_119 = alg_root_top;
+                    int32_t rt_118 = alg_root_top;
                     Value loop_73 = alg_iterable(v_taken);
                     (void)loop_73;
                     alg_root(&loop_73, 1);
                     for (int32_t at_73 = 0; at_73 < alg_iterable_count(loop_73); at_73++) {
-                        int32_t rt_120 = alg_root_top;
+                        int32_t rt_119 = alg_root_top;
                         Value v_item = alg_iterable_at(loop_73, at_73);
                         (void)v_item;
                         alg_root(&v_item, 1);
                         if (alg_truthy(alg_equal(alg_str(v_item), v_signature))) {
                             alg_raise(alg_add(alg_add(alg_char_value(39), alg_str(alg_property(alg_property(v_method, "Name"), "Lexeme"))), alg_string("' is already defined.")));
                         }
-                        alg_root_top = rt_120;
+                        alg_root_top = rt_119;
                     }
-                    alg_root_top = rt_119;
+                    alg_root_top = rt_118;
                 }
                 (void)(alg_invoke(v_taken, "Add", (Value[]){v_signature}, 1));
-                alg_root_top = rt_118;
+                alg_root_top = rt_117;
             }
-            alg_root_top = rt_117;
+            alg_root_top = rt_116;
         }
-        alg_root_top = rt_116;
+        alg_root_top = rt_115;
     }
     Value ret_74 = alg_nil();
     alg_root_top = rt_base;
@@ -1480,12 +1480,12 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
     alg_root(&v_parent, 1);
     (void)((v_parent = alg_map()));
     {
-        int32_t rt_121 = alg_root_top;
+        int32_t rt_120 = alg_root_top;
         Value loop_75 = alg_iterable(v_statements);
         (void)loop_75;
         alg_root(&loop_75, 1);
         for (int32_t at_75 = 0; at_75 < alg_iterable_count(loop_75); at_75++) {
-            int32_t rt_122 = alg_root_top;
+            int32_t rt_121 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_75, at_75);
             (void)v_statement;
             alg_root(&v_statement, 1);
@@ -1494,22 +1494,22 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
                     (void)(alg_invoke(v_parent, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_statement, "Name"), "Lexeme")}, 1), f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_property(v_statement, "Superclass"), "Name"), "Lexeme")}, 1)}, 2));
                 }
             }
-            alg_root_top = rt_122;
+            alg_root_top = rt_121;
         }
-        alg_root_top = rt_121;
+        alg_root_top = rt_120;
     }
     {
-        int32_t rt_123 = alg_root_top;
+        int32_t rt_122 = alg_root_top;
         Value loop_76 = alg_iterable(alg_invoke(v_parent, "Keys", NULL, 0));
         (void)loop_76;
         alg_root(&loop_76, 1);
         for (int32_t at_76 = 0; at_76 < alg_iterable_count(loop_76); at_76++) {
-            int32_t rt_124 = alg_root_top;
+            int32_t rt_123 = alg_root_top;
             Value v_name = alg_iterable_at(loop_76, at_76);
             (void)v_name;
             alg_root(&v_name, 1);
             {
-                int32_t rt_125 = alg_root_top;
+                int32_t rt_124 = alg_root_top;
                 Value v_seen = alg_set();
                 (void)v_seen;
                 alg_root(&v_seen, 1);
@@ -1525,11 +1525,11 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
                         (void)((v_at = alg_str(alg_invoke(v_parent, "Get", (Value[]){v_at}, 1))));
                     }
                 }
-                alg_root_top = rt_125;
+                alg_root_top = rt_124;
             }
-            alg_root_top = rt_124;
+            alg_root_top = rt_123;
         }
-        alg_root_top = rt_123;
+        alg_root_top = rt_122;
     }
     Value ret_77 = alg_nil();
     alg_root_top = rt_base;
@@ -1555,21 +1555,21 @@ static Value m_resolver_resolveall_1_list(Value v_this, Value *args, int32_t cou
     }
     (void)(alg_invoke(v_this, "PushLabels", (Value[]){v_statements}, 1));
     {
-        int32_t rt_126 = alg_root_top;
+        int32_t rt_125 = alg_root_top;
         Value loop_78 = alg_iterable(v_statements);
         (void)loop_78;
         alg_root(&loop_78, 1);
         for (int32_t at_78 = 0; at_78 < alg_iterable_count(loop_78); at_78++) {
-            int32_t rt_127 = alg_root_top;
+            int32_t rt_126 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_78, at_78);
             (void)v_statement;
             alg_root(&v_statement, 1);
             {
                 (void)(alg_invoke(v_this, "Resolve", (Value[]){v_statement}, 1));
             }
-            alg_root_top = rt_127;
+            alg_root_top = rt_126;
         }
-        alg_root_top = rt_126;
+        alg_root_top = rt_125;
     }
     (void)(alg_invoke(v_this, "PopLabels", NULL, 0));
     Value ret_79 = alg_nil();
@@ -1590,21 +1590,21 @@ static Value m_resolver_pushlabels_1_list(Value v_this, Value *args, int32_t cou
     alg_root(&v_found, 1);
     (void)((v_found = alg_list()));
     {
-        int32_t rt_128 = alg_root_top;
+        int32_t rt_127 = alg_root_top;
         Value loop_80 = alg_iterable(v_statements);
         (void)loop_80;
         alg_root(&loop_80, 1);
         for (int32_t at_80 = 0; at_80 < alg_iterable_count(loop_80); at_80++) {
-            int32_t rt_129 = alg_root_top;
+            int32_t rt_128 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_80, at_80);
             (void)v_statement;
             alg_root(&v_statement, 1);
             if (alg_truthy(alg_is(v_statement, "LabelStmt"))) {
                 (void)(alg_invoke(v_found, "Add", (Value[]){v_statement}, 1));
             }
-            alg_root_top = rt_129;
+            alg_root_top = rt_128;
         }
-        alg_root_top = rt_128;
+        alg_root_top = rt_127;
     }
     (void)(alg_invoke(alg_property(v_this, "LabelScopes"), "Add", (Value[]){v_found}, 1));
     Value ret_81 = alg_nil();
@@ -1632,23 +1632,23 @@ static Value m_resolver_findlabel_1_string(Value v_this, Value *args, int32_t co
     (void)v_named;
     alg_root(&v_named, 1);
     {
-        int32_t rt_130 = alg_root_top;
+        int32_t rt_129 = alg_root_top;
         Value v_s = alg_subtract(alg_property(alg_property(v_this, "LabelScopes"), "Length"), alg_int(1));
         (void)v_s;
         alg_root(&v_s, 1);
         for (; alg_truthy(alg_greater_equal(v_s, alg_int(0))); (v_s = alg_subtract(v_s, alg_int(1)))) {
             {
-                int32_t rt_131 = alg_root_top;
+                int32_t rt_130 = alg_root_top;
                 Value v_scope = alg_subscript_get(alg_property(v_this, "LabelScopes"), v_s);
                 (void)v_scope;
                 alg_root(&v_scope, 1);
                 {
-                    int32_t rt_132 = alg_root_top;
+                    int32_t rt_131 = alg_root_top;
                     Value loop_83 = alg_iterable(v_scope);
                     (void)loop_83;
                     alg_root(&loop_83, 1);
                     for (int32_t at_83 = 0; at_83 < alg_iterable_count(loop_83); at_83++) {
-                        int32_t rt_133 = alg_root_top;
+                        int32_t rt_132 = alg_root_top;
                         Value v_each = alg_iterable_at(loop_83, at_83);
                         (void)v_each;
                         alg_root(&v_each, 1);
@@ -1657,14 +1657,14 @@ static Value m_resolver_findlabel_1_string(Value v_this, Value *args, int32_t co
                             alg_root_top = rt_base;
                             return ret_84;
                         }
-                        alg_root_top = rt_133;
+                        alg_root_top = rt_132;
                     }
-                    alg_root_top = rt_132;
+                    alg_root_top = rt_131;
                 }
-                alg_root_top = rt_131;
+                alg_root_top = rt_130;
             }
         }
-        alg_root_top = rt_130;
+        alg_root_top = rt_129;
     }
     Value ret_85 = alg_nil();
     alg_root_top = rt_base;
@@ -1727,12 +1727,12 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
     (void)(alg_set_property(v_this, "CurrentFunction", v_typeoffunction));
     (void)(alg_invoke(v_this, "BeginScope", NULL, 0));
     {
-        int32_t rt_134 = alg_root_top;
+        int32_t rt_133 = alg_root_top;
         Value loop_89 = alg_iterable(alg_property(v_thefunction, "Params"));
         (void)loop_89;
         alg_root(&loop_89, 1);
         for (int32_t at_89 = 0; at_89 < alg_iterable_count(loop_89); at_89++) {
-            int32_t rt_135 = alg_root_top;
+            int32_t rt_134 = alg_root_top;
             Value v_param = alg_iterable_at(loop_89, at_89);
             (void)v_param;
             alg_root(&v_param, 1);
@@ -1740,9 +1740,9 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
                 (void)(alg_invoke(v_this, "Declare", (Value[]){v_param}, 1));
                 (void)(alg_invoke(v_this, "Define", (Value[]){v_param}, 1));
             }
-            alg_root_top = rt_135;
+            alg_root_top = rt_134;
         }
-        alg_root_top = rt_134;
+        alg_root_top = rt_133;
     }
     Value v_enclosinglabels = alg_property(v_this, "LabelScopes");
     (void)v_enclosinglabels;
@@ -1843,7 +1843,7 @@ static Value m_resolver_isconstant_1_token(Value v_this, Value *args, int32_t co
     alg_root(&v_lexeme, 1);
     (void)((v_lexeme = alg_str(alg_property(v_name, "Lexeme"))));
     {
-        int32_t rt_136 = alg_root_top;
+        int32_t rt_135 = alg_root_top;
         Value v_i = alg_subtract(alg_property(alg_property(v_this, "Constants"), "Length"), alg_int(1));
         (void)v_i;
         alg_root(&v_i, 1);
@@ -1854,7 +1854,7 @@ static Value m_resolver_isconstant_1_token(Value v_this, Value *args, int32_t co
                 return ret_96;
             }
         }
-        alg_root_top = rt_136;
+        alg_root_top = rt_135;
     }
     if (alg_truthy(alg_invoke(alg_property(v_this, "GlobalConstants"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_lexeme}, 1)}, 1))) {
         Value ret_97 = alg_invoke(alg_property(v_this, "GlobalConstants"), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_lexeme}, 1)}, 1);
@@ -1904,7 +1904,7 @@ static Value m_resolver_resolvelocal_2_expr_token(Value v_this, Value *args, int
     (void)v_name;
     alg_root(&v_name, 1);
     {
-        int32_t rt_137 = alg_root_top;
+        int32_t rt_136 = alg_root_top;
         Value v_i = alg_subtract(alg_property(alg_property(v_this, "Scopes"), "Length"), alg_int(1));
         (void)v_i;
         alg_root(&v_i, 1);
@@ -1920,7 +1920,7 @@ static Value m_resolver_resolvelocal_2_expr_token(Value v_this, Value *args, int
                 }
             }
         }
-        alg_root_top = rt_137;
+        alg_root_top = rt_136;
     }
     Value ret_103 = alg_nil();
     alg_root_top = rt_base;

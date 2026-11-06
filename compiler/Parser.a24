@@ -61,8 +61,18 @@ var
     Cut : Integer := -1;
 
 begin
+    // BOTH separators, because this is asked about a path the OPERATING
+    // SYSTEM gave us -- `ParamStr (0)` is the binary's own path, and on
+    // Windows it arrives with backslashes.  Cutting at '/' alone answered ''
+    // there, so no install prefix was ever found: a packaged `uses strings`
+    // reported `no strings.a24 in the working directory`, naming one place
+    // where the same failure on a Unix names three.
+    //
+    // A backslash is a legal character in a Unix filename, so treating it as
+    // a separator is a trade rather than a free win -- and the same trade
+    // every toolchain makes, against a path no program here will meet.
     for var I := 0; I < Length (Path); I := I + 1 do
-        if Path[I] = '/' then Cut := I;
+        if Path[I] = '/' or Path[I] = Char (92) then Cut := I;
 
     if Cut < 0 then Exit '';
 
@@ -663,19 +673,6 @@ begin
     ///
     /// String work rather than a path library, because the language has no such
     /// library -- and this is the whole of what module resolution needs.
-    function DirectoryOf (Path : String) : String;
-    var
-        Cut : Integer := -1;
-
-    begin
-        for var I := 0; I < Length (Path); I := I + 1 do
-            if Path[I] = '/' then Cut := I;
-
-        if Cut < 0 then Exit '';
-
-        Exit Copy (Path, 0, Cut);
-    end
-
     /// Resolves a 'uses' name to a file: beside the importing file first, then
     /// the working directory, then an installed library.
     ///
@@ -698,7 +695,7 @@ begin
 
     begin
         TheFile := ModuleName + '.a24';
-        Dir := DirectoryOf (FileName);
+        Dir := FolderOf (FileName);
 
         if Dir <> '' then
         begin
@@ -3937,6 +3934,20 @@ begin
             end
     end
     Fail ('No exception raised.');
+end
+
+test 'A Folder Is Cut At Either Separator';
+begin
+    // A Unix path and a Windows one, because this is asked about the path the
+    // operating system handed over rather than one a program wrote.
+    AssertEqual ('/usr/local/bin', FolderOf ('/usr/local/bin/algvm'));
+    AssertEqual ('D:' + Char (92) + 'tools' + Char (92) + 'algol24',
+                 FolderOf ('D:' + Char (92) + 'tools' + Char (92) + 'algol24'
+                         + Char (92) + 'algvm.exe'));
+
+    // The LAST separator wins whichever kind it is, and a bare name has none.
+    AssertEqual ('a/b' + Char (92) + 'c', FolderOf ('a/b' + Char (92) + 'c/d'));
+    AssertEqual ('', FolderOf ('algvm'));
 end
 
 test 'A Module Is Found In The Installed Library Last';
