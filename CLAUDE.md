@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.2.1.** The language is **stable, not closed**: it changes only on measured
+**v0.2.2.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that

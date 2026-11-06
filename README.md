@@ -136,7 +136,7 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.2.1.** The language is **stable, not closed**: it changes only on measured
+**v0.2.2.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
@@ -156,6 +156,10 @@ v0.2.1 adds the one thing a library needs in order to *be* one: a `uses` finds
 a unit in an installed library, not only one beside the program or in the
 working directory. Nearer still wins, so installing a library can never change
 what an existing program means by a name.
+
+v0.2.2 is packaging: `algvm` reports `--version` and `--help` like `algc` does,
+and both read one constant, because a version in two places is two answers to
+one question.
 
 What comes next is still a library, written in Algol-24 rather than in the
 runtime — that is the whole of what *alpha* means here, and nothing in the
