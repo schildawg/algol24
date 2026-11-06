@@ -966,6 +966,37 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `Undefined variable`. The interpreter answers it. Not a refusal, which is
   what makes it worth writing down.
 
+  ⚠️ **The machine HOSTS `algc`, and the front end plus the C back end are
+  byte-exact.** `algvm compiler/Main.a24 --compile --out=DIR X.a24` emits C
+  **identical** to `bootstrap/algc`'s, for programs of any size tried — so
+  Scanner, Parser, Resolver, TypeChecker and CEmitter all run correctly on the
+  machine. What unblocked it was the constructor-type divergence below;
+  `LiteralExpr.Init (Value : Expr)` is handed a literal's VALUE, so a strict
+  reading stopped the machine at the first literal it parsed.
+
+  ⚠️ **Only the INTERPRETER diverges, and only above about fifteen
+  statements.** `algvm compiler/Main.a24 X.a24` — the interpret path — is
+  correct for a program of 15 top-level statements and wrong at 16. The
+  threshold is hard and the symptom varies with the program:
+  `Operands must be numbers.`, `Undefined property 'Add'`,
+  `Only instances have properties.`, or silence. Narrowed so far:
+
+  - **Deterministic.** `ALG_POISON=1` changes nothing, so it is not the
+    collector handing a live body back out.
+  - **Not the front end.** The emitted C is identical for the same program, so
+    everything up to and including CEmitter is faithful.
+  - **Not the machine's collections.** A Map and a Set keyed by 500 instances
+    answer every lookup correctly, and object keys compare by identity as
+    [VAL-011] requires.
+  - **Not a feature of the input.** The first reproduction needed a class with
+    two nested-subprogram methods, which was a red herring — `var T := 0;`
+    followed by sixteen `T := T + 1;` is enough.
+  - **Nothing in `vm/*.a24` has a capacity of 16**, so the number is not an
+    array bound in the machine.
+
+  The reproduction is three lines of Python and worth keeping: generate N
+  statements, run both ways, bisect N. 15 passes, 16 fails.
+
   ⚠️ **A BUILT-IN held as a value is a CONSTANT, not an opcode.** A built-in
   has no body to enter and no slot of its own, so reading one [FUN-011] pushes
   a `VmBuiltin` carrying its name, and `CallValue` sends that to the same
