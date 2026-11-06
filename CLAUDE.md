@@ -989,9 +989,48 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `OUT_OF_ROOM` makes `Unwind` decline those four, so they escape to the
   driver as the diagnostics they are.
 
-  ⚠️ **The interpret path is still not exact, and the cause is NOT a swallowed
-  limit.** **127 of 196** corpus cases answer identically through the
-  machine-hosted compiler; 69 do not, and no limit escapes on them.
+  ⚠️ **THE MACHINE RUNS `algc`, AND THE WHOLE CORPUS AGREES.** All **196**
+  conformance cases answer identically through the machine-hosted compiler —
+  195 against `bootstrap/algc` directly, and `0174` against an `--ffi`
+  interpreter, since `algvm` always has foreign calls where the default `algc`
+  has none. Both back ends: `--compile` emits byte-identical C as well.
+
+  ⚠️ **A frame that RETURNS from inside a `try` must close it, and that one bug
+  was 68 of the 69 failures.** `OP_TRY` records a base and a stack depth; an
+  `Exit` from inside the region skips the `OP_UNTRY` that would remove the
+  record, so it outlived its frame and the NEXT raise unwound into a frame that
+  no longer existed — reading slot 0 as whatever live code had since put there.
+  CLAUDE.md already carried this rule for `break` and `continue`; `Exit` was
+  never held to it.
+
+  Fixed in `DoReturn` and not in the emitter, because a frame is left FOUR ways
+  — an `Exit`, falling off the end, a constructor answering its instance, and a
+  selected overload — and one runtime truncation covers all of them where four
+  emitter sites would each be a chance to forget. `CallNested`'s restore does
+  the same, since a nested run can leave a region open too.
+
+  ⚠️ **It was found by the TRACE, and could not have been found by reading.**
+  Both chunks' bytecode had already been disassembled and their stack
+  discipline verified by hand — correctly. The fault was a RECORD outliving its
+  frame, which only shows as a `base` that does not match the `depth`.
+
+  ⚠️ **`--trace N` keeps a RING of the last N instructions**, with `ip`,
+  opcode, `sp`, `base` and `depth` — dumped where a raised value escapes. A
+  ring and not a stream, because the machine runs millions of instructions
+  before a wrong answer surfaces and the last few hundred are what is wanted.
+  `sp` and `base` are the columns that pay: correct bytecode with a wrong
+  answer is a frame reading the wrong slot.
+
+  ⚠️ **`--watch TEXT` is the part that made it work.** Dumping only where a
+  raise ESCAPES found nothing, because the interesting raise is almost always
+  caught — a machine fault inside a program that guards itself never reaches
+  the driver. Watching for the message dumps the instant it is raised, caught
+  or not.
+
+  ⚠️ **The trace costs 2.5% when OFF**, which is one Boolean test an
+  instruction: Fib (27) reads 1.22 s with it against 1.19 s without, four runs
+  each. Paid by every program whether it asks or not. The first draft of that
+  comment said "measured free" before anything had measured it.
 
   ⚠️ **`--list` walks EVERY chunk now, not just the script's.** A nested
   subprogram's body is a constant of the chunk that declares it, so listing

@@ -199,6 +199,142 @@ var IP : Integer := 0;
 /// The chunk being run, which is the current frame's.
 var Running : Chunk := Nil;
 
+/// How many instructions the trace remembers, or 0 when it is off.
+///
+/// A RING rather than a stream, because the instruction that matters is deep
+/// inside a long run: the machine executes millions before a wrong answer
+/// surfaces, so what is wanted is the last few hundred and not the first.
+/// `--trace N` on vm/run.a24 turns it on.
+var TRACE_ROOM : Integer := 0;
+
+/// Where the next entry goes, and whether the ring has wrapped.
+var TraceAt   : Integer := 0;
+var TraceWrap : Boolean := False;
+
+/// One array per column, because an Array of records is not a thing here and
+/// five parallel arrays cost one allocation each rather than one per entry.
+var TraceIP    : Array := Array (1);
+var TraceOp    : Array := Array (1);
+var TraceSP    : Array := Array (1);
+var TraceBase  : Array := Array (1);
+var TraceFrame : Array := Array (1);
+
+/// Text whose raise dumps the ring, or '' to dump only where one escapes.
+///
+/// Wanted because the interesting raise is usually CAUGHT: a machine fault
+/// inside a program that guards itself never reaches the driver, so waiting
+/// for an uncaught one shows nothing. `--watch TEXT` dumps the instant a
+/// raised value contains TEXT, caught or not.
+var TRACE_WATCH : String := '';
+
+/// Whether the watched raise has already been reported, so a trace is printed
+/// once rather than per raise after it.
+var TraceShown : Boolean := False;
+
+/// Sets the text to watch for.
+procedure SetTraceWatch (Text : String);
+begin
+    TRACE_WATCH := Text;
+end
+
+/// Turns the trace on, sized to remember N instructions.
+procedure SetTraceRoom (N : Integer);
+begin
+    TRACE_ROOM := N;
+
+    if N <= 0 then Exit;
+
+    TraceIP    := Array (N);
+    TraceOp    := Array (N);
+    TraceSP    := Array (N);
+    TraceBase  := Array (N);
+    TraceFrame := Array (N);
+
+    TraceAt   := 0;
+    TraceWrap := False;
+end
+
+/// Records one instruction about to run.
+///
+/// The address is passed rather than read, because IP has already moved past
+/// the opcode by the time the dispatch loop can call this.
+procedure Traced (At : Integer, Op : Integer);
+begin
+    TraceIP[TraceAt]    := At;
+    TraceOp[TraceAt]    := Op;
+    TraceSP[TraceAt]    := SP;
+    TraceBase[TraceAt]  := Base;
+    TraceFrame[TraceAt] := FrameDepth;
+
+    TraceAt := TraceAt + 1;
+
+    if TraceAt >= TRACE_ROOM then
+    begin
+        TraceAt   := 0;
+        TraceWrap := True;
+    end
+end
+
+/// Writes the trace, oldest first.
+///
+/// SP and BASE are the columns worth having: a wrong answer with correct
+/// bytecode is a frame reading the wrong slot, and that is visible as a base
+/// that does not match the depth. Written to stdout rather than raised, so it
+/// survives whatever the machine was doing when it stopped.
+procedure DumpTrace ();
+begin
+    if TRACE_ROOM <= 0 then Exit;
+
+    var Held := TraceAt;
+    var From := 0;
+
+    if TraceWrap then
+    begin
+        Held := TRACE_ROOM;
+        From := TraceAt;
+    end
+
+    WriteLn ('== the last ' + Str (Held) + ' instructions, oldest first ==');
+    WriteLn ('     ip  opcode                      sp  base  depth');
+
+    for var K : Integer := 0; K < Held; K := K + 1 do
+    begin
+        var Where := From + K;
+
+        if Where >= TRACE_ROOM then Where := Where - TRACE_ROOM;
+
+        // ⚠️ Pad and not `Str (N, Width)`: that form is for a DOUBLE and
+        // raises 'Str with decimals takes a Double.' on an Integer -- which
+        // aborted the dump after its header, so the ring looked empty when it
+        // was full.
+        WriteLn (Rightward (Str (TraceIP[Where]), 7) + '  '
+               + Pad (OpName (TraceOp[Where] as Integer), 24)
+               + Rightward (Str (TraceSP[Where]), 4)
+               + Rightward (Str (TraceBase[Where]), 6)
+               + Rightward (Str (TraceFrame[Where]), 7));
+    end
+end
+
+/// A name padded out to a width, for the trace's columns.
+function Pad (Text : Any, Wide : Integer) : String;
+begin
+    var Out := Str (Text);
+
+    while Length (Out) < Wide do Out := Out + ' ';
+
+    Exit Out;
+end
+
+/// The same, padded on the LEFT so a column of numbers lines up.
+function Rightward (Text : Any, Wide : Integer) : String;
+begin
+    var Out := Str (Text);
+
+    while Length (Out) < Wide do Out := ' ' + Out;
+
+    Exit Out;
+end
+
 /// Whether the machine ran out of ROOM rather than the program going wrong.
 ///
 /// ⚠️ A capacity limit must not be CATCHABLE. [STM-020] makes a runtime error
@@ -669,6 +805,12 @@ begin
     SP         := WasSP;
     Base       := WasBase;
     Cells      := WasCells as List;
+
+    // And any region the nested run opened and did not close, for the reason
+    // DoReturn gives: its record would outlive the frame it belongs to.
+    while TryDepth > 0 and (TryFrame[TryDepth - 1] as Integer) > WasDepth do
+        TryDepth := TryDepth - 1;
+
     FrameDepth := WasDepth;
     StopDepth  := WasStop;
     Answer     := WasAnswer;
@@ -3265,6 +3407,21 @@ begin
         Exit;
     end
 
+    // ⚠️ EVERY PROTECTED REGION THIS FRAME OPENED GOES WITH IT. A `try` the
+    // frame returned out of never ran its OP_UNTRY, so its record stayed on
+    // the handler stack carrying a base and a stack depth belonging to a frame
+    // that no longer exists -- and the NEXT raise unwound into that dead
+    // frame, where slot 0 held whatever the live code had since put there.
+    //
+    // CLAUDE.md records this rule for `break` and `continue`, which close what
+    // they jump out of; `Exit` was never held to it. Done HERE and not in the
+    // emitter because a frame is left four ways -- an Exit, falling off the
+    // end, a constructor answering its instance, and a selected overload --
+    // and one runtime truncation covers all of them where four emitter sites
+    // would each be a chance to forget.
+    while TryDepth > 0 and (TryFrame[TryDepth - 1] as Integer) >= FrameDepth do
+        TryDepth := TryDepth - 1;
+
     FrameDepth := FrameDepth - 1;
 
     // Everything the frame put on the stack goes, the callee beneath its
@@ -3673,6 +3830,14 @@ begin
             begin
                 var Op := ReadByte ();
 
+                // ⚠️ One Boolean test per instruction, and it is NOT free:
+                // Fib (27) reads 1.22 s with it and 1.19 s without, over four
+                // runs each, which is about 2.5%. Small, paid by every program
+                // whether it asks for a trace or not, and quoted here rather
+                // than guessed at -- the first draft of this comment said
+                // "measured free" before anything measured it.
+                if TRACE_ROOM > 0 then Traced (IP - 1, Op);
+
                 Dispatch[Op] ();
 
                 // THE SAFE POINT.  An instruction has just finished, so every
@@ -3695,9 +3860,30 @@ begin
             end
         except
             on e : String do
+            begin
+                // A WATCHED raise is reported where it happens, whether or not
+                // anything catches it -- which is the whole point: a machine
+                // fault inside a program that guards itself is invisible from
+                // the driver.
+                if TRACE_WATCH <> '' and not TraceShown
+                       and Pos (e, TRACE_WATCH) >= 0 then
+                begin
+                    TraceShown := True;
+
+                    WriteLn ('== watched: ' + e + ' ==');
+
+                    DumpTrace ();
+                end
+
                 // Nothing protecting it means the program's error escapes,
                 // and it escapes as the same String the interpreter reports.
-                if not Unwind (e) then raise e;
+                if not Unwind (e) then
+                begin
+                    if TRACE_WATCH = '' then DumpTrace ();
+
+                    raise e;
+                end
+            end
         end
 
     Exit Answer;

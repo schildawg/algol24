@@ -791,14 +791,21 @@ begin
 end
 
 /// Every built-in this back end can call, lowercased.
-var BUILTIN_NAMES := ['array', 'assertequal', 'asserttrue', 'buffer', 'chdir', 'char', 'copy', 'fail', 'fileexists', 'getdir', 'halt', 'length', 'list', 'map', 'mkdir', 'ord', 'paramcount', 'paramstr', 'pos', 'pred', 'rmdir', 'set', 'stack', 'str', 'succ', 'textfile', 'tolower', 'toupper', 'val', 'write', 'writeln', 'clock', 'collect'];
+var BUILTIN_NAMES := ['array', 'assertequal', 'asserttrue', 'buffer', 'chdir', 'char', 'copy', 'fail', 'fileexists', 'foreign', 'getdir', 'halt', 'length', 'list', 'map', 'mkdir', 'ord', 'paramcount', 'paramstr', 'pos', 'pred', 'rmdir', 'set', 'stack', 'str', 'succ', 'textfile', 'tolower', 'toupper', 'val', 'write', 'writeln', 'clock', 'collect'];
 
 /// Whether a name is one of the language's built-ins.
 ///
 /// The list is Annex B's, and `spec/spec.sh` checks that against
 /// `Interpreter.a24` -- so a built-in added there and not here is refused by
-/// name rather than read from a global slot nothing defines.  `Foreign` is
-/// deliberately absent: it is a foreign call and wants an opcode of its own.
+/// name rather than read from a global slot nothing defines.
+///
+/// `Foreign` is one of them, and the note that said it was deliberately absent
+/// and wanting an opcode of its own outlived the work that made it a built-in
+/// like any other: CallBuiltin has an arm for it and BUILTIN_ARITY gives it
+/// five. Leaving it out meant a program calling it got
+/// `Undefined variable 'Foreign'`, which is how the interpreter reaches a
+/// foreign call -- so it was the last thing stopping the machine from hosting
+/// `algc` on conformance/0174.
 function IsBuiltin (Name : Any) : Boolean;
 var
     Wanted : Any;

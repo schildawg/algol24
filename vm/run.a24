@@ -322,6 +322,23 @@ end
 var SourcePath := ParamStr (1);
 var Listing := False;
 
+/// How many instructions `--trace N` should remember, or -1 for none.
+///
+/// A RING and not a stream: the instruction that matters is deep inside a long
+/// run, so the last few hundred are what is wanted. Dumped where a raised
+/// value escapes uncaught, which is the moment the machine knows something
+/// went wrong.
+var Ring : Integer := -1;
+
+/// Whether the next argument is the trace's size.
+var WantsTrace := False;
+
+/// Text whose raise should dump the trace, caught or not.
+var Watch : String := '';
+
+/// Whether the next argument is that text.
+var WantsWatch := False;
+
 /// How many instructions between collections, for `--collect N`.
 ///
 /// A knob on the driver rather than a constant in the machine, because the
@@ -362,10 +379,22 @@ for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     else if ParamStr (I) = '--time' then Timing := True;
     else if ParamStr (I) = '--stop' then Stopping := True;
     else if ParamStr (I) = '--collect' then WantsEvery := True;
+    else if ParamStr (I) = '--trace' then WantsTrace := True;
+    else if ParamStr (I) = '--watch' then WantsWatch := True;
     else if WantsEvery then
     begin
         Every := Val (ParamStr (I)) as Integer;
         WantsEvery := False;
+    end
+    else if WantsTrace then
+    begin
+        Ring := Val (ParamStr (I)) as Integer;
+        WantsTrace := False;
+    end
+    else if WantsWatch then
+    begin
+        Watch := Str (ParamStr (I));
+        WantsWatch := False;
     end
     else
     begin
@@ -406,6 +435,11 @@ SetArguments (Given);
 
 // Before the run, so the first collection honours it.
 if Every >= 0 then SetCollectEvery (Every);
+
+// And before the run for the same reason: a trace of the instructions after
+// the failure would be no use.
+if Ring > 0 then SetTraceRoom (Ring);
+if Watch <> '' then SetTraceWatch (Watch);
 
 if Listing then
 begin
