@@ -410,12 +410,38 @@ if Every >= 0 then SetCollectEvery (Every);
 if Listing then
 begin
     // A disassembly, which is the first thing wanted when a chunk misbehaves.
-    WriteLn ('== ' + SourcePath + ' ==');
+    //
+    // ⚠️ EVERY chunk, not just the script's.  A nested subprogram's body is a
+    // constant of the chunk that declares it, so listing only the root showed
+    // nothing of the code that actually misbehaves -- and a method's body is
+    // where a slot question gets answered.
+    var Pending := [Program];
+    var Labels  := ['<script>'];
+    var Seen    := 0;
+
+    while Seen < Pending.Length do
+    begin
+        var Chunky := Pending[Seen] as Chunk;
+
+        WriteLn ('== ' + Str (Labels[Seen]) + ' ==');
+
+        // Anything callable among the constants is a chunk of its own, queued
+        // before this one is walked so the order reads top-down.
+        for var K : Integer := 0; K < Chunky.Constants.Length; K := K + 1 do
+        begin
+            var Held := Chunky.Constants[K];
+
+            if Held is VmFunction then
+            begin
+                Pending.Add (Held.Body);
+                Labels.Add (Str (Held.Name));
+            end
+        end
 
     var At : Integer := 0;
-    while At < Program.Count do
+    while At < Chunky.Count do
     begin
-        var Op := Program.At (At);
+        var Op := Chunky.At (At);
         var Line := Str (At) + '  ' + OpName (Op);
 
         // OP_LONG is a PREFIX: its operand is the whole instruction after it,
@@ -428,7 +454,7 @@ begin
             WriteLn (Line);
 
             At   := At + 1;
-            Op   := Program.At (At);
+            Op   := Chunky.At (At);
             Line := Str (At) + '  ' + OpName (Op);
         end
 
@@ -447,17 +473,17 @@ begin
             var Index := At + 1;
             var After := At + 2;
 
-            var Named := Str (Program.At (Index));
+            var Named := Str (Chunky.At (Index));
 
             if Widened then
             begin
-                Named := Str ((Program.At (Index) as Integer) * 256
-                            + (Program.At (Index + 1) as Integer));
+                Named := Str ((Chunky.At (Index) as Integer) * 256
+                            + (Chunky.At (Index + 1) as Integer));
                 After := At + 3;
             end
 
-            var Taken := (Program.At (After) as Integer) * 256
-                       + (Program.At (After + 1) as Integer);
+            var Taken := (Chunky.At (After) as Integer) * 256
+                       + (Chunky.At (After + 1) as Integer);
 
             Line := Line + ' ' + Named + ' ' + Str (Taken);
 
@@ -467,10 +493,10 @@ begin
             for var I : Integer := 0; I < Taken; I := I + 1 do
             begin
                 var Where := After + 2 + I * 3;
-                var Index := (Program.At (Where + 1) as Integer) * 256
-                           + (Program.At (Where + 2) as Integer);
+                var Index := (Chunky.At (Where + 1) as Integer) * 256
+                           + (Chunky.At (Where + 2) as Integer);
 
-                if Program.At (Where) <> 0 then
+                if Chunky.At (Where) <> 0 then
                     Line := Line + ' local:' + Str (Index);
                 else Line := Line + ' cell:' + Str (Index);
             end
@@ -496,13 +522,13 @@ begin
             if Shape[I] = 's'
                    or (Widened and (Shape[I] = 'i' or Shape[I] = 'l')) then
             begin
-                Line  := Line + ' ' + Str ((Program.At (Where) as Integer) * 256
-                                         + (Program.At (Where + 1) as Integer));
+                Line  := Line + ' ' + Str ((Chunky.At (Where) as Integer) * 256
+                                         + (Chunky.At (Where + 1) as Integer));
                 Where := Where + 2;
             end
             else
             begin
-                Line  := Line + ' ' + Str (Program.At (Where));
+                Line  := Line + ' ' + Str (Chunky.At (Where));
                 Where := Where + 1;
             end
 
@@ -512,6 +538,12 @@ begin
     end
 
     WriteLn ('');
+
+        WriteLn ('');
+
+        Seen := Seen + 1;
+    end
+
 end
 
 // THE TEST RUN.  The script defines every declaration, test bodies included --

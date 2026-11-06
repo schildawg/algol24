@@ -990,8 +990,40 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   driver as the diagnostics they are.
 
   ⚠️ **The interpret path is still not exact, and the cause is NOT a swallowed
-  limit.** 50 of the first 60 corpus cases now answer identically through the
-  machine-hosted compiler; 10 do not, and no limit escapes on them.** `algvm compiler/Main.a24 X.a24` — the interpret path — is
+  limit.** **127 of 196** corpus cases answer identically through the
+  machine-hosted compiler; 69 do not, and no limit escapes on them.
+
+  ⚠️ **`--list` walks EVERY chunk now, not just the script's.** A nested
+  subprogram's body is a constant of the chunk that declares it, so listing
+  only the root showed nothing of the code that misbehaves — and a method's
+  body is where a slot question gets answered. The lister queues any
+  `VmFunction` among the constants.
+
+  ⚠️ **Where the remaining hunt stands, so it is not restarted from zero.**
+  `0047` is the smallest failing case: the interpreter's `Handle` reaches
+  `Env.Define (Handler.Name, Value)` with `Handler` **nil**, which means the
+  `if Handler = Nil then raise Original;` two lines above answered FALSE for a
+  nil. Tagging all six `Undefined property` sites in `MemberOf` confirms it —
+  site 1834, receiver `nil=true`.
+
+  Both chunks were then disassembled and their stack discipline traced BY HAND,
+  and **both are correct**: `Handle`'s four slots (three parameters and
+  `Handler`) are balanced across every branch, and `VisitTryStmt`'s three-arm
+  handler chain leaves the raised value in slot 1 and balances to empty. The
+  `OP_INVOKE 5 3` that enters `Handle` puts the receiver and all three
+  arguments exactly where the callee expects them.
+
+  So the emission is right and the fault is at RUN time — which makes the next
+  step a trace of `Base` and `SP` at that call rather than more static reading.
+  ⚠️ And inserting debug statements between the nil check and the use makes it
+  PASS, so whatever it is, is sensitive to statement layout.
+
+  Ruled out, each with its own probe, so none of these is worth retrying:
+  handler binding against locals; multi-arm `except` selection including three
+  arms binding one name; a field named `Name` with and without an initializer;
+  several classes in one unit each declaring `Name`; the
+  `if X = Nil and Y.Contains (K)` shape in isolation; a method called from
+  inside an `except` arm; and Maps and Sets keyed by 500 instances. `algvm compiler/Main.a24 X.a24` — the interpret path — is
   correct for a program of 15 top-level statements and wrong at 16. The
   threshold is hard and the symptom varies with the program:
   `Operands must be numbers.`, `Undefined property 'Add'`,
