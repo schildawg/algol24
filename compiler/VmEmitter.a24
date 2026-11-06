@@ -1760,7 +1760,7 @@ begin
         var At := Into.AddConstant (Str (TheExpr.Name.Lexeme));
 
 
-        Into.EmitIndexed (OP_PROPERTY, At);
+        Into.EmitIndexed (OP_GET_MEMBER, At);
 
         Exit;
     end
@@ -3260,7 +3260,7 @@ begin
 
         Into.EmitIndexed (OP_GET_LOCAL, At);
         Into.EmitIndexed (OP_GET_LOCAL, Over);
-        Into.EmitIndexed (OP_PROPERTY, Into.AddConstant ('Length'));
+        Into.EmitIndexed (OP_GET_MEMBER, Into.AddConstant ('Length'));
         Into.Emit (OP_LESS);
 
         var Done := Into.EmitJump (OP_JUMP_IF_FALSE);

@@ -414,6 +414,24 @@ which is a different population from either row above.
 
 ## The proposal
 
+### 0a. Promote the probe corpus and diff the three processors
+
+Thirty small programs, written while hunting divergences, found every one this
+session that the 196-case conformance corpus could not — because each is a
+COMBINATION of features the corpus tests separately, which is where every bug
+in this work has hidden. They live in a scratch directory and should not.
+
+Promote them into the repository and add a script that runs each under all
+three processors — the interpreter, the compiled back end and the machine —
+and reports a divergence. That is not a fourth corpus: a conformance case
+records what a program must print, and these record only that the three
+processors agree, which is a different claim and needs no fixture.
+
+⚠️ Three closed divergences were found this way and none of them was
+reachable by any conformance case: `Ord` on an instance declaring `ToString`,
+a call of a name that is both a field and a method, and a singleton declaring
+`ToString`. The habit found them; a harness would have kept finding them.
+
 ### 0. Do the two cheap fixes first, whichever way this goes
 
 `-flto` in `build.sh`, and eliding `alg_widen` and `alg_cast` where the checker

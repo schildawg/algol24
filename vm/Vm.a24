@@ -1990,7 +1990,11 @@ begin
 end
 
 /// Replaces the top with one of its members.
-procedure DoProperty ();
+///
+/// The handler for OP_GET_MEMBER and OP_GET_FIELD BOTH, which is why there is
+/// one of it: the two opcodes are the same operation and differ only in what
+/// the emitter knew when it chose between them.
+procedure DoGetMember ();
 var
     Written : Any;
 
@@ -3534,8 +3538,10 @@ end
 
 /// Records the method on top as a property of the class beneath it.
 ///
-/// Not DoProperty, which already exists for OP_PROPERTY and reads one of the
-/// runtime's five.
+/// Not DoGetMember, which READS a member where this one declares that reading
+/// a name should call it.  The two were one name briefly, and the collision was
+/// silent: an emitter edit appeared to do nothing and emitted a valid opcode
+/// doing the wrong thing.
 procedure DoDeclareProperty ();
 var
     Named : Any;
@@ -3589,20 +3595,10 @@ end
 
 /// Replaces a value with one of its members.
 ///
-/// The same read as OP_PROPERTY, kept as its own opcode because the emitter
+/// The same read as OP_GET_MEMBER, kept as its own opcode because the emitter
 /// knows which names are the runtime's five and which are not -- and a
 /// disassembly that says GET_FIELD where a field was meant reads better than
 /// one that says PROPERTY everywhere.
-procedure DoGetField ();
-var
-    Written : Any;
-
-begin
-    Written := Constants[ReadIndex ()];
-
-    Push (MemberOf (Pop (), Written));
-end
-
 /// Stores a value in a field, leaving the value on the stack.
 procedure DoSetField ();
 var
@@ -3612,9 +3608,8 @@ var
     Value   : Any;
 
 begin
-    // Both spellings kept, for the reason DoGetField gives -- and the WRITTEN
-    // one has to be captured here rather than recovered from IP afterwards,
-    // which indexed the constants by a code offset instead.
+    // The WRITTEN spelling is captured here rather than recovered from IP
+    // afterwards, which indexed the constants by a code offset instead.
     Written := Constants[ReadIndex ()];
     Named   := ToLower (Str (Written));
     Value   := Pop ();
@@ -3678,7 +3673,20 @@ begin
     Table[OP_IS]            := DoIs;
     Table[OP_CALL]          := DoCall;
     Table[OP_CALL_NAMED]    := DoCallNamed;
-    Table[OP_PROPERTY]      := DoProperty;
+    // ⚠️ ONE HANDLER FOR TWO OPCODES, deliberately. They are the same
+    // operation -- a name from the constants, a value popped, and whatever the
+    // one shared MemberOf answers -- and the difference is a CLASSIFICATION
+    // the emitter made, not behaviour the machine has.
+    //
+    // OP_GET_FIELD is emitted where the emitter KNOWS the receiver's class: a
+    // field of `this`, or of a declared type. OP_GET_MEMBER is emitted where
+    // it does not, the receiver being an arbitrary expression. That split is
+    // exactly the split between the member reads whose slot could be computed
+    // at emit time and the ones that cannot -- which is where a slot-indexed
+    // field read would land, the way a global already went from a hash per
+    // access to a subscript. Collapsing them would throw that classification
+    // away and the work would have to re-derive it.
+    Table[OP_GET_MEMBER]    := DoGetMember;
     Table[OP_INVOKE_NAMED]  := DoInvokeNamed;
     Table[OP_SUBSCRIPT_GET] := DoSubscriptGet;
     Table[OP_SUBSCRIPT_SET] := DoSubscriptSet;
@@ -3694,7 +3702,7 @@ begin
     Table[OP_FIELD]         := DoField;
     Table[OP_INHERIT]       := DoInherit;
     Table[OP_THIS]          := DoThis;
-    Table[OP_GET_FIELD]     := DoGetField;
+    Table[OP_GET_FIELD]     := DoGetMember;
     Table[OP_SET_FIELD]     := DoSetField;
     Table[OP_WIDEN]         := DoWiden;
     Table[OP_CAST]          := DoCast;
@@ -4435,7 +4443,7 @@ begin
 
     // A member read, which is the same handler OP_GET_FIELD has -- measured
     // through both names because the reference says they are one operation.
-    AssertStackEffectOn (OP_PROPERTY,  [SEED_MEMBER], 0, ACollection, 1);
+    AssertStackEffectOn (OP_GET_MEMBER,  [SEED_MEMBER], 0, ACollection, 1);
     AssertStackEffectOn (OP_GET_FIELD, [SEED_MEMBER], 0, ACollection, 1);
 
     // A CLASS beneath it.
@@ -4573,7 +4581,7 @@ begin
     // for it and a constant table set up for it.  An earlier version tried to
     // run every opcode with zero operands and grew a special case per opcode
     // that reads its operand as an index: OP_IS wanted a type name, OP_BUILTIN
-    // a built-in name, OP_CALL something callable, and OP_PROPERTY a property.
+    // a built-in name, OP_CALL something callable, and OP_GET_MEMBER a property.
     // Each one it lacked failed as a refusal that looked like a real finding.
     //
     // A gap in the numbering is what this is for, and that it still catches.
@@ -5551,7 +5559,7 @@ begin
     var C := Chunk ();
 
     C.EmitConstant ('hello');
-    C.EmitWith (OP_PROPERTY, C.AddConstant ('Length'));
+    C.EmitWith (OP_GET_MEMBER, C.AddConstant ('Length'));
     C.Emit (OP_RETURN);
 
     AssertEqual (5, RunChunk (C) as Integer);
@@ -5562,7 +5570,7 @@ begin
     var C := Chunk ();
 
     C.EmitConstant ('hello');
-    C.EmitWith (OP_PROPERTY, C.AddConstant ('Nonesuch'));
+    C.EmitWith (OP_GET_MEMBER, C.AddConstant ('Nonesuch'));
     C.Emit (OP_RETURN);
 
     try
@@ -6241,7 +6249,7 @@ begin
     F.Element := 'Integer';
 
     F.Body.EmitWith (OP_GET_LOCAL, 1);
-    F.Body.EmitWith (OP_PROPERTY, F.Body.AddConstant ('Length'));
+    F.Body.EmitWith (OP_GET_MEMBER, F.Body.AddConstant ('Length'));
     F.Body.Emit (OP_RETURN);
 
     Exit F;

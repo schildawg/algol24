@@ -155,11 +155,27 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   expression), having been copied into four files before anything noticed. Read
   a citation in a comment as a pointer to check, never as a checked fact.
 
-  ⚠️ **`OP_PROPERTY` and `OP_GET_FIELD` have BYTE-IDENTICAL handlers**, which
-  writing the reference is what surfaced: both read a name from the constants,
-  pop a value and push what the one shared `MemberOf` answers. So they are one
-  operation and the difference is what the emitter meant, not what the machine
-  does. Whether both should exist is open; neither entry pretends otherwise.
+  ⚠️ **`OP_GET_MEMBER` and `OP_GET_FIELD` share ONE handler, and keeping both
+  is a decision rather than a leftover.** They are one operation — a name from
+  the constants, a value popped, whatever the shared `MemberOf` answers — and
+  the difference is a CLASSIFICATION the emitter made: `OP_GET_FIELD` where it
+  KNOWS the receiver's class (a field of `this`, or of a declared type) and
+  `OP_GET_MEMBER` where the receiver is an arbitrary expression.
+
+  That split is exactly the split between the member reads whose slot could be
+  computed at emit time and the ones that cannot. A field read is **two Map
+  lookups by folded name** today, which is the shape already optimised away for
+  globals — a hash per access became a fixed index and a subscript, 12.8
+  against 13.1 M instr/s. A slot-indexed field read lands on `OP_GET_FIELD`,
+  and collapsing the two would throw away the classification it needs.
+
+  ⚠️ **It was `OP_PROPERTY`, and the name was wrong twice over.** It said the
+  runtime's five properties and meant every member; and it sat one near-
+  identical name from `OP_DECLARE_PROPERTY`, a pair that cost an afternoon when
+  an emitter edit silently did not apply and emitted a valid opcode doing the
+  wrong thing. An opcode's NUMBER is not interface but its MNEMONIC is, the
+  more so with an assembly front end intended — so a misleading one is worth
+  renaming while it is still cheap.
 
   ⚠️ **Four opcode doc comments had gone stale, and writing an entry from each
   is what found them.** `OP_CONSTANT` still said a chunk holds 256 constants

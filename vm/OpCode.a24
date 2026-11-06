@@ -208,7 +208,7 @@ const OP_SUBSCRIPT_SET := 35;
 /// A chain over the five the runtime has -- Length, Text, Eof, IsEmpty and
 /// Address -- each arm written with the property as a LITERAL, for the reason
 /// OP_IS gives: a property cannot be reached from a name held in a variable.
-const OP_PROPERTY := 36;
+const OP_GET_MEMBER := 36;
 
 /// Builds a List from the values above it.  One operand: how many.
 ///
@@ -233,7 +233,7 @@ const OP_MAP := 38;
 /// TextFile's.  The runtime's own member tables are keyed the same way.
 ///
 /// Every arm calls the host's method with the name written as a LITERAL, for
-/// the reason OP_PROPERTY gives -- a member cannot be reached from a name held
+/// the reason OP_GET_MEMBER gives -- a member cannot be reached from a name held
 /// in a variable -- so the machine's `Add` is the host's `Add`.
 ///
 /// # Raises
@@ -501,7 +501,7 @@ const OP_INVOKE_NAMED := 72;
 ///
 /// Everything OP_METHOD does, plus the note that reading this name calls it.
 ///
-/// ⚠️ Not OP_PROPERTY, which already exists and reads one of the RUNTIME's
+/// ⚠️ Not OP_GET_MEMBER, which already exists and reads one of the RUNTIME's
 /// five -- Length, Text, Eof, IsEmpty, Address.  Two opcodes a word apart
 /// meaning unrelated things is the OP_WIDEN/OP_LONG trap again.
 const OP_DECLARE_PROPERTY := 73;
@@ -589,7 +589,7 @@ begin
     if Op = OP_INVOKE_NAMED  then Exit 'OP_INVOKE_NAMED';
     if Op = OP_SUBSCRIPT_GET then Exit 'OP_SUBSCRIPT_GET';
     if Op = OP_SUBSCRIPT_SET then Exit 'OP_SUBSCRIPT_SET';
-    if Op = OP_PROPERTY      then Exit 'OP_PROPERTY';
+    if Op = OP_GET_MEMBER      then Exit 'OP_GET_MEMBER';
     if Op = OP_LIST          then Exit 'OP_LIST';
     if Op = OP_MAP           then Exit 'OP_MAP';
     if Op = OP_INVOKE        then Exit 'OP_INVOKE';
@@ -687,7 +687,7 @@ begin
     if Op = OP_SET_CELL      then Exit 'l';
     if Op = OP_LIST          then Exit 's';
     if Op = OP_MAP           then Exit 's';
-    if Op = OP_PROPERTY      then Exit 'i';
+    if Op = OP_GET_MEMBER      then Exit 'i';
     if Op = OP_CLASS         then Exit 'i';
     if Op = OP_METHOD        then Exit 'i';
     if Op = OP_FIELD         then Exit 'i';
@@ -791,7 +791,7 @@ begin
     if Op = OP_NOT                  then Exit '1 1 1';
     if Op = OP_NEGATE               then Exit '1 1 1';
     if Op = OP_BIT_NOT              then Exit '1 1 1';
-    if Op = OP_PROPERTY             then Exit '1 1 1';
+    if Op = OP_GET_MEMBER             then Exit '1 1 1';
     if Op = OP_GET_FIELD            then Exit '1 1 1';
     if Op = OP_WIDEN                then Exit '1 1 1';
     if Op = OP_ITER                 then Exit '1 1 1';

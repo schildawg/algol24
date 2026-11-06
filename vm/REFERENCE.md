@@ -116,14 +116,14 @@ Entries are grouped by what an instruction is for, which is how
 `OP_DIV`  `OP_DIVIDE`  `OP_DUP`  `OP_ENUM`  
 `OP_ENUM_MEMBER`  `OP_EQUAL`  `OP_EXTEND`  `OP_FALSE`  
 `OP_FIELD`  `OP_GET_BOX`  `OP_GET_CELL`  `OP_GET_FIELD`  
-`OP_GET_GLOBAL`  `OP_GET_GLOBAL_LONG`  `OP_GET_LOCAL`  `OP_GREATER`  
-`OP_IN`  `OP_INHERIT`  `OP_INVOKE`  `OP_INVOKE_EXT`  
-`OP_INVOKE_EXT_NAMED`  `OP_INVOKE_NAMED`  `OP_IS`  `OP_ITER`  
-`OP_JUMP`  `OP_JUMP_IF_FALSE`  `OP_LESS`  `OP_LIST`  
-`OP_LONG`  `OP_LOOP`  `OP_MAP`  `OP_METHOD`  
-`OP_MOD`  `OP_MULTIPLY`  `OP_NEGATE`  `OP_NIL`  
-`OP_NOT`  `OP_OVERLOADS`  `OP_POP`  `OP_PRINT`  
-`OP_PROPERTY`  `OP_RAISE`  `OP_RETURN`  `OP_SET_BOX`  
+`OP_GET_GLOBAL`  `OP_GET_GLOBAL_LONG`  `OP_GET_LOCAL`  `OP_GET_MEMBER`  
+`OP_GREATER`  `OP_IN`  `OP_INHERIT`  `OP_INVOKE`  
+`OP_INVOKE_EXT`  `OP_INVOKE_EXT_NAMED`  `OP_INVOKE_NAMED`  `OP_IS`  
+`OP_ITER`  `OP_JUMP`  `OP_JUMP_IF_FALSE`  `OP_LESS`  
+`OP_LIST`  `OP_LONG`  `OP_LOOP`  `OP_MAP`  
+`OP_METHOD`  `OP_MOD`  `OP_MULTIPLY`  `OP_NEGATE`  
+`OP_NIL`  `OP_NOT`  `OP_OVERLOADS`  `OP_POP`  
+`OP_PRINT`  `OP_RAISE`  `OP_RETURN`  `OP_SET_BOX`  
 `OP_SET_CELL`  `OP_SET_FIELD`  `OP_SET_GLOBAL`  `OP_SET_GLOBAL_LONG`  
 `OP_SET_LOCAL`  `OP_SHIFT_LEFT`  `OP_SHIFT_RIGHT`  `OP_SINGLETON`  
 `OP_SUBRANGE`  `OP_SUBSCRIPT_GET`  `OP_SUBSCRIPT_SET`  `OP_SUBTRACT`  
@@ -1549,7 +1549,7 @@ machine.
 neither a collection nor an instance declaring the protocol, and `Index <n>
 out of range <low>..<high>.` beyond the end.
 
-**See also** — `OP_SUBSCRIPT_SET`, `OP_ITER`, `OP_PROPERTY`, `OP_LIST`.
+**See also** — `OP_SUBSCRIPT_SET`, `OP_ITER`, `OP_GET_MEMBER`, `OP_LIST`.
 
 ## OP_SUBSCRIPT_SET — Write A Subscript
 
@@ -1600,44 +1600,55 @@ class declares it, not whether the value is an instance.
 
 **See also** — `OP_IN`, `OP_SUBSCRIPT_GET`, `OP_LIST`.
 
-## OP_PROPERTY — Read A Runtime Property
+## OP_GET_MEMBER — Read A Member
 
 ```
 Encoding    [ 36 ][ i ]                       2 bytes
                                               3 under OP_LONG
 
-            i    constant index of the property's name (widens)
+            i    constant index of the member's name (widens)
 ```
 
 **Stack** — pops 1, pushes 1, needs 1.
 
-**Operation** — Replaces the top with one of the five properties the runtime
-has -- `Length`, `Text`, `Eof`, `IsEmpty` and `Address` -- or with any other
-member the one shared member lookup answers.
+**Operation** — Replaces the top with whatever its member of that name
+answers -- a field, `ClassName`, a method bound to it, or one of the five
+properties the runtime has: `Length`, `Text`, `Eof`, `IsEmpty` and
+`Address`. One shared lookup answers all of them, in that order.
 
-⚠️ Its handler is BYTE-IDENTICAL to `OP_GET_FIELD`'s. Both read a name from
-the constants, pop a value, and push what one shared lookup answers -- so
-the two opcodes are one operation, and the difference is what the EMITTER
-meant rather than what the machine does. The lookup answers fields,
-`ClassName`, methods and these five in that one order, which is why a class
-declaring `Length` shadows the runtime's property [CLS-007] and `ClassName`
-answers ahead of a field of that name [CLS-008]. Whether both opcodes should
-exist is an open question; the reference's job here is to say that they do
-and that nothing distinguishes them.
+⚠️ Its handler is the SAME handler `OP_GET_FIELD` has, and that is
+deliberate rather than an oversight. The two opcodes are one operation and
+differ only in what the emitter knew: this one is emitted where the receiver
+is an arbitrary expression whose class is not known until run time, and
+`OP_GET_FIELD` where the class IS known -- a field of `this`, or of a
+declared type.
 
-⚠️ Not `OP_DECLARE_PROPERTY`, which declares a property OF A CLASS. These
-two were one name for a while, and the collision was silent: an emitter edit
-appeared to do nothing and the instruction emitted was valid but wrong.
+That split is worth keeping because it is exactly the split between the
+member reads whose slot could be computed at EMIT time and the ones that
+cannot. A field read is two lookups by folded name today, which is the shape
+the machine already optimized away for globals -- a hash per access became a
+fixed index and a subscript, measured at 12.8 against 13.1 M instructions a
+second. A slot-indexed field read would land on `OP_GET_FIELD`, and
+collapsing the two would throw away the classification that work needs.
+
+Named for what it does rather than for one kind of thing it answers. It was
+`OP_GET_MEMBER`, which said the runtime's five and meant all of them -- and
+sat one near-identical name away from `OP_DECLARE_PROPERTY`, a pair that
+cost an afternoon when an emitter edit silently did not apply.
+
+A class declaring `Length` SHADOWS the runtime's property of that name,
+which is the asymmetry [CLS-007] rests on, and `ClassName` answers ahead of
+a field of that name [CLS-008].
 
 Each of the five is written as a LITERAL in the lookup's chain, because a
-property cannot be reached from a name held in a variable -- the same
+member name cannot be reached from a value held in a variable -- the same
 constraint `OP_IS` works under.
 
 **Satisfies** — [RT-001], [CLS-007], [CLS-008], [TYP-017].
 
-**Raises** — `Undefined property '<name>'.`
+**Raises** — `Undefined property '<name>'.` for a name nothing answers.
 
-**See also** — `OP_DECLARE_PROPERTY`, `OP_GET_FIELD`, `OP_INVOKE`.
+**See also** — `OP_GET_FIELD`, `OP_DECLARE_PROPERTY`, `OP_INVOKE`.
 
 ---
 
@@ -1746,14 +1757,15 @@ The class is read and left.
 name calls it. A property is a method the program never writes parentheses
 for.
 
-⚠️ Not `OP_PROPERTY`, which already existed and reads one of the runtime's
-five. The two were one name briefly, and the collision was silent in the
-worst way: an emitter edit did not apply, and the instruction emitted was a
-valid opcode doing the wrong thing.
+⚠️ Not `OP_GET_MEMBER`, which READS a member where this one declares that
+reading a name should call it. The two were one name briefly --
+`OP_GET_MEMBER` -- and the collision was silent in the worst way: an emitter
+edit appeared to do nothing, and the instruction emitted was a valid opcode
+doing the wrong thing.
 
 **Satisfies** — [CLS-007].
 
-**See also** — `OP_PROPERTY`, `OP_METHOD`, `OP_GET_FIELD`.
+**See also** — `OP_GET_MEMBER`, `OP_METHOD`, `OP_GET_FIELD`.
 
 ## OP_INHERIT — Attach A Parent
 
@@ -1858,9 +1870,12 @@ one path, in that order -- so a class declaring `Length` shadows the
 runtime's property [CLS-007] and `ClassName` answers ahead of a field of
 that name [CLS-008].
 
-⚠️ Its handler is byte-identical to `OP_PROPERTY`'s, which that entry says
-more about: one shared lookup answers fields, `ClassName`, methods and the
-runtime's five properties, in that order.
+⚠️ Its handler is the SAME handler `OP_GET_MEMBER` has. This opcode is
+emitted where the emitter KNOWS the receiver's class -- a field of `this`,
+or of a declared type -- and that one where it does not. The machine cannot
+tell them apart; the emitter's classification is the whole of the
+difference, and it is the classification a slot-indexed field read would
+need. `OP_GET_MEMBER`'s entry says more.
 
 Of shroom-slots' 28 units, the bare FIELD read unblocked 2 and the bare
 METHOD call unblocked 18 -- the library writes `while not AtEnd () do`
@@ -1873,7 +1888,7 @@ opcode differs.
 `Only an instance has fields.` -- that is `OP_SET_FIELD`'s, and a READ of a
 member on a non-instance is simply an undefined property.
 
-**See also** — `OP_SET_FIELD`, `OP_THIS`, `OP_PROPERTY`, `OP_INVOKE`.
+**See also** — `OP_GET_MEMBER`, `OP_SET_FIELD`, `OP_THIS`, `OP_INVOKE`.
 
 ## OP_SET_FIELD — Write A Field
 
@@ -2046,7 +2061,7 @@ subprogram for its `Length`.
 **Raises** — `Undefined variable '<name>'.` where the extension's slot was
 never defined, naming the global rather than the member.
 
-**See also** — `OP_INVOKE_EXT`, `OP_CALL`, `OP_PROPERTY`.
+**See also** — `OP_INVOKE_EXT`, `OP_CALL`, `OP_GET_MEMBER`.
 
 ## OP_INVOKE_EXT — Invoke A Member, Or An Extension
 
