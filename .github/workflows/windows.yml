@@ -149,6 +149,25 @@ jobs:
           echo "--- lib ---"
           ls "$OUT/lib" | head -20
 
+      # What the machine actually sees, because the module search failing says
+      # only that it found nothing -- not which of the two questions went
+      # wrong, the path or the directory test.
+      - name: What the machine sees
+        run: |
+          OUT="$(pwd)/algol24-vm-windows-x86_64"
+          mkdir -p /tmp/probe && cd /tmp/probe
+
+          printf "WriteLn ('argv0: [', ParamStr (0), ']');\n" > probe.a24
+          cmd //c "$(cygpath -w "$OUT")\\algvm.bat" probe.a24
+
+          echo "--- is there a lib beside the exe? ---"
+          ls -la "$OUT" | head -8
+          echo "--- and in it ---"
+          ls "$OUT/lib" | head -5
+          echo "--- ALGOL24_LIB as the bat sets it ---"
+          cmd //c "echo %ALGOL24_LIB%"
+          cat "$OUT/algvm.bat"
+
       # STAGE 6 -- the package used as a user would, from a directory holding
       # none of its files.  This is what the whole arrangement exists for, and
       # what failed three separate ways on macOS before it worked.
