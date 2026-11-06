@@ -64,9 +64,10 @@ class Algol24Vm < Formula
 
     # ⚠️ A WRAPPER, and all three of these are load-bearing.
     #
-    # DYLD_LIBRARY_PATH: a unit says 'external ... in '\''libgraphffi.so'\''', which
-    # dlopen resolves relative to the working directory -- so without this the
-    # library works only when run from its own install directory.
+    # DYLD_LIBRARY_PATH: a unit declares its shim as "external ... in
+    # 'libgraphffi.so'", and dlopen is handed that name exactly as written --
+    # so a relative one resolves against the working directory, and without
+    # this the library works only when run from its own install directory.
     #
     # ALGOL24_LIB: 'graph' reads its glyph files itself rather than through the
     # compiler, so an installed font has to be named rather than searched for.
