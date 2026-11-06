@@ -34,6 +34,68 @@ begin
     Exit Result.Text;
 end
 
+/// Where an INSTALLED library's units live, or '' for none.
+///
+/// The third place a `uses` looks, after the importing file's own directory
+/// and the working directory [MOD-002] -- so a library installed by a package
+/// manager is reachable by its bare name, where before it could only be
+/// reached by writing its full path in every importing file.
+///
+/// Set by the DRIVER and not read here, which the ordering forces: the folder
+/// is derived from the binary's own path, and `SetProgramArguments` has
+/// already replaced what `ParamStr (0)` answers by the time parsing starts --
+/// so the Parser asking would get the path of the program being run.  This is
+/// the shape `SetProgramArguments` itself uses, and `SetCollectEvery` on the
+/// machine.
+var MODULE_FOLDER : String := '';
+
+/// Names where an installed library's units live.
+procedure SetModuleFolder (Folder : String);
+begin
+    MODULE_FOLDER := Folder;
+end
+
+/// Gets the directory part of a path, or '' when there is none.
+function FolderOf (Path : String) : String;
+var
+    Cut : Integer := -1;
+
+begin
+    for var I := 0; I < Length (Path); I := I + 1 do
+        if Path[I] = '/' then Cut := I;
+
+    if Cut < 0 then Exit '';
+
+    Exit Copy (Path, 0, Cut);
+end
+
+/// Where an installed library's units live, or '' when none is installed.
+///
+/// The same question RuntimeFolder answers about `algol.c` and `algol.h`, asked
+/// about `.a24` units, and answered the same way: from the binary's own path,
+/// because the language has no way to be told its own install prefix.  Beside
+/// the binary first, then the `bin/../share` layout a package manager makes.
+///
+/// Must be called before SetProgramArguments, which replaces what
+/// `ParamStr (0)` answers -- so asking afterwards gives the path of the
+/// program being run instead of the processor's own.
+function LibraryFolder () : String;
+var
+    Own : String;
+
+begin
+    Own := FolderOf (ParamStr (0));
+
+    if Own <> '' then
+    begin
+        if FileExists (Own + '/lib') then Exit Own + '/lib';
+        if FileExists (Own + '/../share/algol24/lib') then
+            Exit Own + '/../share/algol24/lib';
+    end
+
+    Exit '';
+end
+
 /// Turns one file's tokens into statements, loading the files it imports.
 class Parser;
 var
@@ -615,14 +677,16 @@ begin
     end
 
     /// Resolves a 'uses' name to a file: beside the importing file first, then
-    /// the working directory.
+    /// the working directory, then an installed library.
     ///
     /// Beside the importer first is what lets a program keep its own modules
-    /// next to it without the working directory deciding what it imports.
+    /// next to it without the working directory deciding what it imports, and
+    /// an installed library LAST so that a file of the same name nearer the
+    /// program always wins.
     ///
     /// # Raises
     ///
-    /// A refusal naming the module when neither location has the file.
+    /// A refusal naming the module when no location has the file.
     ///
     /// # Satisfies
     ///
@@ -644,8 +708,17 @@ begin
 
         if FileExists (TheFile) then Exit TheFile;
 
+        // An INSTALLED library, last, so anything nearer the program wins.
+        if MODULE_FOLDER <> '' then
+        begin
+            var Installed := MODULE_FOLDER + '/' + TheFile;
+            if FileExists (Installed) then Exit Installed;
+        end
+
         var Searched := 'the working directory';
         if Dir <> '' then Searched := '''' + Dir + ''' or the working directory';
+        if MODULE_FOLDER <> '' then
+            Searched := Searched + ', or ''' + MODULE_FOLDER + '''';
 
         raise Error (Where, 'Could not find module ''' + ModuleName
                           + ''': no ' + TheFile + ' in ' + Searched + '.');
@@ -3864,6 +3937,36 @@ begin
             end
     end
     Fail ('No exception raised.');
+end
+
+test 'A Module Is Found In The Installed Library Last';
+begin
+    // Resolved against the repository's own tree rather than a fixture: the
+    // tests always run from the root, so `compiler` stands in for an install
+    // and `compiler/Token.a24` for a unit inside it.
+    var TheScanner := Scanner ('uses Token;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    // A file in a directory that holds no Token.a24, so neither of the first
+    // two places can answer.
+    TheParser.FileName := 'spec/nothing-here.a24';
+
+    SetModuleFolder ('compiler');
+
+    AssertEqual ('compiler/Token.a24',
+                 TheParser.ResolveModule (TheParser.Peek (), 'Token'));
+
+    // And NEARER WINS: the working directory is tried before the install, so
+    // a unit of the same name there answers instead.
+    SetModuleFolder ('spec');
+
+    try
+        TheParser.ResolveModule (TheParser.Peek (), 'Token');
+
+        Fail ('An installed folder without the unit should not resolve.');
+    except
+        on e : String do SetModuleFolder ('');
+    end
 end
 
 test 'Parse An Extension Is Refused In A Class Body';

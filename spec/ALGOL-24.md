@@ -10792,10 +10792,29 @@ This is stated rather than fixed because the language does not own the
 filesystem. A program that wants to run everywhere spells a module name exactly
 as the file is named.
 
-A module is looked for **beside the importing file first**, then
-in the working directory. Two directories may therefore hold files of one name
-without either reaching the other's. Failure is `Could not find module 'X': no
-X.a24 in …`
+A module is looked for **beside the importing file first**, then in the working
+directory, then in an **installed library** if there is one. Two directories
+may therefore hold files of one name without either reaching the other's.
+Failure is `Could not find module 'X': no X.a24 in …`, naming the places
+searched.
+
+**Nearer wins, and the installed library is last** — so a unit a program keeps
+beside itself always beats one of the same name that happens to be installed,
+and installing a library can never change what an existing program means by a
+name.
+
+**Where the installed library is, the implementation decides**; the language
+does not name a directory. It has no way to be told its own install prefix, so
+a processor answers from its own binary's path — this one looks beside the
+binary and then in the `bin/../share` layout a package manager makes. A
+processor that finds none searches the first two places only, which is what it
+did before this rule had a third.
+
+The third place exists because a library has to be *reachable by its name*. A
+package manager installs units outside the program's directory, so without it
+`uses graph;` could only be written as the full path to the installed file, in
+every importing file — which is not a library so much as a convention about
+where to copy one.
 
     conformance  0082-module-import.a24
 

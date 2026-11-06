@@ -259,19 +259,6 @@ end
 /// The release this compiler reports for '--version'.
 const VERSION := '0.2.0';
 
-/// Gets the directory part of a path, or '' when there is none.
-function FolderOf (Path : String) : String;
-var
-    Cut : Integer := -1;
-
-begin
-    for var I := 0; I < Length (Path); I := I + 1 do
-        if Path[I] = '/' then Cut := I;
-
-    if Cut < 0 then Exit '';
-
-    Exit Copy (Path, 0, Cut);
-end
 
 /// Copies one file, answering whether it worked.
 function CopyFile (FromPath : String, ToPath : String) : Boolean;
@@ -362,6 +349,12 @@ var
     Name : String;
 
 begin
+    // FIRST, because SetProgramArguments below replaces what ParamStr (0)
+    // answers and LibraryFolder reads it to find the install prefix.  Once
+    // per run rather than per driver, so the three paths -- run, --test and
+    // --compile -- cannot disagree about where a library lives.
+    SetModuleFolder (LibraryFolder ());
+
     // A bare 'algc' says how to invoke it.  It used to run a built-in sample
     // program instead, which reads as the compiler having done something to a
     // file that was never named -- surprising in a terminal, and more so
