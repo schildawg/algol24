@@ -91,6 +91,25 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `Undefined` — a declaration is what defines a global, so `var X;` is nil
   while a read from above its declaration raises.
 
+  ⚠️ **`<=` and `>=` ARE opcodes, and spelling them as a negation was wrong
+  about NaN.** `clox` emits `>=` as `OP_LESS` + `OP_NOT` and saves two numbers
+  by it; every ordered comparison with NaN is false, so negating one answers
+  **true** and `NaN <= 1.0` came out true where both other processors answer
+  false. `OP_LESS_EQUAL` and `OP_GREATER_EQUAL` defer to the host's own
+  operators, which is the rule the arithmetic already follows.
+
+  ⚠️ **`<>` keeps its negation and is RIGHT to**, which is what makes the
+  other two easy to get wrong by analogy. Equality is defined for NaN
+  [VAL-011] — it is not equal to itself — so `OP_EQUAL` + `OP_NOT` answers
+  true, which is what `NaN <> NaN` should say. Only the ORDERED pair breaks.
+
+  ⚠️ **264 corpus programs could not catch it, and a library assertion
+  could.** `AssertNear` guards itself with
+  `not (Difference <= Tolerance)` — exactly the shape the negation inverts —
+  so a NaN difference **passed** a test written to catch it, in four of
+  `algol24-library`'s units at once. `conformance/0208` is the case now. The
+  corpus had no program that compared a NaN at all.
+
   ⚠️ **`and` and `or` need no opcodes**, and must not get any. They yield an
   *operand* [EXP-010], which is exactly what a jump plus an `OP_POP` produces,
   and `OP_JUMP_IF_FALSE` deliberately does not pop so that the operand is still
@@ -885,8 +904,12 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
 
   ⚠️ **Renumber opcodes from DECLARATION ORDER, never by hand.** Inserting one
   while renumbering those above it left a gap twice and a collision once, in
-  four increments. There is a test for contiguous *and* unique, and the fix is
-  a script that renumbers every opcode from its position in the file.
+  four increments. `The Numbering Is Contiguous And Unique` is the test that
+  catches it — and this sentence used to promise "a script that renumbers
+  every opcode from its position in the file", which **does not exist**. There
+  is no such script; the test is the whole safeguard. Simplest is to APPEND a
+  new opcode above `OP_COUNT` and renumber nothing, which is sound because an
+  opcode's number is not interface.
 
   ⚠️ **`Exit` inside a loop leaves the whole subprogram.** An untyped parameter
   stopped every later one from being widened, because the skip was written as

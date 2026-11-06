@@ -1962,21 +1962,19 @@ begin
     else if Op = '<<' then Into.Emit (OP_SHIFT_LEFT);
     else if Op = '>>' then Into.Emit (OP_SHIFT_RIGHT);
 
-    // The three the machine does not have, each one instruction and a negation
-    // -- which is what clox does, and costs a byte rather than three opcodes.
+    else if Op = '<=' then Into.Emit (OP_LESS_EQUAL);
+    else if Op = '>=' then Into.Emit (OP_GREATER_EQUAL);
+
+    // ⚠️ `<>` is the ONE the machine still spells as a negation, and it is
+    // right to.  Equality is defined for NaN [VAL-011] -- `NaN = NaN` is
+    // false -- so negating it answers true, which is what `NaN <> NaN` should
+    // say.  The ORDERED pair above used to be spelled this way too, which is
+    // what clox does, and it was wrong: every ordered comparison with NaN is
+    // false, so a negation answered TRUE and `NaN <= 1.0` came out true here
+    // where both other processors answer false.
     else if Op = '<>' then
     begin
         Into.Emit (OP_EQUAL);
-        Into.Emit (OP_NOT);
-    end
-    else if Op = '>=' then
-    begin
-        Into.Emit (OP_LESS);
-        Into.Emit (OP_NOT);
-    end
-    else if Op = '<=' then
-    begin
-        Into.Emit (OP_GREATER);
         Into.Emit (OP_NOT);
     end
     else Refuse ('Binary ''' + Op + '''');

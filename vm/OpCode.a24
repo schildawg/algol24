@@ -538,7 +538,26 @@ const OP_SUBRANGE := 76;
 /// invariant that at most one operand per opcode is widenable.
 const OP_INVOKE_EXT_NAMED := 77;
 
-const OP_COUNT := 78;
+/// Pushes whether the lower of the top two is less than or equal to the upper.
+///
+/// An opcode of its own, where clox spells `<=` as `>` followed by a negation
+/// and saves two numbers by it.  That trick is wrong about NaN, and silently:
+/// every ordered comparison with NaN is false, so negating one answers TRUE
+/// and `NaN <= 1.0` came out true on this machine where both other processors
+/// answer false.  It cost a library assertion -- `AssertNear` guards itself
+/// with `not (Difference <= Tolerance)`, which is exactly the shape the trick
+/// inverts, so a NaN difference PASSED a test written to catch it.
+///
+/// `<>` keeps the negation and is right to: equality is defined for NaN
+/// [VAL-011], so `NaN = NaN` being false makes `NaN <> NaN` true, which is
+/// the answer wanted.  Only the ORDERED pair breaks.
+const OP_LESS_EQUAL := 78;
+
+/// Pushes whether the lower of the top two is greater than or equal to the
+/// upper.  The other half of what the negation got wrong.
+const OP_GREATER_EQUAL := 79;
+
+const OP_COUNT := 80;
 
 /// The method name a constructor's BODY is registered under, holding a space.
 ///
@@ -586,6 +605,8 @@ begin
     if Op = OP_EQUAL         then Exit 'OP_EQUAL';
     if Op = OP_GREATER       then Exit 'OP_GREATER';
     if Op = OP_LESS          then Exit 'OP_LESS';
+    if Op = OP_LESS_EQUAL    then Exit 'OP_LESS_EQUAL';
+    if Op = OP_GREATER_EQUAL then Exit 'OP_GREATER_EQUAL';
     if Op = OP_ADD           then Exit 'OP_ADD';
     if Op = OP_SUBTRACT      then Exit 'OP_SUBTRACT';
     if Op = OP_MULTIPLY      then Exit 'OP_MULTIPLY';
@@ -830,6 +851,8 @@ begin
     if Op = OP_EQUAL                then Exit '2 1 2';
     if Op = OP_GREATER              then Exit '2 1 2';
     if Op = OP_LESS                 then Exit '2 1 2';
+    if Op = OP_LESS_EQUAL           then Exit '2 1 2';
+    if Op = OP_GREATER_EQUAL        then Exit '2 1 2';
     if Op = OP_ADD                  then Exit '2 1 2';
     if Op = OP_SUBTRACT             then Exit '2 1 2';
     if Op = OP_MULTIPLY             then Exit '2 1 2';

@@ -4290,6 +4290,21 @@ extends it: `'ab' < 'abc'`. Anything else is `Operands must be numbers.`
 one-character String `Str ('a')` orders identically to the Char `'a'` — the two
 are still never *equal* [VAL-009], but they sit in one order.
 
+**NaN compares false against everything, itself included — and the INCLUSIVE
+comparisons are no exception.** `NaN <= 1.0` is false, not true. This is the
+one shape in the language where `a <= b` is **not** `not (a > b)`: every
+ordered comparison with NaN is false, so negating a strict one answers the
+opposite of the truth. `<>` is the exception that proves it, since equality
+*is* defined for NaN — it is not equal to itself, so it is unequal to itself,
+and `NaN <> NaN` is true.
+
+Written down because a back end got it wrong by spelling `<=` as a negated
+`>`, which is what `clox` does and which costs two opcodes to avoid. It passed
+every conformance case and 264 corpus programs, and surfaced in a library
+assertion: `AssertNear` guards itself with `not (Difference <= Tolerance)`,
+exactly the shape the negation inverts, so a NaN difference **passed** a test
+written to catch it.
+
 **Code points, not bytes.** UTF-8 was designed so that byte order and
 code-point order agree, so an implementation comparing bytes is right by
 accident; this one is written in terms of code points so that it is right on
@@ -4303,6 +4318,64 @@ language disagreed with itself about which came first. Fixed with this rule.
 A **class instance** orders when its class declares `Compare (Other) : Integer`,
 answering negative, zero or positive. Without one, `A < B` on two instances is
 `Operands must be numbers.`
+
+##### conformance/0208-nan-is-not-ordered.a24
+
+```algol24
+// NaN compares false against everything, itself included -- and that is as
+// true of the inclusive comparisons as of the strict ones [VAL-014].  It is
+// the one shape where `a <= b` is NOT `not (a > b)`, which a bytecode back end
+// spelling it that way answered backwards.
+
+var NaN := 0.0 / 0.0;
+
+WriteLn (NaN);
+
+// Strict, and false in both directions.
+WriteLn (NaN < 1.0,  ' ', NaN > 1.0);
+WriteLn (1.0 < NaN,  ' ', 1.0 > NaN);
+
+// INCLUSIVE, and false in both directions too -- not true, which negating a
+// strict comparison would give.
+WriteLn (NaN <= 1.0, ' ', NaN >= 1.0);
+WriteLn (1.0 <= NaN, ' ', 1.0 >= NaN);
+
+// Against itself: a value not equal to itself, and not ordered with itself.
+WriteLn (NaN = NaN,  ' ', NaN <= NaN, ' ', NaN >= NaN);
+
+// `<>` is the exception, and the reason is that EQUALITY is defined for NaN:
+// it is not equal to itself, so it IS unequal to itself.
+WriteLn (NaN <> NaN);
+
+// Infinity is ordered, so it is not the same case.
+var Inf := 1.0 / 0.0;
+
+WriteLn (Inf, ' ', 0 - Inf);
+WriteLn (1.0 <= Inf, ' ', Inf <= Inf, ' ', Inf >= Inf);
+WriteLn (NaN <= Inf, ' ', NaN >= 0 - Inf);
+
+// And the ordinary cases are untouched, which is what the negation got right.
+WriteLn (1 <= 2, ' ', 2 <= 2, ' ', 3 <= 2);
+WriteLn (1 >= 2, ' ', 2 >= 2, ' ', 3 >= 2);
+WriteLn ('ab' <= 'abc', ' ', 'b' >= 'a');
+```
+
+```console
+$ algc conformance/0208-nan-is-not-ordered.a24
+NaN
+false false
+false false
+false false
+false false
+false false false
+true
+Infinity -Infinity
+true true true
+false false
+true true false
+false true true
+true true
+```
 
 **The fourth structural protocol**, beside `Contains`, `ToString` [CLS-009]
 and `Elements` [TYP-011]; subscripting [TYP-010] is the fifth. A name and a

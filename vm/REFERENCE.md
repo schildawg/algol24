@@ -117,9 +117,10 @@ Entries are grouped by what an instruction is for, which is how
 `OP_ENUM_MEMBER`  `OP_EQUAL`  `OP_EXTEND`  `OP_FALSE`  
 `OP_FIELD`  `OP_GET_BOX`  `OP_GET_CELL`  `OP_GET_FIELD`  
 `OP_GET_GLOBAL`  `OP_GET_GLOBAL_LONG`  `OP_GET_LOCAL`  `OP_GET_MEMBER`  
-`OP_GREATER`  `OP_IN`  `OP_INHERIT`  `OP_INVOKE`  
+`OP_GREATER`  `OP_GREATER_EQUAL`  `OP_IN`  `OP_INHERIT`  
 `OP_INVOKE_EXT`  `OP_INVOKE_EXT_NAMED`  `OP_INVOKE_NAMED`  `OP_IS`  
-`OP_ITER`  `OP_JUMP`  `OP_JUMP_IF_FALSE`  `OP_LESS`  
+`OP_INVOKE`  `OP_ITER`  `OP_JUMP`  `OP_JUMP_IF_FALSE`  
+`OP_LESS`  `OP_LESS_EQUAL`  
 `OP_LIST`  `OP_LONG`  `OP_LOOP`  `OP_MAP`  
 `OP_METHOD`  `OP_MOD`  `OP_MULTIPLY`  `OP_NEGATE`  
 `OP_NIL`  `OP_NOT`  `OP_OVERLOADS`  `OP_POP`  
@@ -980,6 +981,30 @@ program's business.
 
 **See also** — `OP_LESS`, `OP_EQUAL`.
 
+## OP_GREATER_EQUAL — Compare Greater Or Equal
+
+```
+Encoding    [ 79 ]                            1 byte
+```
+
+**Stack** — pops 2, pushes 1, needs 2.
+
+**Operation** — Pops two values and pushes whether the lower is greater than
+or equal to the upper.
+
+⚠️ An opcode of its own, where `clox` spells `>=` as `OP_LESS` followed by
+`OP_NOT`. That trick is wrong about NaN and wrong silently: every ordered
+comparison with NaN is false, so negating one answers **true**, and
+`NaN >= 1.0` came out true here where both other processors answer false.
+`OP_EQUAL` keeps its negation for `<>` and is right to — equality is defined
+for NaN, so `NaN <> NaN` is true, which is the wanted answer.
+
+**Satisfies** — [ENU-008], [VAL-014].
+
+**Raises** — `Operands must be numbers.`
+
+**See also** — `OP_GREATER`, `OP_LESS_EQUAL`, `OP_NOT`.
+
 ## OP_LESS — Compare Less
 
 ```
@@ -996,6 +1021,29 @@ the upper.
 **Raises** — `Operands must be numbers.`
 
 **See also** — `OP_GREATER`, `OP_EQUAL`.
+
+## OP_LESS_EQUAL — Compare Less Or Equal
+
+```
+Encoding    [ 78 ]                            1 byte
+```
+
+**Stack** — pops 2, pushes 1, needs 2.
+
+**Operation** — Pops two values and pushes whether the lower is less than or
+equal to the upper.
+
+⚠️ The half of the pair that cost something. `AssertNear` in
+`algol24-library` guards itself with `not (Difference <= Tolerance)`, which is
+exactly the shape a negated `OP_GREATER` inverts — so a NaN difference
+**passed** an assertion written to catch it, in four units at once. See
+`OP_GREATER_EQUAL` for why `<>` keeps its negation and the ordered pair cannot.
+
+**Satisfies** — [ENU-008], [VAL-014].
+
+**Raises** — `Operands must be numbers.`
+
+**See also** — `OP_LESS`, `OP_GREATER_EQUAL`, `OP_NOT`.
 
 ## OP_NOT — Logical Not
 

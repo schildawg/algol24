@@ -1109,6 +1109,55 @@ begin
     Push (Left > Right);
 end
 
+/// Pushes whether the lower of the top two is less than or equal to the upper.
+///
+/// Its own handler rather than OP_GREATER and a negation, because the
+/// negation is wrong about NaN: every ordered comparison with NaN is false, so
+/// `not (NaN > 1.0)` answers true where `NaN <= 1.0` is false.  Deferring to
+/// the host's own `<=` is what keeps the three processors agreeing -- the same
+/// rule the arithmetic follows, a guest value being a host value.
+procedure DoLessEqual ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+
+    var Left := Pop ();
+
+    // A class may order itself [VAL-014], exactly as the strict pair allows,
+    // and what Compare answers is read as a sign.
+    if OrdersItself (Left) then
+    begin
+        Push (OrderOf (Left, Right) <= 0);
+
+        Exit;
+    end
+
+    Push (Left <= Right);
+end
+
+/// Pushes whether the lower of the top two is greater than or equal to the
+/// upper.  The other half of what the negation got wrong.
+procedure DoGreaterEqual ();
+var
+    Right : Any;
+
+begin
+    Right := Pop ();
+
+    var Left := Pop ();
+
+    if OrdersItself (Left) then
+    begin
+        Push (OrderOf (Left, Right) >= 0);
+
+        Exit;
+    end
+
+    Push (Left >= Right);
+end
+
 /// Pushes whether the lower of the top two is less than the upper.
 procedure DoLess ();
 var
@@ -3670,6 +3719,8 @@ begin
     Table[OP_EQUAL]         := DoEqual;
     Table[OP_GREATER]       := DoGreater;
     Table[OP_LESS]          := DoLess;
+    Table[OP_LESS_EQUAL]    := DoLessEqual;
+    Table[OP_GREATER_EQUAL] := DoGreaterEqual;
     Table[OP_NOT]           := DoNot;
     Table[OP_JUMP]          := DoJump;
     Table[OP_JUMP_IF_FALSE] := DoJumpIfFalse;
@@ -4388,6 +4439,8 @@ begin
     AssertStackEffect (OP_EQUAL,       None, 0);
     AssertStackEffect (OP_GREATER,     None, 0);
     AssertStackEffect (OP_LESS,        None, 0);
+    AssertStackEffect (OP_LESS_EQUAL,  None, 0);
+    AssertStackEffect (OP_GREATER_EQUAL, None, 0);
     AssertStackEffect (OP_ADD,         None, 0);
     AssertStackEffect (OP_SUBTRACT,    None, 0);
     AssertStackEffect (OP_MULTIPLY,    None, 0);
