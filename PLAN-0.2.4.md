@@ -3,6 +3,8 @@
 **Status:** reproduced, not started. Written 2026-11-06, on branch
 `defect-sweep`.
 
+**All sixteen are closed.** `./defects.sh` reports `16 fixed, 0 reproducing`.
+
 Fifteen open defects from two projects using the language:
 `shroom-slots/DEFECTS.md` (R-1 … R-15, thirteen open) and
 `algol24.com/DEFECTS-FOUND.md` (D-1, D-2). **Every one was re-reproduced
@@ -784,85 +786,83 @@ the figure.
 
 ---
 
-## 9. R-5 — a runtime error carries no location  ·  BOTH HALVES PROPOSED
+## 9. R-5 — a runtime error carries no location  ·  DONE
 
-**The ordering half is NOT independent of the location half, which is what
-trying it showed.** It is in `PROPOSAL-RUNTIME-LOCATION.md` with the rest.
+**Both halves landed, and it took a language addition to do it.**
 
-The ordering complaint is real and the cause is exact: both uncaught sites write
-to stderr, which is unbuffered, while the program's own output sits in stdout's
-buffer — block-buffered the moment it is redirected — and `exit` flushes it only
-afterwards. **At a terminal nothing looks wrong**, because stdout is
-line-buffered there; piped or redirected, every program appears to fail before
-it printed anything.
+### `ErrorLn`, the thirty-fifth built-in
 
-⚠️ **But `fflush(stdout)` before the diagnostic REORDERS EVERY LOCATED
-DIAGNOSTIC TOO, and that is a change to what every compile error looks like.**
-`Console.Error` writes its three-line excerpt to **stdout** while the front end
-is still running; the `Uncaught:` sentence is written by the driver afterwards.
-So chronologically the excerpt comes FIRST, and the recorded order —
+Fixing R-5 needed Algol-24 to write a diagnostic somewhere that is not its
+output, and **the language had no way to reach the error stream at all** —
+nothing in `algol.h` exposed it, and `Console.Fail` is the test-line writer.
+Without that, a driver reporting a location would have moved the whole
+diagnostic from stderr to stdout, which is a worse change than the one it fixes.
 
-```
-Uncaught: Expect variable name.
-[ERROR] conformance/0100-parse-error-shape.a24: Expect variable name.
-[ERROR] 1 | var := 1;
-[ERROR]   | ^^^
-```
+So **[RT-030]**: `ErrorLn` writes one line to the error stream, takes any number
+of values and joins them as `WriteLn` does, and flushes standard output first.
+`conformance/0217` pins it; `spec/spec.sh` holds the count to the interpreter's
+own registrations and reports 35 built-ins, 32 always available.
 
-— **is itself a buffering artefact.** Flushing honestly inverts it to
-excerpt-then-sentence, which puts the detail before the summary and reads worse
-than what it replaces.
+⚠️ **It needed the TWO-GENERATION dance** `CLAUDE.md` records for a new
+operator. Generation 1 taught the runtime and `CEmitter`; only after reseeding
+could `compiler/*.a24` *call* `ErrorLn`, so generation 2 added the interpreter's
+arm, the machine's dispatch and the drivers' use of it. `VmEmitter` also had to
+learn the name — it refuses any built-in not on its list.
 
-Measured: **41 cases** change, not the 27 the ordering alone accounts for. The
-other fourteen are the located ones, and they change because the artefact was
-holding them in the order the specification records.
+### The location, by a different mechanism in each processor
 
-**So the two halves share one cause**: the report is printed by two layers at
-two times, and neither owns it. Getting the order right needs the driver to own
-the whole report — which is exactly the restructuring the location half needs
-anyway, since that is where a runtime error's own excerpt would have to be
-printed from. Doing the flush alone buys a correct order for runtime errors at
-the price of a worse one for every parse error.
+| | how | cost |
+| --- | --- | --- |
+| interpreter | publishes per statement: `Stmt` gained `Line`/`File`, stamped at `Parser.Statement` | one store per statement |
+| machine | **recovers it from `IP`** where the dispatch loop catches a host error | **nothing until something fails** |
+| compiled | nothing, by decision [ERR-003] | nothing |
 
-⚠️ **This was implemented, measured and REVERTED**, and the revert is the
-finding. `report_uncaught` with its flush is three lines; the 41 cases were
-regenerated from actual output and the diff was clean. What stopped it was
-reading the result: nothing in R-5 asks for parse errors to be reordered, and
-nobody asked for the detail to precede the summary.
+`Stmt`'s location is on the **base class** because the concrete statements carry
+no token in common — some a `Name`, some a `Keyword`, a block or expression
+statement neither — and `Parser.Statement` is the one funnel all thirty-odd
+callers reach. The machine's line table is **sparse**, an entry only where the
+line changes, so it costs one pair per statement rather than clox's one line per
+byte; nothing reads it on the happy path, so the lookup can be a plain scan.
 
----
+**The location is a second line, never part of the message**, which is forced:
+69 corpus cases print a caught message, 20 assertions in this compiler compare
+one exactly, and the library has 38 handlers.
 
-Not a repair. A runtime error prints one sentence and nothing else:
+### And the ordering half fixed itself
 
-```console
-$ algc rt2.a24
-Uncaught: Operands must be numbers.
-before
-```
+`ErrorLn` flushes, so the interpreter and the machine became chronological for
+free. Compiled then disagreed, so `report_uncaught` flushes too — and all three
+now put a program's output before the diagnostic that stopped it.
 
-No file, no line, no call stack, in all three processors — so it is not a
-divergence, and it is the whole of what a program gets when it fails. It
-compounds with every silent defect above, because each of their symptoms *is* a
-runtime error at a distance: R-1's field becomes a function value and the
-program dies later in unrelated arithmetic with exactly this message.
+⚠️ **That reorders every LOCATED diagnostic, and the old order was the
+artefact.** `Console.Error` writes its excerpt to stdout as the front end fails;
+the sentence goes to stderr afterwards. So the excerpt was always written first
+and only *appeared* second because it sat in a buffer. [ERR-005] now shows
+excerpt-then-sentence, which is also what every other compiler prints.
 
-**Two halves, and they are very different sizes.**
+### What this cost to land, measured
 
-The ordering half is cheap and real: `before` is printed by the program before
-the failure and appears after it, because the message goes to stderr and the
-output to stdout unflushed. Flushing stdout before writing a diagnostic fixes it.
+| | |
+| --- | --- |
+| cases regenerated in `spec/ALGOL-24.md` | **75** |
+| defect `.current` files | 1 — `DEF-35`, tracked directly rather than generated |
+| prose examples corrected | 1 — [ERR-005] |
+| harnesses taught to drop the location | **2** — `conform.sh` **and** `vm/conform.sh` |
 
-The location half is a feature. A runtime error would have to carry the
-statement it happened in, through three processors, with the reports still
-byte-identical — the interpreter tracking the executing statement's token, the
-C back end emitting a line per statement, and the machine mapping bytecode back
-to source. That is a release of its own, and it is the single largest
-improvement available to anyone using the language.
+⚠️ **Three bugs in my own regeneration script, each caught by the corpus rather
+than by reading it**, and all one mistake — reimplementing `render()` by eye
+instead of reading it. It recorded `[WARN]` lines that `render` drops; it
+*concatenated* the two streams where the harness interleaves them, recording an
+order no run produces (visible only on `0217`, the one case that uses both); and
+it did not transliterate NUL to `^@`, which only `0179` notices.
 
-**Proposed:** take the ordering half now, and write `PROPOSAL-RUNTIME-LOCATION.md`
-for the rest rather than starting it inside a defect sweep.
-
----
+⚠️ **And the last failure was a STALE BINARY, not code.** `bootstrap/algc` and
+`vm/algvm` both link the hand-written `algol.c`, and I rebuilt only the first
+after adding the flush — so the machine ran the old runtime and D-1's three
+outputs disagreed on ordering. Changing `algol.c` means rebuilding **both**.
+`defects.sh` caught it where neither corpus did, because `vm/conform.sh` builds
+its own `algc` but uses the checked-in machine: a stale machine passes there and
+fails a three-way comparison.
 
 ## 10. R-13 — the interpreter's memory  ·  DONE
 
@@ -1037,7 +1037,7 @@ late:
 | 7 | ~~**4** — R-8 and R-10 at compile time~~ **DONE** | changes what the compiler accepts; wants the corpus green first |
 | 8 | ~~**3** — `Token` gains a file~~ **DONE** | touches the seed and both processors' reports |
 | 9 | ~~**11** — a built-in held as a value~~ **DONE** | found by this sweep, not reported; the C back end gives a wrong answer where its own rule is to refuse |
-| 10 | **9** proposed (both halves), ~~**10**~~ **DONE** | R-13 was a repair after all |
+| 10 | ~~**9**~~ **DONE** (both halves), ~~**10**~~ **DONE** | both were repairs after all |
 
 **Every item lands with its conformance case**, written into
 `spec/ALGOL-24.md` under the rule it pins — not into `conformance/`, which is

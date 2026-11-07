@@ -128,11 +128,12 @@ begin
     Names := Set();
 
     for var Name in ['Array', 'AssertEqual', 'AssertTrue', 'Buffer', 'ChDir',
-                     'Char', 'clock', 'Collect', 'Copy', 'Fail', 'FileExists',
-                     'Foreign', 'GetDir', 'Halt', 'Length', 'List', 'Map',
-                     'MkDir', 'Ord', 'ParamCount', 'ParamStr', 'Pos', 'Pred',
-                     'RmDir', 'Set', 'Stack', 'Str', 'Succ', 'TextFile',
-                     'ToLower', 'ToUpper', 'Val', 'Write', 'WriteLn'] do
+                     'Char', 'clock', 'Collect', 'Copy', 'ErrorLn', 'Fail',
+                     'FileExists', 'Foreign', 'GetDir', 'Halt', 'Length',
+                     'List', 'Map', 'MkDir', 'Ord', 'ParamCount', 'ParamStr',
+                     'Pos', 'Pred', 'RmDir', 'Set', 'Stack', 'Str', 'Succ',
+                     'TextFile', 'ToLower', 'ToUpper', 'Val', 'Write',
+                     'WriteLn'] do
         Names.Add (FoldCase (Str (Name)));
 
     Exit Names;

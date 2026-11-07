@@ -3698,10 +3698,40 @@ void alg_pop_frame(void) {
     if (frames != NULL) frames = frames->previous;
 }
 
+/* Reports an uncaught raise and stops, with status 70 [ERR-009].
+ *
+ * STDOUT IS FLUSHED FIRST.  The diagnostic goes to stderr, which is unbuffered,
+ * while the program's own output goes to stdout, which is block-buffered the
+ * moment it is redirected -- so without this the output was still in its buffer
+ * when the diagnostic was written and `exit` flushed it afterwards.  At a
+ * terminal nothing looked wrong, because stdout is line-buffered there; piped
+ * or redirected, every program appeared to fail BEFORE it had printed
+ * anything, and a program's last output before dying is the most useful thing
+ * it has.
+ *
+ * The tree walker and the machine do not reach here for a runtime error -- each
+ * has a driver that catches it and reports through ErrorLn [RT-030], which
+ * flushes for the same reason and adds the location [ERR-003].  This is the
+ * path a COMPILED program takes, and `algc`'s own escaping raises.
+ *
+ * One function rather than the two sites that used to do this, so a later
+ * addition cannot be the one that forgets. */
+_Noreturn static void report_uncaught(const char *message) {
+    fflush(stdout);
+
+    fprintf(stderr, "Uncaught: %s\n", message);
+
+    exit(70);
+}
+
 _Noreturn void alg_raise(Value value) {
     if (frames == NULL) {
-        fprintf(stderr, "Uncaught: %s\n", as_text(value));
-        exit(70);
+        /* Rendered BEFORE the flush, because a guest ToString [CLS-009] may
+           print on its way to answering -- and what it printed belongs before
+           the diagnostic like any other output of the program. */
+        const char *text = as_text(value);
+
+        report_uncaught(text);
     }
 
     AlgFrame *frame = frames;
@@ -3728,8 +3758,7 @@ _Noreturn void alg_error(const char *message) {
         alg_raise(alg_string(kept));
     }
 
-    fprintf(stderr, "Uncaught: %s\n", message);
-    exit(70);
+    report_uncaught(message);
 }
 
 static const char *type_name(Value v) {
@@ -5464,6 +5493,16 @@ void alg_writeln(Value v) {
     if (in_tests) return;
 
     fputc('\n', stdout);
+}
+
+void alg_stderr_line(Value v) {
+    if (in_tests) return;
+
+    /* The program's own output first, or a diagnostic written after it would
+       appear before it in any pipe. */
+    fflush(stdout);
+
+    fprintf(stderr, "%s\n", as_text(v));
 }
 
 void alg_writeln_blank(void) {

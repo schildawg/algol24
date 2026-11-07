@@ -3691,7 +3691,7 @@ begin
                         + '(Value **cells, Value *args, int32_t count) {' + #10);
         Functions.Append ('    (void)cells;' + #10);
 
-        if Folded = 'write' or Folded = 'writeln' then
+        if Folded = 'write' or Folded = 'writeln' or Folded = 'errorln' then
         begin
             // Write and WriteLn take ANY count and join what they are given,
             // which is what the emitter does at an ordinary call site through
@@ -3704,6 +3704,8 @@ begin
             // itself rather than returning what they gave.
             if Folded = 'writeln' then
                 Functions.Append ('    if (count == 0) { alg_writeln_blank(); return alg_nil(); }' + #10);
+            else if Folded = 'errorln' then
+                Functions.Append ('    if (count == 0) { alg_stderr_line(alg_string("")); return alg_nil(); }' + #10);
             else
                 Functions.Append ('    if (count == 0) return alg_nil();' + #10);
 
@@ -3760,7 +3762,8 @@ begin
     begin
         Folded := FoldCase (Name);
 
-        Exit Folded = 'write' or Folded = 'writeln' or Folded = 'halt';
+        Exit Folded = 'write' or Folded = 'writeln' or Folded = 'errorln'
+          or Folded = 'halt';
     end
 
     /// Gets the runtime call a built-in maps onto, or '' when it is not one.
@@ -3793,6 +3796,7 @@ begin
         // without folding them would have missed all thirty-one instead of ten.
         Key := FoldCase (Name) + '/' + Str (Count);
 
+        if Key = 'errorln/1' then Exit 'alg_stderr_line';
         if Key = 'writeln/1' then Exit 'alg_writeln';
         if Key = 'writeln/0' then Exit 'alg_writeln_blank';
         if Key = 'write/1'   then Exit 'alg_write';
@@ -4187,7 +4191,9 @@ begin
         begin
             var One := Builtin (Name, 1);
 
-            if One = 'alg_writeln' or One = 'alg_write' then
+            // The three that take any count and join what they are given.
+            if One = 'alg_writeln' or One = 'alg_write'
+                                   or One = 'alg_stderr_line' then
                 Exit One + '(' + RunTogether (Arguments) + ')';
         end
 

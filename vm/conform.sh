@@ -5,7 +5,15 @@
 #     ./bootstrap/build.sh && vm/conform.sh
 #
 # The third column PROPOSAL-VM.md item 5 asks for.  Output is rendered exactly
-# as conform.sh renders it -- ANSI stripped, [WARN] lines dropped from both
+# as conform.sh renders it -- ANSI stripped, [WARN] and '       at FILE:LINE'
+# lines dropped from both.
+#
+# ⚠️ THE LOCATION LINE IS DROPPED FOR THE SAME REASON A [WARN] IS, and one
+# more: the processors are MEANT to differ about it.  A runtime error carries
+# its file and line in the tree walker and the machine and NOT in compiled
+# Algol-24 [ERR-003], so a fixture recorded from one processor would otherwise
+# never match another -- thirty-seven cases at once, which is how this was
+# found.
 # sides, the exit status appended -- so a case comparing equal here is
 # comparing equal by the same rule the other two processors are held to.
 #
@@ -50,6 +58,7 @@ BEL=$(printf '\007')
 render() {
     sed -e "s/${ESC}\[[0-9;]*m//g" \
       | { grep -av '^\[WARN\]' || true; } \
+      | { grep -av '^       at ' || true; } \
       | tr '\000' "$BEL" | sed "s/${BEL}/^@/g"
 }
 

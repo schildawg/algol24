@@ -170,7 +170,50 @@ begin
 
     TypeChecker().Resolve(Stmts);
 
-    TheInterpreter.Interpret(Stmts);
+    // WHERE A RUNTIME ERROR HAPPENED, which only a driver can report.
+    //
+    // The runtime produces the message and is handed values and nothing else,
+    // so it cannot know the location; the walker publishes the statement it is
+    // on and this catches what no handler in the program caught.
+    //
+    // ⚠️ COMPILED Algol-24 has no such wrapper and reports no location, by
+    // decision [ERR-003] -- a program wanting one runs under the machine,
+    // which can disassemble itself.  So the three processors do NOT agree
+    // here, and conform.sh drops the 'at' line from both sides for the reason
+    // it drops a [WARN]: a diagnostic about a program is not output of it.
+    try
+        TheInterpreter.Interpret(Stmts);
+    except
+        on e : String do ReportRuntime (e);
+        on e : Any    do ReportRuntime (Str (e));
+    end
+end
+
+/// Reports an uncaught runtime error with the statement it happened on, and
+/// stops with status 70 [ERR-009].
+///
+/// The sentence is worded exactly as the runtime words it, because that is what
+/// every recorded case compares; only the second line is new.
+///
+/// The location is a SECOND LINE rather than part of the message, and that is
+/// required rather than tidy: a runtime error is catchable [STM-020] and
+/// arrives as a String, so sixty-nine corpus cases print a caught message,
+/// twenty assertions in this compiler compare one exactly, and the library has
+/// thirty-eight handlers.  Putting the location in the message would change
+/// every one of them.
+///
+/// # Satisfies
+///
+/// [ERR-003], [ERR-009]
+procedure ReportRuntime (Message : String);
+begin
+    ErrorLn ('Uncaught: ' + Message);
+
+    if INTERP_SITE_LINE > 0 then
+        ErrorLn ('       at ' + SourceCode.Named (INTERP_SITE_FILE)
+               + ':' + Str (INTERP_SITE_LINE));
+
+    Halt (70);
 end
 
 /// Collects the interpreted program's own arguments, starting with its name.

@@ -2062,18 +2062,38 @@ instead is the machine**, which runs the same program and can disassemble it:
 `algvm` exists for. The interpreter and the machine ARE expected to carry a
 location and do not yet, which is a defect — `PROPOSAL-RUNTIME-LOCATION.md`.
 
-⚠️ **A PROGRAM'S OWN OUTPUT APPEARS AFTER THE ERROR THAT STOPPED IT, and the
-obvious fix reorders every compile error too.** stderr is unbuffered and stdout
-is block-buffered the moment it is redirected, so the output is still in its
-buffer when the diagnostic is written. Invisible at a terminal, where stdout is
-line-buffered; wrong in every pipe and log. **But `Console.Error` writes its
-excerpt to stdout while the front end runs and the `Uncaught:` sentence is
-written by the driver afterwards** — so flushing honestly puts the excerpt
-BEFORE the sentence, inverting what the specification records for 14 located
-cases on top of the 27 runtime ones. Tried, measured at 41 cases, reverted. The
-recorded order is a buffering artefact and both halves of R-5 want the same
-thing: the driver owning the whole report. See
-`PROPOSAL-RUNTIME-LOCATION.md`.
+⚠️ **A RUNTIME ERROR NAMES ITS FILE AND LINE in the tree walker and the
+machine, and NOT in compiled Algol-24** [ERR-003]. The location is a SECOND
+line — `       at file:line` — and never part of the message, which is forced:
+69 corpus cases print a caught message, 20 assertions here compare one exactly,
+and the library has 38 handlers.
+
+⚠️ **BOTH harnesses drop that line, and teaching only one cost 37
+divergences.** `conform.sh` and `vm/conform.sh` keep separate copies of
+`render()`, deliberately identical — so a rule applied to one must be applied
+to the other. The processors are MEANT to differ here, so a location in one and
+absent in another is agreement rather than divergence.
+
+⚠️ **Each processor finds the location its own way, and the machine's is
+free.** The tree walker publishes per statement (`Stmt` carries `Line`/`File`,
+stamped at `Parser.Statement`, the one funnel); the machine **recovers it from
+`IP`** where its dispatch loop catches a host error, so it pays nothing until
+something fails. Its line table is SPARSE — an entry only where the line
+changes, one pair per statement rather than clox's one per byte.
+
+⚠️ **STDOUT IS FLUSHED BEFORE ANY DIAGNOSTIC NOW, and that reordered every
+LOCATED one.** `Console.Error` writes its excerpt to stdout as the front end
+fails and the `Uncaught:` sentence goes to stderr afterwards — so the excerpt
+was always written first and only *appeared* second because it sat in a buffer.
+[ERR-005] shows excerpt-then-sentence, which is what every other compiler
+prints. 75 cases in the specification, one defect `.current` file and one prose
+example were regenerated for it.
+
+⚠️ **`bootstrap/algc` AND `vm/algvm` both link the hand-written `algol.c`, so
+changing it means rebuilding BOTH.** Rebuilding only the compiler left the
+machine on the old runtime, and `defects.sh` caught it where neither corpus did
+— `vm/conform.sh` builds its own `algc` but uses the checked-in machine, so a
+stale machine passes there and fails a three-way comparison.
 
 ⚠️ The file named is the **root**, not the file the failing test lives in. The
 compiled runner copies that deliberately, since the reports are compared, and

@@ -169,6 +169,18 @@ var INTERP_COLLECT_EVERY := 200000;
 /// Statements executed since the last automatic collection.
 var INTERP_TICK := 0;
 
+/// The file of the statement this walker is executing, so a runtime error can
+/// say where it happened [ERR-003].
+///
+/// Published here rather than handed to the runtime: the runtime produces the
+/// message and is given values and nothing else, so it cannot know -- and the
+/// driver, which catches what no handler in the program caught, is the only
+/// reader.
+var INTERP_SITE_FILE := '';
+
+/// The line of that statement, or 0 before the first one runs.
+var INTERP_SITE_LINE := 0;
+
 /// The built-in functions, all of them, in one class.
 ///
 /// ONE CLASS AND A CASE, where there used to be twenty-nine classes.  Every one
@@ -333,6 +345,15 @@ begin
             'WriteLn' : begin
                             if not OutputSuppressed then
                                 WriteLn (Rendered (TheInterpreter, Arguments));
+                            Exit Nil;
+                        end
+
+            // The host's own, like every other arm, so interpreted ErrorLn IS
+            // host ErrorLn and the two cannot disagree about which stream it
+            // writes to [RT-030].
+            'ErrorLn' : begin
+                            if not OutputSuppressed then
+                                ErrorLn (Rendered (TheInterpreter, Arguments));
                             Exit Nil;
                         end
 
@@ -560,6 +581,7 @@ begin
 
         Builtins.Define ('Write', Native ('Write', -1));
         Builtins.Define ('WriteLn', Native ('WriteLn', -1));
+        Builtins.Define ('ErrorLn', Native ('ErrorLn', -1));
 
         Builtins.Define ('Buffer', Native ('Buffer', -1));
         Builtins.Define ('TextFile', Native ('TextFile', 0));
@@ -1906,6 +1928,17 @@ begin
     /// Runs one statement, dispatching through its Accept.
     procedure Execute (TheStmt : Stmt);
     begin
+        // WHERE THE PROGRAM IS, at statement granularity -- which is what a
+        // reader wants and the cheapest this walker can offer, having no
+        // instruction pointer to recover a position from the way the machine
+        // does.  A statement nothing stamped publishes nothing, so a report is
+        // what it always was rather than a wrong line.
+        if TheStmt.Line > 0 then
+        begin
+            INTERP_SITE_FILE := Str (TheStmt.File);
+            INTERP_SITE_LINE := TheStmt.Line;
+        end
+
         // Collection happens HERE and nowhere else in this walker: between
         // statements, where the evaluator holds no half-built value of its own.
         // Mid-expression would also be safe -- every local is registered --

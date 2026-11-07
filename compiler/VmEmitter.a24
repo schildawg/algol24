@@ -791,7 +791,7 @@ begin
 end
 
 /// Every built-in this back end can call, lowercased.
-var BUILTIN_NAMES := ['array', 'assertequal', 'asserttrue', 'buffer', 'chdir', 'char', 'copy', 'fail', 'fileexists', 'foreign', 'getdir', 'halt', 'length', 'list', 'map', 'mkdir', 'ord', 'paramcount', 'paramstr', 'pos', 'pred', 'rmdir', 'set', 'stack', 'str', 'succ', 'textfile', 'tolower', 'toupper', 'val', 'write', 'writeln', 'clock', 'collect'];
+var BUILTIN_NAMES := ['array', 'assertequal', 'asserttrue', 'buffer', 'chdir', 'char', 'copy', 'fail', 'fileexists', 'foreign', 'getdir', 'halt', 'length', 'list', 'map', 'mkdir', 'ord', 'paramcount', 'paramstr', 'pos', 'pred', 'rmdir', 'set', 'stack', 'str', 'succ', 'textfile', 'tolower', 'toupper', 'val', 'write', 'writeln', 'clock', 'collect', 'errorln'];
 
 /// Whether a name is one of the language's built-ins.
 ///
@@ -3123,6 +3123,16 @@ end
 procedure EmitStmt (TheStmt : Any);
 begin
     if TheStmt = Nil then Exit;
+
+    // WHERE THIS CODE CAME FROM, so a runtime error can say [ERR-003].  One
+    // funnel, once per statement, and the table it writes into is sparse -- an
+    // entry only where the line changes.  Nothing reads it on the happy path.
+    if TheStmt.Line > 0 then
+    begin
+        Into.MarkLine (TheStmt.Line);
+
+        if Into.SourceFile = '' then Into.SourceFile := Str (TheStmt.File);
+    end
 
     var Kind := KindOf (TheStmt);
 

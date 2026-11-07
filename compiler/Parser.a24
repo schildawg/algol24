@@ -364,6 +364,29 @@ begin
     ///
     /// [STM-022]
     function Statement () : Stmt;
+    var
+        Where  : Token;
+        Parsed : Stmt;
+
+    begin
+        // Stamped HERE because this is the one funnel every statement comes
+        // through -- Declaration delegates to it and the thirty-odd callers
+        // below reach the same place.  Taken BEFORE the body parses, so it is
+        // the line the statement begins on rather than wherever it ended.
+        Where  := Peek ();
+        Parsed := StatementBody ();
+
+        if Parsed <> Nil then
+        begin
+            Parsed.Line := Where.LineNumber;
+            Parsed.File := Str (Where.File);
+        end
+
+        Exit Parsed;
+    end
+
+    /// Parses one statement, dispatching on what it begins with.
+    function StatementBody () : Stmt;
     begin
         if Match (TOKEN_TYPE) then Exit EnumDeclaration ();
         if Match (TOKEN_CLASS) then Exit ClassDeclaration ();

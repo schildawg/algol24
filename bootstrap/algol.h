@@ -422,6 +422,19 @@ void  alg_writeln(Value v);
 void  alg_writeln_blank(void);
 Value alg_str(Value v);
 
+/* Writes a line to the ERROR stream [RT-030].
+ *
+ * Named for the stream and not for the word 'error', deliberately: alg_error
+ * RAISES and never returns, and two functions a few letters apart meaning
+ * opposite things is a misreading waiting to happen.  This one prints and
+ * returns.
+ *
+ * Flushes STDOUT first, so a program's own output cannot appear after a
+ * diagnostic that followed it: stderr is unbuffered and stdout is
+ * block-buffered the moment it is redirected, which is exactly the ordering
+ * this built-in exists to let a program get right. */
+void alg_stderr_line(Value v);
+
 /* ── The shadow stack ─────────────────────────────────────────────────────
    Where a subprogram's locals are registered, so that a collection can see
    them.

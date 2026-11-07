@@ -53,10 +53,32 @@ var
     /// keyed by spelling alone could hold only one of them.
     GlobalKeys : List;
 
+    /// Where the line changes, as code offsets, parallel to LineNumbers.
+    ///
+    /// SPARSE, and that is the whole design: an entry is appended only where
+    /// the line a statement begins on differs from the last one recorded, so
+    /// this costs one pair per statement rather than clox's one line per BYTE
+    /// of code.  A lookup is a search, which is affordable because the only
+    /// caller is a raise -- nothing reads this on the happy path, so the table
+    /// costs memory and no time at all.
+    LineStarts  : List;
+
+    /// The line at each of those offsets, parallel to LineStarts.
+    LineNumbers : List;
+
+    /// The file the code was emitted from, as a diagnostic prints it.
+    ///
+    /// One per chunk rather than one per entry: a chunk is emitted from one
+    /// file, since a subprogram's body is a chunk of its own.
+    SourceFile  : String := '';
+
 begin
     /// Makes an empty chunk.
     constructor Init ();
     begin
+        this.LineStarts  := List ();
+        this.LineNumbers := List ();
+
         this.Code      := Buffer (CHUNK_ROOM);
         this.Count     := 0;
         this.Constants   := List ();
@@ -229,6 +251,38 @@ begin
     end
 
     /// Appends an instruction that takes no operand.
+    /// Records that the code from here on comes from this line, if it differs
+    /// from what was recorded last.
+    ///
+    /// Called by the emitter once per statement.  A line equal to the last
+    /// recorded one appends nothing, which is what keeps the table one entry
+    /// per statement rather than one per instruction.
+    procedure MarkLine (Line : Integer);
+    begin
+        if Line <= 0 then Exit;
+
+        if LineNumbers.Length > 0 then
+            if (LineNumbers[LineNumbers.Length - 1] as Integer) = Line then Exit;
+
+        LineStarts.Add (Count);
+        LineNumbers.Add (Line);
+    end
+
+    /// Gets the line the code at an offset came from, or 0 where nothing was
+    /// recorded.
+    ///
+    /// A backward scan rather than a binary search: the only caller is a raise,
+    /// which happens once at the end of a run that is already over, so the
+    /// simpler loop is the better one to read.
+    function LineAt (Offset : Integer) : Integer;
+    begin
+        for var I := LineStarts.Length - 1; I >= 0; I := I - 1 do
+            if (LineStarts[I] as Integer) <= Offset then
+                Exit LineNumbers[I] as Integer;
+
+        Exit 0;
+    end
+
     procedure Emit (Op : Integer);
     begin
         this.Write (Op);

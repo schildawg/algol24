@@ -904,10 +904,10 @@ WriteLn (2)
 
 ```console
 $ algc refusals/0004-no-semicolon-insertion.a24
-Uncaught: Expect ';' after expression.
 [ERROR] refusals/0004-no-semicolon-insertion.a24: Expect ';' after expression.
 [ERROR] 1 | WriteLn (1)
 [ERROR]   |           ^
+Uncaught: Expect ';' after expression.
 exit: 70
 ```
 
@@ -1005,10 +1005,10 @@ var begin := 7;
 
 ```console
 $ algc refusals/0003-keyword-is-not-a-name.a24
-Uncaught: Expect variable name.
 [ERROR] refusals/0003-keyword-is-not-a-name.a24: Expect variable name.
 [ERROR] 1 | var begin := 7;
 [ERROR]   | ^^^
+Uncaught: Expect variable name.
 exit: 70
 ```
 
@@ -1280,10 +1280,10 @@ WriteLn (100_);
 
 ```console
 $ algc refusals/0151-a-separator-must-separate-digits.a24
-Uncaught: Expect ')' after arguments.
 [ERROR] refusals/0151-a-separator-must-separate-digits.a24: Expect ')' after arguments.
 [ERROR] 1 | WriteLn (100_);
 [ERROR]   |          ^^^
+Uncaught: Expect ')' after arguments.
 exit: 70
 ```
 
@@ -1481,10 +1481,10 @@ WriteLn (1.);
 
 ```console
 $ algc refusals/0005-trailing-dot-is-not-a-double.a24
-Uncaught: Expect property name after '.'.
 [ERROR] refusals/0005-trailing-dot-is-not-a-double.a24: Expect property name after '.'.
 [ERROR] 1 | WriteLn (1.);
 [ERROR]   |           ^
+Uncaught: Expect property name after '.'.
 exit: 70
 ```
 
@@ -1908,10 +1908,10 @@ X := 'text';
 
 ```console
 $ algc refusals/0008-declared-type-constrains.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0008-declared-type-constrains.a24: Expected Integer, found String.
 [ERROR] 4 | X := 'text';
 [ERROR]   | ^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2053,10 +2053,10 @@ var X : Integer := 1.5;
 
 ```console
 $ algc refusals/0014-no-implicit-narrowing.a24
-Uncaught: Expected Integer, found Double.
 [ERROR] refusals/0014-no-implicit-narrowing.a24: Expected Integer, found Double.
 [ERROR] 1 | var X : Integer := 1.5;
 [ERROR]   |     ^
+Uncaught: Expected Integer, found Double.
 exit: 70
 ```
 
@@ -2224,10 +2224,10 @@ S := Untyped ();
 
 ```console
 $ algc refusals/0048-assignment-escapes-the-type.a24
-Uncaught: Expected String, found an untyped expression.
 [ERROR] refusals/0048-assignment-escapes-the-type.a24: Expected String, found an untyped expression.
 [ERROR] 4 | S := Untyped ();
 [ERROR]   | ^
+Uncaught: Expected String, found an untyped expression.
 exit: 70
 ```
     defect       DEF-35-inference-stops-at-a-later-declaration.a24
@@ -2515,10 +2515,10 @@ L.Add ('text');
 
 ```console
 $ algc refusals/0173-element-type-on-add.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0173-element-type-on-add.a24: Expected Integer, found String.
 [ERROR] 7 | L.Add ('text');
 [ERROR]   |   ^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2536,10 +2536,10 @@ L[0] := 'text';
 
 ```console
 $ algc refusals/0174-element-type-on-subscript.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0174-element-type-on-subscript.a24: Expected Integer, found String.
 [ERROR] 7 | L[0] := 'text';
 [ERROR]   |  ^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2557,10 +2557,10 @@ M.Put ('k', 'text');
 
 ```console
 $ algc refusals/0175-element-type-on-put.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0175-element-type-on-put.a24: Expected Integer, found String.
 [ERROR] 7 | M.Put ('k', 'text');
 [ERROR]   |   ^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2578,10 +2578,10 @@ S.Push ('text');
 
 ```console
 $ algc refusals/0176-element-type-on-push.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0176-element-type-on-push.a24: Expected Integer, found String.
 [ERROR] 7 | S.Push ('text');
 [ERROR]   |   ^^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2599,10 +2599,10 @@ var Bad : List of Integer := ['text'];
 
 ```console
 $ algc refusals/0177-element-type-on-literal.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0177-element-type-on-literal.a24: Expected Integer, found String.
 [ERROR] 7 | var Bad : List of Integer := ['text'];
 [ERROR]   |     ^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2699,10 +2699,10 @@ const C : Integer;
 
 ```console
 $ algc refusals/0011-const-must-be-given-a-value.a24
-Uncaught: A constant must be given a value.
 [ERROR] refusals/0011-const-must-be-given-a-value.a24: A constant must be given a value.
 [ERROR] 1 | const C : Integer;
 [ERROR]   |       ^
+Uncaught: A constant must be given a value.
 exit: 70
 ```
 
@@ -3278,10 +3278,10 @@ WriteLn (Wrong);
 
 ```console
 $ algc refusals/0198-a-folded-type-name-still-checks.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0198-a-folded-type-name-still-checks.a24: Expected Integer, found String.
 [ERROR] 3 | var Wrong : integer := 'text';
 [ERROR]   |     ^^^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -3313,10 +3313,10 @@ var I : Integer := A;
 
 ```console
 $ algc refusals/0013-any-does-not-satisfy-a-written-type.a24
-Uncaught: Expected Integer, found Any.
 [ERROR] refusals/0013-any-does-not-satisfy-a-written-type.a24: Expected Integer, found Any.
 [ERROR] 2 | var I : Integer := A;
 [ERROR]   |     ^
+Uncaught: Expected Integer, found Any.
 exit: 70
 ```
 
@@ -3397,10 +3397,10 @@ WriteLn (1 is Nonexistent);
 
 ```console
 $ algc refusals/0040-unknown-type-name.a24
-Uncaught: Unknown type 'Nonexistent'.
 [ERROR] refusals/0040-unknown-type-name.a24: Unknown type 'Nonexistent'.
 [ERROR] 1 | WriteLn (1 is Nonexistent);
 [ERROR]   |               ^^^^^^^^^^^
+Uncaught: Unknown type 'Nonexistent'.
 exit: 70
 ```
 
@@ -3515,10 +3515,10 @@ WriteLn ('never reached');
 
 ```console
 $ algc conformance/0029-array-is-fixed.a24
-Uncaught: Index 5 out of range 0..2.
 nil
 3
 x
+Uncaught: Index 5 out of range 0..2.
 exit: 70
 ```
 
@@ -3536,8 +3536,8 @@ WriteLn (List ().ClassName);
 
 ```console
 $ algc conformance/0030-collections-have-no-classname.a24
-Uncaught: Undefined property 'ClassName'.
 Dog
+Uncaught: Undefined property 'ClassName'.
 exit: 70
 ```
 
@@ -3688,8 +3688,8 @@ WriteLn (B[0]);
 
 ```console
 $ algc conformance/0031-instance-is-not-subscriptable.a24
-Uncaught: Subscript target should be an ordinal.
 10
+Uncaught: Subscript target should be an ordinal.
 exit: 70
 ```
 
@@ -3747,8 +3747,8 @@ for var X in B do WriteLn (X);
 
 ```console
 $ algc conformance/0032-instance-is-not-iterable.a24
-Uncaught: Can only iterate a collection or a String.
 2
+Uncaught: Can only iterate a collection or a String.
 exit: 70
 ```
 
@@ -4105,11 +4105,11 @@ WriteLn (Bad as Integer);
 
 ```console
 $ algc conformance/0117-as-is-checked.a24
-Uncaught: Cannot cast String to Integer.
 1
 2
 true
 nil
+Uncaught: Cannot cast String to Integer.
 exit: 70
 ```
 
@@ -4652,12 +4652,12 @@ WriteLn (Inner);
 
 ```console
 $ algc conformance/0039-blocks-and-scope.a24
-Uncaught: Undefined variable 'Inner'.
 1
 2
 0
 1
 7
+Uncaught: Undefined variable 'Inner'.
 exit: 70
 ```
 
@@ -4894,8 +4894,8 @@ WriteLn (Circle ().Name ());
 
 ```console
 $ algc conformance/0147-inherit-before-the-import.a24
-Uncaught: Undefined variable 'Shape'.
 root, before the import
+Uncaught: Undefined variable 'Shape'.
 exit: 70
 ```
 
@@ -4960,11 +4960,11 @@ var Later := 7;
 
 ```console
 $ algc conformance/0044-variables-are-not-hoisted.a24
-Uncaught: Undefined variable 'Later'.
 declared
 declared
 Thing
 Undefined variable 'Absent'.
+Uncaught: Undefined variable 'Later'.
 exit: 70
 ```
 
@@ -5970,10 +5970,10 @@ end
 
 ```console
 $ algc refusals/0172-an-operator-not-on-the-list.a24
-Uncaught: An operator must be one of + - * / div mod & | ^ ~ << >>.
 [ERROR] refusals/0172-an-operator-not-on-the-list.a24: An operator must be one of + - * / div mod & | ^ ~ << >>.
 [ERROR] 7 |     operator = (Other : Pair) : Boolean; begin Exit Left = Other.Left; end
 [ERROR]   |              ^
+Uncaught: An operator must be one of + - * / div mod & | ^ ~ << >>.
 exit: 70
 ```
 
@@ -6322,12 +6322,12 @@ WriteLn (One (1, 2));
 
 ```console
 $ algc conformance/0049-call-failures.a24
-Uncaught: Expected 1 arguments but got 2.
 1
 Expected 1 arguments but got 0.
 No matching signature for function.
 No matching signature for function.
 Expected 1 arguments but got 2.
+Uncaught: Expected 1 arguments but got 2.
 exit: 70
 ```
 
@@ -6842,7 +6842,6 @@ WriteLn (S[9]);
 
 ```console
 $ algc conformance/0051-string-subscript.a24
-Uncaught: Index 9 out of range 0..2.
 a
 c
 true
@@ -6850,6 +6849,7 @@ true
 true
 4
 Index 4 out of range 0..3.
+Uncaught: Index 9 out of range 0..2.
 exit: 70
 ```
 
@@ -6948,10 +6948,10 @@ if True then var X := 1;
 
 ```console
 $ algc refusals/0034-declaration-as-an-unbraced-body.a24
-Uncaught: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
 [ERROR] refusals/0034-declaration-as-an-unbraced-body.a24: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
 [ERROR] 1 | if True then var X := 1;
 [ERROR]   |              ^^^
+Uncaught: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
 exit: 70
 ```
 
@@ -7345,10 +7345,10 @@ break;
 
 ```console
 $ algc refusals/0021-break-outside-a-loop.a24
-Uncaught: Must be inside a loop to use 'break'.
 [ERROR] refusals/0021-break-outside-a-loop.a24: Must be inside a loop to use 'break'.
 [ERROR] 3 | break;
 [ERROR]   | ^^^^^
+Uncaught: Must be inside a loop to use 'break'.
 exit: 70
 ```
 
@@ -7362,10 +7362,10 @@ continue;
 
 ```console
 $ algc refusals/0161-continue-outside-a-loop.a24
-Uncaught: Must be inside a loop to use 'continue'.
 [ERROR] refusals/0161-continue-outside-a-loop.a24: Must be inside a loop to use 'continue'.
 [ERROR] 3 | continue;
 [ERROR]   | ^^^^^^^^
+Uncaught: Must be inside a loop to use 'continue'.
 exit: 70
 ```
 
@@ -7381,10 +7381,10 @@ end
 
 ```console
 $ algc refusals/0162-a-label-no-enclosing-loop-has.a24
-Uncaught: No enclosing loop is labelled 'Inner'.
 [ERROR] refusals/0162-a-label-no-enclosing-loop-has.a24: No enclosing loop is labelled 'Inner'.
 [ERROR] 4 |     break Inner;
 [ERROR]   |     ^^^^^
+Uncaught: No enclosing loop is labelled 'Inner'.
 exit: 70
 ```
 
@@ -7606,10 +7606,10 @@ end
 
 ```console
 $ algc refusals/0023-duplicate-handler.a24
-Uncaught: Duplicate handler for 'Base'.
 [ERROR] refusals/0023-duplicate-handler.a24: Duplicate handler for 'Base'.
 [ERROR] 7 |     on e : Base do WriteLn ('second');
 [ERROR]   |            ^^^^
+Uncaught: Duplicate handler for 'Base'.
 exit: 70
 ```
 
@@ -7639,8 +7639,8 @@ raise 'boom';
 
 ```console
 $ algc conformance/0059-uncaught-exits-70.a24
-Uncaught: boom
 before
+Uncaught: boom
 exit: 70
 ```
 
@@ -7668,10 +7668,10 @@ print 123;
 
 ```console
 $ algc refusals/0039-print-is-not-a-statement.a24
-Uncaught: Expect ';' after expression.
 [ERROR] refusals/0039-print-is-not-a-statement.a24: Expect ';' after expression.
 [ERROR] 1 | print 123;
 [ERROR]   | ^^^^^
+Uncaught: Expect ';' after expression.
 exit: 70
 ```
 
@@ -7943,10 +7943,10 @@ WriteLn (P ());
 
 ```console
 $ algc refusals/0031-procedure-cannot-exit-a-value.a24
-Uncaught: A procedure cannot exit a value.
 [ERROR] refusals/0031-procedure-cannot-exit-a-value.a24: A procedure cannot exit a value.
 [ERROR] 3 |     Exit 7;
 [ERROR]   |     ^^^^
+Uncaught: A procedure cannot exit a value.
 exit: 70
 ```
 
@@ -8169,10 +8169,10 @@ WriteLn (F ());
 
 ```console
 $ algc refusals/0026-return-type-is-enforced.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0026-return-type-is-enforced.a24: Expected Integer, found String.
 [ERROR] 3 |     Exit 'a string';
 [ERROR]   |     ^^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -9032,10 +9032,10 @@ WriteLn (Upper ('algol'));
 
 ```console
 $ algc refusals/0193-extension-receiver-untyped.a24
-Uncaught: An extension's receiver must have a written type.
 [ERROR] refusals/0193-extension-receiver-untyped.a24: An extension's receiver must have a written type.
 [ERROR] 4 | extension function Upper (S) : String;
 [ERROR]   |                           ^
+Uncaught: An extension's receiver must have a written type.
 exit: 70
 ```
 
@@ -9053,10 +9053,10 @@ WriteLn (Nothing ());
 
 ```console
 $ algc refusals/0194-extension-without-a-receiver.a24
-Uncaught: An extension must declare a receiver.
 [ERROR] refusals/0194-extension-without-a-receiver.a24: An extension must declare a receiver.
 [ERROR] 2 | extension function Nothing () : String;
 [ERROR]   |                    ^^^^^^^
+Uncaught: An extension must declare a receiver.
 exit: 70
 ```
 
@@ -9078,10 +9078,10 @@ WriteLn (Box ().Size ());
 
 ```console
 $ algc refusals/0195-extension-on-a-method.a24
-Uncaught: 'extension' applies only to a top-level subprogram.
 [ERROR] refusals/0195-extension-on-a-method.a24: 'extension' applies only to a top-level subprogram.
 [ERROR] 5 |     extension function Size () : Integer;
 [ERROR]   |     ^^^^^^^^^
+Uncaught: 'extension' applies only to a top-level subprogram.
 exit: 70
 ```
 
@@ -9105,10 +9105,10 @@ WriteLn (Outer ());
 
 ```console
 $ algc refusals/0196-extension-inside-a-subprogram.a24
-Uncaught: 'extension' applies only to a top-level subprogram.
 [ERROR] refusals/0196-extension-inside-a-subprogram.a24: 'extension' applies only to a top-level subprogram.
 [ERROR] 5 |     extension function Doubled (N : Integer) : Integer;
 [ERROR]   |     ^^^^^^^^^
+Uncaught: 'extension' applies only to a top-level subprogram.
 exit: 70
 ```
 
@@ -9131,10 +9131,10 @@ WriteLn (Box ().Size);
 
 ```console
 $ algc refusals/0197-extension-property.a24
-Uncaught: 'extension' applies only to a top-level subprogram.
 [ERROR] refusals/0197-extension-property.a24: 'extension' applies only to a top-level subprogram.
 [ERROR] 6 |     extension property Size : Integer;
 [ERROR]   |     ^^^^^^^^^
+Uncaught: 'extension' applies only to a top-level subprogram.
 exit: 70
 ```
 
@@ -9296,9 +9296,9 @@ WriteLn (Bare (1, 2));
 
 ```console
 $ algc conformance/0065-construction.a24
-Uncaught: Expected 0 arguments but got 2.
 3,4
 hello
+Uncaught: Expected 0 arguments but got 2.
 exit: 70
 ```
 
@@ -9433,7 +9433,6 @@ WriteLn (Holder ('not a Thing'));
 
 ```console
 $ algc conformance/0204-a-constructor-is-selected-too.a24
-Uncaught: No matching signature for function.
 Thing
 No matching signature for function.
 Expected 1 arguments but got 0.
@@ -9447,6 +9446,7 @@ string
 3
 No matching signature for function.
 No matching signature for function.
+Uncaught: No matching signature for function.
 exit: 70
 ```
 
@@ -9588,7 +9588,6 @@ integer
 string
 in Base.Init, Extra=child Named=Child
 Tag=base/10 Extra=child/5 calls=1
-exit: 0
 ```
 
 **[CLS-006]**  A field with no initializer begins as `nil` [VAR-002].
@@ -9855,12 +9854,12 @@ WriteLn (Asks ().Seeded);
 
 ```console
 $ algc conformance/0207-super-reaches-a-member-or-says-so.a24
-Uncaught: Undefined property 'Init'.
 derived+base
 base
 Undefined property 'Missing'.
 Undefined property 'Missing'.
 Undefined property 'Field'.
+Uncaught: Undefined property 'Init'.
 exit: 70
 ```
 
@@ -10093,8 +10092,8 @@ WriteLn (Config ());
 
 ```console
 $ algc conformance/0070-object-is-not-callable.a24
-Uncaught: Can only call functions and classes.
 1
+Uncaught: Can only call functions and classes.
 exit: 70
 ```
 
@@ -10513,12 +10512,12 @@ WriteLn (A);
 
 ```console
 $ algc conformance/0123-enumerations-may-share-member-names.a24
-Uncaught: 'A' is ambiguous: First or Second.
 A
 A
 false
 B
 C
+Uncaught: 'A' is ambiguous: First or Second.
 exit: 70
 ```
 
@@ -10537,8 +10536,8 @@ WriteLn (Colour.Nope);
 
 ```console
 $ algc conformance/0072-unknown-enum-member.a24
-Uncaught: Undefined enum member 'Nope'.
 RED
+Uncaught: Undefined enum member 'Nope'.
 exit: 70
 ```
 
@@ -10581,9 +10580,9 @@ WriteLn (RED < GREEN);
 
 ```console
 $ algc conformance/0073-enum-members-are-not-ordered.a24
+true
+true
 Uncaught: Operands must be numbers.
-true
-true
 exit: 70
 ```
 
@@ -10920,8 +10919,8 @@ WriteLn (K.Get (0));
 
 ```console
 $ algc conformance/0077-undefined-collection-member.a24
-Uncaught: Undefined property 'Get'.
 1
+Uncaught: Undefined property 'Get'.
 exit: 70
 ```
 
@@ -11124,10 +11123,10 @@ Mixed.Sort ();
 
 ```console
 $ algc conformance/0080-sort.a24
-Uncaught: Can only sort numbers against numbers, or text against text.
 1 2 3 
 apple fig pear 
 123
+Uncaught: Can only sort numbers against numbers, or text against text.
 exit: 70
 ```
     conformance  0166-text-is-ordered.a24
@@ -11167,11 +11166,11 @@ WriteLn (S[0]);
 
 ```console
 $ algc conformance/0081-subscripting-by-kind.a24
-Uncaught: Subscript target should be an ordinal.
 20
 x
 seven
 Strings are immutable.
+Uncaught: Subscript target should be an ordinal.
 exit: 70
 ```
 
@@ -11294,10 +11293,10 @@ WriteLn (W ());
 
 ```console
 $ algc refusals/0029-unit-name-must-match-the-file.a24
-Uncaught: Unit 'Wrong' must match its file name 'Mismatch'.
 [ERROR] conformance/modules/Mismatch.a24: Unit 'Wrong' must match its file name 'Mismatch'.
 [ERROR] 4 | unit Wrong;
 [ERROR]   |      ^^^^^
+Uncaught: Unit 'Wrong' must match its file name 'Mismatch'.
 exit: 70
 ```
 
@@ -11336,8 +11335,8 @@ WriteLn (Alpha.Hidden ());
 
 ```console
 $ algc conformance/0084-module-private.a24
-Uncaught: Undefined name 'Hidden' in unit 'Alpha'.
 only in Alpha
+Uncaught: Undefined name 'Hidden' in unit 'Alpha'.
 exit: 70
 ```
 
@@ -11392,11 +11391,11 @@ WriteLn (Shared ());
 
 ```console
 $ algc conformance/0124-modules-may-share-exported-names.a24
-Uncaught: 'Shared' is ambiguous: Alpha or Beta.
 from Alpha
 from Beta
 only in Alpha
 only in Beta
+Uncaught: 'Shared' is ambiguous: Alpha or Beta.
 exit: 70
 ```
 
@@ -11511,10 +11510,10 @@ WriteLn (FromLower ());
 
 ```console
 $ algc refusals/0200-two-units-differing-only-in-case.a24
-Uncaught: Two units whose names differ only in case: 'conformance/modules/casea/Twin.a24' and 'conformance/modules/caseb/twin.a24'. A unit name is matched without regard to case.
 [ERROR] refusals/0200-two-units-differing-only-in-case.a24: Two units whose names differ only in case: 'conformance/modules/casea/Twin.a24' and 'conformance/modules/caseb/twin.a24'. A unit name is matched without regard to case.
 [ERROR] 2 | uses 'conformance/modules/caseb/twin';
 [ERROR]   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Uncaught: Two units whose names differ only in case: 'conformance/modules/casea/Twin.a24' and 'conformance/modules/caseb/twin.a24'. A unit name is matched without regard to case.
 exit: 70
 ```
 
@@ -11614,9 +11613,9 @@ WriteLn (DeepName ());
 
 ```console
 $ algc conformance/0085-uses-is-not-transitive.a24
-Uncaught: Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
 from Mid
 from Deep
+Uncaught: Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
 exit: 70
 ```
 
@@ -11791,7 +11790,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-four names are built in. Thirty-one are always
+**[RT-001]**  Thirty-five names are built in. Thirty-two are always
 available:
 
 ```
@@ -11803,7 +11802,7 @@ List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
 ParamCount    ParamStr
-Write   WriteLn    Halt
+Write   WriteLn    ErrorLn    Halt
 ```
 
 The list is checked against the names the interpreter registers by
@@ -11953,10 +11952,10 @@ WriteLn (Length ([10, 20, 30]));
 
 ```console
 $ algc conformance/0115-length-refuses-a-collection.a24
-Uncaught: Length expects text; use .Length for a collection.
 3
 1
 3
+Uncaught: Length expects text; use .Length for a collection.
 exit: 70
 ```
 
@@ -12649,10 +12648,10 @@ WriteLn (Mod (7, 3));
 
 ```console
 $ algc refusals/0179-mod-was-removed.a24
-Uncaught: Expect expression!
 [ERROR] refusals/0179-mod-was-removed.a24: Expect expression!
 [ERROR] 1 | WriteLn (Mod (7, 3));
 [ERROR]   |          ^^^
+Uncaught: Expect expression!
 exit: 70
 ```
 
@@ -12788,6 +12787,69 @@ RmDir failed: cannot remove 'scratch-0183'.
 ChDir failed: cannot change to 'scratch-0183'.
 RmDir failed: cannot remove 'scratch-0183'.
 true
+```
+
+**[RT-030]**  `ErrorLn` writes its stringified values to the **error stream**,
+followed by `#10` — the same byte `WriteLn` ends a line with [RT-015], never the
+host's line separator.
+
+It takes **any number of values**, run together with nothing between them, so
+`ErrorLn ('at ', 12)` writes one line reading `at 12` and `ErrorLn ()` is the
+newline on its own. One call is one line: that is what it is for.
+
+**Standard output is flushed first.** The error stream is unbuffered and
+standard output is block-buffered the moment it is redirected, so without this a
+program's own output could appear *after* a diagnostic written after it — which
+is invisible at a terminal, where output is line-buffered, and wrong in every
+pipe and every log.
+
+**Why the language has it at all.** A program that detects something wrong has
+somewhere to say so that is not its output, so a diagnostic survives
+`prog > results.txt` and does not corrupt what the program produced. Without it
+the only way to write anything was standard output, and a program reporting a
+problem had to choose between being seen and being separable.
+
+**It is not an error, and raises nothing.** `ErrorLn` writes; `raise` [STM-016]
+is how a program fails. A program may use the two together or neither.
+
+    conformance  0217-errorln-writes-the-error-stream.a24
+
+##### conformance/0217-errorln-writes-the-error-stream.a24
+
+```algol24
+// RT-030: ErrorLn writes a line to the ERROR stream, where Write and WriteLn
+// write to standard output [RT-015].  Both streams reach the same place when
+// nothing separates them, which is what a case can compare.
+WriteLn ('out: first');
+ErrorLn ('err: second');
+WriteLn ('out: third');
+
+// Any number of values, run together with nothing between them, exactly as
+// WriteLn takes them -- so one line, not one per value.
+ErrorLn ('err: ', 'joined', ' ', 4, ' ways');
+
+// It is a name like any other, so it may be held and called from where it
+// comes to rest [FUN-011].
+var Complain := ErrorLn;
+Complain ('err: held');
+
+// ⚠️ And a program's own output cannot appear after a diagnostic written after
+// it: ErrorLn flushes standard output first, because stderr is unbuffered and
+// stdout is block-buffered the moment it is redirected.
+Write ('out: unterminated, ');
+ErrorLn ('err: after an unterminated write');
+WriteLn ('');
+```
+
+```console
+$ algc conformance/0217-errorln-writes-the-error-stream.a24
+out: first
+err: second
+out: third
+err: joined 4 ways
+err: held
+out: unterminated, err: after an unterminated write
+
 ```
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
@@ -13813,8 +13875,8 @@ raise 'boom';
 
 ```console
 $ algc conformance/0096-exit-status.a24
-Uncaught: boom
 this program raises
+Uncaught: boom
 exit: 70
 ```
 
@@ -13882,10 +13944,10 @@ var X : Integer := 'text';
 
 ```console
 $ algc conformance/0097-error-phases.a24
-Uncaught: Expected Integer, found String.
 [ERROR] conformance/0097-error-phases.a24: Expected Integer, found String.
 [ERROR] 4 | var X : Integer := 'text';
 [ERROR]   |     ^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -13941,9 +14003,9 @@ WriteLn ('never reached');
 
 ```console
 $ algc conformance/0098-runtime-errors-follow-output.a24
-Uncaught: Index 9 out of range 0..1.
 this line runs
 and so does this one
+Uncaught: Index 9 out of range 0..1.
 exit: 70
 ```
 
@@ -13980,15 +14042,24 @@ Uncaught: [line 3] Error: Unexpected character: @
 exit: 70
 ```
 
-**[ERR-005]**  A **parse** or **resolution** error prints the message and a
-three-line excerpt naming the file, the line, and the offending token:
+**[ERR-005]**  A **parse** or **resolution** error prints a three-line excerpt
+naming the file, the line and the offending token, and then the message:
 
 ```
-Uncaught: Expect variable name.
 [ERROR] e.a24: Expect variable name.
 [ERROR] 2 | var := 1;
 [ERROR]   | ^^^
+Uncaught: Expect variable name.
 ```
+
+⚠️ **The excerpt comes FIRST, and that it used not to was a buffering
+artefact.** The excerpt is written to standard output as the front end fails;
+the `Uncaught:` sentence is written to the error stream afterwards. Standard
+output is block-buffered the moment it is redirected, so the sentence used to
+appear first merely because the excerpt was still in a buffer — which also meant
+a *program's* own output appeared after the error that stopped it [ERR-003].
+Flushing standard output before a diagnostic fixes that and puts these in the
+order they are actually written.
 
 ##### conformance/0100-parse-error-shape.a24
 
@@ -13998,10 +14069,10 @@ var := 1;
 
 ```console
 $ algc conformance/0100-parse-error-shape.a24
-Uncaught: Expect variable name.
 [ERROR] conformance/0100-parse-error-shape.a24: Expect variable name.
 [ERROR] 1 | var := 1;
 [ERROR]   | ^^^
+Uncaught: Expect variable name.
 exit: 70
 ```
 
@@ -14043,10 +14114,10 @@ WriteLn (Twice (5));
 
 ```console
 $ algc refusals/0199-a-diagnostic-names-the-file-it-came-from.a24
-Uncaught: Expect ';' after exit value.
 [ERROR] conformance/modules/Broken.a24: Expect ';' after exit value.
 [ERROR] 12 |     Exit N * 2
 [ERROR]    |              ^
+Uncaught: Expect ';' after exit value.
 exit: 70
 ```
 
@@ -14064,10 +14135,10 @@ end;
 
 ```console
 $ algc conformance/0214-every-parse-error-is-located.a24
-Uncaught: Expect expression!
 [ERROR] conformance/0214-every-parse-error-is-located.a24: Expect expression!
 [ERROR] 7 | end;
 [ERROR]   |    ^
+Uncaught: Expect expression!
 exit: 70
 ```
 
@@ -14105,10 +14176,10 @@ var Count : Integer := 'text';
 
 ```console
 $ algc conformance/0108-type-error-shape.a24
-Uncaught: Expected Integer, found String.
 [ERROR] conformance/0108-type-error-shape.a24: Expected Integer, found String.
 [ERROR] 1 | var Count : Integer := 'text';
 [ERROR]   |     ^^^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -14122,10 +14193,10 @@ var Y : Integer := G ();
 
 ```console
 $ algc conformance/0109-type-error-untyped.a24
-Uncaught: Expected Integer, found an untyped expression.
 [ERROR] conformance/0109-type-error-untyped.a24: Expected Integer, found an untyped expression.
 [ERROR] 3 | var Y : Integer := G ();
 [ERROR]   |     ^
+Uncaught: Expected Integer, found an untyped expression.
 exit: 70
 ```
 
@@ -14844,7 +14915,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-four built-in names, with the rule specifying each. `spec/spec.sh`
+The thirty-five built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -14853,6 +14924,7 @@ interpreter actually registers.
 | `AssertEqual` | [TST-012] | Fails unless two values are equal; test runs only |
 | `AssertTrue` | [TST-012] | Fails unless a value is truthy; test runs only |
 | `Fail` | [TST-012] | Fails outright with a message; test runs only |
+| `ErrorLn` | [RT-030] | Writes a line to the error stream |
 | `Halt` | [RT-018] | Ends the program with a chosen exit status |
 | `Array` | [COL-002] | An Array of N elements, each `nil` |
 | `Buffer` | [RT-023] | Growable bytes with an explicit lifetime |
