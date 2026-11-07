@@ -10,7 +10,10 @@ against this tree** before anything was written here, with the reproductions
 kept; what follows is what the reproductions showed rather than what the
 reports claimed, and in three places those differ.
 
-The fifteen collapse to **eight root causes.** Four defects are one bug.
+The fifteen collapse to **eight root causes.** Four defects are one bug — and
+working through them has turned up **two more** that neither report names: a
+visible global losing to a field of `this` in the C back end (fixed with item 2)
+and a built-in held as a value (item 11, open).
 
 | | defect | root cause | processor at fault |
 | --- | --- | --- | --- |
@@ -22,6 +25,7 @@ The fifteen collapse to **eight root causes.** Four defects are one bug.
 | **6** | D-1 | a unit name is compared case-sensitively | all three |
 | **7** | R-15 | the runtime pair carries no version | the emitted runtime |
 | **8** | D-2 | `vm/REFERENCE.md` states a total its own body contradicts | documentation |
+| **11** | *found here* | a built-in held as a value is a wrong answer, not a refusal | compiled only |
 
 Two are not repairs and are handled as their own items at the end: **R-5** (a
 runtime error carries no location) is a feature spanning three processors, and
@@ -201,7 +205,38 @@ build script.
 
 ---
 
-## 2. A built-in beats a field of `this`
+## 2. A built-in beats a field of `this`  ·  DONE
+
+**Landed, and it was two defects rather than one.** Probing R-1's edges turned
+up a second divergence of the same shape — the **opposite** processor was the
+odd one out — and a third that is new work and is now item 11.
+
+The resolution order is written down as **[CLS-019]** and `conformance/0213`
+pins it, byte-identical under all three. Every step of it was measured rather
+than assumed:
+
+| a bare name inside a method | interpreted | machine | compiled | fixed |
+| --- | --- | --- | --- | --- |
+| a field named after a **built-in** | `<fn Pos>` | field | field | the **interpreter** |
+| a visible **global** named after a field | global | global | **field** | the **C back end** |
+| a **method** named after a built-in | built-in | built-in | *cannot* | item 11 |
+
+**The second one was not in either report.** Only a LOCAL was tested for before
+the C emitter answered a field, so a declared global named after a field read as
+the field inside the class's own methods — and an *imported* global did too. The
+guard is `VisibleGlobal`, and it went on the write as well as the read: a write
+that disagreed with the read would be worse than either.
+
+**The first fix was too wide at first, and the probe is what caught it.**
+Routing the built-in tiebreak through `ObjInstance.Get` made a bare name answer
+a *method* of that name, because `Get` answers ClassName and bound methods as
+well as fields — so the interpreter started answering `99` where the machine
+answers the built-in's arity complaint. A new divergence introduced by the fix
+for one. `GetField` is the narrow accessor, and [CLS-007] is why it is the right
+one: a bare name read without parentheses is a **field** read, so a method of
+the name is reached by `this.M` or by a call and never bare.
+
+---
 
 **R-1**, and the interpreter is the odd one out — confirmed two against one:
 
@@ -514,6 +549,49 @@ them.
 
 ---
 
+## 11. The C back end cannot hold a built-in as a value
+
+**New, found by probing item 2's edges.** Not in either incoming report, and
+not a reported shape of any of the fifteen.
+
+[FUN-011] makes a subprogram's name without parentheses a value, and [RT-001]'s
+built-ins are names like any other. Both other processors do it; the C back end
+raises, with no class in sight:
+
+```algol24
+var F := Length;
+WriteLn (F ('abc'));
+WriteLn (Str (Length = Length));
+```
+
+| | |
+| --- | --- |
+| interpreted | `3` then `true` |
+| machine | `3` then `true` |
+| compiled | `Uncaught: Undefined variable 'Length'.` |
+
+**It is a wrong answer where the C back end's own rule is to refuse by name.**
+`CEmitter`'s bare-name path has no arm for a built-in held as a value — the
+built-ins are reached only at a *call* — so the name falls through to
+`MissingName` and an `alg_error` stub. A program that holds one therefore
+compiles, links, and fails when the line runs: the same shape as R-8 and R-10,
+in a construct the specification plainly allows.
+
+**The machine already shows the way, and the note is in `CLAUDE.md`:** a
+built-in held as a value is a **constant**, not an opcode — `VmBuiltin` carries
+the name and `CallValue` sends it to the same dispatch `OP_BUILTIN` reaches, so
+`var F := Length; F ('abc')` **is** host `Length` rather than a second one that
+must agree with it forever. It must also be **interned**, or `Length = Length`
+is false, since these compare by identity [VAL-011]. The C back end needs the
+same two properties: one value per built-in name, reaching `alg_*` by that name.
+
+⚠️ **Its first visible symptom was inside [CLS-019]'s own case**, which is why
+`conformance/0213` pins the receiver spelling and not the bare one. A case
+comparing the bare spelling of a method named after a built-in would be red for
+this gap rather than for the rule it is meant to pin.
+
+---
+
 ## Order of work
 
 Grouped so each step can be gated before the next, and the seed changes come
@@ -522,14 +600,15 @@ late:
 | | item | why here |
 | --- | --- | --- |
 | 1 | ~~**1** — CEmitter's per-unit tables~~ **DONE** | four defects, one fix, and the only silent wrong answer |
-| 2 | **2** — field of `this` beats a built-in | the other divergence; small, and R-5's worst symptom |
-| 3 | **6** — fold the unit-name comparison | small, one rule, refuses in all three |
+| 2 | ~~**2** — field of `this` beats a built-in~~ **DONE** | the other divergence; small, and R-5's worst symptom |
+| 3 | **6** — two units differing only in case | a DECISION, not an edit: see the table in item 6 |
 | 4 | **5** — R-2's one line, R-4's message | smallest things here |
 | 5 | **7** — the runtime pair's version | two lines plus the harness line that keeps it true |
 | 6 | **8** — the reference's total | documentation, and the script that holds it |
 | 7 | **4** — R-8 and R-10 at compile time | changes what the compiler accepts; wants the corpus green first |
 | 8 | **3** — `Token` gains a file | touches the seed and both processors' reports |
-| 9 | **9**, **10** — R-5's flush; R-13 recorded | the two that are not repairs |
+| 9 | **11** — a built-in held as a value | found by this sweep, not reported; the C back end gives a wrong answer where its own rule is to refuse |
+| 10 | **9**, **10** — R-5's flush; R-13 recorded | the two that are not repairs |
 
 **Every item lands with its conformance case**, written into
 `spec/ALGOL-24.md` under the rule it pins — not into `conformance/`, which is

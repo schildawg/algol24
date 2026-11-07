@@ -378,14 +378,39 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   case passes; a program wanting `pow` needs no library name at all.
 
   ⚠️ **A bare name inside a method is a VARIABLE first and a member of `this`
-  second.** The interpreter looks the variable up and reaches for `this` only
-  when that *raises* (`ThisField`), so a global of the name wins over a field
-  of it — and if the field is missing too it re-raises the ORIGINAL
-  undefined-variable message. The emitter decides it statically instead: not a
-  local, not a capture, not a visible global, and a member of the class being
-  compiled. `VisibleSlot` exists as a question separate from `BareSlot`'s
-  answer because a field WRITE must put the receiver on the stack before the
-  value, so it cannot be decided after the value is already there.
+  second — except that a BUILT-IN comes last.** The full order is **[CLS-019]**,
+  pinned by `conformance/0213`: a local, a capture, a **visible global**, a
+  **field of the receiver**, then a built-in. A declared variable beats a field;
+  a built-in loses to one, because a built-in is the only name in that list
+  nobody wrote down in this program.
+
+  The interpreter looks the variable up and reaches for `this` when that
+  *raises* (`ThisField`) — and, since this was fixed, **also when it succeeds
+  with a `Native`**, which is the step the built-ins used to jump: they live in
+  the environment every file encloses, so the lookup never failed and a class
+  with a field named `Pos` answered `<fn Pos>` from inside its own method. If
+  the field is missing too it re-raises the ORIGINAL undefined-variable message.
+  The emitter decides it statically instead: not a local, not a capture, not a
+  visible global, and a member of the class being compiled. `VisibleSlot` exists
+  as a question separate from `BareSlot`'s answer because a field WRITE must put
+  the receiver on the stack before the value, so it cannot be decided after the
+  value is already there.
+
+  ⚠️ **The built-in tiebreak must ask for a FIELD, not a member, and going
+  through `Get` introduced a divergence.** `ObjInstance.Get` answers `ClassName`
+  and a bound method as well, so routing it there made a bare name answer a
+  *method* of that name — `99` interpreted where the machine answers the
+  built-in's arity complaint. `GetField` is the narrow accessor and [CLS-007] is
+  why: a bare name read without parentheses is a **field** read, so a method of
+  the name is reached by `this.M` or by a call and never bare. A bare *call* is
+  a different question entirely — [MOD-017].
+
+  ⚠️ **`CEmitter` had the mirror-image bug and nobody had reported it.** It
+  tested only for a LOCAL before answering a field, so a **visible global**
+  named after a field read as the field inside the class's own methods — the one
+  answer of the three that the C back end gave alone, for an imported global as
+  well as its own. `VisibleGlobal` guards the write as well as the read: a write
+  that disagreed with the read would be worse than either.
 
   ⚠️ **Methods matter more than fields here.** Of shroom-slots' 28 units, the
   field half unblocked 2 and the bare *method* call unblocked **18** — the

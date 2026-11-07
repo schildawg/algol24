@@ -3116,7 +3116,12 @@ begin
 
         if Captured.Contains (Name) or Boxed.Contains (Name) then Exit Read (Name);
 
+        // A visible global beats a field of the receiver [CLS-019].  Only a
+        // LOCAL was tested for here, so a declared global named after a field
+        // read as the field -- the one answer of the three that this emitter
+        // gave alone.
         if CurrentClass <> '' and not Locals.Contains (Name)
+                              and not VisibleGlobal (Name)
                               and VisibleFields.Contains (FoldCase (Name)) then
             Exit 'alg_property(' + ThisRef () + ', ' + QuoteC (Name) + ')';
 
@@ -3197,6 +3202,24 @@ begin
         if not GlobalsIn.Contains (UnitName) then Exit False;
 
         Exit (GlobalsIn.Get (UnitName) as Set).Contains (Name);
+    end
+
+    /// Whether a file-scope variable or constant of this name can be seen from
+    /// the file being emitted -- its own, or one an import exports.
+    ///
+    /// A visible global BEATS a field of the receiver, which is the step this
+    /// emitter was missing: it tested only for a LOCAL before answering the
+    /// field, so a declared global named after a field read as the field inside
+    /// the class's own methods, where both other processors read the global.
+    ///
+    /// # Satisfies
+    ///
+    /// CLS-019
+    function VisibleGlobal (Name : String) : Boolean;
+    begin
+        if OwnGlobal (Name) then Exit True;
+
+        Exit Globals.Contains (Name) and ShadowNames.Contains (Name);
     end
 
     /// Whether a top-level subprogram of this name can be seen from the file
@@ -3306,7 +3329,11 @@ begin
         if Captured.Contains (Name) or Boxed.Contains (Name) then
             Exit '(' + Read (Name) + ' = ' + Written + ')';
 
+        // The same order a read takes [CLS-019]: a visible global is written,
+        // not a field of the receiver.  A write that disagreed with the read
+        // would be worse than either.
         if CurrentClass <> '' and not Locals.Contains (Name)
+                              and not VisibleGlobal (Name)
                               and VisibleFields.Contains (FoldCase (Name)) then
             Exit 'alg_set_property(' + ThisRef () + ', ' + QuoteC (Name) + ', ' + Written + ')';
 

@@ -10148,6 +10148,115 @@ Undefined property 'Undeclared'.
 Undefined property 'Size'.
 ```
 
+**[CLS-019]**  A **bare name inside a method** resolves in this order:
+
+1. a **local** or a parameter
+2. a **capture**, for a subprogram nested in the method
+3. a **visible variable** — a file-scope `var` or `const` the file declares, or
+   one an import exports [MOD-016]
+4. a **field of the receiver**, as an implicit `this.Field`
+5. a **built-in** [RT-001]
+
+The two steps that matter are 3 and 5, because the field sits between them. A
+**declared** variable beats a field of the same name; a **built-in** loses to
+one. The asymmetry is the whole rule: a built-in is the only name in that list
+nobody wrote down in this program, so it is the only one a field may take over.
+
+**Step 4 is a FIELD and not a member.** A bare name read without parentheses is
+a field read [CLS-007], so a *method* of the name is reached by `this.M` or by
+calling it, never by the bare spelling. Where a class declares a method named
+after a built-in, the bare name is therefore the built-in.
+
+**A bare CALL is a different question** and is resolved by [MOD-017]: a visible
+top-level subprogram first, then a method of the receiver.
+
+**It is silent when it goes wrong, which is why the order is written down.** A
+field named after a built-in answered `<fn Pos>` from inside its own class and
+the field everywhere else, so nothing failed where the confusion was: the method
+handed back a function value and the program died later, in unrelated
+arithmetic, with a message carrying no location. The built-in names that are
+also plausible field names include `Pos`, `Length`, `Copy`, `Str`, `Val`,
+`Write`, `Set`, `Map`, `List` and `Buffer`.
+
+    conformance  0213-a-bare-name-inside-a-method.a24
+
+##### conformance/0213-a-bare-name-inside-a-method.a24
+
+```algol24
+// CLS-019: the order a bare name inside a method resolves in.  Pos, Length and
+// Str are all built-ins [RT-001]; Cursor is not.
+var Pos := 'the global';
+
+class Thing;
+var
+    Pos    : Integer;
+    Length : Integer;
+    Cursor : Integer;
+
+begin
+    constructor Init ();
+    begin
+        this.Pos    := 42;
+        this.Length := 7;
+        this.Cursor := 9;
+    end
+
+    // A LOCAL first, over the global and over the field alike.
+    function Local () : Any;      begin var Pos := 'the local'; Exit Pos; end
+
+    // Then a VISIBLE GLOBAL, over a field of the same name.
+    function Global () : Any;     begin Exit Pos; end
+
+    // Then a FIELD, over a BUILT-IN -- which is the step a successful lookup
+    // used to run straight past, answering '<fn Length>' from inside the class
+    // where every other spelling answers the field.
+    function Field () : Any;      begin Exit Length; end
+
+    // A field whose name is no built-in, as the control.
+    function Control () : Any;    begin Exit Cursor; end
+
+    // Explicitly through the receiver, which reaches the field whatever else
+    // the name means.
+    function Qualified () : Any;  begin Exit this.Pos; end
+end
+
+var T := Thing ();
+WriteLn ('local     : ' + Str (T.Local ()));
+WriteLn ('global    : ' + Str (T.Global ()));
+WriteLn ('field     : ' + Str (T.Field ()));
+WriteLn ('control   : ' + Str (T.Control ()));
+WriteLn ('qualified : ' + Str (T.Qualified ()));
+
+// A METHOD is reached through the receiver, which answers it whatever else the
+// name means -- here a built-in [RT-001].
+//
+// The BARE spelling of that same name is not pinned here, and deliberately: it
+// answers the built-in in both other processors and the C back end cannot hold
+// a built-in as a value at all, so a case comparing it would be red for that
+// gap rather than for this rule.  PLAN-0.2.4.md item 11 carries it.
+class Other;
+begin
+    constructor Init (); begin end
+
+    function Copy () : Integer; begin Exit 99; end
+
+    function Receiver () : Any;  begin var G := this.Copy;   Exit G (); end
+end
+
+var O := Other ();
+WriteLn ('this. method  : ' + Str (O.Receiver ()));
+```
+
+```console
+$ algc conformance/0213-a-bare-name-inside-a-method.a24
+local     : the local
+global    : the global
+field     : 7
+control   : 9
+qualified : 42
+this. method  : 99
+```
+
 ---
 
 ## 13. Enumerations

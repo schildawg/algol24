@@ -1053,16 +1053,69 @@ begin
     end
 
     /// Evaluates a bare name, including one that is really a field of 'this'.
+    ///
+    /// The order is a VISIBLE VARIABLE, then a member of the receiver, then a
+    /// BUILT-IN -- and the middle step is the one that has to be reached past a
+    /// successful lookup.  A built-in is a name in the environment every file
+    /// encloses, so looking a bare name up finds it and the receiver is never
+    /// asked: a class with a field named Pos answered '<fn Pos>' from inside its
+    /// own method, where this is the field everywhere else, and the program died
+    /// later in unrelated arithmetic with no location [RT-005].
+    ///
+    /// A DECLARED variable still wins, which is the asymmetry: only a built-in
+    /// loses to a field, because only a built-in was never written down here.
+    ///
+    /// # Satisfies
+    ///
+    /// [CLS-019]
     function VisitVariableExpr (TheExpr : VariableExpr);
+    var
+        Found : Any;
+
     begin
         try
-            Exit LookupVariable (TheExpr.Name, TheExpr);
+            Found := LookupVariable (TheExpr.Name, TheExpr);
         except
             on e : String do Exit ThisField (TheExpr.Name, e);
         end
+
+        if Found is Native then
+            try
+                Exit ReceiverField (TheExpr.Name);
+            except
+                on e : String do Exit Found;
+            end
+
+        Exit Found;
     end
 
-    /// Reads a bare name as a field of the receiver, for an implicit 'this'.
+    /// Reads a bare name as a FIELD of the receiver, raising if there is no
+    /// receiver or no field of that name.
+    ///
+    /// GetField rather than Get, because a bare name read without parentheses is
+    /// a field read [CLS-007]: a method of that name is reached by 'this.M' or by
+    /// a call, never by the bare spelling, and both other processors answer the
+    /// BUILT-IN where a class declares a method of its name.
+    ///
+    /// Separate from ThisField because the two want different answers when it
+    /// fails: a name nothing declares must report the ORIGINAL
+    /// undefined-variable message, while a built-in that is not also a field
+    /// must fall back to the built-in.
+    function ReceiverField (Name : Token) : Any;
+    var
+        Obj : Any;
+
+    begin
+        Obj := Env.Get (Token (TOKEN_THIS, 'this', Nil, Name.LineNumber));
+
+        Exit Obj.GetField (Name);
+    end
+
+    /// Reads a bare name as a member of the receiver, for an implicit 'this'.
+    ///
+    /// Reached only when the name is not a visible variable at all, so there is
+    /// no built-in to lose to and the full member lookup is right here -- an
+    /// implicit bare CALL of a method arrives through this path.
     function ThisField (Name : Token, Original : String) : Any;
     var
         Obj : Any;
@@ -1070,6 +1123,7 @@ begin
     begin
         try
             Obj := Env.Get (Token (TOKEN_THIS, 'this', Nil, Name.LineNumber));
+
             Exit Obj.Get (Name);
         except
             on e : String do raise Original;

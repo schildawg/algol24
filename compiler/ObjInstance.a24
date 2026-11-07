@@ -75,6 +75,35 @@ begin
         raise 'Undefined property ''' + Name.Lexeme + '''.';
     end
 
+    /// Gets a FIELD the class declared, and nothing else.
+    ///
+    /// Get answers ClassName and a bound method as well, which is right for an
+    /// explicit 'this.Name' [FUN-011] and wrong for a bare one: a bare name read
+    /// without parentheses is a FIELD read [CLS-007], so a method of that name is
+    /// reached by 'this.M' or by a call and never by the bare spelling.
+    ///
+    /// It exists for the one caller that must tell those apart -- the bare name
+    /// whose only other answer is a BUILT-IN, where the field wins and the method
+    /// does not [CLS-019].  Routing that through Get instead made a class with a
+    /// method named after a built-in answer the method from inside its own body,
+    /// which is the machine's answer for neither.
+    ///
+    /// # Raises
+    ///
+    /// 'Undefined property ''X''.', as Get does, so a caller may tell the two
+    /// apart only by which it asked.
+    ///
+    /// # Satisfies
+    ///
+    /// [CLS-007], [CLS-019]
+    function GetField (Name : Token) : Any;
+    begin
+        if not Fields.Contains (FoldCase (Name.Lexeme)) then
+            raise 'Undefined property ''' + Name.Lexeme + '''.';
+
+        Exit Fields.Get (FoldCase (Name.Lexeme));
+    end
+
     /// Stores a value in a field the class declared.
     ///
     /// AN INSTANCE IS CLOSED: a field must be one the class declared.  This used
@@ -158,6 +187,12 @@ begin
     function Get (Name : Token) : Any;
     begin
         Exit Instance().Get (Name);
+    end
+
+    /// Gets a field from the one instance, constructing it if needed.
+    function GetField (Name : Token) : Any;
+    begin
+        Exit Instance().GetField (Name);
     end
 
     /// Stores a value in the one instance, constructing it if needed.

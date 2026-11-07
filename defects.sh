@@ -7,6 +7,10 @@
 # that shows it, and each run under whichever processors disagree.  See
 # PLAN-0.2.4.md, where the same numbering carries the root cause for each.
 #
+# Plus what working through them has FOUND, which carries no R- or D- number
+# because nobody reported it: BI-1, a built-in held as a value.  A sweep that
+# only ever checked what was reported would have shipped it.
+#
 # Unlike every other gate here, this one is EXPECTED TO FAIL when written and
 # its finish line is the release: a defect that stops reproducing is fixed, and
 # the last line says how many are left.
@@ -66,7 +70,7 @@ compiled () {
 }
 
 echo
-echo "The defect sweep -- fifteen reports, reduced"
+echo "The defect sweep -- fifteen reports, reduced, plus what they led to"
 echo
 
 # ---------------------------------------------------------------- group 1
@@ -379,6 +383,31 @@ printf '         not reproduced here: it needs shroom-slots, and PLAN-0.2.4.md\n
 printf '         item 10 carries the per-unit measurement that localises it to\n'
 printf '         one unit rather than to units being loaded.\n'
 echo
+echo "11. A built-in held as a value"
+# Found by probing item 2's edges rather than reported, so it carries no R- or
+# D- number: FUN-011 makes a subprogram's name without parentheses a value and
+# RT-001's built-ins are names like any other.  Both other processors do it.
+cat > "$WORK/b11.a24" <<'EOF'
+var F := Length;
+WriteLn (F ('abc'));
+WriteLn (Str (Length = Length));
+EOF
+I=$("$ALGC" "$WORK/b11.a24" 2>&1 || true)
+V=$("$ALGVM" "$WORK/b11.a24" 2>&1 || true)
+D=$WORK/b11; mkdir -p "$D"
+C=$(compiled "$D" "$WORK/b11.a24")
+if [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+    report BI-1 "a built-in held as a value" fixed ''
+else
+    report BI-1 "a built-in held as a value" open \
+        "interpreted '$(printf '%s' "$I" | tr '\n' '/')', machine '$(printf '%s' "$V" | tr '\n' '/')', compiled '$(printf '%s' "$C" | tr '\n' '/')'"
+fi
+
+# ⚠️ Interning is the half a naive fix would miss: these compare by IDENTITY
+# [VAL-011], so one value per name is required and a fresh one per read answers
+# false.  The second line of the program above is what asks.
+echo
+
 
 echo "----------------------------------------------------------------"
 printf '%s reproducing, %s fixed, of %s checked\n' "$OPEN" "$FIXED" "$((OPEN + FIXED))"
