@@ -55,3 +55,19 @@ var Mask : Integer := 6;
 var Bits : Integer := 3;
 
 WriteLn (Mask and Bits);
+
+// The fourth warning: a call whose argument count matches no declaration of
+// the name.  It is a COST and not a fault -- the program is legal and raises
+// 'Expected 2 arguments but got 1.' when the line runs [ERR-010].  That is the
+// whole of the defect this answers: the message is exact and it arrives after
+// the compile, the link and every gate, so a call on a path the tests do not
+// take reaches a person instead of a check.
+//
+// ⚠️ NOTHING ABOVE THIS MAY MOVE, for the reason the three before it give.
+procedure Pair (A : Integer, B : Integer);
+begin
+    WriteLn (A + B);
+end
+
+// Guarded, so the program still runs to the end: the call is never reached.
+if False then Pair (1);

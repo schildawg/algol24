@@ -1,0 +1,13 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Exports both an enumeration's members and a subprogram, so one importing file
+// can declare its own names over both kinds at once.
+
+unit Named;
+
+type Phase = (Idle, Spinning, Done);
+
+function Money (N : Integer) : String;
+begin
+    Exit 'money ' + Str (N);
+end

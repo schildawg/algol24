@@ -1,0 +1,16 @@
+// The fifth warning, and the only one raised while EMITTING C rather than while
+// checking types -- which is why it needs a fixture of its own: an interpreted
+// run never reaches the C back end, so `algc spec/warning.a24` could not
+// provoke it however the program were written.
+//
+// It is the back end that had the problem.  The interpreter raises the moment
+// the line runs and the bytecode machine refuses by name; only the C back end
+// emitted a silent stub, so a program compiled, linked, passed every gate and
+// aborted on the first run that reached the call.
+//
+// ⚠️ NOTHING ABOVE THIS MAY MOVE: the [WARN] line ERR-010 quotes carries this
+// line number.
+//
+// Guarded so the emitted program still runs: the call is never reached, which
+// is exactly the shape that made the fault outlive every test.
+if False then WriteLn (NoSuchName ());

@@ -79,7 +79,7 @@ Four tokens, no `Copy`, no `Str`, no subscript. The annotation is what breaks
 it: without `: String` the comparison is Char against Char and answers true.
 That inverts the usual bargain of a gradually typed language, where writing a
 type down is supposed to buy diagnostics rather than change an answer — and it
-is the same shape as the `BoundValue` finding in `PROPOSAL-VM.md`, where
+is the same shape as the `BoundValue` finding in `finished/PROPOSAL-VM.md`, where
 annotating a variable made the emitted code slower.
 
 A field, a parameter and a return type do this too, because all six assignment

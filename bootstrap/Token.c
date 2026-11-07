@@ -168,6 +168,7 @@ static Value i_token(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Literal", alg_nil());
     alg_set_property(v_this, "LineNumber", alg_nil());
     alg_set_property(v_this, "Offset", alg_widen(alg_int(0), "Integer"));
+    alg_set_property(v_this, "File", alg_widen(alg_string(""), "String"));
     alg_root_top = rt_base;
     return alg_nil();
 }
@@ -239,6 +240,7 @@ void init_Token(void) {
     alg_class_field(k_token, "Literal");
     alg_class_field(k_token, "LineNumber");
     alg_class_field(k_token, "Offset");
+    alg_class_field(k_token, "File");
     alg_class_initializer(k_token, i_token);
     alg_class_method(k_token, "Init", m_token_init_4_tokentype_string_integer, 4, t_token_init_4_tokentype_string_integer);
     alg_class_method(k_token, "ToString", m_token_tostring_0, 0, NULL);

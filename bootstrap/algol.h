@@ -1,6 +1,31 @@
 #ifndef ALGOL_H
 #define ALGOL_H
 
+/* WHICH RELEASE THIS HEADER IS, so the body cannot be a different one.
+   Encoded major * 10000 + minor * 100 + patch, so 0.2.4 is 204 and it only
+   ever increases.
+
+   algol.c and algol.h are a PAIR -- the body uses what the header declares --
+   and --compile emits them together.  Nothing stopped a build taking one of
+   each: anything that assembles a program out of both the compiler's output
+   and a checkout of the compiler itself can, and a project packaging for
+   Android did exactly that.  A v0.2.3 body against a 0.1.6 header gave twenty
+   cc errors, the first two being 'call to undeclared function alg_collect' and
+   'no member named marked in Obj'.  Not one of the twenty said "two
+   versions"; they read as a corrupt runtime, and the first guess was a bad
+   checkout.
+
+   The _Static_assert in algol.c turns all twenty into one line naming the real
+   fault.  It also catches a stale generated directory left by an earlier
+   compiler, which is the other way to arrive here.
+
+   ⚠️ NOTHING DERIVES THIS FROM compiler/Release.a24, because both halves of
+   the runtime are hand-written and copied verbatim.  spec/spec.sh holds the
+   three to each other instead, so bumping the release bumps this too or the
+   gate goes red -- which is the whole point, since a version in two places
+   with nothing comparing them is what Release.a24 was created to end. */
+#define ALG_RUNTIME_VERSION 204
+
 /* glibc hides POSIX behind a feature test, and -std=c11 asks for it to: the
    flag defines __STRICT_ANSI__, which suppresses the _DEFAULT_SOURCE glibc
    would otherwise assume.  Every build line this project documents says
@@ -249,6 +274,37 @@ Value alg_property_or(Value receiver, const char *name, Value extension);
 
 typedef Value (*AlgFunction)(Value **cells, Value *args, int32_t count);
 
+/* A BUILT-IN HELD AS A VALUE [FUN-011].  A built-in's name without parentheses
+   is a value like any subprogram's, and reading one answers a callable that
+   reaches the very same alg_* function a direct call reaches -- not a second
+   implementation that would have to agree with the first forever.
+
+   INTERNED BY NAME, and that is not an optimisation: these compare by identity
+   [VAL-011], so 'Length = Length' is true only if both reads answer one object.
+   The emitter calls this at every read and the first call for a name wins; the
+   fn, arity and types are the emitter's own table either way, so a later caller
+   passing the same name necessarily passes the same rest.
+
+   Interning in the RUNTIME rather than in a generated unit is what makes the
+   identity hold across units: a static per unit would make a Length read in one
+   unit a different object from one read in another, where the interpreter keeps
+   a single native per name in the environment every file encloses. */
+Value alg_builtin(const char *name, AlgFunction fn, int32_t arity, const char **types);
+
+/* An arity of -1 in alg_closure means ANY count, the callee checking for
+   itself -- the interpreter's own convention for a variadic built-in.  Only a
+   held built-in uses it. */
+#define ALG_ANY_ARITY (-1)
+
+/* The arity complaint for a built-in that takes SEVERAL counts, where 'expected'
+   is the counts written out -- 'Expected 1, 2 or 3 arguments but got 4.'
+
+   alg_arity cannot word it: it knows one expected count and these have a set of
+   them, and an overload set cannot either -- call_overload answers 'No matching
+   signature for function.', which is right for a subprogram and wrong here,
+   since what is wrong is the COUNT and nothing about the types. */
+void  alg_arity_counts(int32_t got, const char *expected);
+
 Value  *alg_cell(Value initial);
 Value   alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity,
                     const char **types);
@@ -365,6 +421,19 @@ void  alg_writeln(Value v);
 
 void  alg_writeln_blank(void);
 Value alg_str(Value v);
+
+/* Writes a line to the ERROR stream [RT-030].
+ *
+ * Named for the stream and not for the word 'error', deliberately: alg_error
+ * RAISES and never returns, and two functions a few letters apart meaning
+ * opposite things is a misreading waiting to happen.  This one prints and
+ * returns.
+ *
+ * Flushes STDOUT first, so a program's own output cannot appear after a
+ * diagnostic that followed it: stderr is unbuffered and stdout is
+ * block-buffered the moment it is redirected, which is exactly the ordering
+ * this built-in exists to let a program get right. */
+void alg_stderr_line(Value v);
 
 /* ── The shadow stack ─────────────────────────────────────────────────────
    Where a subprogram's locals are registered, so that a collection can see

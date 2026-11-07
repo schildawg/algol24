@@ -1,5 +1,5 @@
 #!/bin/sh
-# Reproduces every number in PROPOSAL-VM.md's measurement tables.
+# Reproduces every number in finished/PROPOSAL-VM.md's measurement tables.
 #
 # Run from the repository root, with bootstrap/algc already built:
 #

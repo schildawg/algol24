@@ -2,7 +2,7 @@
 ///
 ///     algvm program.a24
 ///
-/// A SECOND BINARY rather than a mode of algc, which is what PROPOSAL-VM.md
+/// A SECOND BINARY rather than a mode of algc, which is what finished/PROPOSAL-VM.md
 /// prefers and what `uses` taking a path makes possible today: the compiler's
 /// front end is imported from here instead of this being imported into it.
 /// So nothing in `compiler/` changes, the VM stays out of the seed in
@@ -138,7 +138,7 @@ begin
 
     var At := clock ();
 
-    TheScanner := Scanner (Source);
+    TheScanner := Scanner (Source, SourcePath);
     Tokens := TheScanner.ScanTokens ();
     FailIfScanErrors ();
 
@@ -648,10 +648,40 @@ begin
 
 end
 
+/// Reports an uncaught runtime error with the instruction it happened on, and
+/// stops with status 70 [ERR-009].
+///
+/// Worded exactly as the interpreter's driver words it: the sentence is what
+/// every recorded case compares, and only the second line is new.  The
+/// location is a second LINE rather than part of the message because a runtime
+/// error is catchable [STM-020] and arrives as a String, so putting it in the
+/// message would change every handler that prints one.
+procedure ReportRuntime (Message : String);
+begin
+    ErrorLn ('Uncaught: ' + Message);
+
+    if SITE_LINE > 0 then
+        ErrorLn ('       at ' + SITE_FILE + ':' + Str (SITE_LINE));
+
+    Halt (70);
+end
+
 // THE TEST RUN.  The script defines every declaration, test bodies included --
 // its own statements are left out of the compile -- and then each body is
 // called in the report's order.
-RunChunk (Program);
+// WHERE A RUNTIME ERROR HAPPENED, which only a driver can report: the runtime
+// produces the message and is handed values and nothing else [ERR-003].  The
+// machine recovers the site from its own IP where the raise escapes, so this
+// costs nothing until something fails.
+//
+// ⚠️ COMPILED Algol-24 reports no location, by decision, and conform.sh drops
+// the 'at' line from both sides for that reason.
+try
+    RunChunk (Program);
+except
+    on e : String do ReportRuntime (e);
+    on e : Any    do ReportRuntime (Str (e));
+end
 
 // 70 and not the count, which is the status a failing test run exits with
 // [TST-013] and what the other two processors answer.

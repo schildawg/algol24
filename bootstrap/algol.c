@@ -1,5 +1,11 @@
 #include "algol.h"
 
+/* The header this body was written against.  See ALG_RUNTIME_VERSION there for
+   why a mismatched pair is worth one line of diagnostic rather than twenty of
+   symptom. */
+_Static_assert (ALG_RUNTIME_VERSION == 204,
+                "algol.c and algol.h are from different releases");
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -3062,6 +3068,40 @@ Value *alg_cell(Value initial) {
     return cell;
 }
 
+/* The interned built-in values, one per name ever read as a value.  Thirty-four
+   names exist [RT-001] and a program reads very few of them this way, so a
+   linear scan over a fixed table is the whole of it. */
+#define ALG_MAX_BUILTIN_VALUES 64
+
+static struct {
+    const char *name;
+    Value       held;
+} builtin_values[ALG_MAX_BUILTIN_VALUES];
+
+static int32_t builtin_value_count = 0;
+
+Value alg_builtin(const char *name, AlgFunction fn, int32_t arity, const char **types) {
+    for (int32_t i = 0; i < builtin_value_count; i++)
+        if (alg_stricmp(builtin_values[i].name, name) == 0) return builtin_values[i].held;
+
+    Value held = alg_closure(name, fn, NULL, 0, arity, types);
+
+    if (builtin_value_count < ALG_MAX_BUILTIN_VALUES) {
+        builtin_values[builtin_value_count].name = name;
+        builtin_values[builtin_value_count].held = held;
+        builtin_value_count++;
+    }
+    return held;
+}
+
+void alg_arity_counts(int32_t got, const char *expected) {
+    char message[128];
+
+    snprintf(message, sizeof message, "Expected %s arguments but got %d.", expected, got);
+
+    alg_error(message);
+}
+
 Value alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity,
                   const char **types) {
     ObjClosure *closure = obj_alloc(sizeof(ObjClosure), OBJ_CLOSURE);
@@ -3394,6 +3434,14 @@ int32_t alg_collect(void) {
             if (root_tables[t].slots[i] != NULL)
                 mark_value(*root_tables[t].slots[i]);
 
+    /* And from the INTERNED BUILT-IN VALUES.  The table keeps a Value per name
+       for as long as the program runs, so each is a root: swept, the next read
+       of that name would answer a released closure, and the table would hand
+       the same dead object to every later reader.  Identity is the reason the
+       table exists [VAL-011] and the reason it must be marked. */
+    for (int32_t i = 0; i < builtin_value_count; i++)
+        mark_value(builtin_values[i].held);
+
     /* And from the locals of every frame on the C stack.  A range may be a
        subprogram's argument array, which is NULL when it takes none. */
     for (int32_t i = 0; i < alg_root_top; i++)
@@ -3545,7 +3593,17 @@ Value alg_call(Value callee, Value *args, int32_t count) {
     if (should_absorb(closure->types, closure->arity, args, count))
         return closure->fn(closure->cells, absorb_args(closure->arity, args, count), closure->arity);
 
-    alg_arity(count, closure->arity);
+    /* An arity of -1 means ANY count, and the callee checks for itself.  It is
+       the interpreter's own convention -- Native ('Str', -1) -- and it exists
+       here for the same reason: a BUILT-IN held as a value may answer several
+       counts, and which ones is the built-in's business rather than this
+       function's.  Gathering cannot stand in for it, because a gathered list
+       and a single List argument arrive identically and the callee could not
+       tell 'Str ([1, 2])' from 'Str (1, 2)'.
+
+       Nothing else emits -1: a subprogram's arity is its parameter count, and a
+       variadic one is a gathering TYPE rather than an absent count [FUN-005]. */
+    if (closure->arity >= 0) alg_arity(count, closure->arity);
 
     return closure->fn(closure->cells, args, count);
 }
@@ -3640,10 +3698,40 @@ void alg_pop_frame(void) {
     if (frames != NULL) frames = frames->previous;
 }
 
+/* Reports an uncaught raise and stops, with status 70 [ERR-009].
+ *
+ * STDOUT IS FLUSHED FIRST.  The diagnostic goes to stderr, which is unbuffered,
+ * while the program's own output goes to stdout, which is block-buffered the
+ * moment it is redirected -- so without this the output was still in its buffer
+ * when the diagnostic was written and `exit` flushed it afterwards.  At a
+ * terminal nothing looked wrong, because stdout is line-buffered there; piped
+ * or redirected, every program appeared to fail BEFORE it had printed
+ * anything, and a program's last output before dying is the most useful thing
+ * it has.
+ *
+ * The tree walker and the machine do not reach here for a runtime error -- each
+ * has a driver that catches it and reports through ErrorLn [RT-030], which
+ * flushes for the same reason and adds the location [ERR-003].  This is the
+ * path a COMPILED program takes, and `algc`'s own escaping raises.
+ *
+ * One function rather than the two sites that used to do this, so a later
+ * addition cannot be the one that forgets. */
+_Noreturn static void report_uncaught(const char *message) {
+    fflush(stdout);
+
+    fprintf(stderr, "Uncaught: %s\n", message);
+
+    exit(70);
+}
+
 _Noreturn void alg_raise(Value value) {
     if (frames == NULL) {
-        fprintf(stderr, "Uncaught: %s\n", as_text(value));
-        exit(70);
+        /* Rendered BEFORE the flush, because a guest ToString [CLS-009] may
+           print on its way to answering -- and what it printed belongs before
+           the diagnostic like any other output of the program. */
+        const char *text = as_text(value);
+
+        report_uncaught(text);
     }
 
     AlgFrame *frame = frames;
@@ -3670,8 +3758,7 @@ _Noreturn void alg_error(const char *message) {
         alg_raise(alg_string(kept));
     }
 
-    fprintf(stderr, "Uncaught: %s\n", message);
-    exit(70);
+    report_uncaught(message);
 }
 
 static const char *type_name(Value v) {
@@ -5406,6 +5493,16 @@ void alg_writeln(Value v) {
     if (in_tests) return;
 
     fputc('\n', stdout);
+}
+
+void alg_stderr_line(Value v) {
+    if (in_tests) return;
+
+    /* The program's own output first, or a diagnostic written after it would
+       appear before it in any pipe. */
+    fflush(stdout);
+
+    fprintf(stderr, "%s\n", as_text(v));
 }
 
 void alg_writeln_blank(void) {

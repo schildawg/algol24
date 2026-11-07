@@ -130,6 +130,26 @@ var
    /// makes a diamond load once and stops a cycle from recursing forever.
    Loaded : Map := [:];
 
+   /// Each loaded unit's FOLDED name to the path it was loaded from, shared
+   /// exactly as Loaded is.
+   ///
+   /// A unit name is an identifier and identifiers fold [SRC-011], so two files
+   /// whose names differ only in case declare ONE unit name -- and a program
+   /// reaching both has declared it twice.  Keyed by the folded name and NOT by
+   /// the path, which is what Loaded is for: two paths are two files, and the
+   /// question here is whether they are two units.
+   ///
+   /// Refused in the PARSER rather than in a back end so that all three
+   /// processors answer alike.  Unrefused, the same program meant three
+   /// different things: the interpreter ran it, the machine answered
+   /// 'Undefined variable' for the second unit's exports, and the C back end
+   /// wrote one '.c' for the two units and did not build.
+   ///
+   /// # Satisfies
+   ///
+   /// [MOD-018]
+   Claimed : Map := [:];
+
    /// Names marked 'private' in this file.
    PrivateNames : List := [];
 
@@ -226,6 +246,47 @@ begin
                              + ''' must match its file name ''' + Expected + '''.');
     end
 
+    /// Records a unit name as taken, refusing a second file that folds onto it.
+    ///
+    /// The name is the file's STEM rather than its 'unit' header, because the
+    /// header is optional [MOD-004] and must match the file name where it is
+    /// present -- so the stem is the one name every module has.
+    ///
+    /// The path is compared too, since re-importing one file is not a clash
+    /// with itself: UsesStatement answers early for a path already loaded, and
+    /// this is reached only for a file being read for the first time.
+    ///
+    /// # Raises
+    ///
+    /// 'Two units whose names differ only in case: ''A'' and ''B''. A unit name
+    /// is matched without regard to case.'
+    ///
+    /// It names the two PATHS and no unit name, because neither file's spelling
+    /// is the name of the clash and the folded one is a spelling no file wrote
+    /// -- a diagnostic quotes what the program wrote [SRC-011].
+    ///
+    /// # Satisfies
+    ///
+    /// [MOD-018], [SRC-011]
+    procedure ClaimUnit (Where : Token, Path : String);
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (UnitStem (Path));
+
+        if Claimed.Contains (Folded) then
+        begin
+            if Str (Claimed.Get (Folded)) <> Path then
+                raise Error (Where, 'Two units whose names differ only in case: '''
+                           + Str (Claimed.Get (Folded)) + ''' and ''' + Path
+                           + '''. A unit name is matched without regard to '
+                           + 'case.');
+        end
+
+        Claimed.Put (Folded, Path);
+    end
+
     /// Gets the unit name a path stands for -- its stem, so 'lib/ModA.a24' is
     /// the unit ModA.
     function UnitStem (Key : String) : String;
@@ -265,7 +326,16 @@ begin
     begin
         Statements := List();
 
-        if FileName <> '' then Loaded.Put (FileName, True);
+        // The ROOT claims its name too.  Nothing can import the root, so it is
+        // not a module -- but the C back end names a file after it like any
+        // other, so a root called Alpha.a24 importing an alpha.a24 collides in
+        // exactly the same way.  Claimed before the 'uses' clauses are read,
+        // for the reason Loaded is: this file is reached first.
+        if FileName <> '' then
+        begin
+            Loaded.Put (FileName, True);
+            ClaimUnit (Peek (), FileName);
+        end
 
         UnitHeader ();
 
@@ -294,6 +364,29 @@ begin
     ///
     /// [STM-022]
     function Statement () : Stmt;
+    var
+        Where  : Token;
+        Parsed : Stmt;
+
+    begin
+        // Stamped HERE because this is the one funnel every statement comes
+        // through -- Declaration delegates to it and the thirty-odd callers
+        // below reach the same place.  Taken BEFORE the body parses, so it is
+        // the line the statement begins on rather than wherever it ended.
+        Where  := Peek ();
+        Parsed := StatementBody ();
+
+        if Parsed <> Nil then
+        begin
+            Parsed.Line := Where.LineNumber;
+            Parsed.File := Str (Where.File);
+        end
+
+        Exit Parsed;
+    end
+
+    /// Parses one statement, dispatching on what it begins with.
+    function StatementBody () : Stmt;
     begin
         if Match (TOKEN_TYPE) then Exit EnumDeclaration ();
         if Match (TOKEN_CLASS) then Exit ClassDeclaration ();
@@ -767,12 +860,15 @@ begin
         end
         Loaded.Put (Path, True);
 
-        var SubScanner := Scanner (ReadWholeFile (Path));
+        ClaimUnit (Where, Path);
+
+        var SubScanner := Scanner (ReadWholeFile (Path), Path);
         var SubParser  := Parser (SubScanner.ScanTokens());
 
         SubParser.FileName := Path;
 
         SubParser.Loaded := Loaded;
+        SubParser.Claimed := Claimed;
 
         var Result := SubParser.Parse();
 
@@ -2397,8 +2493,8 @@ begin
     ///
     /// # Raises
     ///
-    /// 'Expect expression!' for a token that starts none, and
-    /// 'Expect '')'' after expression.' for an unclosed group.
+    /// 'Expect expression!' for a token that starts none, reported against that
+    /// token, and 'Expect '')'' after expression.' for an unclosed group.
     ///
     /// # Satisfies
     ///
@@ -2444,7 +2540,13 @@ begin
 
             Exit GroupingExpr (TheExpr);
         end
-        raise 'Expect expression!';
+        // Through Error, like every other parse error, so it carries the file,
+        // the line, the source and a caret.  Raised bare, it was the ONE parse
+        // error reported as a sentence alone -- and it is the one a semicolon
+        // after 'end' produces, which is the most likely typo in a
+        // Pascal-shaped language.  Error answers the message, so what is raised
+        // is unchanged and a handler comparing it still matches.
+        raise Error (Peek (), 'Expect expression!');
     end
 
     /// Consumes the next token when it is of this kind, and answers whether it

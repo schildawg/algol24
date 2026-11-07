@@ -6,7 +6,7 @@
 /// instruction set where a `case` is not -- there is no CaseStmt node, so each
 /// arm becomes an IfStmt and an opcode pays for every arm above it.  Measured
 /// at 2.4x between the first position and the thirty-first, which is the whole
-/// of why `Dispatch` exists.  See PROPOSAL-VM.md.
+/// of why `Dispatch` exists.  See finished/PROPOSAL-VM.md.
 ///
 /// One consequence is that there is one machine per process, as there is in
 /// clox.  Nothing needs two yet.
@@ -192,7 +192,7 @@ const STACK_ROOM := FRAME_ROOM * 256;
 /// NOTHING -- measured at zero arena bytes across twelve million instructions.
 /// That is only true while the guest's values are numbers: a guest string or
 /// collection would be an Algol-24 object in the host's arena, which never
-/// frees, so those want the Buffer heap PROPOSAL-GC.md describes rather than
+/// frees, so those want the Buffer heap finished/PROPOSAL-GC.md describes rather than
 /// this stack.  The boundary is the thing to hold on to as opcodes are added.
 var Slots := Array (STACK_ROOM);
 
@@ -580,6 +580,18 @@ var COLLECT_EVERY := 0;
 
 /// Instructions since the last collection.
 var Tick : Integer := 0;
+
+/// The file the escaping error's instruction came from, for the driver to
+/// report [ERR-003].
+///
+/// Recovered at the RAISE from IP rather than published as the program runs,
+/// which is why the machine pays nothing for this until something fails -- the
+/// tree walker has no instruction pointer to recover a position from and must
+/// publish per statement instead.
+var SITE_FILE := '';
+
+/// The line of that instruction, or 0 where the chunk recorded none.
+var SITE_LINE := 0;
 
 /// Sets how many instructions pass between collections, or 0 for none.
 ///
@@ -3170,7 +3182,7 @@ end
 ///
 /// A collection built-in -- List, Map, Set, Array, Buffer, Slots, TextFile --
 /// hands back a HOST object, allocated in an arena that never frees.  That is
-/// the guest-heap boundary PROPOSAL-GC.md describes, crossed deliberately and
+/// the guest-heap boundary finished/PROPOSAL-GC.md describes, crossed deliberately and
 /// for now: it matches what the interpreter does, and the `Buffer` heap that
 /// would fix it is the VM's own work rather than a built-in's.
 ///
@@ -3209,7 +3221,7 @@ begin
 
     // Write and WriteLn take any number [RT-015], so they are handled before
     // the fixed-arity arms rather than needing one arm per count.
-    if Name = 'write' or Name = 'writeln' then
+    if Name = 'write' or Name = 'writeln' or Name = 'errorln' then
     begin
         var Given := List ();
 
@@ -3221,9 +3233,23 @@ begin
         // disappearing must not change what it computes.
         if not TESTING then
         begin
-            for var Each in Given do Write (Each);
+            // ErrorLn writes ONE line to the other stream, so it joins its
+            // arguments rather than writing each -- which is what the C back
+            // end's RunTogether does for it at a call site [RT-030].
+            if Name = 'errorln' then
+            begin
+                var Joined := '';
 
-            if Name = 'writeln' then WriteLn (Str (''));
+                for var Each in Given do Joined := Joined + Str (Each);
+
+                ErrorLn (Joined);
+            end
+            else
+            begin
+                for var Each in Given do Write (Each);
+
+                if Name = 'writeln' then WriteLn (Str (''));
+            end
         end
 
         Push (Nil);
@@ -3977,6 +4003,14 @@ begin
                 if not Unwind (e) then
                 begin
                     if TRACE_WATCH = '' then DumpTrace ();
+
+                    // WHERE IT HAPPENED, recovered from IP rather than
+                    // published as the program ran -- which is why the machine
+                    // pays nothing for this until something fails.  IP points
+                    // past the instruction that raised, so the lookup is one
+                    // byte back.
+                    SITE_FILE := Str (Running.SourceFile);
+                    SITE_LINE := Running.LineAt (IP - 1);
 
                     raise e;
                 end

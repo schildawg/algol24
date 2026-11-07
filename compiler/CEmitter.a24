@@ -22,8 +22,10 @@
 /// 'uses'.
 unit CEmitter;
 
+uses Console;
 uses Expr;
 uses ObjFunction;
+uses SourceCode;
 uses Stmt;
 uses TokenType;
 uses Token;
@@ -240,7 +242,41 @@ var
 
     /// Every function the program declares, collected before anything is emitted
     /// so a call to one declared later still resolves.
+    ///
+    /// PROGRAM-WIDE, and it answers only program-wide questions: does any unit
+    /// declare a subprogram of this name.  Which unit declared it is DeclaredIn,
+    /// and whether it can be seen from the file being emitted is
+    /// VisibleSubprogram -- keeping those apart is what four defects turned on.
     Declared     : Set;
+
+    /// The unit's own share of whatever is being collected, filled beside the
+    /// program-wide set by CollectFunctions and CollectGlobals.
+    ///
+    /// A SECOND SET rather than a difference of the program-wide one before and
+    /// after, because a Set swallows a repeat: two units declaring one name is
+    /// exactly the case these tables exist to tell apart, and the second unit's
+    /// add would have shown as nothing added at all.
+    CollectingInto : Set;
+
+    /// Which unit declared each of those, as a unit name to the set of
+    /// subprogram names it declares.
+    ///
+    /// Declared on its own says a name exists SOMEWHERE, which is not a question
+    /// any resolution should ask.  Asking it is what made a unit's own method
+    /// unreachable the moment an unrelated unit declared a top-level subprogram
+    /// of the name -- and the error stub landed in the blameless unit's own C,
+    /// naming the wrong unit as the one to import.
+    DeclaredIn   : Map;
+
+    /// The top-level subprograms VISIBLE in the file being emitted: its own,
+    /// plus those exported by the units it imported.  Replaced per unit.
+    ///
+    /// The distinction is the language's rather than this emitter's, and all
+    /// three processors agree about both halves.  A visible top-level subprogram
+    /// BEATS a method of the class being emitted, called by its bare name -- so
+    /// a unit that imports one gets the subprogram.  A subprogram that is not
+    /// visible here does not enter the question at all, and the method wins.
+    VisibleDeclared : Set;
 
     /// Numbers the slots 'and' and 'or' hold their left operand in, so each
     /// occurrence gets its own and nesting cannot make two share one.
@@ -355,6 +391,17 @@ var
     /// Every top-level name of the unit being emitted.
     TopLevel     : Set;
 
+    /// Which unit declared each file-scope variable and constant, as a unit name
+    /// to the set of names it declares.
+    ///
+    /// The per-unit Globals, and the reason a file's own variable now wins over
+    /// an imported enumeration member or subprogram of the same name.  Reading
+    /// the flat Globals could not answer it: the arms that resolve an import run
+    /// first, so a program's own 'var Spinning' beside a 'uses' of a unit
+    /// exporting the member Spinning emitted the MEMBER -- and every assignment
+    /// to the variable was discarded in silence.
+    GlobalsIn    : Map;
+
     /// Each unit's exported names.
     ///
     /// The emitter needs this even though it flattens, and it is the one
@@ -389,6 +436,17 @@ var
 
     /// The names taken over entire, by a declaration that is not a subprogram.
     ShadowWhole  : Set;
+
+    /// Names already warned about, keyed by line and folded name, so one
+    /// occurrence warns once however many times this emitter visits it.
+    Warned       : Set;
+
+    /// Built-in thunks already written into this unit, so one is emitted once.
+    ///
+    /// Per UNIT, because a thunk is a static C function and each unit that
+    /// reads the name needs its own.  The VALUE they answer is interned in the
+    /// runtime instead, which is what keeps identity across units [VAL-011].
+    BuiltinThunks : Set;
 
     /// Folded name to the spelling the declaration used [SRC-011].
     ///
@@ -483,10 +541,16 @@ begin
         this.Cells := List();
         this.Captured := Map();
         this.Globals := Set();
+        this.GlobalsIn := Map();
+        this.DeclaredIn := Map();
+        this.CollectingInto := Set();
+        this.VisibleDeclared := Set();
         this.TopLevel := Set();
         this.UnitExports := Map();
         this.UnitAll := Map();
         this.ShadowNames := Set();
+        this.Warned := Set();
+        this.BuiltinThunks := Set();
         this.Canonical := Map();
         this.Tests := List();
         this.TestFiles := List();
@@ -891,6 +955,7 @@ begin
                 if not IsTest (TheStmt) then
                 begin
                     Declared.Add (Str (TheStmt.Name.Lexeme));
+                    CollectingInto.Add (Str (TheStmt.Name.Lexeme));
                     Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
                 end
 
@@ -942,6 +1007,7 @@ begin
             if TheStmt is VarStmt then
             begin
                 Globals.Add (Str (TheStmt.Name.Lexeme));
+                CollectingInto.Add (Str (TheStmt.Name.Lexeme));
                 Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
             end
 
@@ -949,6 +1015,7 @@ begin
                 for var TheName in TheStmt.Names do
                 begin
                     Globals.Add (Str (TheName.Lexeme));
+                    CollectingInto.Add (Str (TheName.Lexeme));
                     Canonical.Put (FoldCase (TheName.Lexeme),
                                    Str (TheName.Lexeme));
                 end
@@ -1016,18 +1083,34 @@ begin
             Seen.Add (Str (TheUnit.Name));
         end
 
+        // Both of these were one pass accumulating into one program-wide set,
+        // which is what made a name declared in ANY unit resolve in EVERY unit.
+        // The sets they fill are still program-wide -- MissingName asks a
+        // program-wide question and should -- but each unit's own share is now
+        // recorded beside it, keyed by the unit's name.
+        //
+        // The root file's unit name is the EMPTY STRING, so '' is a key like any
+        // other here and cannot double as 'no unit'.
         for var TheUnit in Units do
+        begin
+            CollectingInto := Set();
             CollectFunctions (TheUnit.Statements);
+            DeclaredIn.Put (Str (TheUnit.Name), CollectingInto);
+        end
 
         for var TheUnit in Units do
         begin
             TopLevel := Set();
             Overloaded := Set();
 
+            CollectingInto := Set();
             CollectGlobals (TheUnit.Statements);
+            GlobalsIn.Put (Str (TheUnit.Name), CollectingInto);
 
             OverloadsIn.Put (Str (TheUnit.Name), Overloaded);
         end
+
+        CollectingInto := Set();
 
         for var TheUnit in Units do
         begin
@@ -1102,6 +1185,14 @@ begin
             Functions := Buffer();
             Setup := Buffer();
             Shells := Buffer();
+
+            // Per UNIT, beside the buffers it writes into.  Left standing
+            // across units, the first unit to read a built-in as a value
+            // emitted the thunk and every later unit referenced it without
+            // declaring one -- 'use of undeclared identifier bq_length' in the
+            // second file.  A thunk is a static C function; each unit needs
+            // its own, and the VALUE is interned in the runtime instead.
+            BuiltinThunks := Set();
 
             Overloaded := OverloadsIn.Get (Str (Unit.Name)) as Set;
             SetsBuilt := Set();
@@ -1203,6 +1294,35 @@ begin
                     var Seen := (UnitExports.Get (Str (TheImport)) as Set).ToList();
                     for var J := 0; J < Seen.Length; J := J + 1 do
                         ShadowNames.Add (Seen[J]);
+                end
+
+            // Which top-level SUBPROGRAMS can be seen from here, built exactly as
+            // ShadowNames is and from the same two halves -- this unit's own
+            // declarations, then what each import exports -- but filtered to the
+            // subprograms, since the question it answers is whether a bare call
+            // inside a class reaches one of those instead of a method.
+            //
+            // Narrower than ShadowNames deliberately: a visible CLASS or VARIABLE
+            // of the name does not take a bare call away from a method.
+            VisibleDeclared := Set();
+
+            if DeclaredIn.Contains (Str (Unit.Name)) then
+            begin
+                var Mine := (DeclaredIn.Get (Str (Unit.Name)) as Set).ToList();
+                for var I := 0; I < Mine.Length; I := I + 1 do
+                    VisibleDeclared.Add (Mine[I]);
+            end
+
+            for var TheImport in Unit.Imports do
+                if DeclaredIn.Contains (Str (TheImport))
+                        and UnitExports.Contains (Str (TheImport)) then
+                begin
+                    var Theirs := (DeclaredIn.Get (Str (TheImport)) as Set).ToList();
+                    var Shown  := UnitExports.Get (Str (TheImport)) as Set;
+
+                    for var J := 0; J < Theirs.Length; J := J + 1 do
+                        if Shown.Contains (Theirs[J]) then
+                            VisibleDeclared.Add (Theirs[J]);
                 end
 
             // Which counts those same declarations took, walked from the
@@ -3019,11 +3139,23 @@ begin
 
         if Captured.Contains (Name) or Boxed.Contains (Name) then Exit Read (Name);
 
+        // A visible global beats a field of the receiver [CLS-019].  Only a
+        // LOCAL was tested for here, so a declared global named after a field
+        // read as the field -- the one answer of the three that this emitter
+        // gave alone.
         if CurrentClass <> '' and not Locals.Contains (Name)
+                              and not VisibleGlobal (Name)
                               and VisibleFields.Contains (FoldCase (Name)) then
             Exit 'alg_property(' + ThisRef () + ', ' + QuoteC (Name) + ')';
 
-        if not Locals.Contains (Name) then
+        // A name this file declares itself as a variable or a constant is that
+        // variable, and every arm below resolves an IMPORT.  They ran first, so
+        // a program's own 'var Spinning' beside a unit exporting the member
+        // Spinning emitted the member -- and the assignment was discarded with
+        // no diagnostic from either back end.  An ambiguity between two imports
+        // is settled the same way, which is what the AmbiguousImports.Remove
+        // above already does for the names a unit declares.
+        if not Locals.Contains (Name) and not OwnGlobal (Name) then
         begin
             if AmbiguousMembers.Contains (Name) then
                 Exit '(alg_error(' + QuoteC (AmbiguousMessage (Str (TheExpr.Name.Lexeme),
@@ -3051,7 +3183,22 @@ begin
         if not Locals.Contains (Name) and not Globals.Contains (Name)
                                       and not Classes.Contains (FoldCase (Name))
                                       and not Objects.Contains (FoldCase (Name)) then
-            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+        begin
+            // A BUILT-IN read as a value [FUN-011], which is reached only here:
+            // everything a program could declare over the name has been asked
+            // already, and ShadowNames decides whether a declaration took it
+            // over [RT-027].  Without this the name became an
+            // alg_error("Undefined variable ...") stub -- a wrong answer about
+            // a name that is perfectly well defined.
+            if not ShadowNames.Contains (Name) then
+            begin
+                var Held := BuiltinHandle (Name);
+
+                if Held <> '' then Exit Held;
+            end
+
+            Exit Missing (Name, TheExpr.Name);
+        end
 
         Exit Guarded (Name, VariableName (Name));
     end
@@ -3075,6 +3222,105 @@ begin
 
         Exit '(alg_declared(' + DeclaredFlag (Name) + ', '
            + QuoteC (Name) + '), ' + Text + ')';
+    end
+
+    /// Whether the file being emitted declares this name itself, as a file-scope
+    /// variable or constant.
+    ///
+    /// The question an imported name must be asked against before it resolves:
+    /// a file's own variable wins inside it, which both other processors do and
+    /// the C back end did not.  Asked through here rather than inlined at each
+    /// site, because the next read added would be the one that forgot the unit.
+    ///
+    /// # Satisfies
+    ///
+    /// MOD-005, SRC-010
+    function OwnGlobal (Name : String) : Boolean;
+    begin
+        if not GlobalsIn.Contains (UnitName) then Exit False;
+
+        Exit (GlobalsIn.Get (UnitName) as Set).Contains (Name);
+    end
+
+    /// Whether a file-scope variable or constant of this name can be seen from
+    /// the file being emitted -- its own, or one an import exports.
+    ///
+    /// A visible global BEATS a field of the receiver, which is the step this
+    /// emitter was missing: it tested only for a LOCAL before answering the
+    /// field, so a declared global named after a field read as the field inside
+    /// the class's own methods, where both other processors read the global.
+    ///
+    /// # Satisfies
+    ///
+    /// CLS-019
+    function VisibleGlobal (Name : String) : Boolean;
+    begin
+        if OwnGlobal (Name) then Exit True;
+
+        Exit Globals.Contains (Name) and ShadowNames.Contains (Name);
+    end
+
+    /// Whether a top-level subprogram of this name can be seen from the file
+    /// being emitted.
+    ///
+    /// Not whether one EXISTS, which is what Declared answers and what no
+    /// resolution should ask: a subprogram in a unit this file never imported is
+    /// not in scope here, and treating it as though it were made a unit's own
+    /// method unreachable and put the complaint in that unit's own C.
+    ///
+    /// # Satisfies
+    ///
+    /// MOD-015
+    function VisibleSubprogram (Name : String) : Boolean;
+    begin
+        Exit VisibleDeclared.Contains (Name);
+    end
+
+    /// Emits the stub for a name that cannot be reached from here, and WARNS
+    /// about it.
+    ///
+    /// The stub is still emitted, because refusing would forbid a program the
+    /// language permits: a free name in a body is resolved when the body runs
+    /// [DCL-007], so a name on a path that never runs is never looked up.  What
+    /// was wrong was only that nothing said so while compiling -- every fact in
+    /// the message is in hand here, including which unit exports the name, since
+    /// MissingName searched for it in order to word the sentence.
+    ///
+    /// It cost one project an afternoon and reached a device, where the
+    /// sentence that says exactly what is wrong goes to a stream nobody reads
+    /// and the player sees the application vanish.  An error deferred to run
+    /// time is deferred to WHATEVER run time, including the ones with no
+    /// console.
+    ///
+    /// # Satisfies
+    ///
+    /// [ERR-010]
+    function Missing (Name : String, Where : Token) : String;
+    var
+        Key : String;
+
+    begin
+        // An ASSERTION outside a test run is a stub on purpose, and the
+        // exemption belongs HERE rather than at one of the three call sites:
+        // the site that tests for it is reached third, so a unit declaring a
+        // Fail of its own made the first site warn about the built-in one
+        // instead -- 'Unit ''harness'' exports it; this file has no ''uses''
+        // for it', of a name testing.a24 legitimately uses in its test blocks.
+        // One exemption in the one place every site passes through.
+        if not EmitTests and IsAssertion (Name) then
+            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+
+        Key := 'missing:' + Str (Where.LineNumber) + ':' + FoldCase (Name);
+
+        if not Warned.Contains (Key) then
+        begin
+            Warned.Add (Key);
+
+            Console.Warn (SourceCode.Named (Str (Where.File)) + ':'
+                        + Str (Where.LineNumber) + ': ' + MissingName (Name));
+        end
+
+        Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
     end
 
     /// Builds the message for a name nothing declares.
@@ -3168,7 +3414,11 @@ begin
         if Captured.Contains (Name) or Boxed.Contains (Name) then
             Exit '(' + Read (Name) + ' = ' + Written + ')';
 
+        // The same order a read takes [CLS-019]: a visible global is written,
+        // not a field of the receiver.  A write that disagreed with the read
+        // would be worse than either.
         if CurrentClass <> '' and not Locals.Contains (Name)
+                              and not VisibleGlobal (Name)
                               and VisibleFields.Contains (FoldCase (Name)) then
             Exit 'alg_set_property(' + ThisRef () + ', ' + QuoteC (Name) + ', ' + Written + ')';
 
@@ -3295,6 +3545,34 @@ begin
         Exit 'Expected ' + Expected + ' arguments but got ' + Str (Got) + '.';
     end
 
+    /// Writes a set of argument counts as the phrase a complaint names them in:
+    /// '1, 2 or 3'.
+    ///
+    /// Factored out of CountsMessage because a HELD built-in complains at run
+    /// time, where only the phrase can be emitted and the count it got is not
+    /// yet known -- see alg_arity_counts.  One implementation, so the two
+    /// cannot word the same set differently.
+    function CountsPhrase (Counts : List) : String;
+    var
+        Expected : String;
+
+    begin
+        Expected := '';
+
+        for var I := 0; I < Counts.Length; I := I + 1 do
+        begin
+            if I > 0 then
+            begin
+                if I = Counts.Length - 1 then Expected := Expected + ' or ';
+                else                          Expected := Expected + ', ';
+            end
+
+            Expected := Expected + Str (Counts[I]);
+        end
+
+        Exit Expected;
+    end
+
     /// Gets the renames in force while a unit's statements are emitted.
     function RenamesOf (Unit : String, Name : String) : Map;
     var
@@ -3351,6 +3629,143 @@ begin
         Exit Folded = 'asserttrue' or Folded = 'assertequal' or Folded = 'fail';
     end
 
+    /// Emits the value a built-in's name answers when it is READ rather than
+    /// called, or '' where the name is no built-in.
+    ///
+    /// A built-in's name without parentheses is a value, like any subprogram's
+    /// [FUN-011], and this back end used to have no arm for it at all: the name
+    /// fell through to MissingName and became an
+    /// alg_error("Undefined variable 'Length'.") stub -- a WRONG ANSWER, since
+    /// the name is perfectly well defined, where this back end's own rule is to
+    /// refuse by name what it cannot emit.  Both other processors answer it.
+    ///
+    /// The value reaches the SAME alg_* function a direct call reaches, through
+    /// a thunk this emits, so there is no second implementation of a built-in to
+    /// agree with the first forever.  That is the guarantee the interpreter
+    /// keeps by making its built-ins one class with a case, and the machine by
+    /// sending OP_BUILTIN's name to the host's own.
+    ///
+    /// # Satisfies
+    ///
+    /// FUN-011, RT-001
+    function BuiltinHandle (Name : String) : String;
+    var
+        Counts : List;
+        Symbol : String;
+
+    begin
+        Counts := BuiltinCounts (Name);
+
+        if Counts.Length = 0 then Exit '';
+
+        Symbol := Mangle ('bq_', Name);
+
+        if not BuiltinThunks.Contains (Symbol) then
+        begin
+            BuiltinThunks.Add (Symbol);
+            EmitBuiltinThunk (Symbol, Name, Counts);
+        end
+
+        // ALG_ANY_ARITY, because the thunk checks the count itself: a built-in
+        // may answer several counts and which ones is the built-in's business.
+        Exit 'alg_builtin(' + QuoteC (Name) + ', ' + Symbol + ', ALG_ANY_ARITY, NULL)';
+    end
+
+    /// Writes the C thunk a held built-in is called through.
+    ///
+    /// It dispatches on the argument count and complains for itself, which is
+    /// what ALG_ANY_ARITY leaves it to do.  A single count takes alg_arity, so
+    /// the wording is the runtime's own; several take alg_arity_counts, because
+    /// 'Expected 1, 2 or 3 arguments but got 4.' is a sentence alg_arity cannot
+    /// word and an overload set answers 'No matching signature for function.'
+    /// for -- right for a subprogram and wrong here, where the fault is the
+    /// count and nothing about the types.
+    procedure EmitBuiltinThunk (Symbol : String, Name : String, Counts : List);
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (Name);
+
+        Functions.Append ('static Value ' + Symbol
+                        + '(Value **cells, Value *args, int32_t count) {' + #10);
+        Functions.Append ('    (void)cells;' + #10);
+
+        if Folded = 'write' or Folded = 'writeln' or Folded = 'errorln' then
+        begin
+            // Write and WriteLn take ANY count and join what they are given,
+            // which is what the emitter does at an ordinary call site through
+            // RunTogether -- done here over args, since a held one is called
+            // with a count only the run knows.  Measured: a held Write of no
+            // arguments prints nothing and a held WriteLn of none prints a
+            // blank line.
+            // ⚠️ Write, WriteLn and Halt answer VOID in C where they answer
+            // nil in the language, so a thunk calls them and answers nil
+            // itself rather than returning what they gave.
+            if Folded = 'writeln' then
+                Functions.Append ('    if (count == 0) { alg_writeln_blank(); return alg_nil(); }' + #10);
+            else if Folded = 'errorln' then
+                Functions.Append ('    if (count == 0) { alg_stderr_line(alg_string("")); return alg_nil(); }' + #10);
+            else
+                Functions.Append ('    if (count == 0) return alg_nil();' + #10);
+
+            Functions.Append ('    Value joined = alg_str(args[0]);' + #10);
+            Functions.Append ('    for (int32_t i = 1; i < count; i++)' + #10);
+            Functions.Append ('        joined = alg_add(joined, alg_str(args[i]));' + #10);
+            Functions.Append ('    ' + Builtin (Name, 1) + '(joined);' + #10);
+            Functions.Append ('    return alg_nil();' + #10);
+            Functions.Append ('}' + #10 + #10);
+
+            Exit;
+        end
+
+        for var I := 0; I < Counts.Length; I := I + 1 do
+        begin
+            var Count := Counts[I] as Integer;
+            var Passed := '';
+
+            for var A := 0; A < Count; A := A + 1 do
+            begin
+                if A > 0 then Passed := Passed + ', ';
+
+                Passed := Passed + 'args[' + Str (A) + ']';
+            end
+
+            if VoidBuiltin (Name) then
+                Functions.Append ('    if (count == ' + Str (Count) + ') { '
+                                + Builtin (Name, Count) + '(' + Passed
+                                + '); return alg_nil(); }' + #10);
+            else
+                Functions.Append ('    if (count == ' + Str (Count) + ') return '
+                                + Builtin (Name, Count) + '(' + Passed + ');' + #10);
+        end
+
+        if Counts.Length = 1 then
+            Functions.Append ('    alg_arity(count, ' + Str (Counts[0]) + ');' + #10);
+        else
+            Functions.Append ('    alg_arity_counts(count, '
+                            + QuoteC (CountsPhrase (Counts)) + ');' + #10);
+
+        Functions.Append ('    return alg_nil();' + #10);
+        Functions.Append ('}' + #10 + #10);
+    end
+
+    /// Whether a built-in's runtime call answers void in C.
+    ///
+    /// Write, WriteLn and Halt answer nil in the language [RT-004] and void in
+    /// C, so a thunk must CALL them and answer nil itself.  Returning what they
+    /// gave is 'returning void from a function with incompatible result type'.
+    function VoidBuiltin (Name : String) : Boolean;
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (Name);
+
+        Exit Folded = 'write' or Folded = 'writeln' or Folded = 'errorln'
+          or Folded = 'halt';
+    end
+
     /// Gets the runtime call a built-in maps onto, or '' when it is not one.
     ///
     /// Keyed by name AND arity, because 'Length' is both a function and a property
@@ -3364,44 +3779,60 @@ begin
         Key : String;
 
     begin
-        Key := Name + '/' + Str (Count);
+        // FOLDED, because a built-in's name is an identifier and identifiers are
+        // matched without regard to case [SRC-011].  Compared against the
+        // canonical spelling instead, every built-in was CASE-SENSITIVE in this
+        // back end alone: 'writeln', 'STR', 'length' and 'Clock' each missed the
+        // table, fell through to MissingName, and became an
+        // alg_error("Undefined variable ...") stub -- a latent abort where both
+        // other processors answer correctly.  Eleven of eleven spellings tried.
+        //
+        // It bit unevenly, which is why it lasted: a built-in whose canonical
+        // spelling is the one people write never missed, and 'clock' is the one
+        // spelt lower-case, so writing the natural 'Clock' was enough.
+        // algol24-library's graph.a24 had exactly that, waiting for a caller.
+        //
+        // Every literal below is folded for the same reason, and folding the key
+        // without folding them would have missed all thirty-one instead of ten.
+        Key := FoldCase (Name) + '/' + Str (Count);
 
-        if Key = 'WriteLn/1' then Exit 'alg_writeln';
-        if Key = 'WriteLn/0' then Exit 'alg_writeln_blank';
-        if Key = 'Write/1'   then Exit 'alg_write';
-        if Key = 'Str/1'     then Exit 'alg_str';
-        if Key = 'Str/2'     then Exit 'alg_str_fixed';
-        if Key = 'Str/3'     then Exit 'alg_str_padded';
-        if Key = 'Length/1'  then Exit 'alg_text_length';
-        if Key = 'Copy/3'    then Exit 'alg_copy';
-        if Key = 'Pos/2'     then Exit 'alg_pos';
-        if Key = 'Pos/3'     then Exit 'alg_pos_from';
-        if Key = 'ToUpper/1' then Exit 'alg_to_upper';
-        if Key = 'ToLower/1' then Exit 'alg_to_lower';
-        if Key = 'Char/1'    then Exit 'alg_char';
-        if Key = 'Ord/1'     then Exit 'alg_ord';
-        if Key = 'Val/1'     then Exit 'alg_val';
-        if Key = 'Succ/1'    then Exit 'alg_succ';
-        if Key = 'Pred/1'    then Exit 'alg_pred';
-        if Key = 'Foreign/5' then Exit 'alg_foreign_call';
+        if Key = 'errorln/1' then Exit 'alg_stderr_line';
+        if Key = 'writeln/1' then Exit 'alg_writeln';
+        if Key = 'writeln/0' then Exit 'alg_writeln_blank';
+        if Key = 'write/1'   then Exit 'alg_write';
+        if Key = 'str/1'     then Exit 'alg_str';
+        if Key = 'str/2'     then Exit 'alg_str_fixed';
+        if Key = 'str/3'     then Exit 'alg_str_padded';
+        if Key = 'length/1'  then Exit 'alg_text_length';
+        if Key = 'copy/3'    then Exit 'alg_copy';
+        if Key = 'pos/2'     then Exit 'alg_pos';
+        if Key = 'pos/3'     then Exit 'alg_pos_from';
+        if Key = 'toupper/1' then Exit 'alg_to_upper';
+        if Key = 'tolower/1' then Exit 'alg_to_lower';
+        if Key = 'char/1'    then Exit 'alg_char';
+        if Key = 'ord/1'     then Exit 'alg_ord';
+        if Key = 'val/1'     then Exit 'alg_val';
+        if Key = 'succ/1'    then Exit 'alg_succ';
+        if Key = 'pred/1'    then Exit 'alg_pred';
+        if Key = 'foreign/5' then Exit 'alg_foreign_call';
         if Key = 'clock/0'   then Exit 'alg_clock';
-        if Key = 'Collect/0' then Exit 'alg_collected';
-        if Key = 'Halt/1'    then Exit 'alg_halt';
+        if Key = 'collect/0' then Exit 'alg_collected';
+        if Key = 'halt/1'    then Exit 'alg_halt';
 
         if EmitTests then
         begin
-            if Key = 'AssertTrue/1'  then Exit 'alg_assert_true';
-            if Key = 'AssertEqual/2' then Exit 'alg_assert_equal';
-            if Key = 'Fail/1'        then Exit 'alg_assert_fail';
+            if Key = 'asserttrue/1'  then Exit 'alg_assert_true';
+            if Key = 'assertequal/2' then Exit 'alg_assert_equal';
+            if Key = 'fail/1'        then Exit 'alg_assert_fail';
         end
 
-        if Key = 'FileExists/1' then Exit 'alg_file_exists';
-        if Key = 'MkDir/1'      then Exit 'alg_mkdir';
-        if Key = 'RmDir/1'      then Exit 'alg_rmdir';
-        if Key = 'ChDir/1'      then Exit 'alg_chdir';
-        if Key = 'GetDir/0'     then Exit 'alg_getdir';
-        if Key = 'ParamCount/0' then Exit 'alg_param_count';
-        if Key = 'ParamStr/1'   then Exit 'alg_param_str';
+        if Key = 'fileexists/1' then Exit 'alg_file_exists';
+        if Key = 'mkdir/1'      then Exit 'alg_mkdir';
+        if Key = 'rmdir/1'      then Exit 'alg_rmdir';
+        if Key = 'chdir/1'      then Exit 'alg_chdir';
+        if Key = 'getdir/0'     then Exit 'alg_getdir';
+        if Key = 'paramcount/0' then Exit 'alg_param_count';
+        if Key = 'paramstr/1'   then Exit 'alg_param_str';
 
         Exit '';
     end
@@ -3760,7 +4191,9 @@ begin
         begin
             var One := Builtin (Name, 1);
 
-            if One = 'alg_writeln' or One = 'alg_write' then
+            // The three that take any count and join what they are given.
+            if One = 'alg_writeln' or One = 'alg_write'
+                                   or One = 'alg_stderr_line' then
                 Exit One + '(' + RunTogether (Arguments) + ')';
         end
 
@@ -3796,12 +4229,19 @@ begin
                                          Str (AmbiguousImports.Get (Name))))
                + '), alg_nil())';
 
-        if CurrentClass <> '' and not Declared.Contains (Name)
+        // A visible top-level subprogram beats a method of the class being
+        // emitted, which is the language and not this emitter's choice: all
+        // three processors answer the imported subprogram where the unit
+        // imports it.  The question has to be VISIBILITY, though -- asking
+        // whether any unit declares one made a unit's own method unreachable
+        // the moment an unrelated unit grew a subprogram of the name, and the
+        // complaint was emitted into the blameless unit's own C.
+        if CurrentClass <> '' and not VisibleSubprogram (Name)
                               and VisibleMethods.Contains (FoldCase (Name)) then
             Exit Invoking (ThisRef (), Name, Arguments, TheExpr.ArgumentNames);
 
         if Declared.Contains (Name) and not ShadowNames.Contains (Name) then
-            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+            Exit Missing (Name, TheExpr.Callee.Name);
 
         if Declared.Contains (Name) and IsOverloadSet (Name) then
             Exit Calling (SetName (Name), Arguments, TheExpr.ArgumentNames);
@@ -3817,6 +4257,10 @@ begin
         if Globals.Contains (Name) then
             Exit Calling (Read (Name), Arguments, TheExpr.ArgumentNames);
 
+        // SILENT, deliberately: an assertion outside a test run is a stub on
+        // purpose, so warning about it would warn about every unit that has
+        // tests -- six of the library's twelve, every time they are compiled as
+        // ordinary programs.  It is the one stub that is not a latent fault.
         if not EmitTests and IsAssertion (Name) then
             Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
 
@@ -3836,7 +4280,7 @@ begin
                                        and not EnumTypes.Contains (Name)
                                        and not EnumMembers.Contains (Name)
                                        and not AmbiguousMembers.Contains (Name) then
-            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+            Exit Missing (Name, TheExpr.Callee.Name);
 
         Unsupported ('A call to ''' + Name + '''');
     end

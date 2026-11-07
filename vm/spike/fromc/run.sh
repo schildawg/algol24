@@ -4,7 +4,7 @@
 #     vm/spike/fromc/run.sh        # from the repository root
 #
 # Demonstrates that a hand-written C file can call a unit's subprograms with
-# no change to the language -- the mechanism PROPOSAL-VM.md item 0b rests on.
+# no change to the language -- the mechanism finished/PROPOSAL-VM.md item 0b rests on.
 set -eu
 
 CC="${CC:-cc}"

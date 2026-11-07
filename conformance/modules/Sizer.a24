@@ -1,0 +1,11 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Exports a top-level subprogram under a name two classes elsewhere use for a
+// method.  It answers its argument, so which candidate ran shows in the output.
+
+unit Sizer;
+
+function Size (N : Integer) : Integer;
+begin
+    Exit N;
+end

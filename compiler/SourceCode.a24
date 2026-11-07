@@ -1,19 +1,24 @@
-/// The source being processed, kept by line, so a diagnostic can show the line
-/// it happened on.
+/// The source being processed, kept by file and line, so a diagnostic can show
+/// the line it happened on and name the file it came from.
 unit SourceCode;
 
-/// Holds one file's text, addressed by line number.
+/// Holds each file's text, addressed by file name and line number.
 ///
 /// A singleton because the scanner fills it and the reporter reads it, and
 /// threading it between them would touch every call in between for nothing.
 ///
-/// It holds one file at a time, which is why a diagnostic names the ROOT file
-/// rather than the file the line lives in.  Both processors copy that
-/// deliberately, since their reports are compared line for line.
+/// It used to hold ONE file at a time, which is why a diagnostic named the root
+/// file rather than the file the line lives in.  Worse, the scanner for an
+/// imported file wrote its lines into the same record without renaming it, so
+/// the name and the quoted text could come from different files: an error in an
+/// imported unit was reported against the root file's name over the unit's
+/// text, and an error in the root over the unit's text.  Either way the caret
+/// sat under code that was correct and in another file.
 object SourceCode;
 var
-    // A List indexed by line number rather than a Map keyed by one: the keys
-    // were 1, 2, 3, ... in order, which is a List with extra steps.
+    // A Map of file name to a List indexed by line number.  A List per file
+    // rather than a Map keyed by line: the keys were 1, 2, 3, ... in order,
+    // which is a List with extra steps.
     //
     // ⚠️ The sentence that once stood here called this "the single largest
     // consumer of Map lookups in the whole compiler", at "about 4.5 million
@@ -22,29 +27,44 @@ var
     // measurable time at all.  A false number in a warning is worse than none,
     // because the next person sizes their own work against it.
 
-    /// The recorded lines.  Position I holds line I + 1, since lines count
+    /// Each file's recorded lines, keyed by the file name the scanner was given.
+    /// Position I of a file's list holds its line I + 1, since lines count
     /// from 1.
-    Lines    : List := [];
+    Files    : Map := [:];
 
-    /// The name of the file being recorded, as a diagnostic should print it.
+    /// The name of the ROOT file, which a diagnostic names when its token
+    /// carries no file of its own.
     FileName : String := '';
 
 begin
-    /// Starts recording a new file, discarding the last one.
+    /// Starts recording, naming the root file and discarding every earlier run.
+    ///
+    /// Every file is kept now rather than one at a time, so this is about the
+    /// ROOT and not about which file is current -- there is no current file.
     procedure Begins (Name : String);
     begin
-        Lines := [];
+        Files := [:];
         FileName := Name;
     end
 
-    /// Records the text of one line.
+    /// Records the text of one line of one file.
     ///
-    /// Pads rather than appending.  The scanner calls this once per line in
-    /// increasing order, so an append would do -- but a gap would then shift
-    /// every later line by one and misreport them all.
-    procedure Add (LineNumber : Integer, Text : String);
+    /// Pads rather than appending.  A scanner calls this once per line of its
+    /// own file in increasing order, so an append would do -- but a gap would
+    /// then shift every later line by one and misreport them all.
+    procedure Add (File : String, LineNumber : Integer, Text : String);
+    var
+        Name  : String;
+        Lines : List;
+
     begin
         if LineNumber < 1 then Exit;
+
+        Name := Keyed (File);
+
+        if not Files.Contains (Name) then Files.Put (Name, []);
+
+        Lines := Files.Get (Name) as List;
 
         while Lines.Length < LineNumber - 1 do Lines.Add ('');
 
@@ -52,23 +72,68 @@ begin
         else Lines[LineNumber - 1] := Text;
     end
 
-    /// Gets the text of a line, or '' when that line was never recorded.
+    /// Gets the text of a line of a file, or '' where it was never recorded.
     ///
     /// A line out of range answers '' rather than raising, because the caller
     /// is a diagnostic: an error on the last line of a file with no trailing
     /// newline must still print, and failing to quote the source is not a
     /// reason to lose the message.
-    function Get (LineNumber : Integer) : String;
+    ///
+    /// An EMPTY file name means the root, so a token nobody stamped reads as it
+    /// did before any file was recorded separately.
+    function Get (File : String, LineNumber : Integer) : String;
+    var
+        Name  : String;
+        Lines : List;
+
     begin
         if LineNumber < 1 then Exit '';
+
+        Name := Keyed (File);
+
+        if not Files.Contains (Name) then Exit '';
+
+        Lines := Files.Get (Name) as List;
+
         if LineNumber > Lines.Length then Exit '';
 
         Exit Str (Lines[LineNumber - 1]);
     end
 
-    /// Gets the name of the file currently recorded.
+    /// Resolves the key a file name is stored under, an empty one meaning the
+    /// root.
+    ///
+    /// The write and the read must resolve it the same way, which is why this is
+    /// a function rather than two lines repeated.  Resolving it on the read
+    /// alone stored a nameless scanner's lines under '' and looked them up under
+    /// the root's name, so the text was never found: 36 located-diagnostic cases
+    /// lost their source line on the machine, whose driver names the file to
+    /// Begins and not to the Scanner.  The same shape as folding a table's
+    /// writes and missing one of its reads.
+    function Keyed (File : String) : String;
+    begin
+        if File = '' then Exit FileName;
+
+        Exit Str (File);
+    end
+
+    /// Gets the name of the root file.
     function Name () : String;
     begin
         Exit FileName;
+    end
+
+    /// Gets the name a diagnostic should print for a token's file.
+    ///
+    /// The token's own file, or the root's name where it carries none -- which
+    /// is one question asked in one place, rather than every reporting site
+    /// repeating the fallback and one of them forgetting it.
+    ///
+    /// The same answer Keyed gives, and it delegates rather than repeating it:
+    /// the name a diagnostic prints and the key its text is stored under must
+    /// not be able to disagree.
+    function Named (File : String) : String;
+    begin
+        Exit Keyed (File);
     end
 end

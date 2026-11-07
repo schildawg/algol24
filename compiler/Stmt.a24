@@ -7,6 +7,24 @@ uses Token;
 
 /// The base every statement node inherits from.
 class Stmt;
+var
+    /// The line this statement begins on, counting from 1, or 0 where nothing
+    /// stamped it.
+    ///
+    /// Carried so a RUNTIME error can say where it happened.  The runtime
+    /// produces those messages and is handed values and nothing else, so it
+    /// cannot know; the tree walker publishes this as it executes and the
+    /// driver reports it where a raise escapes every handler [ERR-003].
+    ///
+    /// On the BASE class because every statement needs one and the concrete
+    /// statements carry no token in common: some have a Name, some a Keyword,
+    /// and a block or an expression statement has neither.
+    Line : Integer := 0;
+
+    /// The file this statement was parsed from, as a diagnostic prints it, or
+    /// '' where nothing stamped it -- which answers as the root file does.
+    File : String := '';
+
 begin
 end
 

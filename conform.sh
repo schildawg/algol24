@@ -128,6 +128,15 @@ BEL=$(printf '\007')
 # EMITTED, which is a step this harness captures separately.  Comparing them
 # would report a divergence where the two processors agree completely.
 #
+# ⚠️ AND SO IS THE '       at FILE:LINE' LINE a runtime error carries, for the
+# same reason and one more: the two processors are MEANT to differ about it.
+# Compiled Algol-24 does not carry source information at run time, by decision
+# [ERR-003] -- a program wanting it runs under the machine, which can
+# disassemble itself -- while the tree walker and the machine both report it.
+# So a location present in one and absent in the other is agreement, not
+# divergence, and comparing it would turn every runtime-error case in the
+# corpus red at once.
+#
 # ⚠️ Dropped rather than the warning being suppressed.  It is meant to be seen
 # by whoever is compiling; it is only this comparison that must not see it, and
 # a warning that changed a program's recorded output would be a warning that
@@ -135,6 +144,7 @@ BEL=$(printf '\007')
 render() {
     sed -e "s/${ESC}\\[[0-9;]*m//g" \
       | { grep -av '^\[WARN\]' || true; } \
+      | { grep -av '^       at ' || true; } \
       | tr '\000' "$BEL" | sed "s/${BEL}/^@/g"
 }
 
@@ -147,7 +157,8 @@ render_full() {
         -e "s/${ESC}\\[32m/[GREEN]/g" -e "s/${ESC}\\[33m/[YELLOW]/g" \
         -e "s/${ESC}\\[34m/[BLUE]/g"  -e "s/${ESC}\\[36m/[CYAN]/g" \
         -e "s/${ESC}\\[37m/[WHITE]/g" -e "s/${ESC}\\[\\([0-9;]*\\)m/[ESC:\\1]/g" \
-      | { grep -av '\[YELLOW\]WARN\[WHITE\]\]' || true; }
+      | { grep -av '\[YELLOW\]WARN\[WHITE\]\]' || true; } \
+      | { grep -av '^       at ' || true; }
 }
 
 PASS=0; FAIL=0; GAPS=0; RECORDED=0

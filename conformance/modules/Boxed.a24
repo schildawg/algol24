@@ -1,0 +1,28 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Its class calls its own method by the bare name and it imports NOTHING, so a
+// top-level subprogram of that name declared in any other unit is not visible
+// here and does not enter the call [MOD-017].
+
+unit Boxed;
+
+class Box;
+var
+    W : Integer;
+
+begin
+    constructor Init (W : Integer);
+    begin
+        this.W := W;
+    end
+
+    function Size () : Integer;
+    begin
+        Exit this.W * 2;
+    end
+
+    function Report () : Integer;
+    begin
+        Exit Size ();
+    end
+end

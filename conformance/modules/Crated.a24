@@ -1,0 +1,30 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Its class has a method named after a subprogram this unit IMPORTS, and takes
+// the same argument count, so the bare call reaches Sizer's and the method is
+// never run [MOD-017].  The two answers differ so that cannot pass unnoticed.
+
+unit Crated;
+
+uses 'Sizer';
+
+class Crate;
+var
+    W : Integer;
+
+begin
+    constructor Init (W : Integer);
+    begin
+        this.W := W;
+    end
+
+    function Size (N : Integer) : Integer;
+    begin
+        Exit this.W * 100;
+    end
+
+    function Report () : Integer;
+    begin
+        Exit Size (3);
+    end
+end

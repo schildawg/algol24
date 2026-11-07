@@ -71,6 +71,8 @@ static Value i_stmt(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
+    alg_set_property(v_this, "Line", alg_widen(alg_int(0), "Integer"));
+    alg_set_property(v_this, "File", alg_widen(alg_string(""), "String"));
     alg_root_top = rt_base;
     return alg_nil();
 }
@@ -1083,6 +1085,8 @@ void init_Stmt(void) {
     k_enumstmt = alg_class("EnumStmt", alg_nil());
     k_subrangestmt = alg_class("SubrangeStmt", alg_nil());
     k_classstmt = alg_class("ClassStmt", alg_nil());
+    alg_class_field(k_stmt, "Line");
+    alg_class_field(k_stmt, "File");
     alg_class_initializer(k_stmt, i_stmt);
     alg_class_super(k_blockstmt, k_stmt);
     alg_class_field(k_blockstmt, "Statements");

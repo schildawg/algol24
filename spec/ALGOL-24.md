@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.2.3.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.2.4.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -594,6 +594,66 @@ messages echo the key: a program writing `Shared` was told about `shared`, a
 unit spelled `Deep` was reported as `deep`. A message names the occurrence the
 program wrote.
 
+**A BUILT-IN's name is an identifier too**, and folds like any other [RT-001].
+The C back end compared the written spelling against the canonical one, so
+`writeln`, `STR`, `length` and `Clock` each missed the table of built-ins
+entirely, fell through to *Undefined variable* and became a stub that aborted
+when the line ran — where both other processors answered. Eleven of eleven
+spellings tried.
+
+**It bit unevenly, which is why it lasted.** A built-in whose canonical
+spelling is the one people write never missed, and `clock` is the only one spelt
+lower-case — so writing the natural `Clock` was enough.
+`algol24-library`'s `graph.a24` had exactly that, waiting for a caller to reach
+it. This is the hazard the rule's own paragraph above describes, met in the one
+table whose keys were never folded: *every store folds the same way as every
+lookup*, and a table of literals is a store.
+
+    conformance  0215-a-builtin-name-folds.a24
+
+##### conformance/0215-a-builtin-name-folds.a24
+
+```algol24
+// SRC-011: identifiers are matched without regard to case, and a built-in's
+// name is an identifier like any other [RT-001].
+//
+// Every call below is written in a casing other than the canonical one.  The C
+// back end compared the written spelling against the canonical one, so each of
+// these fell through to 'Undefined variable' and became a stub that aborted
+// when the line ran -- where both other processors answered.
+writeln ('from writeln');
+WRITELN ('from WRITELN');
+
+WriteLn (STR (1));
+WriteLn (length ('abc'));
+WriteLn (copy ('abcdef', 1, 2));
+WriteLn (POS ('cd', 'abcdef'));
+WriteLn (toupper ('x'));
+WriteLn (ord ('x'));
+WriteLn (CHAR (65));
+WriteLn (succ (1));
+
+// 'clock' is the one built-in spelt lower-case, so writing the natural 'Clock'
+// was enough to meet this -- which is how algol24-library's graph.a24 carried
+// a latent abort.
+WriteLn (Clock () is Double);
+```
+
+```console
+$ algc conformance/0215-a-builtin-name-folds.a24
+from writeln
+from WRITELN
+1
+3
+bc
+-1
+X
+120
+A
+2
+true
+```
+
 ##### conformance/0126-identifiers-are-case-insensitive.a24
 
 ```algol24
@@ -844,10 +904,10 @@ WriteLn (2)
 
 ```console
 $ algc refusals/0004-no-semicolon-insertion.a24
-Uncaught: Expect ';' after expression.
 [ERROR] refusals/0004-no-semicolon-insertion.a24: Expect ';' after expression.
 [ERROR] 1 | WriteLn (1)
 [ERROR]   |           ^
+Uncaught: Expect ';' after expression.
 exit: 70
 ```
 
@@ -945,10 +1005,10 @@ var begin := 7;
 
 ```console
 $ algc refusals/0003-keyword-is-not-a-name.a24
-Uncaught: Expect variable name.
 [ERROR] refusals/0003-keyword-is-not-a-name.a24: Expect variable name.
 [ERROR] 1 | var begin := 7;
 [ERROR]   | ^^^
+Uncaught: Expect variable name.
 exit: 70
 ```
 
@@ -1220,10 +1280,10 @@ WriteLn (100_);
 
 ```console
 $ algc refusals/0151-a-separator-must-separate-digits.a24
-Uncaught: Expect ')' after arguments.
 [ERROR] refusals/0151-a-separator-must-separate-digits.a24: Expect ')' after arguments.
 [ERROR] 1 | WriteLn (100_);
 [ERROR]   |          ^^^
+Uncaught: Expect ')' after arguments.
 exit: 70
 ```
 
@@ -1421,10 +1481,10 @@ WriteLn (1.);
 
 ```console
 $ algc refusals/0005-trailing-dot-is-not-a-double.a24
-Uncaught: Expect property name after '.'.
 [ERROR] refusals/0005-trailing-dot-is-not-a-double.a24: Expect property name after '.'.
 [ERROR] 1 | WriteLn (1.);
 [ERROR]   |           ^
+Uncaught: Expect property name after '.'.
 exit: 70
 ```
 
@@ -1848,10 +1908,10 @@ X := 'text';
 
 ```console
 $ algc refusals/0008-declared-type-constrains.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0008-declared-type-constrains.a24: Expected Integer, found String.
 [ERROR] 4 | X := 'text';
 [ERROR]   | ^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -1993,10 +2053,10 @@ var X : Integer := 1.5;
 
 ```console
 $ algc refusals/0014-no-implicit-narrowing.a24
-Uncaught: Expected Integer, found Double.
 [ERROR] refusals/0014-no-implicit-narrowing.a24: Expected Integer, found Double.
 [ERROR] 1 | var X : Integer := 1.5;
 [ERROR]   |     ^
+Uncaught: Expected Integer, found Double.
 exit: 70
 ```
 
@@ -2164,10 +2224,10 @@ S := Untyped ();
 
 ```console
 $ algc refusals/0048-assignment-escapes-the-type.a24
-Uncaught: Expected String, found an untyped expression.
 [ERROR] refusals/0048-assignment-escapes-the-type.a24: Expected String, found an untyped expression.
 [ERROR] 4 | S := Untyped ();
 [ERROR]   | ^
+Uncaught: Expected String, found an untyped expression.
 exit: 70
 ```
     defect       DEF-35-inference-stops-at-a-later-declaration.a24
@@ -2455,10 +2515,10 @@ L.Add ('text');
 
 ```console
 $ algc refusals/0173-element-type-on-add.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0173-element-type-on-add.a24: Expected Integer, found String.
 [ERROR] 7 | L.Add ('text');
 [ERROR]   |   ^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2476,10 +2536,10 @@ L[0] := 'text';
 
 ```console
 $ algc refusals/0174-element-type-on-subscript.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0174-element-type-on-subscript.a24: Expected Integer, found String.
 [ERROR] 7 | L[0] := 'text';
 [ERROR]   |  ^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2497,10 +2557,10 @@ M.Put ('k', 'text');
 
 ```console
 $ algc refusals/0175-element-type-on-put.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0175-element-type-on-put.a24: Expected Integer, found String.
 [ERROR] 7 | M.Put ('k', 'text');
 [ERROR]   |   ^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2518,10 +2578,10 @@ S.Push ('text');
 
 ```console
 $ algc refusals/0176-element-type-on-push.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0176-element-type-on-push.a24: Expected Integer, found String.
 [ERROR] 7 | S.Push ('text');
 [ERROR]   |   ^^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2539,10 +2599,10 @@ var Bad : List of Integer := ['text'];
 
 ```console
 $ algc refusals/0177-element-type-on-literal.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0177-element-type-on-literal.a24: Expected Integer, found String.
 [ERROR] 7 | var Bad : List of Integer := ['text'];
 [ERROR]   |     ^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -2639,10 +2699,10 @@ const C : Integer;
 
 ```console
 $ algc refusals/0011-const-must-be-given-a-value.a24
-Uncaught: A constant must be given a value.
 [ERROR] refusals/0011-const-must-be-given-a-value.a24: A constant must be given a value.
 [ERROR] 1 | const C : Integer;
 [ERROR]   |       ^
+Uncaught: A constant must be given a value.
 exit: 70
 ```
 
@@ -3218,10 +3278,10 @@ WriteLn (Wrong);
 
 ```console
 $ algc refusals/0198-a-folded-type-name-still-checks.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0198-a-folded-type-name-still-checks.a24: Expected Integer, found String.
 [ERROR] 3 | var Wrong : integer := 'text';
 [ERROR]   |     ^^^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -3253,10 +3313,10 @@ var I : Integer := A;
 
 ```console
 $ algc refusals/0013-any-does-not-satisfy-a-written-type.a24
-Uncaught: Expected Integer, found Any.
 [ERROR] refusals/0013-any-does-not-satisfy-a-written-type.a24: Expected Integer, found Any.
 [ERROR] 2 | var I : Integer := A;
 [ERROR]   |     ^
+Uncaught: Expected Integer, found Any.
 exit: 70
 ```
 
@@ -3337,10 +3397,10 @@ WriteLn (1 is Nonexistent);
 
 ```console
 $ algc refusals/0040-unknown-type-name.a24
-Uncaught: Unknown type 'Nonexistent'.
 [ERROR] refusals/0040-unknown-type-name.a24: Unknown type 'Nonexistent'.
 [ERROR] 1 | WriteLn (1 is Nonexistent);
 [ERROR]   |               ^^^^^^^^^^^
+Uncaught: Unknown type 'Nonexistent'.
 exit: 70
 ```
 
@@ -3455,10 +3515,10 @@ WriteLn ('never reached');
 
 ```console
 $ algc conformance/0029-array-is-fixed.a24
-Uncaught: Index 5 out of range 0..2.
 nil
 3
 x
+Uncaught: Index 5 out of range 0..2.
 exit: 70
 ```
 
@@ -3476,8 +3536,8 @@ WriteLn (List ().ClassName);
 
 ```console
 $ algc conformance/0030-collections-have-no-classname.a24
-Uncaught: Undefined property 'ClassName'.
 Dog
+Uncaught: Undefined property 'ClassName'.
 exit: 70
 ```
 
@@ -3628,8 +3688,8 @@ WriteLn (B[0]);
 
 ```console
 $ algc conformance/0031-instance-is-not-subscriptable.a24
-Uncaught: Subscript target should be an ordinal.
 10
+Uncaught: Subscript target should be an ordinal.
 exit: 70
 ```
 
@@ -3687,8 +3747,8 @@ for var X in B do WriteLn (X);
 
 ```console
 $ algc conformance/0032-instance-is-not-iterable.a24
-Uncaught: Can only iterate a collection or a String.
 2
+Uncaught: Can only iterate a collection or a String.
 exit: 70
 ```
 
@@ -4045,11 +4105,11 @@ WriteLn (Bad as Integer);
 
 ```console
 $ algc conformance/0117-as-is-checked.a24
-Uncaught: Cannot cast String to Integer.
 1
 2
 true
 nil
+Uncaught: Cannot cast String to Integer.
 exit: 70
 ```
 
@@ -4592,12 +4652,12 @@ WriteLn (Inner);
 
 ```console
 $ algc conformance/0039-blocks-and-scope.a24
-Uncaught: Undefined variable 'Inner'.
 1
 2
 0
 1
 7
+Uncaught: Undefined variable 'Inner'.
 exit: 70
 ```
 
@@ -4834,8 +4894,8 @@ WriteLn (Circle ().Name ());
 
 ```console
 $ algc conformance/0147-inherit-before-the-import.a24
-Uncaught: Undefined variable 'Shape'.
 root, before the import
+Uncaught: Undefined variable 'Shape'.
 exit: 70
 ```
 
@@ -4900,11 +4960,11 @@ var Later := 7;
 
 ```console
 $ algc conformance/0044-variables-are-not-hoisted.a24
-Uncaught: Undefined variable 'Later'.
 declared
 declared
 Thing
 Undefined variable 'Absent'.
+Uncaught: Undefined variable 'Later'.
 exit: 70
 ```
 
@@ -5910,10 +5970,10 @@ end
 
 ```console
 $ algc refusals/0172-an-operator-not-on-the-list.a24
-Uncaught: An operator must be one of + - * / div mod & | ^ ~ << >>.
 [ERROR] refusals/0172-an-operator-not-on-the-list.a24: An operator must be one of + - * / div mod & | ^ ~ << >>.
 [ERROR] 7 |     operator = (Other : Pair) : Boolean; begin Exit Left = Other.Left; end
 [ERROR]   |              ^
+Uncaught: An operator must be one of + - * / div mod & | ^ ~ << >>.
 exit: 70
 ```
 
@@ -6262,12 +6322,12 @@ WriteLn (One (1, 2));
 
 ```console
 $ algc conformance/0049-call-failures.a24
-Uncaught: Expected 1 arguments but got 2.
 1
 Expected 1 arguments but got 0.
 No matching signature for function.
 No matching signature for function.
 Expected 1 arguments but got 2.
+Uncaught: Expected 1 arguments but got 2.
 exit: 70
 ```
 
@@ -6782,7 +6842,6 @@ WriteLn (S[9]);
 
 ```console
 $ algc conformance/0051-string-subscript.a24
-Uncaught: Index 9 out of range 0..2.
 a
 c
 true
@@ -6790,6 +6849,7 @@ true
 true
 4
 Index 4 out of range 0..3.
+Uncaught: Index 9 out of range 0..2.
 exit: 70
 ```
 
@@ -6888,10 +6948,10 @@ if True then var X := 1;
 
 ```console
 $ algc refusals/0034-declaration-as-an-unbraced-body.a24
-Uncaught: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
 [ERROR] refusals/0034-declaration-as-an-unbraced-body.a24: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
 [ERROR] 1 | if True then var X := 1;
 [ERROR]   |              ^^^
+Uncaught: A declaration cannot be a branch or loop body; use 'begin' ... 'end'.
 exit: 70
 ```
 
@@ -7285,10 +7345,10 @@ break;
 
 ```console
 $ algc refusals/0021-break-outside-a-loop.a24
-Uncaught: Must be inside a loop to use 'break'.
 [ERROR] refusals/0021-break-outside-a-loop.a24: Must be inside a loop to use 'break'.
 [ERROR] 3 | break;
 [ERROR]   | ^^^^^
+Uncaught: Must be inside a loop to use 'break'.
 exit: 70
 ```
 
@@ -7302,10 +7362,10 @@ continue;
 
 ```console
 $ algc refusals/0161-continue-outside-a-loop.a24
-Uncaught: Must be inside a loop to use 'continue'.
 [ERROR] refusals/0161-continue-outside-a-loop.a24: Must be inside a loop to use 'continue'.
 [ERROR] 3 | continue;
 [ERROR]   | ^^^^^^^^
+Uncaught: Must be inside a loop to use 'continue'.
 exit: 70
 ```
 
@@ -7321,10 +7381,10 @@ end
 
 ```console
 $ algc refusals/0162-a-label-no-enclosing-loop-has.a24
-Uncaught: No enclosing loop is labelled 'Inner'.
 [ERROR] refusals/0162-a-label-no-enclosing-loop-has.a24: No enclosing loop is labelled 'Inner'.
 [ERROR] 4 |     break Inner;
 [ERROR]   |     ^^^^^
+Uncaught: No enclosing loop is labelled 'Inner'.
 exit: 70
 ```
 
@@ -7546,10 +7606,10 @@ end
 
 ```console
 $ algc refusals/0023-duplicate-handler.a24
-Uncaught: Duplicate handler for 'Base'.
 [ERROR] refusals/0023-duplicate-handler.a24: Duplicate handler for 'Base'.
 [ERROR] 7 |     on e : Base do WriteLn ('second');
 [ERROR]   |            ^^^^
+Uncaught: Duplicate handler for 'Base'.
 exit: 70
 ```
 
@@ -7579,8 +7639,8 @@ raise 'boom';
 
 ```console
 $ algc conformance/0059-uncaught-exits-70.a24
-Uncaught: boom
 before
+Uncaught: boom
 exit: 70
 ```
 
@@ -7608,10 +7668,10 @@ print 123;
 
 ```console
 $ algc refusals/0039-print-is-not-a-statement.a24
-Uncaught: Expect ';' after expression.
 [ERROR] refusals/0039-print-is-not-a-statement.a24: Expect ';' after expression.
 [ERROR] 1 | print 123;
 [ERROR]   | ^^^^^
+Uncaught: Expect ';' after expression.
 exit: 70
 ```
 
@@ -7883,10 +7943,10 @@ WriteLn (P ());
 
 ```console
 $ algc refusals/0031-procedure-cannot-exit-a-value.a24
-Uncaught: A procedure cannot exit a value.
 [ERROR] refusals/0031-procedure-cannot-exit-a-value.a24: A procedure cannot exit a value.
 [ERROR] 3 |     Exit 7;
 [ERROR]   |     ^^^^
+Uncaught: A procedure cannot exit a value.
 exit: 70
 ```
 
@@ -8109,10 +8169,10 @@ WriteLn (F ());
 
 ```console
 $ algc refusals/0026-return-type-is-enforced.a24
-Uncaught: Expected Integer, found String.
 [ERROR] refusals/0026-return-type-is-enforced.a24: Expected Integer, found String.
 [ERROR] 3 |     Exit 'a string';
 [ERROR]   |     ^^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -8268,7 +8328,81 @@ captured variables. Two counters made the same way do not share a count.
 assigned to a variable, passed as an argument, stored in a collection, and
 called from wherever it comes to rest.
 
+**A BUILT-IN's name too** [RT-001]. `var F := Length; F ('abc')` **is** host
+`Length` — the value reaches the same operation a direct call reaches, rather
+than a second implementation that would have to agree with the first forever.
+That is the guarantee each processor keeps its own way: the interpreter's
+built-ins are one class with a case, the machine sends `OP_BUILTIN`'s name to
+the host's own, and the C back end calls a thunk onto the same `alg_*`.
+
+**One value serves every count the built-in takes.** `Str` answers one, two or
+three arguments [RT-028], and the held value answers all three; a count none of
+them takes complains exactly as a direct call would —
+`Expected 1, 2 or 3 arguments but got 0.` and not a selection failure, since
+what is wrong is the count and nothing about the types. `Write` and `WriteLn`
+take any count and join what they are given.
+
+**It is INTERNED, and that is required rather than an optimisation.** These
+compare by identity [VAL-011], so `Length = Length` is true only if both reads
+answer one value — and across units as well as within one, since a built-in is
+one name in the one scope every file encloses [MOD-011].
+
+**A declaration of the name still takes over the counts it declares** [RT-027]:
+where a program declares `Length (A, B)`, holding the name answers the
+declaration at two arguments and the built-in keeps one.
+
     unit         Interpret Local Function
+    conformance  0216-a-builtin-held-as-a-value.a24
+
+##### conformance/0216-a-builtin-held-as-a-value.a24
+
+```algol24
+// FUN-011: a subprogram's name without parentheses is a value, and a built-in's
+// name is a name like any other [RT-001].  The C back end had no arm for this
+// at all: the name fell through to 'Undefined variable', which is a WRONG
+// ANSWER about a name that is perfectly well defined.
+var L := Length;
+WriteLn (L ('abcd'));
+
+var C := Copy;
+WriteLn (C ('abcdef', 1, 3));
+
+// One value serves every count the built-in takes [RT-028].
+var S := Str;
+WriteLn (S (7));
+WriteLn (S (2.5, 2));
+
+// Write and WriteLn take any count and join what they are given.
+var W := WriteLn;
+W ('held');
+W ('two', 'args');
+
+// INTERNED: these compare by identity [VAL-011], so two reads of one built-in
+// must answer one value, and two different built-ins must not.
+WriteLn (Str (Length = Length));
+WriteLn (Str (Length = Copy));
+
+// The value reaches the same built-in a direct call reaches, so a wrong count
+// complains exactly as the direct call would.
+try
+    WriteLn (S ());
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0216-a-builtin-held-as-a-value.a24
+4
+bcd
+7
+2.50
+held
+twoargs
+true
+false
+Expected 1, 2 or 3 arguments but got 0.
+```
 
 ##### conformance/0062-subprograms-as-values.a24
 
@@ -8898,10 +9032,10 @@ WriteLn (Upper ('algol'));
 
 ```console
 $ algc refusals/0193-extension-receiver-untyped.a24
-Uncaught: An extension's receiver must have a written type.
 [ERROR] refusals/0193-extension-receiver-untyped.a24: An extension's receiver must have a written type.
 [ERROR] 4 | extension function Upper (S) : String;
 [ERROR]   |                           ^
+Uncaught: An extension's receiver must have a written type.
 exit: 70
 ```
 
@@ -8919,10 +9053,10 @@ WriteLn (Nothing ());
 
 ```console
 $ algc refusals/0194-extension-without-a-receiver.a24
-Uncaught: An extension must declare a receiver.
 [ERROR] refusals/0194-extension-without-a-receiver.a24: An extension must declare a receiver.
 [ERROR] 2 | extension function Nothing () : String;
 [ERROR]   |                    ^^^^^^^
+Uncaught: An extension must declare a receiver.
 exit: 70
 ```
 
@@ -8944,10 +9078,10 @@ WriteLn (Box ().Size ());
 
 ```console
 $ algc refusals/0195-extension-on-a-method.a24
-Uncaught: 'extension' applies only to a top-level subprogram.
 [ERROR] refusals/0195-extension-on-a-method.a24: 'extension' applies only to a top-level subprogram.
 [ERROR] 5 |     extension function Size () : Integer;
 [ERROR]   |     ^^^^^^^^^
+Uncaught: 'extension' applies only to a top-level subprogram.
 exit: 70
 ```
 
@@ -8971,10 +9105,10 @@ WriteLn (Outer ());
 
 ```console
 $ algc refusals/0196-extension-inside-a-subprogram.a24
-Uncaught: 'extension' applies only to a top-level subprogram.
 [ERROR] refusals/0196-extension-inside-a-subprogram.a24: 'extension' applies only to a top-level subprogram.
 [ERROR] 5 |     extension function Doubled (N : Integer) : Integer;
 [ERROR]   |     ^^^^^^^^^
+Uncaught: 'extension' applies only to a top-level subprogram.
 exit: 70
 ```
 
@@ -8997,10 +9131,10 @@ WriteLn (Box ().Size);
 
 ```console
 $ algc refusals/0197-extension-property.a24
-Uncaught: 'extension' applies only to a top-level subprogram.
 [ERROR] refusals/0197-extension-property.a24: 'extension' applies only to a top-level subprogram.
 [ERROR] 6 |     extension property Size : Integer;
 [ERROR]   |     ^^^^^^^^^
+Uncaught: 'extension' applies only to a top-level subprogram.
 exit: 70
 ```
 
@@ -9162,9 +9296,9 @@ WriteLn (Bare (1, 2));
 
 ```console
 $ algc conformance/0065-construction.a24
-Uncaught: Expected 0 arguments but got 2.
 3,4
 hello
+Uncaught: Expected 0 arguments but got 2.
 exit: 70
 ```
 
@@ -9299,7 +9433,6 @@ WriteLn (Holder ('not a Thing'));
 
 ```console
 $ algc conformance/0204-a-constructor-is-selected-too.a24
-Uncaught: No matching signature for function.
 Thing
 No matching signature for function.
 Expected 1 arguments but got 0.
@@ -9313,6 +9446,7 @@ string
 3
 No matching signature for function.
 No matching signature for function.
+Uncaught: No matching signature for function.
 exit: 70
 ```
 
@@ -9454,7 +9588,6 @@ integer
 string
 in Base.Init, Extra=child Named=Child
 Tag=base/10 Extra=child/5 calls=1
-exit: 0
 ```
 
 **[CLS-006]**  A field with no initializer begins as `nil` [VAR-002].
@@ -9721,12 +9854,12 @@ WriteLn (Asks ().Seeded);
 
 ```console
 $ algc conformance/0207-super-reaches-a-member-or-says-so.a24
-Uncaught: Undefined property 'Init'.
 derived+base
 base
 Undefined property 'Missing'.
 Undefined property 'Missing'.
 Undefined property 'Field'.
+Uncaught: Undefined property 'Init'.
 exit: 70
 ```
 
@@ -9959,8 +10092,8 @@ WriteLn (Config ());
 
 ```console
 $ algc conformance/0070-object-is-not-callable.a24
-Uncaught: Can only call functions and classes.
 1
+Uncaught: Can only call functions and classes.
 exit: 70
 ```
 
@@ -10148,6 +10281,115 @@ Undefined property 'Undeclared'.
 Undefined property 'Size'.
 ```
 
+**[CLS-019]**  A **bare name inside a method** resolves in this order:
+
+1. a **local** or a parameter
+2. a **capture**, for a subprogram nested in the method
+3. a **visible variable** — a file-scope `var` or `const` the file declares, or
+   one an import exports [MOD-016]
+4. a **field of the receiver**, as an implicit `this.Field`
+5. a **built-in** [RT-001]
+
+The two steps that matter are 3 and 5, because the field sits between them. A
+**declared** variable beats a field of the same name; a **built-in** loses to
+one. The asymmetry is the whole rule: a built-in is the only name in that list
+nobody wrote down in this program, so it is the only one a field may take over.
+
+**Step 4 is a FIELD and not a member.** A bare name read without parentheses is
+a field read [CLS-007], so a *method* of the name is reached by `this.M` or by
+calling it, never by the bare spelling. Where a class declares a method named
+after a built-in, the bare name is therefore the built-in.
+
+**A bare CALL is a different question** and is resolved by [MOD-017]: a visible
+top-level subprogram first, then a method of the receiver.
+
+**It is silent when it goes wrong, which is why the order is written down.** A
+field named after a built-in answered `<fn Pos>` from inside its own class and
+the field everywhere else, so nothing failed where the confusion was: the method
+handed back a function value and the program died later, in unrelated
+arithmetic, with a message carrying no location. The built-in names that are
+also plausible field names include `Pos`, `Length`, `Copy`, `Str`, `Val`,
+`Write`, `Set`, `Map`, `List` and `Buffer`.
+
+    conformance  0213-a-bare-name-inside-a-method.a24
+
+##### conformance/0213-a-bare-name-inside-a-method.a24
+
+```algol24
+// CLS-019: the order a bare name inside a method resolves in.  Pos, Length and
+// Str are all built-ins [RT-001]; Cursor is not.
+var Pos := 'the global';
+
+class Thing;
+var
+    Pos    : Integer;
+    Length : Integer;
+    Cursor : Integer;
+
+begin
+    constructor Init ();
+    begin
+        this.Pos    := 42;
+        this.Length := 7;
+        this.Cursor := 9;
+    end
+
+    // A LOCAL first, over the global and over the field alike.
+    function Local () : Any;      begin var Pos := 'the local'; Exit Pos; end
+
+    // Then a VISIBLE GLOBAL, over a field of the same name.
+    function Global () : Any;     begin Exit Pos; end
+
+    // Then a FIELD, over a BUILT-IN -- which is the step a successful lookup
+    // used to run straight past, answering '<fn Length>' from inside the class
+    // where every other spelling answers the field.
+    function Field () : Any;      begin Exit Length; end
+
+    // A field whose name is no built-in, as the control.
+    function Control () : Any;    begin Exit Cursor; end
+
+    // Explicitly through the receiver, which reaches the field whatever else
+    // the name means.
+    function Qualified () : Any;  begin Exit this.Pos; end
+end
+
+var T := Thing ();
+WriteLn ('local     : ' + Str (T.Local ()));
+WriteLn ('global    : ' + Str (T.Global ()));
+WriteLn ('field     : ' + Str (T.Field ()));
+WriteLn ('control   : ' + Str (T.Control ()));
+WriteLn ('qualified : ' + Str (T.Qualified ()));
+
+// A METHOD is reached through the receiver, which answers it whatever else the
+// name means -- here a built-in [RT-001].
+//
+// The BARE spelling of that same name is not pinned here, and deliberately: it
+// answers the built-in in both other processors and the C back end cannot hold
+// a built-in as a value at all, so a case comparing it would be red for that
+// gap rather than for this rule.  finished/PLAN-0.2.4.md item 11 carries it.
+class Other;
+begin
+    constructor Init (); begin end
+
+    function Copy () : Integer; begin Exit 99; end
+
+    function Receiver () : Any;  begin var G := this.Copy;   Exit G (); end
+end
+
+var O := Other ();
+WriteLn ('this. method  : ' + Str (O.Receiver ()));
+```
+
+```console
+$ algc conformance/0213-a-bare-name-inside-a-method.a24
+local     : the local
+global    : the global
+field     : 7
+control   : 9
+qualified : 42
+this. method  : 99
+```
+
 ---
 
 ## 13. Enumerations
@@ -10270,12 +10512,12 @@ WriteLn (A);
 
 ```console
 $ algc conformance/0123-enumerations-may-share-member-names.a24
-Uncaught: 'A' is ambiguous: First or Second.
 A
 A
 false
 B
 C
+Uncaught: 'A' is ambiguous: First or Second.
 exit: 70
 ```
 
@@ -10294,8 +10536,8 @@ WriteLn (Colour.Nope);
 
 ```console
 $ algc conformance/0072-unknown-enum-member.a24
-Uncaught: Undefined enum member 'Nope'.
 RED
+Uncaught: Undefined enum member 'Nope'.
 exit: 70
 ```
 
@@ -10338,9 +10580,9 @@ WriteLn (RED < GREEN);
 
 ```console
 $ algc conformance/0073-enum-members-are-not-ordered.a24
+true
+true
 Uncaught: Operands must be numbers.
-true
-true
 exit: 70
 ```
 
@@ -10677,8 +10919,8 @@ WriteLn (K.Get (0));
 
 ```console
 $ algc conformance/0077-undefined-collection-member.a24
-Uncaught: Undefined property 'Get'.
 1
+Uncaught: Undefined property 'Get'.
 exit: 70
 ```
 
@@ -10881,10 +11123,10 @@ Mixed.Sort ();
 
 ```console
 $ algc conformance/0080-sort.a24
-Uncaught: Can only sort numbers against numbers, or text against text.
 1 2 3 
 apple fig pear 
 123
+Uncaught: Can only sort numbers against numbers, or text against text.
 exit: 70
 ```
     conformance  0166-text-is-ordered.a24
@@ -10924,11 +11166,11 @@ WriteLn (S[0]);
 
 ```console
 $ algc conformance/0081-subscripting-by-kind.a24
-Uncaught: Subscript target should be an ordinal.
 20
 x
 seven
 Strings are immutable.
+Uncaught: Subscript target should be an ordinal.
 exit: 70
 ```
 
@@ -10985,6 +11227,11 @@ therefore find `Scanner.a24` on one machine and fail on another.
 This is stated rather than fixed because the language does not own the
 filesystem. A program that wants to run everywhere spells a module name exactly
 as the file is named.
+
+**This rule is about the LOOKUP, and it is the only part left to the platform.**
+What a found program *means* is the language's, and there the name folds like
+any other identifier: two units whose names differ only in case are one name
+declared twice and the program is refused, on every platform alike [MOD-018].
 
 A module is looked for **beside the importing file first**, then in the working
 directory, then in an **installed library** if there is one. Two directories
@@ -11046,12 +11293,18 @@ WriteLn (W ());
 
 ```console
 $ algc refusals/0029-unit-name-must-match-the-file.a24
-Uncaught: Unit 'Wrong' must match its file name 'Mismatch'.
-[ERROR] refusals/0029-unit-name-must-match-the-file.a24: Unit 'Wrong' must match its file name 'Mismatch'.
+[ERROR] conformance/modules/Mismatch.a24: Unit 'Wrong' must match its file name 'Mismatch'.
 [ERROR] 4 | unit Wrong;
 [ERROR]   |      ^^^^^
+Uncaught: Unit 'Wrong' must match its file name 'Mismatch'.
 exit: 70
 ```
+
+The file named is **the module's**, not the importing program's: the mismatched
+`unit` header is in `Mismatch.a24` and that is where line 4 is. This case
+recorded the program's name until a diagnostic learned to name the file its
+token came from [ERR-005], and it is the only case in the corpus that changed
+when it did.
 
 ### 15.2 Exports
 
@@ -11082,8 +11335,8 @@ WriteLn (Alpha.Hidden ());
 
 ```console
 $ algc conformance/0084-module-private.a24
-Uncaught: Undefined name 'Hidden' in unit 'Alpha'.
 only in Alpha
+Uncaught: Undefined name 'Hidden' in unit 'Alpha'.
 exit: 70
 ```
 
@@ -11138,12 +11391,202 @@ WriteLn (Shared ());
 
 ```console
 $ algc conformance/0124-modules-may-share-exported-names.a24
-Uncaught: 'Shared' is ambiguous: Alpha or Beta.
 from Alpha
 from Beta
 only in Alpha
 only in Beta
+Uncaught: 'Shared' is ambiguous: Alpha or Beta.
 exit: 70
+```
+
+**[MOD-016]**  A file's **own top-level declaration** is resolved before its
+imports. A name a file declares itself means that declaration, whatever an
+imported module exports under the same name — so a module can never change what
+an importing file means by a name the file declares, and [MOD-013]'s ambiguity
+does not arise for such a name at all.
+
+It holds for every kind of declaration against every kind of export. A `var` or
+a `const` wins over an imported subprogram, over an imported enumeration's
+member [ENU-002], and over an imported class; a subprogram wins over an imported
+`var`. The file's own declaration is simply nearer, which is [DCL-003] reaching
+one scope further out — the imports are the scope enclosing the file, and a
+declaration shadows what encloses it.
+
+**It is the silence that makes this worth stating.** An importer whose own
+variable lost to an imported enumeration member read as that member, and every
+assignment to it was discarded with no diagnostic: the name was permanently
+truthy and the arithmetic around it stayed plausible. A program paid out every
+win and charged for no spin that way, with its balance climbing from 5,000 to
+196,576 before anything compared the totals.
+
+    conformance  0211-own-declaration-beats-an-import.a24
+
+##### conformance/0211-own-declaration-beats-an-import.a24
+
+```algol24
+uses 'modules/Named';
+uses 'modules/Middle';
+
+// MOD-016: this file declares both names itself, so each means its own
+// declaration -- not Named's enumeration member and not Named's function.
+var Spinning := False;
+var Money    := 5;
+
+WriteLn (Str (Spinning));
+
+// The assignment reaches the variable.  Resolving the read to the member
+// instead discarded every write in silence and left the name truthy.
+Spinning := True;
+WriteLn (Str (Spinning));
+
+WriteLn (Str (Money));
+
+// An imported name this file declares nothing of is reached as usual.
+WriteLn (Str (Idle));
+
+// And a unit's own const wins inside IT, over a subprogram of that name
+// exported by the unit it imports.
+WriteLn (Str (Run (100)));
+```
+
+```console
+$ algc conformance/0211-own-declaration-beats-an-import.a24
+false
+true
+5
+Idle
+384
+```
+
+**[MOD-018]**  Two units whose names differ **only in case** are one unit name
+declared twice, and a program reaching both is refused:
+
+```
+Two units whose names differ only in case: 'a/Alpha.a24' and 'b/alpha.a24'.
+A unit name is matched without regard to case.
+```
+
+A unit name is an identifier and identifiers fold [SRC-011]. [MOD-002] leaves
+the *lookup* of a module file to the filesystem, because the language does not
+own the filesystem — but what a found program **means** is the language's, and
+this is that part: the unit registry, and the file a back end names after a
+unit.
+
+**Refused rather than left to the platform**, and the platforms are what force
+it. macOS and Windows fold filenames and Linux does not, so the same two files
+are one file on two of the three — which means the program cannot even be
+*written* on macOS without putting the files in separate directories. Left
+unrefused it meant three different things at once: the interpreter ran it, the
+bytecode machine answered `Undefined variable` for the second unit's exports,
+and the C back end wrote one `.c` for the two units and did not build. None of
+those is a defensible reading of a program, and a language whose names fold
+cannot have its *unit* names fold on two platforms out of three.
+
+**The diagnostic names the two paths and no unit name.** Neither file's
+spelling is the name of the clash, and the folded spelling is one that no file
+wrote — a diagnostic quotes what the program wrote [SRC-011].
+
+**Detected where a file is first READ**, in the module loader, so all three
+processors refuse alike. Re-importing one file is not a clash with itself: a
+path already loaded answers an empty module node [MOD-003] and never reaches
+this.
+
+**What is NOT refused is a case-differing *reference*.** `uses alpha;` finding
+`Alpha.a24` is the lookup [MOD-002] describes, and it still succeeds or fails by
+the filesystem's rules — folding that would need the language to enumerate a
+directory, which [RT-026] gives it no way to do.
+
+    refusals      0200-two-units-differing-only-in-case.a24
+
+##### refusals/0200-two-units-differing-only-in-case.a24
+
+```algol24
+uses 'conformance/modules/casea/Twin';
+uses 'conformance/modules/caseb/twin';
+
+WriteLn (FromUpper ());
+WriteLn (FromLower ());
+```
+
+```console
+$ algc refusals/0200-two-units-differing-only-in-case.a24
+[ERROR] refusals/0200-two-units-differing-only-in-case.a24: Two units whose names differ only in case: 'conformance/modules/casea/Twin.a24' and 'conformance/modules/caseb/twin.a24'. A unit name is matched without regard to case.
+[ERROR] 2 | uses 'conformance/modules/caseb/twin';
+[ERROR]   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Uncaught: Two units whose names differ only in case: 'conformance/modules/casea/Twin.a24' and 'conformance/modules/caseb/twin.a24'. A unit name is matched without regard to case.
+exit: 70
+```
+
+**[MOD-017]**  A top-level subprogram **visible in a file** — one the file
+declares, or one an import of that file exports — is resolved before a **member
+of a class declared in the same file**, called by its bare name. A subprogram
+that is **not** visible there does not enter the question, and the member
+answers.
+
+So the same class body means two different things depending on what its own unit
+imports, and nothing else:
+
+```
+unit Boxed;                     unit Crated;
+                                uses 'Sizer';        // exports Size
+
+class Box;                      class Crate;
+  ...                             ...
+  function Size () ...            function Size (N) ...
+  function Report ();             function Report ();
+  begin                           begin
+      Exit Size ();                   Exit Size (3);
+  end                             end                // Sizer's, not the method's
+```
+
+**Visibility is the whole of it, and asking whether a subprogram EXISTS instead
+is a defect.** A unit that imports nothing cannot be reached by a name declared
+in a unit it has never heard of — and treating it as though it could made every
+unit's private method names reserved across every other unit that might ever be
+linked beside it, which no one can check by reading either file. One program
+declaring a camera helper `Measure` replaced an imported font class's
+`Font.Measure` inside that class's own three calls to itself, in a unit the
+program never touched.
+
+**The visible half is sharp and this rule does not soften it.** Where the
+subprogram *is* visible it wins silently, even at the same argument count, so a
+unit that grows a `uses` can change which of two bodies its own method calls
+reach. That is [DCL-003] again and all three processors agree about it; a
+diagnostic would have to be a warning rather than a refusal, since the program
+is well formed.
+
+    conformance  0212-a-visible-subprogram-beats-a-member.a24
+
+##### conformance/0212-a-visible-subprogram-beats-a-member.a24
+
+```algol24
+uses 'modules/Boxed';
+uses 'modules/Crated';
+uses 'modules/Sizer';
+
+// MOD-017: Boxed imports nothing, so Sizer's top-level Size is not visible
+// inside it and Box's own method answers the bare call -- 20, twice its width.
+//
+// Resolving this by whether a subprogram of the name EXISTS anywhere made the
+// method unreachable the moment any unit grew one, with the complaint emitted
+// into Boxed's own output.
+var B := Box (10);
+WriteLn (Str (B.Report ()));
+
+// Crated DOES import Sizer, so the bare call in its method reaches Sizer's Size
+// -- 3, its argument, and not 1000, a hundred times the width.
+var C := Crate (10);
+WriteLn (Str (C.Report ()));
+
+// Reached from here too, since this file imports it.
+WriteLn (Str (Size (7)));
+```
+
+```console
+$ algc conformance/0212-a-visible-subprogram-beats-a-member.a24
+20
+3
+7
 ```
 
 ### 15.3 Visibility
@@ -11170,9 +11613,9 @@ WriteLn (DeepName ());
 
 ```console
 $ algc conformance/0085-uses-is-not-transitive.a24
-Uncaught: Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
 from Mid
 from Deep
+Uncaught: Undefined variable 'DeepName'. Unit 'Deep' exports it; this file has no 'uses' for it.
 exit: 70
 ```
 
@@ -11347,7 +11790,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-four names are built in. Thirty-one are always
+**[RT-001]**  Thirty-five names are built in. Thirty-two are always
 available:
 
 ```
@@ -11359,7 +11802,7 @@ List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
 ParamCount    ParamStr
-Write   WriteLn    Halt
+Write   WriteLn    ErrorLn    Halt
 ```
 
 The list is checked against the names the interpreter registers by
@@ -11509,10 +11952,10 @@ WriteLn (Length ([10, 20, 30]));
 
 ```console
 $ algc conformance/0115-length-refuses-a-collection.a24
-Uncaught: Length expects text; use .Length for a collection.
 3
 1
 3
+Uncaught: Length expects text; use .Length for a collection.
 exit: 70
 ```
 
@@ -12205,9 +12648,18 @@ WriteLn (Mod (7, 3));
 
 ```console
 $ algc refusals/0179-mod-was-removed.a24
+[ERROR] refusals/0179-mod-was-removed.a24: Expect expression!
+[ERROR] 1 | WriteLn (Mod (7, 3));
+[ERROR]   |          ^^^
 Uncaught: Expect expression!
 exit: 70
 ```
+
+This case **recorded the locationless form** until `Expect expression!` was made
+to go through the located path every other parse error takes [ERR-005], and it
+is what caught the change. The caret falls on `Mod`, which is the word that is
+wrong — `mod` is a keyword [LEX-010], so the name is not available to be a
+function and the parse stops there.
 
 **[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
 millisecond resolution.
@@ -12335,6 +12787,69 @@ RmDir failed: cannot remove 'scratch-0183'.
 ChDir failed: cannot change to 'scratch-0183'.
 RmDir failed: cannot remove 'scratch-0183'.
 true
+```
+
+**[RT-030]**  `ErrorLn` writes its stringified values to the **error stream**,
+followed by `#10` — the same byte `WriteLn` ends a line with [RT-015], never the
+host's line separator.
+
+It takes **any number of values**, run together with nothing between them, so
+`ErrorLn ('at ', 12)` writes one line reading `at 12` and `ErrorLn ()` is the
+newline on its own. One call is one line: that is what it is for.
+
+**Standard output is flushed first.** The error stream is unbuffered and
+standard output is block-buffered the moment it is redirected, so without this a
+program's own output could appear *after* a diagnostic written after it — which
+is invisible at a terminal, where output is line-buffered, and wrong in every
+pipe and every log.
+
+**Why the language has it at all.** A program that detects something wrong has
+somewhere to say so that is not its output, so a diagnostic survives
+`prog > results.txt` and does not corrupt what the program produced. Without it
+the only way to write anything was standard output, and a program reporting a
+problem had to choose between being seen and being separable.
+
+**It is not an error, and raises nothing.** `ErrorLn` writes; `raise` [STM-016]
+is how a program fails. A program may use the two together or neither.
+
+    conformance  0217-errorln-writes-the-error-stream.a24
+
+##### conformance/0217-errorln-writes-the-error-stream.a24
+
+```algol24
+// RT-030: ErrorLn writes a line to the ERROR stream, where Write and WriteLn
+// write to standard output [RT-015].  Both streams reach the same place when
+// nothing separates them, which is what a case can compare.
+WriteLn ('out: first');
+ErrorLn ('err: second');
+WriteLn ('out: third');
+
+// Any number of values, run together with nothing between them, exactly as
+// WriteLn takes them -- so one line, not one per value.
+ErrorLn ('err: ', 'joined', ' ', 4, ' ways');
+
+// It is a name like any other, so it may be held and called from where it
+// comes to rest [FUN-011].
+var Complain := ErrorLn;
+Complain ('err: held');
+
+// ⚠️ And a program's own output cannot appear after a diagnostic written after
+// it: ErrorLn flushes standard output first, because stderr is unbuffered and
+// stdout is block-buffered the moment it is redirected.
+Write ('out: unterminated, ');
+ErrorLn ('err: after an unterminated write');
+WriteLn ('');
+```
+
+```console
+$ algc conformance/0217-errorln-writes-the-error-stream.a24
+out: first
+err: second
+out: third
+err: joined 4 ways
+err: held
+out: unterminated, err: after an unterminated write
+
 ```
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
@@ -13155,12 +13670,25 @@ released. `Collect` changes how much memory a correct program uses and never
 what it computes — a program whose output differs with and without it was
 already wrong.
 
-⚠️ **The two processors differ here, by the rule rather than against it.** The
-tree-walking interpreter answers `0`: its live values sit in C locals all
-through a recursive evaluator. The bytecode machine releases, because every
-live guest value is on its stack or in a module-level variable, both of which a
-collector can walk — which is the whole of why the machine keeps its state
-where it does.
+**All three processors release, and the rule still permits one not to.** Every
+one of them reaches the same collector, whose roots are **precise**: a
+module-level variable is a C static whose address the emitter knows, and an
+Algol-24 local is registered on a shadow stack where it is declared. So there is
+no stack scanning and nothing is guessed at.
+
+⚠️ **The interpreter answered `0` until v0.2.4, and the reason it gave had
+stopped being true.** It was *"its live values sit in C locals all through a
+recursive evaluator, where no collector can see them"* — correct when written,
+and overtaken by the shadow stack: the tree walker is itself a compiled
+Algol-24 program, so its evaluator's locals are exactly what the collector
+walks. Measured when the refusal was removed: **1,400,104 objects released**
+where it had answered 0, with all 275 corpus cases byte-identical to the run
+that declined.
+
+**Each processor collects at its own safe point**, and what makes a point safe
+is the same in all three — no half-built value held anywhere the collector
+cannot see. The machine collects at the top of its dispatch loop; the tree
+walker between statements; compiled code wherever the program asks.
 
     conformance  0203-collect-is-a-request.a24
 
@@ -13347,8 +13875,8 @@ raise 'boom';
 
 ```console
 $ algc conformance/0096-exit-status.a24
-Uncaught: boom
 this program raises
+Uncaught: boom
 exit: 70
 ```
 
@@ -13416,10 +13944,10 @@ var X : Integer := 'text';
 
 ```console
 $ algc conformance/0097-error-phases.a24
-Uncaught: Expected Integer, found String.
 [ERROR] conformance/0097-error-phases.a24: Expected Integer, found String.
 [ERROR] 4 | var X : Integer := 'text';
 [ERROR]   |     ^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -13427,6 +13955,39 @@ exit: 70
 
 **[ERR-003]**  A runtime error occurs during execution. Statements before it
 have run and their output stands.
+
+**A runtime error carries no file, line or call stack**, where a parse error
+carries all three [ERR-005]. It prints one sentence.
+
+⚠️ **THE DECISION: compiled Algol-24 does not carry source information at run
+time, and is not going to.** Carrying it means the emitted C storing a position
+before every statement, which is a cost every program pays forever so that a
+failing one can be read — and the nearest measured comparison, the collector's
+shadow stack, is **+5.8%** for registering a root per block. A program compiled
+for speed should not pay for a diagnostic it is not having.
+
+**What a program gets instead is the bytecode machine.** `algvm` runs the same
+program and can **disassemble it** — `--list` walks every chunk, `--trace N`
+keeps a ring of the last N instructions with the stack pointer, the frame base
+and the call depth, and `--watch TEXT` dumps the instant a message is raised,
+caught or not. That is the division of labour the machine exists for: the
+compiled back end is the fast one, the machine is the one you can see inside,
+and a program that fails in a way its output cannot explain is run under the
+machine.
+
+**The other two processors are expected to carry a location**, and that they do
+not yet is a defect rather than a decision — see
+`finished/PROPOSAL-RUNTIME-LOCATION.md`. A tree walker holds a token for every node it
+evaluates, and a chunk can carry a line per instruction for nothing until
+something fails; neither has the compiled back end's excuse.
+
+⚠️ **So the three reports will not agree, and the harness has to know that.**
+`conform.sh` compares the interpreter against the compiled back end, so a
+location present in one and absent in the other is a divergence it would report
+and should not: it is the same situation as a `[WARN]`, which `render` already
+drops from both sides because a diagnostic *about* a program is not output *of*
+it. Whatever carries the location must be dropped the same way, or every
+runtime-error case in the corpus diverges at once.
 
 ##### conformance/0098-runtime-errors-follow-output.a24
 
@@ -13442,9 +14003,9 @@ WriteLn ('never reached');
 
 ```console
 $ algc conformance/0098-runtime-errors-follow-output.a24
-Uncaught: Index 9 out of range 0..1.
 this line runs
 and so does this one
+Uncaught: Index 9 out of range 0..1.
 exit: 70
 ```
 
@@ -13481,15 +14042,24 @@ Uncaught: [line 3] Error: Unexpected character: @
 exit: 70
 ```
 
-**[ERR-005]**  A **parse** or **resolution** error prints the message and a
-three-line excerpt naming the file, the line, and the offending token:
+**[ERR-005]**  A **parse** or **resolution** error prints a three-line excerpt
+naming the file, the line and the offending token, and then the message:
 
 ```
-Uncaught: Expect variable name.
 [ERROR] e.a24: Expect variable name.
 [ERROR] 2 | var := 1;
 [ERROR]   | ^^^
+Uncaught: Expect variable name.
 ```
+
+⚠️ **The excerpt comes FIRST, and that it used not to was a buffering
+artefact.** The excerpt is written to standard output as the front end fails;
+the `Uncaught:` sentence is written to the error stream afterwards. Standard
+output is block-buffered the moment it is redirected, so the sentence used to
+appear first merely because the excerpt was still in a buffer — which also meant
+a *program's* own output appeared after the error that stopped it [ERR-003].
+Flushing standard output before a diagnostic fixes that and puts these in the
+order they are actually written.
 
 ##### conformance/0100-parse-error-shape.a24
 
@@ -13499,10 +14069,76 @@ var := 1;
 
 ```console
 $ algc conformance/0100-parse-error-shape.a24
-Uncaught: Expect variable name.
 [ERROR] conformance/0100-parse-error-shape.a24: Expect variable name.
 [ERROR] 1 | var := 1;
 [ERROR]   | ^^^
+Uncaught: Expect variable name.
+exit: 70
+```
+
+**EVERY parse error, with no exception.** One was raised bare for a long time —
+`Expect expression!`, from where the recursive descent bottoms out — so it
+printed the sentence on stderr and nothing at all on either stream saying where.
+That is the error a **semicolon after `end`** produces, which is the most likely
+typo in a language of this shape, and the message alone narrows nothing in a
+file of any size. A second case pins it, because a rule holding for all but one
+of its instances is how that one survived.
+
+    conformance  0214-every-parse-error-is-located.a24
+
+**THE FILE IT NAMES IS THE FILE THE TOKEN CAME FROM**, which for a long time it
+was not. A program and the modules it imports are scanned by a scanner each,
+and the recorded text was kept in one place keyed by line number alone — so the
+name came from the root and the quoted line from whichever file had written that
+number last. An error inside an imported unit was reported against the
+*program*, over a line the program need not even have:
+
+```
+[ERROR] refusals/0199-...a24: Expect ';' after exit value.   <- the program
+[ERROR] 12 |     Exit N * 2                                  <- the unit's line 12
+```
+
+The program there is three lines long. Both halves point somewhere real and
+they are different files, so the reader is sent to an innocent line — which is
+where a search starts, and the wrong place to begin it.
+
+    refusals      0199-a-diagnostic-names-the-file-it-came-from.a24
+
+##### refusals/0199-a-diagnostic-names-the-file-it-came-from.a24
+
+```algol24
+uses 'conformance/modules/Broken';
+
+WriteLn (Twice (5));
+```
+
+```console
+$ algc refusals/0199-a-diagnostic-names-the-file-it-came-from.a24
+[ERROR] conformance/modules/Broken.a24: Expect ';' after exit value.
+[ERROR] 12 |     Exit N * 2
+[ERROR]    |              ^
+Uncaught: Expect ';' after exit value.
+exit: 70
+```
+
+##### conformance/0214-every-parse-error-is-located.a24
+
+```algol24
+// ERR-005: a parse error prints the message and a three-line excerpt.  This is
+// the one that did not -- a semicolon after 'end', which is the most likely
+// typo in a Pascal-shaped language and was reported as a bare sentence on
+// stderr with nothing on either stream saying where.
+begin
+    WriteLn (1);
+end;
+```
+
+```console
+$ algc conformance/0214-every-parse-error-is-located.a24
+[ERROR] conformance/0214-every-parse-error-is-located.a24: Expect expression!
+[ERROR] 7 | end;
+[ERROR]   |    ^
+Uncaught: Expect expression!
 exit: 70
 ```
 
@@ -13540,10 +14176,10 @@ var Count : Integer := 'text';
 
 ```console
 $ algc conformance/0108-type-error-shape.a24
-Uncaught: Expected Integer, found String.
 [ERROR] conformance/0108-type-error-shape.a24: Expected Integer, found String.
 [ERROR] 1 | var Count : Integer := 'text';
 [ERROR]   |     ^^^^^
+Uncaught: Expected Integer, found String.
 exit: 70
 ```
 
@@ -13557,10 +14193,10 @@ var Y : Integer := G ();
 
 ```console
 $ algc conformance/0109-type-error-untyped.a24
-Uncaught: Expected Integer, found an untyped expression.
 [ERROR] conformance/0109-type-error-untyped.a24: Expected Integer, found an untyped expression.
 [ERROR] 3 | var Y : Integer := G ();
 [ERROR]   |     ^
+Uncaught: Expected Integer, found an untyped expression.
 exit: 70
 ```
 
@@ -13625,7 +14261,7 @@ still a failure and must not exit 0 [INI-005].
 **non-blocking**: the program compiles and runs exactly as it would without it,
 and its exit status is unaffected [ERR-009].
 
-**Three warnings are raised.** The first: a call that will select among
+**Five warnings are raised.** The first: a call that will select among
 overloads **at run time** [FUN-013] says so.
 
 ```
@@ -13684,6 +14320,66 @@ renaming either is the other way out.
 ```
 [WARN] spec/warning.a24:57: an operand of 'and' is an Integer, where '&', '|' and '~' are the bitwise operators.
 ```
+
+**The fourth: a call whose argument count matches no declaration of the name.**
+
+```
+[WARN] spec/warning.a24:73: 'Pair' is called with 1 argument(s), which no declaration of it takes.
+```
+
+Every fact needed is in hand while compiling — the parameter list has been
+parsed and so has the argument list — and the call is nevertheless counted when
+the line runs. So a program compiles, links, passes every gate and raises
+`Expected 2 arguments but got 1.` the first time that line is reached. One
+shipped program could not start at all for however long its signature had had
+twelve parameters, because its single call site sat past a `Halt` the unattended
+gate returned before.
+
+**A warning and not a refusal**, because the call is legal: a free name in a
+body is resolved when the body runs [DCL-007], so a call on a path that never
+runs is never counted and refusing it would forbid a program the language
+permits. What is wanted is the cost made visible.
+
+**Narrow, and every guard is load-bearing.** Nothing is said where selection
+could still answer: not for a callee that is not a plain name, not where
+arguments are **named** [FUN-016], and not for a name a **built-in** also
+answers, since a declaration takes over only the counts it declares and the
+built-in keeps the rest [RT-027]. A **gathering** parameter answers its fixed
+count and every greater one [FUN-005]. And nothing is said about a name the
+enclosing class declares as a member: whether a bare call there reaches the
+member or a visible top-level subprogram is decided by visibility [MOD-017],
+which is a per-file question this pass does not answer — so it declines to
+guess. A warning that does not fire costs nothing; a false one costs the
+reader's trust in the other three.
+
+**The fifth: a name that cannot be reached from where it is written**, raised
+while **emitting C**.
+
+```
+[WARN] spec/warning-emitted.a24:16: Undefined variable 'NoSuchName'.
+```
+
+**It belongs to the back end that had the problem.** The interpreter raises the
+moment the line runs and the bytecode machine refuses by name; only the C back
+end wrote the complaint into the program as a stub, so a program compiled,
+linked, passed every gate and aborted the first time a run reached the call.
+It bites hardest off the common path — one project's was in a window setup no
+unit test opens, and another's reached a device where the diagnostic goes to a
+stream nobody reads and the player sees the application vanish. **An error
+deferred to run time is deferred to *whatever* run time, including the ones
+with no console.**
+
+Every fact in the sentence was already in hand: the name is not in scope, and
+the exporting unit had been found in order to name it. Only the moment was
+wrong.
+
+**A warning and not a refusal**, for [DCL-007]'s reason again — a free name on
+a path that never runs is never resolved — and **an assertion outside a test
+run is exempt**, since that stub is deliberate [RT-001] and warning about it
+would warn about every unit that has tests.
+
+Because it is raised while emitting, an interpreted run cannot provoke it: it
+has a fixture of its own, `spec/warning-emitted.a24`, compiled rather than run.
 
 `and`, `or` and `not` test truthiness and yield an *operand* [EXP-010]; `&`,
 `|` and `~` combine bits. A reader arriving from Pascal — where `and` on
@@ -14219,7 +14915,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-four built-in names, with the rule specifying each. `spec/spec.sh`
+The thirty-five built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -14228,6 +14924,7 @@ interpreter actually registers.
 | `AssertEqual` | [TST-012] | Fails unless two values are equal; test runs only |
 | `AssertTrue` | [TST-012] | Fails unless a value is truthy; test runs only |
 | `Fail` | [TST-012] | Fails outright with a message; test runs only |
+| `ErrorLn` | [RT-030] | Writes a line to the error stream |
 | `Halt` | [RT-018] | Ends the program with a chosen exit status |
 | `Array` | [COL-002] | An Array of N elements, each `nil` |
 | `Buffer` | [RT-023] | Growable bytes with an explicit lifetime |

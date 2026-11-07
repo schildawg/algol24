@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.2.3.** The language is **stable, not closed**: it changes only on measured
+**v0.2.4.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
@@ -34,6 +34,20 @@ inclusive comparisons are no exception).
 v0.2.1 adds the one thing a library needs to BE one: [MOD-002]'s third place,
 so `uses graph;` reaches a library a package manager installed rather than only
 one beside the program. Found by trying to write the formula that installs it.
+
+⚠️ **[MOD-002] is about the LOOKUP only, and [MOD-018] owns the rest.** A unit
+name folds like any other identifier where the language decides anything with
+it: two units whose names differ only in case are one name declared twice, and
+the program is refused on every platform alike. Only whether `uses alpha;`
+*finds* `Alpha.a24` is still the filesystem's.
+
+⚠️ **macOS is the case-INSENSITIVE platform and Linux is the outlier**, which
+is the opposite of the natural guess. Writing `unit.a24` beside `Unit.a24` on
+APFS overwrites it — one file. So a two-unit case clash cannot even be written
+in one directory here, which is why `conformance/modules/casea` and `caseb`
+exist. Folding the *lookup* too would need a directory listing the core has not
+got — see `PROPOSAL-DIRECTORY-LISTING.md`, and note the library's own
+`Directory` is behind three `external`s the seed cannot reach.
 
 What the language still does not have is a library written in Algol-24, which is
 the whole of what *alpha* means here; nothing in the language is provisional.
@@ -53,11 +67,25 @@ every later pass treats it as one: a member of the name always wins at a call
 [MOD-015], and `extension` is a context-sensitive identifier rather than a
 keyword [LEX-011].
 
-⚠️ **There are three `[WARN]`s**, all in `ERR-010` and all checked against what
-`algc` prints by `spec/spec.sh` running `spec/warning.a24` — the lines compared
-**in order**. A warning raised and not quoted there fails the run, so adding a
-fourth means editing the rule, the fixture and nothing else. Nothing in
-`compiler/*.a24` raises any of the three.
+⚠️ **There are five `[WARN]`s**, all in `ERR-010` and all checked against what
+`algc` prints by `spec/spec.sh` — the lines compared **in order**. A warning
+raised and not quoted there fails the run, so adding one means editing the
+rule, a fixture and nothing else. Nothing in `compiler/*.a24` or `vm/*.a24`
+raises any of them, which is checked by compiling both.
+
+⚠️ **TWO FIXTURES, because the fifth is raised while EMITTING C.** An
+interpreted run never reaches the C back end, so `spec/warning.a24` cannot
+provoke it however it is written — `spec/warning-emitted.a24` is **compiled**
+for that one, and `spec.sh` appends its warnings after the first fixture's.
+Quote them in that order or the comparison fails on ordering alone.
+
+⚠️ **A warning is the answer where a construct is LEGAL and carries a hidden
+cost, and `conform.sh` is built for it.** `render()` drops `[WARN]` from BOTH
+sides, because the front end is shared and the two processors raise a warning at
+different moments — so a conformance case can exercise a warning but never see
+it, and `spec.sh` is the only thing holding the wording. Without that, the
+arity warning would have diverged every case with a wrong-count call in it,
+`0049` among them.
 
 - `spec/ALGOL-24.md` — **the authority.** Every rule is claimed by a case.
   The implementation is measured against it: where the two disagree,
@@ -81,6 +109,14 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   next run removes, and writing one there looked like the files being eaten by
   something. The point is that a case and the rule it demonstrates cannot
   drift: they are the same text.
+- `RELEASES.md` — the cumulative release notes, newest first. What changed in
+  each version and why, written for someone deciding whether to upgrade and for
+  whoever maintains the website. **A release updates this**, and it quotes no
+  counts for the reason nothing else here does.
+- `finished/` — proposals and plans whose subject has been built. Each carries a
+  header saying what it decided, when that landed, and **what remains open**,
+  because several still carry live questions. A proposal that was refused or is
+  still open stays in the root.
 - `spec/DOCUMENTATION.md` — how `///` doc comments are written here.
 - `examples/hello-scripts/` — a pie chart and Unicode text drawn into an SDL2
   window by an Algol-24 program.
@@ -263,7 +299,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   front end would otherwise invite exactly that.
 
   ⚠️ **The STACK section is now THREE terms and two of them are measured.**
-  `OpStack` declares `pops pushes needs` for all 78 opcodes, `vm/reference.sh`
+  `OpStack` declares `pops pushes needs` for every opcode, `vm/reference.sh`
   holds each entry to it, and `vm/Vm.a24` holds the declaration to a RUN — so
   an entry is two steps from something that executes. `pushes - pops` is what a
   run reveals; `needs` is what running one value shallower reveals, since `Pop`
@@ -277,8 +313,8 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   the top without taking it, which is every assignment opcode [EXP-017] as well
   as `OP_DUP`.
 
-  ⚠️ **67 of the 78 opcodes are held to their declaration by a RUN, and the
-  other 11 are NAMED.** The gap is a declared `Unmeasurable` set compared
+  ⚠️ **All but ELEVEN opcodes are held to their declaration by a RUN, and the
+  eleven are NAMED.** The gap is a declared `Unmeasurable` set compared
   against `OP_COUNT`, so an opcode added with neither a measurement nor a
   reason fails — and a name declared unmeasurable that IS measured fails too,
   since a stale exemption quietly shrinks what the test checks. Both
@@ -378,14 +414,39 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   case passes; a program wanting `pow` needs no library name at all.
 
   ⚠️ **A bare name inside a method is a VARIABLE first and a member of `this`
-  second.** The interpreter looks the variable up and reaches for `this` only
-  when that *raises* (`ThisField`), so a global of the name wins over a field
-  of it — and if the field is missing too it re-raises the ORIGINAL
-  undefined-variable message. The emitter decides it statically instead: not a
-  local, not a capture, not a visible global, and a member of the class being
-  compiled. `VisibleSlot` exists as a question separate from `BareSlot`'s
-  answer because a field WRITE must put the receiver on the stack before the
-  value, so it cannot be decided after the value is already there.
+  second — except that a BUILT-IN comes last.** The full order is **[CLS-019]**,
+  pinned by `conformance/0213`: a local, a capture, a **visible global**, a
+  **field of the receiver**, then a built-in. A declared variable beats a field;
+  a built-in loses to one, because a built-in is the only name in that list
+  nobody wrote down in this program.
+
+  The interpreter looks the variable up and reaches for `this` when that
+  *raises* (`ThisField`) — and, since this was fixed, **also when it succeeds
+  with a `Native`**, which is the step the built-ins used to jump: they live in
+  the environment every file encloses, so the lookup never failed and a class
+  with a field named `Pos` answered `<fn Pos>` from inside its own method. If
+  the field is missing too it re-raises the ORIGINAL undefined-variable message.
+  The emitter decides it statically instead: not a local, not a capture, not a
+  visible global, and a member of the class being compiled. `VisibleSlot` exists
+  as a question separate from `BareSlot`'s answer because a field WRITE must put
+  the receiver on the stack before the value, so it cannot be decided after the
+  value is already there.
+
+  ⚠️ **The built-in tiebreak must ask for a FIELD, not a member, and going
+  through `Get` introduced a divergence.** `ObjInstance.Get` answers `ClassName`
+  and a bound method as well, so routing it there made a bare name answer a
+  *method* of that name — `99` interpreted where the machine answers the
+  built-in's arity complaint. `GetField` is the narrow accessor and [CLS-007] is
+  why: a bare name read without parentheses is a **field** read, so a method of
+  the name is reached by `this.M` or by a call and never bare. A bare *call* is
+  a different question entirely — [MOD-017].
+
+  ⚠️ **`CEmitter` had the mirror-image bug and nobody had reported it.** It
+  tested only for a LOCAL before answering a field, so a **visible global**
+  named after a field read as the field inside the class's own methods — the one
+  answer of the three that the C back end gave alone, for an imported global as
+  well as its own. `VisibleGlobal` guards the write as well as the read: a write
+  that disagreed with the read would be worse than either.
 
   ⚠️ **Methods matter more than fields here.** Of shroom-slots' 28 units, the
   field half unblocked 2 and the bare *method* call unblocked **18** — the
@@ -435,7 +496,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   the `OP_CELL` every other local-declaring site emits — so in a frame that
   declares a nested subprogram the handler's own first read answered
   `Undefined property 'Held'`, naming `VmCell`'s field at a program that has no
-  such name. **Any `try` in such a frame was broken**, and 265 corpus cases
+  such name. **Any `try` in such a frame was broken**, and the corpus of the day
   reach none of them. `conformance/0209` is the case.
 
   ⚠️ **`DeclaresNested` walked the handler ARM rather than its BODY**, which
@@ -518,7 +579,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   call for `Init` where an invoke and a `super` call pass `true`, and the
   machine carried an `ENTERING_INIT` flag put there deliberately to match the
   other two. Three identical wrong answers are no divergence, which is why
-  nothing caught it — not 196 conformance cases, not the differential habit.
+  nothing caught it — not the corpus, not the differential habit.
   `conformance/0204` is the case now.
 
   ⚠️ **An unchecked parameter is where a WRONG ANNOTATION lives, and the
@@ -986,7 +1047,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   `Set`, `Array`, `Buffer`, `Stack` and `TextFile` hand back a **host** object
   in an arena that never frees. Deliberate for now and matching the
   interpreter, but it is exactly what the `Buffer` guest heap in
-  `PROPOSAL-GC.md` exists to fix.
+  `finished/PROPOSAL-GC.md` exists to fix.
 
   ⚠️ **An Algol-24 LOCAL is a GC root, and `CEmitter` emits the shadow stack
   that makes it one.** `alg_roots` covers module-level variables, whose
@@ -1230,7 +1291,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   ⚠️ **THE MACHINE COMPILES THE COMPILER, and the output IS the seed.**
   `algvm compiler/Main.a24 --compile --out=DIR compiler/Main.a24` emits C
   byte-identical to `bootstrap/algc`'s own emission and to every generated file
-  in `bootstrap/` — and that C builds into a compiler passing all 245 tests.
+  in `bootstrap/` — and that C builds into a compiler passing its whole suite.
   30.85 s against 1.77 s native, so **17.4×**, well above `Fib`'s 6.9×:
   compilation allocates where `Fib` computes. Peak 3.07 GB resident, and the
   frame stack never goes deeper than **272**.
@@ -1354,7 +1415,24 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   The reproduction is three lines of Python and worth keeping: generate N
   statements, run both ways, bisect N. 15 passes, 16 fails.
 
-  ⚠️ **A BUILT-IN held as a value is a CONSTANT, not an opcode.** A built-in
+  ⚠️ **The C BACK END holds one too, as a closure of arity -1.** `alg_builtin`
+interns it by name in the RUNTIME, which is what makes `Length = Length` true
+across units as well as within one — a static per generated unit would make two
+reads two objects, where these compare by identity [VAL-011]. Arity -1 is the
+interpreter's own convention (`Native ('Str', -1)`) and means the callee checks
+the count; gathering cannot stand in for it, because a gathered list and a
+single `List` argument arrive identically. `alg_writeln`, `alg_write` and
+`alg_halt` answer **void** in C, so a thunk calls them and answers nil itself.
+[FUN-011], `conformance/0216`.
+
+⚠️ **The interned table is marked by the collector, and that is REASONED rather
+than demonstrated.** It is a C static holding `Value`s, invisible to the
+collector, and `OBJ_CLOSURE` is both marked and recycled by size class — so the
+marking is necessary by construction. No probe would go red without it, though:
+the released body is never handed back at its own size class, which is case
+0004's trap. Do not remove it on the strength of a green run.
+
+⚠️ **A BUILT-IN held as a value is a CONSTANT, not an opcode.** A built-in
   has no body to enter and no slot of its own, so reading one [FUN-011] pushes
   a `VmBuiltin` carrying its name, and `CallValue` sends that to the same
   `CallBuiltin (Name, Count)` dispatch `OP_BUILTIN` reaches — which is the
@@ -1514,12 +1592,31 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   nowhere near either declaration. Then `BeginScope`, `EndScope` and
   `ResolveLocal` all collided with `Resolver` methods at once.
 
-  **A method is not the protection it looks like, and both processors agree
-  about it** — a bare call inside a class finds an imported unit's top-level
-  function over the class's own method. So before adding a top-level name to a
-  program that imports `compiler/*.a24`, check it against every declaration
-  there including the indented ones; `shroom-slots` keeps
-  `tools/name-clash.py` for exactly this and it is worth copying.
+  **A method is not the protection it looks like, and all three processors
+  agree about it** — a bare call inside a class finds an imported unit's
+  top-level function over the class's own method, which is **[MOD-017]** and
+  `conformance/0212`. So before adding a top-level name to a program that
+  imports `compiler/*.a24`, check it against every declaration there including
+  the indented ones; `shroom-slots` keeps `tools/name-clash.py` for exactly
+  this and it is worth copying.
+
+  ⚠️ **VISIBILITY decides that, and the sentence above used to overstate it.**
+  The subprogram wins only where the *unit declaring the class* can see it —
+  its own declaration, or one of its own `uses`. A name declared in a unit that
+  class's unit never imported does **not** enter the call, and the method
+  answers. Both halves are measured: `Crated`, which imports `Sizer`, reaches
+  `Sizer.Size` from inside its own method even at a matching argument count;
+  `Boxed`, which imports nothing, reaches its own.
+
+  ⚠️ **The C back end used to get the invisible half wrong, and it was four
+  defects.** It asked whether any unit declares a subprogram of the name —
+  program-wide — rather than whether one is visible here, so an unrelated unit
+  growing a top-level `Measure` emitted
+  `alg_error("Undefined variable 'Measure'...")` into an imported font unit's
+  own C, at **eight** call sites, naming the wrong unit as the one to import.
+  `DeclaredIn` and `VisibleDeclared` are the per-unit tables that answer it;
+  `Declared` stays program-wide and now answers only `MissingName`'s
+  program-wide question. See [MOD-016], [MOD-017] and `defects.sh`.
 
   ⚠️ **Four Buffer and Char traps, all of which compile and then misbehave.**
   `Str (B)` on a Buffer answers its PRINTED form, so use `B.Text`; `Buffer (N)`
@@ -1538,7 +1635,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
 
   `vm/spike/` holds the programs that
   measured whether it is worth writing, and **`vm/spike/measure.sh` reproduces
-  every figure** in `PROPOSAL-VM.md` in about ten minutes — so run it rather
+  every figure** in `finished/PROPOSAL-VM.md` in about ten minutes — so run it rather
   than trusting a number quoted in prose. The short of it: an Algol-24 dispatch
   loop compiled to C runs about **12× slower** than the same work compiled
   directly, which is what the proposal weighs. Reserved for a real GC, because
@@ -1556,7 +1653,7 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   quoted without its workload is useless: 42% on a tight arithmetic loop, 24% on
   a VM dispatch loop, **3% on `algc --test` and 1% on `algc --compile`**. It
   removes call overhead, so it helps exactly where the callee does little. Do
-  not repeat the 42% as though it were general -- `PROPOSAL-VM.md` did, and it
+  not repeat the 42% as though it were general -- `finished/PROPOSAL-VM.md` did, and it
   was wrong.
 
   ⚠️ **The frame budget is MEASURED on the machine now, and the Inn misses 30
@@ -1600,13 +1697,30 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
 
 ## The collector
 
-⚠️ **`Collect ()` is a REQUEST [RT-029], and the two processors answer it
-differently by the rule rather than against it.** The interpreter answers `0`
-— its live values sit in C locals all through a recursive evaluator, where no
-collector can see them, so releasing would free something still in use. The
-compiled back end and the bytecode machine release. A program may depend on
-neither the count nor on anything being freed: `Collect` changes how much
-memory a correct program uses and never what it computes.
+⚠️ **ALL THREE PROCESSORS COLLECT, and the interpreter's refusal was stale.**
+`Collect ()` is a request [RT-029] and every processor now honours it. The tree
+walker answered `0` until v0.2.4, reasoned as *"its live values sit in C locals
+all through a recursive evaluator"* — true when written, and overtaken by the
+shadow stack: the walker is itself a compiled Algol-24 program, so its
+evaluator's locals are exactly what the collector walks. Removing the refusal
+released **1,400,104** objects where it had answered 0, with all 275 corpus
+cases byte-identical to the run that declined.
+
+⚠️ **The COMPILED back end has had a precise collector since v0.2.0, and
+`collector.sh` tests it and nothing else.** This is easy to misremember as a VM
+feature: it is not. `CEmitter` emits the roots and the shadow stack, and the
+VM's roots come free from that because `Slots`, `GlobalCells` and the frame
+arrays are module-level variables of `Vm.a24`. A program may depend on neither
+the count nor on anything being freed: `Collect` changes how much memory a
+correct program uses and never what it computes.
+
+⚠️ **The tree walker collects automatically too, every `INTERP_COLLECT_EVERY`
+statements (200,000).** Its safe point is a STATEMENT BOUNDARY, the walker's
+equivalent of the machine's top-of-dispatch-loop. Measured on
+`algc --test slotmath.a24`, the heaviest interpreted run there is: **5.57 GB and
+32.42 s without, 2.01 GB and 35.22 s with** — about 2.8× less memory for about
+9% more time. That is R-13, which was reported as the interpreter running away
+with memory the compiler does not need.
 
 ⚠️ **AUTOMATIC collection is ON by default on the machine, at 2,000,000
 instructions, and `--collect 0` is how to turn it off.** `Vm.a24` collects at a
@@ -1634,8 +1748,8 @@ precise-roots and shadow-stack work that landed after it was written — exactly
 the missing-root class it described. The note that replaced *that* one said
 flipping the default was unlicensed because the evidence was "a scripted walk,
 headless video, one path through the game". That is what the flip answered:
-**265 corpus cases (0 diverged), `algol24-library`'s 836 tests across ten
-units, shroom-slots' `verify.a24` 59 lines identical to the interpreter, the
+**the whole corpus (0 diverged), `algol24-library`'s suite across every
+unit, shroom-slots' `verify.a24` 59 lines identical to the interpreter, the
 compiler's own self-compile byte-identical, and the Inn closing cleanly at 400
 frames — 19 fps against 20.** An explicit `Collect ()` was always unaffected
 and works either way.
@@ -1726,25 +1840,71 @@ runs every test block reachable from `X.a24`, its imports included — the
 narrowest thing you can run is a leaf module. `compiler/Token.a24` (2 tests) is a
 useful fast loop; `compiler/Main.a24` imports everything.
 
-## The seven harnesses
+## The harnesses
 
-All seven must pass. They are the definition of done.
+All of them must pass. They are the definition of done.
 
 ```sh
 ./test.sh          # the unit tests, inline in the source they cover
 ./conform.sh       # the corpus, under BOTH processors
-./spec/spec.sh     # every rule cites something that exists
+./spec/spec.sh     # every rule cites something that exists; the release agrees
 ./fixedpoint.sh    # the seed matches what the compiler emits, and emits itself
 ./docs.sh          # every unit is documented per spec/DOCUMENTATION.md
 ./collector.sh     # the collector keeps what a program holds, both ways
 ./installed.sh     # a program reaches an installed unit by name
+./defects.sh       # every defect a project using the language reported
 ```
+
+And the machine's three, which `test.sh`'s default root does not reach:
+
+```sh
+./test.sh vm/Vm.a24   # the machine's own tests
+./vm/conform.sh       # the corpus on the machine, both corpora
+./vm/reference.sh     # every opcode entry agrees with OpCode.a24
+```
+
+⚠️ **The count used to be in this heading and went stale twice.** There were
+six, then seven, then eight; a number in a heading is a claim nothing checks,
+which is the same rule this file applies to every other count.
+
+⚠️ **`./defects.sh` is the newest and is a REGRESSION gate rather than a
+development one.** It carries every defect `shroom-slots` and `algol24.com`
+reported — sixteen — each reduced to the smallest program that shows it, and it
+was written red and finished green. Seven of them divide the processors, so
+those checks compare the three answers to each other rather than to recorded
+text: a divergence has no single expected output, and comparing is what stays
+honest if the right answer is later decided differently than the script
+guessed.
+
+⚠️ **It caught two things neither corpus did**, which is the argument for
+keeping it. A **stale `vm/algvm`** — both binaries link the hand-written
+`algol.c`, and `vm/conform.sh` builds its own `algc` while using the
+checked-in machine, so a stale machine passes there and fails a three-way
+comparison. And the **error-stub grep** over emitted C, which `shroom-slots`
+added after one cost it an afternoon and which found three latent aborts on its
+first run.
+
+⚠️ **`spec/spec.sh` now also holds the RELEASE in its three places.**
+`compiler/Release.a24`'s `VERSION`, `bootstrap/algol.h`'s
+`ALG_RUNTIME_VERSION` and the `_Static_assert` in `bootstrap/algol.c` must
+agree, so bumping the release is a three-file change or the gate goes red.
+Both halves of the runtime are hand-written and copied verbatim by `--compile`,
+so nothing derives either number — this check is the only thing that keeps them
+in step, and it was seen red in all three directions before being trusted.
+
+⚠️ **The runtime pair is a PAIR, and a mismatched one used to read as a corrupt
+runtime.** `--compile` emits `algol.c` and `algol.h` together and the body uses
+what the header declares. Anything assembling a build out of both the
+compiler's output and a checkout of the compiler can take one of each — a
+project packaging for Android did, and got twenty `cc` errors beginning
+`call to undeclared function 'alg_collect'`, none of which said *two versions*.
+The assertion makes it one line.
 
 ⚠️ **`./installed.sh` asks the one question every other gate assumes away.**
 They all run from the repository root with a program's modules beside it, so
 none of them asks whether a program in some *other* directory can reach a unit
 installed somewhere else. Two portability defects hid in that gap and neither
-was reachable from any of the 265 corpus cases: `FolderOf` cut a path at `/`
+was reachable from any corpus case of the day: `FolderOf` cut a path at `/`
 alone, so a Windows binary found no install prefix at all; and `FileExists`
 OPENS the path, and `fopen` on a **directory** succeeds on macOS and Linux and
 fails on Windows, so a tested `lib` was found on two platforms and not the
@@ -1763,12 +1923,11 @@ Each prints its own totals. **Do not copy those totals into this file or the
 README**: every count written down here has gone stale, and a number in prose is
 a claim nothing checks.
 
-⚠️ **`./collector.sh` runs the COMPILED back end only, and that is the rule
-rather than an omission.** `Collect` is a request [RT-029]: the interpreter
-answers 0 because its live values sit in C locals all through a recursive
-evaluator, so declining is its conformant answer and there is nothing to
-compare against. `conform.sh` is where the two processors are held to each
-other.
+⚠️ **`./collector.sh` runs the COMPILED back end only**, which was the rule
+when the interpreter declined and is now merely where the cases happen to run.
+The interpreter collects too, so there would be something to compare — worth
+revisiting if a collector case ever needs to be about more than the compiled
+path. `conform.sh` is where the processors are held to each other.
 
 ⚠️ **Every collector case runs TWICE — plainly and under `ALG_POISON=1`** —
 because that split *is* the diagnosis. Poisoning withholds a released body
@@ -1931,9 +2090,69 @@ including the `[ERROR]` line naming why each failure failed.**
 ⚠️ A test failure prints exactly one `[ERROR]` line, not three: `Console.Error`
 adds a source line and a caret, and a test failure does not go through it.
 
-⚠️ The file named is the **root**, not the file the failing test lives in,
-because `SourceCode` is one global keyed by line number. The compiled runner
-copies that deliberately, since the reports are compared.
+⚠️ **COMPILED ALGOL-24 DOES NOT CARRY SOURCE INFORMATION AT RUN TIME, and
+that is a DECISION rather than a gap** — [ERR-003]. Carrying it means the
+emitted C storing a position before every statement, which every program would
+pay for so that a failing one could be read; the shadow stack's +5.8% for a
+root per block is the nearest measured comparison. **What a program gets
+instead is the machine**, which runs the same program and can disassemble it:
+`--list`, `--trace N` and `--watch TEXT`. That is the division of labour
+`algvm` exists for. The interpreter and the machine ARE expected to carry a
+location and do not yet, which is a defect — `finished/PROPOSAL-RUNTIME-LOCATION.md`.
+
+⚠️ **A RUNTIME ERROR NAMES ITS FILE AND LINE in the tree walker and the
+machine, and NOT in compiled Algol-24** [ERR-003]. The location is a SECOND
+line — `       at file:line` — and never part of the message, which is forced:
+69 corpus cases print a caught message, 20 assertions here compare one exactly,
+and the library has 38 handlers.
+
+⚠️ **BOTH harnesses drop that line, and teaching only one cost 37
+divergences.** `conform.sh` and `vm/conform.sh` keep separate copies of
+`render()`, deliberately identical — so a rule applied to one must be applied
+to the other. The processors are MEANT to differ here, so a location in one and
+absent in another is agreement rather than divergence.
+
+⚠️ **Each processor finds the location its own way, and the machine's is
+free.** The tree walker publishes per statement (`Stmt` carries `Line`/`File`,
+stamped at `Parser.Statement`, the one funnel); the machine **recovers it from
+`IP`** where its dispatch loop catches a host error, so it pays nothing until
+something fails. Its line table is SPARSE — an entry only where the line
+changes, one pair per statement rather than clox's one per byte.
+
+⚠️ **STDOUT IS FLUSHED BEFORE ANY DIAGNOSTIC NOW, and that reordered every
+LOCATED one.** `Console.Error` writes its excerpt to stdout as the front end
+fails and the `Uncaught:` sentence goes to stderr afterwards — so the excerpt
+was always written first and only *appeared* second because it sat in a buffer.
+[ERR-005] shows excerpt-then-sentence, which is what every other compiler
+prints. 75 cases in the specification, one defect `.current` file and one prose
+example were regenerated for it.
+
+⚠️ **`bootstrap/algc` AND `vm/algvm` both link the hand-written `algol.c`, so
+changing it means rebuilding BOTH.** Rebuilding only the compiler left the
+machine on the old runtime, and `defects.sh` caught it where neither corpus did
+— `vm/conform.sh` builds its own `algc` but uses the checked-in machine, so a
+stale machine passes there and fails a three-way comparison.
+
+⚠️ The file named is the **root**, not the file the failing test lives in. The
+compiled runner copies that deliberately, since the reports are compared, and
+`TestReport.RootFile` is where it comes from.
+
+⚠️ **That is now the TEST REPORT only, and `SourceCode` no longer works that
+way.** It used to hold one file's lines and one name, so a *located* diagnostic
+named the root too — and the scanner for an imported file overwrote lines in
+place without renaming, so the name and the quoted text could come from
+different files. A `Token` carries its own `File` now, `SourceCode` keys a
+record per file, and `Console.Error` reads the token's. [ERR-005],
+`refusals/0199`.
+
+⚠️ **An empty file name means the ROOT, and ONE function must answer that for
+the write, the read and the printed name.** Resolving it on the read alone
+stored a nameless scanner's lines under `''` and looked them up under the
+root's, so every located diagnostic lost its source line — 36 cases, on the
+MACHINE only, because `vm/run.a24` names its file to `Begins` rather than to
+the `Scanner` while the compiler's own drivers name it to both. `conform.sh`
+stayed green and `vm/conform.sh` went red, which is the pair worth running
+together after touching this.
 
 ## Documentation comments
 
@@ -2000,6 +2219,17 @@ inline. Language points that bite when editing:
   element type [FUN-005], so `list of Integer` did not absorb and the call
   failed as a wrong argument count. A diagnostic answers in the **canonical**
   spelling, which is [TYP-014]'s treatment of `Real` reaching case too.
+- ⚠️ **A BUILT-IN's name folds too, and `CEmitter.Builtin` was the one table
+  that did not.** It compared `Name + '/' + Count` against the canonical
+  spellings as literals, so `writeln`, `STR`, `length` and `Clock` each missed
+  the table, fell through to `MissingName` and became an
+  `alg_error("Undefined variable ...")` stub — a latent abort in the C back end
+  where both other processors answer. Eleven of eleven spellings tried. It bit
+  unevenly, which is why it lasted: a built-in whose canonical spelling is the
+  one people write never missed, and **`clock` is the only one spelt
+  lower-case**, so writing the natural `Clock` was enough —
+  `algol24-library`'s `graph.a24` had exactly that, waiting for a caller.
+  `conformance/0215`.
 - ⚠️ **Folding a table's keys means folding every READ, and missing one broke
   the next generation rather than this one.** `CEmitter` keys its class and
   singleton tables by name; folding the writes and five of six reads left every
@@ -2032,6 +2262,11 @@ inline. Language points that bite when editing:
 - ⚠️ **`>>` is not `div`.** It floors where `div` truncates toward zero, so
   `-7 >> 1` is -4 and `-7 div 2` is -3 [EXP-024]. They agree whenever the
   shifted-out bits are zero, which is what makes the difference easy to miss.
+- **`ErrorLn` writes to the ERROR stream** [RT-030], taking any number of values
+  and joining them exactly as `WriteLn` does — one call is one line. It flushes
+  standard output first, so a program's own output cannot appear after a
+  diagnostic written after it. It is how a program says something is wrong
+  without corrupting what it produced; `raise` [STM-016] is how it fails.
 - `Str (X, Decimals)` renders a Double with exactly that many places and never
   in exponent form, and `Str (X, Width, Decimals)` right-aligns it [RT-028].
   Correctly rounded from the value, so `Str (2.675, 2)` is 2.67; text surgery

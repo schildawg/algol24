@@ -112,6 +112,49 @@ begin
     end
 end
 
+/// Fills BUILTIN_NAMES, as a declaration's initializer rather than a bare
+/// statement so that it runs under `--test` too.
+///
+/// Declared ABOVE the variable it fills.  A unit's bare statements do not run
+/// under `--test` -- only a declaration's initializer does -- so the table has
+/// to be built by a call in the `var`; and with the call written above this
+/// declaration the initializer answered `Undefined variable 'FoldedBuiltins'`
+/// when the unit was initialized, hoisting notwithstanding.
+function FoldedBuiltins () : Set;
+var
+    Names : Set;
+
+begin
+    Names := Set();
+
+    for var Name in ['Array', 'AssertEqual', 'AssertTrue', 'Buffer', 'ChDir',
+                     'Char', 'clock', 'Collect', 'Copy', 'ErrorLn', 'Fail',
+                     'FileExists', 'Foreign', 'GetDir', 'Halt', 'Length',
+                     'List', 'Map', 'MkDir', 'Ord', 'ParamCount', 'ParamStr',
+                     'Pos', 'Pred', 'RmDir', 'Set', 'Stack', 'Str', 'Succ',
+                     'TextFile', 'ToLower', 'ToUpper', 'Val', 'Write',
+                     'WriteLn'] do
+        Names.Add (FoldCase (Str (Name)));
+
+    Exit Names;
+end
+
+/// Every built-in's name, folded, so a warning about a call can tell a
+/// program's own subprogram from a name the runtime already answers.
+///
+/// A declaration takes over only the argument COUNTS it declares and the
+/// built-in keeps the rest [RT-027], so a call at a count the declaration does
+/// not take is answered by the built-in rather than being wrong.  A warning
+/// that did not know these names would have reported every such call as a
+/// mistake -- `function Length (A, B)` beside an ordinary `Length (S)` among
+/// them.
+///
+/// Hand-written and held to `Interpreter.a24` by `spec/spec.sh`, which is the
+/// same arrangement the keyword table and Annex B are kept honest by.  The
+/// underscore is deliberate: a module-level table needs a name no local would
+/// reach for [SRC-011].
+var BUILTIN_NAMES : Set := FoldedBuiltins ();
+
 /// The gradual type checker.
 ///
 /// Two passes over the top-level statements: every declaration is mapped first,
@@ -1081,9 +1124,86 @@ begin
         if Warned.Contains (Key) then Exit;
         Warned.Add (Key);
 
-        Console.Warn (SourceCode.Name() + ':' + Str (TheExpr.Paren.LineNumber) + ': '''
+        Console.Warn (SourceCode.Named (Str (TheExpr.Paren.File)) + ':' + Str (TheExpr.Paren.LineNumber) + ': '''
                     + Str (TheExpr.Callee.Name.Lexeme) + ''' selects among '
                     + Str (Seen) + ' overloads at run time.');
+    end
+
+    /// Warns that a call's argument count matches no declaration of the name.
+    ///
+    /// It reports a COST the way the other warnings do, and not a fault: the
+    /// program is legal and will raise when the line runs.  That is the whole
+    /// defect -- `Expected 12 arguments but got 9.` is exact, and it arrives
+    /// after the compile, the link and every gate.  One shipped program could
+    /// not start at all for however long its signature had had twelve
+    /// parameters, because its one call site sat past a `Halt` the unattended
+    /// gate returned before.
+    ///
+    /// A WARNING rather than a refusal, because refusing would make a legal
+    /// program illegal: a call on a path that never runs is never resolved
+    /// [DCL-007], so the language permits it today and forbidding it is a change
+    /// to the language rather than a fix to this.
+    ///
+    /// NARROW, and each guard is load-bearing.  Selection happens at run time
+    /// [EXP-013], so nothing may be said about a callee that is not a plain
+    /// name, about named arguments, or about a name the runtime also answers:
+    /// a declaration takes over only the counts it declares and the built-in
+    /// keeps the rest [RT-027].  A gathering declaration takes its fixed count
+    /// or any greater number [FUN-005], which CandidatesFor already knows.
+    ///
+    /// # Satisfies
+    ///
+    /// [ERR-010]
+    procedure WarnIfNoArity (TheExpr : Any);
+    var
+        Folded : String;
+        Count  : Integer;
+        Key    : String;
+
+    begin
+        if ClassNameOf (TheExpr.Callee) <> 'VariableExpr' then Exit;
+
+        for var ArgumentName in TheExpr.ArgumentNames do
+            if Str (ArgumentName) <> '' then Exit;
+
+        Folded := FoldCase (Str (TheExpr.Callee.Name.Lexeme));
+
+        if BUILTIN_NAMES.Contains (Folded) then Exit;
+        if not Overloads.Contains (Folded) then Exit;
+
+        // A bare call inside a class may be a METHOD of it, and Overloads knows
+        // only TOP-LEVEL names -- so measuring such a call against a top-level
+        // subprogram of the same name declared in some other unit compares it
+        // against the wrong declaration entirely.  Which of the two a bare call
+        // actually reaches is decided by visibility [MOD-017], which is per
+        // file and is not something this pass knows.
+        //
+        // So a name the enclosing class declares is left alone.  It gives up
+        // warning about a genuinely miscounted call to a top-level subprogram
+        // whose name a class also uses, which is the right way to be wrong: a
+        // warning that does not fire costs nothing, and a false one costs the
+        // reader's trust in every other warning.
+        //
+        // Found rather than foreseen.  ObjFunction.Fits is a method called by
+        // its bare name, vm/Vm.a24 declares a top-level Fits, and compiling
+        // vm/run.a24 reported both of ObjFunction's calls -- a pair CLAUDE.md
+        // already records as measuring clean.
+        if Lookup.CurrentClassName <> '' then
+            if DeclaresMember (Str (Lookup.CurrentClassName), Folded) <> '' then Exit;
+
+        Count := TheExpr.Arguments.Length as Integer;
+
+        if CandidatesFor (Folded, Count) > 0 then Exit;
+
+        Key := 'arity:' + Str (TheExpr.Paren.LineNumber) + ':' + Folded;
+        if Warned.Contains (Key) then Exit;
+        Warned.Add (Key);
+
+        Console.Warn (SourceCode.Named (Str (TheExpr.Paren.File)) + ':'
+                    + Str (TheExpr.Paren.LineNumber) + ': '''
+                    + Str (TheExpr.Callee.Name.Lexeme)
+                    + ''' is called with ' + Str (Count)
+                    + ' argument(s), which no declaration of it takes.');
     end
 
     /// Warns where an operand of a truthiness operator is an Integer.
@@ -1117,7 +1237,7 @@ begin
         if Warned.Contains (Key) then Exit;
         Warned.Add (Key);
 
-        Console.Warn (SourceCode.Name() + ':' + Str (Op.LineNumber) + ': an operand of '''
+        Console.Warn (SourceCode.Named (Str (Op.File)) + ':' + Str (Op.LineNumber) + ': an operand of '''
                     + Str (Op.Lexeme) + ''' is an Integer, where ''&'', ''|'' and ''~'' '
                     + 'are the bitwise operators.');
     end
@@ -1154,7 +1274,7 @@ begin
         if Warned.Contains (Key) then Exit;
         Warned.Add (Key);
 
-        Console.Warn (SourceCode.Name() + ':' + Str (TheExpr.Name.LineNumber) + ': '''
+        Console.Warn (SourceCode.Named (Str (TheExpr.Name.File)) + ':' + Str (TheExpr.Name.LineNumber) + ': '''
                     + Str (TheExpr.Name.Lexeme) + ''' is a member of ' + Declaring
                     + ', so the extension of that name is not reached.');
     end
@@ -1280,6 +1400,7 @@ begin
                 ArgTypes.Add (Reduce (Argument));
 
             WarnIfDynamic (TheExpr);
+            WarnIfNoArity (TheExpr);
 
             if ClassNameOf (TheExpr.Callee) = 'GetExpr' then
             begin

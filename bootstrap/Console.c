@@ -217,9 +217,9 @@ static Value m_console_error_2_token_string(Value v_this, Value *args, int32_t c
     Value v_digits = alg_nil();
     (void)v_digits;
     alg_root(&v_digits, 1);
-    (void)((v_text = alg_invoke(alg_singleton(k_sourcecode), "Get", (Value[]){alg_property(v_where, "LineNumber")}, 1)));
+    (void)((v_text = alg_invoke(alg_singleton(k_sourcecode), "Get", (Value[]){alg_str(alg_property(v_where, "File")), alg_property(v_where, "LineNumber")}, 2)));
     (void)((v_digits = alg_text_length(alg_str(alg_property(v_where, "LineNumber")))));
-    (void)(alg_writeln(alg_add(alg_add(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), alg_invoke(alg_singleton(k_sourcecode), "Name", NULL, 0)), alg_string(": ")), v_message)));
+    (void)(alg_writeln(alg_add(alg_add(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), alg_invoke(alg_singleton(k_sourcecode), "Named", (Value[]){alg_str(alg_property(v_where, "File"))}, 1)), alg_string(": ")), v_message)));
     (void)(alg_writeln(alg_add(alg_add(alg_add((alg_declared(d_errorVtag, "ERROR_TAG"), v_errorVtag), alg_str(alg_property(v_where, "LineNumber"))), alg_string(" | ")), v_text)));
     (void)(alg_writeln(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add((alg_declared(d_ansiVwhite, "ANSI_WHITE"), v_ansiVwhite), alg_char_value(91)), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)), alg_string("ERROR")), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset)), alg_string("] ")), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), v_digits}, 2)), alg_string(" |")), (alg_declared(d_ansiVred, "ANSI_RED"), v_ansiVred)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(32), alg_add(alg_property(v_where, "Offset"), alg_int(1))}, 2)), alg_invoke(v_this, "Repeat", (Value[]){alg_char_value(94), alg_text_length(alg_property(v_where, "Lexeme"))}, 2)), (alg_declared(d_ansiVreset, "ANSI_RESET"), v_ansiVreset))));
     Value ret_9 = alg_nil();

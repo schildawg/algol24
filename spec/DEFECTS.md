@@ -116,7 +116,7 @@ declaration rather than about constants.
 
     defect  DEF-35-inference-stops-at-a-later-declaration.a24
 
-⚠️ **This annex held thirty-three defects and holds two.** Every other one has
+⚠️ **This annex held thirty-three defects and holds three.** Every other one has
 been fixed and its reproduction removed. Three of them turned out to be the **rule's** fault
 rather than the implementation's, and were closed by changing this document —
 `SRC-005` on Unicode identifiers, `LEX-025` on `Char(0)`, and a blocker recorded

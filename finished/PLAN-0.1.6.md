@@ -1,5 +1,7 @@
 # Plan: v0.1.6
 
+> **FINISHED — shipped as v0.1.6.** All four items landed.
+
 **Status:** decided, not started. Four items, in the order they will land.
 Written 2026-10-28.
 

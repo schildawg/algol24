@@ -4,9 +4,13 @@
 
 #include "algol.h"
 
+Value f_foldedbuiltins(Value **cells, Value *args, int32_t count);
 Value f_rejects(Value **cells, Value *args, int32_t count);
 Value f_candidates(Value **cells, Value *args, int32_t count);
 extern Value k_typelookup;
+extern Value fn_foldedbuiltins;
+extern Value v_builtinVnames;
+extern bool d_builtinVnames;
 extern Value k_typechecker;
 extern Value fn_rejects;
 extern Value fn_candidates;

@@ -753,10 +753,20 @@ fi
 # warning at different moments; so a conformance case can exercise the warning
 # but can never see it.  This check is the only thing holding the wording.
 
+# ⚠️ TWO FIXTURES, because one of the warnings is raised while EMITTING C.
+# An interpreted run never reaches the C back end, so spec/warning.a24 cannot
+# provoke it however it is written -- spec/warning-emitted.a24 is compiled for
+# exactly that one, and its line is quoted after the others.  Appending the two
+# runs in that order is what lets a single comparison hold all of them.
 if [ -x bootstrap/algc ]; then
     bootstrap/algc spec/warning.a24 2>/dev/null \
       | sed "s/$(printf '\033')\\[[0-9;]*m//g" \
       | grep '^\[WARN\]' > "$WORK/warn_actual" || true
+
+    mkdir -p "$WORK/emitted"
+    bootstrap/algc --compile --out="$WORK/emitted" spec/warning-emitted.a24 2>&1 \
+      | sed "s/$(printf '\033')\\[[0-9;]*m//g" \
+      | grep '^\[WARN\]' >> "$WORK/warn_actual" || true
 
     awk '/\*\*\[ERR-010\]\*\*/{f=1; next}
          f && /^\*\*\[[A-Z]+-[0-9]+\]\*\*/{exit}
@@ -947,6 +957,51 @@ if [ "$GAPS_REPORT" -eq 1 ]; then
              for (i = 1; i <= n; i++) { c = order[i]; if (!done[c]) { done[c]=1; g += tbd[c]; r += total[c] } }
              printf "  %d of %d rules await a case.\n", g, r
          }' "$SPEC"
+fi
+
+# ---------------------------------------------------------------- the release
+#
+# ONE VERSION IN THREE PLACES, and nothing else compares them.
+#
+# compiler/Release.a24 holds the release every binary reports.  The runtime pair
+# -- bootstrap/algol.h and bootstrap/algol.c -- carries the same number as an
+# integer, so a header and a body from different releases fail at the
+# _Static_assert instead of twenty lines deep in symptoms.
+#
+# ⚠️ Both halves of the runtime are HAND-WRITTEN and copied verbatim by
+# --compile, so nothing derives either number from Release.a24.  This is what
+# keeps them in step: bumping the release without bumping the runtime turns this
+# red, which is the only reason three places can be trusted to agree.
+
+echo
+echo "The release"
+
+REL=$(sed -n "s/^const VERSION := '\([^']*\)';.*/\1/p" compiler/Release.a24)
+HDR=$(sed -n 's/^#define ALG_RUNTIME_VERSION \([0-9]*\).*/\1/p' bootstrap/algol.h)
+BDY=$(sed -n 's/^_Static_assert (ALG_RUNTIME_VERSION == \([0-9]*\).*/\1/p' bootstrap/algol.c)
+
+if [ -z "$REL" ]; then
+    echo "  FAIL: compiler/Release.a24 has no VERSION"
+    FAILED=1
+elif [ -z "$HDR" ]; then
+    echo "  FAIL: bootstrap/algol.h has no ALG_RUNTIME_VERSION"
+    FAILED=1
+elif [ -z "$BDY" ]; then
+    echo "  FAIL: bootstrap/algol.c does not assert ALG_RUNTIME_VERSION"
+    FAILED=1
+else
+    # major * 10000 + minor * 100 + patch, from the dotted release.
+    WANT=$(echo "$REL" | awk -F. '{ printf "%d", $1 * 10000 + $2 * 100 + $3 }')
+
+    if [ "$HDR" != "$WANT" ]; then
+        echo "  FAIL: Release.a24 is $REL (= $WANT) and algol.h says $HDR"
+        FAILED=1
+    elif [ "$BDY" != "$WANT" ]; then
+        echo "  FAIL: algol.h says $HDR and algol.c asserts $BDY"
+        FAILED=1
+    else
+        echo "  the release is $REL, and the runtime pair both say $WANT"
+    fi
 fi
 
 echo

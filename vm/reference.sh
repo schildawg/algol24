@@ -21,9 +21,16 @@
 #
 # Three outcomes, as vm/conform.sh has three, and only the third is a failure:
 #
-#   described        the entry agrees with OpCode.a24
-#   variable-width   the entry says OpShape cannot describe it, and is believed
-#   not yet written  no entry, which is work to do
+# The report is a TOTAL and a breakdown of it, and the three parts are asserted
+# to sum to the total:
+#
+#   opcodes declared   how many OpCode.a24 declares, the OP_COUNT sentinel
+#                      excluded
+#   entries agreeing   the entry's number, operands and byte count all match
+#   variable-width     the entry says OpShape cannot describe its shape, and is
+#                      believed -- so its shape is not compared.  DISJOINT from
+#                      the line above rather than a subset of it
+#   no entry yet       work to do
 #   WRONG            the entry disagrees with the machine
 #
 # The STACK section is compared against OpStack in vm/OpCode.a24, which is in
@@ -283,10 +290,32 @@ done < "$WORK/ops"
 
 UNWRITTEN=$(wc -l < "$WORK/unwritten" | tr -d ' ')
 
+# ⚠️ THE TOTAL IS PRINTED FIRST, and it is printed because it was MISREAD.
+# This block used to open with 'described' and 'variable-width' as two lines
+# that happen to sum to the total -- so taking the first for the whole was the
+# obvious mistake, and it nearly put the wrong figure on the website.  A
+# variable-width opcode is described too; it is merely exempt from the shape
+# comparison.  So the total is its own line, and the two below it are a
+# breakdown of it rather than alternatives to it.
+TOTAL=$(wc -l < "$WORK/ops" | tr -d ' ')
+
 echo
-echo "described       : $DESCRIBED"
-echo "variable-width  : $VARIABLE"
-echo "not yet written : $UNWRITTEN"
+echo "opcodes declared by OpCode.a24 : $TOTAL"
+echo "  entries agreeing with it     : $DESCRIBED"
+echo "  variable-width, shape not compared : $VARIABLE"
+echo "  no entry yet                 : $UNWRITTEN"
+
+# ⚠️ The three MUST sum to the total, and checking it is the point.  They are
+# disjoint -- the variable-width branch continues before DESCRIBED is counted --
+# so a reader cannot tell by looking whether they are parts of a whole or
+# alternatives, and the old report's first two lines were taken for the whole.
+# Now the arithmetic is asserted, so the breakdown cannot quietly stop
+# accounting for every opcode.
+PARTS=$((DESCRIBED + VARIABLE + UNWRITTEN))
+
+if [ "$PARTS" -ne "$TOTAL" ]; then
+    fail "the breakdown sums to $PARTS and OpCode.a24 declares $TOTAL"
+fi
 
 if [ "$VARIABLE" -gt 0 ]; then
     echo

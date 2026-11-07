@@ -149,6 +149,38 @@ begin
     Exit Str (Value);
 end
 
+/// How many statements the tree walker runs between automatic collections, or
+/// 0 for none.
+///
+/// The walker's safe point is a STATEMENT BOUNDARY, which is its equivalent of
+/// the machine's top-of-dispatch-loop: every Algol-24 local of the evaluator is
+/// a registered root by then, so a collection sees every live guest value.
+///
+/// Measured on `algc --test slotmath.a24`, the heaviest interpreted run
+/// available: **5.57 GB and 32.42 s without, 2.01 GB and 35.22 s with** -- so
+/// about 2.8x less memory for about 9% more time.  200,000 is where that sits;
+/// collecting far more often buys little and costs steadily, which is the same
+/// shape the machine's own interval has.
+///
+/// The underscores are deliberate: a module-level table needs a name no local
+/// would reach for, since identifiers fold [SRC-011].
+var INTERP_COLLECT_EVERY := 200000;
+
+/// Statements executed since the last automatic collection.
+var INTERP_TICK := 0;
+
+/// The file of the statement this walker is executing, so a runtime error can
+/// say where it happened [ERR-003].
+///
+/// Published here rather than handed to the runtime: the runtime produces the
+/// message and is given values and nothing else, so it cannot know -- and the
+/// driver, which catches what no handler in the program caught, is the only
+/// reader.
+var INTERP_SITE_FILE := '';
+
+/// The line of that statement, or 0 before the first one runs.
+var INTERP_SITE_LINE := 0;
+
 /// The built-in functions, all of them, in one class.
 ///
 /// ONE CLASS AND A CASE, where there used to be twenty-nine classes.  Every one
@@ -209,13 +241,22 @@ begin
         case Name of
             'clock' : Exit clock ();
 
-            // A REQUEST, and this processor declines it [RT-029].  The
-            // interpreter's live values sit in C locals all through its
-            // recursive evaluator, where no collector can see them, so a
-            // collection here would release objects still in use.  Answering
-            // zero is the conformant answer for an implementation that cannot
-            // safely collect, which is why the rule makes the count advisory.
-            'Collect' : Exit 0;
+            // A REQUEST [RT-029], and this processor now honours it.
+            //
+            // ⚠️ IT USED TO ANSWER 0, reasoned as 'the interpreter's live
+            // values sit in C locals all through its recursive evaluator,
+            // where no collector can see them'.  That was true when it was
+            // written and stopped being true when CEmitter began emitting a
+            // SHADOW STACK: an Algol-24 local is a registered root, and this
+            // walker is a compiled Algol-24 program, so its evaluator's locals
+            // are exactly what the collector now walks.
+            //
+            // Measured rather than assumed: 1,400,104 objects released where
+            // the refusal answered 0, with all 275 corpus cases byte-identical
+            // to the run that declines.  The same staleness CLAUDE.md records
+            // for the claim that automatic collection was unsafe, disproven by
+            // the same work.
+            'Collect' : Exit Collect ();
 
             'Length' : begin
                            if Arguments[0] is ObjCollection then
@@ -304,6 +345,15 @@ begin
             'WriteLn' : begin
                             if not OutputSuppressed then
                                 WriteLn (Rendered (TheInterpreter, Arguments));
+                            Exit Nil;
+                        end
+
+            // The host's own, like every other arm, so interpreted ErrorLn IS
+            // host ErrorLn and the two cannot disagree about which stream it
+            // writes to [RT-030].
+            'ErrorLn' : begin
+                            if not OutputSuppressed then
+                                ErrorLn (Rendered (TheInterpreter, Arguments));
                             Exit Nil;
                         end
 
@@ -531,6 +581,7 @@ begin
 
         Builtins.Define ('Write', Native ('Write', -1));
         Builtins.Define ('WriteLn', Native ('WriteLn', -1));
+        Builtins.Define ('ErrorLn', Native ('ErrorLn', -1));
 
         Builtins.Define ('Buffer', Native ('Buffer', -1));
         Builtins.Define ('TextFile', Native ('TextFile', 0));
@@ -1053,16 +1104,69 @@ begin
     end
 
     /// Evaluates a bare name, including one that is really a field of 'this'.
+    ///
+    /// The order is a VISIBLE VARIABLE, then a member of the receiver, then a
+    /// BUILT-IN -- and the middle step is the one that has to be reached past a
+    /// successful lookup.  A built-in is a name in the environment every file
+    /// encloses, so looking a bare name up finds it and the receiver is never
+    /// asked: a class with a field named Pos answered '<fn Pos>' from inside its
+    /// own method, where this is the field everywhere else, and the program died
+    /// later in unrelated arithmetic with no location [RT-005].
+    ///
+    /// A DECLARED variable still wins, which is the asymmetry: only a built-in
+    /// loses to a field, because only a built-in was never written down here.
+    ///
+    /// # Satisfies
+    ///
+    /// [CLS-019]
     function VisitVariableExpr (TheExpr : VariableExpr);
+    var
+        Found : Any;
+
     begin
         try
-            Exit LookupVariable (TheExpr.Name, TheExpr);
+            Found := LookupVariable (TheExpr.Name, TheExpr);
         except
             on e : String do Exit ThisField (TheExpr.Name, e);
         end
+
+        if Found is Native then
+            try
+                Exit ReceiverField (TheExpr.Name);
+            except
+                on e : String do Exit Found;
+            end
+
+        Exit Found;
     end
 
-    /// Reads a bare name as a field of the receiver, for an implicit 'this'.
+    /// Reads a bare name as a FIELD of the receiver, raising if there is no
+    /// receiver or no field of that name.
+    ///
+    /// GetField rather than Get, because a bare name read without parentheses is
+    /// a field read [CLS-007]: a method of that name is reached by 'this.M' or by
+    /// a call, never by the bare spelling, and both other processors answer the
+    /// BUILT-IN where a class declares a method of its name.
+    ///
+    /// Separate from ThisField because the two want different answers when it
+    /// fails: a name nothing declares must report the ORIGINAL
+    /// undefined-variable message, while a built-in that is not also a field
+    /// must fall back to the built-in.
+    function ReceiverField (Name : Token) : Any;
+    var
+        Obj : Any;
+
+    begin
+        Obj := Env.Get (Token (TOKEN_THIS, 'this', Nil, Name.LineNumber));
+
+        Exit Obj.GetField (Name);
+    end
+
+    /// Reads a bare name as a member of the receiver, for an implicit 'this'.
+    ///
+    /// Reached only when the name is not a visible variable at all, so there is
+    /// no built-in to lose to and the full member lookup is right here -- an
+    /// implicit bare CALL of a method arrives through this path.
     function ThisField (Name : Token, Original : String) : Any;
     var
         Obj : Any;
@@ -1070,6 +1174,7 @@ begin
     begin
         try
             Obj := Env.Get (Token (TOKEN_THIS, 'this', Nil, Name.LineNumber));
+
             Exit Obj.Get (Name);
         except
             on e : String do raise Original;
@@ -1823,6 +1928,33 @@ begin
     /// Runs one statement, dispatching through its Accept.
     procedure Execute (TheStmt : Stmt);
     begin
+        // WHERE THE PROGRAM IS, at statement granularity -- which is what a
+        // reader wants and the cheapest this walker can offer, having no
+        // instruction pointer to recover a position from the way the machine
+        // does.  A statement nothing stamped publishes nothing, so a report is
+        // what it always was rather than a wrong line.
+        if TheStmt.Line > 0 then
+        begin
+            INTERP_SITE_FILE := Str (TheStmt.File);
+            INTERP_SITE_LINE := TheStmt.Line;
+        end
+
+        // Collection happens HERE and nowhere else in this walker: between
+        // statements, where the evaluator holds no half-built value of its own.
+        // Mid-expression would also be safe -- every local is registered --
+        // but a statement boundary is the cheapest place to test a counter and
+        // the easiest to reason about.
+        if INTERP_COLLECT_EVERY > 0 then
+        begin
+            INTERP_TICK := INTERP_TICK + 1;
+
+            if INTERP_TICK >= INTERP_COLLECT_EVERY then
+            begin
+                INTERP_TICK := 0;
+                Collect ();
+            end
+        end
+
         TheStmt.Accept (this);
     end
 
