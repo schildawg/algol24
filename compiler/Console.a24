@@ -200,10 +200,15 @@ begin
 
     begin
 
-        Text := SourceCode.Get (Where.LineNumber);
+        // The TOKEN's file, not the root's.  Both of these used to answer the
+        // root -- the name from SourceCode.Name and the text from whichever
+        // file had last written that line number -- so a fault in an imported
+        // unit was reported against the program over the unit's text, and the
+        // caret sat under code that was correct and in another file.
+        Text := SourceCode.Get (Str (Where.File), Where.LineNumber);
         Digits := Length (Str (Where.LineNumber));
 
-        WriteLn (ERROR_TAG + SourceCode.Name() + ': ' + Message);
+        WriteLn (ERROR_TAG + SourceCode.Named (Str (Where.File)) + ': ' + Message);
 
         WriteLn (ERROR_TAG + Str(Where.LineNumber) + ' | ' + Text);
 

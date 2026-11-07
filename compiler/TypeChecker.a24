@@ -1081,7 +1081,7 @@ begin
         if Warned.Contains (Key) then Exit;
         Warned.Add (Key);
 
-        Console.Warn (SourceCode.Name() + ':' + Str (TheExpr.Paren.LineNumber) + ': '''
+        Console.Warn (SourceCode.Named (Str (TheExpr.Paren.File)) + ':' + Str (TheExpr.Paren.LineNumber) + ': '''
                     + Str (TheExpr.Callee.Name.Lexeme) + ''' selects among '
                     + Str (Seen) + ' overloads at run time.');
     end
@@ -1117,7 +1117,7 @@ begin
         if Warned.Contains (Key) then Exit;
         Warned.Add (Key);
 
-        Console.Warn (SourceCode.Name() + ':' + Str (Op.LineNumber) + ': an operand of '''
+        Console.Warn (SourceCode.Named (Str (Op.File)) + ':' + Str (Op.LineNumber) + ': an operand of '''
                     + Str (Op.Lexeme) + ''' is an Integer, where ''&'', ''|'' and ''~'' '
                     + 'are the bitwise operators.');
     end
@@ -1154,7 +1154,7 @@ begin
         if Warned.Contains (Key) then Exit;
         Warned.Add (Key);
 
-        Console.Warn (SourceCode.Name() + ':' + Str (TheExpr.Name.LineNumber) + ': '''
+        Console.Warn (SourceCode.Named (Str (TheExpr.Name.File)) + ':' + Str (TheExpr.Name.LineNumber) + ': '''
                     + Str (TheExpr.Name.Lexeme) + ''' is a member of ' + Declaring
                     + ', so the extension of that name is not reached.');
     end

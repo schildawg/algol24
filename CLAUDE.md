@@ -1991,9 +1991,26 @@ including the `[ERROR]` line naming why each failure failed.**
 ⚠️ A test failure prints exactly one `[ERROR]` line, not three: `Console.Error`
 adds a source line and a caret, and a test failure does not go through it.
 
-⚠️ The file named is the **root**, not the file the failing test lives in,
-because `SourceCode` is one global keyed by line number. The compiled runner
-copies that deliberately, since the reports are compared.
+⚠️ The file named is the **root**, not the file the failing test lives in. The
+compiled runner copies that deliberately, since the reports are compared, and
+`TestReport.RootFile` is where it comes from.
+
+⚠️ **That is now the TEST REPORT only, and `SourceCode` no longer works that
+way.** It used to hold one file's lines and one name, so a *located* diagnostic
+named the root too — and the scanner for an imported file overwrote lines in
+place without renaming, so the name and the quoted text could come from
+different files. A `Token` carries its own `File` now, `SourceCode` keys a
+record per file, and `Console.Error` reads the token's. [ERR-005],
+`refusals/0199`.
+
+⚠️ **An empty file name means the ROOT, and ONE function must answer that for
+the write, the read and the printed name.** Resolving it on the read alone
+stored a nameless scanner's lines under `''` and looked them up under the
+root's, so every located diagnostic lost its source line — 36 cases, on the
+MACHINE only, because `vm/run.a24` names its file to `Begins` rather than to
+the `Scanner` while the compiler's own drivers name it to both. `conform.sh`
+stayed green and `vm/conform.sh` went red, which is the pair worth running
+together after touching this.
 
 ## Documentation comments
 
@@ -2060,6 +2077,17 @@ inline. Language points that bite when editing:
   element type [FUN-005], so `list of Integer` did not absorb and the call
   failed as a wrong argument count. A diagnostic answers in the **canonical**
   spelling, which is [TYP-014]'s treatment of `Real` reaching case too.
+- ⚠️ **A BUILT-IN's name folds too, and `CEmitter.Builtin` was the one table
+  that did not.** It compared `Name + '/' + Count` against the canonical
+  spellings as literals, so `writeln`, `STR`, `length` and `Clock` each missed
+  the table, fell through to `MissingName` and became an
+  `alg_error("Undefined variable ...")` stub — a latent abort in the C back end
+  where both other processors answer. Eleven of eleven spellings tried. It bit
+  unevenly, which is why it lasted: a built-in whose canonical spelling is the
+  one people write never missed, and **`clock` is the only one spelt
+  lower-case**, so writing the natural `Clock` was enough —
+  `algol24-library`'s `graph.a24` had exactly that, waiting for a caller.
+  `conformance/0215`.
 - ⚠️ **Folding a table's keys means folding every READ, and missing one broke
   the next generation rather than this one.** `CEmitter` keys its class and
   singleton tables by name; folding the writes and five of six reads left every

@@ -120,7 +120,7 @@ static Value f_runtests(Value **cells, Value *args, int32_t count) {
     (void)v_stmts;
     alg_root(&v_stmts, 1);
     (void)(alg_invoke(alg_singleton(k_sourcecode), "Begins", (Value[]){v_filename}, 1));
-    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1)));
+    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source, v_filename}, 2)));
     (void)((v_theparser = alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1)));
     (void)(f_checkscanned(NULL, NULL, 0));
     (void)(alg_set_property(v_theparser, "FileName", v_filename));
@@ -168,7 +168,7 @@ static Value f_run(Value **cells, Value *args, int32_t count) {
     (void)v_stmts;
     alg_root(&v_stmts, 1);
     (void)(alg_invoke(alg_singleton(k_sourcecode), "Begins", (Value[]){v_filename}, 1));
-    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1)));
+    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source, v_filename}, 2)));
     (void)((v_tokens = alg_invoke(v_thescanner, "ScanTokens", NULL, 0)));
     (void)(f_checkscanned(NULL, NULL, 0));
     (void)((v_theparser = alg_new(k_parser, (Value[]){v_tokens}, 1)));
@@ -242,7 +242,7 @@ static Value f_compile(Value **cells, Value *args, int32_t count) {
     (void)v_stmts;
     alg_root(&v_stmts, 1);
     (void)(alg_invoke(alg_singleton(k_sourcecode), "Begins", (Value[]){v_filename}, 1));
-    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source}, 1)));
+    (void)((v_thescanner = alg_new(k_scanner, (Value[]){v_source, v_filename}, 2)));
     (void)((v_theparser = alg_new(k_parser, (Value[]){alg_invoke(v_thescanner, "ScanTokens", NULL, 0)}, 1)));
     (void)(f_checkscanned(NULL, NULL, 0));
     (void)(alg_set_property(v_theparser, "FileName", v_filename));

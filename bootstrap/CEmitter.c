@@ -5733,93 +5733,93 @@ static Value m_cemitter_builtin_2_string_integer(Value v_this, Value *args, int3
     Value v_key = alg_nil();
     (void)v_key;
     alg_root(&v_key, 1);
-    (void)((v_key = alg_add(alg_add(v_name, alg_char_value(47)), alg_str(v_count))));
-    if (alg_truthy(alg_equal(v_key, alg_string("WriteLn/1")))) {
+    (void)((v_key = alg_add(alg_add(f_foldcase(NULL, (Value[]){v_name}, 1), alg_char_value(47)), alg_str(v_count))));
+    if (alg_truthy(alg_equal(v_key, alg_string("writeln/1")))) {
         Value ret_332 = alg_string("alg_writeln");
         alg_root_top = rt_base;
         return ret_332;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("WriteLn/0")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("writeln/0")))) {
         Value ret_333 = alg_string("alg_writeln_blank");
         alg_root_top = rt_base;
         return ret_333;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Write/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("write/1")))) {
         Value ret_334 = alg_string("alg_write");
         alg_root_top = rt_base;
         return ret_334;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Str/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("str/1")))) {
         Value ret_335 = alg_string("alg_str");
         alg_root_top = rt_base;
         return ret_335;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Str/2")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("str/2")))) {
         Value ret_336 = alg_string("alg_str_fixed");
         alg_root_top = rt_base;
         return ret_336;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Str/3")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("str/3")))) {
         Value ret_337 = alg_string("alg_str_padded");
         alg_root_top = rt_base;
         return ret_337;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Length/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("length/1")))) {
         Value ret_338 = alg_string("alg_text_length");
         alg_root_top = rt_base;
         return ret_338;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Copy/3")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("copy/3")))) {
         Value ret_339 = alg_string("alg_copy");
         alg_root_top = rt_base;
         return ret_339;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Pos/2")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("pos/2")))) {
         Value ret_340 = alg_string("alg_pos");
         alg_root_top = rt_base;
         return ret_340;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Pos/3")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("pos/3")))) {
         Value ret_341 = alg_string("alg_pos_from");
         alg_root_top = rt_base;
         return ret_341;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("ToUpper/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("toupper/1")))) {
         Value ret_342 = alg_string("alg_to_upper");
         alg_root_top = rt_base;
         return ret_342;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("ToLower/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("tolower/1")))) {
         Value ret_343 = alg_string("alg_to_lower");
         alg_root_top = rt_base;
         return ret_343;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Char/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("char/1")))) {
         Value ret_344 = alg_string("alg_char");
         alg_root_top = rt_base;
         return ret_344;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Ord/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("ord/1")))) {
         Value ret_345 = alg_string("alg_ord");
         alg_root_top = rt_base;
         return ret_345;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Val/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("val/1")))) {
         Value ret_346 = alg_string("alg_val");
         alg_root_top = rt_base;
         return ret_346;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Succ/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("succ/1")))) {
         Value ret_347 = alg_string("alg_succ");
         alg_root_top = rt_base;
         return ret_347;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Pred/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("pred/1")))) {
         Value ret_348 = alg_string("alg_pred");
         alg_root_top = rt_base;
         return ret_348;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Foreign/5")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("foreign/5")))) {
         Value ret_349 = alg_string("alg_foreign_call");
         alg_root_top = rt_base;
         return ret_349;
@@ -5829,66 +5829,66 @@ static Value m_cemitter_builtin_2_string_integer(Value v_this, Value *args, int3
         alg_root_top = rt_base;
         return ret_350;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Collect/0")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("collect/0")))) {
         Value ret_351 = alg_string("alg_collected");
         alg_root_top = rt_base;
         return ret_351;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("Halt/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("halt/1")))) {
         Value ret_352 = alg_string("alg_halt");
         alg_root_top = rt_base;
         return ret_352;
     }
     if (alg_truthy(alg_property(v_this, "EmitTests"))) {
         {
-            if (alg_truthy(alg_equal(v_key, alg_string("AssertTrue/1")))) {
+            if (alg_truthy(alg_equal(v_key, alg_string("asserttrue/1")))) {
                 Value ret_353 = alg_string("alg_assert_true");
                 alg_root_top = rt_base;
                 return ret_353;
             }
-            if (alg_truthy(alg_equal(v_key, alg_string("AssertEqual/2")))) {
+            if (alg_truthy(alg_equal(v_key, alg_string("assertequal/2")))) {
                 Value ret_354 = alg_string("alg_assert_equal");
                 alg_root_top = rt_base;
                 return ret_354;
             }
-            if (alg_truthy(alg_equal(v_key, alg_string("Fail/1")))) {
+            if (alg_truthy(alg_equal(v_key, alg_string("fail/1")))) {
                 Value ret_355 = alg_string("alg_assert_fail");
                 alg_root_top = rt_base;
                 return ret_355;
             }
         }
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("FileExists/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("fileexists/1")))) {
         Value ret_356 = alg_string("alg_file_exists");
         alg_root_top = rt_base;
         return ret_356;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("MkDir/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("mkdir/1")))) {
         Value ret_357 = alg_string("alg_mkdir");
         alg_root_top = rt_base;
         return ret_357;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("RmDir/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("rmdir/1")))) {
         Value ret_358 = alg_string("alg_rmdir");
         alg_root_top = rt_base;
         return ret_358;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("ChDir/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("chdir/1")))) {
         Value ret_359 = alg_string("alg_chdir");
         alg_root_top = rt_base;
         return ret_359;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("GetDir/0")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("getdir/0")))) {
         Value ret_360 = alg_string("alg_getdir");
         alg_root_top = rt_base;
         return ret_360;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("ParamCount/0")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("paramcount/0")))) {
         Value ret_361 = alg_string("alg_param_count");
         alg_root_top = rt_base;
         return ret_361;
     }
-    if (alg_truthy(alg_equal(v_key, alg_string("ParamStr/1")))) {
+    if (alg_truthy(alg_equal(v_key, alg_string("paramstr/1")))) {
         Value ret_362 = alg_string("alg_param_str");
         alg_root_top = rt_base;
         return ret_362;

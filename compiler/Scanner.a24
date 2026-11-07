@@ -128,8 +128,19 @@ var
     /// than a position in the whole source.
     LineStart : Integer;
 
+    /// The file being scanned, stamped on every token and used to key the text
+    /// this scanner records.
+    ///
+    /// Empty where a caller did not say, which is what the two-argument
+    /// constructor is for: a token with no file reads as the root's, so the
+    /// one-argument form behaves exactly as it did.
+    FileName : String := '';
+
 begin
-    /// Makes a scanner over a file's source text.
+    /// Makes a scanner over a file's source text, not saying which file.
+    ///
+    /// Its tokens carry no file, so a diagnostic against one names the root.
+    /// Kept for the unit tests, which scan a string that is no file at all.
     constructor Init(Source);
     begin
         this.Source  := Str(Source);
@@ -137,6 +148,23 @@ begin
         this.Start   := 0;
         this.Line    := 1;
         this.LineStart := 0;
+
+        this.Tokens := List();
+    end
+
+    /// Makes a scanner over a file's source text, naming the file.
+    ///
+    /// Every token it produces carries that name, and the text it records is
+    /// keyed by it -- which is what lets a diagnostic quote the right line of
+    /// the right file when a program's modules are scanned by several scanners.
+    constructor Init(Source, FileName : String);
+    begin
+        this.Source  := Str(Source);
+        this.Current := 0;
+        this.Start   := 0;
+        this.Line    := 1;
+        this.LineStart := 0;
+        this.FileName := FileName;
 
         this.Tokens := List();
     end
@@ -161,9 +189,13 @@ begin
            ScanToken();
         end
 
-        SourceCode.Add (Line, Copy (Source, LineStart, Length(Source) - LineStart));
+        SourceCode.Add (FileName, Line,
+                        Copy (Source, LineStart, Length(Source) - LineStart));
 
-        Tokens.Add(Token(EOF, '', nil, Line));
+        var TheEnd := Token(EOF, '', nil, Line);
+        TheEnd.File := FileName;
+
+        Tokens.Add(TheEnd);
         exit Tokens;
     end
 
@@ -233,7 +265,8 @@ begin
 
             #10 :
                 begin
-                   SourceCode.Add (Line, Copy (Source, LineStart, Current - LineStart - 1));
+                   SourceCode.Add (FileName, Line,
+                                   Copy (Source, LineStart, Current - LineStart - 1));
 
                    Line := Line + 1;
                    LineStart := Current;
@@ -590,6 +623,7 @@ begin
 
         TheToken := Token(TypeOfToken, Text, Literal, Line);
         TheToken.Offset := Start - LineStart;
+        TheToken.File   := FileName;
 
         Tokens.Add(TheToken);
     end

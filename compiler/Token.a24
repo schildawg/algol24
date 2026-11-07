@@ -193,6 +193,18 @@ var
    /// Where the token begins within its line, for the caret a diagnostic draws.
    Offset      : Integer := 0;
 
+   /// The file this token was scanned from, as a diagnostic should print it.
+   ///
+   /// A token carries its own file because a LINE NUMBER does not identify one.
+   /// SourceCode held a single file's text and a single name, so an error in an
+   /// imported unit was reported with the ROOT file's name over whichever file
+   /// had last written that line number -- the reader sent to an innocent line
+   /// in the wrong file, which is where the search starts.
+   ///
+   /// Empty for a token nobody stamped, which answers as the root file does and
+   /// is what keeps this additive.
+   File        : String := '';
+
 begin
     /// Makes a token of a category, its source text, its literal value and its
     /// line.

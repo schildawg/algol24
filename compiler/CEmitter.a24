@@ -3529,44 +3529,59 @@ begin
         Key : String;
 
     begin
-        Key := Name + '/' + Str (Count);
+        // FOLDED, because a built-in's name is an identifier and identifiers are
+        // matched without regard to case [SRC-011].  Compared against the
+        // canonical spelling instead, every built-in was CASE-SENSITIVE in this
+        // back end alone: 'writeln', 'STR', 'length' and 'Clock' each missed the
+        // table, fell through to MissingName, and became an
+        // alg_error("Undefined variable ...") stub -- a latent abort where both
+        // other processors answer correctly.  Eleven of eleven spellings tried.
+        //
+        // It bit unevenly, which is why it lasted: a built-in whose canonical
+        // spelling is the one people write never missed, and 'clock' is the one
+        // spelt lower-case, so writing the natural 'Clock' was enough.
+        // algol24-library's graph.a24 had exactly that, waiting for a caller.
+        //
+        // Every literal below is folded for the same reason, and folding the key
+        // without folding them would have missed all thirty-one instead of ten.
+        Key := FoldCase (Name) + '/' + Str (Count);
 
-        if Key = 'WriteLn/1' then Exit 'alg_writeln';
-        if Key = 'WriteLn/0' then Exit 'alg_writeln_blank';
-        if Key = 'Write/1'   then Exit 'alg_write';
-        if Key = 'Str/1'     then Exit 'alg_str';
-        if Key = 'Str/2'     then Exit 'alg_str_fixed';
-        if Key = 'Str/3'     then Exit 'alg_str_padded';
-        if Key = 'Length/1'  then Exit 'alg_text_length';
-        if Key = 'Copy/3'    then Exit 'alg_copy';
-        if Key = 'Pos/2'     then Exit 'alg_pos';
-        if Key = 'Pos/3'     then Exit 'alg_pos_from';
-        if Key = 'ToUpper/1' then Exit 'alg_to_upper';
-        if Key = 'ToLower/1' then Exit 'alg_to_lower';
-        if Key = 'Char/1'    then Exit 'alg_char';
-        if Key = 'Ord/1'     then Exit 'alg_ord';
-        if Key = 'Val/1'     then Exit 'alg_val';
-        if Key = 'Succ/1'    then Exit 'alg_succ';
-        if Key = 'Pred/1'    then Exit 'alg_pred';
-        if Key = 'Foreign/5' then Exit 'alg_foreign_call';
+        if Key = 'writeln/1' then Exit 'alg_writeln';
+        if Key = 'writeln/0' then Exit 'alg_writeln_blank';
+        if Key = 'write/1'   then Exit 'alg_write';
+        if Key = 'str/1'     then Exit 'alg_str';
+        if Key = 'str/2'     then Exit 'alg_str_fixed';
+        if Key = 'str/3'     then Exit 'alg_str_padded';
+        if Key = 'length/1'  then Exit 'alg_text_length';
+        if Key = 'copy/3'    then Exit 'alg_copy';
+        if Key = 'pos/2'     then Exit 'alg_pos';
+        if Key = 'pos/3'     then Exit 'alg_pos_from';
+        if Key = 'toupper/1' then Exit 'alg_to_upper';
+        if Key = 'tolower/1' then Exit 'alg_to_lower';
+        if Key = 'char/1'    then Exit 'alg_char';
+        if Key = 'ord/1'     then Exit 'alg_ord';
+        if Key = 'val/1'     then Exit 'alg_val';
+        if Key = 'succ/1'    then Exit 'alg_succ';
+        if Key = 'pred/1'    then Exit 'alg_pred';
+        if Key = 'foreign/5' then Exit 'alg_foreign_call';
         if Key = 'clock/0'   then Exit 'alg_clock';
-        if Key = 'Collect/0' then Exit 'alg_collected';
-        if Key = 'Halt/1'    then Exit 'alg_halt';
+        if Key = 'collect/0' then Exit 'alg_collected';
+        if Key = 'halt/1'    then Exit 'alg_halt';
 
         if EmitTests then
         begin
-            if Key = 'AssertTrue/1'  then Exit 'alg_assert_true';
-            if Key = 'AssertEqual/2' then Exit 'alg_assert_equal';
-            if Key = 'Fail/1'        then Exit 'alg_assert_fail';
+            if Key = 'asserttrue/1'  then Exit 'alg_assert_true';
+            if Key = 'assertequal/2' then Exit 'alg_assert_equal';
+            if Key = 'fail/1'        then Exit 'alg_assert_fail';
         end
 
-        if Key = 'FileExists/1' then Exit 'alg_file_exists';
-        if Key = 'MkDir/1'      then Exit 'alg_mkdir';
-        if Key = 'RmDir/1'      then Exit 'alg_rmdir';
-        if Key = 'ChDir/1'      then Exit 'alg_chdir';
-        if Key = 'GetDir/0'     then Exit 'alg_getdir';
-        if Key = 'ParamCount/0' then Exit 'alg_param_count';
-        if Key = 'ParamStr/1'   then Exit 'alg_param_str';
+        if Key = 'fileexists/1' then Exit 'alg_file_exists';
+        if Key = 'mkdir/1'      then Exit 'alg_mkdir';
+        if Key = 'rmdir/1'      then Exit 'alg_rmdir';
+        if Key = 'chdir/1'      then Exit 'alg_chdir';
+        if Key = 'getdir/0'     then Exit 'alg_getdir';
+        if Key = 'paramcount/0' then Exit 'alg_param_count';
+        if Key = 'paramstr/1'   then Exit 'alg_param_str';
 
         Exit '';
     end

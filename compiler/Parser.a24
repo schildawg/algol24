@@ -767,7 +767,7 @@ begin
         end
         Loaded.Put (Path, True);
 
-        var SubScanner := Scanner (ReadWholeFile (Path));
+        var SubScanner := Scanner (ReadWholeFile (Path), Path);
         var SubParser  := Parser (SubScanner.ScanTokens());
 
         SubParser.FileName := Path;

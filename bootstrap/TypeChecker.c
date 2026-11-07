@@ -1721,7 +1721,7 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
         return ret_113;
     }
     (void)(alg_invoke(alg_property(v_this, "Warned"), "Add", (Value[]){v_key}, 1));
-    (void)(alg_invoke(alg_singleton(k_console), "Warn", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(alg_singleton(k_sourcecode), "Name", NULL, 0), alg_char_value(58)), alg_str(alg_property(alg_property(v_theexpr, "Paren"), "LineNumber"))), alg_string(": '")), alg_str(alg_property(alg_property(alg_property(v_theexpr, "Callee"), "Name"), "Lexeme"))), alg_string("' selects among ")), alg_str(v_seen)), alg_string(" overloads at run time."))}, 1));
+    (void)(alg_invoke(alg_singleton(k_console), "Warn", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(alg_singleton(k_sourcecode), "Named", (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Paren"), "File"))}, 1), alg_char_value(58)), alg_str(alg_property(alg_property(v_theexpr, "Paren"), "LineNumber"))), alg_string(": '")), alg_str(alg_property(alg_property(alg_property(v_theexpr, "Callee"), "Name"), "Lexeme"))), alg_string("' selects among ")), alg_str(v_seen)), alg_string(" overloads at run time."))}, 1));
     Value ret_114 = alg_nil();
     alg_root_top = rt_base;
     return ret_114;
@@ -1753,7 +1753,7 @@ static Value m_typechecker_warnifbitwisemeant_2_token_string(Value v_this, Value
         return ret_116;
     }
     (void)(alg_invoke(alg_property(v_this, "Warned"), "Add", (Value[]){v_key}, 1));
-    (void)(alg_invoke(alg_singleton(k_console), "Warn", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(alg_singleton(k_sourcecode), "Name", NULL, 0), alg_char_value(58)), alg_str(alg_property(v_op, "LineNumber"))), alg_string(": an operand of '")), alg_str(alg_property(v_op, "Lexeme"))), alg_string("' is an Integer, where '&', '|' and '~' ")), alg_string("are the bitwise operators."))}, 1));
+    (void)(alg_invoke(alg_singleton(k_console), "Warn", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(alg_singleton(k_sourcecode), "Named", (Value[]){alg_str(alg_property(v_op, "File"))}, 1), alg_char_value(58)), alg_str(alg_property(v_op, "LineNumber"))), alg_string(": an operand of '")), alg_str(alg_property(v_op, "Lexeme"))), alg_string("' is an Integer, where '&', '|' and '~' ")), alg_string("are the bitwise operators."))}, 1));
     Value ret_117 = alg_nil();
     alg_root_top = rt_base;
     return ret_117;
@@ -1794,7 +1794,7 @@ static Value m_typechecker_warnifshadowed_2_string(Value v_this, Value *args, in
         return ret_120;
     }
     (void)(alg_invoke(alg_property(v_this, "Warned"), "Add", (Value[]){v_key}, 1));
-    (void)(alg_invoke(alg_singleton(k_console), "Warn", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(alg_singleton(k_sourcecode), "Name", NULL, 0), alg_char_value(58)), alg_str(alg_property(alg_property(v_theexpr, "Name"), "LineNumber"))), alg_string(": '")), alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))), alg_string("' is a member of ")), v_declaring), alg_string(", so the extension of that name is not reached."))}, 1));
+    (void)(alg_invoke(alg_singleton(k_console), "Warn", (Value[]){alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_add(alg_invoke(alg_singleton(k_sourcecode), "Named", (Value[]){alg_str(alg_property(alg_property(v_theexpr, "Name"), "File"))}, 1), alg_char_value(58)), alg_str(alg_property(alg_property(v_theexpr, "Name"), "LineNumber"))), alg_string(": '")), alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme"))), alg_string("' is a member of ")), v_declaring), alg_string(", so the extension of that name is not reached."))}, 1));
     Value ret_121 = alg_nil();
     alg_root_top = rt_base;
     return ret_121;

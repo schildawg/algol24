@@ -264,7 +264,67 @@ arithmetic, with R-5's locationless message. The 33 built-in names include
 
 ---
 
-## 3. One `SourceCode` holds every file
+## 3. One `SourceCode` holds every file  ·  DONE
+
+**Landed, and it was smaller than this plan estimated.** `SourceCode` holds a
+**Map of file to lines** instead of one list and one name; `Token` gained
+`File : String := ''`; `Scanner` gained a two-argument constructor that names
+the file it is scanning; `Console.Error` reads the token's file. Both directions
+now answer correctly:
+
+| the error is in | before | after |
+| --- | --- | --- |
+| the imported unit | the **program**'s name, the unit's text | `badunit.a24`, its own line 4 |
+| the program | its name, the **unit's** text | `r3b.a24`, its own line 3 |
+
+**What made it small was that tokens are made in ONE place.** 38 sites construct
+a `Token` in `Scanner.a24`, but every one of them goes through `AddToken` — so
+the stamp is three lines, counting the EOF token made separately. `Offset` had
+already set the precedent for an additive field with a default, so the
+one-argument constructor stays for the unit tests, which scan a string that is
+no file at all.
+
+**Blast radius was ONE case, and the measurement that said zero was broken.**
+41 recorded cases print an `[ERROR]` line naming a file; exactly one of them —
+`refusals/0029-unit-name-must-match-the-file` — imports a module, and it
+recorded the *program's* name over the module's line 4. The corpus caught it.
+
+⚠️ **The first measurement reported zero because every path it tested was
+malformed.** A `grep -n` left the line number glued to each path —
+`11159refusals/0029-…` — so the `[ -f ]` guard skipped all 41 files, the counter
+stayed at 0, and the answer looked like a finding. A loop that tests files and
+finds none should say so; this one said "0 importing a module", which is what a
+real zero looks like. **Make an existence check print what it skipped.**
+
+That near-miss is the same shape as R-3 itself: the corpus has located-error
+cases and module cases and had almost none of their *product* — one, which is
+what makes this the fourth time this repository has recorded that sentence.
+
+`refusals/0199` is the new case, and what it pinned before the fix is the
+sharpest statement of the defect: the diagnostic named a **three-line program**
+and quoted **line 12**.
+
+⚠️ **The first version of this regressed the MACHINE in 36 cases, and it was
+the same trap in a new coat.** `SourceCode.Get` resolved an empty file name to
+the root; `SourceCode.Add` did not. A scanner given no file name therefore
+STORED its lines under `''` and they were LOOKED UP under the root's name, so
+every located diagnostic lost its source line — and `vm/run.a24` is exactly
+that caller, naming its file to `Begins` and not to the `Scanner`. `conform.sh`
+was green throughout, because the compiler's own drivers all name the file;
+`vm/conform.sh` is what went red.
+
+One `Keyed` function now answers it for the write, the read **and** the printed
+name, which is the only arrangement in which they cannot disagree — and
+`vm/run.a24` names its file to the Scanner as well. The lesson is already in
+`CLAUDE.md` about folding a table's keys: *folding the writes and five of six
+reads* is the shape, and resolving a key on the read alone is the same mistake.
+
+**The test report is untouched, and deliberately so.** It names the root file
+[CLAUDE.md, `TestReport.RootFile`] and prints exactly one `[ERROR]` line, going
+nowhere near `Console.Error` — checked by failing a test inside an imported unit
+rather than assumed.
+
+---
 
 **R-3**, and the cause is in the unit's own doc comment:
 
@@ -299,6 +359,68 @@ red for the fix rather than the bug.
 ---
 
 ## 4. The compiler knows and waits
+
+**The shape is settled and it is a `[WARN]`, not a refusal** — decided on two
+facts rather than in advance.
+
+[DCL-007] makes a free name in a body resolve **when the body runs**, so a name
+nothing declares, used on a path that never runs, is a program the language
+permits today. Refusing it would make a class of working programs illegal,
+which is a language change and not a defect fix. The same is true of R-10: the
+call is reached or it is not. So what is wanted is the cost made **visible**,
+not forbidden — which is this repository's stated preference wherever a
+construct is legal and carries a hidden cost.
+
+⚠️ **And a `[WARN]` cannot break the corpus, which was checked rather than
+hoped.** `conform.sh`'s `render()` already drops `[WARN]` lines from BOTH
+sides, with the reason written beside it: a warning is a diagnostic *about* a
+program rather than output *of* it, and the two processors raise it at different
+moments precisely because the front end is shared. Without that, a warning on
+any wrong-arity call would have diverged every case that has one — `0049` among
+them.
+
+So the work is: both warnings in the **shared front end**, so all three
+processors raise them alike; `ERR-010` and `spec/warning.a24` gain an entry
+each, which `CLAUDE.md` says is the whole of adding one.
+
+### What measuring this found first
+
+⚠️ **A NEW DEFECT, and a worse one than either R-8 or R-10: every built-in's
+name was case-sensitive in the C back end.** Found by asking whether a refusal
+would be safe — the emitted `alg_error("Undefined` stubs *are* that
+measurement, and the library had one that nothing accounted for.
+
+`Builtin (Name, Count)` compared `Name + '/' + Count` against the canonical
+spellings as literals, with no folding, where a built-in's name is an
+identifier and identifiers fold [SRC-011]. Eleven of eleven spellings tried
+became stubs that compile, link, pass every gate and abort when the line runs:
+
+```
+writeln  WRITELN  STR  length  copy  POS  toupper  ord  CHAR  succ  Clock
+```
+
+**It bit unevenly, which is why it lasted.** A built-in whose canonical
+spelling is the one people write never missed, and `clock` is the only one
+spelt lower-case — so writing the natural `Clock` was enough.
+`algol24-library`'s `graph.a24` had exactly that, waiting for a caller.
+
+The fix is `FoldCase` on the key plus its thirty-one literals, as
+`IsAssertion` already did; every caller routes through `Builtin`, so one point
+covers all of them. `conformance/0215` pins it.
+
+**It was also the prerequisite.** Stub counts before and after, which is what
+makes a diagnostic here safe to attempt rather than a guess:
+
+| | before | after |
+| --- | --- | --- |
+| the compiler's own self-compile | 0 | 0 |
+| shroom-slots' five programs | 0 | 0 |
+| the library's twelve units | 9 | **6** |
+
+The six are all `Fail` — an assertion outside `--test`, which is the documented
+exemption. So every real program now carries only that.
+
+---
 
 **R-8 and R-10.** Both are facts the compiler holds while compiling and reports
 when the line runs, so both survive every gate and reach a person — or, in
@@ -685,7 +807,7 @@ late:
 | 5 | ~~**7** — the runtime pair's version~~ **DONE** | two lines plus the harness line that keeps it true |
 | 6 | ~~**8** — the reference's total~~ **DONE** | documentation, and the script that holds it |
 | 7 | **4** — R-8 and R-10 at compile time | changes what the compiler accepts; wants the corpus green first |
-| 8 | **3** — `Token` gains a file | touches the seed and both processors' reports |
+| 8 | ~~**3** — `Token` gains a file~~ **DONE** | touches the seed and both processors' reports |
 | 9 | **11** — a built-in held as a value | found by this sweep, not reported; the C back end gives a wrong answer where its own rule is to refuse |
 | 10 | **9**, **10** — R-5's flush; R-13 recorded | the two that are not repairs |
 

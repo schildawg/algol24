@@ -594,6 +594,66 @@ messages echo the key: a program writing `Shared` was told about `shared`, a
 unit spelled `Deep` was reported as `deep`. A message names the occurrence the
 program wrote.
 
+**A BUILT-IN's name is an identifier too**, and folds like any other [RT-001].
+The C back end compared the written spelling against the canonical one, so
+`writeln`, `STR`, `length` and `Clock` each missed the table of built-ins
+entirely, fell through to *Undefined variable* and became a stub that aborted
+when the line ran — where both other processors answered. Eleven of eleven
+spellings tried.
+
+**It bit unevenly, which is why it lasted.** A built-in whose canonical
+spelling is the one people write never missed, and `clock` is the only one spelt
+lower-case — so writing the natural `Clock` was enough.
+`algol24-library`'s `graph.a24` had exactly that, waiting for a caller to reach
+it. This is the hazard the rule's own paragraph above describes, met in the one
+table whose keys were never folded: *every store folds the same way as every
+lookup*, and a table of literals is a store.
+
+    conformance  0215-a-builtin-name-folds.a24
+
+##### conformance/0215-a-builtin-name-folds.a24
+
+```algol24
+// SRC-011: identifiers are matched without regard to case, and a built-in's
+// name is an identifier like any other [RT-001].
+//
+// Every call below is written in a casing other than the canonical one.  The C
+// back end compared the written spelling against the canonical one, so each of
+// these fell through to 'Undefined variable' and became a stub that aborted
+// when the line ran -- where both other processors answered.
+writeln ('from writeln');
+WRITELN ('from WRITELN');
+
+WriteLn (STR (1));
+WriteLn (length ('abc'));
+WriteLn (copy ('abcdef', 1, 2));
+WriteLn (POS ('cd', 'abcdef'));
+WriteLn (toupper ('x'));
+WriteLn (ord ('x'));
+WriteLn (CHAR (65));
+WriteLn (succ (1));
+
+// 'clock' is the one built-in spelt lower-case, so writing the natural 'Clock'
+// was enough to meet this -- which is how algol24-library's graph.a24 carried
+// a latent abort.
+WriteLn (Clock () is Double);
+```
+
+```console
+$ algc conformance/0215-a-builtin-name-folds.a24
+from writeln
+from WRITELN
+1
+3
+bc
+-1
+X
+120
+A
+2
+true
+```
+
 ##### conformance/0126-identifiers-are-case-insensitive.a24
 
 ```algol24
@@ -11156,11 +11216,17 @@ WriteLn (W ());
 ```console
 $ algc refusals/0029-unit-name-must-match-the-file.a24
 Uncaught: Unit 'Wrong' must match its file name 'Mismatch'.
-[ERROR] refusals/0029-unit-name-must-match-the-file.a24: Unit 'Wrong' must match its file name 'Mismatch'.
+[ERROR] conformance/modules/Mismatch.a24: Unit 'Wrong' must match its file name 'Mismatch'.
 [ERROR] 4 | unit Wrong;
 [ERROR]   |      ^^^^^
 exit: 70
 ```
+
+The file named is **the module's**, not the importing program's: the mismatched
+`unit` header is in `Mismatch.a24` and that is where line 4 is. This case
+recorded the program's name until a diagnostic learned to name the file its
+token came from [ERR-005], and it is the only case in the corpus that changed
+when it did.
 
 ### 15.2 Exports
 
@@ -13764,6 +13830,41 @@ file of any size. A second case pins it, because a rule holding for all but one
 of its instances is how that one survived.
 
     conformance  0214-every-parse-error-is-located.a24
+
+**THE FILE IT NAMES IS THE FILE THE TOKEN CAME FROM**, which for a long time it
+was not. A program and the modules it imports are scanned by a scanner each,
+and the recorded text was kept in one place keyed by line number alone — so the
+name came from the root and the quoted line from whichever file had written that
+number last. An error inside an imported unit was reported against the
+*program*, over a line the program need not even have:
+
+```
+[ERROR] refusals/0199-...a24: Expect ';' after exit value.   <- the program
+[ERROR] 12 |     Exit N * 2                                  <- the unit's line 12
+```
+
+The program there is three lines long. Both halves point somewhere real and
+they are different files, so the reader is sent to an innocent line — which is
+where a search starts, and the wrong place to begin it.
+
+    refusals      0199-a-diagnostic-names-the-file-it-came-from.a24
+
+##### refusals/0199-a-diagnostic-names-the-file-it-came-from.a24
+
+```algol24
+uses 'conformance/modules/Broken';
+
+WriteLn (Twice (5));
+```
+
+```console
+$ algc refusals/0199-a-diagnostic-names-the-file-it-came-from.a24
+Uncaught: Expect ';' after exit value.
+[ERROR] conformance/modules/Broken.a24: Expect ';' after exit value.
+[ERROR] 12 |     Exit N * 2
+[ERROR]    |              ^
+exit: 70
+```
 
 ##### conformance/0214-every-parse-error-is-located.a24
 

@@ -138,7 +138,7 @@ begin
 
     var At := clock ();
 
-    TheScanner := Scanner (Source);
+    TheScanner := Scanner (Source, SourcePath);
     Tokens := TheScanner.ScanTokens ();
     FailIfScanErrors ();
 

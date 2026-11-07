@@ -994,7 +994,7 @@ static Value m_parser_usesstatement_0(Value v_this, Value *args, int32_t count) 
         }
     }
     (void)(alg_invoke(alg_property(v_this, "Loaded"), "Put", (Value[]){v_path, alg_bool(true)}, 2));
-    Value v_subscanner = alg_new(k_scanner, (Value[]){f_readwholefile(NULL, (Value[]){v_path}, 1)}, 1);
+    Value v_subscanner = alg_new(k_scanner, (Value[]){f_readwholefile(NULL, (Value[]){v_path}, 1), v_path}, 2);
     (void)v_subscanner;
     alg_root(&v_subscanner, 1);
     Value v_subparser = alg_new(k_parser, (Value[]){alg_invoke(v_subscanner, "ScanTokens", NULL, 0)}, 1);

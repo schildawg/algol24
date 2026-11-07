@@ -112,7 +112,7 @@ var
 begin
     SourceCode.Begins (FileName);
 
-    TheScanner := Scanner(Source);
+    TheScanner := Scanner(Source, FileName);
     TheParser := Parser(TheScanner.ScanTokens());
     CheckScanned ();
 
@@ -152,7 +152,7 @@ var
 begin
     SourceCode.Begins (FileName);
 
-    TheScanner := Scanner(Source);
+    TheScanner := Scanner(Source, FileName);
     Tokens := TheScanner.ScanTokens();
     CheckScanned ();
 
@@ -215,7 +215,7 @@ var
 begin
     SourceCode.Begins (FileName);
 
-    TheScanner := Scanner(Source);
+    TheScanner := Scanner(Source, FileName);
     TheParser := Parser(TheScanner.ScanTokens());
     CheckScanned ();
 
