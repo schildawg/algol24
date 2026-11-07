@@ -1,0 +1,390 @@
+#!/bin/sh
+#
+# THE DEFECT SWEEP, which is a harness only until it is green.
+#
+# Fifteen defects reported by two projects using the language -- shroom-slots
+# (R-1..R-15) and algol24.com (D-1, D-2) -- each reduced to the smallest program
+# that shows it, and each run under whichever processors disagree.  See
+# PLAN-0.2.4.md, where the same numbering carries the root cause for each.
+#
+# Unlike every other gate here, this one is EXPECTED TO FAIL when written and
+# its finish line is the release: a defect that stops reproducing is fixed, and
+# the last line says how many are left.
+#
+# ⚠️ IT REPORTS WHAT IT SAW, not what a report claimed.  Three incoming claims
+# did not survive being run -- R-2's second case is already fixed, R-11's
+# "second half" is not a divergence, and R-13 is localised to one unit rather
+# than to units being loaded -- so each check prints the observation and the
+# script never takes a defect's status from the file that reported it.
+#
+# ⚠️ A defect that divides the processors is checked by COMPARING THEM, not
+# against recorded text.  Seven of these are divergences, and the whole point of
+# a divergence is that no single expected output exists: the check is that the
+# three answers agree, which is also what keeps the check honest if the right
+# answer is later decided differently than this script guesses.
+set -eu
+
+ROOT=$(cd "$(dirname "$0")" && pwd)
+ALGC="$ROOT/bootstrap/algc"
+ALGVM="$ROOT/vm/algvm"
+
+[ -x "$ALGC" ]  || { echo "defects.sh: no bootstrap/algc -- run ./bootstrap/build.sh" >&2; exit 2; }
+[ -x "$ALGVM" ] || { echo "defects.sh: no vm/algvm -- run ./vm/build.sh" >&2; exit 2; }
+
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/algol24-defects.XXXXXX")
+trap 'rm -rf "$WORK"' EXIT
+
+OPEN=0
+FIXED=0
+
+# Reports one defect.  $1 the tag, $2 one line saying what it is, $3 'open' or
+# 'fixed', $4 what was seen.
+report () {
+    if [ "$3" = fixed ]; then
+        FIXED=$((FIXED + 1))
+        printf '  %-6s FIXED       %s\n' "$1" "$2"
+    else
+        OPEN=$((OPEN + 1))
+        printf '  %-6s REPRODUCES  %s\n' "$1" "$2"
+        printf '              %s\n' "$4"
+    fi
+}
+
+# Compiles a program and runs it, answering its output.  Answers the cc errors
+# instead when the emitted C does not build, since that IS the symptom for four
+# of these.
+compiled () {
+    dir=$1; prog=$2
+    rm -rf "$dir/out"; mkdir -p "$dir/out"
+    if ! "$ALGC" --compile --out="$dir/out" "$prog" > "$dir/emit.log" 2>&1; then
+        sed -n '1p' "$dir/emit.log"; return 0
+    fi
+    if ! cc -std=c11 -O0 -o "$dir/run" "$dir/out"/*.c > "$dir/cc.log" 2>&1; then
+        grep -m1 'error:' "$dir/cc.log" | sed 's/.*error: //'; return 0
+    fi
+    "$dir/run" 2>&1 || true
+}
+
+echo
+echo "The defect sweep -- fifteen reports, reduced"
+echo
+
+# ---------------------------------------------------------------- group 1
+# R-6, R-7, R-9, R-11: CEmitter resolves a bare name against a program-wide
+# table, so an imported declaration beats the file's own and a unit's own
+# member is reported missing.  All four are the compiled back end alone.
+echo "1. CEmitter resolves a bare name against a program-wide table"
+
+D=$WORK/r6; mkdir -p "$D"
+printf 'unit phases;\ntype Phase = (Idle, Spinning, Done);\n' > "$D/phases.a24"
+cat > "$D/r6.a24" <<'EOF'
+uses phases;
+var Spinning := false;
+Spinning := true;
+WriteLn (Spinning);
+EOF
+I=$("$ALGC" "$D/r6.a24" 2>&1 || true)
+V=$("$ALGVM" "$D/r6.a24" 2>&1 || true)
+C=$(compiled "$D" "$D/r6.a24")
+if [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+    report R-6 "a program var named after an imported enum member" fixed ''
+else
+    report R-6 "a program var named after an imported enum member" open \
+        "interpreted '$I', machine '$V', compiled '$C' -- the assignment is discarded in silence"
+fi
+
+D=$WORK/r7; mkdir -p "$D"
+printf "unit purse;\nfunction Money (N : Integer) : String;\nbegin\n    Exit Str (N);\nend\n" > "$D/purse.a24"
+printf 'uses purse;\nvar Money := 5;\nWriteLn (Money);\n' > "$D/r7.a24"
+I=$("$ALGC" "$D/r7.a24" 2>&1 || true)
+V=$("$ALGVM" "$D/r7.a24" 2>&1 || true)
+C=$(compiled "$D" "$D/r7.a24")
+if [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+    report R-7 "a program var named after an imported function" fixed ''
+else
+    report R-7 "a program var named after an imported function" open \
+        "interpreted '$I', machine '$V', compiled '$C'"
+fi
+
+D=$WORK/r9; mkdir -p "$D"
+cat > "$D/boxlib.a24" <<'EOF'
+unit boxlib;
+class Box;
+var
+    W : Integer;
+begin
+    constructor Init (W : Integer);
+    begin
+        this.W := W;
+    end
+    function Size () : Integer;
+    begin
+        Exit this.W * 2;
+    end
+    function Report () : Integer;
+    begin
+        Exit Size ();
+    end
+end
+EOF
+printf 'unit namer;\nfunction Size (N : Integer) : Integer;\nbegin\n    Exit N;\nend\n' > "$D/namer.a24"
+printf 'uses boxlib;\nuses namer;\nvar B := Box (10);\nWriteLn (B.Report ());\n' > "$D/r9.a24"
+I=$("$ALGC" "$D/r9.a24" 2>&1 || true)
+V=$("$ALGVM" "$D/r9.a24" 2>&1 || true)
+C=$(compiled "$D" "$D/r9.a24")
+if [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+    report R-9 "a unit's own method, broken by a name in another unit" fixed ''
+else
+    report R-9 "a unit's own method, broken by a name in another unit" open \
+        "interpreted '$I', machine '$V', compiled '$C' -- the stub lands in boxlib.c, which nothing edited"
+fi
+
+D=$WORK/r11; mkdir -p "$D"
+printf "unit shelf;\nprocedure Depth (Word : String, N : Integer);\nbegin\n    WriteLn (Word + Str (N));\nend\n" > "$D/shelf.a24"
+cat > "$D/mid.a24" <<'EOF'
+unit mid;
+uses shelf;
+const Depth := 260;
+function Run (Ticks : Integer) : Integer;
+begin
+    var Grow := 1000;
+    if Ticks < Depth then Grow := Ticks * 1000 div Depth;
+    Exit Grow;
+end
+EOF
+printf "uses shelf;\nuses mid;\nWriteLn (Run (100));\n" > "$D/r11.a24"
+I=$("$ALGC" "$D/r11.a24" 2>&1 || true)
+V=$("$ALGVM" "$D/r11.a24" 2>&1 || true)
+C=$(compiled "$D" "$D/r11.a24")
+if [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+    report R-11 "a unit's own const named after an imported subprogram" fixed ''
+else
+    report R-11 "a unit's own const named after an imported subprogram" open \
+        "interpreted '$I', machine '$V', compiled '$C'"
+fi
+
+# ⚠️ The strongest check of the four, and it is not any of their outputs: a
+# program-wide grep of the emitted C for the error stub.  shroom-slots added
+# exactly this after R-9 cost it an afternoon and found three latent aborts on
+# the first run.
+STUBS=0
+for d in "$WORK"/r6 "$WORK"/r7 "$WORK"/r9 "$WORK"/r11; do
+    [ -d "$d/out" ] || continue
+    N=$(grep -ho 'alg_error("Undefined[^"]*"' "$d"/out/*.c 2>/dev/null | wc -l | tr -d ' ')
+    STUBS=$((STUBS + N))
+done
+printf '         %s error stub(s) in the emitted C across the four\n' "$STUBS"
+echo
+
+# ---------------------------------------------------------------- group 2
+echo "2. A built-in beats a field of 'this'"
+D=$WORK/r1; mkdir -p "$D"
+cat > "$D/r1.a24" <<'EOF'
+class Thing;
+var
+    Pos    : Integer;
+    Cursor : Integer;
+begin
+    constructor Init ();
+    begin
+        this.Pos    := 42;
+        this.Cursor := 42;
+    end
+    function BareField () : Integer;   begin Exit Pos;    end
+    function ControlCase () : Integer; begin Exit Cursor; end
+end
+
+var T := Thing ();
+WriteLn (Str (T.BareField ()) + ' ' + Str (T.ControlCase ()));
+EOF
+I=$("$ALGC" "$D/r1.a24" 2>&1 || true)
+V=$("$ALGVM" "$D/r1.a24" 2>&1 || true)
+C=$(compiled "$D" "$D/r1.a24")
+if [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+    report R-1 "a class field named after a built-in, read bare inside the class" fixed ''
+else
+    report R-1 "a class field named after a built-in, read bare inside the class" open \
+        "interpreted '$I', machine '$V', compiled '$C' -- the interpreter is the odd one out"
+fi
+echo
+
+# ---------------------------------------------------------------- group 3
+echo "3. One SourceCode holds every file"
+D=$WORK/r3; mkdir -p "$D"
+printf 'unit badunit;\nfunction Twice (N : Integer) : Integer;\nbegin\n    Exit N * 2\nend\n' > "$D/badunit.a24"
+printf 'uses badunit;\nWriteLn (Twice (5));\n' > "$D/r3.a24"
+OUT=$("$ALGC" "$D/r3.a24" 2>&1 || true)
+# The fault is on line 4 of badunit.a24.  A correct report names that file.
+if printf '%s' "$OUT" | grep -q 'badunit.a24'; then
+    report R-3 "a syntax error names one file and quotes another" fixed ''
+else
+    # Strip the colour codes and the work directory, so the line says which
+    # file was named and which file's text was quoted and nothing else.
+    QUOTED=$(printf '%s' "$OUT" | sed 's/\x1b\[[0-9;]*m//g' \
+                                | grep -m1 '^\[ERROR\] *[0-9]* |' \
+                                | sed 's/^\[ERROR\] *//')
+    report R-3 "a syntax error names one file and quotes another" open \
+        "the fault is badunit.a24:4; the report names r3.a24 and quotes '$QUOTED'"
+fi
+echo
+
+# ---------------------------------------------------------------- group 4
+echo "4. The compiler knows and waits"
+D=$WORK/r8; mkdir -p "$D"
+printf 'unit helperu;\nfunction Helper () : Integer;\nbegin\n    Exit 7;\nend\n' > "$D/helperu.a24"
+printf "WriteLn ('before');\nWriteLn (Helper ());\n" > "$D/r8.a24"
+rm -rf "$D/out"; mkdir -p "$D/out"
+if "$ALGC" --compile --out="$D/out" "$D/r8.a24" > "$D/emit.log" 2>&1; then
+    report R-8 "a name nothing declares compiles without a word" open \
+        "--compile said nothing and carried the error into the emitted C"
+else
+    report R-8 "a name nothing declares compiles without a word" fixed ''
+fi
+
+D=$WORK/r10; mkdir -p "$D"
+cat > "$D/r10.a24" <<'EOF'
+function Three (A : Integer, B : Integer, C : Integer) : Integer;
+begin
+    Exit A + B + C;
+end
+
+WriteLn (Three (1, 2));
+EOF
+rm -rf "$D/out"; mkdir -p "$D/out"
+if "$ALGC" --compile --out="$D/out" "$D/r10.a24" > "$D/emit.log" 2>&1; then
+    report R-10 "a call matching no declared arity compiles and links" open \
+        "one visible declaration taking 3, called with 2, and --compile said nothing"
+else
+    report R-10 "a call matching no declared arity compiles and links" fixed ''
+fi
+
+# ⚠️ The guard on R-10's fix, and it matters more than the fix: selection is at
+# RUN time [EXP-013], so these four calls must keep compiling.  A check narrow
+# enough to be sound cannot see any of them.
+cat > "$WORK/r10-sound.a24" <<'EOF'
+function Total (Tag : String, Values : List of Integer) : Integer;
+begin
+    var Sum := 0;
+    for var V in Values do Sum := Sum + V;
+    Exit Sum;
+end
+
+function Pick (A : Integer) : Integer;          begin Exit A;     end
+function Pick (A : Integer, B : Integer) : Integer; begin Exit A + B; end
+
+var F := Pick;
+WriteLn (Total ('a', 1, 2, 3));
+WriteLn (Pick (1));
+WriteLn (Pick (1, 2));
+WriteLn (F (9));
+WriteLn (Length ('abc'));
+EOF
+rm -rf "$WORK/r10s"; mkdir -p "$WORK/r10s"
+if "$ALGC" --compile --out="$WORK/r10s" "$WORK/r10-sound.a24" >/dev/null 2>&1; then
+    printf '         the four unrefusable call shapes still compile\n'
+else
+    printf '         !! a gathering, overloaded, held or built-in call was refused -- too wide\n'
+fi
+echo
+
+# ---------------------------------------------------------------- group 5
+echo "5. A diagnostic that carries no location"
+printf 'begin WriteLn (1); end; WriteLn (2);\n' > "$WORK/r2.a24"
+OUT=$("$ALGC" "$WORK/r2.a24" 2>&1 || true)
+if printf '%s' "$OUT" | grep -q 'ERROR'; then
+    report R-2 "'Expect expression!' carries no file, line or caret" fixed ''
+else
+    report R-2 "'Expect expression!' carries no file, line or caret" open \
+        "the whole report is: $(printf '%s' "$OUT" | tr '\n' ' ')"
+fi
+
+printf 'WriteLn (1);\n' > "$WORK/r4.a24"
+OUT=$("$ALGC" --compile --out="$WORK/nodir" "$WORK/r4.a24" 2>&1 || true)
+if printf '%s' "$OUT" | grep -qi 'director'; then
+    report R-4 "a missing --out directory is reported as an unopenable file" fixed ''
+else
+    report R-4 "a missing --out directory is reported as an unopenable file" open \
+        "$(printf '%s' "$OUT" | tr '\n' ' ')"
+fi
+echo
+
+# ---------------------------------------------------------------- group 6
+echo "6. A unit name is compared case-sensitively"
+D=$WORK/d1; mkdir -p "$D/a" "$D/b"
+printf "unit Alpha;\nfunction FromUpper () : String;\nbegin\n    Exit 'upper';\nend\n" > "$D/a/Alpha.a24"
+printf "unit alpha;\nfunction FromLower () : String;\nbegin\n    Exit 'lower';\nend\n" > "$D/b/alpha.a24"
+cat > "$D/d1.a24" <<'EOF'
+uses 'a/Alpha';
+uses 'b/alpha';
+WriteLn (FromUpper ());
+WriteLn (FromLower ());
+EOF
+I=$(cd "$D" && "$ALGC" d1.a24 2>&1 || true)
+V=$(cd "$D" && "$ALGVM" d1.a24 2>&1 || true)
+C=$(cd "$D" && compiled "$D" d1.a24)
+if [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+    report D-1 "two units whose names differ only in case" fixed ''
+else
+    report D-1 "two units whose names differ only in case" open \
+        "three answers: interpreted '$(printf '%s' "$I" | tr '\n' '/')', machine '$(printf '%s' "$V" | tr '\n' '/')', compiled '$(printf '%s' "$C" | tr '\n' '/')'"
+fi
+echo
+
+# ---------------------------------------------------------------- group 7
+echo "7. The runtime pair carries no version"
+if grep -q 'ALG_RUNTIME_VERSION' "$ROOT/bootstrap/algol.h" 2>/dev/null \
+   && grep -q '_Static_assert.*ALG_RUNTIME_VERSION' "$ROOT/bootstrap/algol.c" 2>/dev/null; then
+    report R-15 "algol.c and algol.h are a pair with nothing checking the halves match" fixed ''
+else
+    report R-15 "algol.c and algol.h are a pair with nothing checking the halves match" open \
+        "neither half records a release, so a mismatched pair reads as a corrupt runtime"
+fi
+echo
+
+# ---------------------------------------------------------------- group 8
+echo "8. vm/REFERENCE.md states a total its own body contradicts"
+DECLARED=$(grep -c '^const OP_' "$ROOT/vm/OpCode.a24")
+REAL=$((DECLARED - 1))
+ENTRIES=$(grep -c '^## OP_' "$ROOT/vm/REFERENCE.md")
+if grep -qE "\*\*$REAL opcodes\*\*" "$ROOT/vm/REFERENCE.md" \
+   && ! grep -qE '\*\*7[0-9] opcodes\*\*' "$ROOT/vm/REFERENCE.md"; then
+    report D-2 "the reference's stated opcode total" fixed ''
+else
+    STATED=$(grep -oE '\*\*[0-9]+ opcodes\*\*' "$ROOT/vm/REFERENCE.md" | head -1)
+    report D-2 "the reference's stated opcode total" open \
+        "OpCode.a24 has $REAL instructions and the reference carries $ENTRIES entries, under a heading saying $STATED"
+fi
+echo
+
+# ---------------------------------------------------------------- the two that are not repairs
+echo "9. R-5 -- a runtime error carries no location"
+cat > "$WORK/r5.a24" <<'EOF'
+procedure Deep (X);   begin WriteLn (X - 1); end
+procedure Middle (X); begin Deep (X);        end
+WriteLn ('before');
+Middle ('text');
+EOF
+OUT=$("$ALGC" "$WORK/r5.a24" 2>&1 || true)
+if printf '%s' "$OUT" | grep -q 'r5.a24'; then
+    report R-5 "a runtime error names no file, line or call stack" fixed ''
+else
+    ORDER=$(printf '%s' "$OUT" | head -1)
+    report R-5 "a runtime error names no file, line or call stack" open \
+        "the whole report is '$ORDER', and the program's own output arrives after it"
+fi
+echo
+
+echo "10. R-13 -- the interpreter's memory"
+printf '         not reproduced here: it needs shroom-slots, and PLAN-0.2.4.md\n'
+printf '         item 10 carries the per-unit measurement that localises it to\n'
+printf '         one unit rather than to units being loaded.\n'
+echo
+
+echo "----------------------------------------------------------------"
+printf '%s reproducing, %s fixed, of %s checked\n' "$OPEN" "$FIXED" "$((OPEN + FIXED))"
+echo
+if [ "$OPEN" -gt 0 ]; then
+    echo "Not green yet.  PLAN-0.2.4.md carries the root cause for each."
+    exit 1
+fi
+echo "Green: every reported defect is fixed."
