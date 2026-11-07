@@ -28,3 +28,4 @@ Still live, in the root:
 | --- | --- |
 | `PROPOSAL-CHAR-EQUALITY.md` | **refused so far.** [VAL-010] still states the asymmetry is deliberate and answers the proposal's measurements. It stays because the argument is good and the decision could be revisited. |
 | `PROPOSAL-DIRECTORY-LISTING.md` | **open.** A listing in the core, which `algol24-library` already needed badly enough to write an FFI shim for. |
+| `PROPOSAL-LIBRARY-PATH.md` | **half shipped, half open.** The module search path landed in v0.2.1 [MOD-002]; the foreign library search did not, and is worked around in packaging by a wrapper that sets the loader path. |
