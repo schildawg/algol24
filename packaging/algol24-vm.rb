@@ -17,8 +17,8 @@
 class Algol24Vm < Formula
   desc "Bytecode machine for Algol-24, with the Algol-24 runtime library"
   homepage "https://github.com/schildawg/algol24"
-  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.2.3.tar.gz"
-  sha256 "2520862cc450362ebe36d0b7bf0a37c1948b8362dc21fc77a7f66dc71b42869f"
+  url "https://github.com/schildawg/algol24/archive/refs/tags/v0.2.4.tar.gz"
+  sha256 "9d9dc66a8029470687a1206afd044f8f824c9ff6fa29db1404cc00ac63220145"
   license "MIT"
   head "https://github.com/schildawg/algol24.git", branch: "main"
 
@@ -114,6 +114,16 @@ class Algol24Vm < Formula
 
     (testpath/"hello.a24").write "WriteLn ('hello, ' + Str (2 + 2));\n"
     assert_equal "hello, 4\n", shell_output("#{bin}/algvm hello.a24")
+
+    # ⚠️ ErrorLn [RT-030] must not reach STANDARD OUTPUT, which is the whole of
+    # what it is for: a diagnostic has to survive `prog > results.txt` without
+    # corrupting what the program produced.  shell_output captures stdout only,
+    # so stdout holding the FIRST line and nothing else is the assertion.
+    (testpath/"streams.a24").write <<~ALGOL
+      WriteLn ('to output');
+      ErrorLn ('to the error stream');
+    ALGOL
+    assert_equal "to output\n", shell_output("#{bin}/algvm streams.a24")
 
     # ⚠️ THE POINT OF THE PACKAGE: a bare 'uses' of an installed unit, from a
     # directory holding none of the library's files.  This is what the install
