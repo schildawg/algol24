@@ -186,6 +186,7 @@ jobs:
           cmd //c "$(cygpath -w "$OUT")\\algvm.bat" font.a24
 
       - name: Zip it
+        id: zip
         run: |
           # Named for the release it is when there is one, so a downloaded zip
           # says which version it holds -- and `dev` otherwise, which is every
@@ -197,6 +198,15 @@ jobs:
 
           zip -qr "algol24-vm-$VERSION-windows-x86_64.zip" algol24-vm-windows-x86_64
           ls -la algol24-vm-*-windows-x86_64.zip
+
+          # ⚠️ PUBLISHED AS AN OUTPUT so the release body names the file that
+          # actually exists.  The body used to build the name itself from
+          # github.ref_name, which keeps the leading 'v' that this step strips
+          # -- so v0.2.4's page offered `algol24-vm-v0.2.4-...zip` beside an
+          # asset called `algol24-vm-0.2.4-...zip`.  A download link that does
+          # not resolve is worse than no link, and two places deriving one name
+          # is how it happened.
+          echo "name=algol24-vm-$VERSION-windows-x86_64.zip" >> "$GITHUB_OUTPUT"
 
       - name: Upload what built
         if: always()
@@ -227,7 +237,7 @@ jobs:
           body: |
             ## Windows
 
-            `algol24-vm-${{ github.ref_name }}-windows-x86_64.zip` is the
+            `${{ steps.zip.outputs.name }}` is the
             bytecode machine with the Algol-24 runtime library beside it.
             Unzip it anywhere and run `algvm.bat`, which sets the two things
             the library needs: where its units and glyph files live, and where
