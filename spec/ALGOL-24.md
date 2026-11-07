@@ -13608,12 +13608,25 @@ released. `Collect` changes how much memory a correct program uses and never
 what it computes — a program whose output differs with and without it was
 already wrong.
 
-⚠️ **The two processors differ here, by the rule rather than against it.** The
-tree-walking interpreter answers `0`: its live values sit in C locals all
-through a recursive evaluator. The bytecode machine releases, because every
-live guest value is on its stack or in a module-level variable, both of which a
-collector can walk — which is the whole of why the machine keeps its state
-where it does.
+**All three processors release, and the rule still permits one not to.** Every
+one of them reaches the same collector, whose roots are **precise**: a
+module-level variable is a C static whose address the emitter knows, and an
+Algol-24 local is registered on a shadow stack where it is declared. So there is
+no stack scanning and nothing is guessed at.
+
+⚠️ **The interpreter answered `0` until v0.2.4, and the reason it gave had
+stopped being true.** It was *"its live values sit in C locals all through a
+recursive evaluator, where no collector can see them"* — correct when written,
+and overtaken by the shadow stack: the tree walker is itself a compiled
+Algol-24 program, so its evaluator's locals are exactly what the collector
+walks. Measured when the refusal was removed: **1,400,104 objects released**
+where it had answered 0, with all 275 corpus cases byte-identical to the run
+that declined.
+
+**Each processor collects at its own safe point**, and what makes a point safe
+is the same in all three — no half-built value held anywhere the collector
+cannot see. The machine collects at the top of its dispatch loop; the tree
+walker between statements; compiled code wherever the program asks.
 
     conformance  0203-collect-is-a-request.a24
 
@@ -13880,6 +13893,39 @@ exit: 70
 
 **[ERR-003]**  A runtime error occurs during execution. Statements before it
 have run and their output stands.
+
+**A runtime error carries no file, line or call stack**, where a parse error
+carries all three [ERR-005]. It prints one sentence.
+
+⚠️ **THE DECISION: compiled Algol-24 does not carry source information at run
+time, and is not going to.** Carrying it means the emitted C storing a position
+before every statement, which is a cost every program pays forever so that a
+failing one can be read — and the nearest measured comparison, the collector's
+shadow stack, is **+5.8%** for registering a root per block. A program compiled
+for speed should not pay for a diagnostic it is not having.
+
+**What a program gets instead is the bytecode machine.** `algvm` runs the same
+program and can **disassemble it** — `--list` walks every chunk, `--trace N`
+keeps a ring of the last N instructions with the stack pointer, the frame base
+and the call depth, and `--watch TEXT` dumps the instant a message is raised,
+caught or not. That is the division of labour the machine exists for: the
+compiled back end is the fast one, the machine is the one you can see inside,
+and a program that fails in a way its output cannot explain is run under the
+machine.
+
+**The other two processors are expected to carry a location**, and that they do
+not yet is a defect rather than a decision — see
+`PROPOSAL-RUNTIME-LOCATION.md`. A tree walker holds a token for every node it
+evaluates, and a chunk can carry a line per instruction for nothing until
+something fails; neither has the compiled back end's excuse.
+
+⚠️ **So the three reports will not agree, and the harness has to know that.**
+`conform.sh` compares the interpreter against the compiled back end, so a
+location present in one and absent in the other is a divergence it would report
+and should not: it is the same situation as a `[WARN]`, which `render` already
+drops from both sides because a diagnostic *about* a program is not output *of*
+it. Whatever carries the location must be dropped the same way, or every
+runtime-error case in the corpus diverges at once.
 
 ##### conformance/0098-runtime-errors-follow-output.a24
 

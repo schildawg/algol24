@@ -37,6 +37,10 @@ Value fn_rendered;
 static const char *t_f_rendered[] = { "TheInterpreter : Any", "Arguments : List" };
 Value fn_stringify;
 static const char *t_f_stringify[] = { "TheInterpreter : Any", "Value : Any" };
+Value v_interpVcollectVevery;
+bool d_interpVcollectVevery;
+Value v_interpVtick;
+bool d_interpVtick;
 Value k_native;
 static Value or_0;
 static Value or_1;
@@ -433,7 +437,7 @@ static Value m_native_call_2(Value v_this, Value *args, int32_t count) {
         return ret_17;
     } else {
         if (alg_truthy(alg_equal(alg_property(v_this, "Name"), alg_string("Collect")))) {
-            Value ret_18 = alg_int(0);
+            Value ret_18 = alg_collected();
             alg_root_top = rt_base;
             return ret_18;
         } else {
@@ -3154,6 +3158,17 @@ static Value m_interpreter_execute_1_stmt(Value v_this, Value *args, int32_t cou
     Value v_thestmt = alg_widen(args[0], "Stmt");
     (void)v_thestmt;
     alg_root(&v_thestmt, 1);
+    if (alg_truthy(alg_greater((alg_declared(d_interpVcollectVevery, "INTERP_COLLECT_EVERY"), v_interpVcollectVevery), alg_int(0)))) {
+        {
+            (void)((alg_declared(d_interpVtick, "INTERP_TICK"), (v_interpVtick = alg_add((alg_declared(d_interpVtick, "INTERP_TICK"), v_interpVtick), alg_int(1)))));
+            if (alg_truthy(alg_greater_equal((alg_declared(d_interpVtick, "INTERP_TICK"), v_interpVtick), (alg_declared(d_interpVcollectVevery, "INTERP_COLLECT_EVERY"), v_interpVcollectVevery)))) {
+                {
+                    (void)((alg_declared(d_interpVtick, "INTERP_TICK"), (v_interpVtick = alg_int(0))));
+                    (void)(alg_collected());
+                }
+            }
+        }
+    }
     (void)(alg_invoke(v_thestmt, "Accept", (Value[]){v_this}, 1));
     Value ret_237 = alg_nil();
     alg_root_top = rt_base;
@@ -4674,6 +4689,8 @@ static Value *roots_Interpreter[] = {
     &fn_suppressoutput,
     &fn_rendered,
     &fn_stringify,
+    &v_interpVcollectVevery,
+    &v_interpVtick,
     &k_native,
     &fn_parsednumber,
     &k_interpreter,
@@ -4687,7 +4704,7 @@ static Value *roots_Interpreter[] = {
 };
 
 void init_Interpreter(void) {
-    alg_roots(roots_Interpreter, 16);
+    alg_roots(roots_Interpreter, 18);
     k_native = alg_class("Native", alg_nil());
     k_interpreter = alg_class("Interpreter", alg_nil());
     k_broke = alg_class("Broke", alg_nil());
@@ -4822,4 +4839,8 @@ void init_Interpreter(void) {
     d_programarguments = true;
     v_outputsuppressed = alg_bool(false);
     d_outputsuppressed = true;
+    v_interpVcollectVevery = alg_int(200000);
+    d_interpVcollectVevery = true;
+    v_interpVtick = alg_int(0);
+    d_interpVtick = true;
 }

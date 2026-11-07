@@ -784,7 +784,53 @@ the figure.
 
 ---
 
-## 9. R-5 — a runtime error carries no location
+## 9. R-5 — a runtime error carries no location  ·  BOTH HALVES PROPOSED
+
+**The ordering half is NOT independent of the location half, which is what
+trying it showed.** It is in `PROPOSAL-RUNTIME-LOCATION.md` with the rest.
+
+The ordering complaint is real and the cause is exact: both uncaught sites write
+to stderr, which is unbuffered, while the program's own output sits in stdout's
+buffer — block-buffered the moment it is redirected — and `exit` flushes it only
+afterwards. **At a terminal nothing looks wrong**, because stdout is
+line-buffered there; piped or redirected, every program appears to fail before
+it printed anything.
+
+⚠️ **But `fflush(stdout)` before the diagnostic REORDERS EVERY LOCATED
+DIAGNOSTIC TOO, and that is a change to what every compile error looks like.**
+`Console.Error` writes its three-line excerpt to **stdout** while the front end
+is still running; the `Uncaught:` sentence is written by the driver afterwards.
+So chronologically the excerpt comes FIRST, and the recorded order —
+
+```
+Uncaught: Expect variable name.
+[ERROR] conformance/0100-parse-error-shape.a24: Expect variable name.
+[ERROR] 1 | var := 1;
+[ERROR]   | ^^^
+```
+
+— **is itself a buffering artefact.** Flushing honestly inverts it to
+excerpt-then-sentence, which puts the detail before the summary and reads worse
+than what it replaces.
+
+Measured: **41 cases** change, not the 27 the ordering alone accounts for. The
+other fourteen are the located ones, and they change because the artefact was
+holding them in the order the specification records.
+
+**So the two halves share one cause**: the report is printed by two layers at
+two times, and neither owns it. Getting the order right needs the driver to own
+the whole report — which is exactly the restructuring the location half needs
+anyway, since that is where a runtime error's own excerpt would have to be
+printed from. Doing the flush alone buys a correct order for runtime errors at
+the price of a worse one for every parse error.
+
+⚠️ **This was implemented, measured and REVERTED**, and the revert is the
+finding. `report_uncaught` with its flush is three lines; the 41 cases were
+regenerated from actual output and the diff was clean. What stopped it was
+reading the result: nothing in R-5 asks for parse errors to be reordered, and
+nobody asked for the detail to precede the summary.
+
+---
 
 Not a repair. A runtime error prints one sentence and nothing else:
 
@@ -818,37 +864,60 @@ for the rest rather than starting it inside a defect sweep.
 
 ---
 
-## 10. R-13 — the interpreter's memory
+## 10. R-13 — the interpreter's memory  ·  DONE
 
-Not a repair either, and the report's hypothesis is disproven. Measured above:
-one unit accounts for 5.56 GB of a 5.89 GB run, and the unit importing it costs
-6% more rather than twice as much. Nothing is being loaded that `uses` did not
-name.
+**Fixed, and the report was right that something was wrong while being wrong
+about what.** Its hypothesis was that interpreting now loads every unit in the
+directory; measured per unit, one unit accounted for 5.56 GB of a 5.89 GB run
+and the unit importing it cost 6% more rather than twice as much. Nothing was
+being loaded that `uses` did not name.
 
-What it is, is the thing `CLAUDE.md` and [RT-029] already state: **the
-interpreter has no collector and conformantly cannot.** Its live values sit in
-C locals all through a recursive evaluator, where no collector can see them, so
-`Collect ()` answers 0 and releasing would free something still in use. The
-compiled back end and the machine both have precise roots and reclaim; the
-interpreter's arena only grows. A unit whose tests churn collections — slot math
-over 25 machines — therefore costs whatever it allocates, once.
+⚠️ **What it actually was: the interpreter declined to collect, and the reason
+it gave had stopped being true.** `'Collect' : Exit 0;` was hard-coded, reasoned
+as *"its live values sit in C locals all through a recursive evaluator, where no
+collector can see them"* — correct when written, and overtaken by the **shadow
+stack**: the tree walker is itself a compiled Algol-24 program, so its
+evaluator's locals are exactly what the collector walks.
 
-So R-13 is a **limit with a measured cause**, not a leak. Three honest answers:
+⚠️ **THE COMPILED BACK END HAS HAD A PRECISE COLLECTOR SINCE v0.2.0**, which is
+easy to misremember as a VM feature and is not. `CEmitter` emits the roots and
+the shadow stack; the VM's roots come free from that. So the compiled path never
+leaked, and `collector.sh` has been testing exactly it all along. That is the
+premise correction the whole item turned on.
 
-1. **Record it and close it.** The measurement replaces the report's hypothesis,
-   and `verify-c`/`harness-c` are what gate shroom-slots anyway.
-2. **Give the interpreter precise roots.** The shadow stack `CEmitter` emits for
-   locals is exactly the missing piece, and the recursive evaluator is exactly
-   why it is hard. A release of its own.
-3. **Say so where a user meets it.** An interpreted run past some footprint
-   could `[WARN]` that the interpreter does not collect and name the compiled
-   back end. Cheap, and it turns a mystery into a known cost.
+Removing the refusal released **1,400,104** objects where it had answered 0.
+Adding automatic collection at a **statement boundary** — the walker's
+equivalent of the machine's top-of-dispatch-loop safe point — gives, on
+`algc --test slotmath.a24`:
 
-**Recommended: 1 and 3.** 2 belongs in a proposal beside item 9, and the two
-share a cause — the recursive evaluator holding values where nothing can see
-them.
+| | memory | time |
+| --- | --- | --- |
+| declining, as before | 5.57 GB | 32.42 s |
+| collecting every 200,000 statements | **2.01 GB** | 35.22 s |
 
----
+**2.8× less memory for about 9% more time**, which is the same trade the machine
+took at 4× for 6% and which nobody has regretted.
+
+**Correctness, measured rather than argued.** All **275** corpus cases are
+byte-identical to the run that declines — collection changes nothing
+observable; the compiler's own 247 tests pass, including under `ALG_POISON=1`;
+`conform.sh` is 278/0 with 0 divergences and `vm/conform.sh` 273 + 2 FFI with 0;
+and the library's 928 unit tests pass.
+
+⚠️ **[RT-029] was written to permit this and needed correcting anyway.** It made
+`Collect` a request so that an implementation which cannot see its roots may
+decline — and `conformance/0203` deliberately pins only `Released is Integer`
+and `>= 0`, never the count, which is why no case had to change. But the rule's
+own ⚠️ said *the tree-walking interpreter answers 0*, which is now false; it
+says instead that all three release, that the roots are precise, and that each
+collects at its own safe point.
+
+⚠️ **This is the THIRD stale claim in this area, all with one cause.**
+`CLAUDE.md` already records that *"automatic collection was UNSAFE"* was
+disproven *"most likely by the precise-roots and shadow-stack work that landed
+after it was written"*. Same work, same shape, third time. A note explaining why
+something cannot be done deserves re-reading whenever the thing it blamed has
+changed.
 
 ## 11. The C back end cannot hold a built-in as a value  ·  DONE
 
@@ -968,7 +1037,7 @@ late:
 | 7 | ~~**4** — R-8 and R-10 at compile time~~ **DONE** | changes what the compiler accepts; wants the corpus green first |
 | 8 | ~~**3** — `Token` gains a file~~ **DONE** | touches the seed and both processors' reports |
 | 9 | ~~**11** — a built-in held as a value~~ **DONE** | found by this sweep, not reported; the C back end gives a wrong answer where its own rule is to refuse |
-| 10 | **9**, **10** — R-5's flush; R-13 recorded | the two that are not repairs |
+| 10 | **9** proposed (both halves), ~~**10**~~ **DONE** | R-13 was a repair after all |
 
 **Every item lands with its conformance case**, written into
 `spec/ALGOL-24.md` under the rule it pins — not into `conformance/`, which is

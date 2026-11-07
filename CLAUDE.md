@@ -1689,13 +1689,30 @@ the released body is never handed back at its own size class, which is case
 
 ## The collector
 
-⚠️ **`Collect ()` is a REQUEST [RT-029], and the two processors answer it
-differently by the rule rather than against it.** The interpreter answers `0`
-— its live values sit in C locals all through a recursive evaluator, where no
-collector can see them, so releasing would free something still in use. The
-compiled back end and the bytecode machine release. A program may depend on
-neither the count nor on anything being freed: `Collect` changes how much
-memory a correct program uses and never what it computes.
+⚠️ **ALL THREE PROCESSORS COLLECT, and the interpreter's refusal was stale.**
+`Collect ()` is a request [RT-029] and every processor now honours it. The tree
+walker answered `0` until v0.2.4, reasoned as *"its live values sit in C locals
+all through a recursive evaluator"* — true when written, and overtaken by the
+shadow stack: the walker is itself a compiled Algol-24 program, so its
+evaluator's locals are exactly what the collector walks. Removing the refusal
+released **1,400,104** objects where it had answered 0, with all 275 corpus
+cases byte-identical to the run that declined.
+
+⚠️ **The COMPILED back end has had a precise collector since v0.2.0, and
+`collector.sh` tests it and nothing else.** This is easy to misremember as a VM
+feature: it is not. `CEmitter` emits the roots and the shadow stack, and the
+VM's roots come free from that because `Slots`, `GlobalCells` and the frame
+arrays are module-level variables of `Vm.a24`. A program may depend on neither
+the count nor on anything being freed: `Collect` changes how much memory a
+correct program uses and never what it computes.
+
+⚠️ **The tree walker collects automatically too, every `INTERP_COLLECT_EVERY`
+statements (200,000).** Its safe point is a STATEMENT BOUNDARY, the walker's
+equivalent of the machine's top-of-dispatch-loop. Measured on
+`algc --test slotmath.a24`, the heaviest interpreted run there is: **5.57 GB and
+32.42 s without, 2.01 GB and 35.22 s with** — about 2.8× less memory for about
+9% more time. That is R-13, which was reported as the interpreter running away
+with memory the compiler does not need.
 
 ⚠️ **AUTOMATIC collection is ON by default on the machine, at 2,000,000
 instructions, and `--collect 0` is how to turn it off.** `Vm.a24` collects at a
@@ -1868,12 +1885,11 @@ Each prints its own totals. **Do not copy those totals into this file or the
 README**: every count written down here has gone stale, and a number in prose is
 a claim nothing checks.
 
-⚠️ **`./collector.sh` runs the COMPILED back end only, and that is the rule
-rather than an omission.** `Collect` is a request [RT-029]: the interpreter
-answers 0 because its live values sit in C locals all through a recursive
-evaluator, so declining is its conformant answer and there is nothing to
-compare against. `conform.sh` is where the two processors are held to each
-other.
+⚠️ **`./collector.sh` runs the COMPILED back end only**, which was the rule
+when the interpreter declined and is now merely where the cases happen to run.
+The interpreter collects too, so there would be something to compare — worth
+revisiting if a collector case ever needs to be about more than the compiled
+path. `conform.sh` is where the processors are held to each other.
 
 ⚠️ **Every collector case runs TWICE — plainly and under `ALG_POISON=1`** —
 because that split *is* the diagnosis. Poisoning withholds a released body
@@ -2035,6 +2051,29 @@ including the `[ERROR]` line naming why each failure failed.**
 
 ⚠️ A test failure prints exactly one `[ERROR]` line, not three: `Console.Error`
 adds a source line and a caret, and a test failure does not go through it.
+
+⚠️ **COMPILED ALGOL-24 DOES NOT CARRY SOURCE INFORMATION AT RUN TIME, and
+that is a DECISION rather than a gap** — [ERR-003]. Carrying it means the
+emitted C storing a position before every statement, which every program would
+pay for so that a failing one could be read; the shadow stack's +5.8% for a
+root per block is the nearest measured comparison. **What a program gets
+instead is the machine**, which runs the same program and can disassemble it:
+`--list`, `--trace N` and `--watch TEXT`. That is the division of labour
+`algvm` exists for. The interpreter and the machine ARE expected to carry a
+location and do not yet, which is a defect — `PROPOSAL-RUNTIME-LOCATION.md`.
+
+⚠️ **A PROGRAM'S OWN OUTPUT APPEARS AFTER THE ERROR THAT STOPPED IT, and the
+obvious fix reorders every compile error too.** stderr is unbuffered and stdout
+is block-buffered the moment it is redirected, so the output is still in its
+buffer when the diagnostic is written. Invisible at a terminal, where stdout is
+line-buffered; wrong in every pipe and log. **But `Console.Error` writes its
+excerpt to stdout while the front end runs and the `Uncaught:` sentence is
+written by the driver afterwards** — so flushing honestly puts the excerpt
+BEFORE the sentence, inverting what the specification records for 14 located
+cases on top of the 27 runtime ones. Tried, measured at 41 cases, reverted. The
+recorded order is a buffering artefact and both halves of R-5 want the same
+thing: the driver owning the whole report. See
+`PROPOSAL-RUNTIME-LOCATION.md`.
 
 ⚠️ The file named is the **root**, not the file the failing test lives in. The
 compiled runner copies that deliberately, since the reports are compared, and

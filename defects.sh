@@ -404,9 +404,22 @@ fi
 echo
 
 echo "10. R-13 -- the interpreter's memory"
-printf '         not reproduced here: it needs shroom-slots, and PLAN-0.2.4.md\n'
-printf '         item 10 carries the per-unit measurement that localises it to\n'
-printf '         one unit rather than to units being loaded.\n'
+# The report's own shape -- a long interpreted run -- needs shroom-slots, so
+# what is checked here is the CAUSE: the interpreter declined to collect.
+cat > "$WORK/r13.a24" <<'EOF'
+for var I := 0; I < 20000; I := I + 1 do
+begin
+    var Junk := [I, I + 1, I + 2];
+end
+WriteLn (Collect () > 0);
+EOF
+I=$("$ALGC" "$WORK/r13.a24" 2>&1 || true)
+if [ "$I" = "true" ]; then
+    report R-13 "the interpreter declines to collect" fixed ''
+else
+    report R-13 "the interpreter declines to collect" open \
+        "Collect () released nothing interpreted: '$I'.  The compiled back end has had a precise collector since v0.2.0; this processor refused one."
+fi
 echo
 echo "11. A built-in held as a value"
 # Found by probing item 2's edges rather than reported, so it carries no R- or
