@@ -240,7 +240,41 @@ var
 
     /// Every function the program declares, collected before anything is emitted
     /// so a call to one declared later still resolves.
+    ///
+    /// PROGRAM-WIDE, and it answers only program-wide questions: does any unit
+    /// declare a subprogram of this name.  Which unit declared it is DeclaredIn,
+    /// and whether it can be seen from the file being emitted is
+    /// VisibleSubprogram -- keeping those apart is what four defects turned on.
     Declared     : Set;
+
+    /// The unit's own share of whatever is being collected, filled beside the
+    /// program-wide set by CollectFunctions and CollectGlobals.
+    ///
+    /// A SECOND SET rather than a difference of the program-wide one before and
+    /// after, because a Set swallows a repeat: two units declaring one name is
+    /// exactly the case these tables exist to tell apart, and the second unit's
+    /// add would have shown as nothing added at all.
+    CollectingInto : Set;
+
+    /// Which unit declared each of those, as a unit name to the set of
+    /// subprogram names it declares.
+    ///
+    /// Declared on its own says a name exists SOMEWHERE, which is not a question
+    /// any resolution should ask.  Asking it is what made a unit's own method
+    /// unreachable the moment an unrelated unit declared a top-level subprogram
+    /// of the name -- and the error stub landed in the blameless unit's own C,
+    /// naming the wrong unit as the one to import.
+    DeclaredIn   : Map;
+
+    /// The top-level subprograms VISIBLE in the file being emitted: its own,
+    /// plus those exported by the units it imported.  Replaced per unit.
+    ///
+    /// The distinction is the language's rather than this emitter's, and all
+    /// three processors agree about both halves.  A visible top-level subprogram
+    /// BEATS a method of the class being emitted, called by its bare name -- so
+    /// a unit that imports one gets the subprogram.  A subprogram that is not
+    /// visible here does not enter the question at all, and the method wins.
+    VisibleDeclared : Set;
 
     /// Numbers the slots 'and' and 'or' hold their left operand in, so each
     /// occurrence gets its own and nesting cannot make two share one.
@@ -354,6 +388,17 @@ var
 
     /// Every top-level name of the unit being emitted.
     TopLevel     : Set;
+
+    /// Which unit declared each file-scope variable and constant, as a unit name
+    /// to the set of names it declares.
+    ///
+    /// The per-unit Globals, and the reason a file's own variable now wins over
+    /// an imported enumeration member or subprogram of the same name.  Reading
+    /// the flat Globals could not answer it: the arms that resolve an import run
+    /// first, so a program's own 'var Spinning' beside a 'uses' of a unit
+    /// exporting the member Spinning emitted the MEMBER -- and every assignment
+    /// to the variable was discarded in silence.
+    GlobalsIn    : Map;
 
     /// Each unit's exported names.
     ///
@@ -483,6 +528,10 @@ begin
         this.Cells := List();
         this.Captured := Map();
         this.Globals := Set();
+        this.GlobalsIn := Map();
+        this.DeclaredIn := Map();
+        this.CollectingInto := Set();
+        this.VisibleDeclared := Set();
         this.TopLevel := Set();
         this.UnitExports := Map();
         this.UnitAll := Map();
@@ -891,6 +940,7 @@ begin
                 if not IsTest (TheStmt) then
                 begin
                     Declared.Add (Str (TheStmt.Name.Lexeme));
+                    CollectingInto.Add (Str (TheStmt.Name.Lexeme));
                     Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
                 end
 
@@ -942,6 +992,7 @@ begin
             if TheStmt is VarStmt then
             begin
                 Globals.Add (Str (TheStmt.Name.Lexeme));
+                CollectingInto.Add (Str (TheStmt.Name.Lexeme));
                 Canonical.Put (FoldCase (TheStmt.Name.Lexeme), Str (TheStmt.Name.Lexeme));
             end
 
@@ -949,6 +1000,7 @@ begin
                 for var TheName in TheStmt.Names do
                 begin
                     Globals.Add (Str (TheName.Lexeme));
+                    CollectingInto.Add (Str (TheName.Lexeme));
                     Canonical.Put (FoldCase (TheName.Lexeme),
                                    Str (TheName.Lexeme));
                 end
@@ -1016,18 +1068,34 @@ begin
             Seen.Add (Str (TheUnit.Name));
         end
 
+        // Both of these were one pass accumulating into one program-wide set,
+        // which is what made a name declared in ANY unit resolve in EVERY unit.
+        // The sets they fill are still program-wide -- MissingName asks a
+        // program-wide question and should -- but each unit's own share is now
+        // recorded beside it, keyed by the unit's name.
+        //
+        // The root file's unit name is the EMPTY STRING, so '' is a key like any
+        // other here and cannot double as 'no unit'.
         for var TheUnit in Units do
+        begin
+            CollectingInto := Set();
             CollectFunctions (TheUnit.Statements);
+            DeclaredIn.Put (Str (TheUnit.Name), CollectingInto);
+        end
 
         for var TheUnit in Units do
         begin
             TopLevel := Set();
             Overloaded := Set();
 
+            CollectingInto := Set();
             CollectGlobals (TheUnit.Statements);
+            GlobalsIn.Put (Str (TheUnit.Name), CollectingInto);
 
             OverloadsIn.Put (Str (TheUnit.Name), Overloaded);
         end
+
+        CollectingInto := Set();
 
         for var TheUnit in Units do
         begin
@@ -1203,6 +1271,35 @@ begin
                     var Seen := (UnitExports.Get (Str (TheImport)) as Set).ToList();
                     for var J := 0; J < Seen.Length; J := J + 1 do
                         ShadowNames.Add (Seen[J]);
+                end
+
+            // Which top-level SUBPROGRAMS can be seen from here, built exactly as
+            // ShadowNames is and from the same two halves -- this unit's own
+            // declarations, then what each import exports -- but filtered to the
+            // subprograms, since the question it answers is whether a bare call
+            // inside a class reaches one of those instead of a method.
+            //
+            // Narrower than ShadowNames deliberately: a visible CLASS or VARIABLE
+            // of the name does not take a bare call away from a method.
+            VisibleDeclared := Set();
+
+            if DeclaredIn.Contains (Str (Unit.Name)) then
+            begin
+                var Mine := (DeclaredIn.Get (Str (Unit.Name)) as Set).ToList();
+                for var I := 0; I < Mine.Length; I := I + 1 do
+                    VisibleDeclared.Add (Mine[I]);
+            end
+
+            for var TheImport in Unit.Imports do
+                if DeclaredIn.Contains (Str (TheImport))
+                        and UnitExports.Contains (Str (TheImport)) then
+                begin
+                    var Theirs := (DeclaredIn.Get (Str (TheImport)) as Set).ToList();
+                    var Shown  := UnitExports.Get (Str (TheImport)) as Set;
+
+                    for var J := 0; J < Theirs.Length; J := J + 1 do
+                        if Shown.Contains (Theirs[J]) then
+                            VisibleDeclared.Add (Theirs[J]);
                 end
 
             // Which counts those same declarations took, walked from the
@@ -3023,7 +3120,14 @@ begin
                               and VisibleFields.Contains (FoldCase (Name)) then
             Exit 'alg_property(' + ThisRef () + ', ' + QuoteC (Name) + ')';
 
-        if not Locals.Contains (Name) then
+        // A name this file declares itself as a variable or a constant is that
+        // variable, and every arm below resolves an IMPORT.  They ran first, so
+        // a program's own 'var Spinning' beside a unit exporting the member
+        // Spinning emitted the member -- and the assignment was discarded with
+        // no diagnostic from either back end.  An ambiguity between two imports
+        // is settled the same way, which is what the AmbiguousImports.Remove
+        // above already does for the names a unit declares.
+        if not Locals.Contains (Name) and not OwnGlobal (Name) then
         begin
             if AmbiguousMembers.Contains (Name) then
                 Exit '(alg_error(' + QuoteC (AmbiguousMessage (Str (TheExpr.Name.Lexeme),
@@ -3075,6 +3179,40 @@ begin
 
         Exit '(alg_declared(' + DeclaredFlag (Name) + ', '
            + QuoteC (Name) + '), ' + Text + ')';
+    end
+
+    /// Whether the file being emitted declares this name itself, as a file-scope
+    /// variable or constant.
+    ///
+    /// The question an imported name must be asked against before it resolves:
+    /// a file's own variable wins inside it, which both other processors do and
+    /// the C back end did not.  Asked through here rather than inlined at each
+    /// site, because the next read added would be the one that forgot the unit.
+    ///
+    /// # Satisfies
+    ///
+    /// MOD-005, SRC-010
+    function OwnGlobal (Name : String) : Boolean;
+    begin
+        if not GlobalsIn.Contains (UnitName) then Exit False;
+
+        Exit (GlobalsIn.Get (UnitName) as Set).Contains (Name);
+    end
+
+    /// Whether a top-level subprogram of this name can be seen from the file
+    /// being emitted.
+    ///
+    /// Not whether one EXISTS, which is what Declared answers and what no
+    /// resolution should ask: a subprogram in a unit this file never imported is
+    /// not in scope here, and treating it as though it were made a unit's own
+    /// method unreachable and put the complaint in that unit's own C.
+    ///
+    /// # Satisfies
+    ///
+    /// MOD-015
+    function VisibleSubprogram (Name : String) : Boolean;
+    begin
+        Exit VisibleDeclared.Contains (Name);
     end
 
     /// Builds the message for a name nothing declares.
@@ -3796,7 +3934,14 @@ begin
                                          Str (AmbiguousImports.Get (Name))))
                + '), alg_nil())';
 
-        if CurrentClass <> '' and not Declared.Contains (Name)
+        // A visible top-level subprogram beats a method of the class being
+        // emitted, which is the language and not this emitter's choice: all
+        // three processors answer the imported subprogram where the unit
+        // imports it.  The question has to be VISIBILITY, though -- asking
+        // whether any unit declares one made a unit's own method unreachable
+        // the moment an unrelated unit grew a subprogram of the name, and the
+        // complaint was emitted into the blameless unit's own C.
+        if CurrentClass <> '' and not VisibleSubprogram (Name)
                               and VisibleMethods.Contains (FoldCase (Name)) then
             Exit Invoking (ThisRef (), Name, Arguments, TheExpr.ArgumentNames);
 

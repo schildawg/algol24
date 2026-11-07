@@ -66,7 +66,42 @@ item 10.
 
 ---
 
-## 1. CEmitter resolves a bare name against a program-wide table
+## 1. CEmitter resolves a bare name against a program-wide table  ·  DONE
+
+**Landed.** Four defects, one fix. `defects.sh` reports R-6, R-7, R-9 and R-11
+fixed and **zero** error stubs in the emitted C across all four; the corpus is
+green under both processors; the seed is a fixed point in one generation.
+
+Two rules were written for it, because the behaviour the fix implements was
+**unstated** and the two halves of it are different questions. [MOD-016] — a
+file's own top-level declaration is resolved before its imports. [MOD-017] — a
+top-level subprogram *visible in a file* is resolved before a member of a class
+declared in that file, and one that is not visible does not enter the question.
+`conformance/0211` and `0212` pin them, byte-identical under all three
+processors, over six new fixtures in `conformance/modules/`.
+
+**The real-world sightings were the convincing check, not the reductions.**
+shroom-slots' two documented R-9 collisions, put back:
+
+| | before | after |
+| --- | --- | --- |
+| a top-level `Measure` beside `uses text` | **8** stubs inside `text.c` | 0 |
+| the `Word` / `json.a24` reduction | aborts, blaming the wrong file | `ab = true,  cd = 5` |
+
+Those eight were latent aborts in `Font.DrawRight`, `Font.Wrap` and
+`Font.DrawBlockMid` — a unit the program never edited.
+
+**One claim in `CLAUDE.md` was wrong and is corrected.** It said a top-level
+subprogram shadows another unit's class method and that both processors agree,
+which overstates it: that holds only where the *class's own unit* can see the
+subprogram. Measured both ways before the rule was written — `Crated`, which
+imports `Sizer`, reaches `Sizer.Size` from inside its own method even at a
+matching argument count, and all three processors answer `3` rather than `1000`.
+
+**One adjacent case was probed and is NOT a fifth defect:** a callable held in
+an imported unit's global, called bare, resolves correctly in both back ends.
+
+---
 
 **R-6, R-7, R-9 and R-11 are one bug.** It is the largest item here, it is the
 only one that makes a program pay out a wrong answer (R-6), and the interpreter
@@ -319,10 +354,35 @@ itself calls the defensible answer and better than either present behaviour.
 The Parser's `Loaded` map is keyed by **path**, not by name, so it needs the
 same fold for `algvm`'s half.
 
-This is a rule the specification already carries being applied in one more
-place, not a new rule — but [MOD-002] is about *finding* a unit by name, and
-what goes wrong here is a registry and an output filename, both of which the
-language owns. Worth a sentence in the rule saying so.
+⚠️ **This is NOT simply a rule already carried, and the plan said so before
+reading [MOD-002].** That rule states outright that a module name is *the one
+place [SRC-011] does **not** reach* — the filesystem decides how it is matched,
+case-insensitively on macOS and Windows and **sensitively on Linux**. So on
+Linux `Alpha` and `alpha` are two legitimately distinct units, each satisfying
+[MOD-004] against its own file name, and a program may legitimately use both.
+Folding the comparison would refuse a program that is **legal on Linux** in
+order to fix one that is broken on macOS.
+
+So item 6 is a decision and not just an edit, and it should be taken
+deliberately:
+
+| | what it does | cost |
+| --- | --- | --- |
+| **fold the comparison** | refuses the program under all three, everywhere | refuses a program Linux allows; [MOD-002] has to gain a sentence saying the registry folds where the *lookup* does not |
+| **fix the mechanisms** | C filename from the unit's **path** rather than its name; the machine's registry keyed by path, as the Parser's `Loaded` map already is | keeps both units working wherever the filesystem does, but gives no diagnostic — and a case-insensitive filesystem still cannot hold the two `.c` files, so the compiled half needs the path-derived name regardless |
+| **both** | mechanisms fixed, and a `[WARN]` where two unit names fold together | the most work, and the only one that is right on both platforms |
+
+**Recommended: both.** The path-derived output filename is needed anyway — it
+is the only thing that makes the compiled half work on a case-sensitive
+filesystem — and a `[WARN]` is this repository's stated preference where a
+construct is legal but carries a hidden cost. What is NOT defensible is the
+present state, where the refusal that exists was written to catch exactly this
+and misses it.
+
+What does still hold from the first reading: [MOD-002] is about *finding* a unit
+by name, and both units here are found by explicit path. What goes wrong
+afterwards is a registry and an output filename, both of which the language
+owns.
 
 ---
 
@@ -461,7 +521,7 @@ late:
 
 | | item | why here |
 | --- | --- | --- |
-| 1 | **1** — CEmitter's per-unit tables | four defects, one fix, and the only silent wrong answer |
+| 1 | ~~**1** — CEmitter's per-unit tables~~ **DONE** | four defects, one fix, and the only silent wrong answer |
 | 2 | **2** — field of `this` beats a built-in | the other divergence; small, and R-5's worst symptom |
 | 3 | **6** — fold the unit-name comparison | small, one rule, refuses in all three |
 | 4 | **5** — R-2's one line, R-4's message | smallest things here |

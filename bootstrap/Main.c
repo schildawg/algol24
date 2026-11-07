@@ -198,14 +198,14 @@ static Value f_argumentsfrom(Value **cells, Value *args, int32_t count) {
     (void)v_result;
     alg_root(&v_result, 1);
     {
-        int32_t rt_629 = alg_root_top;
+        int32_t rt_635 = alg_root_top;
         Value v_i = v_first;
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less_equal(v_i, alg_param_count())); (v_i = alg_add(v_i, alg_int(1)))) {
             (void)(alg_invoke(v_result, "Add", (Value[]){alg_param_str(v_i)}, 1));
         }
-        alg_root_top = rt_629;
+        alg_root_top = rt_635;
     }
     Value ret_6 = v_result;
     alg_root_top = rt_base;
@@ -264,17 +264,17 @@ static Value f_compile(Value **cells, Value *args, int32_t count) {
     (void)v_thefiles;
     alg_root(&v_thefiles, 1);
     {
-        int32_t rt_630 = alg_root_top;
+        int32_t rt_636 = alg_root_top;
         Value loop_8 = alg_iterable(alg_invoke(v_thefiles, "Keys", NULL, 0));
         (void)loop_8;
         alg_root(&loop_8, 1);
         for (int32_t at_8 = 0; at_8 < alg_iterable_count(loop_8); at_8++) {
-            int32_t rt_631 = alg_root_top;
+            int32_t rt_637 = alg_root_top;
             Value v_name = alg_iterable_at(loop_8, at_8);
             (void)v_name;
             alg_root(&v_name, 1);
             {
-                int32_t rt_632 = alg_root_top;
+                int32_t rt_638 = alg_root_top;
                 Value v_out = alg_text_file();
                 (void)v_out;
                 alg_root(&v_out, 1);
@@ -282,11 +282,11 @@ static Value f_compile(Value **cells, Value *args, int32_t count) {
                 (void)(alg_invoke(v_out, "Rewrite", NULL, 0));
                 (void)(alg_invoke(v_out, "Write", (Value[]){alg_str(alg_invoke(v_thefiles, "Get", (Value[]){v_name}, 1))}, 1));
                 (void)(alg_invoke(v_out, "Close", NULL, 0));
-                alg_root_top = rt_632;
+                alg_root_top = rt_638;
             }
-            alg_root_top = rt_631;
+            alg_root_top = rt_637;
         }
-        alg_root_top = rt_630;
+        alg_root_top = rt_636;
     }
     Value v_runtime = f_runtimefolder(NULL, NULL, 0);
     (void)v_runtime;
@@ -337,14 +337,14 @@ static Value f_copyfile(Value **cells, Value *args, int32_t count) {
             int32_t which_10 = alg_handler(frame_10.raised, names_10, 1);
             if (which_10 == 0) {
                 {
-                    int32_t rt_633 = alg_root_top;
+                    int32_t rt_639 = alg_root_top;
                     volatile Value v_e = frame_10.raised;
                     (void)v_e;
                     alg_root(&v_e, 1);
                     volatile Value ret_11 = alg_bool(false);
                     alg_root_top = rt_base;
                     return ret_11;
-                    alg_root_top = rt_633;
+                    alg_root_top = rt_639;
                 }
             }
             else {
@@ -469,7 +469,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
     }
     if (alg_truthy(alg_equal(alg_param_str(alg_int(1)), alg_string("--compile")))) {
         {
-            int32_t rt_634 = alg_root_top;
+            int32_t rt_640 = alg_root_top;
             Value v_wanttests = alg_bool(false);
             (void)v_wanttests;
             alg_root(&v_wanttests, 1);
@@ -478,13 +478,13 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
             alg_root(&v_outdir, 1);
             (void)((v_name = alg_string("")));
             {
-                int32_t rt_635 = alg_root_top;
+                int32_t rt_641 = alg_root_top;
                 Value v_i = alg_int(2);
                 (void)v_i;
                 alg_root(&v_i, 1);
                 for (; alg_truthy(alg_less_equal(v_i, alg_param_count())); (v_i = alg_add(v_i, alg_int(1)))) {
                     {
-                        int32_t rt_636 = alg_root_top;
+                        int32_t rt_642 = alg_root_top;
                         Value v_arg = alg_param_str(v_i);
                         (void)v_arg;
                         alg_root(&v_arg, 1);
@@ -499,10 +499,10 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
                                 }
                             }
                         }
-                        alg_root_top = rt_636;
+                        alg_root_top = rt_642;
                     }
                 }
-                alg_root_top = rt_635;
+                alg_root_top = rt_641;
             }
             if (alg_truthy(alg_not(alg_file_exists(v_name)))) {
                 {
@@ -513,7 +513,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
             Value ret_24 = alg_nil();
             alg_root_top = rt_base;
             return ret_24;
-            alg_root_top = rt_634;
+            alg_root_top = rt_640;
         }
     }
     if (alg_truthy(alg_equal(alg_param_str(alg_int(1)), alg_string("--test")))) {

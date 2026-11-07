@@ -1514,12 +1514,31 @@ fourth means editing the rule, the fixture and nothing else. Nothing in
   nowhere near either declaration. Then `BeginScope`, `EndScope` and
   `ResolveLocal` all collided with `Resolver` methods at once.
 
-  **A method is not the protection it looks like, and both processors agree
-  about it** — a bare call inside a class finds an imported unit's top-level
-  function over the class's own method. So before adding a top-level name to a
-  program that imports `compiler/*.a24`, check it against every declaration
-  there including the indented ones; `shroom-slots` keeps
-  `tools/name-clash.py` for exactly this and it is worth copying.
+  **A method is not the protection it looks like, and all three processors
+  agree about it** — a bare call inside a class finds an imported unit's
+  top-level function over the class's own method, which is **[MOD-017]** and
+  `conformance/0212`. So before adding a top-level name to a program that
+  imports `compiler/*.a24`, check it against every declaration there including
+  the indented ones; `shroom-slots` keeps `tools/name-clash.py` for exactly
+  this and it is worth copying.
+
+  ⚠️ **VISIBILITY decides that, and the sentence above used to overstate it.**
+  The subprogram wins only where the *unit declaring the class* can see it —
+  its own declaration, or one of its own `uses`. A name declared in a unit that
+  class's unit never imported does **not** enter the call, and the method
+  answers. Both halves are measured: `Crated`, which imports `Sizer`, reaches
+  `Sizer.Size` from inside its own method even at a matching argument count;
+  `Boxed`, which imports nothing, reaches its own.
+
+  ⚠️ **The C back end used to get the invisible half wrong, and it was four
+  defects.** It asked whether any unit declares a subprogram of the name —
+  program-wide — rather than whether one is visible here, so an unrelated unit
+  growing a top-level `Measure` emitted
+  `alg_error("Undefined variable 'Measure'...")` into an imported font unit's
+  own C, at **eight** call sites, naming the wrong unit as the one to import.
+  `DeclaredIn` and `VisibleDeclared` are the per-unit tables that answer it;
+  `Declared` stays program-wide and now answers only `MissingName`'s
+  program-wide question. See [MOD-016], [MOD-017] and `defects.sh`.
 
   ⚠️ **Four Buffer and Char traps, all of which compile and then misbehave.**
   `Str (B)` on a Buffer answers its PRINTED form, so use `B.Text`; `Buffer (N)`

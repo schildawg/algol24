@@ -11146,6 +11146,137 @@ only in Beta
 exit: 70
 ```
 
+**[MOD-016]**  A file's **own top-level declaration** is resolved before its
+imports. A name a file declares itself means that declaration, whatever an
+imported module exports under the same name — so a module can never change what
+an importing file means by a name the file declares, and [MOD-013]'s ambiguity
+does not arise for such a name at all.
+
+It holds for every kind of declaration against every kind of export. A `var` or
+a `const` wins over an imported subprogram, over an imported enumeration's
+member [ENU-002], and over an imported class; a subprogram wins over an imported
+`var`. The file's own declaration is simply nearer, which is [DCL-003] reaching
+one scope further out — the imports are the scope enclosing the file, and a
+declaration shadows what encloses it.
+
+**It is the silence that makes this worth stating.** An importer whose own
+variable lost to an imported enumeration member read as that member, and every
+assignment to it was discarded with no diagnostic: the name was permanently
+truthy and the arithmetic around it stayed plausible. A program paid out every
+win and charged for no spin that way, with its balance climbing from 5,000 to
+196,576 before anything compared the totals.
+
+    conformance  0211-own-declaration-beats-an-import.a24
+
+##### conformance/0211-own-declaration-beats-an-import.a24
+
+```algol24
+uses 'modules/Named';
+uses 'modules/Middle';
+
+// MOD-016: this file declares both names itself, so each means its own
+// declaration -- not Named's enumeration member and not Named's function.
+var Spinning := False;
+var Money    := 5;
+
+WriteLn (Str (Spinning));
+
+// The assignment reaches the variable.  Resolving the read to the member
+// instead discarded every write in silence and left the name truthy.
+Spinning := True;
+WriteLn (Str (Spinning));
+
+WriteLn (Str (Money));
+
+// An imported name this file declares nothing of is reached as usual.
+WriteLn (Str (Idle));
+
+// And a unit's own const wins inside IT, over a subprogram of that name
+// exported by the unit it imports.
+WriteLn (Str (Run (100)));
+```
+
+```console
+$ algc conformance/0211-own-declaration-beats-an-import.a24
+false
+true
+5
+Idle
+384
+```
+
+**[MOD-017]**  A top-level subprogram **visible in a file** — one the file
+declares, or one an import of that file exports — is resolved before a **member
+of a class declared in the same file**, called by its bare name. A subprogram
+that is **not** visible there does not enter the question, and the member
+answers.
+
+So the same class body means two different things depending on what its own unit
+imports, and nothing else:
+
+```
+unit Boxed;                     unit Crated;
+                                uses 'Sizer';        // exports Size
+
+class Box;                      class Crate;
+  ...                             ...
+  function Size () ...            function Size (N) ...
+  function Report ();             function Report ();
+  begin                           begin
+      Exit Size ();                   Exit Size (3);
+  end                             end                // Sizer's, not the method's
+```
+
+**Visibility is the whole of it, and asking whether a subprogram EXISTS instead
+is a defect.** A unit that imports nothing cannot be reached by a name declared
+in a unit it has never heard of — and treating it as though it could made every
+unit's private method names reserved across every other unit that might ever be
+linked beside it, which no one can check by reading either file. One program
+declaring a camera helper `Measure` replaced an imported font class's
+`Font.Measure` inside that class's own three calls to itself, in a unit the
+program never touched.
+
+**The visible half is sharp and this rule does not soften it.** Where the
+subprogram *is* visible it wins silently, even at the same argument count, so a
+unit that grows a `uses` can change which of two bodies its own method calls
+reach. That is [DCL-003] again and all three processors agree about it; a
+diagnostic would have to be a warning rather than a refusal, since the program
+is well formed.
+
+    conformance  0212-a-visible-subprogram-beats-a-member.a24
+
+##### conformance/0212-a-visible-subprogram-beats-a-member.a24
+
+```algol24
+uses 'modules/Boxed';
+uses 'modules/Crated';
+uses 'modules/Sizer';
+
+// MOD-017: Boxed imports nothing, so Sizer's top-level Size is not visible
+// inside it and Box's own method answers the bare call -- 20, twice its width.
+//
+// Resolving this by whether a subprogram of the name EXISTS anywhere made the
+// method unreachable the moment any unit grew one, with the complaint emitted
+// into Boxed's own output.
+var B := Box (10);
+WriteLn (Str (B.Report ()));
+
+// Crated DOES import Sizer, so the bare call in its method reaches Sizer's Size
+// -- 3, its argument, and not 1000, a hundred times the width.
+var C := Crate (10);
+WriteLn (Str (C.Report ()));
+
+// Reached from here too, since this file imports it.
+WriteLn (Str (Size (7)));
+```
+
+```console
+$ algc conformance/0212-a-visible-subprogram-beats-a-member.a24
+20
+3
+7
+```
+
 ### 15.3 Visibility
 
 **[MOD-009]**  `uses` is **not transitive**. If `A` imports `B` and `B`

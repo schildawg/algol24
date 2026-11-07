@@ -1,0 +1,19 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Its own const is named after a subprogram the unit it imports exports, so
+// every read of Depth here must reach the constant [MOD-016].
+
+unit Middle;
+
+uses 'Shelf';
+
+const Depth := 260;
+
+function Run (Ticks : Integer) : Integer;
+begin
+    var Grow := 1000;
+
+    if Ticks < Depth then Grow := Ticks * 1000 div Depth;
+
+    Exit Grow;
+end
