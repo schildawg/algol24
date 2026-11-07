@@ -31,8 +31,22 @@ built once by CI and downloaded by everyone else. With one, `brew install`
 unpacks a binary in seconds; without one, every user compiles from source.
 
 Bottles are per macOS version and per architecture, so `arm64_sequoia` and
-`arm64_sonoma` are two builds. The formula gains a `bottle do` block of SHAs
+`arm64_tahoe` are two builds. The formula gains a `bottle do` block of SHAs
 that CI writes for you.
+
+⚠️ **THERE IS NO `arm64_sonoma` BOTTLE AND THERE CANNOT BE.** Homebrew tags a
+bottle for the macOS that built it, and the `macos-14` runner image is **gone**
+rather than failing — its last publish was 2026-09-01 where `macos-15` and
+`macos-26` publish weekly. So the bottled set is `arm64_sequoia`,
+`arm64_tahoe` and `x86_64_linux`, and that is exactly what `tests.yml`'s matrix
+builds.
+
+**A Sonoma user therefore compiles from source, and that works.** Verified on
+macOS 14.3.1 arm64 at v0.2.4: `brew install algol24` built in **8 seconds** and
+answered `algc 0.2.4`. Homebrew calls it a *Tier 3 configuration* and says so
+loudly, which reads like a warning and is only a statement that nobody bottles
+for it. The language needs a C compiler and nothing else, which is why building
+from source is cheap enough not to matter.
 
 ⚠️ **Algol-24 bottles unusually well.** A `--ffi` build links against
 `/usr/lib/libffi.dylib` — the *system* libffi — and nothing else:
