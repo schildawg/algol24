@@ -441,6 +441,13 @@ var
     /// occurrence warns once however many times this emitter visits it.
     Warned       : Set;
 
+    /// Built-in thunks already written into this unit, so one is emitted once.
+    ///
+    /// Per UNIT, because a thunk is a static C function and each unit that
+    /// reads the name needs its own.  The VALUE they answer is interned in the
+    /// runtime instead, which is what keeps identity across units [VAL-011].
+    BuiltinThunks : Set;
+
     /// Folded name to the spelling the declaration used [SRC-011].
     ///
     /// Names are matched WITHOUT REGARD TO CASE, and every set this emitter
@@ -543,6 +550,7 @@ begin
         this.UnitAll := Map();
         this.ShadowNames := Set();
         this.Warned := Set();
+        this.BuiltinThunks := Set();
         this.Canonical := Map();
         this.Tests := List();
         this.TestFiles := List();
@@ -1177,6 +1185,14 @@ begin
             Functions := Buffer();
             Setup := Buffer();
             Shells := Buffer();
+
+            // Per UNIT, beside the buffers it writes into.  Left standing
+            // across units, the first unit to read a built-in as a value
+            // emitted the thunk and every later unit referenced it without
+            // declaring one -- 'use of undeclared identifier bq_length' in the
+            // second file.  A thunk is a static C function; each unit needs
+            // its own, and the VALUE is interned in the runtime instead.
+            BuiltinThunks := Set();
 
             Overloaded := OverloadsIn.Get (Str (Unit.Name)) as Set;
             SetsBuilt := Set();
@@ -3167,7 +3183,22 @@ begin
         if not Locals.Contains (Name) and not Globals.Contains (Name)
                                       and not Classes.Contains (FoldCase (Name))
                                       and not Objects.Contains (FoldCase (Name)) then
+        begin
+            // A BUILT-IN read as a value [FUN-011], which is reached only here:
+            // everything a program could declare over the name has been asked
+            // already, and ShadowNames decides whether a declaration took it
+            // over [RT-027].  Without this the name became an
+            // alg_error("Undefined variable ...") stub -- a wrong answer about
+            // a name that is perfectly well defined.
+            if not ShadowNames.Contains (Name) then
+            begin
+                var Held := BuiltinHandle (Name);
+
+                if Held <> '' then Exit Held;
+            end
+
             Exit Missing (Name, TheExpr.Name);
+        end
 
         Exit Guarded (Name, VariableName (Name));
     end
@@ -3514,6 +3545,34 @@ begin
         Exit 'Expected ' + Expected + ' arguments but got ' + Str (Got) + '.';
     end
 
+    /// Writes a set of argument counts as the phrase a complaint names them in:
+    /// '1, 2 or 3'.
+    ///
+    /// Factored out of CountsMessage because a HELD built-in complains at run
+    /// time, where only the phrase can be emitted and the count it got is not
+    /// yet known -- see alg_arity_counts.  One implementation, so the two
+    /// cannot word the same set differently.
+    function CountsPhrase (Counts : List) : String;
+    var
+        Expected : String;
+
+    begin
+        Expected := '';
+
+        for var I := 0; I < Counts.Length; I := I + 1 do
+        begin
+            if I > 0 then
+            begin
+                if I = Counts.Length - 1 then Expected := Expected + ' or ';
+                else                          Expected := Expected + ', ';
+            end
+
+            Expected := Expected + Str (Counts[I]);
+        end
+
+        Exit Expected;
+    end
+
     /// Gets the renames in force while a unit's statements are emitted.
     function RenamesOf (Unit : String, Name : String) : Map;
     var
@@ -3568,6 +3627,140 @@ begin
         Folded := FoldCase (Name);
 
         Exit Folded = 'asserttrue' or Folded = 'assertequal' or Folded = 'fail';
+    end
+
+    /// Emits the value a built-in's name answers when it is READ rather than
+    /// called, or '' where the name is no built-in.
+    ///
+    /// A built-in's name without parentheses is a value, like any subprogram's
+    /// [FUN-011], and this back end used to have no arm for it at all: the name
+    /// fell through to MissingName and became an
+    /// alg_error("Undefined variable 'Length'.") stub -- a WRONG ANSWER, since
+    /// the name is perfectly well defined, where this back end's own rule is to
+    /// refuse by name what it cannot emit.  Both other processors answer it.
+    ///
+    /// The value reaches the SAME alg_* function a direct call reaches, through
+    /// a thunk this emits, so there is no second implementation of a built-in to
+    /// agree with the first forever.  That is the guarantee the interpreter
+    /// keeps by making its built-ins one class with a case, and the machine by
+    /// sending OP_BUILTIN's name to the host's own.
+    ///
+    /// # Satisfies
+    ///
+    /// FUN-011, RT-001
+    function BuiltinHandle (Name : String) : String;
+    var
+        Counts : List;
+        Symbol : String;
+
+    begin
+        Counts := BuiltinCounts (Name);
+
+        if Counts.Length = 0 then Exit '';
+
+        Symbol := Mangle ('bq_', Name);
+
+        if not BuiltinThunks.Contains (Symbol) then
+        begin
+            BuiltinThunks.Add (Symbol);
+            EmitBuiltinThunk (Symbol, Name, Counts);
+        end
+
+        // ALG_ANY_ARITY, because the thunk checks the count itself: a built-in
+        // may answer several counts and which ones is the built-in's business.
+        Exit 'alg_builtin(' + QuoteC (Name) + ', ' + Symbol + ', ALG_ANY_ARITY, NULL)';
+    end
+
+    /// Writes the C thunk a held built-in is called through.
+    ///
+    /// It dispatches on the argument count and complains for itself, which is
+    /// what ALG_ANY_ARITY leaves it to do.  A single count takes alg_arity, so
+    /// the wording is the runtime's own; several take alg_arity_counts, because
+    /// 'Expected 1, 2 or 3 arguments but got 4.' is a sentence alg_arity cannot
+    /// word and an overload set answers 'No matching signature for function.'
+    /// for -- right for a subprogram and wrong here, where the fault is the
+    /// count and nothing about the types.
+    procedure EmitBuiltinThunk (Symbol : String, Name : String, Counts : List);
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (Name);
+
+        Functions.Append ('static Value ' + Symbol
+                        + '(Value **cells, Value *args, int32_t count) {' + #10);
+        Functions.Append ('    (void)cells;' + #10);
+
+        if Folded = 'write' or Folded = 'writeln' then
+        begin
+            // Write and WriteLn take ANY count and join what they are given,
+            // which is what the emitter does at an ordinary call site through
+            // RunTogether -- done here over args, since a held one is called
+            // with a count only the run knows.  Measured: a held Write of no
+            // arguments prints nothing and a held WriteLn of none prints a
+            // blank line.
+            // ⚠️ Write, WriteLn and Halt answer VOID in C where they answer
+            // nil in the language, so a thunk calls them and answers nil
+            // itself rather than returning what they gave.
+            if Folded = 'writeln' then
+                Functions.Append ('    if (count == 0) { alg_writeln_blank(); return alg_nil(); }' + #10);
+            else
+                Functions.Append ('    if (count == 0) return alg_nil();' + #10);
+
+            Functions.Append ('    Value joined = alg_str(args[0]);' + #10);
+            Functions.Append ('    for (int32_t i = 1; i < count; i++)' + #10);
+            Functions.Append ('        joined = alg_add(joined, alg_str(args[i]));' + #10);
+            Functions.Append ('    ' + Builtin (Name, 1) + '(joined);' + #10);
+            Functions.Append ('    return alg_nil();' + #10);
+            Functions.Append ('}' + #10 + #10);
+
+            Exit;
+        end
+
+        for var I := 0; I < Counts.Length; I := I + 1 do
+        begin
+            var Count := Counts[I] as Integer;
+            var Passed := '';
+
+            for var A := 0; A < Count; A := A + 1 do
+            begin
+                if A > 0 then Passed := Passed + ', ';
+
+                Passed := Passed + 'args[' + Str (A) + ']';
+            end
+
+            if VoidBuiltin (Name) then
+                Functions.Append ('    if (count == ' + Str (Count) + ') { '
+                                + Builtin (Name, Count) + '(' + Passed
+                                + '); return alg_nil(); }' + #10);
+            else
+                Functions.Append ('    if (count == ' + Str (Count) + ') return '
+                                + Builtin (Name, Count) + '(' + Passed + ');' + #10);
+        end
+
+        if Counts.Length = 1 then
+            Functions.Append ('    alg_arity(count, ' + Str (Counts[0]) + ');' + #10);
+        else
+            Functions.Append ('    alg_arity_counts(count, '
+                            + QuoteC (CountsPhrase (Counts)) + ');' + #10);
+
+        Functions.Append ('    return alg_nil();' + #10);
+        Functions.Append ('}' + #10 + #10);
+    end
+
+    /// Whether a built-in's runtime call answers void in C.
+    ///
+    /// Write, WriteLn and Halt answer nil in the language [RT-004] and void in
+    /// C, so a thunk must CALL them and answer nil itself.  Returning what they
+    /// gave is 'returning void from a function with incompatible result type'.
+    function VoidBuiltin (Name : String) : Boolean;
+    var
+        Folded : String;
+
+    begin
+        Folded := FoldCase (Name);
+
+        Exit Folded = 'write' or Folded = 'writeln' or Folded = 'halt';
     end
 
     /// Gets the runtime call a built-in maps onto, or '' when it is not one.

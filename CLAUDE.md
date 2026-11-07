@@ -1407,7 +1407,24 @@ arity warning would have diverged every case with a wrong-count call in it,
   The reproduction is three lines of Python and worth keeping: generate N
   statements, run both ways, bisect N. 15 passes, 16 fails.
 
-  ⚠️ **A BUILT-IN held as a value is a CONSTANT, not an opcode.** A built-in
+  ⚠️ **The C BACK END holds one too, as a closure of arity -1.** `alg_builtin`
+interns it by name in the RUNTIME, which is what makes `Length = Length` true
+across units as well as within one — a static per generated unit would make two
+reads two objects, where these compare by identity [VAL-011]. Arity -1 is the
+interpreter's own convention (`Native ('Str', -1)`) and means the callee checks
+the count; gathering cannot stand in for it, because a gathered list and a
+single `List` argument arrive identically. `alg_writeln`, `alg_write` and
+`alg_halt` answer **void** in C, so a thunk calls them and answers nil itself.
+[FUN-011], `conformance/0216`.
+
+⚠️ **The interned table is marked by the collector, and that is REASONED rather
+than demonstrated.** It is a C static holding `Value`s, invisible to the
+collector, and `OBJ_CLOSURE` is both marked and recycled by size class — so the
+marking is necessary by construction. No probe would go red without it, though:
+the released body is never handed back at its own size class, which is case
+0004's trap. Do not remove it on the strength of a green run.
+
+⚠️ **A BUILT-IN held as a value is a CONSTANT, not an opcode.** A built-in
   has no body to enter and no slot of its own, so reading one [FUN-011] pushes
   a `VmBuiltin` carrying its name, and `CallValue` sends that to the same
   `CallBuiltin (Name, Count)` dispatch `OP_BUILTIN` reaches — which is the

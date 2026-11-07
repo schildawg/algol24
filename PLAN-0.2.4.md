@@ -850,7 +850,66 @@ them.
 
 ---
 
-## 11. The C back end cannot hold a built-in as a value
+## 11. The C back end cannot hold a built-in as a value  ·  DONE
+
+**Landed, and the design mirrors the interpreter rather than inventing one.** A
+held built-in is a closure of **arity -1** — which is exactly
+`Native ('Str', -1)`, the interpreter's own convention for a variadic built-in.
+`alg_call` skips its arity check for -1 and the thunk checks for itself.
+
+⚠️ **Gathering was tried first and is WRONG.** A `types` of `List of Any` makes
+`should_absorb` gather any count — but a gathered list and a single `List`
+argument arrive identically, so the thunk could not tell `Str ([1, 2])` from
+`Str (1, 2)`.
+
+**Two small runtime helpers.** `alg_builtin(name, fn, arity, types)` interns by
+name — required and not an optimisation, since these compare by identity
+[VAL-011] — and it interns in the **runtime** so identity holds **across
+units**: a static per generated unit would make `Length` read in one unit a
+different object from one read in another, where the interpreter keeps a single
+native per name in the scope every file encloses. And `alg_arity_counts`,
+because `alg_arity` knows one expected count and an overload set answers
+`No matching signature for function.` — right for a subprogram, wrong here
+where the fault is the count alone.
+
+**Three things the tests caught that reading would not have.**
+
+`alg_writeln`, `alg_write` and `alg_halt` return **void** in C where they answer
+nil in the language, so a thunk calls them and answers nil itself.
+
+`BuiltinThunks` was not reset per unit, so the first unit emitted `bq_length`
+and every later unit referenced it undeclared — `use of undeclared identifier
+bq_length`. Found by the cross-unit interning test, which is the test that only
+exists because interning had to be proven across units.
+
+`RuntimeFolder` picked up a **stale `algol.h`** left beside a scratchpad binary.
+Mine to clean up, but worth recording: `--compile` copies the runtime from
+beside the binary FIRST, so a scratch binary with an old pair next to it
+compiles against the old pair.
+
+⚠️ **ONE THING IS REASONED AND NOT VERIFIED, and this says so rather than
+claiming it.** The interned table is a C static holding `Value`s, invisible to
+the collector, so it is marked in `alg_collect` — and `OBJ_CLOSURE` is both
+marked and recycled by size class, so the marking is necessary by construction.
+But **no probe would go red with the marking removed**: the released body is
+never handed back at its own size class in anything that could be constructed —
+Lists are the wrong band, and churning closures through a nested subprogram did
+not reuse that block either. By this project's own standard a green collector
+result proves nothing until it has been seen red, so the marking stays because
+it is correct and free, not because a test holds it.
+
+**Verified, all three byte-identical**: `Length`, `Copy`, `Str` at one, two and
+three arities, `WriteLn` joining any count, `Length = Length` true and
+`Length = Copy` false, interning across units, every arity complaint word for
+word, and [RT-027]'s split — a declared `Length (A, B)` answers at two
+arguments while the built-in keeps one. `conformance/0216` pins it under
+[FUN-011].
+
+**Clean on the real programs**: shroom-slots' five and the library's twelve
+raise zero warnings and carry only the six `Fail` stubs the assertion exemption
+accounts for.
+
+---
 
 **New, found by probing item 2's edges.** Not in either incoming report, and
 not a reported shape of any of the fifteen.
@@ -908,7 +967,7 @@ late:
 | 6 | ~~**8** — the reference's total~~ **DONE** | documentation, and the script that holds it |
 | 7 | ~~**4** — R-8 and R-10 at compile time~~ **DONE** | changes what the compiler accepts; wants the corpus green first |
 | 8 | ~~**3** — `Token` gains a file~~ **DONE** | touches the seed and both processors' reports |
-| 9 | **11** — a built-in held as a value | found by this sweep, not reported; the C back end gives a wrong answer where its own rule is to refuse |
+| 9 | ~~**11** — a built-in held as a value~~ **DONE** | found by this sweep, not reported; the C back end gives a wrong answer where its own rule is to refuse |
 | 10 | **9**, **10** — R-5's flush; R-13 recorded | the two that are not repairs |
 
 **Every item lands with its conformance case**, written into

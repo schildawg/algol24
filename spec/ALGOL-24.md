@@ -8328,7 +8328,81 @@ captured variables. Two counters made the same way do not share a count.
 assigned to a variable, passed as an argument, stored in a collection, and
 called from wherever it comes to rest.
 
+**A BUILT-IN's name too** [RT-001]. `var F := Length; F ('abc')` **is** host
+`Length` — the value reaches the same operation a direct call reaches, rather
+than a second implementation that would have to agree with the first forever.
+That is the guarantee each processor keeps its own way: the interpreter's
+built-ins are one class with a case, the machine sends `OP_BUILTIN`'s name to
+the host's own, and the C back end calls a thunk onto the same `alg_*`.
+
+**One value serves every count the built-in takes.** `Str` answers one, two or
+three arguments [RT-028], and the held value answers all three; a count none of
+them takes complains exactly as a direct call would —
+`Expected 1, 2 or 3 arguments but got 0.` and not a selection failure, since
+what is wrong is the count and nothing about the types. `Write` and `WriteLn`
+take any count and join what they are given.
+
+**It is INTERNED, and that is required rather than an optimisation.** These
+compare by identity [VAL-011], so `Length = Length` is true only if both reads
+answer one value — and across units as well as within one, since a built-in is
+one name in the one scope every file encloses [MOD-011].
+
+**A declaration of the name still takes over the counts it declares** [RT-027]:
+where a program declares `Length (A, B)`, holding the name answers the
+declaration at two arguments and the built-in keeps one.
+
     unit         Interpret Local Function
+    conformance  0216-a-builtin-held-as-a-value.a24
+
+##### conformance/0216-a-builtin-held-as-a-value.a24
+
+```algol24
+// FUN-011: a subprogram's name without parentheses is a value, and a built-in's
+// name is a name like any other [RT-001].  The C back end had no arm for this
+// at all: the name fell through to 'Undefined variable', which is a WRONG
+// ANSWER about a name that is perfectly well defined.
+var L := Length;
+WriteLn (L ('abcd'));
+
+var C := Copy;
+WriteLn (C ('abcdef', 1, 3));
+
+// One value serves every count the built-in takes [RT-028].
+var S := Str;
+WriteLn (S (7));
+WriteLn (S (2.5, 2));
+
+// Write and WriteLn take any count and join what they are given.
+var W := WriteLn;
+W ('held');
+W ('two', 'args');
+
+// INTERNED: these compare by identity [VAL-011], so two reads of one built-in
+// must answer one value, and two different built-ins must not.
+WriteLn (Str (Length = Length));
+WriteLn (Str (Length = Copy));
+
+// The value reaches the same built-in a direct call reaches, so a wrong count
+// complains exactly as the direct call would.
+try
+    WriteLn (S ());
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0216-a-builtin-held-as-a-value.a24
+4
+bcd
+7
+2.50
+held
+twoargs
+true
+false
+Expected 1, 2 or 3 arguments but got 0.
+```
 
 ##### conformance/0062-subprograms-as-values.a24
 

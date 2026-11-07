@@ -274,6 +274,37 @@ Value alg_property_or(Value receiver, const char *name, Value extension);
 
 typedef Value (*AlgFunction)(Value **cells, Value *args, int32_t count);
 
+/* A BUILT-IN HELD AS A VALUE [FUN-011].  A built-in's name without parentheses
+   is a value like any subprogram's, and reading one answers a callable that
+   reaches the very same alg_* function a direct call reaches -- not a second
+   implementation that would have to agree with the first forever.
+
+   INTERNED BY NAME, and that is not an optimisation: these compare by identity
+   [VAL-011], so 'Length = Length' is true only if both reads answer one object.
+   The emitter calls this at every read and the first call for a name wins; the
+   fn, arity and types are the emitter's own table either way, so a later caller
+   passing the same name necessarily passes the same rest.
+
+   Interning in the RUNTIME rather than in a generated unit is what makes the
+   identity hold across units: a static per unit would make a Length read in one
+   unit a different object from one read in another, where the interpreter keeps
+   a single native per name in the environment every file encloses. */
+Value alg_builtin(const char *name, AlgFunction fn, int32_t arity, const char **types);
+
+/* An arity of -1 in alg_closure means ANY count, the callee checking for
+   itself -- the interpreter's own convention for a variadic built-in.  Only a
+   held built-in uses it. */
+#define ALG_ANY_ARITY (-1)
+
+/* The arity complaint for a built-in that takes SEVERAL counts, where 'expected'
+   is the counts written out -- 'Expected 1, 2 or 3 arguments but got 4.'
+
+   alg_arity cannot word it: it knows one expected count and these have a set of
+   them, and an overload set cannot either -- call_overload answers 'No matching
+   signature for function.', which is right for a subprogram and wrong here,
+   since what is wrong is the COUNT and nothing about the types. */
+void  alg_arity_counts(int32_t got, const char *expected);
+
 Value  *alg_cell(Value initial);
 Value   alg_closure(const char *name, AlgFunction fn, Value **cells, int32_t cell_count, int32_t arity,
                     const char **types);
