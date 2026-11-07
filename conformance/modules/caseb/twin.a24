@@ -1,0 +1,8 @@
+// A fixture for chapter 15, not a conformance case.  See casea/Twin.a24.
+
+unit twin;
+
+function FromLower () : String;
+begin
+    Exit 'from twin';
+end

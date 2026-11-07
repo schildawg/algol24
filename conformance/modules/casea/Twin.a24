@@ -1,0 +1,13 @@
+// A fixture for chapter 15, not a conformance case.
+//
+// Paired with caseb/twin.a24, whose name differs from this one ONLY in case.
+// They need separate directories because one directory cannot hold both on a
+// case-insensitive filesystem -- which macOS and Windows are, and which is
+// the whole reason this is refused rather than left to the platform.
+
+unit Twin;
+
+function FromUpper () : String;
+begin
+    Exit 'from Twin';
+end

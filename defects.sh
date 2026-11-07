@@ -332,14 +332,21 @@ uses 'b/alpha';
 WriteLn (FromUpper ());
 WriteLn (FromLower ());
 EOF
+# ⚠️ The FIRST LINE of each, not the whole output.  All three must say the same
+# thing, and what they say is the 'Uncaught:' sentence -- the [ERROR] excerpt
+# below it is the same text again, and the compiled half is captured from the
+# EMIT rather than from a run, which renders it differently.  Comparing whole
+# outputs reported a divergence where the three agree completely.
+said () { printf '%s' "$1" | sed 's/\x1b\[[0-9;]*m//g' | sed -n '1p'; }
+
 I=$(cd "$D" && "$ALGC" d1.a24 2>&1 || true)
 V=$(cd "$D" && "$ALGVM" d1.a24 2>&1 || true)
 C=$(cd "$D" && compiled "$D" d1.a24)
-if [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+if [ "$(said "$I")" = "$(said "$V")" ] && [ "$(said "$I")" = "$(said "$C")" ]; then
     report D-1 "two units whose names differ only in case" fixed ''
 else
     report D-1 "two units whose names differ only in case" open \
-        "three answers: interpreted '$(printf '%s' "$I" | tr '\n' '/')', machine '$(printf '%s' "$V" | tr '\n' '/')', compiled '$(printf '%s' "$C" | tr '\n' '/')'"
+        "interpreted '$(said "$I")', machine '$(said "$V")', compiled '$(said "$C")'"
 fi
 echo
 

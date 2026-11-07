@@ -35,6 +35,20 @@ v0.2.1 adds the one thing a library needs to BE one: [MOD-002]'s third place,
 so `uses graph;` reaches a library a package manager installed rather than only
 one beside the program. Found by trying to write the formula that installs it.
 
+⚠️ **[MOD-002] is about the LOOKUP only, and [MOD-018] owns the rest.** A unit
+name folds like any other identifier where the language decides anything with
+it: two units whose names differ only in case are one name declared twice, and
+the program is refused on every platform alike. Only whether `uses alpha;`
+*finds* `Alpha.a24` is still the filesystem's.
+
+⚠️ **macOS is the case-INSENSITIVE platform and Linux is the outlier**, which
+is the opposite of the natural guess. Writing `unit.a24` beside `Unit.a24` on
+APFS overwrites it — one file. So a two-unit case clash cannot even be written
+in one directory here, which is why `conformance/modules/casea` and `caseb`
+exist. Folding the *lookup* too would need a directory listing the core has not
+got — see `PROPOSAL-DIRECTORY-LISTING.md`, and note the library's own
+`Directory` is behind three `external`s the seed cannot reach.
+
 What the language still does not have is a library written in Algol-24, which is
 the whole of what *alpha* means here; nothing in the language is provisional.
 

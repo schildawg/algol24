@@ -566,7 +566,52 @@ exist.`
 
 ---
 
-## 6. A unit name is compared case-sensitively
+## 6. A unit name is compared case-sensitively  ·  DONE
+
+**Landed as the split, and the decision turned on a measurement that reversed
+the premise.**
+
+⚠️ **macOS is the case-INSENSITIVE one; Linux is the outlier.** Writing
+`unit.a24` beside `Unit.a24` on this machine's APFS **overwrote** it — one
+file, the first spelling kept, the second write's contents. So the two files
+cannot both exist here, which is why D-1's reproduction needs two directories.
+macOS and Windows fold; only Linux distinguishes. (APFS can be formatted
+case-sensitive, so even one platform is not uniform.)
+
+That settles what the fix had to be: **fold everything the language owns, and
+leave the filesystem what the language does not.**
+
+- **The language owns** the unit registry and the file a back end names after a
+  unit. Two units whose names fold together are one name declared twice, and
+  the program is refused — **identically on all three processors**, which is
+  [MOD-018] and `refusals/0200`.
+- **The filesystem owns** whether `uses alpha;` *finds* `Alpha.a24`.
+  [MOD-002] has always said so, and now says which half it is talking about.
+
+**The refusal is in the PARSER, not in a back end.** `CEmitter`'s existing
+`Two modules named 'X'` is a C-back-end refusal, so folding that alone would
+have left the interpreter running the program and the machine answering
+`Undefined variable`. `ClaimUnit` records each loaded file's folded stem as it
+is first read, which is the one place all three processors pass through. The
+root claims its name too: nothing can import the root, but a back end names a
+file after it like any other.
+
+**The diagnostic names the two paths and no unit name**, because neither file's
+spelling is the name of the clash and the folded spelling is one no file wrote
+[SRC-011].
+
+**`PROPOSAL-DIRECTORY-LISTING.md` carries what this does NOT do.** Folding the
+*lookup* needs the language to enumerate a directory, and [RT-026] gives it no
+way to. `algol24-library` has one — `class Directory` and `Entries`, Turbo
+Pascal's `FindFirst`/`FindNext` as an object — but behind **three `external`
+declarations**, which the module loader cannot reach: it is in the seed, `algc`
+builds without `--ffi` [INI-008], and the library is a separate repository. So
+the capability exists in the language and is unreachable from the one place
+that would make [MOD-002] platform-independent. That asymmetry is the
+proposal's argument, and the C for it is already written and tested in
+`fileffi.c`.
+
+---
 
 **D-1**, and the refusal it needs already exists:
 
@@ -857,7 +902,7 @@ late:
 | --- | --- | --- |
 | 1 | ~~**1** — CEmitter's per-unit tables~~ **DONE** | four defects, one fix, and the only silent wrong answer |
 | 2 | ~~**2** — field of `this` beats a built-in~~ **DONE** | the other divergence; small, and R-5's worst symptom |
-| 3 | **6** — two units differing only in case | a DECISION, not an edit: see the table in item 6 |
+| 3 | ~~**6** — two units differing only in case~~ **DONE** | a DECISION, not an edit: see the table in item 6 |
 | 4 | ~~**5** — R-2's one line, R-4's message~~ **DONE** | smallest things here |
 | 5 | ~~**7** — the runtime pair's version~~ **DONE** | two lines plus the harness line that keeps it true |
 | 6 | ~~**8** — the reference's total~~ **DONE** | documentation, and the script that holds it |

@@ -11155,6 +11155,11 @@ This is stated rather than fixed because the language does not own the
 filesystem. A program that wants to run everywhere spells a module name exactly
 as the file is named.
 
+**This rule is about the LOOKUP, and it is the only part left to the platform.**
+What a found program *means* is the language's, and there the name folds like
+any other identifier: two units whose names differ only in case are one name
+declared twice and the program is refused, on every platform alike [MOD-018].
+
 A module is looked for **beside the importing file first**, then in the working
 directory, then in an **installed library** if there is one. Two directories
 may therefore hold files of one name without either reaching the other's.
@@ -11378,6 +11383,65 @@ true
 5
 Idle
 384
+```
+
+**[MOD-018]**  Two units whose names differ **only in case** are one unit name
+declared twice, and a program reaching both is refused:
+
+```
+Two units whose names differ only in case: 'a/Alpha.a24' and 'b/alpha.a24'.
+A unit name is matched without regard to case.
+```
+
+A unit name is an identifier and identifiers fold [SRC-011]. [MOD-002] leaves
+the *lookup* of a module file to the filesystem, because the language does not
+own the filesystem — but what a found program **means** is the language's, and
+this is that part: the unit registry, and the file a back end names after a
+unit.
+
+**Refused rather than left to the platform**, and the platforms are what force
+it. macOS and Windows fold filenames and Linux does not, so the same two files
+are one file on two of the three — which means the program cannot even be
+*written* on macOS without putting the files in separate directories. Left
+unrefused it meant three different things at once: the interpreter ran it, the
+bytecode machine answered `Undefined variable` for the second unit's exports,
+and the C back end wrote one `.c` for the two units and did not build. None of
+those is a defensible reading of a program, and a language whose names fold
+cannot have its *unit* names fold on two platforms out of three.
+
+**The diagnostic names the two paths and no unit name.** Neither file's
+spelling is the name of the clash, and the folded spelling is one that no file
+wrote — a diagnostic quotes what the program wrote [SRC-011].
+
+**Detected where a file is first READ**, in the module loader, so all three
+processors refuse alike. Re-importing one file is not a clash with itself: a
+path already loaded answers an empty module node [MOD-003] and never reaches
+this.
+
+**What is NOT refused is a case-differing *reference*.** `uses alpha;` finding
+`Alpha.a24` is the lookup [MOD-002] describes, and it still succeeds or fails by
+the filesystem's rules — folding that would need the language to enumerate a
+directory, which [RT-026] gives it no way to do.
+
+    refusals      0200-two-units-differing-only-in-case.a24
+
+##### refusals/0200-two-units-differing-only-in-case.a24
+
+```algol24
+uses 'conformance/modules/casea/Twin';
+uses 'conformance/modules/caseb/twin';
+
+WriteLn (FromUpper ());
+WriteLn (FromLower ());
+```
+
+```console
+$ algc refusals/0200-two-units-differing-only-in-case.a24
+Uncaught: Two units whose names differ only in case: 'conformance/modules/casea/Twin.a24' and 'conformance/modules/caseb/twin.a24'. A unit name is matched without regard to case.
+[ERROR] refusals/0200-two-units-differing-only-in-case.a24: Two units whose names differ only in case: 'conformance/modules/casea/Twin.a24' and 'conformance/modules/caseb/twin.a24'. A unit name is matched without regard to case.
+[ERROR] 2 | uses 'conformance/modules/caseb/twin';
+[ERROR]   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+exit: 70
 ```
 
 **[MOD-017]**  A top-level subprogram **visible in a file** — one the file
