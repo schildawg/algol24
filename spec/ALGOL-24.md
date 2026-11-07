@@ -14006,7 +14006,7 @@ still a failure and must not exit 0 [INI-005].
 **non-blocking**: the program compiles and runs exactly as it would without it,
 and its exit status is unaffected [ERR-009].
 
-**Three warnings are raised.** The first: a call that will select among
+**Five warnings are raised.** The first: a call that will select among
 overloads **at run time** [FUN-013] says so.
 
 ```
@@ -14065,6 +14065,66 @@ renaming either is the other way out.
 ```
 [WARN] spec/warning.a24:57: an operand of 'and' is an Integer, where '&', '|' and '~' are the bitwise operators.
 ```
+
+**The fourth: a call whose argument count matches no declaration of the name.**
+
+```
+[WARN] spec/warning.a24:73: 'Pair' is called with 1 argument(s), which no declaration of it takes.
+```
+
+Every fact needed is in hand while compiling — the parameter list has been
+parsed and so has the argument list — and the call is nevertheless counted when
+the line runs. So a program compiles, links, passes every gate and raises
+`Expected 2 arguments but got 1.` the first time that line is reached. One
+shipped program could not start at all for however long its signature had had
+twelve parameters, because its single call site sat past a `Halt` the unattended
+gate returned before.
+
+**A warning and not a refusal**, because the call is legal: a free name in a
+body is resolved when the body runs [DCL-007], so a call on a path that never
+runs is never counted and refusing it would forbid a program the language
+permits. What is wanted is the cost made visible.
+
+**Narrow, and every guard is load-bearing.** Nothing is said where selection
+could still answer: not for a callee that is not a plain name, not where
+arguments are **named** [FUN-016], and not for a name a **built-in** also
+answers, since a declaration takes over only the counts it declares and the
+built-in keeps the rest [RT-027]. A **gathering** parameter answers its fixed
+count and every greater one [FUN-005]. And nothing is said about a name the
+enclosing class declares as a member: whether a bare call there reaches the
+member or a visible top-level subprogram is decided by visibility [MOD-017],
+which is a per-file question this pass does not answer — so it declines to
+guess. A warning that does not fire costs nothing; a false one costs the
+reader's trust in the other three.
+
+**The fifth: a name that cannot be reached from where it is written**, raised
+while **emitting C**.
+
+```
+[WARN] spec/warning-emitted.a24:16: Undefined variable 'NoSuchName'.
+```
+
+**It belongs to the back end that had the problem.** The interpreter raises the
+moment the line runs and the bytecode machine refuses by name; only the C back
+end wrote the complaint into the program as a stub, so a program compiled,
+linked, passed every gate and aborted the first time a run reached the call.
+It bites hardest off the common path — one project's was in a window setup no
+unit test opens, and another's reached a device where the diagnostic goes to a
+stream nobody reads and the player sees the application vanish. **An error
+deferred to run time is deferred to *whatever* run time, including the ones
+with no console.**
+
+Every fact in the sentence was already in hand: the name is not in scope, and
+the exporting unit had been found in order to name it. Only the moment was
+wrong.
+
+**A warning and not a refusal**, for [DCL-007]'s reason again — a free name on
+a path that never runs is never resolved — and **an assertion outside a test
+run is exempt**, since that stub is deliberate [RT-001] and warning about it
+would warn about every unit that has tests.
+
+Because it is raised while emitting, an interpreted run cannot provoke it: it
+has a fixture of its own, `spec/warning-emitted.a24`, compiled rather than run.
 
 `and`, `or` and `not` test truthiness and yield an *operand* [EXP-010]; `&`,
 `|` and `~` combine bits. A reader arriving from Pascal — where `and` on

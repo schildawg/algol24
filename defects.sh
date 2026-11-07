@@ -237,12 +237,18 @@ echo "4. The compiler knows and waits"
 D=$WORK/r8; mkdir -p "$D"
 printf 'unit helperu;\nfunction Helper () : Integer;\nbegin\n    Exit 7;\nend\n' > "$D/helperu.a24"
 printf "WriteLn ('before');\nWriteLn (Helper ());\n" > "$D/r8.a24"
+# ⚠️ The criterion is a WARNING, not a refusal, and that is the decided shape
+# rather than a compromise.  A free name on a path that never runs is never
+# resolved [DCL-007], so the program is legal and refusing it would forbid what
+# the language permits -- see PLAN-0.2.4.md item 4.  What was wrong was only
+# that nothing said so while compiling.
 rm -rf "$D/out"; mkdir -p "$D/out"
-if "$ALGC" --compile --out="$D/out" "$D/r8.a24" > "$D/emit.log" 2>&1; then
+"$ALGC" --compile --out="$D/out" "$D/r8.a24" > "$D/emit.log" 2>&1 || true
+if grep -q 'WARN.*Undefined variable' "$D/emit.log"; then
+    report R-8 "a name nothing declares compiles without a word" fixed ''
+else
     report R-8 "a name nothing declares compiles without a word" open \
         "--compile said nothing and carried the error into the emitted C"
-else
-    report R-8 "a name nothing declares compiles without a word" fixed ''
 fi
 
 D=$WORK/r10; mkdir -p "$D"
@@ -255,11 +261,12 @@ end
 WriteLn (Three (1, 2));
 EOF
 rm -rf "$D/out"; mkdir -p "$D/out"
-if "$ALGC" --compile --out="$D/out" "$D/r10.a24" > "$D/emit.log" 2>&1; then
+"$ALGC" --compile --out="$D/out" "$D/r10.a24" > "$D/emit.log" 2>&1 || true
+if grep -q 'WARN.*no declaration of it takes' "$D/emit.log"; then
+    report R-10 "a call matching no declared arity compiles and links" fixed ''
+else
     report R-10 "a call matching no declared arity compiles and links" open \
         "one visible declaration taking 3, called with 2, and --compile said nothing"
-else
-    report R-10 "a call matching no declared arity compiles and links" fixed ''
 fi
 
 # ⚠️ The guard on R-10's fix, and it matters more than the fix: selection is at
@@ -284,10 +291,12 @@ WriteLn (F (9));
 WriteLn (Length ('abc'));
 EOF
 rm -rf "$WORK/r10s"; mkdir -p "$WORK/r10s"
-if "$ALGC" --compile --out="$WORK/r10s" "$WORK/r10-sound.a24" >/dev/null 2>&1; then
-    printf '         the four unrefusable call shapes still compile\n'
+"$ALGC" --compile --out="$WORK/r10s" "$WORK/r10-sound.a24" > "$WORK/r10s.log" 2>&1 || true
+if grep -q 'WARN' "$WORK/r10s.log"; then
+    printf '         !! a gathering, overloaded, held or built-in call WARNED -- too wide\n'
+    grep 'WARN' "$WORK/r10s.log" | sed 's/^/            /'
 else
-    printf '         !! a gathering, overloaded, held or built-in call was refused -- too wide\n'
+    printf '         the unrefusable call shapes compile, and none of them warns\n'
 fi
 echo
 

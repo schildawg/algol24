@@ -22,8 +22,10 @@
 /// 'uses'.
 unit CEmitter;
 
+uses Console;
 uses Expr;
 uses ObjFunction;
+uses SourceCode;
 uses Stmt;
 uses TokenType;
 uses Token;
@@ -435,6 +437,10 @@ var
     /// The names taken over entire, by a declaration that is not a subprogram.
     ShadowWhole  : Set;
 
+    /// Names already warned about, keyed by line and folded name, so one
+    /// occurrence warns once however many times this emitter visits it.
+    Warned       : Set;
+
     /// Folded name to the spelling the declaration used [SRC-011].
     ///
     /// Names are matched WITHOUT REGARD TO CASE, and every set this emitter
@@ -536,6 +542,7 @@ begin
         this.UnitExports := Map();
         this.UnitAll := Map();
         this.ShadowNames := Set();
+        this.Warned := Set();
         this.Canonical := Map();
         this.Tests := List();
         this.TestFiles := List();
@@ -3160,7 +3167,7 @@ begin
         if not Locals.Contains (Name) and not Globals.Contains (Name)
                                       and not Classes.Contains (FoldCase (Name))
                                       and not Objects.Contains (FoldCase (Name)) then
-            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+            Exit Missing (Name, TheExpr.Name);
 
         Exit Guarded (Name, VariableName (Name));
     end
@@ -3236,6 +3243,53 @@ begin
     function VisibleSubprogram (Name : String) : Boolean;
     begin
         Exit VisibleDeclared.Contains (Name);
+    end
+
+    /// Emits the stub for a name that cannot be reached from here, and WARNS
+    /// about it.
+    ///
+    /// The stub is still emitted, because refusing would forbid a program the
+    /// language permits: a free name in a body is resolved when the body runs
+    /// [DCL-007], so a name on a path that never runs is never looked up.  What
+    /// was wrong was only that nothing said so while compiling -- every fact in
+    /// the message is in hand here, including which unit exports the name, since
+    /// MissingName searched for it in order to word the sentence.
+    ///
+    /// It cost one project an afternoon and reached a device, where the
+    /// sentence that says exactly what is wrong goes to a stream nobody reads
+    /// and the player sees the application vanish.  An error deferred to run
+    /// time is deferred to WHATEVER run time, including the ones with no
+    /// console.
+    ///
+    /// # Satisfies
+    ///
+    /// [ERR-010]
+    function Missing (Name : String, Where : Token) : String;
+    var
+        Key : String;
+
+    begin
+        // An ASSERTION outside a test run is a stub on purpose, and the
+        // exemption belongs HERE rather than at one of the three call sites:
+        // the site that tests for it is reached third, so a unit declaring a
+        // Fail of its own made the first site warn about the built-in one
+        // instead -- 'Unit ''harness'' exports it; this file has no ''uses''
+        // for it', of a name testing.a24 legitimately uses in its test blocks.
+        // One exemption in the one place every site passes through.
+        if not EmitTests and IsAssertion (Name) then
+            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+
+        Key := 'missing:' + Str (Where.LineNumber) + ':' + FoldCase (Name);
+
+        if not Warned.Contains (Key) then
+        begin
+            Warned.Add (Key);
+
+            Console.Warn (SourceCode.Named (Str (Where.File)) + ':'
+                        + Str (Where.LineNumber) + ': ' + MissingName (Name));
+        end
+
+        Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
     end
 
     /// Builds the message for a name nothing declares.
@@ -3988,7 +4042,7 @@ begin
             Exit Invoking (ThisRef (), Name, Arguments, TheExpr.ArgumentNames);
 
         if Declared.Contains (Name) and not ShadowNames.Contains (Name) then
-            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+            Exit Missing (Name, TheExpr.Callee.Name);
 
         if Declared.Contains (Name) and IsOverloadSet (Name) then
             Exit Calling (SetName (Name), Arguments, TheExpr.ArgumentNames);
@@ -4004,6 +4058,10 @@ begin
         if Globals.Contains (Name) then
             Exit Calling (Read (Name), Arguments, TheExpr.ArgumentNames);
 
+        // SILENT, deliberately: an assertion outside a test run is a stub on
+        // purpose, so warning about it would warn about every unit that has
+        // tests -- six of the library's twelve, every time they are compiled as
+        // ordinary programs.  It is the one stub that is not a latent fault.
         if not EmitTests and IsAssertion (Name) then
             Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
 
@@ -4023,7 +4081,7 @@ begin
                                        and not EnumTypes.Contains (Name)
                                        and not EnumMembers.Contains (Name)
                                        and not AmbiguousMembers.Contains (Name) then
-            Exit '(alg_error(' + QuoteC (MissingName (Name)) + '), alg_nil())';
+            Exit Missing (Name, TheExpr.Callee.Name);
 
         Unsupported ('A call to ''' + Name + '''');
     end

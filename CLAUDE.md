@@ -53,11 +53,25 @@ every later pass treats it as one: a member of the name always wins at a call
 [MOD-015], and `extension` is a context-sensitive identifier rather than a
 keyword [LEX-011].
 
-⚠️ **There are three `[WARN]`s**, all in `ERR-010` and all checked against what
-`algc` prints by `spec/spec.sh` running `spec/warning.a24` — the lines compared
-**in order**. A warning raised and not quoted there fails the run, so adding a
-fourth means editing the rule, the fixture and nothing else. Nothing in
-`compiler/*.a24` raises any of the three.
+⚠️ **There are five `[WARN]`s**, all in `ERR-010` and all checked against what
+`algc` prints by `spec/spec.sh` — the lines compared **in order**. A warning
+raised and not quoted there fails the run, so adding one means editing the
+rule, a fixture and nothing else. Nothing in `compiler/*.a24` or `vm/*.a24`
+raises any of them, which is checked by compiling both.
+
+⚠️ **TWO FIXTURES, because the fifth is raised while EMITTING C.** An
+interpreted run never reaches the C back end, so `spec/warning.a24` cannot
+provoke it however it is written — `spec/warning-emitted.a24` is **compiled**
+for that one, and `spec.sh` appends its warnings after the first fixture's.
+Quote them in that order or the comparison fails on ordering alone.
+
+⚠️ **A warning is the answer where a construct is LEGAL and carries a hidden
+cost, and `conform.sh` is built for it.** `render()` drops `[WARN]` from BOTH
+sides, because the front end is shared and the two processors raise a warning at
+different moments — so a conformance case can exercise a warning but never see
+it, and `spec.sh` is the only thing holding the wording. Without that, the
+arity warning would have diverged every case with a wrong-count call in it,
+`0049` among them.
 
 - `spec/ALGOL-24.md` — **the authority.** Every rule is claimed by a case.
   The implementation is measured against it: where the two disagree,

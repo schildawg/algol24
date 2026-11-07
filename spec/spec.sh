@@ -753,10 +753,20 @@ fi
 # warning at different moments; so a conformance case can exercise the warning
 # but can never see it.  This check is the only thing holding the wording.
 
+# ⚠️ TWO FIXTURES, because one of the warnings is raised while EMITTING C.
+# An interpreted run never reaches the C back end, so spec/warning.a24 cannot
+# provoke it however it is written -- spec/warning-emitted.a24 is compiled for
+# exactly that one, and its line is quoted after the others.  Appending the two
+# runs in that order is what lets a single comparison hold all of them.
 if [ -x bootstrap/algc ]; then
     bootstrap/algc spec/warning.a24 2>/dev/null \
       | sed "s/$(printf '\033')\\[[0-9;]*m//g" \
       | grep '^\[WARN\]' > "$WORK/warn_actual" || true
+
+    mkdir -p "$WORK/emitted"
+    bootstrap/algc --compile --out="$WORK/emitted" spec/warning-emitted.a24 2>&1 \
+      | sed "s/$(printf '\033')\\[[0-9;]*m//g" \
+      | grep '^\[WARN\]' >> "$WORK/warn_actual" || true
 
     awk '/\*\*\[ERR-010\]\*\*/{f=1; next}
          f && /^\*\*\[[A-Z]+-[0-9]+\]\*\*/{exit}

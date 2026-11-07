@@ -358,7 +358,62 @@ red for the fix rather than the bug.
 
 ---
 
-## 4. The compiler knows and waits
+## 4. The compiler knows and waits  ·  DONE
+
+**Landed as two warnings.** `ERR-010` now documents five, and `spec/spec.sh`
+holds every one of them to what is printed.
+
+**R-10** needed almost no new machinery: `CandidatesFor` already knew which
+declarations take a given count, variadics included. It fires on shroom-slots'
+own historical mistake, reproduced by dropping an argument from their `Glitter`
+call — the one their report says was *caught by reading the signature out of
+curiosity, not by any check*:
+
+```
+[WARN] machine.a24:6937: 'Glitter' is called with 6 argument(s), which no declaration of it takes.
+```
+
+**R-8** went in `CEmitter`, where the knowledge already was. Its real sighting:
+
+```
+[WARN] lobby.a24:5: Undefined variable 'LoadTexture'. Unit 'image' exports it; this file has no 'uses' for it.
+```
+
+Only the moment was ever wrong — `MissingName` had already searched for the
+exporting unit in order to word that sentence.
+
+⚠️ **TWO FALSE POSITIVES, both found by measuring and neither by reasoning.**
+Each would have cost the reader's trust in all five warnings.
+
+`ObjFunction.Fits` is a **method** called by its bare name, and `vm/Vm.a24`
+declares a top-level `Fits` — a pair `CLAUDE.md` records as measuring clean.
+The warning compared the call against the wrong declaration entirely, because
+`Overloads` knows only top-level names. Which of the two a bare call reaches is
+decided by **visibility** [MOD-017], a per-file question the checker does not
+answer, so it now declines to guess about any name the enclosing class declares.
+
+`testing.a24` calls the built-in `Fail` where `harness` also exports one, so
+the *missing-uses* site fired **before** the assertion exemption and warned
+about a name used legitimately. The exemption moved into the one helper every
+site passes through.
+
+**Clean across everything measurable**: the compiler, the VM, shroom-slots'
+twelve programs and the library's twelve units raise **zero** warnings between
+them — and none of the unrefusable shapes warns: gathering, both overloads, a
+held subprogram, and a declared built-in name at its own count *and* at the
+built-in's [RT-027].
+
+⚠️ **The fifth warning needed a second fixture.** It is raised while **emitting
+C**, so an interpreted run cannot provoke it however the program is written;
+`spec/warning-emitted.a24` is compiled rather than run, and `spec/spec.sh`
+appends that run's warnings to the first fixture's. Seen red by shifting a line.
+
+**Two smaller things.** `FoldedBuiltins` had to be declared **above** the `var`
+whose initializer calls it — hoisting notwithstanding, it answered
+`Undefined variable` at unit-init time. And `CEmitter` needed `uses Console`
+and `uses SourceCode`; it had used neither before.
+
+---
 
 **The shape is settled and it is a `[WARN]`, not a refusal** — decided on two
 facts rather than in advance.
@@ -806,7 +861,7 @@ late:
 | 4 | ~~**5** — R-2's one line, R-4's message~~ **DONE** | smallest things here |
 | 5 | ~~**7** — the runtime pair's version~~ **DONE** | two lines plus the harness line that keeps it true |
 | 6 | ~~**8** — the reference's total~~ **DONE** | documentation, and the script that holds it |
-| 7 | **4** — R-8 and R-10 at compile time | changes what the compiler accepts; wants the corpus green first |
+| 7 | ~~**4** — R-8 and R-10 at compile time~~ **DONE** | changes what the compiler accepts; wants the corpus green first |
 | 8 | ~~**3** — `Token` gains a file~~ **DONE** | touches the seed and both processors' reports |
 | 9 | **11** — a built-in held as a value | found by this sweep, not reported; the C back end gives a wrong answer where its own rule is to refuse |
 | 10 | **9**, **10** — R-5's flush; R-13 recorded | the two that are not repairs |
