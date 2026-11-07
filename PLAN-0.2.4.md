@@ -338,7 +338,32 @@ case is not legal either. Decide on the measurement, not in advance.
 
 ---
 
-## 5. A diagnostic that carries no location
+## 5. A diagnostic that carries no location  ·  DONE
+
+**Landed. R-2 was a defect against a rule already written**, which is why it
+wanted a case rather than a rule: [ERR-005] says a parse error prints the
+message and a three-line excerpt naming the file, the line and the offending
+token, and `Expect expression!` was the one instance that did not. A rule
+holding for all but one of its instances is how that one survived, so
+`conformance/0214` pins it beside `0100`.
+
+The caret lands on the offending token — `end;` reports at the `;`, which is
+the thing that is wrong.
+
+**R-4 gets no conformance case, deliberately.** It is a *driver* diagnostic
+about a command line rather than a property of a program, and the corpus runs
+programs. `defects.sh` checks it instead. There is no portable directory test
+to ask before writing — `FileExists` opens the path, and `fopen` on a directory
+succeeds on macOS and Linux and fails on Windows, which is the defect
+`installed.sh` exists to guard — so the failure is **caught and named** rather
+than predicted:
+
+```console
+$ algc --compile --out=nodir p.a24
+Uncaught: algc: cannot write into 'nodir'. Does the directory exist?
+```
+
+---
 
 **R-2** is one line. `Expect expression!` is the only parse error raised bare:
 
@@ -421,7 +446,31 @@ owns.
 
 ---
 
-## 7. The runtime pair carries no version
+## 7. The runtime pair carries no version  ·  DONE
+
+**Landed, and the check was seen red in all three directions before being
+trusted.** `ALG_RUNTIME_VERSION 203` in `algol.h`, a `_Static_assert` in
+`algol.c`, and a `spec/spec.sh` section holding both to `compiler/Release.a24`.
+
+A mismatched pair now gives **one** error naming the real fault where it gave
+twenty naming symptoms:
+
+```console
+algol.c:6:1: error: static assertion failed due to requirement '106 == 203':
+             algol.c and algol.h are from different releases
+```
+
+Bumping any one of the three alone turns the gate red, each with its own
+message — `Release.a24 is 0.2.4 (= 204) and algol.h says 203`, and so on. That
+was checked by doing it, because a green check nobody has seen go red proves
+nothing.
+
+⚠️ **The version is 203 and not 204: `Release.a24` still says 0.2.3.** The
+release bump belongs to the release, and the gate now makes it a three-file
+change — which is the point, since a version in two places with nothing
+comparing them is what `Release.a24` was created to end.
+
+---
 
 **R-15.** `--compile` emits `algol.c` and `algol.h` together and they are a
 pair; nothing records which release either came from, and nothing notices when
@@ -457,7 +506,37 @@ other way to arrive here.
 
 ---
 
-## 8. `vm/REFERENCE.md` states a total its own body contradicts
+## 8. `vm/REFERENCE.md` states a total its own body contradicts  ·  DONE
+
+**Landed, and the fix was to DELETE the figure rather than correct it.** A
+number in prose is a claim nothing checks, and this repository's own `OP_LONG`
+rationale once carried a stale nineteen-for-twenty-four in three files at once.
+So the three stale sentences now say *every opcode*, *a file of hand-written
+encodings* and *all but eleven*, and a note at the head says why no count is
+written there.
+
+**`./vm/reference.sh` prints the figure, having counted it** — and the report is
+now a total with a breakdown under it rather than two lines that happen to sum
+to one:
+
+```
+opcodes declared by OpCode.a24 : 80
+  entries agreeing with it     : 79
+  variable-width, shape not compared : 1
+  no entry yet                 : 0
+```
+
+⚠️ **The three parts are DISJOINT, which is exactly why they were misread.** A
+variable-width entry `continue`s before the agreeing count increments, so
+nothing on the page told a reader whether the lines were parts of a whole or
+alternatives to it — and taking the first for the total is how 79 nearly
+reached the website. The script now **asserts that the parts sum to the
+total**, which was seen red by dropping one of them.
+
+`defects.sh` checks for the absence of a count rather than the presence of the
+right one, since stating it correctly today is what went stale before.
+
+---
 
 **D-2**, in the one document whose stated discipline is that it never argues
 with `OpCode.a24`. The file says **78 opcodes** twice; `OpCode.a24` declares 81
@@ -602,9 +681,9 @@ late:
 | 1 | ~~**1** — CEmitter's per-unit tables~~ **DONE** | four defects, one fix, and the only silent wrong answer |
 | 2 | ~~**2** — field of `this` beats a built-in~~ **DONE** | the other divergence; small, and R-5's worst symptom |
 | 3 | **6** — two units differing only in case | a DECISION, not an edit: see the table in item 6 |
-| 4 | **5** — R-2's one line, R-4's message | smallest things here |
-| 5 | **7** — the runtime pair's version | two lines plus the harness line that keeps it true |
-| 6 | **8** — the reference's total | documentation, and the script that holds it |
+| 4 | ~~**5** — R-2's one line, R-4's message~~ **DONE** | smallest things here |
+| 5 | ~~**7** — the runtime pair's version~~ **DONE** | two lines plus the harness line that keeps it true |
+| 6 | ~~**8** — the reference's total~~ **DONE** | documentation, and the script that holds it |
 | 7 | **4** — R-8 and R-10 at compile time | changes what the compiler accepts; wants the corpus green first |
 | 8 | **3** — `Token` gains a file | touches the seed and both processors' reports |
 | 9 | **11** — a built-in held as a value | found by this sweep, not reported; the C back end gives a wrong answer where its own rule is to refuse |

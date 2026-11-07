@@ -2397,8 +2397,8 @@ begin
     ///
     /// # Raises
     ///
-    /// 'Expect expression!' for a token that starts none, and
-    /// 'Expect '')'' after expression.' for an unclosed group.
+    /// 'Expect expression!' for a token that starts none, reported against that
+    /// token, and 'Expect '')'' after expression.' for an unclosed group.
     ///
     /// # Satisfies
     ///
@@ -2444,7 +2444,13 @@ begin
 
             Exit GroupingExpr (TheExpr);
         end
-        raise 'Expect expression!';
+        // Through Error, like every other parse error, so it carries the file,
+        // the line, the source and a caret.  Raised bare, it was the ONE parse
+        // error reported as a sentence alone -- and it is the one a semicolon
+        // after 'end' produces, which is the most likely typo in a
+        // Pascal-shaped language.  Error answers the message, so what is raised
+        // is unchanged and a handler comparing it still matches.
+        raise Error (Peek (), 'Expect expression!');
     end
 
     /// Consumes the next token when it is of this kind, and answers whether it

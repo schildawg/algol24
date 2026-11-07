@@ -1784,6 +1784,22 @@ All seven must pass. They are the definition of done.
 ./installed.sh     # a program reaches an installed unit by name
 ```
 
+⚠️ **`spec/spec.sh` now also holds the RELEASE in its three places.**
+`compiler/Release.a24`'s `VERSION`, `bootstrap/algol.h`'s
+`ALG_RUNTIME_VERSION` and the `_Static_assert` in `bootstrap/algol.c` must
+agree, so bumping the release is a three-file change or the gate goes red.
+Both halves of the runtime are hand-written and copied verbatim by `--compile`,
+so nothing derives either number — this check is the only thing that keeps them
+in step, and it was seen red in all three directions before being trusted.
+
+⚠️ **The runtime pair is a PAIR, and a mismatched one used to read as a corrupt
+runtime.** `--compile` emits `algol.c` and `algol.h` together and the body uses
+what the header declares. Anything assembling a build out of both the
+compiler's output and a checkout of the compiler can take one of each — a
+project packaging for Android did, and got twenty `cc` errors beginning
+`call to undeclared function 'alg_collect'`, none of which said *two versions*.
+The assertion makes it one line.
+
 ⚠️ **`./installed.sh` asks the one question every other gate assumes away.**
 They all run from the repository root with a program's modules beside it, so
 none of them asks whether a program in some *other* directory can reach a unit

@@ -12446,8 +12446,17 @@ WriteLn (Mod (7, 3));
 ```console
 $ algc refusals/0179-mod-was-removed.a24
 Uncaught: Expect expression!
+[ERROR] refusals/0179-mod-was-removed.a24: Expect expression!
+[ERROR] 1 | WriteLn (Mod (7, 3));
+[ERROR]   |          ^^^
 exit: 70
 ```
+
+This case **recorded the locationless form** until `Expect expression!` was made
+to go through the located path every other parse error takes [ERR-005], and it
+is what caught the change. The caret falls on `Mod`, which is the word that is
+wrong — `mod` is a keyword [LEX-010], so the name is not available to be a
+function and the parse stops there.
 
 **[RT-012]**  `clock()` answers the seconds since the epoch as a **Double**, at
 millisecond resolution.
@@ -13743,6 +13752,37 @@ Uncaught: Expect variable name.
 [ERROR] conformance/0100-parse-error-shape.a24: Expect variable name.
 [ERROR] 1 | var := 1;
 [ERROR]   | ^^^
+exit: 70
+```
+
+**EVERY parse error, with no exception.** One was raised bare for a long time —
+`Expect expression!`, from where the recursive descent bottoms out — so it
+printed the sentence on stderr and nothing at all on either stream saying where.
+That is the error a **semicolon after `end`** produces, which is the most likely
+typo in a language of this shape, and the message alone narrows nothing in a
+file of any size. A second case pins it, because a rule holding for all but one
+of its instances is how that one survived.
+
+    conformance  0214-every-parse-error-is-located.a24
+
+##### conformance/0214-every-parse-error-is-located.a24
+
+```algol24
+// ERR-005: a parse error prints the message and a three-line excerpt.  This is
+// the one that did not -- a semicolon after 'end', which is the most likely
+// typo in a Pascal-shaped language and was reported as a bare sentence on
+// stderr with nothing on either stream saying where.
+begin
+    WriteLn (1);
+end;
+```
+
+```console
+$ algc conformance/0214-every-parse-error-is-located.a24
+Uncaught: Expect expression!
+[ERROR] conformance/0214-every-parse-error-is-located.a24: Expect expression!
+[ERROR] 7 | end;
+[ERROR]   |    ^
 exit: 70
 ```
 

@@ -1,5 +1,11 @@
 #include "algol.h"
 
+/* The header this body was written against.  See ALG_RUNTIME_VERSION there for
+   why a mismatched pair is worth one line of diagnostic rather than twenty of
+   symptom. */
+_Static_assert (ALG_RUNTIME_VERSION == 203,
+                "algol.c and algol.h are from different releases");
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

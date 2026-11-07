@@ -350,13 +350,22 @@ echo "8. vm/REFERENCE.md states a total its own body contradicts"
 DECLARED=$(grep -c '^const OP_' "$ROOT/vm/OpCode.a24")
 REAL=$((DECLARED - 1))
 ENTRIES=$(grep -c '^## OP_' "$ROOT/vm/REFERENCE.md")
-if grep -qE "\*\*$REAL opcodes\*\*" "$ROOT/vm/REFERENCE.md" \
-   && ! grep -qE '\*\*7[0-9] opcodes\*\*' "$ROOT/vm/REFERENCE.md"; then
+
+# ⚠️ FIXED means the file states NO count, not that it states the right one.
+# A number in prose is a claim nothing checks, and the right fix was to delete
+# the figure and let ./vm/reference.sh print it -- this repository's own OP_LONG
+# rationale carried a stale nineteen-for-twenty-four in three files at once.
+# So this looks for any surviving '**N opcodes**' at all.
+STALE=$(grep -oE '\*\*[0-9]+ opcodes\*\*' "$ROOT/vm/REFERENCE.md" | head -1)
+
+if [ -z "$STALE" ] && [ "$REAL" -eq "$ENTRIES" ]; then
     report D-2 "the reference's stated opcode total" fixed ''
-else
-    STATED=$(grep -oE '\*\*[0-9]+ opcodes\*\*' "$ROOT/vm/REFERENCE.md" | head -1)
+elif [ -n "$STALE" ]; then
     report D-2 "the reference's stated opcode total" open \
-        "OpCode.a24 has $REAL instructions and the reference carries $ENTRIES entries, under a heading saying $STATED"
+        "OpCode.a24 has $REAL instructions and the reference carries $ENTRIES entries, under a heading saying $STALE"
+else
+    report D-2 "the reference's stated opcode total" open \
+        "no count is stated, but OpCode.a24 has $REAL instructions and the reference carries $ENTRIES entries"
 fi
 echo
 

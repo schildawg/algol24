@@ -1,14 +1,21 @@
 # The Algol-24 Bytecode Reference
 
-All **78 opcodes** of the bytecode machine, one uniform entry each, in the
+**Every opcode** of the bytecode machine, one uniform entry each, in the
 shape of the 1987 IBM Macro Assembler 2.00 reference. Written toward an
 assembly-like front end that would make these mnemonics syntax a program can
 be written in, rather than names internal to the back end.
 
+⚠️ **NO OPCODE COUNT IS WRITTEN IN THIS FILE, and that is deliberate.** The
+head of it used to say *78 opcodes* while `OpCode.a24` declared 80 and this
+file carried 80 entries — its own body disagreeing with its own opening
+sentence. `./vm/reference.sh` prints the figure, having counted it; a number in
+prose is a claim nothing checks, and this repository's own `OP_LONG` rationale
+once carried a stale nineteen-for-twenty-four in three files at once.
+
 ⚠️ **`vm/OpCode.a24` is the authority and this file never argues with it.**
 Every encoding below is written by hand, so each is a claim about a number and
-an operand layout the machine already knows — and 78 hand-written encodings
-with nothing checking them would drift inside two increments. So
+an operand layout the machine already knows — and a file of hand-written
+encodings with nothing checking them would drift inside two increments. So
 `./vm/reference.sh` compares each entry's number, operand letters, byte count
 and stack effect against `OpCode.a24`, and `vm/Vm.a24`'s own tests hold the
 stack effect to a RUN. An entry is therefore two steps from something that
@@ -51,7 +58,7 @@ them and leave it there [EXP-017].
 
 ⚠️ **Of the three, two are measured and one is description.** `pushes - pops`
 is what a run reveals, and `needs` is what running one value shallower reveals.
-Both are asserted against the machine for **67 of the 78 opcodes**; the other
+Both are asserted against the machine for **all but eleven** opcodes; those
 eleven are named in `vm/Vm.a24` with the reason each cannot be run in
 isolation, and a test fails if an opcode has neither a measurement nor a
 reason — so the coverage cannot shrink in silence.

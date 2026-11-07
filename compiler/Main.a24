@@ -240,7 +240,23 @@ begin
         var Out := TextFile();
 
         Out.Assign (OutDir + '/' + Str (Name));
-        Out.Rewrite();
+
+        // A missing directory and an unwritable one both arrive here as
+        // 'Rewrite failed: cannot open DIR/X.h', which names a file nobody
+        // asked about and sends the reader after a permission or a name
+        // problem rather than a missing mkdir.  There is no portable directory
+        // test to ask first -- FileExists OPENS the path, and fopen on a
+        // directory succeeds on macOS and Linux and fails on Windows, which is
+        // the defect installed.sh exists to guard -- so the failure is caught
+        // and named instead of predicted.
+        try
+            Out.Rewrite();
+        except
+            on e : String do
+                raise 'algc: cannot write into ''' + OutDir
+                    + '''. Does the directory exist?';
+        end
+
         Out.Write (Str (TheFiles.Get (Name)));
         Out.Close();
     end

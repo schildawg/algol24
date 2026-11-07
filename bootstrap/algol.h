@@ -1,6 +1,31 @@
 #ifndef ALGOL_H
 #define ALGOL_H
 
+/* WHICH RELEASE THIS HEADER IS, so the body cannot be a different one.
+   Encoded major * 10000 + minor * 100 + patch, so 0.2.3 is 203 and it only
+   ever increases.
+
+   algol.c and algol.h are a PAIR -- the body uses what the header declares --
+   and --compile emits them together.  Nothing stopped a build taking one of
+   each: anything that assembles a program out of both the compiler's output
+   and a checkout of the compiler itself can, and a project packaging for
+   Android did exactly that.  A v0.2.3 body against a 0.1.6 header gave twenty
+   cc errors, the first two being 'call to undeclared function alg_collect' and
+   'no member named marked in Obj'.  Not one of the twenty said "two
+   versions"; they read as a corrupt runtime, and the first guess was a bad
+   checkout.
+
+   The _Static_assert in algol.c turns all twenty into one line naming the real
+   fault.  It also catches a stale generated directory left by an earlier
+   compiler, which is the other way to arrive here.
+
+   ⚠️ NOTHING DERIVES THIS FROM compiler/Release.a24, because both halves of
+   the runtime are hand-written and copied verbatim.  spec/spec.sh holds the
+   three to each other instead, so bumping the release bumps this too or the
+   gate goes red -- which is the whole point, since a version in two places
+   with nothing comparing them is what Release.a24 was created to end. */
+#define ALG_RUNTIME_VERSION 203
+
 /* glibc hides POSIX behind a feature test, and -std=c11 asks for it to: the
    flag defines __STRICT_ANSI__, which suppresses the _DEFAULT_SOURCE glibc
    would otherwise assume.  Every build line this project documents says

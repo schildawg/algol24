@@ -3135,7 +3135,7 @@ static Value m_parser_primary_0(Value v_this, Value *args, int32_t count) {
             return ret_218;
         }
     }
-    alg_raise(alg_string("Expect expression!"));
+    alg_raise(alg_invoke(v_this, "Error", (Value[]){alg_invoke(v_this, "Peek", NULL, 0), alg_string("Expect expression!")}, 2));
     Value ret_219 = alg_nil();
     alg_root_top = rt_base;
     return ret_219;
