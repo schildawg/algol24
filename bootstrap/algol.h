@@ -2,7 +2,7 @@
 #define ALGOL_H
 
 /* WHICH RELEASE THIS HEADER IS, so the body cannot be a different one.
-   Encoded major * 10000 + minor * 100 + patch, so 0.2.3 is 203 and it only
+   Encoded major * 10000 + minor * 100 + patch, so 0.2.4 is 204 and it only
    ever increases.
 
    algol.c and algol.h are a PAIR -- the body uses what the header declares --
@@ -24,7 +24,7 @@
    three to each other instead, so bumping the release bumps this too or the
    gate goes red -- which is the whole point, since a version in two places
    with nothing comparing them is what Release.a24 was created to end. */
-#define ALG_RUNTIME_VERSION 203
+#define ALG_RUNTIME_VERSION 204
 
 /* glibc hides POSIX behind a feature test, and -std=c11 asks for it to: the
    flag defines __STRICT_ANSI__, which suppresses the _DEFAULT_SOURCE glibc

@@ -5,7 +5,7 @@
 # Fifteen defects reported by two projects using the language -- shroom-slots
 # (R-1..R-15) and algol24.com (D-1, D-2) -- each reduced to the smallest program
 # that shows it, and each run under whichever processors disagree.  See
-# PLAN-0.2.4.md, where the same numbering carries the root cause for each.
+# finished/PLAN-0.2.4.md, where the same numbering carries the root cause for each.
 #
 # Plus what working through them has FOUND, which carries no R- or D- number
 # because nobody reported it: BI-1, a built-in held as a value.  A sweep that
@@ -240,7 +240,7 @@ printf "WriteLn ('before');\nWriteLn (Helper ());\n" > "$D/r8.a24"
 # ⚠️ The criterion is a WARNING, not a refusal, and that is the decided shape
 # rather than a compromise.  A free name on a path that never runs is never
 # resolved [DCL-007], so the program is legal and refusing it would forbid what
-# the language permits -- see PLAN-0.2.4.md item 4.  What was wrong was only
+# the language permits -- see finished/PLAN-0.2.4.md item 4.  What was wrong was only
 # that nothing said so while compiling.
 rm -rf "$D/out"; mkdir -p "$D/out"
 "$ALGC" --compile --out="$D/out" "$D/r8.a24" > "$D/emit.log" 2>&1 || true
@@ -451,7 +451,7 @@ echo "----------------------------------------------------------------"
 printf '%s reproducing, %s fixed, of %s checked\n' "$OPEN" "$FIXED" "$((OPEN + FIXED))"
 echo
 if [ "$OPEN" -gt 0 ]; then
-    echo "Not green yet.  PLAN-0.2.4.md carries the root cause for each."
+    echo "Not green yet.  finished/PLAN-0.2.4.md carries the root cause for each."
     exit 1
 fi
 echo "Green: every reported defect is fixed."

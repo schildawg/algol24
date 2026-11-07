@@ -1,5 +1,5 @@
 /// A unit whose subprograms hand-written C calls directly, which is what the
-/// C dispatch loop in PROPOSAL-VM.md item 0b would need.
+/// C dispatch loop in finished/PROPOSAL-VM.md item 0b would need.
 ///
 /// Nothing here is marked for export and nothing needs to be: a top-level
 /// subprogram of a UNIT that is not private already reaches the unit's header

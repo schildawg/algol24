@@ -16,4 +16,4 @@ unit Release;
 /// Nothing checks it against the git tag, which is the one thing in this
 /// repository verified by nobody -- so it is bumped by hand before tagging,
 /// and it lives in the seed, which makes bumping it a reseed.
-const VERSION := '0.2.3';
+const VERSION := '0.2.4';

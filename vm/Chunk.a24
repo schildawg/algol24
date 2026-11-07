@@ -293,7 +293,7 @@ begin
     /// The distance is not known yet -- that is the whole problem a forward
     /// jump poses -- so two placeholder bytes go down and PatchJump replaces
     /// them once the landing place exists.  This is clox's backpatching, and
-    /// it is the mechanism PROPOSAL-VM.md says to take from it.
+    /// it is the mechanism finished/PROPOSAL-VM.md says to take from it.
     ///
     /// # Examples
     ///

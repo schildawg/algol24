@@ -1,5 +1,17 @@
 # Proposal: A Garbage Collector for the Compiled Runtime
 
+> **FINISHED — decided and built in v0.2.0.** A precise collector runs under
+> every processor: `CEmitter` emits the module-level roots and the shadow stack
+> that makes an Algol-24 local one, and the machine's roots come free from that.
+> `./collector.sh` is the harness.
+>
+> ⚠️ **The tree walker declined to collect until v0.2.4**, for a reason this
+> document is the origin of — live values in C locals — which the shadow stack
+> overtook. It collects now, at 2.8× less memory for about 9% more time.
+>
+> **What remains open:** the four questions at the end, about arena size
+> classes and region lifetimes. They were future work then and are now.
+
 **From:** the language project. `bootstrap/algol.c`'s allocator has never freed
 anything, and `vm/` has been reserved since the first commit for "a bytecode VM
 with a real GC".

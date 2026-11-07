@@ -1,7 +1,7 @@
 # Proposal: a directory listing in the core
 
 **Status:** proposed, not decided. Written 2026-11-07, out of
-`PLAN-0.2.4.md` item 6.
+`finished/PLAN-0.2.4.md` item 6.
 
 [RT-026] gives the core four directory built-ins — `MkDir`, `RmDir`, `ChDir`,
 `GetDir` — and no way to **list** one. This proposes a fifth.

@@ -16,7 +16,7 @@ an old thing, when the old-looking surface is the deliberate part and the
 capability behind it is the point. Pascal may be named as the *syntax's*
 lineage, never as the language's identity.
 
-**v0.2.3.** The language is **stable, not closed**: it changes only on measured
+**v0.2.4.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal. That
 is the whole policy, and it replaces the sentence this file used to carry about
 the language being done — which had to be rewritten at every release that
@@ -109,6 +109,14 @@ arity warning would have diverged every case with a wrong-count call in it,
   next run removes, and writing one there looked like the files being eaten by
   something. The point is that a case and the rule it demonstrates cannot
   drift: they are the same text.
+- `RELEASES.md` — the cumulative release notes, newest first. What changed in
+  each version and why, written for someone deciding whether to upgrade and for
+  whoever maintains the website. **A release updates this**, and it quotes no
+  counts for the reason nothing else here does.
+- `finished/` — proposals and plans whose subject has been built. Each carries a
+  header saying what it decided, when that landed, and **what remains open**,
+  because several still carry live questions. A proposal that was refused or is
+  still open stays in the root.
 - `spec/DOCUMENTATION.md` — how `///` doc comments are written here.
 - `examples/hello-scripts/` — a pie chart and Unicode text drawn into an SDL2
   window by an Algol-24 program.
@@ -291,7 +299,7 @@ arity warning would have diverged every case with a wrong-count call in it,
   front end would otherwise invite exactly that.
 
   ⚠️ **The STACK section is now THREE terms and two of them are measured.**
-  `OpStack` declares `pops pushes needs` for all 78 opcodes, `vm/reference.sh`
+  `OpStack` declares `pops pushes needs` for every opcode, `vm/reference.sh`
   holds each entry to it, and `vm/Vm.a24` holds the declaration to a RUN — so
   an entry is two steps from something that executes. `pushes - pops` is what a
   run reveals; `needs` is what running one value shallower reveals, since `Pop`
@@ -305,8 +313,8 @@ arity warning would have diverged every case with a wrong-count call in it,
   the top without taking it, which is every assignment opcode [EXP-017] as well
   as `OP_DUP`.
 
-  ⚠️ **67 of the 78 opcodes are held to their declaration by a RUN, and the
-  other 11 are NAMED.** The gap is a declared `Unmeasurable` set compared
+  ⚠️ **All but ELEVEN opcodes are held to their declaration by a RUN, and the
+  eleven are NAMED.** The gap is a declared `Unmeasurable` set compared
   against `OP_COUNT`, so an opcode added with neither a measurement nor a
   reason fails — and a name declared unmeasurable that IS measured fails too,
   since a stale exemption quietly shrinks what the test checks. Both
@@ -488,7 +496,7 @@ arity warning would have diverged every case with a wrong-count call in it,
   the `OP_CELL` every other local-declaring site emits — so in a frame that
   declares a nested subprogram the handler's own first read answered
   `Undefined property 'Held'`, naming `VmCell`'s field at a program that has no
-  such name. **Any `try` in such a frame was broken**, and 265 corpus cases
+  such name. **Any `try` in such a frame was broken**, and the corpus of the day
   reach none of them. `conformance/0209` is the case.
 
   ⚠️ **`DeclaresNested` walked the handler ARM rather than its BODY**, which
@@ -571,7 +579,7 @@ arity warning would have diverged every case with a wrong-count call in it,
   call for `Init` where an invoke and a `super` call pass `true`, and the
   machine carried an `ENTERING_INIT` flag put there deliberately to match the
   other two. Three identical wrong answers are no divergence, which is why
-  nothing caught it — not 196 conformance cases, not the differential habit.
+  nothing caught it — not the corpus, not the differential habit.
   `conformance/0204` is the case now.
 
   ⚠️ **An unchecked parameter is where a WRONG ANNOTATION lives, and the
@@ -1039,7 +1047,7 @@ arity warning would have diverged every case with a wrong-count call in it,
   `Set`, `Array`, `Buffer`, `Stack` and `TextFile` hand back a **host** object
   in an arena that never frees. Deliberate for now and matching the
   interpreter, but it is exactly what the `Buffer` guest heap in
-  `PROPOSAL-GC.md` exists to fix.
+  `finished/PROPOSAL-GC.md` exists to fix.
 
   ⚠️ **An Algol-24 LOCAL is a GC root, and `CEmitter` emits the shadow stack
   that makes it one.** `alg_roots` covers module-level variables, whose
@@ -1283,7 +1291,7 @@ arity warning would have diverged every case with a wrong-count call in it,
   ⚠️ **THE MACHINE COMPILES THE COMPILER, and the output IS the seed.**
   `algvm compiler/Main.a24 --compile --out=DIR compiler/Main.a24` emits C
   byte-identical to `bootstrap/algc`'s own emission and to every generated file
-  in `bootstrap/` — and that C builds into a compiler passing all 245 tests.
+  in `bootstrap/` — and that C builds into a compiler passing its whole suite.
   30.85 s against 1.77 s native, so **17.4×**, well above `Fib`'s 6.9×:
   compilation allocates where `Fib` computes. Peak 3.07 GB resident, and the
   frame stack never goes deeper than **272**.
@@ -1627,7 +1635,7 @@ the released body is never handed back at its own size class, which is case
 
   `vm/spike/` holds the programs that
   measured whether it is worth writing, and **`vm/spike/measure.sh` reproduces
-  every figure** in `PROPOSAL-VM.md` in about ten minutes — so run it rather
+  every figure** in `finished/PROPOSAL-VM.md` in about ten minutes — so run it rather
   than trusting a number quoted in prose. The short of it: an Algol-24 dispatch
   loop compiled to C runs about **12× slower** than the same work compiled
   directly, which is what the proposal weighs. Reserved for a real GC, because
@@ -1645,7 +1653,7 @@ the released body is never handed back at its own size class, which is case
   quoted without its workload is useless: 42% on a tight arithmetic loop, 24% on
   a VM dispatch loop, **3% on `algc --test` and 1% on `algc --compile`**. It
   removes call overhead, so it helps exactly where the callee does little. Do
-  not repeat the 42% as though it were general -- `PROPOSAL-VM.md` did, and it
+  not repeat the 42% as though it were general -- `finished/PROPOSAL-VM.md` did, and it
   was wrong.
 
   ⚠️ **The frame budget is MEASURED on the machine now, and the Inn misses 30
@@ -1740,8 +1748,8 @@ precise-roots and shadow-stack work that landed after it was written — exactly
 the missing-root class it described. The note that replaced *that* one said
 flipping the default was unlicensed because the evidence was "a scripted walk,
 headless video, one path through the game". That is what the flip answered:
-**265 corpus cases (0 diverged), `algol24-library`'s 836 tests across ten
-units, shroom-slots' `verify.a24` 59 lines identical to the interpreter, the
+**the whole corpus (0 diverged), `algol24-library`'s suite across every
+unit, shroom-slots' `verify.a24` 59 lines identical to the interpreter, the
 compiler's own self-compile byte-identical, and the Inn closing cleanly at 400
 frames — 19 fps against 20.** An explicit `Collect ()` was always unaffected
 and works either way.
@@ -1832,19 +1840,49 @@ runs every test block reachable from `X.a24`, its imports included — the
 narrowest thing you can run is a leaf module. `compiler/Token.a24` (2 tests) is a
 useful fast loop; `compiler/Main.a24` imports everything.
 
-## The seven harnesses
+## The harnesses
 
-All seven must pass. They are the definition of done.
+All of them must pass. They are the definition of done.
 
 ```sh
 ./test.sh          # the unit tests, inline in the source they cover
 ./conform.sh       # the corpus, under BOTH processors
-./spec/spec.sh     # every rule cites something that exists
+./spec/spec.sh     # every rule cites something that exists; the release agrees
 ./fixedpoint.sh    # the seed matches what the compiler emits, and emits itself
 ./docs.sh          # every unit is documented per spec/DOCUMENTATION.md
 ./collector.sh     # the collector keeps what a program holds, both ways
 ./installed.sh     # a program reaches an installed unit by name
+./defects.sh       # every defect a project using the language reported
 ```
+
+And the machine's three, which `test.sh`'s default root does not reach:
+
+```sh
+./test.sh vm/Vm.a24   # the machine's own tests
+./vm/conform.sh       # the corpus on the machine, both corpora
+./vm/reference.sh     # every opcode entry agrees with OpCode.a24
+```
+
+⚠️ **The count used to be in this heading and went stale twice.** There were
+six, then seven, then eight; a number in a heading is a claim nothing checks,
+which is the same rule this file applies to every other count.
+
+⚠️ **`./defects.sh` is the newest and is a REGRESSION gate rather than a
+development one.** It carries every defect `shroom-slots` and `algol24.com`
+reported — sixteen — each reduced to the smallest program that shows it, and it
+was written red and finished green. Seven of them divide the processors, so
+those checks compare the three answers to each other rather than to recorded
+text: a divergence has no single expected output, and comparing is what stays
+honest if the right answer is later decided differently than the script
+guessed.
+
+⚠️ **It caught two things neither corpus did**, which is the argument for
+keeping it. A **stale `vm/algvm`** — both binaries link the hand-written
+`algol.c`, and `vm/conform.sh` builds its own `algc` while using the
+checked-in machine, so a stale machine passes there and fails a three-way
+comparison. And the **error-stub grep** over emitted C, which `shroom-slots`
+added after one cost it an afternoon and which found three latent aborts on its
+first run.
 
 ⚠️ **`spec/spec.sh` now also holds the RELEASE in its three places.**
 `compiler/Release.a24`'s `VERSION`, `bootstrap/algol.h`'s
@@ -1866,7 +1904,7 @@ The assertion makes it one line.
 They all run from the repository root with a program's modules beside it, so
 none of them asks whether a program in some *other* directory can reach a unit
 installed somewhere else. Two portability defects hid in that gap and neither
-was reachable from any of the 265 corpus cases: `FolderOf` cut a path at `/`
+was reachable from any corpus case of the day: `FolderOf` cut a path at `/`
 alone, so a Windows binary found no install prefix at all; and `FileExists`
 OPENS the path, and `fopen` on a **directory** succeeds on macOS and Linux and
 fails on Windows, so a tested `lib` was found on two platforms and not the
@@ -2060,7 +2098,7 @@ root per block is the nearest measured comparison. **What a program gets
 instead is the machine**, which runs the same program and can disassemble it:
 `--list`, `--trace N` and `--watch TEXT`. That is the division of labour
 `algvm` exists for. The interpreter and the machine ARE expected to carry a
-location and do not yet, which is a defect — `PROPOSAL-RUNTIME-LOCATION.md`.
+location and do not yet, which is a defect — `finished/PROPOSAL-RUNTIME-LOCATION.md`.
 
 ⚠️ **A RUNTIME ERROR NAMES ITS FILE AND LINE in the tree walker and the
 machine, and NOT in compiled Algol-24** [ERR-003]. The location is a SECOND
@@ -2224,6 +2262,11 @@ inline. Language points that bite when editing:
 - ⚠️ **`>>` is not `div`.** It floors where `div` truncates toward zero, so
   `-7 >> 1` is -4 and `-7 div 2` is -3 [EXP-024]. They agree whenever the
   shifted-out bits are zero, which is what makes the difference easy to miss.
+- **`ErrorLn` writes to the ERROR stream** [RT-030], taking any number of values
+  and joining them exactly as `WriteLn` does — one call is one line. It flushes
+  standard output first, so a program's own output cannot appear after a
+  diagnostic written after it. It is how a program says something is wrong
+  without corrupting what it produced; `raise` [STM-016] is how it fails.
 - `Str (X, Decimals)` renders a Double with exactly that many places and never
   in exponent form, and `Str (X, Width, Decimals)` right-aligns it [RT-028].
   Correctly rounded from the value, so `Str (2.675, 2)` is 2.67; text surgery

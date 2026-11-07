@@ -2,7 +2,7 @@
 ///
 ///     algvm program.a24
 ///
-/// A SECOND BINARY rather than a mode of algc, which is what PROPOSAL-VM.md
+/// A SECOND BINARY rather than a mode of algc, which is what finished/PROPOSAL-VM.md
 /// prefers and what `uses` taking a path makes possible today: the compiler's
 /// front end is imported from here instead of this being imported into it.
 /// So nothing in `compiler/` changes, the VM stays out of the seed in

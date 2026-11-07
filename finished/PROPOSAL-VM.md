@@ -1,5 +1,21 @@
 # Proposal: A Bytecode VM
 
+> **FINISHED — decided and built in v0.2.0.** `algvm` is a third processor: a
+> bytecode machine that runs the same language, hosts `algc` compiling itself to
+> byte-identical C, and answers the whole corpus as recorded. It shipped as a
+> **second binary**, which answers open question 2.
+>
+> ⚠️ **Two numbers in the body were later disproven by measurement** and are
+> corrected where they appear: the Dew Drop Inn runs at 25 fps rather than the
+> 30 a projection claimed, and the compiled back end no longer leaks, which
+> weakens the memory argument this proposal leaned on. The machine's case is now
+> the one it always had on its own terms — a process boundary, a serializable
+> artifact, startup without a compile, and **the only processor you can see
+> inside**, which [ERR-003] now makes explicit.
+>
+> **What remains open:** the bytecode file as a committed artifact, a `case`
+> jump table in `CEmitter`, and whether 25 fps suits the Inn.
+
 **From:** the language project. `vm/` has been reserved and empty since the
 first commit, described as "a bytecode VM with a real GC".
 **Status:** proposal, for decision. **Every number below was measured**, and

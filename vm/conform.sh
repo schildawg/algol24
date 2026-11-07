@@ -4,7 +4,7 @@
 #
 #     ./bootstrap/build.sh && vm/conform.sh
 #
-# The third column PROPOSAL-VM.md item 5 asks for.  Output is rendered exactly
+# The third column finished/PROPOSAL-VM.md item 5 asks for.  Output is rendered exactly
 # as conform.sh renders it -- ANSI stripped, [WARN] and '       at FILE:LINE'
 # lines dropped from both.
 #

@@ -117,17 +117,35 @@ Everything in the picture is drawn by the Algol-24 program.
 
 ## How it is checked
 
-Five harnesses, all of which must pass:
+Every harness must pass. They are the definition of done.
 
 | | |
 | --- | --- |
 | `./test.sh` | the unit tests, inline in the source they cover |
 | `./conform.sh` | the conformance programs and the refusals, under **both** processors |
-| `./spec/spec.sh` | every rule in the specification cites something that exists |
+| `./spec/spec.sh` | every rule in the specification cites something that exists, and the release agrees in all three places it is written |
 | `./fixedpoint.sh` | the seed matches what the compiler emits, and emits itself unchanged |
 | `./docs.sh` | every unit is documented, per `spec/DOCUMENTATION.md` |
+| `./collector.sh` | the collector keeps what a program holds, and releases what it does not |
+| `./installed.sh` | a program reaches an installed unit by name, from a directory holding none of its own files |
+| `./defects.sh` | every defect a project using the language has reported |
 
-Each prints its own totals, which is why none are quoted here.
+and three more for the bytecode machine, which `./test.sh`'s default root does
+not reach:
+
+| | |
+| --- | --- |
+| `./test.sh vm/Vm.a24` | the machine's own tests |
+| `./vm/conform.sh` | the corpus on the machine — the third column, over both corpora |
+| `./vm/reference.sh` | every entry in the opcode reference agrees with the machine |
+
+Each prints its own totals, which is why none are quoted here — and why this
+table no longer counts itself either. It said *five* through two releases that
+added three.
+
+`RELEASES.md` is the cumulative release notes — what changed in each version
+and why, newest first. `finished/` holds the proposals and plans whose subject
+has been built, each with a header saying what it decided and what remains open.
 
 `spec/ALGOL-24.md` is the specification, and every rule in it is claimed by a
 case. It is the authority, and the implementation is measured against it: where
@@ -136,7 +154,7 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.2.3.** The language is **stable, not closed**: it changes only on measured
+**v0.2.4.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
@@ -169,7 +187,47 @@ either separator, and nothing asks whether a directory exists, because
 of three. A nested subprogram's C symbol carries what it is nested in, so two
 of one name in different parents no longer emit one function; and a nested
 `external` binds a local rather than a global handle. There is a seventh
-harness, `./installed.sh`, for the question the other six assume away.
+harness, `./installed.sh`, for the question the others assume away.
+
+v0.2.4 is **sixteen defects**, every one reported by a project using the
+language rather than found by reading it — `shroom-slots`, a game, and
+`algol24.com`, this language's own website. All sixteen are closed, and
+`./defects.sh` is the harness that holds them closed.
+
+Five of them were **one bug**: a bare name was resolved against every
+declaration in the program rather than against the file it was written in, so a
+name declared in any unit could silently take over a name in another. Two rules
+say what the answer is — a file's own declaration wins, and visibility decides
+whether an imported subprogram beats a method. One of those defects made a game
+pay out every win and charge for no spin, with nothing warning.
+
+The rest, in brief:
+
+- **A runtime error now says where it happened** — file and line, in the
+  interpreter and the bytecode machine. **Compiled Algol-24 deliberately does
+  not carry source information at run time**: a program wanting it runs under
+  the machine, which can disassemble itself. That is the division of labour the
+  machine exists for.
+- **`ErrorLn`**, a new built-in, writes a line to the **error stream**. The
+  language previously had no way to reach it, so a program reporting a problem
+  had to choose between being seen and being separable from its own output.
+- **A program's own output now comes before the error that stopped it.** It
+  always had, chronologically; a buffer made it look otherwise in every pipe
+  and every log.
+- **A diagnostic names the file its token came from.** It used to name the root
+  file over whichever file had written that line number last, so a fault in an
+  imported unit sent the reader to an innocent line in the wrong file.
+- **The tree-walking interpreter collects garbage**, which it had declined to
+  do for a reason that stopped being true. 2.8× less memory for about 9% more
+  time on the heaviest run available.
+- **Two warnings** where the compiler knew and waited: a call whose argument
+  count matches no declaration, and a name that cannot be reached from where it
+  is written. Both are warnings and not refusals, because the programs are
+  legal.
+- **Smaller fixes with sharp edges**: a built-in's name folds like any other
+  identifier, so `Clock` is `clock`; a built-in can be held as a value in
+  compiled code; two units whose names differ only in case are refused on every
+  platform alike; `algol.c` and `algol.h` refuse to build as a mismatched pair.
 
 What comes next is still a library, written in Algol-24 rather than in the
 runtime — that is the whole of what *alpha* means here, and nothing in the

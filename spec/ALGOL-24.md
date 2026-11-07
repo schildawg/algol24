@@ -1,6 +1,6 @@
 # The Algol-24 Programming Language Specification
 
-> **Algol-24 v0.2.3.** Nineteen chapters and three annexes. Every rule is
+> **Algol-24 v0.2.4.** Nineteen chapters and three annexes. Every rule is
 > decided — what the language should do — and every rule is claimed by a case: a
 > program in `conformance/`, a refusal in `refusals/`, or a reproduction in
 > `defects/`. `spec/spec.sh` prints how many there are and checks that each
@@ -10366,7 +10366,7 @@ WriteLn ('qualified : ' + Str (T.Qualified ()));
 // The BARE spelling of that same name is not pinned here, and deliberately: it
 // answers the built-in in both other processors and the C back end cannot hold
 // a built-in as a value at all, so a case comparing it would be red for that
-// gap rather than for this rule.  PLAN-0.2.4.md item 11 carries it.
+// gap rather than for this rule.  finished/PLAN-0.2.4.md item 11 carries it.
 class Other;
 begin
     constructor Init (); begin end
@@ -13977,7 +13977,7 @@ machine.
 
 **The other two processors are expected to carry a location**, and that they do
 not yet is a defect rather than a decision — see
-`PROPOSAL-RUNTIME-LOCATION.md`. A tree walker holds a token for every node it
+`finished/PROPOSAL-RUNTIME-LOCATION.md`. A tree walker holds a token for every node it
 evaluates, and a chunk can carry a line per instruction for nothing until
 something fails; neither has the compiled back end's excuse.
 

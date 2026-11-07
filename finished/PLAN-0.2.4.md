@@ -1,5 +1,9 @@
 # Plan: v0.2.4 — the defect sweep
 
+> **FINISHED — shipped as v0.2.4.** All sixteen defects closed;
+> `./defects.sh` reports `16 fixed, 0 reproducing` and is now a standing
+> regression gate.
+
 **Status:** reproduced, not started. Written 2026-11-06, on branch
 `defect-sweep`.
 

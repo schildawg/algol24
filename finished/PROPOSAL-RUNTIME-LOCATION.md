@@ -1,5 +1,18 @@
 # Proposal: a location on a runtime error
 
+> **FINISHED — decided and built in v0.2.4.** A runtime error names its file
+> and line in the tree walker and the bytecode machine. **Compiled Algol-24
+> carries no source information at run time, by decision** [ERR-003] — a program
+> wanting it runs under the machine, which can disassemble itself.
+>
+> It needed a language addition first: `ErrorLn` [RT-030], because the language
+> had no way to reach the error stream at all. The ordering half landed with it,
+> since `ErrorLn` flushes.
+>
+> **What remains open:** the **call stack**, which this document deliberately
+> put out of scope. Every processor would need a named per-call record and the C
+> back end has none.
+
 **Status:** proposed, not decided. Written 2026-11-07, out of
 `PLAN-0.2.4.md` item 9.
 

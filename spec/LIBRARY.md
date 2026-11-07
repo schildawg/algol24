@@ -1,8 +1,15 @@
 # The Algol-24 Library Specification
 
-> **Status: opened at Gen-8, and mostly empty on purpose.** The language is
-> feature-complete; what remains is a library, and this is where it is decided
-> and written down.
+> **Status: opened at Gen-8, and mostly empty on purpose.** What remains is a
+> library, and this is where it is decided and written down.
+>
+> ⚠️ **The language is STABLE, NOT CLOSED**, which is not what this said. It
+> said *feature-complete*, and that sentence has been disproven by every release
+> that answered measured demand from a project using the language — extension
+> functions, the bitwise operators, a number format, an installed library's
+> search path, and `ErrorLn`. The policy is the one `CLAUDE.md` and the README
+> carry: the language changes on measured demand, and the measurement goes in
+> the proposal.
 >
 > ⚠️ **This document exists so that `ALGOL-24.md` does not have to grow.** The
 > language specification describes **the language** — every rule of it claimed
