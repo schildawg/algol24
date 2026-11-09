@@ -1,7 +1,9 @@
 # Proposal: a Char equals a one-character String
 
-**From:** the three projects written in Algol-24 — `algol24-library`,
-`shroom-slots`, and the website — and from the compiler's own development
+**From:** the projects written in Algol-24 — `algol24-library`,
+`shroom-slots`, `art-viewer`, `reel` and the website — and from the compiler's
+own development. The 2026-11-09 sweep added the last two, and found a live
+defect in `art-viewer`.
 **Status:** proposal, for the language project to accept, refuse or reshape
 **Concerns:** one rule, [VAL-010]. No change to types, to the literal rules, to
 widening, or to `is`
@@ -18,8 +20,13 @@ WriteLn ('a' = Str ('a'));        // false today, true under this proposal
 WriteLn (1 = 1.0);                // already true [VAL-009]
 ```
 
-Nothing else changes. `'a' is String` stays **false**, a one-character literal
-stays a `Char` [LEX-023], and no existing program needs editing.
+Nothing else changes. `'a' is String` stays **false**, and a one-character
+literal stays a `Char` [LEX-023].
+
+**No program needs editing to keep working**, which the 2026-11-09 sweep
+checked rather than assumed — and two stop being silently broken. What does
+need editing is this repository: two probes, their `.actual` files, and one
+line of `conformance/0037-equality.a24`. Those are named under *Risks*.
 
 This asks the language project to overturn a decision it made deliberately and
 wrote down. [VAL-010] states the asymmetry is intentional and gives its
@@ -60,6 +67,20 @@ conversion a direction, since a Char widens to a String at every one of the six
 assignment contexts [VAR-017] and never the reverse. The target exists, the
 language uses it twice, and `=` is the one place it is withheld.
 
+**And `as` withholds it too, which is the sharpest form of the same thing.**
+Measured on v0.2.5:
+
+```algol24
+var F : String := 'x';        // the Char widens -- the language does it unasked
+WriteLn ('x' as String);      // Uncaught: Cannot cast Char to String.
+```
+
+The first line performs the conversion without being asked. The second asks for
+it and is refused. So the language holds three positions on whether a Char
+converts to a String: **implicitly yes** [VAR-004], **for ordering yes**
+[VAL-014], **for `=` and `as` no** [VAL-010]. Any one of them is defensible;
+the three together are not a position at all.
+
 ---
 
 ## Why three projects are asking
@@ -84,6 +105,50 @@ annotating a variable made the emitted code slower.
 
 A field, a parameter and a return type do this too, because all six assignment
 contexts widen alike.
+
+### It is silently breaking two of the four projects right now
+
+This section is newer than the rest of the document and is the strongest
+evidence in it. A sweep on 2026-11-09 against v0.2.5 — method in the appendix —
+found **two live defects caused by this rule**, in two different projects,
+both silent.
+
+**`art-viewer/viewer.a24:750`** filters by a mode that is never filtered:
+
+```algol24
+Hit := (One2.Get ('mode') as String) <> 'P';
+```
+
+The cast makes the left side a `String`; `'P'` is a `Char`; so the comparison
+is **always true** and every entry passes the filter. Confirmed:
+`(... as String) <> 'P'` answers true where `<> Str ('P')` answers false.
+
+**`shroom-slots/ui.a24:329-330`** never reads back a saved window position:
+
+```algol24
+if Doc.Contains ('x') then X := Doc.Get ('x') as Integer;
+if Doc.Contains ('y') then Y := Doc.Get ('y') as Integer;
+```
+
+`Doc` is parsed JSON, so its keys are Strings. `'x'` is one character and
+therefore a `Char`, so `Contains` can never match. Confirmed against the
+project's own parser:
+
+```
+Contains ('zoom')   : true      -- four characters, so a String
+Contains ('x')      : false     -- one character, so a Char
+Contains (Str ('x')) : true
+```
+
+⚠️ **`'zoom'` IS WHY IT SURVIVED.** The same function reads three keys and the
+long one works, so the feature appears to function: the window remembers its
+zoom and forgets where it was. A rule that breaks the short keys and not the
+long ones in one function is not a rule a programmer can hold in their head.
+
+Neither site is **reliance** on the current answer. Both are programs written
+as though a Char equalled a one-character String, by people who knew the
+language well enough to write the rest of it — which is the same evidence as
+the workaround below, arriving as a defect instead of a comment.
 
 ### What the workaround costs, counted
 
@@ -186,16 +251,39 @@ numeric promotion.
 ## Risks
 
 **It makes a previously-false comparison true, which is a behaviour change.**
-A program relying on `'a' <> Str ('a')` would break. We searched all four
-codebases and found no such reliance — but absence of evidence over 2,409 sites
-is weaker than a proof, and a fifth project might differ. Worth a `[WARN]`
-during one release rather than a silent flip, if the project wants belt and
-braces.
+A program relying on `'a' <> Str ('a')` would break.
+
+⚠️ **RE-SWEPT ON 2026-11-09 WITH THE TYPE CHECKER RATHER THAN A SEARCH, and
+the answer got stronger.** 389 files over six codebases — `shroom-slots`,
+`art-viewer`, `algol24-library`, `algol24.com`, `reel`, and the compiler and
+machine themselves — produced **three** sites where `=` or `<>` has a Char on
+one side and a String on the other. One is the `art-viewer` defect above; the
+other two are this repository's own probes, which exist to pin the rule. There
+is **no reliance in any project**, and the two programs that touch the rule at
+all are broken by it.
+
+A search cannot establish that, which is why the method changed: a one-off
+`ErrorLn` in `TypeChecker.ReduceBinary` reports the pair wherever both types
+are known, which is precise where grep is a guess. It is how `viewer.a24:750`
+was found — an `as String` cast made the type known, and the line reads
+plausibly.
+
+The checker is blind where a type is unknown, so the collection operations were
+searched separately. That is what found the `shroom-slots` defect, `Contains`
+taking an untyped argument.
+
+**What must be updated, exactly:** `spec/probes/LEX-026-char-is-not-a-string`
+and `spec/probes/VAL-009-equality-and-membership` and their `.actual` files,
+and one line of `conformance/0037-equality.a24`
+(`Copy ('abc', 0, 1) = 'a'`). `algol24-library`'s `strings.a24` sites are
+unaffected — `Join` renders through `Str` and compares no Char to a String.
 
 **Equality and hashing must move together.** A Map and a Set must agree with
-`=`, which means a Char and its one-character String have to hash alike in both
-processors and in `bootstrap/algol.c`. The numeric pair already does this, so
-the mechanism exists; it is still two implementations that must not drift.
+`=`, which means a Char and its one-character String have to hash alike in
+**all three processors** — the tree walker, the bytecode machine and
+`bootstrap/algol.c`. The numeric pair already does this, so the mechanism
+exists; it is three implementations that must not drift, and the machine did
+not exist when this document was first written.
 
 **[TST-008]'s type-naming report loses a case.** `AssertEqual` renders
 `Expected Char 's' but got String 's'` precisely because the two compare
@@ -255,6 +343,12 @@ Genuine ones; the asking projects have no basis to decide them.
   `Ord`/`Char ()` need it.
 - Changing what a literal denotes [LEX-023].
 - Changing `is` [TYP-003], or widening [VAR-004].
+- **Changing `as`.** That `'x' as String` raises is cited above as evidence
+  that the language holds three positions on one conversion, and it is not a
+  request: `as` is a check rather than a conversion, so refusing a Char is
+  consistent with what `as` means even while it sits oddly beside [VAR-004].
+  Whether it should also pass is a separate question, and this document does
+  not ask it.
 - Cross-type equality for anything else. `1 = '1'` stays false; a number and
   text are different things, where a Char and a one-character String are the
   same thing twice.
@@ -291,6 +385,22 @@ workaround counts are searches over all `.a24` files in the four repositories,
 `algol24.com`'s 432 included. The
 D-14 quotation is from `spec/HISTORY.md` in this repository.
 
-The one claim not established by measurement is that no program relies on a
-Char and a String being unequal. That is a search over four codebases finding
-nothing, which is weaker, and it is listed under *Risks* as such.
+**The reliance claim was re-established on 2026-11-09, by a different method
+and against v0.2.5.** It had been a search over four codebases finding
+nothing, which the paragraph below called the document's weakest claim. It is
+now a sweep by the **type checker**: a temporary `ErrorLn` in
+`ReduceBinary` reporting every `=` or `<>` whose two sides reduce to `Char` and
+`String`, compiled into a throwaway `algc` and run with `--compile` over 389
+files in six codebases — the four above plus `reel` and this repository's own
+`compiler/` and `vm/`. Three sites, named under *Risks*.
+
+That is precise where the search was a guess, and it found a defect the search
+had missed. Its blind spot is the gradual type system itself: where a type
+reduces to `''` the checker says nothing, so the collection operations
+(`Contains`, `Get`, `Put`, `Add`, `in`) were searched for one-character
+literals separately and read by hand.
+
+⚠️ **`algol24.com` IS 5 OWN FILES AND 485 VENDORED.** It carries a copy of this
+whole repository under `vendor/`, so a count of its `.a24` files measures the
+compiler twice. The 432 quoted in the paragraph below is that inflated figure.
+Its own code contributes nothing to this proposal either way.
