@@ -67,7 +67,25 @@ mkdir -p "$WORK/out"
 # between two builds of one machine.  Checked here rather than trusted.
 ./vm/dispatch.sh --check
 
-cp vm/dispatch.c "$WORK/out/dispatch.c"
+# ⚠️ WHETHER TO LINK IT, which is not a question anywhere the loop works.
+#
+# The C loop SEGFAULTS on Windows: `algvm hello.a24` exits 139 where the same
+# binary's `--stop` and `--algol-loop` both answer, and `algc` answers, so
+# compiling and the handlers are fine and the loop alone is not.  Root cause
+# unknown, and not reproducible on a Unix.
+#
+# NOT DEFAULTED OFF ANYWHERE, because leaving it out would be a bypass rather
+# than a fix.  vm/Vm.a24 asks `alg_vm_dispatch_present` inside a try and falls
+# back when the symbol is absent, so CDISPATCH=0 produces a correct, roughly
+# 1.5x slower machine -- which is the escape hatch for someone bisecting the
+# crash, not the shipped answer.
+#
+#   CDISPATCH=0   leave the C loop out and run the Algol-24 one
+_want_c="${CDISPATCH:-1}"
+
+if [ "$_want_c" != 0 ]; then
+    cp vm/dispatch.c "$WORK/out/dispatch.c"
+fi
 
 # The flag that puts the binary's OWN symbols where it can look them up, for
 # the one thing that needs it: the C loop is reached through a no-library
@@ -122,7 +140,7 @@ for _flag in "-Wl,--export-all-symbols" "-Wl,-export_dynamic" \
     [ "$_exports_found" -eq 1 ] && break
 done
 
-if [ "$_exports_found" -eq 0 ]; then
+if [ "$_exports_found" -eq 0 ] && [ "$_want_c" != 0 ]; then
     echo "This toolchain cannot make a binary find its own symbols, which the" >&2
     echo "machine's C dispatch loop is reached through.  Tried:" >&2
     echo "  --export-all-symbols, -export_dynamic, --export-dynamic, -rdynamic" >&2
@@ -141,4 +159,9 @@ if ! $CC $CFLAGS $LTO $FFI_CFLAGS $EXPORTS -o "$OUT" "$WORK/out"/*.c $FFI_LIBS 2
 fi
 
 echo "Built $OUT  (with foreign calls)${LTO:+  (link-time optimized)}"
-echo "  own symbols reachable with: ${EXPORTS:-no flag needed}"
+
+if [ "$_want_c" != 0 ]; then
+    echo "  dispatch: the C loop, own symbols reachable with ${EXPORTS:-no flag needed}"
+else
+    echo "  dispatch: the Algol-24 loop -- the C one is left out on this platform"
+fi

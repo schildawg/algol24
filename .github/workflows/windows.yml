@@ -65,6 +65,7 @@ jobs:
             mingw-w64-x86_64-libffi
             mingw-w64-x86_64-SDL2
             mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-gdb
             zip
 
       # STAGE 1 -- the compiler, from the checked-in seed and a C compiler and
@@ -111,6 +112,10 @@ jobs:
 
           echo "--- algvm, C dispatch loop (the default) ---"
           ./vm/algvm hello.a24 || echo "c-loop exited $?"
+
+          echo "--- where the C loop dies ---"
+          gdb -batch -ex run -ex bt -ex "info registers rip" \
+              --args ./vm/algvm hello.a24 2>&1 | tail -40 || true
 
           echo "--- asserting ---"
           test "$(./bootstrap/algc hello.a24)" = "hello, 4"

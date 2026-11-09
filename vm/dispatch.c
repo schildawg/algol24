@@ -115,6 +115,11 @@ Value f_traced(Value **cells, Value *args, int32_t count);
    longjmps past this frame to the try in RunLoop, which is safe because
    this function holds nothing that needs unwinding and alg_raise truncates
    the shadow stack itself. */
+/* Whether this build HAS a C loop, which vm/run.a24 asks before enabling
+   one.  Reached through the same no-library external, so a build that
+   left dispatch.c out answers by raising and the Algol-24 loop stands. */
+int alg_vm_dispatch_present(void) { return 1; }
+
 void alg_vm_dispatch(void) {
     while (v_live.boolean) {
         const unsigned char *code = alg_buffer_bytes(v_codebytes);

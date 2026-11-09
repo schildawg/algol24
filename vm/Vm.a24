@@ -603,10 +603,26 @@ var C_DISPATCH := False;
 /// measurable.
 procedure CDispatch (); external 'alg_vm_dispatch';
 
-/// Turns the C dispatch loop on, which a driver does when its binary has one.
+/// Whether this build linked a C dispatch loop at all.
+///
+/// Answers by RAISING where it did not, because an unresolvable no-library
+/// external is a failed lookup rather than a false answer -- so the caller
+/// asks inside a try.
+function HasCDispatch () : Integer; external 'alg_vm_dispatch_present';
+
+/// Turns the C dispatch loop on, if this build has one.
+///
+/// Asks rather than assumes, so a build that deliberately left dispatch.c out
+/// runs the Algol-24 loop instead of dying at the first instruction.  That is
+/// how a platform the C loop does not work on still gets a working machine:
+/// the loop is an optimization over handlers that remain the definition.
 procedure UseCDispatch ();
 begin
-    C_DISPATCH := True;
+    try
+        if HasCDispatch () = 1 then C_DISPATCH := True;
+    except
+        on e : String do C_DISPATCH := False;
+    end
 end
 
 /// The file the escaping error's instruction came from, for the driver to
