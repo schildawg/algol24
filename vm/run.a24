@@ -331,6 +331,7 @@ begin
     WriteLn ('  algvm --collect N <file>      collect every N instructions, 0 for never');
     WriteLn ('  algvm --trace N <file>        keep the last N instructions and dump them on a raise');
     WriteLn ('  algvm --watch TEXT <file>     dump the trace where TEXT is raised, caught or not');
+    WriteLn ('  algvm --algol-loop <file>     dispatch in Algol-24 rather than through the C loop');
     WriteLn ('  algvm --version               the version');
     WriteLn ('  algvm --help                  this');
     WriteLn ('');
@@ -435,6 +436,16 @@ var Seen := False;
 /// extern one. ALL_CAPS is not a namespace.
 var WantsTests := False;
 
+/// Whether to dispatch in Algol-24 rather than through the C loop.
+///
+/// The C loop is the default and is what makes the machine fast, but it is an
+/// optimization over handlers that remain the definition -- so there has to be
+/// a way to run without it.  Without one, a platform where it misbehaves has
+/// no working machine at all and no way to say whether the loop is the cause:
+/// `./test.sh vm/Vm.a24` exercises the Algol-24 loop under algc and cannot
+/// answer for this binary.
+var PlainLoop := False;
+
 for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     if ParamStr (I) = '--list' then Listing := True;
     else if ParamStr (I) = '--test' then WantsTests := True;
@@ -443,6 +454,7 @@ for var I : Integer := 1; I <= ParamCount (); I := I + 1 do
     else if ParamStr (I) = '--collect' then WantsEvery := True;
     else if ParamStr (I) = '--trace' then WantsTrace := True;
     else if ParamStr (I) = '--watch' then WantsWatch := True;
+    else if ParamStr (I) = '--algol-loop' then PlainLoop := True;
     else if WantsEvery then
     begin
         Every := Val (ParamStr (I)) as Integer;
@@ -680,7 +692,7 @@ end
 // compiles vm/dispatch.c in and links with -Wl,-export_dynamic so the
 // no-library `external` can find it.  Turned on here rather than defaulted on
 // in Vm.a24, because that unit also runs under algc for its own tests.
-UseCDispatch ();
+if not PlainLoop then UseCDispatch ();
 
 try
     RunChunk (Program);

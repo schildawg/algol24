@@ -103,11 +103,18 @@ jobs:
           echo "--- algc ---"
           ./bootstrap/algc hello.a24 || echo "algc exited $?"
 
-          echo "--- algvm ---"
-          ./vm/algvm hello.a24 || echo "algvm exited $?"
+          echo "--- algvm, compile only ---"
+          ./vm/algvm --stop hello.a24 || echo "stop exited $?"
+
+          echo "--- algvm, Algol-24 dispatch loop ---"
+          ./vm/algvm --algol-loop hello.a24 || echo "algol-loop exited $?"
+
+          echo "--- algvm, C dispatch loop (the default) ---"
+          ./vm/algvm hello.a24 || echo "c-loop exited $?"
 
           echo "--- asserting ---"
           test "$(./bootstrap/algc hello.a24)" = "hello, 4"
+          test "$(./vm/algvm --algol-loop hello.a24)" = "hello, 4"
           test "$(./vm/algvm hello.a24)" = "hello, 4"
 
       # STAGE 4 -- the library, pinned to the same version the Homebrew formula
