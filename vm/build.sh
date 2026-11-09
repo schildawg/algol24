@@ -100,6 +100,24 @@ fi
 # the Windows job linked happily and then could not find its own dispatch loop
 # -- `algvm hello.a24` failed where `algvm --version` and the machine's own
 # tests under algc both passed, because neither runs the C loop.
+# ⚠️ THE PROBE CALLS THROUGH THE POINTER, and it is TWO translation units.
+#
+# The first version asked only whether the lookup answered non-NULL, with the
+# target in the same file as main.  Both were wrong, and together they passed
+# --export-all-symbols on Windows while the real binary jumped to a bad
+# address: GetProcAddress answered a pointer that was not the function, so the
+# check "did we find it" said yes and the call segfaulted inside libffi.
+#
+# So the target lives in its own file, compiled and linked exactly as
+# vm/dispatch.c is -- $LTO included, since nothing references it and that is
+# what might move or drop it -- and the probe CALLS it.  A wrong address fails
+# the probe by crashing it, which is the only way to tell a found symbol from
+# a usable one.
+cat > "$WORK/exports_target.c" <<'PROBEEOF'
+/* Referenced by nothing, exactly as alg_vm_dispatch is. */
+int alg_probe_target(void) { return 24; }
+PROBEEOF
+
 cat > "$WORK/exports.c" <<'PROBEEOF'
 #include <stddef.h>
 
@@ -113,9 +131,14 @@ static void *self_lookup(const char *name) {
 static void *self_lookup(const char *name) { return dlsym(RTLD_DEFAULT, name); }
 #endif
 
-void alg_probe_target(void) { }
+int main(void) {
+    int (*found)(void) = (int (*)(void))self_lookup("alg_probe_target");
 
-int main(void) { return self_lookup("alg_probe_target") != NULL ? 0 : 1; }
+    if (found == NULL) return 1;
+
+    /* Crashes here rather than answering, if the address is not the function. */
+    return found() == 24 ? 0 : 1;
+}
 PROBEEOF
 
 EXPORTS=""
@@ -125,12 +148,9 @@ for _flag in "-Wl,--export-all-symbols" "-Wl,-export_dynamic" \
              "-Wl,--export-dynamic" "-rdynamic" ""; do
     for _dl in "" "-ldl"; do
         # shellcheck disable=SC2086
-        # $LTO too, because the target is unreferenced -- nothing calls
-        # alg_vm_dispatch statically -- and link-time optimization is exactly
-        # what might drop it.  A probe that does not mirror the real link can
-        # answer for a build nobody makes.
-        if $CC $CFLAGS $LTO $_flag -o "$WORK/exports" "$WORK/exports.c" $_dl \
-               2>/dev/null && "$WORK/exports"; then
+        if $CC $CFLAGS $LTO $_flag -o "$WORK/exports" \
+               "$WORK/exports.c" "$WORK/exports_target.c" $_dl \
+               2>/dev/null && "$WORK/exports" 2>/dev/null; then
             EXPORTS="$_flag"
             _exports_found=1
             break

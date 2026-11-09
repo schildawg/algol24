@@ -113,9 +113,16 @@ jobs:
           echo "--- algvm, C dispatch loop (the default) ---"
           ./vm/algvm hello.a24 || echo "c-loop exited $?"
 
-          echo "--- where the C loop dies ---"
+          echo "--- where the C loop dies, if it still does ---"
           gdb -batch -ex run -ex bt -ex "info registers rip" \
-              --args ./vm/algvm hello.a24 2>&1 | tail -40 || true
+              --args ./vm/algvm hello.a24 2>&1 | tail -30 || true
+
+          # Does link-time optimization explain a found-but-wrong address?
+          # The probe now calls through the pointer, so if LTO is the cause it
+          # should already have rejected the flag -- this says which it is.
+          echo "--- rebuilt without LTO ---"
+          LTO=0 ./vm/build.sh vm/algvm-nolto
+          ./vm/algvm-nolto hello.a24 || echo "no-LTO exited $?"
 
           echo "--- asserting ---"
           test "$(./bootstrap/algc hello.a24)" = "hello, 4"
