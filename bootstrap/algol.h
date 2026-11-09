@@ -178,6 +178,21 @@ Value alg_map(void);
 
 Value alg_buffer(Value size);
 
+/* A Buffer's bytes, for C that wants to read them without a call per byte.
+ *
+ * The same pointer `Buffer.Address` answers, which the language has always
+ * given C [RT-022] -- this is the in-process form, so a caller already holding
+ * the Value need not go through a Pointer to get at it.
+ *
+ * ⚠️ BORROWED, not owned, and only as valid as the Buffer.  A Buffer that
+ * grows may move its bytes, and `Free` releases them, so a caller re-reads
+ * this rather than keeping it: the machine's dispatch loop re-reads it every
+ * instruction precisely because entering a frame swaps the chunk.
+ *
+ * Answers NULL for anything that is not a Buffer, rather than raising, because
+ * the one caller is a loop that would rather check than carry a handler. */
+const unsigned char *alg_buffer_bytes(Value v);
+
 Value alg_list_keep(Value list, Value item);
 Value alg_map_keep(Value map, Value key, Value value);
 

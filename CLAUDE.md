@@ -1656,12 +1656,13 @@ the released body is never handed back at its own size class, which is case
   not repeat the 42% as though it were general -- `finished/PROPOSAL-VM.md` did, and it
   was wrong.
 
-  ⚠️ **The frame budget is MEASURED on the machine now, and the Inn misses 30
-  fps.** A played session — 4,941 frames in 196.4 s with automatic collection
-  on — runs at **39.75 ms a frame, 25 fps**, which is **119% of a 30 fps
-  frame**. Quote that, not a short run: 30 frames reads 19–21 fps because the
-  first frames dominate, and the game's own `frames`/`rate` lines are the only
-  honest source.
+  ⚠️ **The frame budget is MEASURED on the machine, and the ALGOL-24 dispatch
+  loop misses 30 fps where the C one clears it.** A played session on the
+  Algol-24 loop — 4,941 frames in 196.4 s with automatic collection on — runs
+  at **39.75 ms a frame, 25 fps**, which is **119% of a 30 fps frame**; the C
+  loop below takes the same game to 32.18 ms. Quote a long run, not a short
+  one: 30 frames reads 19–21 fps because the first frames dominate, and the
+  game's own `frames`/`rate` lines are the only honest source.
 
   ⚠️ **The projection this section used to carry was optimistic by 2.2×.** It
   reasoned from the Inn spending **2.0 ms a frame** in compiled Algol-24 (plus
@@ -1679,21 +1680,46 @@ the released body is never handed back at its own size class, which is case
   — so the cost does not accumulate over thousands of frames. It buys **8.1×**
   less peak memory: 14.53 GB of footprint against **1.80 GB**.
 
-  ⚠️ **A third finding is a decision, not a repair**, and it is the only one
-  that helps the VM more than the AOT path: writing just the dispatch loop in
-  C, over handlers that stay in Algol-24, measured a further **1.7×** and takes
-  the VM to CPython parity. The real frame makes it **more** load-bearing than
-  the projection did, not less — the old text said the Inn was at 94% of a 30
-  fps frame without it, where the measurement says 119%, so it is the
-  difference between missing 30 fps and clearing it. **If** the 1.7× held it
-  would be 23.4 ms, 70% of a 30 fps frame; that factor came off a FOUR-OPCODE
-  toy (`vm/spike/vmtable.a24`), so treat it as a reason to try rather than as a
-  number. There is no barrier at the emitted-C level — a generated subprogram
-  is already an ordinary C function — so what it would need is linkage, and
-  `vm/spike/cdispatch.py` demonstrates it by patching a compiled variant. The
-  catch is that giving C a stable name to call **freezes the `Value **cells,
-  Value *args, int32_t count` calling convention**, which is private today and
-  has changed before.
+  ⚠️ **THE DISPATCH LOOP IS IN C NOW, and it is 1.51× rather than the toy's
+  1.7×.** `vm/dispatch.c` holds `alg_vm_dispatch` — eighty `case` arms calling
+  the same Algol-24 handlers — and the Inn on a real display goes from **48.71
+  ms a frame to 32.18 ms**, 20 fps to **31**, over 1500 frames. `Fib (27)`
+  reads the same factor (1.35 s against 0.89 s), and that agreement is what
+  says the factor belongs to the loop rather than to either program. So the
+  Inn **clears 30 fps at 97% of the frame**, with nothing to spare.
+
+  ⚠️ **A SOFTWARE RENDERER halves the measured gain.** Under
+  `SDL_VIDEODRIVER=dummy` with `SDL_RENDER_DRIVER=software` the same pair reads
+  52.47 ms against 42.96 — **1.22×** — because the renderer burns CPU inside
+  SDL where the dispatch loop cannot reach it. Measure this one on a display or
+  it understates by a third.
+
+  ⚠️ **`vm/dispatch.c` is GENERATED, and `vm/dispatch.sh --check` is what keeps
+  it honest.** The arms are written from `OpCode.a24`'s numbers and
+  `Vm.a24`'s `BuildHandlers` table, so an opcode added to one and not the other
+  fails the build rather than dispatching to the wrong handler.
+  `vm/build.sh` runs the check before it compiles.
+
+  ⚠️ **`CodeBytes` is swapped per frame, so the loop re-reads the byte pointer
+  EVERY instruction.** `alg_buffer_bytes` is in `algol.h` for that — caching it
+  across instructions reads the previous frame's code after any call or return.
+
+  ⚠️ **It is a FLAG, and both loops still exist.** `C_DISPATCH` is False in
+  `Vm.a24` and `vm/run.a24` calls `UseCDispatch ()`, so the machine's own tests
+  under `algc` exercise the Algol-24 loop while the shipped binary runs the C
+  one. That is what lets `./test.sh vm/Vm.a24` keep testing the handlers, and
+  it is also a drift risk: the two loops must agree, and only `vm/conform.sh`
+  holds them to it.
+
+  ⚠️ **A green run proves nothing until the C loop is seen to RUN.** It is
+  reached through an `external` with no library name, so a binary linked
+  without `-Wl,-export_dynamic` would fall back silently and look like a
+  disappointing measurement rather than a broken one. Sabotage the arm and
+  watch the failure before trusting a figure.
+
+  ⚠️ **The cost is that giving C a stable name to call FREEZES the
+  `Value **cells, Value *args, int32_t count` calling convention**, which was
+  private before this and has changed before.
 
 ## The collector
 

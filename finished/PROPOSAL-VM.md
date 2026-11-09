@@ -330,11 +330,24 @@ the reel engine at 0.74 ms fits at 60 fps either way.
 ⚠️ **This makes item 0b MORE load-bearing, not less.** The projection had the
 Inn at 94% of a 30 fps frame without the C dispatch; the measurement says
 119%, so it is the difference between missing 30 fps and clearing it rather
-than the difference between tight and comfortable. **If** the 1.7× held, 39.75
-ms becomes 23.4 ms — 70% of a 30 fps frame, about 43 fps. That factor came off
-a four-opcode toy, so it is a reason to try the work rather than a number to
-plan with; the lesson of the table above is precisely that such a factor does
-not survive contact with a real frame.
+than the difference between tight and comfortable.
+
+⚠️ **ITEM 0b IS BUILT AND MEASURED, and it is 1.51× rather than 1.7×.** The Inn
+on a real display goes from **48.71 ms a frame to 32.18 ms** — 20 fps to **31**
+— over 1500 frames, both binaries built from identical sources with only
+`UseCDispatch ()` differing. `Fib (27)` reads the same factor, 1.35 s against
+0.89 s, and that agreement is what says the factor belongs to the dispatch loop
+rather than to either program. So the toy's 1.7× was optimistic in the usual
+direction and the goal is still met: 32.18 ms is **97% of a 30 fps frame**,
+cleared with nothing to spare.
+
+⚠️ **A SOFTWARE RENDERER HALVES THE GAIN, and quoting that figure would have
+buried the result.** Under `SDL_VIDEODRIVER=dummy` with
+`SDL_RENDER_DRIVER=software` the same pair reads 52.47 ms against 42.96 —
+**1.22×** — because the software renderer burns CPU inside SDL, where the
+dispatch loop cannot reach it. The ratio is 1.51× only where the GPU does the
+drawing, so a headless measurement of this change understates it by a third.
+Measure this one on a display.
 
 ⚠️ **And it corrects a claim this document made twice: the game is NOT
 SDL-bound.** Foreign calls are **0.31 ms of 2.32**, or 13% — so the multiplier
@@ -625,13 +638,13 @@ actually break.
   `ReduceBinary` ending `if Left = Right then Exit Left;` makes
   `Integer + Integer` provable, but DEF-35 is a standing example of the checker
   not knowing a type it could.
-- **That the C dispatch holds its 1.72× over a real instruction set.** It was
-  measured over four opcodes whose handlers are three lines each. A sixty-opcode
-  VM has larger and more varied handlers, so the dispatch is a smaller share of
-  each instruction and the multiplier should fall. The direction is known and
-  the size is not. ⚠️ **It is a ratio against handlers that stay in Algol-24** —
-  it says nothing about a VM whose handlers are also C, which is the 37× still
-  on the table and a different proposal.
+- ~~**That the C dispatch holds its 1.72× over a real instruction set.**~~
+  **Answered: it does not, and it falls to 1.51×** over eighty opcodes. The
+  direction was known and the size is now measured — the toy's handlers were
+  three lines each, so dispatch was a larger share of each instruction there
+  than it is here. ⚠️ **It is still a ratio against handlers that stay in
+  Algol-24** — it says nothing about a VM whose handlers are also C, which is
+  the 37× still on the table and a different proposal.
 - **GC pause behaviour**, which for a 60 fps game is as important as throughput
   and is not a throughput question.
 - **The heap design.** That Buffers *can* hold a heap is measured; that a

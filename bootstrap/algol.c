@@ -636,6 +636,12 @@ static ObjBuffer *as_buffer(Value v, const char *what) {
     return buffer;
 }
 
+const unsigned char *alg_buffer_bytes(Value v) {
+    if (!is_obj(v, OBJ_BUFFER)) return NULL;
+
+    return (const unsigned char *)((ObjBuffer *)v.obj)->bytes;
+}
+
 Value alg_buffer(Value size) {
     int32_t length = as_integer(size, "A Buffer's size must be an Integer.");
     if (length < 0) alg_error("A Buffer's size cannot be negative.");

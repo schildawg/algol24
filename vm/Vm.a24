@@ -581,6 +581,34 @@ var COLLECT_EVERY := 0;
 /// Instructions since the last collection.
 var Tick : Integer := 0;
 
+/// Whether to dispatch through the hand-written C loop rather than this one.
+///
+/// FALSE by default, and the default is what makes `./test.sh vm/Vm.a24` work:
+/// those tests run this unit under `algc`, which links no `vm/dispatch.c` and
+/// exports no symbols for a no-library `external` to find.  `vm/run.a24` turns
+/// it on, because `algvm` is built with both.
+///
+/// ⚠️ SO BOTH LOOPS ARE LIVE, and each is covered by a gate of its own: the
+/// Algol-24 one by this unit's own tests under `algc`, the C one by
+/// `./vm/conform.sh` running the whole corpus through `algvm`.  They would
+/// have to agree anyway -- `vm/dispatch.c` is GENERATED from this unit's own
+/// handler table by `./vm/dispatch.sh`, which `vm/build.sh` checks.
+var C_DISPATCH := False;
+
+/// Dispatches in C over these same handlers, returning when Live goes false.
+///
+/// A no-library `external`, so it resolves against the binary's own symbols --
+/// which needs `-Wl,-export_dynamic`, and `vm/build.sh` passes it.  Called once
+/// per run rather than once per instruction, so the foreign call costs nothing
+/// measurable.
+procedure CDispatch (); external 'alg_vm_dispatch';
+
+/// Turns the C dispatch loop on, which a driver does when its binary has one.
+procedure UseCDispatch ();
+begin
+    C_DISPATCH := True;
+end
+
 /// The file the escaping error's instruction came from, for the driver to
 /// report [ERR-003].
 ///
@@ -3949,6 +3977,12 @@ begin
     // re-entered only when something is actually caught.
     while Live do
         try
+            // The C loop runs the whole of the inner loop and comes back only
+            // when Live goes false -- or not at all, if a host error longjmps
+            // past it into the handler below, which is exactly what this try is
+            // for and works the same either way.
+            if C_DISPATCH then CDispatch ();
+            else
             while Live do
             begin
                 var Op := ReadByte ();

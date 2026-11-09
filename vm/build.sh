@@ -61,8 +61,23 @@ fi
 mkdir -p "$WORK/out"
 "$ALGC" --compile --out="$WORK/out" vm/run.a24
 
+# ⚠️ THE DISPATCH LOOP IS GENERATED, and stale is worse than absent: an opcode
+# added to vm/Vm.a24's table without regenerating would reach DoUnknown in the
+# C loop and the right handler in the Algol-24 one, which is a divergence
+# between two builds of one machine.  Checked here rather than trusted.
+./vm/dispatch.sh --check
+
+cp vm/dispatch.c "$WORK/out/dispatch.c"
+
+# ⚠️ -Wl,-export_dynamic, for the one thing that needs it: the C loop is
+# reached through a no-library `external`, which resolves with
+# dlsym(RTLD_DEFAULT, ...) -- and that finds nothing unless the binary's own
+# symbols are in its dynamic table.  bootstrap/build.sh needs none of this and
+# gets none of it, which is what keeps the seed as it was.
+EXPORTS="-Wl,-export_dynamic"
+
 # shellcheck disable=SC2086
-if ! $CC $CFLAGS $LTO $FFI_CFLAGS -o "$OUT" "$WORK/out"/*.c $FFI_LIBS 2>"$WORK/cc.log"; then
+if ! $CC $CFLAGS $LTO $FFI_CFLAGS $EXPORTS -o "$OUT" "$WORK/out"/*.c $FFI_LIBS 2>"$WORK/cc.log"; then
     cat "$WORK/cc.log" >&2
     echo >&2
     echo "algvm needs libffi: a foreign call is part of the language [FUN-014]," >&2

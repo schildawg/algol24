@@ -676,6 +676,12 @@ end
 //
 // ⚠️ COMPILED Algol-24 reports no location, by decision, and conform.sh drops
 // the 'at' line from both sides for that reason.
+// THE C DISPATCH LOOP, which this binary has and `algc` does not: vm/build.sh
+// compiles vm/dispatch.c in and links with -Wl,-export_dynamic so the
+// no-library `external` can find it.  Turned on here rather than defaulted on
+// in Vm.a24, because that unit also runs under algc for its own tests.
+UseCDispatch ();
+
 try
     RunChunk (Program);
 except
