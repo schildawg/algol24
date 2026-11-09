@@ -2349,6 +2349,35 @@ Value alg_is(Value v, const char *name) {
     return alg_bool(is_a(v, name));
 }
 
+/* Whether an instance's class chain reaches exactly this class.
+ *
+ * A handle that is still nil answers false, which cannot be reached by a true
+ * test: the value has to be an instance of the class for the answer to be
+ * true, and making one builds the class first. */
+static bool chain_reaches(Value v, Value klass) {
+    if (!is_obj(v, OBJ_INSTANCE)) return false;
+    if (!is_obj(klass, OBJ_CLASS)) return false;
+
+    ObjClass *wanted = (ObjClass *)klass.obj;
+
+    for (ObjClass *at = ((ObjInstance *)v.obj)->klass; at != NULL; at = at->super)
+        if (at == wanted) return true;
+
+    return false;
+}
+
+Value alg_is_class(Value v, Value klass) {
+    return alg_bool(chain_reaches(v, klass));
+}
+
+Value alg_cast_class(Value v, Value klass, const char *name) {
+    if (v.type == VAL_NIL) return v;
+
+    if (chain_reaches(v, klass)) return v;
+
+    return alg_cast_failed(v, name);
+}
+
 /* The message alg_cast gives, reached from alg_cast_kind's inline fast path as
    well as from alg_cast itself, so the two cannot word it differently. */
 Value alg_cast_failed(Value v, const char *name) {

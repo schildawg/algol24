@@ -98,7 +98,7 @@ static Value m_environment_raiseambiguousimport_2_string_string(Value v_this, Va
             alg_root(&v_import, 1);
             {
                 int32_t rt_2 = alg_root_top;
-                Value v_themodule = alg_cast(v_import, "Environment");
+                Value v_themodule = alg_cast_class(v_import, k_environment, "Environment");
                 (void)v_themodule;
                 alg_root(&v_themodule, 1);
                 if (alg_truthy(alg_invoke(alg_property(v_themodule, "Values"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
@@ -175,7 +175,7 @@ static Value m_environment_ownerof_2_string_string(Value v_this, Value *args, in
             alg_root(&v_import, 1);
             {
                 int32_t rt_5 = alg_root_top;
-                Value v_themodule = alg_cast(v_import, "Environment");
+                Value v_themodule = alg_cast_class(v_import, k_environment, "Environment");
                 (void)v_themodule;
                 alg_root(&v_themodule, 1);
                 if (alg_truthy(alg_invoke(alg_property(v_themodule, "Values"), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
@@ -248,7 +248,7 @@ static Value m_environment_assign_2_token(Value v_this, Value *args, int32_t cou
     alg_root(&v_owner, 1);
     if (alg_truthy(alg_not_equal(v_owner, alg_nil()))) {
         {
-            (void)(alg_invoke(alg_property((alg_cast(v_owner, "Environment")), "Values"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1), v_value}, 2));
+            (void)(alg_invoke(alg_property((alg_cast_class(v_owner, k_environment, "Environment")), "Values"), "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1), v_value}, 2));
             Value ret_12 = alg_nil();
             alg_root_top = rt_base;
             return ret_12;
@@ -292,7 +292,7 @@ static Value m_environment_get_1_token(Value v_this, Value *args, int32_t count)
     (void)v_owner;
     alg_root(&v_owner, 1);
     if (alg_truthy(alg_not_equal(v_owner, alg_nil()))) {
-        Value ret_16 = alg_invoke(alg_property((alg_cast(v_owner, "Environment")), "Values"), "Get", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1);
+        Value ret_16 = alg_invoke(alg_property((alg_cast_class(v_owner, k_environment, "Environment")), "Values"), "Get", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1);
         alg_root_top = rt_base;
         return ret_16;
     }
@@ -357,7 +357,7 @@ static Value m_environment_ancestor_1_integer(Value v_this, Value *args, int32_t
     Value v_env = alg_nil();
     (void)v_env;
     alg_root(&v_env, 1);
-    (void)((v_env = alg_cast(v_this, "Environment")));
+    (void)((v_env = alg_cast_class(v_this, k_environment, "Environment")));
     {
         int32_t rt_6 = alg_root_top;
         Value v_i = alg_int(0);

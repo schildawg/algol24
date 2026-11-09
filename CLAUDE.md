@@ -2132,6 +2132,45 @@ out-of-line call — measured **1.05×** on the Inn where resolving at emit time
 measures **1.12×**. That is why `Obj`'s layout is public in `algol.h`, for the
 same reason `alg_root_top` is.
 
+⚠️ **A CLASS NAME IS RESOLVED TO ITS HANDLE TOO, and that walk compares
+`ObjClass` POINTERS rather than names.** `alg_is_class`/`alg_cast_class` are
+out of line, unlike the built-in pair, because `ObjClass` is private to
+`algol.c` and exposing it would be a far wider contract than `Obj`'s three
+fields; the win here is the strings rather than the call, since the name
+version compares one per class per level and a member read walks that chain
+several times. All 43 class tests in `Vm.c` resolve. Measured at **1.11× on
+Fib (27)** — 0.79 s to 0.71 — and about **1.04× on the Inn**.
+
+⚠️ **FOUR conditions decide it, and every one is correctness rather than
+caution.** `CEmitter.ResolvedClass` requires that the program declare a class
+of the name; that the handle be IN SCOPE in the file being emitted, since it is
+a C symbol and `static` in a root file; that **exactly one** class carry the
+name; and that no built-in type name, singleton, enumeration or subrange share
+it. Two of those were seen to go red before being trusted.
+
+⚠️ **TWO CLASSES OF ONE NAME ARE TWO OBJECTS, where the other two processors
+match a class by NAME.** `Interpreter.SatisfiesType` ends in `InheritsFrom`,
+which walks comparing names, so an instance of *one* unit's `Thing` answers
+true for the *other* unit's `Thing`. Comparing handles answers false. Removing
+the uniqueness guard was seen to produce exactly that divergence, so a repeated
+name keeps the string form.
+
+⚠️ **A class sharing a BUILT-IN's name is reachable by either route.**
+`class List` is legal and `[1] is List` is **true** as well as `X is List` on
+an instance — the value's own type name answers for the List where no chain
+walk can. So `BuiltinTypeName` is asked without regard to declarations, which
+is why it is split from `ResolvedKind`: the two callers want opposite things
+from one list.
+
+⚠️ **RUN-TO-RUN VARIANCE ON A REAL DISPLAY IS THE SAME SIZE AS THIS EFFECT, and
+reading two separate runs said it did nothing.** 1500-frame runs read 28.82 ms
+and 28.81 ms, which looked like a ceiling and nearly got written down as one;
+interleaved 1200-frame pairs read 29.95 → 28.79 and 28.75 → 27.48, and the same
+binary spans 28.75–29.95 by itself. Interleave the pairs for anything under
+about 5% here, and prefer the software renderer when the question is purely
+about CPU: `SDL_VIDEODRIVER=dummy` with `SDL_RENDER_DRIVER=software` reads
+41.13 → 40.09 ms over 1500 frames, which is the cleanest form of this one.
+
 ⚠️ **It is worth ~10% where type tests are hot and NOTHING where they are
 not.** `algc --compile` is unchanged at 1.00× and `algc --test` gains 4%: the
 compile path is string building, where the tree walker asks `is` per node. The

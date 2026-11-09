@@ -82,7 +82,7 @@ static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args
                     (void)v_each;
                     alg_root(&v_each, 1);
                     if (alg_truthy(alg_equal(alg_invoke(v_each, "Arity", NULL, 0), v_thearity))) {
-                        Value ret_2 = alg_cast(v_each, "ObjFunction");
+                        Value ret_2 = alg_cast_class(v_each, k_objfunction, "ObjFunction");
                         alg_root_top = rt_base;
                         return ret_2;
                     }
@@ -158,7 +158,7 @@ static Value m_objclass_findmethod_1_string(Value v_this, Value *args, int32_t c
             (void)v_found;
             alg_root(&v_found, 1);
             if (alg_truthy(alg_greater(alg_property(v_found, "Length"), alg_int(0)))) {
-                Value ret_10 = alg_cast(alg_subscript_get(v_found, alg_int(0)), "ObjFunction");
+                Value ret_10 = alg_cast_class(alg_subscript_get(v_found, alg_int(0)), k_objfunction, "ObjFunction");
                 alg_root_top = rt_base;
                 return ret_10;
             }
@@ -245,7 +245,7 @@ static Value m_objclass_fitting_3_string_list_integer(Value v_this, Value *args,
                     (void)v_candidate;
                     alg_root(&v_candidate, 1);
                     if (alg_truthy(alg_invoke(v_candidate, "Selects", (Value[]){v_arguments, v_pass}, 2))) {
-                        Value ret_16 = alg_cast(v_candidate, "ObjFunction");
+                        Value ret_16 = alg_cast_class(v_candidate, k_objfunction, "ObjFunction");
                         alg_root_top = rt_base;
                         return ret_16;
                     }

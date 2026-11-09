@@ -500,6 +500,24 @@ static inline Value alg_cast_kind(Value v, int kind, const char *name) {
     return alg_cast_failed(v, name);
 }
 
+/* `is` and `as` against a CLASS the emitter resolved to its handle, which walks
+ * the instance's chain comparing ObjClass pointers instead of names.
+ *
+ * Out of line where the built-in pair above are inline, because ObjClass is
+ * private to algol.c and exposing it would be a far wider contract than Obj's
+ * three fields.  The win here is the strings rather than the call: the name
+ * version compares one per class per level, and a member read walks that chain
+ * several times.
+ *
+ * Sound only because alg_class allocates ONE ObjClass per class and the
+ * handles are roots, so a class's identity is stable for the run.  The emitter
+ * resolves a name only where the program declares exactly one class of it --
+ * two classes of one name are two objects, where the other two processors
+ * match a class by name and answer true for either, so comparing handles there
+ * would diverge.  CEmitter.ResolvedClass is where that is decided. */
+Value alg_is_class(Value v, Value klass);
+Value alg_cast_class(Value v, Value klass, const char *name);
+
 void  alg_set_arguments(int argc, char **argv);
 Value alg_param_count(void);
 Value alg_param_str(Value index);

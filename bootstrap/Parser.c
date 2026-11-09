@@ -585,8 +585,8 @@ static Value m_parser_casestatement_0(Value v_this, Value *args, int32_t count) 
     alg_root(&v_branch, 1);
     (void)((v_left = alg_invoke(v_this, "Expression", NULL, 0)));
     (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVof, alg_string("Expect 'of' after case condition.")}, 2));
-    (void)((v_top = alg_cast(alg_nil(), "IfStmt")));
-    (void)((v_current = alg_cast(alg_nil(), "IfStmt")));
+    (void)((v_top = alg_cast_class(alg_nil(), k_ifstmt, "IfStmt")));
+    (void)((v_current = alg_cast_class(alg_nil(), k_ifstmt, "IfStmt")));
     while (alg_truthy(alg_bool(true))) {
         {
             (void)((v_condition = alg_widen(alg_new(k_binaryexpr, (Value[]){v_left, alg_invoke(v_this, "Equals", NULL, 0), alg_invoke(v_this, "Expression", NULL, 0)}, 3), "Expr")));
@@ -868,7 +868,7 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
     Value v_decl = args[0];
     (void)v_decl;
     alg_root(&v_decl, 1);
-    if (alg_truthy((or_18 = (or_17 = (or_16 = alg_is(v_decl, "FunctionStmt"), alg_truthy(or_16) ? or_16 : alg_is(v_decl, "ClassStmt")), alg_truthy(or_17) ? or_17 : alg_is(v_decl, "ObjectStmt")), alg_truthy(or_18) ? or_18 : alg_is(v_decl, "VarStmt")))) {
+    if (alg_truthy((or_18 = (or_17 = (or_16 = alg_is_class(v_decl, k_functionstmt), alg_truthy(or_16) ? or_16 : alg_is_class(v_decl, k_classstmt)), alg_truthy(or_17) ? or_17 : alg_is_class(v_decl, k_objectstmt)), alg_truthy(or_18) ? or_18 : alg_is_class(v_decl, k_varstmt)))) {
         {
             (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_property(v_decl, "Name"), "Lexeme"))}, 1));
             Value ret_64 = alg_nil();
@@ -876,7 +876,7 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
             return ret_64;
         }
     }
-    if (alg_truthy(alg_is(v_decl, "VarGroupStmt"))) {
+    if (alg_truthy(alg_is_class(v_decl, k_vargroupstmt))) {
         {
             {
                 int32_t rt_34 = alg_root_top;
@@ -898,7 +898,7 @@ static Value m_parser_recordprivate_1(Value v_this, Value *args, int32_t count) 
             return ret_66;
         }
     }
-    if (alg_truthy(alg_is(v_decl, "EnumStmt"))) {
+    if (alg_truthy(alg_is_class(v_decl, k_enumstmt))) {
         {
             (void)(alg_invoke(alg_property(v_this, "PrivateNames"), "Add", (Value[]){alg_str(alg_property(alg_property(v_decl, "Name"), "Lexeme"))}, 1));
             {
@@ -1255,7 +1255,7 @@ static Value m_parser_declarationsection_1_boolean(Value v_this, Value *args, in
                     }
                 }
             }
-            Value v_initializer = alg_cast(alg_nil(), "Expr");
+            Value v_initializer = alg_cast_class(alg_nil(), k_expr, "Expr");
             (void)v_initializer;
             alg_root(&v_initializer, 1);
             if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVassign}, 1))) {
@@ -2535,7 +2535,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
     (void)v_superclass;
     alg_root(&v_superclass, 1);
     (void)((v_name = alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_add(alg_add(alg_string("Expect "), v_kind), alg_string(" name."))}, 2)));
-    (void)((v_superclass = alg_cast(alg_nil(), "VariableExpr")));
+    (void)((v_superclass = alg_cast_class(alg_nil(), k_variableexpr, "VariableExpr")));
     if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){e_tokentype_tokenVleftVparen}, 1))) {
         {
             (void)(alg_invoke(v_this, "Consume", (Value[]){e_tokentype_tokenVidentifier, alg_string("Expect superclass name.")}, 2));
@@ -2562,7 +2562,7 @@ static Value m_parser_classdeclaration_1_string(Value v_this, Value *args, int32
             (void)v_each;
             alg_root(&v_each, 1);
             {
-                if (alg_truthy(alg_is(v_each, "VarGroupStmt"))) {
+                if (alg_truthy(alg_is_class(v_each, k_vargroupstmt))) {
                     {
                         {
                             int32_t rt_67 = alg_root_top;

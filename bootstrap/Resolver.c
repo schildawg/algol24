@@ -144,7 +144,7 @@ static Value m_resolver_collectextensions_2_list_string(Value v_this, Value *arg
             (void)v_thestmt;
             alg_root(&v_thestmt, 1);
             {
-                if (alg_truthy(alg_not((alg_is(v_thestmt, "FunctionStmt"))))) {
+                if (alg_truthy(alg_not((alg_is_class(v_thestmt, k_functionstmt))))) {
                     continue;
                 }
                 if (alg_truthy(alg_property(v_thestmt, "IsExtension"))) {
@@ -284,16 +284,16 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
             (void)v_thestmt;
             alg_root(&v_thestmt, 1);
             {
-                if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
+                if (alg_truthy(alg_is_class(v_thestmt, k_objectstmt))) {
                     (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
                 }
-                if (alg_truthy(alg_is(v_thestmt, "EnumStmt"))) {
+                if (alg_truthy(alg_is_class(v_thestmt, k_enumstmt))) {
                     (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
                 }
-                if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
+                if (alg_truthy(alg_is_class(v_thestmt, k_varstmt))) {
                     (void)(alg_invoke(alg_property(v_this, "Dottable"), "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)}, 1));
                 }
-                if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
+                if (alg_truthy(alg_is_class(v_thestmt, k_vargroupstmt))) {
                     {
                         int32_t rt_84 = alg_root_top;
                         Value loop_11 = alg_iterable(alg_property(v_thestmt, "Names"));
@@ -310,7 +310,7 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
                         alg_root_top = rt_84;
                     }
                 }
-                if (alg_truthy((or_0 = alg_is(v_thestmt, "ModuleStmt"), !alg_truthy(or_0) ? or_0 : alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil())))) {
+                if (alg_truthy((or_0 = alg_is_class(v_thestmt, k_modulestmt), !alg_truthy(or_0) ? or_0 : alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil())))) {
                     (void)(alg_invoke(v_this, "CollectDottable", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
                 }
             }
@@ -331,7 +331,7 @@ static Value m_resolver_isunitqualifier_1(Value v_this, Value *args, int32_t cou
     Value v_obj = args[0];
     (void)v_obj;
     alg_root(&v_obj, 1);
-    if (alg_truthy(alg_not((alg_is(v_obj, "VariableExpr"))))) {
+    if (alg_truthy(alg_not((alg_is_class(v_obj, k_variableexpr))))) {
         Value ret_13 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_13;
@@ -1186,7 +1186,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
             (void)v_thestmt;
             alg_root(&v_thestmt, 1);
             {
-                if (alg_truthy(alg_is(v_thestmt, "ModuleStmt"))) {
+                if (alg_truthy(alg_is_class(v_thestmt, k_modulestmt))) {
                     {
                         if (alg_truthy(alg_not_equal(alg_property(v_thestmt, "Statements"), alg_nil()))) {
                             (void)(alg_invoke(v_this, "CheckDuplicates", (Value[]){alg_property(v_thestmt, "Statements")}, 1));
@@ -1201,7 +1201,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                         Value v_written = alg_string("");
                         (void)v_written;
                         alg_root(&v_written, 1);
-                        if (alg_truthy(alg_is(v_thestmt, "FunctionStmt"))) {
+                        if (alg_truthy(alg_is_class(v_thestmt, k_functionstmt))) {
                             {
                                 int32_t rt_107 = alg_root_top;
                                 Value v_fnname = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
@@ -1240,25 +1240,25 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                 alg_root_top = rt_107;
                             }
                         }
-                        if (alg_truthy(alg_is(v_thestmt, "ClassStmt"))) {
+                        if (alg_truthy(alg_is_class(v_thestmt, k_classstmt))) {
                             (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
                         }
-                        if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
+                        if (alg_truthy(alg_is_class(v_thestmt, k_objectstmt))) {
                             (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
                         }
-                        if (alg_truthy(alg_is(v_thestmt, "VarStmt"))) {
+                        if (alg_truthy(alg_is_class(v_thestmt, k_varstmt))) {
                             (void)((v_thename = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1)));
                         }
-                        if (alg_truthy(alg_is(v_thestmt, "ClassStmt"))) {
+                        if (alg_truthy(alg_is_class(v_thestmt, k_classstmt))) {
                             (void)(alg_invoke(v_this, "CheckMethodDuplicates", (Value[]){alg_property(v_thestmt, "Methods")}, 1));
                         }
-                        if (alg_truthy(alg_is(v_thestmt, "ObjectStmt"))) {
+                        if (alg_truthy(alg_is_class(v_thestmt, k_objectstmt))) {
                             (void)(alg_invoke(v_this, "CheckMethodDuplicates", (Value[]){alg_property(v_thestmt, "Methods")}, 1));
                         }
                         if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
                             (void)((v_written = alg_str(alg_property(alg_property(v_thestmt, "Name"), "Lexeme"))));
                         }
-                        if (alg_truthy(alg_is(v_thestmt, "EnumStmt"))) {
+                        if (alg_truthy(alg_is_class(v_thestmt, k_enumstmt))) {
                             {
                                 int32_t rt_110 = alg_root_top;
                                 Value v_owner = f_foldcase(NULL, (Value[]){alg_property(alg_property(v_thestmt, "Name"), "Lexeme")}, 1);
@@ -1302,7 +1302,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                 alg_root_top = rt_110;
                             }
                         }
-                        if (alg_truthy(alg_is(v_thestmt, "VarGroupStmt"))) {
+                        if (alg_truthy(alg_is_class(v_thestmt, k_vargroupstmt))) {
                             {
                                 int32_t rt_114 = alg_root_top;
                                 Value loop_68 = alg_iterable(alg_property(v_thestmt, "Names"));
@@ -1489,7 +1489,7 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
             Value v_statement = alg_iterable_at(loop_75, at_75);
             (void)v_statement;
             alg_root(&v_statement, 1);
-            if (alg_truthy(alg_is(v_statement, "ClassStmt"))) {
+            if (alg_truthy(alg_is_class(v_statement, k_classstmt))) {
                 if (alg_truthy(alg_not_equal(alg_property(v_statement, "Superclass"), alg_nil()))) {
                     (void)(alg_invoke(v_parent, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(v_statement, "Name"), "Lexeme")}, 1), f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_property(v_statement, "Superclass"), "Name"), "Lexeme")}, 1)}, 2));
                 }
@@ -1599,7 +1599,7 @@ static Value m_resolver_pushlabels_1_list(Value v_this, Value *args, int32_t cou
             Value v_statement = alg_iterable_at(loop_80, at_80);
             (void)v_statement;
             alg_root(&v_statement, 1);
-            if (alg_truthy(alg_is(v_statement, "LabelStmt"))) {
+            if (alg_truthy(alg_is_class(v_statement, k_labelstmt))) {
                 (void)(alg_invoke(v_found, "Add", (Value[]){v_statement}, 1));
             }
             alg_root_top = rt_132;
