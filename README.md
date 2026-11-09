@@ -154,7 +154,7 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.2.4.** The language is **stable, not closed**: it changes only on measured
+**v0.2.5.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
@@ -232,6 +232,20 @@ The rest, in brief:
 What comes next is still a library, written in Algol-24 rather than in the
 runtime — that is the whole of what *alpha* means here, and nothing in the
 language is provisional.
+
+v0.2.5 is **speed, and nothing else**: `algvm` runs the game that decides it at
+**37 fps where it ran at 20** — 48.7 ms a frame down to 26.8, so a 30 fps frame
+is 80% full rather than 119% of one. `Fib (27)` is 1.35 s down to 0.69 s. The
+dispatch loop is hand-written C over the **same Algol-24 handlers**, which
+remain the definition of every opcode, and `--algol-loop` runs without it.
+
+`is` and `as` stopped comparing strings, which is the half that reaches **every
+compiled program** rather than only the machine: the type was a string the
+compiler wrote, so each test paid a scan and a case-insensitive comparison for
+something fixed when the C was emitted — and they were the two heaviest
+functions in a profile of the game, above addition. The language itself gained
+nothing and lost nothing, which both corpora under three processors is what
+says.
 
 v0.1.6 was three things the library asked for, each with its own proposal and
 its own measurements:
