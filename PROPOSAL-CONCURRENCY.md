@@ -1,30 +1,63 @@
-# Proposal: concurrency by isolated processes, and the one built-in it needs
+# Proposal: Algol-24 is single-threaded, and concurrency is a library concern
 
 **Status:** proposed, not decided. Written 2026-11-09, out of a question asked
 after v0.2.5: the language has no concurrency story at all, and the
 specification reserves nothing for one.
 
-Two things, and the second is a paragraph:
+This proposes **a rule and no built-in**. The rule says what the model is;
+everything a program would call is a library unit, and the library already has
+what it needs to build it.
 
-- **`Spawn`**, a built-in that starts a program and answers an object carrying
-  its streams and its status — `TextFile`'s shape, for a process.
-- **A rule saying what the concurrency model is**: execution is
-  single-threaded, values are never shared between concurrent executions, and
-  concurrency is by isolated processes.
-
-Everything a program would actually call — run these in parallel, wait for
-them all, keep a pool of workers — is then a **library unit**, and belongs in
-`algol24-library` rather than here. That division is the whole of what this
-proposes.
+⚠️ **THE FIRST DRAFT PROPOSED A `Spawn` BUILT-IN AND WAS WRONG.** The argument
+was that a library should not have to carry three operating systems' process
+APIs. It already does — see below — so the argument was about a burden that had
+been paid before the document was written. What is left is the rule, which is a
+statement about the language rather than a capability, and the refusals, which
+are language questions.
 
 ---
 
-## The demand, measured
+## The bar a built-in has to clear
 
-**The Dew Drop Inn spends 27.6 seconds before its first frame, and 1.74 of
-them compiling.**
+Every one of [RT-001]'s built-ins is used by **the compiler or the machine
+itself**, and that is what makes them built-ins rather than library units. The
+reason is structural: `compiler/Parser.a24` is in the seed and may import the
+compiler's own units and nothing else, because the only way into the language
+is a checked-in copy of its own output — and `algc` is built without `--ffi` by
+default [INI-008], so a foreign call there answers `Foreign calls are not
+available in this build`.
 
-Measured on 2026-11-09 against `algvm` at v0.2.5:
+Counted rather than assumed, over `compiler/*.a24` and `vm/*.a24`:
+
+| built-in | uses |
+| --- | --- |
+| `ParamStr` | 36 |
+| `FileExists` | 11 |
+| `clock` | 9 |
+| `TextFile` | 8 |
+| `Collect` | 5 |
+| `Foreign` | 4 |
+| `MkDir`, `RmDir`, `ChDir`, `GetDir` | 2 each |
+
+Even [RT-026]'s four directory built-ins, which look most like Turbo Pascal
+compatibility imported wholesale, are reached by the compiler's own code. There
+is no built-in in the list that exists only for programs.
+
+**`Spawn` would be the first.** Neither the compiler nor the machine ever
+starts a process — checked, and there is not one call site between them. So it
+fails the bar, and the bar is the right one.
+
+This is the same argument `PROPOSAL-DIRECTORY-LISTING.md` makes *for* a
+built-in, which is why it is worth stating as a rule rather than re-deriving:
+a directory listing belongs in the core because **the module loader needs it**
+and cannot reach the library's. Process spawning has no such caller.
+
+---
+
+## The demand, measured, and why it is not an argument for the core
+
+**The Dew Drop Inn spends 27.64 seconds before its first frame, and 1.74 of
+them compiling.** Measured against `algvm` at v0.2.5:
 
 | | |
 | --- | --- |
@@ -33,198 +66,131 @@ Measured on 2026-11-09 against `algvm` at v0.2.5:
 | `algc --compile inn.a24`, the whole front end | **1.74 s** |
 | so: the program's own start-up work | **~26 s** |
 
-That 26 seconds is `shroom-slots` loading art and computing props — guest code,
-running one unit after another, on one core. It is embarrassingly parallel:
-each sheet is read from a different file and nothing shares state with
-anything. A machine with eight cores spends 26 seconds using one of them.
+That 26 seconds is `shroom-slots` loading art and computing props serially, on
+one core, with nothing shared between sheets. It is the measurement that also
+killed bytecode caching — caching would have saved the 1.74 and left the 26.
 
-**It is not the compiler's problem and it is not the machine's.** Caching
-bytecode would save the 1.74 s and leave the 26 — which is the measurement
-that killed that idea when it was raised, and the same measurement that makes
-this one worth having.
-
-A second, weaker demand sits beside it: the Inn runs at **26.8 ms a frame, 37
-fps**, logic-bound rather than SDL-bound, with the other cores idle. That one
-is weaker because a per-frame task would pay a copy at the boundary, and
-nothing has measured whether the copy is cheaper than the work.
+It is a real demand, and it is a demand on **the library**. Nothing about it
+reaches the compiler or the machine.
 
 ---
 
-## What exists already, and what is actually missing
+## The library already carries this
 
-**`dos.a24` already runs programs.** `Exec (Path, Args) : Integer` spawns
-without a shell, passes an argument vector rather than a command line, and —
-the relevant words — *"The call waits for the program to finish."* It does not
-capture the child's output; the child inherits the parent's streams.
+`algol24-library` ships **eight C shims** and **110 `external`
+declarations**, and one of those shims is `dosffi.c` — 470 lines, already
+spawning processes on both families:
 
-**`file.a24` already knows how to read a pipe.** It handles a stream that
-cannot be re-opened or seeked, and records that `stat` answers the bytes
-currently buffered for one. What it has no way to do is *make* one.
-
-**The runtime has none of the machinery.** Checked rather than assumed: zero
-occurrences of `pipe(`, `O_NONBLOCK` or `poll(` in `bootstrap/algol.c`.
-
-⚠️ **CAPABILITY IS NOT THE GAP, and this is the part that decides the
-proposal.** A library could do all of it through the FFI today: `fork`,
-`posix_spawn`, `pipe`, `dup2` and `waitpid` are libc, and
-`CreateProcess`/`CreatePipe`/`WaitForSingleObject` are kernel32. Nothing here
-needs the language's permission.
-
-What a library cannot do gracefully is carry **three operating systems' process
-APIs**. The runtime already absorbs exactly this kind of asymmetry, once, for
-exactly this reason — `algol.c`'s own comment above its dynamic-loading shim:
-
-> Windows does the same three things under different names, so they are given
-> the POSIX ones and the rest of this file does not have to know.
-
-A process is the same shape of problem as a shared library, and the same
-sentence should cover it.
-
----
-
-## Why it is a library and not a language feature
-
-Three reasons, each sufficient.
-
-**The three-processor rule.** Anything that suspends and resumes execution is
-easy on `algvm` — a coroutine is a saved `IP` and a stack slice, which is how
-Lua does it — and very hard in the other two. The tree walker's live state sits
-in C locals of a recursive evaluator, which is the same reason its collector
-was long thought impossible; compiled Algol-24 runs on the C stack. A feature
-one processor has is not a feature of this language.
-
-**Shared memory would tax every program.** The runtime keeps about twenty
-pieces of process-wide mutable state — the arena, the object registry, the
-per-unit root tables, `all_buffers`, `all_files`, `seq_spares`, the subrange
-table, the interned built-ins, the `setjmp` frame stack, and the shadow stack.
-Threads would need every one of them thread-local, including **`alg_root_top`,
-which generated code reads and writes inline** precisely because a call per
-block boundary was too expensive. The shadow stack itself measured +5.8% on
-the VM's `Fib (27)`; a thread-local on that path is a cost every
-single-threaded program would pay so that some programs could have threads.
-
-**Isolation keeps the collector simple.** A per-process heap means a task
-collects alone, with no stop-the-world coordination and no cross-thread root
-sets. Precise roots keep falling out of module-level variables being C statics,
-which is the property the whole collector rests on.
-
-And the aesthetic argument, which is not a tiebreaker here but points the same
-way: for a language whose stated principle is that code should read beautifully,
-`lock` is an admission that the language let you make a mistake. Under
-isolation, a data race cannot be written down.
-
----
-
-## How the other languages answer the same question
-
-| | model | what it costs them |
-| --- | --- | --- |
-| **Erlang** | isolated processes, message passing, copied values | a bespoke scheduler and runtime |
-| **Go** | goroutines plus channels, shared memory underneath | a race detector ships with the toolchain |
-| **Rust** | shared memory, races refused by the type system | an ownership system this language does not have |
-| **Lua** | coroutines, one OS thread | concurrency without parallelism |
-| **Python** | threads, a global lock | the lock, and twenty years of arguing about it |
-| **Turbo Pascal** | nothing | — |
-
-Erlang's answer is the one that fits, for the reason Erlang chose it: isolation
-is what lets the runtime stay simple. This proposal takes the model and not the
-scheduler — the operating system is the scheduler, and processes are the
-isolation.
-
-That is also the retro-modern line. Pascal had no concurrency at all; Algol-24
-gets the **modern** answer rather than the 1990s one.
-
----
-
-## The shape
-
-```
-var Job := Spawn ('/usr/local/bin/algvm', ['load.a24', 'reels.png']);
-
-Job.Output.ReadLn ();        // the child's standard output, as a TextFile
-Job.Input.WriteLn ('go');    // its standard input
-Job.Done                     // has it finished, without blocking
-Job.Wait ()                  // its exit status, blocking until there is one
+```c
+#ifdef _WIN32
+    if (!CreateProcessA (path, line, NULL, NULL, FALSE, 0, NULL, NULL,
+...
+    int err = posix_spawn (&child, path, NULL, NULL, argv, ALG_ENVIRON);
+    while (waitpid (child, &status, 0) < 0)
 ```
 
-`Spawn` answers an **object**, which is the shape [RT-001] already uses for
-`TextFile`, `Buffer`, `Map` and `List` — a built-in that answers something with
-members rather than a bare value. Nothing here is new syntax, and the
-specification gains one built-in and one rule rather than a subsystem.
+`dos.a24`'s `Exec (Path, Args) : Integer` is the Algol-24 face of it: no shell,
+an argument vector rather than a command line, and — the only words that matter
+here — *"The call waits for the program to finish."*
 
-**The streams are `TextFile`s** so that `file.a24` reads them with what it
-already has, including its handling of a stream that cannot be seeked.
+So the asymmetry a built-in was going to absorb is **already absorbed, in the
+library, in the file where the rest of it lives**. What async needs is small
+and sits beside code that does the hard part:
 
-### The alternative considered, and why it loses
+- `posix_spawn` without the `waitpid`, answering the child's id;
+- `waitpid` with `WNOHANG`, for asking without blocking;
+- a pipe: `posix_spawn_file_actions_adddup2` on POSIX, `CreatePipe` plus a
+  `STARTUPINFO` on Windows.
 
-**`Pipe ()` answering two `TextFile`s**, leaving the spawn to `dos.a24`. It is
-a smaller built-in and it was the first shape proposed. It loses because a pipe
-alone does not help: the child needs the write end *as its standard output*,
-which is `dup2` inside the spawn path, so the platform branch the library was
-trying to avoid is still there. `Spawn` absorbs the branch where the
-dlopen shim already absorbs its own.
-
-### The rule
-
-A rule saying: execution of a program is single-threaded; no value is shared
-between concurrent executions; concurrency is by isolated processes, which
-communicate by bytes. `Spawn` itself belongs in **§16, Built-in functions**,
-beside [RT-026]'s four directory built-ins; the model rule is a statement about
-execution rather than about a built-in, so where it goes is a question for
-whoever writes it. Short, and it earns its place three
-ways — it says why there is no `lock`, it tells a library author that
-isolation may be relied on rather than hoped for, and it stops the current
-silence reading as an oversight.
-
-### What the library would then build
-
-In `algol24-library`, over `Spawn` and the existing `Exec`: start N jobs
-without waiting, wait for all of them, keep a pool of workers alive so
-start-up is paid once, and a `Tasks` unit that reads the way the rest of the
-library does. None of it needs a reseed, and all of it can change without one
-— which is the main reason for drawing the line here.
+`file.a24` can already read the result: it handles a stream that cannot be
+re-opened or seeked, and records that `stat` answers the bytes currently
+buffered for a pipe.
 
 ---
 
-## What this deliberately does not propose
+## What the rule would say
 
-- **Threads, locks, atomics.** The thread-local tax above, plus data races
-  become expressible.
-- **`async` / `await`.** It colours every subprogram that touches it, and the
-  suspension it needs is feasible on one processor of three.
-- **Coroutines**, for the same suspension reason. They are a fine feature and a
-  separate proposal, and they are not a concurrency story here.
-- **`parallel begin … end`.** It reads well and buys nothing a library
-  `WaitAll` does not, while putting a scheduler inside the language.
-- **Channels as syntax.** Bytes over a stream are enough for the measured
-  demand; a typed channel wants a copy protocol for arbitrary values, which is
-  a larger question and should be asked by a program rather than invented here.
+That execution of a program is **single-threaded**; that no value is shared
+between concurrent executions; and that concurrency is by **isolated
+processes**, which communicate in bytes.
 
-⚠️ **A RE-ENTRY CONVENTION IS THE ONE DEFERRED PIECE WITH A REAL CASE.**
-A task taking a *subprogram* rather than a program — `Task (LoadSheet, Path)`
-— cannot be done portably: `fork` gives the child the parent's address space on
-a Unix and does not exist on Windows, where a child starts fresh. A documented
+It earns its place for three reasons, none of which is a capability:
+
+- **It makes the absence a decision.** The specification currently reserves
+  nothing, so the silence reads as an oversight. Every other settled question
+  in this language has a rule — [MOD-018] for case folding, [CLS-019] for how a
+  bare name resolves in a method — and this one does not.
+- **A library may rely on isolation rather than hope for it.** A `Tasks` unit
+  is only safe to write if the language promises that a child shares no value
+  with its parent. Today that is true by accident of implementation.
+- **It says why there is no `lock`.** A reader who comes from Java or Go will
+  look for one, and the honest answer is a sentence rather than an omission.
+
+Where it goes is a question for whoever writes it: `Spawn` would have belonged
+in §16 beside [RT-026], but a statement about execution is not a statement
+about a built-in.
+
+---
+
+## What is refused, and these are language questions
+
+Unlike the above, each of these would have to be in the language, and each is
+refused for a measured reason rather than for taste.
+
+**Threads, locks and atomics.** The runtime keeps about twenty pieces of
+process-wide mutable state — the arena, the object registry, the per-unit root
+tables, `all_buffers`, `all_files`, `seq_spares`, the subrange table, the
+interned built-ins, the `setjmp` frame stack and the shadow stack. Threads
+would need every one of them thread-local, including **`alg_root_top`, which
+generated code reads and writes inline** precisely because a call per block
+boundary was too expensive. The shadow stack alone measured **+5.8%** on the
+VM's `Fib (27)`; a thread-local on that path is a cost every single-threaded
+program would pay so that some programs could have threads. And data races
+become expressible, in a language whose stated principle is that code should
+read beautifully.
+
+**`async` / `await`, and coroutines.** Both need execution to suspend and
+resume. That is easy on `algvm` — a coroutine is a saved `IP` and a stack
+slice, which is how Lua does it — and very hard in the other two processors:
+the tree walker's live state sits in C locals of a recursive evaluator, which
+is the same reason its collector was long thought impossible, and compiled
+Algol-24 runs on the C stack. **A feature one processor of three has is not a
+feature of this language.** Coroutines are a fine thing and deserve their own
+proposal; they are not a concurrency story here.
+
+**`parallel begin … end`, and typed channels.** The first reads well and buys
+nothing a library `WaitAll` does not, while putting a scheduler inside the
+language. The second wants a copy protocol for arbitrary values, which is a
+larger question than the measured demand asks — the Inn's art is bytes.
+
+⚠️ **A RE-ENTRY CONVENTION IS THE ONE THING A LIBRARY GENUINELY CANNOT DO.**
+A task taking a *subprogram* rather than a program — `Task (LoadSheet, Path)` —
+needs the child to run this program's own code. `fork` gives that free on a
+Unix and does not exist on Windows, where a child starts fresh. A documented
 "re-enter at this named subprogram" flag honoured by `algvm` and by compiled
 binaries would make it portable.
 
-It is deferred because of a number in this document: a child that re-executes
-the program **recompiles it**, and the Inn takes 27.6 s to start. That only
-works behind a pool that pays start-up once, which is library work, so the
-language should wait and see whether the pool makes the convention unnecessary.
+It is deferred by a number in this document: a child that re-executes the
+program **recompiles** it, and the Inn takes 27.6 s to start. That only works
+behind a pool of workers that pays start-up once — which is library work. So
+the language should wait and see whether the pool makes the convention
+unnecessary, rather than add a flag on the strength of a surface nobody has
+written yet.
 
 ---
 
-## Why it is not in v0.2.5
+## Why it is not in v0.2.5, and what would change the answer
 
-v0.2.5 is performance and nothing else, and this is a capability. More to the
-point, the policy is that the language changes only on measured demand from a
-project using it — and while the 26 seconds is a real measurement, **nothing
-has yet tried and failed** to get it back through the FFI. The library doing it
-the awkward way first is what would prove the shape, exactly as
-`algol24-library` proved the directory listing by writing `fileffi.c` before
-`PROPOSAL-DIRECTORY-LISTING.md` asked for it in the core.
+The rule could land at any time; it is a paragraph and it describes what is
+already true.
 
-So the honest order is: `algol24-library` builds a `Tasks` unit over the FFI,
-`shroom-slots` loads its art with it, and if the platform branches are as ugly
-as this document predicts, that is the evidence for `Spawn` and the report that
-carries it.
+What would reopen the built-in question is a measurement the library cannot
+answer: a `Tasks` unit built over `dosffi.c`, used by `shroom-slots` to load
+its art, that is *still* unable to do the job — because process start-up
+dominates, or because a pool cannot be written portably, or because the
+subprogram-granularity surface turns out to be the only usable one. That
+report, with its numbers, is what the core should respond to.
+
+That is the order the directory listing followed, and it is the order the
+policy asks for: the language changes on measured demand from a project using
+it, and the measurement goes in the proposal.
