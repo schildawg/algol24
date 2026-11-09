@@ -1720,6 +1720,37 @@ the released body is never handed back at its own size class, which is case
   fails the build rather than dispatching to the wrong handler.
   `vm/build.sh` runs the check before it compiles.
 
+  ⚠️ **A FAST ARM IS A SHORTCUT PAST THE PLUMBING, NOT A SECOND
+  IMPLEMENTATION, and `FAST` in `vm/dispatch.sh` is where they live.** One
+  entry per opcode, generated into the switch like any other arm, and anything
+  the fast path declines falls through to the Algol-24 handler — which stays
+  the definition. `OP_ADD` is the first: two numbers held inline cannot be a
+  `VmInstance`, so [EXP-020]'s overload check cannot apply, and `alg_add` still
+  does the adding, so unbounded overflow and the type rules stay in one place.
+  That is what keeps this out of the "two implementations to hold in agreement"
+  trade a wholesale handler rewrite would make.
+
+  ⚠️ **What a fast arm actually saves is the STACK, not the arithmetic.**
+  `Slots` is an Array, so `Push` and `Pop` each go through
+  `alg_subscript_get`/`alg_subscript_set`, which try Map, Buffer, Set,
+  sequence and text in turn before they can index — 18.5% of the Inn's frame
+  is stack plumbing against 19.5% for all arithmetic and comparison together.
+  `alg_array_slots` is the companion to `alg_buffer_bytes` and answers the
+  backing store; it is safe to touch that way only because the stack is
+  allocated once at a fixed size and never grows.
+
+  ⚠️ **`OP_ADD` alone is worth about 2.6%, and ONE OPCODE IS AT THE NOISE
+  FLOOR.** Fib (27) reads 1.028–1.043× over four interleaved pairs; the Inn
+  reads 1.036× and 1.015× over two, where the baseline alone spans
+  26.95–27.46 ms. So measure the whole set at once rather than an arm at a
+  time — a single arm cannot be told from variance on a real display.
+
+  ⚠️ **A fast arm must be SEEN to run.** It is indistinguishable from an arm
+  that always falls through, which would measure as a disappointing result
+  rather than a broken one. Sabotaging the arithmetic made `2 + 3` answer
+  1002 while `'ab' + 'cd'` stayed correct, which is the check worth repeating
+  for each new arm.
+
   ⚠️ **`CodeBytes` is swapped per frame, so the loop re-reads the byte pointer
   EVERY instruction.** `alg_buffer_bytes` is in `algol.h` for that — caching it
   across instructions reads the previous frame's code after any call or return.

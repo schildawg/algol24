@@ -15,6 +15,8 @@ extern Value v_tick;
 extern Value v_collectVevery;
 extern Value v_traceVroom;
 extern Value v_codebytes;
+extern Value v_slots;
+extern Value v_sp;
 
 /* The handlers, unchanged and still in Algol-24.  This is the convention
    the emitter gives a top-level subprogram, and calling them directly is
@@ -149,7 +151,27 @@ void alg_vm_dispatch(void) {
             case  10: /* OP_EQUAL */              f_doequal(NULL, NULL, 0); break;
             case  11: /* OP_GREATER */            f_dogreater(NULL, NULL, 0); break;
             case  12: /* OP_LESS */               f_doless(NULL, NULL, 0); break;
-            case  13: /* OP_ADD */                f_doadd(NULL, NULL, 0); break;
+            case  13: { /* OP_ADD -- fast path, see FAST in dispatch.sh */
+                /* Two numbers held inline cannot be a VmInstance, so DoAdd's
+                   operator-overload check cannot apply [EXP-020] -- and
+                   alg_add still does the adding, so unbounded overflow and
+                   the type rules stay in exactly one place. */
+                int64_t sp = v_sp.integer;
+                Value  *s  = alg_array_slots(v_slots);
+
+                if (s != NULL && sp >= 2
+                        && alg_plain_number(s[sp - 2])
+                        && alg_plain_number(s[sp - 1])) {
+                    s[sp - 2] = alg_add(s[sp - 2], s[sp - 1]);
+
+                    v_sp.integer = sp - 1;
+                    break;
+                }
+
+                f_doadd(NULL, NULL, 0);
+                break;
+            }
+
             case  14: /* OP_SUBTRACT */           f_dosubtract(NULL, NULL, 0); break;
             case  15: /* OP_MULTIPLY */           f_domultiply(NULL, NULL, 0); break;
             case  16: /* OP_DIVIDE */             f_dodivide(NULL, NULL, 0); break;

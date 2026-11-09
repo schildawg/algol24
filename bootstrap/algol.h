@@ -193,6 +193,31 @@ Value alg_buffer(Value size);
  * the one caller is a loop that would rather check than carry a handler. */
 const unsigned char *alg_buffer_bytes(Value v);
 
+/* An Array's backing store, for C that wants to index it without a call per
+ * element.
+ *
+ * The companion to alg_buffer_bytes, and there for the same reason: a
+ * subscript goes through alg_subscript_get, which tries Map, Buffer, Set,
+ * sequence and text in turn before it can index, and the machine's value stack
+ * is an Array touched several times per instruction.
+ *
+ * BORROWED, and only as valid as the Array's capacity.  A List that grows
+ * moves its items, so a caller re-reads this rather than keeping it; the
+ * machine's stack is allocated once at a fixed size and never grows, which is
+ * what makes it safe to touch this way at all.
+ *
+ * Answers NULL for anything that is not a sequence, so a caller checks rather
+ * than carrying a handler. */
+Value *alg_array_slots(Value v);
+
+/* Whether a value is a number held INLINE -- an Integer inside a machine word
+   or a Double.  Deliberately not true of a bignum, which is an object: this
+   exists for fast paths that want the common case and are content to hand
+   everything else to the general one. */
+static inline bool alg_plain_number(Value v) {
+    return v.type == VAL_INT || v.type == VAL_DOUBLE;
+}
+
 Value alg_list_keep(Value list, Value item);
 Value alg_map_keep(Value map, Value key, Value value);
 

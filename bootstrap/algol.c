@@ -636,6 +636,12 @@ static ObjBuffer *as_buffer(Value v, const char *what) {
     return buffer;
 }
 
+Value *alg_array_slots(Value v) {
+    if (!is_sequence(v)) return NULL;
+
+    return ((ObjSeq *)v.obj)->items;
+}
+
 const unsigned char *alg_buffer_bytes(Value v) {
     if (!is_obj(v, OBJ_BUFFER)) return NULL;
 
