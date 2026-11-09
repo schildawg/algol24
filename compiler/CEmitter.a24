@@ -278,6 +278,30 @@ var
     /// visible here does not enter the question at all, and the method wins.
     VisibleDeclared : Set;
 
+    /// Which unit declares each top-level class, as a unit name to the set of
+    /// spellings it declares.
+    ///
+    /// Classes on its own is program-wide and keyed by a folded name, which is
+    /// the wrong question for resolving one to its C handle: a class handle is
+    /// a symbol, and a symbol declared by a unit this file never imported is
+    /// not in scope here.  Asking the program-wide set instead is what four
+    /// defects turned on for subprograms.
+    ClassesIn    : Map;
+
+    /// How many top-level classes the program declares under each folded name.
+    ///
+    /// Two units may each declare a class of one name, and those are two
+    /// ObjClass objects.  The other two processors match a class by NAME and
+    /// answer true for either, so a handle comparison would diverge -- a name
+    /// declared more than once keeps the string form.
+    ClassCounts  : Map;
+
+    /// The folded names of the classes VISIBLE in the file being emitted.
+    ///
+    /// Its own, plus those exported by the units it imported.  Replaced per
+    /// unit, exactly as VisibleDeclared is.
+    VisibleClasses : Set;
+
     /// Numbers the slots 'and' and 'or' hold their left operand in, so each
     /// occurrence gets its own and nesting cannot make two share one.
     Logicals     : Integer := 0;
@@ -545,6 +569,9 @@ begin
         this.DeclaredIn := Map();
         this.CollectingInto := Set();
         this.VisibleDeclared := Set();
+        this.ClassesIn := Map();
+        this.ClassCounts := Map();
+        this.VisibleClasses := Set();
         this.TopLevel := Set();
         this.UnitExports := Map();
         this.UnitAll := Map();
@@ -1098,6 +1125,30 @@ begin
             DeclaredIn.Put (Str (TheUnit.Name), CollectingInto);
         end
 
+        // Top-level classes only.  One declared inside a subprogram body has a
+        // handle local to that body, so it is absent here and keeps the string
+        // form -- which is the conservative answer rather than a missing case.
+        for var TheUnit in Units do
+        begin
+            var Mine := Set();
+
+            for var TheStmt in TheUnit.Statements do
+                if TheStmt is ClassStmt then
+                begin
+                    var Spelt := Str (TheStmt.Name.Lexeme);
+                    var Key   := FoldCase (Spelt);
+
+                    Mine.Add (Spelt);
+
+                    if ClassCounts.Contains (Key) then
+                        ClassCounts.Put (Key, (ClassCounts.Get (Key) as Integer) + 1);
+                    else
+                        ClassCounts.Put (Key, 1);
+                end
+
+            ClassesIn.Put (Str (TheUnit.Name), Mine);
+        end
+
         for var TheUnit in Units do
         begin
             TopLevel := Set();
@@ -1323,6 +1374,29 @@ begin
                     for var J := 0; J < Theirs.Length; J := J + 1 do
                         if Shown.Contains (Theirs[J]) then
                             VisibleDeclared.Add (Theirs[J]);
+                end
+
+            // The same two halves again, for classes, so an `is` can be
+            // resolved to a handle only where that handle's symbol is in scope.
+            VisibleClasses := Set();
+
+            if ClassesIn.Contains (Str (Unit.Name)) then
+            begin
+                var MyClasses := (ClassesIn.Get (Str (Unit.Name)) as Set).ToList();
+                for var I := 0; I < MyClasses.Length; I := I + 1 do
+                    VisibleClasses.Add (FoldCase (Str (MyClasses[I])));
+            end
+
+            for var TheImport in Unit.Imports do
+                if ClassesIn.Contains (Str (TheImport))
+                        and UnitExports.Contains (Str (TheImport)) then
+                begin
+                    var Theirs := (ClassesIn.Get (Str (TheImport)) as Set).ToList();
+                    var Shown  := UnitExports.Get (Str (TheImport)) as Set;
+
+                    for var J := 0; J < Theirs.Length; J := J + 1 do
+                        if Shown.Contains (Theirs[J]) then
+                            VisibleClasses.Add (FoldCase (Str (Theirs[J])));
                 end
 
             // Which counts those same declarations took, walked from the
@@ -1565,7 +1639,24 @@ begin
         Text := TheExpr.Accept (this) as String;
 
         if TheExpr.Cast <> '' then
+        begin
+            // Cast arrives canonical -- 'Real' reaches here as 'Double'
+            // [TYP-014] -- so one spelling serves the resolution and the
+            // message a failed cast gives.
+            var Kind := ResolvedKind (Str (TheExpr.Cast));
+
+            if Kind <> '' then
+                Exit 'alg_cast_kind(' + Text + ', ' + Kind + ', '
+                   + QuoteC (Str (TheExpr.Cast)) + ')';
+
+            var Handle := ResolvedClass (Str (TheExpr.Cast));
+
+            if Handle <> '' then
+                Exit 'alg_cast_class(' + Text + ', ' + Handle + ', '
+                   + QuoteC (Str (TheExpr.Cast)) + ')';
+
             Exit 'alg_cast(' + Text + ', ' + QuoteC (Str (TheExpr.Cast)) + ')';
+        end
 
         Exit Text;
     end
@@ -3433,11 +3524,138 @@ begin
         Exit '(' + Evaluate (TheExpr.Expression) + ')';
     end
 
+    /// Answers whether the program declares a type of this name itself.
+    ///
+    /// A built-in type name is not reserved: 'class List' is legal, and after
+    /// it 'X is List' has to answer for an instance of that class as well as
+    /// for a List.  So a name the program declares keeps the string form,
+    /// where alg_is consults the value's own type name and then its class
+    /// chain.  Subranges are included because one constrains Integer and is
+    /// tested by its bounds rather than by a kind.
+    function DeclaresType (Name : String) : Boolean;
+    begin
+        var Key := FoldCase (Name);
+
+        if Classes.Contains (Key) then Exit True;
+        if Objects.Contains (Key) then Exit True;
+        if SubrangeIndex (Name) >= 0 then Exit True;
+
+        // EnumTypes is keyed by the spelling its declaration used rather than
+        // by a folded one, so this folds on the way past instead of trusting
+        // the key [SRC-011].
+        for var Declared in EnumTypes do
+            if FoldCase (Declared) = Key then Exit True;
+
+        Exit False;
+    end
+
+    /// The ALG_KIND_* code for a built-in type name, or '' for anything else.
+    ///
+    /// Empty is the answer for a class, a singleton, an enumeration, a
+    /// subrange, 'Any' and a name this emitter does not know -- each of which
+    /// keeps the string form and the behaviour it already had.  'Any' is the
+    /// absence of a written type rather than a type a value can be tested
+    /// against, so it must not resolve: 'is Any' is false for everything.
+    ///
+    /// # Satisfies
+    /// TYP-002
+    function ResolvedKind (Name : String) : String;
+    begin
+        if DeclaresType (Name) then Exit '';
+
+        Exit BuiltinTypeName (Name);
+    end
+
+    /// The ALG_KIND_* code a built-in type name carries, asked WITHOUT regard
+    /// to what the program declares.
+    ///
+    /// Separate from ResolvedKind because the two callers want opposite things
+    /// from the same list.  ResolvedKind wants the code only where no
+    /// declaration shadows the name; ResolvedClass wants to know whether the
+    /// name is a built-in's AT ALL, since a class sharing one is reached by
+    /// either route -- 'class List' is legal, and '[1] is List' stays true
+    /// where 'X is List' on an instance is also true.  Comparing handles would
+    /// answer false for the List, so such a name keeps the string form.
+    function BuiltinTypeName (Name : String) : String;
+    begin
+        var Key := FoldCase (Name);
+
+        if Key = 'boolean'  then Exit 'ALG_KIND_BOOLEAN';
+        if Key = 'integer'  then Exit 'ALG_KIND_INTEGER';
+        if Key = 'double'   then Exit 'ALG_KIND_DOUBLE';
+        if Key = 'string'   then Exit 'ALG_KIND_STRING';
+        if Key = 'char'     then Exit 'ALG_KIND_CHAR';
+        if Key = 'pointer'  then Exit 'ALG_KIND_POINTER';
+        if Key = 'list'     then Exit 'ALG_KIND_LIST';
+        if Key = 'set'      then Exit 'ALG_KIND_SET';
+        if Key = 'stack'    then Exit 'ALG_KIND_STACK';
+        if Key = 'array'    then Exit 'ALG_KIND_ARRAY';
+        if Key = 'map'      then Exit 'ALG_KIND_MAP';
+        if Key = 'textfile' then Exit 'ALG_KIND_TEXTFILE';
+        if Key = 'buffer'   then Exit 'ALG_KIND_BUFFER';
+
+        Exit '';
+    end
+
+    /// The C symbol of the class handle a test of this name may compare
+    /// against, or '' where the name must keep the string form.
+    ///
+    /// Four conditions, and each of them is a correctness one rather than a
+    /// conservatism.  The program must declare a class of the name; the handle
+    /// must be in scope in the file being emitted, since it is a C symbol;
+    /// exactly one class may carry the name, because two are two objects where
+    /// the other processors compare names; and no singleton, enumeration or
+    /// subrange may share it, since the value's own type name would answer for
+    /// one of those and the chain walk would not.
+    ///
+    /// # Satisfies
+    /// TYP-002
+    function ResolvedClass (Name : String) : String;
+    begin
+        var Key := FoldCase (Name);
+
+        if not Classes.Contains (Key) then Exit '';
+        if not VisibleClasses.Contains (Key) then Exit '';
+
+        // A class sharing a built-in type name is reachable by either route,
+        // so the value's own type name has to be consulted and a chain walk
+        // cannot stand in for it.
+        if BuiltinTypeName (Name) <> '' then Exit '';
+
+        if not ClassCounts.Contains (Key) then Exit '';
+        if (ClassCounts.Get (Key) as Integer) <> 1 then Exit '';
+
+        if Objects.Contains (Key) then Exit '';
+        if SubrangeIndex (Name) >= 0 then Exit '';
+
+        for var Declared in EnumTypes do
+            if FoldCase (Declared) = Key then Exit '';
+
+        // The DECLARED spelling names the handle, as the inheritance site does
+        // it: a parent's name folds where it is written [TYP-002].
+        Exit ClassHandle (Str (Classes.Get (Key).Name.Lexeme));
+    end
+
     /// Emits an 'is' type test, including a subrange's bounds check.
     function VisitIsExpr (TheExpr : IsExpr) : String;
+    var
+        Written : String;
+        Kind    : String;
+        Handle  : String;
+
     begin
-        Exit 'alg_is(' + Evaluate (TheExpr.Obj) + ', '
-           + QuoteC (CanonicalType (TheExpr.TypeName.Lexeme)) + ')';
+        Written := CanonicalType (TheExpr.TypeName.Lexeme);
+        Kind    := ResolvedKind (Written);
+
+        if Kind <> '' then
+            Exit 'alg_is_kind(' + Evaluate (TheExpr.Obj) + ', ' + Kind + ')';
+
+        Handle := ResolvedClass (Written);
+
+        if Handle <> '' then
+            Exit 'alg_is_class(' + Evaluate (TheExpr.Obj) + ', ' + Handle + ')';
+
+        Exit 'alg_is(' + Evaluate (TheExpr.Obj) + ', ' + QuoteC (Written) + ')';
     end
 
     /// Emits a prefix operator, or a class's own unary operator.

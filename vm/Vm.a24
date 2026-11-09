@@ -581,6 +581,50 @@ var COLLECT_EVERY := 0;
 /// Instructions since the last collection.
 var Tick : Integer := 0;
 
+/// Whether to dispatch through the hand-written C loop rather than this one.
+///
+/// FALSE by default, and the default is what makes `./test.sh vm/Vm.a24` work:
+/// those tests run this unit under `algc`, which links no `vm/dispatch.c` and
+/// exports no symbols for a no-library `external` to find.  `vm/run.a24` turns
+/// it on, because `algvm` is built with both.
+///
+/// ⚠️ SO BOTH LOOPS ARE LIVE, and each is covered by a gate of its own: the
+/// Algol-24 one by this unit's own tests under `algc`, the C one by
+/// `./vm/conform.sh` running the whole corpus through `algvm`.  They would
+/// have to agree anyway -- `vm/dispatch.c` is GENERATED from this unit's own
+/// handler table by `./vm/dispatch.sh`, which `vm/build.sh` checks.
+var C_DISPATCH := False;
+
+/// Dispatches in C over these same handlers, returning when Live goes false.
+///
+/// A no-library `external`, so it resolves against the binary's own symbols --
+/// which needs `-Wl,-export_dynamic`, and `vm/build.sh` passes it.  Called once
+/// per run rather than once per instruction, so the foreign call costs nothing
+/// measurable.
+procedure CDispatch (); external 'alg_vm_dispatch';
+
+/// Whether this build linked a C dispatch loop at all.
+///
+/// Answers by RAISING where it did not, because an unresolvable no-library
+/// external is a failed lookup rather than a false answer -- so the caller
+/// asks inside a try.
+function HasCDispatch () : Integer; external 'alg_vm_dispatch_present';
+
+/// Turns the C dispatch loop on, if this build has one.
+///
+/// Asks rather than assumes, so a build that deliberately left dispatch.c out
+/// runs the Algol-24 loop instead of dying at the first instruction.  That is
+/// how a platform the C loop does not work on still gets a working machine:
+/// the loop is an optimization over handlers that remain the definition.
+procedure UseCDispatch ();
+begin
+    try
+        if HasCDispatch () = 1 then C_DISPATCH := True;
+    except
+        on e : String do C_DISPATCH := False;
+    end
+end
+
 /// The file the escaping error's instruction came from, for the driver to
 /// report [ERR-003].
 ///
@@ -2017,14 +2061,22 @@ begin
 
         // A PROPERTY answers on a read by being CALLED [CLS-012], which is the
         // one way a member read differs from reading a method as a value.
-        if Self.Klass.HasProperty (Named) then
+        if Self.Klass.HasPropertyFolded (Named) then
             Exit CallNested (Self, Written, List ());
 
-        if Self.Fields.Contains (Named) then Exit Self.Fields.Get (Named);
+        // ONE Map lookup where the field holds anything but nil, which is
+        // the common case.  Get answers nil for a key the Map lacks as well
+        // as for a field seeded nil, so only a NIL answer has to ask Contains
+        // -- and what it asks is whether the class declares the field at all,
+        // since VmInstance seeds every field of the chain present [CLS-006].
+        var Stored := Self.Fields.Get (Named);
+
+        if Stored <> Nil then Exit Stored;
+        if Self.Fields.Contains (Named) then Exit Nil;
 
         // A method read without parentheses is the method as a VALUE
         // [FUN-011], bound to the receiver it was read from.
-        if Self.Klass.FindMethod (Named) <> Nil then Exit VmBound (Self, Str (Written));
+        if Self.Klass.FindMethodFolded (Named) <> Nil then Exit VmBound (Self, Str (Written));
 
         raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
     end
@@ -3949,6 +4001,12 @@ begin
     // re-entered only when something is actually caught.
     while Live do
         try
+            // The C loop runs the whole of the inner loop and comes back only
+            // when Live goes false -- or not at all, if a host error longjmps
+            // past it into the handler below, which is exactly what this try is
+            // for and works the same either way.
+            if C_DISPATCH then CDispatch ();
+            else
             while Live do
             begin
                 var Op := ReadByte ();

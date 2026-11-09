@@ -1075,7 +1075,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                     (void)v_seen;
                     alg_root(&v_seen, 1);
                     if (alg_truthy(alg_invoke(alg_property(v_this, "Overloads"), "Contains", (Value[]){v_folded}, 1))) {
-                        (void)((v_seen = alg_cast(alg_invoke(alg_property(v_this, "Overloads"), "Get", (Value[]){v_folded}, 1), "Integer")));
+                        (void)((v_seen = alg_cast_kind(alg_invoke(alg_property(v_this, "Overloads"), "Get", (Value[]){v_folded}, 1), ALG_KIND_INTEGER, "Integer")));
                     }
                     (void)(alg_invoke(alg_property(v_this, "Overloads"), "Put", (Value[]){v_folded, alg_add(v_seen, alg_int(1))}, 2));
                     (void)(alg_invoke(v_this, "RecordArity", (Value[]){v_thestmt, v_folded}, 2));
@@ -1521,7 +1521,7 @@ static Value m_typechecker_checkfunction_1(Value v_this, Value *args, int32_t co
     (void)v_enclosing;
     alg_root(&v_enclosing, 1);
     (void)((v_enclosing = alg_property(v_this, "CurrentReturn")));
-    (void)(alg_set_property(v_this, "CurrentReturn", alg_cast(alg_property(v_thefunction, "ReturnType"), "String")));
+    (void)(alg_set_property(v_this, "CurrentReturn", alg_cast_kind(alg_property(v_thefunction, "ReturnType"), ALG_KIND_STRING, "String")));
     (void)(alg_invoke(alg_property(v_this, "Lookup"), "BeginScope", NULL, 0));
     {
         int32_t rt_356 = alg_root_top;
@@ -1615,7 +1615,7 @@ static Value m_typechecker_recordarity_2_string(Value v_this, Value *args, int32
     (void)v_taken;
     alg_root(&v_taken, 1);
     if (alg_truthy(alg_invoke(alg_property(v_this, "Arities"), "Contains", (Value[]){v_key}, 1))) {
-        (void)((v_taken = alg_cast(alg_invoke(alg_property(v_this, "Arities"), "Get", (Value[]){v_key}, 1), "Integer")));
+        (void)((v_taken = alg_cast_kind(alg_invoke(alg_property(v_this, "Arities"), "Get", (Value[]){v_key}, 1), ALG_KIND_INTEGER, "Integer")));
     }
     (void)(alg_invoke(alg_property(v_this, "Arities"), "Put", (Value[]){v_key, alg_add(v_taken, alg_int(1))}, 2));
     Value ret_104 = alg_nil();
@@ -1643,7 +1643,7 @@ static Value m_typechecker_candidatesfor_2_string_integer(Value v_this, Value *a
     (void)((v_total = alg_int(0)));
     (void)((v_key = alg_add(alg_add(v_folded, alg_char_value(47)), alg_str(v_count))));
     if (alg_truthy(alg_invoke(alg_property(v_this, "Arities"), "Contains", (Value[]){v_key}, 1))) {
-        (void)((v_total = alg_cast(alg_invoke(alg_property(v_this, "Arities"), "Get", (Value[]){v_key}, 1), "Integer")));
+        (void)((v_total = alg_cast_kind(alg_invoke(alg_property(v_this, "Arities"), "Get", (Value[]){v_key}, 1), ALG_KIND_INTEGER, "Integer")));
     }
     if (alg_truthy(alg_invoke(alg_property(v_this, "Variadics"), "Contains", (Value[]){v_folded}, 1))) {
         {
@@ -1656,7 +1656,7 @@ static Value m_typechecker_candidatesfor_2_string_integer(Value v_this, Value *a
                 Value v_fixed = alg_iterable_at(loop_105, at_105);
                 (void)v_fixed;
                 alg_root(&v_fixed, 1);
-                if (alg_truthy(alg_greater_equal(v_count, (alg_cast(v_fixed, "Integer"))))) {
+                if (alg_truthy(alg_greater_equal(v_count, (alg_cast_kind(v_fixed, ALG_KIND_INTEGER, "Integer"))))) {
                     (void)((v_total = alg_add(v_total, alg_int(1))));
                 }
                 alg_root_top = rt_362;
@@ -1692,7 +1692,7 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
     Value v_count = alg_nil();
     (void)v_count;
     alg_root(&v_count, 1);
-    (void)((v_count = alg_cast(alg_property(alg_property(v_theexpr, "Arguments"), "Length"), "Integer")));
+    (void)((v_count = alg_cast_kind(alg_property(alg_property(v_theexpr, "Arguments"), "Length"), ALG_KIND_INTEGER, "Integer")));
     if (alg_truthy(alg_equal(alg_invoke(v_this, "ClassNameOf", (Value[]){alg_property(v_theexpr, "Callee")}, 1), alg_string("GetExpr")))) {
         {
             if (alg_truthy(alg_equal(alg_str(alg_property(alg_property(v_theexpr, "Callee"), "Extension")), alg_string("")))) {
@@ -1739,7 +1739,7 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
         alg_root_top = rt_base;
         return ret_113;
     }
-    (void)((v_seen = alg_cast(alg_invoke(alg_property(v_this, "Overloads"), "Get", (Value[]){v_folded}, 1), "Integer")));
+    (void)((v_seen = alg_cast_kind(alg_invoke(alg_property(v_this, "Overloads"), "Get", (Value[]){v_folded}, 1), ALG_KIND_INTEGER, "Integer")));
     if (alg_truthy(alg_less(v_seen, alg_int(2)))) {
         Value ret_114 = alg_nil();
         alg_root_top = rt_base;
@@ -1823,7 +1823,7 @@ static Value m_typechecker_warnifnoarity_1(Value v_this, Value *args, int32_t co
             return ret_123;
         }
     }
-    (void)((v_count = alg_cast(alg_property(alg_property(v_theexpr, "Arguments"), "Length"), "Integer")));
+    (void)((v_count = alg_cast_kind(alg_property(alg_property(v_theexpr, "Arguments"), "Length"), ALG_KIND_INTEGER, "Integer")));
     if (alg_truthy(alg_greater(alg_invoke(v_this, "CandidatesFor", (Value[]){v_folded, v_count}, 2), alg_int(0)))) {
         Value ret_124 = alg_nil();
         alg_root_top = rt_base;
@@ -2368,27 +2368,27 @@ static Value m_typechecker_typeofvalue_1(Value v_this, Value *args, int32_t coun
         alg_root_top = rt_base;
         return ret_178;
     }
-    if (alg_truthy(alg_is(v_value, "Boolean"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_BOOLEAN))) {
         Value ret_179 = alg_string("Boolean");
         alg_root_top = rt_base;
         return ret_179;
     }
-    if (alg_truthy(alg_is(v_value, "Integer"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_INTEGER))) {
         Value ret_180 = alg_string("Integer");
         alg_root_top = rt_base;
         return ret_180;
     }
-    if (alg_truthy(alg_is(v_value, "Double"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_DOUBLE))) {
         Value ret_181 = alg_string("Double");
         alg_root_top = rt_base;
         return ret_181;
     }
-    if (alg_truthy(alg_is(v_value, "Char"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_CHAR))) {
         Value ret_182 = alg_string("Char");
         alg_root_top = rt_base;
         return ret_182;
     }
-    if (alg_truthy(alg_is(v_value, "String"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_STRING))) {
         Value ret_183 = alg_string("String");
         alg_root_top = rt_base;
         return ret_183;

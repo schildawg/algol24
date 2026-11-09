@@ -82,37 +82,37 @@ Value f_typenameof(Value **cells, Value *args, int32_t count) {
         alg_root_top = rt_base;
         return ret_0;
     }
-    if (alg_truthy(alg_is(v_value, "Boolean"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_BOOLEAN))) {
         Value ret_1 = alg_string("Boolean");
         alg_root_top = rt_base;
         return ret_1;
     }
-    if (alg_truthy(alg_is(v_value, "Integer"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_INTEGER))) {
         Value ret_2 = alg_string("Integer");
         alg_root_top = rt_base;
         return ret_2;
     }
-    if (alg_truthy(alg_is(v_value, "Double"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_DOUBLE))) {
         Value ret_3 = alg_string("Double");
         alg_root_top = rt_base;
         return ret_3;
     }
-    if (alg_truthy(alg_is(v_value, "String"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_STRING))) {
         Value ret_4 = alg_string("String");
         alg_root_top = rt_base;
         return ret_4;
     }
-    if (alg_truthy(alg_is(v_value, "Char"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_CHAR))) {
         Value ret_5 = alg_string("Char");
         alg_root_top = rt_base;
         return ret_5;
     }
-    if (alg_truthy(alg_is(v_value, "ObjInstance"))) {
+    if (alg_truthy(alg_is_class(v_value, k_objinstance))) {
         Value ret_6 = alg_str(alg_property(alg_property(v_value, "Klass"), "Name"));
         alg_root_top = rt_base;
         return ret_6;
     }
-    if (alg_truthy(alg_is(v_value, "ObjCollection"))) {
+    if (alg_truthy(alg_is_class(v_value, k_objcollection))) {
         Value ret_7 = alg_property(v_value, "Kind");
         alg_root_top = rt_base;
         return ret_7;
@@ -122,17 +122,17 @@ Value f_typenameof(Value **cells, Value *args, int32_t count) {
         alg_root_top = rt_base;
         return ret_8;
     }
-    if (alg_truthy(alg_is(v_value, "ObjFile"))) {
+    if (alg_truthy(alg_is_class(v_value, k_objfile))) {
         Value ret_9 = alg_string("TextFile");
         alg_root_top = rt_base;
         return ret_9;
     }
-    if (alg_truthy(alg_is(v_value, "ObjBuffer"))) {
+    if (alg_truthy(alg_is_class(v_value, k_objbuffer))) {
         Value ret_10 = alg_string("Buffer");
         alg_root_top = rt_base;
         return ret_10;
     }
-    if (alg_truthy(alg_is(v_value, "Pointer"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_POINTER))) {
         Value ret_11 = alg_string("Pointer");
         alg_root_top = rt_base;
         return ret_11;
@@ -663,12 +663,12 @@ Value f_inheritsfrom(Value **cells, Value *args, int32_t count) {
     Value v_klass = alg_nil();
     (void)v_klass;
     alg_root(&v_klass, 1);
-    if (alg_truthy(alg_not((alg_is(v_value, "ObjInstance"))))) {
+    if (alg_truthy(alg_not((alg_is_class(v_value, k_objinstance))))) {
         Value ret_64 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_64;
     }
-    (void)((v_klass = alg_cast(alg_property(v_value, "Klass"), "ObjClass")));
+    (void)((v_klass = alg_cast_class(alg_property(v_value, "Klass"), k_objclass, "ObjClass")));
     while (alg_truthy(alg_not_equal(v_klass, alg_nil()))) {
         {
             if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(v_klass, "Name")}, 1), f_foldcase(NULL, (Value[]){v_thename}, 1)))) {

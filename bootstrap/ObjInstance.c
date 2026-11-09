@@ -186,7 +186,7 @@ static Value m_objsingleton_instance_0(Value v_this, Value *args, int32_t count)
     alg_root(&v_this, 1);
     alg_root(args, count);
     if (alg_truthy(alg_equal(alg_property(v_this, "TheInstance"), alg_nil()))) {
-        (void)(alg_set_property(v_this, "TheInstance", alg_cast(alg_invoke(alg_property(v_this, "Klass"), "Call", (Value[]){alg_property(v_this, "TheInterpreter"), alg_list()}, 2), "ObjInstance")));
+        (void)(alg_set_property(v_this, "TheInstance", alg_cast_class(alg_invoke(alg_property(v_this, "Klass"), "Call", (Value[]){alg_property(v_this, "TheInterpreter"), alg_list()}, 2), k_objinstance, "ObjInstance")));
     }
     Value ret_13 = alg_property(v_this, "TheInstance");
     alg_root_top = rt_base;

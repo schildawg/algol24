@@ -242,11 +242,28 @@ arity warning would have diverged every case with a wrong-count call in it,
   `OP_GET_MEMBER` where the receiver is an arbitrary expression.
 
   That split is exactly the split between the member reads whose slot could be
-  computed at emit time and the ones that cannot. A field read is **two Map
-  lookups by folded name** today, which is the shape already optimised away for
-  globals — a hash per access became a fixed index and a subscript, 12.8
-  against 13.1 M instr/s. A slot-indexed field read lands on `OP_GET_FIELD`,
-  and collapsing the two would throw away the classification it needs.
+  computed at emit time and the ones that cannot. A field read is **one Map
+  lookup by folded name** where the field holds anything but nil and two where
+  it holds nil, which is still the shape already optimised away for globals —
+  a hash per access became a fixed index and a subscript, 12.8 against 13.1 M
+  instr/s. A slot-indexed field read lands on `OP_GET_FIELD`, and collapsing
+  the two would throw away the classification it needs.
+
+  ⚠️ **The SECOND lookup is what tells a nil field from a name the class has
+  not got, and dropping it raises on a perfectly good field.** `Map.Get`
+  answers nil for a missing key and for a field seeded nil alike, so only a nil
+  answer needs `Contains` — and `VmInstance` seeds every field of the chain
+  present [CLS-006], which is what makes that question answerable at all.
+  Removing the guard was seen to make `H.Empty` raise
+  `Undefined property 'Empty'.`
+
+  ⚠️ **`FindMethodFolded` and `HasPropertyFolded` exist because MemberOf folds
+  ONCE and asks three questions.** Each call through the folding version would
+  fold again — a string allocation per question, on the hottest path the
+  machine has. The folding pair delegate to them, so the chain walk lives once.
+  Worth **1.3–1.6% on the Inn** and nothing on `Fib`, which reads no fields;
+  measured interleaved under the software renderer, because the effect is
+  smaller than a real display's run-to-run variance.
 
   ⚠️ **It was `OP_PROPERTY`, and the name was wrong twice over.** It said the
   runtime's five properties and meant every member; and it sat one near-
@@ -1645,9 +1662,12 @@ the released body is never handed back at its own size class, which is case
   ⚠️ **Two findings there are about the emitter, not the VM, and they are not
   conditional on it.** `build.sh` now probes for **`-flto`** and uses it
   (`LTO=0` opts out), because `algol.c` is a separate translation unit and every
-  `alg_*` call crosses it. And `BoundValue` elides `alg_widen` only for `''` and
-  `Any`, so **annotating a variable currently makes the emitted code slower**,
-  which is backwards for a gradually typed language.
+  `alg_*` call crosses it. And `BoundValue` elides `alg_widen` where the
+  declared type is `''` or `Any` **and now also where `Elidable` proves the call
+  the identity** — the declared and actual types agree and the declared one is
+  not a subrange. So annotating a variable costs nothing *where the checker
+  knows the actual type*; where it does not, the annotation still buys a call,
+  which is DEF-35's territory rather than this emitter's.
 
   ⚠️ **LTO's size depends entirely on the shape of the work**, and a number
   quoted without its workload is useless: 42% on a tight arithmetic loop, 24% on
@@ -1656,12 +1676,13 @@ the released body is never handed back at its own size class, which is case
   not repeat the 42% as though it were general -- `finished/PROPOSAL-VM.md` did, and it
   was wrong.
 
-  ⚠️ **The frame budget is MEASURED on the machine now, and the Inn misses 30
-  fps.** A played session — 4,941 frames in 196.4 s with automatic collection
-  on — runs at **39.75 ms a frame, 25 fps**, which is **119% of a 30 fps
-  frame**. Quote that, not a short run: 30 frames reads 19–21 fps because the
-  first frames dominate, and the game's own `frames`/`rate` lines are the only
-  honest source.
+  ⚠️ **The frame budget is MEASURED on the machine, and the ALGOL-24 dispatch
+  loop misses 30 fps where the C one clears it.** A played session on the
+  Algol-24 loop — 4,941 frames in 196.4 s with automatic collection on — runs
+  at **39.75 ms a frame, 25 fps**, which is **119% of a 30 fps frame**; the C
+  loop below takes the same game to 32.18 ms. Quote a long run, not a short
+  one: 30 frames reads 19–21 fps because the first frames dominate, and the
+  game's own `frames`/`rate` lines are the only honest source.
 
   ⚠️ **The projection this section used to carry was optimistic by 2.2×.** It
   reasoned from the Inn spending **2.0 ms a frame** in compiled Algol-24 (plus
@@ -1679,21 +1700,92 @@ the released body is never handed back at its own size class, which is case
   — so the cost does not accumulate over thousands of frames. It buys **8.1×**
   less peak memory: 14.53 GB of footprint against **1.80 GB**.
 
-  ⚠️ **A third finding is a decision, not a repair**, and it is the only one
-  that helps the VM more than the AOT path: writing just the dispatch loop in
-  C, over handlers that stay in Algol-24, measured a further **1.7×** and takes
-  the VM to CPython parity. The real frame makes it **more** load-bearing than
-  the projection did, not less — the old text said the Inn was at 94% of a 30
-  fps frame without it, where the measurement says 119%, so it is the
-  difference between missing 30 fps and clearing it. **If** the 1.7× held it
-  would be 23.4 ms, 70% of a 30 fps frame; that factor came off a FOUR-OPCODE
-  toy (`vm/spike/vmtable.a24`), so treat it as a reason to try rather than as a
-  number. There is no barrier at the emitted-C level — a generated subprogram
-  is already an ordinary C function — so what it would need is linkage, and
-  `vm/spike/cdispatch.py` demonstrates it by patching a compiled variant. The
-  catch is that giving C a stable name to call **freezes the `Value **cells,
-  Value *args, int32_t count` calling convention**, which is private today and
-  has changed before.
+  ⚠️ **THE DISPATCH LOOP IS IN C NOW, and it is 1.51× rather than the toy's
+  1.7×.** `vm/dispatch.c` holds `alg_vm_dispatch` — eighty `case` arms calling
+  the same Algol-24 handlers — and the Inn on a real display goes from **48.71
+  ms a frame to 32.18 ms**, 20 fps to **31**, over 1500 frames. `Fib (27)`
+  reads the same factor (1.35 s against 0.89 s), and that agreement is what
+  says the factor belongs to the loop rather than to either program. So the
+  Inn **clears 30 fps at 97% of the frame**, with nothing to spare.
+
+  ⚠️ **A SOFTWARE RENDERER halves the measured gain.** Under
+  `SDL_VIDEODRIVER=dummy` with `SDL_RENDER_DRIVER=software` the same pair reads
+  52.47 ms against 42.96 — **1.22×** — because the renderer burns CPU inside
+  SDL where the dispatch loop cannot reach it. Measure this one on a display or
+  it understates by a third.
+
+  ⚠️ **`vm/dispatch.c` is GENERATED, and `vm/dispatch.sh --check` is what keeps
+  it honest.** The arms are written from `OpCode.a24`'s numbers and
+  `Vm.a24`'s `BuildHandlers` table, so an opcode added to one and not the other
+  fails the build rather than dispatching to the wrong handler.
+  `vm/build.sh` runs the check before it compiles.
+
+  ⚠️ **A FAST ARM IS A SHORTCUT PAST THE PLUMBING, NOT A SECOND
+  IMPLEMENTATION, and `FAST` in `vm/dispatch.sh` is where they live.** One
+  entry per opcode, generated into the switch like any other arm, and anything
+  the fast path declines falls through to the Algol-24 handler — which stays
+  the definition. `OP_ADD` is the first: two numbers held inline cannot be a
+  `VmInstance`, so [EXP-020]'s overload check cannot apply, and `alg_add` still
+  does the adding, so unbounded overflow and the type rules stay in one place.
+  That is what keeps this out of the "two implementations to hold in agreement"
+  trade a wholesale handler rewrite would make.
+
+  ⚠️ **What a fast arm actually saves is the STACK, not the arithmetic.**
+  `Slots` is an Array, so `Push` and `Pop` each go through
+  `alg_subscript_get`/`alg_subscript_set`, which try Map, Buffer, Set,
+  sequence and text in turn before they can index — 18.5% of the Inn's frame
+  is stack plumbing against 19.5% for all arithmetic and comparison together.
+  `alg_array_slots` is the companion to `alg_buffer_bytes` and answers the
+  backing store; it is safe to touch that way only because the stack is
+  allocated once at a fixed size and never grows.
+
+  ⚠️ **`OP_ADD` alone is worth about 2.6%, and ONE OPCODE IS AT THE NOISE
+  FLOOR.** Fib (27) reads 1.028–1.043× over four interleaved pairs; the Inn
+  reads 1.036× and 1.015× over two, where the baseline alone spans
+  26.95–27.46 ms. So measure the whole set at once rather than an arm at a
+  time — a single arm cannot be told from variance on a real display.
+
+  ⚠️ **A fast arm must be SEEN to run.** It is indistinguishable from an arm
+  that always falls through, which would measure as a disappointing result
+  rather than a broken one. Sabotaging the arithmetic made `2 + 3` answer
+  1002 while `'ab' + 'cd'` stayed correct, which is the check worth repeating
+  for each new arm.
+
+  ⚠️ **`CodeBytes` is swapped per frame, so the loop re-reads the byte pointer
+  EVERY instruction.** `alg_buffer_bytes` is in `algol.h` for that — caching it
+  across instructions reads the previous frame's code after any call or return.
+
+  ⚠️ **It is a FLAG, and both loops still exist.** `C_DISPATCH` is False in
+  `Vm.a24` and `vm/run.a24` calls `UseCDispatch ()`, so the machine's own tests
+  under `algc` exercise the Algol-24 loop while the shipped binary runs the C
+  one. That is what lets `./test.sh vm/Vm.a24` keep testing the handlers, and
+  it is also a drift risk: the two loops must agree, and only `vm/conform.sh`
+  holds them to it.
+
+  ⚠️ **A green run proves nothing until the C loop is seen to RUN.** It is
+  reached through an `external` with no library name, so a binary that cannot
+  find its own symbols does not run it. Sabotage an arm and watch the failure
+  before trusting a figure.
+
+  ⚠️ **THE EXPORT FLAG IS PROBED AND THE PROBE RUNS, because its spelling
+  differs per platform and accepting a flag is not the lookup working.**
+  `-export_dynamic` is Apple's, `--export-dynamic` is GNU/ELF's, and PE
+  exports nothing from an executable without `--export-all-symbols`. It was
+  hard-coded to Apple's, so the Windows job linked happily and then could not
+  find its own dispatch loop: `algvm hello.a24` failed where `algvm --version`
+  and `./test.sh vm/Vm.a24` both passed, because **neither runs the C loop** —
+  the machine's own tests run under `algc`, which has the Algol-24 one. The
+  probe compiles with `$LTO` as the real link does, since nothing calls
+  `alg_vm_dispatch` statically and that is exactly what might drop it.
+
+  ⚠️ **macOS needs NO flag at all, which is why the wrong one went unnoticed.**
+  The probe reports the lookup succeeding with `-export_dynamic`, with
+  `-rdynamic` and with nothing — so the hard-coded flag was never load-bearing
+  here and could not fail where it was written.
+
+  ⚠️ **The cost is that giving C a stable name to call FREEZES the
+  `Value **cells, Value *args, int32_t count` calling convention**, which was
+  private before this and has changed before.
 
 ## The collector
 
@@ -1862,6 +1954,17 @@ And the machine's three, which `test.sh`'s default root does not reach:
 ./vm/conform.sh       # the corpus on the machine, both corpora
 ./vm/reference.sh     # every opcode entry agrees with OpCode.a24
 ```
+
+⚠️ **EVERY SCRIPT HERE IS sh AND awk, AND THAT IS A RULE RATHER THAN A
+HABIT.** A C compiler is the only thing this repository needs to build itself,
+so a generator or checker that reaches for python quietly makes that untrue —
+`docs.sh` has carried the sentence since it was written, and `vm/dispatch.sh`
+was added in python anyway, because the rule was stated only inside another
+script where nothing surfaced it. The Windows job is what caught it:
+`./vm/build.sh` died with `python3: command not found` on the one platform
+where the checked-in `vm/dispatch.c` would then have gone unchecked. Ported to
+awk, and the port was verified by generating byte-identical output to what
+python wrote.
 
 ⚠️ **The count used to be in this heading and went stale twice.** There were
 six, then seven, then eight; a number in a heading is a claim nothing checks,
@@ -2077,6 +2180,79 @@ not arity. Exceptions are `setjmp`/`longjmp` over a frame stack.
 function**, not as nested calls, because `cc` gives up at 256 bracket levels.
 That only works when every element is itself a literal; a large literal of
 *computed* elements is passed into a helper instead.
+
+⚠️ **`is` and `as` AGAINST A BUILT-IN TYPE ARE RESOLVED AT EMIT TIME, and the
+two functions they used to call were the heaviest in a profile of a real
+program.** `alg_is` and `alg_cast` take the type as a string the emitter wrote,
+so every test paid a linear scan of the subrange table and a case-insensitive
+comparison for something fixed when the C was written.
+`CEmitter.ResolvedKind` answers an `ALG_KIND_*` code for the thirteen built-in
+type names, and `alg_is_kind` / `alg_cast_kind` are `static inline` in
+`algol.h`, so the test is an integer compare. Measured at **11% on the VM's
+Fib (27)** — 0.89 s to 0.79 — and **10% on the Dew Drop Inn**, 32.18 ms a frame
+to 28.82, 31 fps to 34.
+
+⚠️ **A BUILT-IN TYPE NAME IS NOT RESERVED, which is the whole of what the guard
+is for.** `class List` is legal, and after it `X is List` must answer for an
+instance of that class *as well as* for a List — both are true today. So
+`ResolvedKind` refuses any name the program declares as a class, a singleton,
+an enumeration or a subrange, and every one of those keeps the string form.
+Resolving one of them would be a silently wrong answer rather than a failure,
+which is why `DeclaresType` asks four questions and not one.
+
+⚠️ **INLINE is more than half the gain, measured both ways.** Interning the
+names *behind* `alg_is` at run time — the same resolution, still an
+out-of-line call — measured **1.05×** on the Inn where resolving at emit time
+measures **1.12×**. That is why `Obj`'s layout is public in `algol.h`, for the
+same reason `alg_root_top` is.
+
+⚠️ **A CLASS NAME IS RESOLVED TO ITS HANDLE TOO, and that walk compares
+`ObjClass` POINTERS rather than names.** `alg_is_class`/`alg_cast_class` are
+out of line, unlike the built-in pair, because `ObjClass` is private to
+`algol.c` and exposing it would be a far wider contract than `Obj`'s three
+fields; the win here is the strings rather than the call, since the name
+version compares one per class per level and a member read walks that chain
+several times. All 43 class tests in `Vm.c` resolve. Measured at **1.11× on
+Fib (27)** — 0.79 s to 0.71 — and about **1.04× on the Inn**.
+
+⚠️ **FOUR conditions decide it, and every one is correctness rather than
+caution.** `CEmitter.ResolvedClass` requires that the program declare a class
+of the name; that the handle be IN SCOPE in the file being emitted, since it is
+a C symbol and `static` in a root file; that **exactly one** class carry the
+name; and that no built-in type name, singleton, enumeration or subrange share
+it. Two of those were seen to go red before being trusted.
+
+⚠️ **TWO CLASSES OF ONE NAME ARE TWO OBJECTS, where the other two processors
+match a class by NAME.** `Interpreter.SatisfiesType` ends in `InheritsFrom`,
+which walks comparing names, so an instance of *one* unit's `Thing` answers
+true for the *other* unit's `Thing`. Comparing handles answers false. Removing
+the uniqueness guard was seen to produce exactly that divergence, so a repeated
+name keeps the string form.
+
+⚠️ **A class sharing a BUILT-IN's name is reachable by either route.**
+`class List` is legal and `[1] is List` is **true** as well as `X is List` on
+an instance — the value's own type name answers for the List where no chain
+walk can. So `BuiltinTypeName` is asked without regard to declarations, which
+is why it is split from `ResolvedKind`: the two callers want opposite things
+from one list.
+
+⚠️ **RUN-TO-RUN VARIANCE ON A REAL DISPLAY IS THE SAME SIZE AS THIS EFFECT, and
+reading two separate runs said it did nothing.** 1500-frame runs read 28.82 ms
+and 28.81 ms, which looked like a ceiling and nearly got written down as one;
+interleaved 1200-frame pairs read 29.95 → 28.79 and 28.75 → 27.48, and the same
+binary spans 28.75–29.95 by itself. Interleave the pairs for anything under
+about 5% here, and prefer the software renderer when the question is purely
+about CPU: `SDL_VIDEODRIVER=dummy` with `SDL_RENDER_DRIVER=software` reads
+41.13 → 40.09 ms over 1500 frames, which is the cleanest form of this one.
+
+⚠️ **It is worth ~10% where type tests are hot and NOTHING where they are
+not.** `algc --compile` is unchanged at 1.00× and `algc --test` gains 4%: the
+compile path is string building, where the tree walker asks `is` per node. The
+VM gains because its handlers are full of `is`/`as` — 243 sites in `vm/*.a24`,
+71% of them against a built-in type. `finished/PROPOSAL-VM.md` put this rung at
+**1.45×**, off a three-instruction loop where one `alg_cast` was a thirteenth
+of the iteration; a toy rung does not transfer, and this is the second time
+that has been measured.
 
 ## Tests
 

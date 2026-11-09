@@ -151,7 +151,7 @@ Value f_foldcase(Value **cells, Value *args, int32_t count) {
     Value v_name = args[0];
     (void)v_name;
     alg_root(&v_name, 1);
-    Value ret_12 = alg_cast(alg_to_lower(alg_str(v_name)), "String");
+    Value ret_12 = alg_cast_kind(alg_to_lower(alg_str(v_name)), ALG_KIND_STRING, "String");
     alg_root_top = rt_base;
     return ret_12;
     Value ret_13 = alg_nil();

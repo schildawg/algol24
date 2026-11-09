@@ -168,6 +168,23 @@ Three changes. The first two **touch neither the VM's design nor the language's
 semantics**; the third is a design decision and is proposed separately as
 item 0b.
 
+⚠️ **ALL THREE ARE BUILT NOW, and two of the three multipliers did not
+transfer.** `-flto` is in `vm/build.sh`; `as T` at emit time is
+`CEmitter.ResolvedKind` and `algol.h`'s `alg_is_kind`/`alg_cast_kind`; the
+dispatch loop in C is `vm/dispatch.c`. Measured against the real program rather
+than this loop:
+
+| rung | here | the Dew Drop Inn |
+| --- | --- | --- |
+| dispatch loop in C | 1.71× | **1.51×** |
+| `as T` at emit time | 1.45× | **1.12×** |
+
+The second is off by nearly 4×, and for a reason this table cannot avoid: one
+`alg_cast` is a thirteenth of a three-instruction iteration and 20% of a real
+frame, so removing it matters far more here than there. **Read every multiplier
+in this document as an upper bound.** The Inn went 48.71 ms a frame → 32.18 →
+**28.82**, which is 20 fps → 31 → **34**.
+
 **1. `-flto`, which is a build flag and nothing else.** Worth 24% to the VM
 dispatch loop and 42% to the AOT spike. It also makes a separate emitter
 optimisation unnecessary: eliding `alg_declared` at emit time measured within 3%
@@ -330,11 +347,24 @@ the reel engine at 0.74 ms fits at 60 fps either way.
 ⚠️ **This makes item 0b MORE load-bearing, not less.** The projection had the
 Inn at 94% of a 30 fps frame without the C dispatch; the measurement says
 119%, so it is the difference between missing 30 fps and clearing it rather
-than the difference between tight and comfortable. **If** the 1.7× held, 39.75
-ms becomes 23.4 ms — 70% of a 30 fps frame, about 43 fps. That factor came off
-a four-opcode toy, so it is a reason to try the work rather than a number to
-plan with; the lesson of the table above is precisely that such a factor does
-not survive contact with a real frame.
+than the difference between tight and comfortable.
+
+⚠️ **ITEM 0b IS BUILT AND MEASURED, and it is 1.51× rather than 1.7×.** The Inn
+on a real display goes from **48.71 ms a frame to 32.18 ms** — 20 fps to **31**
+— over 1500 frames, both binaries built from identical sources with only
+`UseCDispatch ()` differing. `Fib (27)` reads the same factor, 1.35 s against
+0.89 s, and that agreement is what says the factor belongs to the dispatch loop
+rather than to either program. So the toy's 1.7× was optimistic in the usual
+direction and the goal is still met: 32.18 ms is **97% of a 30 fps frame**,
+cleared with nothing to spare.
+
+⚠️ **A SOFTWARE RENDERER HALVES THE GAIN, and quoting that figure would have
+buried the result.** Under `SDL_VIDEODRIVER=dummy` with
+`SDL_RENDER_DRIVER=software` the same pair reads 52.47 ms against 42.96 —
+**1.22×** — because the software renderer burns CPU inside SDL, where the
+dispatch loop cannot reach it. The ratio is 1.51× only where the GPU does the
+drawing, so a headless measurement of this change understates it by a third.
+Measure this one on a display.
 
 ⚠️ **And it corrects a claim this document made twice: the game is NOT
 SDL-bound.** Foreign calls are **0.31 ms of 2.32**, or 13% — so the multiplier
@@ -625,13 +655,36 @@ actually break.
   `ReduceBinary` ending `if Left = Right then Exit Left;` makes
   `Integer + Integer` provable, but DEF-35 is a standing example of the checker
   not knowing a type it could.
-- **That the C dispatch holds its 1.72× over a real instruction set.** It was
-  measured over four opcodes whose handlers are three lines each. A sixty-opcode
-  VM has larger and more varied handlers, so the dispatch is a smaller share of
-  each instruction and the multiplier should fall. The direction is known and
-  the size is not. ⚠️ **It is a ratio against handlers that stay in Algol-24** —
-  it says nothing about a VM whose handlers are also C, which is the 37× still
-  on the table and a different proposal.
+- ~~**That the C dispatch holds its 1.72× over a real instruction set.**~~
+  **Answered: it does not, and it falls to 1.51×** over eighty opcodes. The
+  direction was known and the size is now measured — the toy's handlers were
+  three lines each, so dispatch was a larger share of each instruction there
+  than it is here. ⚠️ **It is still a ratio against handlers that stay in
+  Algol-24** — it says nothing about a VM whose handlers are also C, which is
+  the 37× still on the table and a different proposal.
+- **The REST of the fast arms, which is the live enhancement here.** `OP_ADD`
+  has one and measures about **2.6%** — Fib (27) 1.028–1.043× over four
+  interleaved pairs, the Inn 1.036× and 1.015× over two. What the spike
+  established is that the saving is the STACK rather than the arithmetic: stack
+  plumbing is 18.5% of the Inn's frame against 19.5% for all arithmetic and
+  comparison together, because `Slots` is an Array and every push and pop went
+  through `alg_subscript_get`'s five-way type dispatch.
+
+  So the remaining candidates split in two, and the second group is the
+  promising one:
+
+  | | expectation |
+  | --- | --- |
+  | more arithmetic — `OP_SUBTRACT`, the four comparisons, `OP_MULTIPLY` | each less frequent than `OP_ADD`, so each under 2.6%; diminishing |
+  | pure plumbing — `OP_CONSTANT`, `OP_POP`, `OP_GET_LOCAL`, `OP_SET_LOCAL`, `OP_DUP`, `OP_NIL`/`TRUE`/`FALSE` | the most frequent opcodes in any bytecode stream, and **no semantics to preserve at all** |
+
+  ⚠️ **Do them TOGETHER and measure once.** One arm is at the noise floor: the
+  Inn's two pairs disagreed by more than two to one and the baseline alone
+  spanned 26.95–27.46 ms. Ten arms at once is resolvable where one is not.
+
+  ⚠️ **A guess, and this document's guesses have run optimistic every time.**
+  8–12% combined is a reason to try the work rather than a number to plan
+  with — the same caution the two measured rungs above earned.
 - **GC pause behaviour**, which for a 60 fps game is as important as throughput
   and is not a throughput question.
 - **The heap design.** That Buffers *can* hold a heap is measured; that a

@@ -636,6 +636,18 @@ static ObjBuffer *as_buffer(Value v, const char *what) {
     return buffer;
 }
 
+Value *alg_array_slots(Value v) {
+    if (!is_sequence(v)) return NULL;
+
+    return ((ObjSeq *)v.obj)->items;
+}
+
+const unsigned char *alg_buffer_bytes(Value v) {
+    if (!is_obj(v, OBJ_BUFFER)) return NULL;
+
+    return (const unsigned char *)((ObjBuffer *)v.obj)->bytes;
+}
+
 Value alg_buffer(Value size) {
     int32_t length = as_integer(size, "A Buffer's size must be an Integer.");
     if (length < 0) alg_error("A Buffer's size cannot be negative.");
@@ -2343,6 +2355,45 @@ Value alg_is(Value v, const char *name) {
     return alg_bool(is_a(v, name));
 }
 
+/* Whether an instance's class chain reaches exactly this class.
+ *
+ * A handle that is still nil answers false, which cannot be reached by a true
+ * test: the value has to be an instance of the class for the answer to be
+ * true, and making one builds the class first. */
+static bool chain_reaches(Value v, Value klass) {
+    if (!is_obj(v, OBJ_INSTANCE)) return false;
+    if (!is_obj(klass, OBJ_CLASS)) return false;
+
+    ObjClass *wanted = (ObjClass *)klass.obj;
+
+    for (ObjClass *at = ((ObjInstance *)v.obj)->klass; at != NULL; at = at->super)
+        if (at == wanted) return true;
+
+    return false;
+}
+
+Value alg_is_class(Value v, Value klass) {
+    return alg_bool(chain_reaches(v, klass));
+}
+
+Value alg_cast_class(Value v, Value klass, const char *name) {
+    if (v.type == VAL_NIL) return v;
+
+    if (chain_reaches(v, klass)) return v;
+
+    return alg_cast_failed(v, name);
+}
+
+/* The message alg_cast gives, reached from alg_cast_kind's inline fast path as
+   well as from alg_cast itself, so the two cannot word it differently. */
+Value alg_cast_failed(Value v, const char *name) {
+    char message[256];
+    snprintf(message, sizeof message, "Cannot cast %s to %s.", type_name(v), name);
+
+    alg_error(message);
+    return alg_nil();
+}
+
 Value alg_cast(Value v, const char *name) {
     if (v.type == VAL_NIL) return v;
 
@@ -2359,11 +2410,7 @@ Value alg_cast(Value v, const char *name) {
     if (alg_stricmp(type_name(v), name) == 0) return v;
     if (is_a(v, name)) return v;
 
-    char message[256];
-    snprintf(message, sizeof message, "Cannot cast %s to %s.", type_name(v), name);
-
-    alg_error(message);
-    return alg_nil();
+    return alg_cast_failed(v, name);
 }
 
 /* The four directory built-ins [RT-026]. Each reports through file_error, so a

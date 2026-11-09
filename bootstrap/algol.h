@@ -178,6 +178,46 @@ Value alg_map(void);
 
 Value alg_buffer(Value size);
 
+/* A Buffer's bytes, for C that wants to read them without a call per byte.
+ *
+ * The same pointer `Buffer.Address` answers, which the language has always
+ * given C [RT-022] -- this is the in-process form, so a caller already holding
+ * the Value need not go through a Pointer to get at it.
+ *
+ * ⚠️ BORROWED, not owned, and only as valid as the Buffer.  A Buffer that
+ * grows may move its bytes, and `Free` releases them, so a caller re-reads
+ * this rather than keeping it: the machine's dispatch loop re-reads it every
+ * instruction precisely because entering a frame swaps the chunk.
+ *
+ * Answers NULL for anything that is not a Buffer, rather than raising, because
+ * the one caller is a loop that would rather check than carry a handler. */
+const unsigned char *alg_buffer_bytes(Value v);
+
+/* An Array's backing store, for C that wants to index it without a call per
+ * element.
+ *
+ * The companion to alg_buffer_bytes, and there for the same reason: a
+ * subscript goes through alg_subscript_get, which tries Map, Buffer, Set,
+ * sequence and text in turn before it can index, and the machine's value stack
+ * is an Array touched several times per instruction.
+ *
+ * BORROWED, and only as valid as the Array's capacity.  A List that grows
+ * moves its items, so a caller re-reads this rather than keeping it; the
+ * machine's stack is allocated once at a fixed size and never grows, which is
+ * what makes it safe to touch this way at all.
+ *
+ * Answers NULL for anything that is not a sequence, so a caller checks rather
+ * than carrying a handler. */
+Value *alg_array_slots(Value v);
+
+/* Whether a value is a number held INLINE -- an Integer inside a machine word
+   or a Double.  Deliberately not true of a bignum, which is an object: this
+   exists for fast paths that want the common case and are content to hand
+   everything else to the general one. */
+static inline bool alg_plain_number(Value v) {
+    return v.type == VAL_INT || v.type == VAL_DOUBLE;
+}
+
 Value alg_list_keep(Value list, Value item);
 Value alg_map_keep(Value map, Value key, Value value);
 
@@ -394,6 +434,114 @@ void alg_declared(bool defined, const char *name);
 Value alg_is(Value v, const char *name);
 
 Value alg_cast(Value v, const char *name);
+
+/* `is` and `as` against a type the EMITTER resolved, which is every built-in
+   type name [TYP-002].
+ *
+ * The pair above take the type as a string the emitter wrote, so each test
+ * pays a linear scan of the subrange table and a case-insensitive comparison
+ * for something fixed when the C was written -- and they were the two heaviest
+ * functions in a profile of a real program.  A written type name folds and
+ * cannot change at run time, so the emitter resolves it to one of these codes
+ * and the test becomes an integer compare.
+ *
+ * Only the BUILT-IN names resolve.  A class, a singleton, an enumeration and a
+ * subrange all keep the string form, because a program may declare one whose
+ * name is a built-in's -- `class List` is legal, and `X is List` must then
+ * answer for the instance as well as for a List.  CEmitter.ResolvedKind is
+ * where that decision lives, and it refuses any name the program declares.
+ *
+ * Inline rather than called, because an out-of-line call was most of what the
+ * string version cost: interning the names behind alg_is measured 1.05x on the
+ * Inn where resolving them here measures more.  That is why Obj's layout is
+ * public -- the same reason alg_root_top is. */
+typedef enum {
+    ALG_KIND_NONE = 0,
+
+    ALG_KIND_BOOLEAN,
+    ALG_KIND_INTEGER,
+    ALG_KIND_DOUBLE,
+    ALG_KIND_STRING,
+    ALG_KIND_CHAR,
+    ALG_KIND_POINTER,
+
+    ALG_KIND_LIST,
+    ALG_KIND_SET,
+    ALG_KIND_STACK,
+    ALG_KIND_ARRAY,
+    ALG_KIND_MAP,
+    ALG_KIND_TEXTFILE,
+    ALG_KIND_BUFFER
+} AlgKind;
+
+/* The code a value answers to, or ALG_KIND_NONE for nil and for every object
+   no built-in type name describes -- an instance, a class, an enumeration
+   member, a closure.  An Integer is two representations [LEX-018], so a
+   bignum answers ALG_KIND_INTEGER as a machine word does. */
+static inline int alg_kind_of(Value v) {
+    switch (v.type) {
+        case VAL_NIL:     return ALG_KIND_NONE;
+        case VAL_BOOL:    return ALG_KIND_BOOLEAN;
+        case VAL_INT:     return ALG_KIND_INTEGER;
+        case VAL_DOUBLE:  return ALG_KIND_DOUBLE;
+        case VAL_STRING:  return ALG_KIND_STRING;
+        case VAL_CHAR:    return ALG_KIND_CHAR;
+        case VAL_POINTER: return ALG_KIND_POINTER;
+        case VAL_OBJ:     break;
+    }
+
+    switch (v.obj->type) {
+        case OBJ_BIGINT: return ALG_KIND_INTEGER;
+        case OBJ_LIST:   return ALG_KIND_LIST;
+        case OBJ_SET:    return ALG_KIND_SET;
+        case OBJ_STACK:  return ALG_KIND_STACK;
+        case OBJ_ARRAY:  return ALG_KIND_ARRAY;
+        case OBJ_MAP:    return ALG_KIND_MAP;
+        case OBJ_FILE:   return ALG_KIND_TEXTFILE;
+        case OBJ_BUFFER: return ALG_KIND_BUFFER;
+
+        default:         return ALG_KIND_NONE;
+    }
+}
+
+/* Reports a cast that did not hold, which is the only part of `as` that is not
+   a comparison.  Out of line so the path that succeeds carries none of it. */
+Value alg_cast_failed(Value v, const char *name);
+
+/* nil has no type, so it IS no kind and every test of it is false [VAL-010] --
+   which falls out of nil answering ALG_KIND_NONE and no resolved code being
+   ALG_KIND_NONE. */
+static inline Value alg_is_kind(Value v, int kind) {
+    return alg_bool(alg_kind_of(v) == kind);
+}
+
+/* A cast passes nil, where a test of it is false [VAR-005], and checks rather
+   than converts: `7 as Double` raises as it always has. */
+static inline Value alg_cast_kind(Value v, int kind, const char *name) {
+    if (v.type == VAL_NIL) return v;
+
+    if (alg_kind_of(v) == kind) return v;
+
+    return alg_cast_failed(v, name);
+}
+
+/* `is` and `as` against a CLASS the emitter resolved to its handle, which walks
+ * the instance's chain comparing ObjClass pointers instead of names.
+ *
+ * Out of line where the built-in pair above are inline, because ObjClass is
+ * private to algol.c and exposing it would be a far wider contract than Obj's
+ * three fields.  The win here is the strings rather than the call: the name
+ * version compares one per class per level, and a member read walks that chain
+ * several times.
+ *
+ * Sound only because alg_class allocates ONE ObjClass per class and the
+ * handles are roots, so a class's identity is stable for the run.  The emitter
+ * resolves a name only where the program declares exactly one class of it --
+ * two classes of one name are two objects, where the other two processors
+ * match a class by name and answer true for either, so comparing handles there
+ * would diverge.  CEmitter.ResolvedClass is where that is decided. */
+Value alg_is_class(Value v, Value klass);
+Value alg_cast_class(Value v, Value klass, const char *name);
 
 void  alg_set_arguments(int argc, char **argv);
 Value alg_param_count(void);
