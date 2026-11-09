@@ -168,6 +168,23 @@ Three changes. The first two **touch neither the VM's design nor the language's
 semantics**; the third is a design decision and is proposed separately as
 item 0b.
 
+⚠️ **ALL THREE ARE BUILT NOW, and two of the three multipliers did not
+transfer.** `-flto` is in `vm/build.sh`; `as T` at emit time is
+`CEmitter.ResolvedKind` and `algol.h`'s `alg_is_kind`/`alg_cast_kind`; the
+dispatch loop in C is `vm/dispatch.c`. Measured against the real program rather
+than this loop:
+
+| rung | here | the Dew Drop Inn |
+| --- | --- | --- |
+| dispatch loop in C | 1.71× | **1.51×** |
+| `as T` at emit time | 1.45× | **1.12×** |
+
+The second is off by nearly 4×, and for a reason this table cannot avoid: one
+`alg_cast` is a thirteenth of a three-instruction iteration and 20% of a real
+frame, so removing it matters far more here than there. **Read every multiplier
+in this document as an upper bound.** The Inn went 48.71 ms a frame → 32.18 →
+**28.82**, which is 20 fps → 31 → **34**.
+
 **1. `-flto`, which is a build flag and nothing else.** Worth 24% to the VM
 dispatch loop and 42% to the AOT spike. It also makes a separate emitter
 optimisation unnecessary: eliding `alg_declared` at emit time measured within 3%

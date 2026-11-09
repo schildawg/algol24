@@ -2489,11 +2489,11 @@ static Value m_parser_subrangebound_0(Value v_this, Value *args, int32_t count) 
     (void)v_bound;
     alg_root(&v_bound, 1);
     if (alg_truthy(v_negative)) {
-        Value ret_175 = alg_subtract(alg_int(0), (alg_cast(alg_property(v_bound, "Literal"), "Integer")));
+        Value ret_175 = alg_subtract(alg_int(0), (alg_cast_kind(alg_property(v_bound, "Literal"), ALG_KIND_INTEGER, "Integer")));
         alg_root_top = rt_base;
         return ret_175;
     }
-    Value ret_176 = alg_cast(alg_property(v_bound, "Literal"), "Integer");
+    Value ret_176 = alg_cast_kind(alg_property(v_bound, "Literal"), ALG_KIND_INTEGER, "Integer");
     alg_root_top = rt_base;
     return ret_176;
     Value ret_177 = alg_nil();

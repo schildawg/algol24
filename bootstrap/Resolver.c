@@ -244,7 +244,7 @@ static Value m_resolver_adoptextensions_1_string(Value v_this, Value *args, int3
         alg_root_top = rt_base;
         return ret_7;
     }
-    (void)((v_theirs = alg_cast(alg_invoke(alg_property(v_this, "Exported"), "Get", (Value[]){v_unit}, 1), "Map")));
+    (void)((v_theirs = alg_cast_kind(alg_invoke(alg_property(v_this, "Exported"), "Get", (Value[]){v_unit}, 1), ALG_KIND_MAP, "Map")));
     {
         int32_t rt_80 = alg_root_top;
         Value loop_8 = alg_iterable(alg_invoke(v_theirs, "Keys", NULL, 0));
@@ -1817,7 +1817,7 @@ static Value m_resolver_declarebinding_2_token_boolean(Value v_this, Value *args
             return ret_94;
         }
     }
-    (void)((v_scope = alg_cast(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Map")));
+    (void)((v_scope = alg_cast_kind(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), ALG_KIND_MAP, "Map")));
     if (alg_truthy(alg_invoke(v_scope, "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))) {
         {
             alg_raise(alg_string("Already a variable with this name in this scope."));
@@ -1885,7 +1885,7 @@ static Value m_resolver_define_1_token(Value v_this, Value *args, int32_t count)
         alg_root_top = rt_base;
         return ret_100;
     }
-    (void)((v_scope = alg_cast(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), "Map")));
+    (void)((v_scope = alg_cast_kind(alg_invoke(alg_property(v_this, "Scopes"), "Peek", NULL, 0), ALG_KIND_MAP, "Map")));
     (void)(alg_invoke(v_scope, "Put", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1), alg_bool(true)}, 2));
     Value ret_101 = alg_nil();
     alg_root_top = rt_base;

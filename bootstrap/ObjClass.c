@@ -322,7 +322,7 @@ static Value m_objclass_arity_0(Value v_this, Value *args, int32_t count) {
         alg_root_top = rt_base;
         return ret_20;
     }
-    Value ret_21 = alg_cast(alg_invoke(v_initializer, "Arity", NULL, 0), "Integer");
+    Value ret_21 = alg_cast_kind(alg_invoke(v_initializer, "Arity", NULL, 0), ALG_KIND_INTEGER, "Integer");
     alg_root_top = rt_base;
     return ret_21;
     Value ret_22 = alg_nil();
@@ -350,7 +350,7 @@ static Value m_objclass_absorbs_1_list(Value v_this, Value *args, int32_t count)
         alg_root_top = rt_base;
         return ret_23;
     }
-    Value ret_24 = alg_cast(alg_invoke(v_initializer, "Absorbs", (Value[]){v_arguments}, 1), "Boolean");
+    Value ret_24 = alg_cast_kind(alg_invoke(v_initializer, "Absorbs", (Value[]){v_arguments}, 1), ALG_KIND_BOOLEAN, "Boolean");
     alg_root_top = rt_base;
     return ret_24;
     Value ret_25 = alg_nil();
@@ -372,7 +372,7 @@ static Value m_objclass_variadic_0(Value v_this, Value *args, int32_t count) {
         alg_root_top = rt_base;
         return ret_26;
     }
-    Value ret_27 = alg_cast(alg_invoke(v_initializer, "Variadic", NULL, 0), "Boolean");
+    Value ret_27 = alg_cast_kind(alg_invoke(v_initializer, "Variadic", NULL, 0), ALG_KIND_BOOLEAN, "Boolean");
     alg_root_top = rt_base;
     return ret_27;
     Value ret_28 = alg_nil();

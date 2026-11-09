@@ -410,6 +410,96 @@ Value alg_is(Value v, const char *name);
 
 Value alg_cast(Value v, const char *name);
 
+/* `is` and `as` against a type the EMITTER resolved, which is every built-in
+   type name [TYP-002].
+ *
+ * The pair above take the type as a string the emitter wrote, so each test
+ * pays a linear scan of the subrange table and a case-insensitive comparison
+ * for something fixed when the C was written -- and they were the two heaviest
+ * functions in a profile of a real program.  A written type name folds and
+ * cannot change at run time, so the emitter resolves it to one of these codes
+ * and the test becomes an integer compare.
+ *
+ * Only the BUILT-IN names resolve.  A class, a singleton, an enumeration and a
+ * subrange all keep the string form, because a program may declare one whose
+ * name is a built-in's -- `class List` is legal, and `X is List` must then
+ * answer for the instance as well as for a List.  CEmitter.ResolvedKind is
+ * where that decision lives, and it refuses any name the program declares.
+ *
+ * Inline rather than called, because an out-of-line call was most of what the
+ * string version cost: interning the names behind alg_is measured 1.05x on the
+ * Inn where resolving them here measures more.  That is why Obj's layout is
+ * public -- the same reason alg_root_top is. */
+typedef enum {
+    ALG_KIND_NONE = 0,
+
+    ALG_KIND_BOOLEAN,
+    ALG_KIND_INTEGER,
+    ALG_KIND_DOUBLE,
+    ALG_KIND_STRING,
+    ALG_KIND_CHAR,
+    ALG_KIND_POINTER,
+
+    ALG_KIND_LIST,
+    ALG_KIND_SET,
+    ALG_KIND_STACK,
+    ALG_KIND_ARRAY,
+    ALG_KIND_MAP,
+    ALG_KIND_TEXTFILE,
+    ALG_KIND_BUFFER
+} AlgKind;
+
+/* The code a value answers to, or ALG_KIND_NONE for nil and for every object
+   no built-in type name describes -- an instance, a class, an enumeration
+   member, a closure.  An Integer is two representations [LEX-018], so a
+   bignum answers ALG_KIND_INTEGER as a machine word does. */
+static inline int alg_kind_of(Value v) {
+    switch (v.type) {
+        case VAL_NIL:     return ALG_KIND_NONE;
+        case VAL_BOOL:    return ALG_KIND_BOOLEAN;
+        case VAL_INT:     return ALG_KIND_INTEGER;
+        case VAL_DOUBLE:  return ALG_KIND_DOUBLE;
+        case VAL_STRING:  return ALG_KIND_STRING;
+        case VAL_CHAR:    return ALG_KIND_CHAR;
+        case VAL_POINTER: return ALG_KIND_POINTER;
+        case VAL_OBJ:     break;
+    }
+
+    switch (v.obj->type) {
+        case OBJ_BIGINT: return ALG_KIND_INTEGER;
+        case OBJ_LIST:   return ALG_KIND_LIST;
+        case OBJ_SET:    return ALG_KIND_SET;
+        case OBJ_STACK:  return ALG_KIND_STACK;
+        case OBJ_ARRAY:  return ALG_KIND_ARRAY;
+        case OBJ_MAP:    return ALG_KIND_MAP;
+        case OBJ_FILE:   return ALG_KIND_TEXTFILE;
+        case OBJ_BUFFER: return ALG_KIND_BUFFER;
+
+        default:         return ALG_KIND_NONE;
+    }
+}
+
+/* Reports a cast that did not hold, which is the only part of `as` that is not
+   a comparison.  Out of line so the path that succeeds carries none of it. */
+Value alg_cast_failed(Value v, const char *name);
+
+/* nil has no type, so it IS no kind and every test of it is false [VAL-010] --
+   which falls out of nil answering ALG_KIND_NONE and no resolved code being
+   ALG_KIND_NONE. */
+static inline Value alg_is_kind(Value v, int kind) {
+    return alg_bool(alg_kind_of(v) == kind);
+}
+
+/* A cast passes nil, where a test of it is false [VAR-005], and checks rather
+   than converts: `7 as Double` raises as it always has. */
+static inline Value alg_cast_kind(Value v, int kind, const char *name) {
+    if (v.type == VAL_NIL) return v;
+
+    if (alg_kind_of(v) == kind) return v;
+
+    return alg_cast_failed(v, name);
+}
+
 void  alg_set_arguments(int argc, char **argv);
 Value alg_param_count(void);
 Value alg_param_str(Value index);

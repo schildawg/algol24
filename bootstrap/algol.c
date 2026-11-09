@@ -2349,6 +2349,16 @@ Value alg_is(Value v, const char *name) {
     return alg_bool(is_a(v, name));
 }
 
+/* The message alg_cast gives, reached from alg_cast_kind's inline fast path as
+   well as from alg_cast itself, so the two cannot word it differently. */
+Value alg_cast_failed(Value v, const char *name) {
+    char message[256];
+    snprintf(message, sizeof message, "Cannot cast %s to %s.", type_name(v), name);
+
+    alg_error(message);
+    return alg_nil();
+}
+
 Value alg_cast(Value v, const char *name) {
     if (v.type == VAL_NIL) return v;
 
@@ -2365,11 +2375,7 @@ Value alg_cast(Value v, const char *name) {
     if (alg_stricmp(type_name(v), name) == 0) return v;
     if (is_a(v, name)) return v;
 
-    char message[256];
-    snprintf(message, sizeof message, "Cannot cast %s to %s.", type_name(v), name);
-
-    alg_error(message);
-    return alg_nil();
+    return alg_cast_failed(v, name);
 }
 
 /* The four directory built-ins [RT-026]. Each reports through file_error, so a

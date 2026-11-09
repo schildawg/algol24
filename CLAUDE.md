@@ -1645,9 +1645,12 @@ the released body is never handed back at its own size class, which is case
   ⚠️ **Two findings there are about the emitter, not the VM, and they are not
   conditional on it.** `build.sh` now probes for **`-flto`** and uses it
   (`LTO=0` opts out), because `algol.c` is a separate translation unit and every
-  `alg_*` call crosses it. And `BoundValue` elides `alg_widen` only for `''` and
-  `Any`, so **annotating a variable currently makes the emitted code slower**,
-  which is backwards for a gradually typed language.
+  `alg_*` call crosses it. And `BoundValue` elides `alg_widen` where the
+  declared type is `''` or `Any` **and now also where `Elidable` proves the call
+  the identity** — the declared and actual types agree and the declared one is
+  not a subrange. So annotating a variable costs nothing *where the checker
+  knows the actual type*; where it does not, the annotation still buys a call,
+  which is DEF-35's territory rather than this emitter's.
 
   ⚠️ **LTO's size depends entirely on the shape of the work**, and a number
   quoted without its workload is useless: 42% on a tight arithmetic loop, 24% on
@@ -2103,6 +2106,40 @@ not arity. Exceptions are `setjmp`/`longjmp` over a frame stack.
 function**, not as nested calls, because `cc` gives up at 256 bracket levels.
 That only works when every element is itself a literal; a large literal of
 *computed* elements is passed into a helper instead.
+
+⚠️ **`is` and `as` AGAINST A BUILT-IN TYPE ARE RESOLVED AT EMIT TIME, and the
+two functions they used to call were the heaviest in a profile of a real
+program.** `alg_is` and `alg_cast` take the type as a string the emitter wrote,
+so every test paid a linear scan of the subrange table and a case-insensitive
+comparison for something fixed when the C was written.
+`CEmitter.ResolvedKind` answers an `ALG_KIND_*` code for the thirteen built-in
+type names, and `alg_is_kind` / `alg_cast_kind` are `static inline` in
+`algol.h`, so the test is an integer compare. Measured at **11% on the VM's
+Fib (27)** — 0.89 s to 0.79 — and **10% on the Dew Drop Inn**, 32.18 ms a frame
+to 28.82, 31 fps to 34.
+
+⚠️ **A BUILT-IN TYPE NAME IS NOT RESERVED, which is the whole of what the guard
+is for.** `class List` is legal, and after it `X is List` must answer for an
+instance of that class *as well as* for a List — both are true today. So
+`ResolvedKind` refuses any name the program declares as a class, a singleton,
+an enumeration or a subrange, and every one of those keeps the string form.
+Resolving one of them would be a silently wrong answer rather than a failure,
+which is why `DeclaresType` asks four questions and not one.
+
+⚠️ **INLINE is more than half the gain, measured both ways.** Interning the
+names *behind* `alg_is` at run time — the same resolution, still an
+out-of-line call — measured **1.05×** on the Inn where resolving at emit time
+measures **1.12×**. That is why `Obj`'s layout is public in `algol.h`, for the
+same reason `alg_root_top` is.
+
+⚠️ **It is worth ~10% where type tests are hot and NOTHING where they are
+not.** `algc --compile` is unchanged at 1.00× and `algc --test` gains 4%: the
+compile path is string building, where the tree walker asks `is` per node. The
+VM gains because its handlers are full of `is`/`as` — 243 sites in `vm/*.a24`,
+71% of them against a built-in type. `finished/PROPOSAL-VM.md` put this rung at
+**1.45×**, off a three-instruction loop where one `alg_cast` was a thirteenth
+of the iteration; a toy rung does not transfer, and this is the second time
+that has been measured.
 
 ## Tests
 

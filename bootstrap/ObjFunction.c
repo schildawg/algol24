@@ -82,27 +82,27 @@ Value f_typenameof(Value **cells, Value *args, int32_t count) {
         alg_root_top = rt_base;
         return ret_0;
     }
-    if (alg_truthy(alg_is(v_value, "Boolean"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_BOOLEAN))) {
         Value ret_1 = alg_string("Boolean");
         alg_root_top = rt_base;
         return ret_1;
     }
-    if (alg_truthy(alg_is(v_value, "Integer"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_INTEGER))) {
         Value ret_2 = alg_string("Integer");
         alg_root_top = rt_base;
         return ret_2;
     }
-    if (alg_truthy(alg_is(v_value, "Double"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_DOUBLE))) {
         Value ret_3 = alg_string("Double");
         alg_root_top = rt_base;
         return ret_3;
     }
-    if (alg_truthy(alg_is(v_value, "String"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_STRING))) {
         Value ret_4 = alg_string("String");
         alg_root_top = rt_base;
         return ret_4;
     }
-    if (alg_truthy(alg_is(v_value, "Char"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_CHAR))) {
         Value ret_5 = alg_string("Char");
         alg_root_top = rt_base;
         return ret_5;
@@ -132,7 +132,7 @@ Value f_typenameof(Value **cells, Value *args, int32_t count) {
         alg_root_top = rt_base;
         return ret_10;
     }
-    if (alg_truthy(alg_is(v_value, "Pointer"))) {
+    if (alg_truthy(alg_is_kind(v_value, ALG_KIND_POINTER))) {
         Value ret_11 = alg_string("Pointer");
         alg_root_top = rt_base;
         return ret_11;
