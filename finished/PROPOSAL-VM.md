@@ -662,6 +662,29 @@ actually break.
   than it is here. ⚠️ **It is still a ratio against handlers that stay in
   Algol-24** — it says nothing about a VM whose handlers are also C, which is
   the 37× still on the table and a different proposal.
+- **The REST of the fast arms, which is the live enhancement here.** `OP_ADD`
+  has one and measures about **2.6%** — Fib (27) 1.028–1.043× over four
+  interleaved pairs, the Inn 1.036× and 1.015× over two. What the spike
+  established is that the saving is the STACK rather than the arithmetic: stack
+  plumbing is 18.5% of the Inn's frame against 19.5% for all arithmetic and
+  comparison together, because `Slots` is an Array and every push and pop went
+  through `alg_subscript_get`'s five-way type dispatch.
+
+  So the remaining candidates split in two, and the second group is the
+  promising one:
+
+  | | expectation |
+  | --- | --- |
+  | more arithmetic — `OP_SUBTRACT`, the four comparisons, `OP_MULTIPLY` | each less frequent than `OP_ADD`, so each under 2.6%; diminishing |
+  | pure plumbing — `OP_CONSTANT`, `OP_POP`, `OP_GET_LOCAL`, `OP_SET_LOCAL`, `OP_DUP`, `OP_NIL`/`TRUE`/`FALSE` | the most frequent opcodes in any bytecode stream, and **no semantics to preserve at all** |
+
+  ⚠️ **Do them TOGETHER and measure once.** One arm is at the noise floor: the
+  Inn's two pairs disagreed by more than two to one and the baseline alone
+  spanned 26.95–27.46 ms. Ten arms at once is resolvable where one is not.
+
+  ⚠️ **A guess, and this document's guesses have run optimistic every time.**
+  8–12% combined is a reason to try the work rather than a number to plan
+  with — the same caution the two measured rungs above earned.
 - **GC pause behaviour**, which for a 60 fps game is as important as throughput
   and is not a throughput question.
 - **The heap design.** That Buffers *can* hold a heap is measured; that a
