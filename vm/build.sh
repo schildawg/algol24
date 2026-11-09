@@ -69,12 +69,66 @@ mkdir -p "$WORK/out"
 
 cp vm/dispatch.c "$WORK/out/dispatch.c"
 
-# ⚠️ -Wl,-export_dynamic, for the one thing that needs it: the C loop is
-# reached through a no-library `external`, which resolves with
-# dlsym(RTLD_DEFAULT, ...) -- and that finds nothing unless the binary's own
-# symbols are in its dynamic table.  bootstrap/build.sh needs none of this and
-# gets none of it, which is what keeps the seed as it was.
-EXPORTS="-Wl,-export_dynamic"
+# The flag that puts the binary's OWN symbols where it can look them up, for
+# the one thing that needs it: the C loop is reached through a no-library
+# `external`, which resolves with dlsym(RTLD_DEFAULT, ...) -- and that finds
+# nothing unless the symbols are reachable.  bootstrap/build.sh needs none of
+# this and gets none of it, which is what keeps the seed as it was.
+#
+# ⚠️ PROBED, AND THE PROBE RUNS, because the spelling differs per platform and
+# accepting a flag is not the same as the lookup working.  -export_dynamic is
+# Apple's, --export-dynamic is GNU/ELF's, and PE exports nothing from an
+# executable without --export-all-symbols.  It was hard-coded to Apple's, so
+# the Windows job linked happily and then could not find its own dispatch loop
+# -- `algvm hello.a24` failed where `algvm --version` and the machine's own
+# tests under algc both passed, because neither runs the C loop.
+cat > "$WORK/exports.c" <<'PROBEEOF'
+#include <stddef.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+static void *self_lookup(const char *name) {
+    return (void *)GetProcAddress(GetModuleHandleA(NULL), name);
+}
+#else
+#include <dlfcn.h>
+static void *self_lookup(const char *name) { return dlsym(RTLD_DEFAULT, name); }
+#endif
+
+void alg_probe_target(void) { }
+
+int main(void) { return self_lookup("alg_probe_target") != NULL ? 0 : 1; }
+PROBEEOF
+
+EXPORTS=""
+_exports_found=0
+
+for _flag in "-Wl,--export-all-symbols" "-Wl,-export_dynamic" \
+             "-Wl,--export-dynamic" "-rdynamic" ""; do
+    for _dl in "" "-ldl"; do
+        # shellcheck disable=SC2086
+        # $LTO too, because the target is unreferenced -- nothing calls
+        # alg_vm_dispatch statically -- and link-time optimization is exactly
+        # what might drop it.  A probe that does not mirror the real link can
+        # answer for a build nobody makes.
+        if $CC $CFLAGS $LTO $_flag -o "$WORK/exports" "$WORK/exports.c" $_dl \
+               2>/dev/null && "$WORK/exports"; then
+            EXPORTS="$_flag"
+            _exports_found=1
+            break
+        fi
+    done
+
+    [ "$_exports_found" -eq 1 ] && break
+done
+
+if [ "$_exports_found" -eq 0 ]; then
+    echo "This toolchain cannot make a binary find its own symbols, which the" >&2
+    echo "machine's C dispatch loop is reached through.  Tried:" >&2
+    echo "  --export-all-symbols, -export_dynamic, --export-dynamic, -rdynamic" >&2
+    echo "and no flag made dlsym(RTLD_DEFAULT, ...) answer." >&2
+    exit 1
+fi
 
 # shellcheck disable=SC2086
 if ! $CC $CFLAGS $LTO $FFI_CFLAGS $EXPORTS -o "$OUT" "$WORK/out"/*.c $FFI_LIBS 2>"$WORK/cc.log"; then

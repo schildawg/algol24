@@ -1763,10 +1763,25 @@ the released body is never handed back at its own size class, which is case
   holds them to it.
 
   ⚠️ **A green run proves nothing until the C loop is seen to RUN.** It is
-  reached through an `external` with no library name, so a binary linked
-  without `-Wl,-export_dynamic` would fall back silently and look like a
-  disappointing measurement rather than a broken one. Sabotage the arm and
-  watch the failure before trusting a figure.
+  reached through an `external` with no library name, so a binary that cannot
+  find its own symbols does not run it. Sabotage an arm and watch the failure
+  before trusting a figure.
+
+  ⚠️ **THE EXPORT FLAG IS PROBED AND THE PROBE RUNS, because its spelling
+  differs per platform and accepting a flag is not the lookup working.**
+  `-export_dynamic` is Apple's, `--export-dynamic` is GNU/ELF's, and PE
+  exports nothing from an executable without `--export-all-symbols`. It was
+  hard-coded to Apple's, so the Windows job linked happily and then could not
+  find its own dispatch loop: `algvm hello.a24` failed where `algvm --version`
+  and `./test.sh vm/Vm.a24` both passed, because **neither runs the C loop** —
+  the machine's own tests run under `algc`, which has the Algol-24 one. The
+  probe compiles with `$LTO` as the real link does, since nothing calls
+  `alg_vm_dispatch` statically and that is exactly what might drop it.
+
+  ⚠️ **macOS needs NO flag at all, which is why the wrong one went unnoticed.**
+  The probe reports the lookup succeeding with `-export_dynamic`, with
+  `-rdynamic` and with nothing — so the hard-coded flag was never load-bearing
+  here and could not fail where it was written.
 
   ⚠️ **The cost is that giving C a stable name to call FREEZES the
   `Value **cells, Value *args, int32_t count` calling convention**, which was
