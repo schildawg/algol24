@@ -1940,6 +1940,17 @@ And the machine's three, which `test.sh`'s default root does not reach:
 ./vm/reference.sh     # every opcode entry agrees with OpCode.a24
 ```
 
+⚠️ **EVERY SCRIPT HERE IS sh AND awk, AND THAT IS A RULE RATHER THAN A
+HABIT.** A C compiler is the only thing this repository needs to build itself,
+so a generator or checker that reaches for python quietly makes that untrue —
+`docs.sh` has carried the sentence since it was written, and `vm/dispatch.sh`
+was added in python anyway, because the rule was stated only inside another
+script where nothing surfaced it. The Windows job is what caught it:
+`./vm/build.sh` died with `python3: command not found` on the one platform
+where the checked-in `vm/dispatch.c` would then have gone unchecked. Ported to
+awk, and the port was verified by generating byte-identical output to what
+python wrote.
+
 ⚠️ **The count used to be in this heading and went stale twice.** There were
 six, then seven, then eight; a number in a heading is a claim nothing checks,
 which is the same rule this file applies to every other count.

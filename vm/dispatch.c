@@ -151,7 +151,7 @@ void alg_vm_dispatch(void) {
             case  10: /* OP_EQUAL */              f_doequal(NULL, NULL, 0); break;
             case  11: /* OP_GREATER */            f_dogreater(NULL, NULL, 0); break;
             case  12: /* OP_LESS */               f_doless(NULL, NULL, 0); break;
-            case  13: { /* OP_ADD -- fast path, see FAST in dispatch.sh */
+            case  13: { /* OP_ADD -- fast path, see the fast arms in dispatch.sh */
                 /* Two numbers held inline cannot be a VmInstance, so DoAdd's
                    operator-overload check cannot apply [EXP-020] -- and
                    alg_add still does the adding, so unbounded overflow and
