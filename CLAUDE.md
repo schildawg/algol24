@@ -242,11 +242,28 @@ arity warning would have diverged every case with a wrong-count call in it,
   `OP_GET_MEMBER` where the receiver is an arbitrary expression.
 
   That split is exactly the split between the member reads whose slot could be
-  computed at emit time and the ones that cannot. A field read is **two Map
-  lookups by folded name** today, which is the shape already optimised away for
-  globals — a hash per access became a fixed index and a subscript, 12.8
-  against 13.1 M instr/s. A slot-indexed field read lands on `OP_GET_FIELD`,
-  and collapsing the two would throw away the classification it needs.
+  computed at emit time and the ones that cannot. A field read is **one Map
+  lookup by folded name** where the field holds anything but nil and two where
+  it holds nil, which is still the shape already optimised away for globals —
+  a hash per access became a fixed index and a subscript, 12.8 against 13.1 M
+  instr/s. A slot-indexed field read lands on `OP_GET_FIELD`, and collapsing
+  the two would throw away the classification it needs.
+
+  ⚠️ **The SECOND lookup is what tells a nil field from a name the class has
+  not got, and dropping it raises on a perfectly good field.** `Map.Get`
+  answers nil for a missing key and for a field seeded nil alike, so only a nil
+  answer needs `Contains` — and `VmInstance` seeds every field of the chain
+  present [CLS-006], which is what makes that question answerable at all.
+  Removing the guard was seen to make `H.Empty` raise
+  `Undefined property 'Empty'.`
+
+  ⚠️ **`FindMethodFolded` and `HasPropertyFolded` exist because MemberOf folds
+  ONCE and asks three questions.** Each call through the folding version would
+  fold again — a string allocation per question, on the hottest path the
+  machine has. The folding pair delegate to them, so the chain walk lives once.
+  Worth **1.3–1.6% on the Inn** and nothing on `Fib`, which reads no fields;
+  measured interleaved under the software renderer, because the effect is
+  smaller than a real display's run-to-run variance.
 
   ⚠️ **It was `OP_PROPERTY`, and the name was wrong twice over.** It said the
   runtime's five properties and meant every member; and it sat one near-

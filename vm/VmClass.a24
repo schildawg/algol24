@@ -134,12 +134,22 @@ begin
     /// Answers nil when no class in the chain has it, which is what lets a
     /// caller decide between a field, a method and a refusal.
     function FindMethod (Wanted : Any) : Any;
+    begin
+        Exit this.FindMethodFolded (ToLower (Str (Wanted)));
+    end
+
+    /// Finds one under a name the caller has ALREADY folded.
+    ///
+    /// Vm.MemberOf folds the written name once and then asks this class more
+    /// than one question with the answer, where each call through FindMethod
+    /// would fold it again -- a string allocation per question, on the
+    /// hottest path the machine has.  The two share this walk rather than
+    /// carrying one each.
+    function FindMethodFolded (Key : Any) : Any;
     var
         Where : Any;
-        Key   : Any;
 
     begin
-        Key   := ToLower (Str (Wanted));
         Where := this;
 
         while Where <> Nil do
@@ -163,20 +173,22 @@ begin
         Exit Nil;
     end
 
-    /// Records a method, GATHERING it beside any of the same name.
-    ///
-    /// A list per name rather than one entry, because two methods of a name
-    /// are an overload set selecting on the whole signature [FUN-013] and one
-    /// entry could only keep the last.  Declaration order is kept, so a tie
-    /// goes to the one written first.
     /// Whether this class, or one above it, declares a name as a property.
     function HasProperty (Wanted : Any) : Boolean;
+    begin
+        Exit this.HasPropertyFolded (ToLower (Str (Wanted)));
+    end
+
+    /// Whether one is declared under a name the caller has ALREADY folded.
+    ///
+    /// Beside HasProperty for the reason FindMethodFolded is beside
+    /// FindMethod: the member read folds once and asks more than one question
+    /// with the answer.
+    function HasPropertyFolded (Key : Any) : Boolean;
     var
         Where : Any;
 
     begin
-        var Key := ToLower (Str (Wanted));
-
         Where := this;
 
         while Where <> Nil do
@@ -195,6 +207,12 @@ begin
         this.Properties.Add (ToLower (Str (PropertyName)));
     end
 
+    /// Records a method, GATHERING it beside any of the same name.
+    ///
+    /// A list per name rather than one entry, because two methods of a name
+    /// are an overload set selecting on the whole signature [FUN-013] and one
+    /// entry could only keep the last.  Declaration order is kept, so a tie
+    /// goes to the one written first.
     procedure AddMethod (MethodName : Any, Body : VmFunction);
     begin
         var Key := ToLower (Str (MethodName));

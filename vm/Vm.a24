@@ -2045,14 +2045,22 @@ begin
 
         // A PROPERTY answers on a read by being CALLED [CLS-012], which is the
         // one way a member read differs from reading a method as a value.
-        if Self.Klass.HasProperty (Named) then
+        if Self.Klass.HasPropertyFolded (Named) then
             Exit CallNested (Self, Written, List ());
 
-        if Self.Fields.Contains (Named) then Exit Self.Fields.Get (Named);
+        // ONE Map lookup where the field holds anything but nil, which is
+        // the common case.  Get answers nil for a key the Map lacks as well
+        // as for a field seeded nil, so only a NIL answer has to ask Contains
+        // -- and what it asks is whether the class declares the field at all,
+        // since VmInstance seeds every field of the chain present [CLS-006].
+        var Stored := Self.Fields.Get (Named);
+
+        if Stored <> Nil then Exit Stored;
+        if Self.Fields.Contains (Named) then Exit Nil;
 
         // A method read without parentheses is the method as a VALUE
         // [FUN-011], bound to the receiver it was read from.
-        if Self.Klass.FindMethod (Named) <> Nil then Exit VmBound (Self, Str (Written));
+        if Self.Klass.FindMethodFolded (Named) <> Nil then Exit VmBound (Self, Str (Written));
 
         raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
     end
