@@ -316,18 +316,60 @@ END {
 }
 ' vm/OpCode.a24 vm/Vm.a24
 
+# Compares the two in awk rather than with cmp, and reports the first line
+# that differs rather than a diff.
+#
+# ⚠️ NOT cmp AND NOT diff, because MSYS2 has neither in its MINGW64 base and
+# vm/build.sh runs this check -- so a Windows user building the machine got
+# `cmp: command not found` and a FAIL about a file that was perfectly fine.
+# Every other harness here uses cmp or diff freely and none of them runs on
+# Windows; this one does, through vm/build.sh.  awk is already a dependency of
+# the generator above, so comparing with it adds nothing.
+#
+# Answers 0 when the two agree, 1 when they do not, and says where.
+#
+# Compares LINES, which is the drift this guards -- an opcode added to one file
+# and not the other.  It does not notice a missing final newline where cmp
+# would; the generator always writes one, so the only way to produce that is to
+# hand-edit the generated file, which the header forbids anyway.
+same_file () {
+    awk '
+        FNR == NR { want[FNR] = $0; n = FNR; next }
+                  { got[FNR]  = $0; m = FNR }
+
+        END {
+            k = (n < m ? n : m)
+
+            for (i = 1; i <= k; i++)
+                if (want[i] != got[i]) {
+                    printf("  first difference at line %d\n", i)
+                    printf("    on disk  : %s\n", got[i])
+                    printf("    generated: %s\n", want[i])
+
+                    exit 1
+                }
+
+            if (n != m) {
+                printf("  %d lines on disk, %d generated\n", m, n)
+
+                exit 1
+            }
+        }
+    ' "$1" "$2"
+}
+
 if [ "$CHECK" -eq 1 ]; then
-    if cmp -s "$WORK/dispatch.c" "$OUT"; then
+    if same_file "$WORK/dispatch.c" "$OUT" >"$WORK/why" 2>&1; then
         echo "OK: $OUT is what vm/dispatch.sh writes."
     else
         echo "FAIL: $OUT is stale.  Run ./vm/dispatch.sh" >&2
-        diff "$OUT" "$WORK/dispatch.c" | head -20 >&2
+        cat "$WORK/why" >&2
         exit 1
     fi
     exit 0
 fi
 
-if cmp -s "$WORK/dispatch.c" "$OUT" 2>/dev/null; then
+if [ -f "$OUT" ] && same_file "$WORK/dispatch.c" "$OUT" >/dev/null 2>&1; then
     echo "unchanged: $OUT"
 else
     cp "$WORK/dispatch.c" "$OUT"
