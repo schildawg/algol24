@@ -114,8 +114,15 @@ fi
 # the probe by crashing it, which is the only way to tell a found symbol from
 # a usable one.
 cat > "$WORK/exports_target.c" <<'PROBEEOF'
-/* Referenced by nothing, exactly as alg_vm_dispatch is. */
-int alg_probe_target(void) { return 24; }
+/* Referenced by nothing and annotated exactly as vm/dispatch.c's two names
+   are, so the probe answers for the combination the machine actually uses. */
+#if defined(_WIN32)
+#define ALG_VM_EXPORTED __declspec(dllexport)
+#else
+#define ALG_VM_EXPORTED __attribute__((used, visibility("default")))
+#endif
+
+ALG_VM_EXPORTED int alg_probe_target(void) { return 24; }
 PROBEEOF
 
 cat > "$WORK/exports.c" <<'PROBEEOF'
@@ -131,34 +138,70 @@ static void *self_lookup(const char *name) {
 static void *self_lookup(const char *name) { return dlsym(RTLD_DEFAULT, name); }
 #endif
 
+#include <stdio.h>
+
 int main(void) {
     int (*found)(void) = (int (*)(void))self_lookup("alg_probe_target");
 
     if (found == NULL) return 1;
 
     /* Crashes here rather than answering, if the address is not the function. */
-    return found() == 24 ? 0 : 1;
+    if (found() != 24) return 1;
+
+    /* PRINTED, and the caller compares it.  A combination that links and then
+       produces an executable which runs but does nothing has to fail too:
+       -export_dynamic on MinGW does exactly that, and an exit status alone
+       called it a success. */
+    printf("usable\n");
+    return 0;
 }
 PROBEEOF
 
 EXPORTS=""
 _exports_found=0
 
-for _flag in "-Wl,--export-all-symbols" "-Wl,-export_dynamic" \
-             "-Wl,--export-dynamic" "-rdynamic" ""; do
-    for _dl in "" "-ldl"; do
-        # shellcheck disable=SC2086
-        if $CC $CFLAGS $LTO $_flag -o "$WORK/exports" \
-               "$WORK/exports.c" "$WORK/exports_target.c" $_dl \
-               2>/dev/null && "$WORK/exports" 2>/dev/null; then
-            EXPORTS="$_flag"
-            _exports_found=1
-            break
-        fi
+# ⚠️ LTO IS PART OF THE COMBINATION, not a separate choice.
+#
+# On MinGW --export-all-symbols is the flag that works and -flto breaks it:
+# the symbol is found and its address is not the function, so the call lands
+# in the middle of nowhere.  And the flag that linked instead, -export_dynamic,
+# produced an executable that ran and printed nothing at all -- both loops, not
+# just the C one.
+#
+# So the search is over (link-time optimization, flag) pairs, LTO first
+# because it is worth about 24% to this loop, and the probe's OUTPUT decides.
+# Preferring LTO and then picking any flag that merely links is what shipped a
+# broken Windows binary twice.
+_try_exports () {
+    for _flag in "-Wl,--export-all-symbols" "-Wl,-export_dynamic" \
+                 "-Wl,--export-dynamic" "-rdynamic" ""; do
+        for _dl in "" "-ldl"; do
+            # shellcheck disable=SC2086
+            if [ "$($CC $CFLAGS $1 $_flag -o "$WORK/exports" \
+                        "$WORK/exports.c" "$WORK/exports_target.c" $_dl \
+                        2>/dev/null && "$WORK/exports" 2>/dev/null)" = "usable" ]; then
+                EXPORTS="$_flag"
+                return 0
+            fi
+        done
     done
 
-    [ "$_exports_found" -eq 1 ] && break
-done
+    return 1
+}
+
+if [ "$_want_c" != 0 ]; then
+    if _try_exports "$LTO"; then
+        _exports_found=1
+    elif [ -n "$LTO" ] && _try_exports ""; then
+        # The machine keeps its C loop and gives up link-time optimization,
+        # which is the better half of that trade: the loop is 1.5x and LTO is
+        # about 24% of what is left.
+        _exports_found=1
+        LTO=""
+    fi
+else
+    _exports_found=1
+fi
 
 if [ "$_exports_found" -eq 0 ] && [ "$_want_c" != 0 ]; then
     echo "This toolchain cannot make a binary find its own symbols, which the" >&2

@@ -18,6 +18,21 @@ extern Value v_codebytes;
 extern Value v_slots;
 extern Value v_sp;
 
+/* The two names this file offers to the guest, which are looked up BY
+   NAME at run time and referenced statically by nothing.
+
+   ⚠️ ANNOTATED RATHER THAN LEFT TO A LINKER FLAG.  --export-all-symbols
+   is the only flag MinGW accepts here and it disagrees with -flto about
+   the address: the symbol is found, the pointer is not the function, and
+   the call lands in the middle of nowhere.  __declspec(dllexport) is what
+   the LTO plugin understands, and `used` is what stops it discarding a
+   function nothing calls. */
+#if defined(_WIN32)
+#define ALG_VM_EXPORTED __declspec(dllexport)
+#else
+#define ALG_VM_EXPORTED __attribute__((used, visibility("default")))
+#endif
+
 /* The handlers, unchanged and still in Algol-24.  This is the convention
    the emitter gives a top-level subprogram, and calling them directly is
    what freezes it -- see vm/dispatch.sh. */
@@ -118,9 +133,9 @@ Value f_traced(Value **cells, Value *args, int32_t count);
 /* Whether this build HAS a C loop, which vm/run.a24 asks before enabling
    one.  Reached through the same no-library external, so a build that
    left dispatch.c out answers by raising and the Algol-24 loop stands. */
-int alg_vm_dispatch_present(void) { return 1; }
+ALG_VM_EXPORTED int alg_vm_dispatch_present(void) { return 1; }
 
-void alg_vm_dispatch(void) {
+ALG_VM_EXPORTED void alg_vm_dispatch(void) {
     while (v_live.boolean) {
         const unsigned char *code = alg_buffer_bytes(v_codebytes);
 
