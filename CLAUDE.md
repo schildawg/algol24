@@ -1767,21 +1767,52 @@ the released body is never handed back at its own size class, which is case
   find its own symbols does not run it. Sabotage an arm and watch the failure
   before trusting a figure.
 
-  ⚠️ **THE EXPORT FLAG IS PROBED AND THE PROBE RUNS, because its spelling
-  differs per platform and accepting a flag is not the lookup working.**
-  `-export_dynamic` is Apple's, `--export-dynamic` is GNU/ELF's, and PE
-  exports nothing from an executable without `--export-all-symbols`. It was
-  hard-coded to Apple's, so the Windows job linked happily and then could not
-  find its own dispatch loop: `algvm hello.a24` failed where `algvm --version`
-  and `./test.sh vm/Vm.a24` both passed, because **neither runs the C loop** —
-  the machine's own tests run under `algc`, which has the Algol-24 one. The
-  probe compiles with `$LTO` as the real link does, since nothing calls
-  `alg_vm_dispatch` statically and that is exactly what might drop it.
+  ⚠️ **THE TWO NAMES THE LOOP OFFERS THE GUEST ARE ANNOTATED, not left to a
+  linker flag.** `ALG_VM_EXPORTED` is `__declspec(dllexport)` on Windows and
+  `__attribute__((used, visibility("default")))` elsewhere — the first is what
+  the LTO plugin understands and the second is what stops it discarding a
+  function nothing references. Without it, `-flto` and
+  `--export-all-symbols` disagreed about the ADDRESS on MinGW: the symbol was
+  found, the pointer was not the function, and the call landed in the middle of
+  nowhere. `foreign_resolve` could not catch it, because it checks for NULL and
+  the answer was not NULL.
 
-  ⚠️ **macOS needs NO flag at all, which is why the wrong one went unnoticed.**
-  The probe reports the lookup succeeding with `-export_dynamic`, with
-  `-rdynamic` and with nothing — so the hard-coded flag was never load-bearing
-  here and could not fail where it was written.
+  ⚠️ **WINDOWS RUNS LTO PERFECTLY WELL, and blaming LTO was the wrong
+  diagnosis.** `bootstrap/build.sh` probes for `-flto` too and `algc` works
+  there; `algc` is simply never asked to find its own symbols. With the
+  annotation Windows keeps both LTO and `--export-all-symbols`.
+
+  ⚠️ **The flag is still PROBED, over (LTO, flag) PAIRS, and the probe RUNS.**
+  `-export_dynamic` is Apple's, `--export-dynamic` is GNU/ELF's, and PE exports
+  nothing from an executable without `--export-all-symbols` — so the spelling
+  cannot be assumed. The probe puts its target in **its own translation unit**
+  with the same annotation, links it as the real build does with `$LTO`,
+  **calls through the pointer**, and compares its **output**. Every one of
+  those four things was needed: a same-unit target, a NULL-check-only test, no
+  LTO, or an exit-status test each passed a combination the real binary could
+  not use. `-export_dynamic` on MinGW is the sharpest case — it links, and
+  produces an executable that runs and prints nothing at all.
+
+  ⚠️ **macOS needs NO flag at all, which is why a wrong one went unnoticed.**
+  The lookup succeeds with `-export_dynamic`, with `-rdynamic` and with
+  nothing, so the hard-coded flag was never load-bearing here and could not
+  fail where it was written.
+
+  ⚠️ **`--algol-loop` RUNS WITHOUT THE C LOOP, and not having it was its own
+  gap.** The loop is an optimization over handlers that remain the definition,
+  so there has to be a way to run without it — a platform where it misbehaved
+  otherwise had no working machine and no way to say whether the loop was the
+  cause. It is load-bearing: Fib (27) reads 0.69 s against 1.07 s.
+  `CDISPATCH=0 ./vm/build.sh` leaves the loop out of the binary entirely, and
+  `Vm.a24` asks `alg_vm_dispatch_present` inside a `try` so such a build falls
+  back rather than dying at the first instruction.
+
+  ⚠️ **THREE GREEN STEPS PRECEDED THE FAILURE, and that is the lesson.**
+  `algvm --version` does not run the loop and `./test.sh vm/Vm.a24` runs the
+  machine's tests under `algc`, which has the Algol-24 one — so **nothing in CI
+  exercised the C loop until a program ran**. The two-live-loops arrangement is
+  what hid it. And `test "$(...)" = ...` in the workflow hid the output and the
+  diagnostic both, so three rounds saw only `exit code 1`.
 
   ⚠️ **The cost is that giving C a stable name to call FREEZES the
   `Value **cells, Value *args, int32_t count` calling convention**, which was

@@ -14,6 +14,91 @@ go stale.
 
 ---
 
+## v0.2.5 — the machine runs the Dew Drop Inn at 37 fps, where it ran at 20
+
+A performance release. **The language gained nothing and lost nothing**: every
+rule, every diagnostic and every answer is what v0.2.4 gave, which the whole
+corpus under three processors is what says. What changed is how fast the
+bytecode machine runs, and one thing it changed for the compiled back end too.
+
+The driving measurement is `shroom-slots`' Dew Drop Inn, the program that
+decides whether the machine is fast enough to play a game on. It went from
+**48.7 ms a frame to 26.8** — 20 fps to 37 — so a 30 fps frame is 80% full
+where it used to be 119% of one. `Fib (27)` went from 1.35 s to 0.69 s.
+
+### The dispatch loop is written in C
+
+`algvm` now dispatches through hand-written C over the **same Algol-24
+handlers**, which remain the definition of every opcode. It is generated from
+the machine's own handler table, so adding an opcode means regenerating rather
+than remembering, and the build checks that the generated file is current.
+
+Worth **1.51×**, which is the first thing here that corrects a projection: the
+proposal that argued for this work estimated 1.7× from a four-opcode spike, and
+said to treat that as a reason to try rather than a number to plan with. It was
+right to.
+
+`--algol-loop` runs without it. An optimization over handlers that remain the
+definition needs a way to be turned off, and not having one is what made a
+platform problem hard to diagnose.
+
+### `is` and `as` stopped comparing strings
+
+`alg_is` and `alg_cast` took the type as a **string the compiler wrote**, so
+every type test paid a table scan and a case-insensitive comparison for
+something fixed when the C was emitted — and in a profile of the Inn they were
+the two heaviest functions in the whole program, above addition.
+
+They are resolved at compile time now: a built-in type becomes an integer
+compare, and a class becomes a walk comparing class identities rather than
+names. This is the one item that reaches **every compiled Algol-24 program**
+rather than only the machine, though its size depends entirely on how much a
+program asks: the machine gains about 10%, `algc --test` about 4%, and
+`algc --compile` nothing measurable.
+
+Three guards decide when a name can be resolved, and each exists because
+answering otherwise would be **wrong rather than slow**. A built-in type name
+is not reserved — `class List` is legal, and `[1] is List` and `X is List` are
+then both true. Two units may declare a class of one name, and the other two
+processors match a class by name, so comparing identities there would answer
+differently. And a singleton, an enumeration or a subrange sharing the name
+keeps the string form.
+
+### A field read is one lookup instead of two
+
+Reading a field asked whether the instance had it and then asked for it; it now
+asks once where the field holds anything but nil, which is the common case. The
+member read also folds the written name once instead of three times.
+
+### Smaller, and recorded rather than quoted
+
+An `OP_ADD` fast path, worth about 2.6%, whose real finding was that the
+**stack costs more than the arithmetic**: the machine's value stack is an Array,
+so every push and pop went through the runtime's general subscript. The rest of
+that work is written up in `finished/PROPOSAL-VM.md` as the live enhancement,
+with the measured reason to expect more from the opcodes that do nothing but
+move values.
+
+### Windows
+
+`algvm` on Windows gets the C dispatch loop with link-time optimization, like
+every other platform. That was in doubt: the loop is reached by looking up a
+symbol in the binary's own exports, and `-flto` and MinGW's
+`--export-all-symbols` disagreed about the address — the symbol was found, the
+pointer was not the function. Annotating the two names the loop offers is the
+fix, and the build now probes for a working combination by **calling through
+the pointer** rather than by checking that a flag was accepted.
+
+### Nothing in the language changed, and that is checked rather than claimed
+
+Both corpora pass under all three processors with no divergence, the compiler
+is still a fixed point under its own output, every recorded defect still
+reproduces, and `shroom-slots`' own verification run answers identically to the
+interpreter. The upgrade is safe for any program that ran on v0.2.4; the only
+visible difference is that it finishes sooner.
+
+---
+
 ## v0.2.4 — sixteen defects, every one reported by a program that uses the language
 
 The first release driven entirely from outside. Nothing here was found by

@@ -10,6 +10,6 @@ static Value *roots_Release[] = {
 
 void init_Release(void) {
     alg_roots(roots_Release, 1);
-    v_version = alg_string("0.2.4");
+    v_version = alg_string("0.2.5");
     d_version = true;
 }
