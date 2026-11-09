@@ -91,9 +91,22 @@ jobs:
         run: ./test.sh vm/Vm.a24
 
       # STAGE 3 -- a program, to prove the pair works rather than merely links.
+      #
+      # ⚠️ SHOWS WHAT EACH ONE SAID BEFORE ASSERTING.  `test "$(...)" = ...`
+      # hides both the output and the diagnostic, so a failure here said only
+      # `exit code 1` -- and the one time it fired, it took three CI rounds to
+      # guess at what no log had recorded.
       - name: Run a program both ways
         run: |
           printf "WriteLn ('hello, ' + Str (2 + 2));\n" > hello.a24
+
+          echo "--- algc ---"
+          ./bootstrap/algc hello.a24 || echo "algc exited $?"
+
+          echo "--- algvm ---"
+          ./vm/algvm hello.a24 || echo "algvm exited $?"
+
+          echo "--- asserting ---"
           test "$(./bootstrap/algc hello.a24)" = "hello, 4"
           test "$(./vm/algvm hello.a24)" = "hello, 4"
 

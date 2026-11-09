@@ -141,3 +141,4 @@ if ! $CC $CFLAGS $LTO $FFI_CFLAGS $EXPORTS -o "$OUT" "$WORK/out"/*.c $FFI_LIBS 2
 fi
 
 echo "Built $OUT  (with foreign calls)${LTO:+  (link-time optimized)}"
+echo "  own symbols reachable with: ${EXPORTS:-no flag needed}"
