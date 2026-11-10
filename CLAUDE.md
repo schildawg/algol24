@@ -1922,8 +1922,37 @@ temporaries, not a counter.
 
 ⚠️ **The Inn is 81% better and not flat.** Growth over 1000 frames falls from
 229 KB a frame to **43**, and peak drops about 540 MB, measured interleaved.
-Something else contributes the rest; this entry stops where the measurement
-does.
+
+⚠️ **THE REST OF IT IS TEXT, AND A STRING IS NOT COLLECTABLE.** The same
+histogram found the remaining 43 KB a frame in three lines, and they are one
+family: `as_text` rendering an Integer (`arena_alloc(24)`, +977,722 over 1200
+frames), string **concatenation** (`arena_alloc(max(64, (need+1)*2))`,
++587,164), and `file_read_line` (128 bytes a line, +116,281). Measured on
+minimal cases, both unbounded and linear:
+
+| | per call |
+| --- | --- |
+| `Str (N)` in a loop | **23 bytes** |
+| `'row ' + Str (N) + ' of many'` | **84 bytes** |
+
+⚠️ **INTERNING CANNOT FIX THESE, which is what makes them structural rather
+than another R-18.** Folding repeats — the machine folds the same handful of
+names forever — so a table of answers bounds it. `Str (N)` for varying N and
+`A + B` for varying text produce a DIFFERENT answer every time, so a cache
+only delays the growth.
+
+The reason is one sentence: a `VAL_STRING` carries a raw `const char *` into
+the arena **with no owning object**, so the collector has nothing to sweep and
+the arena never frees. Every `Str`, every `+`, every `Copy` and every fold is
+held for the life of the process. Making strings collectable means giving them
+an owner the registry can walk, which is a change to the value representation
+and wants a proposal rather than a patch.
+
+⚠️ **`Buffer` IS THE EXISTING ANSWER and the note recommending it undersells
+why.** CLAUDE.md has long said to accumulate text with `Buffer` "for anything
+large" on the grounds that `+` is linear — the stronger reason is that a
+Buffer's bytes are **malloc'd and explicitly freed**, so a Buffer is the only
+text in the language whose memory comes back.
 
 ⚠️ **The registry must be COMPACTED by the sweep, or collection costs O(every
 object ever allocated).** Keeping released objects registered made clearing
