@@ -375,9 +375,10 @@ arity warning would have diverged every case with a wrong-count call in it,
 
   ⚠️ **Three traps in one small test, all of them in CLAUDE.md already.**
   `Set` takes a COLLECTION and not members, so `Set (A, B, C)` is
-  `Expected 0 or 1 arguments but got 3.`; a one-character literal is a **Char**
-  and never equals the String `Copy` answers, so a set of bare `'0'` matched
-  nothing; and a second top-level `StackTerm` in `Vm.a24` clashed with the one
+  `Expected 0 or 1 arguments but got 3.`; a one-character literal is a **Char**,
+  which through v0.2.5 never equalled the String `Copy` answers, so a set of
+  bare `'0'` matched nothing — **no longer so** [VAL-010]; and a second
+  top-level `StackTerm` in `Vm.a24` clashed with the one
   in `OpCode.a24`, which is why both helpers live beside `OpStack`.
 
   ⚠️ **There is no `Split` built-in**, so `StackPart` cuts the terms out with
@@ -1682,9 +1683,10 @@ the released body is never handed back at its own size class, which is case
   pre-fills N **zero** bytes and a Buffer holding one has no Text, so use
   `Buffer ()` to accumulate; `Length (B)` answers the printed form's length
   where a List raises (DEF-36), so use `B.Length`; and a one-character operator
-  literal is a **Char**, so `Op = '+'` against a String is quietly false while
-  `Op = '<>'` works — which refused all the arithmetic while the comparisons
-  passed.
+  literal is a **Char**, which through v0.2.5 made `Op = '+'` against a String
+  quietly false while `Op = '<>'` worked — refusing all the arithmetic while
+  the comparisons passed. **That one no longer bites**: text compares as text
+  [VAL-010].
 
   ⚠️ **`ClassNameOf` is a METHOD** on TypeChecker and on Interpreter, not a
   built-in. A third walker needs its own; it is `Node.ClassName` in a `try`.
@@ -2724,8 +2726,11 @@ inline. Language points that bite when editing:
 - Strings are 0-based. `Pos` returns `-1` when absent; `Copy` clamps its end but
   not its start. **No backslash escapes** — `'\n'` is two characters; `#10` is a
   newline, `#27` is ESC.
-- A one-character literal is a **Char**, never a String, and the two are never
-  equal. `Str(…)` is how you widen.
+- A one-character literal is a **Char** and not a String — the TYPES differ,
+  so `'a' is String` is false — but **the two are equal where the text is the
+  same** [VAL-010]. `'a' = Copy ('abc', 0, 1)` is true, a Map keyed either way
+  is reached by the other, and only differing text makes an equality fail.
+  `Str(…)` still widens, and is still needed where a *type* is wanted.
 - `/` is **real division** and always answers a Double, so `7 / 2` is 3.5 and
   `4 / 2` is `2.0`. `div` and `mod` are the Integer pair: both refuse a Double
   rather than truncating it, and both are the only things that raise on a zero
@@ -2775,12 +2780,14 @@ inline. Language points that bite when editing:
   singleton reference emitting `alg_error("Undefined variable 'SourceCode'…")`
   into the generated C. Tests passed, the corpus passed, and `fixedpoint.sh`
   caught it — which is what it iterates for.
-- ⚠️ **A Map keyed by a String is not reachable with a Char key.** A field map
-  uses String keys, and `Fields.Put ('n', 21)` keys it with a **Char**
-  [TYP-003] — adding a SECOND entry while the String one still held nil. Both
-  `Contains ('n')` and `Contains (Str ('n'))` then answer true about different
-  entries, and the symptom reads as the *reader* being broken: `MemberOf`
-  returned nil for a field that was plainly there. `Str ('n')` is the key.
+- ⚠️ **A Map keyed by a String WAS not reachable with a Char key, and that trap
+  is gone.** Through v0.2.5 a field map used String keys while
+  `Fields.Put ('n', 21)` keyed it with a **Char**, adding a SECOND entry while
+  the String one still held nil — and the symptom read as the *reader* being
+  broken, `MemberOf` answering nil for a field that was plainly there.
+  Membership is equality [VAL-013] and the hash folds the two tags, so one key
+  is now one entry whichever way it is written. Recorded because the shape of
+  the old symptom is worth recognising in anything written before the change.
 - ⚠️ **`Str (X)` does not give the checker a String when `X` is untyped.** The
   type does not propagate — `ToLower (Str (Thing.Field))` is an *untyped*
   expression, so a parameter declared `String` refuses it and the message is

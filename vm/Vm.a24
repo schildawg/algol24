@@ -4866,16 +4866,28 @@ begin
     AssertEqual (3, OrOf (0, 3) as Integer);
 end
 
-test 'A Comparison Of A Char And A String Is Unequal';
+test 'A Char Equals A One Character String, And Differing Text Does Not';
 begin
     var C := Chunk ();
 
     C.EmitConstant ('a');                     // a Char
-    C.EmitConstant (Str ('a'));               // a String
+    C.EmitConstant (Str ('a'));               // a String of that character
     C.Emit (OP_EQUAL);
     C.Emit (OP_RETURN);
 
-    AssertTrue (not (RunChunk (C) as Boolean));
+    // Text compares as text [VAL-010], and OP_EQUAL defers to the host's own
+    // operator -- so this asserts the machine does not hold a second opinion
+    // rather than asserting the rule.
+    AssertTrue (RunChunk (C) as Boolean);
+
+    var D := Chunk ();
+
+    D.EmitConstant ('a');
+    D.EmitConstant (Str ('ab'));
+    D.Emit (OP_EQUAL);
+    D.Emit (OP_RETURN);
+
+    AssertTrue (not (RunChunk (D) as Boolean));
 end
 
 test 'A Global Round Trips Through Its Slot';

@@ -5,3 +5,6 @@
 
 WriteLn('a' = 'a');
 WriteLn(Copy('abc', 0, 1) = 'a');
+
+// Differing text still fails, which is the only reason it can [VAL-010].
+WriteLn(Copy('abc', 0, 2) = 'a');
