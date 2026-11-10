@@ -5019,6 +5019,39 @@ static bool folds(unsigned char c, bool upper) {
     return upper ? (c >= 'a' && c <= 'z') : (c >= 'A' && c <= 'Z');
 }
 
+/* ── Folded text is interned ───────────────────────────────────────────────
+   `folded` answers a COPY, in an arena that never frees, so its cost is
+   proportional to the number of CALLS rather than to the number of distinct
+   strings.  That is R-18: the machine folds a name for every member read and
+   every built-in call, so a loop containing one call to a built-in grows
+   without bound -- it took a game to 10.1 GB on a 15.6 GB device, where the
+   operating system killed it with no error and nothing in the crash buffer,
+   because nothing had gone wrong in the program.
+
+   Folding is deterministic, so one copy serves every call with the same input
+   and the cost becomes O(distinct strings).
+
+   ⚠️ BOUNDED, because the input may be program DATA rather than a name.  A
+   program folding a million different lines must not fill this table with
+   them, so a slot is OVERWRITTEN rather than chained: a hot name keeps its
+   slot and cold text pays the copy it would have paid anyway.  Nothing is
+   freed on eviction, because the arena cannot -- eviction forgets rather than
+   reclaims, and the bound is on the table rather than on the arena.
+
+   ⚠️ THE KEY IS A COPY OF THE INPUT, not the caller's pointer.  A Buffer's
+   bytes move when it grows and `Free` releases them, so a stored pointer
+   would be compared against memory that had since become something else. */
+#define FOLD_CACHE 4096
+
+typedef struct {
+    const char *key;
+    const char *answer;
+    int32_t     length;
+    bool        upper;
+} FoldSlot;
+
+static FoldSlot fold_cache[FOLD_CACHE];
+
 static Value folded(Value text, const char *what, bool upper) {
     const char *from = as_string(text, what);
 
@@ -5032,6 +5065,20 @@ static Value folded(Value text, const char *what, bool upper) {
        paid and reclaimed. */
     if (first == text.length) return text;
 
+    uint32_t stamp = hash_bytes(2166136261u, from, (size_t)text.length);
+    FoldSlot *slot = &fold_cache[(stamp ^ (upper ? 0x9e3779b9u : 0u))
+                                 & (FOLD_CACHE - 1)];
+
+    if (slot->answer != NULL
+     && slot->length == text.length
+     && slot->upper  == upper
+     && memcmp(slot->key, from, (size_t)text.length) == 0) {
+
+        Value hit = alg_string_n(slot->answer, text.length);
+        hit.type  = text.type;
+        return hit;
+    }
+
     char *result = arena_alloc((size_t)text.length + 1);
 
     memcpy(result, from, (size_t)first);
@@ -5044,6 +5091,18 @@ static Value folded(Value text, const char *what, bool upper) {
         result[i] = (char)c;
     }
     result[text.length] = '\0';
+
+    /* Remembered for the next call with this input.  The key is copied
+       because the caller's bytes may not outlive the table. */
+    char *key = arena_alloc((size_t)text.length + 1);
+
+    memcpy(key, from, (size_t)text.length);
+    key[text.length] = '\0';
+
+    slot->key    = key;
+    slot->answer = result;
+    slot->length = text.length;
+    slot->upper  = upper;
 
     /* A Char folds to a Char. Case is not a reason to widen, and Str is how
        widening is asked for [TYP-003]. */

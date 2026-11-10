@@ -1877,6 +1877,54 @@ compiler's own self-compile byte-identical, and the Inn closing cleanly at 400
 frames — 19 fps against 20.** An explicit `Collect ()` was always unaffected
 and works either way.
 
+⚠️ **`ToUpper` AND `ToLower` INTERN THEIR ANSWERS, because the arena never
+frees and a fold is a COPY.** That made the cost proportional to the number of
+CALLS rather than to the number of distinct strings — and the machine folds a
+name for every member read and every built-in call, so a loop containing one
+call to a built-in grew without bound. It took `shroom-slots` to 10.1 GB on a
+15.6 GB device, where the low-memory killer took it with no error and nothing
+in the crash buffer, because nothing had gone wrong in the program. R-18.
+`folded` now keys a 4096-slot table on the input bytes; the minimal case goes
+from 64.5/111.0/173.0 MB at 1/4/8 M calls to **flat at 49 MB**.
+
+⚠️ **THE KEY IS A COPY OF THE INPUT, and the table is BOUNDED by overwriting.**
+A Buffer's bytes move when it grows and `Free` releases them, so storing the
+caller's pointer would compare against memory that had become something else.
+And the input may be program DATA rather than a name — a program folding a
+million lines must not fill the table — so a slot is overwritten rather than
+chained: a hot name keeps its slot, cold text pays the copy it would have paid
+anyway. Eviction FORGETS rather than reclaims, since the arena cannot.
+
+⚠️ **4096 slots is enough, measured: 65536 changes nothing.** So the Inn's
+remaining growth is not this table thrashing.
+
+⚠️ **R-18's own minimal case was NOT minimal, and the List in it was
+incidental.** It reported a List that "does not give its memory back", and
+both free lists round-trip perfectly — 83,430 item blocks and 83,622 object
+bodies returned per sweep and fully consumed by the next cycle. A loop
+containing `Length ('abc')` and nothing else leaks at the same rate.
+
+⚠️ **WHAT FOUND IT WAS A HISTOGRAM OF ARENA REQUESTS BY CALL SITE**, after
+reading got nowhere. Sizes alone said 8–15 bytes and that was not enough; a
+`__LINE__` histogram named the line in one run. Worth repeating for the next
+arena question: `obj_alloc` and the items array showed flat while one line
+climbed by exactly 2 per iteration.
+
+⚠️ **THE COMPILED BACK END STILL GROWS, and that is a DIFFERENT defect with a
+reason.** R-18's case compiled is 156.8/615.8/1222.4 MB at 1/4/8 M lists,
+unchanged by this fix, because **compiled Algol-24 never collects
+automatically** — `alg_collect`'s only caller is the program's own `Collect`,
+and an explicit one every 100,000 iterations makes it **flat at 17.5 MB**.
+That gap is not an oversight: an intermediate inside one expression is in no
+local and registered nowhere, so collecting at an arbitrary allocation point
+is exactly what the shadow stack cannot cover. Closing it needs the
+temporaries, not a counter.
+
+⚠️ **The Inn is 81% better and not flat.** Growth over 1000 frames falls from
+229 KB a frame to **43**, and peak drops about 540 MB, measured interleaved.
+Something else contributes the rest; this entry stops where the measurement
+does.
+
 ⚠️ **The registry must be COMPACTED by the sweep, or collection costs O(every
 object ever allocated).** Keeping released objects registered made clearing
 marks and sweeping both walk the whole history, so each collection grew slower
