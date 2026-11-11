@@ -154,7 +154,7 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.2.6.** The language is **stable, not closed**: it changes only on measured
+**v0.2.7.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
@@ -232,6 +232,15 @@ The rest, in brief:
 What comes next is still a library, written in Algol-24 rather than in the
 runtime — that is the whole of what *alpha* means here, and nothing in the
 language is provisional.
+
+v0.2.7 is **one defect v0.2.6 introduced**: making text collectable meant a
+block of memory could hold a second string, and a small cache remembering how
+many **characters** a string has was keyed on **where its bytes are** — safe
+while text came from an allocator that never freed, and not safe once blocks
+are recycled. A string could come back a few characters short: a wrong answer
+rather than an error, deterministic, and invisible in text that is entirely
+ASCII, where the character count *is* the byte count. Upgrade if you are on
+v0.2.6.
 
 v0.2.6 is **memory, and nothing else**: text is collectable, so a program that
 discards strings gets the memory back. Text used to come from an arena that
