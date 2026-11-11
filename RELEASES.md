@@ -14,6 +14,85 @@ go stale.
 
 ---
 
+## v0.3.0 — a Char equals a one-character String
+
+**The first release that changes what an existing program means.** Everything
+before this either added a capability or fixed something that was wrong; this
+one makes a comparison that was false become true. The minor version moves for
+that reason and no other.
+
+```algol24
+WriteLn ('a' = Copy ('abc', 0, 1));     // false before, TRUE now
+```
+
+### What changed, exactly
+
+A `Char` and a `String` holding the same text are now **equal** [VAL-010], and
+membership follows [VAL-013] — a Map keyed `Str('a')` is reached by `'a'` and
+the other way about. Equality here fails only when the text differs: `'ab'` and
+`'a'` are different characters, not different types.
+
+**Nothing else moved.** The types are still distinct, a one-character literal
+is still a Char, `'a' is String` is still false, a Char still widens to a
+String and never the reverse, and `as String` still refuses a Char. Nothing
+converts: neither operand becomes the other's type.
+
+### Why
+
+⚠️ **The language already contradicted itself.** With `C` the Char `'a'` and
+`S` the String `Str('a')`, every processor answered `C <= S` **true**,
+`S <= C` **true**, `C < S` false, `S < C` false — and `C = S` **false**.
+Everywhere else in the language `a <= b` and `b <= a` imply `a = b`. Ordering
+had been settled as text while equality refused it, and together they described
+an ordering no value can satisfy. One of the two had to give.
+
+⚠️ **And it was producing defects in real programs** — two of them, in two
+different projects, both silent, both fixed by this with **no edit to either
+program**:
+
+- An image viewer filtered by a mode that could never filter: a cast made one
+  side a String while the literal stayed a Char, so the test was always true
+  and every entry passed.
+- A game never read back its saved window position: the keys came from parsed
+  JSON and so were Strings, while `'x'` and `'y'` are one character each and so
+  were Chars. ⚠️ **`'zoom'` is why nobody noticed** — the same function reads
+  three keys and the four-character one worked, so the window remembered its
+  zoom and forgot where it was. A rule that breaks the short keys and not the
+  long ones in one function is not a rule a programmer can hold in their head.
+
+The clearest sign was how the old rule was reached: writing a **type
+annotation**. `var F : String := 'x';` then `F = 'x'` answered false, where
+without the annotation both sides are Chars and it answered true. Adding a
+declared type silently changed a comparison's answer.
+
+### Does this break your program?
+
+Almost certainly not, and that was established three ways rather than assumed:
+
+| | |
+| --- | --- |
+| a search across four codebases | nothing |
+| a **type-checker sweep** over 389 files in six codebases | three sites — one was a defect, two were this project's own probes |
+| the one shape that would actually break | present in none of the seven codebases |
+
+The shape to check, if you want to check: a collection deliberately holding
+**both** a Char and a one-character String as distinct keys. Those are now one
+key. Everything else — including the 77 places across these codebases that
+wrapped a literal in `Str(…)` to make a comparison work — keeps answering what
+it answered, because `Str('x') = 'x'` compares a String to a String either way.
+
+### Upgrading
+
+Nothing to change. Those `Str(…)` wrappers are no longer needed and can go
+whenever it suits; they are not wrong, only redundant.
+
+⚠️ **Both halves of the runtime move together.** `algol.c` and `algol.h` are
+hand-written and copied verbatim by `--compile`, and the body uses what the
+header declares. Anything assembling a build from both a compiler's output and
+a checkout must take the pair from the same release.
+
+---
+
 ## v0.2.7 — a line of text could come back two characters short
 
 A correctness release, and the only thing in it is a defect v0.2.6 introduced.
