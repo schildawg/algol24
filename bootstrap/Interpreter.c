@@ -255,6 +255,7 @@ Value f_rendered(Value **cells, Value *args, int32_t count) {
         (void)loop_2;
         alg_root(&loop_2, 1);
         for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
+            alg_safe_point();
             int32_t rt_142 = alg_root_top;
             Value v_argument = alg_iterable_at(loop_2, at_2);
             (void)v_argument;
@@ -318,6 +319,7 @@ Value f_stringify(Value **cells, Value *args, int32_t count) {
                     (void)loop_7;
                     alg_root(&loop_7, 1);
                     for (int32_t at_7 = 0; at_7 < alg_iterable_count(loop_7); at_7++) {
+                        alg_safe_point();
                         int32_t rt_146 = alg_root_top;
                         Value v_key = alg_iterable_at(loop_7, at_7);
                         (void)v_key;
@@ -340,6 +342,7 @@ Value f_stringify(Value **cells, Value *args, int32_t count) {
                     (void)loop_8;
                     alg_root(&loop_8, 1);
                     for (int32_t at_8 = 0; at_8 < alg_iterable_count(loop_8); at_8++) {
+                        alg_safe_point();
                         int32_t rt_148 = alg_root_top;
                         Value v_element = alg_iterable_at(loop_8, at_8);
                         (void)v_element;
@@ -557,6 +560,7 @@ static Value m_native_call_2(Value v_this, Value *args, int32_t count) {
                                                                         (void)loop_32;
                                                                         alg_root(&loop_32, 1);
                                                                         for (int32_t at_32 = 0; at_32 < alg_iterable_count(loop_32); at_32++) {
+                                                                            alg_safe_point();
                                                                             int32_t rt_153 = alg_root_top;
                                                                             Value v_item = alg_iterable_at(loop_32, at_32);
                                                                             (void)v_item;
@@ -833,6 +837,7 @@ Value f_parsednumber(Value **cells, Value *args, int32_t count) {
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_text_length(v_digits))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             {
                 int32_t rt_157 = alg_root_top;
                 Value v_c = alg_subscript_get(v_digits, v_i);
@@ -943,6 +948,7 @@ static Value m_interpreter_hoist_1_list(Value v_this, Value *args, int32_t count
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             if (alg_truthy(alg_is_class(alg_subscript_get(v_statements, v_i), k_classstmt))) {
                 (void)(alg_invoke(v_names, "Add", (Value[]){f_foldcase(NULL, (Value[]){alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme")}, 1)}, 1));
             }
@@ -955,6 +961,7 @@ static Value m_interpreter_hoist_1_list(Value v_this, Value *args, int32_t count
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             if (alg_truthy(alg_is_class(alg_subscript_get(v_statements, v_i), k_classstmt))) {
                 (void)(alg_invoke(alg_property(v_this, "Env"), "Define", (Value[]){alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme"), alg_new(k_objclass, (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme")), alg_nil(), alg_map(), alg_list()}, 4)}, 2));
             }
@@ -967,6 +974,7 @@ static Value m_interpreter_hoist_1_list(Value v_this, Value *args, int32_t count
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             if (alg_truthy(alg_is_class(alg_subscript_get(v_statements, v_i), k_classstmt))) {
                 {
                     int32_t rt_161 = alg_root_top;
@@ -997,6 +1005,7 @@ static Value m_interpreter_hoist_1_list(Value v_this, Value *args, int32_t count
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             if (alg_truthy(alg_is_class(alg_subscript_get(v_statements, v_i), k_functionstmt))) {
                 (void)(alg_invoke(v_this, "Execute", (Value[]){alg_subscript_get(v_statements, v_i)}, 1));
             }
@@ -1073,6 +1082,7 @@ static Value m_interpreter_interpret_1_list(Value v_this, Value *args, int32_t c
                 (void)v_i;
                 alg_root(&v_i, 1);
                 while (alg_truthy(alg_less(v_i, alg_property(v_statements, "Length")))) {
+                    alg_safe_point();
                     {
                         int32_t rt_164 = alg_root_top;
                         volatile Value v_done = alg_is_class(alg_subscript_get(v_statements, v_i), k_functionstmt);
@@ -1195,6 +1205,7 @@ static Value m_interpreter_hoisttests_11_list_list_map_boolean_environment_map_s
         (void)loop_74;
         alg_root(&loop_74, 1);
         for (int32_t at_74 = 0; at_74 < alg_iterable_count(loop_74); at_74++) {
+            alg_safe_point();
             int32_t rt_169 = alg_root_top;
             Value v_thestmt = alg_iterable_at(loop_74, at_74);
             (void)v_thestmt;
@@ -1312,6 +1323,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
         (void)loop_76;
         alg_root(&loop_76, 1);
         for (volatile int32_t at_76 = 0; at_76 < alg_iterable_count(loop_76); at_76++) {
+            alg_safe_point();
             int32_t rt_172 = alg_root_top;
             volatile Value v_file = alg_iterable_at(loop_76, at_76);
             (void)v_file;
@@ -1329,6 +1341,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
                     (void)loop_77;
                     alg_root(&loop_77, 1);
                     for (volatile int32_t at_77 = 0; at_77 < alg_iterable_count(loop_77); at_77++) {
+                        alg_safe_point();
                         int32_t rt_175 = alg_root_top;
                         volatile Value v_each = alg_iterable_at(loop_77, at_77);
                         (void)v_each;
@@ -1350,6 +1363,7 @@ static Value m_interpreter_runtests_2_list_string(Value v_this, Value *args, int
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(v_ordered, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             {
                 if (alg_truthy(alg_not(alg_invoke(v_byname, "Contains", (Value[]){alg_subscript_get(v_ordered, v_i)}, 1)))) {
                     {
@@ -1595,6 +1609,7 @@ static Value m_interpreter_visitcollectionexpr_1_collectionexpr(Value v_this, Va
                 (void)v_i;
                 alg_root(&v_i, 1);
                 for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_theexpr, "Keys"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    alg_safe_point();
                     (void)(alg_invoke(alg_property(v_result, "Pairs"), "Put", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Keys"), v_i)}, 1), alg_invoke(v_this, "Evaluate", (Value[]){alg_subscript_get(alg_property(v_theexpr, "Values"), v_i)}, 1)}, 2));
                 }
                 alg_root_top = rt_183;
@@ -1611,6 +1626,7 @@ static Value m_interpreter_visitcollectionexpr_1_collectionexpr(Value v_this, Va
         (void)loop_96;
         alg_root(&loop_96, 1);
         for (int32_t at_96 = 0; at_96 < alg_iterable_count(loop_96); at_96++) {
+            alg_safe_point();
             int32_t rt_185 = alg_root_top;
             Value v_value = alg_iterable_at(loop_96, at_96);
             (void)v_value;
@@ -2139,6 +2155,7 @@ static Value m_interpreter_suggestunit_2_token_string(Value v_this, Value *args,
         (void)loop_142;
         alg_root(&loop_142, 1);
         for (int32_t at_142 = 0; at_142 < alg_iterable_count(loop_142); at_142++) {
+            alg_safe_point();
             int32_t rt_194 = alg_root_top;
             Value v_theunit = alg_iterable_at(loop_142, at_142);
             (void)v_theunit;
@@ -2472,6 +2489,7 @@ static Value m_interpreter_arranged_3_list_list(Value v_this, Value *args, int32
                 (void)loop_179;
                 alg_root(&loop_179, 1);
                 for (int32_t at_179 = 0; at_179 < alg_iterable_count(loop_179); at_179++) {
+                    alg_safe_point();
                     int32_t rt_200 = alg_root_top;
                     Value v_candidate = alg_iterable_at(loop_179, at_179);
                     (void)v_candidate;
@@ -2549,6 +2567,7 @@ static Value m_interpreter_visitcall_1_callexpr(Value v_this, Value *args, int32
         (void)loop_183;
         alg_root(&loop_183, 1);
         for (int32_t at_183 = 0; at_183 < alg_iterable_count(loop_183); at_183++) {
+            alg_safe_point();
             int32_t rt_205 = alg_root_top;
             Value v_argument = alg_iterable_at(loop_183, at_183);
             (void)v_argument;
@@ -2577,6 +2596,7 @@ static Value m_interpreter_visitcall_1_callexpr(Value v_this, Value *args, int32
                 (void)loop_184;
                 alg_root(&loop_184, 1);
                 for (int32_t at_184 = 0; at_184 < alg_iterable_count(loop_184); at_184++) {
+                    alg_safe_point();
                     int32_t rt_208 = alg_root_top;
                     Value v_each = alg_iterable_at(loop_184, at_184);
                     (void)v_each;
@@ -3240,6 +3260,7 @@ static Value m_interpreter_executeblock_2_list_environment(Value v_this, Value *
                 (void)v_i;
                 alg_root(&v_i, 1);
                 while (alg_truthy(alg_less(v_i, alg_property(v_statements, "Length")))) {
+                    alg_safe_point();
                     {
                         {
                             AlgFrame frame_241;
@@ -3379,6 +3400,7 @@ static Value m_interpreter_visitclassstmt_1_classstmt(Value v_this, Value *args,
         (void)loop_244;
         alg_root(&loop_244, 1);
         for (int32_t at_244 = 0; at_244 < alg_iterable_count(loop_244); at_244++) {
+            alg_safe_point();
             int32_t rt_220 = alg_root_top;
             Value v_method = alg_iterable_at(loop_244, at_244);
             (void)v_method;
@@ -3415,6 +3437,7 @@ static Value m_interpreter_visitclassstmt_1_classstmt(Value v_this, Value *args,
         (void)loop_245;
         alg_root(&loop_245, 1);
         for (int32_t at_245 = 0; at_245 < alg_iterable_count(loop_245); at_245++) {
+            alg_safe_point();
             int32_t rt_223 = alg_root_top;
             Value v_name = alg_iterable_at(loop_245, at_245);
             (void)v_name;
@@ -3425,6 +3448,7 @@ static Value m_interpreter_visitclassstmt_1_classstmt(Value v_this, Value *args,
                 (void)loop_246;
                 alg_root(&loop_246, 1);
                 for (int32_t at_246 = 0; at_246 < alg_iterable_count(loop_246); at_246++) {
+                    alg_safe_point();
                     int32_t rt_225 = alg_root_top;
                     Value v_each = alg_iterable_at(loop_246, at_246);
                     (void)v_each;
@@ -3469,6 +3493,7 @@ static Value m_interpreter_visitobjectstmt_1_objectstmt(Value v_this, Value *arg
         (void)loop_248;
         alg_root(&loop_248, 1);
         for (int32_t at_248 = 0; at_248 < alg_iterable_count(loop_248); at_248++) {
+            alg_safe_point();
             int32_t rt_227 = alg_root_top;
             Value v_field = alg_iterable_at(loop_248, at_248);
             (void)v_field;
@@ -3529,6 +3554,7 @@ static Value m_interpreter_visitenumstmt_1_enumstmt(Value v_this, Value *args, i
         (void)loop_251;
         alg_root(&loop_251, 1);
         for (int32_t at_251 = 0; at_251 < alg_iterable_count(loop_251); at_251++) {
+            alg_safe_point();
             int32_t rt_230 = alg_root_top;
             Value v_themember = alg_iterable_at(loop_251, at_251);
             (void)v_themember;
@@ -3635,6 +3661,7 @@ static Value m_interpreter_visitfunctionstmt_1_functionstmt(Value v_this, Value 
                 (void)loop_255;
                 alg_root(&loop_255, 1);
                 for (int32_t at_255 = 0; at_255 < alg_iterable_count(loop_255); at_255++) {
+                    alg_safe_point();
                     int32_t rt_235 = alg_root_top;
                     Value v_candidate = alg_iterable_at(loop_255, at_255);
                     (void)v_candidate;
@@ -3694,6 +3721,7 @@ static Value m_interpreter_visitwhilestmt_1_whilestmt(Value v_this, Value *args,
         if (ALG_SETJMP(frame_259.jump) == 0) {
             {
                 while (alg_truthy(alg_invoke(v_this, "IsTruthy", (Value[]){alg_invoke(v_this, "Evaluate", (Value[]){alg_property(v_stmt, "Condition")}, 1)}, 1))) {
+                    alg_safe_point();
                     {
                         {
                             AlgFrame frame_260;
@@ -3893,6 +3921,7 @@ static Value m_interpreter_elementsof_2_token(Value v_this, Value *args, int32_t
                 (void)loop_274;
                 alg_root(&loop_274, 1);
                 for (int32_t at_274 = 0; at_274 < alg_iterable_count(loop_274); at_274++) {
+                    alg_safe_point();
                     int32_t rt_242 = alg_root_top;
                     Value v_item = alg_iterable_at(loop_274, at_274);
                     (void)v_item;
@@ -3938,6 +3967,7 @@ static Value m_interpreter_elementsof_2_token(Value v_this, Value *args, int32_t
                 (void)v_i;
                 alg_root(&v_i, 1);
                 for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    alg_safe_point();
                     (void)(alg_invoke(v_result, "Add", (Value[]){alg_subscript_get(v_text, v_i)}, 1));
                 }
                 alg_root_top = rt_245;
@@ -3977,6 +4007,7 @@ static Value m_interpreter_visitforinstmt_1_forinstmt(Value v_this, Value *args,
                     (void)loop_281;
                     alg_root(&loop_281, 1);
                     for (volatile int32_t at_281 = 0; at_281 < alg_iterable_count(loop_281); at_281++) {
+                        alg_safe_point();
                         int32_t rt_247 = alg_root_top;
                         volatile Value v_element = alg_iterable_at(loop_281, at_281);
                         (void)v_element;
@@ -4157,6 +4188,7 @@ static Value m_interpreter_visitmodulestmt_1_modulestmt(Value v_this, Value *arg
         (void)loop_289;
         alg_root(&loop_289, 1);
         for (int32_t at_289 = 0; at_289 < alg_iterable_count(loop_289); at_289++) {
+            alg_safe_point();
             int32_t rt_253 = alg_root_top;
             Value v_privatename = alg_iterable_at(loop_289, at_289);
             (void)v_privatename;
@@ -4175,6 +4207,7 @@ static Value m_interpreter_visitmodulestmt_1_modulestmt(Value v_this, Value *arg
         (void)loop_290;
         alg_root(&loop_290, 1);
         for (int32_t at_290 = 0; at_290 < alg_iterable_count(loop_290); at_290++) {
+            alg_safe_point();
             int32_t rt_255 = alg_root_top;
             Value v_thename = alg_iterable_at(loop_290, at_290);
             (void)v_thename;
@@ -4195,6 +4228,7 @@ static Value m_interpreter_visitmodulestmt_1_modulestmt(Value v_this, Value *arg
         (void)loop_291;
         alg_root(&loop_291, 1);
         for (int32_t at_291 = 0; at_291 < alg_iterable_count(loop_291); at_291++) {
+            alg_safe_point();
             int32_t rt_257 = alg_root_top;
             Value v_each = alg_iterable_at(loop_291, at_291);
             (void)v_each;
@@ -4243,6 +4277,7 @@ static Value m_interpreter_findhandler_2_map(Value v_this, Value *args, int32_t 
         {
             (void)((v_klass = alg_cast_class(alg_property(v_value, "Klass"), k_objclass, "ObjClass")));
             while (alg_truthy(alg_not_equal(v_klass, alg_nil()))) {
+                alg_safe_point();
                 {
                     int32_t rt_258 = alg_root_top;
                     Value v_thename = alg_str(alg_property(v_klass, "Name"));
@@ -4431,6 +4466,7 @@ static Value m_interpreter_visitvargroupstmt_1_vargroupstmt(Value v_this, Value 
         (void)loop_304;
         alg_root(&loop_304, 1);
         for (int32_t at_304 = 0; at_304 < alg_iterable_count(loop_304); at_304++) {
+            alg_safe_point();
             int32_t rt_263 = alg_root_top;
             Value v_thename = alg_iterable_at(loop_304, at_304);
             (void)v_thename;
@@ -4616,6 +4652,7 @@ Value f_labelat(Value **cells, Value *args, int32_t count) {
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(v_statements, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             if (alg_truthy(alg_is_class(alg_subscript_get(v_statements, v_i), k_labelstmt))) {
                 if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_property(alg_subscript_get(v_statements, v_i), "Name"), "Lexeme"))}, 1), f_foldcase(NULL, (Value[]){v_named}, 1)))) {
                     Value ret_313 = v_i;

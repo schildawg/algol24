@@ -92,6 +92,7 @@ static Value m_environment_raiseambiguousimport_2_string_string(Value v_this, Va
         (void)loop_2;
         alg_root(&loop_2, 1);
         for (int32_t at_2 = 0; at_2 < alg_iterable_count(loop_2); at_2++) {
+            alg_safe_point();
             int32_t rt_1 = alg_root_top;
             Value v_import = alg_iterable_at(loop_2, at_2);
             (void)v_import;
@@ -169,6 +170,7 @@ static Value m_environment_ownerof_2_string_string(Value v_this, Value *args, in
         (void)loop_7;
         alg_root(&loop_7, 1);
         for (int32_t at_7 = 0; at_7 < alg_iterable_count(loop_7); at_7++) {
+            alg_safe_point();
             int32_t rt_4 = alg_root_top;
             Value v_import = alg_iterable_at(loop_7, at_7);
             (void)v_import;
@@ -364,6 +366,7 @@ static Value m_environment_ancestor_1_integer(Value v_this, Value *args, int32_t
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, v_distance)); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             {
                 (void)((v_env = alg_property(v_env, "Enclosing")));
             }

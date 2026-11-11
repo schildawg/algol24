@@ -69,6 +69,7 @@ static Value f_readsource(Value **cells, Value *args, int32_t count) {
     (void)v_result;
     alg_root(&v_result, 1);
     while (alg_truthy(alg_not(alg_property(v_f, "Eof")))) {
+        alg_safe_point();
         {
             (void)(alg_invoke(v_result, "Append", (Value[]){alg_invoke(v_f, "ReadLn", NULL, 0)}, 1));
             (void)(alg_invoke(v_result, "Append", (Value[]){alg_char_value(10)}, 1));
@@ -260,6 +261,7 @@ static Value f_argumentsfrom(Value **cells, Value *args, int32_t count) {
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less_equal(v_i, alg_param_count())); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             (void)(alg_invoke(v_result, "Add", (Value[]){alg_param_str(v_i)}, 1));
         }
         alg_root_top = rt_664;
@@ -326,6 +328,7 @@ static Value f_compile(Value **cells, Value *args, int32_t count) {
         (void)loop_10;
         alg_root(&loop_10, 1);
         for (volatile int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
+            alg_safe_point();
             int32_t rt_666 = alg_root_top;
             volatile Value v_name = alg_iterable_at(loop_10, at_10);
             (void)v_name;
@@ -439,6 +442,7 @@ static Value f_copyfile(Value **cells, Value *args, int32_t count) {
     (void)(alg_invoke(v_target, "Assign", (Value[]){v_topath}, 1));
     (void)(alg_invoke(v_target, "Rewrite", NULL, 0));
     while (alg_truthy(alg_not(alg_property(v_source, "Eof")))) {
+        alg_safe_point();
         (void)(alg_invoke(v_target, "WriteLn", (Value[]){alg_invoke(v_source, "ReadLn", NULL, 0)}, 1));
     }
     (void)(alg_invoke(v_source, "Close", NULL, 0));
@@ -566,6 +570,7 @@ static Value f_main(Value **cells, Value *args, int32_t count) {
                 (void)v_i;
                 alg_root(&v_i, 1);
                 for (; alg_truthy(alg_less_equal(v_i, alg_param_count())); (v_i = alg_add(v_i, alg_int(1)))) {
+                    alg_safe_point();
                     {
                         int32_t rt_672 = alg_root_top;
                         Value v_arg = alg_param_str(v_i);

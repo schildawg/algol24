@@ -139,6 +139,7 @@ static Value m_resolver_collectextensions_2_list_string(Value v_this, Value *arg
         (void)loop_1;
         alg_root(&loop_1, 1);
         for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
+            alg_safe_point();
             int32_t rt_75 = alg_root_top;
             Value v_thestmt = alg_iterable_at(loop_1, at_1);
             (void)v_thestmt;
@@ -187,6 +188,7 @@ static Value m_resolver_ownextensions_3_map_modulestmt_string(Value v_this, Valu
         (void)loop_3;
         alg_root(&loop_3, 1);
         for (int32_t at_3 = 0; at_3 < alg_iterable_count(loop_3); at_3++) {
+            alg_safe_point();
             int32_t rt_77 = alg_root_top;
             Value v_thename = alg_iterable_at(loop_3, at_3);
             (void)v_thename;
@@ -203,6 +205,7 @@ static Value m_resolver_ownextensions_3_map_modulestmt_string(Value v_this, Valu
         (void)loop_4;
         alg_root(&loop_4, 1);
         for (int32_t at_4 = 0; at_4 < alg_iterable_count(loop_4); at_4++) {
+            alg_safe_point();
             int32_t rt_79 = alg_root_top;
             Value v_key = alg_iterable_at(loop_4, at_4);
             (void)v_key;
@@ -251,6 +254,7 @@ static Value m_resolver_adoptextensions_1_string(Value v_this, Value *args, int3
         (void)loop_8;
         alg_root(&loop_8, 1);
         for (int32_t at_8 = 0; at_8 < alg_iterable_count(loop_8); at_8++) {
+            alg_safe_point();
             int32_t rt_81 = alg_root_top;
             Value v_key = alg_iterable_at(loop_8, at_8);
             (void)v_key;
@@ -279,6 +283,7 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
         (void)loop_10;
         alg_root(&loop_10, 1);
         for (int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
+            alg_safe_point();
             int32_t rt_83 = alg_root_top;
             Value v_thestmt = alg_iterable_at(loop_10, at_10);
             (void)v_thestmt;
@@ -300,6 +305,7 @@ static Value m_resolver_collectdottable_1_list(Value v_this, Value *args, int32_
                         (void)loop_11;
                         alg_root(&loop_11, 1);
                         for (int32_t at_11 = 0; at_11 < alg_iterable_count(loop_11); at_11++) {
+                            alg_safe_point();
                             int32_t rt_85 = alg_root_top;
                             Value v_thename = alg_iterable_at(loop_11, at_11);
                             (void)v_thename;
@@ -355,6 +361,7 @@ static Value m_resolver_isunitqualifier_1(Value v_this, Value *args, int32_t cou
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+            alg_safe_point();
             if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_name}, 1)}, 1))) {
                 Value ret_16 = alg_bool(false);
                 alg_root_top = rt_base;
@@ -427,6 +434,7 @@ static Value m_resolver_visitclassstmt_1_classstmt(Value v_this, Value *args, in
         (void)loop_20;
         alg_root(&loop_20, 1);
         for (int32_t at_20 = 0; at_20 < alg_iterable_count(loop_20); at_20++) {
+            alg_safe_point();
             int32_t rt_88 = alg_root_top;
             Value v_method = alg_iterable_at(loop_20, at_20);
             (void)v_method;
@@ -504,6 +512,7 @@ static Value m_resolver_visitenumstmt_1_enumstmt(Value v_this, Value *args, int3
         (void)loop_24;
         alg_root(&loop_24, 1);
         for (int32_t at_24 = 0; at_24 < alg_iterable_count(loop_24); at_24++) {
+            alg_safe_point();
             int32_t rt_91 = alg_root_top;
             Value v_member = alg_iterable_at(loop_24, at_24);
             (void)v_member;
@@ -572,6 +581,7 @@ static Value m_resolver_visittrystmt_1_trystmt(Value v_this, Value *args, int32_
         (void)loop_28;
         alg_root(&loop_28, 1);
         for (int32_t at_28 = 0; at_28 < alg_iterable_count(loop_28); at_28++) {
+            alg_safe_point();
             int32_t rt_93 = alg_root_top;
             Value v_key = alg_iterable_at(loop_28, at_28);
             (void)v_key;
@@ -800,6 +810,7 @@ static Value m_resolver_visitvargroupstmt_1_vargroupstmt(Value v_this, Value *ar
         (void)loop_41;
         alg_root(&loop_41, 1);
         for (int32_t at_41 = 0; at_41 < alg_iterable_count(loop_41); at_41++) {
+            alg_safe_point();
             int32_t rt_95 = alg_root_top;
             Value v_name = alg_iterable_at(loop_41, at_41);
             (void)v_name;
@@ -818,6 +829,7 @@ static Value m_resolver_visitvargroupstmt_1_vargroupstmt(Value v_this, Value *ar
         (void)loop_42;
         alg_root(&loop_42, 1);
         for (int32_t at_42 = 0; at_42 < alg_iterable_count(loop_42); at_42++) {
+            alg_safe_point();
             int32_t rt_97 = alg_root_top;
             Value v_thename = alg_iterable_at(loop_42, at_42);
             (void)v_thename;
@@ -909,6 +921,7 @@ static Value m_resolver_visitcall_1_callexpr(Value v_this, Value *args, int32_t 
         (void)loop_48;
         alg_root(&loop_48, 1);
         for (int32_t at_48 = 0; at_48 < alg_iterable_count(loop_48); at_48++) {
+            alg_safe_point();
             int32_t rt_99 = alg_root_top;
             Value v_argument = alg_iterable_at(loop_48, at_48);
             (void)v_argument;
@@ -1094,6 +1107,7 @@ static Value m_resolver_visitcollectionexpr_1_collectionexpr(Value v_this, Value
         (void)loop_60;
         alg_root(&loop_60, 1);
         for (int32_t at_60 = 0; at_60 < alg_iterable_count(loop_60); at_60++) {
+            alg_safe_point();
             int32_t rt_101 = alg_root_top;
             Value v_key = alg_iterable_at(loop_60, at_60);
             (void)v_key;
@@ -1109,6 +1123,7 @@ static Value m_resolver_visitcollectionexpr_1_collectionexpr(Value v_this, Value
         (void)loop_61;
         alg_root(&loop_61, 1);
         for (int32_t at_61 = 0; at_61 < alg_iterable_count(loop_61); at_61++) {
+            alg_safe_point();
             int32_t rt_103 = alg_root_top;
             Value v_value = alg_iterable_at(loop_61, at_61);
             (void)v_value;
@@ -1181,6 +1196,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
         (void)loop_65;
         alg_root(&loop_65, 1);
         for (int32_t at_65 = 0; at_65 < alg_iterable_count(loop_65); at_65++) {
+            alg_safe_point();
             int32_t rt_105 = alg_root_top;
             Value v_thestmt = alg_iterable_at(loop_65, at_65);
             (void)v_thestmt;
@@ -1225,6 +1241,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                     (void)loop_66;
                                     alg_root(&loop_66, 1);
                                     for (int32_t at_66 = 0; at_66 < alg_iterable_count(loop_66); at_66++) {
+                                        alg_safe_point();
                                         int32_t rt_109 = alg_root_top;
                                         Value v_item = alg_iterable_at(loop_66, at_66);
                                         (void)v_item;
@@ -1270,6 +1287,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                     (void)loop_67;
                                     alg_root(&loop_67, 1);
                                     for (int32_t at_67 = 0; at_67 < alg_iterable_count(loop_67); at_67++) {
+                                        alg_safe_point();
                                         int32_t rt_112 = alg_root_top;
                                         Value v_themember = alg_iterable_at(loop_67, at_67);
                                         (void)v_themember;
@@ -1309,6 +1327,7 @@ static Value m_resolver_checkduplicates_1_list(Value v_this, Value *args, int32_
                                 (void)loop_68;
                                 alg_root(&loop_68, 1);
                                 for (int32_t at_68 = 0; at_68 < alg_iterable_count(loop_68); at_68++) {
+                                    alg_safe_point();
                                     int32_t rt_115 = alg_root_top;
                                     Value v_eachname = alg_iterable_at(loop_68, at_68);
                                     (void)v_eachname;
@@ -1380,6 +1399,7 @@ static Value m_resolver_signatureof_1(Value v_this, Value *args, int32_t count) 
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_thestmt, "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             {
                 int32_t rt_118 = alg_root_top;
                 Value v_declared = alg_str(alg_subscript_get(alg_property(v_thestmt, "ParamTypes"), v_i));
@@ -1420,6 +1440,7 @@ static Value m_resolver_checkmethodduplicates_1_list(Value v_this, Value *args, 
         (void)loop_72;
         alg_root(&loop_72, 1);
         for (int32_t at_72 = 0; at_72 < alg_iterable_count(loop_72); at_72++) {
+            alg_safe_point();
             int32_t rt_120 = alg_root_top;
             Value v_method = alg_iterable_at(loop_72, at_72);
             (void)v_method;
@@ -1444,6 +1465,7 @@ static Value m_resolver_checkmethodduplicates_1_list(Value v_this, Value *args, 
                     (void)loop_73;
                     alg_root(&loop_73, 1);
                     for (int32_t at_73 = 0; at_73 < alg_iterable_count(loop_73); at_73++) {
+                        alg_safe_point();
                         int32_t rt_123 = alg_root_top;
                         Value v_item = alg_iterable_at(loop_73, at_73);
                         (void)v_item;
@@ -1485,6 +1507,7 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
         (void)loop_75;
         alg_root(&loop_75, 1);
         for (int32_t at_75 = 0; at_75 < alg_iterable_count(loop_75); at_75++) {
+            alg_safe_point();
             int32_t rt_125 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_75, at_75);
             (void)v_statement;
@@ -1504,6 +1527,7 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
         (void)loop_76;
         alg_root(&loop_76, 1);
         for (int32_t at_76 = 0; at_76 < alg_iterable_count(loop_76); at_76++) {
+            alg_safe_point();
             int32_t rt_127 = alg_root_top;
             Value v_name = alg_iterable_at(loop_76, at_76);
             (void)v_name;
@@ -1517,6 +1541,7 @@ static Value m_resolver_checkinheritance_1_list(Value v_this, Value *args, int32
                 (void)v_at;
                 alg_root(&v_at, 1);
                 while (alg_truthy(alg_invoke(v_parent, "Contains", (Value[]){v_at}, 1))) {
+                    alg_safe_point();
                     {
                         if (alg_truthy(alg_invoke(v_seen, "Contains", (Value[]){v_at}, 1))) {
                             alg_raise(alg_string("A class can't inherit from itself."));
@@ -1560,6 +1585,7 @@ static Value m_resolver_resolveall_1_list(Value v_this, Value *args, int32_t cou
         (void)loop_78;
         alg_root(&loop_78, 1);
         for (int32_t at_78 = 0; at_78 < alg_iterable_count(loop_78); at_78++) {
+            alg_safe_point();
             int32_t rt_130 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_78, at_78);
             (void)v_statement;
@@ -1595,6 +1621,7 @@ static Value m_resolver_pushlabels_1_list(Value v_this, Value *args, int32_t cou
         (void)loop_80;
         alg_root(&loop_80, 1);
         for (int32_t at_80 = 0; at_80 < alg_iterable_count(loop_80); at_80++) {
+            alg_safe_point();
             int32_t rt_132 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_80, at_80);
             (void)v_statement;
@@ -1637,6 +1664,7 @@ static Value m_resolver_findlabel_1_string(Value v_this, Value *args, int32_t co
         (void)v_s;
         alg_root(&v_s, 1);
         for (; alg_truthy(alg_greater_equal(v_s, alg_int(0))); (v_s = alg_subtract(v_s, alg_int(1)))) {
+            alg_safe_point();
             {
                 int32_t rt_134 = alg_root_top;
                 Value v_scope = alg_subscript_get(alg_property(v_this, "LabelScopes"), v_s);
@@ -1648,6 +1676,7 @@ static Value m_resolver_findlabel_1_string(Value v_this, Value *args, int32_t co
                     (void)loop_83;
                     alg_root(&loop_83, 1);
                     for (int32_t at_83 = 0; at_83 < alg_iterable_count(loop_83); at_83++) {
+                        alg_safe_point();
                         int32_t rt_136 = alg_root_top;
                         Value v_each = alg_iterable_at(loop_83, at_83);
                         (void)v_each;
@@ -1732,6 +1761,7 @@ static Value m_resolver_resolvefunction_2_functionstmt_functiontype(Value v_this
         (void)loop_89;
         alg_root(&loop_89, 1);
         for (int32_t at_89 = 0; at_89 < alg_iterable_count(loop_89); at_89++) {
+            alg_safe_point();
             int32_t rt_138 = alg_root_top;
             Value v_param = alg_iterable_at(loop_89, at_89);
             (void)v_param;
@@ -1848,6 +1878,7 @@ static Value m_resolver_isconstant_1_token(Value v_this, Value *args, int32_t co
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+            alg_safe_point();
             if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Constants"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){v_lexeme}, 1)}, 1))) {
                 Value ret_96 = alg_invoke(alg_subscript_get(alg_property(v_this, "Constants"), v_i), "Get", (Value[]){f_foldcase(NULL, (Value[]){v_lexeme}, 1)}, 1);
                 alg_root_top = rt_base;
@@ -1909,6 +1940,7 @@ static Value m_resolver_resolvelocal_2_expr_token(Value v_this, Value *args, int
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+            alg_safe_point();
             {
                 if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){f_foldcase(NULL, (Value[]){alg_property(v_name, "Lexeme")}, 1)}, 1))) {
                     {

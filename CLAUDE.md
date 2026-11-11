@@ -1910,15 +1910,37 @@ reading got nowhere. Sizes alone said 8–15 bytes and that was not enough; a
 arena question: `obj_alloc` and the items array showed flat while one line
 climbed by exactly 2 per iteration.
 
-⚠️ **THE COMPILED BACK END STILL GROWS, and that is a DIFFERENT defect with a
-reason.** R-18's case compiled is 156.8/615.8/1222.4 MB at 1/4/8 M lists,
-unchanged by this fix, because **compiled Algol-24 never collects
-automatically** — `alg_collect`'s only caller is the program's own `Collect`,
-and an explicit one every 100,000 iterations makes it **flat at 17.5 MB**.
-That gap is not an oversight: an intermediate inside one expression is in no
-local and registered nowhere, so collecting at an arbitrary allocation point
-is exactly what the shadow stack cannot cover. Closing it needs the
-temporaries, not a counter.
+⚠️ **COMPILED ALGOL-24 COLLECTS AUTOMATICALLY NOW, at the top of every loop
+body.** It used to collect only where a program called `Collect` itself, so
+R-18's case compiled was 156.8/611.8/1222.4 MB at 1/4/8 M lists; it is **flat
+at 17.4 MB**. `alg_safe_point` is `static inline` in `algol.h` and
+`CEmitter.EmitSafePoint` puts one at the top of each loop body — both forms,
+`WhileStmt` and `ForInStmt`.
+
+⚠️ **THE EMITTER HAS TO PLACE IT, because the runtime cannot know where it is
+safe.** An intermediate inside one expression is in no local and registered
+nowhere — `alg_add(v_t, alg_text_length(alg_str(v_i)))` holds a string the
+shadow stack cannot see — so collecting from `obj_alloc` would sweep a value
+in use. At the top of a loop body every live value is a registered local or a
+module-level root, which is the compiled equivalent of the machine's
+top-of-dispatch-loop and the walker's statement boundary. A `for ... in`'s
+snapshot is safe there because `DeclareLocal` roots it.
+
+⚠️ **A LOOP IS THE ONLY SHAPE THAT ALLOCATES WITHOUT BOUND**, which is why
+this is per iteration rather than per statement. The tree walker ticks per
+statement because it has no cheaper boundary; compiled code has one.
+
+⚠️ **It costs about 0.7%, and the compiler's own peak does NOT fall.**
+`algc --compile compiler/Main.a24` goes 2.90 s to 2.92 s and 77.7 MB to 79.1 —
+because that peak is live AST rather than garbage, and a collector cannot
+reclaim what is reachable. The gain is that an unbounded loop becomes bounded,
+not that an existing program shrinks.
+
+⚠️ **`alg_tick_every` IS THE POLICY and `ALG_COLLECT_EVERY` overrides it**,
+default 100,000 iterations. The three processors now each state their own
+interval over one shared mechanism — the machine in `vm/run.a24`, the walker
+in `Interpreter.a24`, and a compiled program here — where before this one had
+nowhere to state anything.
 
 ⚠️ **The Inn is 81% better and not flat.** Growth over 1000 frames falls from
 229 KB a frame to **43**, and peak drops about 540 MB, measured interleaved.

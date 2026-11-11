@@ -77,6 +77,7 @@ static Value m_objclass_methodofarity_2_string_integer(Value v_this, Value *args
                 (void)loop_1;
                 alg_root(&loop_1, 1);
                 for (int32_t at_1 = 0; at_1 < alg_iterable_count(loop_1); at_1++) {
+                    alg_safe_point();
                     int32_t rt_13 = alg_root_top;
                     Value v_each = alg_iterable_at(loop_1, at_1);
                     (void)v_each;
@@ -117,6 +118,7 @@ static Value m_objclass_declaresfield_1_string(Value v_this, Value *args, int32_
         (void)loop_5;
         alg_root(&loop_5, 1);
         for (int32_t at_5 = 0; at_5 < alg_iterable_count(loop_5); at_5++) {
+            alg_safe_point();
             int32_t rt_15 = alg_root_top;
             Value v_field = alg_iterable_at(loop_5, at_5);
             (void)v_field;
@@ -194,6 +196,7 @@ static Value m_objclass_findoverload_2_string_list(Value v_this, Value *args, in
         (void)v_pass;
         alg_root(&v_pass, 1);
         for (; alg_truthy(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))); (v_pass = alg_add(v_pass, alg_int(1)))) {
+            alg_safe_point();
             {
                 int32_t rt_18 = alg_root_top;
                 Value v_found = alg_invoke(v_this, "Fitting", (Value[]){v_name, v_arguments, v_pass}, 3);
@@ -240,6 +243,7 @@ static Value m_objclass_fitting_3_string_list_integer(Value v_this, Value *args,
                 (void)loop_15;
                 alg_root(&loop_15, 1);
                 for (int32_t at_15 = 0; at_15 < alg_iterable_count(loop_15); at_15++) {
+                    alg_safe_point();
                     int32_t rt_21 = alg_root_top;
                     Value v_candidate = alg_iterable_at(loop_15, at_15);
                     (void)v_candidate;
@@ -286,6 +290,7 @@ static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int3
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Fields"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             {
                 int32_t rt_23 = alg_root_top;
                 Value v_field = alg_subscript_get(alg_property(v_this, "Fields"), v_i);

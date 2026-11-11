@@ -68,6 +68,7 @@ static Value m_console_repeat_2_char_integer(Value v_this, Value *args, int32_t 
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, v_times)); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             (void)((v_result = alg_add(v_result, v_what)));
         }
         alg_root_top = rt_9;

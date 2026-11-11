@@ -75,6 +75,7 @@ Value f_tointeger(Value **cells, Value *args, int32_t count) {
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             (void)((v_result = alg_add(alg_multiply(v_result, alg_int(10)), alg_pos((alg_declared(d_digits, "DIGITS"), v_digits), alg_copy(v_text, v_i, alg_int(1))))));
         }
         alg_root_top = rt_7;
@@ -107,6 +108,7 @@ Value f_toradix(Value **cells, Value *args, int32_t count) {
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_text_length(v_text))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             (void)((v_result = alg_add(alg_multiply(v_result, alg_text_length(v_alphabet)), alg_pos(v_alphabet, alg_to_lower(alg_copy(v_text, v_i, alg_int(1)))))));
         }
         alg_root_top = rt_8;
@@ -182,6 +184,7 @@ static Value m_scanner_scantokens_0(Value v_this, Value *args, int32_t count) {
     alg_root(&v_this, 1);
     alg_root(args, count);
     while (alg_truthy(alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0)))) {
+        alg_safe_point();
         {
             (void)(alg_set_property(v_this, "Start", alg_property(v_this, "Current")));
             (void)(alg_invoke(v_this, "ScanToken", NULL, 0));
@@ -295,6 +298,7 @@ static Value m_scanner_scantoken_0(Value v_this, Value *args, int32_t count) {
                                                                             if (alg_truthy(alg_equal(v_c, alg_char_value(47)))) {
                                                                                 if (alg_truthy(alg_invoke(v_this, "Match", (Value[]){alg_char_value(47)}, 1))) {
                                                                                     while (alg_truthy((or_0 = alg_not_equal(alg_invoke(v_this, "Peek", NULL, 0), alg_char_value(10)), !alg_truthy(or_0) ? or_0 : alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0))))) {
+                                                                                        alg_safe_point();
                                                                                         (void)(alg_invoke(v_this, "Advance", NULL, 0));
                                                                                     }
                                                                                 } else {
@@ -374,6 +378,7 @@ static Value m_scanner_scanidentifier_0(Value v_this, Value *args, int32_t count
     (void)v_typeoftoken;
     alg_root(&v_typeoftoken, 1);
     while (alg_truthy(alg_invoke(v_this, "IsAlphaNumeric", (Value[]){alg_invoke(v_this, "Peek", NULL, 0)}, 1))) {
+        alg_safe_point();
         (void)(alg_invoke(v_this, "Advance", NULL, 0));
     }
     (void)((v_text = alg_copy(alg_property(v_this, "Source"), alg_property(v_this, "Start"), alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start")))));
@@ -473,6 +478,7 @@ static Value m_scanner_scandigits_0(Value v_this, Value *args, int32_t count) {
     alg_root(&v_digits, 1);
     (void)((v_digits = alg_string("")));
     while (alg_truthy(alg_bool(true))) {
+        alg_safe_point();
         {
             if (alg_truthy(alg_invoke(v_this, "IsDigit", (Value[]){alg_invoke(v_this, "Peek", NULL, 0)}, 1))) {
                 {
@@ -511,6 +517,7 @@ static Value m_scanner_scanradix_1_string(Value v_this, Value *args, int32_t cou
     alg_root(&v_digits, 1);
     (void)((v_digits = alg_string("")));
     while (alg_truthy(alg_bool(true))) {
+        alg_safe_point();
         {
             if (alg_truthy(alg_invoke(v_this, "InAlphabet", (Value[]){v_alphabet, alg_invoke(v_this, "Peek", NULL, 0)}, 2))) {
                 {
@@ -612,6 +619,7 @@ static Value m_scanner_scanstring_0(Value v_this, Value *args, int32_t count) {
     (void)((v_value = alg_string("")));
     (void)((v_opened = alg_property(v_this, "Line")));
     while (alg_truthy(alg_not(alg_invoke(v_this, "IsAtEnd", NULL, 0)))) {
+        alg_safe_point();
         {
             if (alg_truthy(alg_equal(alg_invoke(v_this, "Peek", NULL, 0), alg_char_value(39)))) {
                 {
@@ -662,6 +670,7 @@ static Value m_scanner_scanchar_0(Value v_this, Value *args, int32_t count) {
         }
     }
     while (alg_truthy(alg_invoke(v_this, "IsDigit", (Value[]){alg_invoke(v_this, "Peek", NULL, 0)}, 1))) {
+        alg_safe_point();
         (void)(alg_invoke(v_this, "Advance", NULL, 0));
     }
     Value v_code = f_tointeger(NULL, (Value[]){alg_copy(alg_property(v_this, "Source"), alg_add(alg_property(v_this, "Start"), alg_int(1)), alg_subtract(alg_subtract(alg_property(v_this, "Current"), alg_property(v_this, "Start")), alg_int(1)))}, 1);

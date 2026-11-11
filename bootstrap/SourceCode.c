@@ -65,6 +65,7 @@ static Value m_sourcecode_add_3_string_integer_string(Value v_this, Value *args,
     }
     (void)((v_lines = alg_cast_kind(alg_invoke(alg_property(v_this, "Files"), "Get", (Value[]){v_name}, 1), ALG_KIND_LIST, "List")));
     while (alg_truthy(alg_less(alg_property(v_lines, "Length"), alg_subtract(v_linenumber, alg_int(1))))) {
+        alg_safe_point();
         (void)(alg_invoke(v_lines, "Add", (Value[]){alg_string("")}, 1));
     }
     if (alg_truthy(alg_equal(alg_property(v_lines, "Length"), alg_subtract(v_linenumber, alg_int(1))))) {

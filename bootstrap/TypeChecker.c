@@ -152,6 +152,7 @@ static Value m_typelookup_gettype_1_string(Value v_this, Value *args, int32_t co
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_greater_equal(v_i, alg_int(0))); (v_i = alg_subtract(v_i, alg_int(1)))) {
+            alg_safe_point();
             if (alg_truthy(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Contains", (Value[]){v_symbol}, 1))) {
                 Value ret_1 = alg_str(alg_invoke(alg_subscript_get(alg_property(v_this, "Scopes"), v_i), "Get", (Value[]){v_symbol}, 1));
                 alg_root_top = rt_base;
@@ -222,6 +223,7 @@ Value f_foldedbuiltins(Value **cells, Value *args, int32_t count) {
         (void)loop_7;
         alg_root(&loop_7, 1);
         for (int32_t at_7 = 0; at_7 < alg_iterable_count(loop_7); at_7++) {
+            alg_safe_point();
             int32_t rt_294 = alg_root_top;
             Value v_name = alg_iterable_at(loop_7, at_7);
             (void)v_name;
@@ -272,6 +274,7 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
         (void)loop_10;
         alg_root(&loop_10, 1);
         for (int32_t at_10 = 0; at_10 < alg_iterable_count(loop_10); at_10++) {
+            alg_safe_point();
             int32_t rt_296 = alg_root_top;
             Value v_kind = alg_iterable_at(loop_10, at_10);
             (void)v_kind;
@@ -333,6 +336,7 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
         (void)loop_11;
         alg_root(&loop_11, 1);
         for (int32_t at_11 = 0; at_11 < alg_iterable_count(loop_11); at_11++) {
+            alg_safe_point();
             int32_t rt_298 = alg_root_top;
             Value v_name = alg_iterable_at(loop_11, at_11);
             (void)v_name;
@@ -348,6 +352,7 @@ static Value m_typechecker_init_0(Value v_this, Value *args, int32_t count) {
         (void)loop_12;
         alg_root(&loop_12, 1);
         for (int32_t at_12 = 0; at_12 < alg_iterable_count(loop_12); at_12++) {
+            alg_safe_point();
             int32_t rt_300 = alg_root_top;
             Value v_name = alg_iterable_at(loop_12, at_12);
             (void)v_name;
@@ -382,6 +387,7 @@ static Value m_typechecker_hiddenby_2_string_string(Value v_this, Value *args, i
     (void)((v_at = v_thetype));
     (void)((v_seen = alg_list()));
     while (alg_truthy((or_1 = (or_0 = alg_not_equal(v_at, alg_string("")), !alg_truthy(or_0) ? or_0 : alg_not_equal(v_at, alg_string("Any"))), !alg_truthy(or_1) ? or_1 : alg_not(alg_invoke(v_seen, "Contains", (Value[]){v_at}, 1))))) {
+        alg_safe_point();
         {
             (void)(alg_invoke(v_seen, "Add", (Value[]){v_at}, 1));
             if (alg_truthy(alg_invoke(alg_property(v_this, "PrivateMembers"), "Contains", (Value[]){v_at}, 1))) {
@@ -457,6 +463,7 @@ static Value m_typechecker_propertiesof_1(Value v_this, Value *args, int32_t cou
         (void)loop_20;
         alg_root(&loop_20, 1);
         for (int32_t at_20 = 0; at_20 < alg_iterable_count(loop_20); at_20++) {
+            alg_safe_point();
             int32_t rt_303 = alg_root_top;
             Value v_method = alg_iterable_at(loop_20, at_20);
             (void)v_method;
@@ -494,6 +501,7 @@ static Value m_typechecker_membersof_1(Value v_this, Value *args, int32_t count)
         (void)loop_23;
         alg_root(&loop_23, 1);
         for (int32_t at_23 = 0; at_23 < alg_iterable_count(loop_23); at_23++) {
+            alg_safe_point();
             int32_t rt_305 = alg_root_top;
             Value v_field = alg_iterable_at(loop_23, at_23);
             (void)v_field;
@@ -511,6 +519,7 @@ static Value m_typechecker_membersof_1(Value v_this, Value *args, int32_t count)
         (void)loop_24;
         alg_root(&loop_24, 1);
         for (int32_t at_24 = 0; at_24 < alg_iterable_count(loop_24); at_24++) {
+            alg_safe_point();
             int32_t rt_307 = alg_root_top;
             Value v_method = alg_iterable_at(loop_24, at_24);
             (void)v_method;
@@ -550,6 +559,7 @@ static Value m_typechecker_declaresmember_2_string_string(Value v_this, Value *a
     (void)((v_at = v_thetype));
     (void)((v_seen = alg_list()));
     while (alg_truthy((or_5 = (or_4 = alg_not_equal(v_at, alg_string("")), !alg_truthy(or_4) ? or_4 : alg_not_equal(v_at, alg_string("Any"))), !alg_truthy(or_5) ? or_5 : alg_not(alg_invoke(v_seen, "Contains", (Value[]){v_at}, 1))))) {
+        alg_safe_point();
         {
             (void)(alg_invoke(v_seen, "Add", (Value[]){v_at}, 1));
             if (alg_truthy(alg_invoke(alg_property(v_this, "Members"), "Contains", (Value[]){v_at}, 1))) {
@@ -560,6 +570,7 @@ static Value m_typechecker_declaresmember_2_string_string(Value v_this, Value *a
                         (void)loop_27;
                         alg_root(&loop_27, 1);
                         for (int32_t at_27 = 0; at_27 < alg_iterable_count(loop_27); at_27++) {
+                            alg_safe_point();
                             int32_t rt_309 = alg_root_top;
                             Value v_each = alg_iterable_at(loop_27, at_27);
                             (void)v_each;
@@ -611,6 +622,7 @@ static Value m_typechecker_declaresproperty_2_string_string(Value v_this, Value 
     (void)((v_at = v_thetype));
     (void)((v_seen = alg_list()));
     while (alg_truthy((or_7 = (or_6 = alg_not_equal(v_at, alg_string("")), !alg_truthy(or_6) ? or_6 : alg_not_equal(v_at, alg_string("Any"))), !alg_truthy(or_7) ? or_7 : alg_not(alg_invoke(v_seen, "Contains", (Value[]){v_at}, 1))))) {
+        alg_safe_point();
         {
             (void)(alg_invoke(v_seen, "Add", (Value[]){v_at}, 1));
             if (alg_truthy(alg_invoke(alg_property(v_this, "PropertyMembers"), "Contains", (Value[]){v_at}, 1))) {
@@ -757,6 +769,7 @@ static Value m_typechecker_checkliteral_3_string_token(Value v_this, Value *args
         (void)loop_48;
         alg_root(&loop_48, 1);
         for (int32_t at_48 = 0; at_48 < alg_iterable_count(loop_48); at_48++) {
+            alg_safe_point();
             int32_t rt_311 = alg_root_top;
             Value v_value = alg_iterable_at(loop_48, at_48);
             (void)v_value;
@@ -848,6 +861,7 @@ static Value m_typechecker_assignable_2_string_string(Value v_this, Value *args,
     }
     (void)((v_parent = alg_str(alg_invoke(alg_property(alg_property(v_this, "Lookup"), "Parents"), "Get", (Value[]){v_actual}, 1))));
     while (alg_truthy((or_16 = alg_not_equal(v_parent, alg_string("")), !alg_truthy(or_16) ? or_16 : alg_not_equal(v_parent, alg_string("nil"))))) {
+        alg_safe_point();
         {
             if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){v_expected}, 1), f_foldcase(NULL, (Value[]){v_parent}, 1)))) {
                 Value ret_58 = alg_bool(true);
@@ -913,6 +927,7 @@ static Value m_typechecker_resolve_1_list(Value v_this, Value *args, int32_t cou
         (void)loop_63;
         alg_root(&loop_63, 1);
         for (int32_t at_63 = 0; at_63 < alg_iterable_count(loop_63); at_63++) {
+            alg_safe_point();
             int32_t rt_313 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_63, at_63);
             (void)v_statement;
@@ -928,6 +943,7 @@ static Value m_typechecker_resolve_1_list(Value v_this, Value *args, int32_t cou
         (void)loop_64;
         alg_root(&loop_64, 1);
         for (int32_t at_64 = 0; at_64 < alg_iterable_count(loop_64); at_64++) {
+            alg_safe_point();
             int32_t rt_315 = alg_root_top;
             Value v_thestatement = alg_iterable_at(loop_64, at_64);
             (void)v_thestatement;
@@ -970,6 +986,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_66;
                 alg_root(&loop_66, 1);
                 for (int32_t at_66 = 0; at_66 < alg_iterable_count(loop_66); at_66++) {
+                    alg_safe_point();
                     int32_t rt_317 = alg_root_top;
                     Value v_field = alg_iterable_at(loop_66, at_66);
                     (void)v_field;
@@ -988,6 +1005,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_67;
                 alg_root(&loop_67, 1);
                 for (int32_t at_67 = 0; at_67 < alg_iterable_count(loop_67); at_67++) {
+                    alg_safe_point();
                     int32_t rt_319 = alg_root_top;
                     Value v_method = alg_iterable_at(loop_67, at_67);
                     (void)v_method;
@@ -1014,6 +1032,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_68;
                 alg_root(&loop_68, 1);
                 for (int32_t at_68 = 0; at_68 < alg_iterable_count(loop_68); at_68++) {
+                    alg_safe_point();
                     int32_t rt_321 = alg_root_top;
                     Value v_thefield = alg_iterable_at(loop_68, at_68);
                     (void)v_thefield;
@@ -1032,6 +1051,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_69;
                 alg_root(&loop_69, 1);
                 for (int32_t at_69 = 0; at_69 < alg_iterable_count(loop_69); at_69++) {
+                    alg_safe_point();
                     int32_t rt_323 = alg_root_top;
                     Value v_themethod = alg_iterable_at(loop_69, at_69);
                     (void)v_themethod;
@@ -1058,6 +1078,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_70;
                 alg_root(&loop_70, 1);
                 for (int32_t at_70 = 0; at_70 < alg_iterable_count(loop_70); at_70++) {
+                    alg_safe_point();
                     int32_t rt_326 = alg_root_top;
                     Value v_paramtype = alg_iterable_at(loop_70, at_70);
                     (void)v_paramtype;
@@ -1100,6 +1121,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_71;
                 alg_root(&loop_71, 1);
                 for (int32_t at_71 = 0; at_71 < alg_iterable_count(loop_71); at_71++) {
+                    alg_safe_point();
                     int32_t rt_329 = alg_root_top;
                     Value v_member = alg_iterable_at(loop_71, at_71);
                     (void)v_member;
@@ -1127,6 +1149,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
             (void)loop_72;
             alg_root(&loop_72, 1);
             for (int32_t at_72 = 0; at_72 < alg_iterable_count(loop_72); at_72++) {
+                alg_safe_point();
                 int32_t rt_331 = alg_root_top;
                 Value v_thename = alg_iterable_at(loop_72, at_72);
                 (void)v_thename;
@@ -1148,6 +1171,7 @@ static Value m_typechecker_maptype_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_73;
                 alg_root(&loop_73, 1);
                 for (int32_t at_73 = 0; at_73 < alg_iterable_count(loop_73); at_73++) {
+                    alg_safe_point();
                     int32_t rt_333 = alg_root_top;
                     Value v_thestatement = alg_iterable_at(loop_73, at_73);
                     (void)v_thestatement;
@@ -1212,6 +1236,7 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_76;
                 alg_root(&loop_76, 1);
                 for (int32_t at_76 = 0; at_76 < alg_iterable_count(loop_76); at_76++) {
+                    alg_safe_point();
                     int32_t rt_336 = alg_root_top;
                     Value v_thename = alg_iterable_at(loop_76, at_76);
                     (void)v_thename;
@@ -1261,6 +1286,7 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_79;
                 alg_root(&loop_79, 1);
                 for (int32_t at_79 = 0; at_79 < alg_iterable_count(loop_79); at_79++) {
+                    alg_safe_point();
                     int32_t rt_339 = alg_root_top;
                     Value v_statement = alg_iterable_at(loop_79, at_79);
                     (void)v_statement;
@@ -1360,6 +1386,7 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_86;
                 alg_root(&loop_86, 1);
                 for (int32_t at_86 = 0; at_86 < alg_iterable_count(loop_86); at_86++) {
+                    alg_safe_point();
                     int32_t rt_344 = alg_root_top;
                     Value v_key = alg_iterable_at(loop_86, at_86);
                     (void)v_key;
@@ -1394,6 +1421,7 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_90;
                 alg_root(&loop_90, 1);
                 for (int32_t at_90 = 0; at_90 < alg_iterable_count(loop_90); at_90++) {
+                    alg_safe_point();
                     int32_t rt_346 = alg_root_top;
                     Value v_name = alg_iterable_at(loop_90, at_90);
                     (void)v_name;
@@ -1409,6 +1437,7 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_91;
                 alg_root(&loop_91, 1);
                 for (int32_t at_91 = 0; at_91 < alg_iterable_count(loop_91); at_91++) {
+                    alg_safe_point();
                     int32_t rt_348 = alg_root_top;
                     Value v_thestatement = alg_iterable_at(loop_91, at_91);
                     (void)v_thestatement;
@@ -1424,6 +1453,7 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_92;
                 alg_root(&loop_92, 1);
                 for (int32_t at_92 = 0; at_92 < alg_iterable_count(loop_92); at_92++) {
+                    alg_safe_point();
                     int32_t rt_350 = alg_root_top;
                     Value v_eachstatement = alg_iterable_at(loop_92, at_92);
                     (void)v_eachstatement;
@@ -1469,6 +1499,7 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_96;
                 alg_root(&loop_96, 1);
                 for (int32_t at_96 = 0; at_96 < alg_iterable_count(loop_96); at_96++) {
+                    alg_safe_point();
                     int32_t rt_353 = alg_root_top;
                     Value v_field = alg_iterable_at(loop_96, at_96);
                     (void)v_field;
@@ -1487,6 +1518,7 @@ static Value m_typechecker_check_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_97;
                 alg_root(&loop_97, 1);
                 for (int32_t at_97 = 0; at_97 < alg_iterable_count(loop_97); at_97++) {
+                    alg_safe_point();
                     int32_t rt_355 = alg_root_top;
                     Value v_method = alg_iterable_at(loop_97, at_97);
                     (void)v_method;
@@ -1529,6 +1561,7 @@ static Value m_typechecker_checkfunction_1(Value v_this, Value *args, int32_t co
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             {
                 (void)(alg_invoke(alg_property(v_this, "Lookup"), "SetType", (Value[]){alg_property(alg_subscript_get(alg_property(v_thefunction, "Params"), v_i), "Lexeme"), alg_str(alg_subscript_get(alg_property(v_thefunction, "ParamTypes"), v_i))}, 2));
                 if (alg_truthy(alg_less(v_i, alg_property(alg_property(v_thefunction, "ParamGenerics"), "Length")))) {
@@ -1544,6 +1577,7 @@ static Value m_typechecker_checkfunction_1(Value v_this, Value *args, int32_t co
         (void)loop_100;
         alg_root(&loop_100, 1);
         for (int32_t at_100 = 0; at_100 < alg_iterable_count(loop_100); at_100++) {
+            alg_safe_point();
             int32_t rt_358 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_100, at_100);
             (void)v_statement;
@@ -1561,6 +1595,7 @@ static Value m_typechecker_checkfunction_1(Value v_this, Value *args, int32_t co
         (void)loop_101;
         alg_root(&loop_101, 1);
         for (int32_t at_101 = 0; at_101 < alg_iterable_count(loop_101); at_101++) {
+            alg_safe_point();
             int32_t rt_360 = alg_root_top;
             Value v_statement = alg_iterable_at(loop_101, at_101);
             (void)v_statement;
@@ -1652,6 +1687,7 @@ static Value m_typechecker_candidatesfor_2_string_integer(Value v_this, Value *a
             (void)loop_105;
             alg_root(&loop_105, 1);
             for (int32_t at_105 = 0; at_105 < alg_iterable_count(loop_105); at_105++) {
+                alg_safe_point();
                 int32_t rt_362 = alg_root_top;
                 Value v_fixed = alg_iterable_at(loop_105, at_105);
                 (void)v_fixed;
@@ -1720,6 +1756,7 @@ static Value m_typechecker_warnifdynamic_1(Value v_this, Value *args, int32_t co
         (void)loop_111;
         alg_root(&loop_111, 1);
         for (int32_t at_111 = 0; at_111 < alg_iterable_count(loop_111); at_111++) {
+            alg_safe_point();
             int32_t rt_364 = alg_root_top;
             Value v_argumentname = alg_iterable_at(loop_111, at_111);
             (void)v_argumentname;
@@ -1792,6 +1829,7 @@ static Value m_typechecker_warnifnoarity_1(Value v_this, Value *args, int32_t co
         (void)loop_119;
         alg_root(&loop_119, 1);
         for (int32_t at_119 = 0; at_119 < alg_iterable_count(loop_119); at_119++) {
+            alg_safe_point();
             int32_t rt_366 = alg_root_top;
             Value v_argumentname = alg_iterable_at(loop_119, at_119);
             (void)v_argumentname;
@@ -1965,6 +2003,7 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
                     (void)v_owner;
                     alg_root(&v_owner, 1);
                     while (alg_truthy(alg_not_equal(v_owner, alg_string("")))) {
+                        alg_safe_point();
                         {
                             int32_t rt_369 = alg_root_top;
                             Value v_asfield = alg_invoke(alg_property(v_this, "Lookup"), "GetType", (Value[]){alg_add(alg_add(v_owner, alg_string("::")), alg_str(alg_property(alg_property(v_theexpr, "Name"), "Lexeme")))}, 1);
@@ -2079,6 +2118,7 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_147;
                 alg_root(&loop_147, 1);
                 for (int32_t at_147 = 0; at_147 < alg_iterable_count(loop_147); at_147++) {
+                    alg_safe_point();
                     int32_t rt_375 = alg_root_top;
                     Value v_argument = alg_iterable_at(loop_147, at_147);
                     (void)v_argument;
@@ -2203,6 +2243,7 @@ static Value m_typechecker_reduce_1(Value v_this, Value *args, int32_t count) {
                 (void)loop_157;
                 alg_root(&loop_157, 1);
                 for (int32_t at_157 = 0; at_157 < alg_iterable_count(loop_157); at_157++) {
+                    alg_safe_point();
                     int32_t rt_381 = alg_root_top;
                     Value v_thevalue = alg_iterable_at(loop_157, at_157);
                     (void)v_thevalue;

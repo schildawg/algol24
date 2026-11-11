@@ -320,6 +320,7 @@ static Value m_objcollection_aslist_1_list(Value v_this, Value *args, int32_t co
         (void)loop_38;
         alg_root(&loop_38, 1);
         for (int32_t at_38 = 0; at_38 < alg_iterable_count(loop_38); at_38++) {
+            alg_safe_point();
             int32_t rt_25 = alg_root_top;
             Value v_each = alg_iterable_at(loop_38, at_38);
             (void)v_each;
@@ -437,6 +438,7 @@ static Value m_objcollection_invoke_2_string_list(Value v_this, Value *args, int
                 (void)v_i;
                 alg_root(&v_i, 1);
                 for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_this, "Items"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
+                    alg_safe_point();
                     (void)(alg_subscript_set(alg_property(v_this, "Items"), v_i, alg_subscript_get(v_arguments, alg_int(0))));
                 }
                 alg_root_top = rt_26;
@@ -603,6 +605,7 @@ static Value m_objcollection_allocate_1_integer(Value v_this, Value *args, int32
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, v_size)); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             (void)(alg_invoke(alg_property(v_this, "Items"), "Add", (Value[]){alg_nil()}, 1));
         }
         alg_root_top = rt_28;

@@ -3464,6 +3464,33 @@ Value alg_collected(void) {
     return alg_int(alg_collect());
 }
 
+/* How many loop iterations between collections.  The tree walker uses 200,000
+   statements and the machine 2,000,000 instructions; an iteration is coarser
+   than either, so this starts lower and is a measurement rather than a fact. */
+#define ALG_TICK_DEFAULT 100000
+
+int32_t alg_tick       = 0;
+int32_t alg_tick_every = ALG_TICK_DEFAULT;
+
+void alg_tick_over(void) {
+    static bool asked = false;
+
+    if (!asked) {
+        const char *set = getenv("ALG_COLLECT_EVERY");
+
+        asked = true;
+
+        if (set != NULL) {
+            alg_tick_every = (int32_t)strtol(set, NULL, 10);
+
+            if (alg_tick_every <= 0) { alg_tick_every = 0; return; }
+        }
+    }
+
+    alg_tick = 0;
+    alg_collect();
+}
+
 int32_t alg_collect(void) {
     static bool asked = false;
 

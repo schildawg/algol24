@@ -79,6 +79,7 @@ Value f_testline(Value **cells, Value *args, int32_t count) {
         (void)v_i;
         alg_root(&v_i, 1);
         for (; alg_truthy(alg_less(v_i, v_dots)); (v_i = alg_add(v_i, alg_int(1)))) {
+            alg_safe_point();
             (void)((v_leader = alg_add(v_leader, alg_char_value(46))));
         }
         alg_root_top = rt_10;

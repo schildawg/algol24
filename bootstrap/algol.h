@@ -431,6 +431,36 @@ void alg_arity(int32_t got, int32_t expected);
 
 void alg_declared(bool defined, const char *name);
 
+/* ── The compiled safe point ──────────────────────────────────────────────
+ * A compiled program used to collect only where it called `Collect` itself,
+ * so a loop that allocated grew without bound -- while still paying for the
+ * shadow stack that exists to make collection precise.  The runtime holds the
+ * collector; the EMITTER holds the only knowledge of where collecting is
+ * safe.  So the trigger is emitted: CEmitter puts one of these at the top of
+ * every loop body, which is the compiled equivalent of the machine's
+ * top-of-dispatch-loop and the tree walker's statement boundary.
+ *
+ * ⚠️ A LOOP BODY'S TOP IS SAFE WHERE AN ARBITRARY ALLOCATION IS NOT.  An
+ * intermediate inside one expression is in no local and registered nowhere --
+ * `alg_add(v_t, alg_text_length(alg_str(v_i)))` holds a string the shadow
+ * stack cannot see -- which is why the runtime must not collect from
+ * `obj_alloc`.  At the top of a body every live value is a registered local
+ * or a module-level root.
+ *
+ * Inline, and a counter rather than a call, for the reason `alg_root_top` is
+ * touched directly: this runs once per iteration of every loop a program has.
+ *
+ * `alg_tick_every` is the POLICY and 0 turns it off.  The default is a
+ * measurement rather than a fact, and ALG_COLLECT_EVERY overrides it. */
+extern int32_t alg_tick;
+extern int32_t alg_tick_every;
+
+void alg_tick_over(void);
+
+static inline void alg_safe_point(void) {
+    if (alg_tick_every > 0 && ++alg_tick >= alg_tick_every) alg_tick_over();
+}
+
 Value alg_is(Value v, const char *name);
 
 Value alg_cast(Value v, const char *name);
