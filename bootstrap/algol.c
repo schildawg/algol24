@@ -2182,36 +2182,56 @@ static void file_open(ObjFile *file, const char *what, const char *mode, bool re
     file->looked    = false;
 }
 
+/* ⚠️ READ INTO A BUFFER THAT IS REUSED, and copy out at the length the line
+   actually had.  This took 128 bytes of never-freed arena per line however
+   short the line was -- and a growing line took 128 and then 256 and then 512
+   and kept all three, because the arena has no way to take one back.  A game
+   reading a few files a frame leaked about 12 KB a frame through here.
+
+   The buffer belongs to this function and grows to the longest line a run has
+   met, so a program reading a million short lines allocates once. */
+static char  *line_buffer = NULL;
+static size_t line_room   = 0;
+
 static char *file_read_line(ObjFile *file) {
-    size_t capacity = 128;
-    size_t length   = 0;
-    char  *line     = arena_alloc(capacity);
+    size_t length = 0;
 
     bool any = false;
     int  c;
+
+    if (line_buffer == NULL) {
+        line_room   = 128;
+        line_buffer = arena_alloc(line_room);
+    }
 
     while ((c = fgetc(file->handle)) != EOF) {
         any = true;
 
         if (c == '\n') break;
 
-        if (length + 1 >= capacity) {
+        if (length + 1 >= line_room) {
 
-            size_t bigger = capacity * 2;
+            size_t bigger = line_room * 2;
             char  *moved  = arena_alloc(bigger);
 
-            memcpy(moved, line, length);
-            line     = moved;
-            capacity = bigger;
+            memcpy(moved, line_buffer, length);
+            line_buffer = moved;
+            line_room   = bigger;
         }
-        line[length++] = (char)c;
+        line_buffer[length++] = (char)c;
     }
 
     if (!any) return NULL;
 
-    if (length > 0 && line[length - 1] == '\r') length--;
+    if (length > 0 && line_buffer[length - 1] == '\r') length--;
 
+    /* The caller makes a String of this, which outlives the next read, so it
+       gets a copy at its own length rather than a share of the buffer. */
+    char *line = arena_alloc(length + 1);
+
+    memcpy(line, line_buffer, length);
     line[length] = '\0';
+
     return line;
 }
 
@@ -2965,7 +2985,9 @@ static bool number_method(Value receiver, const char *name, Value *args, int32_t
 
     if (member_of(receiver, name) == NULL) undefined("property", name);
 
-    *result = alg_string(as_text(receiver));
+    /* Through alg_str, because as_text may answer a rotating scratch buffer
+       and this makes a Value that outlives it. */
+    *result = alg_str(receiver);
     return true;
 }
 
@@ -4139,7 +4161,12 @@ static Value concat(Value a, Value b) {
         return alg_string_n(a.string, need);
     }
 
-    int32_t capacity = need + 1 < 64 ? 64 : (need + 1) * 2;
+    /* Doubling is what keeps repeated `+` linear: the slack is what the
+       in-place extension above writes into.  The FLOOR used to be 64, which
+       cost 64 bytes of never-freed arena for every concatenation of a short
+       string however little slack it needed -- most of `concat`'s leak. 32
+       still leaves a short result twice the room it asked for. */
+    int32_t capacity = need + 1 < 32 ? 32 : (need + 1) * 2;
 
     char *result = arena_alloc((size_t)capacity);
     memcpy(result, left, (size_t)left_len);
@@ -4767,6 +4794,37 @@ static const char *collection_text(Value v) {
     return b.text;
 }
 
+/* ── Rendering a number costs nothing now ─────────────────────────────────
+   `as_text` rendered an Integer into `arena_alloc(24)`, and the arena never
+   frees -- so `Str (N)` in a loop leaked 23 bytes a call for the life of the
+   process, which was the whole of `strint`'s growth.
+
+   Its answer is always consumed at once: printed, memcpy'd by `concat`, or
+   copied by `alg_str`.  So a rotating set of buffers serves it, and nothing
+   is allocated at all.
+
+   ⚠️ FOUR, AND TWO IS THE MOST ANY CALLER HOLDS -- `concat` keeps a left and
+   a right, and `AssertEqual` a pair.  Both of those pairs come from text
+   rather than numbers, and TEXT NEVER USES SCRATCH: it answers the value's
+   own bytes, which are durable.  The FFI's marshalling holds up to eight at
+   once and is guarded by `is_text` for the same reason.
+
+   ⚠️ SO A CALLER MUST NOT KEEP ONE.  `alg_str` copies before answering a
+   Value, because the Value outlives the next four renders. */
+#define TEXT_SCRATCH 4
+#define TEXT_SCRATCH_ROOM 64
+
+static char text_scratch[TEXT_SCRATCH][TEXT_SCRATCH_ROOM];
+static int  text_scratch_at = 0;
+
+static char *next_scratch(void) {
+    char *buffer = text_scratch[text_scratch_at];
+
+    text_scratch_at = (text_scratch_at + 1) % TEXT_SCRATCH;
+
+    return buffer;
+}
+
 static const char *as_text(Value v) {
     check_live(v, "a value being printed");
 
@@ -4863,8 +4921,8 @@ static const char *as_text(Value v) {
 
         case VAL_INT: {
 
-            char *buffer = arena_alloc(24);
-            snprintf(buffer, 24, "%lld", (long long)v.integer);
+            char *buffer = next_scratch();
+            snprintf(buffer, TEXT_SCRATCH_ROOM, "%lld", (long long)v.integer);
             return buffer;
         }
 
@@ -5737,5 +5795,17 @@ Value alg_str(Value v) {
     int32_t     length;
     const char *text = as_text_len(v, &length);
 
-    return alg_string_n(text, length);
+    /* Text answers its own durable bytes, so it is handed straight back. */
+    if (is_text(v)) return alg_string_n(text, length);
+
+    /* Anything else was RENDERED, and a render lives in a rotating scratch
+       buffer that the next four renders will overwrite -- so the Value gets a
+       copy, at the length it actually needs rather than the 24 bytes the
+       Integer arm used to take for every call. */
+    char *kept = arena_alloc((size_t)length + 1);
+
+    memcpy(kept, text, (size_t)length);
+    kept[length] = '\0';
+
+    return alg_string_n(kept, length);
 }

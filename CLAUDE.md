@@ -1963,7 +1963,40 @@ minimal cases, both unbounded and linear:
 | `Str (N)` in a loop | **23 bytes** |
 | `'row ' + Str (N) + ' of many'` | **84 bytes** |
 
-⚠️ **INTERNING CANNOT FIX THESE, which is what makes them structural rather
+⚠️ **THREE OF THEM WERE SCRATCH RATHER THAN RESULT, and those are fixed.**
+A render and a line-read allocate a working buffer whose answer is consumed at
+once, so neither needs the arena:
+
+| | before | after |
+| --- | --- | --- |
+| `Str (N)` | 23 bytes a call | **7.8** |
+| `'row ' + Str (N) + ' of many'` | 84 bytes an iteration | **38** |
+| the Inn's arena | 119 MB, +43 KB a frame | **68 MB, +20** |
+
+`as_text` renders an Integer into one of **four rotating scratch buffers**
+instead of `arena_alloc(24)`; `file_read_line` keeps **one buffer it reuses**
+rather than taking 128 bytes a line and another 256 when a line outgrows it;
+and `concat`'s floor went from **64 bytes to 32**, which was most of its cost
+for short text while still leaving a short result twice the room it asked for.
+
+⚠️ **A SCRATCH ANSWER MUST BE COPIED BEFORE IT BECOMES A VALUE**, and that is
+the whole hazard. `alg_str` copies at the length the render actually had, and
+the `ToString` property goes through `alg_str` for the same reason rather than
+calling `alg_string(as_text(...))` — which would have left a Value pointing at
+a buffer the next four renders overwrite. Text itself never uses scratch: it
+answers its own durable bytes, which is why `concat`'s left-and-right pair and
+the FFI's eight marshalled strings are safe.
+
+⚠️ **DOUBLING SURVIVES, and it is what the floor protects.** Repeated `+` stays
+linear because the slack is what the in-place extension writes into — 400 k,
+800 k and 1.6 M appends measure 0, 0.01 and 0.03 s, where a quadratic would
+show sixteen times. Lowering the floor further would start to cost that.
+
+⚠️ **The Inn's RSS barely moves while its ARENA halves**, which is the measure
+to trust here: RSS is dominated by SDL and lags the arena's reservation. 13.4
+KB a frame of RSS against 43 of arena before; 12.5 against 20 after.
+
+⚠️ **INTERNING CANNOT FIX THE REST, which is what makes it structural rather
 than another R-18.** Folding repeats — the machine folds the same handful of
 names forever — so a table of answers bounds it. `Str (N)` for varying N and
 `A + B` for varying text produce a DIFFERENT answer every time, so a cache
