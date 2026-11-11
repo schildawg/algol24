@@ -1607,11 +1607,12 @@ WriteLn (#65 is Char);
 Write   ('a');
 Write   (#10);
 
-// LEX-026: a Char and a String are never equal, however alike they look.
-// Both sides of the first comparison are Chars.  Copy yields a String of
-// length one, which the Char 'a' is not.
+// LEX-026: a Char and a one-character String are equal, because text
+// compares as text.  Both sides of the first are Chars; Copy yields a String
+// of length one, and the Char 'a' is that same character written another way.
 WriteLn ('a' = 'a');
 WriteLn (Copy ('abc', 0, 1) = 'a');
+WriteLn (Copy ('abc', 0, 2) = 'a');
 ```
 
 ```console
@@ -1619,6 +1620,7 @@ $ algc conformance/0015-char-literals.a24
 A
 true
 a
+true
 true
 false
 ```
@@ -1645,10 +1647,19 @@ Uncaught: [line 1] Error: Char is limited to 0..10FFFF, excluding D800..DFFF: #1
 exit: 70
 ```
 
-**[LEX-026]**  A Char and a String are never equal, however alike they look.
+**[LEX-026]**  A Char and a String are **equal when they hold the same text**.
 `'a' = 'a'` is true because both sides are Chars; `Copy('abc', 0, 1) = 'a'` is
-**false**, because `Copy` yields a String of length one and the Char `'a'` is
-not it.
+**also** true, because `Copy` yields a String of the one character the Char
+holds. `Copy('abc', 0, 2) = 'a'` is false, because `'ab'` and `'a'` are
+different text — which is the only reason an equality here ever fails.
+
+**The TYPES stay distinct**, and this rule is about equality alone. A
+one-character literal is still a Char [LEX-023], `'a' is String` is still
+**false** [TYP-003], and a Char still widens to a String and never the reverse
+[VAR-004]. **Nothing converts here**: neither operand becomes the other's
+type, and what changed is that `=` stopped being the one operation that
+declined to read the two as the same text — see [VAL-010] for the reversal and
+why.
 
     conformance  0015-char-literals.a24
 
@@ -2033,10 +2044,15 @@ check. The class name is taken for the widening lookup alone, after visibility
 has had its untyped receiver — typing `this` outright breaks that rule, which
 the checker's own tests catch.
 
-**Comparison is not among them and does not widen.** `'a'` and
-`Copy('abc', 0, 1)` remain unequal [LEX-026]. A widening converts *toward a
-target type*, and an `=` supplies none — it would have to invent one, and
-"convert when the sides differ" is the rule that makes `=` unpredictable.
+**Comparison is not among them and does not widen.** A widening converts
+*toward a target type*, and an `=` supplies none — it would have to invent one,
+and "convert when the sides differ" is the rule that makes `=` unpredictable.
+
+That `'a'` equals `Copy('abc', 0, 1)` is **not** a counter-example
+[VAL-010]: text compares as text, which is a rule about the comparison rather
+than a conversion of either side. Neither operand becomes the other's type,
+`'a' is String` stays false [TYP-003], and an Integer and a String are still
+unequal however they render [VAL-009].
 
     conformance  0140-widening-at-every-context.a24
 
@@ -4195,10 +4211,13 @@ WriteLn (1 = 1.0);
 WriteLn (0 = 0.0);
 WriteLn (1 <> 1.0);
 
-// VAL-010: a Char is never equal to a String.  Both sides of the first are
-// Chars, which is why it is true; Copy yields a String of length one.
+// VAL-010: a Char equals a one-character String, because text compares as
+// text.  Both sides of the first are Chars; Copy yields a String of length
+// one, which is the same character written another way.  Membership follows
+// [VAL-013], so a Map keyed one way is reached by the other.
 WriteLn ('a' = 'a');
 WriteLn (Copy ('abc', 0, 1) = 'a');
+WriteLn ('a' in [Copy ('abc', 0, 1)]);
 
 // VAL-012: nil equals nil.
 WriteLn (nil = nil);
@@ -4220,27 +4239,54 @@ true
 true
 false
 true
-false
+true
+true
 true
 false
 true
 false
 ```
 
-**[VAL-010]**  A `Char` is never equal to a `String` — see [LEX-026]. `'a'` and
-`Copy('abc', 0, 1)` are not equal.
+**[VAL-010]**  A `Char` is equal to a one-character `String` holding the same
+character — see [LEX-026]. `'a'` and `Copy('abc', 0, 1)` are equal.
 
-**Widening does not reach equality**, and the asymmetry with [VAL-009] is
-deliberate. A numeric promotion has one obvious target — the wider of the two
-types — and converting toward it loses nothing. `Char` against `String` has no
-target at all: it is a change of representation rather than a widening of value,
-and picking a direction would mean `=` converting its operands differently
-depending on which side they arrived on.
+**Text compares as text**, which is [VAL-009]'s rule for numbers applied to the
+other pair this language converts between. Equality fails here only when the
+text differs: `'ab' = 'a'` is false because the two hold different characters,
+not because one of them is a Char.
 
-The rule bites less often than it appears to. `'a' = 'a'` is already true,
-because both sides are Chars; it is only reached when one side came from `Copy`,
-`Str` or a subscript. The complaint worth acting on is how easily a
-one-character String is produced by accident, not how `=` treats one.
+**Membership follows**, by [VAL-013]. A Map holding the key `Str('a')` is
+reached by `'a'` and the other way about, and the hash folds the two tags
+together so the pair lands in one bucket — the same mechanism that already
+makes `1` and `1.0` one key.
+
+⚠️ **THIS REVERSES WHAT THIS RULE USED TO SAY, and the old argument is worth
+keeping because answering it is what settled the question.** It held that
+`Char` against `String` "has no target at all", being a change of
+representation rather than a widening, and that picking a direction would mean
+`=` converting its operands differently depending on which side they arrived
+on.
+
+What answered it is that the language had **already picked the direction, twice**.
+A Char widens to a String at every one of the six assignment contexts [VAR-004]
+and never the reverse, and ordering compares the two as text [VAL-014]. So the
+target existed and was in use, and `=` was the one place it was withheld.
+
+⚠️ **AND THE TWO RULES TOGETHER DESCRIBED AN ORDERING NO VALUE CAN SATISFY.**
+With `C` the Char `'a'` and `S` the String `Str('a')`, the implementation
+answered `C <= S` **true**, `S <= C` **true**, `C < S` false, `S < C` false and
+`C = S` **false**. Everywhere else in this language `a <= b` and `b <= a` imply
+`a = b`; this was the one pair where it failed, and it failed because [VAL-014]
+had settled ordering while [VAL-010] still refused equality.
+
+**It was also producing defects in programs written against it.** Two, found
+by sweeping the projects with the type checker rather than by reading: a filter
+written `(Get ('mode') as String) <> 'P'` was always true and never filtered,
+and a window position read back with `Doc.Contains ('x')` never matched a key
+that arrived from JSON as text — while `Contains ('zoom')` in the same function
+worked, four characters being long enough to be a String. A rule that breaks
+the short keys and not the long ones is not one a programmer can hold in their
+head. `finished/PROPOSAL-CHAR-EQUALITY.md` carries both and the sweep.
 
     conformance  0037-equality.a24
 
@@ -4347,8 +4393,11 @@ is ordered **lexicographically by code point**, and a prefix sorts before what
 extends it: `'ab' < 'abc'`. Anything else is `Operands must be numbers.`
 
 **A `Char` and a `String` compare as text.** `'a' < 'ab'` is true, and the
-one-character String `Str ('a')` orders identically to the Char `'a'` — the two
-are still never *equal* [VAL-009], but they sit in one order.
+one-character String `Str ('a')` orders identically to the Char `'a'` — and is
+**equal** to it [VAL-010], so the pair sits in one order with no exception to
+it. This sentence used to end "the two are still never *equal*", which together
+with the ordering made `a <= b` and `b <= a` both true for a pair that was not
+equal; [VAL-010] records the reversal.
 
 **NaN compares false against everything, itself included — and the INCLUSIVE
 comparisons are no exception.** `NaN <= 1.0` is false, not true. This is the
@@ -4481,8 +4530,8 @@ WriteLn ('' < 'a');
 WriteLn ('ab' < 'abc');
 WriteLn ('abc' > 'ab');
 
-// A Char and a String compare as TEXT.  The two are still never equal
-// [VAL-009], but they sit in one order.
+// A Char and a String compare as TEXT, and are EQUAL where the text is the
+// same [VAL-010] -- so the pair sits in one order with no exception to it.
 WriteLn ('a' < 'ab');
 WriteLn ('ab' > 'a');
 WriteLn (Str ('a') < 'b');
@@ -12203,6 +12252,8 @@ WriteLn (ToUpper ('café'));
 WriteLn (Length (ToUpper ('café')));
 
 // A Char folds to a Char, because case is not a reason to widen [TYP-003].
+// `is Char` is what says so; the equalities say only that the text matches,
+// since a Char equals a one-character String [VAL-010].
 WriteLn (ToUpper ('a') is Char);
 WriteLn (ToUpper ('a') = 'A');
 WriteLn (ToUpper ('a') = Str ('A'));
@@ -12228,7 +12279,7 @@ CAFé
 4
 true
 true
-false
+true
 true
 ToUpper expects text.
 ToLower expects text.
@@ -14717,10 +14768,16 @@ and the run exits **0** when every test passed and **70** when any failed.
 Two spaces follow the full stop in each.
 
 **The third form is not an alternative wording but a different case**, and it
-is the reason the second is not enough: a `Char` and a `String` both render as
-`3` and are never equal [LEX-026], so a message quoting only the rendered values
-would read `Expected '3' but got '3'.` Naming the types is what makes that
-legible. Both processors already do this, and it was missing from this table.
+is the reason the second is not enough: an `Integer` and a `Char` both render
+as `1` and are not equal [VAL-009], so a message quoting only the rendered
+values would read `Expected '1' but got '1'.` Naming the types is what makes
+that legible. Both processors already do this, and it was missing from this
+table.
+
+The example used to be a `Char` against a one-character `String`, which was the
+form's original motivation. Those are equal now [VAL-010], so the pair no
+longer reaches this message — the form is still wanted, and a number against
+text is the case that needs it.
 
 Every form used to begin `Assertion 'left = right' failed.` — including
 `AssertTrue`, which makes no comparison and has no left or right. The stem read
@@ -14746,11 +14803,11 @@ begin
 end
 
 // The types are named only when the renderings MATCH, which is the case that
-// otherwise reads as nonsense: a Char and a String both render as 'a' and are
-// never equal, so the message would read 'Expected ''a'' but got ''a''.'
+// otherwise reads as nonsense: an Integer and a Char both render as '1' and
+// are not equal, so the message would read 'Expected ''1'' but got ''1''.'
 test 'AssertEqual names the types when the renderings match';
 begin
-    AssertEqual ('a', Copy ('abc', 0, 1));
+    AssertEqual (1, '1');
 end
 
 test 'Fail carries its message';
@@ -14766,7 +14823,7 @@ $ algc --test conformance/0132-assertion-messages.a24
 [INFO] Test: AssertEqual names both values .......................... [ FAIL ]
 [ERROR] conformance/0132-assertion-messages.a24: Assertion failed.  Expected '5' but got '4'.
 [INFO] Test: AssertEqual names the types when the renderings match .. [ FAIL ]
-[ERROR] conformance/0132-assertion-messages.a24: Assertion failed.  Expected Char 'a' but got String 'a'.
+[ERROR] conformance/0132-assertion-messages.a24: Assertion failed.  Expected Integer '1' but got Char '1'.
 [INFO] Test: AssertTrue names the value that was false .............. [ FAIL ]
 [ERROR] conformance/0132-assertion-messages.a24: Assertion failed.  Expected true but got 'false'.
 [INFO] Test: Fail carries its message ............................... [ FAIL ]
@@ -14777,7 +14834,8 @@ exit: 70
 ```
 
 **[TST-013]**  `AssertEqual` compares with `=` [VAL-009], so it promotes
-numerically and holds a `Char` unequal to a `String` [LEX-026].
+numerically and holds a `Char` **equal** to a one-character `String` [VAL-010].
+It asserts nothing the language does not already answer.
 
 ##### conformance/0107-assert-equal-comparison.a24
 
@@ -14788,11 +14846,14 @@ begin
     AssertEqual (0, 0.0);
 end
 
-test 'AssertEqual holds a Char unequal to a String';
+test 'AssertEqual holds a Char equal to a one-character String';
 begin
-    // Both render as 'a', and they are not equal -- which is why the failure
-    // message names the types [TST-012].
-    AssertTrue (not ('a' = Copy ('abc', 0, 1)));
+    // Text compares as text [VAL-010], so the Char and the String Copy
+    // yields are the same character written two ways.
+    AssertEqual ('a', Copy ('abc', 0, 1));
+
+    // And differing text still fails, which is the only reason it can.
+    AssertTrue (not ('a' = Copy ('abc', 0, 2)));
 end
 ```
 
@@ -14800,7 +14861,7 @@ end
 $ algc --test conformance/0107-assert-equal-comparison.a24
 [INFO] Running 2 tests...
 [INFO] < conformance/0107-assert-equal-comparison.a24 >
-[INFO] Test: AssertEqual holds a Char unequal to a String ........... [ PASS ]
+[INFO] Test: AssertEqual holds a Char equal to a one-character String . [ PASS ]
 [INFO] Test: AssertEqual promotes numerically ....................... [ PASS ]
 [INFO] 
 [INFO] All 2 tests passed.

@@ -1303,6 +1303,12 @@ static uint32_t hash_value(Value v) {
 
     if (tag == VAL_INT || is_bigint(v)) tag = VAL_DOUBLE;
 
+    /* And a Char hashes as the one-character String it equals [VAL-010], for
+       the reason the numeric tags fold: a Map and a Set bucket by hash, so two
+       values that compare equal must reach the same slot or the collection
+       disagrees with `=`. The bytes below are already identical. */
+    if (tag == VAL_CHAR) tag = VAL_STRING;
+
     uint32_t hash = hash_bytes(2166136261u, &tag, sizeof tag);
 
     switch (v.type) {
@@ -5179,6 +5185,18 @@ static bool equals(Value a, Value b) {
         if (is_bigint(a) || is_bigint(b)) return big_compare(a, b) == 0;
         return a.integer == b.integer;
     }
+
+    /* TEXT COMPARES AS TEXT, which is the pair above for Char and String
+       [VAL-010]. A Char and a one-character String are the same character
+       written two ways: ordering already treats them as one [VAL-014], and a
+       Char widens to a String at every assignment context [VAR-004], so the
+       direction was never in doubt -- equality was the one place it was
+       withheld. A multi-byte character is covered by comparing the bytes:
+       '<emoji>' and Str ('<emoji>') hold the same ones. */
+    if (is_text(a) && is_text(b))
+        return a.length == b.length
+            && memcmp(a.string, b.string, (size_t)a.length) == 0;
+
     if (a.type != b.type) return false;
 
     switch (a.type) {
@@ -5201,6 +5219,13 @@ static bool strict_equals(Value a, Value b) {
 
         return equals(a, b);
     }
+
+    /* The same text rule, because membership IS equality [VAL-013] -- a Map
+       holding a key reached by `=` must be reachable by Contains, and
+       hash_value folds the two tags together so they land in one bucket. */
+    if (is_text(a) && is_text(b))
+        return a.length == b.length
+            && memcmp(a.string, b.string, (size_t)a.length) == 0;
 
     if (a.type != b.type) return false;
 

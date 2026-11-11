@@ -1,5 +1,34 @@
 # Proposal: a Char equals a one-character String
 
+> **FINISHED — accepted and built in v0.3.0.** [VAL-010] is reversed: a `Char`
+> is equal to a one-character `String` holding the same character, and
+> membership follows it [VAL-013]. The types still differ, a one-character
+> literal is still a Char, and `'a' is String` is still false.
+>
+> ⚠️ **The implementation is three edits in `bootstrap/algol.c`**, because all
+> three processors defer equality to the host: `equals` for `=`/`<>`/
+> `AssertEqual`, `strict_equals` for Map keys and `in`/`Contains`/`IndexOf`,
+> and `hash_value` folding `VAL_CHAR` to `VAL_STRING` so the pair buckets
+> together.
+>
+> ⚠️ **The two live defects this document predicted are fixed**, and they were
+> the argument that carried it: `shroom-slots` now reads back the window
+> position it was silently dropping, and `art-viewer`'s mode filter now
+> filters. `spec/HISTORY.md` D-20 is the settled record.
+>
+> ⚠️ **What this document asked for and did NOT get: nothing.** The `as`
+> observation was explicitly not a request, and `as String` still refuses a
+> Char.
+>
+> ⚠️ **IT PREDICTED ONE CONFORMANCE CASE AND SIX NEEDED CHANGING**, which is
+> the one estimate here that came out low. *Risks* below names
+> `conformance/0037-equality` alone; the others are `0015-char-literals`,
+> `0107-assert-equal-comparison`, `0132-assertion-messages`,
+> `0166-text-is-ordered` and `0181-folding-case` — five of them with changed
+> expected output. A rule reached by more cases than the rule's own section
+> cites is the shape to expect, since a case may exercise an answer without
+> being about it.
+
 **From:** the projects written in Algol-24 — `algol24-library`,
 `shroom-slots`, `art-viewer`, `reel` and the website — and from the compiler's
 own development. The 2026-11-09 sweep added the last two, and found a live
@@ -272,7 +301,7 @@ The checker is blind where a type is unknown, so the collection operations were
 searched separately. That is what found the `shroom-slots` defect, `Contains`
 taking an untyped argument.
 
-**What must be updated, exactly:** `spec/probes/LEX-026-char-is-not-a-string`
+**What must be updated, exactly:** `spec/probes/LEX-026-char-equals-one-character-string`
 and `spec/probes/VAL-009-equality-and-membership` and their `.actual` files,
 and one line of `conformance/0037-equality.a24`
 (`Copy ('abc', 0, 1) = 'a'`). `algol24-library`'s `strings.a24` sites are

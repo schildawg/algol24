@@ -1351,6 +1351,13 @@ of this that changes what an existing program *means* rather than accepting a
 program that was refused. It belongs with D-6, in the chapter that specifies
 `=`.
 
+**That deferral ended in v0.3.0: see D-20.** `Copy('abc', 0, 1) = 'a'` is true
+now, and the paragraph above is kept as the record of it having been held back
+once — deliberately, and for a reason that stood until two live defects and a
+self-contradiction in the ordering rules outweighed it. ⚠️ **It was not
+Pascal's conversion that settled it**, which is what this paragraph expected:
+nothing converts, and text compares as text.
+
 **D-5 — `const` promises less than it appears to.** *(refers to [VAR-014])*
 
 `const C := V;` is legal where `V` is a variable, so a constant's value need not
@@ -1844,6 +1851,66 @@ singleton emitting `alg_error("Undefined variable 'SourceCode'. …")` into the
 generated C. Nothing failed at the time — the tests passed and the corpus
 passed — because the damage was in what the *next* generation would emit.
 `fixedpoint.sh` caught it, which is the whole reason it iterates.
+
+**D-20 — A Char was never equal to a String.** *(refers to [VAL-010],
+[LEX-026])*
+
+**Resolved by reversing the rule in v0.3.0.** A `Char` and a one-character
+`String` are equal where the text is the same. The types still differ, a
+one-character literal is still a Char, and `is String` is still false: only
+equality changed, and membership with it [VAL-013].
+
+**What settled it was that the language already contradicted itself.** With `C`
+the Char `'a'` and `S` the String `Str ('a')`, both processors answered
+`C <= S` **true**, `S <= C` **true**, `C < S` false, `S < C` false and
+`C = S` **false**. Everywhere else `a <= b` and `b <= a` imply `a = b`. The two
+halves were each specified on purpose — [VAL-014] had settled ordering as text
+while [VAL-010] refused equality — and together they described an ordering no
+value can satisfy.
+
+**The old argument was good and is worth keeping.** [VAL-010] held that `Char`
+against `String` "has no target at all", being a change of representation
+rather than a widening, and that picking a direction would make `=` convert its
+operands differently depending on which side they arrived on. The answer is
+that the language had already picked the direction twice: a Char widens to a
+String at every assignment context [VAR-004] and never the reverse, and
+ordering compares the two as text. The target existed and was in use; `=` was
+the one place it was withheld. `as` withholds it still, and deliberately — `as`
+is a check rather than a conversion.
+
+⚠️ **THE TRAP WAS REACHED BY WRITING A TYPE ANNOTATION, which inverted the
+bargain of a gradually typed language.** `var F : String := 'x';` then
+`F = 'x'` answered **false** — four tokens, no `Copy`, no `Str`, no subscript.
+Without the annotation both sides are Chars and it answered true, so adding a
+declared type silently changed a comparison's answer.
+
+⚠️ **AND IT WAS PRODUCING DEFECTS, which is what moved it from a complaint to a
+change.** Two were found by sweeping the five projects with the type checker
+rather than by reading — a one-off report in `TypeChecker.ReduceBinary` over
+389 files. A filter written `(Get ('mode') as String) <> 'P'` was **always
+true** and never filtered; a window position read back with
+`Doc.Contains ('x')` never matched a key that arrived from JSON as text, while
+`Contains ('zoom')` in the same function worked because four characters is long
+enough to be a String. A rule that breaks the short keys and not the long ones,
+in one function, is not one a programmer can hold in their head.
+
+The same sweep is why the change was safe: **no program relied on the
+inequality.** The three sites it found were the two defects and this
+repository's own probes, which existed to pin the rule.
+
+**The implementation is three edits in `bootstrap/algol.c`** and nothing else,
+because all three processors defer equality to the host: the interpreter's
+`IsEqual` ends in `Exit A = B`, and the machine's `OP_EQUAL` in
+`Push (Pop () = Right)`. `equals` serves `=`, `<>` and `AssertEqual`;
+`strict_equals` serves Map keys, `in`, `Contains` and `IndexOf`; and
+`hash_value` folds `VAL_CHAR` to `VAL_STRING` so the pair buckets together —
+the mechanism that already makes `1` and `1.0` one key.
+
+⚠️ **[TST-008]'s type-naming message lost its motivating case and keeps its
+form.** `Expected Char 'a' but got String 'a'` was the example of two values
+that render alike and compare unequal; they now compare equal. An `Integer`
+against a `Char` renders alike and is still unequal, so the form is still
+wanted and `conformance/0132` names that pair instead.
 
 ---
 
