@@ -2224,6 +2224,23 @@ on `obj_registry == NULL`, which skipped the text sweep — and a program that
 does nothing but build text allocates no object at all, so two million
 discarded strings got not one collection: 138.7 MB where it should be 8.2.
 
+⚠️ **`ALG_TEXT_CHECK=1` RECOMPUTES WHAT THE CACHE ANSWERED and faults where
+the two disagree**, which is what `ALG_POISON=1` does for a released object
+body. It exists because the wrong answer is otherwise INVISIBLE: a stale
+character count is a plausible number, it truncates one line in a megabyte,
+nothing crashes, and the program that notices has to be rendering enough text
+to hit the coincidence. It costs one `getenv` per cache HIT, which is already
+the path that does no work.
+
+⚠️ **IT IS A DIAGNOSTIC AS MUCH AS A GATE, and that is worth being honest
+about: nothing in this repository's harnesses trips it today.** `collector.sh`
+runs every case a third way under it, but the coincidence it catches — a block
+recycled at the same address with its cache entry still live — is one a small
+program does not reach. D-3 was found by a program in ANOTHER project rendering
+half a megabyte of mixed text, and this repository has no equivalent. So
+`collector/0007` is the regression gate; this is what makes the next one of
+its class cost one run instead of an afternoon.
+
 ⚠️ **`ALG_POISON=1` COVERS TEXT**, filling a released block with `0xDD` and
 withholding it, which is the same *marking is wrong* / *reuse is wrong* split
 the objects have. It is how the first bug in this work was localised in one

@@ -4593,11 +4593,60 @@ static void text_forget_info(const char *payload) {
     entry->bytes = -1;
 }
 
+/* ── ALG_TEXT_CHECK ───────────────────────────────────────────────────────
+   Recomputes what the cache answered and faults where the two disagree.
+
+   ⚠️ IT EXISTS BECAUSE THE WRONG ANSWER IS OTHERWISE INVISIBLE, which is what
+   made D-3 cost three wrong guesses.  A stale character count is a plausible
+   number: it truncates one line in a megabyte, nothing crashes, and the
+   program that notices has to be rendering enough text to hit the
+   coincidence.  This turns the class into a fault at the moment the cache
+   lies, which is the same thing `ALG_POISON=1` does for a released object
+   body -- and it is what printed `cached(ascii=0 chars=39)
+   real(ascii=1 chars=41)` in one run after reading had failed.
+
+   It costs nothing when off: one `getenv` per cache HIT, which is already the
+   path that does no work. */
+static bool text_checking = false;
+static bool text_checking_asked = false;
+
+static void text_info_check(const TextInfo *entry, const char *text, int32_t bytes) {
+    int     ascii = 1;
+    int32_t chars = 0;
+
+    for (int32_t at = 0; at < bytes; at++)
+        if ((unsigned char)text[at] >= 0x80) { ascii = 0; break; }
+
+    if (ascii) chars = bytes;
+    else {
+        size_t at = 0;
+        while (at < (size_t)bytes) { at += (size_t)utf8_span((unsigned char)text[at]); chars++; }
+    }
+
+    if (ascii == entry->ascii && chars == entry->chars) return;
+
+    fprintf(stderr,
+            "[text] A CACHED LENGTH IS STALE: %p, %d bytes -- cached "
+            "(ascii=%d chars=%d), really (ascii=%d chars=%d).\n"
+            "       A recycled block kept an earlier string's answer.\n",
+            (const void *)text, bytes, entry->ascii, entry->chars, ascii, chars);
+    abort();
+}
+
 static TextInfo *text_info(const char *text, int32_t bytes) {
     size_t    slot  = text_info_slot(text);
     TextInfo *entry = &text_cache[slot];
 
-    if (entry->text == text && entry->bytes == bytes) return entry;
+    if (entry->text == text && entry->bytes == bytes) {
+        if (!text_checking_asked) {
+            text_checking       = getenv("ALG_TEXT_CHECK") != NULL;
+            text_checking_asked = true;
+        }
+
+        if (text_checking) text_info_check(entry, text, bytes);
+
+        return entry;
+    }
 
     int ascii = 1;
 
