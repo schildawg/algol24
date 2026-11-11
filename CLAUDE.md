@@ -1930,11 +1930,17 @@ snapshot is safe there because `DeclareLocal` roots it.
 this is per iteration rather than per statement. The tree walker ticks per
 statement because it has no cheaper boundary; compiled code has one.
 
-⚠️ **It costs about 0.7%, and the compiler's own peak does NOT fall.**
-`algc --compile compiler/Main.a24` goes 2.90 s to 2.92 s and 77.7 MB to 79.1 —
-because that peak is live AST rather than garbage, and a collector cannot
-reclaim what is reachable. The gain is that an unbounded loop becomes bounded,
-not that an existing program shrinks.
+⚠️ **It makes the compiler 24% LIGHTER at no cost in time**, measured
+interleaved: `algc --compile compiler/Main.a24` goes from 77.8 MB to **58.9**,
+and 2.91 s either way.
+
+⚠️ **AN EARLIER FIGURE SAID THE PEAK DID NOT FALL, and it was measuring the
+wrong binary.** Generation 2 is emitted BY generation 1, so it *emits* safe
+points without *containing* any — only generation 3 collects while it
+compiles. Comparing gen1 against gen2 compares two binaries that both lack
+them. After a reseed the real comparison is available and goes the other way.
+Anything measuring a change to CEmitter must reach the generation that
+contains it.
 
 ⚠️ **`alg_tick_every` IS THE POLICY and `ALG_COLLECT_EVERY` overrides it**,
 default 100,000 iterations. The three processors now each state their own

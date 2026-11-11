@@ -20,6 +20,28 @@ else.
 > safe point to collect at. Until that is closed, giving text an owner trades
 > a leak the arena can live with for a cost the compiler cannot.
 >
+> ⚠️ **RE-MEASURED 2026-11-10 AFTER THE BLOCKER WAS REMOVED, and it is still
+> not affordable.** Compiled Algol-24 now collects at the top of every loop
+> body, so the 143× was indeed measured against a client that never collected.
+> With collection: `algc --compile` goes from **11,247 MB to 7,098** — better
+> by 1.6× and still **90×** the 58.9 MB the safe point alone achieves.
+>
+> ⚠️ **COLLECTION WAS NECESSARY AND IS NOT SUFFICIENT, and the split says
+> why.** `concat`'s growth fell **3.7×** — 251.9 MB per three million calls to
+> 68.7 — because its own allocations are now owned and reclaimed. `Str (N)`
+> did not move at all, because `as_text` renders an Integer into an
+> **unowned** `arena_alloc(24)` that collectable text never touches. And the
+> compiler's 90× is **live** text: a collector cannot reclaim what is
+> reachable.
+>
+> ⚠️ **SO THE DESIGN MUST MAKE A STRING CHEAPER, not make its garbage
+> collectable.** A three-character string goes from about 4 bytes of arena to
+> 8 (a registry slot) plus 24 (an ObjText header) plus 16 (bytes rounded to a
+> size class) — twelve times, on text that is alive, and the compiler holds
+> millions of it. What that points to is a dedicated text heap with its own
+> mark bitmap and bytes stored inline at their exact size, rather than one
+> `Obj` and one registry entry per string. That is a different proposal.
+>
 > The sections below are as written before implementing, and the record of
 > what implementing taught is at the end.
 
