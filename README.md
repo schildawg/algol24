@@ -154,7 +154,7 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.2.5.** The language is **stable, not closed**: it changes only on measured
+**v0.2.6.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
@@ -232,6 +232,20 @@ The rest, in brief:
 What comes next is still a library, written in Algol-24 rather than in the
 runtime — that is the whole of what *alpha* means here, and nothing in the
 language is provisional.
+
+v0.2.6 is **memory, and nothing else**: text is collectable, so a program that
+discards strings gets the memory back. Text used to come from an arena that
+never frees, so every `Str`, every `+` and every case fold was held for the
+life of the process — the game that decides these things grew about **229 KB a
+frame** until the operating system killed it, and its memory is **flat** now.
+Compiled programs also collect on their own, at the top of every loop body,
+which is the one shape that allocates without bound; all three processors now
+manage their memory whether a program asks or not. The cost falls in one place:
+the bytecode machine is about **13% slower**, because making an intermediate
+visible to the collector costs something each time a program moves a heap
+reference, and that is what an instruction handler does. Compiled code pays
+nothing measurable. The language itself gained nothing and lost nothing, which
+both corpora under three processors is what says.
 
 v0.2.5 is **speed, and nothing else**: `algvm` runs the game that decides it at
 **37 fps where it ran at 20** — 48.7 ms a frame down to 26.8, so a 30 fps frame

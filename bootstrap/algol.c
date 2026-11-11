@@ -3,7 +3,7 @@
 /* The header this body was written against.  See ALG_RUNTIME_VERSION there for
    why a mismatched pair is worth one line of diagnostic rather than twenty of
    symptom. */
-_Static_assert (ALG_RUNTIME_VERSION == 205,
+_Static_assert (ALG_RUNTIME_VERSION == 206,
                 "algol.c and algol.h are from different releases");
 
 #include <math.h>

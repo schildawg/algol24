@@ -14,6 +14,104 @@ go stale.
 
 ---
 
+## v0.2.6 — text is collectable, so a long-running program stops growing
+
+A memory release. **The language gained nothing and lost nothing**: every rule,
+every diagnostic and every answer is what v0.2.5 gave, which the whole corpus
+under three processors is what says. What changed is that a program can now run
+for a long time without its memory climbing.
+
+The driving measurement is a game that would not stay up. `shroom-slots` ran
+the Dew Drop Inn until the operating system killed it — 10.1 GB on a 15.6 GB
+device, with no error and nothing in the crash buffer, because nothing had gone
+wrong in the program. Its arena grew about **229 KB a frame**. It is **flat**
+now, at 29 MB over a thousand frames.
+
+### Why a String used to be permanent
+
+Text came from the arena, which never frees. A `Value` carried a raw pointer
+into it with no owning object, so the collector had nothing to sweep — every
+`Str`, every `+`, every `Copy` and every case fold was held for the life of the
+process. A program that built one string a frame grew without bound, and no
+amount of calling `Collect` changed it.
+
+Text now lives in a heap the collector marks and sweeps, like every other kind
+of value. **A program that discards text gets the memory back.**
+
+| | before | after |
+| --- | --- | --- |
+| two million discarded strings | 138.7 MB | **8.2 MB** |
+| the Dew Drop Inn's arena, over a thousand frames | +229 KB a frame | **flat** |
+| `algc --compile compiler/Main.a24` | 53.0 MB | **46.9 MB** |
+| `algc --test compiler/Main.a24` | 298.5 MB | **258.3 MB** |
+
+### Compiled programs collect on their own
+
+Before this, compiled Algol-24 collected only where a program called `Collect`
+itself. It now collects at the top of every loop body, which is the one shape
+that allocates without bound — the tree walker has done the equivalent since
+v0.2.4 and the machine since v0.2.0, so all three processors now manage their
+memory whether a program asks or not.
+
+`ALG_COLLECT_EVERY=0` turns it off, and `ALG_COLLECT_EVERY=N` sets the
+interval; the default is a measurement rather than a fact, which is why it is
+adjustable at all.
+
+### What it costs
+
+**The bytecode machine is about 13% slower and nothing else is measurably
+slower at all.** `Fib (27)` on `algvm` goes from 0.70 s to 0.79; the same
+program compiled is unchanged, and so is `algc --compile`.
+
+The reason is where the cost falls. Making an intermediate value visible to the
+collector costs something each time a program moves a heap reference about, and
+that is exactly what the machine's instruction handlers do — once per
+instruction. Compiled arithmetic pays a type test and nothing more, because an
+Integer is never on the heap to begin with.
+
+So the Dew Drop Inn under the machine gives back part of what v0.2.5 won, and
+the compiled Inn is where it was: **42 fps against 43** under a software
+renderer. If you are running the machine on something speed-critical and your
+program does not build text, `ALG_COLLECT_EVERY=0` is the dial.
+
+### Three smaller leaks, each its own shape
+
+- **A case fold is cached.** `ToUpper` and `ToLower` copied on every call, so
+  the cost was proportional to the number of *calls* rather than to the
+  distinct strings. The machine folds a name for every member read, so a loop
+  containing a single built-in call grew for ever.
+- **A file owns its line buffer.** Reading a file line by line allocated one
+  buffer per line and never got it back. It allocates once per file now.
+- **A Buffer is reclaimed when abandoned.** `Free` is still how a program
+  releases one early, and a Buffer is still the right way to accumulate text —
+  the difference is that forgetting to free one is no longer permanent.
+
+### Two new diagnostics for memory
+
+- **`ALG_MEM_REPORT=1`** writes what the heap and the arena hold at exit:
+  chunks, room, bytes used, bytes live, and how many times the collector ran.
+  It earns its place — it is what found a single line costing 6.9 GB.
+- **`ALG_POISON=1`** now covers text as well as objects. A released block is
+  filled and withheld rather than handed back out, which separates *the
+  collector freed something live* from *something reused a block too early*.
+  That split was the whole diagnosis four times in this work.
+
+### Upgrading
+
+Nothing to change. A program that ran under v0.2.5 runs here and computes the
+same answers; what differs is how much memory it uses while doing it. If you
+have been working around text growth — reaching for `Buffer` where `+` would
+have read better, or restarting a long-running process — those workarounds are
+no longer load-bearing.
+
+⚠️ **Both halves of the runtime move together.** `algol.c` and `algol.h` are
+hand-written and copied verbatim by `--compile`, and the body uses what the
+header declares. Anything assembling a build from both a compiler's output and
+a checkout must take the pair from the same release; a mismatch is one line
+now rather than twenty `cc` errors.
+
+---
+
 ## v0.2.5 — the machine runs the Dew Drop Inn at 37 fps, where it ran at 20
 
 A performance release. **The language gained nothing and lost nothing**: every
