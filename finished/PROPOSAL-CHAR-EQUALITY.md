@@ -19,6 +19,15 @@
 > ⚠️ **What this document asked for and did NOT get: nothing.** The `as`
 > observation was explicitly not a request, and `as String` still refuses a
 > Char.
+>
+> ⚠️ **IT PREDICTED ONE CONFORMANCE CASE AND SIX NEEDED CHANGING**, which is
+> the one estimate here that came out low. *Risks* below names
+> `conformance/0037-equality` alone; the others are `0015-char-literals`,
+> `0107-assert-equal-comparison`, `0132-assertion-messages`,
+> `0166-text-is-ordered` and `0181-folding-case` — five of them with changed
+> expected output. A rule reached by more cases than the rule's own section
+> cites is the shape to expect, since a case may exercise an answer without
+> being about it.
 
 **From:** the projects written in Algol-24 — `algol24-library`,
 `shroom-slots`, `art-viewer`, `reel` and the website — and from the compiler's

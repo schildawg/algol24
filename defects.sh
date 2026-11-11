@@ -8,8 +8,9 @@
 # finished/PLAN-0.2.4.md, where the same numbering carries the root cause for each.
 #
 # Plus what working through them has FOUND, which carries no R- or D- number
-# because nobody reported it: BI-1, a built-in held as a value.  A sweep that
-# only ever checked what was reported would have shipped it.
+# because nobody reported it: BI-1, a built-in held as a value, and CE-1 and
+# CE-2, two programs broken by a Char not equalling a one-character String.  A
+# sweep that only ever checked what was reported would have shipped all three.
 #
 # Unlike every other gate here, this one is EXPECTED TO FAIL when written and
 # its finish line is the release: a defect that stops reproducing is fixed, and
@@ -519,6 +520,76 @@ else
     report D-3 "a recycled text block kept the old string's character count" open \
         "interpreted '$I', machine '$V', compiled '$C'"
 fi
+echo
+
+
+echo "13. A Char does not equal a one-character String"
+# Found by the Char-equality sweep rather than reported, so these carry no R- or
+# D- number.  Both are programs written as though a Char equalled a
+# one-character String, by people who knew the language well enough to write
+# the rest of it -- which is what carried the reversal of [VAL-010] in v0.3.0.
+#
+# ⚠️ ALL THREE PROCESSORS AGREED, SO COMPARING THEM CANNOT CATCH THIS.
+# Equality is one function in the shared runtime, so a rule that is wrong is
+# wrong identically everywhere -- no divergence to find, and both corpora
+# green.  Each of these therefore checks the ANSWER, which is the opposite of
+# the seven divergences above.  Written the other way, CE-2 stayed green
+# against the very runtime it was meant to fail on.
+want_answer () {
+    _tag=$1; _what=$2; _src=$3; _want=$4
+
+    _i=$("$ALGC" "$_src" 2>&1 || true)
+    _v=$("$ALGVM" "$_src" 2>&1 || true)
+    _d=$WORK/$(printf '%s' "$_tag" | tr 'A-Z-' 'a-z_'); mkdir -p "$_d"
+    _c=$(compiled "$_d" "$_src")
+
+    if [ "$_i" != "$_want" ]; then
+        report "$_tag" "$_what" open \
+            "wanted '$(printf '%s' "$_want" | tr '\n' '/')', interpreted '$(printf '%s' "$_i" | tr '\n' '/')'"
+        return
+    fi
+
+    # And the three must still agree, which is the half the other checks are.
+    if [ "$_i" != "$_v" ] || [ "$_i" != "$_c" ]; then
+        report "$_tag" "$_what" open \
+            "right interpreted, but machine '$(printf '%s' "$_v" | tr '\n' '/')' and compiled '$(printf '%s' "$_c" | tr '\n' '/')'"
+        return
+    fi
+
+    report "$_tag" "$_what" fixed ''
+}
+
+# art-viewer/viewer.a24:750 -- the cast makes the left side a String and 'P' is
+# a Char, so the comparison was always true and every entry passed the filter.
+cat > "$WORK/ce1.a24" <<'EOF'
+var One2 := Map ();
+One2.Put (Str ('mode'), Str ('P'));
+
+WriteLn ((One2.Get (Str ('mode')) as String) <> 'P');
+EOF
+want_answer CE-1 "a mode filter that cannot filter, in art-viewer" "$WORK/ce1.a24" 'false'
+
+# shroom-slots/ui.a24:329 -- Doc is parsed JSON, so its keys are Strings; 'x'
+# is one character and therefore a Char, so Contains could never match.
+#
+# ⚠️ 'zoom' IS WHY IT SURVIVED, and it is in the program for that reason: the
+# same function reads three keys and the long one works, so the feature
+# appeared to function -- the window remembered its zoom and forgot where it
+# was.  A rule that breaks the short keys and not the long ones in one function
+# is not a rule a programmer can hold in their head.
+cat > "$WORK/ce2.a24" <<'EOF'
+var Doc := Map ();
+Doc.Put (Str ('x'), 100);
+Doc.Put (Str ('y'), 200);
+Doc.Put (Str ('zoom'), 2);
+
+WriteLn (Doc.Contains ('zoom'));
+WriteLn (Doc.Contains ('x'));
+WriteLn (Doc.Contains ('y'));
+EOF
+want_answer CE-2 "a window position never read back, in shroom-slots" "$WORK/ce2.a24" 'true
+true
+true'
 echo
 
 
