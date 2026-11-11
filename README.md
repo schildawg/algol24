@@ -154,7 +154,7 @@ reproduces it. `spec/HISTORY.md` holds how the language arrived.
 
 ## Status
 
-**v0.2.7.** The language is **stable, not closed**: it changes only on measured
+**v0.3.0.** The language is **stable, not closed**: it changes only on measured
 demand from a project using it, and the measurement goes in the proposal.
 
 v0.2.0 is a **third processor**. `algvm` is a bytecode machine that runs the
@@ -232,6 +232,18 @@ The rest, in brief:
 What comes next is still a library, written in Algol-24 rather than in the
 runtime — that is the whole of what *alpha* means here, and nothing in the
 language is provisional.
+
+v0.3.0 is the **first release that changes what an existing program means**: a
+`Char` and a `String` holding the same text are now equal, so
+`'a' = Copy ('abc', 0, 1)` is true where it was false, and membership follows.
+The types stay distinct — a one-character literal is still a Char and
+`'a' is String` is still false — and nothing converts. What forced it is that
+the language already contradicted itself: `C <= S` and `S <= C` were both true
+while `C = S` was false, which is an ordering no value can satisfy. It was also
+producing silent defects in real programs. Whether it breaks yours was
+established three ways, including a type-checker sweep over 389 files in six
+codebases; the shape to check is a collection deliberately holding both a Char
+and a one-character String as distinct keys, which are now one key.
 
 v0.2.7 is **one defect v0.2.6 introduced**: making text collectable meant a
 block of memory could hold a second string, and a small cache remembering how
