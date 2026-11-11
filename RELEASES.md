@@ -14,6 +14,75 @@ go stale.
 
 ---
 
+## v0.2.7 — a line of text could come back two characters short
+
+A correctness release, and the only thing in it is a defect v0.2.6 introduced.
+**Upgrade if you are on v0.2.6.**
+
+### What was wrong
+
+v0.2.6 made text collectable, which means a block of memory holding one string
+can later hold another. One thing in the runtime had quietly depended on that
+never happening: a small cache remembering how many **characters** a string has,
+keyed on **where its bytes are**. While text came from an allocator that never
+freed, that key was safe — a given address held one string for the life of the
+process. With a heap that recycles, a different string of the same **byte**
+length can arrive at the same address and be answered with the old one's
+character count.
+
+**What a program saw** was a string silently a few characters short — a wrong
+answer rather than an error, and deterministic rather than random.
+
+⚠️ **IT TAKES A MULTI-BYTE CHARACTER TO SHOW AT ALL.** In text that is entirely
+ASCII the character count *is* the byte count, so a stale answer is the same
+answer and nothing goes wrong. It needs a string whose two counts differ — one
+containing an emoji, an accent, a CJK character or a typographic dash — to have
+occupied the block first. That is why it survived a release: every gate here
+passed, and the program that found it renders half a megabyte of mixed text.
+
+**Where it bit:** `algol24.com` D-3. Building the site under the tree-walking
+interpreter produced one line out of 27,875 that differed from what the other
+two processors produced:
+
+```diff
+- <p>Sets the color a viewport's pen draws in.</p>
++ <p>Sets the color a viewport's pen draws i</p>
+```
+
+41 bytes of plain ASCII, landing on the block of a 41-byte line that contained
+one em dash — 39 characters — and answered 39.
+
+### Who was affected
+
+| | |
+| --- | --- |
+| text that is entirely ASCII | **not affected**, in any processor |
+| a program that never calls `Collect` and runs briefly | **not affected** — nothing is recycled |
+| mixed-script text, with collection on | **affected**, rarely and silently |
+
+All three processors share the runtime, so all three could produce it; it was
+found in the interpreter because that is what the site compared.
+
+### Two new ways to see memory go wrong
+
+- **`ALG_TEXT_CHECK=1`** recomputes every cached text length where the cache
+  answers it, and fails naming both answers. This is what found the defect
+  after reading the code three times did not, and it is to a stale length what
+  `ALG_POISON=1` is to a released object.
+- **`collector.sh` runs every case a third way** under it.
+
+### Upgrading
+
+Nothing to change: a program that ran under v0.2.6 runs here and computes the
+same answers, with one fewer way to be wrong.
+
+⚠️ **Both halves of the runtime move together.** `algol.c` and `algol.h` are
+hand-written and copied verbatim by `--compile`, and the body uses what the
+header declares. Anything assembling a build from both a compiler's output and
+a checkout must take the pair from the same release.
+
+---
+
 ## v0.2.6 — text is collectable, so a long-running program stops growing
 
 A memory release. **The language gained nothing and lost nothing**: every rule,
