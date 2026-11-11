@@ -1656,9 +1656,10 @@ different text — which is the only reason an equality here ever fails.
 **The TYPES stay distinct**, and this rule is about equality alone. A
 one-character literal is still a Char [LEX-023], `'a' is String` is still
 **false** [TYP-003], and a Char still widens to a String and never the reverse
-[VAR-004]. What changed is that `=` stopped being the one operation that
-refused the conversion the rest of the language performs — see [VAL-010] for
-the reversal and why.
+[VAR-004]. **Nothing converts here**: neither operand becomes the other's
+type, and what changed is that `=` stopped being the one operation that
+declined to read the two as the same text — see [VAL-010] for the reversal and
+why.
 
     conformance  0015-char-literals.a24
 
@@ -2043,10 +2044,15 @@ check. The class name is taken for the widening lookup alone, after visibility
 has had its untyped receiver — typing `this` outright breaks that rule, which
 the checker's own tests catch.
 
-**Comparison is not among them and does not widen.** `'a'` and
-`Copy('abc', 0, 1)` remain unequal [LEX-026]. A widening converts *toward a
-target type*, and an `=` supplies none — it would have to invent one, and
-"convert when the sides differ" is the rule that makes `=` unpredictable.
+**Comparison is not among them and does not widen.** A widening converts
+*toward a target type*, and an `=` supplies none — it would have to invent one,
+and "convert when the sides differ" is the rule that makes `=` unpredictable.
+
+That `'a'` equals `Copy('abc', 0, 1)` is **not** a counter-example
+[VAL-010]: text compares as text, which is a rule about the comparison rather
+than a conversion of either side. Neither operand becomes the other's type,
+`'a' is String` stays false [TYP-003], and an Integer and a String are still
+unequal however they render [VAL-009].
 
     conformance  0140-widening-at-every-context.a24
 

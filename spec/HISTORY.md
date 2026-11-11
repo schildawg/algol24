@@ -1351,6 +1351,13 @@ of this that changes what an existing program *means* rather than accepting a
 program that was refused. It belongs with D-6, in the chapter that specifies
 `=`.
 
+**That deferral ended in v0.3.0: see D-20.** `Copy('abc', 0, 1) = 'a'` is true
+now, and the paragraph above is kept as the record of it having been held back
+once — deliberately, and for a reason that stood until two live defects and a
+self-contradiction in the ordering rules outweighed it. ⚠️ **It was not
+Pascal's conversion that settled it**, which is what this paragraph expected:
+nothing converts, and text compares as text.
+
 **D-5 — `const` promises less than it appears to.** *(refers to [VAR-014])*
 
 `const C := V;` is legal where `V` is a variable, so a constant's value need not
