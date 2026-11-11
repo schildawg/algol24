@@ -1,0 +1,47 @@
+// An intermediate inside one expression is in no local and no argument array,
+// so the shadow stack could not see it.  That was survivable while a
+// collection happened only where a program asked for one -- an expression is
+// never interrupted by its own statement boundary -- and stopped being
+// survivable the moment collection became AUTOMATIC, because a safe point
+// inside a CALLEE fires while the caller is part way through an expression.
+//
+// ⚠️ AN EXPLICIT `Collect ()` CANNOT CATCH THIS, which is what makes the case
+// worth reading.  A call written as a statement is a statement boundary: no
+// expression is in flight, so every live value is a local and the shadow
+// stack sees all of them.  The collection has to arrive from somewhere the
+// program did not ask for it, which is why this leans on `Spelled` being long
+// enough to trip the automatic safe point by itself.
+//
+// ⚠️ THE OPERAND ORDER IS THE WHOLE CASE.  C does not say which operand of a
+// `+` is evaluated first, so this gives BOTH ends something to lose: a call
+// that allocates sits on either side of a call that loops.  Whichever end the
+// compiler evaluates first is the end at risk.
+//
+// It failed as a tail of 'abcd' becoming a free-list pointer read as text,
+// which is what a swept-and-reused payload looks like.
+
+function Spelled (S : String, Times : Integer) : String;
+var
+    Out : String;
+
+begin
+    Out := '';
+
+    // Long on purpose: the safe point is at the top of a loop body, so the
+    // iterations here are what bring a collection on while the CALLER's
+    // expression is half built.
+    for var Pass : Integer := 0; Pass < Times; Pass := Pass + 1 do
+        for var I : Integer := 0; I < Length (S); I := I + 1 do
+            Out := Str (S[I]);
+
+    Exit Out + S;
+end
+
+begin
+    var Last := '';
+
+    for var N : Integer := 0; N < 400; N := N + 1 do
+        Last := Spelled ('abcd', 300) + Str (N) + Spelled ('efgh', 300);
+
+    WriteLn ('last: ' + Str (Last));
+end

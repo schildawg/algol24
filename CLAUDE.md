@@ -1093,19 +1093,61 @@ arity warning would have diverged every case with a wrong-count call in it,
   `volatile Value *` because registering it through a plain `Value *` compiled
   fine and cast the qualifier away 101 times in one build.
 
-  ⚠️ **The remaining gap is a TEMPORARY, not a local.** An intermediate inside
-  one expression — the list in `[MakeList (), Collect ()]` — is in no local and
-  registered nowhere. It is reachable only by a collection that happens partway
-  through evaluating an expression.
+  ⚠️ **A TEMPORARY IS A ROOT TOO, and the gap this used to describe is
+  closed.** An intermediate inside one expression — the left operand of a `+`
+  whose right operand is a call — is in no local and no argument array, so the
+  shadow stack could not see it. That was survivable while a collection
+  happened only where a program ASKED for one, because an expression is never
+  interrupted by its own statement boundary; it stopped being survivable the
+  moment collection became automatic, because a safe point inside a CALLEE
+  fires while the caller is part way through an expression. `CEmitter` wraps
+  each intermediate in `alg_hold`, which pushes the VALUE and not a pointer to
+  it — there is no C local whose address could be taken.
 
-  ⚠️ **A Buffer AND a TextFile are exempt from the sweep, because both are on
-  a list the runtime walks.** `all_buffers` and `all_files`. Only the Buffer was
-  exempt, so a released `ObjFile` stayed linked with its `next` overwritten by
-  `obj_release`'s free-list link — and `close_open_files` walked in a circle at
+  ⚠️ **HOLDS HAVE A STACK OF THEIR OWN, and sharing the shadow stack was both
+  slower and harder to emit.** An entry there is a pointer and a count, so a
+  held value needed a third field and three stores where this needs one — and
+  the two have different LIFETIMES: a declaration's root lives to the end of
+  its block, a temporary to the end of its statement. Separate tops mean a
+  statement boundary restores one without the other, so a declaration in the
+  middle of a block needs no special case at all.
+
+  ⚠️ **A LOOP'S CONDITION AND STEP ARE NOT STATEMENTS**, so nothing else
+  releases what they hold — and they run once an ITERATION, so a temporary in
+  either accumulated for the whole loop. Both reset first, through a comma
+  expression in the C header.
+
+  ⚠️ **An expression that answers VOID in C must not be held**, which is a
+  compile error in the GENERATED file rather than in the emitter.
+  `alg_writeln`, `alg_write`, `alg_stderr_line`, `alg_halt` and the three
+  assertions are the list, and `CEmitter.VoidCall` reads it off the emitted
+  text because that is where the decision has already been made.
+
+  ⚠️ **The cost is 13% on the MACHINE and nothing measurable anywhere else.** A
+  hold costs where a program moves heap references about, which is what the
+  machine's handlers do once per instruction: `Fib (27)` on `algvm` is 0.79 s
+  against 0.70 before, while compiled `Fib (27)` is unchanged because an
+  Integer is not pushed at all. `collector/0006` is the case,
+  and an explicit `Collect ()` CANNOT catch it — a call written as a statement
+  is a statement boundary, so every live value is already a local.
+
+  ⚠️ **A TEXTFILE is exempt from the sweep, because it is on a list the
+  runtime walks** — `all_files`, which `close_open_files` reads at exit. A
+  released `ObjFile` stayed linked with its `next` overwritten by
+  `obj_release`'s free-list link, and `close_open_files` walked in a circle at
   exit, finding the handle already NULL every pass. Twenty-six minutes of spin
   on one run, every collecting run, never the baseline. The price of exempting
-  rather than unlinking is that an abandoned TextFile is not reclaimed until the
-  process ends.
+  rather than unlinking is that an abandoned TextFile is not reclaimed until
+  the process ends; unlinking would also close it EARLY, which is observable
+  because an unflushed write is lost.
+
+  ⚠️ **A BUFFER WAS EXEMPT HERE TOO AND IS NOT ANY MORE, because its list had
+  no reader.** `all_buffers` was written and never read — its one reader,
+  `free_all_buffers`, was deleted when the arena stopped being freed at exit —
+  so the exemption outlived its reason and cost an object body per Buffer
+  forever. A program accumulating text the way this language recommends grew by
+  48 bytes an iteration. `obj_release` frees its bytes now, guarded so that
+  `Free` releasing one EARLY stays safe, and the list is gone.
 
   ⚠️ **"Poisoning works, reuse does not" was the whole diagnosis three times** —
   the registry duplicate, the missing local roots, and the file list. Under
@@ -2055,15 +2097,110 @@ array back to `seq_recycle`'s size-class lists — the same lists a growing List
 draws from. Measured: a program keeping one List and abandoning 100,000 peaks
 at 17.50 MB uncollected and **1.39 MB** collecting every 1000 iterations.
 
-⚠️ **A Buffer is never swept.** Its bytes are malloc'd, it is on a list of its
-own, and `Free` releases it explicitly. An object the language can already
-release is not the collector's business.
+⚠️ **A Buffer IS swept now, and `Free` is how a program releases one EARLY.**
+Its bytes are malloc'd, so `obj_release` frees them rather than handing a block
+to a spare list. The claim this replaces — that an object the language can
+already release is not the collector's business — was true of nothing: it meant
+a body per Buffer was permanent, which `collector.sh`'s `flat-text` now
+catches.
 
 **Two kinds of memory the sweep cannot return yet.** An instance's `slots` is
 allocated at exactly its field count rather than a size class, so
 `seq_recycle` declines it — 206 MB of the compiler's arena. And a Map's `index`
 is an `int32_t` array, a different element size from the `Value` blocks the
 spare lists keep.
+
+## The text heap
+
+⚠️ **EVERY STRING AND CHAR IS COLLECTABLE, and text used to be permanent.** It
+came from the arena, which never frees, so a program building one string a
+frame grew until the operating system killed it — `shroom-slots` R-18, whose
+floor turned out to be lower than the `folded` cache it was first traced to.
+`finished/PROPOSAL-COLLECTABLE-TEXT.md` is the record, including the two
+attempts that were built and withdrawn.
+
+⚠️ **A `Value` STILL CARRIES `const char *string`, which is the whole reason
+this is small.** The pointer is the payload and an eight-byte header sits
+immediately before it, so all thirty places that read a string's bytes are
+unchanged — only construction, marking and sweeping moved. The two withdrawn
+attempts each gave text an `ObjText` of its own and touched every reader.
+
+⚠️ **ONE function sets a text Value's bytes, and that is the invariant marking
+depends on.** `text_value` is the only assignment to `.string` in the runtime
+— `grep '\.string *='` says so — which is what makes `text_head(v.string)`
+safe in `mark_value`. A Value pointing anywhere else would have the collector
+writing its mark into whatever lies eight bytes before it.
+
+⚠️ **A LITERAL IS INTERNED BY ITS ADDRESS**, not by its bytes. Generated code
+calls `alg_literal` with a C static whose address is stable for the run, so one
+permanent copy serves every call — and the hash MIXES the low bits, because
+shifting them away assumes distinct literals are eight-byte aligned and
+`ascii_one` is a `[128][2]` array whose rows are two bytes apart.
+
+⚠️ **A BLOCK ABOVE 512 BYTES BANDS TO THE NEXT POWER OF TWO**, wasting up to
+half, and that is what makes a large block REUSABLE. Sizing those exactly
+would mean a long string released is never handed out again — a leak for any
+program reading a file line by line.
+
+⚠️ **A RENDER is text no `Value` owns**, which is what `as_text` answers for a
+collection or a `Buffer(12)`. Those are released at the next safe point, which
+is sound for the same reason the temporaries gap was survivable: a collection
+happens only between statements, and a render is produced and consumed inside
+one expression. An Integer still renders into a rotating scratch buffer and
+allocates nothing at all.
+
+⚠️ **`Str` ON SOMETHING ALREADY TEXT MUST NOT COPY, and one line that did cost
+EIGHT GIGABYTES.** `Str` only widens a Char to a String there [TYP-003] — a
+change of tag and not of bytes — and the compiler calls it on nearly every name
+it handles, including whole emitted units. Routing it through `alg_string_n`,
+which copies into the heap, took `algc --compile` of its own sources from 53 MB
+to 6.9 GB: **471,174 copies averaging 18 KB**. It is also what the two
+withdrawn attempts were really measuring, and why both concluded the wrong
+thing.
+
+⚠️ **What found that was ATTRIBUTION, after reasoning had failed three
+times.** A per-call-site histogram of the heap's own allocations named
+`alg_string_n` in one run; the list of its callers in `algol.c` is short enough
+to read. Two rounds of guessing had already landed on the chunk displacement
+(real, worth 0.2%) and on `concat`'s doubling (six big allocations in the whole
+run).
+
+⚠️ **`ALG_MEM_REPORT=1` writes what the heap and the arena hold at exit**, and
+it earns its place: the figure above is what it printed. Chunks, room, bytes
+used, bytes live and the sweep count, plus the arena's total. It costs one
+counter per CHUNK.
+
+⚠️ **THE FOLD CACHE'S SLOTS ARE ROOTS, and permanent was a leak.** `folded`
+remembers an answer per input; overwriting a slot forgot its key and its answer
+where nothing could free them, so two million different inputs left two million
+answers behind — 61 MB of live text in a battery written to prove there was
+none. The occupied slots are marked instead, so an evicted entry is simply no
+longer marked and a Value still holding an answer keeps it through the ordinary
+root path.
+
+⚠️ **A FILE OWNS ITS LINE BUFFER, and a shared one could not be returned.**
+`lookahead` holds a line until a later statement consumes it, so a copy per
+line was the price of sharing — and a program reading a large file paid it per
+line and never got it back. Per file there is no copy at all: nothing points at
+the buffer while `looked` is false.
+
+⚠️ **A STORED `const char *` MUST BE COPIED OUT OF THE HEAP.** An `ObjFile`
+keeps its name for as long as it is open, and the Value it came from may be
+swept long before — so `file_name_argument` copies into the arena, where a
+handful per program is the right trade.
+
+⚠️ **`alg_collect` MUST NOT BAIL WHEN THERE ARE NO OBJECTS.** It returned early
+on `obj_registry == NULL`, which skipped the text sweep — and a program that
+does nothing but build text allocates no object at all, so two million
+discarded strings got not one collection: 138.7 MB where it should be 8.2.
+
+⚠️ **`ALG_POISON=1` COVERS TEXT**, filling a released block with `0xDD` and
+withholding it, which is the same *marking is wrong* / *reuse is wrong* split
+the objects have. It is how the first bug in this work was localised in one
+run — and the probe that found the SECOND needed a stale READ to be caught
+rather than a released one, because a short string read from a reused block
+sees the free-list pointer, whose bytes include zeros.
+
 
 ## Commands
 
@@ -2206,6 +2343,16 @@ because that split *is* the diagnosis. Poisoning withholds a released body
 instead of reusing it, so a case that passes one way and fails the other says
 whether marking or reuse is at fault. Three bugs in the hunt that produced
 these cases had exactly that signature.
+
+⚠️ **`flat-text` IS A SCALE CASE AND NOT AN OUTPUT ONE, because a text leak
+is invisible to output.** Comparing what a program prints cannot catch one, so
+`collector/flat-text.a24` takes a round count and is run at two scales ten
+times apart with `ALG_MEM_REPORT=1`: the memory the runtime reports must be
+the SAME. The small scale is **20,000 rather than 2,000** because the heap has
+to reach steady state first — 2,000 rounds peaks BELOW the figure it settles
+on, so comparing against that would read a leak as the heap merely warming up.
+It was seen red against both leaks it guards: the fold cache's permanent
+blocks, and a Buffer exempt from the sweep.
 
 ⚠️ **A collector failure may be a HANG, so each run is bounded** (`--limit N`,
 default 120s). 0004 guards a released TextFile left linked in `all_files`, whose

@@ -1,0 +1,53 @@
+// Not an output case: a SCALE case.  Text is collectable, so the same work
+// done ten times over has to cost the same memory -- and a text leak is
+// invisible to output, which is why collector.sh runs this twice and compares
+// what the runtime reports rather than what the program prints.
+//
+// Every way this language makes text is in here.  The fold cache is the
+// sharpest part: its slots used to hold PERMANENT blocks, so overwriting one
+// forgot its key and its answer where nothing could free them -- a leak
+// proportional to the distinct text a program folds, and 61 MB of live text
+// in the battery that was meant to prove there was none.
+//
+// ⚠️ EVERY INPUT IS DIFFERENT, so the fold cache EVICTS rather than hits.  A
+// repeated input would be answered from the table and would exercise none of
+// this.
+
+function Round (N : Integer) : Integer;
+var
+    Text : String;
+
+begin
+    Text := 'row ' + Str (N) + ' of ' + Str (N * 7);
+    Text := ToUpper (Text) as String;
+    Text := Copy (Text, 2, 9);
+    Text := Str (3.14159, 8, 3) + Text;
+    Text := Str ([N, N + 1]) + Text;
+
+    var B := Buffer ();
+
+    B.Append ('accumulating ');
+    B.Append (Str (N));
+
+    Text := Str (B.Text) + Text;
+    B.Free ();
+
+    Exit Length (Text as String);
+end
+
+begin
+    var Rounds := 2000;
+
+    if ParamCount () > 0 then Rounds := Val (ParamStr (1)) as Integer;
+
+    var Sum := 0;
+
+    for var N : Integer := 0; N < Rounds; N := N + 1 do
+    begin
+        Sum := Sum + Round (N);
+
+        if N mod 500 = 0 then Collect ();
+    end
+
+    WriteLn ('rounds ' + Str (Rounds) + ', sum ' + Str (Sum));
+end

@@ -33,10 +33,322 @@ typedef struct ArenaChunk {
 static ArenaChunk *arena_chunks = NULL;
 static char       *arena_next   = NULL;
 static size_t      arena_left   = 0;
+static size_t      arena_total  = 0;
 
-static const char *arena_tail_text = NULL;
-static int32_t     arena_tail_len  = 0;
-static int32_t     arena_tail_cap  = 0;
+/* ── The text heap ────────────────────────────────────────────────────────
+   Text used to live in the arena, which never frees, so every String a
+   program made was held for the life of the process.  It now lives in a heap
+   of its own that the collector sweeps.
+
+   ⚠️ A VALUE STILL CARRIES `const char *string`, which is the whole reason
+   this is small: every one of the thirty places that read a string's bytes is
+   unchanged.  What moved is where the bytes come from, how they are marked,
+   and that they are swept.
+
+   Each block is a four-byte header followed by its payload:
+
+       size   bytes of payload, a multiple of TEXT_STEP
+       MARK   reached by this collection
+       PERM   never swept -- an interned literal, or a fold cache entry
+       FREE   on a size-class list, so the sweep leaves it alone
+
+   The payload is what a Value points at, so the header sits immediately
+   before it.  That is only ever true of heap text, which is why a literal is
+   COPIED in
+   and interned rather than pointed at where the compiler put it. */
+#define TEXT_CHUNK   (512u * 1024u)
+#define TEXT_STEP    8u
+#define TEXT_CLASSES 64u
+#define TEXT_DIRECT  (TEXT_STEP * TEXT_CLASSES)
+#define TEXT_BANDS   40u
+
+#define TEXT_FREE 1u
+#define TEXT_PERM 2u
+#define TEXT_MARK 4u
+
+typedef struct {
+    uint32_t size;
+    uint32_t flags;
+} TextHead;
+
+typedef struct TextChunk {
+    struct TextChunk *previous;
+    size_t            used;
+    size_t            room;
+    char             *bytes;
+} TextChunk;
+
+static bool text_poisoning = false;
+
+static TextChunk *text_chunks = NULL;
+
+/* Two sets of free lists.  Small sizes band in steps of TEXT_STEP, which
+   wastes at most seven bytes; above TEXT_DIRECT a size bands to the next
+   power of two, which wastes up to half and is what makes a large block
+   REUSABLE.  Exact sizing above the small bands would be tidier and would
+   mean a long string released is never handed out again -- a leak for any
+   program that reads a file line by line. */
+static char *text_spares[TEXT_CLASSES + 1];
+static char *text_big_spares[TEXT_BANDS];
+
+static size_t text_live_bytes = 0;
+
+static size_t text_sweeps = 0;
+
+/* The last text `concat` wrote, so repeated `+` can extend it in place.  A
+   collection must forget it: the block may be swept, and a fresh one could
+   land at the same address with different contents. */
+static const char *text_tail_text = NULL;
+static int32_t     text_tail_len  = 0;
+
+static TextHead *text_head(const char *payload) {
+    return (TextHead *)(void *)((char *)payload - sizeof(TextHead));
+}
+
+static uint32_t text_size_of(const char *payload) {
+    return text_head(payload)->size;
+}
+
+/* The free list a block of this size belongs to, or NULL if it banded to
+   nothing -- which `text_take`'s rounding is what prevents. */
+static char **text_list_for(uint32_t size) {
+    if (size == 0) return NULL;
+
+    if (size <= TEXT_DIRECT) {
+        if (size % TEXT_STEP != 0) return NULL;
+
+        return &text_spares[size / TEXT_STEP];
+    }
+
+    if ((size & (size - 1)) != 0) return NULL;
+
+    uint32_t band = 0;
+    while (band < TEXT_BANDS && ((uint64_t)1 << band) < (uint64_t)size) band++;
+
+    return band < TEXT_BANDS ? &text_big_spares[band] : NULL;
+}
+
+/* Rounded up to a size that bands.  Doing this in one place is what keeps
+   `text_release` able to recycle everything `text_take` hands out. */
+static uint32_t text_banded_size(int32_t wants) {
+    if (wants < 0) alg_error("Text is too long.");
+
+    uint64_t size = (uint64_t)wants;
+
+    if (size == 0) size = TEXT_STEP;
+
+    if (size <= TEXT_DIRECT) return (uint32_t)((size + (TEXT_STEP - 1)) & ~(uint64_t)(TEXT_STEP - 1));
+
+    uint64_t band = TEXT_DIRECT;
+    while (band < size) band <<= 1;
+
+    if (band > 0xFFFFFFFFu) alg_error("Text is too long.");
+
+    return (uint32_t)band;
+}
+
+static TextChunk *text_chunk_for(size_t room) {
+    TextChunk *chunk = malloc(sizeof(TextChunk));
+    if (chunk == NULL) alg_error("Out of memory for text.");
+
+    chunk->bytes = malloc(room);
+    if (chunk->bytes == NULL) alg_error("Out of memory for text.");
+
+    chunk->room = room;
+    chunk->used = 0;
+
+    return chunk;
+}
+
+static char *text_block_in(TextChunk *chunk, uint32_t size) {
+    char *block = chunk->bytes + chunk->used;
+
+    chunk->used += (size_t)size + sizeof(TextHead);
+
+    ((TextHead *)(void *)block)->size  = size;
+    ((TextHead *)(void *)block)->flags = 0;
+
+    return block + sizeof(TextHead);
+}
+
+static char *text_from_chunk(uint32_t size) {
+    size_t wants = (size_t)size + sizeof(TextHead);
+
+    /* ⚠️ A BIG BLOCK GOES BEHIND THE HEAD, NOT IN FRONT OF IT.  Pushing its
+       own chunk as the head abandoned whatever room the head still had, and
+       the compiler alternates a megabyte-sized concatenation with hundreds of
+       short ones -- so it threw away most of a 512 KB chunk per big string
+       and `algc --compile` of its own sources went from 53 MB to nearly
+       seven GIGABYTES.  The head stays the head; the big chunk is spliced in
+       behind it, where the sweep still walks it. */
+    if (wants > TEXT_CHUNK / 2) {
+        TextChunk *chunk = text_chunk_for(wants);
+        char      *block = text_block_in(chunk, size);
+
+        if (text_chunks == NULL) {
+            chunk->previous = NULL;
+            text_chunks     = chunk;
+        }
+        else {
+            chunk->previous       = text_chunks->previous;
+            text_chunks->previous = chunk;
+        }
+
+        return block;
+    }
+
+    if (text_chunks == NULL || text_chunks->room - text_chunks->used < wants) {
+        TextChunk *chunk = text_chunk_for(TEXT_CHUNK);
+
+        chunk->previous = text_chunks;
+        text_chunks     = chunk;
+    }
+
+    return text_block_in(text_chunks, size);
+}
+
+/* A payload of at least `wants` bytes.  `flags` carries TEXT_PERM or nothing. */
+static char *text_take(int32_t wants, uint32_t flags) {
+    uint32_t size  = text_banded_size(wants);
+    char   **spare = text_list_for(size);
+
+    if (spare != NULL && *spare != NULL) {
+        char *payload = *spare;
+        char *next;
+
+        memcpy(&next, payload, sizeof(char *));
+        *spare = next;
+
+        text_head(payload)->flags = flags;
+        text_live_bytes += size;
+
+        return payload;
+    }
+
+    char *payload = text_from_chunk(size);
+
+    text_head(payload)->flags = flags;
+    text_live_bytes += size;
+
+    return payload;
+}
+
+static void text_release(char *payload) {
+    char **spare = text_list_for(text_size_of(payload));
+
+    text_head(payload)->flags = TEXT_FREE;
+
+    /* ⚠️ POISONING SPLITS "MARKING IS WRONG" FROM "REUSE IS WRONG", which is
+       the same split `ALG_POISON=1` already makes for objects and the only
+       way this class of bug is diagnosable.  A released block is filled and
+       withheld, so a Value still pointing at one reads 0xDD rather than the
+       free-list pointer whose bytes include zeros -- and a wrong answer that
+       needed the reuse disappears entirely. */
+    if (text_poisoning) {
+        memset(payload, 0xDD, text_size_of(payload));
+        return;
+    }
+
+    if (spare == NULL) return;
+
+    memcpy(payload, spare, sizeof(char *));
+    *spare = payload;
+}
+
+/* ── A RENDER is text that no Value owns ──────────────────────────────────
+   `as_text` answers a bare `const char *`, so a rendered Integer, a rendered
+   collection and a `Buffer(12)` are bytes the collector cannot see and the
+   language cannot name.  They used to come from the arena, which never
+   frees, so every one of them was permanent.
+
+   They are released at the next SAFE POINT instead.  That is sound for the
+   same reason the temporaries gap is survivable: a collection happens only
+   between statements, and a render is produced and consumed inside one
+   expression -- so no render is live across the point that releases it.
+   What it bounds is the cost: a program rendering in a loop holds at most
+   one safe-point interval's worth rather than the whole run's. */
+static char  **renders      = NULL;
+static size_t   render_count = 0;
+static size_t   render_room  = 0;
+
+static char *render_alloc(size_t bytes) {
+    if (render_count == render_room) {
+        size_t room  = render_room < 32 ? 32 : render_room * 2;
+        char **moved = realloc(renders, room * sizeof(char *));
+
+        if (moved == NULL) alg_error("Out of memory for text.");
+
+        renders     = moved;
+        render_room = room;
+    }
+
+    char *payload = text_take((int32_t)bytes, 0);
+
+    renders[render_count++] = payload;
+    return payload;
+}
+
+static void renders_forget(void) {
+    for (size_t at = 0; at < render_count; at++) text_release(renders[at]);
+
+    render_count = 0;
+}
+
+/* The fold cache's table, up here rather than beside `folded` because the
+   COLLECTOR reads it: a slot owns its key and its answer, so the occupied
+   slots are roots.  See the comment on `folded` for what it is for. */
+#define FOLD_CACHE 4096
+
+typedef struct {
+    const char *key;
+    const char *answer;
+    int32_t     length;
+    bool        upper;
+} FoldSlot;
+
+static FoldSlot fold_cache[FOLD_CACHE];
+
+/* ⚠️ MARKING NEEDS NO SEARCH, because a Value's bytes ARE a payload and the
+   header sits immediately before them.  That holds for every String and Char
+   in the language precisely because a literal is copied in. */
+static void text_mark(const char *payload) {
+    if (payload == NULL) return;
+
+    text_head(payload)->flags |= TEXT_MARK;
+}
+
+static void text_sweep(void) {
+    text_sweeps++;
+    text_live_bytes = 0;
+    text_tail_text  = NULL;
+
+    for (TextChunk *chunk = text_chunks; chunk != NULL; chunk = chunk->previous) {
+        size_t at = 0;
+
+        while (at + sizeof(TextHead) <= chunk->used) {
+            TextHead *head = (TextHead *)(void *)(chunk->bytes + at);
+
+            if (head->size == 0) break;        /* not a block: stop this chunk */
+
+            if (head->flags & TEXT_PERM) {
+                head->flags &= ~TEXT_MARK;
+                text_live_bytes += head->size;
+            }
+            else if (head->flags & TEXT_FREE) {
+                /* already on a list */
+            }
+            else if (head->flags & TEXT_MARK) {
+                head->flags = 0;
+                text_live_bytes += head->size;
+            }
+            else {
+                text_release((char *)head + sizeof(TextHead));
+            }
+
+            at += (size_t)head->size + sizeof(TextHead);
+        }
+    }
+}
 
 static void close_open_files(void);
 
@@ -76,6 +388,23 @@ void alg_root_grow(void) {
 
     alg_root_stack = grown;
     alg_root_room  = room;
+}
+
+/* Held temporaries, where generated code parks each intermediate of an
+   expression.  A stack of its own because its lifetime is the statement
+   rather than the block; see `alg_hold` in algol.h. */
+Value  *alg_holds    = NULL;
+int32_t alg_hold_top  = 0;
+int32_t alg_hold_room = 0;
+
+void alg_hold_grow(void) {
+    int32_t room   = alg_hold_room < 256 ? 256 : alg_hold_room * 2;
+    Value  *grown  = realloc(alg_holds, (size_t)room * sizeof(Value));
+
+    if (grown == NULL) { collect_disabled = true; return; }
+
+    alg_holds     = grown;
+    alg_hold_room = room;
 }
 
 static Obj   **obj_registry = NULL;
@@ -185,7 +514,32 @@ void alg_roots(Value **slots, int32_t count) {
    twenty-six-minute exit spin lived, and the cause was not here: a released
    ObjFile stayed linked in `all_files` with its `next` overwritten.  The sweep
    exempts OBJ_FILE now, where the fix belongs. */
+/* ── ALG_MEM_REPORT ───────────────────────────────────────────────────────
+   What the text heap and the arena actually hold, written at exit.
+   It earns its place: `Str` on something already text was copying rather
+   than widening a tag, and this is what showed it -- 8,975 MB of chunks
+   holding 21.7 MB of live text.  No cost but one counter per CHUNK. */
+static void text_report(void) {
+    size_t chunks = 0, room = 0, used = 0;
+
+    for (TextChunk *chunk = text_chunks; chunk != NULL; chunk = chunk->previous) {
+        chunks++;
+        room += chunk->room;
+        used += chunk->used;
+    }
+
+    fprintf(stderr, "[mem] text:  %zu chunk(s), %.1f MB room, %.1f MB used, "
+                    "%.1f MB live, %zu sweep(s)\n",
+            chunks, (double)room / 1048576.0, (double)used / 1048576.0,
+            (double)text_live_bytes / 1048576.0, text_sweeps);
+    fprintf(stderr, "[mem] arena: %.1f MB\n", (double)arena_total / 1048576.0);
+
+
+}
+
 static void alg_shutdown(void) {
+    if (getenv("ALG_MEM_REPORT") != NULL) text_report();
+
     close_open_files();
 }
 
@@ -204,6 +558,8 @@ static void *arena_alloc(size_t bytes) {
 
         arena_next = block + ARENA_HEADER;
         arena_left = body;
+
+        arena_total += ARENA_HEADER + body;
     }
 
     char *result = arena_next;
@@ -603,11 +959,7 @@ typedef struct ObjBuffer {
     size_t length;
     size_t capacity;
     bool   freed;
-
-    struct ObjBuffer *next;
 } ObjBuffer;
-
-static ObjBuffer *all_buffers = NULL;
 
 
 static void buffer_reserve(ObjBuffer *buffer, size_t needed) {
@@ -659,9 +1011,6 @@ Value alg_buffer(Value size) {
     buffer->capacity = 0;
     buffer->freed    = false;
 
-    buffer->next = all_buffers;
-    all_buffers  = buffer;
-
     if (length > 0) {
         buffer_reserve(buffer, (size_t)length);
         memset(buffer->bytes, 0, (size_t)length);
@@ -683,12 +1032,7 @@ static Value buffer_text(ObjBuffer *buffer) {
         if (buffer->bytes[i] == '\0') alg_error("A Buffer holding a zero byte has no Text.");
     }
 
-    char *text = arena_alloc(buffer->length + 1);
-
-    if (buffer->length > 0) memcpy(text, buffer->bytes, buffer->length);
-    text[buffer->length] = '\0';
-
-    return alg_string(text);
+    return alg_string_n((const char *)buffer->bytes, (int32_t)buffer->length);
 }
 
 static size_t buffer_offset(ObjBuffer *buffer, Value index, size_t width) {
@@ -2103,9 +2447,21 @@ typedef struct ObjFile {
 
     char       *lookahead;
     bool        looked;
+
+    char       *line;
+    size_t      line_room;
 } ObjFile;
 
 static ObjFile *all_files = NULL;
+
+static void file_forget_line(ObjFile *file) {
+    free(file->line);
+
+    file->line      = NULL;
+    file->line_room = 0;
+    file->lookahead = NULL;
+    file->looked    = false;
+}
 
 Value alg_text_file(void) {
     ObjFile *file = obj_alloc(sizeof(ObjFile), OBJ_FILE);
@@ -2115,6 +2471,8 @@ Value alg_text_file(void) {
     file->reading   = false;
     file->lookahead = NULL;
     file->looked    = false;
+    file->line      = NULL;
+    file->line_room = 0;
 
     file->next  = all_files;
     all_files   = file;
@@ -2128,6 +2486,7 @@ static void close_open_files(void) {
             fclose(file->handle);
             file->handle = NULL;
         }
+        file_forget_line(file);
     }
     all_files = NULL;
 }
@@ -2188,20 +2547,24 @@ static void file_open(ObjFile *file, const char *what, const char *mode, bool re
    and kept all three, because the arena has no way to take one back.  A game
    reading a few files a frame leaked about 12 KB a frame through here.
 
-   The buffer belongs to this function and grows to the longest line a run has
-   met, so a program reading a million short lines allocates once. */
-static char  *line_buffer = NULL;
-static size_t line_room   = 0;
-
+   ⚠️ THE BUFFER BELONGS TO THE FILE, not to this function and not to the
+   caller.  A shared one could not be returned, because `lookahead` holds the
+   line until a later statement consumes it -- so a copy per line was the
+   price of sharing, and a program reading a large file paid it per line and
+   never got it back.  Per file, the copy goes away entirely: nothing points
+   at the buffer while `looked` is false, and `realloc` grows it to the
+   longest line the file has. */
 static char *file_read_line(ObjFile *file) {
     size_t length = 0;
 
     bool any = false;
     int  c;
 
-    if (line_buffer == NULL) {
-        line_room   = 128;
-        line_buffer = arena_alloc(line_room);
+    if (file->line == NULL) {
+        file->line_room = 128;
+        file->line      = malloc(file->line_room);
+
+        if (file->line == NULL) alg_error("Out of memory reading a line.");
     }
 
     while ((c = fgetc(file->handle)) != EOF) {
@@ -2209,30 +2572,26 @@ static char *file_read_line(ObjFile *file) {
 
         if (c == '\n') break;
 
-        if (length + 1 >= line_room) {
+        if (length + 1 >= file->line_room) {
 
-            size_t bigger = line_room * 2;
-            char  *moved  = arena_alloc(bigger);
+            size_t bigger = file->line_room * 2;
+            char  *moved  = realloc(file->line, bigger);
 
-            memcpy(moved, line_buffer, length);
-            line_buffer = moved;
-            line_room   = bigger;
+            if (moved == NULL) alg_error("Out of memory reading a line.");
+
+            file->line      = moved;
+            file->line_room = bigger;
         }
-        line_buffer[length++] = (char)c;
+        file->line[length++] = (char)c;
     }
 
     if (!any) return NULL;
 
-    if (length > 0 && line_buffer[length - 1] == '\r') length--;
+    if (length > 0 && file->line[length - 1] == '\r') length--;
 
-    /* The caller makes a String of this, which outlives the next read, so it
-       gets a copy at its own length rather than a share of the buffer. */
-    char *line = arena_alloc(length + 1);
+    file->line[length] = '\0';
 
-    memcpy(line, line_buffer, length);
-    line[length] = '\0';
-
-    return line;
+    return file->line;
 }
 
 static char *file_peek(ObjFile *file) {
@@ -2251,11 +2610,21 @@ static Value file_eof(ObjFile *file) {
     return alg_bool(file_peek(file) == NULL);
 }
 
+/* ⚠️ COPIED OUT OF THE TEXT HEAP, because an ObjFile keeps this for as long
+   as it is open and the Value it came from may be swept long before.  The
+   arena is the right home for it: a handful per program, and a file's name
+   must outlive every collection while the file does. */
 static const char *file_name_argument(Value value) {
     if (value.type != VAL_STRING && value.type != VAL_CHAR) {
         alg_error("A file name must be a String.");
     }
-    return value.string;
+
+    char *kept = arena_alloc((size_t)value.length + 1);
+
+    memcpy(kept, value.string, (size_t)value.length);
+    kept[value.length] = '\0';
+
+    return kept;
 }
 
 static bool file_method(Value receiver, const char *name, Value *args, int32_t count, Value *result) {
@@ -2291,9 +2660,8 @@ static bool file_method(Value receiver, const char *name, Value *args, int32_t c
             file->handle = NULL;
             file_error("Close", "", file->name);
         }
-        file->handle    = NULL;
-        file->lookahead = NULL;
-        file->looked    = false;
+        file->handle = NULL;
+        file_forget_line(file);
 
         *result = alg_nil();
         return true;
@@ -2478,14 +2846,7 @@ Value alg_getdir(void) {
     if (getcwd(here, sizeof here) == NULL)
         alg_error("GetDir failed: cannot read the working directory.");
 
-    /* Copied into the arena, because alg_string keeps the POINTER it is handed
-       and not the bytes -- and 'here' is gone the moment this returns. */
-    size_t size   = strlen(here) + 1;
-    char  *result = arena_alloc(size);
-
-    memcpy(result, here, size);
-
-    return alg_string_n(result, (int32_t)(size - 1));
+    return alg_string_n(here, (int32_t)strlen(here));
 }
 
 Value alg_file_exists(Value name) {
@@ -3281,6 +3642,12 @@ static void mark_obj(Obj *obj) {
 }
 
 static void mark_value(Value v) {
+    /* ⚠️ TEXT IS NOT VAL_OBJ AND STILL OWNS MEMORY, so it has to be named
+       here.  Its bytes are a heap payload whose header sits four bytes
+       before them -- which holds for every String and Char because a literal
+       is copied into the heap rather than pointed at. */
+    if (is_text(v)) { text_mark(v.string); return; }
+
     if (v.type == VAL_OBJ) mark_obj(v.obj);
 }
 
@@ -3423,6 +3790,27 @@ static void obj_release(Obj *obj) {
         if (type->members != NULL) seq_recycle(type->members, type->capacity);
         break;
     }
+
+    /* ⚠️ A BUFFER'S BYTES ARE MALLOC'D, so an abandoned one is reclaimed
+       here rather than by the sweep's spare lists.  It used to be EXEMPT
+       from sweeping entirely, for being on `all_buffers` -- a list that was
+       written and never read, its one reader deleted when the arena stopped
+       being freed at exit.  So the exemption outlived its reason and cost a
+       body per Buffer forever: a program accumulating text the way this
+       language recommends grew by 48 bytes an iteration.  `Free` is still
+       how a program releases one EARLY, and the guard is what makes the two
+       safe together. */
+    case OBJ_BUFFER: {
+        ObjBuffer *buffer = (ObjBuffer *)obj;
+
+        if (buffer->bytes != NULL) free(buffer->bytes);
+
+        buffer->bytes    = NULL;
+        buffer->capacity = 0;
+        buffer->length   = 0;
+        buffer->freed    = true;
+        break;
+    }
     default:
         break;
     }
@@ -3517,12 +3905,18 @@ int32_t alg_collect(void) {
     static bool asked = false;
 
     if (!asked) {
-        poisoning = getenv("ALG_POISON") != NULL;
-        asked     = true;
+        poisoning      = getenv("ALG_POISON") != NULL;
+        text_poisoning = poisoning;
+        asked          = true;
     }
 
-    if (collect_disabled || obj_registry == NULL) return 0;
+    if (collect_disabled) return 0;
 
+    /* ⚠️ A PROGRAM WITH NO OBJECTS STILL HAS TEXT, and gating the whole
+       collection on the object registry meant it kept all of it.  Two million
+       discarded strings and not one collection: `obj_registry == NULL` was
+       the early return, and a program doing nothing but build text allocates
+       no object at all. */
     for (size_t i = 0; i < obj_count; i++) obj_registry[i]->marked = false;
 
     for (int32_t t = 0; t < root_count; t++)
@@ -3545,6 +3939,17 @@ int32_t alg_collect(void) {
             for (int32_t j = 0; j < alg_root_stack[i].count; j++)
                 mark_value(alg_root_stack[i].slots[j]);
 
+    /* And from the HELD TEMPORARIES of every expression part way through. */
+    for (int32_t i = 0; i < alg_hold_top; i++) mark_value(alg_holds[i]);
+
+    /* And from the FOLD CACHE, whose slots own their key and their answer. */
+    for (int32_t i = 0; i < FOLD_CACHE; i++) {
+        if (fold_cache[i].answer == NULL) continue;
+
+        text_mark(fold_cache[i].key);
+        text_mark(fold_cache[i].answer);
+    }
+
     /* Sweep AND compact, in one pass.  A released object leaves the registry
        and is re-entered by obj_alloc if it is ever handed out again.
 
@@ -3556,29 +3961,29 @@ int32_t alg_collect(void) {
     int32_t freed = 0;
     size_t  kept  = 0;
 
-    for (size_t i = 0; i < obj_count; i++) {
+    for (size_t i = 0; obj_registry != NULL && i < obj_count; i++) {
         Obj *obj = obj_registry[i];
 
-        /* A Buffer and a TextFile are explicitly managed and never swept, so
-           neither may be released even when nothing points at it any more.
+        /* A TextFile is never swept, because it is on `all_files` -- a list
+           `close_open_files` WALKS at exit -- and `obj_release` writes its
+           free-list link over the body, `next` included.  Releasing one left
+           it linked into a list whose `next` then said whatever the body's
+           new owner wrote there, so `close_open_files` walked in a circle:
+           every pass found the handle already NULL, did nothing, and went
+           round again.  Twenty-six minutes of spin on one run, and invisible
+           under `ALG_POISON=1`, where a body is never handed back out and
+           the list stays intact.
 
-           ⚠️ Both are on a LIST THE RUNTIME WALKS -- `all_buffers` and
-           `all_files` -- and `obj_release` writes its free-list link over the
-           body, `next` included.  Releasing one left it linked into a list
-           whose `next` then said whatever the body's new owner wrote there, so
-           `close_open_files` walked in a circle at exit: every pass found the
-           handle already NULL, did nothing, and went round again.  It cost
-           twenty-six minutes of spin on one run and was invisible under
-           `ALG_POISON=1`, where a body is never handed back out and the list
-           stays intact.
+           The price is that an abandoned TextFile is not reclaimed until the
+           process ends.  Unlinking it on release instead would both reclaim
+           it and close it early, which wants a predecessor pointer and is a
+           change to WHEN a file is closed -- observable, since an unflushed
+           write is lost if the close is skipped.
 
-           Exempting it is the Buffer's own bargain -- an object the language
-           already releases explicitly is not the collector's business -- and
-           the price is that an abandoned TextFile is not reclaimed until the
-           process ends.  Unlinking it on release instead would both reclaim it
-           and close it early, which wants a predecessor pointer and is a
-           change to when a file is closed. */
-        if (obj->marked || obj->type == OBJ_BUFFER || obj->type == OBJ_FILE) {
+           ⚠️ A BUFFER USED TO BE EXEMPT HERE TOO AND IS NOT ANY MORE.  Its
+           list had no reader, so there was nothing to walk into a circle --
+           see `obj_release`, which frees its bytes. */
+        if (obj->marked || obj->type == OBJ_FILE) {
             obj_registry[kept++] = obj;
             continue;
         }
@@ -3599,6 +4004,11 @@ int32_t alg_collect(void) {
     }
 
     obj_count = kept;
+
+    /* Text is swept after the objects, because an object's slots are what
+       marked much of it. */
+    renders_forget();
+    text_sweep();
 
     return freed;
 }
@@ -3787,6 +4197,7 @@ void alg_push_frame(AlgFrame *frame) {
     frame->previous = frames;
     frame->raised   = alg_nil();
     frame->roots    = alg_root_top;
+    frame->holds    = alg_hold_top;
     frames          = frame;
 }
 
@@ -3839,6 +4250,7 @@ _Noreturn void alg_raise(Value value) {
        this handler is about to be skipped past and would otherwise leave the
        stack pointing at locals whose frames no longer exist. */
     alg_root_top = frame->roots;
+    alg_hold_top = frame->holds;
 
     ALG_LONGJMP(frame->jump, 1);
 }
@@ -3847,11 +4259,7 @@ _Noreturn void alg_error(const char *message) {
 
     if (frames != NULL) {
 
-        size_t size = strlen(message) + 1;
-        char  *kept = arena_alloc(size);
-        memcpy(kept, message, size);
-
-        alg_raise(alg_string(kept));
+        alg_raise(alg_string(message));
     }
 
     report_uncaught(message);
@@ -3935,15 +4343,112 @@ Value alg_pointer(void *address) {
     return v;
 }
 
-Value alg_string_n(const char *s, int32_t n) {
+/* A Value over a payload this heap already holds. */
+static Value text_value(const char *payload, int32_t n, ValueType type) {
     Value v;
-    v.type   = VAL_STRING;
+    v.type   = type;
     v.length = n;
-    v.string = s;
+    v.string = payload;
     return v;
 }
 
-Value alg_string(const char *s)  { return alg_string_n(s, (int32_t)strlen(s)); }
+/* Copies into the heap, which is where every String the language makes lives.
+   The caller's bytes may be scratch, arena, a C literal or another Value's --
+   this owes nothing to where they came from. */
+static Value text_copy(const char *s, int32_t n, ValueType type) {
+    char *payload = text_take(n + 1, 0);
+
+    memcpy(payload, s, (size_t)n);
+    payload[n] = '\0';
+
+    return text_value(payload, n, type);
+}
+
+Value alg_string_n(const char *s, int32_t n) { return text_copy(s, n, VAL_STRING); }
+
+Value alg_string(const char *s) { return alg_string_n(s, (int32_t)strlen(s)); }
+
+/* ── A literal is interned by its ADDRESS ─────────────────────────────────
+   Generated code calls this with a C static whose address is stable for the
+   run, so one permanent copy serves every call.  Copying per call would
+   replace the leak this heap exists to fix with a worse one, and pointing at
+   the compiler's own bytes would put a Value outside the heap, where the
+   eight bytes before them are not a header and marking would corrupt
+   whatever is there. */
+typedef struct { const char *at; const char *payload; int32_t length; } TextLiteral;
+
+static TextLiteral *text_literals = NULL;
+static size_t       text_literal_room  = 0;
+static size_t       text_literal_count = 0;
+
+/* ⚠️ THE HASH MIXES THE LOW BITS, because that is where the information is.
+   Shifting them away assumes distinct literals are eight-byte aligned, and
+   `ascii_one` is a [128][2] array whose rows are two bytes apart: every four
+   of them collided, and the fallback then answered the wrong TYPE for a
+   Char.  Both halves of that cost an afternoon in an earlier attempt. */
+static size_t text_literal_slot(const char *s, size_t room) {
+    uintptr_t mixed = (uintptr_t)s * (uintptr_t)0x9E3779B97F4A7C15ULL;
+
+    return (size_t)(mixed >> 32) & (room - 1);
+}
+
+/* ⚠️ THE TABLE GROWS, and a fixed one was a quiet per-call allocation rather
+   than a limit.  A program with more literals than slots fell back to a
+   collectable copy at every evaluation of the ones that collided -- correct,
+   and paying the cost this table exists to remove.  The compiler has
+   thousands of them. */
+static void text_literals_grow(void) {
+    size_t       room  = text_literal_room < 1024 ? 1024 : text_literal_room * 2;
+    TextLiteral *moved = calloc(room, sizeof(TextLiteral));
+
+    if (moved == NULL) alg_error("Out of memory for text.");
+
+    for (size_t at = 0; at < text_literal_room; at++) {
+        if (text_literals[at].at == NULL) continue;
+
+        size_t slot = text_literal_slot(text_literals[at].at, room);
+
+        while (moved[slot].at != NULL) slot = (slot + 1) & (room - 1);
+
+        moved[slot] = text_literals[at];
+    }
+
+    free(text_literals);
+
+    text_literals     = moved;
+    text_literal_room = room;
+}
+
+static const char *text_interned(const char *s, int32_t n) {
+    if (text_literal_count * 2 >= text_literal_room) text_literals_grow();
+
+    size_t slot = text_literal_slot(s, text_literal_room);
+
+    while (text_literals[slot].at != NULL) {
+        if (text_literals[slot].at == s && text_literals[slot].length == n)
+            return text_literals[slot].payload;
+
+        slot = (slot + 1) & (text_literal_room - 1);
+    }
+
+    char *payload = text_take(n + 1, TEXT_PERM);
+
+    memcpy(payload, s, (size_t)n);
+    payload[n] = '\0';
+
+    text_literals[slot].at      = s;
+    text_literals[slot].payload = payload;
+    text_literals[slot].length  = n;
+    text_literal_count++;
+
+    return payload;
+}
+
+Value alg_literal(const char *s) {
+    int32_t n = (int32_t)strlen(s);
+
+    return text_value(text_interned(s, n), n, VAL_STRING);
+}
 
 /* The hundred and twenty-eight one-character strings, made once by the
    compiler rather than two bytes at a time forever.
@@ -3976,23 +4481,18 @@ static const char ascii_one[128][2] = {
 
 Value alg_char_value(int32_t code) {
 
-    Value v;
-    v.type = VAL_CHAR;
-
+    /* ascii_one is static, so this is the literal path: one permanent block
+       per code point, and `ascii_one[code]` is the address it interns on. */
     if (code >= 0 && code < 0x80) {
-        v.length = 1;
-        v.string = ascii_one[code];
-        return v;
+        return text_value(text_interned(ascii_one[code], 1), 1, VAL_CHAR);
     }
 
-    char *one = arena_alloc(5);
-    int   span = utf8_encode(code, one);
+    char one[8];
+    int  span = utf8_encode(code, one);
 
     one[span] = '\0';
 
-    v.length = span;
-    v.string = one;
-    return v;
+    return text_copy(one, span, VAL_CHAR);
 }
 
 static bool is_number(Value v) {
@@ -4147,37 +4647,39 @@ static Value concat(Value a, Value b) {
 
     int32_t need = left_len + right_len;
 
+    /* ⚠️ EXTENDED IN PLACE ONLY WHERE NOTHING ELSE HAS, which is what the
+       tail pair records.  A block's own header says how much room it has, so
+       capacity needs no tracking -- but room alone is not permission: two
+       concatenations from one left operand would both write into the same
+       slack and the first answer would silently change under the second.
+       Being the last text written is what rules that out. */
     if (is_text(a) && left_len > 0
-        && a.string == arena_tail_text
-        && a.length == arena_tail_len
-        && need + 1 <= arena_tail_cap) {
+        && a.string == text_tail_text
+        && a.length == text_tail_len
+        && (uint32_t)(need + 1) <= text_size_of(a.string)) {
 
         char *end = (char *)a.string + left_len;
 
         memcpy(end, right, (size_t)right_len);
         end[right_len] = '\0';
 
-        arena_tail_len = need;
-        return alg_string_n(a.string, need);
+        text_tail_len = need;
+        return text_value(a.string, need, VAL_STRING);
     }
 
     /* Doubling is what keeps repeated `+` linear: the slack is what the
-       in-place extension above writes into.  The FLOOR used to be 64, which
-       cost 64 bytes of never-freed arena for every concatenation of a short
-       string however little slack it needed -- most of `concat`'s leak. 32
-       still leaves a short result twice the room it asked for. */
-    int32_t capacity = need + 1 < 32 ? 32 : (need + 1) * 2;
+       in-place extension above writes into.  The heap bands a size anyway,
+       so the floor is the smallest band rather than a number of its own. */
+    char *result = text_take(need + 1 < 32 ? 32 : (need + 1) * 2, 0);
 
-    char *result = arena_alloc((size_t)capacity);
     memcpy(result, left, (size_t)left_len);
     memcpy(result + left_len, right, (size_t)right_len);
     result[need] = '\0';
 
-    arena_tail_text = result;
-    arena_tail_len  = need;
-    arena_tail_cap  = capacity;
+    text_tail_text = result;
+    text_tail_len  = need;
 
-    return alg_string_n(result, need);
+    return text_value(result, need, VAL_STRING);
 }
 
 static bool defines_operator(Value a, const char *op) {
@@ -4714,7 +5216,7 @@ static const char *render_double(const char *scientific) {
     }
     out[i] = '\0';
 
-    char *result = arena_alloc(i + 1);
+    char *result = render_alloc(i + 1);
     memcpy(result, out, i + 1);
 
     return result;
@@ -4747,7 +5249,7 @@ static void builder_append(Builder *b, const char *text) {
         size_t capacity = b->capacity < 32 ? 32 : b->capacity;
         while (b->length + added + 1 > capacity) capacity *= 2;
 
-        char *grown = arena_alloc(capacity);
+        char *grown = render_alloc(capacity);
         if (b->length > 0) memcpy(grown, b->text, b->length);
 
         b->text     = grown;
@@ -4838,7 +5340,7 @@ static const char *as_text(Value v) {
         case VAL_CHAR: {
             if (v.string[v.length] == '\0') return v.string;
 
-            char *terminated = arena_alloc((size_t)v.length + 1);
+            char *terminated = render_alloc((size_t)v.length + 1);
             memcpy(terminated, v.string, (size_t)v.length);
             terminated[v.length] = '\0';
 
@@ -4899,7 +5401,7 @@ static const char *as_text(Value v) {
                 ObjBuffer *buffer = (ObjBuffer *)v.obj;
                 if (buffer->freed) return "Buffer(freed)";
 
-                char *text = arena_alloc(32);
+                char *text = render_alloc(32);
                 snprintf(text, 32, "Buffer(%d)", (int32_t)buffer->length);
                 return text;
             }
@@ -5084,13 +5586,7 @@ Value alg_copy(Value text, Value begin, Value length) {
     int32_t from_byte = utf8_offset(from, text.length, start);
     int32_t to_byte   = utf8_offset(from, text.length, end);
 
-    int32_t taken  = to_byte - from_byte;
-    char   *result = arena_alloc((size_t)taken + 1);
-
-    memcpy(result, from + from_byte, (size_t)taken);
-    result[taken] = '\0';
-
-    return alg_string_n(result, taken);
+    return alg_string_n(from + from_byte, to_byte - from_byte);
 }
 
 /* ToUpper and ToLower fold the ASCII letters and nothing else [RT-025]. That
@@ -5119,24 +5615,19 @@ static bool folds(unsigned char c, bool upper) {
    ⚠️ BOUNDED, because the input may be program DATA rather than a name.  A
    program folding a million different lines must not fill this table with
    them, so a slot is OVERWRITTEN rather than chained: a hot name keeps its
-   slot and cold text pays the copy it would have paid anyway.  Nothing is
-   freed on eviction, because the arena cannot -- eviction forgets rather than
-   reclaims, and the bound is on the table rather than on the arena.
+   slot and cold text pays the copy it would have paid anyway.
+
+   ⚠️ A SLOT IS A ROOT, not a permanent block, and permanent was a LEAK
+   proportional to the distinct text a program folds.  Overwriting a slot
+   forgot its blocks where nothing could ever free them, so two million
+   different inputs left two million answers behind -- 61 MB of live text in
+   a battery meant to prove there was none.  Marking the occupied slots
+   instead means an EVICTED entry is simply no longer marked, and a Value
+   still holding an answer keeps it alive through the ordinary root path.
 
    ⚠️ THE KEY IS A COPY OF THE INPUT, not the caller's pointer.  A Buffer's
    bytes move when it grows and `Free` releases them, so a stored pointer
    would be compared against memory that had since become something else. */
-#define FOLD_CACHE 4096
-
-typedef struct {
-    const char *key;
-    const char *answer;
-    int32_t     length;
-    bool        upper;
-} FoldSlot;
-
-static FoldSlot fold_cache[FOLD_CACHE];
-
 static Value folded(Value text, const char *what, bool upper) {
     const char *from = as_string(text, what);
 
@@ -5159,12 +5650,13 @@ static Value folded(Value text, const char *what, bool upper) {
      && slot->upper  == upper
      && memcmp(slot->key, from, (size_t)text.length) == 0) {
 
-        Value hit = alg_string_n(slot->answer, text.length);
-        hit.type  = text.type;
-        return hit;
+        /* ⚠️ A HIT ALLOCATES NOTHING, which is the whole point of the table
+           and is what a copy here would throw away.  The answer is a
+           permanent block, so a Value may name it directly. */
+        return text_value(slot->answer, text.length, text.type);
     }
 
-    char *result = arena_alloc((size_t)text.length + 1);
+    char *result = text_take(text.length + 1, 0);
 
     memcpy(result, from, (size_t)first);
 
@@ -5179,7 +5671,7 @@ static Value folded(Value text, const char *what, bool upper) {
 
     /* Remembered for the next call with this input.  The key is copied
        because the caller's bytes may not outlive the table. */
-    char *key = arena_alloc((size_t)text.length + 1);
+    char *key = text_take(text.length + 1, 0);
 
     memcpy(key, from, (size_t)text.length);
     key[text.length] = '\0';
@@ -5191,9 +5683,7 @@ static Value folded(Value text, const char *what, bool upper) {
 
     /* A Char folds to a Char. Case is not a reason to widen, and Str is how
        widening is asked for [TYP-003]. */
-    Value v = alg_string_n(result, text.length);
-    v.type  = text.type;
-    return v;
+    return text_value(result, text.length, text.type);
 }
 
 Value alg_to_upper(Value text) { return folded(text, "ToUpper expects text.", true); }
@@ -5764,7 +6254,7 @@ static Value str_fixed(Value v, Value width, Value decimals) {
         length = snprintf(NULL, 0, "%.*f", (int)places, v.number);
         if (length < 0) alg_error("Str could not render that number.");
 
-        char *rendered = arena_alloc((size_t)length + 1);
+        char *rendered = render_alloc((size_t)length + 1);
         snprintf(rendered, (size_t)length + 1, "%.*f", (int)places, v.number);
 
         source = rendered;
@@ -5774,13 +6264,13 @@ static Value str_fixed(Value v, Value width, Value decimals) {
 
     /* Right-aligned, and the field never wins: breaking a column is cosmetic
        where truncating a number is a lie. */
-    char *padded = arena_alloc((size_t)field + 1);
+    char *padded = text_take(field + 1, 0);
 
     memset(padded, ' ', (size_t)field - (size_t)length);
     memcpy(padded + field - length, source, (size_t)length);
     padded[field] = '\0';
 
-    return alg_string_n(padded, field);
+    return text_value(padded, field, VAL_STRING);
 }
 
 Value alg_str_fixed(Value v, Value decimals) {
@@ -5795,17 +6285,16 @@ Value alg_str(Value v) {
     int32_t     length;
     const char *text = as_text_len(v, &length);
 
-    /* Text answers its own durable bytes, so it is handed straight back. */
-    if (is_text(v)) return alg_string_n(text, length);
+    /* ⚠️ TEXT IS HANDED STRAIGHT BACK, and copying it here cost EIGHT
+       GIGABYTES.  `Str` on something already text only widens a Char to a
+       String [TYP-003], which is a change of tag and not of bytes -- and the
+       compiler calls it on nearly every name it handles, including whole
+       emitted units.  Routing it through `alg_string_n`, which copies into
+       the heap, took `algc --compile` of its own sources from 53 MB to 6.9
+       GB: 471,174 copies averaging 18 KB. */
+    if (is_text(v)) return text_value(text, length, VAL_STRING);
 
-    /* Anything else was RENDERED, and a render lives in a rotating scratch
-       buffer that the next four renders will overwrite -- so the Value gets a
-       copy, at the length it actually needs rather than the 24 bytes the
-       Integer arm used to take for every call. */
-    char *kept = arena_alloc((size_t)length + 1);
-
-    memcpy(kept, text, (size_t)length);
-    kept[length] = '\0';
-
-    return alg_string_n(kept, length);
+    /* Anything else was RENDERED, which is text no Value owns and the next
+       safe point releases -- so the Value gets a copy of its own. */
+    return alg_string_n(text, length);
 }

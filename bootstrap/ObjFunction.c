@@ -77,69 +77,83 @@ Value f_typenameof(Value **cells, Value *args, int32_t count) {
     Value v_value = args[0];
     (void)v_value;
     alg_root(&v_value, 1);
-    if (alg_truthy(alg_equal(v_value, alg_nil()))) {
-        Value ret_0 = alg_string("nil");
+    int32_t rh_1122 = alg_hold_top;
+    if (alg_truthy(alg_hold(alg_equal(v_value, alg_nil())))) {
+        Value ret_0 = alg_literal("nil");
         alg_root_top = rt_base;
         return ret_0;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_kind(v_value, ALG_KIND_BOOLEAN))) {
-        Value ret_1 = alg_string("Boolean");
+        Value ret_1 = alg_literal("Boolean");
         alg_root_top = rt_base;
         return ret_1;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_kind(v_value, ALG_KIND_INTEGER))) {
-        Value ret_2 = alg_string("Integer");
+        Value ret_2 = alg_literal("Integer");
         alg_root_top = rt_base;
         return ret_2;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_kind(v_value, ALG_KIND_DOUBLE))) {
-        Value ret_3 = alg_string("Double");
+        Value ret_3 = alg_literal("Double");
         alg_root_top = rt_base;
         return ret_3;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_kind(v_value, ALG_KIND_STRING))) {
-        Value ret_4 = alg_string("String");
+        Value ret_4 = alg_literal("String");
         alg_root_top = rt_base;
         return ret_4;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_kind(v_value, ALG_KIND_CHAR))) {
-        Value ret_5 = alg_string("Char");
+        Value ret_5 = alg_literal("Char");
         alg_root_top = rt_base;
         return ret_5;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_class(v_value, k_objinstance))) {
-        Value ret_6 = alg_str(alg_property(alg_property(v_value, "Klass"), "Name"));
+        Value ret_6 = alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_value, "Klass")), "Name"))));
         alg_root_top = rt_base;
         return ret_6;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_class(v_value, k_objcollection))) {
-        Value ret_7 = alg_property(v_value, "Kind");
+        Value ret_7 = alg_hold(alg_property(v_value, "Kind"));
         alg_root_top = rt_base;
         return ret_7;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is(v_value, "ObjEnum"))) {
-        Value ret_8 = alg_property(v_value, "TypeName");
+        Value ret_8 = alg_hold(alg_property(v_value, "TypeName"));
         alg_root_top = rt_base;
         return ret_8;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_class(v_value, k_objfile))) {
-        Value ret_9 = alg_string("TextFile");
+        Value ret_9 = alg_literal("TextFile");
         alg_root_top = rt_base;
         return ret_9;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_class(v_value, k_objbuffer))) {
-        Value ret_10 = alg_string("Buffer");
+        Value ret_10 = alg_literal("Buffer");
         alg_root_top = rt_base;
         return ret_10;
     }
+    alg_hold_top = rh_1122;
     if (alg_truthy(alg_is_kind(v_value, ALG_KIND_POINTER))) {
-        Value ret_11 = alg_string("Pointer");
+        Value ret_11 = alg_literal("Pointer");
         alg_root_top = rt_base;
         return ret_11;
     }
-    Value ret_12 = f_nameofclass(NULL, (Value[]){v_value}, 1);
+    alg_hold_top = rh_1122;
+    Value ret_12 = alg_hold(f_nameofclass(NULL, (Value[]){v_value}, 1));
     alg_root_top = rt_base;
     return ret_12;
+    alg_hold_top = rh_1122;
     Value ret_13 = alg_nil();
     alg_root_top = rt_base;
     return ret_13;
@@ -153,15 +167,18 @@ Value f_nameofclass(Value **cells, Value *args, int32_t count) {
     volatile Value v_obj = args[0];
     (void)v_obj;
     alg_root(&v_obj, 1);
+    int32_t rh_1123 = alg_hold_top;
     {
         AlgFrame frame_14;
         alg_push_frame(&frame_14);
         if (ALG_SETJMP(frame_14.jump) == 0) {
             {
-                volatile Value ret_15 = alg_property(v_obj, "ClassName");
+                int32_t rh_1124 = alg_hold_top;
+                volatile Value ret_15 = alg_hold(alg_property(v_obj, "ClassName"));
                 alg_pop_frame();
                 alg_root_top = rt_base;
                 return ret_15;
+                alg_hold_top = rh_1124;
             }
             alg_pop_frame();
         }
@@ -170,14 +187,14 @@ Value f_nameofclass(Value **cells, Value *args, int32_t count) {
             int32_t which_14 = alg_handler(frame_14.raised, names_14, 1);
             if (which_14 == 0) {
                 {
-                    int32_t rt_267 = alg_root_top;
+                    int32_t rt_1125 = alg_root_top;
                     volatile Value v_e = frame_14.raised;
                     (void)v_e;
                     alg_root(&v_e, 1);
-                    volatile Value ret_16 = alg_string("");
+                    volatile Value ret_16 = alg_literal("");
                     alg_root_top = rt_base;
                     return ret_16;
-                    alg_root_top = rt_267;
+                    alg_root_top = rt_1125;
                 }
             }
             else {
@@ -185,6 +202,7 @@ Value f_nameofclass(Value **cells, Value *args, int32_t count) {
             }
         }
     }
+    alg_hold_top = rh_1123;
     volatile Value ret_17 = alg_nil();
     alg_root_top = rt_base;
     return ret_17;
@@ -209,9 +227,13 @@ static Value m_objoverloads_init_1_string(Value v_this, Value *args, int32_t cou
     Value v_name = alg_widen(args[0], "String");
     (void)v_name;
     alg_root(&v_name, 1);
-    (void)(alg_set_property(v_this, "Name", v_name));
-    (void)(alg_set_property(v_this, "Candidates", alg_list()));
-    (void)(alg_set_property(v_this, "Fallback", alg_nil()));
+    int32_t rh_1126 = alg_hold_top;
+    (void)(alg_hold(alg_set_property(v_this, "Name", v_name)));
+    alg_hold_top = rh_1126;
+    (void)(alg_hold(alg_set_property(v_this, "Candidates", alg_hold(alg_list()))));
+    alg_hold_top = rh_1126;
+    (void)(alg_hold(alg_set_property(v_this, "Fallback", alg_nil())));
+    alg_hold_top = rh_1126;
     Value ret_18 = alg_nil();
     alg_root_top = rt_base;
     return ret_18;
@@ -225,7 +247,9 @@ static Value m_objoverloads_add_1(Value v_this, Value *args, int32_t count) {
     Value v_thefunction = args[0];
     (void)v_thefunction;
     alg_root(&v_thefunction, 1);
-    (void)(alg_invoke(alg_property(v_this, "Candidates"), "Add", (Value[]){v_thefunction}, 1));
+    int32_t rh_1127 = alg_hold_top;
+    (void)(alg_hold(alg_invoke(alg_property(v_this, "Candidates"), "Add", (Value[]){v_thefunction}, 1)));
+    alg_hold_top = rh_1127;
     Value ret_19 = alg_nil();
     alg_root_top = rt_base;
     return ret_19;
@@ -236,9 +260,11 @@ static Value m_objoverloads_arity_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    Value ret_20 = alg_negate(alg_int(1));
+    int32_t rh_1128 = alg_hold_top;
+    Value ret_20 = alg_hold(alg_negate(alg_int(1)));
     alg_root_top = rt_base;
     return ret_20;
+    alg_hold_top = rh_1128;
     Value ret_21 = alg_nil();
     alg_root_top = rt_base;
     return ret_21;
@@ -252,36 +278,42 @@ static Value m_objoverloads_declares_1_integer(Value v_this, Value *args, int32_
     Value v_count = alg_widen(args[0], "Integer");
     (void)v_count;
     alg_root(&v_count, 1);
+    int32_t rh_1129 = alg_hold_top;
     {
-        int32_t rt_268 = alg_root_top;
+        int32_t rt_1130 = alg_root_top;
         Value loop_22 = alg_iterable(alg_property(v_this, "Candidates"));
         (void)loop_22;
         alg_root(&loop_22, 1);
         for (int32_t at_22 = 0; at_22 < alg_iterable_count(loop_22); at_22++) {
             alg_safe_point();
-            int32_t rt_269 = alg_root_top;
+            int32_t rt_1131 = alg_root_top;
             Value v_thecandidate = alg_iterable_at(loop_22, at_22);
             (void)v_thecandidate;
             alg_root(&v_thecandidate, 1);
             {
-                if (alg_truthy(alg_equal(alg_invoke(v_thecandidate, "Arity", NULL, 0), v_count))) {
+                int32_t rh_1132 = alg_hold_top;
+                if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_invoke(v_thecandidate, "Arity", NULL, 0)), v_count)))) {
                     Value ret_23 = alg_bool(true);
                     alg_root_top = rt_base;
                     return ret_23;
                 }
-                if (alg_truthy((or_0 = alg_invoke(v_thecandidate, "Variadic", NULL, 0), !alg_truthy(or_0) ? or_0 : alg_greater_equal(v_count, alg_subtract(alg_invoke(v_thecandidate, "Arity", NULL, 0), alg_int(1)))))) {
+                alg_hold_top = rh_1132;
+                if (alg_truthy(alg_hold((or_0 = alg_hold(alg_invoke(v_thecandidate, "Variadic", NULL, 0)), !alg_truthy(or_0) ? or_0 : alg_hold(alg_greater_equal(v_count, alg_hold(alg_subtract(alg_hold(alg_invoke(v_thecandidate, "Arity", NULL, 0)), alg_int(1))))))))) {
                     Value ret_24 = alg_bool(true);
                     alg_root_top = rt_base;
                     return ret_24;
                 }
+                alg_hold_top = rh_1132;
             }
-            alg_root_top = rt_269;
+            alg_root_top = rt_1131;
         }
-        alg_root_top = rt_268;
+        alg_root_top = rt_1130;
     }
+    alg_hold_top = rh_1129;
     Value ret_25 = alg_bool(false);
     alg_root_top = rt_base;
     return ret_25;
+    alg_hold_top = rh_1129;
     Value ret_26 = alg_nil();
     alg_root_top = rt_base;
     return ret_26;
@@ -295,46 +327,56 @@ static Value m_objoverloads_select_1_list(Value v_this, Value *args, int32_t cou
     Value v_arguments = alg_widen(args[0], "List");
     (void)v_arguments;
     alg_root(&v_arguments, 1);
+    int32_t rh_1133 = alg_hold_top;
     {
-        int32_t rt_270 = alg_root_top;
+        int32_t rt_1134 = alg_root_top;
+        int32_t rh_1135 = alg_hold_top;
         Value v_pass = (alg_declared(d_exact, "EXACT"), v_exact);
         (void)v_pass;
         alg_root(&v_pass, 1);
-        for (; alg_truthy(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))); (v_pass = alg_add(v_pass, alg_int(1)))) {
-            alg_safe_point();
-            {
-                int32_t rt_271 = alg_root_top;
-                Value loop_27 = alg_iterable(alg_property(v_this, "Candidates"));
-                (void)loop_27;
-                alg_root(&loop_27, 1);
-                for (int32_t at_27 = 0; at_27 < alg_iterable_count(loop_27); at_27++) {
-                    alg_safe_point();
-                    int32_t rt_272 = alg_root_top;
-                    Value v_thecandidate = alg_iterable_at(loop_27, at_27);
-                    (void)v_thecandidate;
-                    alg_root(&v_thecandidate, 1);
-                    if (alg_truthy(alg_invoke(v_thecandidate, "Selects", (Value[]){v_arguments, v_pass}, 2))) {
-                        Value ret_28 = v_thecandidate;
-                        alg_root_top = rt_base;
-                        return ret_28;
+        alg_hold_top = rh_1135;
+        {
+            int32_t rh_1136 = alg_hold_top;
+            for (; (alg_hold_top = rh_1136, alg_truthy(alg_hold(alg_less_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))))); (alg_hold_top = rh_1136, (v_pass = alg_hold(alg_add(v_pass, alg_int(1)))))) {
+                alg_safe_point();
+                {
+                    int32_t rt_1137 = alg_root_top;
+                    Value loop_27 = alg_iterable(alg_property(v_this, "Candidates"));
+                    (void)loop_27;
+                    alg_root(&loop_27, 1);
+                    for (int32_t at_27 = 0; at_27 < alg_iterable_count(loop_27); at_27++) {
+                        alg_safe_point();
+                        int32_t rt_1138 = alg_root_top;
+                        Value v_thecandidate = alg_iterable_at(loop_27, at_27);
+                        (void)v_thecandidate;
+                        alg_root(&v_thecandidate, 1);
+                        if (alg_truthy(alg_hold(alg_invoke(v_thecandidate, "Selects", (Value[]){v_arguments, v_pass}, 2)))) {
+                            Value ret_28 = v_thecandidate;
+                            alg_root_top = rt_base;
+                            return ret_28;
+                        }
+                        alg_root_top = rt_1138;
                     }
-                    alg_root_top = rt_272;
+                    alg_root_top = rt_1137;
                 }
-                alg_root_top = rt_271;
             }
         }
-        alg_root_top = rt_270;
+        alg_hold_top = rh_1135;
+        alg_root_top = rt_1134;
     }
-    if (alg_truthy((or_1 = alg_not_equal(alg_property(v_this, "Fallback"), alg_nil()), !alg_truthy(or_1) ? or_1 : alg_not(alg_invoke(v_this, "Declares", (Value[]){alg_property(v_arguments, "Length")}, 1))))) {
-        if (alg_truthy((or_2 = alg_equal(alg_invoke(alg_property(v_this, "Fallback"), "Arity", NULL, 0), alg_negate(alg_int(1))), alg_truthy(or_2) ? or_2 : alg_equal(alg_invoke(alg_property(v_this, "Fallback"), "Arity", NULL, 0), alg_property(v_arguments, "Length"))))) {
+    alg_hold_top = rh_1133;
+    if (alg_truthy(alg_hold((or_1 = alg_hold(alg_not_equal(alg_property(v_this, "Fallback"), alg_nil())), !alg_truthy(or_1) ? or_1 : alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Declares", (Value[]){alg_hold(alg_property(v_arguments, "Length"))}, 1)))))))) {
+        if (alg_truthy(alg_hold((or_2 = alg_hold(alg_equal(alg_hold(alg_invoke(alg_property(v_this, "Fallback"), "Arity", NULL, 0)), alg_hold(alg_negate(alg_int(1))))), alg_truthy(or_2) ? or_2 : alg_hold(alg_equal(alg_hold(alg_invoke(alg_property(v_this, "Fallback"), "Arity", NULL, 0)), alg_hold(alg_property(v_arguments, "Length")))))))) {
             Value ret_29 = alg_property(v_this, "Fallback");
             alg_root_top = rt_base;
             return ret_29;
         }
     }
+    alg_hold_top = rh_1133;
     Value ret_30 = alg_nil();
     alg_root_top = rt_base;
     return ret_30;
+    alg_hold_top = rh_1133;
     Value ret_31 = alg_nil();
     alg_root_top = rt_base;
     return ret_31;
@@ -351,16 +393,21 @@ static Value m_objoverloads_call_2(Value v_this, Value *args, int32_t count) {
     Value v_arguments = args[1];
     (void)v_arguments;
     alg_root(&v_arguments, 1);
+    int32_t rh_1139 = alg_hold_top;
     Value v_chosen = alg_nil();
     (void)v_chosen;
     alg_root(&v_chosen, 1);
-    (void)((v_chosen = alg_invoke(v_this, "Select", (Value[]){v_arguments}, 1)));
-    if (alg_truthy(alg_equal(v_chosen, alg_nil()))) {
-        alg_raise(alg_string("No matching signature for function."));
+    alg_hold_top = rh_1139;
+    (void)((v_chosen = alg_hold(alg_invoke(v_this, "Select", (Value[]){v_arguments}, 1))));
+    alg_hold_top = rh_1139;
+    if (alg_truthy(alg_hold(alg_equal(v_chosen, alg_nil())))) {
+        alg_raise(alg_literal("No matching signature for function."));
     }
-    Value ret_32 = alg_invoke(v_chosen, "Call", (Value[]){v_theinterpreter, v_arguments}, 2);
+    alg_hold_top = rh_1139;
+    Value ret_32 = alg_hold(alg_invoke(v_chosen, "Call", (Value[]){v_theinterpreter, v_arguments}, 2));
     alg_root_top = rt_base;
     return ret_32;
+    alg_hold_top = rh_1139;
     Value ret_33 = alg_nil();
     alg_root_top = rt_base;
     return ret_33;
@@ -371,9 +418,11 @@ static Value m_objoverloads_tostring_0(Value v_this, Value *args, int32_t count)
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    Value ret_34 = alg_add(alg_add(alg_string("<fn "), alg_property(v_this, "Name")), alg_char_value(62));
+    int32_t rh_1140 = alg_hold_top;
+    Value ret_34 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("<fn "), alg_property(v_this, "Name"))), alg_char_value(62)));
     alg_root_top = rt_base;
     return ret_34;
+    alg_hold_top = rh_1140;
     Value ret_35 = alg_nil();
     alg_root_top = rt_base;
     return ret_35;
@@ -400,8 +449,11 @@ static Value m_numbermethod_init_2_token(Value v_this, Value *args, int32_t coun
     Value v_name = alg_widen(args[1], "Token");
     (void)v_name;
     alg_root(&v_name, 1);
-    (void)(alg_set_property(v_this, "Receiver", v_receiver));
-    (void)(alg_set_property(v_this, "Name", v_name));
+    int32_t rh_1141 = alg_hold_top;
+    (void)(alg_hold(alg_set_property(v_this, "Receiver", v_receiver)));
+    alg_hold_top = rh_1141;
+    (void)(alg_hold(alg_set_property(v_this, "Name", v_name)));
+    alg_hold_top = rh_1141;
     Value ret_36 = alg_nil();
     alg_root_top = rt_base;
     return ret_36;
@@ -412,9 +464,11 @@ static Value m_numbermethod_arity_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
+    int32_t rh_1142 = alg_hold_top;
     Value ret_37 = alg_int(0);
     alg_root_top = rt_base;
     return ret_37;
+    alg_hold_top = rh_1142;
     Value ret_38 = alg_nil();
     alg_root_top = rt_base;
     return ret_38;
@@ -431,9 +485,11 @@ static Value m_numbermethod_call_2(Value v_this, Value *args, int32_t count) {
     Value v_arguments = args[1];
     (void)v_arguments;
     alg_root(&v_arguments, 1);
-    Value ret_39 = alg_str(alg_property(v_this, "Receiver"));
+    int32_t rh_1143 = alg_hold_top;
+    Value ret_39 = alg_hold(alg_str(alg_property(v_this, "Receiver")));
     alg_root_top = rt_base;
     return ret_39;
+    alg_hold_top = rh_1143;
     Value ret_40 = alg_nil();
     alg_root_top = rt_base;
     return ret_40;
@@ -444,9 +500,11 @@ static Value m_numbermethod_tostring_0(Value v_this, Value *args, int32_t count)
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    Value ret_41 = alg_add(alg_add(alg_string("<fn "), alg_str(alg_property(alg_property(v_this, "Name"), "Lexeme"))), alg_char_value(62));
+    int32_t rh_1144 = alg_hold_top;
+    Value ret_41 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("<fn "), alg_hold(alg_str(alg_hold(alg_property(alg_property(v_this, "Name"), "Lexeme")))))), alg_char_value(62)));
     alg_root_top = rt_base;
     return ret_41;
+    alg_hold_top = rh_1144;
     Value ret_42 = alg_nil();
     alg_root_top = rt_base;
     return ret_42;
@@ -473,8 +531,11 @@ static Value m_objextension_init_2(Value v_this, Value *args, int32_t count) {
     Value v_target = args[1];
     (void)v_target;
     alg_root(&v_target, 1);
-    (void)(alg_set_property(v_this, "Receiver", v_receiver));
-    (void)(alg_set_property(v_this, "Target", v_target));
+    int32_t rh_1145 = alg_hold_top;
+    (void)(alg_hold(alg_set_property(v_this, "Receiver", v_receiver)));
+    alg_hold_top = rh_1145;
+    (void)(alg_hold(alg_set_property(v_this, "Target", v_target)));
+    alg_hold_top = rh_1145;
     Value ret_43 = alg_nil();
     alg_root_top = rt_base;
     return ret_43;
@@ -485,14 +546,17 @@ static Value m_objextension_arity_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    if (alg_truthy(alg_less(alg_invoke(alg_property(v_this, "Target"), "Arity", NULL, 0), alg_int(0)))) {
-        Value ret_44 = alg_negate(alg_int(1));
+    int32_t rh_1146 = alg_hold_top;
+    if (alg_truthy(alg_hold(alg_less(alg_hold(alg_invoke(alg_property(v_this, "Target"), "Arity", NULL, 0)), alg_int(0))))) {
+        Value ret_44 = alg_hold(alg_negate(alg_int(1)));
         alg_root_top = rt_base;
         return ret_44;
     }
-    Value ret_45 = alg_subtract(alg_invoke(alg_property(v_this, "Target"), "Arity", NULL, 0), alg_int(1));
+    alg_hold_top = rh_1146;
+    Value ret_45 = alg_hold(alg_subtract(alg_hold(alg_invoke(alg_property(v_this, "Target"), "Arity", NULL, 0)), alg_int(1)));
     alg_root_top = rt_base;
     return ret_45;
+    alg_hold_top = rh_1146;
     Value ret_46 = alg_nil();
     alg_root_top = rt_base;
     return ret_46;
@@ -509,30 +573,36 @@ static Value m_objextension_call_2(Value v_this, Value *args, int32_t count) {
     Value v_arguments = args[1];
     (void)v_arguments;
     alg_root(&v_arguments, 1);
+    int32_t rh_1147 = alg_hold_top;
     Value v_all = alg_nil();
     (void)v_all;
     alg_root(&v_all, 1);
-    (void)((v_all = alg_list()));
-    (void)(alg_invoke(v_all, "Add", (Value[]){alg_property(v_this, "Receiver")}, 1));
+    alg_hold_top = rh_1147;
+    (void)((v_all = alg_hold(alg_list())));
+    alg_hold_top = rh_1147;
+    (void)(alg_hold(alg_invoke(v_all, "Add", (Value[]){alg_property(v_this, "Receiver")}, 1)));
+    alg_hold_top = rh_1147;
     {
-        int32_t rt_273 = alg_root_top;
+        int32_t rt_1148 = alg_root_top;
         Value loop_47 = alg_iterable(v_arguments);
         (void)loop_47;
         alg_root(&loop_47, 1);
         for (int32_t at_47 = 0; at_47 < alg_iterable_count(loop_47); at_47++) {
             alg_safe_point();
-            int32_t rt_274 = alg_root_top;
+            int32_t rt_1149 = alg_root_top;
             Value v_argument = alg_iterable_at(loop_47, at_47);
             (void)v_argument;
             alg_root(&v_argument, 1);
-            (void)(alg_invoke(v_all, "Add", (Value[]){v_argument}, 1));
-            alg_root_top = rt_274;
+            (void)(alg_hold(alg_invoke(v_all, "Add", (Value[]){v_argument}, 1)));
+            alg_root_top = rt_1149;
         }
-        alg_root_top = rt_273;
+        alg_root_top = rt_1148;
     }
-    Value ret_48 = alg_invoke(alg_property(v_this, "Target"), "Call", (Value[]){v_theinterpreter, v_all}, 2);
+    alg_hold_top = rh_1147;
+    Value ret_48 = alg_hold(alg_invoke(alg_property(v_this, "Target"), "Call", (Value[]){v_theinterpreter, v_all}, 2));
     alg_root_top = rt_base;
     return ret_48;
+    alg_hold_top = rh_1147;
     Value ret_49 = alg_nil();
     alg_root_top = rt_base;
     return ret_49;
@@ -543,9 +613,11 @@ static Value m_objextension_tostring_0(Value v_this, Value *args, int32_t count)
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    Value ret_50 = alg_invoke(alg_property(v_this, "Target"), "ToString", NULL, 0);
+    int32_t rh_1150 = alg_hold_top;
+    Value ret_50 = alg_hold(alg_invoke(alg_property(v_this, "Target"), "ToString", NULL, 0));
     alg_root_top = rt_base;
     return ret_50;
+    alg_hold_top = rh_1150;
     Value ret_51 = alg_nil();
     alg_root_top = rt_base;
     return ret_51;
@@ -562,29 +634,39 @@ Value f_samesignature(Value **cells, Value *args, int32_t count) {
     Value v_right = args[1];
     (void)v_right;
     alg_root(&v_right, 1);
-    if (alg_truthy(alg_not_equal(alg_property(alg_property(v_left, "Params"), "Length"), alg_property(alg_property(v_right, "Params"), "Length")))) {
+    int32_t rh_1151 = alg_hold_top;
+    if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_property(alg_hold(alg_property(v_left, "Params")), "Length")), alg_hold(alg_property(alg_hold(alg_property(v_right, "Params")), "Length")))))) {
         Value ret_52 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_52;
     }
+    alg_hold_top = rh_1151;
     {
-        int32_t rt_275 = alg_root_top;
+        int32_t rt_1152 = alg_root_top;
+        int32_t rh_1153 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(v_left, "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            if (alg_truthy(alg_not_equal(f_underlyingtype(NULL, (Value[]){alg_subscript_get(alg_property(v_left, "ParamTypes"), v_i)}, 1), f_underlyingtype(NULL, (Value[]){alg_subscript_get(alg_property(v_right, "ParamTypes"), v_i)}, 1)))) {
-                Value ret_53 = alg_bool(false);
-                alg_root_top = rt_base;
-                return ret_53;
+        alg_hold_top = rh_1153;
+        {
+            int32_t rh_1154 = alg_hold_top;
+            for (; (alg_hold_top = rh_1154, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_hold(alg_property(v_left, "Params")), "Length")))))); (alg_hold_top = rh_1154, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                if (alg_truthy(alg_hold(alg_not_equal(alg_hold(f_underlyingtype(NULL, (Value[]){alg_hold(alg_subscript_get(alg_hold(alg_property(v_left, "ParamTypes")), v_i))}, 1)), alg_hold(f_underlyingtype(NULL, (Value[]){alg_hold(alg_subscript_get(alg_hold(alg_property(v_right, "ParamTypes")), v_i))}, 1)))))) {
+                    Value ret_53 = alg_bool(false);
+                    alg_root_top = rt_base;
+                    return ret_53;
+                }
             }
         }
-        alg_root_top = rt_275;
+        alg_hold_top = rh_1153;
+        alg_root_top = rt_1152;
     }
+    alg_hold_top = rh_1151;
     Value ret_54 = alg_bool(true);
     alg_root_top = rt_base;
     return ret_54;
+    alg_hold_top = rh_1151;
     Value ret_55 = alg_nil();
     alg_root_top = rt_base;
     return ret_55;
@@ -598,29 +680,32 @@ Value f_anynamed(Value **cells, Value *args, int32_t count) {
     Value v_names = alg_param(args[0], "List");
     (void)v_names;
     alg_root(&v_names, 1);
+    int32_t rh_1155 = alg_hold_top;
     {
-        int32_t rt_276 = alg_root_top;
+        int32_t rt_1156 = alg_root_top;
         Value loop_56 = alg_iterable(v_names);
         (void)loop_56;
         alg_root(&loop_56, 1);
         for (int32_t at_56 = 0; at_56 < alg_iterable_count(loop_56); at_56++) {
             alg_safe_point();
-            int32_t rt_277 = alg_root_top;
+            int32_t rt_1157 = alg_root_top;
             Value v_name = alg_iterable_at(loop_56, at_56);
             (void)v_name;
             alg_root(&v_name, 1);
-            if (alg_truthy(alg_not_equal(alg_str(v_name), alg_string("")))) {
+            if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_str(v_name)), alg_literal(""))))) {
                 Value ret_57 = alg_bool(true);
                 alg_root_top = rt_base;
                 return ret_57;
             }
-            alg_root_top = rt_277;
+            alg_root_top = rt_1157;
         }
-        alg_root_top = rt_276;
+        alg_root_top = rt_1156;
     }
+    alg_hold_top = rh_1155;
     Value ret_58 = alg_bool(false);
     alg_root_top = rt_base;
     return ret_58;
+    alg_hold_top = rh_1155;
     Value ret_59 = alg_nil();
     alg_root_top = rt_base;
     return ret_59;
@@ -637,19 +722,23 @@ Value f_widens(Value **cells, Value *args, int32_t count) {
     Value v_declared = alg_param(args[1], "String");
     (void)v_declared;
     alg_root(&v_declared, 1);
-    if (alg_truthy((or_3 = alg_equal(v_declared, alg_string("Double")), !alg_truthy(or_3) ? or_3 : alg_equal(v_actual, alg_string("Integer"))))) {
+    int32_t rh_1158 = alg_hold_top;
+    if (alg_truthy(alg_hold((or_3 = alg_hold(alg_equal(v_declared, alg_literal("Double"))), !alg_truthy(or_3) ? or_3 : alg_hold(alg_equal(v_actual, alg_literal("Integer"))))))) {
         Value ret_60 = alg_bool(true);
         alg_root_top = rt_base;
         return ret_60;
     }
-    if (alg_truthy((or_4 = alg_equal(v_declared, alg_string("String")), !alg_truthy(or_4) ? or_4 : alg_equal(v_actual, alg_string("Char"))))) {
+    alg_hold_top = rh_1158;
+    if (alg_truthy(alg_hold((or_4 = alg_hold(alg_equal(v_declared, alg_literal("String"))), !alg_truthy(or_4) ? or_4 : alg_hold(alg_equal(v_actual, alg_literal("Char"))))))) {
         Value ret_61 = alg_bool(true);
         alg_root_top = rt_base;
         return ret_61;
     }
+    alg_hold_top = rh_1158;
     Value ret_62 = alg_bool(false);
     alg_root_top = rt_base;
     return ret_62;
+    alg_hold_top = rh_1158;
     Value ret_63 = alg_nil();
     alg_root_top = rt_base;
     return ret_63;
@@ -666,29 +755,41 @@ Value f_inheritsfrom(Value **cells, Value *args, int32_t count) {
     Value v_thename = alg_param(args[1], "String");
     (void)v_thename;
     alg_root(&v_thename, 1);
+    int32_t rh_1159 = alg_hold_top;
     Value v_klass = alg_nil();
     (void)v_klass;
     alg_root(&v_klass, 1);
-    if (alg_truthy(alg_not((alg_is_class(v_value, k_objinstance))))) {
+    alg_hold_top = rh_1159;
+    if (alg_truthy(alg_hold(alg_not((alg_is_class(v_value, k_objinstance)))))) {
         Value ret_64 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_64;
     }
-    (void)((v_klass = alg_cast_class(alg_property(v_value, "Klass"), k_objclass, "ObjClass")));
-    while (alg_truthy(alg_not_equal(v_klass, alg_nil()))) {
-        alg_safe_point();
-        {
-            if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_property(v_klass, "Name")}, 1), f_foldcase(NULL, (Value[]){v_thename}, 1)))) {
-                Value ret_65 = alg_bool(true);
-                alg_root_top = rt_base;
-                return ret_65;
+    alg_hold_top = rh_1159;
+    (void)((v_klass = alg_hold(alg_cast_class(alg_property(v_value, "Klass"), k_objclass, "ObjClass"))));
+    alg_hold_top = rh_1159;
+    {
+        int32_t rh_1160 = alg_hold_top;
+        while ((alg_hold_top = rh_1160, alg_truthy(alg_hold(alg_not_equal(v_klass, alg_nil()))))) {
+            alg_safe_point();
+            {
+                int32_t rh_1161 = alg_hold_top;
+                if (alg_truthy(alg_hold(alg_equal(alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_property(v_klass, "Name"))}, 1)), alg_hold(f_foldcase(NULL, (Value[]){v_thename}, 1)))))) {
+                    Value ret_65 = alg_bool(true);
+                    alg_root_top = rt_base;
+                    return ret_65;
+                }
+                alg_hold_top = rh_1161;
+                (void)((v_klass = alg_hold(alg_property(v_klass, "Superclass"))));
+                alg_hold_top = rh_1161;
             }
-            (void)((v_klass = alg_property(v_klass, "Superclass")));
         }
     }
+    alg_hold_top = rh_1159;
     Value ret_66 = alg_bool(false);
     alg_root_top = rt_base;
     return ret_66;
+    alg_hold_top = rh_1159;
     Value ret_67 = alg_nil();
     alg_root_top = rt_base;
     return ret_67;
@@ -721,9 +822,13 @@ static Value m_objfunction_init_3_functionstmt_environment_boolean(Value v_this,
     Value v_isinitializer = alg_widen(args[2], "Boolean");
     (void)v_isinitializer;
     alg_root(&v_isinitializer, 1);
-    (void)(alg_set_property(v_this, "Closure", v_closure));
-    (void)(alg_set_property(v_this, "Declaration", v_declaration));
-    (void)(alg_set_property(v_this, "IsInitializer", v_isinitializer));
+    int32_t rh_1162 = alg_hold_top;
+    (void)(alg_hold(alg_set_property(v_this, "Closure", v_closure)));
+    alg_hold_top = rh_1162;
+    (void)(alg_hold(alg_set_property(v_this, "Declaration", v_declaration)));
+    alg_hold_top = rh_1162;
+    (void)(alg_hold(alg_set_property(v_this, "IsInitializer", v_isinitializer)));
+    alg_hold_top = rh_1162;
     Value ret_68 = alg_nil();
     alg_root_top = rt_base;
     return ret_68;
@@ -737,20 +842,29 @@ static Value m_objfunction_bind_1_objinstance(Value v_this, Value *args, int32_t
     Value v_instance = alg_widen(args[0], "ObjInstance");
     (void)v_instance;
     alg_root(&v_instance, 1);
+    int32_t rh_1163 = alg_hold_top;
     Value v_env = alg_nil();
     (void)v_env;
     alg_root(&v_env, 1);
-    (void)((v_env = alg_new(k_environment, NULL, 0)));
-    (void)(alg_set_property(v_env, "Enclosing", alg_property(v_this, "Closure")));
-    (void)(alg_invoke(v_env, "Define", (Value[]){alg_string("this"), v_instance}, 2));
-    Value v_result = alg_new(k_objfunction, (Value[]){alg_property(v_this, "Declaration"), v_env, alg_property(v_this, "IsInitializer")}, 3);
+    alg_hold_top = rh_1163;
+    (void)((v_env = alg_hold(alg_new(k_environment, NULL, 0))));
+    alg_hold_top = rh_1163;
+    (void)(alg_hold(alg_set_property(v_env, "Enclosing", alg_property(v_this, "Closure"))));
+    alg_hold_top = rh_1163;
+    (void)(alg_hold(alg_invoke(v_env, "Define", (Value[]){alg_literal("this"), v_instance}, 2)));
+    alg_hold_top = rh_1163;
+    Value v_result = alg_hold(alg_new(k_objfunction, (Value[]){alg_property(v_this, "Declaration"), v_env, alg_property(v_this, "IsInitializer")}, 3));
     (void)v_result;
     alg_root(&v_result, 1);
-    (void)(alg_set_property(v_result, "Owner", alg_property(v_this, "Owner")));
-    (void)(alg_set_property(v_result, "Bound", v_instance));
+    alg_hold_top = rh_1163;
+    (void)(alg_hold(alg_set_property(v_result, "Owner", alg_property(v_this, "Owner"))));
+    alg_hold_top = rh_1163;
+    (void)(alg_hold(alg_set_property(v_result, "Bound", v_instance)));
+    alg_hold_top = rh_1163;
     Value ret_69 = v_result;
     alg_root_top = rt_base;
     return ret_69;
+    alg_hold_top = rh_1163;
     Value ret_70 = alg_nil();
     alg_root_top = rt_base;
     return ret_70;
@@ -770,30 +884,37 @@ static Value m_objfunction_fitsat_3_string_boolean(Value v_this, Value *args, in
     Value v_widening = alg_widen(args[2], "Boolean");
     (void)v_widening;
     alg_root(&v_widening, 1);
-    Value v_wanted = f_underlyingtype(NULL, (Value[]){v_declared}, 1);
+    int32_t rh_1164 = alg_hold_top;
+    Value v_wanted = alg_hold(f_underlyingtype(NULL, (Value[]){v_declared}, 1));
     (void)v_wanted;
     alg_root(&v_wanted, 1);
-    if (alg_truthy((or_5 = alg_equal(v_wanted, alg_string("")), alg_truthy(or_5) ? or_5 : alg_equal(v_wanted, alg_string("Any"))))) {
+    alg_hold_top = rh_1164;
+    if (alg_truthy(alg_hold((or_5 = alg_hold(alg_equal(v_wanted, alg_literal(""))), alg_truthy(or_5) ? or_5 : alg_hold(alg_equal(v_wanted, alg_literal("Any"))))))) {
         Value ret_71 = alg_bool(true);
         alg_root_top = rt_base;
         return ret_71;
     }
-    Value v_actual = f_typenameof(NULL, (Value[]){v_argument}, 1);
+    alg_hold_top = rh_1164;
+    Value v_actual = alg_hold(f_typenameof(NULL, (Value[]){v_argument}, 1));
     (void)v_actual;
     alg_root(&v_actual, 1);
-    if (alg_truthy((or_7 = (or_6 = alg_equal(v_actual, alg_string("nil")), alg_truthy(or_6) ? or_6 : alg_equal(v_actual, alg_string("Any"))), alg_truthy(or_7) ? or_7 : alg_equal(v_actual, v_wanted)))) {
+    alg_hold_top = rh_1164;
+    if (alg_truthy(alg_hold((or_7 = alg_hold((or_6 = alg_hold(alg_equal(v_actual, alg_literal("nil"))), alg_truthy(or_6) ? or_6 : alg_hold(alg_equal(v_actual, alg_literal("Any"))))), alg_truthy(or_7) ? or_7 : alg_hold(alg_equal(v_actual, v_wanted)))))) {
         Value ret_72 = alg_bool(true);
         alg_root_top = rt_base;
         return ret_72;
     }
-    if (alg_truthy(f_inheritsfrom(NULL, (Value[]){v_argument, v_wanted}, 2))) {
+    alg_hold_top = rh_1164;
+    if (alg_truthy(alg_hold(f_inheritsfrom(NULL, (Value[]){v_argument, v_wanted}, 2)))) {
         Value ret_73 = alg_bool(true);
         alg_root_top = rt_base;
         return ret_73;
     }
-    Value ret_74 = (or_8 = v_widening, !alg_truthy(or_8) ? or_8 : f_widens(NULL, (Value[]){v_actual, v_wanted}, 2));
+    alg_hold_top = rh_1164;
+    Value ret_74 = alg_hold((or_8 = v_widening, !alg_truthy(or_8) ? or_8 : alg_hold(f_widens(NULL, (Value[]){v_actual, v_wanted}, 2))));
     alg_root_top = rt_base;
     return ret_74;
+    alg_hold_top = rh_1164;
     Value ret_75 = alg_nil();
     alg_root_top = rt_base;
     return ret_75;
@@ -810,29 +931,39 @@ static Value m_objfunction_fits_2_list_boolean(Value v_this, Value *args, int32_
     Value v_widening = alg_widen(args[1], "Boolean");
     (void)v_widening;
     alg_root(&v_widening, 1);
-    if (alg_truthy(alg_not_equal(alg_invoke(v_this, "Arity", NULL, 0), alg_property(v_arguments, "Length")))) {
+    int32_t rh_1165 = alg_hold_top;
+    if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_invoke(v_this, "Arity", NULL, 0)), alg_hold(alg_property(v_arguments, "Length")))))) {
         Value ret_76 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_76;
     }
+    alg_hold_top = rh_1165;
     {
-        int32_t rt_278 = alg_root_top;
+        int32_t rt_1166 = alg_root_top;
+        int32_t rh_1167 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_property(v_arguments, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            if (alg_truthy(alg_not(alg_invoke(v_this, "FitsAt", (Value[]){alg_subscript_get(v_arguments, v_i), alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_i)), v_widening}, 3)))) {
-                Value ret_77 = alg_bool(false);
-                alg_root_top = rt_base;
-                return ret_77;
+        alg_hold_top = rh_1167;
+        {
+            int32_t rh_1168 = alg_hold_top;
+            for (; (alg_hold_top = rh_1168, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(v_arguments, "Length")))))); (alg_hold_top = rh_1168, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "FitsAt", (Value[]){alg_hold(alg_subscript_get(v_arguments, v_i)), alg_hold(alg_str(alg_hold(alg_subscript_get(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamTypes")), v_i)))), v_widening}, 3)))))) {
+                    Value ret_77 = alg_bool(false);
+                    alg_root_top = rt_base;
+                    return ret_77;
+                }
             }
         }
-        alg_root_top = rt_278;
+        alg_hold_top = rh_1167;
+        alg_root_top = rt_1166;
     }
+    alg_hold_top = rh_1165;
     Value ret_78 = alg_bool(true);
     alg_root_top = rt_base;
     return ret_78;
+    alg_hold_top = rh_1165;
     Value ret_79 = alg_nil();
     alg_root_top = rt_base;
     return ret_79;
@@ -843,28 +974,35 @@ static Value m_objfunction_variadic_0(Value v_this, Value *args, int32_t count) 
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
+    int32_t rh_1169 = alg_hold_top;
     Value v_last = alg_nil();
     (void)v_last;
     alg_root(&v_last, 1);
-    if (alg_truthy(alg_equal(alg_invoke(v_this, "Arity", NULL, 0), alg_int(0)))) {
+    alg_hold_top = rh_1169;
+    if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_invoke(v_this, "Arity", NULL, 0)), alg_int(0))))) {
         Value ret_80 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_80;
     }
-    (void)((v_last = alg_subtract(alg_invoke(v_this, "Arity", NULL, 0), alg_int(1))));
-    if (alg_truthy(alg_greater_equal(v_last, alg_property(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), "Length")))) {
+    alg_hold_top = rh_1169;
+    (void)((v_last = alg_hold(alg_subtract(alg_hold(alg_invoke(v_this, "Arity", NULL, 0)), alg_int(1)))));
+    alg_hold_top = rh_1169;
+    if (alg_truthy(alg_hold(alg_greater_equal(v_last, alg_hold(alg_property(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamTypes")), "Length")))))) {
         Value ret_81 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_81;
     }
-    if (alg_truthy(alg_greater_equal(v_last, alg_property(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), "Length")))) {
+    alg_hold_top = rh_1169;
+    if (alg_truthy(alg_hold(alg_greater_equal(v_last, alg_hold(alg_property(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics")), "Length")))))) {
         Value ret_82 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_82;
     }
-    Value ret_83 = (or_9 = alg_equal(f_canonicaltype(NULL, (Value[]){alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_last)}, 1), alg_string("List")), !alg_truthy(or_9) ? or_9 : alg_not_equal(alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), v_last)), alg_string("")));
+    alg_hold_top = rh_1169;
+    Value ret_83 = alg_hold((or_9 = alg_hold(alg_equal(alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_subscript_get(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamTypes")), v_last))}, 1)), alg_literal("List"))), !alg_truthy(or_9) ? or_9 : alg_hold(alg_not_equal(alg_hold(alg_str(alg_hold(alg_subscript_get(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics")), v_last)))), alg_literal("")))));
     alg_root_top = rt_base;
     return ret_83;
+    alg_hold_top = rh_1169;
     Value ret_84 = alg_nil();
     alg_root_top = rt_base;
     return ret_84;
@@ -878,57 +1016,79 @@ static Value m_objfunction_absorbs_1_list(Value v_this, Value *args, int32_t cou
     Value v_arguments = alg_widen(args[0], "List");
     (void)v_arguments;
     alg_root(&v_arguments, 1);
+    int32_t rh_1170 = alg_hold_top;
     Value v_fixed = alg_nil();
     (void)v_fixed;
     alg_root(&v_fixed, 1);
+    alg_hold_top = rh_1170;
     Value v_element = alg_nil();
     (void)v_element;
     alg_root(&v_element, 1);
-    if (alg_truthy(alg_not(alg_invoke(v_this, "Variadic", NULL, 0)))) {
+    alg_hold_top = rh_1170;
+    if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Variadic", NULL, 0)))))) {
         Value ret_85 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_85;
     }
-    (void)((v_fixed = alg_subtract(alg_invoke(v_this, "Arity", NULL, 0), alg_int(1))));
-    if (alg_truthy(alg_less(alg_property(v_arguments, "Length"), v_fixed))) {
+    alg_hold_top = rh_1170;
+    (void)((v_fixed = alg_hold(alg_subtract(alg_hold(alg_invoke(v_this, "Arity", NULL, 0)), alg_int(1)))));
+    alg_hold_top = rh_1170;
+    if (alg_truthy(alg_hold(alg_less(alg_hold(alg_property(v_arguments, "Length")), v_fixed)))) {
         Value ret_86 = alg_bool(false);
         alg_root_top = rt_base;
         return ret_86;
     }
+    alg_hold_top = rh_1170;
     {
-        int32_t rt_279 = alg_root_top;
+        int32_t rt_1171 = alg_root_top;
+        int32_t rh_1172 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, v_fixed)); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            if (alg_truthy(alg_not(alg_invoke(v_this, "FitsAt", (Value[]){alg_subscript_get(v_arguments, v_i), alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_i)), alg_bool(true)}, 3)))) {
-                Value ret_87 = alg_bool(false);
-                alg_root_top = rt_base;
-                return ret_87;
+        alg_hold_top = rh_1172;
+        {
+            int32_t rh_1173 = alg_hold_top;
+            for (; (alg_hold_top = rh_1173, alg_truthy(alg_hold(alg_less(v_i, v_fixed)))); (alg_hold_top = rh_1173, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "FitsAt", (Value[]){alg_hold(alg_subscript_get(v_arguments, v_i)), alg_hold(alg_str(alg_hold(alg_subscript_get(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamTypes")), v_i)))), alg_bool(true)}, 3)))))) {
+                    Value ret_87 = alg_bool(false);
+                    alg_root_top = rt_base;
+                    return ret_87;
+                }
             }
         }
-        alg_root_top = rt_279;
+        alg_hold_top = rh_1172;
+        alg_root_top = rt_1171;
     }
-    (void)((v_element = alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics"), v_fixed))));
+    alg_hold_top = rh_1170;
+    (void)((v_element = alg_hold(alg_str(alg_hold(alg_subscript_get(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamGenerics")), v_fixed))))));
+    alg_hold_top = rh_1170;
     {
-        int32_t rt_280 = alg_root_top;
+        int32_t rt_1174 = alg_root_top;
+        int32_t rh_1175 = alg_hold_top;
         Value v_i = v_fixed;
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_property(v_arguments, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            if (alg_truthy(alg_not(alg_invoke(v_this, "FitsAt", (Value[]){alg_subscript_get(v_arguments, v_i), v_element, alg_bool(true)}, 3)))) {
-                Value ret_88 = alg_bool(false);
-                alg_root_top = rt_base;
-                return ret_88;
+        alg_hold_top = rh_1175;
+        {
+            int32_t rh_1176 = alg_hold_top;
+            for (; (alg_hold_top = rh_1176, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(v_arguments, "Length")))))); (alg_hold_top = rh_1176, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "FitsAt", (Value[]){alg_hold(alg_subscript_get(v_arguments, v_i)), v_element, alg_bool(true)}, 3)))))) {
+                    Value ret_88 = alg_bool(false);
+                    alg_root_top = rt_base;
+                    return ret_88;
+                }
             }
         }
-        alg_root_top = rt_280;
+        alg_hold_top = rh_1175;
+        alg_root_top = rt_1174;
     }
+    alg_hold_top = rh_1170;
     Value ret_89 = alg_bool(true);
     alg_root_top = rt_base;
     return ret_89;
+    alg_hold_top = rh_1170;
     Value ret_90 = alg_nil();
     alg_root_top = rt_base;
     return ret_90;
@@ -942,50 +1102,73 @@ static Value m_objfunction_absorb_1_list(Value v_this, Value *args, int32_t coun
     Value v_arguments = alg_widen(args[0], "List");
     (void)v_arguments;
     alg_root(&v_arguments, 1);
+    int32_t rh_1177 = alg_hold_top;
     Value v_gathered = alg_nil();
     (void)v_gathered;
     alg_root(&v_gathered, 1);
+    alg_hold_top = rh_1177;
     Value v_rest = alg_nil();
     (void)v_rest;
     alg_root(&v_rest, 1);
-    if (alg_truthy(alg_invoke(v_this, "Fits", (Value[]){v_arguments, alg_bool(true)}, 2))) {
+    alg_hold_top = rh_1177;
+    if (alg_truthy(alg_hold(alg_invoke(v_this, "Fits", (Value[]){v_arguments, alg_bool(true)}, 2)))) {
         Value ret_91 = v_arguments;
         alg_root_top = rt_base;
         return ret_91;
     }
-    if (alg_truthy(alg_not(alg_invoke(v_this, "Absorbs", (Value[]){v_arguments}, 1)))) {
+    alg_hold_top = rh_1177;
+    if (alg_truthy(alg_hold(alg_not(alg_hold(alg_invoke(v_this, "Absorbs", (Value[]){v_arguments}, 1)))))) {
         Value ret_92 = v_arguments;
         alg_root_top = rt_base;
         return ret_92;
     }
-    (void)((v_gathered = alg_list()));
-    (void)((v_rest = alg_new(k_objcollection, (Value[]){alg_string("List")}, 1)));
+    alg_hold_top = rh_1177;
+    (void)((v_gathered = alg_hold(alg_list())));
+    alg_hold_top = rh_1177;
+    (void)((v_rest = alg_hold(alg_new(k_objcollection, (Value[]){alg_literal("List")}, 1))));
+    alg_hold_top = rh_1177;
     {
-        int32_t rt_281 = alg_root_top;
+        int32_t rt_1178 = alg_root_top;
+        int32_t rh_1179 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_subtract(alg_invoke(v_this, "Arity", NULL, 0), alg_int(1)))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            (void)(alg_invoke(v_gathered, "Add", (Value[]){alg_subscript_get(v_arguments, v_i)}, 1));
+        alg_hold_top = rh_1179;
+        {
+            int32_t rh_1180 = alg_hold_top;
+            for (; (alg_hold_top = rh_1180, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_subtract(alg_hold(alg_invoke(v_this, "Arity", NULL, 0)), alg_int(1))))))); (alg_hold_top = rh_1180, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                (void)(alg_hold(alg_invoke(v_gathered, "Add", (Value[]){alg_hold(alg_subscript_get(v_arguments, v_i))}, 1)));
+            }
         }
-        alg_root_top = rt_281;
+        alg_hold_top = rh_1179;
+        alg_root_top = rt_1178;
     }
+    alg_hold_top = rh_1177;
     {
-        int32_t rt_282 = alg_root_top;
-        Value v_i = alg_subtract(alg_invoke(v_this, "Arity", NULL, 0), alg_int(1));
+        int32_t rt_1181 = alg_root_top;
+        int32_t rh_1182 = alg_hold_top;
+        Value v_i = alg_hold(alg_subtract(alg_hold(alg_invoke(v_this, "Arity", NULL, 0)), alg_int(1)));
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_property(v_arguments, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            (void)(alg_invoke(alg_property(v_rest, "Items"), "Add", (Value[]){alg_subscript_get(v_arguments, v_i)}, 1));
+        alg_hold_top = rh_1182;
+        {
+            int32_t rh_1183 = alg_hold_top;
+            for (; (alg_hold_top = rh_1183, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(v_arguments, "Length")))))); (alg_hold_top = rh_1183, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                (void)(alg_hold(alg_invoke(alg_hold(alg_property(v_rest, "Items")), "Add", (Value[]){alg_hold(alg_subscript_get(v_arguments, v_i))}, 1)));
+            }
         }
-        alg_root_top = rt_282;
+        alg_hold_top = rh_1182;
+        alg_root_top = rt_1181;
     }
-    (void)(alg_invoke(v_gathered, "Add", (Value[]){v_rest}, 1));
+    alg_hold_top = rh_1177;
+    (void)(alg_hold(alg_invoke(v_gathered, "Add", (Value[]){v_rest}, 1)));
+    alg_hold_top = rh_1177;
     Value ret_93 = v_gathered;
     alg_root_top = rt_base;
     return ret_93;
+    alg_hold_top = rh_1177;
     Value ret_94 = alg_nil();
     alg_root_top = rt_base;
     return ret_94;
@@ -999,24 +1182,33 @@ static Value m_objfunction_parameterat_1_string(Value v_this, Value *args, int32
     Value v_thename = alg_widen(args[0], "String");
     (void)v_thename;
     alg_root(&v_thename, 1);
+    int32_t rh_1184 = alg_hold_top;
     {
-        int32_t rt_283 = alg_root_top;
+        int32_t rt_1185 = alg_root_top;
+        int32_t rh_1186 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(alg_property(v_this, "Declaration"), "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            if (alg_truthy(alg_equal(f_foldcase(NULL, (Value[]){alg_str(alg_property(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "Params"), v_i), "Lexeme"))}, 1), f_foldcase(NULL, (Value[]){v_thename}, 1)))) {
-                Value ret_95 = v_i;
-                alg_root_top = rt_base;
-                return ret_95;
+        alg_hold_top = rh_1186;
+        {
+            int32_t rh_1187 = alg_hold_top;
+            for (; (alg_hold_top = rh_1187, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Params")), "Length")))))); (alg_hold_top = rh_1187, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                if (alg_truthy(alg_hold(alg_equal(alg_hold(f_foldcase(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_subscript_get(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Params")), v_i)), "Lexeme"))))}, 1)), alg_hold(f_foldcase(NULL, (Value[]){v_thename}, 1)))))) {
+                    Value ret_95 = v_i;
+                    alg_root_top = rt_base;
+                    return ret_95;
+                }
             }
         }
-        alg_root_top = rt_283;
+        alg_hold_top = rh_1186;
+        alg_root_top = rt_1185;
     }
-    Value ret_96 = alg_negate(alg_int(1));
+    alg_hold_top = rh_1184;
+    Value ret_96 = alg_hold(alg_negate(alg_int(1)));
     alg_root_top = rt_base;
     return ret_96;
+    alg_hold_top = rh_1184;
     Value ret_97 = alg_nil();
     alg_root_top = rt_base;
     return ret_97;
@@ -1033,94 +1225,128 @@ static Value m_objfunction_arrange_2_list_list(Value v_this, Value *args, int32_
     Value v_names = alg_widen(args[1], "List");
     (void)v_names;
     alg_root(&v_names, 1);
+    int32_t rh_1188 = alg_hold_top;
     Value v_slots = alg_nil();
     (void)v_slots;
     alg_root(&v_slots, 1);
+    alg_hold_top = rh_1188;
     Value v_filled = alg_nil();
     (void)v_filled;
     alg_root(&v_filled, 1);
-    if (alg_truthy(alg_not(f_anynamed(NULL, (Value[]){v_names}, 1)))) {
+    alg_hold_top = rh_1188;
+    if (alg_truthy(alg_hold(alg_not(alg_hold(f_anynamed(NULL, (Value[]){v_names}, 1)))))) {
         Value ret_98 = v_arguments;
         alg_root_top = rt_base;
         return ret_98;
     }
-    (void)((v_slots = alg_list()));
-    (void)((v_filled = alg_list()));
+    alg_hold_top = rh_1188;
+    (void)((v_slots = alg_hold(alg_list())));
+    alg_hold_top = rh_1188;
+    (void)((v_filled = alg_hold(alg_list())));
+    alg_hold_top = rh_1188;
     {
-        int32_t rt_284 = alg_root_top;
+        int32_t rt_1189 = alg_root_top;
+        int32_t rh_1190 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_invoke(v_this, "Arity", NULL, 0))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            {
-                (void)(alg_invoke(v_slots, "Add", (Value[]){alg_nil()}, 1));
-                (void)(alg_invoke(v_filled, "Add", (Value[]){alg_bool(false)}, 1));
+        alg_hold_top = rh_1190;
+        {
+            int32_t rh_1191 = alg_hold_top;
+            for (; (alg_hold_top = rh_1191, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_invoke(v_this, "Arity", NULL, 0)))))); (alg_hold_top = rh_1191, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                {
+                    int32_t rh_1192 = alg_hold_top;
+                    (void)(alg_hold(alg_invoke(v_slots, "Add", (Value[]){alg_nil()}, 1)));
+                    alg_hold_top = rh_1192;
+                    (void)(alg_hold(alg_invoke(v_filled, "Add", (Value[]){alg_bool(false)}, 1)));
+                    alg_hold_top = rh_1192;
+                }
             }
         }
-        alg_root_top = rt_284;
+        alg_hold_top = rh_1190;
+        alg_root_top = rt_1189;
     }
+    alg_hold_top = rh_1188;
     {
-        int32_t rt_285 = alg_root_top;
+        int32_t rt_1193 = alg_root_top;
+        int32_t rh_1194 = alg_hold_top;
         Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_property(v_arguments, "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            {
-                int32_t rt_286 = alg_root_top;
-                Value v_thename = alg_string("");
-                (void)v_thename;
-                alg_root(&v_thename, 1);
-                if (alg_truthy(alg_less(v_i, alg_property(v_names, "Length")))) {
-                    (void)((v_thename = alg_str(alg_subscript_get(v_names, v_i))));
+        alg_hold_top = rh_1194;
+        {
+            int32_t rh_1195 = alg_hold_top;
+            for (; (alg_hold_top = rh_1195, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(v_arguments, "Length")))))); (alg_hold_top = rh_1195, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                {
+                    int32_t rt_1196 = alg_root_top;
+                    int32_t rh_1197 = alg_hold_top;
+                    Value v_thename = alg_literal("");
+                    (void)v_thename;
+                    alg_root(&v_thename, 1);
+                    alg_hold_top = rh_1197;
+                    if (alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(v_names, "Length")))))) {
+                        (void)((v_thename = alg_hold(alg_str(alg_hold(alg_subscript_get(v_names, v_i))))));
+                    }
+                    alg_hold_top = rh_1197;
+                    Value v_at = v_i;
+                    (void)v_at;
+                    alg_root(&v_at, 1);
+                    alg_hold_top = rh_1197;
+                    if (alg_truthy(alg_hold(alg_not_equal(v_thename, alg_literal(""))))) {
+                        (void)((v_at = alg_hold(alg_invoke(v_this, "ParameterAt", (Value[]){v_thename}, 1))));
+                    }
+                    alg_hold_top = rh_1197;
+                    if (alg_truthy(alg_hold((or_10 = alg_hold(alg_less(v_at, alg_int(0))), alg_truthy(or_10) ? or_10 : alg_hold(alg_greater_equal(v_at, alg_hold(alg_property(v_slots, "Length")))))))) {
+                        Value ret_99 = alg_nil();
+                        alg_root_top = rt_base;
+                        return ret_99;
+                    }
+                    alg_hold_top = rh_1197;
+                    if (alg_truthy(alg_hold(alg_subscript_get(v_filled, v_at)))) {
+                        Value ret_100 = alg_nil();
+                        alg_root_top = rt_base;
+                        return ret_100;
+                    }
+                    alg_hold_top = rh_1197;
+                    (void)(alg_hold(alg_subscript_set(v_slots, v_at, alg_hold(alg_subscript_get(v_arguments, v_i)))));
+                    alg_hold_top = rh_1197;
+                    (void)(alg_hold(alg_subscript_set(v_filled, v_at, alg_bool(true))));
+                    alg_hold_top = rh_1197;
+                    alg_root_top = rt_1196;
                 }
-                Value v_at = v_i;
-                (void)v_at;
-                alg_root(&v_at, 1);
-                if (alg_truthy(alg_not_equal(v_thename, alg_string("")))) {
-                    (void)((v_at = alg_invoke(v_this, "ParameterAt", (Value[]){v_thename}, 1)));
-                }
-                if (alg_truthy((or_10 = alg_less(v_at, alg_int(0)), alg_truthy(or_10) ? or_10 : alg_greater_equal(v_at, alg_property(v_slots, "Length"))))) {
-                    Value ret_99 = alg_nil();
-                    alg_root_top = rt_base;
-                    return ret_99;
-                }
-                if (alg_truthy(alg_subscript_get(v_filled, v_at))) {
-                    Value ret_100 = alg_nil();
-                    alg_root_top = rt_base;
-                    return ret_100;
-                }
-                (void)(alg_subscript_set(v_slots, v_at, alg_subscript_get(v_arguments, v_i)));
-                (void)(alg_subscript_set(v_filled, v_at, alg_bool(true)));
-                alg_root_top = rt_286;
             }
         }
-        alg_root_top = rt_285;
+        alg_hold_top = rh_1194;
+        alg_root_top = rt_1193;
     }
+    alg_hold_top = rh_1188;
     {
-        int32_t rt_287 = alg_root_top;
+        int32_t rt_1198 = alg_root_top;
         Value loop_101 = alg_iterable(v_filled);
         (void)loop_101;
         alg_root(&loop_101, 1);
         for (int32_t at_101 = 0; at_101 < alg_iterable_count(loop_101); at_101++) {
             alg_safe_point();
-            int32_t rt_288 = alg_root_top;
+            int32_t rt_1199 = alg_root_top;
             Value v_each = alg_iterable_at(loop_101, at_101);
             (void)v_each;
             alg_root(&v_each, 1);
-            if (alg_truthy(alg_not(v_each))) {
+            if (alg_truthy(alg_hold(alg_not(v_each)))) {
                 Value ret_102 = alg_nil();
                 alg_root_top = rt_base;
                 return ret_102;
             }
-            alg_root_top = rt_288;
+            alg_root_top = rt_1199;
         }
-        alg_root_top = rt_287;
+        alg_root_top = rt_1198;
     }
+    alg_hold_top = rh_1188;
     Value ret_103 = v_slots;
     alg_root_top = rt_base;
     return ret_103;
+    alg_hold_top = rh_1188;
     Value ret_104 = alg_nil();
     alg_root_top = rt_base;
     return ret_104;
@@ -1137,14 +1363,17 @@ static Value m_objfunction_selects_2_list_integer(Value v_this, Value *args, int
     Value v_pass = alg_widen(args[1], "Integer");
     (void)v_pass;
     alg_root(&v_pass, 1);
-    if (alg_truthy(alg_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing)))) {
-        Value ret_105 = alg_invoke(v_this, "Absorbs", (Value[]){v_arguments}, 1);
+    int32_t rh_1200 = alg_hold_top;
+    if (alg_truthy(alg_hold(alg_equal(v_pass, (alg_declared(d_absorbing, "ABSORBING"), v_absorbing))))) {
+        Value ret_105 = alg_hold(alg_invoke(v_this, "Absorbs", (Value[]){v_arguments}, 1));
         alg_root_top = rt_base;
         return ret_105;
     }
-    Value ret_106 = alg_invoke(v_this, "Fits", (Value[]){v_arguments, alg_equal(v_pass, (alg_declared(d_widening, "WIDENING"), v_widening))}, 2);
+    alg_hold_top = rh_1200;
+    Value ret_106 = alg_hold(alg_invoke(v_this, "Fits", (Value[]){v_arguments, alg_hold(alg_equal(v_pass, (alg_declared(d_widening, "WIDENING"), v_widening)))}, 2));
     alg_root_top = rt_base;
     return ret_106;
+    alg_hold_top = rh_1200;
     Value ret_107 = alg_nil();
     alg_root_top = rt_base;
     return ret_107;
@@ -1155,14 +1384,17 @@ static Value m_objfunction_arity_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    if (alg_truthy(alg_equal(alg_property(alg_property(v_this, "Declaration"), "Params"), alg_nil()))) {
+    int32_t rh_1201 = alg_hold_top;
+    if (alg_truthy(alg_hold(alg_equal(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Params")), alg_nil())))) {
         Value ret_108 = alg_int(0);
         alg_root_top = rt_base;
         return ret_108;
     }
-    Value ret_109 = alg_property(alg_property(alg_property(v_this, "Declaration"), "Params"), "Length");
+    alg_hold_top = rh_1201;
+    Value ret_109 = alg_hold(alg_property(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Params")), "Length"));
     alg_root_top = rt_base;
     return ret_109;
+    alg_hold_top = rh_1201;
     Value ret_110 = alg_nil();
     alg_root_top = rt_base;
     return ret_110;
@@ -1173,9 +1405,11 @@ static Value m_objfunction_tostring_0(Value v_this, Value *args, int32_t count) 
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    Value ret_111 = alg_add(alg_add(alg_string("<fn "), alg_property(alg_property(alg_property(v_this, "Declaration"), "Name"), "Lexeme")), alg_char_value(62));
+    int32_t rh_1202 = alg_hold_top;
+    Value ret_111 = alg_hold(alg_add(alg_hold(alg_add(alg_literal("<fn "), alg_hold(alg_property(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Name")), "Lexeme")))), alg_char_value(62)));
     alg_root_top = rt_base;
     return ret_111;
+    alg_hold_top = rh_1202;
     Value ret_112 = alg_nil();
     alg_root_top = rt_base;
     return ret_112;
@@ -1192,47 +1426,67 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
     volatile Value v_arguments = args[1];
     (void)v_arguments;
     alg_root(&v_arguments, 1);
+    int32_t rh_1203 = alg_hold_top;
     volatile Value v_env = alg_nil();
     (void)v_env;
     alg_root(&v_env, 1);
+    alg_hold_top = rh_1203;
     volatile Value v_count = alg_nil();
     (void)v_count;
     alg_root(&v_count, 1);
-    (void)((v_env = alg_new(k_environment, NULL, 0)));
-    (void)(alg_set_property(v_env, "Enclosing", alg_property(v_this, "Closure")));
-    (void)((v_arguments = alg_invoke(v_this, "Absorb", (Value[]){v_arguments}, 1)));
-    if (alg_truthy(alg_not_equal(alg_property(alg_property(v_this, "Declaration"), "Symbol"), alg_string("")))) {
-        volatile Value ret_113 = alg_foreign_call(alg_property(alg_property(v_this, "Declaration"), "Symbol"), alg_property(alg_property(v_this, "Declaration"), "Library"), alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), alg_property(alg_property(v_this, "Declaration"), "ReturnType"), v_arguments);
+    alg_hold_top = rh_1203;
+    (void)((v_env = alg_hold(alg_new(k_environment, NULL, 0))));
+    alg_hold_top = rh_1203;
+    (void)(alg_hold(alg_set_property(v_env, "Enclosing", alg_property(v_this, "Closure"))));
+    alg_hold_top = rh_1203;
+    (void)((v_arguments = alg_hold(alg_invoke(v_this, "Absorb", (Value[]){v_arguments}, 1))));
+    alg_hold_top = rh_1203;
+    if (alg_truthy(alg_hold(alg_not_equal(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Symbol")), alg_literal(""))))) {
+        volatile Value ret_113 = alg_hold(alg_foreign_call(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Symbol")), alg_hold(alg_property(alg_property(v_this, "Declaration"), "Library")), alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamTypes")), alg_hold(alg_property(alg_property(v_this, "Declaration"), "ReturnType")), v_arguments));
         alg_root_top = rt_base;
         return ret_113;
     }
+    alg_hold_top = rh_1203;
     {
-        int32_t rt_289 = alg_root_top;
+        int32_t rt_1204 = alg_root_top;
+        int32_t rh_1205 = alg_hold_top;
         volatile Value v_i = alg_int(0);
         (void)v_i;
         alg_root(&v_i, 1);
-        for (; alg_truthy(alg_less(v_i, alg_property(alg_property(alg_property(v_this, "Declaration"), "Params"), "Length"))); (v_i = alg_add(v_i, alg_int(1)))) {
-            alg_safe_point();
-            {
-                int32_t rt_290 = alg_root_top;
-                volatile Value v_declared = alg_string("");
-                (void)v_declared;
-                alg_root(&v_declared, 1);
-                if (alg_truthy(alg_less(v_i, alg_property(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), "Length")))) {
-                    (void)((v_declared = alg_str(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "ParamTypes"), v_i))));
+        alg_hold_top = rh_1205;
+        {
+            int32_t rh_1206 = alg_hold_top;
+            for (; (alg_hold_top = rh_1206, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Params")), "Length")))))); (alg_hold_top = rh_1206, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                {
+                    int32_t rt_1207 = alg_root_top;
+                    int32_t rh_1208 = alg_hold_top;
+                    volatile Value v_declared = alg_literal("");
+                    (void)v_declared;
+                    alg_root(&v_declared, 1);
+                    alg_hold_top = rh_1208;
+                    if (alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamTypes")), "Length")))))) {
+                        (void)((v_declared = alg_hold(alg_str(alg_hold(alg_subscript_get(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ParamTypes")), v_i))))));
+                    }
+                    alg_hold_top = rh_1208;
+                    (void)(alg_hold(alg_invoke(v_env, "Define", (Value[]){alg_hold(alg_property(alg_hold(alg_subscript_get(alg_hold(alg_property(alg_property(v_this, "Declaration"), "Params")), v_i)), "Lexeme")), alg_hold(alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_hold(alg_subscript_get(v_arguments, v_i)), v_declared}, 2))}, 2)));
+                    alg_hold_top = rh_1208;
+                    alg_root_top = rt_1207;
                 }
-                (void)(alg_invoke(v_env, "Define", (Value[]){alg_property(alg_subscript_get(alg_property(alg_property(v_this, "Declaration"), "Params"), v_i), "Lexeme"), alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_subscript_get(v_arguments, v_i), v_declared}, 2)}, 2));
-                alg_root_top = rt_290;
             }
         }
-        alg_root_top = rt_289;
+        alg_hold_top = rh_1205;
+        alg_root_top = rt_1204;
     }
+    alg_hold_top = rh_1203;
     {
         AlgFrame frame_114;
         alg_push_frame(&frame_114);
         if (ALG_SETJMP(frame_114.jump) == 0) {
             {
-                (void)(alg_invoke(v_theinterpreter, "ExecuteBlock", (Value[]){alg_property(alg_property(v_this, "Declaration"), "Body"), v_env}, 2));
+                int32_t rh_1209 = alg_hold_top;
+                (void)(alg_hold(alg_invoke(v_theinterpreter, "ExecuteBlock", (Value[]){alg_hold(alg_property(alg_property(v_this, "Declaration"), "Body")), v_env}, 2)));
+                alg_hold_top = rh_1209;
             }
             alg_pop_frame();
         }
@@ -1241,21 +1495,24 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
             int32_t which_114 = alg_handler(frame_114.raised, names_114, 1);
             if (which_114 == 0) {
                 {
-                    int32_t rt_291 = alg_root_top;
+                    int32_t rt_1210 = alg_root_top;
                     volatile Value v_e = frame_114.raised;
                     (void)v_e;
                     alg_root(&v_e, 1);
                     {
+                        int32_t rh_1211 = alg_hold_top;
                         if (alg_truthy(alg_property(v_this, "IsInitializer"))) {
-                            volatile Value ret_115 = alg_invoke(alg_property(v_this, "Closure"), "GetAt", (Value[]){alg_int(0), alg_string("this")}, 2);
+                            volatile Value ret_115 = alg_hold(alg_invoke(alg_property(v_this, "Closure"), "GetAt", (Value[]){alg_int(0), alg_literal("this")}, 2));
                             alg_root_top = rt_base;
                             return ret_115;
                         }
-                        volatile Value ret_116 = alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_property(v_e, "Value"), alg_str(alg_property(alg_property(v_this, "Declaration"), "ReturnType"))}, 2);
+                        alg_hold_top = rh_1211;
+                        volatile Value ret_116 = alg_hold(alg_invoke(v_theinterpreter, "Widen", (Value[]){alg_hold(alg_property(v_e, "Value")), alg_hold(alg_str(alg_hold(alg_property(alg_property(v_this, "Declaration"), "ReturnType"))))}, 2));
                         alg_root_top = rt_base;
                         return ret_116;
+                        alg_hold_top = rh_1211;
                     }
-                    alg_root_top = rt_291;
+                    alg_root_top = rt_1210;
                 }
             }
             else {
@@ -1263,11 +1520,13 @@ static Value m_objfunction_call_2(Value v_this, Value *args, int32_t count) {
             }
         }
     }
+    alg_hold_top = rh_1203;
     if (alg_truthy(alg_property(v_this, "IsInitializer"))) {
-        volatile Value ret_117 = alg_invoke(alg_property(v_this, "Closure"), "GetAt", (Value[]){alg_int(0), alg_string("this")}, 2);
+        volatile Value ret_117 = alg_hold(alg_invoke(alg_property(v_this, "Closure"), "GetAt", (Value[]){alg_int(0), alg_literal("this")}, 2));
         alg_root_top = rt_base;
         return ret_117;
     }
+    alg_hold_top = rh_1203;
     volatile Value ret_118 = alg_nil();
     alg_root_top = rt_base;
     return ret_118;
@@ -1345,11 +1604,34 @@ void init_ObjFunction(void) {
     alg_class_method(k_objfunction, "Arity", m_objfunction_arity_0, 0, NULL);
     alg_class_method(k_objfunction, "ToString", m_objfunction_tostring_0, 0, NULL);
     alg_class_method(k_objfunction, "Call", m_objfunction_call_2, 2, t_objfunction_call_2);
+    int32_t rh_1121 = alg_hold_top;
+    alg_hold_top = rh_1121;
     init_Interpreter();
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
     v_exact = alg_int(0);
     d_exact = true;
+    alg_hold_top = rh_1121;
     v_widening = alg_int(1);
     d_widening = true;
+    alg_hold_top = rh_1121;
     v_absorbing = alg_int(2);
     d_absorbing = true;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
+    alg_hold_top = rh_1121;
 }

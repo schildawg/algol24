@@ -6,12 +6,12 @@
 #   ./collector.sh --record   # write .out from what happens
 #   ./collector.sh --limit N  # seconds a single run may take (default 120)
 #
-# ⚠️ THE COMPILED BACK END ONLY, and that is not an omission.  `Collect` is a
-# REQUEST [RT-029]: the interpreter answers 0 because its live values sit in C
-# locals all through a recursive evaluator, where no collector can see them, so
-# declining is the conformant answer and there is nothing here to compare it
-# against.  The corpus under ./conform.sh is where the two processors are held
-# to each other; this asks a question only one of them answers.
+# ⚠️ THE COMPILED BACK END ONLY, which was the RULE when the interpreter
+# declined and is now merely where these cases happen to run.  All three
+# processors collect, so there would be something to compare -- worth
+# revisiting if a case here ever needs to be about more than the compiled
+# path.  The corpus under ./conform.sh is where the processors are held to
+# each other.
 #
 # ⚠️ EVERY CASE RUNS TWICE, because the bugs this guards against divide exactly
 # along that line:
@@ -172,7 +172,65 @@ check () {
     PASS=$((PASS + 1))
 }
 
-found=$(find collector -maxdepth 1 -name '*.a24' 2>/dev/null | sort)
+# ── The scale check ───────────────────────────────────────────────────────
+#
+# ⚠️ A TEXT LEAK IS INVISIBLE TO OUTPUT, so comparing what a program prints
+# cannot catch one.  `flat-text.a24` takes a round count instead and is run at
+# two scales ten times apart: the memory the runtime reports must be the SAME,
+# which is the property a leak breaks and an allocator's own choices do not.
+#
+# The small scale is 20,000 rather than 2,000 because the heap has to reach
+# steady state first -- 2,000 rounds peaks BELOW the figure it settles on, so
+# comparing against it would read a leak as the heap merely warming up.
+check_flat () {
+    _src=collector/flat-text.a24
+    _dir=$WORK/flat
+
+    mkdir -p "$_dir"
+
+    if ! "$ALGC" --compile --out="$_dir" "$_src" > "$WORK/emit" 2>&1; then
+        echo "  FAIL  flat-text -- did not compile"
+        sed 's/^/           /' "$WORK/emit"
+        FAIL=$((FAIL + 1))
+        return
+    fi
+
+    if ! cc -std=c11 -O2 -o "$_dir/prog" "$_dir"/*.c > "$WORK/cc" 2>&1; then
+        echo "  FAIL  flat-text -- the emitted C did not build"
+        sed 's/^/           /' "$WORK/cc"
+        FAIL=$((FAIL + 1))
+        return
+    fi
+
+    for _scale in 20000 200000; do
+        ALG_MEM_REPORT=1 run_bounded "$WORK/flat-$_scale" "$_dir/prog" "$_scale"
+
+        if [ $? -ne 0 ]; then
+            echo "  FAIL  flat-text -- $_scale rounds did not run"
+            sed 's/^/           /' "$WORK/flat-$_scale" | head -8
+            FAIL=$((FAIL + 1))
+            return
+        fi
+    done
+
+    _small=$(awk '/\[mem\] text:/ { for (i = 1; i < NF; i++) if ($(i + 1) == "MB" && $(i + 2) == "room") print $i }
+                  /\[mem\] arena:/ { print $3 }' "$WORK/flat-20000" | tr '\n' ' ')
+    _large=$(awk '/\[mem\] text:/ { for (i = 1; i < NF; i++) if ($(i + 1) == "MB" && $(i + 2) == "room") print $i }
+                  /\[mem\] arena:/ { print $3 }' "$WORK/flat-200000" | tr '\n' ' ')
+
+    if [ -z "$_small" ] || [ "$_small" != "$_large" ]; then
+        echo "  FAIL  flat-text -- ten times the work cost more memory"
+        echo "           20,000 rounds: text room and arena, in MB: $_small"
+        echo "          200,000 rounds: text room and arena, in MB: $_large"
+        FAIL=$((FAIL + 1))
+        return
+    fi
+
+    echo "  PASS  flat-text -- text room and arena unchanged at ${_large}MB, 10x the work"
+    PASS=$((PASS + 1))
+}
+
+found=$(find collector -maxdepth 1 -name '[0-9]*.a24' 2>/dev/null | sort)
 
 if [ -z "$found" ]; then
     echo "collector.sh: no cases in collector/" >&2
@@ -184,6 +242,8 @@ echo "collector"
 for src in $found; do
     check "$src"
 done
+
+if [ "$RECORD" -eq 0 ]; then check_flat; fi
 
 echo
 
