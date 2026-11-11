@@ -13,8 +13,8 @@
 # path.  The corpus under ./conform.sh is where the processors are held to
 # each other.
 #
-# ⚠️ EVERY CASE RUNS TWICE, because the bugs this guards against divide exactly
-# along that line:
+# ⚠️ EVERY CASE RUNS THREE WAYS, because the bugs this guards against divide
+# exactly along those lines:
 #
 #   plainly          a released body is handed back out.  This is where a
 #                    collector that frees something live corrupts quietly --
@@ -22,11 +22,24 @@
 #   ALG_POISON=1     a released body is retagged and never reused, and the
 #                    first use of one faults where it is used, naming the kind
 #                    and the site.
+#   ALG_TEXT_CHECK=1 every cached text length is recomputed where the cache
+#                    answers it, so a recycled block that kept an earlier
+#                    string's answer faults rather than returning a plausible
+#                    number.
 #
 # Three bugs in the hunt that produced these cases had the same signature --
 # "poisoning works, reuse does not" -- so a case that passes one way and fails
 # the other is the most informative result this script can give, and it reports
 # which way round it was.
+#
+# ⚠️ THE THIRD WAY IS A DIAGNOSTIC AS MUCH AS A GATE, and that is worth being
+# honest about: nothing in this repository's harnesses trips it today, because
+# the coincidence it catches -- a block recycled at the same address with its
+# cache entry still live -- is one a small program does not reach.  D-3 was
+# found by a program in another project rendering half a megabyte of text, and
+# three probes written to reproduce it guessed wrong first.  0007 is the
+# REGRESSION gate; this is what makes the NEXT one of its class cost one run
+# instead of an afternoon.
 #
 # ⚠️ A FAILURE MAY BE A HANG rather than wrong output, which is why each run is
 # bounded.  0004 guards a released TextFile that stayed linked in `all_files`
@@ -114,6 +127,12 @@ check () {
     ALG_POISON=1 run_bounded "$WORK/poisoned" "$_dir/prog"
     _poisoned=$?
 
+    # And checked: every cached text length is recomputed where the cache
+    # answers, so a recycled block that kept an earlier string's answer faults
+    # instead of returning a plausible number.
+    ALG_TEXT_CHECK=1 run_bounded "$WORK/checked" "$_dir/prog"
+    _checked=$?
+
     if [ "$RECORD" -eq 1 ]; then
         if [ "$_plain" -eq 0 ]; then
             cp "$WORK/plain" "$_want"
@@ -135,6 +154,7 @@ check () {
 
     [ "$_plain"    -eq 137 ] && _why="hung for more than ${LIMIT}s, plainly"
     [ "$_poisoned" -eq 137 ] && _why="hung for more than ${LIMIT}s, poisoned"
+    [ "$_checked"  -eq 137 ] && _why="hung for more than ${LIMIT}s, text-checked"
 
     if [ -z "$_why" ] && [ "$_plain" -ne 0 ]; then
         _why="exit $_plain, plainly"
@@ -142,6 +162,10 @@ check () {
 
     if [ -z "$_why" ] && [ "$_poisoned" -ne 0 ]; then
         _why="exit $_poisoned, poisoned"
+    fi
+
+    if [ -z "$_why" ] && [ "$_checked" -ne 0 ]; then
+        _why="exit $_checked, text-checked"
     fi
 
     if [ -z "$_why" ] && ! cmp -s "$WORK/plain" "$_want"; then
@@ -152,10 +176,17 @@ check () {
         _why='wrong output, poisoned'
     fi
 
+    if [ -z "$_why" ] && ! cmp -s "$WORK/checked" "$_want"; then
+        _why='wrong output, text-checked'
+    fi
+
     if [ -n "$_why" ]; then
         echo "  FAIL  $_name -- $_why"
 
         case $_why in
+            *text-checked)
+                sed 's/^/           /' "$WORK/checked" | head -12
+                ;;
             *poisoned)
                 sed 's/^/           /' "$WORK/poisoned" | head -12
                 ;;
@@ -265,4 +296,5 @@ fi
 
 echo
 echo "OK: every case keeps what it holds and releases what it does not,"
-echo "    whether a released body is reused or withheld."
+echo "    whether a released body is reused or withheld -- and every cached"
+echo "    text length agrees with the bytes it was cached for."

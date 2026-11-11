@@ -37,6 +37,16 @@ jobs:
   build:
     runs-on: windows-latest
 
+    # ⚠️ BOUNDED, because a wedged runner otherwise burns GitHub's SIX-HOUR
+    # default and reports nothing the whole time.  This job takes five to six
+    # minutes; on 2026-11-11 an `upload-artifact` step failed and the runner
+    # never finalised, so the run sat `in_progress` with every real step
+    # already green -- and GitHub then refused both `gh run cancel` ("already
+    # completed") and `gh run rerun` ("already running"), leaving no way to get
+    # a fresh answer but to push again.  Twenty minutes is generous against six
+    # and turns that into a failure that can be re-run.
+    timeout-minutes: 20
+
     # ⚠️ WRITE, for the release step alone, and unused on every other run: a
     # pull request builds and tests the package and attaches nothing.  Actions
     # grants permissions per JOB rather than per step, so the narrowest this

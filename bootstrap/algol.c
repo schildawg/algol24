@@ -78,6 +78,10 @@ typedef struct TextChunk {
     char             *bytes;
 } TextChunk;
 
+/* Defined with the cache it clears, far below: the heap is declared early and
+   the UTF-8 machinery is not. */
+static void text_forget_info(const char *payload);
+
 static bool text_poisoning = false;
 
 static TextChunk *text_chunks = NULL;
@@ -237,6 +241,22 @@ static void text_release(char *payload) {
     char **spare = text_list_for(text_size_of(payload));
 
     text_head(payload)->flags = TEXT_FREE;
+
+    /* ⚠️ ANY CACHE KEYED ON A TEXT ADDRESS MUST BE DROPPED HERE, because this
+       is the one thing the heap changed about an address: while text came from
+       an arena that never freed, a pointer identified its bytes for the life of
+       the process, so (pointer, length) was a safe identity and `text_info`
+       used it as one.  A recycled block breaks that -- a different string of
+       the same byte length can arrive at the same address and inherit the old
+       one's `ascii`, `chars` and resume cursor.
+
+       It surfaced as `algol24.com` D-3: one line in 27,875, a 41-byte ASCII
+       string landing where a 41-byte string with two multi-byte characters had
+       been, so `utf8_offset` took the non-ASCII branch with a stale cursor and
+       `Copy` came back exactly two characters short.  Deterministic, in the
+       tree walker only, and clean under both `ALG_COLLECT_EVERY=0` (nothing is
+       recycled) and `ALG_POISON=1` (a released block is withheld). */
+    text_forget_info(payload);
 
     /* ⚠️ POISONING SPLITS "MARKING IS WRONG" FROM "REUSE IS WRONG", which is
        the same split `ALG_POISON=1` already makes for objects and the only
@@ -4554,11 +4574,79 @@ typedef struct {
 #define TEXT_CACHE_SLOTS 64
 static TextInfo text_cache[TEXT_CACHE_SLOTS];
 
+/* The slot an address maps to.  One function, so the cache and the thing that
+   invalidates it cannot disagree about where an entry lives -- which they would
+   silently, since a wrong slot here is a cache miss rather than a failure. */
+static size_t text_info_slot(const char *text) {
+    return ((uintptr_t)text >> 4) & (TEXT_CACHE_SLOTS - 1);
+}
+
+/* Drops what was cached for a payload, called where a block is released.  The
+   entry may belong to a different address that maps to the same slot, in which
+   case clearing it costs one recomputation and nothing else. */
+static void text_forget_info(const char *payload) {
+    TextInfo *entry = &text_cache[text_info_slot(payload)];
+
+    if (entry->text != payload) return;
+
+    entry->text  = NULL;
+    entry->bytes = -1;
+}
+
+/* ── ALG_TEXT_CHECK ───────────────────────────────────────────────────────
+   Recomputes what the cache answered and faults where the two disagree.
+
+   ⚠️ IT EXISTS BECAUSE THE WRONG ANSWER IS OTHERWISE INVISIBLE, which is what
+   made D-3 cost three wrong guesses.  A stale character count is a plausible
+   number: it truncates one line in a megabyte, nothing crashes, and the
+   program that notices has to be rendering enough text to hit the
+   coincidence.  This turns the class into a fault at the moment the cache
+   lies, which is the same thing `ALG_POISON=1` does for a released object
+   body -- and it is what printed `cached(ascii=0 chars=39)
+   real(ascii=1 chars=41)` in one run after reading had failed.
+
+   It costs nothing when off: one `getenv` per cache HIT, which is already the
+   path that does no work. */
+static bool text_checking = false;
+static bool text_checking_asked = false;
+
+static void text_info_check(const TextInfo *entry, const char *text, int32_t bytes) {
+    int     ascii = 1;
+    int32_t chars = 0;
+
+    for (int32_t at = 0; at < bytes; at++)
+        if ((unsigned char)text[at] >= 0x80) { ascii = 0; break; }
+
+    if (ascii) chars = bytes;
+    else {
+        size_t at = 0;
+        while (at < (size_t)bytes) { at += (size_t)utf8_span((unsigned char)text[at]); chars++; }
+    }
+
+    if (ascii == entry->ascii && chars == entry->chars) return;
+
+    fprintf(stderr,
+            "[text] A CACHED LENGTH IS STALE: %p, %d bytes -- cached "
+            "(ascii=%d chars=%d), really (ascii=%d chars=%d).\n"
+            "       A recycled block kept an earlier string's answer.\n",
+            (const void *)text, bytes, entry->ascii, entry->chars, ascii, chars);
+    abort();
+}
+
 static TextInfo *text_info(const char *text, int32_t bytes) {
-    size_t    slot  = ((uintptr_t)text >> 4) & (TEXT_CACHE_SLOTS - 1);
+    size_t    slot  = text_info_slot(text);
     TextInfo *entry = &text_cache[slot];
 
-    if (entry->text == text && entry->bytes == bytes) return entry;
+    if (entry->text == text && entry->bytes == bytes) {
+        if (!text_checking_asked) {
+            text_checking       = getenv("ALG_TEXT_CHECK") != NULL;
+            text_checking_asked = true;
+        }
+
+        if (text_checking) text_info_check(entry, text, bytes);
+
+        return entry;
+    }
 
     int ascii = 1;
 

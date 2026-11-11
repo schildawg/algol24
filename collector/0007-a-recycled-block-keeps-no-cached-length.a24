@@ -1,0 +1,87 @@
+// The one thing the text heap changed about an ADDRESS: while text came from
+// an arena that never freed, a pointer identified its bytes for the life of
+// the process, so (pointer, byte length) was a safe identity -- and
+// `text_info` cached a string's character count and its all-ASCII flag under
+// exactly that key.  A recycled block breaks it: a different string of the
+// same BYTE length arrives at the same address and is answered with the old
+// one's count.
+//
+// ⚠️ IT TAKES A MULTI-BYTE CHARACTER TO SHOW AT ALL, which is why one program
+// found it and no gate did.  In all-ASCII text the character count IS the byte
+// count, so a stale entry answers the same number and nothing is wrong.  The
+// pair below is 41 bytes either way and 39 characters against 41, which is the
+// pair `algol24.com` hit: an em dash in one line, and the plain line that
+// landed on its block afterwards came back two characters short.
+//
+// ⚠️ `Copy` RATHER THAN CONCATENATION, because a concatenation reserves slack
+// for the in-place extension and two strings built that way never land in one
+// size band.  Copy asks for exactly what it needs, so both of these are one
+// block of one band and the second is handed the first.
+//
+// It reproduces identically under the interpreter and compiled -- 62 wrong
+// answers either way -- because the cache is in the shared runtime.
+
+function Ascii41 () : String;
+var
+    Out : String;
+
+begin
+    Out := '';
+
+    for var I : Integer := 0; I < 41; I := I + 1 do Out := Out + 'a';
+
+    Exit Out;
+end
+
+function Wide41 () : String;
+var
+    Out : String;
+
+begin
+    Out := '';
+
+    for var I : Integer := 0; I < 38; I := I + 1 do Out := Out + 'a';
+
+    // Three bytes, one character: 41 bytes holding 39 characters.
+    Exit Out + #8212;
+end
+
+begin
+    var FlatSrc := Ascii41 ();
+    var WideSrc := Wide41 ();
+
+    var Bad := 0;
+
+    for var Round : Integer := 0; Round < 30; Round := Round + 1 do
+    begin
+        var Held := [];
+
+        for var I : Integer := 0; I < 300; I := I + 1 do
+        begin
+            var W := Copy (WideSrc, 0, 39);
+
+            if Length (W as String) <> 39 then Bad := Bad + 1;
+
+            Held.Add (W);
+        end
+
+        Held := [];
+        Collect ();
+
+        var Kept := [];
+
+        for var I : Integer := 0; I < 300; I := I + 1 do
+        begin
+            var A := Copy (FlatSrc, 0, 41);
+
+            if Length (A as String) <> 41 then Bad := Bad + 1;
+
+            Kept.Add (A);
+        end
+
+        Kept := [];
+        Collect ();
+    end
+
+    WriteLn ('miscounted: ' + Str (Bad));
+end
