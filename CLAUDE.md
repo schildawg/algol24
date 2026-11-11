@@ -2189,6 +2189,36 @@ keeps its name for as long as it is open, and the Value it came from may be
 swept long before — so `file_name_argument` copies into the arena, where a
 handful per program is the right trade.
 
+⚠️ **AND ANY CACHE KEYED ON A TEXT ADDRESS MUST BE DROPPED WHEN THE BLOCK IS
+RELEASED, which is the one thing the heap changed about an address.** While
+text came from an arena that never freed, a pointer identified its bytes for
+the life of the process — so (pointer, byte length) was a safe identity, and
+`text_info` cached a string's character count and its all-ASCII flag under
+exactly that key. A recycled block breaks it: a different string of the same
+BYTE length arrives at the same address and is answered with the old one's
+count. `text_release` calls `text_forget_info`, and `text_info_slot` is one
+function so the cache and its invalidation cannot disagree about where an
+entry lives — a wrong slot there is a cache miss rather than a failure, so it
+would never surface.
+
+⚠️ **IT TAKES A MULTI-BYTE CHARACTER TO SHOW AT ALL**, which is why one
+program found it and no gate did. In all-ASCII text the character count IS the
+byte count, so a stale entry answers the same number and nothing is wrong.
+`algol24.com` D-3 is the report: one line in 27,875, where
+`bytes=41 cached(ascii=0 chars=39) real(ascii=1 chars=41)` — a 41-byte line
+carrying one em dash is 39 characters, and the plain-ASCII 41-byte line that
+landed on its block afterwards was answered 39 and came back two characters
+short. Twelve stale hits in a 500 KB render, six in each direction.
+
+⚠️ **WHAT FOUND IT WAS RECOMPUTING ON A CACHE HIT AND COMPARING**, after three
+probes guessed wrong — the first had the direction backwards, the next two had
+the right direction and never hit, because reuse at the same address with the
+entry still live is a coincidence a small program does not reach. The check
+printed the mechanism in one run. `collector/0007` is the case, and it took
+the exact byte lengths off that output to be reproducible at all: `Copy` rather
+than concatenation, because concatenation reserves slack for the in-place
+extension and two strings built that way never land in one size band.
+
 ⚠️ **`alg_collect` MUST NOT BAIL WHEN THERE ARE NO OBJECTS.** It returned early
 on `obj_registry == NULL`, which skipped the text sweep — and a program that
 does nothing but build text allocates no object at all, so two million

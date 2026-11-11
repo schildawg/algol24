@@ -2,8 +2,8 @@
 #
 # THE DEFECT SWEEP, which is a harness only until it is green.
 #
-# Fifteen defects reported by two projects using the language -- shroom-slots
-# (R-1..R-15) and algol24.com (D-1, D-2) -- each reduced to the smallest program
+# Defects reported by two projects using the language -- shroom-slots
+# (R-1..R-15) and algol24.com (D-1..D-3) -- each reduced to the smallest program
 # that shows it, and each run under whichever processors disagree.  See
 # finished/PLAN-0.2.4.md, where the same numbering carries the root cause for each.
 #
@@ -444,6 +444,81 @@ fi
 # ⚠️ Interning is the half a naive fix would miss: these compare by IDENTITY
 # [VAL-011], so one value per name is required and a fresh one per read answers
 # false.  The second line of the program above is what asks.
+echo
+
+
+echo "12. The text heap recycles an address and a cache kept the old answer"
+# D-3, reported by algol24.com against v0.2.6: one line in 27,875 came back two
+# characters short, deterministically, from the tree walker only.
+#
+# ⚠️ IT TAKES A MULTI-BYTE CHARACTER TO SHOW AT ALL.  In all-ASCII text the
+# character count IS the byte count, so a stale entry answers the same number
+# and nothing is wrong.  41 bytes holding 39 characters, then 41 bytes holding
+# 41, is the pair that was hit -- and `Copy` rather than concatenation is what
+# puts both in one size band, since a concatenation reserves slack.
+#
+# collector/0007 is where the invariant lives; this is the regression record.
+cat > "$WORK/b12.a24" <<'EOF'
+function Wide41 () : String;
+var
+    Out : String;
+begin
+    Out := '';
+    for var I : Integer := 0; I < 38; I := I + 1 do Out := Out + 'a';
+    Exit Out + #8212;
+end
+
+function Ascii41 () : String;
+var
+    Out : String;
+begin
+    Out := '';
+    for var I : Integer := 0; I < 41; I := I + 1 do Out := Out + 'a';
+    Exit Out;
+end
+
+var WideSrc := Wide41 ();
+var FlatSrc := Ascii41 ();
+var Bad := 0;
+
+for var Round : Integer := 0; Round < 30; Round := Round + 1 do
+begin
+    var Held := [];
+    for var I : Integer := 0; I < 300; I := I + 1 do
+    begin
+        var W := Copy (WideSrc, 0, 39);
+        if Length (W as String) <> 39 then Bad := Bad + 1;
+        Held.Add (W);
+    end
+    Held := [];
+    Collect ();
+
+    var Kept := [];
+    for var I : Integer := 0; I < 300; I := I + 1 do
+    begin
+        var A := Copy (FlatSrc, 0, 41);
+        if Length (A as String) <> 41 then Bad := Bad + 1;
+        Kept.Add (A);
+    end
+    Kept := [];
+    Collect ();
+end
+
+WriteLn ('miscounted: ' + Str (Bad));
+EOF
+I=$("$ALGC" "$WORK/b12.a24" 2>&1 || true)
+V=$("$ALGVM" "$WORK/b12.a24" 2>&1 || true)
+D=$WORK/b12; mkdir -p "$D"
+C=$(compiled "$D" "$WORK/b12.a24")
+
+# The ANSWER, not just agreement: all three share the runtime, so a stale cache
+# is stale identically everywhere and comparing them catches nothing.
+if [ "$I" = 'miscounted: 0' ] && [ "$I" = "$V" ] && [ "$I" = "$C" ]; then
+    report D-3 "a recycled text block kept the old string's character count" fixed ''
+else
+    report D-3 "a recycled text block kept the old string's character count" open \
+        "interpreted '$I', machine '$V', compiled '$C'"
+fi
 echo
 
 
