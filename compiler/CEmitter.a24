@@ -1428,6 +1428,8 @@ begin
 
             PushLabels (Unit.Statements);
 
+            var Holds := OpenHolds ();
+
             for var TheStmt in Unit.Statements do
             begin
 
@@ -1439,13 +1441,13 @@ begin
                         Boxed     := BoxesFor (TheStmt.Statements);
                         Cells     := List();
 
-                        Execute (TheStmt);
+                        ExecuteHeld (TheStmt, Holds);
 
                         Boxed     := List();
                         Cells     := List();
                         Volatiles := False;
                     end
-                    else Execute (TheStmt);
+                    else ExecuteHeld (TheStmt, Holds);
                 end
             end
 
@@ -1646,17 +1648,23 @@ begin
             var Kind := ResolvedKind (Str (TheExpr.Cast));
 
             if Kind <> '' then
-                Exit 'alg_cast_kind(' + Text + ', ' + Kind + ', '
-                   + QuoteC (Str (TheExpr.Cast)) + ')';
+                Text := 'alg_cast_kind(' + Text + ', ' + Kind + ', '
+                      + QuoteC (Str (TheExpr.Cast)) + ')';
+            else
+            begin
+                var Handle := ResolvedClass (Str (TheExpr.Cast));
 
-            var Handle := ResolvedClass (Str (TheExpr.Cast));
-
-            if Handle <> '' then
-                Exit 'alg_cast_class(' + Text + ', ' + Handle + ', '
-                   + QuoteC (Str (TheExpr.Cast)) + ')';
-
-            Exit 'alg_cast(' + Text + ', ' + QuoteC (Str (TheExpr.Cast)) + ')';
+                if Handle <> '' then
+                    Text := 'alg_cast_class(' + Text + ', ' + Handle + ', '
+                          + QuoteC (Str (TheExpr.Cast)) + ')';
+                else
+                    Text := 'alg_cast(' + Text + ', '
+                          + QuoteC (Str (TheExpr.Cast)) + ')';
+            end
         end
+
+        if NeedsHold (TheExpr) and not VoidCall (Text) then
+            Exit 'alg_hold(' + Text + ')';
 
         Exit Text;
     end
@@ -1708,8 +1716,10 @@ begin
 
         PushLabels (TheStmt.Body);
 
+        var Holds := OpenHolds ();
+
         for var Each in TheStmt.Body do
-            Execute (Each);
+            ExecuteHeld (Each, Holds);
 
         PopLabels ();
 
@@ -2006,6 +2016,24 @@ begin
     end
 
     /// Declares a local, silences the unused warning, and registers it.
+    /// Emits the collector's safe point, which a loop body opens with.
+    ///
+    /// A compiled program collects only where something asks it to, and the
+    /// runtime cannot ask: an intermediate inside one expression is in no
+    /// local and registered nowhere, so collecting from an allocation would
+    /// sweep a value in use.  Only this emitter knows where no temporary is
+    /// live, and the top of a loop body is such a place -- every value there
+    /// is a registered local or a module-level root.
+    ///
+    /// A loop is the only shape that allocates without bound, which is why
+    /// this goes there and not at every statement: the tree walker ticks per
+    /// statement because it has no cheaper boundary, and this one does.
+    procedure EmitSafePoint ();
+    begin
+        Line ('alg_safe_point();');
+    end
+
+    /// Declares a local, silences the unused warning, and registers it.
     procedure DeclareLocal (Symbol : String, Initial : String);
     begin
         Line (Local () + Symbol + ' = ' + Initial + ';');
@@ -2063,6 +2091,70 @@ begin
         if Mark = '' then Exit;
 
         Line ('alg_root_top = ' + Mark + ';');
+    end
+
+    /// Opens the region a statement's held temporaries are released back to,
+    /// and answers the name it was saved in.
+    ///
+    /// One per statement list rather than one per statement, which is what lets
+    /// a declaration in the middle of a block refresh it instead of needing a
+    /// mark of its own.
+    function OpenHolds () : String;
+    begin
+        var Mark := 'rh_' + Str (RootMarks);
+        RootMarks := RootMarks + 1;
+
+        Line ('int32_t ' + Mark + ' = alg_hold_top;');
+
+        Exit Mark;
+    end
+
+    /// Emits one statement and releases the temporaries its expressions held.
+    ///
+    /// A declaration needs no exception here, which is the whole reason holds
+    /// have a stack of their own: its local is registered on the SHADOW stack
+    /// and lives to the end of the block, where this truncation cannot reach
+    /// it.
+    procedure ExecuteHeld (TheStmt : Any, Mark : String);
+    begin
+        Execute (TheStmt);
+
+        Line ('alg_hold_top = ' + Mark + ';');
+    end
+
+    /// Whether an emitted expression answers void in C.
+    ///
+    /// Holding one is 'passing void to a parameter of incompatible type', which
+    /// is a compile error in the GENERATED file rather than here -- so the list
+    /// is the one VoidBuiltin keeps, plus the three assertions, read off the
+    /// text because that is where the decision has already been made.
+    function VoidCall (Text : String) : Boolean;
+    begin
+        if Pos (Text, 'alg_writeln(')       = 0 then Exit True;
+        if Pos (Text, 'alg_writeln_blank(') = 0 then Exit True;
+        if Pos (Text, 'alg_write(')         = 0 then Exit True;
+        if Pos (Text, 'alg_stderr_line(')   = 0 then Exit True;
+        if Pos (Text, 'alg_halt(')          = 0 then Exit True;
+        if Pos (Text, 'alg_assert_true(')   = 0 then Exit True;
+        if Pos (Text, 'alg_assert_equal(')  = 0 then Exit True;
+        if Pos (Text, 'alg_assert_fail(')   = 0 then Exit True;
+
+        Exit False;
+    end
+
+    /// Whether an expression's value needs holding across the rest of the
+    /// expression it sits in.
+    ///
+    /// A literal is permanent or inline, a variable read and 'this' answer
+    /// something a slot already roots, and an 'is' answers a Boolean -- so
+    /// none of those is a temporary.  A grouping and an assignment answer
+    /// what their own operand already held, so holding either is a second
+    /// entry for one value.
+    function NeedsHold (TheExpr : Any) : Boolean;
+    begin
+        Exit not (TheExpr is LiteralExpr  or TheExpr is VariableExpr
+               or TheExpr is ThisExpr     or TheExpr is IsExpr
+               or TheExpr is GroupingExpr or TheExpr is AssignExpr);
     end
 
     /// Whether a statement list declares anything the shadow stack must hold.
@@ -2420,8 +2512,10 @@ begin
 
         PushLabels (TheMethod.Body);
 
+        var Holds := OpenHolds ();
+
         for var Each in TheMethod.Body do
-            Execute (Each);
+            ExecuteHeld (Each, Holds);
 
         PopLabels ();
 
@@ -2506,7 +2600,7 @@ begin
         end
 
         if AddId then
-            Applied := Applied + '    alg_set_property(v_this, "Id", alg_string('
+            Applied := Applied + '    alg_set_property(v_this, "Id", alg_literal('
                      + QuoteC (Name) + '));' + #10;
 
         Initializer := InitName (Name);
@@ -2742,8 +2836,10 @@ begin
         HoistCells (TheStmt.Statements);
         PushLabels (TheStmt.Statements);
 
+        var Holds := OpenHolds ();
+
         for var Statement in TheStmt.Statements do
-            Execute (Statement);
+            ExecuteHeld (Statement, Holds);
 
         PopLabels ();
 
@@ -2799,13 +2895,30 @@ begin
 
         var Mark := OpenScope ();
 
+        // ⚠️ BRACED, so that the hold mark below has somewhere to be declared.
+        // A loop may be a branch's whole body, where a bare declaration is not
+        // legal C.
+        Line ('{');
+        Depth := Depth + 1;
+
+        // ⚠️ THE CONDITION AND THE STEP ARE NOT STATEMENTS, so nothing else
+        // releases what they hold -- and they run once an ITERATION, so a
+        // temporary in either accumulated for the whole loop. Reset before
+        // each, which is also before the body's own region opens.
+        var Holds := OpenHolds ();
+        var Reset := '(alg_hold_top = ' + Holds + ', ';
+
         if TheStmt.Increment <> Nil then
-            Line ('for (; alg_truthy(' + Evaluate (TheStmt.Condition) + '); '
-                + Evaluate (TheStmt.Increment) + ') {');
+            Line ('for (; ' + Reset + 'alg_truthy('
+                + Evaluate (TheStmt.Condition) + ')); '
+                + Reset + Evaluate (TheStmt.Increment) + ')) {');
         else
-            Line ('while (alg_truthy(' + Evaluate (TheStmt.Condition) + ')) {');
+            Line ('while (' + Reset + 'alg_truthy('
+                + Evaluate (TheStmt.Condition) + '))) {');
 
         Depth := Depth + 1;
+
+        EmitSafePoint ();
 
         var EnclosingLoopDepth := LoopTryDepth;
         LoopTryDepth := TryDepth;
@@ -2824,6 +2937,9 @@ begin
         Line ('}');
 
         EmitBreakTarget (TheStmt.Label);
+
+        Depth := Depth - 1;
+        Line ('}');
 
         CloseScope (Mark);
     end
@@ -3090,8 +3206,10 @@ begin
         HoistCells (TheStmt.Body);
         PushLabels (TheStmt.Body);
 
+        var Holds := OpenHolds ();
+
         for var Each in TheStmt.Body do
-            Execute (Each);
+            ExecuteHeld (Each, Holds);
 
         PopLabels ();
 
@@ -3213,7 +3331,7 @@ begin
             Exit 'alg_int(' + Str (Value) + ')';
         end
         if Value is Double then Exit 'alg_double(' + Str (Value) + ')';
-        if Value is String then Exit 'alg_string(' + QuoteC (Str (Value)) + ')';
+        if Value is String then Exit 'alg_literal(' + QuoteC (Str (Value)) + ')';
         if Value is Char then Exit 'alg_char_value(' + Str (Ord (Value)) + ')';
 
         Unsupported ('A literal of type ' + TypeNameOf (Value));
@@ -3923,7 +4041,7 @@ begin
             if Folded = 'writeln' then
                 Functions.Append ('    if (count == 0) { alg_writeln_blank(); return alg_nil(); }' + #10);
             else if Folded = 'errorln' then
-                Functions.Append ('    if (count == 0) { alg_stderr_line(alg_string("")); return alg_nil(); }' + #10);
+                Functions.Append ('    if (count == 0) { alg_stderr_line(alg_literal("")); return alg_nil(); }' + #10);
             else
                 Functions.Append ('    if (count == 0) return alg_nil();' + #10);
 
@@ -4985,6 +5103,8 @@ begin
         Line ('for (' + Counter + Index + ' = 0; ' + Index + ' < alg_iterable_count('
             + Snapshot + '); ' + Index + '++) {');
         Depth := Depth + 1;
+
+        EmitSafePoint ();
 
         // PER ITERATION, because the element is declared inside the C loop
         // body: registering it without truncating pushed one entry an

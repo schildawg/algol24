@@ -148,6 +148,10 @@ Value alg_integer(const char *digits);
 Value alg_double(double d);
 Value alg_string(const char *s);
 
+/* A STRING LITERAL from generated code, interned by its address so one copy in
+   the text heap serves every call.  Only ever called with a C static. */
+Value alg_literal(const char *s);
+
 Value alg_string_n(const char *s, int32_t n);
 Value alg_char_value(int32_t code);
 
@@ -431,6 +435,36 @@ void alg_arity(int32_t got, int32_t expected);
 
 void alg_declared(bool defined, const char *name);
 
+/* ── The compiled safe point ──────────────────────────────────────────────
+ * A compiled program used to collect only where it called `Collect` itself,
+ * so a loop that allocated grew without bound -- while still paying for the
+ * shadow stack that exists to make collection precise.  The runtime holds the
+ * collector; the EMITTER holds the only knowledge of where collecting is
+ * safe.  So the trigger is emitted: CEmitter puts one of these at the top of
+ * every loop body, which is the compiled equivalent of the machine's
+ * top-of-dispatch-loop and the tree walker's statement boundary.
+ *
+ * ⚠️ A LOOP BODY'S TOP IS SAFE WHERE AN ARBITRARY ALLOCATION IS NOT.  An
+ * intermediate inside one expression is in no local and registered nowhere --
+ * `alg_add(v_t, alg_text_length(alg_str(v_i)))` holds a string the shadow
+ * stack cannot see -- which is why the runtime must not collect from
+ * `obj_alloc`.  At the top of a body every live value is a registered local
+ * or a module-level root.
+ *
+ * Inline, and a counter rather than a call, for the reason `alg_root_top` is
+ * touched directly: this runs once per iteration of every loop a program has.
+ *
+ * `alg_tick_every` is the POLICY and 0 turns it off.  The default is a
+ * measurement rather than a fact, and ALG_COLLECT_EVERY overrides it. */
+extern int32_t alg_tick;
+extern int32_t alg_tick_every;
+
+void alg_tick_over(void);
+
+static inline void alg_safe_point(void) {
+    if (alg_tick_every > 0 && ++alg_tick >= alg_tick_every) alg_tick_over();
+}
+
 Value alg_is(Value v, const char *name);
 
 Value alg_cast(Value v, const char *name);
@@ -630,6 +664,50 @@ static inline void alg_root(volatile Value *slots, int32_t count) {
     alg_root_top++;
 }
 
+/* ── A TEMPORARY is a root too ────────────────────────────────────────────
+   An intermediate inside one expression -- the left operand of a `+` whose
+   right operand is a call -- is in no local and no argument array, so the
+   shadow stack could not see it.  That was survivable while a collection
+   happened only where a program asked for one: an expression is never
+   interrupted by its own statement boundary.  It stopped being survivable
+   the moment collection became automatic, because a safe point inside a
+   CALLEE fires while the caller is still part way through an expression.
+
+   So the emitter wraps each intermediate in `alg_hold`, which pushes the
+   VALUE rather than a pointer to it: there is no C local whose address could
+   be taken.
+
+   ⚠️ A STACK OF ITS OWN, and sharing the shadow stack was both slower and
+   harder to emit.  An entry there is a pointer and a count, so a held value
+   needed a third field and three stores where this needs one -- and the two
+   have different LIFETIMES: a declaration's root lives to the end of its
+   block, a temporary to the end of its statement.  Separate tops mean a
+   statement boundary restores one without the other, so a declaration in the
+   middle of a block needs no special case at all.
+
+   A Value that cannot reference the heap is not pushed, which is what keeps
+   arithmetic free. */
+extern Value  *alg_holds;
+extern int32_t alg_hold_top;
+extern int32_t alg_hold_room;
+
+void alg_hold_grow(void);
+
+static inline Value alg_hold(Value v) {
+    if (v.type != VAL_OBJ && v.type != VAL_STRING && v.type != VAL_CHAR) return v;
+
+    if (alg_hold_top == alg_hold_room) {
+        alg_hold_grow();
+
+        /* Out of memory here is not fatal to the program, only to collection,
+           and `alg_hold_grow` has already declined on its way out. */
+        if (alg_hold_top == alg_hold_room) return v;
+    }
+
+    alg_holds[alg_hold_top++] = v;
+    return v;
+}
+
 typedef struct AlgFrame {
     jmp_buf          jump;
     struct AlgFrame *previous;
@@ -637,8 +715,11 @@ typedef struct AlgFrame {
 
     /* The shadow stack's depth when the `try` was entered, so that a raise
        several calls down truncates every frame it unwound past.  The normal
-       path needs nothing: each block restores its own depth as it closes. */
+       path needs nothing: each block restores its own depth as it closes.
+       `holds` is the same question for held temporaries, which a raise
+       skips past in exactly the same way. */
     int32_t          roots;
+    int32_t          holds;
 } AlgFrame;
 
 void alg_push_frame(AlgFrame *frame);

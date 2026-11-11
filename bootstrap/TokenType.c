@@ -238,4 +238,6 @@ void init_TokenType(void) {
     e_tokentype_tokenVbegin = alg_enum_member(e_tokentype, "TOKEN_BEGIN");
     e_tokentype_tokenVend = alg_enum_member(e_tokentype, "TOKEN_END");
     e_tokentype_eof = alg_enum_member(e_tokentype, "EOF");
+    int32_t rh_0 = alg_hold_top;
+    alg_hold_top = rh_0;
 }

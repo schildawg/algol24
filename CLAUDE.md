@@ -1093,19 +1093,61 @@ arity warning would have diverged every case with a wrong-count call in it,
   `volatile Value *` because registering it through a plain `Value *` compiled
   fine and cast the qualifier away 101 times in one build.
 
-  ⚠️ **The remaining gap is a TEMPORARY, not a local.** An intermediate inside
-  one expression — the list in `[MakeList (), Collect ()]` — is in no local and
-  registered nowhere. It is reachable only by a collection that happens partway
-  through evaluating an expression.
+  ⚠️ **A TEMPORARY IS A ROOT TOO, and the gap this used to describe is
+  closed.** An intermediate inside one expression — the left operand of a `+`
+  whose right operand is a call — is in no local and no argument array, so the
+  shadow stack could not see it. That was survivable while a collection
+  happened only where a program ASKED for one, because an expression is never
+  interrupted by its own statement boundary; it stopped being survivable the
+  moment collection became automatic, because a safe point inside a CALLEE
+  fires while the caller is part way through an expression. `CEmitter` wraps
+  each intermediate in `alg_hold`, which pushes the VALUE and not a pointer to
+  it — there is no C local whose address could be taken.
 
-  ⚠️ **A Buffer AND a TextFile are exempt from the sweep, because both are on
-  a list the runtime walks.** `all_buffers` and `all_files`. Only the Buffer was
-  exempt, so a released `ObjFile` stayed linked with its `next` overwritten by
-  `obj_release`'s free-list link — and `close_open_files` walked in a circle at
+  ⚠️ **HOLDS HAVE A STACK OF THEIR OWN, and sharing the shadow stack was both
+  slower and harder to emit.** An entry there is a pointer and a count, so a
+  held value needed a third field and three stores where this needs one — and
+  the two have different LIFETIMES: a declaration's root lives to the end of
+  its block, a temporary to the end of its statement. Separate tops mean a
+  statement boundary restores one without the other, so a declaration in the
+  middle of a block needs no special case at all.
+
+  ⚠️ **A LOOP'S CONDITION AND STEP ARE NOT STATEMENTS**, so nothing else
+  releases what they hold — and they run once an ITERATION, so a temporary in
+  either accumulated for the whole loop. Both reset first, through a comma
+  expression in the C header.
+
+  ⚠️ **An expression that answers VOID in C must not be held**, which is a
+  compile error in the GENERATED file rather than in the emitter.
+  `alg_writeln`, `alg_write`, `alg_stderr_line`, `alg_halt` and the three
+  assertions are the list, and `CEmitter.VoidCall` reads it off the emitted
+  text because that is where the decision has already been made.
+
+  ⚠️ **The cost is 13% on the MACHINE and nothing measurable anywhere else.** A
+  hold costs where a program moves heap references about, which is what the
+  machine's handlers do once per instruction: `Fib (27)` on `algvm` is 0.79 s
+  against 0.70 before, while compiled `Fib (27)` is unchanged because an
+  Integer is not pushed at all. `collector/0006` is the case,
+  and an explicit `Collect ()` CANNOT catch it — a call written as a statement
+  is a statement boundary, so every live value is already a local.
+
+  ⚠️ **A TEXTFILE is exempt from the sweep, because it is on a list the
+  runtime walks** — `all_files`, which `close_open_files` reads at exit. A
+  released `ObjFile` stayed linked with its `next` overwritten by
+  `obj_release`'s free-list link, and `close_open_files` walked in a circle at
   exit, finding the handle already NULL every pass. Twenty-six minutes of spin
   on one run, every collecting run, never the baseline. The price of exempting
-  rather than unlinking is that an abandoned TextFile is not reclaimed until the
-  process ends.
+  rather than unlinking is that an abandoned TextFile is not reclaimed until
+  the process ends; unlinking would also close it EARLY, which is observable
+  because an unflushed write is lost.
+
+  ⚠️ **A BUFFER WAS EXEMPT HERE TOO AND IS NOT ANY MORE, because its list had
+  no reader.** `all_buffers` was written and never read — its one reader,
+  `free_all_buffers`, was deleted when the arena stopped being freed at exit —
+  so the exemption outlived its reason and cost an object body per Buffer
+  forever. A program accumulating text the way this language recommends grew by
+  48 bytes an iteration. `obj_release` frees its bytes now, guarded so that
+  `Free` releasing one EARLY stays safe, and the list is gone.
 
   ⚠️ **"Poisoning works, reuse does not" was the whole diagnosis three times** —
   the registry duplicate, the missing local roots, and the file list. Under
@@ -1877,6 +1919,144 @@ compiler's own self-compile byte-identical, and the Inn closing cleanly at 400
 frames — 19 fps against 20.** An explicit `Collect ()` was always unaffected
 and works either way.
 
+⚠️ **`ToUpper` AND `ToLower` INTERN THEIR ANSWERS, because the arena never
+frees and a fold is a COPY.** That made the cost proportional to the number of
+CALLS rather than to the number of distinct strings — and the machine folds a
+name for every member read and every built-in call, so a loop containing one
+call to a built-in grew without bound. It took `shroom-slots` to 10.1 GB on a
+15.6 GB device, where the low-memory killer took it with no error and nothing
+in the crash buffer, because nothing had gone wrong in the program. R-18.
+`folded` now keys a 4096-slot table on the input bytes; the minimal case goes
+from 64.5/111.0/173.0 MB at 1/4/8 M calls to **flat at 49 MB**.
+
+⚠️ **THE KEY IS A COPY OF THE INPUT, and the table is BOUNDED by overwriting.**
+A Buffer's bytes move when it grows and `Free` releases them, so storing the
+caller's pointer would compare against memory that had become something else.
+And the input may be program DATA rather than a name — a program folding a
+million lines must not fill the table — so a slot is overwritten rather than
+chained: a hot name keeps its slot, cold text pays the copy it would have paid
+anyway. Eviction FORGETS rather than reclaims, since the arena cannot.
+
+⚠️ **4096 slots is enough, measured: 65536 changes nothing.** So the Inn's
+remaining growth is not this table thrashing.
+
+⚠️ **R-18's own minimal case was NOT minimal, and the List in it was
+incidental.** It reported a List that "does not give its memory back", and
+both free lists round-trip perfectly — 83,430 item blocks and 83,622 object
+bodies returned per sweep and fully consumed by the next cycle. A loop
+containing `Length ('abc')` and nothing else leaks at the same rate.
+
+⚠️ **WHAT FOUND IT WAS A HISTOGRAM OF ARENA REQUESTS BY CALL SITE**, after
+reading got nowhere. Sizes alone said 8–15 bytes and that was not enough; a
+`__LINE__` histogram named the line in one run. Worth repeating for the next
+arena question: `obj_alloc` and the items array showed flat while one line
+climbed by exactly 2 per iteration.
+
+⚠️ **COMPILED ALGOL-24 COLLECTS AUTOMATICALLY NOW, at the top of every loop
+body.** It used to collect only where a program called `Collect` itself, so
+R-18's case compiled was 156.8/611.8/1222.4 MB at 1/4/8 M lists; it is **flat
+at 17.4 MB**. `alg_safe_point` is `static inline` in `algol.h` and
+`CEmitter.EmitSafePoint` puts one at the top of each loop body — both forms,
+`WhileStmt` and `ForInStmt`.
+
+⚠️ **THE EMITTER HAS TO PLACE IT, because the runtime cannot know where it is
+safe.** An intermediate inside one expression is in no local and registered
+nowhere — `alg_add(v_t, alg_text_length(alg_str(v_i)))` holds a string the
+shadow stack cannot see — so collecting from `obj_alloc` would sweep a value
+in use. At the top of a loop body every live value is a registered local or a
+module-level root, which is the compiled equivalent of the machine's
+top-of-dispatch-loop and the walker's statement boundary. A `for ... in`'s
+snapshot is safe there because `DeclareLocal` roots it.
+
+⚠️ **A LOOP IS THE ONLY SHAPE THAT ALLOCATES WITHOUT BOUND**, which is why
+this is per iteration rather than per statement. The tree walker ticks per
+statement because it has no cheaper boundary; compiled code has one.
+
+⚠️ **It makes the compiler 24% LIGHTER at no cost in time**, measured
+interleaved: `algc --compile compiler/Main.a24` goes from 77.8 MB to **58.9**,
+and 2.91 s either way.
+
+⚠️ **AN EARLIER FIGURE SAID THE PEAK DID NOT FALL, and it was measuring the
+wrong binary.** Generation 2 is emitted BY generation 1, so it *emits* safe
+points without *containing* any — only generation 3 collects while it
+compiles. Comparing gen1 against gen2 compares two binaries that both lack
+them. After a reseed the real comparison is available and goes the other way.
+Anything measuring a change to CEmitter must reach the generation that
+contains it.
+
+⚠️ **`alg_tick_every` IS THE POLICY and `ALG_COLLECT_EVERY` overrides it**,
+default 100,000 iterations. The three processors now each state their own
+interval over one shared mechanism — the machine in `vm/run.a24`, the walker
+in `Interpreter.a24`, and a compiled program here — where before this one had
+nowhere to state anything.
+
+⚠️ **The Inn is 81% better and not flat.** Growth over 1000 frames falls from
+229 KB a frame to **43**, and peak drops about 540 MB, measured interleaved.
+
+⚠️ **THE REST OF IT IS TEXT, AND A STRING IS NOT COLLECTABLE.** The same
+histogram found the remaining 43 KB a frame in three lines, and they are one
+family: `as_text` rendering an Integer (`arena_alloc(24)`, +977,722 over 1200
+frames), string **concatenation** (`arena_alloc(max(64, (need+1)*2))`,
++587,164), and `file_read_line` (128 bytes a line, +116,281). Measured on
+minimal cases, both unbounded and linear:
+
+| | per call |
+| --- | --- |
+| `Str (N)` in a loop | **23 bytes** |
+| `'row ' + Str (N) + ' of many'` | **84 bytes** |
+
+⚠️ **THREE OF THEM WERE SCRATCH RATHER THAN RESULT, and those are fixed.**
+A render and a line-read allocate a working buffer whose answer is consumed at
+once, so neither needs the arena:
+
+| | before | after |
+| --- | --- | --- |
+| `Str (N)` | 23 bytes a call | **7.8** |
+| `'row ' + Str (N) + ' of many'` | 84 bytes an iteration | **38** |
+| the Inn's arena | 119 MB, +43 KB a frame | **68 MB, +20** |
+
+`as_text` renders an Integer into one of **four rotating scratch buffers**
+instead of `arena_alloc(24)`; `file_read_line` keeps **one buffer it reuses**
+rather than taking 128 bytes a line and another 256 when a line outgrows it;
+and `concat`'s floor went from **64 bytes to 32**, which was most of its cost
+for short text while still leaving a short result twice the room it asked for.
+
+⚠️ **A SCRATCH ANSWER MUST BE COPIED BEFORE IT BECOMES A VALUE**, and that is
+the whole hazard. `alg_str` copies at the length the render actually had, and
+the `ToString` property goes through `alg_str` for the same reason rather than
+calling `alg_string(as_text(...))` — which would have left a Value pointing at
+a buffer the next four renders overwrite. Text itself never uses scratch: it
+answers its own durable bytes, which is why `concat`'s left-and-right pair and
+the FFI's eight marshalled strings are safe.
+
+⚠️ **DOUBLING SURVIVES, and it is what the floor protects.** Repeated `+` stays
+linear because the slack is what the in-place extension writes into — 400 k,
+800 k and 1.6 M appends measure 0, 0.01 and 0.03 s, where a quadratic would
+show sixteen times. Lowering the floor further would start to cost that.
+
+⚠️ **The Inn's RSS barely moves while its ARENA halves**, which is the measure
+to trust here: RSS is dominated by SDL and lags the arena's reservation. 13.4
+KB a frame of RSS against 43 of arena before; 12.5 against 20 after.
+
+⚠️ **INTERNING CANNOT FIX THE REST, which is what makes it structural rather
+than another R-18.** Folding repeats — the machine folds the same handful of
+names forever — so a table of answers bounds it. `Str (N)` for varying N and
+`A + B` for varying text produce a DIFFERENT answer every time, so a cache
+only delays the growth.
+
+The reason is one sentence: a `VAL_STRING` carries a raw `const char *` into
+the arena **with no owning object**, so the collector has nothing to sweep and
+the arena never frees. Every `Str`, every `+`, every `Copy` and every fold is
+held for the life of the process. Making strings collectable means giving them
+an owner the registry can walk, which is a change to the value representation
+and wants a proposal rather than a patch.
+
+⚠️ **`Buffer` IS THE EXISTING ANSWER and the note recommending it undersells
+why.** CLAUDE.md has long said to accumulate text with `Buffer` "for anything
+large" on the grounds that `+` is linear — the stronger reason is that a
+Buffer's bytes are **malloc'd and explicitly freed**, so a Buffer is the only
+text in the language whose memory comes back.
+
 ⚠️ **The registry must be COMPACTED by the sweep, or collection costs O(every
 object ever allocated).** Keeping released objects registered made clearing
 marks and sweeping both walk the whole history, so each collection grew slower
@@ -1917,15 +2097,110 @@ array back to `seq_recycle`'s size-class lists — the same lists a growing List
 draws from. Measured: a program keeping one List and abandoning 100,000 peaks
 at 17.50 MB uncollected and **1.39 MB** collecting every 1000 iterations.
 
-⚠️ **A Buffer is never swept.** Its bytes are malloc'd, it is on a list of its
-own, and `Free` releases it explicitly. An object the language can already
-release is not the collector's business.
+⚠️ **A Buffer IS swept now, and `Free` is how a program releases one EARLY.**
+Its bytes are malloc'd, so `obj_release` frees them rather than handing a block
+to a spare list. The claim this replaces — that an object the language can
+already release is not the collector's business — was true of nothing: it meant
+a body per Buffer was permanent, which `collector.sh`'s `flat-text` now
+catches.
 
 **Two kinds of memory the sweep cannot return yet.** An instance's `slots` is
 allocated at exactly its field count rather than a size class, so
 `seq_recycle` declines it — 206 MB of the compiler's arena. And a Map's `index`
 is an `int32_t` array, a different element size from the `Value` blocks the
 spare lists keep.
+
+## The text heap
+
+⚠️ **EVERY STRING AND CHAR IS COLLECTABLE, and text used to be permanent.** It
+came from the arena, which never frees, so a program building one string a
+frame grew until the operating system killed it — `shroom-slots` R-18, whose
+floor turned out to be lower than the `folded` cache it was first traced to.
+`finished/PROPOSAL-COLLECTABLE-TEXT.md` is the record, including the two
+attempts that were built and withdrawn.
+
+⚠️ **A `Value` STILL CARRIES `const char *string`, which is the whole reason
+this is small.** The pointer is the payload and an eight-byte header sits
+immediately before it, so all thirty places that read a string's bytes are
+unchanged — only construction, marking and sweeping moved. The two withdrawn
+attempts each gave text an `ObjText` of its own and touched every reader.
+
+⚠️ **ONE function sets a text Value's bytes, and that is the invariant marking
+depends on.** `text_value` is the only assignment to `.string` in the runtime
+— `grep '\.string *='` says so — which is what makes `text_head(v.string)`
+safe in `mark_value`. A Value pointing anywhere else would have the collector
+writing its mark into whatever lies eight bytes before it.
+
+⚠️ **A LITERAL IS INTERNED BY ITS ADDRESS**, not by its bytes. Generated code
+calls `alg_literal` with a C static whose address is stable for the run, so one
+permanent copy serves every call — and the hash MIXES the low bits, because
+shifting them away assumes distinct literals are eight-byte aligned and
+`ascii_one` is a `[128][2]` array whose rows are two bytes apart.
+
+⚠️ **A BLOCK ABOVE 512 BYTES BANDS TO THE NEXT POWER OF TWO**, wasting up to
+half, and that is what makes a large block REUSABLE. Sizing those exactly
+would mean a long string released is never handed out again — a leak for any
+program reading a file line by line.
+
+⚠️ **A RENDER is text no `Value` owns**, which is what `as_text` answers for a
+collection or a `Buffer(12)`. Those are released at the next safe point, which
+is sound for the same reason the temporaries gap was survivable: a collection
+happens only between statements, and a render is produced and consumed inside
+one expression. An Integer still renders into a rotating scratch buffer and
+allocates nothing at all.
+
+⚠️ **`Str` ON SOMETHING ALREADY TEXT MUST NOT COPY, and one line that did cost
+EIGHT GIGABYTES.** `Str` only widens a Char to a String there [TYP-003] — a
+change of tag and not of bytes — and the compiler calls it on nearly every name
+it handles, including whole emitted units. Routing it through `alg_string_n`,
+which copies into the heap, took `algc --compile` of its own sources from 53 MB
+to 6.9 GB: **471,174 copies averaging 18 KB**. It is also what the two
+withdrawn attempts were really measuring, and why both concluded the wrong
+thing.
+
+⚠️ **What found that was ATTRIBUTION, after reasoning had failed three
+times.** A per-call-site histogram of the heap's own allocations named
+`alg_string_n` in one run; the list of its callers in `algol.c` is short enough
+to read. Two rounds of guessing had already landed on the chunk displacement
+(real, worth 0.2%) and on `concat`'s doubling (six big allocations in the whole
+run).
+
+⚠️ **`ALG_MEM_REPORT=1` writes what the heap and the arena hold at exit**, and
+it earns its place: the figure above is what it printed. Chunks, room, bytes
+used, bytes live and the sweep count, plus the arena's total. It costs one
+counter per CHUNK.
+
+⚠️ **THE FOLD CACHE'S SLOTS ARE ROOTS, and permanent was a leak.** `folded`
+remembers an answer per input; overwriting a slot forgot its key and its answer
+where nothing could free them, so two million different inputs left two million
+answers behind — 61 MB of live text in a battery written to prove there was
+none. The occupied slots are marked instead, so an evicted entry is simply no
+longer marked and a Value still holding an answer keeps it through the ordinary
+root path.
+
+⚠️ **A FILE OWNS ITS LINE BUFFER, and a shared one could not be returned.**
+`lookahead` holds a line until a later statement consumes it, so a copy per
+line was the price of sharing — and a program reading a large file paid it per
+line and never got it back. Per file there is no copy at all: nothing points at
+the buffer while `looked` is false.
+
+⚠️ **A STORED `const char *` MUST BE COPIED OUT OF THE HEAP.** An `ObjFile`
+keeps its name for as long as it is open, and the Value it came from may be
+swept long before — so `file_name_argument` copies into the arena, where a
+handful per program is the right trade.
+
+⚠️ **`alg_collect` MUST NOT BAIL WHEN THERE ARE NO OBJECTS.** It returned early
+on `obj_registry == NULL`, which skipped the text sweep — and a program that
+does nothing but build text allocates no object at all, so two million
+discarded strings got not one collection: 138.7 MB where it should be 8.2.
+
+⚠️ **`ALG_POISON=1` COVERS TEXT**, filling a released block with `0xDD` and
+withholding it, which is the same *marking is wrong* / *reuse is wrong* split
+the objects have. It is how the first bug in this work was localised in one
+run — and the probe that found the SECOND needed a stale READ to be caught
+rather than a released one, because a short string read from a reused block
+sees the free-list pointer, whose bytes include zeros.
+
 
 ## Commands
 
@@ -2068,6 +2343,16 @@ because that split *is* the diagnosis. Poisoning withholds a released body
 instead of reusing it, so a case that passes one way and fails the other says
 whether marking or reuse is at fault. Three bugs in the hunt that produced
 these cases had exactly that signature.
+
+⚠️ **`flat-text` IS A SCALE CASE AND NOT AN OUTPUT ONE, because a text leak
+is invisible to output.** Comparing what a program prints cannot catch one, so
+`collector/flat-text.a24` takes a round count and is run at two scales ten
+times apart with `ALG_MEM_REPORT=1`: the memory the runtime reports must be
+the SAME. The small scale is **20,000 rather than 2,000** because the heap has
+to reach steady state first — 2,000 rounds peaks BELOW the figure it settles
+on, so comparing against that would read a leak as the heap merely warming up.
+It was seen red against both leaks it guards: the fold cache's permanent
+blocks, and a Buffer exempt from the sweep.
 
 ⚠️ **A collector failure may be a HANG, so each run is bounded** (`--limit N`,
 default 120s). 0004 guards a released TextFile left linked in `all_files`, whose
