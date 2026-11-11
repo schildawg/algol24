@@ -69,8 +69,11 @@ executable rather than the source, not because compiling is slow.
 2. Take the tarball's checksum:
    `curl -sL https://github.com/schildawg/algol24/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256`
 3. Copy `algol24.rb` into the tap's `Formula/`, with the new `url` and `sha256`.
-4. Update `VERSION` in `compiler/Main.a24` **before** tagging — it is what
-   `algc --version` reports, and nothing checks that it matches the tag.
+4. Bump the release **before** tagging, in all three of its places:
+   `VERSION` in `compiler/Release.a24`, `ALG_RUNTIME_VERSION` in
+   `bootstrap/algol.h`, and the `_Static_assert` in `bootstrap/algol.c`.
+   `spec/spec.sh` holds the three to each other and to `RELEASES.md`, so
+   getting one wrong goes red rather than shipping.
 5. Open a pull request against the tap. `tests.yml` builds and tests it, and
    keeps the bottles as artifacts.
 6. **Do not press merge.** Run the `brew pr-pull` workflow instead, giving it
@@ -86,9 +89,12 @@ having already committed the ones before it. So bring a branch up to date by
 rebasing it, never by merging `main` into it. One commit per formula change is
 the convention and avoids the question entirely.
 
-⚠️ **`VERSION` and the tag can drift, and nothing catches it.** The one thing in
-this repository that is checked by nobody. Worth a line in `spec/spec.sh` when
-releases become routine.
+⚠️ **`VERSION` and the tag USED to drift with nothing to catch it**, which is
+what the check in `spec/spec.sh` now exists for: the three places that carry
+the release must agree, and the newest entry in `RELEASES.md` must name the
+same one. It was seen red in all three directions before being trusted. The
+tag itself is still outside it — a tag is pushed by hand and `spec.sh` runs
+before there is one.
 
 ## The two workflows
 
