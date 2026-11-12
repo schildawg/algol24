@@ -169,6 +169,13 @@ var INTERP_COLLECT_EVERY := 200000;
 /// Statements executed since the last automatic collection.
 var INTERP_TICK := 0;
 
+/// One synthetic class per built-in type name, so that TypeOf answers the
+/// same value twice and `TypeOf (1) = TypeOf (2)` is true [VAL-011].
+///
+/// The underscores are deliberate: a module-level table needs a name no local
+/// would reach for, since identifiers fold [SRC-011].
+var TYPE_VALUES := Map ();
+
 /// The file of the statement this walker is executing, so a runtime error can
 /// say where it happened [ERR-003].
 ///
@@ -281,6 +288,36 @@ begin
                                (Arguments[0] as ObjClass).FieldsInto (Shaped.Pairs);
 
                            Exit Shaped;
+                       end
+
+            // ⚠️ A TYPE IS INTERNED, or `TypeOf (1) = TypeOf (2)` is false:
+            // these compare by identity [VAL-011], so a fresh ObjClass per
+            // call would make two Integers answer two different types.  A
+            // class answers itself and an instance its class, both of which
+            // are already values; everything else gets a synthetic class
+            // carrying the name, which renders and compares as a class does.
+            //
+            // nil has no type -- `nil is X` is false for every X -- so it
+            // answers nil rather than a type named 'nil', which would be a
+            // thing to compare that the language says is not there.
+            'TypeOf' : begin
+                           var Asked := Arguments[0];
+
+                           if Asked = Nil           then Exit Nil;
+                           if Asked is ObjClass     then Exit Asked;
+                           if Asked is ObjInstance  then Exit (Asked as ObjInstance).Klass;
+
+                           var Named := TypeNameOf (Asked);
+
+                           if not TYPE_VALUES.Contains (Named) then
+                           begin
+                               var Made := ObjClass (Named, Nil, Map (), List ());
+
+                               Made.IsType := True;
+                               TYPE_VALUES.Put (Named, Made);
+                           end
+
+                           Exit TYPE_VALUES.Get (Named);
                        end
 
             'Length' : begin
@@ -578,6 +615,7 @@ begin
         Builtins.Define ('Collect', Native ('Collect', 0));
 
         Builtins.Define ('Fields', Native ('Fields', 1));
+        Builtins.Define ('TypeOf', Native ('TypeOf', 1));
         Builtins.Define ('Length', Native ('Length', 1));
         Builtins.Define ('Copy', Native ('Copy', 3));
         // Variadic, and checked in its own arm, because Pos takes 2 or 3
@@ -1761,9 +1799,33 @@ begin
 
         if not (Obj is ObjInstance or Obj is ObjEnumType or Obj is ObjEnum
              or Obj is ObjCollection or Obj is ObjFile
-             or Obj is ObjBuffer) then
+             or Obj is ObjBuffer or Obj is ObjClass) then
         begin
             raise 'Only instances have properties.';
+        end
+
+        // A CLASS, ASKED ABOUT ITSELF [RT-032].  These three are the
+        // runtime's rather than the program's: a class declares fields for
+        // its INSTANCES, so there is no member of a class a program could
+        // write that one of these shadows.
+        if Obj is ObjClass then
+        begin
+            var Asked := FoldCase (Str (TheExpr.Name.Lexeme));
+
+            if Asked = FoldCase ('Name') then Exit Str ((Obj as ObjClass).Name);
+
+            if Asked = FoldCase ('Parent') then Exit (Obj as ObjClass).Superclass;
+
+            if Asked = FoldCase ('Fields') then
+            begin
+                var Shaped := ObjCollection ('Map');
+
+                (Obj as ObjClass).FieldsInto (Shaped.Pairs);
+
+                Exit Shaped;
+            end
+
+            raise 'Undefined property ''' + Str (TheExpr.Name.Lexeme) + '''.';
         end
 
         if Obj is ObjInstance then

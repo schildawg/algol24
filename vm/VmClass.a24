@@ -119,6 +119,12 @@ var
     /// The class this one extends, or nil.
     Parent  : Any;
 
+    /// Whether this stands for a built-in type rather than a declared class.
+    ///
+    /// TypeOf answers one of these for an Integer or a String, and nothing
+    /// constructs it.
+    IsType : Boolean := False;
+
 begin
     /// Makes a class with no methods and no fields.
     constructor Init (Name : String);

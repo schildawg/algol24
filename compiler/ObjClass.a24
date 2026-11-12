@@ -18,6 +18,13 @@ var
     /// The parent, or Nil for a class that declares none.
     Superclass : ObjClass;
 
+    /// Whether this stands for a built-in type rather than a declared class.
+    ///
+    /// TypeOf answers one of these for an Integer or a String, and nothing
+    /// constructs it: without the guard in Call, `TypeOf (42) ()` would answer
+    /// an 'Integer instance' -- a wrong answer rather than a refusal.
+    IsType : Boolean := False;
+
     /// Declared field names, in the order written.
     ///
     /// Seeded onto every instance so a field a class declares exists before
@@ -262,6 +269,10 @@ begin
        Initializer : ObjFunction;
 
     begin
+        if IsType then
+            raise Str (Name)
+                + ' is a type rather than a class, and cannot be constructed.';
+
         Instance := ObjInstance (this);
 
         SeedFields (Instance, TheInterpreter);

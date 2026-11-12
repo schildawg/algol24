@@ -133,7 +133,8 @@ begin
                      'Length',
                      'List', 'Map', 'MkDir', 'Ord', 'ParamCount', 'ParamStr',
                      'Pos', 'Pred', 'RmDir', 'Set', 'Stack', 'Str', 'Succ',
-                     'TextFile', 'ToLower', 'ToUpper', 'Val', 'Write',
+                     'TextFile', 'ToLower', 'ToUpper', 'TypeOf', 'Val',
+                     'Write',
                      'WriteLn'] do
         Names.Add (FoldCase (Str (Name)));
 

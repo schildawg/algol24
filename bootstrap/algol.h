@@ -272,6 +272,11 @@ void  alg_class_field(Value klass, const char *name, const char *type);
    An empty Map for anything that is neither an instance nor a class. */
 Value alg_fields(Value v);
 
+/* A value's type, as a value: a class answers itself, an instance answers its
+   class, nil answers nil, and everything else answers an interned synthetic
+   class carrying the type's name. */
+Value alg_type_of(Value v);
+
 void  alg_class_method(Value klass, const char *name, AlgMethod fn, int32_t arity,
                        const char **types);
 void  alg_class_initializer(Value klass, AlgMethod fn);

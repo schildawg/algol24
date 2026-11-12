@@ -581,6 +581,15 @@ var COLLECT_EVERY := 0;
 /// Instructions since the last collection.
 var Tick : Integer := 0;
 
+/// One synthetic class per built-in type name, so TypeOf answers the same
+/// value twice and `TypeOf (1) = TypeOf (2)` is true [VAL-011].
+///
+/// A module-level variable of Vm.a24, so the collector reaches it as a root
+/// without being told -- which is what makes it safe where the C runtime's
+/// equivalent had to be marked by hand.  The underscores are deliberate: a
+/// module-level table needs a name no local would reach for [SRC-011].
+var TYPE_VALUES := Map ();
+
 /// Whether to dispatch through the hand-written C loop rather than this one.
 ///
 /// FALSE by default, and the default is what makes `./test.sh vm/Vm.a24` work:
@@ -1409,6 +1418,41 @@ begin
     Push (Left >> Right);
 end
 
+/// The name of a value's type, as the machine sees it.
+///
+/// Written here rather than reached for: TypeNameOf lives in
+/// compiler/ObjFunction and a chunk must run without the compiler, which is
+/// the same reason TypeMatches is a chain over literals rather than one
+/// comparison against a name.
+///
+/// A guest instance answers its class's name and a guest enum member its
+/// type's, because the host would answer the name of the MACHINE's class --
+/// VmInstance -- instead of the program's.
+function NameOfValueType (V : Any) : String;
+begin
+    if V = Nil then Exit 'nil';
+
+    if V is Boolean then Exit 'Boolean';
+    if V is Integer then Exit 'Integer';
+    if V is Double  then Exit 'Double';
+    if V is String  then Exit 'String';
+    if V is Char    then Exit 'Char';
+    if V is Pointer then Exit 'Pointer';
+
+    if V is VmInstance then Exit Str ((V as VmInstance).Klass.Name);
+    if V is VmEnum     then Exit Str ((V as VmEnum).TypeName);
+
+    if V is List     then Exit 'List';
+    if V is Map      then Exit 'Map';
+    if V is Set      then Exit 'Set';
+    if V is Array    then Exit 'Array';
+    if V is Stack    then Exit 'Stack';
+    if V is Buffer   then Exit 'Buffer';
+    if V is TextFile then Exit 'TextFile';
+
+    Exit 'Any';
+end
+
 /// Replaces the top with whether it is of the type its operand names.
 ///
 /// A chain over the five primitive type names, each arm using the host's own
@@ -1900,6 +1944,13 @@ begin
     // field assignment in the constructor reaches the thing being made.
     if Callee is VmClass then
     begin
+        // A TYPE IS NOT A CLASS.  TypeOf answers a synthetic class for a
+        // built-in type name, and constructing one would answer an 'Integer
+        // instance' -- a wrong answer rather than a refusal [RT-032].
+        if (Callee as VmClass).IsType then
+            raise Str ((Callee as VmClass).Name)
+                + ' is a type rather than a class, and cannot be constructed.';
+
         Slots[SP - Count - 1] := VmInstance (Callee);
 
         // A CONSTRUCTOR may be overloaded like any other method, so which one
@@ -2047,6 +2098,29 @@ begin
             raise 'Undefined enum member ' + QUOTE + Str (Written) + QUOTE + '.';
 
         Exit Member;
+    end
+
+    // A CLASS, ASKED ABOUT ITSELF [RT-032].  A VmSingleton is its own class
+    // and not a VmClass, so the arm below still turns an `object` into the
+    // instance it stands for and this reaches only a class named as one.
+    // These three are the runtime's rather than the program's, since a class
+    // declares fields for its INSTANCES and so has no member of its own that
+    // a program could write.
+    if Self is VmClass then
+    begin
+        if Named = 'name'   then Exit Str ((Self as VmClass).Name);
+        if Named = 'parent' then Exit (Self as VmClass).Parent;
+
+        if Named = 'fields' then
+        begin
+            var Shape := Map ();
+
+            (Self as VmClass).FieldsInto (Shape);
+
+            Exit Shape;
+        end
+
+        raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
     end
 
     // An OBJECT answers like the instance it stands for, and asking is what
@@ -3345,6 +3419,31 @@ begin
         // the host's: a guest instance is a VmInstance, so asking the host
         // would answer the fields of the MACHINE's class instead of the
         // program's.  The same split ParamCount and ParamStr have.
+        // A type, as a value [RT-032].  Interned, or `TypeOf (1) = TypeOf (2)`
+        // is false -- these compare by identity [VAL-011].  A class answers
+        // itself, an instance its class, and nil answers nil because nil has
+        // no type.
+        if Name = 'typeof' then
+        begin
+            if A = Nil        then begin Push (Nil); Exit; end
+            if A is VmClass   then begin Push (A);   Exit; end
+
+            if A is VmInstance then begin Push ((A as VmInstance).Klass); Exit; end
+
+            var Called := NameOfValueType (A);
+
+            if not TYPE_VALUES.Contains (Called) then
+            begin
+                var Fresh := VmClass (Called);
+
+                Fresh.IsType := True;
+                TYPE_VALUES.Put (Called, Fresh);
+            end
+
+            Push (TYPE_VALUES.Get (Called));
+            Exit;
+        end
+
         if Name = 'fields' then
         begin
             var Shape := Map ();

@@ -24,6 +24,7 @@ static Value i_objclass(Value v_this, Value *args, int32_t count) {
     alg_set_property(v_this, "Name", alg_nil());
     alg_set_property(v_this, "Methods", alg_nil());
     alg_set_property(v_this, "Superclass", alg_nil());
+    alg_set_property(v_this, "IsType", alg_widen(alg_bool(false), "Boolean"));
     alg_set_property(v_this, "Fields", alg_nil());
     alg_root_top = rt_base;
     return alg_nil();
@@ -537,6 +538,10 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     (void)v_initializer;
     alg_root(&v_initializer, 1);
     alg_hold_top = rh_273;
+    if (alg_truthy(alg_property(v_this, "IsType"))) {
+        alg_raise(alg_hold(alg_add(alg_hold(alg_str(alg_property(v_this, "Name"))), alg_literal(" is a type rather than a class, and cannot be constructed."))));
+    }
+    alg_hold_top = rh_273;
     (void)((v_instance = alg_hold(alg_new(k_objinstance, (Value[]){v_this}, 1))));
     alg_hold_top = rh_273;
     (void)(alg_hold(alg_invoke(v_this, "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2)));
@@ -584,6 +589,7 @@ void init_ObjClass(void) {
     alg_class_field(k_objclass, "Name", "String");
     alg_class_field(k_objclass, "Methods", "Map");
     alg_class_field(k_objclass, "Superclass", "ObjClass");
+    alg_class_field(k_objclass, "IsType", "Boolean");
     alg_class_field(k_objclass, "Fields", "List");
     alg_class_initializer(k_objclass, i_objclass);
     alg_class_method(k_objclass, "Init", m_objclass_init_4_string_objclass_map_list, 4, t_objclass_init_4_string_objclass_map_list);

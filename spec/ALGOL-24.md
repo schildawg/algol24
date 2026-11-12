@@ -11839,7 +11839,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-six names are built in. Thirty-three are always
+**[RT-001]**  Thirty-seven names are built in. Thirty-four are always
 available:
 
 ```
@@ -11847,7 +11847,7 @@ Length  Copy  Pos   Str        Ord   Char  Val
 ToUpper ToLower
 Succ    Pred  Foreign
 clock   Collect
-Fields
+Fields  TypeOf
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
@@ -12982,6 +12982,100 @@ Loose :
 4
 0
 0
+```
+
+**[RT-032]**  `TypeOf (X)` answers **X's type, as a value**. A class answers
+itself, an instance answers its class, and `nil` answers `nil` — `nil is X` is
+false for every `X`, so a type value for it would be a thing to compare that
+the language says is not there.
+
+**Every other value answers a type carrying its name** — `Integer`, `String`,
+`Char`, `List` and the rest. These are **interned**, so `TypeOf (1)` and
+`TypeOf (2)` are the same value: a type is compared by identity as a class is
+[VAL-011], and a fresh one per call would make two Integers answer two
+different types.
+
+⚠️ **A TYPE IS NOT CONSTRUCTIBLE.** `TypeOf (42) ()` is
+`Integer is a type rather than a class, and cannot be constructed.` A declared
+class still constructs, because a class answers itself and is what it always
+was.
+
+**A class answers three things about itself**, which it could not before: its
+`Name`, its `Parent` — the class it extends, or `nil` — and its `Fields`
+[RT-031]. They are the runtime's and not the program's: a class declares
+fields for its *instances*, so there is no member of a class that a program
+could write for one of these to shadow. An instance still answers `ClassName`
+[CLS-008], which is a different question asked of a different thing.
+
+    conformance  0219-typeof-answers-a-type.a24
+
+##### conformance/0219-typeof-answers-a-type.a24
+
+```algol24
+// RT-032: a value's type, as a value.
+class Animal;
+var
+    Legs : Integer;
+begin
+    constructor Init ();
+    begin
+        Legs := 4;
+    end
+end
+
+class Dog (Animal);
+begin
+    constructor Init ();
+    begin
+        super.Init ();
+    end
+end
+
+var D := Dog ();
+
+// An instance answers its class, which answers its own name and parent.
+WriteLn (TypeOf (D).Name);
+WriteLn (TypeOf (D).Parent.Name);
+WriteLn (TypeOf (D).Fields);
+
+// A class is already a type, so it answers itself.
+WriteLn (TypeOf (Dog) = Dog);
+
+// Everything else answers a type carrying its name.  A one-character literal
+// is a Char and not a String [TYP-003], which this is a fair reminder of.
+WriteLn (TypeOf (42).Name);
+WriteLn (TypeOf ('text').Name);
+WriteLn (TypeOf ('x').Name);
+
+// Interned, so a type compares by identity as a class does [VAL-011].
+WriteLn (TypeOf (1) = TypeOf (2));
+WriteLn (TypeOf (1) = TypeOf (1.5));
+
+// nil has no type.
+WriteLn (TypeOf (nil) = nil);
+
+// A type is not a class: constructing one is refused rather than answered.
+try
+    var Wrong := TypeOf (42) ();
+    WriteLn ('constructed');
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0219-typeof-answers-a-type.a24
+Dog
+Animal
+[Legs:Integer]
+true
+Integer
+String
+Char
+true
+false
+true
+Integer is a type rather than a class, and cannot be constructed.
 ```
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
@@ -15057,7 +15151,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-six built-in names, with the rule specifying each. `spec/spec.sh`
+The thirty-seven built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -15075,6 +15169,7 @@ interpreter actually registers.
 | `Set` | [COL-002] | An empty Set, or a Set of a collection's values |
 | `Stack` | [COL-002] | An empty Stack |
 | `Fields` | [RT-031] | The fields a value's class declares, name to declared type |
+| `TypeOf` | [RT-032] | A value's type, as a value |
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
 | `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
 | `Pred` | [RT-020] | The previous ordinal, on the same terms |

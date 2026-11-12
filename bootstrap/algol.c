@@ -1865,6 +1865,12 @@ typedef struct ObjClass {
     AlgMethod initializer;
 
     bool  is_object;
+
+    /* A synthetic class standing for a built-in type, which TypeOf answers and
+       nothing constructs.  Without the guard `TypeOf (42) ()` would make an
+       "Integer instance" -- a wrong answer rather than a refusal. */
+    bool  is_type;
+
     bool  built;
     Value instance;
 } ObjClass;
@@ -1893,6 +1899,7 @@ Value alg_class(const char *name, Value super) {
     klass->method_capacity = 0;
     klass->initializer     = NULL;
     klass->is_object       = false;
+    klass->is_type         = false;
     klass->built           = false;
     klass->total_fields    = -1;
 
@@ -1967,6 +1974,61 @@ static void class_fields_into(ObjClass *klass, Value into) {
         alg_map_keep(into,
                      alg_string(klass->fields[i]),
                      alg_string(klass->field_types[i] == NULL ? "" : klass->field_types[i]));
+}
+
+/* ── A type, as a value ───────────────────────────────────────────────────
+   A class is already one, so a class answers ITSELF and an instance answers
+   its class.  Everything else needs a stand-in, and the cheapest honest one
+   is a synthetic class carrying the type's name: it is marked, rendered,
+   compared and asked about exactly as a real class is, which is four
+   behaviours not written twice.
+
+   ⚠️ INTERNED, or `TypeOf (1) = TypeOf (2)` is false.  These compare by
+   identity [VAL-011], so a fresh one per call would make two Integers answer
+   two different types -- the same trap the interned built-in values record.
+
+   ⚠️ AND THE TABLE IS A ROOT.  It is a C static holding Values, which the
+   collector cannot see, and an ObjClass is marked and recycled by size class
+   like any other object.  Marking it is necessary by construction rather than
+   demonstrated by a probe, which is what the interned built-in table records
+   about itself.
+
+   ⚠️ `nil` HAS NO TYPE, so it answers nil rather than a type named "nil".
+   `nil is X` is false for every X, and a type value for it would be a thing
+   to compare that the language says is not there. */
+#define TYPE_CACHE 24
+
+/* Declared here because the type table is defined with the class machinery
+   and the renderer that names a value's type sits further down. */
+static const char *type_name(Value v);
+
+static struct { const char *name; Value held; } type_cache[TYPE_CACHE];
+static int32_t type_cached = 0;
+
+static Value type_for(const char *name) {
+    for (int32_t i = 0; i < type_cached; i++)
+        if (alg_stricmp(type_cache[i].name, name) == 0) return type_cache[i].held;
+
+    Value made = alg_class(name, alg_nil());
+
+    ((ObjClass *)made.obj)->is_type = true;
+
+    if (type_cached < TYPE_CACHE) {
+        type_cache[type_cached].name = name;
+        type_cache[type_cached].held = made;
+        type_cached++;
+    }
+
+    return made;
+}
+
+Value alg_type_of(Value v) {
+    if (v.type == VAL_NIL) return alg_nil();
+
+    if (is_obj(v, OBJ_CLASS))    return v;
+    if (is_obj(v, OBJ_INSTANCE)) return object((Obj *)((ObjInstance *)v.obj)->klass);
+
+    return type_for(type_name(v));
 }
 
 Value alg_fields(Value v) {
@@ -2402,6 +2464,15 @@ static void initialize_fields(ObjClass *klass, Value self) {
 
 Value alg_new(Value value, Value *args, int32_t count) {
     ObjClass *klass = as_class(value, "Can only construct a class.");
+
+    if (klass->is_type) {
+        char message[128];
+
+        snprintf(message, sizeof message,
+                 "%s is a type rather than a class, and cannot be constructed.",
+                 klass->name);
+        alg_error(message);
+    }
 
     ObjInstance *instance = obj_alloc(sizeof(ObjInstance), OBJ_INSTANCE);
     instance->klass    = klass;
@@ -3056,6 +3127,24 @@ Value alg_property(Value receiver, const char *name) {
         if (method == NULL) undefined("property", name);
 
         return alg_bound(receiver, method);
+    }
+
+    /* ── A CLASS, ASKED ABOUT ITSELF ──────────────────────────────────────
+       A class is already a value -- it can be held, compared by identity and
+       called -- and until now it answered nothing, so `T.Name` was
+       `Only instances have properties.`  These three are the runtime's, not
+       the program's: a class declares fields for its INSTANCES, so there is
+       no member of a class a program could write that one of these shadows. */
+    if (is_obj(receiver, OBJ_CLASS)) {
+        ObjClass *klass = (ObjClass *)receiver.obj;
+
+        if (alg_stricmp(name, "Name") == 0)   return alg_string(klass->name);
+        if (alg_stricmp(name, "Fields") == 0) return alg_fields(receiver);
+
+        if (alg_stricmp(name, "Parent") == 0)
+            return klass->super == NULL ? alg_nil() : object((Obj *)klass->super);
+
+        undefined("property", name);
     }
 
     if (is_obj(receiver, OBJ_ENUM)) {
@@ -4018,6 +4107,11 @@ int32_t alg_collect(void) {
 
     /* And from the HELD TEMPORARIES of every expression part way through. */
     for (int32_t i = 0; i < alg_hold_top; i++) mark_value(alg_holds[i]);
+
+    /* And from the TYPE CACHE, a C static holding one synthetic class per
+       built-in type name -- invisible to the collector, and an ObjClass is
+       recycled by size class like anything else. */
+    for (int32_t i = 0; i < type_cached; i++) mark_value(type_cache[i].held);
 
     /* And from the FOLD CACHE, whose slots own their key and their answer. */
     for (int32_t i = 0; i < FOLD_CACHE; i++) {
