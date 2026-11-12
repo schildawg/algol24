@@ -320,6 +320,71 @@ begin
                            Exit TYPE_VALUES.Get (Named);
                        end
 
+            // A member read by a computed name [RT-033].  The same answer
+            // the written form gives, property included -- a property's read
+            // IS its call [CLS-017], which is the one way a member read
+            // differs from reading a method as a value.
+            'Member' : begin
+                           var On     := Arguments[0];
+                           var Asking := FoldCase (Str (Arguments[1]));
+
+                           if On is ObjInstance then
+                           begin
+                               var It := On as ObjInstance;
+
+                               if Asking = FoldCase ('ClassName') then Exit It.Klass.Name;
+
+                               var Computed := It.Klass.MethodOfArity (Asking, 0);
+
+                               if Computed <> Nil and Computed.Declaration.IsProperty
+                                                  and not It.Fields.Contains (Asking) then
+                                   Exit Computed.Bind (It).Call (TheInterpreter, List ());
+
+                               if It.Fields.Contains (Asking) then Exit It.Fields.Get (Asking);
+
+                               var Bound := It.Klass.FindMethod (Asking);
+
+                               if Bound <> Nil then Exit Bound.Bind (It);
+                           end
+
+                           raise 'Undefined property ''' + Str (Arguments[1]) + '''.';
+                       end
+
+            // A method called by a computed name [RT-033].
+            //
+            // ⚠️ A PROPERTY IS NOT REACHED, because its read IS its call
+            // [CLS-017] -- so calling one here would be a second way to do
+            // what Member does, and a generic writer could 'call' something
+            // there is nothing to write back through.
+            'Invoke' : begin
+                           var Onto   := Arguments[0];
+                           var Called := FoldCase (Str (Arguments[1]));
+
+                           if not (Arguments[2] is ObjCollection) then
+                               raise 'Invoke expects a List of arguments.';
+
+                           var Given := (Arguments[2] as ObjCollection).Items;
+
+                           if Onto is ObjInstance then
+                           begin
+                               var That := Onto as ObjInstance;
+                               var Maybe := That.Klass.MethodOfArity (Called, 0);
+
+                               if Maybe <> Nil and Maybe.Declaration.IsProperty then
+                                   raise '''' + Str (Arguments[1])
+                                       + ''' is a property; read it rather than calling it.';
+
+                               var Chosen := That.Klass.FindOverload (Called, Given);
+
+                               if Chosen = Nil then
+                                   raise 'Undefined property ''' + Str (Arguments[1]) + '''.';
+
+                               Exit Chosen.Bind (That).Call (TheInterpreter, Given);
+                           end
+
+                           raise 'Undefined property ''' + Str (Arguments[1]) + '''.';
+                       end
+
             'Length' : begin
                            if Arguments[0] is ObjCollection then
                                raise 'Length expects text; use .Length for a collection.';
@@ -616,6 +681,8 @@ begin
 
         Builtins.Define ('Fields', Native ('Fields', 1));
         Builtins.Define ('TypeOf', Native ('TypeOf', 1));
+        Builtins.Define ('Member', Native ('Member', 2));
+        Builtins.Define ('Invoke', Native ('Invoke', 3));
         Builtins.Define ('Length', Native ('Length', 1));
         Builtins.Define ('Copy', Native ('Copy', 3));
         // Variadic, and checked in its own arm, because Pos takes 2 or 3

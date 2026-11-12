@@ -2097,6 +2097,53 @@ Value alg_properties(Value v) {
     return alg_map();
 }
 
+/* Declared here because the text helpers sit below the class machinery. */
+static const char *as_string(Value v, const char *what);
+
+/* Whether a class, or anything it inherits from, declares this name as a
+   PROPERTY rather than a method. */
+static bool names_a_property(ObjClass *klass, const char *name) {
+    for (ObjClass *at = klass; at != NULL; at = at->super)
+        for (int32_t i = 0; i < at->method_count; i++)
+            if (at->methods[i].is_property && alg_stricmp(at->methods[i].name, name) == 0)
+                return true;
+
+    return false;
+}
+
+/* Reads a member by a name a program computed -- a field, or a property,
+   which answers by being called [CLS-017].  The same answer the written form
+   gives, including its diagnostic for a name the class has not got. */
+Value alg_member(Value receiver, Value name) {
+    return alg_property(receiver, as_string(name, "Member expects a name."));
+}
+
+/* Calls a method by a name a program computed.
+   ⚠️ A PROPERTY IS NOT REACHED, because its read IS its call [CLS-017] -- so
+   calling one through here would be a second way to do what Member does, and
+   a generic writer could "call" something there is nothing to write back
+   through.  The guard is explicit because find_method would otherwise answer
+   a property of arity 0 for a call of no arguments. */
+Value alg_invoke_by_name(Value receiver, Value name, Value args) {
+    const char *called = as_string(name, "Invoke expects a member name.");
+
+    if (is_obj(receiver, OBJ_INSTANCE)
+     && names_a_property(((ObjInstance *)receiver.obj)->klass, called)) {
+        char message[128];
+
+        snprintf(message, sizeof message,
+                 "'%s' is a property; read it rather than calling it.", called);
+        alg_error(message);
+    }
+
+    Value *items = alg_array_slots(args);
+
+    if (items == NULL && !is_obj(args, OBJ_LIST))
+        alg_error("Invoke expects a List of arguments.");
+
+    return alg_invoke(receiver, called, items, (int32_t)alg_length(args).integer);
+}
+
 Value alg_type_of(Value v) {
     if (v.type == VAL_NIL) return alg_nil();
 

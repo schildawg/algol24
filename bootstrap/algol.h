@@ -279,6 +279,11 @@ Value alg_fields(Value v);
 Value alg_methods(Value v);
 Value alg_properties(Value v);
 
+/* A member read by a computed name, and a method called by one.  Invoke does
+   not reach a property: a property's read IS its call [CLS-017]. */
+Value alg_member(Value receiver, Value name);
+Value alg_invoke_by_name(Value receiver, Value name, Value args);
+
 /* A value's type, as a value: a class answers itself, an instance answers its
    class, nil answers nil, and everything else answers an interned synthetic
    class carrying the type's name. */

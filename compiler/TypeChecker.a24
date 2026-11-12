@@ -130,6 +130,7 @@ begin
     for var Name in ['Array', 'AssertEqual', 'AssertTrue', 'Buffer', 'ChDir',
                      'Char', 'clock', 'Collect', 'Copy', 'ErrorLn', 'Fail',
                      'Fields', 'FileExists', 'Foreign', 'GetDir', 'Halt',
+                     'Invoke', 'Member',
                      'Length',
                      'List', 'Map', 'MkDir', 'Ord', 'ParamCount', 'ParamStr',
                      'Pos', 'Pred', 'RmDir', 'Set', 'Stack', 'Str', 'Succ',

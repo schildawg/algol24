@@ -4170,6 +4170,8 @@ begin
         if Key = 'str/3'     then Exit 'alg_str_padded';
         if Key = 'fields/1'  then Exit 'alg_fields';
         if Key = 'typeof/1'  then Exit 'alg_type_of';
+        if Key = 'member/2'  then Exit 'alg_member';
+        if Key = 'invoke/3'  then Exit 'alg_invoke_by_name';
         if Key = 'length/1'  then Exit 'alg_text_length';
         if Key = 'copy/3'    then Exit 'alg_copy';
         if Key = 'pos/2'     then Exit 'alg_pos';

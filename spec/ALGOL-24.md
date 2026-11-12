@@ -11839,7 +11839,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-seven names are built in. Thirty-four are always
+**[RT-001]**  Thirty-nine names are built in. Thirty-six are always
 available:
 
 ```
@@ -11847,7 +11847,7 @@ Length  Copy  Pos   Str        Ord   Char  Val
 ToUpper ToLower
 Succ    Pred  Foreign
 clock   Collect
-Fields  TypeOf
+Fields  TypeOf     Member     Invoke
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
@@ -13162,6 +13162,109 @@ true
 false
 true
 Integer is a type rather than a class, and cannot be constructed.
+```
+
+**[RT-033]**  `Member (X, Name)` reads a member by a name the program
+computed, and `Invoke (X, Name, Args)` calls one. Both answer exactly what the
+written form answers, including its diagnostic for a name the class has not
+got — `Member (P, 'Nope')` is `Undefined property 'Nope'.`
+
+`Args` is a `List`, empty for a call that takes nothing.
+
+**`Member` reaches a property and `Invoke` does not.** A property's read *is*
+its call [CLS-017], so reading one through `Member` runs it and answers the
+value, while calling it through `Invoke` is
+`'Rich' is a property; read it rather than calling it.` They are two
+operations and the class table already tells them apart; letting a call reach
+a property would be a second way to do what `Member` does, and would let
+generic code "call" something there is nothing to write back through.
+
+⚠️ **THESE REACH A PRIVATE MEMBER, AND THAT IS A TRAPDOOR RATHER THAN AN
+OVERSIGHT.** `private` is settled before the program runs and nothing records
+it at run time [DCL-011], so a computed name reaches what a written one may
+not. Reflection can therefore do what written code cannot. It is stated here
+so that it is met on purpose: the guard that remains is `uses`, since the
+reading sugar a program actually writes is an extension [MOD-015].
+
+    conformance  0221-a-member-by-computed-name.a24
+
+##### conformance/0221-a-member-by-computed-name.a24
+
+```algol24
+// RT-033: reading and calling a member by a name the program computed.
+class Prop;
+var
+    Name  : String;
+    Worth : Integer;
+begin
+    constructor Init ();
+    begin
+        Name  := 'widget';
+        Worth := 42;
+    end
+
+    function Scaled (By : Integer) : Integer;
+    begin
+        Exit Worth * By;
+    end
+
+    function Plain () : String;
+    begin
+        Exit Name;
+    end
+
+    property Rich : Boolean;
+    begin
+        Exit Worth > 10;
+    end
+
+    private:
+    function Secret () : Integer;
+    begin
+        Exit Worth + 1;
+    end
+end
+
+var P := Prop ();
+
+// A generic walk: every field read by a name that came from the class
+// itself rather than from the program's text [RT-031].
+for var F in Fields (P) do
+    WriteLn (F, ' = ', Str (Member (P, F)));
+
+WriteLn (Invoke (P, 'Plain', []));
+WriteLn (Invoke (P, 'Scaled', [3]));
+
+// A property is READ and not called.
+WriteLn (Member (P, 'Rich'));
+
+try
+    WriteLn (Invoke (P, 'Rich', []));
+except
+    on e : String do WriteLn (e);
+end
+
+// A private member is reachable by a computed name, which written code
+// cannot do.
+WriteLn (Invoke (P, 'Secret', []));
+
+try
+    WriteLn (Member (P, 'Nope'));
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0221-a-member-by-computed-name.a24
+Name = widget
+Worth = 42
+widget
+126
+true
+'Rich' is a property; read it rather than calling it.
+43
+Undefined property 'Nope'.
 ```
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
@@ -15237,7 +15340,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-seven built-in names, with the rule specifying each. `spec/spec.sh`
+The thirty-nine built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -15256,6 +15359,8 @@ interpreter actually registers.
 | `Stack` | [COL-002] | An empty Stack |
 | `Fields` | [RT-031] | The fields a value's class declares, name to declared type |
 | `TypeOf` | [RT-032] | A value's type, as a value |
+| `Member` | [RT-033] | A member read by a computed name |
+| `Invoke` | [RT-033] | A method called by a computed name |
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
 | `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
 | `Pred` | [RT-020] | The previous ordinal, on the same terms |

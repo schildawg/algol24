@@ -3573,6 +3573,11 @@ begin
         if Name = 'pos'         then begin Push (Pos (A, B)); Exit; end
         if Name = 'str'         then begin Push (Str (A, B)); Exit; end
         if Name = 'copy'        then begin Push (Copy (A, B)); Exit; end
+
+        // A member read by a computed name [RT-033], which is exactly what
+        // MemberOf already answers for a written one -- property included,
+        // since a property's read IS its call [CLS-017].
+        if Name = 'member'      then begin Push (MemberOf (A, B)); Exit; end
         if Name = 'assertequal' then
         begin
             if not TESTING then raise 'Undefined variable ' + QUOTE
@@ -3590,6 +3595,26 @@ begin
         if Name = 'copy' then begin Push (Copy (A, B, C)); Exit; end
         if Name = 'str'  then begin Push (Str (A, B, C));  Exit; end
         if Name = 'pos'  then begin Push (Pos (A, B, C));  Exit; end
+
+        // A method called by a computed name [RT-033].
+        //
+        // ⚠️ A PROPERTY IS NOT REACHED, because its read IS its call
+        // [CLS-017] -- so calling one here would be a second way to do what
+        // Member does, and a generic writer could 'call' something there is
+        // nothing to write back through.
+        if Name = 'invoke' then
+        begin
+            var Called := ToLower (Str (B));
+
+            if not (C is List) then raise 'Invoke expects a List of arguments.';
+
+            if A is VmInstance and (A as VmInstance).Klass.HasPropertyFolded (Called) then
+                raise QUOTE + Str (B) + QUOTE
+                    + ' is a property; read it rather than calling it.';
+
+            Push (CallNested (A, B, C as List));
+            Exit;
+        end
     end
 
     // Foreign is the one built-in taking five [RT-001], and a program may call
