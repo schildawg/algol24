@@ -3340,6 +3340,22 @@ begin
     if Count = 1 then
     begin
         if Name = 'length'     then begin Push (Length (A));     Exit; end
+
+        // A class read at run time [RT-031].  The machine's own classes, not
+        // the host's: a guest instance is a VmInstance, so asking the host
+        // would answer the fields of the MACHINE's class instead of the
+        // program's.  The same split ParamCount and ParamStr have.
+        if Name = 'fields' then
+        begin
+            var Shape := Map ();
+
+            if A is VmInstance then (A as VmInstance).Klass.FieldsInto (Shape);
+            else if A is VmClass then (A as VmClass).FieldsInto (Shape);
+
+            Push (Shape);
+            Exit;
+        end
+
         if Name = 'str' then
         begin
             // An instance reads as '<ClassName> instance', which is the
@@ -3710,7 +3726,13 @@ end
 /// Records a field name on the class on top, leaving the class there.
 procedure DoField ();
 begin
-    PeekAt (0).AddField (Constants[ReadIndex ()]);
+    // The constant carries the name in element 0 and the declared type in
+    // element 1, packed as OP_INVOKE_NAMED packs its two names -- two constant
+    // indices would break the invariant that at most one operand per opcode is
+    // widenable.
+    var Declared := Constants[ReadIndex ()] as List;
+
+    PeekAt (0).AddField (Declared[0], Declared[1]);
 end
 
 /// Makes the popped class the parent of the one on top.
@@ -4239,6 +4261,7 @@ const SEED_RANGE   := 6;   // ['R', 1, 5], a subrange's name and bounds
 const SEED_LIST    := 7;   // [1, 1], a collection with an index 1
 const SEED_ADD     := 8;   // 'Add', a host METHOD a collection answers
 const SEED_NONAMES := 9;   // an empty name list, for a named call of none
+const SEED_FIELD   := 10;  // ['K', ''], a field's name and its declared type
 
 /// A chunk with those constants and one global slot, ready to measure in.
 function MeasuringChunk () : Chunk;
@@ -4271,6 +4294,11 @@ begin
     C.AddConstant ([1, 1]);
     C.AddConstant ('Add');
     C.AddConstant (List ());
+
+    // A field DECLARATION, which OP_FIELD reads as one constant: the name and
+    // the type written on it.  Appended rather than placed beside 'K' because
+    // the test writes every index literally, so inserting would move them all.
+    C.AddConstant (['K', '']);
 
     // One global, so the global opcodes have a slot to name.
     C.QualifiedSlot ('', 'G');
@@ -4618,7 +4646,7 @@ begin
 
     // A CLASS beneath it.
     AssertStackEffectOn (OP_SINGLETON, None, 0, AClass, 1);
-    AssertStackEffectOn (OP_FIELD, [SEED_NAME], 0, AClass, 1);
+    AssertStackEffectOn (OP_FIELD, [SEED_FIELD], 0, AClass, 1);
 
     // A class AND a callable above it.
     var AClassAndBody := [OP_CLASS, SEED_NAME, OP_CONSTANT, SEED_BODY];
@@ -5103,7 +5131,7 @@ test 'An Exit Inside A Constructor Answers The Instance';
 begin
     var K := VmClass ('Thing');
 
-    K.AddField ('N');
+    K.AddField ('N', '');
 
     // constructor Init (); begin this.N := 1; Exit; end
     //
@@ -5850,7 +5878,7 @@ end
 test 'An Instance Carries Its Fields And Finds Its Methods';
 begin
     var K := VmClass ('Point');
-    K.AddField ('X');
+    K.AddField ('X', '');
 
     var Setup := VmFunction ('Init', 1);
     Setup.Body.Emit (OP_THIS);
@@ -5899,7 +5927,7 @@ test 'ClassName Answers Ahead Of A Field Of That Name';
 begin
     // The name belongs to the language, so a field cannot take it [CLS-008].
     var K := VmClass ('Thing');
-    K.AddField ('ClassName');
+    K.AddField ('ClassName', '');
 
     var C := Chunk ();
     C.EmitConstant (K);

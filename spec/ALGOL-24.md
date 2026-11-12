@@ -11839,7 +11839,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-five names are built in. Thirty-two are always
+**[RT-001]**  Thirty-six names are built in. Thirty-three are always
 available:
 
 ```
@@ -11847,6 +11847,7 @@ Length  Copy  Pos   Str        Ord   Char  Val
 ToUpper ToLower
 Succ    Pred  Foreign
 clock   Collect
+Fields
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
@@ -12901,6 +12902,86 @@ err: joined 4 ways
 err: held
 out: unterminated, err: after an unterminated write
 
+```
+
+**[RT-031]**  `Fields (X)` answers a `Map` from the name of each field the
+value's class declares to the **type written on it**, or `''` where none was
+written. An instance answers its class's; a class answers its own.
+
+**Parent-first**, so a subclass's own fields follow what it inherited — the
+order a class seeds its fields in [CLS-005], and a reproducible one because
+every collection iterates in insertion order [COL-007]. Declaration order
+within a class is the order the fields are written.
+
+**A value that is neither an instance nor a class answers an empty `Map`.** An
+Integer has no declared fields, and asking is a fair question with a boring
+answer rather than a fault — the same bargain `5 is Dog` makes, where a value
+simply not being of a declared class is answered rather than refused.
+
+⚠️ **A PRIVATE FIELD APPEARS.** `private` governs what a program may *write*
+[DCL-011] and is settled before the program runs; nothing records it at run
+time, so this answers every field a class declares. A class whose state is
+private is still describable, and still readable by a program that asks this
+way — which is a trapdoor, and is stated rather than left to be discovered.
+
+**A `property` does not appear**, because it computes rather than stores
+[CLS-017]: there is nothing behind it to write back into, so a record built
+from this list can be read back.
+
+    conformance  0218-fields-reads-a-class.a24
+
+##### conformance/0218-fields-reads-a-class.a24
+
+```algol24
+// RT-031: the fields a class declares, name to declared type.
+class Base;
+var
+    Id    : Integer;
+    Label : String;
+begin
+    constructor Init ();
+    begin
+        Id := 1;
+        Label := 'base';
+    end
+end
+
+// Parent-first, so what a subclass inherits comes before what it declares
+// [CLS-005], and a Map iterates in insertion order [COL-007].
+class Prop (Base);
+var
+    Worth : Integer;
+    Loose;
+begin
+    constructor Init ();
+    begin
+        super.Init ();
+        Worth := 42;
+    end
+end
+
+var P := Prop ();
+
+for var F in Fields (P) do
+    WriteLn (F, ' : ', Fields (P).Get (F));
+
+// A class answers its own, so an instance is not needed to ask.
+WriteLn (Fields (Prop).Length);
+
+// A value with no declared fields answers an empty Map rather than failing.
+WriteLn (Fields (42).Length);
+WriteLn (Fields ('text').Length);
+```
+
+```console
+$ algc conformance/0218-fields-reads-a-class.a24
+Id : Integer
+Label : String
+Worth : Integer
+Loose : 
+4
+0
+0
 ```
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
@@ -14976,7 +15057,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-five built-in names, with the rule specifying each. `spec/spec.sh`
+The thirty-six built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -14993,6 +15074,7 @@ interpreter actually registers.
 | `Map` | [COL-002] | An empty Map |
 | `Set` | [COL-002] | An empty Set, or a Set of a collection's values |
 | `Stack` | [COL-002] | An empty Stack |
+| `Fields` | [RT-031] | The fields a value's class declares, name to declared type |
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
 | `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
 | `Pred` | [RT-020] | The previous ordinal, on the same terms |

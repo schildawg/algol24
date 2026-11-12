@@ -109,6 +109,13 @@ var
     /// than as an undefined member.
     Fields  : List;
 
+    /// The type written on each declared field, '' where none was, parallel to
+    /// Fields.
+    ///
+    /// A second List rather than a wider element, because Fields is indexed by
+    /// position everywhere it is read and a field's slot is its index.
+    FieldTypes : List;
+
     /// The class this one extends, or nil.
     Parent  : Any;
 
@@ -120,6 +127,7 @@ begin
         this.Methods    := Map ();
         this.Properties := Set ();
         this.Fields  := List ();
+        this.FieldTypes := List ();
         this.Parent  := Nil;
     end
 
@@ -226,7 +234,7 @@ begin
     ///
     /// Idempotent so that a subclass redeclaring an inherited field does not
     /// give the instance two slots for one name.
-    procedure AddField (FieldName : Any);
+    procedure AddField (FieldName : Any, FieldType : Any);
     begin
         var Key := Str (FieldName);
 
@@ -234,6 +242,23 @@ begin
             if ToLower (Str (Known)) = ToLower (Key) then Exit;
 
         this.Fields.Add (Key);
+        this.FieldTypes.Add (Str (FieldType));
+    end
+
+    /// Adds this class's declared fields to a Map, name to declared type.
+    ///
+    /// Parent-first, so a subclass's own fields follow what it inherited, and
+    /// a Map iterates in insertion order [COL-007] -- which is what makes a
+    /// record built from this reproducible.
+    ///
+    /// # Satisfies
+    /// [RT-031]
+    procedure FieldsInto (Into : Map);
+    begin
+        if this.Parent <> Nil then (this.Parent as VmClass).FieldsInto (Into);
+
+        for var I : Integer := 0; I < this.Fields.Length; I := I + 1 do
+            Into.Put (Str (this.Fields[I]), Str (this.FieldTypes[I]));
     end
 
     /// How a class reads when written or converted to text: its own name.
@@ -327,8 +352,8 @@ end
 test 'An Instance Begins With Every Field Nil';
 begin
     var K := VmClass ('Point');
-    K.AddField ('X');
-    K.AddField ('Y');
+    K.AddField ('X', '');
+    K.AddField ('Y', '');
 
     var I := VmInstance (K);
 
@@ -339,11 +364,11 @@ end
 test 'An Instance Includes Its Parents Fields';
 begin
     var Parent := VmClass ('Shape');
-    Parent.AddField ('Colour');
+    Parent.AddField ('Colour', '');
 
     var Child := VmClass ('Circle');
     Child.Parent := Parent;
-    Child.AddField ('Radius');
+    Child.AddField ('Radius', '');
 
     var I := VmInstance (Child);
 
@@ -355,8 +380,8 @@ test 'A Field Name Is Recorded Once';
 begin
     var K := VmClass ('Point');
 
-    K.AddField ('X');
-    K.AddField ('x');
+    K.AddField ('X', '');
+    K.AddField ('x', '');
 
     AssertEqual (1, K.Fields.Length);
 end

@@ -171,6 +171,64 @@ today **only instances can be asked**:
 `alg_invoke` is the existing machinery and needs no new path. What needs
 deciding is the spelling and what happens when the name is not a member.
 
+### Construction and writing, which the library asked about
+
+A generic **serializer** needs the field list. A generic **deserializer** needs
+to make an instance and fill it, and ⚠️ **CONSTRUCTION ALONE DOES NOT CLOSE
+THAT GAP**: unless a class has a constructor taking every field, a deserializer
+must also write a field by name. Both halves already exist in the runtime and
+neither is reachable from the language — `alg_new` and `alg_set_property`.
+
+⚠️ **A BY-NAME WRITE HONOURS THE DECLARED TYPE, which this proposal is what
+makes possible.** A written field assignment is an assignment context and
+widens [VAL-001]; a by-name write must do the same or it becomes the one way to
+put an Integer where a class promised a String. The field table now carries the
+declared type, so the check has something to check against — reflection makes
+its own write path safe rather than cutting a hole beside it.
+
+### Private members: visible, callable, and that is a decision
+
+⚠️ **`private` IS A COMPILE-TIME CONVENTION AND NOT A RUN-TIME BOUNDARY**, and
+after this proposal it is plainly so. `S.Secret ()` is refused before the
+program runs, and `grep private bootstrap/algol.c` answers nothing — so a
+by-name call reaches a private method, a by-name read reaches a private field,
+and neither costs anything because the runtime never knew. Refusing them would
+mean a new bit in the method table of all three processors.
+
+So **reflection can do what written code cannot**: read private state, call a
+private method, write a field the class exposes no setter for. That is a
+trapdoor, it is deliberate, and it is written here so that nobody meets it by
+surprise. The guard that remains is `uses`: the sugar is an extension, so a
+file that does not import it has none of this [MOD-015].
+
+### A by-name call does not reach a property
+
+A property computes on read, so reading and calling are two operations and
+`MethodEntry.is_property` already tells them apart at no cost. A by-name READ
+reaches a property; a by-name CALL does not. A generic writer must not be able
+to "call" something there is nothing to write back through.
+
+### What a wrong arity answers
+
+⚠️ **A METHOD'S WRONG ARITY NAMES NEITHER THE MEMBER NOR THE COUNTS, where a
+subprogram's and a constructor's name both.** Measured:
+
+```
+method:      No matching signature for function.
+subprogram:  Expected 2 arguments but got 1.
+constructor: Expected 0 arguments but got 1.
+```
+
+A by-name call goes through the method path, so for generic code that sentence
+is the entire debugging experience — and it does not say which call failed.
+[0049] pins the split deliberately, because an overloaded name has no single
+*expected N*. That reason does not reach the case above, which has exactly one
+candidate.
+
+**Proposed:** name the member and its class always, and the counts where there
+is one candidate. This changes `conformance/0049`, which compares all five
+reports, so it is a change to argue there rather than slip in.
+
 ### `is` and `as` are NOT extended
 
 ⚠️ **A TYPE HELD IN A VARIABLE DOES NOT GO INTO `is`, and the price of doing
