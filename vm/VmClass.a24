@@ -267,6 +267,30 @@ begin
             Into.Put (Str (this.Fields[I]), Str (this.FieldTypes[I]));
     end
 
+    /// The type a field's declaration wrote, or '' where none was written or
+    /// the class has no such field.
+    ///
+    /// Searched child-first, so a shadowed field answers the subclass's
+    /// declaration -- the same one an instance's flat field map ends up
+    /// holding.  FieldsInto walks the other way for the other reason: it is
+    /// building a reading order [COL-007].
+    ///
+    /// # Satisfies
+    /// [RT-034]
+    function DeclaredTypeOf (FieldName : Any) : String;
+    begin
+        var Wanted := ToLower (Str (FieldName));
+
+        for var I : Integer := 0; I < this.Fields.Length; I := I + 1 do
+            if ToLower (Str (this.Fields[I])) = Wanted then
+                Exit Str (this.FieldTypes[I]);
+
+        if this.Parent <> Nil then
+            Exit (this.Parent as VmClass).DeclaredTypeOf (FieldName);
+
+        Exit '';
+    end
+
     /// How a class reads when written or converted to text: its own name.
     ///
     /// Declared so the HOST renders it, which is what puts a class inside a

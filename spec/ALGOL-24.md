@@ -11839,7 +11839,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-nine names are built in. Thirty-six are always
+**[RT-001]**  Forty-one names are built in. Thirty-eight are always
 available:
 
 ```
@@ -11847,7 +11847,7 @@ Length  Copy  Pos   Str        Ord   Char  Val
 ToUpper ToLower
 Succ    Pred  Foreign
 clock   Collect
-Fields  TypeOf     Member     Invoke
+Fields  TypeOf     Member     Invoke     New   SetMember
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
@@ -13265,6 +13265,117 @@ true
 'Rich' is a property; read it rather than calling it.
 43
 Undefined property 'Nope'.
+```
+
+**[RT-034]**  `New (T, Args)` constructs an instance of a type held as a
+value, and `SetMember (X, Name, Value)` writes a field by a name the program
+computed. `Args` is a `List`, empty for a class that takes nothing.
+
+Both answer exactly what the written form answers. `New` selects among the
+constructors on the argument values like a written construction [FUN-013], so
+a declared parameter type is checked [CLS-004] and a final `list of T`
+absorbs [FUN-005]; a type rather than a class is refused as [RT-032] says.
+`SetMember` folds the name [SRC-011] and finds an inherited field, and an
+instance is **closed** — a field the class never declared is
+`Undefined property 'Nope'.` rather than a new member.
+
+**A by-name write honours the type the field's declaration wrote**, because an
+assignment is an assignment context [VAL-001]: an Integer into a `Double`
+field widens to a Double, and a value outside a subrange is refused by name.
+Nothing stricter — the gradual check that would refuse a `String` into an
+`Integer` field belongs to the type checker, which has no text to look at
+here, so `SetMember` is exactly as permissive at run time as
+`X.Field := <untyped>` already is.
+
+**A property cannot be written either way.** The written form is refused
+before the program runs [CLS-017]; a computed name has nothing to refuse
+early, so the same sentence is raised when the write is attempted —
+`'Rich' is a property of Thing and cannot be assigned.`
+
+    conformance  0222-construction-and-writing-by-name.a24
+
+##### conformance/0222-construction-and-writing-by-name.a24
+
+```algol24
+// RT-034: constructing, and writing a field, by a name the program computed.
+type Digit = 0 .. 9;
+
+class Base;
+var
+    Tag : String;
+begin
+end
+
+class Thing (Base);
+var
+    Worth : Integer;
+    Ratio : Double;
+    Small : Digit;
+begin
+    constructor Init (W : Integer);
+    begin
+        Worth := W;
+    end
+
+    property Rich : Boolean;
+    begin
+        Exit Worth > 10;
+    end
+end
+
+// A type held as a value constructs, selecting on the arguments.
+var T := New (TypeOf (Thing (1)), [7]);
+WriteLn (Str (T.Worth));
+
+// A class declaring no constructor still answers an instance.
+WriteLn (Str (New (Base, []).Tag));
+
+// The write answers the value written, and the name folds [SRC-011].
+WriteLn (Str (SetMember (T, 'wORTH', 11)), ' ', Str (T.Rich));
+
+// An INHERITED field is reached, and a declared type is honoured: the
+// Integer 3 widens to the Double the field declares [VAL-001].
+WriteLn (SetMember (T, 'Tag', 'inherited'));
+WriteLn (Str (SetMember (T, 'Ratio', 3)));
+
+try WriteLn (Str (SetMember (T, 'Small', 99)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (SetMember (T, 'Rich', True)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (SetMember (T, 'Nope', 1)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (SetMember (5, 'Nope', 1)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (New (TypeOf (5), [])));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (New (Thing, 3)));
+except on E : String do WriteLn (E); end
+
+// A wrong argument type is a SELECTION failure and not an undefined name
+// [EXP-013], which is what a wrong count reports for a method too [0049].
+try WriteLn (Str (New (Thing, ['x'])));
+except on E : String do WriteLn (E); end
+```
+
+```console
+$ algc conformance/0222-construction-and-writing-by-name.a24
+7
+nil
+11 true
+inherited
+3.0
+99 is not in Digit.
+'Rich' is a property of Thing and cannot be assigned.
+Undefined property 'Nope'.
+Only instances have fields.
+Integer is a type rather than a class, and cannot be constructed.
+New expects a List of arguments.
+No matching signature for function.
 ```
 
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
@@ -15340,7 +15451,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-nine built-in names, with the rule specifying each. `spec/spec.sh`
+The forty-one built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -15361,6 +15472,8 @@ interpreter actually registers.
 | `TypeOf` | [RT-032] | A value's type, as a value |
 | `Member` | [RT-033] | A member read by a computed name |
 | `Invoke` | [RT-033] | A method called by a computed name |
+| `New` | [RT-034] | An instance of a type held as a value |
+| `SetMember` | [RT-034] | A field written by a computed name |
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
 | `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
 | `Pred` | [RT-020] | The previous ordinal, on the same terms |

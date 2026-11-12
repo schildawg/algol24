@@ -83,6 +83,25 @@ begin
         Exit False;
     end
 
+    /// The type a field's declaration wrote, canonically spelt, or '' where
+    /// none was written or the class has no such field.
+    ///
+    /// Searched child-first, which is what makes a shadowed field answer the
+    /// subclass's declaration -- the same one an instance's flat field map
+    /// ends up holding, since SeedFields seeds parent-first and a subclass's
+    /// Put lands last.  FieldsInto walks the other way for the other reason:
+    /// it is building a reading order [COL-007].
+    function DeclaredTypeOf (Name : String) : String;
+    begin
+        for var Field in Fields do
+            if FoldCase (Field.Name.Lexeme) = Name then
+                Exit CanonicalType (Str (Field.TypeName));
+
+        if Superclass <> Nil then Exit Superclass.DeclaredTypeOf (Name);
+
+        Exit '';
+    end
+
     /// Finds a method by name alone, searching up the inheritance chain.
     ///
     /// For property access: 'X.M' has no arguments yet, so the first of that

@@ -241,6 +241,49 @@ and `is` keeps meaning what it means.
 
 ---
 
+## How the open questions were answered
+
+1. **Declared type.** [RT-031] reports what the program wrote, `''` where
+   nothing was, so a field's entry never reports the checker's working state.
+2. **A type value is an interned synthetic class** [RT-032], carrying the
+   type's name and marked so that constructing one is refused rather than
+   answering an `Integer instance`.
+3. Still open — the dynamic type test has no spelling yet.
+4. **The same diagnostic the written form gives**, which turned out to be two
+   diagnostics rather than one: a name no class in the chain declares is
+   `Undefined property`, and a name that *is* declared and fits nothing is a
+   selection failure. The interpreter answered the first for both and was the
+   odd one out of the three.
+5. **A packed constant**, as `OP_INVOKE_NAMED` already packs two names.
+6. Still open, and it is what the library work after this release will decide.
+
+## What writing by name turned up
+
+Three defects, none of them in the new feature, found by giving an old fault a
+second way in:
+
+- **A raise inside a nested run left the machine's saved state unrestored.**
+  `CallNested` set `StopDepth` and restored it only on the way out, so a
+  selection failure or a property guard skipped the restore entirely. The
+  program then gave every right answer and died at its **last statement** with
+  `Index -1 out of range` — `FrameOf[-1]`, because the floor test
+  `FrameDepth = StopDepth` compared 0 against the stale 1. Pre-existing for
+  `Invoke`'s whole life; `New` reached it the same way.
+- **`on E : Any` matches nothing**, which is how the first fix for that failed
+  silently. `Any` is the absence of a written type rather than a type a value
+  can be tested against, so `X is Any` is false for everything and the arm
+  never selects. `on E : String` is complete inside the machine: a host error
+  is a String, and a guest raise nothing took arrives as `raise Str (Value)`.
+  Both drivers still carry such an arm after an `on e : String` one; it is
+  unreachable and harmless, since an uncaught non-String raise is already
+  reported identically by all three processors.
+- **`Only an instance has fields.`** was the machine's wording where the other
+  two say `Only instances have fields.` — a 2-to-1 divergence no corpus case
+  reached, latent for the machine's whole life because nothing wrote to a
+  non-instance.
+
+---
+
 ## Open questions
 
 1. **Declared type or inferred type?** `VarStmt` carries both — `TypeName` is

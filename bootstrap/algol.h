@@ -284,6 +284,13 @@ Value alg_properties(Value v);
 Value alg_member(Value receiver, Value name);
 Value alg_invoke_by_name(Value receiver, Value name, Value args);
 
+/* An instance of a computed type, and a field written by a computed name.  The
+   write widens against the type the field's declaration wrote, which is what a
+   written assignment does; a property is refused, as the TypeChecker refuses
+   the written form. */
+Value alg_construct(Value type, Value args);
+Value alg_set_member(Value receiver, Value name, Value value);
+
 /* A value's type, as a value: a class answers itself, an instance answers its
    class, nil answers nil, and everything else answers an interned synthetic
    class carrying the type's name. */

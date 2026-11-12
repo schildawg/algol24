@@ -376,14 +376,87 @@ begin
 
                                var Chosen := That.Klass.FindOverload (Called, Given);
 
+                               // NOTHING FITTING IS TWO DIFFERENT REPORTS, and
+                               // this answered one of them for both.  A name no
+                               // class in the chain declares is undefined; a
+                               // name that IS declared and fits nothing is a
+                               // SELECTION failure, which is what a single
+                               // method called with the wrong count gives too
+                               // [0049].  Saying 'Undefined property' for a
+                               // method plainly declared sent a reader looking
+                               // for a typo.  Both other processors made the
+                               // split, so the interpreter was the odd one out.
                                if Chosen = Nil then
-                                   raise 'Undefined property ''' + Str (Arguments[1]) + '''.';
+                               begin
+                                   if That.Klass.FindMethod (Called) = Nil then
+                                       raise 'Undefined property '''
+                                           + Str (Arguments[1]) + '''.';
+
+                                   raise 'No matching signature for function.';
+                               end
 
                                Exit Chosen.Bind (That).Call (TheInterpreter, Given);
                            end
 
                            raise 'Undefined property ''' + Str (Arguments[1]) + '''.';
                        end
+
+            // An instance of a type a program computed [RT-034].  Selection
+            // among the constructors is ObjClass.Call's business, so a
+            // declared parameter type is checked and a final 'list of T'
+            // absorbs exactly as a written construction's does -- and a
+            // built-in type's value is refused there too, having no
+            // constructor to reach.
+            'New' : begin
+                        if not (Arguments[1] is ObjCollection) then
+                            raise 'New expects a List of arguments.';
+
+                        if not (Arguments[0] is ObjClass) then
+                            raise 'Can only construct a class.';
+
+                        Exit (Arguments[0] as ObjClass).Call (TheInterpreter,
+                                  (Arguments[1] as ObjCollection).Items);
+                    end
+
+            // A field written by a computed name [RT-034], honouring the type
+            // its declaration wrote: an assignment is an assignment context
+            // [VAL-001], so Widen is asked exactly what VisitSetExpr asks it.
+            // Nothing stricter -- the gradual check that would refuse a String
+            // into an Integer field is the TypeChecker's, and it has no text
+            // to look at here.
+            //
+            // The field map is written directly because ObjInstance.Set takes
+            // a TOKEN, and a computed name has none.
+            'SetMember' : begin
+                        var Onto := Arguments[0];
+
+                        if not (Onto is ObjInstance) then
+                            raise 'Only instances have fields.';
+
+                        var That    := Onto as ObjInstance;
+                        var Written := Str (Arguments[1]);
+                        var Folded  := FoldCase (Written);
+
+                        // A property cannot be written, and the TypeChecker
+                        // refuses the written form [CLS-017] -- it has nothing
+                        // to look at where the name arrives as a value, so the
+                        // same sentence is raised here instead.
+                        var Maybe := That.Klass.MethodOfArity (Folded, 0);
+
+                        if Maybe <> Nil and Maybe.Declaration.IsProperty then
+                            raise '''' + Written + ''' is a property of '
+                                + That.Klass.Name + ' and cannot be assigned.';
+
+                        if not That.Fields.Contains (Folded) then
+                            raise 'Undefined property ''' + Written + '''.';
+
+                        var Value := TheInterpreter.Widen (Arguments[2],
+                                         That.Klass.DeclaredTypeOf (Folded));
+
+                        That.Fields.Put (Folded, Value);
+
+                        Exit Value;
+                    end
 
             'Length' : begin
                            if Arguments[0] is ObjCollection then
@@ -683,6 +756,8 @@ begin
         Builtins.Define ('TypeOf', Native ('TypeOf', 1));
         Builtins.Define ('Member', Native ('Member', 2));
         Builtins.Define ('Invoke', Native ('Invoke', 3));
+        Builtins.Define ('New', Native ('New', 2));
+        Builtins.Define ('SetMember', Native ('SetMember', 3));
         Builtins.Define ('Length', Native ('Length', 1));
         Builtins.Define ('Copy', Native ('Copy', 3));
         // Variadic, and checked in its own arm, because Pos takes 2 or 3

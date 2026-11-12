@@ -2099,6 +2099,8 @@ Value alg_properties(Value v) {
 
 /* Declared here because the text helpers sit below the class machinery. */
 static const char *as_string(Value v, const char *what);
+static int32_t field_slot_typed(ObjClass *klass, const char *name,
+                                const char **declared);
 
 /* Whether a class, or anything it inherits from, declares this name as a
    PROPERTY rather than a method. */
@@ -2142,6 +2144,56 @@ Value alg_invoke_by_name(Value receiver, Value name, Value args) {
         alg_error("Invoke expects a List of arguments.");
 
     return alg_invoke(receiver, called, items, (int32_t)alg_length(args).integer);
+}
+
+/* Constructs an instance of a type a program computed, selecting among the
+   constructors exactly as a written construction does -- so a declared
+   parameter type is checked and a final `list of T` absorbs, both of which
+   are alg_new's business rather than this one's.  A built-in type's value is
+   refused there too: it names a type and has no constructor to reach. */
+Value alg_construct(Value type, Value args) {
+    Value *items = alg_array_slots(args);
+
+    if (items == NULL && !is_obj(args, OBJ_LIST))
+        alg_error("New expects a List of arguments.");
+
+    return alg_new(type, items, (int32_t)alg_length(args).integer);
+}
+
+/* Writes a field by a name a program computed, honouring the type its
+   declaration wrote: an assignment is an assignment context [VAL-001], so
+   alg_widen is asked exactly what a written assignment asks it -- an Integer
+   into a Double field widens, and a value outside a subrange is refused.
+   Nothing stricter: the gradual check that would refuse a String here is the
+   TypeChecker's, and it has no text to look at.
+
+   ⚠️ A PROPERTY CANNOT BE WRITTEN, and the written form is refused by the
+   TypeChecker [CLS-017] -- which has nothing to say about a name that arrives
+   as a value, so the same sentence is raised here instead. */
+Value alg_set_member(Value receiver, Value name, Value value) {
+    const char *written = as_string(name, "SetMember expects a name.");
+
+    if (!is_obj(receiver, OBJ_INSTANCE)) alg_error("Only instances have fields.");
+
+    ObjInstance *instance = (ObjInstance *)receiver.obj;
+
+    if (names_a_property(instance->klass, written)) {
+        char message[160];
+
+        snprintf(message, sizeof message,
+                 "'%s' is a property of %s and cannot be assigned.",
+                 written, instance->klass->name);
+        alg_error(message);
+    }
+
+    const char *declared = "";
+    int32_t     slot     = field_slot_typed(instance->klass, written, &declared);
+
+    if (slot < 0) undefined("property", written);
+
+    instance->slots[slot] = alg_widen(value, declared);
+
+    return instance->slots[slot];
 }
 
 Value alg_type_of(Value v) {
@@ -2200,16 +2252,29 @@ void alg_class_initializer(Value value, AlgMethod fn) {
     as_class(value, "Expected a class.")->initializer = fn;
 }
 
-static int32_t field_slot(ObjClass *klass, const char *name) {
+/* The slot a field occupies, and the type its declaration wrote.  One walk
+   answers both because they are settled at the same match -- asking them
+   separately would be two walks that could disagree about which class in the
+   chain a name came from. `declared` may be NULL where only the slot is
+   wanted, and is left alone when the name is not found. */
+static int32_t field_slot_typed(ObjClass *klass, const char *name,
+                                const char **declared) {
     for (ObjClass *at = klass; at != NULL; at = at->super) {
         int32_t base = at->super == NULL ? 0 : total_fields(at->super);
 
         for (int32_t i = 0; i < at->field_count; i++) {
 
-            if (alg_stricmp(at->fields[i], name) == 0) return base + i;
+            if (alg_stricmp(at->fields[i], name) == 0) {
+                if (declared != NULL) *declared = at->field_types[i];
+                return base + i;
+            }
         }
     }
     return -1;
+}
+
+static int32_t field_slot(ObjClass *klass, const char *name) {
+    return field_slot_typed(klass, name, NULL);
 }
 
 static bool has_method(Value v, const char *name, int32_t arity);

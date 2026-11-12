@@ -833,6 +833,31 @@ BI_EXTRA=$(comm -13 "$WORK/bi_source" "$WORK/bi_annex" | tr '\n' ' ')
 [ -z "$BI_MISSING" ] && [ -z "$BI_EXTRA" ] \
     && echo "  Annex B matches Interpreter.a24 ($(wc -l < "$WORK/bi_source" | tr -d ' ') built-ins)"
 
+# ⚠️ A BUILT-IN MISSING FROM THE MACHINE'S ARITY TABLE IS A DIVERGENCE AND
+# NOTHING REFUSES IT.  A wrong count then answers `No built-in fields takes 0
+# arguments.` where both other processors say `Expected 1 arguments but got
+# 0.` -- so the fault is a quietly different sentence rather than a gap, and it
+# arrived six names at a time twice.  The variadic ones name their own counts
+# above the table and are declared exempt beside it, so adding one without
+# either an arity or an exemption is what goes red here.
+
+tr 'A-Z' 'a-z' < "$WORK/bi_source" | sort -u > "$WORK/bi_folded"
+
+sed -n "s/^.*spec\.sh: variadic *= *//p" vm/Vm.a24 \
+  | tr ' ' '\n' | sed '/^$/d' | sort -u > "$WORK/bi_variadic"
+
+sed -n "/^var BUILTIN_ARITY/,/];/p" vm/Vm.a24 \
+  | grep -oE "'[a-z]+' *:" | sed "s/'\([a-z]*\)'.*/\1/" | sort -u > "$WORK/bi_arity"
+
+sort -u "$WORK/bi_arity" "$WORK/bi_variadic" > "$WORK/bi_covered"
+
+AR_MISSING=$(comm -23 "$WORK/bi_folded" "$WORK/bi_covered" | tr '\n' ' ')
+AR_EXTRA=$(comm -13 "$WORK/bi_folded" "$WORK/bi_covered" | tr '\n' ' ')
+[ -n "$AR_MISSING" ] && problem "vm/Vm.a24 gives no arity and no variadic exemption for: $AR_MISSING"
+[ -n "$AR_EXTRA" ]   && problem "vm/Vm.a24 names an arity or exemption for a name the interpreter does not register: $AR_EXTRA"
+[ -z "$AR_MISSING" ] && [ -z "$AR_EXTRA" ] \
+    && echo "  BUILTIN_ARITY covers the built-ins ($(wc -l < "$WORK/bi_arity" | tr -d ' ') with an arity, $(wc -l < "$WORK/bi_variadic" | tr -d ' ') variadic)"
+
 # ⚠️ THE TABLE WAS CHECKED AND THE SENTENCE ABOVE IT WAS NOT, which is how
 # Annex B came to say "thirty-four built-in names" over a table of thirty-three.
 # Removing 'Mod' from the table was caught by the comm above; the prose was

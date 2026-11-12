@@ -848,7 +848,17 @@ end
 /// The arguments are given rather than taken from the stack, because the
 /// caller here is a HANDLER -- the host operation that needed the member -- and
 /// what it holds is values, not stack positions.
-function CallNested (Receiver : Any, Name : Any, Args : List) : Any;
+/// Calls a member by name, or constructs, from inside a handler.
+///
+/// `Name` Nil means CONSTRUCT the receiver rather than invoke a member of it,
+/// which is the only difference between the two and is why they share one
+/// body: the save-and-restore below is what makes a nested run safe, and two
+/// copies of it would be two chances to disagree about what has to be put
+/// back.
+///
+/// # Satisfies
+/// [RT-033], [RT-034]
+function NestedRun (Receiver : Any, Name : Any, Args : List) : Any;
 var
     WasRunning : Any;
     WasCells   : Any;
@@ -870,12 +880,51 @@ begin
     // floor that ends the nested loop.
     StopDepth := FrameDepth + 1;
 
-    Push (Receiver);
-    for var Each in Args do Push (Each);
+    var Got    : Any;
+    var Failed : Any;
+    var Blew   := False;
 
-    InvokeMember (Name, Args.Length, List ());
+    // ⚠️ THE SAVED STATE MUST GO BACK EVEN WHERE THE NESTED WORK RAISES, and
+    // for the machine's whole life it did not.  Entering the callee can fail
+    // before any frame is entered -- a selection failure, a property guard, a
+    // class that is really a type -- and the restore below was simply skipped,
+    // leaving StopDepth and Base describing a frame that no longer existed.
+    // The program then went on to give every right answer and died at its last
+    // statement with `Index -1 out of range`, which names neither the nested
+    // run nor the raise.
+    //
+    // Caught and re-raised rather than restored twice: one restore cannot
+    // disagree with itself, and a nested subprogram holding it would cost a
+    // closure per render -- INSTANCE_RENDERER comes through here.
+    try
+        Push (Receiver);
+        for var Each in Args do Push (Each);
 
-    var Got := RunLoop ();
+        if Name = Nil then CallValue (Receiver, Args.Length);
+        else InvokeMember (Name, Args.Length, List ());
+
+        // ⚠️ RUNLOOP MUST NOT BE ENTERED WHERE NOTHING WAS, or it goes on
+        // running the CALLER's bytecode from wherever IP stands.  A class
+        // declaring no constructor has no frame to enter: CallValue has
+        // already put the instance where the class was and taken nothing, so
+        // it is simply read back off the stack.
+        if FrameDepth > WasDepth then Got := RunLoop ();
+        else Got := Pop ();
+    except
+        // ⚠️ `on E : Any` MATCHES NOTHING, which is the trap this was written
+        // with first.  `Any` is the absence of a written type rather than a
+        // type a value can be tested against, so `X is Any` is false for
+        // everything [VAL-005] and the arm never selects -- the raise then
+        // flew past this handler to RunLoop's, which is exactly the symptom
+        // being fixed.  A String is complete here: a host error is one, and a
+        // guest raise no handler of the program's took reaches this as
+        // `raise Str (Value)` from DoRaise.
+        on E : String do
+        begin
+            Failed := E;
+            Blew   := True;
+        end
+    end
 
     Running    := WasRunning as Chunk;
     CodeBytes  := WasCode;
@@ -895,7 +944,31 @@ begin
     Answer     := WasAnswer;
     Live       := WasLive;
 
+    // Re-raised with the machine put back, so the guest's own handler unwinds
+    // from a state that describes this frame rather than the nested one's.
+    if Blew then raise Failed;
+
     Exit Got;
+end
+
+/// Calls a member by name from inside a handler.
+function CallNested (Receiver : Any, Name : Any, Args : List) : Any;
+begin
+    Exit NestedRun (Receiver, Name, Args);
+end
+
+/// Constructs an instance of a class held as a value, from inside a handler.
+///
+/// Everything a written construction decides is decided by CallValue here too
+/// -- which constructor the arguments select, that its declared parameter
+/// types are checked, and that a TYPE value is refused rather than answering
+/// an 'Integer instance' [RT-032].
+///
+/// # Satisfies
+/// [RT-034]
+function ConstructNested (Callee : Any, Args : List) : Any;
+begin
+    Exit NestedRun (Callee, Nil, Args);
 end
 
 /// How an instance reads when written or converted to text.
@@ -2684,26 +2757,31 @@ end
 /// widening [VAL-001] -- the interpreter's Widen does exactly these two and
 /// then a subrange range-check, which the emitter refuses here because the
 /// bounds are not reachable from a chunk.
-procedure DoWiden ();
-var
-    Named   : Any;
-    Written : Any;
-    V       : Any;
-
+/// Converts a value to a declared type where the two differ by a widening,
+/// and hands it back unchanged otherwise.
+///
+/// A function rather than only the opcode's body because a field written by a
+/// computed name has to widen too [RT-034], and its type arrives as a value
+/// rather than as an operand -- so there is nothing to read from the
+/// constants.  Two copies of this would be two chances to disagree about what
+/// a declared type means.
+///
+/// Named away from `Widened` because two bodies here and in `vm/run.a24`
+/// already declare a LOCAL of that name, and a local wins [SRC-011] -- so the
+/// function would be unreachable from exactly the files that hold it.
+///
+/// # Satisfies
+/// [VAL-001], [VAR-017]
+function WidenedTo (V : Any, Written : Any) : Any;
 begin
+    if V = Nil then Exit V;
+
     // Both spellings: the folded one decides, and the WRITTEN one goes in the
     // diagnostic -- `300 is not in Byte.` names the subrange as the program
     // spelled it.
-    Written := Constants[ReadIndex ()];
-    Named   := ToLower (Str (Written));
-    V       := Pop ();
+    var Named := ToLower (Str (Written));
 
-    if V = Nil then
-    begin
-        Push (V);
-
-        Exit;
-    end
+    if Named = '' then Exit V;
 
     // A SUBRANGE is a bounds check rather than a conversion: the value stays
     // the Integer it is, and a value outside says which subrange it missed
@@ -2713,14 +2791,23 @@ begin
         if not WithinSubrange (V, Named) then
             raise Str (V) + ' is not in ' + Str (Written) + '.';
 
-        Push (V);
-
-        Exit;
+        Exit V;
     end
 
-    if Named = 'double' and (V is Integer) then Push (V * 1.0);
-    else if Named = 'string' and (V is Char) then Push (Str (V));
-    else Push (V);
+    if Named = 'double' and (V is Integer) then Exit V * 1.0;
+    if Named = 'string' and (V is Char)    then Exit Str (V);
+
+    Exit V;
+end
+
+procedure DoWiden ();
+var
+    Written : Any;
+
+begin
+    Written := Constants[ReadIndex ()];
+
+    Push (WidenedTo (Pop (), Written));
 end
 
 /// Records a subrange's bounds, from a constant holding its name and both.
@@ -3578,6 +3665,20 @@ begin
         // MemberOf already answers for a written one -- property included,
         // since a property's read IS its call [CLS-017].
         if Name = 'member'      then begin Push (MemberOf (A, B)); Exit; end
+
+        // An instance of a type a program computed [RT-034].  CallNested puts
+        // the class and its arguments on the stack and runs the frame
+        // CallValue enters, so selection among the constructors, the declared
+        // parameter types and a type value's refusal are all that path's
+        // business rather than this one's.
+        if Name = 'new' then
+        begin
+            if not (B is List) then raise 'New expects a List of arguments.';
+
+            Push (ConstructNested (A, B as List));
+
+            Exit;
+        end
         if Name = 'assertequal' then
         begin
             if not TESTING then raise 'Undefined variable ' + QUOTE
@@ -3613,6 +3714,39 @@ begin
                     + ' is a property; read it rather than calling it.';
 
             Push (CallNested (A, B, C as List));
+            Exit;
+        end
+
+        // A field written by a computed name [RT-034], honouring the type its
+        // declaration wrote: an assignment is an assignment context [VAL-001],
+        // so WidenedTo is asked exactly what OP_WIDEN asks it.  Nothing
+        // stricter -- the gradual check that would refuse a String into an
+        // Integer field is the TypeChecker's, and it has no text to look at
+        // here.
+        if Name = 'setmember' then
+        begin
+            if not (A is VmInstance) then raise 'Only instances have fields.';
+
+            var That   := A as VmInstance;
+            var Folded := ToLower (Str (B));
+
+            // A property cannot be written, and the TypeChecker refuses the
+            // written form [CLS-017] -- it has nothing to look at where the
+            // name arrives as a value, so the same sentence is raised here.
+            if That.Klass.HasPropertyFolded (Folded) then
+                raise QUOTE + Str (B) + QUOTE + ' is a property of '
+                    + Str (That.Klass.Name) + ' and cannot be assigned.';
+
+            // An instance is CLOSED [0169]: a field the class never declared
+            // cannot be created by writing to it.
+            if not That.Fields.Contains (Folded) then
+                raise 'Undefined property ' + QUOTE + Str (B) + QUOTE + '.';
+
+            var Value := WidenedTo (C, That.Klass.DeclaredTypeOf (Folded));
+
+            That.Fields.Put (Folded, Value);
+            Push (Value);
+
             Exit;
         end
     end
@@ -3710,9 +3844,20 @@ end
 /// How many arguments each FIXED-arity built-in takes, mirroring the arities
 /// the interpreter registers its natives with.
 ///
-/// The six variadic ones are absent on purpose -- `Str`, `Pos`, `Set`,
-/// `Write`, `WriteLn` and `Buffer` each name the counts they accept, and those
-/// messages are raised above this table rather than derived from it.
+/// The variadic ones are absent on purpose -- `Str`, `Pos`, `Set`, `Write`,
+/// `WriteLn`, `Buffer` and `ErrorLn` each name the counts they accept, and
+/// those messages are raised above this table rather than derived from it.
+/// Seven, where this said six and listed six: `ErrorLn` takes any number
+/// [RT-030] and had been left out of the sentence as well as the table.
+///
+/// ⚠️ A NAME MISSING FROM HERE IS A DIVERGENCE RATHER THAN A GAP, which is
+/// how the reflection six arrived absent: a wrong count answered `No built-in
+/// fields takes 0 arguments.` on the machine where both other processors say
+/// `Expected 1 arguments but got 0.`  Nothing refuses a program for it, so a
+/// built-in added without its arity here is silently wrong -- which is why
+/// `spec/spec.sh` now holds this table and the exemption below against the
+/// names the interpreter registers.
+// spec.sh: variadic = str pos set write writeln buffer errorln
 var BUILTIN_ARITY := ['clock' : 0, 'collect' : 0, 'length' : 1, 'copy' : 3,
                       'toupper' : 1, 'tolower' : 1, 'array' : 1, 'list' : 0,
                       'map' : 0, 'stack' : 0, 'halt' : 1, 'ord' : 1,
@@ -3720,7 +3865,9 @@ var BUILTIN_ARITY := ['clock' : 0, 'collect' : 0, 'length' : 1, 'copy' : 3,
                       'char' : 1, 'textfile' : 0, 'fileexists' : 1,
                       'mkdir' : 1, 'rmdir' : 1, 'chdir' : 1, 'getdir' : 0,
                       'paramcount' : 0, 'paramstr' : 1, 'asserttrue' : 1,
-                      'assertequal' : 2, 'fail' : 1];
+                      'assertequal' : 2, 'fail' : 1,
+                      'fields' : 1, 'typeof' : 1, 'member' : 2, 'invoke' : 3,
+                      'new' : 2, 'setmember' : 3];
 
 /// Returns from the running frame, or stops the machine at the outermost one.
 procedure DoReturn ();
@@ -3960,7 +4107,12 @@ begin
     Value   := Pop ();
     Self    := Pop ();
 
-    if not (Self is VmInstance) then raise 'Only an instance has fields.';
+    // 'Only instances have fields.' is the wording, and this said 'Only an
+    // instance has fields.' for the machine's whole life -- the two other
+    // processors agree with each other and no corpus case reached a write to a
+    // non-instance, so the difference was latent until SetMember gave the same
+    // fault a second way in.  A message no case reaches is still a divergence.
+    if not (Self is VmInstance) then raise 'Only instances have fields.';
 
     // An instance is CLOSED [0169]: a field the class never declared cannot be
     // created by writing to it, which is what tells a typo from a new member.
