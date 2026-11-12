@@ -2120,6 +2120,53 @@ begin
             Exit Shape;
         end
 
+        // This class's OWN methods, where Fields answers the whole chain: an
+        // overridden method replaces the one above it, so merging would put
+        // an override and an overload under one name with no way to tell
+        // them apart.  Parent walks.
+        if Named = 'methods' or Named = 'properties' then
+        begin
+            var WantProperties := Named = 'properties';
+            var Listed         := Map ();
+            var Declared       := (Self as VmClass).Methods;
+
+            for var Key in Declared do
+            begin
+                // ⚠️ CTOR_BODY IS NOT A METHOD A PROGRAM HAS.  A constructor
+                // is registered twice -- as `init` with the field prologue
+                // and again under a name holding a SPACE for a subclass to
+                // forward into -- and both VmFunctions are named Init, so
+                // listing by name merged them and answered one constructor
+                // as two.  The key is emitter-to-machine contract.
+                if Str (Key) = CTOR_BODY then continue;
+
+                var IsProperty := (Self as VmClass).Properties.Contains (Key);
+
+                if IsProperty <> WantProperties then continue;
+
+                var Found := Declared.Get (Key) as List;
+
+                for var I : Integer := 0; I < Found.Length; I := I + 1 do
+                begin
+                    var Each    := Found[I] as VmFunction;
+                    var Written := Str (Each.Name);
+
+                    if not Listed.Contains (Written) then Listed.Put (Written, List ());
+
+                    var Shape := List ();
+
+                    // Written rather than Types: a subrange is resolved in
+                    // Types for selection, and reflection answers what the
+                    // program wrote, as the other two processors do.
+                    for var T in Each.Written do Shape.Add (Str (T));
+
+                    (Listed.Get (Written) as List).Add (Shape);
+                end
+            end
+
+            Exit Listed;
+        end
+
         raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
     end
 
@@ -2133,7 +2180,7 @@ begin
         // belongs to the language and a field cannot take it [CLS-008].
         if Named = 'classname' then Exit Self.Klass.Name;
 
-        // A PROPERTY answers on a read by being CALLED [CLS-012], which is the
+        // A PROPERTY answers on a read by being CALLED [CLS-017], which is the
         // one way a member read differs from reading a method as a value.
         if Self.Klass.HasPropertyFolded (Named) then
             Exit CallNested (Self, Written, List ());

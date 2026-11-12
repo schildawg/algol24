@@ -1201,6 +1201,12 @@ begin
         if I < TheStmt.ParamTypes.Length then
             Declared := Str (TheStmt.ParamTypes[I]);
 
+        // What the program WROTE, kept before the resolution below: a chunk
+        // cannot resolve a subrange, so Types must carry the resolved name
+        // for selection -- and reflection must answer the written one, which
+        // is what the other two processors answer.
+        Made.Written.Add (CanonicalType (Declared));
+
         if IsSubrange (Declared) then Declared := 'Integer';
 
         Made.Types.Add (Declared);

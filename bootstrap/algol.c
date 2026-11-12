@@ -2022,6 +2022,81 @@ static Value type_for(const char *name) {
     return made;
 }
 
+/* The methods a class declares ITSELF, name -> a List of signatures, each a
+   List of the parameter type names written on it.
+
+   ⚠️ ITS OWN, WHERE FIELDS ANSWERS THE WHOLE CHAIN, and the asymmetry is the
+   point rather than an oversight: an instance holds every inherited field as
+   its own state, so a serializer needs all of them -- while an overridden
+   method REPLACES the one above it, so merging the chain would put an
+   override and an overload under one name with no way to tell them apart.
+   `Parent` walks.
+
+   ⚠️ A NAME HOLDS SEVERAL, because two methods of one name are an overload
+   set [FUN-013].  The answer is a List per name for that reason and not for
+   tidiness. */
+/* Declared here because selection, which owns it, sits further down. */
+static const char *split_type(const char *declared, char *base, size_t size);
+
+static Value class_methods(ObjClass *klass, bool properties) {
+    Value into = alg_map();
+
+    if (klass == NULL) return into;
+
+    for (int32_t i = 0; i < klass->method_count; i++) {
+        MethodEntry *entry = &klass->methods[i];
+
+        if (entry->is_property != properties) continue;
+
+        Value name = alg_string(entry->name);
+        Value held = alg_get(into, name);
+
+        if (held.type == VAL_NIL) {
+            held = alg_list();
+            alg_map_keep(into, name, held);
+        }
+
+        Value signature = alg_list();
+
+        /* ⚠️ THE BARE TYPE, which is neither what this table holds nor the
+           obvious reading of it.  A types entry is the whole parameter as
+           written -- "Items : List of Integer" -- because selection and named
+           arguments both read the name from it.  Two things had to be cut:
+           the parameter's NAME, since the machine carries the type alone and
+           two processors must not disagree about one question; and the
+           ELEMENT type, since a FIELD of that type already answers "List"
+           -- the tree walker keeps a parameter's generic beside its type
+           rather than in it, so "List of Integer" here against "List" there
+           would be one answer in two shapes.  split_type cuts both. */
+        for (int32_t at = 0; at < entry->arity; at++) {
+            char base[64];
+
+            split_type(entry->types == NULL ? NULL : entry->types[at],
+                       base, sizeof base);
+
+            alg_list_keep(signature, alg_string(base));
+        }
+
+        alg_list_keep(held, signature);
+    }
+
+    return into;
+}
+
+Value alg_methods(Value v) {
+    if (is_obj(v, OBJ_INSTANCE)) return class_methods(((ObjInstance *)v.obj)->klass, false);
+    if (is_obj(v, OBJ_CLASS))    return class_methods((ObjClass *)v.obj, false);
+
+    return alg_map();
+}
+
+Value alg_properties(Value v) {
+    if (is_obj(v, OBJ_INSTANCE)) return class_methods(((ObjInstance *)v.obj)->klass, true);
+    if (is_obj(v, OBJ_CLASS))    return class_methods((ObjClass *)v.obj, true);
+
+    return alg_map();
+}
+
 Value alg_type_of(Value v) {
     if (v.type == VAL_NIL) return alg_nil();
 
@@ -3139,7 +3214,9 @@ Value alg_property(Value receiver, const char *name) {
         ObjClass *klass = (ObjClass *)receiver.obj;
 
         if (alg_stricmp(name, "Name") == 0)   return alg_string(klass->name);
-        if (alg_stricmp(name, "Fields") == 0) return alg_fields(receiver);
+        if (alg_stricmp(name, "Fields") == 0)     return alg_fields(receiver);
+        if (alg_stricmp(name, "Methods") == 0)    return alg_methods(receiver);
+        if (alg_stricmp(name, "Properties") == 0) return alg_properties(receiver);
 
         if (alg_stricmp(name, "Parent") == 0)
             return klass->super == NULL ? alg_nil() : object((Obj *)klass->super);

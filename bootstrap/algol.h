@@ -272,6 +272,13 @@ void  alg_class_field(Value klass, const char *name, const char *type);
    An empty Map for anything that is neither an instance nor a class. */
 Value alg_fields(Value v);
 
+/* The methods, or the properties, a class declares ITSELF -- name to a List
+   of signatures, each a List of parameter type names.  Its own rather than
+   the chain's, because an override replaces where an inherited field does
+   not; Parent walks. */
+Value alg_methods(Value v);
+Value alg_properties(Value v);
+
 /* A value's type, as a value: a class answers itself, an instance answers its
    class, nil answers nil, and everything else answers an interned synthetic
    class carrying the type's name. */

@@ -97,7 +97,7 @@ var
     /// The names this class declares as PROPERTIES, folded.
     ///
     /// A property is a method in every respect but one: reading the name
-    /// CALLS it, where reading a method's name answers the method [CLS-012].
+    /// CALLS it, where reading a method's name answers the method [CLS-017].
     /// So it lives in Methods like any other and this records which of them
     /// answer on a read.
     Properties : Set;

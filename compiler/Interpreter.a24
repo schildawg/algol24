@@ -1825,6 +1825,49 @@ begin
                 Exit Shaped;
             end
 
+            // ⚠️ BUILT HERE AND NOT ON ObjClass, because the values are
+            // COLLECTIONS: a signature is a List, and a guest program cannot
+            // iterate the host's.  Fields got away with passing Pairs to
+            // ObjClass because its values are Strings; this cannot, and
+            // ObjClass has no business importing ObjCollection to learn how.
+            //
+            // This class's OWN, where Fields answers the whole chain: an
+            // overridden method replaces the one above it, so merging would
+            // put an override and an overload under one name with no way to
+            // tell them apart. Parent walks.
+            if Asked = FoldCase ('Methods') or Asked = FoldCase ('Properties') then
+            begin
+                var WantProperties := Asked = FoldCase ('Properties');
+                var Listed         := ObjCollection ('Map');
+                var Declared       := (Obj as ObjClass).Methods;
+
+                for var Key in Declared do
+                begin
+                    var Found := Declared.Get (Key);
+
+                    for var I := 0; I < Found.Length; I := I + 1 do
+                    begin
+                        var Each := Found[I] as ObjFunction;
+
+                        if Each.Declaration.IsProperty <> WantProperties then continue;
+
+                        var Written := Str (Each.Declaration.Name.Lexeme);
+
+                        if not Listed.Pairs.Contains (Written) then
+                            Listed.Pairs.Put (Written, ObjCollection ('List'));
+
+                        var Shape := ObjCollection ('List');
+
+                        for var T in Each.Declaration.ParamTypes do
+                            Shape.Items.Add (CanonicalType (Str (T)));
+
+                        (Listed.Pairs.Get (Written) as ObjCollection).Items.Add (Shape);
+                    end
+                end
+
+                Exit Listed;
+            end
+
             raise 'Undefined property ''' + Str (TheExpr.Name.Lexeme) + '''.';
         end
 

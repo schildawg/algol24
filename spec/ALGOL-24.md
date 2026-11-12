@@ -13007,7 +13007,93 @@ fields for its *instances*, so there is no member of a class that a program
 could write for one of these to shadow. An instance still answers `ClassName`
 [CLS-008], which is a different question asked of a different thing.
 
+**A class also answers its `Methods` and its `Properties`**, each a Map from
+the member's name as written to a List of its signatures — a List per name
+because two methods of one name are an overload set [FUN-013]. A signature is
+the List of its parameters' declared types, bare: a parameter of
+`List of Integer` reads as `List`, which is what a field of that type answers
+too.
+
+⚠️ **THESE ARE THE CLASS'S OWN, WHERE `Fields` ANSWERS THE WHOLE CHAIN**, and
+the asymmetry is the point rather than an oversight. An instance holds every
+inherited field as its own state, so a record of it needs all of them — while
+an overridden method **replaces** the one above it [CLS-011], so merging the
+chain would put an override and an overload under one name with no way to tell
+them apart. `Parent` walks.
+
+**A `property` is listed apart from a method** because its read is its call
+[CLS-017]: a describer wants both, and a record built from the field list must
+not write through one.
+
     conformance  0219-typeof-answers-a-type.a24
+    conformance  0220-a-class-lists-its-methods.a24
+
+##### conformance/0220-a-class-lists-its-methods.a24
+
+```algol24
+// RT-032: a class answers the methods and properties it declares ITSELF.
+class Base;
+begin
+    constructor Init ();
+    begin
+    end
+
+    function Inherited () : Integer;
+    begin
+        Exit 1;
+    end
+end
+
+class Shape (Base);
+var
+    Sides : Integer;
+begin
+    constructor Init ();
+    begin
+        super.Init ();
+        Sides := 3;
+    end
+
+    function Area () : Integer;
+    begin
+        Exit Sides;
+    end
+
+    // Two of one name are an overload set [FUN-013], so a name holds a List
+    // of signatures rather than one.
+    function Scale (By : Integer) : Integer;
+    begin
+        Exit Sides * By;
+    end
+
+    function Scale (By : Double, Twice : Boolean) : Integer;
+    begin
+        Exit 0;
+    end
+
+    // A property is listed apart, because its read is its call [CLS-017].
+    property Wide : Boolean;
+    begin
+        Exit Sides > 4;
+    end
+end
+
+var S := Shape ();
+
+WriteLn (TypeOf (S).Methods);
+WriteLn (TypeOf (S).Properties);
+
+// Its OWN, so an inherited method is reached through Parent rather than
+// merged -- an override replaces where an inherited field does not [CLS-011].
+WriteLn (TypeOf (S).Parent.Methods);
+```
+
+```console
+$ algc conformance/0220-a-class-lists-its-methods.a24
+[Init:[[]], Area:[[]], Scale:[[Integer], [Double, Boolean]]]
+[Wide:[[]]]
+[Init:[[]], Inherited:[[]]]
+```
 
 ##### conformance/0219-typeof-answers-a-type.a24
 
