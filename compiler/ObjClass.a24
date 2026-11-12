@@ -164,6 +164,29 @@ begin
         end
     end
 
+    /// Adds this class's declared fields to a Map, name to declared type.
+    ///
+    /// Parent-first, so a subclass's own fields follow what it inherited --
+    /// the order SeedFields already seeds in and the order a serializer needs,
+    /// since a Map iterates in insertion order [COL-007]. The name is the one
+    /// written rather than the folded key an instance stores under, because it
+    /// is what a program reading a class back will print.
+    ///
+    /// # Satisfies
+    /// [COL-007]
+    procedure FieldsInto (Into : Map);
+    begin
+        if Superclass <> Nil then Superclass.FieldsInto (Into);
+
+        for var I := 0; I < Fields.Length; I := I + 1 do
+        begin
+            var Field := Fields[I];
+
+            Into.Put (Str (Field.Name.Lexeme),
+                      CanonicalType (Str (Field.TypeName)));
+        end
+    end
+
     /// How many arguments constructing an instance takes -- the initializer's
     /// arity, or zero when the class declares none.
     function Arity () : Integer;

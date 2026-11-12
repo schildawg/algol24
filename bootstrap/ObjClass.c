@@ -13,6 +13,7 @@ static const char *t_objclass_findmethod_1_string[] = { "Name : String" };
 static const char *t_objclass_findoverload_2_string_list[] = { "Name : String", "Arguments : List" };
 static const char *t_objclass_fitting_3_string_list_integer[] = { "Name : String", "Arguments : List", "Pass : Integer" };
 static const char *t_objclass_seedfields_2_objinstance[] = { "Instance : ObjInstance", "TheInterpreter : Any" };
+static const char *t_objclass_fieldsinto_1_map[] = { "Into : Map" };
 static const char *t_objclass_absorbs_1_list[] = { "Arguments : List" };
 static const char *t_objclass_call_2[] = { "TheInterpreter : Any", "Arguments : Any" };
 
@@ -367,31 +368,77 @@ static Value m_objclass_seedfields_2_objinstance(Value v_this, Value *args, int3
     return ret_19;
 }
 
+static Value m_objclass_fieldsinto_1_map(Value v_this, Value *args, int32_t count) {
+    (void)v_this; (void)args; (void)count;
+    int32_t rt_base = alg_root_top;
+    alg_root(&v_this, 1);
+    alg_root(args, count);
+    Value v_into = alg_widen(args[0], "Map");
+    (void)v_into;
+    alg_root(&v_into, 1);
+    int32_t rh_263 = alg_hold_top;
+    if (alg_truthy(alg_hold(alg_not_equal(alg_property(v_this, "Superclass"), alg_nil())))) {
+        (void)(alg_hold(alg_invoke(alg_property(v_this, "Superclass"), "FieldsInto", (Value[]){v_into}, 1)));
+    }
+    alg_hold_top = rh_263;
+    {
+        int32_t rt_264 = alg_root_top;
+        int32_t rh_265 = alg_hold_top;
+        Value v_i = alg_int(0);
+        (void)v_i;
+        alg_root(&v_i, 1);
+        alg_hold_top = rh_265;
+        {
+            int32_t rh_266 = alg_hold_top;
+            for (; (alg_hold_top = rh_266, alg_truthy(alg_hold(alg_less(v_i, alg_hold(alg_property(alg_property(v_this, "Fields"), "Length")))))); (alg_hold_top = rh_266, (v_i = alg_hold(alg_add(v_i, alg_int(1)))))) {
+                alg_safe_point();
+                {
+                    int32_t rt_267 = alg_root_top;
+                    int32_t rh_268 = alg_hold_top;
+                    Value v_field = alg_hold(alg_subscript_get(alg_property(v_this, "Fields"), v_i));
+                    (void)v_field;
+                    alg_root(&v_field, 1);
+                    alg_hold_top = rh_268;
+                    (void)(alg_hold(alg_invoke(v_into, "Put", (Value[]){alg_hold(alg_str(alg_hold(alg_property(alg_hold(alg_property(v_field, "Name")), "Lexeme")))), alg_hold(f_canonicaltype(NULL, (Value[]){alg_hold(alg_str(alg_hold(alg_property(v_field, "TypeName"))))}, 1))}, 2)));
+                    alg_hold_top = rh_268;
+                    alg_root_top = rt_267;
+                }
+            }
+        }
+        alg_hold_top = rh_265;
+        alg_root_top = rt_264;
+    }
+    alg_hold_top = rh_263;
+    Value ret_20 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_20;
+}
+
 static Value m_objclass_arity_0(Value v_this, Value *args, int32_t count) {
     (void)v_this; (void)args; (void)count;
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    int32_t rh_263 = alg_hold_top;
+    int32_t rh_269 = alg_hold_top;
     Value v_initializer = alg_nil();
     (void)v_initializer;
     alg_root(&v_initializer, 1);
-    alg_hold_top = rh_263;
+    alg_hold_top = rh_269;
     (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
-    alg_hold_top = rh_263;
+    alg_hold_top = rh_269;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
-        Value ret_20 = alg_int(0);
+        Value ret_21 = alg_int(0);
         alg_root_top = rt_base;
-        return ret_20;
+        return ret_21;
     }
-    alg_hold_top = rh_263;
-    Value ret_21 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Arity", NULL, 0), ALG_KIND_INTEGER, "Integer"));
-    alg_root_top = rt_base;
-    return ret_21;
-    alg_hold_top = rh_263;
-    Value ret_22 = alg_nil();
+    alg_hold_top = rh_269;
+    Value ret_22 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Arity", NULL, 0), ALG_KIND_INTEGER, "Integer"));
     alg_root_top = rt_base;
     return ret_22;
+    alg_hold_top = rh_269;
+    Value ret_23 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_23;
 }
 
 static Value m_objclass_absorbs_1_list(Value v_this, Value *args, int32_t count) {
@@ -402,30 +449,30 @@ static Value m_objclass_absorbs_1_list(Value v_this, Value *args, int32_t count)
     Value v_arguments = alg_widen(args[0], "List");
     (void)v_arguments;
     alg_root(&v_arguments, 1);
-    int32_t rh_264 = alg_hold_top;
+    int32_t rh_270 = alg_hold_top;
     Value v_initializer = alg_nil();
     (void)v_initializer;
     alg_root(&v_initializer, 1);
-    alg_hold_top = rh_264;
+    alg_hold_top = rh_270;
     (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindOverload", (Value[]){alg_literal("init"), v_arguments}, 2))));
-    alg_hold_top = rh_264;
+    alg_hold_top = rh_270;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
         (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
     }
-    alg_hold_top = rh_264;
+    alg_hold_top = rh_270;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
-        Value ret_23 = alg_bool(false);
+        Value ret_24 = alg_bool(false);
         alg_root_top = rt_base;
-        return ret_23;
+        return ret_24;
     }
-    alg_hold_top = rh_264;
-    Value ret_24 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Absorbs", (Value[]){v_arguments}, 1), ALG_KIND_BOOLEAN, "Boolean"));
-    alg_root_top = rt_base;
-    return ret_24;
-    alg_hold_top = rh_264;
-    Value ret_25 = alg_nil();
+    alg_hold_top = rh_270;
+    Value ret_25 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Absorbs", (Value[]){v_arguments}, 1), ALG_KIND_BOOLEAN, "Boolean"));
     alg_root_top = rt_base;
     return ret_25;
+    alg_hold_top = rh_270;
+    Value ret_26 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_26;
 }
 
 static Value m_objclass_variadic_0(Value v_this, Value *args, int32_t count) {
@@ -433,26 +480,26 @@ static Value m_objclass_variadic_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    int32_t rh_265 = alg_hold_top;
+    int32_t rh_271 = alg_hold_top;
     Value v_initializer = alg_nil();
     (void)v_initializer;
     alg_root(&v_initializer, 1);
-    alg_hold_top = rh_265;
+    alg_hold_top = rh_271;
     (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
-    alg_hold_top = rh_265;
+    alg_hold_top = rh_271;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
-        Value ret_26 = alg_bool(false);
+        Value ret_27 = alg_bool(false);
         alg_root_top = rt_base;
-        return ret_26;
+        return ret_27;
     }
-    alg_hold_top = rh_265;
-    Value ret_27 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Variadic", NULL, 0), ALG_KIND_BOOLEAN, "Boolean"));
-    alg_root_top = rt_base;
-    return ret_27;
-    alg_hold_top = rh_265;
-    Value ret_28 = alg_nil();
+    alg_hold_top = rh_271;
+    Value ret_28 = alg_hold(alg_cast_kind(alg_invoke(v_initializer, "Variadic", NULL, 0), ALG_KIND_BOOLEAN, "Boolean"));
     alg_root_top = rt_base;
     return ret_28;
+    alg_hold_top = rh_271;
+    Value ret_29 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_29;
 }
 
 static Value m_objclass_tostring_0(Value v_this, Value *args, int32_t count) {
@@ -460,14 +507,14 @@ static Value m_objclass_tostring_0(Value v_this, Value *args, int32_t count) {
     int32_t rt_base = alg_root_top;
     alg_root(&v_this, 1);
     alg_root(args, count);
-    int32_t rh_266 = alg_hold_top;
-    Value ret_29 = alg_property(v_this, "Name");
-    alg_root_top = rt_base;
-    return ret_29;
-    alg_hold_top = rh_266;
-    Value ret_30 = alg_nil();
+    int32_t rh_272 = alg_hold_top;
+    Value ret_30 = alg_property(v_this, "Name");
     alg_root_top = rt_base;
     return ret_30;
+    alg_hold_top = rh_272;
+    Value ret_31 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_31;
 }
 
 static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
@@ -481,50 +528,50 @@ static Value m_objclass_call_2(Value v_this, Value *args, int32_t count) {
     Value v_arguments = args[1];
     (void)v_arguments;
     alg_root(&v_arguments, 1);
-    int32_t rh_267 = alg_hold_top;
+    int32_t rh_273 = alg_hold_top;
     Value v_instance = alg_nil();
     (void)v_instance;
     alg_root(&v_instance, 1);
-    alg_hold_top = rh_267;
+    alg_hold_top = rh_273;
     Value v_initializer = alg_nil();
     (void)v_initializer;
     alg_root(&v_initializer, 1);
-    alg_hold_top = rh_267;
+    alg_hold_top = rh_273;
     (void)((v_instance = alg_hold(alg_new(k_objinstance, (Value[]){v_this}, 1))));
-    alg_hold_top = rh_267;
+    alg_hold_top = rh_273;
     (void)(alg_hold(alg_invoke(v_this, "SeedFields", (Value[]){v_instance, v_theinterpreter}, 2)));
-    alg_hold_top = rh_267;
+    alg_hold_top = rh_273;
     (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindOverload", (Value[]){alg_literal("init"), v_arguments}, 2))));
-    alg_hold_top = rh_267;
+    alg_hold_top = rh_273;
     if (alg_truthy(alg_hold(alg_equal(v_initializer, alg_nil())))) {
         {
-            int32_t rh_268 = alg_hold_top;
+            int32_t rh_274 = alg_hold_top;
             (void)((v_initializer = alg_hold(alg_invoke(v_this, "FindMethod", (Value[]){alg_literal("init")}, 1))));
-            alg_hold_top = rh_268;
+            alg_hold_top = rh_274;
             if (alg_truthy(alg_hold(alg_not_equal(v_initializer, alg_nil())))) {
                 if (alg_truthy(alg_hold((or_0 = alg_hold(alg_invoke(v_initializer, "Variadic", NULL, 0)), alg_truthy(or_0) ? or_0 : alg_hold(alg_equal(alg_hold(alg_property(v_arguments, "Length")), alg_hold(alg_invoke(v_initializer, "Arity", NULL, 0)))))))) {
                     alg_raise(alg_literal("No matching signature for function."));
                 }
             }
-            alg_hold_top = rh_268;
+            alg_hold_top = rh_274;
         }
     }
-    alg_hold_top = rh_267;
+    alg_hold_top = rh_273;
     if (alg_truthy(alg_hold(alg_not_equal(v_initializer, alg_nil())))) {
         {
-            int32_t rh_269 = alg_hold_top;
+            int32_t rh_275 = alg_hold_top;
             (void)(alg_hold(alg_invoke(alg_hold(alg_invoke(v_initializer, "Bind", (Value[]){v_instance}, 1)), "Call", (Value[]){v_theinterpreter, v_arguments}, 2)));
-            alg_hold_top = rh_269;
+            alg_hold_top = rh_275;
         }
     }
-    alg_hold_top = rh_267;
-    Value ret_31 = v_instance;
-    alg_root_top = rt_base;
-    return ret_31;
-    alg_hold_top = rh_267;
-    Value ret_32 = alg_nil();
+    alg_hold_top = rh_273;
+    Value ret_32 = v_instance;
     alg_root_top = rt_base;
     return ret_32;
+    alg_hold_top = rh_273;
+    Value ret_33 = alg_nil();
+    alg_root_top = rt_base;
+    return ret_33;
 }
 
 static Value *roots_ObjClass[] = {
@@ -534,10 +581,10 @@ static Value *roots_ObjClass[] = {
 void init_ObjClass(void) {
     alg_roots(roots_ObjClass, 1);
     k_objclass = alg_class("ObjClass", alg_nil());
-    alg_class_field(k_objclass, "Name");
-    alg_class_field(k_objclass, "Methods");
-    alg_class_field(k_objclass, "Superclass");
-    alg_class_field(k_objclass, "Fields");
+    alg_class_field(k_objclass, "Name", "String");
+    alg_class_field(k_objclass, "Methods", "Map");
+    alg_class_field(k_objclass, "Superclass", "ObjClass");
+    alg_class_field(k_objclass, "Fields", "List");
     alg_class_initializer(k_objclass, i_objclass);
     alg_class_method(k_objclass, "Init", m_objclass_init_4_string_objclass_map_list, 4, t_objclass_init_4_string_objclass_map_list);
     alg_class_method(k_objclass, "MethodOfArity", m_objclass_methodofarity_2_string_integer, 2, t_objclass_methodofarity_2_string_integer);
@@ -546,6 +593,7 @@ void init_ObjClass(void) {
     alg_class_method(k_objclass, "FindOverload", m_objclass_findoverload_2_string_list, 2, t_objclass_findoverload_2_string_list);
     alg_class_method(k_objclass, "Fitting", m_objclass_fitting_3_string_list_integer, 3, t_objclass_fitting_3_string_list_integer);
     alg_class_method(k_objclass, "SeedFields", m_objclass_seedfields_2_objinstance, 2, t_objclass_seedfields_2_objinstance);
+    alg_class_method(k_objclass, "FieldsInto", m_objclass_fieldsinto_1_map, 1, t_objclass_fieldsinto_1_map);
     alg_class_method(k_objclass, "Arity", m_objclass_arity_0, 0, NULL);
     alg_class_method(k_objclass, "Absorbs", m_objclass_absorbs_1_list, 1, t_objclass_absorbs_1_list);
     alg_class_method(k_objclass, "Variadic", m_objclass_variadic_0, 0, NULL);

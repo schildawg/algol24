@@ -265,7 +265,12 @@ void  alg_class_super(Value klass, Value super);
 
 void  alg_class_declared(Value klass, const char *name);
 
-void  alg_class_field(Value klass, const char *name);
+/* A declared field and the type written on it, or "" where none was. */
+void  alg_class_field(Value klass, const char *name, const char *type);
+
+/* The fields a value's class declares, name -> declared type, parent-first.
+   An empty Map for anything that is neither an instance nor a class. */
+Value alg_fields(Value v);
 
 void  alg_class_method(Value klass, const char *name, AlgMethod fn, int32_t arity,
                        const char **types);

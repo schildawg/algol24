@@ -1846,6 +1846,14 @@ typedef struct ObjClass {
     struct ObjClass *super;
 
     const char **fields;
+
+    /* ⚠️ A PARALLEL ARRAY RATHER THAN A STRUCT, because the two readers of
+       `fields` index it by position -- a field's SLOT is its index [CLS-006]
+       -- and widening the element would touch both for nothing.  A declared
+       type is `""` where none was written, which a gradually typed language
+       has a great many of in principle and almost none of in practice. */
+    const char **field_types;
+
     int32_t      field_count;
 
     int32_t total_fields;
@@ -1878,6 +1886,7 @@ Value alg_class(const char *name, Value super) {
     klass->name            = name;
     klass->super           = super.type == VAL_NIL ? NULL : as_class(super, "Superclass must be a class.");
     klass->fields          = NULL;
+    klass->field_types     = NULL;
     klass->field_count     = 0;
     klass->methods         = NULL;
     klass->method_count    = 0;
@@ -1914,17 +1923,59 @@ static int32_t total_fields(ObjClass *klass) {
     return klass->total_fields;
 }
 
-void alg_class_field(Value value, const char *name) {
+void alg_class_field(Value value, const char *name, const char *type) {
     ObjClass *klass = as_class(value, "Expected a class.");
 
-    const char **fields = arena_alloc((size_t)(klass->field_count + 1) * sizeof(char *));
-    if (klass->field_count > 0) {
-        memcpy(fields, klass->fields, (size_t)klass->field_count * sizeof(char *));
-    }
-    fields[klass->field_count] = name;
+    size_t room = (size_t)(klass->field_count + 1) * sizeof(char *);
 
-    klass->fields = fields;
+    const char **fields = arena_alloc(room);
+    const char **types  = arena_alloc(room);
+
+    if (klass->field_count > 0) {
+        memcpy(fields, klass->fields,      (size_t)klass->field_count * sizeof(char *));
+        memcpy(types,  klass->field_types, (size_t)klass->field_count * sizeof(char *));
+    }
+
+    fields[klass->field_count] = name;
+    types[klass->field_count]  = type == NULL ? "" : type;
+
+    klass->fields      = fields;
+    klass->field_types = types;
     klass->field_count++;
+}
+
+/* ── Reading a class at run time ──────────────────────────────────────────
+   The fields a value's class declares, as a Map from name to the type written
+   on it -- `""` where none was.
+
+   ⚠️ PARENT-FIRST, which is the order a serializer needs and the order the
+   language already seeds in [CLS-005].  A subclass's own fields follow what it
+   inherited, and [COL-007] specifies that a Map iterates in insertion order --
+   so declaration order is a GUARANTEE here rather than an accident of the
+   implementation.
+
+   ⚠️ A VALUE THAT IS NOT AN INSTANCE OR A CLASS ANSWERS AN EMPTY MAP, which
+   is the same bargain `5 is Dog` makes: a question about a value that simply
+   has no fields is a fair question with a boring answer, not a fault.  A
+   generic walker over arbitrary values wants exactly that. */
+static void class_fields_into(ObjClass *klass, Value into) {
+    if (klass == NULL) return;
+
+    class_fields_into(klass->super, into);
+
+    for (int32_t i = 0; i < klass->field_count; i++)
+        alg_map_keep(into,
+                     alg_string(klass->fields[i]),
+                     alg_string(klass->field_types[i] == NULL ? "" : klass->field_types[i]));
+}
+
+Value alg_fields(Value v) {
+    Value into = alg_map();
+
+    if (is_obj(v, OBJ_INSTANCE)) class_fields_into(((ObjInstance *)v.obj)->klass, into);
+    else if (is_obj(v, OBJ_CLASS)) class_fields_into((ObjClass *)v.obj, into);
+
+    return into;
 }
 
 void alg_class_method(Value value, const char *name, AlgMethod fn, int32_t arity,

@@ -208,9 +208,9 @@ static Value *roots_SourceCode[] = {
 void init_SourceCode(void) {
     alg_roots(roots_SourceCode, 1);
     k_sourcecode = alg_class("SourceCode", alg_nil());
-    alg_class_field(k_sourcecode, "Files");
-    alg_class_field(k_sourcecode, "FileName");
-    alg_class_field(k_sourcecode, "Id");
+    alg_class_field(k_sourcecode, "Files", "Map");
+    alg_class_field(k_sourcecode, "FileName", "String");
+    alg_class_field(k_sourcecode, "Id", "String");
     alg_class_initializer(k_sourcecode, i_sourcecode);
     alg_class_method(k_sourcecode, "Begins", m_sourcecode_begins_1_string, 1, t_sourcecode_begins_1_string);
     alg_class_method(k_sourcecode, "Add", m_sourcecode_add_3_string_integer_string, 3, t_sourcecode_add_3_string_integer_string);

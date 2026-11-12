@@ -266,12 +266,12 @@ void init_Token(void) {
     fn_underlyingtype = alg_closure("UnderlyingType", f_underlyingtype, NULL, 0, 1, t_f_underlyingtype);
     fn_canonicaltype = alg_closure("CanonicalType", f_canonicaltype, NULL, 0, 1, t_f_canonicaltype);
     fn_foldcase = alg_closure("FoldCase", f_foldcase, NULL, 0, 1, t_f_foldcase);
-    alg_class_field(k_token, "TypeOfToken");
-    alg_class_field(k_token, "Lexeme");
-    alg_class_field(k_token, "Literal");
-    alg_class_field(k_token, "LineNumber");
-    alg_class_field(k_token, "Offset");
-    alg_class_field(k_token, "File");
+    alg_class_field(k_token, "TypeOfToken", "TokenType");
+    alg_class_field(k_token, "Lexeme", "String");
+    alg_class_field(k_token, "Literal", "Any");
+    alg_class_field(k_token, "LineNumber", "Integer");
+    alg_class_field(k_token, "Offset", "Integer");
+    alg_class_field(k_token, "File", "String");
     alg_class_initializer(k_token, i_token);
     alg_class_method(k_token, "Init", m_token_init_4_tokentype_string_integer, 4, t_token_init_4_tokentype_string_integer);
     alg_class_method(k_token, "ToString", m_token_tostring_0, 0, NULL);

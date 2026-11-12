@@ -2653,12 +2653,19 @@ begin
                  + ClassHandle (SuperName) + ');');
         end
 
+        // The DECLARED type travels with the name, because a class is
+        // readable at run time and a field's type is half of what it answers.
+        // '' where none was written, which a gradually typed language permits
+        // and no program in six codebases writes.
         for var EachField in Fields do
             Built (Hoisted, 'alg_class_field(' + Handle + ', '
-                 + QuoteC (Str (EachField.Name.Lexeme)) + ');');
+                 + QuoteC (Str (EachField.Name.Lexeme)) + ', '
+                 + QuoteC (CanonicalType (Str (EachField.TypeName))) + ');');
 
+        // A singleton with no Id of its own gets one holding its NAME, which
+        // the initializer sets with alg_literal -- so the type is String.
         if AddId then
-            Built (Hoisted, 'alg_class_field(' + Handle + ', "Id");');
+            Built (Hoisted, 'alg_class_field(' + Handle + ', "Id", "String");');
 
         Built (Hoisted, 'alg_class_initializer(' + Handle + ', ' + Initializer + ');');
 
@@ -3409,6 +3416,28 @@ begin
             Exit Missing (Name, TheExpr.Name);
         end
 
+        // ⚠️ A CLASS NAME READ AS A VALUE IS THE CLASS, not a variable of that
+        // name, and this back end used to emit the variable.  The guard above
+        // lets a class through -- it is a name the program declared, so it is
+        // not Missing -- and the line below then wrote `v_dog`, an identifier
+        // nothing declares, so the EMITTED C did not build.  Both other
+        // processors answer the class: `var T := Dog;` and `Show (Dog)` run
+        // interpreted and on the machine.
+        //
+        // A declared variable of the name still wins, which is why the two
+        // tests come first.  VisibleClasses is required rather than assumed:
+        // the handle is a C symbol and `static` in a root file, so a class
+        // this file cannot see has no handle to name and is refused by name
+        // instead of emitted as something that will not link.
+        if Classes.Contains (FoldCase (Name)) and not Locals.Contains (Name)
+                                              and not Globals.Contains (Name) then
+        begin
+            if VisibleClasses.Contains (FoldCase (Name)) then
+                Exit ClassHandle (Name);
+
+            Unsupported ('A class held as a value where its handle is out of scope');
+        end
+
         Exit Guarded (Name, VariableName (Name));
     end
 
@@ -4139,6 +4168,7 @@ begin
         if Key = 'str/1'     then Exit 'alg_str';
         if Key = 'str/2'     then Exit 'alg_str_fixed';
         if Key = 'str/3'     then Exit 'alg_str_padded';
+        if Key = 'fields/1'  then Exit 'alg_fields';
         if Key = 'length/1'  then Exit 'alg_text_length';
         if Key = 'copy/3'    then Exit 'alg_copy';
         if Key = 'pos/2'     then Exit 'alg_pos';

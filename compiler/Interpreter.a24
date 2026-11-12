@@ -258,6 +258,31 @@ begin
             // the same work.
             'Collect' : Exit Collect ();
 
+            // A class, read at run time: the fields it declares and
+            // inherits, name to declared type.  An instance or a class
+            // answers; anything else answers an empty Map, which is the
+            // bargain 'is' already makes -- a value that simply has no fields
+            // is a fair question with a boring answer rather than a fault.
+            // ⚠️ A GUEST MAP, NOT THE HOST'S.  This walker is itself a
+            // compiled Algol-24 program, so `Map ()` written here answers the
+            // RUNTIME's Map -- which a guest program cannot iterate, because
+            // a guest collection is an ObjCollection.  Building the host's
+            // one answered a value that printed correctly and then failed as
+            // `Can only iterate a collection or a String.`  Pairs is where a
+            // guest Map keeps its entries, and is a host Map, so FieldsInto
+            // takes exactly that and ObjClass needs to know nothing about
+            // ObjCollection.
+            'Fields' : begin
+                           var Shaped := ObjCollection ('Map');
+
+                           if Arguments[0] is ObjInstance then
+                               (Arguments[0] as ObjInstance).Klass.FieldsInto (Shaped.Pairs);
+                           else if Arguments[0] is ObjClass then
+                               (Arguments[0] as ObjClass).FieldsInto (Shaped.Pairs);
+
+                           Exit Shaped;
+                       end
+
             'Length' : begin
                            if Arguments[0] is ObjCollection then
                                raise 'Length expects text; use .Length for a collection.';
@@ -552,6 +577,7 @@ begin
         Builtins.Define ('clock', Native ('clock', 0));
         Builtins.Define ('Collect', Native ('Collect', 0));
 
+        Builtins.Define ('Fields', Native ('Fields', 1));
         Builtins.Define ('Length', Native ('Length', 1));
         Builtins.Define ('Copy', Native ('Copy', 3));
         // Variadic, and checked in its own arm, because Pos takes 2 or 3

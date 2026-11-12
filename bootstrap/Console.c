@@ -289,7 +289,7 @@ static Value *roots_Console[] = {
 void init_Console(void) {
     alg_roots(roots_Console, 13);
     k_console = alg_class("Console", alg_nil());
-    alg_class_field(k_console, "Id");
+    alg_class_field(k_console, "Id", "String");
     alg_class_initializer(k_console, i_console);
     alg_class_method(k_console, "Repeat", m_console_repeat_2_char_integer, 2, t_console_repeat_2_char_integer);
     alg_class_method(k_console, "Header", m_console_header_1_string, 1, t_console_header_1_string);
