@@ -625,7 +625,11 @@ void  alg_write(Value v);
 
 void  alg_halt(Value status);
 
-Value alg_param(Value argument, const char *declared);
+/* Binds one argument to a parameter's declared type at the top of a
+   subprogram body.  `called` is the subprogram's name, for the diagnostic: a
+   lone subprogram has no candidate list to report, so the name is all there
+   is to say which call failed. */
+Value alg_param_of(Value argument, const char *declared, const char *called);
 
 Value alg_widen(Value argument, const char *declared);
 void  alg_writeln(Value v);

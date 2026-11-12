@@ -1762,13 +1762,119 @@ end
 ///
 /// Shared by a plain call, an instantiation and a method call, which differ
 /// only in what they put beneath the arguments.
+/// How many methods of a name a class and its parents declare.
+///
+/// Asked only once selection has FAILED, to decide what to report: one
+/// candidate makes the count the whole fault, several make it ambiguous.  The
+/// chain is walked because an inherited overload is a candidate the call could
+/// have reached [EXP-014].
+///
+/// # Satisfies
+/// [EXP-014]
+function CandidateCount (Klass : Any, Folded : Any) : Integer;
+var
+    Found : Integer;
+    Where : Any;
+
+begin
+    Found := 0;
+    Where := Klass;
+
+    while Where <> Nil do
+    begin
+        if Where.Methods.Contains (Folded) then
+            Found := Found + (Where.Methods.Get (Folded) as List).Length;
+
+        Where := Where.Parent;
+    end
+
+    Exit Found;
+end
+
+/// How many candidates a class declares for a name ITSELF, ignoring its
+/// parents.
+///
+/// The question a CONSTRUCTOR wants, where a method wants the chain: the
+/// emitter gives every class an Init set covering what it can be constructed
+/// with -- a synthesized arity-0 one where it declares none, and a forwarder
+/// per inherited signature for a subclass -- so the chain holds the same
+/// signatures twice over.
+function OwnCandidates (Klass : Any, Folded : Any) : Integer;
+begin
+    if not Klass.Methods.Contains (Folded) then Exit 0;
+
+    Exit (Klass.Methods.Get (Folded) as List).Length;
+end
+
+/// The arity of a name's ONE candidate, or -1 where the name has several or
+/// none -- which is what tells NoMatchFor it may report the counts.
+function OnlyArity (Klass : Any, Folded : Any) : Integer;
+var
+    Where : Any;
+
+begin
+    if CandidateCount (Klass, Folded) <> 1 then Exit -1;
+
+    Where := Klass;
+
+    while Where <> Nil do
+    begin
+        if Where.Methods.Contains (Folded) then
+            Exit (Where.Methods.Get (Folded) as List)[0].Arity;
+
+        Where := Where.Parent;
+    end
+
+    Exit -1;
+end
+
+/// The report for a call that selected nothing.
+///
+/// The machine's copy of the interpreter's NoMatch, held to it by the corpus
+/// rather than by sharing code -- the machine may not import anything from
+/// `compiler/`.
+///
+/// Names the member and, where there is one, its class, which a selection
+/// failure never did: `No matching signature for function.` named nothing at
+/// all.  COUNTS WHERE THE NAME IS UNAMBIGUOUS -- one candidate of fixed arity
+/// called with the wrong number has the count as its whole fault, which is the
+/// split a subprogram and a constructor already made [0049] and a method did
+/// not.
+///
+/// # Satisfies
+/// [EXP-013], [EXP-014]
+function NoMatchFor (OwnerName : Any, Named : Any, Candidates : Integer,
+                     Expected : Integer, Given : Integer) : String;
+begin
+    if Candidates = 1 and Expected >= 0 and Expected <> Given then
+        Exit 'Expected ' + Str (Expected) + ' arguments but got '
+           + Str (Given) + '.';
+
+    if Str (Named) = '' then Exit 'No matching signature for function.';
+
+    // ⚠️ A CONSTRUCTOR NAMES THE CLASS ALONE, because `Init` is not a name a
+    // call site writes: a construction is `C (...)`, so `C.Init` would name
+    // something the program never said.
+    if ToLower (Str (Named)) = 'init' and Str (OwnerName) <> '' then
+        Exit 'No matching signature for ' + Str (OwnerName) + '.';
+
+    if Str (OwnerName) <> '' then
+        Exit 'No matching signature for ' + Str (OwnerName) + '.'
+           + Str (Named) + '.';
+
+    Exit 'No matching signature for ' + Str (Named) + '.';
+end
+
 ///
 /// # Raises
 ///
-/// Mismatch on the wrong argument count, supplied by the caller because a
-/// METHOD reports a selection failure where a subprogram and a constructor
-/// report the counts [0049], and 'The call stack overflowed.' past FRAME_ROOM.
-procedure EnterFrame (Callee : Any, Count : Integer, Mismatch : String);
+/// The report NoMatchFor words, for a wrong count AND for a selection failure
+/// at the right count -- both from here, because the two were a precomputed
+/// sentence per caller and that is what let a method and a subprogram answer
+/// differently for one fault [0049].  'The call stack overflowed.' past
+/// FRAME_ROOM.
+procedure EnterFrame (Callee : Any, Count : Integer, OwnerName : Any,
+                      Named : Any, Candidates : Integer);
 begin
     // Gathering happens HERE, so every way into a frame absorbs on the same
     // terms: a plain call, a method, a constructor and a selected overload.
@@ -1787,7 +1893,7 @@ begin
         // check and is stricter than it: `Total ('a', 1, 2, 'red')` has a
         // stray argument of the wrong TYPE rather than one too many.
         else if Str (CalleeSignature (Callee).Element) <> '' then
-            raise 'No matching signature for function.';
+            raise NoMatchFor (OwnerName, Named, Candidates, -1, Count);
 
         // And a FIXED-arity callee whose arguments do not fit at the right
         // count is a selection failure too: [EXP-013] puts even a lone
@@ -1804,11 +1910,11 @@ begin
         // it: refusals/0042 compares the message and `vm/conform.sh` walked
         // only conformance/, so the refusal corpus had never run here at all.
         else if Count = Callee.Arity then
-            raise 'No matching signature for function.';
+            raise NoMatchFor (OwnerName, Named, Candidates, -1, Count);
     end
 
     if Count <> Callee.Arity then
-        raise Mismatch;
+        raise NoMatchFor (OwnerName, Named, Candidates, Callee.Arity, Count);
 
     if FrameDepth >= FRAME_ROOM then begin OUT_OF_ROOM := True; raise 'The call stack overflowed.'; end
 
@@ -1949,12 +2055,22 @@ begin
         // the parent's and the receiver's own class would find the override.
         if Callee.From <> Nil then
         begin
-            var Found := ChosenMethod (Callee.From,
-                                       ToLower (Str (Callee.Written)), Count);
+            var Member := ToLower (Str (Callee.Written));
+            var Found   := ChosenMethod (Callee.From, Member, Count);
+            var Held    := CandidateCount (Callee.From, Member);
 
-            if Found = Nil then raise 'No matching signature for function.';
+            if Found = Nil then
+            begin
+                var Only := -1;
 
-            EnterFrame (Found, Count, 'No matching signature for function.');
+                if Held = 1 then
+                    Only := (Callee.From.Methods.Get (Member) as List)[0].Arity;
+
+                raise NoMatchFor (Callee.From.Name, Callee.Written, Held,
+                                  Only, Count);
+            end
+
+            EnterFrame (Found, Count, Callee.From.Name, Callee.Written, Held);
 
             Exit;
         end
@@ -2048,8 +2164,18 @@ begin
         // processor made it -- the interpreter fell through to a type-blind
         // lookup and the compiled back end passed `strict = false` to one
         // call.  Both check now, so the flag is gone.
-        EnterFrame (Setup, Count, 'Expected ' + Str (Setup.Arity)
-                                + ' arguments but got ' + Str (Count) + '.');
+        // The CLASS is what a construction names, because `Box (...)` is what
+        // the program wrote -- there is no `Box.Init` at a call site.
+        //
+        // ⚠️ THIS CLASS'S OWN CONSTRUCTORS, not the chain's.  The emitter gives
+        // a class with no constructor a synthesized arity-0 Init, and a
+        // subclass declaring none a forwarding Init PER INHERITED SIGNATURE --
+        // so a class's own set already covers everything it can be constructed
+        // with, and walking the chain counted `AlsoBare (Bare)` as two
+        // candidates and called the count ambiguous where both other
+        // processors reported it.
+        EnterFrame (Setup, Count, '', (Callee as VmClass).Name,
+                    OwnCandidates (Callee, 'init'));
 
         Exit;
     end
@@ -2059,10 +2185,18 @@ begin
     if Callee is VmOverloads then
     begin
         var Picked := Chosen (Callee, Count);
+        var Held    := (Callee.Candidates as List).Length;
 
-        if Picked = Nil then raise 'No matching signature for function.';
+        if Picked = Nil then
+        begin
+            var Only := -1;
 
-        EnterFrame (Picked, Count, 'No matching signature for function.');
+            if Held = 1 then Only := (Callee.Candidates as List)[0].Arity;
+
+            raise NoMatchFor ('', Callee.Name, Held, Only, Count);
+        end
+
+        EnterFrame (Picked, Count, '', Callee.Name, Held);
 
         Exit;
     end
@@ -2074,11 +2208,11 @@ begin
         // the two processors printed different text for one fault.
         raise 'Can only call functions and classes.';
 
-    // A plain subprogram and a constructor report the COUNTS; only a METHOD
-    // reports a selection failure.  0049-call-failures draws the line and all
-    // five of its reports are compared, so the split is not a choice.
-    EnterFrame (Callee, Count, 'Expected ' + Str (Callee.Arity)
-                             + ' arguments but got ' + Str (Count) + '.');
+    // ONE candidate, so a wrong count reports the counts and a wrong type at
+    // the right count names the subprogram.  A method says the same now --
+    // 0049's five reports used to split them, and the split was the thing the
+    // library asked to have removed.
+    EnterFrame (Callee, Count, '', Callee.Name, 1);
 end
 
 /// Replaces the top two -- a collection and an index -- with the element.
@@ -2718,10 +2852,15 @@ begin
                 raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
             end
 
-            raise 'No matching signature for function.';
+            // A METHOD NOW REPORTS THE COUNTS WHERE IT IS UNAMBIGUOUS, which
+            // a subprogram and a constructor already did [0049].
+            raise NoMatchFor (Self.Klass.Name, Written,
+                              CandidateCount (Self.Klass, Name),
+                              OnlyArity (Self.Klass, Name), Count);
         end
 
-        EnterFrame (Found, Count, 'No matching signature for function.');
+        EnterFrame (Found, Count, Self.Klass.Name, Written,
+                    CandidateCount (Self.Klass, Name));
 
         Exit;
     end
@@ -3268,7 +3407,10 @@ begin
         Where := Where.Parent;
     end
 
-    raise 'No matching signature for function.';
+    // AN ARRANGEMENT HAS EXACTLY THE DECLARED ARITY, so a failure here is a
+    // name no parameter has, one named twice, or a half-filled call -- never a
+    // count.  The member and its class are what to add.
+    raise NoMatchFor (Klass.Name, Wanted, 0, -1, Count);
 end
 
 /// Arranges a named call against whatever the callee turns out to be.
@@ -3287,7 +3429,7 @@ begin
         for var Candidate in Callee.Candidates as List do
             if ArrangeNamed (Candidate, Count, Names) then Exit;
 
-        raise 'No matching signature for function.';
+        raise NoMatchFor ('', Callee.Name, 0, -1, Count);
     end
 
     if Callee is VmClass then
@@ -3297,14 +3439,14 @@ begin
         if Setup <> Nil then
             if ArrangeNamed (Setup, Count, Names) then Exit;
 
-        raise 'No matching signature for function.';
+        raise NoMatchFor ('', Callee.Name, 0, -1, Count);
     end
 
     if Callee is VmFunction or Callee is VmClosure then
     begin
         if ArrangeNamed (Callee, Count, Names) then Exit;
 
-        raise 'No matching signature for function.';
+        raise NoMatchFor ('', Callee.Name, 0, -1, Count);
     end
 
     // A built-in's parameters are not declared in this language at all -- they
@@ -5473,21 +5615,24 @@ begin
     AssertEqual ('declared',  Str (Invoked (Child, 'Take', [Str ('x')])));
 end
 
-test 'A Name That Fits Nothing Is A Selection Failure, Not A Missing Method';
+// A method of ONE signature reports the counts, which is what a subprogram and
+// a constructor always did -- and what a method did not, so one fault read two
+// ways [0049, EXP-014].  A name the chain does not declare stays a different
+// report altogether.
+//
+test 'A Method That Fits Nothing Reports Its Counts, Not A Missing Method';
 begin
     var K := VmClass ('Box');
 
     K.AddMethod ('Take', Answering ('Take', [Str ('Integer')], 'one'));
 
-    // Declared but fitting nothing is a SELECTION failure; a method's wrong
-    // count reports that where a subprogram's reports the counts [0049].
     try
         Invoked (K, 'Take', [1, 2]);
 
         Fail ('expected a selection failure');
     except
         on e : String do
-            AssertEqual ('No matching signature for function.', Str (e));
+            AssertEqual ('Expected 1 arguments but got 2.', Str (e));
     end
 
     // A name no class in the chain declares is a different report.
@@ -6893,7 +7038,7 @@ begin
         Fail ('expected a selection failure');
     except
         on e : String do
-            AssertEqual ('No matching signature for function.', Str (e));
+            AssertEqual ('No matching signature for Counted.', Str (e));
     end
 end
 
@@ -6975,7 +7120,7 @@ begin
         CallWith (Set, 1);
         Fail ('expected a raise');
     except
-        on e : String do AssertEqual ('No matching signature for function.', e);
+        on e : String do AssertEqual ('Expected 2 arguments but got 1.', e);
     end
 end
 

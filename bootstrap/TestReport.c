@@ -25,7 +25,7 @@ Value f_testopening(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
-    Value v_count = alg_param(args[0], "Integer");
+    Value v_count = alg_param_of(args[0], "Integer", "TestOpening");
     (void)v_count;
     alg_root(&v_count, 1);
     int32_t rh_199 = alg_hold_top;
@@ -43,7 +43,7 @@ Value f_testbanner(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
-    Value v_file = alg_param(args[0], "String");
+    Value v_file = alg_param_of(args[0], "String", "TestBanner");
     (void)v_file;
     alg_root(&v_file, 1);
     int32_t rh_200 = alg_hold_top;
@@ -61,10 +61,10 @@ Value f_testline(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 2);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
-    Value v_name = alg_param(args[0], "String");
+    Value v_name = alg_param_of(args[0], "String", "TestLine");
     (void)v_name;
     alg_root(&v_name, 1);
-    Value v_status = alg_param(args[1], "String");
+    Value v_status = alg_param_of(args[1], "String", "TestLine");
     (void)v_status;
     alg_root(&v_status, 1);
     int32_t rh_201 = alg_hold_top;
@@ -122,10 +122,10 @@ Value f_testfailure(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 2);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
-    Value v_rootfile = alg_param(args[0], "String");
+    Value v_rootfile = alg_param_of(args[0], "String", "TestFailure");
     (void)v_rootfile;
     alg_root(&v_rootfile, 1);
-    Value v_said = alg_param(args[1], "String");
+    Value v_said = alg_param_of(args[1], "String", "TestFailure");
     (void)v_said;
     alg_root(&v_said, 1);
     int32_t rh_205 = alg_hold_top;
@@ -143,10 +143,10 @@ Value f_testtotals(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 2);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
-    Value v_passed = alg_param(args[0], "Integer");
+    Value v_passed = alg_param_of(args[0], "Integer", "TestTotals");
     (void)v_passed;
     alg_root(&v_passed, 1);
-    Value v_failed = alg_param(args[1], "Integer");
+    Value v_failed = alg_param_of(args[1], "Integer", "TestTotals");
     (void)v_failed;
     alg_root(&v_failed, 1);
     int32_t rh_206 = alg_hold_top;

@@ -3735,8 +3735,8 @@ through `Get` and `Put` [TYP-010] — five protocols, one convention.
 implement this one, and such a class is simply not iterable. Neither processor
 checked that: the interpreter asked for the first method of the name whatever
 its shape, the runtime's `has_method` fell back to the same, and the two then
-failed differently — `Index 0 out of range 0..-1.` against
-`No matching signature for function.`, neither of them the message above.
+failed differently — `Index 0 out of range 0..-1.` against a selection
+failure, neither of them the message above.
 
 **The result is walked, not re-asked.** `Elements` may return another
 instance that also declares `Elements`, and the chain resolves — which is what
@@ -6318,9 +6318,9 @@ M.`
 
 **Except where a count is not the callee's rule.** A subprogram whose last
 parameter gathers trailing arguments [FUN-005] has a different count by design,
-and reports `No matching signature for function.` instead — naming the count
+and reports `No matching signature for <name>.` instead — naming the count
 would send the reader to look at the wrong thing, since what refused the call
-was the element type. `Write` and `WriteLn` take any number of values [RT-001]
+was the element type [EXP-014]. `Write` and `WriteLn` take any number of values [RT-001]
 and so can never fail this way at all.
 
     unit         Call Wrong Number Of Arguments
@@ -6346,6 +6346,9 @@ begin
     function Only (A); begin Exit A; end
 end
 
+// A METHOD REPORTS THE COUNTS TOO, where the name has one signature.  It used
+// to answer a selection failure here and a subprogram and a constructor did
+// not, which made one fault read three ways [EXP-014].
 try
     WriteLn (Box (1).Only (1, 2));
 except
@@ -6373,8 +6376,8 @@ WriteLn (One (1, 2));
 $ algc conformance/0049-call-failures.a24
 1
 Expected 1 arguments but got 0.
-No matching signature for function.
-No matching signature for function.
+Expected 1 arguments but got 2.
+Expected 1 arguments but got 0.
 Expected 1 arguments but got 2.
 Uncaught: Expected 1 arguments but got 2.
 exit: 70
@@ -6576,8 +6579,8 @@ warn: held
 a 3
 a 3
 a 1
-No matching signature for function.
-No matching signature for function.
+No matching signature for Log.
+No matching signature for Log.
 A built-in has no named parameters.
 ```
 
@@ -6644,7 +6647,17 @@ char
 **[EXP-014]**  An overload is chosen by preferring an **exact match** on every
 argument; failing that, one reachable by widening [VAR-004], since a parameter
 is an assignment context [VAR-017]. When neither fits, the call fails with
-`No matching signature for function.`
+`No matching signature for <what was called>.` — a subprogram or a class by
+its own name, a method as `Class.Member`.
+
+**The failure NAMES what was called**, which it did not always: it said
+`No matching signature for function.` and so named nothing at all, which is of
+no use to generic code that reads the message. **And where the name is
+unambiguous the counts are reported instead** — one candidate of fixed arity
+called with the wrong number of arguments has the count as its whole fault, so
+`Expected N arguments but got M.` [EXP-011] says more than the name would.
+Several candidates make the count ambiguous, and so does a variadic one, whose
+element type replaces the arity check [FUN-005].
 
 So a `Char` argument selects a `Char` parameter where one is declared, and
 widens to a `String` parameter where it is not.
@@ -8141,7 +8154,7 @@ $ algc conformance/0158-varargs-from-an-element-type.a24
 6
 2
 Expected 1 arguments but got 2.
-No matching signature for function.
+No matching signature for Total.
 fixed
 gathered 3
 gathered 1
@@ -8177,13 +8190,14 @@ WriteLn (G ('a string'));
 
 ```console
 $ algc refusals/0042-top-level-parameter-type.a24
-Uncaught: No matching signature for function.
+Uncaught: No matching signature for G.
 exit: 70
 ```
 
 **[FUN-007]**  A **method's** parameter types **are** enforced, because a method
 goes through overload selection [EXP-013]. Passing a String where `Integer` is
-declared is `No matching signature for function.`
+declared is `No matching signature for M.Take.` — the method and its class
+[EXP-014], since the count is right and the type is the fault.
 
 ##### refusals/0025-method-parameter-type-is-enforced.a24
 
@@ -8198,7 +8212,7 @@ WriteLn (M ().Take ('a string'));
 
 ```console
 $ algc refusals/0025-method-parameter-type-is-enforced.a24
-Uncaught: No matching signature for function.
+Uncaught: No matching signature for M.Take.
 exit: 70
 ```
 
@@ -9355,7 +9369,9 @@ exit: 70
 goes through **selection** on the whole signature, as a call of any other
 subprogram does [EXP-013, FUN-013] — so a declared parameter type is checked,
 constructors may overload, and a wrong type at the right count answers
-`No matching signature for function.` where a wrong count reports the counts. A
+`No matching signature for <the class>.` where a wrong count reports the
+counts [EXP-014] — a construction names the class, because `C (...)` is what
+the program wrote and there is no `C.Init` at a call site. A
 class with no constructor takes no arguments — `C(1, 2)` on such a class is
 `Expected 0 arguments but got 2.`
 
@@ -9483,7 +9499,7 @@ WriteLn (Holder ('not a Thing'));
 ```console
 $ algc conformance/0204-a-constructor-is-selected-too.a24
 Thing
-No matching signature for function.
+No matching signature for Holder.
 Expected 1 arguments but got 0.
 7
 text
@@ -9493,9 +9509,9 @@ string
 3
 0
 3
-No matching signature for function.
-No matching signature for function.
-Uncaught: No matching signature for function.
+No matching signature for Tally.
+No matching signature for Tally.
+Uncaught: No matching signature for Holder.
 exit: 70
 ```
 
@@ -9631,7 +9647,7 @@ in Base.Init, Extra=derived Named=Derived
 Tag=base/7
 Extra=derived
 Once=1 calls=1
-No matching signature for function.
+No matching signature for Derived.
 Expected 0 arguments but got 1.
 integer
 string
@@ -9962,7 +9978,7 @@ end
 $ algc conformance/0206-inheritance-across-a-uses.a24
 figure/deep thin none Boxed
 figure/own! thick Named+Framed
-No matching signature for function.
+No matching signature for Boxed.
 ```
 
 ##### conformance/0150-super-as-a-value.a24
@@ -13383,7 +13399,7 @@ Undefined property 'Nope'.
 Only instances have fields.
 Integer is a type rather than a class, and cannot be constructed.
 New expects a List of arguments.
-No matching signature for function.
+No matching signature for Thing.
 ```
 
 **[RT-035]**  `T.Accepts (X)` answers whether `X` satisfies the type `T`,
@@ -14210,7 +14226,7 @@ takes.
 
 **A declared count is taken over entirely.** Where a declaration claims a count,
 the built-in is not reached at that count even for arguments the declaration does
-not fit — that is *No matching signature for function.* [EXP-014] and not a
+not fit — that is *No matching signature for <name>.* [EXP-014] and not a
 reason to fall through. Otherwise a wrong call would silently reach a different
 subprogram than the one written, which is the failure this rule exists to avoid.
 

@@ -3198,7 +3198,8 @@ begin
                 if Volatiles then Qualifier := 'Value *volatile ';
 
                 Line (Qualifier + Cell (ParamName) + ' = alg_cell('
-                    + BoundArgument (TheStmt.Params, TheStmt.ParamTypes, I) + ');');
+                    + BoundArgument (ReportedName (TheStmt), TheStmt.ParamTypes, I)
+                    + ');');
                 Line ('(void)' + Cell (ParamName) + ';');
 
                 Cells.Add (ParamName);
@@ -3206,7 +3207,8 @@ begin
             else
             begin
                 DeclareLocal (VariableName (ParamName),
-                              BoundArgument (TheStmt.Params, TheStmt.ParamTypes, I));
+                              BoundArgument (ReportedName (TheStmt),
+                                             TheStmt.ParamTypes, I));
             end
         end
 
@@ -4042,7 +4044,7 @@ begin
     /// what ALG_ANY_ARITY leaves it to do.  A single count takes alg_arity, so
     /// the wording is the runtime's own; several take alg_arity_counts, because
     /// 'Expected 1, 2 or 3 arguments but got 4.' is a sentence alg_arity cannot
-    /// word and an overload set answers 'No matching signature for function.'
+    /// word and an overload set answers 'No matching signature for <Name>.'
     /// for -- right for a subprogram and wrong here, where the fault is the
     /// count and nothing about the types.
     procedure EmitBuiltinThunk (Symbol : String, Name : String, Counts : List);
@@ -4585,7 +4587,7 @@ begin
         // the set rather than to whichever candidate was reached first.
         if Declared.Contains (Name) and not Shadowed
                                     and BuiltinCounts (Name).Length > 0 then
-            Exit '(alg_error(' + QuoteC ('No matching signature for function.')
+            Exit '(alg_error(' + QuoteC ('No matching signature for ' + Name + '.')
                + '), alg_nil())';
 
         if Classes.Contains (FoldCase (Name)) then
@@ -4682,7 +4684,13 @@ begin
     end
 
     /// Emits one parameter's binding at the top of a subprogram body.
-    function BoundArgument (Params : Any, Types : Any, I : Integer) : String;
+    ///
+    /// The subprogram's name goes with it, because alg_param is the one place
+    /// a selection failure is reported with nothing else to hand: a lone
+    /// subprogram binds its parameters one at a time, so there is no candidate
+    /// list and no receiver there.  Qualified by the enclosing class where
+    /// there is one, so a method reports what the other two processors report.
+    function BoundArgument (Called : Any, Types : Any, I : Integer) : String;
     begin
         var Slot := 'args[' + Str (I) + ']';
 
@@ -4691,7 +4699,19 @@ begin
         var Declared := Str (Types[I]);
         if Declared = '' or Declared = 'Any' then Exit Slot;
 
-        Exit 'alg_param(' + Slot + ', ' + QuoteC (Declared) + ')';
+        Exit 'alg_param_of(' + Slot + ', ' + QuoteC (Declared) + ', '
+           + QuoteC (Str (Called)) + ')';
+    end
+
+    /// The name a diagnostic should call this subprogram, qualified by the
+    /// class whose body is being emitted where there is one.
+    function ReportedName (TheStmt : Any) : String;
+    begin
+        var Written := Str (TheStmt.Name.Lexeme);
+
+        if CurrentClass <> '' then Exit CurrentClass + '.' + Written;
+
+        Exit Written;
     end
 
     /// Whether every element of a collection literal is itself a literal.

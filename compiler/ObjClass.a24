@@ -6,6 +6,54 @@ uses Token;
 uses ObjFunction;
 uses ObjInstance;
 
+/// The report for a call that selected nothing.
+///
+/// Names the member and, where there is one, its class -- which a selection
+/// failure never did.  `No matching signature for function.` named nothing at
+/// all, so generic code reading it could not tell which call had failed, and
+/// that is what the library asked to have fixed.
+///
+/// COUNTS WHERE THE NAME IS UNAMBIGUOUS: one candidate of fixed arity called
+/// with the wrong number of arguments has the count as its whole fault, and
+/// saying so is more use than naming a name the program just wrote.  Several
+/// candidates make the count ambiguous -- which one was meant? -- and so does
+/// a variadic one, whose element type replaces the arity check and is stricter
+/// than it [FUN-005, 0158].  That is the split a constructor already made
+/// [0049]; this is what lets a method and a subprogram make it too.
+///
+/// # Satisfies
+/// [EXP-013], [EXP-014]
+function NoMatch (OwnerName : String, Named : String, Candidates : List,
+                  Given : Integer) : String;
+begin
+    if Candidates <> Nil and Candidates.Length = 1 then
+    begin
+        var Only := Candidates[0];
+
+        if not Only.Variadic () and Only.Arity () >= 0
+                                and Given <> Only.Arity () then
+            Exit 'Expected ' + Str (Only.Arity ()) + ' arguments but got '
+               + Str (Given) + '.';
+    end
+
+    if Named = '' then Exit 'No matching signature for function.';
+
+    // ⚠️ A CONSTRUCTOR NAMES THE CLASS ALONE, because `Init` is not a name a
+    // call site writes: a construction is `C (...)`, so `C.Init` would name
+    // something the program never said.  Here rather than at the call sites
+    // because all three processors reach a constructor's selection by several
+    // routes -- a plain construction, a named one, `super.Init` -- and the
+    // compiled back end answered `Holder.Init` from one of them while the
+    // other two answered `Holder`.
+    if FoldCase (Named) = 'init' and OwnerName <> '' then
+        Exit 'No matching signature for ' + OwnerName + '.';
+
+    if OwnerName <> '' then
+        Exit 'No matching signature for ' + OwnerName + '.' + Named + '.';
+
+    Exit 'No matching signature for ' + Named + '.';
+end
+
 /// A member of a class VALUE, bound to the class, for the one that is called.
 ///
 /// The class surface is otherwise properties -- `T.Name`, `T.Fields` -- which
@@ -214,6 +262,38 @@ begin
         if Superclass <> Nil then Exit Superclass.Fitting (Name, Arguments, Pass);
     end
 
+    /// Every candidate declared for a name, this class's and its parents'.
+    ///
+    /// Asked only when selection has already FAILED, to decide what to report:
+    /// one candidate makes the count the whole fault and worth naming, where
+    /// several make it ambiguous [0049].  Gathering the chain is what makes
+    /// that honest -- an inherited overload is a candidate the call could have
+    /// reached, so counting this class's alone would call an overloaded name
+    /// unambiguous.
+    ///
+    /// # Satisfies
+    /// [EXP-014]
+    function CandidatesOf (Name : String) : List;
+    var
+        Found : List;
+
+    begin
+        Found := List ();
+
+        GatherCandidates (Name, Found);
+
+        Exit Found;
+    end
+
+    /// Adds this class's candidates for a name to a list, then its parents'.
+    procedure GatherCandidates (Name : String, Into : List);
+    begin
+        if Methods.Contains (Name) then
+            for var Candidate in Methods.Get (Name) do Into.Add (Candidate);
+
+        if Superclass <> Nil then Superclass.GatherCandidates (Name, Into);
+    end
+
     /// Puts every declared field onto a new instance, parent's first.
     ///
     /// The parent runs first so a subclass redeclaring a name wins, and so an
@@ -379,7 +459,7 @@ begin
             if Initializer <> Nil then
                 if Initializer.Variadic ()
                        or Arguments.Length = Initializer.Arity () then
-                    raise 'No matching signature for function.';
+                    raise 'No matching signature for ' + Name + '.';
         end
 
         if Initializer <> Nil then

@@ -2101,6 +2101,10 @@ Value alg_properties(Value v) {
 static const char *as_string(Value v, const char *what);
 static int32_t field_slot_typed(ObjClass *klass, const char *name,
                                 const char **declared);
+static int32_t candidate_count(ObjClass *klass, const char *name);
+_Noreturn static void no_match(const char *owner, const char *name,
+                               int32_t candidates, int32_t expected,
+                               int32_t given);
 
 /* Whether a class, or anything it inherits from, declares this name as a
    PROPERTY rather than a method. */
@@ -2397,7 +2401,7 @@ Value alg_widen(Value argument, const char *declared) {
     return widened;
 }
 
-Value alg_param(Value argument, const char *declared) {
+Value alg_param_of(Value argument, const char *declared, const char *called) {
     if (declared == NULL || *declared == '\0') return argument;
     if (alg_stricmp(declared, "Any") == 0)      return argument;
 
@@ -2411,7 +2415,13 @@ Value alg_param(Value argument, const char *declared) {
     if (widens_to(actual, declared)) return alg_widen(argument, declared);
     if (is_a(argument, declared)) return argument;
 
-    alg_error("No matching signature for function.");
+    /* ⚠️ THE SUBPROGRAM'S NAME IS PASSED IN, because this is the one place a
+       selection failure is reported with nothing else to hand: a lone
+       subprogram binds its parameters one at a time, so there is no candidate
+       list and no receiver here.  The emitter knows whose body it is writing
+       and says so, which is what keeps this agreeing with the interpreter's
+       `No matching signature for <Name>.` */
+    no_match(NULL, called, 0, -1, -1);
 }
 
 static const char *param_name(const char *declared, char *out, size_t size) {
@@ -2615,7 +2625,9 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
     }
 
     if (by_arity != NULL) {
-        if (strict) alg_error("No matching signature for function.");
+        /* The count is RIGHT here -- by_arity matched on it -- so the fault is
+           a type and the member is what to name. */
+        if (strict) no_match(klass->name, name, candidate_count(klass, name), -1, arity);
 
         return by_arity;
     }
@@ -2626,6 +2638,61 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
 _Noreturn static void arity_error(int32_t expected, int32_t got) {
     char message[64];
     snprintf(message, sizeof message, "Expected %d arguments but got %d.", (int)expected, (int)got);
+
+    alg_error(message);
+}
+
+/* How many methods of a name the class and its parents declare.
+   Asked only once selection has FAILED, to decide what to report: one
+   candidate makes the count the whole fault, several make it ambiguous.  The
+   chain is walked because an inherited overload is a candidate the call could
+   have reached [EXP-014]. */
+static int32_t candidate_count(ObjClass *klass, const char *name) {
+    int32_t   found = 0;
+    uint32_t  want  = hash_folded(name);
+
+    for (ObjClass *at = klass; at != NULL; at = at->super)
+        for (int32_t i = 0; i < at->method_count; i++)
+            if (at->methods[i].hash == want
+             && alg_stricmp(at->methods[i].name, name) == 0) found++;
+
+    return found;
+}
+
+/* The report for a call that selected nothing -- the C runtime's copy of the
+   interpreter's NoMatch, and held to it by the corpus.
+
+   Names the member and, where there is one, its class, which a selection
+   failure never did: `No matching signature for function.` named nothing at
+   all.  COUNTS WHERE THE NAME IS UNAMBIGUOUS -- one candidate of fixed arity
+   called with the wrong number has the count as its whole fault.  `candidates`
+   of 1 with `expected` >= 0 is what says so; anything else names the member,
+   and `name` of NULL keeps the old sentence for a site that knows neither. */
+_Noreturn static void no_match(const char *owner, const char *name,
+                               int32_t candidates, int32_t expected,
+                               int32_t given) {
+    char message[256];
+
+    if (candidates == 1 && expected >= 0 && expected != given)
+        arity_error(expected, given);
+
+    if (name == NULL || *name == '\0')
+        alg_error("No matching signature for function.");
+
+    /* ⚠️ A CONSTRUCTOR NAMES THE CLASS ALONE, because `Init` is not a name a
+       call site writes: a construction is `C (...)`, so `C.Init` would name
+       something the program never said.  This answered `Holder.Init` where
+       both other processors answered `Holder`. */
+    if (alg_stricmp(name, "Init") == 0 && owner != NULL && *owner != '\0') {
+        snprintf(message, sizeof message, "No matching signature for %s.", owner);
+        alg_error(message);
+    }
+
+    if (owner != NULL && *owner != '\0')
+        snprintf(message, sizeof message,
+                 "No matching signature for %s.%s.", owner, name);
+    else
+        snprintf(message, sizeof message, "No matching signature for %s.", name);
 
     alg_error(message);
 }
@@ -2708,7 +2775,9 @@ Value alg_new(Value value, Value *args, int32_t count) {
         else if (variadic_element(init->types, init->arity) != NULL
                      && count != init->arity) {
 
-            alg_error("No matching signature for function.");
+            /* A VARIADIC candidate makes the count ambiguous, so this names
+               the class rather than reporting counts [FUN-005, 0158]. */
+            no_match(NULL, klass->name, 0, -1, count);
         }
         else {
 
@@ -3761,7 +3830,19 @@ static Value invoke_found(MethodEntry *method, Value receiver, Value *args, int3
     if (should_absorb(method->types, method->arity, args, count))
         return method->fn(receiver, absorb_args(method->arity, args, count), method->arity);
 
-    if (method->arity != count) alg_error("No matching signature for function.");
+    /* A METHOD REPORTS THE COUNTS WHERE IT IS UNAMBIGUOUS, which is what a
+       subprogram and a constructor already did [0049].  find_method answers
+       any method of the name once no arity matched, so this is the count
+       failure and the candidate walk is what says whether the count is the
+       whole story. */
+    if (method->arity != count) {
+        ObjClass *klass = is_obj(receiver, OBJ_INSTANCE)
+                            ? ((ObjInstance *)receiver.obj)->klass : NULL;
+
+        no_match(klass == NULL ? NULL : klass->name, method->name,
+                 klass == NULL ? 0 : candidate_count(klass, method->name),
+                 method->arity, count);
+    }
 
     return method->fn(receiver, args, count);
 }
@@ -4467,8 +4548,17 @@ static Value call_overload(ObjOverloads *set, Value *args, int32_t count) {
                 return entry->fn(NULL, args, count);
         }
 
-    alg_error("No matching signature for function.");
-    return alg_nil();
+    /* COUNTS ONLY WHERE THE SET HOLDS ONE FIXED-ARITY CANDIDATE.  A variadic
+       one makes the count ambiguous, since its element type replaced the arity
+       check [FUN-005, 0158], and an arity of -1 is a candidate that checks its
+       own count. */
+    int32_t expected = -1;
+
+    if (set->count == 1 && set->entries[0].arity >= 0
+     && variadic_element(set->entries[0].types, set->entries[0].arity) == NULL)
+        expected = set->entries[0].arity;
+
+    no_match(NULL, set->name, set->count, expected, count);
 }
 
 Value alg_call(Value callee, Value *args, int32_t count) {
@@ -4538,14 +4628,17 @@ Value alg_call_named(Value callee, Value *args, int32_t count, const char **name
             if (arranged != NULL) return alg_call(callee, arranged, entry->arity);
         }
 
-        alg_error("No matching signature for function.");
+        /* AN ARRANGEMENT HAS EXACTLY THE DECLARED ARITY, so a failure here is
+           a name no parameter has, one named twice, or a half-filled call --
+           never a count.  The name is what to add. */
+        no_match(NULL, set->name, 0, -1, count);
     }
 
     if (is_obj(callee, OBJ_CLOSURE)) {
         ObjClosure *closure = (ObjClosure *)callee.obj;
         Value *arranged = arrange_args(closure->types, closure->arity, args, count, names);
 
-        if (arranged == NULL) alg_error("No matching signature for function.");
+        if (arranged == NULL) no_match(NULL, closure->name, 0, -1, count);
 
         return alg_call(callee, arranged, closure->arity);
     }
@@ -4573,7 +4666,7 @@ Value alg_invoke_named(Value receiver, const char *name, Value *args, int32_t co
             }
         }
 
-        alg_error("No matching signature for function.");
+        no_match(((ObjInstance *)receiver.obj)->klass->name, name, 0, -1, count);
     }
 
     alg_error("A built-in has no named parameters.");
@@ -4596,8 +4689,7 @@ Value alg_new_named(Value klass, Value *args, int32_t count, const char **names)
         }
     }
 
-    alg_error("No matching signature for function.");
-    return alg_nil();
+    no_match(NULL, ((ObjClass *)klass.obj)->name, 0, -1, count);
 }
 
 static AlgFrame *frames = NULL;

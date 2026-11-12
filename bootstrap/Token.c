@@ -39,10 +39,10 @@ Value f_definesubrange(Value **cells, Value *args, int32_t count) {
     Value v_name = args[0];
     (void)v_name;
     alg_root(&v_name, 1);
-    Value v_low = alg_param(args[1], "Integer");
+    Value v_low = alg_param_of(args[1], "Integer", "DefineSubrange");
     (void)v_low;
     alg_root(&v_low, 1);
-    Value v_high = alg_param(args[2], "Integer");
+    Value v_high = alg_param_of(args[2], "Integer", "DefineSubrange");
     (void)v_high;
     alg_root(&v_high, 1);
     int32_t rh_2 = alg_hold_top;

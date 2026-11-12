@@ -715,8 +715,9 @@ arity warning would have diverged every case with a wrong-count call in it,
   ⚠️ **`NameOfType` answering 'Any' for a type it does not know is a silent
   selection failure.** `Pointer` was missing, so every Pointer reported `Any`,
   satisfied no declared type, and `Screen.DrawOnto (Tex : Pointer)` failed to
-  select — reported as `No matching signature for function.`, which names the
-  call and not the cause. The same omission had already cost `is Pointer`. A
+  select — reported as a selection failure, which names the call and not the
+  cause even now that it names the call at all. The same omission had already
+  cost `is Pointer`. A
   type missing from that chain cannot be refused, only mis-answered.
 
   ⚠️ **`bootstrap/algc` built `--ffi` FAILS two conformance cases**, and
@@ -1016,9 +1017,61 @@ arity warning would have diverged every case with a wrong-count call in it,
   creating one [0169]. And `as` is a **check**, not a conversion — dropping it
   silently made `'text' as Integer` answer `'text'`.
 
-  ⚠️ **A method's wrong argument count reports a selection failure where a
-  subprogram's and a constructor's report the counts** [0049]. All five reports
-  in that one case are compared, so the split is not a style choice.
+  ⚠️ **A SELECTION FAILURE NAMES WHAT WAS CALLED, and the sentence that named
+  nothing is gone.** `No matching signature for function.` was of no use to
+  generic code reading it, which is what `algol24-library` asked to have fixed.
+  It is now `No matching signature for <what was called>.` — a subprogram or a
+  class by its own name, a method as `Class.Member` — and **where the name is
+  unambiguous the counts are reported instead** [EXP-014]. That removes the
+  asymmetry this note used to describe: a method answered a selection failure
+  for a wrong count where a subprogram's and a constructor's reported the
+  counts, so one fault read two ways. All five reports in `0049` are still
+  compared.
+
+  ⚠️ **A BUILT-IN SHARING THE NAME MAKES THE COUNT AMBIGUOUS**, however few
+  declarations there are. One `Length (A, B)` beside the built-in answers both
+  1 and 2 arguments [RT-027], so `Expected 2 arguments but got 3.` would name a
+  count as the only one accepted while `Length ('abc')` plainly works.
+  `ObjOverloads.Fallback` being non-nil is what withholds the counts.
+
+  ⚠️ **A CONSTRUCTOR names the class ALONE**, because `Init` is not a name a
+  call site writes — a construction is `C (...)`. The compiled back end
+  answered `Holder.Init` from one of the several routes into a constructor's
+  selection while the other two answered `Holder`, so the rule lives in the
+  reporter (`NoMatch`, `no_match`, `NoMatchFor`) rather than at the call sites.
+
+  ⚠️ **The machine counts a class's OWN constructors, not the chain's.** The
+  emitter gives a class with none a synthesized arity-0 `Init` and a subclass
+  declaring none a forwarder *per inherited signature*, so the chain holds the
+  same signatures twice and `class AlsoBare (Bare)` looked like two candidates
+  — ambiguous, where both other processors reported the counts. A method wants
+  the chain (`CandidateCount`); a constructor wants `OwnCandidates`.
+
+  ⚠️ **`on E : Any` MATCHES NOTHING, and it reads as a catch-all.** `Any` is the
+  absence of a written type rather than a type a value can be tested against,
+  so `X is Any` is false for everything [VAL-005] and the arm never selects —
+  a raise flies straight past it. `on e : String` is what the machine's own
+  handlers use and is complete there: a host error is a String, and a guest
+  raise no handler took arrives as `raise Str (Value)` from `DoRaise`. Both
+  drivers still pair an `on e : String` arm with an `on e : Any` one; the
+  second is unreachable and harmless, since an uncaught non-String raise is
+  already reported identically by all three processors.
+
+  ⚠️ **`TypeMatches` TAKES A FOLDED NAME, and two `ToLower` calls inside it
+  hide that.** The subrange lookup and the singleton recursion fold their own
+  argument; every comparison after them is against a lowercase literal. Handing
+  it the written `Integer` made `TypeOf (5).Accepts (5)` answer false — and
+  false for everything else too, which looks like a missing feature rather than
+  a missing fold.
+
+  ⚠️ **A RAISE INSIDE A NESTED RUN HAS TO RESTORE THE MACHINE, and for the
+  machine's whole life it did not.** `NestedRun` sets `StopDepth` and used to
+  put it back only on the way out, so a selection failure or a property guard
+  skipped the restore — and the program then gave every right answer and died
+  at its **last statement** with `Index -1 out of range`, which is `FrameOf[-1]`
+  after the floor test `FrameDepth = StopDepth` compared 0 against the stale 1.
+  Reachable through `Invoke` from the day it was written; `New` reached it the
+  same way. Caught and re-raised rather than restored twice.
 
   ⚠️ **Subprograms, classes and enums are HOISTED; a `var` is not.** A class is
   hoisted but its **parent is attached in source order** — binding the parent
@@ -1238,8 +1291,8 @@ arity warning would have diverged every case with a wrong-count call in it,
   `EnterFrame` asked `Fits` and then fell through to the arity check, so a
   wrong type at the right count entered the frame. [EXP-013] puts even a lone
   candidate through selection, so the answer is
-  `No matching signature for function.` — guarded on the count, since a wrong
-  count still reports the counts [0049].
+  `No matching signature for <name>.` — guarded on the count, since a wrong
+  count reports the counts where the name is unambiguous [0049, EXP-014].
 
   ⚠️ **A `test` block is a `FunctionStmt` whose NAME TOKEN is the quoted
   name**, which is how the interpreter finds them and how the machine used to

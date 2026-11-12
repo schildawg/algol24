@@ -392,7 +392,10 @@ begin
                                        raise 'Undefined property '''
                                            + Str (Arguments[1]) + '''.';
 
-                                   raise 'No matching signature for function.';
+                                   raise NoMatch (Str (That.Klass.Name),
+                                                  Str (Arguments[1]),
+                                                  That.Klass.CandidatesOf (Called),
+                                                  Given.Length);
                                end
 
                                Exit Chosen.Bind (That).Call (TheInterpreter, Given);
@@ -1625,7 +1628,12 @@ begin
         begin
             var Fitted := Callee.Arrange (Arguments, Names);
 
-            if Fitted = Nil then raise 'No matching signature for function.';
+            // An ARRANGEMENT has exactly the declared arity, so a failure
+            // here is a name no parameter has, one named twice, or a
+            // half-filled call -- never a count.  The name is what to add.
+            if Fitted = Nil then
+                raise 'No matching signature for '
+                    + Str (Callee.Declaration.Name.Lexeme) + '.';
 
             Exit Fitted;
         end
@@ -1639,7 +1647,7 @@ begin
                 if Fitted <> Nil then Exit Fitted;
             end
 
-            raise 'No matching signature for function.';
+            raise 'No matching signature for ' + Str (Callee.Name) + '.';
         end
 
         if Callee is ObjClass then
@@ -1653,7 +1661,7 @@ begin
                 if Fitted <> Nil then Exit Fitted;
             end
 
-            raise 'No matching signature for function.';
+            raise 'No matching signature for ' + Str (Callee.Name) + '.';
         end
 
         raise 'A built-in has no named parameters.';
@@ -1726,9 +1734,17 @@ begin
         begin
             if Callee.Owner <> Nil then
             begin
-                var Better := Callee.Owner.FindOverload (FoldCase (Callee.Declaration.Name.Lexeme), Arguments);
+                var Member := FoldCase (Callee.Declaration.Name.Lexeme);
+                var Better := Callee.Owner.FindOverload (Member, Arguments);
 
-                if Better = Nil then raise 'No matching signature for function.';
+                // A METHOD NOW REPORTS THE COUNTS WHERE IT IS UNAMBIGUOUS,
+                // which is what a subprogram and a constructor already did
+                // [0049] -- and names itself and its class where it is not.
+                if Better = Nil then
+                    raise NoMatch (Str (Callee.Owner.Name),
+                                   Str (Callee.Declaration.Name.Lexeme),
+                                   Callee.Owner.CandidatesOf (Member),
+                                   Arguments.Length);
 
                 Callee := Better.Bind (Callee.Bound);
             end
@@ -1739,7 +1755,10 @@ begin
                     raise 'Expected ' + Callee.Arity() + ' arguments but got '
                         + Arguments.Length + '.';
 
-                raise 'No matching signature for function.';
+                // The count is right, so the fault is a TYPE and the name is
+                // the only thing worth adding.
+                raise 'No matching signature for '
+                    + Str (Callee.Declaration.Name.Lexeme) + '.';
             end
         end
 
@@ -4346,7 +4365,7 @@ begin
     except
        on e : String do
             begin
-               AssertEqual ('No matching signature for function.', Str (e));
+               AssertEqual ('No matching signature for Length.', Str (e));
                Exit;
             end
     end

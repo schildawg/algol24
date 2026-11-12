@@ -4,6 +4,8 @@
 
 #include "algol.h"
 
+Value f_nomatch(Value **cells, Value *args, int32_t count);
+extern Value fn_nomatch;
 extern Value k_classmethod;
 extern Value k_objclass;
 void init_ObjClass(void);

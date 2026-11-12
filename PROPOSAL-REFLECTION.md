@@ -248,12 +248,43 @@ and `is` keeps meaning what it means.
 2. **A type value is an interned synthetic class** [RT-032], carrying the
    type's name and marked so that constructing one is refused rather than
    answering an `Integer instance`.
-3. Still open — the dynamic type test has no spelling yet.
+3. **`T.Accepts (X)`** [RT-035], a member of the class surface rather than a
+   built-in — which is what the surface being a member *list* makes possible.
+   It answers through whatever already answers `is` in each processor, so the
+   written form keeps its emit-time resolution and the two cannot drift.
 4. **The same diagnostic the written form gives**, which turned out to be two
    diagnostics rather than one: a name no class in the chain declares is
    `Undefined property`, and a name that *is* declared and fits nothing is a
    selection failure. The interpreter answered the first for both and was the
    odd one out of the three.
+
+   And the selection failure itself **named nothing at all**, which was the
+   library's actual complaint. It is now
+   `No matching signature for <what was called>.` — a subprogram or a class by
+   its own name, a method as `Class.Member` — and **where the name is
+   unambiguous the counts are reported instead**, which removes the asymmetry
+   [0049] used to pin: a method answered a selection failure for a wrong count
+   where a subprogram and a constructor reported the counts, so one fault read
+   two ways.
+
+   ⚠️ **A built-in sharing the name makes the count ambiguous**, however few
+   declarations there are. One `Length (A, B)` beside the built-in answers both
+   1 and 2 arguments [RT-027], so reporting `Expected 2 arguments but got 3.`
+   would name a count as the only one accepted while `Length ('abc')` plainly
+   works. `ObjOverloads.Fallback` being non-nil is what withholds the counts.
+
+   ⚠️ **A CONSTRUCTOR names the class alone.** `Init` is not a name a call site
+   writes — a construction is `C (...)` — so `C.Init` would name something the
+   program never said. The compiled back end answered `Holder.Init` from one of
+   the several routes into a constructor's selection while the other two
+   answered `Holder`, which is why the rule lives in the reporter rather than
+   at the call sites.
+
+   ⚠️ **The machine must count a class's OWN constructors, not the chain's.**
+   The emitter gives a class with none a synthesized arity-0 `Init`, and a
+   subclass declaring none a forwarder *per inherited signature* — so the chain
+   holds the same signatures twice and `AlsoBare (Bare)` looked like two
+   candidates. A method wants the chain; a constructor does not.
 5. **A packed constant**, as `OP_INVOKE_NAMED` already packs two names.
 6. Still open, and it is what the library work after this release will decide.
 

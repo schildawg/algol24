@@ -63,7 +63,7 @@ Value f_tointeger(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 1);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
-    Value v_text = alg_param(args[0], "String");
+    Value v_text = alg_param_of(args[0], "String", "ToInteger");
     (void)v_text;
     alg_root(&v_text, 1);
     int32_t rh_125 = alg_hold_top;
@@ -103,10 +103,10 @@ Value f_toradix(Value **cells, Value *args, int32_t count) {
     alg_arity(count, 2);
     int32_t rt_base = alg_root_top;
     alg_root(args, count);
-    Value v_text = alg_param(args[0], "String");
+    Value v_text = alg_param_of(args[0], "String", "ToRadix");
     (void)v_text;
     alg_root(&v_text, 1);
-    Value v_alphabet = alg_param(args[1], "String");
+    Value v_alphabet = alg_param_of(args[1], "String", "ToRadix");
     (void)v_alphabet;
     alg_root(&v_alphabet, 1);
     int32_t rh_129 = alg_hold_top;
