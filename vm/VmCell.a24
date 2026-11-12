@@ -50,6 +50,15 @@ var
     /// count against `<fn Arity>`.
     Arity : Integer;
 
+    /// The subprogram's name, for a diagnostic that has to say what was
+    /// called.
+    ///
+    /// A FIELD and not a method, for the reason Arity is one: EnterFrame reads
+    /// `Callee.Name` without asking whether it holds a subprogram or a closure
+    /// over one, and a closure without it answered `Undefined property
+    /// 'Name'.` from inside the report for an unrelated failure.
+    Name  : String;
+
 begin
     /// Makes a closure over a subprogram and some cells.
     constructor Init (Body : VmFunction, Cells : List);
@@ -57,6 +66,7 @@ begin
         this.Body  := Body;
         this.Cells := Cells;
         this.Arity := Body.Arity;
+        this.Name  := Body.Name;
     end
 
     /// How it reads in a message, which is the subprogram's name.

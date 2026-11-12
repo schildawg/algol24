@@ -3,7 +3,7 @@
 /* The header this body was written against.  See ALG_RUNTIME_VERSION there for
    why a mismatched pair is worth one line of diagnostic rather than twenty of
    symptom. */
-_Static_assert (ALG_RUNTIME_VERSION == 300,
+_Static_assert (ALG_RUNTIME_VERSION == 301,
                 "algol.c and algol.h are from different releases");
 
 #include <math.h>
@@ -1846,6 +1846,14 @@ typedef struct ObjClass {
     struct ObjClass *super;
 
     const char **fields;
+
+    /* ⚠️ A PARALLEL ARRAY RATHER THAN A STRUCT, because the two readers of
+       `fields` index it by position -- a field's SLOT is its index [CLS-006]
+       -- and widening the element would touch both for nothing.  A declared
+       type is `""` where none was written, which a gradually typed language
+       has a great many of in principle and almost none of in practice. */
+    const char **field_types;
+
     int32_t      field_count;
 
     int32_t total_fields;
@@ -1857,6 +1865,12 @@ typedef struct ObjClass {
     AlgMethod initializer;
 
     bool  is_object;
+
+    /* A synthetic class standing for a built-in type, which TypeOf answers and
+       nothing constructs.  Without the guard `TypeOf (42) ()` would make an
+       "Integer instance" -- a wrong answer rather than a refusal. */
+    bool  is_type;
+
     bool  built;
     Value instance;
 } ObjClass;
@@ -1878,12 +1892,14 @@ Value alg_class(const char *name, Value super) {
     klass->name            = name;
     klass->super           = super.type == VAL_NIL ? NULL : as_class(super, "Superclass must be a class.");
     klass->fields          = NULL;
+    klass->field_types     = NULL;
     klass->field_count     = 0;
     klass->methods         = NULL;
     klass->method_count    = 0;
     klass->method_capacity = 0;
     klass->initializer     = NULL;
     klass->is_object       = false;
+    klass->is_type         = false;
     klass->built           = false;
     klass->total_fields    = -1;
 
@@ -1914,17 +1930,292 @@ static int32_t total_fields(ObjClass *klass) {
     return klass->total_fields;
 }
 
-void alg_class_field(Value value, const char *name) {
+void alg_class_field(Value value, const char *name, const char *type) {
     ObjClass *klass = as_class(value, "Expected a class.");
 
-    const char **fields = arena_alloc((size_t)(klass->field_count + 1) * sizeof(char *));
-    if (klass->field_count > 0) {
-        memcpy(fields, klass->fields, (size_t)klass->field_count * sizeof(char *));
-    }
-    fields[klass->field_count] = name;
+    size_t room = (size_t)(klass->field_count + 1) * sizeof(char *);
 
-    klass->fields = fields;
+    const char **fields = arena_alloc(room);
+    const char **types  = arena_alloc(room);
+
+    if (klass->field_count > 0) {
+        memcpy(fields, klass->fields,      (size_t)klass->field_count * sizeof(char *));
+        memcpy(types,  klass->field_types, (size_t)klass->field_count * sizeof(char *));
+    }
+
+    fields[klass->field_count] = name;
+    types[klass->field_count]  = type == NULL ? "" : type;
+
+    klass->fields      = fields;
+    klass->field_types = types;
     klass->field_count++;
+}
+
+/* ── Reading a class at run time ──────────────────────────────────────────
+   The fields a value's class declares, as a Map from name to the type written
+   on it -- `""` where none was.
+
+   ⚠️ PARENT-FIRST, which is the order a serializer needs and the order the
+   language already seeds in [CLS-005].  A subclass's own fields follow what it
+   inherited, and [COL-007] specifies that a Map iterates in insertion order --
+   so declaration order is a GUARANTEE here rather than an accident of the
+   implementation.
+
+   ⚠️ A VALUE THAT IS NOT AN INSTANCE OR A CLASS ANSWERS AN EMPTY MAP, which
+   is the same bargain `5 is Dog` makes: a question about a value that simply
+   has no fields is a fair question with a boring answer, not a fault.  A
+   generic walker over arbitrary values wants exactly that. */
+static void class_fields_into(ObjClass *klass, Value into) {
+    if (klass == NULL) return;
+
+    class_fields_into(klass->super, into);
+
+    for (int32_t i = 0; i < klass->field_count; i++)
+        alg_map_keep(into,
+                     alg_string(klass->fields[i]),
+                     alg_string(klass->field_types[i] == NULL ? "" : klass->field_types[i]));
+}
+
+/* ── A type, as a value ───────────────────────────────────────────────────
+   A class is already one, so a class answers ITSELF and an instance answers
+   its class.  Everything else needs a stand-in, and the cheapest honest one
+   is a synthetic class carrying the type's name: it is marked, rendered,
+   compared and asked about exactly as a real class is, which is four
+   behaviours not written twice.
+
+   ⚠️ INTERNED, or `TypeOf (1) = TypeOf (2)` is false.  These compare by
+   identity [VAL-011], so a fresh one per call would make two Integers answer
+   two different types -- the same trap the interned built-in values record.
+
+   ⚠️ AND THE TABLE IS A ROOT.  It is a C static holding Values, which the
+   collector cannot see, and an ObjClass is marked and recycled by size class
+   like any other object.  Marking it is necessary by construction rather than
+   demonstrated by a probe, which is what the interned built-in table records
+   about itself.
+
+   ⚠️ `nil` HAS NO TYPE, so it answers nil rather than a type named "nil".
+   `nil is X` is false for every X, and a type value for it would be a thing
+   to compare that the language says is not there. */
+#define TYPE_CACHE 24
+
+/* Declared here because the type table is defined with the class machinery
+   and the renderer that names a value's type sits further down. */
+static const char *type_name(Value v);
+
+static struct { const char *name; Value held; } type_cache[TYPE_CACHE];
+static int32_t type_cached = 0;
+
+static Value type_for(const char *name) {
+    for (int32_t i = 0; i < type_cached; i++)
+        if (alg_stricmp(type_cache[i].name, name) == 0) return type_cache[i].held;
+
+    Value made = alg_class(name, alg_nil());
+
+    ((ObjClass *)made.obj)->is_type = true;
+
+    if (type_cached < TYPE_CACHE) {
+        type_cache[type_cached].name = name;
+        type_cache[type_cached].held = made;
+        type_cached++;
+    }
+
+    return made;
+}
+
+/* The methods a class declares ITSELF, name -> a List of signatures, each a
+   List of the parameter type names written on it.
+
+   ⚠️ ITS OWN, WHERE FIELDS ANSWERS THE WHOLE CHAIN, and the asymmetry is the
+   point rather than an oversight: an instance holds every inherited field as
+   its own state, so a serializer needs all of them -- while an overridden
+   method REPLACES the one above it, so merging the chain would put an
+   override and an overload under one name with no way to tell them apart.
+   `Parent` walks.
+
+   ⚠️ A NAME HOLDS SEVERAL, because two methods of one name are an overload
+   set [FUN-013].  The answer is a List per name for that reason and not for
+   tidiness. */
+/* Declared here because selection, which owns it, sits further down. */
+static const char *split_type(const char *declared, char *base, size_t size);
+
+static Value class_methods(ObjClass *klass, bool properties) {
+    Value into = alg_map();
+
+    if (klass == NULL) return into;
+
+    for (int32_t i = 0; i < klass->method_count; i++) {
+        MethodEntry *entry = &klass->methods[i];
+
+        if (entry->is_property != properties) continue;
+
+        Value name = alg_string(entry->name);
+        Value held = alg_get(into, name);
+
+        if (held.type == VAL_NIL) {
+            held = alg_list();
+            alg_map_keep(into, name, held);
+        }
+
+        Value signature = alg_list();
+
+        /* ⚠️ THE BARE TYPE, which is neither what this table holds nor the
+           obvious reading of it.  A types entry is the whole parameter as
+           written -- "Items : List of Integer" -- because selection and named
+           arguments both read the name from it.  Two things had to be cut:
+           the parameter's NAME, since the machine carries the type alone and
+           two processors must not disagree about one question; and the
+           ELEMENT type, since a FIELD of that type already answers "List"
+           -- the tree walker keeps a parameter's generic beside its type
+           rather than in it, so "List of Integer" here against "List" there
+           would be one answer in two shapes.  split_type cuts both. */
+        for (int32_t at = 0; at < entry->arity; at++) {
+            char base[64];
+
+            split_type(entry->types == NULL ? NULL : entry->types[at],
+                       base, sizeof base);
+
+            alg_list_keep(signature, alg_string(base));
+        }
+
+        alg_list_keep(held, signature);
+    }
+
+    return into;
+}
+
+Value alg_methods(Value v) {
+    if (is_obj(v, OBJ_INSTANCE)) return class_methods(((ObjInstance *)v.obj)->klass, false);
+    if (is_obj(v, OBJ_CLASS))    return class_methods((ObjClass *)v.obj, false);
+
+    return alg_map();
+}
+
+Value alg_properties(Value v) {
+    if (is_obj(v, OBJ_INSTANCE)) return class_methods(((ObjInstance *)v.obj)->klass, true);
+    if (is_obj(v, OBJ_CLASS))    return class_methods((ObjClass *)v.obj, true);
+
+    return alg_map();
+}
+
+/* Declared here because the text helpers sit below the class machinery. */
+static const char *as_string(Value v, const char *what);
+static int32_t field_slot_typed(ObjClass *klass, const char *name,
+                                const char **declared);
+static int32_t candidate_count(ObjClass *klass, const char *name);
+_Noreturn static void no_match(const char *owner, const char *name,
+                               int32_t candidates, int32_t expected,
+                               int32_t given);
+
+/* Whether a class, or anything it inherits from, declares this name as a
+   PROPERTY rather than a method. */
+static bool names_a_property(ObjClass *klass, const char *name) {
+    for (ObjClass *at = klass; at != NULL; at = at->super)
+        for (int32_t i = 0; i < at->method_count; i++)
+            if (at->methods[i].is_property && alg_stricmp(at->methods[i].name, name) == 0)
+                return true;
+
+    return false;
+}
+
+/* Reads a member by a name a program computed -- a field, or a property,
+   which answers by being called [CLS-017].  The same answer the written form
+   gives, including its diagnostic for a name the class has not got. */
+Value alg_member(Value receiver, Value name) {
+    return alg_property(receiver, as_string(name, "Member expects a name."));
+}
+
+/* Calls a method by a name a program computed.
+   ⚠️ A PROPERTY IS NOT REACHED, because its read IS its call [CLS-017] -- so
+   calling one through here would be a second way to do what Member does, and
+   a generic writer could "call" something there is nothing to write back
+   through.  The guard is explicit because find_method would otherwise answer
+   a property of arity 0 for a call of no arguments. */
+Value alg_invoke_by_name(Value receiver, Value name, Value args) {
+    const char *called = as_string(name, "Invoke expects a member name.");
+
+    if (is_obj(receiver, OBJ_INSTANCE)
+     && names_a_property(((ObjInstance *)receiver.obj)->klass, called)) {
+        char message[128];
+
+        snprintf(message, sizeof message,
+                 "'%s' is a property; read it rather than calling it.", called);
+        alg_error(message);
+    }
+
+    Value *items = alg_array_slots(args);
+
+    if (items == NULL && !is_obj(args, OBJ_LIST))
+        alg_error("Invoke expects a List of arguments.");
+
+    return alg_invoke(receiver, called, items, (int32_t)alg_length(args).integer);
+}
+
+/* Constructs an instance of a type a program computed, selecting among the
+   constructors exactly as a written construction does -- so a declared
+   parameter type is checked and a final `list of T` absorbs, both of which
+   are alg_new's business rather than this one's.  A built-in type's value is
+   refused there too: it names a type and has no constructor to reach. */
+Value alg_construct(Value type, Value args) {
+    Value *items = alg_array_slots(args);
+
+    if (items == NULL && !is_obj(args, OBJ_LIST))
+        alg_error("New expects a List of arguments.");
+
+    return alg_new(type, items, (int32_t)alg_length(args).integer);
+}
+
+/* Writes a field by a name a program computed, honouring the type its
+   declaration wrote: an assignment is an assignment context [VAL-001], so
+   alg_widen is asked exactly what a written assignment asks it -- an Integer
+   into a Double field widens, and a value outside a subrange is refused.
+   Nothing stricter: the gradual check that would refuse a String here is the
+   TypeChecker's, and it has no text to look at.
+
+   ⚠️ A PROPERTY CANNOT BE WRITTEN, and the written form is refused by the
+   TypeChecker [CLS-017] -- which has nothing to say about a name that arrives
+   as a value, so the same sentence is raised here instead. */
+Value alg_set_member(Value receiver, Value name, Value value) {
+    const char *written = as_string(name, "SetMember expects a name.");
+
+    if (!is_obj(receiver, OBJ_INSTANCE)) alg_error("Only instances have fields.");
+
+    ObjInstance *instance = (ObjInstance *)receiver.obj;
+
+    if (names_a_property(instance->klass, written)) {
+        char message[160];
+
+        snprintf(message, sizeof message,
+                 "'%s' is a property of %s and cannot be assigned.",
+                 written, instance->klass->name);
+        alg_error(message);
+    }
+
+    const char *declared = "";
+    int32_t     slot     = field_slot_typed(instance->klass, written, &declared);
+
+    if (slot < 0) undefined("property", written);
+
+    instance->slots[slot] = alg_widen(value, declared);
+
+    return instance->slots[slot];
+}
+
+Value alg_type_of(Value v) {
+    if (v.type == VAL_NIL) return alg_nil();
+
+    if (is_obj(v, OBJ_CLASS))    return v;
+    if (is_obj(v, OBJ_INSTANCE)) return object((Obj *)((ObjInstance *)v.obj)->klass);
+
+    return type_for(type_name(v));
+}
+
+Value alg_fields(Value v) {
+    Value into = alg_map();
+
+    if (is_obj(v, OBJ_INSTANCE)) class_fields_into(((ObjInstance *)v.obj)->klass, into);
+    else if (is_obj(v, OBJ_CLASS)) class_fields_into((ObjClass *)v.obj, into);
+
+    return into;
 }
 
 void alg_class_method(Value value, const char *name, AlgMethod fn, int32_t arity,
@@ -1965,16 +2256,29 @@ void alg_class_initializer(Value value, AlgMethod fn) {
     as_class(value, "Expected a class.")->initializer = fn;
 }
 
-static int32_t field_slot(ObjClass *klass, const char *name) {
+/* The slot a field occupies, and the type its declaration wrote.  One walk
+   answers both because they are settled at the same match -- asking them
+   separately would be two walks that could disagree about which class in the
+   chain a name came from. `declared` may be NULL where only the slot is
+   wanted, and is left alone when the name is not found. */
+static int32_t field_slot_typed(ObjClass *klass, const char *name,
+                                const char **declared) {
     for (ObjClass *at = klass; at != NULL; at = at->super) {
         int32_t base = at->super == NULL ? 0 : total_fields(at->super);
 
         for (int32_t i = 0; i < at->field_count; i++) {
 
-            if (alg_stricmp(at->fields[i], name) == 0) return base + i;
+            if (alg_stricmp(at->fields[i], name) == 0) {
+                if (declared != NULL) *declared = at->field_types[i];
+                return base + i;
+            }
         }
     }
     return -1;
+}
+
+static int32_t field_slot(ObjClass *klass, const char *name) {
+    return field_slot_typed(klass, name, NULL);
 }
 
 static bool has_method(Value v, const char *name, int32_t arity);
@@ -2097,7 +2401,7 @@ Value alg_widen(Value argument, const char *declared) {
     return widened;
 }
 
-Value alg_param(Value argument, const char *declared) {
+Value alg_param_of(Value argument, const char *declared, const char *called) {
     if (declared == NULL || *declared == '\0') return argument;
     if (alg_stricmp(declared, "Any") == 0)      return argument;
 
@@ -2111,7 +2415,13 @@ Value alg_param(Value argument, const char *declared) {
     if (widens_to(actual, declared)) return alg_widen(argument, declared);
     if (is_a(argument, declared)) return argument;
 
-    alg_error("No matching signature for function.");
+    /* ⚠️ THE SUBPROGRAM'S NAME IS PASSED IN, because this is the one place a
+       selection failure is reported with nothing else to hand: a lone
+       subprogram binds its parameters one at a time, so there is no candidate
+       list and no receiver here.  The emitter knows whose body it is writing
+       and says so, which is what keeps this agreeing with the interpreter's
+       `No matching signature for <Name>.` */
+    no_match(NULL, called, 0, -1, -1);
 }
 
 static const char *param_name(const char *declared, char *out, size_t size) {
@@ -2315,7 +2625,9 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
     }
 
     if (by_arity != NULL) {
-        if (strict) alg_error("No matching signature for function.");
+        /* The count is RIGHT here -- by_arity matched on it -- so the fault is
+           a type and the member is what to name. */
+        if (strict) no_match(klass->name, name, candidate_count(klass, name), -1, arity);
 
         return by_arity;
     }
@@ -2326,6 +2638,61 @@ static MethodEntry *find_method(ObjClass *klass, const char *name, int32_t arity
 _Noreturn static void arity_error(int32_t expected, int32_t got) {
     char message[64];
     snprintf(message, sizeof message, "Expected %d arguments but got %d.", (int)expected, (int)got);
+
+    alg_error(message);
+}
+
+/* How many methods of a name the class and its parents declare.
+   Asked only once selection has FAILED, to decide what to report: one
+   candidate makes the count the whole fault, several make it ambiguous.  The
+   chain is walked because an inherited overload is a candidate the call could
+   have reached [EXP-014]. */
+static int32_t candidate_count(ObjClass *klass, const char *name) {
+    int32_t   found = 0;
+    uint32_t  want  = hash_folded(name);
+
+    for (ObjClass *at = klass; at != NULL; at = at->super)
+        for (int32_t i = 0; i < at->method_count; i++)
+            if (at->methods[i].hash == want
+             && alg_stricmp(at->methods[i].name, name) == 0) found++;
+
+    return found;
+}
+
+/* The report for a call that selected nothing -- the C runtime's copy of the
+   interpreter's NoMatch, and held to it by the corpus.
+
+   Names the member and, where there is one, its class, which a selection
+   failure never did: `No matching signature for function.` named nothing at
+   all.  COUNTS WHERE THE NAME IS UNAMBIGUOUS -- one candidate of fixed arity
+   called with the wrong number has the count as its whole fault.  `candidates`
+   of 1 with `expected` >= 0 is what says so; anything else names the member,
+   and `name` of NULL keeps the old sentence for a site that knows neither. */
+_Noreturn static void no_match(const char *owner, const char *name,
+                               int32_t candidates, int32_t expected,
+                               int32_t given) {
+    char message[256];
+
+    if (candidates == 1 && expected >= 0 && expected != given)
+        arity_error(expected, given);
+
+    if (name == NULL || *name == '\0')
+        alg_error("No matching signature for function.");
+
+    /* ⚠️ A CONSTRUCTOR NAMES THE CLASS ALONE, because `Init` is not a name a
+       call site writes: a construction is `C (...)`, so `C.Init` would name
+       something the program never said.  This answered `Holder.Init` where
+       both other processors answered `Holder`. */
+    if (alg_stricmp(name, "Init") == 0 && owner != NULL && *owner != '\0') {
+        snprintf(message, sizeof message, "No matching signature for %s.", owner);
+        alg_error(message);
+    }
+
+    if (owner != NULL && *owner != '\0')
+        snprintf(message, sizeof message,
+                 "No matching signature for %s.%s.", owner, name);
+    else
+        snprintf(message, sizeof message, "No matching signature for %s.", name);
 
     alg_error(message);
 }
@@ -2351,6 +2718,15 @@ static void initialize_fields(ObjClass *klass, Value self) {
 
 Value alg_new(Value value, Value *args, int32_t count) {
     ObjClass *klass = as_class(value, "Can only construct a class.");
+
+    if (klass->is_type) {
+        char message[128];
+
+        snprintf(message, sizeof message,
+                 "%s is a type rather than a class, and cannot be constructed.",
+                 klass->name);
+        alg_error(message);
+    }
 
     ObjInstance *instance = obj_alloc(sizeof(ObjInstance), OBJ_INSTANCE);
     instance->klass    = klass;
@@ -2399,7 +2775,9 @@ Value alg_new(Value value, Value *args, int32_t count) {
         else if (variadic_element(init->types, init->arity) != NULL
                      && count != init->arity) {
 
-            alg_error("No matching signature for function.");
+            /* A VARIADIC candidate makes the count ambiguous, so this names
+               the class rather than reporting counts [FUN-005, 0158]. */
+            no_match(NULL, klass->name, 0, -1, count);
         }
         else {
 
@@ -3007,6 +3385,34 @@ Value alg_property(Value receiver, const char *name) {
         return alg_bound(receiver, method);
     }
 
+    /* ── A CLASS, ASKED ABOUT ITSELF ──────────────────────────────────────
+       A class is already a value -- it can be held, compared by identity and
+       called -- and until now it answered nothing, so `T.Name` was
+       `Only instances have properties.`  These three are the runtime's, not
+       the program's: a class declares fields for its INSTANCES, so there is
+       no member of a class a program could write that one of these shadows. */
+    if (is_obj(receiver, OBJ_CLASS)) {
+        ObjClass *klass = (ObjClass *)receiver.obj;
+
+        if (alg_stricmp(name, "Name") == 0)   return alg_string(klass->name);
+        if (alg_stricmp(name, "Fields") == 0)     return alg_fields(receiver);
+        if (alg_stricmp(name, "Methods") == 0)    return alg_methods(receiver);
+        if (alg_stricmp(name, "Properties") == 0) return alg_properties(receiver);
+
+        if (alg_stricmp(name, "Parent") == 0)
+            return klass->super == NULL ? alg_nil() : object((Obj *)klass->super);
+
+        /* The one member of the surface that takes an argument, so it answers
+           a bound member here and is decided in alg_invoke [RT-035] -- which
+           is what makes `T.Accepts` held as a value and `T.Accepts (X)` the
+           same one decision, since a bound built-in is called back through
+           alg_invoke. */
+        if (alg_stricmp(name, "Accepts") == 0)
+            return builtin_bound(receiver, "Accepts", 1);
+
+        undefined("property", name);
+    }
+
     if (is_obj(receiver, OBJ_ENUM)) {
         if (alg_stricmp(name, "Ordinal") == 0) return alg_int(((ObjEnum *)receiver.obj)->ordinal);
 
@@ -3293,6 +3699,18 @@ bool alg_responds(Value receiver, const char *name) {
         return false;
     }
 
+    /* A CLASS VALUE'S SURFACE IS A MEMBER LIST LIKE ANY OTHER, so a member
+       wins over an extension of the name [EXP-022].  Without this an
+       extension called `Name` or `Accepts` captured the call, since member_of
+       below knows nothing about a class. */
+    if (is_obj(receiver, OBJ_CLASS))
+        return alg_stricmp(name, "Name") == 0
+            || alg_stricmp(name, "Fields") == 0
+            || alg_stricmp(name, "Methods") == 0
+            || alg_stricmp(name, "Properties") == 0
+            || alg_stricmp(name, "Parent") == 0
+            || alg_stricmp(name, "Accepts") == 0;
+
     /* A String has the one property and no methods at all. */
     if (receiver.type == VAL_STRING) return alg_stricmp(name, "Length") == 0;
 
@@ -3412,13 +3830,54 @@ static Value invoke_found(MethodEntry *method, Value receiver, Value *args, int3
     if (should_absorb(method->types, method->arity, args, count))
         return method->fn(receiver, absorb_args(method->arity, args, count), method->arity);
 
-    if (method->arity != count) alg_error("No matching signature for function.");
+    /* A METHOD REPORTS THE COUNTS WHERE IT IS UNAMBIGUOUS, which is what a
+       subprogram and a constructor already did [0049].  find_method answers
+       any method of the name once no arity matched, so this is the count
+       failure and the candidate walk is what says whether the count is the
+       whole story. */
+    if (method->arity != count) {
+        ObjClass *klass = is_obj(receiver, OBJ_INSTANCE)
+                            ? ((ObjInstance *)receiver.obj)->klass : NULL;
+
+        no_match(klass == NULL ? NULL : klass->name, method->name,
+                 klass == NULL ? 0 : candidate_count(klass, method->name),
+                 method->arity, count);
+    }
 
     return method->fn(receiver, args, count);
 }
 
+/* `T.Accepts (X)`: whether a value satisfies a type held as a VALUE.
+   ⚠️ IT ANSWERS THROUGH alg_is, BY NAME, and that is deliberate.  `X is T`
+   written out is resolved where the C is emitted -- a kind code, or an
+   ObjClass pointer -- which a computed type cannot be, so this takes the one
+   path that works from a name.  Answering by name also keeps it agreeing with
+   the other two processors, which match a class by name throughout. */
+static Value class_accepts(Value receiver, Value *args, int32_t count) {
+    if (count != 1) {
+        char message[96];
+
+        snprintf(message, sizeof message,
+                 "Expected 1 arguments but got %d.", count);
+        alg_error(message);
+    }
+
+    return alg_is(args[0], ((ObjClass *)receiver.obj)->name);
+}
+
 Value alg_invoke(Value receiver, const char *name, Value *args, int32_t count) {
     check_live(receiver, "a method call");
+
+    /* A TYPE VALUE answers ONE method, and a program's own are not among them:
+       a method wants an instance, so a class value's surface is the runtime's
+       alone [RT-032] and nothing a program declares can be shadowed by it. */
+    if (is_obj(receiver, OBJ_CLASS)) {
+        if (alg_stricmp(name, "Accepts") == 0)
+            return class_accepts(receiver, args, count);
+
+        undefined("property", name);
+    }
+
     if (is_obj(receiver, OBJ_INSTANCE)) {
         ObjInstance *instance = (ObjInstance *)receiver.obj;
 
@@ -3968,6 +4427,11 @@ int32_t alg_collect(void) {
     /* And from the HELD TEMPORARIES of every expression part way through. */
     for (int32_t i = 0; i < alg_hold_top; i++) mark_value(alg_holds[i]);
 
+    /* And from the TYPE CACHE, a C static holding one synthetic class per
+       built-in type name -- invisible to the collector, and an ObjClass is
+       recycled by size class like anything else. */
+    for (int32_t i = 0; i < type_cached; i++) mark_value(type_cache[i].held);
+
     /* And from the FOLD CACHE, whose slots own their key and their answer. */
     for (int32_t i = 0; i < FOLD_CACHE; i++) {
         if (fold_cache[i].answer == NULL) continue;
@@ -4084,8 +4548,17 @@ static Value call_overload(ObjOverloads *set, Value *args, int32_t count) {
                 return entry->fn(NULL, args, count);
         }
 
-    alg_error("No matching signature for function.");
-    return alg_nil();
+    /* COUNTS ONLY WHERE THE SET HOLDS ONE FIXED-ARITY CANDIDATE.  A variadic
+       one makes the count ambiguous, since its element type replaced the arity
+       check [FUN-005, 0158], and an arity of -1 is a candidate that checks its
+       own count. */
+    int32_t expected = -1;
+
+    if (set->count == 1 && set->entries[0].arity >= 0
+     && variadic_element(set->entries[0].types, set->entries[0].arity) == NULL)
+        expected = set->entries[0].arity;
+
+    no_match(NULL, set->name, set->count, expected, count);
 }
 
 Value alg_call(Value callee, Value *args, int32_t count) {
@@ -4155,14 +4628,17 @@ Value alg_call_named(Value callee, Value *args, int32_t count, const char **name
             if (arranged != NULL) return alg_call(callee, arranged, entry->arity);
         }
 
-        alg_error("No matching signature for function.");
+        /* AN ARRANGEMENT HAS EXACTLY THE DECLARED ARITY, so a failure here is
+           a name no parameter has, one named twice, or a half-filled call --
+           never a count.  The name is what to add. */
+        no_match(NULL, set->name, 0, -1, count);
     }
 
     if (is_obj(callee, OBJ_CLOSURE)) {
         ObjClosure *closure = (ObjClosure *)callee.obj;
         Value *arranged = arrange_args(closure->types, closure->arity, args, count, names);
 
-        if (arranged == NULL) alg_error("No matching signature for function.");
+        if (arranged == NULL) no_match(NULL, closure->name, 0, -1, count);
 
         return alg_call(callee, arranged, closure->arity);
     }
@@ -4190,7 +4666,7 @@ Value alg_invoke_named(Value receiver, const char *name, Value *args, int32_t co
             }
         }
 
-        alg_error("No matching signature for function.");
+        no_match(((ObjInstance *)receiver.obj)->klass->name, name, 0, -1, count);
     }
 
     alg_error("A built-in has no named parameters.");
@@ -4213,8 +4689,7 @@ Value alg_new_named(Value klass, Value *args, int32_t count, const char **names)
         }
     }
 
-    alg_error("No matching signature for function.");
-    return alg_nil();
+    no_match(NULL, ((ObjClass *)klass.obj)->name, 0, -1, count);
 }
 
 static AlgFrame *frames = NULL;

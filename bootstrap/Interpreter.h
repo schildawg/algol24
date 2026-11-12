@@ -23,6 +23,8 @@ extern Value v_interpVcollectVevery;
 extern bool d_interpVcollectVevery;
 extern Value v_interpVtick;
 extern bool d_interpVtick;
+extern Value v_typeVvalues;
+extern bool d_typeVvalues;
 extern Value v_interpVsiteVfile;
 extern bool d_interpVsiteVfile;
 extern Value v_interpVsiteVline;

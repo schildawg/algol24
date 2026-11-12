@@ -97,7 +97,7 @@ var
     /// The names this class declares as PROPERTIES, folded.
     ///
     /// A property is a method in every respect but one: reading the name
-    /// CALLS it, where reading a method's name answers the method [CLS-012].
+    /// CALLS it, where reading a method's name answers the method [CLS-017].
     /// So it lives in Methods like any other and this records which of them
     /// answer on a read.
     Properties : Set;
@@ -109,8 +109,21 @@ var
     /// than as an undefined member.
     Fields  : List;
 
+    /// The type written on each declared field, '' where none was, parallel to
+    /// Fields.
+    ///
+    /// A second List rather than a wider element, because Fields is indexed by
+    /// position everywhere it is read and a field's slot is its index.
+    FieldTypes : List;
+
     /// The class this one extends, or nil.
     Parent  : Any;
+
+    /// Whether this stands for a built-in type rather than a declared class.
+    ///
+    /// TypeOf answers one of these for an Integer or a String, and nothing
+    /// constructs it.
+    IsType : Boolean := False;
 
 begin
     /// Makes a class with no methods and no fields.
@@ -120,6 +133,7 @@ begin
         this.Methods    := Map ();
         this.Properties := Set ();
         this.Fields  := List ();
+        this.FieldTypes := List ();
         this.Parent  := Nil;
     end
 
@@ -226,7 +240,7 @@ begin
     ///
     /// Idempotent so that a subclass redeclaring an inherited field does not
     /// give the instance two slots for one name.
-    procedure AddField (FieldName : Any);
+    procedure AddField (FieldName : Any, FieldType : Any);
     begin
         var Key := Str (FieldName);
 
@@ -234,6 +248,47 @@ begin
             if ToLower (Str (Known)) = ToLower (Key) then Exit;
 
         this.Fields.Add (Key);
+        this.FieldTypes.Add (Str (FieldType));
+    end
+
+    /// Adds this class's declared fields to a Map, name to declared type.
+    ///
+    /// Parent-first, so a subclass's own fields follow what it inherited, and
+    /// a Map iterates in insertion order [COL-007] -- which is what makes a
+    /// record built from this reproducible.
+    ///
+    /// # Satisfies
+    /// [RT-031]
+    procedure FieldsInto (Into : Map);
+    begin
+        if this.Parent <> Nil then (this.Parent as VmClass).FieldsInto (Into);
+
+        for var I : Integer := 0; I < this.Fields.Length; I := I + 1 do
+            Into.Put (Str (this.Fields[I]), Str (this.FieldTypes[I]));
+    end
+
+    /// The type a field's declaration wrote, or '' where none was written or
+    /// the class has no such field.
+    ///
+    /// Searched child-first, so a shadowed field answers the subclass's
+    /// declaration -- the same one an instance's flat field map ends up
+    /// holding.  FieldsInto walks the other way for the other reason: it is
+    /// building a reading order [COL-007].
+    ///
+    /// # Satisfies
+    /// [RT-034]
+    function DeclaredTypeOf (FieldName : Any) : String;
+    begin
+        var Wanted := ToLower (Str (FieldName));
+
+        for var I : Integer := 0; I < this.Fields.Length; I := I + 1 do
+            if ToLower (Str (this.Fields[I])) = Wanted then
+                Exit Str (this.FieldTypes[I]);
+
+        if this.Parent <> Nil then
+            Exit (this.Parent as VmClass).DeclaredTypeOf (FieldName);
+
+        Exit '';
     end
 
     /// How a class reads when written or converted to text: its own name.
@@ -327,8 +382,8 @@ end
 test 'An Instance Begins With Every Field Nil';
 begin
     var K := VmClass ('Point');
-    K.AddField ('X');
-    K.AddField ('Y');
+    K.AddField ('X', '');
+    K.AddField ('Y', '');
 
     var I := VmInstance (K);
 
@@ -339,11 +394,11 @@ end
 test 'An Instance Includes Its Parents Fields';
 begin
     var Parent := VmClass ('Shape');
-    Parent.AddField ('Colour');
+    Parent.AddField ('Colour', '');
 
     var Child := VmClass ('Circle');
     Child.Parent := Parent;
-    Child.AddField ('Radius');
+    Child.AddField ('Radius', '');
 
     var I := VmInstance (Child);
 
@@ -355,8 +410,8 @@ test 'A Field Name Is Recorded Once';
 begin
     var K := VmClass ('Point');
 
-    K.AddField ('X');
-    K.AddField ('x');
+    K.AddField ('X', '');
+    K.AddField ('x', '');
 
     AssertEqual (1, K.Fields.Length);
 end

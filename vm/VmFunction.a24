@@ -35,6 +35,15 @@ var
     /// because the emitter can see the subrange table and a chunk cannot.
     Types : List;
 
+    /// The type written for each parameter, BEFORE a subrange was resolved.
+    ///
+    /// Types carries what SELECTION needs, and a chunk cannot resolve a
+    /// subrange itself -- the table is the compiler's -- so the emitter
+    /// resolves it there. Reflection wants what the program wrote, and the
+    /// other two processors answer that, so the written name is carried
+    /// beside the resolved one rather than recovered from it.
+    Written : List;
+
     /// Each parameter's name, folded, in declaration order.
     ///
     /// Carried so that a NAMED argument can be arranged against the parameter
@@ -80,6 +89,7 @@ begin
         this.Arity := Arity;
         this.Body  := Chunk ();
         this.Types   := List ();
+        this.Written := List ();
         this.Params  := List ();
         this.Element := '';
         this.Symbol  := '';

@@ -129,10 +129,13 @@ begin
 
     for var Name in ['Array', 'AssertEqual', 'AssertTrue', 'Buffer', 'ChDir',
                      'Char', 'clock', 'Collect', 'Copy', 'ErrorLn', 'Fail',
-                     'FileExists', 'Foreign', 'GetDir', 'Halt', 'Length',
+                     'Fields', 'FileExists', 'Foreign', 'GetDir', 'Halt',
+                     'Invoke', 'Member', 'New', 'SetMember',
+                     'Length',
                      'List', 'Map', 'MkDir', 'Ord', 'ParamCount', 'ParamStr',
                      'Pos', 'Pred', 'RmDir', 'Set', 'Stack', 'Str', 'Succ',
-                     'TextFile', 'ToLower', 'ToUpper', 'Val', 'Write',
+                     'TextFile', 'ToLower', 'ToUpper', 'TypeOf', 'Val',
+                     'Write',
                      'WriteLn'] do
         Names.Add (FoldCase (Str (Name)));
 

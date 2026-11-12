@@ -470,12 +470,12 @@ static Value *roots_Environment[] = {
 void init_Environment(void) {
     alg_roots(roots_Environment, 1);
     k_environment = alg_class("Environment", alg_nil());
-    alg_class_field(k_environment, "Values");
-    alg_class_field(k_environment, "Enclosing");
-    alg_class_field(k_environment, "Imports");
-    alg_class_field(k_environment, "Exports");
-    alg_class_field(k_environment, "UnitName");
-    alg_class_field(k_environment, "Ambiguous");
+    alg_class_field(k_environment, "Values", "Map");
+    alg_class_field(k_environment, "Enclosing", "Environment");
+    alg_class_field(k_environment, "Imports", "List");
+    alg_class_field(k_environment, "Exports", "Set");
+    alg_class_field(k_environment, "UnitName", "String");
+    alg_class_field(k_environment, "Ambiguous", "Map");
     alg_class_initializer(k_environment, i_environment);
     alg_class_method(k_environment, "Init", m_environment_init_0, 0, NULL);
     alg_class_method(k_environment, "MarkAmbiguous", m_environment_markambiguous_2_string_string, 2, t_environment_markambiguous_2_string_string);

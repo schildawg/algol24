@@ -24,7 +24,7 @@
    three to each other instead, so bumping the release bumps this too or the
    gate goes red -- which is the whole point, since a version in two places
    with nothing comparing them is what Release.a24 was created to end. */
-#define ALG_RUNTIME_VERSION 300
+#define ALG_RUNTIME_VERSION 301
 
 /* glibc hides POSIX behind a feature test, and -std=c11 asks for it to: the
    flag defines __STRICT_ANSI__, which suppresses the _DEFAULT_SOURCE glibc
@@ -265,7 +265,36 @@ void  alg_class_super(Value klass, Value super);
 
 void  alg_class_declared(Value klass, const char *name);
 
-void  alg_class_field(Value klass, const char *name);
+/* A declared field and the type written on it, or "" where none was. */
+void  alg_class_field(Value klass, const char *name, const char *type);
+
+/* The fields a value's class declares, name -> declared type, parent-first.
+   An empty Map for anything that is neither an instance nor a class. */
+Value alg_fields(Value v);
+
+/* The methods, or the properties, a class declares ITSELF -- name to a List
+   of signatures, each a List of parameter type names.  Its own rather than
+   the chain's, because an override replaces where an inherited field does
+   not; Parent walks. */
+Value alg_methods(Value v);
+Value alg_properties(Value v);
+
+/* A member read by a computed name, and a method called by one.  Invoke does
+   not reach a property: a property's read IS its call [CLS-017]. */
+Value alg_member(Value receiver, Value name);
+Value alg_invoke_by_name(Value receiver, Value name, Value args);
+
+/* An instance of a computed type, and a field written by a computed name.  The
+   write widens against the type the field's declaration wrote, which is what a
+   written assignment does; a property is refused, as the TypeChecker refuses
+   the written form. */
+Value alg_construct(Value type, Value args);
+Value alg_set_member(Value receiver, Value name, Value value);
+
+/* A value's type, as a value: a class answers itself, an instance answers its
+   class, nil answers nil, and everything else answers an interned synthetic
+   class carrying the type's name. */
+Value alg_type_of(Value v);
 
 void  alg_class_method(Value klass, const char *name, AlgMethod fn, int32_t arity,
                        const char **types);
@@ -596,7 +625,11 @@ void  alg_write(Value v);
 
 void  alg_halt(Value status);
 
-Value alg_param(Value argument, const char *declared);
+/* Binds one argument to a parameter's declared type at the top of a
+   subprogram body.  `called` is the subprogram's name, for the diagnostic: a
+   lone subprogram has no candidate list to report, so the name is all there
+   is to say which call failed. */
+Value alg_param_of(Value argument, const char *declared, const char *called);
 
 Value alg_widen(Value argument, const char *declared);
 void  alg_writeln(Value v);

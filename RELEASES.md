@@ -14,6 +14,120 @@ go stale.
 
 ---
 
+## v0.3.1 — a program can read its own shapes
+
+**Reflection.** A program can ask what a class declares, construct one by a
+type it was handed, read and write a field by a computed name, call a method by
+one, and ask whether a value satisfies a type — all without a single new piece
+of syntax. Every one of them is a built-in or a member of a value the language
+already had.
+
+```algol24
+var Shape := Fields (Thing);            // name -> declared type
+for var F in Shape do
+    WriteLn (F, ' = ', Str (Member (T, F)));
+
+var Made := New (TypeOf (T), [7]);      // construct by a type held as a value
+SetMember (Made, 'Worth', 11);          // write a field by name
+WriteLn (Str (Invoke (Made, 'Scaled', [3])));
+WriteLn (Str (TypeOf (5).Accepts (5))); // the dynamic form of `is`
+```
+
+### What is new
+
+| | |
+| --- | --- |
+| `Fields (X)` | a Map from each field's name to its declared type, parent-first [RT-031] |
+| `TypeOf (X)` | X's type **as a value**; a class answers itself [RT-032] |
+| `T.Name` `T.Parent` `T.Fields` `T.Methods` `T.Properties` | what a class says about itself [RT-032] |
+| `Member (X, Name)` `Invoke (X, Name, Args)` | a member read, a method called, by a computed name [RT-033] |
+| `New (T, Args)` `SetMember (X, Name, Value)` | construction, and a field written, by a computed name [RT-034] |
+| `T.Accepts (X)` | whether a value satisfies a type held as a value [RT-035] |
+
+A type value is **interned**, so `TypeOf (1)` and `TypeOf (2)` are the same
+value and compare by identity as a class does. A type is not constructible:
+`TypeOf (42) ()` says so rather than answering an `Integer instance`.
+
+### What it is not
+
+**No metaclasses, no attribute hooks, nothing creates or alters a class at run
+time.** The data is distilled when the program is built, not held as a live
+syntax tree — an AST kept alive for the life of a program is thousands of nodes
+retained for a few dozen bytes of metadata. There are no frames, no stacks and
+no source: this is not Python's `inspect`.
+
+⚠️ **A computed name REACHES A PRIVATE MEMBER, and that is a trapdoor rather
+than an oversight.** `private` is settled before the program runs and nothing
+records it at run time [DCL-011], so reflection can do what written code may
+not. It is stated in the specification so that it is met on purpose; the guard
+that remains is `uses`, since the reading sugar a program actually writes is an
+extension [MOD-015].
+
+### A diagnostic that named nothing now names what failed
+
+`No matching signature for function.` named no subprogram, no class and no
+member — of no use at all to the generic code this release exists to enable. It
+is now `No matching signature for <what was called>.`: a subprogram or a class
+by its own name, a method as `Class.Member`.
+
+**And where the name is unambiguous the counts are reported instead.** One
+candidate of fixed arity called with the wrong number of arguments has the
+count as its whole fault, so `Expected N arguments but got M.` says more. That
+removes an asymmetry the language had carried from the beginning: a **method**
+answered a selection failure for a wrong count where a **subprogram** and a
+**constructor** reported the counts, so one fault read two ways depending on
+what you had called.
+
+```
+Box (1).Only (1, 2)     No matching signature for function.   ->  Expected 1 arguments but got 2.
+Two (1, 2)              No matching signature for function.   ->  No matching signature for Two.
+Box (1, 2)              Expected 1 arguments but got 2.       ->  unchanged
+```
+
+**This is the one thing in the release that changes what an existing program
+prints**, and only in its diagnostics. A program that compares the text of a
+caught selection failure will see the new sentence; nothing else moves. A
+search across the five projects using this language found no test or source
+that compares it.
+
+### Also fixed
+
+Three divergences between the three processors, none of them reachable by any
+case in the corpus — which is why they had survived:
+
+- **A raise inside a nested run left the bytecode machine's saved state
+  unrestored.** Reachable through `Invoke` from the day it was written: the
+  program gave every right answer and then died at its *last statement* with
+  `Index -1 out of range`, naming neither the raise nor the nested run.
+- **`Only an instance has fields.`** was the machine's wording where the other
+  two processors say `Only instances have fields.` — latent for the machine's
+  whole life, because nothing in the corpus wrote to a non-instance.
+- **A by-name invoke with a wrong argument type** said `Undefined property` in
+  the tree walker for a method that was plainly declared, where the other two
+  reported a selection failure.
+
+And a gate for the class of bug that produced two of them: `spec/spec.sh` now
+holds the machine's built-in arity table, and its variadic exemption, against
+the names the interpreter actually registers. A built-in added without an arity
+there answered a quietly different sentence on one processor and nothing refused
+it.
+
+### Upgrading
+
+Nothing to change unless you compare the text of a caught selection failure.
+The new built-in names — `Fields`, `TypeOf`, `Member`, `Invoke`, `New`,
+`SetMember` — are now built in, and a declaration of one of those names forms
+an overload set with it [FUN-005] rather than being refused, so an existing
+program that declares a `New` of its own keeps working at the counts it
+declares.
+
+⚠️ **Both halves of the runtime move together.** `algol.c` and `algol.h` are
+hand-written and copied verbatim by `--compile`, and the body uses what the
+header declares. Anything assembling a build from both a compiler's output and
+a checkout must take the pair from the same release.
+
+---
+
 ## v0.3.0 — a Char equals a one-character String
 
 **The first release that changes what an existing program means.** Everything

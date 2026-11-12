@@ -169,6 +169,13 @@ var INTERP_COLLECT_EVERY := 200000;
 /// Statements executed since the last automatic collection.
 var INTERP_TICK := 0;
 
+/// One synthetic class per built-in type name, so that TypeOf answers the
+/// same value twice and `TypeOf (1) = TypeOf (2)` is true [VAL-011].
+///
+/// The underscores are deliberate: a module-level table needs a name no local
+/// would reach for, since identifiers fold [SRC-011].
+var TYPE_VALUES := Map ();
+
 /// The file of the statement this walker is executing, so a runtime error can
 /// say where it happened [ERR-003].
 ///
@@ -257,6 +264,202 @@ begin
             // for the claim that automatic collection was unsafe, disproven by
             // the same work.
             'Collect' : Exit Collect ();
+
+            // A class, read at run time: the fields it declares and
+            // inherits, name to declared type.  An instance or a class
+            // answers; anything else answers an empty Map, which is the
+            // bargain 'is' already makes -- a value that simply has no fields
+            // is a fair question with a boring answer rather than a fault.
+            // ⚠️ A GUEST MAP, NOT THE HOST'S.  This walker is itself a
+            // compiled Algol-24 program, so `Map ()` written here answers the
+            // RUNTIME's Map -- which a guest program cannot iterate, because
+            // a guest collection is an ObjCollection.  Building the host's
+            // one answered a value that printed correctly and then failed as
+            // `Can only iterate a collection or a String.`  Pairs is where a
+            // guest Map keeps its entries, and is a host Map, so FieldsInto
+            // takes exactly that and ObjClass needs to know nothing about
+            // ObjCollection.
+            'Fields' : begin
+                           var Shaped := ObjCollection ('Map');
+
+                           if Arguments[0] is ObjInstance then
+                               (Arguments[0] as ObjInstance).Klass.FieldsInto (Shaped.Pairs);
+                           else if Arguments[0] is ObjClass then
+                               (Arguments[0] as ObjClass).FieldsInto (Shaped.Pairs);
+
+                           Exit Shaped;
+                       end
+
+            // ⚠️ A TYPE IS INTERNED, or `TypeOf (1) = TypeOf (2)` is false:
+            // these compare by identity [VAL-011], so a fresh ObjClass per
+            // call would make two Integers answer two different types.  A
+            // class answers itself and an instance its class, both of which
+            // are already values; everything else gets a synthetic class
+            // carrying the name, which renders and compares as a class does.
+            //
+            // nil has no type -- `nil is X` is false for every X -- so it
+            // answers nil rather than a type named 'nil', which would be a
+            // thing to compare that the language says is not there.
+            'TypeOf' : begin
+                           var Asked := Arguments[0];
+
+                           if Asked = Nil           then Exit Nil;
+                           if Asked is ObjClass     then Exit Asked;
+                           if Asked is ObjInstance  then Exit (Asked as ObjInstance).Klass;
+
+                           var Named := TypeNameOf (Asked);
+
+                           if not TYPE_VALUES.Contains (Named) then
+                           begin
+                               var Made := ObjClass (Named, Nil, Map (), List ());
+
+                               Made.IsType := True;
+                               TYPE_VALUES.Put (Named, Made);
+                           end
+
+                           Exit TYPE_VALUES.Get (Named);
+                       end
+
+            // A member read by a computed name [RT-033].  The same answer
+            // the written form gives, property included -- a property's read
+            // IS its call [CLS-017], which is the one way a member read
+            // differs from reading a method as a value.
+            'Member' : begin
+                           var On     := Arguments[0];
+                           var Asking := FoldCase (Str (Arguments[1]));
+
+                           if On is ObjInstance then
+                           begin
+                               var It := On as ObjInstance;
+
+                               if Asking = FoldCase ('ClassName') then Exit It.Klass.Name;
+
+                               var Computed := It.Klass.MethodOfArity (Asking, 0);
+
+                               if Computed <> Nil and Computed.Declaration.IsProperty
+                                                  and not It.Fields.Contains (Asking) then
+                                   Exit Computed.Bind (It).Call (TheInterpreter, List ());
+
+                               if It.Fields.Contains (Asking) then Exit It.Fields.Get (Asking);
+
+                               var Bound := It.Klass.FindMethod (Asking);
+
+                               if Bound <> Nil then Exit Bound.Bind (It);
+                           end
+
+                           raise 'Undefined property ''' + Str (Arguments[1]) + '''.';
+                       end
+
+            // A method called by a computed name [RT-033].
+            //
+            // ⚠️ A PROPERTY IS NOT REACHED, because its read IS its call
+            // [CLS-017] -- so calling one here would be a second way to do
+            // what Member does, and a generic writer could 'call' something
+            // there is nothing to write back through.
+            'Invoke' : begin
+                           var Onto   := Arguments[0];
+                           var Called := FoldCase (Str (Arguments[1]));
+
+                           if not (Arguments[2] is ObjCollection) then
+                               raise 'Invoke expects a List of arguments.';
+
+                           var Given := (Arguments[2] as ObjCollection).Items;
+
+                           if Onto is ObjInstance then
+                           begin
+                               var That := Onto as ObjInstance;
+                               var Maybe := That.Klass.MethodOfArity (Called, 0);
+
+                               if Maybe <> Nil and Maybe.Declaration.IsProperty then
+                                   raise '''' + Str (Arguments[1])
+                                       + ''' is a property; read it rather than calling it.';
+
+                               var Chosen := That.Klass.FindOverload (Called, Given);
+
+                               // NOTHING FITTING IS TWO DIFFERENT REPORTS, and
+                               // this answered one of them for both.  A name no
+                               // class in the chain declares is undefined; a
+                               // name that IS declared and fits nothing is a
+                               // SELECTION failure, which is what a single
+                               // method called with the wrong count gives too
+                               // [0049].  Saying 'Undefined property' for a
+                               // method plainly declared sent a reader looking
+                               // for a typo.  Both other processors made the
+                               // split, so the interpreter was the odd one out.
+                               if Chosen = Nil then
+                               begin
+                                   if That.Klass.FindMethod (Called) = Nil then
+                                       raise 'Undefined property '''
+                                           + Str (Arguments[1]) + '''.';
+
+                                   raise NoMatch (Str (That.Klass.Name),
+                                                  Str (Arguments[1]),
+                                                  That.Klass.CandidatesOf (Called),
+                                                  Given.Length);
+                               end
+
+                               Exit Chosen.Bind (That).Call (TheInterpreter, Given);
+                           end
+
+                           raise 'Undefined property ''' + Str (Arguments[1]) + '''.';
+                       end
+
+            // An instance of a type a program computed [RT-034].  Selection
+            // among the constructors is ObjClass.Call's business, so a
+            // declared parameter type is checked and a final 'list of T'
+            // absorbs exactly as a written construction's does -- and a
+            // built-in type's value is refused there too, having no
+            // constructor to reach.
+            'New' : begin
+                        if not (Arguments[1] is ObjCollection) then
+                            raise 'New expects a List of arguments.';
+
+                        if not (Arguments[0] is ObjClass) then
+                            raise 'Can only construct a class.';
+
+                        Exit (Arguments[0] as ObjClass).Call (TheInterpreter,
+                                  (Arguments[1] as ObjCollection).Items);
+                    end
+
+            // A field written by a computed name [RT-034], honouring the type
+            // its declaration wrote: an assignment is an assignment context
+            // [VAL-001], so Widen is asked exactly what VisitSetExpr asks it.
+            // Nothing stricter -- the gradual check that would refuse a String
+            // into an Integer field is the TypeChecker's, and it has no text
+            // to look at here.
+            //
+            // The field map is written directly because ObjInstance.Set takes
+            // a TOKEN, and a computed name has none.
+            'SetMember' : begin
+                        var Onto := Arguments[0];
+
+                        if not (Onto is ObjInstance) then
+                            raise 'Only instances have fields.';
+
+                        var That    := Onto as ObjInstance;
+                        var Written := Str (Arguments[1]);
+                        var Folded  := FoldCase (Written);
+
+                        // A property cannot be written, and the TypeChecker
+                        // refuses the written form [CLS-017] -- it has nothing
+                        // to look at where the name arrives as a value, so the
+                        // same sentence is raised here instead.
+                        var Maybe := That.Klass.MethodOfArity (Folded, 0);
+
+                        if Maybe <> Nil and Maybe.Declaration.IsProperty then
+                            raise '''' + Written + ''' is a property of '
+                                + That.Klass.Name + ' and cannot be assigned.';
+
+                        if not That.Fields.Contains (Folded) then
+                            raise 'Undefined property ''' + Written + '''.';
+
+                        var Value := TheInterpreter.Widen (Arguments[2],
+                                         That.Klass.DeclaredTypeOf (Folded));
+
+                        That.Fields.Put (Folded, Value);
+
+                        Exit Value;
+                    end
 
             'Length' : begin
                            if Arguments[0] is ObjCollection then
@@ -552,6 +755,12 @@ begin
         Builtins.Define ('clock', Native ('clock', 0));
         Builtins.Define ('Collect', Native ('Collect', 0));
 
+        Builtins.Define ('Fields', Native ('Fields', 1));
+        Builtins.Define ('TypeOf', Native ('TypeOf', 1));
+        Builtins.Define ('Member', Native ('Member', 2));
+        Builtins.Define ('Invoke', Native ('Invoke', 3));
+        Builtins.Define ('New', Native ('New', 2));
+        Builtins.Define ('SetMember', Native ('SetMember', 3));
         Builtins.Define ('Length', Native ('Length', 1));
         Builtins.Define ('Copy', Native ('Copy', 3));
         // Variadic, and checked in its own arm, because Pos takes 2 or 3
@@ -1419,7 +1628,12 @@ begin
         begin
             var Fitted := Callee.Arrange (Arguments, Names);
 
-            if Fitted = Nil then raise 'No matching signature for function.';
+            // An ARRANGEMENT has exactly the declared arity, so a failure
+            // here is a name no parameter has, one named twice, or a
+            // half-filled call -- never a count.  The name is what to add.
+            if Fitted = Nil then
+                raise 'No matching signature for '
+                    + Str (Callee.Declaration.Name.Lexeme) + '.';
 
             Exit Fitted;
         end
@@ -1433,7 +1647,7 @@ begin
                 if Fitted <> Nil then Exit Fitted;
             end
 
-            raise 'No matching signature for function.';
+            raise 'No matching signature for ' + Str (Callee.Name) + '.';
         end
 
         if Callee is ObjClass then
@@ -1447,7 +1661,7 @@ begin
                 if Fitted <> Nil then Exit Fitted;
             end
 
-            raise 'No matching signature for function.';
+            raise 'No matching signature for ' + Str (Callee.Name) + '.';
         end
 
         raise 'A built-in has no named parameters.';
@@ -1520,9 +1734,17 @@ begin
         begin
             if Callee.Owner <> Nil then
             begin
-                var Better := Callee.Owner.FindOverload (FoldCase (Callee.Declaration.Name.Lexeme), Arguments);
+                var Member := FoldCase (Callee.Declaration.Name.Lexeme);
+                var Better := Callee.Owner.FindOverload (Member, Arguments);
 
-                if Better = Nil then raise 'No matching signature for function.';
+                // A METHOD NOW REPORTS THE COUNTS WHERE IT IS UNAMBIGUOUS,
+                // which is what a subprogram and a constructor already did
+                // [0049] -- and names itself and its class where it is not.
+                if Better = Nil then
+                    raise NoMatch (Str (Callee.Owner.Name),
+                                   Str (Callee.Declaration.Name.Lexeme),
+                                   Callee.Owner.CandidatesOf (Member),
+                                   Arguments.Length);
 
                 Callee := Better.Bind (Callee.Bound);
             end
@@ -1533,7 +1755,10 @@ begin
                     raise 'Expected ' + Callee.Arity() + ' arguments but got '
                         + Arguments.Length + '.';
 
-                raise 'No matching signature for function.';
+                // The count is right, so the fault is a TYPE and the name is
+                // the only thing worth adding.
+                raise 'No matching signature for '
+                    + Str (Callee.Declaration.Name.Lexeme) + '.';
             end
         end
 
@@ -1659,6 +1884,16 @@ begin
               or Obj.Klass.DeclaresField (Folded)
               or Obj.Klass.FindMethod (Folded) <> Nil;
 
+        // A CLASS VALUE'S SURFACE IS A MEMBER LIST LIKE ANY OTHER, so a
+        // member wins over an extension of the name [EXP-022].  Asked here
+        // rather than through Obj.Get below because a class is not in the
+        // list that follows -- which is why an extension called `Name` used
+        // to capture `T.Name`.
+        if Obj is ObjClass then
+            Exit Folded = 'name'       or Folded = 'parent'
+              or Folded = 'fields'     or Folded = 'methods'
+              or Folded = 'properties' or Folded = 'accepts';
+
         if not (Obj is ObjEnumType or Obj is ObjEnum
              or Obj is ObjCollection or Obj is ObjFile
              or Obj is ObjBuffer) then Exit False;
@@ -1735,9 +1970,81 @@ begin
 
         if not (Obj is ObjInstance or Obj is ObjEnumType or Obj is ObjEnum
              or Obj is ObjCollection or Obj is ObjFile
-             or Obj is ObjBuffer) then
+             or Obj is ObjBuffer or Obj is ObjClass) then
         begin
             raise 'Only instances have properties.';
+        end
+
+        // A CLASS, ASKED ABOUT ITSELF [RT-032].  These three are the
+        // runtime's rather than the program's: a class declares fields for
+        // its INSTANCES, so there is no member of a class a program could
+        // write that one of these shadows.
+        if Obj is ObjClass then
+        begin
+            var Asked := FoldCase (Str (TheExpr.Name.Lexeme));
+
+            if Asked = FoldCase ('Name') then Exit Str ((Obj as ObjClass).Name);
+
+            if Asked = FoldCase ('Parent') then Exit (Obj as ObjClass).Superclass;
+
+            // The one member of the surface that takes an argument, so it is
+            // read as something callable and called [RT-035].
+            if Asked = FoldCase ('Accepts') then
+                Exit ClassMethod (Obj as ObjClass, TheExpr.Name);
+
+            if Asked = FoldCase ('Fields') then
+            begin
+                var Shaped := ObjCollection ('Map');
+
+                (Obj as ObjClass).FieldsInto (Shaped.Pairs);
+
+                Exit Shaped;
+            end
+
+            // ⚠️ BUILT HERE AND NOT ON ObjClass, because the values are
+            // COLLECTIONS: a signature is a List, and a guest program cannot
+            // iterate the host's.  Fields got away with passing Pairs to
+            // ObjClass because its values are Strings; this cannot, and
+            // ObjClass has no business importing ObjCollection to learn how.
+            //
+            // This class's OWN, where Fields answers the whole chain: an
+            // overridden method replaces the one above it, so merging would
+            // put an override and an overload under one name with no way to
+            // tell them apart. Parent walks.
+            if Asked = FoldCase ('Methods') or Asked = FoldCase ('Properties') then
+            begin
+                var WantProperties := Asked = FoldCase ('Properties');
+                var Listed         := ObjCollection ('Map');
+                var Declared       := (Obj as ObjClass).Methods;
+
+                for var Key in Declared do
+                begin
+                    var Found := Declared.Get (Key);
+
+                    for var I := 0; I < Found.Length; I := I + 1 do
+                    begin
+                        var Each := Found[I] as ObjFunction;
+
+                        if Each.Declaration.IsProperty <> WantProperties then continue;
+
+                        var Written := Str (Each.Declaration.Name.Lexeme);
+
+                        if not Listed.Pairs.Contains (Written) then
+                            Listed.Pairs.Put (Written, ObjCollection ('List'));
+
+                        var Shape := ObjCollection ('List');
+
+                        for var T in Each.Declaration.ParamTypes do
+                            Shape.Items.Add (CanonicalType (Str (T)));
+
+                        (Listed.Pairs.Get (Written) as ObjCollection).Items.Add (Shape);
+                    end
+                end
+
+                Exit Listed;
+            end
+
+            raise 'Undefined property ''' + Str (TheExpr.Name.Lexeme) + '''.';
         end
 
         if Obj is ObjInstance then
@@ -4058,7 +4365,7 @@ begin
     except
        on e : String do
             begin
-               AssertEqual ('No matching signature for function.', Str (e));
+               AssertEqual ('No matching signature for Length.', Str (e));
                Exit;
             end
     end

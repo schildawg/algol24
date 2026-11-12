@@ -791,7 +791,7 @@ begin
 end
 
 /// Every built-in this back end can call, lowercased.
-var BUILTIN_NAMES := ['array', 'assertequal', 'asserttrue', 'buffer', 'chdir', 'char', 'copy', 'fail', 'fileexists', 'foreign', 'getdir', 'halt', 'length', 'list', 'map', 'mkdir', 'ord', 'paramcount', 'paramstr', 'pos', 'pred', 'rmdir', 'set', 'stack', 'str', 'succ', 'textfile', 'tolower', 'toupper', 'val', 'write', 'writeln', 'clock', 'collect', 'errorln'];
+var BUILTIN_NAMES := ['array', 'assertequal', 'asserttrue', 'buffer', 'chdir', 'char', 'copy', 'fail', 'fields', 'fileexists', 'foreign', 'getdir', 'halt', 'invoke', 'length', 'member', 'list', 'map', 'mkdir', 'new', 'ord', 'paramcount', 'paramstr', 'pos', 'pred', 'rmdir', 'set', 'setmember', 'stack', 'str', 'succ', 'textfile', 'tolower', 'toupper', 'typeof', 'val', 'write', 'writeln', 'clock', 'collect', 'errorln'];
 
 /// Whether a name is one of the language's built-ins.
 ///
@@ -1200,6 +1200,12 @@ begin
 
         if I < TheStmt.ParamTypes.Length then
             Declared := Str (TheStmt.ParamTypes[I]);
+
+        // What the program WROTE, kept before the resolution below: a chunk
+        // cannot resolve a subrange, so Types must carry the resolved name
+        // for selection -- and reflection must answer the written one, which
+        // is what the other two processors answer.
+        Made.Written.Add (CanonicalType (Declared));
 
         if IsSubrange (Declared) then Declared := 'Integer';
 
@@ -2467,8 +2473,18 @@ procedure EmitClass (TheStmt : Any);
 begin
     Into.EmitIndexed (OP_CLASS, ClassNameConstant (TheStmt.Name));
 
+    // Packed, because the declared type travels with the name and two
+    // constant indices would break the invariant that at most one operand per
+    // opcode is widenable -- the same reason OP_INVOKE_NAMED packs two names.
     for var TheField in TheStmt.Fields do
-        Into.EmitIndexed (OP_FIELD, ClassNameConstant (TheField.Name));
+    begin
+        var Declared := List ();
+
+        Declared.Add (Str (TheField.Name.Lexeme));
+        Declared.Add (CanonicalType (Str (TheField.TypeName)));
+
+        Into.EmitIndexed (OP_FIELD, Into.AddConstant (Declared));
+    end
 
     var Seen := Map ();
 

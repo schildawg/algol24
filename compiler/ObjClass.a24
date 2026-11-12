@@ -6,6 +6,106 @@ uses Token;
 uses ObjFunction;
 uses ObjInstance;
 
+/// The report for a call that selected nothing.
+///
+/// Names the member and, where there is one, its class -- which a selection
+/// failure never did.  `No matching signature for function.` named nothing at
+/// all, so generic code reading it could not tell which call had failed, and
+/// that is what the library asked to have fixed.
+///
+/// COUNTS WHERE THE NAME IS UNAMBIGUOUS: one candidate of fixed arity called
+/// with the wrong number of arguments has the count as its whole fault, and
+/// saying so is more use than naming a name the program just wrote.  Several
+/// candidates make the count ambiguous -- which one was meant? -- and so does
+/// a variadic one, whose element type replaces the arity check and is stricter
+/// than it [FUN-005, 0158].  That is the split a constructor already made
+/// [0049]; this is what lets a method and a subprogram make it too.
+///
+/// # Satisfies
+/// [EXP-013], [EXP-014]
+function NoMatch (OwnerName : String, Named : String, Candidates : List,
+                  Given : Integer) : String;
+begin
+    if Candidates <> Nil and Candidates.Length = 1 then
+    begin
+        var Only := Candidates[0];
+
+        if not Only.Variadic () and Only.Arity () >= 0
+                                and Given <> Only.Arity () then
+            Exit 'Expected ' + Str (Only.Arity ()) + ' arguments but got '
+               + Str (Given) + '.';
+    end
+
+    if Named = '' then Exit 'No matching signature for function.';
+
+    // ⚠️ A CONSTRUCTOR NAMES THE CLASS ALONE, because `Init` is not a name a
+    // call site writes: a construction is `C (...)`, so `C.Init` would name
+    // something the program never said.  Here rather than at the call sites
+    // because all three processors reach a constructor's selection by several
+    // routes -- a plain construction, a named one, `super.Init` -- and the
+    // compiled back end answered `Holder.Init` from one of them while the
+    // other two answered `Holder`.
+    if FoldCase (Named) = 'init' and OwnerName <> '' then
+        Exit 'No matching signature for ' + OwnerName + '.';
+
+    if OwnerName <> '' then
+        Exit 'No matching signature for ' + OwnerName + '.' + Named + '.';
+
+    Exit 'No matching signature for ' + Named + '.';
+end
+
+/// A member of a class VALUE, bound to the class, for the one that is called.
+///
+/// The class surface is otherwise properties -- `T.Name`, `T.Fields` -- which
+/// answer where they are read.  `Accepts` takes an argument, so it has to be
+/// read as something callable and then called, exactly as a collection's
+/// member is: CollectionMethod in ObjCollection.a24 is the shape this copies.
+class ClassMethod;
+var
+    /// The class the member is bound to.
+    Receiver : ObjClass;
+
+    /// The member name, as a TOKEN rather than the folded string.
+    ///
+    /// Dispatch wants the fold and a diagnostic wants the spelling the program
+    /// wrote [SRC-011]; keeping the token keeps both without a second table.
+    Name     : Token;
+
+begin
+    /// Makes a member bound to a class.
+    constructor Init (Receiver : ObjClass, Name : Token);
+    begin
+        this.Receiver := Receiver;
+        this.Name     := Name;
+    end
+
+    /// How many arguments the member takes.
+    function Arity () : Integer;
+    begin
+        Exit 1;
+    end
+
+    /// Answers whether the argument satisfies the class this is bound to.
+    ///
+    /// Asked of the interpreter rather than answered here, so that the dynamic
+    /// test and the written `is` are one decision: a subclass instance, a
+    /// built-in type's name and a nil all answer whatever [TYP-001] and
+    /// [VAL-005] already make them answer.
+    ///
+    /// # Satisfies
+    /// [RT-035]
+    function Call (TheInterpreter, Arguments) : Any;
+    begin
+        Exit TheInterpreter.SatisfiesType (Arguments[0], Receiver.Name);
+    end
+
+    /// Prints the member as a bound method is printed [TYP-012].
+    function ToString () : String;
+    begin
+        Exit '<fn ' + Str (Name.Lexeme) + '>';
+    end
+end
+
 /// A class, which is also what a program calls to construct an instance.
 class ObjClass;
 var
@@ -17,6 +117,13 @@ var
 
     /// The parent, or Nil for a class that declares none.
     Superclass : ObjClass;
+
+    /// Whether this stands for a built-in type rather than a declared class.
+    ///
+    /// TypeOf answers one of these for an Integer or a String, and nothing
+    /// constructs it: without the guard in Call, `TypeOf (42) ()` would answer
+    /// an 'Integer instance' -- a wrong answer rather than a refusal.
+    IsType : Boolean := False;
 
     /// Declared field names, in the order written.
     ///
@@ -74,6 +181,25 @@ begin
         if Superclass <> Nil then Exit Superclass.DeclaresField (Name);
 
         Exit False;
+    end
+
+    /// The type a field's declaration wrote, canonically spelt, or '' where
+    /// none was written or the class has no such field.
+    ///
+    /// Searched child-first, which is what makes a shadowed field answer the
+    /// subclass's declaration -- the same one an instance's flat field map
+    /// ends up holding, since SeedFields seeds parent-first and a subclass's
+    /// Put lands last.  FieldsInto walks the other way for the other reason:
+    /// it is building a reading order [COL-007].
+    function DeclaredTypeOf (Name : String) : String;
+    begin
+        for var Field in Fields do
+            if FoldCase (Field.Name.Lexeme) = Name then
+                Exit CanonicalType (Str (Field.TypeName));
+
+        if Superclass <> Nil then Exit Superclass.DeclaredTypeOf (Name);
+
+        Exit '';
     end
 
     /// Finds a method by name alone, searching up the inheritance chain.
@@ -136,6 +262,38 @@ begin
         if Superclass <> Nil then Exit Superclass.Fitting (Name, Arguments, Pass);
     end
 
+    /// Every candidate declared for a name, this class's and its parents'.
+    ///
+    /// Asked only when selection has already FAILED, to decide what to report:
+    /// one candidate makes the count the whole fault and worth naming, where
+    /// several make it ambiguous [0049].  Gathering the chain is what makes
+    /// that honest -- an inherited overload is a candidate the call could have
+    /// reached, so counting this class's alone would call an overloaded name
+    /// unambiguous.
+    ///
+    /// # Satisfies
+    /// [EXP-014]
+    function CandidatesOf (Name : String) : List;
+    var
+        Found : List;
+
+    begin
+        Found := List ();
+
+        GatherCandidates (Name, Found);
+
+        Exit Found;
+    end
+
+    /// Adds this class's candidates for a name to a list, then its parents'.
+    procedure GatherCandidates (Name : String, Into : List);
+    begin
+        if Methods.Contains (Name) then
+            for var Candidate in Methods.Get (Name) do Into.Add (Candidate);
+
+        if Superclass <> Nil then Superclass.GatherCandidates (Name, Into);
+    end
+
     /// Puts every declared field onto a new instance, parent's first.
     ///
     /// The parent runs first so a subclass redeclaring a name wins, and so an
@@ -161,6 +319,29 @@ begin
                                                Str (Field.TypeName));
 
             Instance.Fields.Put (FoldCase (Field.Name.Lexeme), Value);
+        end
+    end
+
+    /// Adds this class's declared fields to a Map, name to declared type.
+    ///
+    /// Parent-first, so a subclass's own fields follow what it inherited --
+    /// the order SeedFields already seeds in and the order a serializer needs,
+    /// since a Map iterates in insertion order [COL-007]. The name is the one
+    /// written rather than the folded key an instance stores under, because it
+    /// is what a program reading a class back will print.
+    ///
+    /// # Satisfies
+    /// [COL-007]
+    procedure FieldsInto (Into : Map);
+    begin
+        if Superclass <> Nil then Superclass.FieldsInto (Into);
+
+        for var I := 0; I < Fields.Length; I := I + 1 do
+        begin
+            var Field := Fields[I];
+
+            Into.Put (Str (Field.Name.Lexeme),
+                      CanonicalType (Str (Field.TypeName)));
         end
     end
 
@@ -239,6 +420,10 @@ begin
        Initializer : ObjFunction;
 
     begin
+        if IsType then
+            raise Str (Name)
+                + ' is a type rather than a class, and cannot be constructed.';
+
         Instance := ObjInstance (this);
 
         SeedFields (Instance, TheInterpreter);
@@ -274,7 +459,7 @@ begin
             if Initializer <> Nil then
                 if Initializer.Variadic ()
                        or Arguments.Length = Initializer.Arity () then
-                    raise 'No matching signature for function.';
+                    raise 'No matching signature for ' + Name + '.';
         end
 
         if Initializer <> Nil then

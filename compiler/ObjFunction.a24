@@ -162,14 +162,27 @@ begin
     ///
     /// # Raises
     ///
-    /// 'No matching signature for function.' when no candidate fits.
+    /// 'No matching signature for <Name>.' when no candidate fits, or the
+    /// counts where the set holds one candidate and only the count is wrong.
     function Call (TheInterpreter, Arguments) : Any;
     var
         Chosen : Any;
 
     begin
         Chosen := Select (Arguments);
-        if Chosen = Nil then raise 'No matching signature for function.';
+
+        // ⚠️ A BUILT-IN OF THE NAME MAKES THE COUNT AMBIGUOUS, however few
+        // declarations there are.  One declaration of `Length (A, B)` beside
+        // the built-in answers BOTH 1 and 2 arguments [RT-027], so reporting
+        // `Expected 2 arguments but got 3.` would name a count as the only one
+        // accepted while `Length ('abc')` plainly works.  The candidates are
+        // withheld in that case, which is what sends NoMatch to the sentence
+        // that names the set instead.
+        if Chosen = Nil then
+            if Fallback = Nil then
+                raise NoMatch ('', Name, Candidates, Arguments.Length);
+            else
+                raise NoMatch ('', Name, Nil, Arguments.Length);
 
         Exit Chosen.Call (TheInterpreter, Arguments);
     end

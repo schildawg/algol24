@@ -3735,8 +3735,8 @@ through `Get` and `Put` [TYP-010] — five protocols, one convention.
 implement this one, and such a class is simply not iterable. Neither processor
 checked that: the interpreter asked for the first method of the name whatever
 its shape, the runtime's `has_method` fell back to the same, and the two then
-failed differently — `Index 0 out of range 0..-1.` against
-`No matching signature for function.`, neither of them the message above.
+failed differently — `Index 0 out of range 0..-1.` against a selection
+failure, neither of them the message above.
 
 **The result is walked, not re-asked.** `Elements` may return another
 instance that also declares `Elements`, and the chain resolves — which is what
@@ -6318,9 +6318,9 @@ M.`
 
 **Except where a count is not the callee's rule.** A subprogram whose last
 parameter gathers trailing arguments [FUN-005] has a different count by design,
-and reports `No matching signature for function.` instead — naming the count
+and reports `No matching signature for <name>.` instead — naming the count
 would send the reader to look at the wrong thing, since what refused the call
-was the element type. `Write` and `WriteLn` take any number of values [RT-001]
+was the element type [EXP-014]. `Write` and `WriteLn` take any number of values [RT-001]
 and so can never fail this way at all.
 
     unit         Call Wrong Number Of Arguments
@@ -6346,6 +6346,9 @@ begin
     function Only (A); begin Exit A; end
 end
 
+// A METHOD REPORTS THE COUNTS TOO, where the name has one signature.  It used
+// to answer a selection failure here and a subprogram and a constructor did
+// not, which made one fault read three ways [EXP-014].
 try
     WriteLn (Box (1).Only (1, 2));
 except
@@ -6373,8 +6376,8 @@ WriteLn (One (1, 2));
 $ algc conformance/0049-call-failures.a24
 1
 Expected 1 arguments but got 0.
-No matching signature for function.
-No matching signature for function.
+Expected 1 arguments but got 2.
+Expected 1 arguments but got 0.
 Expected 1 arguments but got 2.
 Uncaught: Expected 1 arguments but got 2.
 exit: 70
@@ -6576,8 +6579,8 @@ warn: held
 a 3
 a 3
 a 1
-No matching signature for function.
-No matching signature for function.
+No matching signature for Log.
+No matching signature for Log.
 A built-in has no named parameters.
 ```
 
@@ -6644,7 +6647,17 @@ char
 **[EXP-014]**  An overload is chosen by preferring an **exact match** on every
 argument; failing that, one reachable by widening [VAR-004], since a parameter
 is an assignment context [VAR-017]. When neither fits, the call fails with
-`No matching signature for function.`
+`No matching signature for <what was called>.` — a subprogram or a class by
+its own name, a method as `Class.Member`.
+
+**The failure NAMES what was called**, which it did not always: it said
+`No matching signature for function.` and so named nothing at all, which is of
+no use to generic code that reads the message. **And where the name is
+unambiguous the counts are reported instead** — one candidate of fixed arity
+called with the wrong number of arguments has the count as its whole fault, so
+`Expected N arguments but got M.` [EXP-011] says more than the name would.
+Several candidates make the count ambiguous, and so does a variadic one, whose
+element type replaces the arity check [FUN-005].
 
 So a `Char` argument selects a `Char` parameter where one is declared, and
 widens to a `String` parameter where it is not.
@@ -8141,7 +8154,7 @@ $ algc conformance/0158-varargs-from-an-element-type.a24
 6
 2
 Expected 1 arguments but got 2.
-No matching signature for function.
+No matching signature for Total.
 fixed
 gathered 3
 gathered 1
@@ -8177,13 +8190,14 @@ WriteLn (G ('a string'));
 
 ```console
 $ algc refusals/0042-top-level-parameter-type.a24
-Uncaught: No matching signature for function.
+Uncaught: No matching signature for G.
 exit: 70
 ```
 
 **[FUN-007]**  A **method's** parameter types **are** enforced, because a method
 goes through overload selection [EXP-013]. Passing a String where `Integer` is
-declared is `No matching signature for function.`
+declared is `No matching signature for M.Take.` — the method and its class
+[EXP-014], since the count is right and the type is the fault.
 
 ##### refusals/0025-method-parameter-type-is-enforced.a24
 
@@ -8198,7 +8212,7 @@ WriteLn (M ().Take ('a string'));
 
 ```console
 $ algc refusals/0025-method-parameter-type-is-enforced.a24
-Uncaught: No matching signature for function.
+Uncaught: No matching signature for M.Take.
 exit: 70
 ```
 
@@ -9355,7 +9369,9 @@ exit: 70
 goes through **selection** on the whole signature, as a call of any other
 subprogram does [EXP-013, FUN-013] — so a declared parameter type is checked,
 constructors may overload, and a wrong type at the right count answers
-`No matching signature for function.` where a wrong count reports the counts. A
+`No matching signature for <the class>.` where a wrong count reports the
+counts [EXP-014] — a construction names the class, because `C (...)` is what
+the program wrote and there is no `C.Init` at a call site. A
 class with no constructor takes no arguments — `C(1, 2)` on such a class is
 `Expected 0 arguments but got 2.`
 
@@ -9483,7 +9499,7 @@ WriteLn (Holder ('not a Thing'));
 ```console
 $ algc conformance/0204-a-constructor-is-selected-too.a24
 Thing
-No matching signature for function.
+No matching signature for Holder.
 Expected 1 arguments but got 0.
 7
 text
@@ -9493,9 +9509,9 @@ string
 3
 0
 3
-No matching signature for function.
-No matching signature for function.
-Uncaught: No matching signature for function.
+No matching signature for Tally.
+No matching signature for Tally.
+Uncaught: No matching signature for Holder.
 exit: 70
 ```
 
@@ -9631,7 +9647,7 @@ in Base.Init, Extra=derived Named=Derived
 Tag=base/7
 Extra=derived
 Once=1 calls=1
-No matching signature for function.
+No matching signature for Derived.
 Expected 0 arguments but got 1.
 integer
 string
@@ -9962,7 +9978,7 @@ end
 $ algc conformance/0206-inheritance-across-a-uses.a24
 figure/deep thin none Boxed
 figure/own! thick Named+Framed
-No matching signature for function.
+No matching signature for Boxed.
 ```
 
 ##### conformance/0150-super-as-a-value.a24
@@ -11839,7 +11855,7 @@ from the module
 
 ### 16.1 The set
 
-**[RT-001]**  Thirty-five names are built in. Thirty-two are always
+**[RT-001]**  Forty-one names are built in. Thirty-eight are always
 available:
 
 ```
@@ -11847,6 +11863,7 @@ Length  Copy  Pos   Str        Ord   Char  Val
 ToUpper ToLower
 Succ    Pred  Foreign
 clock   Collect
+Fields  TypeOf     Member     Invoke     New   SetMember
 List    Set   Stack Array      Map   Buffer
 TextFile      FileExists
 MkDir   RmDir ChDir GetDir
@@ -12903,6 +12920,559 @@ out: unterminated, err: after an unterminated write
 
 ```
 
+**[RT-031]**  `Fields (X)` answers a `Map` from the name of each field the
+value's class declares to the **type written on it**, or `''` where none was
+written. An instance answers its class's; a class answers its own.
+
+**Parent-first**, so a subclass's own fields follow what it inherited — the
+order a class seeds its fields in [CLS-005], and a reproducible one because
+every collection iterates in insertion order [COL-007]. Declaration order
+within a class is the order the fields are written.
+
+**A value that is neither an instance nor a class answers an empty `Map`.** An
+Integer has no declared fields, and asking is a fair question with a boring
+answer rather than a fault — the same bargain `5 is Dog` makes, where a value
+simply not being of a declared class is answered rather than refused.
+
+⚠️ **A PRIVATE FIELD APPEARS.** `private` governs what a program may *write*
+[DCL-011] and is settled before the program runs; nothing records it at run
+time, so this answers every field a class declares. A class whose state is
+private is still describable, and still readable by a program that asks this
+way — which is a trapdoor, and is stated rather than left to be discovered.
+
+**A `property` does not appear**, because it computes rather than stores
+[CLS-017]: there is nothing behind it to write back into, so a record built
+from this list can be read back.
+
+    conformance  0218-fields-reads-a-class.a24
+
+##### conformance/0218-fields-reads-a-class.a24
+
+```algol24
+// RT-031: the fields a class declares, name to declared type.
+class Base;
+var
+    Id    : Integer;
+    Label : String;
+begin
+    constructor Init ();
+    begin
+        Id := 1;
+        Label := 'base';
+    end
+end
+
+// Parent-first, so what a subclass inherits comes before what it declares
+// [CLS-005], and a Map iterates in insertion order [COL-007].
+class Prop (Base);
+var
+    Worth : Integer;
+    Loose;
+begin
+    constructor Init ();
+    begin
+        super.Init ();
+        Worth := 42;
+    end
+end
+
+var P := Prop ();
+
+for var F in Fields (P) do
+    WriteLn (F, ' : ', Fields (P).Get (F));
+
+// A class answers its own, so an instance is not needed to ask.
+WriteLn (Fields (Prop).Length);
+
+// A value with no declared fields answers an empty Map rather than failing.
+WriteLn (Fields (42).Length);
+WriteLn (Fields ('text').Length);
+```
+
+```console
+$ algc conformance/0218-fields-reads-a-class.a24
+Id : Integer
+Label : String
+Worth : Integer
+Loose : 
+4
+0
+0
+```
+
+**[RT-032]**  `TypeOf (X)` answers **X's type, as a value**. A class answers
+itself, an instance answers its class, and `nil` answers `nil` — `nil is X` is
+false for every `X`, so a type value for it would be a thing to compare that
+the language says is not there.
+
+**Every other value answers a type carrying its name** — `Integer`, `String`,
+`Char`, `List` and the rest. These are **interned**, so `TypeOf (1)` and
+`TypeOf (2)` are the same value: a type is compared by identity as a class is
+[VAL-011], and a fresh one per call would make two Integers answer two
+different types.
+
+⚠️ **A TYPE IS NOT CONSTRUCTIBLE.** `TypeOf (42) ()` is
+`Integer is a type rather than a class, and cannot be constructed.` A declared
+class still constructs, because a class answers itself and is what it always
+was.
+
+**A class answers three things about itself**, which it could not before: its
+`Name`, its `Parent` — the class it extends, or `nil` — and its `Fields`
+[RT-031]. They are the runtime's and not the program's: a class declares
+fields for its *instances*, so there is no member of a class that a program
+could write for one of these to shadow. An instance still answers `ClassName`
+[CLS-008], which is a different question asked of a different thing.
+
+**A class also answers its `Methods` and its `Properties`**, each a Map from
+the member's name as written to a List of its signatures — a List per name
+because two methods of one name are an overload set [FUN-013]. A signature is
+the List of its parameters' declared types, bare: a parameter of
+`List of Integer` reads as `List`, which is what a field of that type answers
+too.
+
+⚠️ **THESE ARE THE CLASS'S OWN, WHERE `Fields` ANSWERS THE WHOLE CHAIN**, and
+the asymmetry is the point rather than an oversight. An instance holds every
+inherited field as its own state, so a record of it needs all of them — while
+an overridden method **replaces** the one above it [CLS-011], so merging the
+chain would put an override and an overload under one name with no way to tell
+them apart. `Parent` walks.
+
+**A `property` is listed apart from a method** because its read is its call
+[CLS-017]: a describer wants both, and a record built from the field list must
+not write through one.
+
+**A class answers one METHOD besides these, `Accepts`** [RT-035], and nothing
+else: a method of the program's own needs an instance, so a class value's
+surface is the runtime's entire answer and
+`TypeOf (5).Nope (1)` is `Undefined property 'Nope'.` Every name on it is a
+member, so a member wins over an extension of the name [EXP-022] — which
+costs an extension called `Name` or `Accepts` the call on a class, and is why
+it is a member list rather than a handful of special cases.
+
+    conformance  0219-typeof-answers-a-type.a24
+    conformance  0220-a-class-lists-its-methods.a24
+
+##### conformance/0220-a-class-lists-its-methods.a24
+
+```algol24
+// RT-032: a class answers the methods and properties it declares ITSELF.
+class Base;
+begin
+    constructor Init ();
+    begin
+    end
+
+    function Inherited () : Integer;
+    begin
+        Exit 1;
+    end
+end
+
+class Shape (Base);
+var
+    Sides : Integer;
+begin
+    constructor Init ();
+    begin
+        super.Init ();
+        Sides := 3;
+    end
+
+    function Area () : Integer;
+    begin
+        Exit Sides;
+    end
+
+    // Two of one name are an overload set [FUN-013], so a name holds a List
+    // of signatures rather than one.
+    function Scale (By : Integer) : Integer;
+    begin
+        Exit Sides * By;
+    end
+
+    function Scale (By : Double, Twice : Boolean) : Integer;
+    begin
+        Exit 0;
+    end
+
+    // A property is listed apart, because its read is its call [CLS-017].
+    property Wide : Boolean;
+    begin
+        Exit Sides > 4;
+    end
+end
+
+var S := Shape ();
+
+WriteLn (TypeOf (S).Methods);
+WriteLn (TypeOf (S).Properties);
+
+// Its OWN, so an inherited method is reached through Parent rather than
+// merged -- an override replaces where an inherited field does not [CLS-011].
+WriteLn (TypeOf (S).Parent.Methods);
+```
+
+```console
+$ algc conformance/0220-a-class-lists-its-methods.a24
+[Init:[[]], Area:[[]], Scale:[[Integer], [Double, Boolean]]]
+[Wide:[[]]]
+[Init:[[]], Inherited:[[]]]
+```
+
+##### conformance/0219-typeof-answers-a-type.a24
+
+```algol24
+// RT-032: a value's type, as a value.
+class Animal;
+var
+    Legs : Integer;
+begin
+    constructor Init ();
+    begin
+        Legs := 4;
+    end
+end
+
+class Dog (Animal);
+begin
+    constructor Init ();
+    begin
+        super.Init ();
+    end
+end
+
+var D := Dog ();
+
+// An instance answers its class, which answers its own name and parent.
+WriteLn (TypeOf (D).Name);
+WriteLn (TypeOf (D).Parent.Name);
+WriteLn (TypeOf (D).Fields);
+
+// A class is already a type, so it answers itself.
+WriteLn (TypeOf (Dog) = Dog);
+
+// Everything else answers a type carrying its name.  A one-character literal
+// is a Char and not a String [TYP-003], which this is a fair reminder of.
+WriteLn (TypeOf (42).Name);
+WriteLn (TypeOf ('text').Name);
+WriteLn (TypeOf ('x').Name);
+
+// Interned, so a type compares by identity as a class does [VAL-011].
+WriteLn (TypeOf (1) = TypeOf (2));
+WriteLn (TypeOf (1) = TypeOf (1.5));
+
+// nil has no type.
+WriteLn (TypeOf (nil) = nil);
+
+// A type is not a class: constructing one is refused rather than answered.
+try
+    var Wrong := TypeOf (42) ();
+    WriteLn ('constructed');
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0219-typeof-answers-a-type.a24
+Dog
+Animal
+[Legs:Integer]
+true
+Integer
+String
+Char
+true
+false
+true
+Integer is a type rather than a class, and cannot be constructed.
+```
+
+**[RT-033]**  `Member (X, Name)` reads a member by a name the program
+computed, and `Invoke (X, Name, Args)` calls one. Both answer exactly what the
+written form answers, including its diagnostic for a name the class has not
+got — `Member (P, 'Nope')` is `Undefined property 'Nope'.`
+
+`Args` is a `List`, empty for a call that takes nothing.
+
+**`Member` reaches a property and `Invoke` does not.** A property's read *is*
+its call [CLS-017], so reading one through `Member` runs it and answers the
+value, while calling it through `Invoke` is
+`'Rich' is a property; read it rather than calling it.` They are two
+operations and the class table already tells them apart; letting a call reach
+a property would be a second way to do what `Member` does, and would let
+generic code "call" something there is nothing to write back through.
+
+⚠️ **THESE REACH A PRIVATE MEMBER, AND THAT IS A TRAPDOOR RATHER THAN AN
+OVERSIGHT.** `private` is settled before the program runs and nothing records
+it at run time [DCL-011], so a computed name reaches what a written one may
+not. Reflection can therefore do what written code cannot. It is stated here
+so that it is met on purpose: the guard that remains is `uses`, since the
+reading sugar a program actually writes is an extension [MOD-015].
+
+    conformance  0221-a-member-by-computed-name.a24
+
+##### conformance/0221-a-member-by-computed-name.a24
+
+```algol24
+// RT-033: reading and calling a member by a name the program computed.
+class Prop;
+var
+    Name  : String;
+    Worth : Integer;
+begin
+    constructor Init ();
+    begin
+        Name  := 'widget';
+        Worth := 42;
+    end
+
+    function Scaled (By : Integer) : Integer;
+    begin
+        Exit Worth * By;
+    end
+
+    function Plain () : String;
+    begin
+        Exit Name;
+    end
+
+    property Rich : Boolean;
+    begin
+        Exit Worth > 10;
+    end
+
+    private:
+    function Secret () : Integer;
+    begin
+        Exit Worth + 1;
+    end
+end
+
+var P := Prop ();
+
+// A generic walk: every field read by a name that came from the class
+// itself rather than from the program's text [RT-031].
+for var F in Fields (P) do
+    WriteLn (F, ' = ', Str (Member (P, F)));
+
+WriteLn (Invoke (P, 'Plain', []));
+WriteLn (Invoke (P, 'Scaled', [3]));
+
+// A property is READ and not called.
+WriteLn (Member (P, 'Rich'));
+
+try
+    WriteLn (Invoke (P, 'Rich', []));
+except
+    on e : String do WriteLn (e);
+end
+
+// A private member is reachable by a computed name, which written code
+// cannot do.
+WriteLn (Invoke (P, 'Secret', []));
+
+try
+    WriteLn (Member (P, 'Nope'));
+except
+    on e : String do WriteLn (e);
+end
+```
+
+```console
+$ algc conformance/0221-a-member-by-computed-name.a24
+Name = widget
+Worth = 42
+widget
+126
+true
+'Rich' is a property; read it rather than calling it.
+43
+Undefined property 'Nope'.
+```
+
+**[RT-034]**  `New (T, Args)` constructs an instance of a type held as a
+value, and `SetMember (X, Name, Value)` writes a field by a name the program
+computed. `Args` is a `List`, empty for a class that takes nothing.
+
+Both answer exactly what the written form answers. `New` selects among the
+constructors on the argument values like a written construction [FUN-013], so
+a declared parameter type is checked [CLS-004] and a final `list of T`
+absorbs [FUN-005]; a type rather than a class is refused as [RT-032] says.
+`SetMember` folds the name [SRC-011] and finds an inherited field, and an
+instance is **closed** — a field the class never declared is
+`Undefined property 'Nope'.` rather than a new member.
+
+**A by-name write honours the type the field's declaration wrote**, because an
+assignment is an assignment context [VAL-001]: an Integer into a `Double`
+field widens to a Double, and a value outside a subrange is refused by name.
+Nothing stricter — the gradual check that would refuse a `String` into an
+`Integer` field belongs to the type checker, which has no text to look at
+here, so `SetMember` is exactly as permissive at run time as
+`X.Field := <untyped>` already is.
+
+**A property cannot be written either way.** The written form is refused
+before the program runs [CLS-017]; a computed name has nothing to refuse
+early, so the same sentence is raised when the write is attempted —
+`'Rich' is a property of Thing and cannot be assigned.`
+
+    conformance  0222-construction-and-writing-by-name.a24
+
+##### conformance/0222-construction-and-writing-by-name.a24
+
+```algol24
+// RT-034: constructing, and writing a field, by a name the program computed.
+type Digit = 0 .. 9;
+
+class Base;
+var
+    Tag : String;
+begin
+end
+
+class Thing (Base);
+var
+    Worth : Integer;
+    Ratio : Double;
+    Small : Digit;
+begin
+    constructor Init (W : Integer);
+    begin
+        Worth := W;
+    end
+
+    property Rich : Boolean;
+    begin
+        Exit Worth > 10;
+    end
+end
+
+// A type held as a value constructs, selecting on the arguments.
+var T := New (TypeOf (Thing (1)), [7]);
+WriteLn (Str (T.Worth));
+
+// A class declaring no constructor still answers an instance.
+WriteLn (Str (New (Base, []).Tag));
+
+// The write answers the value written, and the name folds [SRC-011].
+WriteLn (Str (SetMember (T, 'wORTH', 11)), ' ', Str (T.Rich));
+
+// An INHERITED field is reached, and a declared type is honoured: the
+// Integer 3 widens to the Double the field declares [VAL-001].
+WriteLn (SetMember (T, 'Tag', 'inherited'));
+WriteLn (Str (SetMember (T, 'Ratio', 3)));
+
+try WriteLn (Str (SetMember (T, 'Small', 99)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (SetMember (T, 'Rich', True)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (SetMember (T, 'Nope', 1)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (SetMember (5, 'Nope', 1)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (New (TypeOf (5), [])));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (New (Thing, 3)));
+except on E : String do WriteLn (E); end
+
+// A wrong argument type is a SELECTION failure and not an undefined name
+// [EXP-013], which is what a wrong count reports for a method too [0049].
+try WriteLn (Str (New (Thing, ['x'])));
+except on E : String do WriteLn (E); end
+```
+
+```console
+$ algc conformance/0222-construction-and-writing-by-name.a24
+7
+nil
+11 true
+inherited
+3.0
+99 is not in Digit.
+'Rich' is a property of Thing and cannot be assigned.
+Undefined property 'Nope'.
+Only instances have fields.
+Integer is a type rather than a class, and cannot be constructed.
+New expects a List of arguments.
+No matching signature for Thing.
+```
+
+**[RT-035]**  `T.Accepts (X)` answers whether `X` satisfies the type `T`,
+where `T` is a type held as a **value** [RT-032]. It is the dynamic form of
+`is`, and it answers exactly what `X is T` answers where `T` can be written:
+an instance satisfies its own class and every class above it [STM-017], a
+`nil` satisfies nothing [VAL-005], and an Integer does not satisfy `Double` —
+widening is an assignment rule and not a test.
+
+**`is` keeps its written form and this does not replace it.** A written type
+name is resolved where the program is compiled — to a kind code or a class
+handle, which is worth about 10% where type tests are hot — and a computed
+type cannot be. So the two are one decision reached two ways rather than two
+rules: each processor answers `Accepts` through whatever already answers `is`.
+
+`T.Accepts` without a call is the member as a value [FUN-011], as any other
+member read is.
+
+    conformance  0223-a-type-tested-at-run-time.a24
+
+##### conformance/0223-a-type-tested-at-run-time.a24
+
+```algol24
+// RT-035: the dynamic form of `is`, over a type held as a value.
+class Animal;
+var
+    Name : String;
+begin
+    constructor Init (); begin Name := 'a'; end
+end
+
+class Dog (Animal);
+begin
+end
+
+var D := Dog ();
+var A := Animal ();
+
+// A declared class names itself, and an instance satisfies every class above
+// it [STM-017] -- but not one below.
+WriteLn (Str (Animal.Accepts (D)), ' ', Str (TypeOf (D).Accepts (A)));
+
+// A built-in type answers for the values of that type and no other.  An
+// Integer is not a Double: widening is an assignment rule, not a test.
+WriteLn (Str (TypeOf (5).Accepts (5)), ' ', Str (TypeOf (5).Accepts ('x')),
+         ' ', Str (TypeOf (1.5).Accepts (1)));
+
+// nil HAS NO TYPE, so it satisfies nothing [VAL-005].
+WriteLn (Str (TypeOf (5).Accepts (nil)));
+
+// The member read without a call is a value [FUN-011].
+var F := TypeOf (5).Accepts;
+WriteLn (Str (F), ' ', Str (F (7)));
+
+// A class value answers nothing else: a method of the program's own needs an
+// instance, so the surface is the runtime's entire answer [RT-032].
+try WriteLn (Str (TypeOf (5).Nope (1)));
+except on E : String do WriteLn (E); end
+
+try WriteLn (Str (TypeOf (5).Accepts ()));
+except on E : String do WriteLn (E); end
+```
+
+```console
+$ algc conformance/0223-a-type-tested-at-run-time.a24
+true false
+true false false
+false
+<fn Accepts> true
+Undefined property 'Nope'.
+Expected 1 arguments but got 0.
+```
+
 **[RT-015]**  `Write` and `WriteLn` write their stringified values to standard
 output, `WriteLn` following them with `#10` — always that byte, never the host's
 line separator, so one program writes the same bytes everywhere.
@@ -13656,7 +14226,7 @@ takes.
 
 **A declared count is taken over entirely.** Where a declaration claims a count,
 the built-in is not reached at that count even for arguments the declaration does
-not fit — that is *No matching signature for function.* [EXP-014] and not a
+not fit — that is *No matching signature for <name>.* [EXP-014] and not a
 reason to fall through. Otherwise a wrong call would silently reach a different
 subprogram than the one written, which is the failure this rule exists to avoid.
 
@@ -14976,7 +15546,7 @@ productions from memory is not.
 
 ## Annex B — index of built-in functions *(non-normative)*
 
-The thirty-five built-in names, with the rule specifying each. `spec/spec.sh`
+The forty-one built-in names, with the rule specifying each. `spec/spec.sh`
 checks this list — and the count in this sentence — against the names the
 interpreter actually registers.
 
@@ -14993,6 +15563,12 @@ interpreter actually registers.
 | `Map` | [COL-002] | An empty Map |
 | `Set` | [COL-002] | An empty Set, or a Set of a collection's values |
 | `Stack` | [COL-002] | An empty Stack |
+| `Fields` | [RT-031] | The fields a value's class declares, name to declared type |
+| `TypeOf` | [RT-032] | A value's type, as a value |
+| `Member` | [RT-033] | A member read by a computed name |
+| `Invoke` | [RT-033] | A method called by a computed name |
+| `New` | [RT-034] | An instance of a type held as a value |
+| `SetMember` | [RT-034] | A field written by a computed name |
 | `Ord` | [RT-007] | The code point of one character, as an Integer |
 | `Succ` | [RT-020] | The next ordinal — a Char or an Integer |
 | `Pred` | [RT-020] | The previous ordinal, on the same terms |

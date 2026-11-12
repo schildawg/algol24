@@ -2653,12 +2653,19 @@ begin
                  + ClassHandle (SuperName) + ');');
         end
 
+        // The DECLARED type travels with the name, because a class is
+        // readable at run time and a field's type is half of what it answers.
+        // '' where none was written, which a gradually typed language permits
+        // and no program in six codebases writes.
         for var EachField in Fields do
             Built (Hoisted, 'alg_class_field(' + Handle + ', '
-                 + QuoteC (Str (EachField.Name.Lexeme)) + ');');
+                 + QuoteC (Str (EachField.Name.Lexeme)) + ', '
+                 + QuoteC (CanonicalType (Str (EachField.TypeName))) + ');');
 
+        // A singleton with no Id of its own gets one holding its NAME, which
+        // the initializer sets with alg_literal -- so the type is String.
         if AddId then
-            Built (Hoisted, 'alg_class_field(' + Handle + ', "Id");');
+            Built (Hoisted, 'alg_class_field(' + Handle + ', "Id", "String");');
 
         Built (Hoisted, 'alg_class_initializer(' + Handle + ', ' + Initializer + ');');
 
@@ -3191,7 +3198,8 @@ begin
                 if Volatiles then Qualifier := 'Value *volatile ';
 
                 Line (Qualifier + Cell (ParamName) + ' = alg_cell('
-                    + BoundArgument (TheStmt.Params, TheStmt.ParamTypes, I) + ');');
+                    + BoundArgument (ReportedName (TheStmt), TheStmt.ParamTypes, I)
+                    + ');');
                 Line ('(void)' + Cell (ParamName) + ';');
 
                 Cells.Add (ParamName);
@@ -3199,7 +3207,8 @@ begin
             else
             begin
                 DeclareLocal (VariableName (ParamName),
-                              BoundArgument (TheStmt.Params, TheStmt.ParamTypes, I));
+                              BoundArgument (ReportedName (TheStmt),
+                                             TheStmt.ParamTypes, I));
             end
         end
 
@@ -3407,6 +3416,28 @@ begin
             end
 
             Exit Missing (Name, TheExpr.Name);
+        end
+
+        // ⚠️ A CLASS NAME READ AS A VALUE IS THE CLASS, not a variable of that
+        // name, and this back end used to emit the variable.  The guard above
+        // lets a class through -- it is a name the program declared, so it is
+        // not Missing -- and the line below then wrote `v_dog`, an identifier
+        // nothing declares, so the EMITTED C did not build.  Both other
+        // processors answer the class: `var T := Dog;` and `Show (Dog)` run
+        // interpreted and on the machine.
+        //
+        // A declared variable of the name still wins, which is why the two
+        // tests come first.  VisibleClasses is required rather than assumed:
+        // the handle is a C symbol and `static` in a root file, so a class
+        // this file cannot see has no handle to name and is refused by name
+        // instead of emitted as something that will not link.
+        if Classes.Contains (FoldCase (Name)) and not Locals.Contains (Name)
+                                              and not Globals.Contains (Name) then
+        begin
+            if VisibleClasses.Contains (FoldCase (Name)) then
+                Exit ClassHandle (Name);
+
+            Unsupported ('A class held as a value where its handle is out of scope');
         end
 
         Exit Guarded (Name, VariableName (Name));
@@ -4013,7 +4044,7 @@ begin
     /// what ALG_ANY_ARITY leaves it to do.  A single count takes alg_arity, so
     /// the wording is the runtime's own; several take alg_arity_counts, because
     /// 'Expected 1, 2 or 3 arguments but got 4.' is a sentence alg_arity cannot
-    /// word and an overload set answers 'No matching signature for function.'
+    /// word and an overload set answers 'No matching signature for <Name>.'
     /// for -- right for a subprogram and wrong here, where the fault is the
     /// count and nothing about the types.
     procedure EmitBuiltinThunk (Symbol : String, Name : String, Counts : List);
@@ -4139,6 +4170,12 @@ begin
         if Key = 'str/1'     then Exit 'alg_str';
         if Key = 'str/2'     then Exit 'alg_str_fixed';
         if Key = 'str/3'     then Exit 'alg_str_padded';
+        if Key = 'fields/1'  then Exit 'alg_fields';
+        if Key = 'typeof/1'  then Exit 'alg_type_of';
+        if Key = 'member/2'  then Exit 'alg_member';
+        if Key = 'invoke/3'  then Exit 'alg_invoke_by_name';
+        if Key = 'new/2'     then Exit 'alg_construct';
+        if Key = 'setmember/3' then Exit 'alg_set_member';
         if Key = 'length/1'  then Exit 'alg_text_length';
         if Key = 'copy/3'    then Exit 'alg_copy';
         if Key = 'pos/2'     then Exit 'alg_pos';
@@ -4550,7 +4587,7 @@ begin
         // the set rather than to whichever candidate was reached first.
         if Declared.Contains (Name) and not Shadowed
                                     and BuiltinCounts (Name).Length > 0 then
-            Exit '(alg_error(' + QuoteC ('No matching signature for function.')
+            Exit '(alg_error(' + QuoteC ('No matching signature for ' + Name + '.')
                + '), alg_nil())';
 
         if Classes.Contains (FoldCase (Name)) then
@@ -4647,7 +4684,13 @@ begin
     end
 
     /// Emits one parameter's binding at the top of a subprogram body.
-    function BoundArgument (Params : Any, Types : Any, I : Integer) : String;
+    ///
+    /// The subprogram's name goes with it, because alg_param is the one place
+    /// a selection failure is reported with nothing else to hand: a lone
+    /// subprogram binds its parameters one at a time, so there is no candidate
+    /// list and no receiver there.  Qualified by the enclosing class where
+    /// there is one, so a method reports what the other two processors report.
+    function BoundArgument (Called : Any, Types : Any, I : Integer) : String;
     begin
         var Slot := 'args[' + Str (I) + ']';
 
@@ -4656,7 +4699,19 @@ begin
         var Declared := Str (Types[I]);
         if Declared = '' or Declared = 'Any' then Exit Slot;
 
-        Exit 'alg_param(' + Slot + ', ' + QuoteC (Declared) + ')';
+        Exit 'alg_param_of(' + Slot + ', ' + QuoteC (Declared) + ', '
+           + QuoteC (Str (Called)) + ')';
+    end
+
+    /// The name a diagnostic should call this subprogram, qualified by the
+    /// class whose body is being emitted where there is one.
+    function ReportedName (TheStmt : Any) : String;
+    begin
+        var Written := Str (TheStmt.Name.Lexeme);
+
+        if CurrentClass <> '' then Exit CurrentClass + '.' + Written;
+
+        Exit Written;
     end
 
     /// Whether every element of a collection literal is itself a literal.

@@ -581,6 +581,15 @@ var COLLECT_EVERY := 0;
 /// Instructions since the last collection.
 var Tick : Integer := 0;
 
+/// One synthetic class per built-in type name, so TypeOf answers the same
+/// value twice and `TypeOf (1) = TypeOf (2)` is true [VAL-011].
+///
+/// A module-level variable of Vm.a24, so the collector reaches it as a root
+/// without being told -- which is what makes it safe where the C runtime's
+/// equivalent had to be marked by hand.  The underscores are deliberate: a
+/// module-level table needs a name no local would reach for [SRC-011].
+var TYPE_VALUES := Map ();
+
 /// Whether to dispatch through the hand-written C loop rather than this one.
 ///
 /// FALSE by default, and the default is what makes `./test.sh vm/Vm.a24` work:
@@ -839,7 +848,17 @@ end
 /// The arguments are given rather than taken from the stack, because the
 /// caller here is a HANDLER -- the host operation that needed the member -- and
 /// what it holds is values, not stack positions.
-function CallNested (Receiver : Any, Name : Any, Args : List) : Any;
+/// Calls a member by name, or constructs, from inside a handler.
+///
+/// `Name` Nil means CONSTRUCT the receiver rather than invoke a member of it,
+/// which is the only difference between the two and is why they share one
+/// body: the save-and-restore below is what makes a nested run safe, and two
+/// copies of it would be two chances to disagree about what has to be put
+/// back.
+///
+/// # Satisfies
+/// [RT-033], [RT-034]
+function NestedRun (Receiver : Any, Name : Any, Args : List) : Any;
 var
     WasRunning : Any;
     WasCells   : Any;
@@ -861,12 +880,51 @@ begin
     // floor that ends the nested loop.
     StopDepth := FrameDepth + 1;
 
-    Push (Receiver);
-    for var Each in Args do Push (Each);
+    var Got    : Any;
+    var Failed : Any;
+    var Blew   := False;
 
-    InvokeMember (Name, Args.Length, List ());
+    // ⚠️ THE SAVED STATE MUST GO BACK EVEN WHERE THE NESTED WORK RAISES, and
+    // for the machine's whole life it did not.  Entering the callee can fail
+    // before any frame is entered -- a selection failure, a property guard, a
+    // class that is really a type -- and the restore below was simply skipped,
+    // leaving StopDepth and Base describing a frame that no longer existed.
+    // The program then went on to give every right answer and died at its last
+    // statement with `Index -1 out of range`, which names neither the nested
+    // run nor the raise.
+    //
+    // Caught and re-raised rather than restored twice: one restore cannot
+    // disagree with itself, and a nested subprogram holding it would cost a
+    // closure per render -- INSTANCE_RENDERER comes through here.
+    try
+        Push (Receiver);
+        for var Each in Args do Push (Each);
 
-    var Got := RunLoop ();
+        if Name = Nil then CallValue (Receiver, Args.Length);
+        else InvokeMember (Name, Args.Length, List ());
+
+        // ⚠️ RUNLOOP MUST NOT BE ENTERED WHERE NOTHING WAS, or it goes on
+        // running the CALLER's bytecode from wherever IP stands.  A class
+        // declaring no constructor has no frame to enter: CallValue has
+        // already put the instance where the class was and taken nothing, so
+        // it is simply read back off the stack.
+        if FrameDepth > WasDepth then Got := RunLoop ();
+        else Got := Pop ();
+    except
+        // ⚠️ `on E : Any` MATCHES NOTHING, which is the trap this was written
+        // with first.  `Any` is the absence of a written type rather than a
+        // type a value can be tested against, so `X is Any` is false for
+        // everything [VAL-005] and the arm never selects -- the raise then
+        // flew past this handler to RunLoop's, which is exactly the symptom
+        // being fixed.  A String is complete here: a host error is one, and a
+        // guest raise no handler of the program's took reaches this as
+        // `raise Str (Value)` from DoRaise.
+        on E : String do
+        begin
+            Failed := E;
+            Blew   := True;
+        end
+    end
 
     Running    := WasRunning as Chunk;
     CodeBytes  := WasCode;
@@ -886,7 +944,31 @@ begin
     Answer     := WasAnswer;
     Live       := WasLive;
 
+    // Re-raised with the machine put back, so the guest's own handler unwinds
+    // from a state that describes this frame rather than the nested one's.
+    if Blew then raise Failed;
+
     Exit Got;
+end
+
+/// Calls a member by name from inside a handler.
+function CallNested (Receiver : Any, Name : Any, Args : List) : Any;
+begin
+    Exit NestedRun (Receiver, Name, Args);
+end
+
+/// Constructs an instance of a class held as a value, from inside a handler.
+///
+/// Everything a written construction decides is decided by CallValue here too
+/// -- which constructor the arguments select, that its declared parameter
+/// types are checked, and that a TYPE value is refused rather than answering
+/// an 'Integer instance' [RT-032].
+///
+/// # Satisfies
+/// [RT-034]
+function ConstructNested (Callee : Any, Args : List) : Any;
+begin
+    Exit NestedRun (Callee, Nil, Args);
 end
 
 /// How an instance reads when written or converted to text.
@@ -1409,6 +1491,41 @@ begin
     Push (Left >> Right);
 end
 
+/// The name of a value's type, as the machine sees it.
+///
+/// Written here rather than reached for: TypeNameOf lives in
+/// compiler/ObjFunction and a chunk must run without the compiler, which is
+/// the same reason TypeMatches is a chain over literals rather than one
+/// comparison against a name.
+///
+/// A guest instance answers its class's name and a guest enum member its
+/// type's, because the host would answer the name of the MACHINE's class --
+/// VmInstance -- instead of the program's.
+function NameOfValueType (V : Any) : String;
+begin
+    if V = Nil then Exit 'nil';
+
+    if V is Boolean then Exit 'Boolean';
+    if V is Integer then Exit 'Integer';
+    if V is Double  then Exit 'Double';
+    if V is String  then Exit 'String';
+    if V is Char    then Exit 'Char';
+    if V is Pointer then Exit 'Pointer';
+
+    if V is VmInstance then Exit Str ((V as VmInstance).Klass.Name);
+    if V is VmEnum     then Exit Str ((V as VmEnum).TypeName);
+
+    if V is List     then Exit 'List';
+    if V is Map      then Exit 'Map';
+    if V is Set      then Exit 'Set';
+    if V is Array    then Exit 'Array';
+    if V is Stack    then Exit 'Stack';
+    if V is Buffer   then Exit 'Buffer';
+    if V is TextFile then Exit 'TextFile';
+
+    Exit 'Any';
+end
+
 /// Replaces the top with whether it is of the type its operand names.
 ///
 /// A chain over the five primitive type names, each arm using the host's own
@@ -1645,13 +1762,119 @@ end
 ///
 /// Shared by a plain call, an instantiation and a method call, which differ
 /// only in what they put beneath the arguments.
+/// How many methods of a name a class and its parents declare.
+///
+/// Asked only once selection has FAILED, to decide what to report: one
+/// candidate makes the count the whole fault, several make it ambiguous.  The
+/// chain is walked because an inherited overload is a candidate the call could
+/// have reached [EXP-014].
+///
+/// # Satisfies
+/// [EXP-014]
+function CandidateCount (Klass : Any, Folded : Any) : Integer;
+var
+    Found : Integer;
+    Where : Any;
+
+begin
+    Found := 0;
+    Where := Klass;
+
+    while Where <> Nil do
+    begin
+        if Where.Methods.Contains (Folded) then
+            Found := Found + (Where.Methods.Get (Folded) as List).Length;
+
+        Where := Where.Parent;
+    end
+
+    Exit Found;
+end
+
+/// How many candidates a class declares for a name ITSELF, ignoring its
+/// parents.
+///
+/// The question a CONSTRUCTOR wants, where a method wants the chain: the
+/// emitter gives every class an Init set covering what it can be constructed
+/// with -- a synthesized arity-0 one where it declares none, and a forwarder
+/// per inherited signature for a subclass -- so the chain holds the same
+/// signatures twice over.
+function OwnCandidates (Klass : Any, Folded : Any) : Integer;
+begin
+    if not Klass.Methods.Contains (Folded) then Exit 0;
+
+    Exit (Klass.Methods.Get (Folded) as List).Length;
+end
+
+/// The arity of a name's ONE candidate, or -1 where the name has several or
+/// none -- which is what tells NoMatchFor it may report the counts.
+function OnlyArity (Klass : Any, Folded : Any) : Integer;
+var
+    Where : Any;
+
+begin
+    if CandidateCount (Klass, Folded) <> 1 then Exit -1;
+
+    Where := Klass;
+
+    while Where <> Nil do
+    begin
+        if Where.Methods.Contains (Folded) then
+            Exit (Where.Methods.Get (Folded) as List)[0].Arity;
+
+        Where := Where.Parent;
+    end
+
+    Exit -1;
+end
+
+/// The report for a call that selected nothing.
+///
+/// The machine's copy of the interpreter's NoMatch, held to it by the corpus
+/// rather than by sharing code -- the machine may not import anything from
+/// `compiler/`.
+///
+/// Names the member and, where there is one, its class, which a selection
+/// failure never did: `No matching signature for function.` named nothing at
+/// all.  COUNTS WHERE THE NAME IS UNAMBIGUOUS -- one candidate of fixed arity
+/// called with the wrong number has the count as its whole fault, which is the
+/// split a subprogram and a constructor already made [0049] and a method did
+/// not.
+///
+/// # Satisfies
+/// [EXP-013], [EXP-014]
+function NoMatchFor (OwnerName : Any, Named : Any, Candidates : Integer,
+                     Expected : Integer, Given : Integer) : String;
+begin
+    if Candidates = 1 and Expected >= 0 and Expected <> Given then
+        Exit 'Expected ' + Str (Expected) + ' arguments but got '
+           + Str (Given) + '.';
+
+    if Str (Named) = '' then Exit 'No matching signature for function.';
+
+    // ⚠️ A CONSTRUCTOR NAMES THE CLASS ALONE, because `Init` is not a name a
+    // call site writes: a construction is `C (...)`, so `C.Init` would name
+    // something the program never said.
+    if ToLower (Str (Named)) = 'init' and Str (OwnerName) <> '' then
+        Exit 'No matching signature for ' + Str (OwnerName) + '.';
+
+    if Str (OwnerName) <> '' then
+        Exit 'No matching signature for ' + Str (OwnerName) + '.'
+           + Str (Named) + '.';
+
+    Exit 'No matching signature for ' + Str (Named) + '.';
+end
+
 ///
 /// # Raises
 ///
-/// Mismatch on the wrong argument count, supplied by the caller because a
-/// METHOD reports a selection failure where a subprogram and a constructor
-/// report the counts [0049], and 'The call stack overflowed.' past FRAME_ROOM.
-procedure EnterFrame (Callee : Any, Count : Integer, Mismatch : String);
+/// The report NoMatchFor words, for a wrong count AND for a selection failure
+/// at the right count -- both from here, because the two were a precomputed
+/// sentence per caller and that is what let a method and a subprogram answer
+/// differently for one fault [0049].  'The call stack overflowed.' past
+/// FRAME_ROOM.
+procedure EnterFrame (Callee : Any, Count : Integer, OwnerName : Any,
+                      Named : Any, Candidates : Integer);
 begin
     // Gathering happens HERE, so every way into a frame absorbs on the same
     // terms: a plain call, a method, a constructor and a selected overload.
@@ -1670,7 +1893,7 @@ begin
         // check and is stricter than it: `Total ('a', 1, 2, 'red')` has a
         // stray argument of the wrong TYPE rather than one too many.
         else if Str (CalleeSignature (Callee).Element) <> '' then
-            raise 'No matching signature for function.';
+            raise NoMatchFor (OwnerName, Named, Candidates, -1, Count);
 
         // And a FIXED-arity callee whose arguments do not fit at the right
         // count is a selection failure too: [EXP-013] puts even a lone
@@ -1687,11 +1910,11 @@ begin
         // it: refusals/0042 compares the message and `vm/conform.sh` walked
         // only conformance/, so the refusal corpus had never run here at all.
         else if Count = Callee.Arity then
-            raise 'No matching signature for function.';
+            raise NoMatchFor (OwnerName, Named, Candidates, -1, Count);
     end
 
     if Count <> Callee.Arity then
-        raise Mismatch;
+        raise NoMatchFor (OwnerName, Named, Candidates, Callee.Arity, Count);
 
     if FrameDepth >= FRAME_ROOM then begin OUT_OF_ROOM := True; raise 'The call stack overflowed.'; end
 
@@ -1832,12 +2055,22 @@ begin
         // the parent's and the receiver's own class would find the override.
         if Callee.From <> Nil then
         begin
-            var Found := ChosenMethod (Callee.From,
-                                       ToLower (Str (Callee.Written)), Count);
+            var Member := ToLower (Str (Callee.Written));
+            var Found   := ChosenMethod (Callee.From, Member, Count);
+            var Held    := CandidateCount (Callee.From, Member);
 
-            if Found = Nil then raise 'No matching signature for function.';
+            if Found = Nil then
+            begin
+                var Only := -1;
 
-            EnterFrame (Found, Count, 'No matching signature for function.');
+                if Held = 1 then
+                    Only := (Callee.From.Methods.Get (Member) as List)[0].Arity;
+
+                raise NoMatchFor (Callee.From.Name, Callee.Written, Held,
+                                  Only, Count);
+            end
+
+            EnterFrame (Found, Count, Callee.From.Name, Callee.Written, Held);
 
             Exit;
         end
@@ -1900,6 +2133,13 @@ begin
     // field assignment in the constructor reaches the thing being made.
     if Callee is VmClass then
     begin
+        // A TYPE IS NOT A CLASS.  TypeOf answers a synthetic class for a
+        // built-in type name, and constructing one would answer an 'Integer
+        // instance' -- a wrong answer rather than a refusal [RT-032].
+        if (Callee as VmClass).IsType then
+            raise Str ((Callee as VmClass).Name)
+                + ' is a type rather than a class, and cannot be constructed.';
+
         Slots[SP - Count - 1] := VmInstance (Callee);
 
         // A CONSTRUCTOR may be overloaded like any other method, so which one
@@ -1924,8 +2164,18 @@ begin
         // processor made it -- the interpreter fell through to a type-blind
         // lookup and the compiled back end passed `strict = false` to one
         // call.  Both check now, so the flag is gone.
-        EnterFrame (Setup, Count, 'Expected ' + Str (Setup.Arity)
-                                + ' arguments but got ' + Str (Count) + '.');
+        // The CLASS is what a construction names, because `Box (...)` is what
+        // the program wrote -- there is no `Box.Init` at a call site.
+        //
+        // ⚠️ THIS CLASS'S OWN CONSTRUCTORS, not the chain's.  The emitter gives
+        // a class with no constructor a synthesized arity-0 Init, and a
+        // subclass declaring none a forwarding Init PER INHERITED SIGNATURE --
+        // so a class's own set already covers everything it can be constructed
+        // with, and walking the chain counted `AlsoBare (Bare)` as two
+        // candidates and called the count ambiguous where both other
+        // processors reported it.
+        EnterFrame (Setup, Count, '', (Callee as VmClass).Name,
+                    OwnCandidates (Callee, 'init'));
 
         Exit;
     end
@@ -1935,10 +2185,18 @@ begin
     if Callee is VmOverloads then
     begin
         var Picked := Chosen (Callee, Count);
+        var Held    := (Callee.Candidates as List).Length;
 
-        if Picked = Nil then raise 'No matching signature for function.';
+        if Picked = Nil then
+        begin
+            var Only := -1;
 
-        EnterFrame (Picked, Count, 'No matching signature for function.');
+            if Held = 1 then Only := (Callee.Candidates as List)[0].Arity;
+
+            raise NoMatchFor ('', Callee.Name, Held, Only, Count);
+        end
+
+        EnterFrame (Picked, Count, '', Callee.Name, Held);
 
         Exit;
     end
@@ -1950,11 +2208,11 @@ begin
         // the two processors printed different text for one fault.
         raise 'Can only call functions and classes.';
 
-    // A plain subprogram and a constructor report the COUNTS; only a METHOD
-    // reports a selection failure.  0049-call-failures draws the line and all
-    // five of its reports are compared, so the split is not a choice.
-    EnterFrame (Callee, Count, 'Expected ' + Str (Callee.Arity)
-                             + ' arguments but got ' + Str (Count) + '.');
+    // ONE candidate, so a wrong count reports the counts and a wrong type at
+    // the right count names the subprogram.  A method says the same now --
+    // 0049's five reports used to split them, and the split was the thing the
+    // library asked to have removed.
+    EnterFrame (Callee, Count, '', Callee.Name, 1);
 end
 
 /// Replaces the top two -- a collection and an index -- with the element.
@@ -2022,9 +2280,12 @@ end
 /// 0033-no-computed-property is about.  Anything else gets the five
 /// properties the runtime has.
 ///
-/// A method reached WITHOUT parentheses is the method as a value, which wants
-/// a bound-method object this machine does not have yet -- so it is refused by
-/// name rather than answered wrongly.
+/// A method reached WITHOUT parentheses is the method as a value [FUN-011],
+/// answered as a VmBound carrying the receiver it was read from -- which is
+/// also how a class value's one method is answered, since CallValue sends a
+/// VmBound back through InvokeMember.  This said the machine had no such
+/// object and refused the read by name, which stopped being true when VmBound
+/// was written.
 ///
 /// # Raises
 ///
@@ -2049,6 +2310,83 @@ begin
         Exit Member;
     end
 
+    // A CLASS, ASKED ABOUT ITSELF [RT-032].  A VmSingleton is its own class
+    // and not a VmClass, so the arm below still turns an `object` into the
+    // instance it stands for and this reaches only a class named as one.
+    // These three are the runtime's rather than the program's, since a class
+    // declares fields for its INSTANCES and so has no member of its own that
+    // a program could write.
+    if Self is VmClass then
+    begin
+        if Named = 'name'   then Exit Str ((Self as VmClass).Name);
+        if Named = 'parent' then Exit (Self as VmClass).Parent;
+
+        // The one member of the surface that takes an argument, so it answers
+        // a bound member here and is decided in InvokeMember [RT-035] -- which
+        // is what makes `T.Accepts` held as a value and `T.Accepts (X)` the
+        // same one decision, since CallValue sends a VmBound back through
+        // InvokeMember.
+        if Named = 'accepts' then Exit VmBound (Self, Str (Written));
+
+        if Named = 'fields' then
+        begin
+            var Shape := Map ();
+
+            (Self as VmClass).FieldsInto (Shape);
+
+            Exit Shape;
+        end
+
+        // This class's OWN methods, where Fields answers the whole chain: an
+        // overridden method replaces the one above it, so merging would put
+        // an override and an overload under one name with no way to tell
+        // them apart.  Parent walks.
+        if Named = 'methods' or Named = 'properties' then
+        begin
+            var WantProperties := Named = 'properties';
+            var Listed         := Map ();
+            var Declared       := (Self as VmClass).Methods;
+
+            for var Key in Declared do
+            begin
+                // ⚠️ CTOR_BODY IS NOT A METHOD A PROGRAM HAS.  A constructor
+                // is registered twice -- as `init` with the field prologue
+                // and again under a name holding a SPACE for a subclass to
+                // forward into -- and both VmFunctions are named Init, so
+                // listing by name merged them and answered one constructor
+                // as two.  The key is emitter-to-machine contract.
+                if Str (Key) = CTOR_BODY then continue;
+
+                var IsProperty := (Self as VmClass).Properties.Contains (Key);
+
+                if IsProperty <> WantProperties then continue;
+
+                var Found := Declared.Get (Key) as List;
+
+                for var I : Integer := 0; I < Found.Length; I := I + 1 do
+                begin
+                    var Each    := Found[I] as VmFunction;
+                    var Written := Str (Each.Name);
+
+                    if not Listed.Contains (Written) then Listed.Put (Written, List ());
+
+                    var Shape := List ();
+
+                    // Written rather than Types: a subrange is resolved in
+                    // Types for selection, and reflection answers what the
+                    // program wrote, as the other two processors do.
+                    for var T in Each.Written do Shape.Add (Str (T));
+
+                    (Listed.Get (Written) as List).Add (Shape);
+                end
+            end
+
+            Exit Listed;
+        end
+
+        raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
+    end
+
     // An OBJECT answers like the instance it stands for, and asking is what
     // builds it.
     if Self is VmSingleton then Exit MemberOf (Materialised (Self), Written);
@@ -2059,7 +2397,7 @@ begin
         // belongs to the language and a field cannot take it [CLS-008].
         if Named = 'classname' then Exit Self.Klass.Name;
 
-        // A PROPERTY answers on a read by being CALLED [CLS-012], which is the
+        // A PROPERTY answers on a read by being CALLED [CLS-017], which is the
         // one way a member read differs from reading a method as a value.
         if Self.Klass.HasPropertyFolded (Named) then
             Exit CallNested (Self, Written, List ());
@@ -2226,8 +2564,17 @@ begin
 
     if Self is VmEnum then Exit Named = 'ordinal' or Named = 'name';
 
+    // A CLASS VALUE'S SURFACE IS A MEMBER LIST LIKE ANY OTHER, so a member
+    // wins over an extension of the name [EXP-022].  This answered False for
+    // every name, so an extension called `Name` or `Accepts` captured the
+    // call on a class.
+    if Self is VmClass then
+        Exit Named = 'name'       or Named = 'parent'
+          or Named = 'fields'     or Named = 'methods'
+          or Named = 'properties' or Named = 'accepts';
+
     if Self is VmFunction or Self is VmClosure
-            or Self is VmClass or Self is VmOverloads
+            or Self is VmOverloads
             or Self is VmExtension then Exit False;
 
     // The runtime's five properties, then the host's methods.
@@ -2425,6 +2772,37 @@ begin
         Slots[SP - Count - 1] := Self;
     end
 
+    // A TYPE VALUE answers ONE method, and a program's own are not among
+    // them: a method wants an instance, so a class value's surface is the
+    // runtime's alone [RT-032] and nothing a program declares is shadowed.
+    //
+    // Answered through TypeMatches, so the dynamic test and the written `is`
+    // are one decision [RT-035]: a subclass instance, a built-in type's name
+    // and a nil each answer whatever the machine already makes them answer.
+    if Self is VmClass then
+    begin
+        if Name = 'accepts' then
+        begin
+            if Count <> 1 then
+                raise 'Expected 1 arguments but got ' + Str (Count) + '.';
+
+            var Asked := Pop ();
+
+            Pop ();
+
+            // ⚠️ TypeMatches TAKES A FOLDED NAME, which two ToLower calls
+            // inside it hide: the subrange lookup and the singleton recursion
+            // fold, and every comparison after them is against a lowercase
+            // literal.  Handing it the written `Integer` made it answer false
+            // for everything, including `TypeOf (5).Accepts (5)`.
+            Push (TypeMatches (Asked, ToLower (Str ((Self as VmClass).Name))));
+
+            Exit;
+        end
+
+        raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
+    end
+
     if Self is VmInstance then
     begin
         // Arranged BEFORE selection, because the arrangement decides the arity
@@ -2474,10 +2852,15 @@ begin
                 raise 'Undefined property ' + QUOTE + Str (Written) + QUOTE + '.';
             end
 
-            raise 'No matching signature for function.';
+            // A METHOD NOW REPORTS THE COUNTS WHERE IT IS UNAMBIGUOUS, which
+            // a subprogram and a constructor already did [0049].
+            raise NoMatchFor (Self.Klass.Name, Written,
+                              CandidateCount (Self.Klass, Name),
+                              OnlyArity (Self.Klass, Name), Count);
         end
 
-        EnterFrame (Found, Count, 'No matching signature for function.');
+        EnterFrame (Found, Count, Self.Klass.Name, Written,
+                    CandidateCount (Self.Klass, Name));
 
         Exit;
     end
@@ -2563,26 +2946,31 @@ end
 /// widening [VAL-001] -- the interpreter's Widen does exactly these two and
 /// then a subrange range-check, which the emitter refuses here because the
 /// bounds are not reachable from a chunk.
-procedure DoWiden ();
-var
-    Named   : Any;
-    Written : Any;
-    V       : Any;
-
+/// Converts a value to a declared type where the two differ by a widening,
+/// and hands it back unchanged otherwise.
+///
+/// A function rather than only the opcode's body because a field written by a
+/// computed name has to widen too [RT-034], and its type arrives as a value
+/// rather than as an operand -- so there is nothing to read from the
+/// constants.  Two copies of this would be two chances to disagree about what
+/// a declared type means.
+///
+/// Named away from `Widened` because two bodies here and in `vm/run.a24`
+/// already declare a LOCAL of that name, and a local wins [SRC-011] -- so the
+/// function would be unreachable from exactly the files that hold it.
+///
+/// # Satisfies
+/// [VAL-001], [VAR-017]
+function WidenedTo (V : Any, Written : Any) : Any;
 begin
+    if V = Nil then Exit V;
+
     // Both spellings: the folded one decides, and the WRITTEN one goes in the
     // diagnostic -- `300 is not in Byte.` names the subrange as the program
     // spelled it.
-    Written := Constants[ReadIndex ()];
-    Named   := ToLower (Str (Written));
-    V       := Pop ();
+    var Named := ToLower (Str (Written));
 
-    if V = Nil then
-    begin
-        Push (V);
-
-        Exit;
-    end
+    if Named = '' then Exit V;
 
     // A SUBRANGE is a bounds check rather than a conversion: the value stays
     // the Integer it is, and a value outside says which subrange it missed
@@ -2592,14 +2980,23 @@ begin
         if not WithinSubrange (V, Named) then
             raise Str (V) + ' is not in ' + Str (Written) + '.';
 
-        Push (V);
-
-        Exit;
+        Exit V;
     end
 
-    if Named = 'double' and (V is Integer) then Push (V * 1.0);
-    else if Named = 'string' and (V is Char) then Push (Str (V));
-    else Push (V);
+    if Named = 'double' and (V is Integer) then Exit V * 1.0;
+    if Named = 'string' and (V is Char)    then Exit Str (V);
+
+    Exit V;
+end
+
+procedure DoWiden ();
+var
+    Written : Any;
+
+begin
+    Written := Constants[ReadIndex ()];
+
+    Push (WidenedTo (Pop (), Written));
 end
 
 /// Records a subrange's bounds, from a constant holding its name and both.
@@ -3010,7 +3407,10 @@ begin
         Where := Where.Parent;
     end
 
-    raise 'No matching signature for function.';
+    // AN ARRANGEMENT HAS EXACTLY THE DECLARED ARITY, so a failure here is a
+    // name no parameter has, one named twice, or a half-filled call -- never a
+    // count.  The member and its class are what to add.
+    raise NoMatchFor (Klass.Name, Wanted, 0, -1, Count);
 end
 
 /// Arranges a named call against whatever the callee turns out to be.
@@ -3029,7 +3429,7 @@ begin
         for var Candidate in Callee.Candidates as List do
             if ArrangeNamed (Candidate, Count, Names) then Exit;
 
-        raise 'No matching signature for function.';
+        raise NoMatchFor ('', Callee.Name, 0, -1, Count);
     end
 
     if Callee is VmClass then
@@ -3039,14 +3439,14 @@ begin
         if Setup <> Nil then
             if ArrangeNamed (Setup, Count, Names) then Exit;
 
-        raise 'No matching signature for function.';
+        raise NoMatchFor ('', Callee.Name, 0, -1, Count);
     end
 
     if Callee is VmFunction or Callee is VmClosure then
     begin
         if ArrangeNamed (Callee, Count, Names) then Exit;
 
-        raise 'No matching signature for function.';
+        raise NoMatchFor ('', Callee.Name, 0, -1, Count);
     end
 
     // A built-in's parameters are not declared in this language at all -- they
@@ -3340,6 +3740,47 @@ begin
     if Count = 1 then
     begin
         if Name = 'length'     then begin Push (Length (A));     Exit; end
+
+        // A class read at run time [RT-031].  The machine's own classes, not
+        // the host's: a guest instance is a VmInstance, so asking the host
+        // would answer the fields of the MACHINE's class instead of the
+        // program's.  The same split ParamCount and ParamStr have.
+        // A type, as a value [RT-032].  Interned, or `TypeOf (1) = TypeOf (2)`
+        // is false -- these compare by identity [VAL-011].  A class answers
+        // itself, an instance its class, and nil answers nil because nil has
+        // no type.
+        if Name = 'typeof' then
+        begin
+            if A = Nil        then begin Push (Nil); Exit; end
+            if A is VmClass   then begin Push (A);   Exit; end
+
+            if A is VmInstance then begin Push ((A as VmInstance).Klass); Exit; end
+
+            var Called := NameOfValueType (A);
+
+            if not TYPE_VALUES.Contains (Called) then
+            begin
+                var Fresh := VmClass (Called);
+
+                Fresh.IsType := True;
+                TYPE_VALUES.Put (Called, Fresh);
+            end
+
+            Push (TYPE_VALUES.Get (Called));
+            Exit;
+        end
+
+        if Name = 'fields' then
+        begin
+            var Shape := Map ();
+
+            if A is VmInstance then (A as VmInstance).Klass.FieldsInto (Shape);
+            else if A is VmClass then (A as VmClass).FieldsInto (Shape);
+
+            Push (Shape);
+            Exit;
+        end
+
         if Name = 'str' then
         begin
             // An instance reads as '<ClassName> instance', which is the
@@ -3411,6 +3852,25 @@ begin
         if Name = 'pos'         then begin Push (Pos (A, B)); Exit; end
         if Name = 'str'         then begin Push (Str (A, B)); Exit; end
         if Name = 'copy'        then begin Push (Copy (A, B)); Exit; end
+
+        // A member read by a computed name [RT-033], which is exactly what
+        // MemberOf already answers for a written one -- property included,
+        // since a property's read IS its call [CLS-017].
+        if Name = 'member'      then begin Push (MemberOf (A, B)); Exit; end
+
+        // An instance of a type a program computed [RT-034].  CallNested puts
+        // the class and its arguments on the stack and runs the frame
+        // CallValue enters, so selection among the constructors, the declared
+        // parameter types and a type value's refusal are all that path's
+        // business rather than this one's.
+        if Name = 'new' then
+        begin
+            if not (B is List) then raise 'New expects a List of arguments.';
+
+            Push (ConstructNested (A, B as List));
+
+            Exit;
+        end
         if Name = 'assertequal' then
         begin
             if not TESTING then raise 'Undefined variable ' + QUOTE
@@ -3428,6 +3888,59 @@ begin
         if Name = 'copy' then begin Push (Copy (A, B, C)); Exit; end
         if Name = 'str'  then begin Push (Str (A, B, C));  Exit; end
         if Name = 'pos'  then begin Push (Pos (A, B, C));  Exit; end
+
+        // A method called by a computed name [RT-033].
+        //
+        // ⚠️ A PROPERTY IS NOT REACHED, because its read IS its call
+        // [CLS-017] -- so calling one here would be a second way to do what
+        // Member does, and a generic writer could 'call' something there is
+        // nothing to write back through.
+        if Name = 'invoke' then
+        begin
+            var Called := ToLower (Str (B));
+
+            if not (C is List) then raise 'Invoke expects a List of arguments.';
+
+            if A is VmInstance and (A as VmInstance).Klass.HasPropertyFolded (Called) then
+                raise QUOTE + Str (B) + QUOTE
+                    + ' is a property; read it rather than calling it.';
+
+            Push (CallNested (A, B, C as List));
+            Exit;
+        end
+
+        // A field written by a computed name [RT-034], honouring the type its
+        // declaration wrote: an assignment is an assignment context [VAL-001],
+        // so WidenedTo is asked exactly what OP_WIDEN asks it.  Nothing
+        // stricter -- the gradual check that would refuse a String into an
+        // Integer field is the TypeChecker's, and it has no text to look at
+        // here.
+        if Name = 'setmember' then
+        begin
+            if not (A is VmInstance) then raise 'Only instances have fields.';
+
+            var That   := A as VmInstance;
+            var Folded := ToLower (Str (B));
+
+            // A property cannot be written, and the TypeChecker refuses the
+            // written form [CLS-017] -- it has nothing to look at where the
+            // name arrives as a value, so the same sentence is raised here.
+            if That.Klass.HasPropertyFolded (Folded) then
+                raise QUOTE + Str (B) + QUOTE + ' is a property of '
+                    + Str (That.Klass.Name) + ' and cannot be assigned.';
+
+            // An instance is CLOSED [0169]: a field the class never declared
+            // cannot be created by writing to it.
+            if not That.Fields.Contains (Folded) then
+                raise 'Undefined property ' + QUOTE + Str (B) + QUOTE + '.';
+
+            var Value := WidenedTo (C, That.Klass.DeclaredTypeOf (Folded));
+
+            That.Fields.Put (Folded, Value);
+            Push (Value);
+
+            Exit;
+        end
     end
 
     // Foreign is the one built-in taking five [RT-001], and a program may call
@@ -3523,9 +4036,20 @@ end
 /// How many arguments each FIXED-arity built-in takes, mirroring the arities
 /// the interpreter registers its natives with.
 ///
-/// The six variadic ones are absent on purpose -- `Str`, `Pos`, `Set`,
-/// `Write`, `WriteLn` and `Buffer` each name the counts they accept, and those
-/// messages are raised above this table rather than derived from it.
+/// The variadic ones are absent on purpose -- `Str`, `Pos`, `Set`, `Write`,
+/// `WriteLn`, `Buffer` and `ErrorLn` each name the counts they accept, and
+/// those messages are raised above this table rather than derived from it.
+/// Seven, where this said six and listed six: `ErrorLn` takes any number
+/// [RT-030] and had been left out of the sentence as well as the table.
+///
+/// ⚠️ A NAME MISSING FROM HERE IS A DIVERGENCE RATHER THAN A GAP, which is
+/// how the reflection six arrived absent: a wrong count answered `No built-in
+/// fields takes 0 arguments.` on the machine where both other processors say
+/// `Expected 1 arguments but got 0.`  Nothing refuses a program for it, so a
+/// built-in added without its arity here is silently wrong -- which is why
+/// `spec/spec.sh` now holds this table and the exemption below against the
+/// names the interpreter registers.
+// spec.sh: variadic = str pos set write writeln buffer errorln
 var BUILTIN_ARITY := ['clock' : 0, 'collect' : 0, 'length' : 1, 'copy' : 3,
                       'toupper' : 1, 'tolower' : 1, 'array' : 1, 'list' : 0,
                       'map' : 0, 'stack' : 0, 'halt' : 1, 'ord' : 1,
@@ -3533,7 +4057,9 @@ var BUILTIN_ARITY := ['clock' : 0, 'collect' : 0, 'length' : 1, 'copy' : 3,
                       'char' : 1, 'textfile' : 0, 'fileexists' : 1,
                       'mkdir' : 1, 'rmdir' : 1, 'chdir' : 1, 'getdir' : 0,
                       'paramcount' : 0, 'paramstr' : 1, 'asserttrue' : 1,
-                      'assertequal' : 2, 'fail' : 1];
+                      'assertequal' : 2, 'fail' : 1,
+                      'fields' : 1, 'typeof' : 1, 'member' : 2, 'invoke' : 3,
+                      'new' : 2, 'setmember' : 3];
 
 /// Returns from the running frame, or stops the machine at the outermost one.
 procedure DoReturn ();
@@ -3710,7 +4236,13 @@ end
 /// Records a field name on the class on top, leaving the class there.
 procedure DoField ();
 begin
-    PeekAt (0).AddField (Constants[ReadIndex ()]);
+    // The constant carries the name in element 0 and the declared type in
+    // element 1, packed as OP_INVOKE_NAMED packs its two names -- two constant
+    // indices would break the invariant that at most one operand per opcode is
+    // widenable.
+    var Declared := Constants[ReadIndex ()] as List;
+
+    PeekAt (0).AddField (Declared[0], Declared[1]);
 end
 
 /// Makes the popped class the parent of the one on top.
@@ -3767,7 +4299,12 @@ begin
     Value   := Pop ();
     Self    := Pop ();
 
-    if not (Self is VmInstance) then raise 'Only an instance has fields.';
+    // 'Only instances have fields.' is the wording, and this said 'Only an
+    // instance has fields.' for the machine's whole life -- the two other
+    // processors agree with each other and no corpus case reached a write to a
+    // non-instance, so the difference was latent until SetMember gave the same
+    // fault a second way in.  A message no case reaches is still a divergence.
+    if not (Self is VmInstance) then raise 'Only instances have fields.';
 
     // An instance is CLOSED [0169]: a field the class never declared cannot be
     // created by writing to it, which is what tells a typo from a new member.
@@ -4239,6 +4776,7 @@ const SEED_RANGE   := 6;   // ['R', 1, 5], a subrange's name and bounds
 const SEED_LIST    := 7;   // [1, 1], a collection with an index 1
 const SEED_ADD     := 8;   // 'Add', a host METHOD a collection answers
 const SEED_NONAMES := 9;   // an empty name list, for a named call of none
+const SEED_FIELD   := 10;  // ['K', ''], a field's name and its declared type
 
 /// A chunk with those constants and one global slot, ready to measure in.
 function MeasuringChunk () : Chunk;
@@ -4271,6 +4809,11 @@ begin
     C.AddConstant ([1, 1]);
     C.AddConstant ('Add');
     C.AddConstant (List ());
+
+    // A field DECLARATION, which OP_FIELD reads as one constant: the name and
+    // the type written on it.  Appended rather than placed beside 'K' because
+    // the test writes every index literally, so inserting would move them all.
+    C.AddConstant (['K', '']);
 
     // One global, so the global opcodes have a slot to name.
     C.QualifiedSlot ('', 'G');
@@ -4618,7 +5161,7 @@ begin
 
     // A CLASS beneath it.
     AssertStackEffectOn (OP_SINGLETON, None, 0, AClass, 1);
-    AssertStackEffectOn (OP_FIELD, [SEED_NAME], 0, AClass, 1);
+    AssertStackEffectOn (OP_FIELD, [SEED_FIELD], 0, AClass, 1);
 
     // A class AND a callable above it.
     var AClassAndBody := [OP_CLASS, SEED_NAME, OP_CONSTANT, SEED_BODY];
@@ -5072,21 +5615,24 @@ begin
     AssertEqual ('declared',  Str (Invoked (Child, 'Take', [Str ('x')])));
 end
 
-test 'A Name That Fits Nothing Is A Selection Failure, Not A Missing Method';
+// A method of ONE signature reports the counts, which is what a subprogram and
+// a constructor always did -- and what a method did not, so one fault read two
+// ways [0049, EXP-014].  A name the chain does not declare stays a different
+// report altogether.
+//
+test 'A Method That Fits Nothing Reports Its Counts, Not A Missing Method';
 begin
     var K := VmClass ('Box');
 
     K.AddMethod ('Take', Answering ('Take', [Str ('Integer')], 'one'));
 
-    // Declared but fitting nothing is a SELECTION failure; a method's wrong
-    // count reports that where a subprogram's reports the counts [0049].
     try
         Invoked (K, 'Take', [1, 2]);
 
         Fail ('expected a selection failure');
     except
         on e : String do
-            AssertEqual ('No matching signature for function.', Str (e));
+            AssertEqual ('Expected 1 arguments but got 2.', Str (e));
     end
 
     // A name no class in the chain declares is a different report.
@@ -5103,7 +5649,7 @@ test 'An Exit Inside A Constructor Answers The Instance';
 begin
     var K := VmClass ('Thing');
 
-    K.AddField ('N');
+    K.AddField ('N', '');
 
     // constructor Init (); begin this.N := 1; Exit; end
     //
@@ -5850,7 +6396,7 @@ end
 test 'An Instance Carries Its Fields And Finds Its Methods';
 begin
     var K := VmClass ('Point');
-    K.AddField ('X');
+    K.AddField ('X', '');
 
     var Setup := VmFunction ('Init', 1);
     Setup.Body.Emit (OP_THIS);
@@ -5899,7 +6445,7 @@ test 'ClassName Answers Ahead Of A Field Of That Name';
 begin
     // The name belongs to the language, so a field cannot take it [CLS-008].
     var K := VmClass ('Thing');
-    K.AddField ('ClassName');
+    K.AddField ('ClassName', '');
 
     var C := Chunk ();
     C.EmitConstant (K);
@@ -6492,7 +7038,7 @@ begin
         Fail ('expected a selection failure');
     except
         on e : String do
-            AssertEqual ('No matching signature for function.', Str (e));
+            AssertEqual ('No matching signature for Counted.', Str (e));
     end
 end
 
@@ -6574,7 +7120,7 @@ begin
         CallWith (Set, 1);
         Fail ('expected a raise');
     except
-        on e : String do AssertEqual ('No matching signature for function.', e);
+        on e : String do AssertEqual ('Expected 2 arguments but got 1.', e);
     end
 end
 
